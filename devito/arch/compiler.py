@@ -497,7 +497,7 @@ class ClangCompiler(Compiler):
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
 
-        if platform is NVIDIAX:
+        if platform is NvidiaDevice:
             self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
@@ -565,7 +565,7 @@ class AOMPCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
-        if platform is NVIDIAX:
+        if platform is NvidiaDevice:
             self.cflags.remove(f'-std={self.std}')
         elif platform is AMDGPUX:
             self.cflags.remove(f'-std={self.std}')
