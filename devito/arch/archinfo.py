@@ -684,6 +684,12 @@ class Platform:
             'max-block-dims': sys.maxsize,
         }
 
+    def supports(self, query, language=None):
+        """
+        Return True if the platform supports a given feature, False otherwise.
+        """
+        return False
+
 
 class Cpu64(Platform):
 
@@ -897,12 +903,6 @@ class Device(Platform):
             'max-block-dims': 3,
         }
 
-    def supports(self, query, language=None):
-        """
-        Check if the device supports a given feature.
-        """
-        return False
-
 
 class IntelDevice(Device):
 
@@ -939,7 +939,7 @@ class NvidiaDevice(Device):
         if query == 'async-loads' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
-        elif query == 'tma' and cc >= 90:
+        elif query in ('tma', 'thread-block-cluster') and cc >= 90:
             # Tensor Memory Accelerator -- introduced in Hopper
             return True
         else:
@@ -953,25 +953,19 @@ class Volta(NvidiaDevice):
 class Ampere(Volta):
 
     def supports(self, query, language=None):
-        if language != 'cuda':
-            return False
-
         if query == 'async-loads':
             return True
-
-        return super().supports(query, language)
+        else:
+            return super().supports(query, language)
 
 
 class Hopper(Ampere):
 
     def supports(self, query, language=None):
-        if language != 'cuda':
-            return False
-
-        if query == 'tma':
+        if query in ('tma', 'thread-block-cluster'):
             return True
-
-        return super().supports(query, language)
+        else:
+            return super().supports(query, language)
 
 
 class Blackwell(Hopper):
