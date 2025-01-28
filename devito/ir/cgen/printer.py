@@ -344,10 +344,10 @@ class BasePrinter(CodePrinter):
         PREC = precedence(expr)
         return self.parenthesize("(%s) ? %s : %s" % (cond, true_expr, false_expr), PREC)
 
-    def _print_UnaryOp(self, expr, op=None):
+    def _print_UnaryOp(self, expr, op=None, parenthesize=False):
         op = op or expr._op
         base = self._print(expr.base)
-        if not expr.base.is_Symbol:
+        if not expr.base.is_Symbol or parenthesize:
             base = f'({base})'
         return f'{op}{base}'
 
