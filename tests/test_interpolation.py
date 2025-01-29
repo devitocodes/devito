@@ -943,6 +943,41 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr1.data, check1))
         assert np.all(np.isclose(sr2.data, check2))
 
+    def test_interpolate_subdomain_sinc(self):
+        """
+        Check that sinc interpolation off a SubDomain works as expected.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd0 = SD1(grid=grid)
+        f0 = Function(name='f0', grid=sd0, space_order=4)
+        f1 = Function(name='f1', grid=sd0, space_order=4)
+
+        xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
+        msh = xmsh*ymsh
+        f0.data[:] = msh[2:-1, -6:]
+        f1.data[:] = msh[:]
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8, interpolation='sinc')
+        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8, interpolation='sinc')
+
+        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                           [1.5, 4.5], [7.5, 8.5]])
+
+        sr0.coordinates.data[:] = coords
+        sr1.coordinates.data[:] = coords
+
+        rec0 = sr0.interpolate(f0)
+        rec1 = sr1.interpolate(f1)
+
+        op = Operator([rec0, rec1])
+
+        op.apply()
+
+        print(sr0.data)
+        print(sr1.data)
+        assert False
+
     def test_inject_subdomain(self):
         """
         Test injection into a Function defined on a SubDomain.
