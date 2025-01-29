@@ -605,29 +605,23 @@ class SubDomain(AbstractSubDomain):
                     # Case ('middle', int, int)
                     side, ltkn, rtkn = v
                     if side != 'middle':
-                        raise ValueError("Expected side 'middle', not `%s`" % side)
-                    sub_dimensions.append(SubDimension.middle('i%s' % k.name,
+                        raise ValueError(f"Expected side 'middle', not `{side}`")
+                    sub_dimensions.append(SubDimension.middle(f'i{k.name}',
                                                               k, ltkn, rtkn))
                     thickness = s-ltkn-rtkn
                     sdshape.append(thickness)
                 except ValueError:
                     side, thickness = v
-                    if side == 'left':
-                        if s-thickness < 0:
-                            raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.left('i%s' % k.name,
-                                                                k, thickness))
-                        sdshape.append(thickness)
-                    elif side == 'right':
-                        if s-thickness < 0:
-                            raise ValueError("Maximum thickness of dimension %s "
-                                             "is %d, not %d" % (k.name, s, thickness))
-                        sub_dimensions.append(SubDimension.right('i%s' % k.name,
-                                                                 k, thickness))
-                        sdshape.append(thickness)
-                    else:
-                        raise ValueError("Expected sides 'left|right', not `%s`" % side)
+                    constructor = {'left': SubDimension.left,
+                                   'right': SubDimension.right}.get(side, None)
+                    if constructor is None:
+                        raise ValueError(f"Expected sides 'left|right', not `{side}`")
+
+                    if s - thickness < 0:
+                        raise ValueError(f"Maximum thickness of dimension {k.name} "
+                                         f"is {s}, not {thickness}")
+                    sub_dimensions.append(constructor(f'i{k.name}', k, thickness))
+                    sdshape.append(thickness)
 
         self._shape = tuple(sdshape)
         self._dimensions = tuple(sub_dimensions)
@@ -659,14 +653,12 @@ class SubDomain(AbstractSubDomain):
         try:
             ret = self.grid._arg_names
         except AttributeError:
-            raise AttributeError("%s is not attached to a Grid and has no _arg_names"
-                                 % self)
+            msg = f"{self} is not attached to a Grid and has no _arg_names"
+            raise AttributeError(msg)
 
         # Names for SubDomain thicknesses
-        thickness_names = []
-        for d in self.dimensions:
-            if d.is_Sub:
-                thickness_names += [k.name for k in d._thickness_map]
+        thickness_names = tuple([k.name for k in d._thickness_map]
+                                for d in self.dimensions if d.is_Sub)
 
         ret += tuple(thickness_names)
 
@@ -675,10 +667,7 @@ class SubDomain(AbstractSubDomain):
     def __getstate__(self):
         state = self.__dict__.copy()
         # A SubDistributor wraps an MPI communicator, which can't and shouldn't be pickled
-        try:
-            state.pop('_distributor')
-        except KeyError:
-            pass
+        state.pop('_distributor', None)
         return state
 
     def __setstate__(self, state):

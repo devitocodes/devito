@@ -563,13 +563,6 @@ class Operator(Callable):
         discretizations = {getattr(kwargs.get(p.name, p), 'grid', None)
                            for p in self.input} - {None}
 
-        # Remove subgrids if multiple Grids
-        # if len(discretizations) > 1:
-        #     # NOTE: Fairly sure this is unnecessary
-        #     discretizations = {g for g in discretizations
-        #                        if not any(d.is_Derived for d in g.dimensions)
-        #                        or g.is_SubDomain}
-
         # There can only be one Grid from which DiscreteFunctions were created
         grids = {i.root for i in discretizations}
 

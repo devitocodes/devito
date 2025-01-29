@@ -196,7 +196,7 @@ class AbstractDistributor(ABC):
             among the Distributor Dimensions.
         """
         if dim not in self.dimensions:
-            if strict is True:
+            if strict:
                 raise ValueError("`%s` must be one of the Distributor dimensions" % dim)
             else:
                 return args[0]
@@ -525,7 +525,10 @@ class SubDistributor(DenseDistributor):
         """The parent distributor of this SubDistributor."""
         return self._parent
 
-    p = parent  # Shortcut for convenience
+    @property
+    def p(self):
+        """Shortcut for `SubDistributor.parent`"""
+        return self.parent
 
     @property
     def par_slices(self):

@@ -1042,6 +1042,35 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(f0.data, check0))
         assert np.all(np.isclose(f1.data, check1))
 
+    def test_inject_subdomain_sinc(self):
+        """
+        Check sinc injection into a Function defined on a SubDomain functions
+        as expected.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sd0 = SD6(grid=grid)
+        sd1 = SD7(grid=grid)
+
+        f0 = Function(name='f0', grid=sd0, space_order=2)
+        f1 = Function(name='f1', grid=sd1, space_order=2)
+        f2 = Function(name='f2', grid=grid, space_order=2)
+
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=5, interpolation='sinc', r=2)
+
+        coords = np.array([[2.5, 6.5], [3.5, 4.5], [6.0, 6.], [5.5, 4.5], [4.5, 6.]])
+
+        sr0.coordinates.data[:] = coords
+
+        src0 = sr0.inject(f0, Float(1.))
+        src1 = sr0.inject(f1, Float(1.))
+        src2 = sr0.inject(f2, Float(1.))
+
+        op = Operator([src0, src1, src2])
+        op.apply()
+
+        assert np.all(np.isclose(f0.data, f2.data[:9, -9:]))
+        assert np.all(np.isclose(f1.data, f2.data[1:-1, 1:-1]))
+
     @pytest.mark.parallel(mode=4)
     def test_interpolate_subdomain_mpi(self, mode):
         """

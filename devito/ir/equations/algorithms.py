@@ -169,14 +169,14 @@ def make_dimension_map(expr):
     """
     try:
         dimension_map = {**expr.subdomain.dimension_map}
-
+    except AttributeError:
+        # Some Relationals may be pure SymPy objects, thus lacking the SubDomain
+        dimension_map = {}
+    else:
         functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
         for f in functions:
             dimension_map.update({d: expr.subdomain.dimension_map[d.root]
                                   for d in f.space_dimensions if d.is_Sub})
-    except AttributeError:
-        # Some Relationals may be pure SymPy objects, thus lacking the SubDomain
-        dimension_map = {}
 
     return frozendict(dimension_map)
 
