@@ -18,7 +18,7 @@ RUN apt-get update && \
 # Install for basic base not containing it
 RUN apt-get install -y vim wget git flex libnuma-dev tmux \
         numactl hwloc curl \
-        autoconf libtool build-essential procps
+        autoconf libtool build-essential procps software-properties-common
 
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
@@ -37,6 +37,12 @@ CMD ["/bin/bash"]
 ##############################################################
 FROM base as gcc
 
+# Install gcc 13 for better hardware and software support
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test -y && apt update && \
+    apt install gcc-13 g++-13 -y && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+
 ARG OMPI_BRANCH="v4.1.4"
 # Install OpenMPI
 RUN mkdir -p /deps && mkdir -p /opt/openmpi && cd /deps && \
@@ -47,7 +53,7 @@ RUN mkdir -p /deps && mkdir -p /opt/openmpi && cd /deps && \
                  --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
     make -j ${nproc} && \
     make install && \
-    rm -rf /deps/openmpi
+    cd /deps && rm -rf /deps/openmpi
 
 # Set OpenMPI path
 ENV PATH=${PATH}:/opt/openmpi/bin
