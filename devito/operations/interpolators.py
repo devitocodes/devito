@@ -221,6 +221,8 @@ class WeightedInterpolator(GenericInterpolator):
                                 -self.r+1, self.r, 2*self.r, parent)
                 for d in gdims]
 
+        self._cdims = dims  # FIXME: Bad name
+
         # Make radius dimension conditional to avoid OOB
         rdims = []
         pos = self.sfunction._position_map.values()
@@ -538,21 +540,22 @@ of the SincInterpolator that uses i0 (Bessel function).
 
     @cached_property
     def interpolation_coeffs(self):
-        coeffs = {}
+        coeffs = []
         shape = (self.sfunction.npoint, 2 * self.r)
-        for r in self._rdim:
-            dimensions = (self.sfunction._sparse_dim, r.parent)
+        for r in self._cdims:
+            dimensions = (self.sfunction._sparse_dim, r)
             sf = SubFunction(name="wsinc%s" % r.name, dtype=self.sfunction.dtype,
                              shape=shape, dimensions=dimensions,
                              space_order=0, alias=self.sfunction.alias,
                              parent=None)
-            coeffs[r] = sf
-        return coeffs
+            coeffs.append(sf)
+        return tuple(coeffs)
 
     @memoized_meth
     def _weights(self, subdomain=None):
+        rdims = self._rdim(subdomain=subdomain)
         return Mul(*[w._subs(rd, rd-rd.parent.symbolic_min)
-                     for (rd, w) in self.interpolation_coeffs.items()])
+                     for (rd, w) in zip(rdims, self.interpolation_coeffs)])
 
     def _arg_defaults(self, coords=None, sfunc=None):
         args = {}
@@ -565,12 +568,12 @@ of the SincInterpolator that uses i0 (Bessel function).
         coords = coords - np.floor(coords)
 
         # Precompute sinc
-        for j, r in enumerate(self._rdim):
+        for j in range(len(self._gdims)):
             data = np.zeros((coords.shape[0], 2*self.r), dtype=sfunc.dtype)
             for ri in range(2*self.r):
                 rpos = ri - self.r + 1 - coords[:, j]
                 num = i0(b*np.sqrt(1 - (rpos/self.r)**2))
                 data[:, ri] = num / b0 * np.sinc(rpos)
-            args[self.interpolation_coeffs[r].name] = data
+            args[self.interpolation_coeffs[j].name] = data
 
         return args
