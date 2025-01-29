@@ -888,6 +888,22 @@ class SD5(SubDomain):
         return {x: ('middle', 4, 3), y: ('middle', 4, 3)}
 
 
+class SD6(SubDomain):
+    name = 'sd6'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('left', 9), y: ('right', 9)}
+
+
+class SD7(SubDomain):
+    name = 'sd7'
+
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ('middle', 1, 1), y: ('middle', 1, 1)}
+
+
 class TestSubDomainInterpolation:
     """
     Tests for interpolation onto and off of Functions defined on
@@ -948,35 +964,39 @@ class TestSubDomainInterpolation:
         Check that sinc interpolation off a SubDomain works as expected.
         """
         grid = Grid(shape=(11, 11), extent=(10., 10.))
-        sd0 = SD1(grid=grid)
-        f0 = Function(name='f0', grid=sd0, space_order=4)
-        f1 = Function(name='f1', grid=sd0, space_order=4)
+        sd0 = SD6(grid=grid)
+        sd1 = SD7(grid=grid)
+
+        f0 = Function(name='f0', grid=sd0, space_order=2)
+        f1 = Function(name='f1', grid=sd1, space_order=2)
+        f2 = Function(name='f2', grid=grid, space_order=2)
 
         xmsh, ymsh = np.meshgrid(np.arange(11), np.arange(11))
         msh = xmsh*ymsh
-        f0.data[:] = msh[2:-1, -6:]
-        f1.data[:] = msh[:]
+        f0.data[:] = msh[:9, -9:]
+        f1.data[:] = msh[1:-1, 1:-1]
+        f2.data[:] = msh[:]
 
-        sr0 = SparseFunction(name='sr0', grid=grid, npoint=8, interpolation='sinc')
-        sr1 = SparseFunction(name='sr1', grid=grid, npoint=8, interpolation='sinc')
+        sr0 = SparseFunction(name='sr0', grid=grid, npoint=5, interpolation='sinc', r=2)
+        sr1 = SparseFunction(name='sr1', grid=grid, npoint=5, interpolation='sinc', r=2)
+        sr2 = SparseFunction(name='sr2', grid=grid, npoint=5, interpolation='sinc', r=2)
 
-        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
-                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
-                           [1.5, 4.5], [7.5, 8.5]])
+        coords = np.array([[2.5, 6.5], [3.5, 4.5], [6., 6.], [5.5, 4.5], [4.5, 6.]])
 
         sr0.coordinates.data[:] = coords
         sr1.coordinates.data[:] = coords
+        sr2.coordinates.data[:] = coords
 
         rec0 = sr0.interpolate(f0)
         rec1 = sr1.interpolate(f1)
+        rec2 = sr2.interpolate(f2)
 
-        op = Operator([rec0, rec1])
+        op = Operator([rec0, rec1, rec2])
 
         op.apply()
 
-        print(sr0.data)
-        print(sr1.data)
-        assert False
+        assert np.all(np.isclose(sr0.data, sr2.data))
+        assert np.all(np.isclose(sr1.data, sr2.data))
 
     def test_inject_subdomain(self):
         """
