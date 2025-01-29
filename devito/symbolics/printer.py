@@ -44,7 +44,10 @@ class CodePrinter(C99CodePrinter):
         return self._settings['compiler']
 
     def single_prec(self, expr=None):
+        # Extract the dtype of the expression
         dtype = sympy_dtype(expr) if expr is not None else self.dtype
+        # Check that the dtype is a floating point type
+        dtype = dtype if np.issubdtype(dtype, np.floating) else self.dtype
         return dtype in [np.float32, np.float16]
 
     def parenthesize(self, item, level, strict=False):
@@ -173,12 +176,12 @@ class CodePrinter(C99CodePrinter):
         # AOMPCC errors with abs, always use fabs
         if isinstance(self.compiler, AOMPCompiler):
             return "fabs(%s)" % self._print(expr.args[0])
-        # Check if argument is an integer
-        if has_integer_args(*expr.args[0].args):
+        # Check if argument (always exactly one!) is an integer
+        if has_integer_args(expr.args[0]):
             func = "abs"
-        elif self.single_prec(expr):
+        elif self.single_prec(expr.args[0]):
             func = "fabsf"
-        elif any([isinstance(a, Real) for a in expr.args[0].args]):
+        elif isinstance(expr.args[0], Real):
             # The previous condition isn't sufficient to detect case with
             # Python `float`s in that case, fall back to the "default"
             func = "fabsf" if self.single_prec() else "fabs"
