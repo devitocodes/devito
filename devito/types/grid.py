@@ -414,6 +414,8 @@ class AbstractSubDomain(CartesianDiscretization):
         # All other attributes get initialized upon `__subdomain_finalize__`
         super().__init__()
 
+        self._distributor = None
+
         self._grid = kwargs.get('grid')
         if self.grid:
             self.__subdomain_finalize__()
