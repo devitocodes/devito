@@ -207,6 +207,15 @@ class WeightedInterpolator(GenericInterpolator):
     def r(self):
         return self.sfunction.r
 
+    @cached_property
+    def _cdim(self):
+        """Base CustomDimensions used to construct _rdim"""
+        parent = self.sfunction._sparse_dim
+        dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
+                                -self.r+1, self.r, 2*self.r, parent)
+                for d in self._gdims]
+        return dims
+
     @memoized_meth
     def _rdim(self, subdomain=None):
         # If the interpolation operation is limited to a SubDomain,
@@ -216,18 +225,11 @@ class WeightedInterpolator(GenericInterpolator):
         else:
             gdims = self._gdims
 
-        parent = self.sfunction._sparse_dim
-        dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.root.name),
-                                -self.r+1, self.r, 2*self.r, parent)
-                for d in gdims]
-
-        self._cdims = dims  # FIXME: Bad name
-
         # Make radius dimension conditional to avoid OOB
         rdims = []
         pos = self.sfunction._position_map.values()
 
-        for (d, rd, p) in zip(gdims, dims, pos):
+        for (d, rd, p) in zip(gdims, self._cdim, pos):
             # Add conditional to avoid OOB
             lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
             ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
@@ -377,7 +379,8 @@ class WeightedInterpolator(GenericInterpolator):
         rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
         summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
         # Substitute coordinate base symbols into the interpolation coefficients
-        summands.extend([Inc(rhs, (self._weights(subdomain=subdomain) * _expr).xreplace(idx_subs),
+        weights = self._weights(subdomain=subdomain)
+        summands.extend([Inc(rhs, (weights * _expr).xreplace(idx_subs),
                              implicit_dims=implicit_dims)])
 
         # Write/Incr `self`
@@ -429,7 +432,8 @@ class WeightedInterpolator(GenericInterpolator):
         # Move all temporaries inside inner loop to improve parallelism
         # Can only be done for inject as interpolation need a temporary
         # summing temp that wouldn't allow collapsing
-        implicit_dims = implicit_dims + tuple(r.parent for r in self._rdim(subdomain=subdomain))
+        implicit_dims = implicit_dims + tuple(r.parent for r in
+                                              self._rdim(subdomain=subdomain))
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
@@ -458,8 +462,9 @@ class LinearInterpolator(WeightedInterpolator):
 
     @memoized_meth
     def _weights(self, subdomain=None):
+        rdim = self._rdim(subdomain=subdomain)
         c = [(1 - p) * (1 - r) + p * r
-             for (p, d, r) in zip(self._point_symbols, self._gdims, self._rdim(subdomain=subdomain))]
+             for (p, d, r) in zip(self._point_symbols, self._gdims, rdim)]
         return Mul(*c)
 
     @cached_property
@@ -542,7 +547,7 @@ of the SincInterpolator that uses i0 (Bessel function).
     def interpolation_coeffs(self):
         coeffs = []
         shape = (self.sfunction.npoint, 2 * self.r)
-        for r in self._cdims:
+        for r in self._cdim:
             dimensions = (self.sfunction._sparse_dim, r)
             sf = SubFunction(name="wsinc%s" % r.name, dtype=self.sfunction.dtype,
                              shape=shape, dimensions=dimensions,
