@@ -3,6 +3,8 @@ Machinery to lower np.dtypes and ctypes into strings
 """
 
 import ctypes
+from functools import reduce
+from operator import mul
 
 import numpy as np
 from cgen import dtype_to_ctype as cgen_dtype_to_ctype
@@ -11,7 +13,7 @@ from .utils import as_tuple
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
-           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_alloc_ctype', 'dtype_to_mpitype',
+           'dtype_to_cstr', 'dtype_to_ctype', 'infer_datasize', 'dtype_to_mpitype',
            'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
            'is_external_ctype', 'infer_dtype', 'CustomDtype']
 
@@ -152,30 +154,31 @@ def dtype_to_ctype(dtype):
         return np.ctypeslib.as_ctypes_type(dtype)
 
 
-def dtype_alloc_ctype(dtype):
+def infer_datasize(dtype, shape):
     """
     Translate numpy.dtype to (ctype, int): type and scale for correct C allocation size.
     """
+    datasize = int(reduce(mul, shape))
     if isinstance(dtype, CustomDtype):
-        return dtype, 1
+        return dtype, datasize
 
     try:
-        return ctypes_vector_mapper[dtype], 1
+        return ctypes_vector_mapper[dtype], datasize
     except KeyError:
         pass
 
     if issubclass(dtype, ctypes._SimpleCData):
-        return dtype, 1
+        return dtype, datasize
 
     if dtype == np.float16:
         # Allocate half float as unsigned short
-        return ctypes.c_uint16, 1
+        return ctypes.c_uint16, datasize
 
     if np.issubdtype(dtype, np.complexfloating):
         # For complex float, allocate twice the size of real/imaginary part
-        return np.ctypeslib.as_ctypes_type(dtype(0).real.__class__), 2
+        return np.ctypeslib.as_ctypes_type(dtype(0).real.__class__), 2 * datasize
 
-    return np.ctypeslib.as_ctypes_type(dtype), 1
+    return np.ctypeslib.as_ctypes_type(dtype), datasize
 
 
 def dtype_to_mpitype(dtype):
