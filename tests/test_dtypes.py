@@ -131,7 +131,7 @@ def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) ->
     op = Operator(eq, **kwargs)
 
     # Check that the complex header is included <=> complex dtypes are present
-    header: str = _get_language(**kwargs).get('header-complex')
+    header: str = _get_language(**kwargs).get('includes-complex')
     if np.issubdtype(dtype, np.complexfloating):
         assert header in op._includes
     else:
