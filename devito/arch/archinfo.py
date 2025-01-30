@@ -270,7 +270,7 @@ def get_gpu_info():
         for line in lines:
             if 'GPU' in line:
                 # Product
-                pattern = r'GPU\[(\d+)\].*?Card series:\s*(.*?)\s*$'
+                pattern = r'GPU\[(\d+)\].*?Card [sS]eries:\s*(.*?)\s*$'
                 match1 = re.match(pattern, line)
 
                 if match1:
@@ -280,7 +280,7 @@ def get_gpu_info():
                     gpu_infos[gid]['product'] = match1.group(2)
 
                 # Model
-                pattern = r'GPU\[(\d+)\].*?Card model:\s*(.*?)\s*$'
+                pattern = r'GPU\[(\d+)\].*?Card [mM]odel:\s*(.*?)\s*$'
                 match2 = re.match(pattern, line)
 
                 if match2:

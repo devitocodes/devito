@@ -146,7 +146,6 @@ FROM sdk-base as amdclang
 # MPI env
 ENV OMPI_CC="amdclang"
 ENV OMPI_CXX="amdclang++"
-ENV MPICC="amdclang"
 
 # Devito env
 ENV DEVITO_ARCH="aomp"
@@ -162,7 +161,6 @@ FROM sdk-base as hip
 # MPI env
 ENV OMPI_CC="hipcc"
 ENV OMPI_CXX="hipcc"
-ENV MPICC="MPICC"
 
 # Devito env
 ENV DEVITO_ARCH="hip"
