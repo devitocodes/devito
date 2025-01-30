@@ -987,6 +987,14 @@ class TestSubDomainInterpolation:
         sr1.coordinates.data[:] = coords
         sr2.coordinates.data[:] = coords
 
+        print(coords)
+        print()
+        print(f0.data)
+        print()
+        print(f1.data)
+        print()
+        print(f2.data)
+
         rec0 = sr0.interpolate(f0)
         rec1 = sr1.interpolate(f1)
         rec2 = sr2.interpolate(f2)
