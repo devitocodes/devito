@@ -3,12 +3,12 @@
 # Based on  https://github.com/amd/InfinityHub-CI/tree/main/base-gpu-mpi-rocm-docker
 ##############################################################
 
-ARG ROCM_VERSION=5.5.1
+ARG ROCM_VERSION=6.3.2
 
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
 
-ARG UCX_BRANCH="v1.13.1"
-ARG OMPI_BRANCH="v4.1.4"
+ARG UCX_BRANCH="v1.14.1"
+ARG OMPI_BRANCH="v5.0.6"
 
 # Update and Install basic Linux development tools
 RUN rm /etc/apt/sources.list.d/* \
@@ -46,7 +46,7 @@ ENV ROCM_HOME=/opt/rocm \
     OMPI_HOME=/opt/ompi
 
 # Until rocm base has it fixed
-RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch
+RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch | echo "offload-arch already exis"
 
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
@@ -73,10 +73,14 @@ RUN cd /tmp/ \
         --without-knem \
         --without-xpmem  \
         --without-cuda \
+        --without-java \
+        --enable-mt \
         --enable-optimizations  \
         --disable-logging \
         --disable-debug \
         --disable-examples \
+        --disable-assertions \
+        --disable-params-check \
     && make -j ${nproc} \
     && make install
 
@@ -87,16 +91,21 @@ RUN cd /tmp \
     && ./autogen.pl \
     && mkdir build \
     && cd build \
-    && ../configure --prefix=$OMPI_HOME --with-ucx=$UCX_HOME \
-        CC=amdclang CXX=amdclang++ FC=amdflang F90=amdflang \
-        --enable-mca-no-build=btl-uct  \
+    && ../configure CC=amdclang CXX=amdclang++ FC=amdflang F90=amdflang \
+        --prefix=$OMPI_HOME \
+        --with-ucx=$UCX_HOME \
+        --with-rocm=$ROCM_HOME \
+        --enable-mca-no-build=btl-uct \
         --without-verbs \
-        --with-pmix  \
-        --enable-mpi \
-        --enable-mpi-fortran=yes \
+        --enable-mpi1-compatibility \
+        --enable-mpi-fortran=no \
         --disable-debug \
     && make -j ${nproc} \
     && make install
+
+# UCX config
+ENV UCX_WARN_UNUSED_ENV_VARS=n
+ENV UCX_TLS=sm,self,rocm,rocm_copy,rocm_ipc
 
 # Cleanup
 RUN rm -rf /tmp/ucx && rm -rf /tmp/ompi

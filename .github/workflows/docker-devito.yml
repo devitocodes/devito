@@ -20,26 +20,26 @@ jobs:
         include:
           - base: 'bases:nvidia-nvc'
             tag: 'nvidia-nvc'
-            flag: '--gpus all'
+            flag: '--init --gpus all'
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
           - base: 'bases:amd'
             tag: 'amd'
-            flag: '--network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
+            flag: '--init --network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
             test: 'tests/test_gpu_openmp.py'
             runner: ["self-hosted", "amdgpu"]
 
           - base: 'bases:cpu-gcc'
             tag: "gcc"
-            flag: ''
+            flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
           - base: 'bases:cpu-icx'
             tag: "icx"
-            flag: ''
+            flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 

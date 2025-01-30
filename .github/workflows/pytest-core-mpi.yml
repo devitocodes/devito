@@ -87,9 +87,9 @@ jobs:
       
       - name: Test with pytest
         run: |
-          docker run --rm -t -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e OMP_NUM_THREADS=1 --name testrun devito_img pytest tests/test_mpi.py
+          docker run --init -t --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e OMP_NUM_THREADS=1 --name testrun devito_img pytest tests/test_mpi.py
 
       - name: Test examples with MPI
         run: |
-          docker run --rm -t ${{ matrix.mpiflag }} -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/acoustic
-          docker run --rm -t -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/tti
+          docker run --init -t --rm ${{ matrix.mpiflag }} -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/acoustic
+          docker run --init -t --rm -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/tti
