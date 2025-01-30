@@ -185,10 +185,10 @@ class Compiler(GCCToolchain):
     _cstd = 'c99'
 
     def __init__(self, **kwargs):
-        _name = kwargs.pop('name', self.__class__.__name__)
-        if isinstance(_name, Compiler):
-            _name = _name.name
-        self._name = _name
+        name = kwargs.pop('name', self.__class__.__name__)
+        if isinstance(name, Compiler):
+            name = name.name
+        self._name = name
 
         super().__init__(**kwargs)
 
