@@ -75,7 +75,7 @@ jobs:
     - name: Set run prefix
       run: |
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py39' ]; then
-              echo "RUN_CMD=docker run --init --rm -t --name testrun devito_img" >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --init -t --rm --name testrun devito_img" >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
           fi
