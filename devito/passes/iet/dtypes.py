@@ -30,7 +30,7 @@ def _complex_includes(iet: Callable, lang: type[LangBB], compiler: Compiler,
         return iet, {}
 
     metadata = {}
-    lib = as_tuple(lang['header-complex'])
+    lib = as_tuple(lang['includes-complex'])
 
     if lang.get('complex-namespace') is not None:
         metadata['namespaces'] = lang['complex-namespace']
