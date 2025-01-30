@@ -525,7 +525,10 @@ class SubDistributor(DenseDistributor):
         """The parent distributor of this SubDistributor."""
         return self._parent
 
-    p = parent  # Shortcut for convenience
+    @property
+    def p(self):
+        """Shortcut for `SubDistributor.parent`"""
+        return self.parent
 
     @property
     def par_slices(self):
