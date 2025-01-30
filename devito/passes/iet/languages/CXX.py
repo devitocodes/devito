@@ -61,7 +61,7 @@ class CXXBB(LangBB):
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k)),
         # Complex and float16
-        'header-complex': 'complex',
+        'includes-complex': 'complex',
         'complex-namespace': [UsingNamespace('std::complex_literals')],
         'def-complex': std_arith,
     }

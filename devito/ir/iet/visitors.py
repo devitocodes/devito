@@ -715,7 +715,15 @@ class CGen(Visitor):
             efuncs.extend([self._visit(i), blankline])
 
         # Definitions
-        headers = [c.Define(*i) for i in o._headers] + [blankline]
+        headers = []
+        for h in o._headers:
+            try:
+                headers.append(c.Define(*h))
+            except TypeError:
+                # Plain string
+                headers.append(c.Line(h))
+        headers = headers + [blankline]
+        # headers = [c.Define(*i) for i in o._headers] + [blankline]
 
         # Header files
         includes = self._operator_includes(o) + [blankline]
