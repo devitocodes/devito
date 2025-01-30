@@ -1057,7 +1057,7 @@ class TestSubDomainInterpolation:
 
         sr0 = SparseFunction(name='sr0', grid=grid, npoint=5, interpolation='sinc', r=2)
 
-        coords = np.array([[2.5, 6.5], [3.5, 4.5], [6., 6.], [5.5, 4.5], [4.5, 6.]])
+        coords = np.array([[2.5, 6.5], [3.5, 4.5], [6.0, 6.0], [5.5, 4.5], [4.5, 6.0]])
 
         sr0.coordinates.data[:] = coords
 
