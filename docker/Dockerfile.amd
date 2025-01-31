@@ -7,8 +7,8 @@ ARG ROCM_VERSION=6.3.2
 
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
 
-ARG UCX_BRANCH="v1.14.1"
-ARG OMPI_BRANCH="v5.0.6"
+ARG UCX_BRANCH="v1.16.0"
+ARG OMPI_BRANCH="v5.0.x"
 
 # Update and Install basic Linux development tools
 RUN rm /etc/apt/sources.list.d/* \
@@ -51,16 +51,6 @@ RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch | echo "off
 # Install tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
-# Adding rocm/cmake to the Environment 
-ENV PATH=$ROCM_HOME/bin:$ROCM_HOME/profiler/bin:$ROCM_HOME/opencl/bin:/opt/cmake/bin:$PATH \
-    LD_LIBRARY_PATH=$ROCM_HOME/lib:$ROCM_HOME/lib64:$ROCM_HOME/llvm/lib:$LD_LIBRARY_PATH \
-    C_INCLUDE_PATH=$ROCM_HOME/include:$C_INCLUDE_PATH \
-    CPLUS_INCLUDE_PATH=$ROCM_HOME/include:$CPLUS_INCLUDE_PATH \
-    CPATH=$ROCM_HOME/include:$CPATH \
-    INCLUDE=$ROCM_HOME/include:$INCLUDE
-
-WORKDIR /tmp
-
 # Install UCX
 RUN cd /tmp/ \
     && git clone --depth 1 https://github.com/openucx/ucx.git -b ${UCX_BRANCH} \
@@ -100,6 +90,8 @@ RUN cd /tmp \
         --enable-mpi1-compatibility \
         --enable-mpi-fortran=no \
         --disable-debug \
+        --disable-oshmem \
+        --disable-man-pages \
     && make -j ${nproc} \
     && make install
 
