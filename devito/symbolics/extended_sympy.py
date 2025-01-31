@@ -776,9 +776,12 @@ class SizeOf(DefFunction):
         stars = stars or ''
         if not isinstance(intype, (str, ReservedWord)):
             ctype = dtype_to_ctype(intype)
-            if ctype in ctypes_vector_mapper.values():
-                idx = list(ctypes_vector_mapper.values()).index(ctype)
-                intype = list(ctypes_vector_mapper.keys())[idx]
+            for k, v in ctypes_vector_mapper.items():
+                if ctype is v:
+                    intype = k
+                    break
+            else:
+                intype = ctypes_to_cstr(ctype)
 
         newobj = super().__new__(cls, 'sizeof', arguments=f'{intype}{stars}', **kwargs)
         newobj.stars = stars
