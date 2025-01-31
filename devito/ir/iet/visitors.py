@@ -244,12 +244,7 @@ class CGen(Visitor):
 
         if (obj._mem_stack or obj._mem_constant) and mode == 1:
             strtype = obj._C_typedata
-            if obj._mem_shared_dynamic:
-                strshape = '[]'
-                strshape += ''.join('[%s]' % ccode(i)
-                                    for i in obj.symbolic_shape[1:])
-            else:
-                strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
+            strshape = ''.join('[%s]' % ccode(i) for i in obj.symbolic_shape)
         else:
             strtype = ctypes_to_cstr(obj._C_ctype)
             strshape = ''
