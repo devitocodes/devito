@@ -718,9 +718,13 @@ class Callable(Node):
     parameters : list of Basic, optional
         The objects in input to the Callable.
     prefix : list of str, optional
-        Qualifiers to prepend to the Callable signature. None by defaults.
+        Qualifiers to prepend to the Callable signature. None by default.
     templates : list of Basic, optional
         The template parameters of the Callable.
+    attributes : list of str, optional
+        Additional attributes to append to the Callable signature. An
+        attributes is one or more keywords that appear in between the
+        return type and the function name. None by default.
     """
 
     is_Callable = True
@@ -728,7 +732,7 @@ class Callable(Node):
     _traversable = ['body']
 
     def __init__(self, name, body, retval, parameters=None, prefix=None,
-                 templates=None):
+                 templates=None, attributes=None):
         self.name = name
         if not isinstance(body, CallableBody):
             self.body = CallableBody(body)
@@ -738,6 +742,7 @@ class Callable(Node):
         self.prefix = as_tuple(prefix)
         self.parameters = as_tuple(parameters)
         self.templates = as_tuple(templates)
+        self.attributes = as_tuple(attributes)
 
     def __repr__(self):
         param_types = [ctypes_to_cstr(i._C_ctype) for i in self.parameters]

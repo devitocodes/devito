@@ -159,9 +159,9 @@ class DeviceFunction(Callable):
     """
 
     def __init__(self, name, body, retval='void', parameters=None,
-                 prefix='__global__', templates=None):
+                 prefix='__global__', templates=None, attributes=None):
         super().__init__(name, body, retval, parameters=parameters, prefix=prefix,
-                         templates=templates)
+                         templates=templates, attributes=attributes)
 
 
 class DeviceCall(Call):
