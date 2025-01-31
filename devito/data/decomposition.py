@@ -221,7 +221,7 @@ class Decomposition(tuple):
         glb_min = 0
         glb_max = self.glb_max - self.glb_min
 
-        base = loc_abs_min if rel is True else 0
+        base = loc_abs_min if rel else 0
         top = loc_abs_max
 
         if len(args) == 1:
