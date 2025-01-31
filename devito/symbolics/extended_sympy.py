@@ -440,9 +440,9 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             if not isinstance(base, sympy.Basic):
                 raise ValueError("`base` must be of type sympy.Basic")
 
-        index = tuple(sympify(i) for i in as_tuple(index))
+        index = Tuple(*[sympify(i) for i in as_tuple(index)])
 
-        obj = sympy.Expr.__new__(cls, base, *index)
+        obj = sympy.Expr.__new__(cls, base, index)
         obj._base = base
         obj._index = index
 
