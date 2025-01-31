@@ -196,7 +196,7 @@ class AbstractDistributor(ABC):
             among the Distributor Dimensions.
         """
         if dim not in self.dimensions:
-            if strict is True:
+            if strict:
                 raise ValueError("`%s` must be one of the Distributor dimensions" % dim)
             else:
                 return args[0]
