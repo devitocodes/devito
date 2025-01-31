@@ -614,6 +614,9 @@ class CGen(Visitor):
                 body.extend(as_tuple(v))
         return c.Collection(body)
 
+    def visit_Using(self, o):
+        return c.Statement(f'using {str(o.name)}')
+
     def visit_UsingNamespace(self, o):
         return c.Statement(f'using namespace {str(o.namespace)}')
 

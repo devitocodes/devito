@@ -30,7 +30,7 @@ __all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
            'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
            'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
            'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
-           'CallableBody', 'Transfer']
+           'Using', 'CallableBody', 'Transfer']
 
 # First-class IET nodes
 
@@ -1215,6 +1215,19 @@ class Prodder(Call):
     @property
     def periodic(self):
         return self._periodic
+
+
+class Using(Node):
+
+    """
+    A C++ using directive.
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return "<Using(%s)>" % self.name
 
 
 class UsingNamespace(Node):

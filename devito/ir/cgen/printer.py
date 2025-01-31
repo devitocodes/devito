@@ -98,8 +98,15 @@ class BasePrinter(CodePrinter):
 
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
-            return "(%s)" % self._print(item)
+            return f"({self._print(item)})"
         return super().parenthesize(item, level, strict=strict)
+
+    def _print_PyCPointerType(self, expr):
+        ctype = f'{self._print_type(expr._type_)}'
+        if ctype.endswith('*'):
+            return f'{ctype}*'
+        else:
+            return f'{ctype} *'
 
     def _print_type(self, expr):
         try:
@@ -120,7 +127,7 @@ class BasePrinter(CodePrinter):
             return super()._print_Function(expr)
 
     def _print_CondEq(self, expr):
-        return "%s == %s" % (self._print(expr.lhs), self._print(expr.rhs))
+        return f"{self._print(expr.lhs)} == {self._print(expr.rhs)}"
 
     def _print_Indexed(self, expr):
         """
@@ -131,7 +138,7 @@ class BasePrinter(CodePrinter):
         U[t,x,y,z] -> U[t][x][y][z]
         """
         inds = ''.join(['[' + self._print(x) + ']' for x in expr.indices])
-        return '%s%s' % (self._print(expr.base.label), inds)
+        return f'{self._print(expr.base.label)}{inds}'
 
     def _print_FIndexed(self, expr):
         """
@@ -146,7 +153,7 @@ class BasePrinter(CodePrinter):
             label = expr.accessor.label
         except AttributeError:
             label = expr.base.label
-        return '%s(%s)' % (self._print(label), inds)
+        return f'{self._print(label)}({inds})'
 
     def _print_Rational(self, expr):
         """Print a Rational as a C-like float/float division."""
@@ -155,10 +162,8 @@ class BasePrinter(CodePrinter):
         # to be 32-bit floats.
         # http://en.cppreference.com/w/cpp/language/floating_literal
         p, q = int(expr.p), int(expr.q)
-        if self.dtype == np.float64:
-            return '%d.0/%d.0' % (p, q)
-        else:
-            return '%d.0F/%d.0F' % (p, q)
+        prec = self.prec_literal(expr)
+        return f'{p}.0{prec}/{q}.0{prec}'
 
     def _print_math_func(self, expr, nest=False, known=None):
         cls = type(expr)
@@ -208,16 +213,22 @@ class BasePrinter(CodePrinter):
 
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""
-        args = ['(%s)' % self._print(a) for a in expr.args]
+        args = [f'({self._print(a)})' for a in expr.args]
         return '%'.join(args)
 
     def _print_Mul(self, expr):
-        term = super()._print_Mul(expr)
-        # avoid (-1)*...
-        term = term.replace("(-1)*", "-")
-        # Avoid (-1) / ...
-        term = term.replace("(-1)/", f"-{self._prec(expr)(1)}/")
-        return term
+        args = [a for a in expr.args if a != -1]
+        neg = (len(expr.args) - len(args)) % 2
+
+        if len(args) > 1:
+            term = super()._print_Mul(expr.func(*args, evaluate=False))
+        else:
+            term = self.parenthesize(args[0], precedence(expr))
+
+        if neg:
+            return f'-{term}'
+        else:
+            return term
 
     def _print_fmath_func(self, name, expr):
         args = ",".join([self._print(i) for i in expr.args])
@@ -230,7 +241,7 @@ class BasePrinter(CodePrinter):
                                              expr.func(*expr.args[1:]),
                                              evaluate=False))
         elif has_integer_args(*expr.args) and len(expr.args) == 2:
-            return "MIN(%s)" % self._print(expr.args)[1:-1]
+            return f"MIN({self._print(expr.args)[1:-1]})"
         else:
             return self._print_fmath_func('min', expr)
 
@@ -240,7 +251,7 @@ class BasePrinter(CodePrinter):
                                              expr.func(*expr.args[1:]),
                                              evaluate=False))
         elif has_integer_args(*expr.args) and len(expr.args) == 2:
-            return "MAX(%s)" % self._print(expr.args)[1:-1]
+            return f"MAX({self._print(expr.args)[1:-1]})"
         else:
             return self._print_fmath_func('max', expr)
 
@@ -251,7 +262,7 @@ class BasePrinter(CodePrinter):
         # AOMPCC errors with abs, always use fabs
         if isinstance(self.compiler, AOMPCompiler) and \
                 not np.issubdtype(self._prec(expr), np.integer):
-            return "fabs(%s)" % self._print(arg)
+            return f"fabs({self._print(arg)})"
         return self._print_fmath_func('abs', expr)
 
     def _print_Add(self, expr, order=None):
@@ -265,7 +276,7 @@ class BasePrinter(CodePrinter):
         for term in terms:
             t = self._print(term)
             if precedence(term) < PREC:
-                l.extend(["+", "(%s)" % t])
+                l.extend(["+", f"({t})"])
             elif t.startswith('-'):
                 l.extend(["-", t[1:]])
             else:
@@ -305,44 +316,44 @@ class BasePrinter(CodePrinter):
         return f'{rv}{self.prec_literal(expr)}'
 
     def _print_Differentiable(self, expr):
-        return "(%s)" % self._print(expr._expr)
+        return f"({self._print(expr._expr)})"
 
     _print_EvalDerivative = _print_Add
 
     def _print_CallFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
-        return "%s->%s(%s)" % (expr.pointer, expr.call, ', '.join(indices))
+        return f"{expr.pointer}->{expr.call}({', '.join(indices)})"
 
     def _print_CallFromComposite(self, expr):
         indices = [self._print(i) for i in expr.params]
-        return "%s.%s(%s)" % (expr.pointer, expr.call, ', '.join(indices))
+        return f"{expr.pointer}.{expr.call}({', '.join(indices)})"
 
     def _print_FieldFromPointer(self, expr):
-        return "%s->%s" % (expr.pointer, expr.field)
+        return f"{expr.pointer}->{expr.field}"
 
     def _print_FieldFromComposite(self, expr):
-        return "%s.%s" % (expr.pointer, expr.field)
+        return f"{expr.pointer}.{expr.field}"
 
     def _print_ListInitializer(self, expr):
-        return "{%s}" % ', '.join([self._print(i) for i in expr.params])
+        return f"{{{', '.join(self._print(i) for i in expr.params)}}}"
 
     def _print_IndexedPointer(self, expr):
-        return "%s%s" % (expr.base, ''.join('[%s]' % self._print(i) for i in expr.index))
+        return f"{expr.base}{''.join(f'[{self._print(i)}]' for i in expr.index)}"
 
     def _print_IntDiv(self, expr):
         lhs = self._print(expr.lhs)
         if not expr.lhs.is_Atom:
-            lhs = '(%s)' % (lhs)
+            lhs = f"({lhs})"
         rhs = self._print(expr.rhs)
         PREC = precedence(expr)
-        return self.parenthesize("%s / %s" % (lhs, rhs), PREC)
+        return self.parenthesize(f"{lhs} / {rhs}", PREC)
 
     def _print_InlineIf(self, expr):
         cond = self._print(expr.cond)
         true_expr = self._print(expr.true_expr)
         false_expr = self._print(expr.false_expr)
         PREC = precedence(expr)
-        return self.parenthesize("(%s) ? %s : %s" % (cond, true_expr, false_expr), PREC)
+        return self.parenthesize(f"({cond}) ? {true_expr} : {false_expr}", PREC)
 
     def _print_UnaryOp(self, expr, op=None, parenthesize=False):
         op = op or expr._op
@@ -356,20 +367,23 @@ class BasePrinter(CodePrinter):
         return self._print_UnaryOp(expr, op=cast)
 
     def _print_ComponentAccess(self, expr):
-        return "%s.%s" % (self._print(expr.base), expr.sindex)
+        return f"{self._print(expr.base)}.{expr.sindex}"
 
     def _print_DefFunction(self, expr):
         arguments = [self._print(i) for i in expr.arguments]
         if expr.template:
-            template = '<%s>' % ','.join([str(i) for i in expr.template])
+            ctemplate = ','.join([str(i) for i in expr.template])
+            template = f'<{ctemplate}>'
         else:
             template = ''
-        return "%s%s(%s)" % (expr.name, template, ','.join(arguments))
+        args = ','.join(arguments)
+        return f"{expr.name}{template}({args})"
 
     def _print_SizeOf(self, expr):
         return f'sizeof({self._print(expr.intype)}{self._print(expr.stars)})'
 
-    _print_MathFunction = _print_DefFunction
+    def _print_MathFunction(self, expr):
+        return f"{self._ns}{self._print_DefFunction(expr)}"
 
     def _print_Fallback(self, expr):
         return expr.__str__()
@@ -385,7 +399,7 @@ class BasePrinter(CodePrinter):
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
 for k in ('exp log sin cos tan ceiling floor').split():
-    setattr(BasePrinter, '_print_%s' % k, BasePrinter._print_math_func)
+    setattr(BasePrinter, f'_print_{k}', BasePrinter._print_math_func)
 
 
 # Always parenthesize IntDiv and InlineIf within expressions
