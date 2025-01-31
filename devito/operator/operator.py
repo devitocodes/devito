@@ -1139,7 +1139,7 @@ class Operator(Callable):
             self._lib.name = soname
 
         self._allocator = default_allocator(
-            '%s.%s.%s' % (self._compiler.__class__.name, self._language, self._platform)
+            '%s.%s.%s' % (type(self._compiler).__name__, self._language, self._platform)
         )
 
 
