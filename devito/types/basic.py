@@ -844,12 +844,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     is_commutative = True
 
     # Devito default assumptions
-    # TODO: Requires adjustment since not necessarily true with functions on subdomains
     is_regular = True
     """
-    True if data and iteration points are aligned. Cases where they won't be
-    aligned (currently unsupported): Functions defined on SubDomains; compressed
-    Functions; etc.
+    True if alignment between iteration and data points is affine. Examples of cases
+    where this would be False include types such as compressed Functions, etc.
     """
 
     is_autopaddable = False
@@ -966,11 +964,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return class_key, args, exp, coeff
 
     def __init_finalize__(self, *args, **kwargs):
-        # Setup halo, padding, and ghost regions
         # A `Distributor` to handle domain decomposition
         self._distributor = self.__distributor_setup__(**kwargs)
 
-        # Setup halo and padding regions
+        # Setup halo, padding, and ghost regions
         self._is_halo_dirty = False
         self._halo = self.__halo_setup__(**kwargs)
         self._padding = self.__padding_setup__(**kwargs)

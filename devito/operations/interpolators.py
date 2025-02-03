@@ -4,7 +4,6 @@ from functools import wraps, cached_property
 import sympy
 import numpy as np
 
-
 try:
     from scipy.special import i0
 except ImportError:
@@ -234,6 +233,7 @@ class WeightedInterpolator(GenericInterpolator):
             lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
             ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
+
             # Insert a check to catch cases where interpolation/injection is
             # into an empty rank. This depends on the injection field or interpolated
             # expression, and so must be inserted here.
@@ -294,10 +294,10 @@ class WeightedInterpolator(GenericInterpolator):
         mapper = self._rdim(subdomain=subdomain).getters
 
         # Index substitution to make in variables
-        i_subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
-        i_subs.update({k.root: c + p for ((k, c), p) in zip(mapper.items(), pos)})
+        subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
+        subs.update({k.root: c + p for ((k, c), p) in zip(mapper.items(), pos)})
 
-        idx_subs = {v: v.subs(i_subs) for v in variables}
+        idx_subs = {v: v.subs(subs) for v in variables}
 
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
