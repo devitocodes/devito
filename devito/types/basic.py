@@ -1477,7 +1477,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
                     offsets.append(l_tkn)
             else:
                 offsets.append(0)
-        return DimensionTuple(offsets, getters=self.dimensions)
+        return DimensionTuple(*offsets, getters=self.dimensions)
 
     @property
     def _data_alignment(self):
