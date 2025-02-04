@@ -563,7 +563,7 @@ class AOMPCompiler(Compiler):
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
                 self.ldflags += ['-fopenmp']
-                self.ldflags += ['--offload-arch=%s' % platform.march]
+                self.ldflags += ['--offload-arch=native']
         elif platform in [POWER8, POWER9]:
             # It doesn't make much sense to use AOMP on Power, but it should work
             self.cflags.append('-mcpu=native')

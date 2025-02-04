@@ -643,6 +643,7 @@ class TestStreaming:
 
         assert np.all(grad.data == grad1.data)
 
+    @switchconfig(safe_math=True)
     def test_streaming_multi_input_conddim_foward(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -671,6 +672,7 @@ class TestStreaming:
 
         assert np.all(v.data == v1.data)
 
+    @switchconfig(safe_math=True)
     def test_streaming_multi_input_conddim_backward(self):
         nt = 10
         grid = Grid(shape=(4, 4))
