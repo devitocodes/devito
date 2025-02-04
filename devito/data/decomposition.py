@@ -214,12 +214,13 @@ class Decomposition(tuple):
         if not self.loc_empty:
             loc_abs_min = self.loc_abs_min - self.glb_min
             loc_abs_max = self.loc_abs_max - self.glb_min
+            glb_max = self.glb_max - self.glb_min
         else:
             loc_abs_min = self.loc_abs_min
             loc_abs_max = self.loc_abs_max
+            glb_max = self.glb_max
 
         glb_min = 0
-        glb_max = self.glb_max - self.glb_min
 
         base = loc_abs_min if rel else 0
         top = loc_abs_max
