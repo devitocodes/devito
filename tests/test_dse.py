@@ -2659,6 +2659,29 @@ class TestAliases:
         assert np.all(src.data == 8)
 
 
+    def test_issue_2525(self):
+
+        grid = Grid(shape=(30, 30))
+
+        # Symbolic Dimensions
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        VS = Function(name="VS", grid=grid, space_order=2)
+        v = TimeFunction(name='v', grid=grid, space_order=2)
+
+        beta = (1 + (1/VS))
+        dz = (1 / beta)
+
+        eqv1 = Eq(v.forward, v[t, x, y+1])
+        eqv2 = Eq(v.forward, (v[t+1, x-1, y] + v[t+1, x, y-1] +
+                              (dz)*v[t+1, x, y]))
+
+        op = Operator([eqv1, eqv2])
+
+        op(dt=0.1, time=10)
+
+
 class TestIsoAcoustic:
 
     def run_acoustic_forward(self, opt=None):
