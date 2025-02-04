@@ -222,6 +222,10 @@ jobs:
           file: './docker/Dockerfile.amd'
           push: true
           target: 'amdclang'
+          build-args: |
+            ROCM_VERSION=5.5.1
+            UCX_BRANCH=v1.13.1
+            OMPI_BRANCH=v4.1.4
           tags: devitocodes/bases:amd
 
       - name: AMD HIP image
@@ -231,6 +235,4 @@ jobs:
           file: './docker/Dockerfile.amd'
           push: true
           target: 'hip'
-          build-args: |
-            arch=hip
           tags: devitocodes/bases:amd-hip
