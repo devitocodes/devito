@@ -294,8 +294,8 @@ class WeightedInterpolator(GenericInterpolator):
         mapper = self._rdim(subdomain=subdomain).getters
 
         # Index substitution to make in variables
-        subs = {k: c + p for ((k, c), p) in zip(mapper.items(), pos)}
-        subs.update({k.root: c + p for ((k, c), p) in zip(mapper.items(), pos)})
+        subs = {ki: c + p for ((k, c), p)
+                in zip(mapper.items(), pos) for ki in {k, k.root}}
 
         idx_subs = {v: v.subs(subs) for v in variables}
 
