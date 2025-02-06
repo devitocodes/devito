@@ -338,6 +338,7 @@ class TestLifting:
         eqns = [Eq(u.forward, 1),
                 Eq(u.forward, u.forward * (1 - W) + W * u, implicit_dims=bt)]
         op = Operator(eqns)
+        op.apply(time_M=10)
 
         trees = retrieve_iteration_tree(op)
 
@@ -2667,15 +2668,17 @@ class TestAliases:
         x, y = grid.dimensions
         t = grid.stepping_dim
 
+        # VS = TimeFunction(name="VS", grid=grid, space_order=2)
         VS = Function(name="VS", grid=grid, space_order=2)
+        # VS.data_with_halo[:] = 1.0
         v = TimeFunction(name='v', grid=grid, space_order=2)
 
         beta = (1 + (1/VS))
         dz = (1 / beta)
 
         eqv1 = Eq(v.forward, v[t, x, y+1])
-        eqv2 = Eq(v.forward, (v[t+1, x-1, y] + v[t+1, x, y-1] +
-                              (dz)*v[t+1, x, y]))
+        eqv2 = Eq(v, (v[t, x-1, y] + v[t, x, y-1] +
+                              (dz)*v))
 
         op = Operator([eqv1, eqv2])
 

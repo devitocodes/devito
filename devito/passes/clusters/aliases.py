@@ -123,6 +123,7 @@ class CireTransformer:
         variants = []
         for mapper in self._generate(exprs, exclude):
             # Clusters -> AliasList
+            # import pdb;pdb.set_trace()
             found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
             pexprs, aliases = choose(found, exprs, mapper, self.opt_mingain)
 
@@ -652,16 +653,28 @@ def lower_aliases(aliases, meta, maxpar):
                    **{i.dim.parent: i for i in a.intervals if i.dim.is_NonlinearDerived}}
 
         intervals = []
+        seq_intervals = []
         writeto = []
         sub_iterators = {}
         indicess = [[] for _ in a.distances]
+
+        try:
+            if all(SEQUENTIAL in meta.properties.get(i.dim) for i in a.intervals):
+                allseq = True
+            else:
+                allseq = False
+        except TypeError:
+            allseq = False
+
         for i in meta.ispace:
+
             try:
                 interval = imapper[i.dim]
             except KeyError:
+
                 if i.dim in a.free_symbols:
                     # Special case: the Dimension appears within the alias but
-                    # not as an Indexed index. Then, it needs to be addeed to
+                    # not as an Indexed index. Then, it needs to be added to
                     # the `writeto` region too
                     interval = i
                 else:
@@ -670,12 +683,15 @@ def lower_aliases(aliases, meta, maxpar):
                     continue
 
             if not (writeto or
+                    allseq or
                     interval != interval.zero() or
                     (maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
                 # The alias doesn't require a temporary Dimension along i.dim
+                # import pdb;pdb.set_trace()
                 intervals.append(i)
                 continue
 
+            flag2 = False
             assert not i.dim.is_NonlinearDerived
 
             # `i.dim` is necessarily part of the write-to region, so
@@ -725,6 +741,15 @@ def lower_aliases(aliases, meta, maxpar):
                 except TypeError:
                     indices.append(d)
 
+
+        # if flag2:
+            # Being here means that all intervals have been
+            # added to the `intervals` list, but no `writeto` interval
+            # continue    
+            # writeto = [i for i in intervals if i.dim in imapper]
+
+        # import pdb;pdb.set_trace()
+        
         # The alias write-to space
         writeto = IterationSpace(IntervalGroup(writeto), sub_iterators)
 
