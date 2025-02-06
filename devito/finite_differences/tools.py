@@ -339,5 +339,5 @@ def process_weights(weights, expr, dim):
         return shape[weights.dimensions.index(wdim)], wdim, False
     else:
         # Adimensional weight from custom coeffs need to be multiplied by h^order
-        scale = not all(sympify(w).has(dim.spacing) for w in weights if w != 0)
+        scale = all(sympify(w).is_Number for w in weights)
         return len(list(weights)), None, scale
