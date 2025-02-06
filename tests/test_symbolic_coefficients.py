@@ -372,3 +372,31 @@ class TestSC:
         assert '7.0*f(x + 3*h_x)' in str(eqe.rhs)
         assert '0.5*g(x + h_x)' in str(eqe.rhs)
         assert 'g(x + 2*h_x)' not in str(eqe.rhs)
+
+    def test_backward_compat_array_of_func(self):
+        grid = Grid(shape=(11, 11, 11))
+        x, _, _ = grid.dimensions
+        hx = x.spacing
+
+        f = Function(name='f', grid=grid, space_order=16, coefficients='symbolic')
+
+        # Define stencil coefficients.
+        weights = Function(name="w", space_order=0, shape=(9,), dimensions=(x,))
+        wdx = [weights[0]]
+        for iq in range(1, weights.shape[0]):
+            wdx.append(weights[iq])
+            wdx.insert(0, weights[iq])
+
+        # Plain numbers for comparison
+        wdxn = np.random.rand(17)
+
+        # Number with spacing
+        wdxns = wdxn / hx
+
+        dexev = f.dx(weights=wdx).evaluate
+        dexevn = f.dx(weights=wdxn).evaluate
+        dexevns = f.dx(weights=wdxns).evaluate
+
+        assert all(a.as_coefficient(1/hx) for a in dexevn.args)
+        assert all(a.as_coefficient(1/hx) for a in dexevns.args)
+        assert all(not a.as_coefficient(1/hx) for a in dexev.args)
