@@ -116,6 +116,7 @@ configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_com
 preprocessor = lambda i: {0: 'None', 1: 'HALF', 2: 'CUSTOM'}.get(i, i)
 configuration.add('safe-halo', 0, [0, 1, 2], preprocessor=preprocessor)
 
+
 # Enable/disable automatic padding for allocated data
 def _preprocess_autopadding(v):
     return {
