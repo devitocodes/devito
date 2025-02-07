@@ -24,9 +24,12 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            # Intel CPUs
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
            'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
+           # AMD CPUs
+           'AMD',
            # ARM CPUs
-           'AMD', 'ARM', 'AppleArm', 'M1', 'M2', 'M3',
+           'ARM', 'AppleArm', 'M1', 'M2', 'M3',
            'Graviton', 'GRAVITON2', 'GRAVITON3', 'GRAVITON4',
+           'Cortex',
            # Other legacy CPUs
            'POWER8', 'POWER9',
            # Generic GPUs
@@ -737,7 +740,7 @@ class Cpu64(Platform):
         try:
             return int(lscpu()['NUMA node(s)'])
         except (ValueError, TypeError, KeyError):
-            warning("NUMA domain count autodetection failed")
+            warning("NUMA domain count autodetection failed, assuming 1")
             return 1
 
     @cached_property
@@ -791,6 +794,21 @@ class Graviton(Arm):
             return 'neoverse-v1'
         else:
             return 'neoverse-n1'
+
+
+class Cortex(Arm):
+
+    @property
+    def version(self):
+        return int(self.name.split('cortexa')[-1])
+
+    @cached_property
+    def march(self):
+        return 'armv8-a+crc+simd'
+
+    @cached_property
+    def mtune(self):
+        return f'cortex-a{self.version}'
 
 
 class Amd(Cpu64):
@@ -1007,6 +1025,8 @@ GRAVITON4 = Graviton('graviton4')
 M1 = AppleArm('m1')
 M2 = AppleArm('m2')
 M3 = AppleArm('m3')
+CORTEX = Cortex('cortex')
+CORTEXA76 = Cortex('cortexa76')
 
 AMD = Amd('amd')
 
