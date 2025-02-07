@@ -95,6 +95,21 @@ PREFETCHABLE_SHM = Property('prefetchable-shm')
 A Dimension along which shared-memory prefetching is feasible and beneficial.
 """
 
+INIT_CORE_SHM = Property('init-core-shm')
+"""
+A Dimension along which the shared-memory CORE data region is initialized.
+"""
+
+INIT_HALO_LEFT_SHM = Property('init-halo-left-shm')
+"""
+A Dimension along which the shared-memory left-HALO data region is initialized.
+"""
+
+INIT_HALO_RIGHT_SHM = Property('init-halo-right-shm')
+"""
+A Dimension along which the shared-memory right-HALO data region is initialized.
+"""
+
 
 # Bundles
 PARALLELS = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
@@ -122,9 +137,13 @@ def normalize_properties(*args):
     else:
         drop = set()
 
-    # SEPARABLE <=> all are SEPARABLE
-    if not all(SEPARABLE in p for p in args):
-        drop.add(SEPARABLE)
+    # A property X must be dropped if not all set of properties in `args`
+    # contain X. For example, if one set of properties contains SEPARABLE and
+    # another does not, then the resulting set of properties should not contain
+    # SEPARABLE.
+    for i in (SEPARABLE, INIT_CORE_SHM, INIT_HALO_LEFT_SHM, INIT_HALO_RIGHT_SHM):
+        if not all(i in p for p in args):
+            drop.add(i)
 
     properties = set()
     for p in args:
@@ -189,6 +208,11 @@ def update_properties(properties, exprs):
         properties = properties.prefetchable_shm(dims)
     else:
         properties = properties.drop(properties=PREFETCHABLE_SHM)
+
+    # Remove properties that are trivially incompatible with `exprs`
+    if not all(e.lhs.function._mem_shared for e in as_tuple(exprs)):
+        drop = {INIT_CORE_SHM, INIT_HALO_LEFT_SHM, INIT_HALO_RIGHT_SHM}
+        properties = properties.drop(properties=drop)
 
     return properties
 
@@ -269,10 +293,16 @@ class Properties(frozendict):
         return Properties(m)
 
     def inbound(self, dims):
-        m = dict(self)
-        for d in as_tuple(dims):
-            m[d] = set(m.get(d, [])) | {INBOUND}
-        return Properties(m)
+        return self.add(dims, INBOUND)
+
+    def init_core_shm(self, dims):
+        return self.add(dims, INIT_CORE_SHM)
+
+    def init_halo_left_shm(self, dims):
+        return self.add(dims, INIT_HALO_LEFT_SHM)
+
+    def init_halo_right_shm(self, dims):
+        return self.add(dims, INIT_HALO_RIGHT_SHM)
 
     def is_parallel(self, dims):
         return any(len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
@@ -299,13 +329,28 @@ class Properties(frozendict):
     def is_blockable_small(self, d):
         return TILABLE_SMALL in self.get(d, set())
 
-    def is_prefetchable(self, dims=None, v=PREFETCHABLE):
+    def _is_property_any(self, dims, v):
         if dims is None:
             dims = list(self)
         return any(v in self.get(d, set()) for d in as_tuple(dims))
 
+    def is_prefetchable(self, dims=None, v=PREFETCHABLE):
+        return self._is_property_any(dims, PREFETCHABLE)
+
     def is_prefetchable_shm(self, dims=None):
-        return self.is_prefetchable(dims, PREFETCHABLE_SHM)
+        return self._is_property_any(dims, PREFETCHABLE_SHM)
+
+    def is_core_init(self, dims=None):
+        return self._is_property_any(dims, INIT_CORE_SHM)
+
+    def is_halo_left_init(self, dims=None):
+        return self._is_property_any(dims, INIT_HALO_LEFT_SHM)
+
+    def is_halo_right_init(self, dims=None):
+        return self._is_property_any(dims, INIT_HALO_RIGHT_SHM)
+
+    def is_halo_init(self, dims=None):
+        return self.is_halo_left_init(dims) or self.is_halo_right_init(dims)
 
     @property
     def nblockable(self):
