@@ -28,6 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: "1"
+    strategy:
+        matrix:
+          version: ['', '14']
 
     steps:
       - name: Checkout devito
@@ -57,9 +60,8 @@ jobs:
           context: .
           file: './docker/Dockerfile.cpu'
           push: true
-          target: 'gcc'
-          build-args: 'arch=gcc'
-          tags: 'devitocodes/bases:cpu-gcc'
+          build-args: 'gcc=${{ matrix.version }}'
+          tags: 'devitocodes/bases:cpu-gcc${{ matrix.version }}'
 
 
 #######################################################
