@@ -42,7 +42,7 @@ class CodeSymbol:
         * "liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
         * "space": `_mem_local`, `_mem_mapped`, `_mem_host`
         * "scope": `_mem_stack`, `_mem_heap`, `_mem_global`, `_mem_shared`,
-                   `_mem_constant`
+                   `_mem_shared_remote`, `_mem_constant`
 
     For example, an object that is `<_mem_internal_lazy, _mem_local, _mem_heap>`
     is allocated within the Operator entry point, on either the host or device
@@ -208,6 +208,14 @@ class CodeSymbol:
         """
         True if the associated data is allocated in so called shared memory,
         False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_shared_remote(self):
+        """
+        True if the associated data is allocated in so called remote shared
+        memory, False otherwise.
         """
         return False
 
