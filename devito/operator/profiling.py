@@ -353,7 +353,7 @@ class AdvancedProfilerVerbose2(AdvancedProfilerVerbose):
 class AdvisorProfiler(AdvancedProfiler):
 
     """
-    Rely on Intel Advisor ``v >= 2020`` for performance profiling.
+    Rely on Intel Advisor 2025.1 for performance profiling.
     Tested versions of Intel Advisor:
     - As contained in Intel Parallel Studio 2020 v 2020 Update 2
     - As contained in Intel oneAPI 2021 beta08
@@ -367,19 +367,13 @@ class AdvisorProfiler(AdvancedProfiler):
     _ext_calls = [_api_resume, _api_pause]
 
     def __init__(self, name):
-        self.path = locate_intel_advisor()
-        if self.path is None:
+        path = locate_intel_advisor()
+        if path is None:
             self.initialized = False
         else:
-            super().__init__(name)
-            # Make sure future compilations will get the proper header and
-            # shared object files
-            compiler = configuration['compiler']
-            compiler.add_include_dirs(self.path.joinpath('include').as_posix())
-            compiler.add_libraries(self._default_libs)
-            libdir = self.path.joinpath('lib64').as_posix()
-            compiler.add_library_dirs(libdir)
-            compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
+            super(AdvisorProfiler, self).__init__(name)
+
+        return
 
     def analyze(self, iet):
         return
