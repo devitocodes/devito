@@ -1,16 +1,14 @@
+import click
 import datetime
 import logging
 import os
+import sys
+
 from pathlib import Path
 from subprocess import check_output, PIPE, Popen
-import sys
 from tempfile import gettempdir, mkdtemp
 
-import click
-
-
-from benchmarks.user.advisor.advisor_logging import (check, log, progress,
-                                                     log_process)
+from advisor_logging import (check, log, progress, log_process)
 
 
 @click.command()
@@ -49,21 +47,21 @@ def run_with_advisor(path, output, name, exec_args):
         output = Path(output).joinpath(name)
         output.mkdir(parents=True, exist_ok=True)
 
-    # Intel Advisor and Intel compilers must be available through either Intel Parallel
-    # Studio or Intel oneAPI (currently tested versions include IPS 2020 Update 2 and
-    # oneAPI 2021 beta08)
+    # Intel Advisor and Intel compilers must be available through either
+    # Intel oneAPI (tested with Intel oneAPI 2025.1)
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
     except FileNotFoundError:
         check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor.")
 
     try:
-        ret = check_output(['icc', '--version']).decode("utf-8")
+        ret = check_output(['icx', '--version']).decode("utf-8")
+        log("Found icx version: %s" % ret.strip())
     except FileNotFoundError:
-        check(False, "Error: Couldn't detect Intel Compiler (icc).")
+        check(False, "Error: Couldn't detect Intel Compiler (icx).")
 
     # All good, Intel compiler and advisor are available
-    os.environ['DEVITO_ARCH'] = 'intel'
+    os.environ['DEVITO_ARCH'] = 'icx'
 
     # Tell Devito to instrument the generated code for Advisor
     os.environ['DEVITO_PROFILING'] = 'advisor'
@@ -73,7 +71,7 @@ def run_with_advisor(path, output, name, exec_args):
     if devito_logging is None:
         os.environ['DEVITO_LOGGING'] = 'WARNING'
 
-    with progress('Setting up multi-threading environment'):
+    with progress('Setting up multi-threading environment with OpenMP'):
         # Roofline analyses are recommended with threading enabled
         os.environ['DEVITO_LANGUAGE'] = 'openmp'
 
@@ -90,14 +88,14 @@ def run_with_advisor(path, output, name, exec_args):
 
         # Prevent NumPy from using threads, which otherwise leads to a deadlock when
         # used in combination with Advisor. This issue has been described at:
-        #     `software.intel.com/en-us/forums/intel-advisor-xe/topic/780506`
+        #   `software.intel.com/en-us/forums/intel-advisor-xe/topic/780506`
         # Note: we should rather sniff the BLAS library used by NumPy, and set the
         # appropriate env var only
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
         # Note: `Numaexpr`, used by NumPy, also employs threading, so we shall disable
         # it too via the corresponding env var. See:
-        #     `stackoverflow.com/questions/17053671/python-how-do-you-stop-numpy-from-multithreading`  # noqa
+        #   `stackoverflow.com/questions/17053671/python-how-do-you-stop-numpy-from-multithreading`  # noqa
         os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
     # To build a roofline with Advisor, we need to run two analyses back to
@@ -130,8 +128,8 @@ def run_with_advisor(path, output, name, exec_args):
     ]
     py_cmd = [sys.executable, str(path)] + exec_args.split()
 
-    # Before collecting the `survey` and `tripcounts` a "pure" python run to warmup the
-    # jit cache is preceded
+    # Before collecting the `survey` and `tripcounts` a "pure" python run
+    # to warmup the jit cache is preceded
 
     log('Starting Intel Advisor\'s `roofline` analysis for `%s`' % name)
     dt = datetime.datetime.now()
@@ -147,6 +145,9 @@ def run_with_advisor(path, output, name, exec_args):
     advixe_handler.setFormatter(advixe_formatter)
     advixe_logger.addHandler(advixe_handler)
 
+    log("Project folder: %s" % str(output))
+    log("Logging progress in: `%s`" % str(advixe_handler))
+    
     with progress('Performing `cache warm-up` run'):
         try:
             p_warm_up = Popen(py_cmd, stdout=PIPE, stderr=PIPE)
@@ -175,6 +176,8 @@ def run_with_advisor(path, output, name, exec_args):
     log('python3 roofline.py --name %s --project %s --scale %f'
         % (name, str(output), n_sockets))
 
+    log('\nTo open the roofline using advixe-gui: ')
+    log('advixe-gui %s' % str(output))
 
 if __name__ == '__main__':
     run_with_advisor()
