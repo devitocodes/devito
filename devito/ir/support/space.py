@@ -1057,6 +1057,10 @@ class IterationSpace(Space):
         return self[-1]
 
     @cached_property
+    def concrete(self):
+        return self.project(lambda d: not d.is_Virtual)
+
+    @cached_property
     def itintervals(self):
         return tuple(self[d] for d in self.itdims)
 
