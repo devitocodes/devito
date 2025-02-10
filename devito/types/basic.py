@@ -701,6 +701,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
     def _infer_dims(self):
         grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
+        grids = {g.root for g in grids}
         dimensions = {d for c in self.flat()
                       for d in getattr(c, 'dimensions', ())} - {None}
         # If none of the components are devito objects, returns a sympy Matrix
