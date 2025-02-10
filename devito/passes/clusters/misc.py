@@ -228,11 +228,12 @@ class Fusion(Queue):
         # If there are writes to thread-shared object, make it part of the key.
         # This will promote fusion of non-adjacent Clusters writing to (some
         # form of) shared memory, which in turn will minimize the number of
-        # necessary barriers Same story for reads from thread-shared objects
+        # necessary barriers. Same story for reads from thread-shared objects
         weak.extend([
             any(f._mem_shared for f in c.scope.writes),
             any(f._mem_shared for f in c.scope.reads)
         ])
+        weak.append(c.properties.is_core_init())
 
         # Prefetchable Clusters should get merged, if possible
         weak.append(c.properties.is_prefetchable_shm())
