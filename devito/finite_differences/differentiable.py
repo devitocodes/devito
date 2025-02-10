@@ -64,6 +64,7 @@ class Differentiable(sympy.Expr, Evaluable):
     @cached_property
     def grid(self):
         grids = {getattr(i, 'grid', None) for i in self._args_diff} - {None}
+        grids = {g.root for g in grids}
         if len(grids) > 1:
             warning("Expression contains multiple grids, returning first found")
         try:
