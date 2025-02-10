@@ -35,6 +35,7 @@ RUN rm /etc/apt/sources.list.d/* \
     gfortran \
     flex \
     hwloc \
+    gdb \
   && apt-get clean
 
 # Requires cmake > 3.22 

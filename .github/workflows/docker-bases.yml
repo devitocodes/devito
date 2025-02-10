@@ -17,7 +17,7 @@ on:
         description: 'Build compiler bases'
   schedule:
     # Run once a week
-    - cron: "0 13 * * 1"
+    - cron: "0 0 1 * *"
 
 jobs:
 #######################################################

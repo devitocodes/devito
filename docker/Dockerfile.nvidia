@@ -16,7 +16,7 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install python
 RUN apt-get update && \
     apt-get install -y -q gpg apt-utils curl wget vim libnuma-dev tmux numactl \
-                          dh-autoreconf python3-venv python3-dev python3-pip
+                          dh-autoreconf python3-venv python3-dev python3-pip gdb
 
 # nodesource: nvdashboard requires nodejs>=10
 RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
