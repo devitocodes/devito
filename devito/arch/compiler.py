@@ -765,6 +765,20 @@ class IntelCompiler(Compiler):
             self.__init_intel_mpi__()
             self.__init_intel_mpi_flags__()
 
+        if configuration['profiling'] == 'advisor':
+            # Locate the Intel Advisor installation and
+            # add the necessary flags to the compiler
+            from devito.operator.profiling import locate_intel_advisor
+            path = locate_intel_advisor()
+            self.add_include_dirs(path.joinpath('include').as_posix())
+
+            _default_libs = ['ittnotify']
+            self.add_libraries(_default_libs)
+
+            libdir = path.joinpath('lib64').as_posix()
+            self.add_library_dirs(libdir)
+            self.add_ldflags('-Wl,-rpath,%s' % libdir)
+
     def __init_intel_mpi__(self, **kwargs):
         # Make sure the MPI compiler uses an Intel compiler underneath,
         # whatever the MPI distro is
