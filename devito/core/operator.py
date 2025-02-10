@@ -143,6 +143,11 @@ class BasicOperator(Operator):
     The target language constructor, to be specified by subclasses.
     """
 
+    LINEARIZE = False
+    """
+    Linearize n-dimensional Indexeds.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         # Will be populated with dummy values; this method is actually overriden

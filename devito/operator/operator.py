@@ -27,6 +27,7 @@ from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
                            error_mapper, is_on_device)
+from devito.passes.iet.dtypes import lower_dtypes
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
@@ -144,7 +145,6 @@ class Operator(Callable):
     """
 
     _default_headers = [('_POSIX_C_SOURCE', '200809L')]
-    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
     _default_namespaces = []
 
@@ -193,6 +193,11 @@ class Operator(Callable):
                                        "check your equation again")
 
         return expressions
+
+    @classmethod
+    @property
+    def _default_includes(cls):
+        return cls._Target.Printer._default_includes
 
     @classmethod
     def _build(cls, expressions, **kwargs):
@@ -469,6 +474,7 @@ class Operator(Callable):
             * Finalize (e.g., symbol definitions, array casts)
         """
         name = kwargs.get("name", "Kernel")
+        lang = cls._Target.lang()
 
         # Wrap the IET with an EntryFunction (a special Callable representing
         # the entry point of the generated library)
@@ -485,7 +491,10 @@ class Operator(Callable):
         cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
-        generate_macros(graph, **kwargs)
+        generate_macros(graph, lang=lang, printer=cls._Target.Printer, **kwargs)
+
+        # Add type specific metadata
+        lower_dtypes(graph, lang=lang, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
@@ -753,12 +762,13 @@ class Operator(Callable):
         return Signer._digest(self, configuration)
 
     @cached_property
+    def _printer(self):
+        return self._Target.Printer
+
+    @cached_property
     def ccode(self):
-        try:
-            return self._ccode_handler(compiler=self._compiler).visit(self)
-        except (AttributeError, TypeError):
-            from devito.ir.iet.visitors import CGen
-            return CGen(compiler=self._compiler).visit(self)
+        from devito.ir.iet.visitors import CGen
+        return CGen(printer=self._printer).visit(self)
 
     def _jit_compile(self):
         """
@@ -896,7 +906,8 @@ class Operator(Callable):
         """
         # Compile the operator before building the arguments list
         # to avoid out of memory with greedy compilers
-        cfunction = self.cfunction
+        with self._profiler.timer_on('jit-compile'):
+            cfunction = self.cfunction
 
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments'):
@@ -1114,7 +1125,7 @@ class Operator(Callable):
             self._lib.name = soname
 
         self._allocator = default_allocator(
-            '%s.%s.%s' % (self._compiler.name, self._language, self._platform)
+            '%s.%s.%s' % (type(self._compiler).__name__, self._language, self._platform)
         )
 
 
@@ -1388,7 +1399,8 @@ def parse_kwargs(**kwargs):
             raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
                                                          language=kwargs['language'],
-                                                         mpi=configuration['mpi'])
+                                                         mpi=configuration['mpi'],
+                                                         name=compiler)
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],
@@ -1397,9 +1409,16 @@ def parse_kwargs(**kwargs):
     else:
         kwargs['compiler'] = configuration['compiler'].__new_with__()
 
+    # Make sure compiler and language are compatible
+    if compiler is not None and kwargs['compiler']._cpp and \
+            kwargs['language'] in ['C', 'openmp']:
+        kwargs['language'] = 'CXX' if kwargs['language'] == 'C' else 'CXXopenmp'
+    if 'CXX' in kwargs['language'] and not kwargs['compiler']._cpp:
+        kwargs['compiler'] = kwargs['compiler'].__new_with__(cpp=True)
+
     # `allocator`
     kwargs['allocator'] = default_allocator(
-        '%s.%s.%s' % (kwargs['compiler'].name,
+        '%s.%s.%s' % (kwargs['compiler'].__class__.__name__,
                       kwargs['language'],
                       kwargs['platform'])
     )

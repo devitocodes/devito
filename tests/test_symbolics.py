@@ -9,12 +9,12 @@ from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max)
 from devito.finite_differences.differentiable import SafeInv, Weights
-from devito.ir import Expression, FindNodes
+from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
-                              ReservedWord, ListInitializer, ccode, uxreplace,
-                              retrieve_derivatives)
+                              ReservedWord, ListInitializer, uxreplace,
+                              retrieve_derivatives, BaseCast)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -409,8 +409,8 @@ def test_rvalue():
 def test_cast():
     s = Symbol(name='s', dtype=np.float32)
 
-    class BarCast(Cast):
-        _base_typ = 'bar'
+    class BarCast(BaseCast):
+        _dtype = 'bar'
 
     v = BarCast(s, '**')
     assert ccode(v) == '(bar**)s'
