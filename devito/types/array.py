@@ -461,7 +461,7 @@ class Bundle(ArrayBasic):
 
     @property
     def _mem_heap(self):
-        return not self._mem_stack
+        return not any([self._mem_stack, self._mem_shared, self._mem_shared_remote])
 
     @property
     def _dist_dimensions(self):
