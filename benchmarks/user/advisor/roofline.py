@@ -18,7 +18,7 @@ import pandas as pd
 import sys
 import os
 
-from benchmarks.user.advisor.advisor_logging import check, err, log
+from advisor_logging import check, err, log
 
 
 try:
@@ -26,15 +26,14 @@ try:
 except ImportError:
     check(False, 'Error: Intel Advisor could not be found on the system,'
           ' make sure to source environment variables properly. Information can be'
-          ' found at https://software.intel.com/content/www/us/en/develop/'
-          'documentation/advisor-user-guide/top/launch-the-intel-advisor/'
-          'intel-advisor-cli/setting-and-using-intel-advisor-environment-variables.html')
+          ' found at https://www.intel.com/content/www/us/en/docs/advisor/'
+          'user-guide/2024-2/set-up-environment-variables.html')
     sys.exit(1)
 
 
 matplotlib.use('Agg')
 # Use fancy plot colors
-plt.style.use('seaborn-darkgrid')
+plt.style.use('ggplot')
 
 
 @click.command()
@@ -65,21 +64,25 @@ plt.style.use('seaborn-darkgrid')
 def roofline(name, project, scale, precision, mode, th):
     pd.options.display.max_rows = 20
 
-    log('Opening project...')
+    log(f'Opening project {project}...')
     project = advisor.open_project(str(project))
 
     if not project:
-        err('Could not open project %s.' % project)
+        err(f'Could not open project {project}.')
     log('Loading data...')
 
     data = project.load(advisor.SURVEY)
     rows = [{col: row[col] for col in row} for row in data.bottomup]
     roofs = data.get_roofs()
 
+    # Following deprecation solution from here:
+    # https://github.com/pandas-dev/pandas/issues/57734
+    pd.set_option('future.no_silent_downcasting', True)
     full_df = pd.DataFrame(rows).replace('', np.nan)
 
     # Narrow down the columns to those of interest
     try:
+        analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']
         df = full_df[analysis_columns].copy()
     except KeyError:
         err('Could not read data columns from profiling. Not enough data has been '
@@ -169,7 +172,7 @@ def roofline(name, project, scale, precision, mode, th):
             label_y = row.self_gflops
             ax.text(label_x, label_y,
                     'Time: %.2fs\n'
-                    'Incidence: %.0f%%' % (row.self_time, row.percent_weight),
+                    'Peak pct: %.0f%%' % (row.self_time, row.percent_weight),
                     bbox={'boxstyle': 'round', 'facecolor': 'white'}, fontsize=8)
         top_loops_data = [{'ai': row.self_ai,
                            'gflops': row.self_gflops,
@@ -198,19 +201,17 @@ def roofline(name, project, scale, precision, mode, th):
     legend = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5),
                         prop={'size': 7}, title='Rooflines')
 
-    # saving the chart in PNG format
-    plt.savefig('%s.png' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
+    # saving the chart in PDF format
+    plt.savefig('%s.pdf' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
     figpath = os.path.realpath(__file__).split(os.path.basename(__file__))[0]
-    log('Figure saved in %s%s.png.' % (figpath, name))
+    log('\nFigure saved in %s%s.pdf.' % (figpath, name))
 
     # Save the JSON file
     with open('%s.json' % name, 'w') as f:
         f.write(json.dumps(roofline_data))
 
-    log('JSON file saved as %s.json.' % name)
-
-
-analysis_columns = ['loop_name', 'self_ai', 'self_gflops', 'self_time']
+    log('\nJSON file saved as %s.json.' % name)
+    log('Done!')
 
 if __name__ == '__main__':
     roofline()
