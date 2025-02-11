@@ -171,8 +171,8 @@ def roofline(name, project, scale, precision, mode, th):
             label_x = row.self_ai + (row.self_ai + ai_max - 2 * ai_min) * (2**0.005 - 1)
             label_y = row.self_gflops
             ax.text(label_x, label_y,
-                    'Time: %.2fs\n'
-                    'Peak pct: %.0f%%' % (row.self_time, row.percent_weight),
+                    f'Time: {row.self_time:.2f}s\n'
+                    f'Incidence: {row.percent_weight:.0f}%',
                     bbox={'boxstyle': 'round', 'facecolor': 'white'}, fontsize=8)
         top_loops_data = [{'ai': row.self_ai,
                            'gflops': row.self_gflops,
@@ -212,6 +212,7 @@ def roofline(name, project, scale, precision, mode, th):
 
     log('\nJSON file saved as %s.json.' % name)
     log('Done!')
+
 
 if __name__ == '__main__':
     roofline()

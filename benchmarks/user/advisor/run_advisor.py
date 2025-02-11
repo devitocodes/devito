@@ -28,37 +28,40 @@ from advisor_logging import (check, log, progress, log_process)
                                    'in --exec-args (if any).')
 def run_with_advisor(path, output, name, exec_args):
     path = Path(path)
-    check(path.is_file(), '%s not found' % path)
-    check(path.suffix == '.py', '%s not a Python file' % path)
+    check(path.is_file(), f'{path} not found')
+    check(path.suffix == '.py', f'{path} not a Python file')
 
     # Create a directory to store the profiling report
     if name is None:
         name = path.stem
         if exec_args:
-            name = "%s_%s" % (name, ''.join(exec_args.split()))
+            name = f"{name}_{''.join(exec_args.split())}"
     if output is None:
         output = Path(gettempdir()).joinpath('devito-profilings')
         output.mkdir(parents=True, exist_ok=True)
     else:
         output = Path(output)
     if name is None:
-        output = Path(mkdtemp(dir=str(output), prefix="%s-" % name))
+        output = Path(mkdtemp(dir=str(output), prefix=f"{name}-"))
     else:
         output = Path(output).joinpath(name)
         output.mkdir(parents=True, exist_ok=True)
 
-    # Intel Advisor and Intel compilers must be available through either
-    # Intel oneAPI (tested with Intel oneAPI 2025.1)
+    # advixe-cl and icx should be available through Intel oneAPI
+    # (tested with Intel oneAPI 2025.1)
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
+        log(f"Found advixe-cl version: {ret.strip()}\n")
     except FileNotFoundError:
-        check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor.")
+        check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor."
+              " Please source the Advisor environment.")
 
     try:
         ret = check_output(['icx', '--version']).decode("utf-8")
-        log("Found icx version: %s" % ret.strip())
+        log(f"Found icx version: {ret.strip()}\n")
     except FileNotFoundError:
-        check(False, "Error: Couldn't detect Intel Compiler (icx).")
+        check(False, "Error: Couldn't detect Intel Compiler (icx)."
+              " Please source the Intel oneAPI compilers.")
 
     # All good, Intel compiler and advisor are available
     os.environ['DEVITO_ARCH'] = 'icx'
@@ -82,7 +85,6 @@ def run_with_advisor(path, output, name, exec_args):
             ret = check_output(['numactl', '--show']).decode("utf-8")
             ret = dict(i.split(':') for i in ret.split('\n') if i)
             n_sockets = len(ret['cpubind'].split())
-            n_cores = len(ret['physcpubind'].split())  # noqa
         except FileNotFoundError:
             check(False, "Couldn't detect `numactl`, necessary for thread pinning.")
 
@@ -145,9 +147,9 @@ def run_with_advisor(path, output, name, exec_args):
     advixe_handler.setFormatter(advixe_formatter)
     advixe_logger.addHandler(advixe_handler)
 
-    log("Project folder: %s" % str(output))
-    log("Logging progress in: `%s`" % str(advixe_handler))
-    
+    log(f"Project folder: {output}")
+    log(f"Logging progress in: `{advixe_handler.baseFilename}`")
+
     with progress('Performing `cache warm-up` run'):
         try:
             p_warm_up = Popen(py_cmd, stdout=PIPE, stderr=PIPE)
@@ -171,13 +173,13 @@ def run_with_advisor(path, output, name, exec_args):
         except OSError:
             check(False, 'Failed!')
 
-    log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
+    log(f'Storing `survey` and `tripcounts` data in `{output}`')
     log('To plot a roofline type: ')
-    log('python3 roofline.py --name %s --project %s --scale %f'
-        % (name, str(output), n_sockets))
+    log(f'python3 roofline.py --name {name} --project {output} --scale {n_sockets}')
 
     log('\nTo open the roofline using advixe-gui: ')
-    log('advixe-gui %s' % str(output))
+    log(f'advixe-gui {output}')
+
 
 if __name__ == '__main__':
     run_with_advisor()
