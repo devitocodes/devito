@@ -814,7 +814,8 @@ class Device(Platform):
 
     def __init__(self, name, cores_logical=None, cores_physical=None, isa='cpp',
                  max_threads_per_block=1024, max_threads_dimx=1024,
-                 max_threads_dimy=1024, max_threads_dimz=64):
+                 max_threads_dimy=1024, max_threads_dimz=64,
+                 max_thread_block_cluster_size=8):
         super().__init__(name)
 
         cpu_info = get_cpu_info()
@@ -827,6 +828,7 @@ class Device(Platform):
         self.max_threads_dimx = max_threads_dimx
         self.max_threads_dimy = max_threads_dimy
         self.max_threads_dimz = max_threads_dimz
+        self.max_thread_block_cluster_size = max_thread_block_cluster_size
 
     @classmethod
     def _mro(cls):
@@ -932,6 +934,10 @@ class Ampere(Volta):
 
 
 class Hopper(Ampere):
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('max_thread_block_cluster_size', 16)
+        super().__init__(*args, **kwargs)
 
     def supports(self, query, language=None):
         if query in ('tma', 'thread-block-cluster'):
