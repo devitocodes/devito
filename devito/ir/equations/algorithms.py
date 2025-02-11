@@ -113,7 +113,7 @@ def lower_exprs(expressions, subs=None, **kwargs):
 def _lower_exprs(expressions, subs):
     processed = []
     for expr in as_tuple(expressions):
-        dimension_map = make_dimension_map(expr)
+        dimension_map = _make_dimension_map(expr)
 
         # Handle Functions (typical case)
         mapper = {f: _lower_exprs(f.indexify(subs=dimension_map), subs)
@@ -157,7 +157,7 @@ def _lower_exprs(expressions, subs):
         return processed.pop()
 
 
-def make_dimension_map(expr):
+def _make_dimension_map(expr):
     """
     Make the dimension_map for an expression. In the basic case, this is extracted
     directly from the SubDomain attached to the expression.
@@ -233,6 +233,7 @@ def _(expr, mapper, rebuilt, sregistry):
     thicknesses = {i for i in expr.free_symbols if isinstance(i, Thickness)}
     symbols = expr.free_symbols.difference(thicknesses)
 
+    # Iterate over all other symbols before iterating over standalone thicknesses
     for d in tuple(symbols) + tuple(thicknesses):
         _concretize_subdims(d, mapper, rebuilt, sregistry)
 

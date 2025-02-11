@@ -1219,6 +1219,49 @@ class TestSubDomainFunctions:
         _ = h.laplacian()
         _ = h.div()
 
+    def test_unspecified_subdomain(self):
+        """
+        Test that Eq infers iteration over a valid SubDomain if none is supplied.
+        """
+        grid = Grid(shape=(10, 10))
+        sd0 = ReducedDomain(('middle', 1, 2),
+                            ('right', 7),
+                            grid=grid)
+
+        f = Function(name='f', grid=sd0, dtype=np.int32)
+        g = Function(name='g', grid=grid, dtype=np.int32)
+
+        f.data[:] = 1
+
+        op = Operator(Eq(g, f))
+        op()
+
+        check = np.zeros((10, 10), dtype=np.int32)
+        check[1:-2, -7:] = 1
+
+        assert np.all(g.data == check)
+
+    @pytest.mark.xfail(reason="Functions defined on multiple SubDomains without"
+                       " specifying subdomain should be raise an error")
+    def test_multiple_unspecified_subdomain(self):
+        """
+        Test that an error is raised if Functions on SubDomains are mixed within an Eq
+        without specifying an iteration SubDomain.
+        """
+        grid = Grid(shape=(10, 10))
+        sd0 = ReducedDomain(('middle', 1, 2),
+                            ('right', 7),
+                            grid=grid)
+        sd1 = ReducedDomain(('middle', 3, 3),
+                            ('right', 5),
+                            grid=grid)
+
+        f = Function(name='f', grid=sd0, dtype=np.int32)
+        g = Function(name='g', grid=sd1, dtype=np.int32)
+
+        op = Operator(Eq(g, f))
+        op()
+
 
 class TestSubDomainFunctionsParallel:
     """Tests for functions defined on SubDomains with MPI"""

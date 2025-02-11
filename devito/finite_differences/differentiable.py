@@ -318,7 +318,7 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         w = kwargs.get('weights', kwargs.get('w'))
         order = order or self.space_order
-        space_dims = [d.root for d in self.dimensions if d.is_Space]
+        space_dims = self.root_dimensions
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self, d)(x0=shift_x0(shift, space_dims[i], None, i),
@@ -345,7 +345,7 @@ class Differentiable(sympy.Expr, Evaluable):
             Custom weights for the finite difference coefficients.
         """
         w = kwargs.get('weights', kwargs.get('w'))
-        space_dims = [d.root for d in self.dimensions if d.is_Space]
+        space_dims = self.root_dimensions
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         return Add(*[getattr(self, 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
@@ -372,7 +372,7 @@ class Differentiable(sympy.Expr, Evaluable):
             Custom weights for the finite
         """
         from devito.types.tensor import VectorFunction, VectorTimeFunction
-        space_dims = [d.root for d in self.dimensions if d.is_Space]
+        space_dims = self.root_dimensions
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         w = kwargs.get('weights', kwargs.get('w'))
@@ -388,7 +388,7 @@ class Differentiable(sympy.Expr, Evaluable):
         Generates a symbolic expression for the weighted biharmonic operator w.r.t.
         all spatial Dimensions Laplace(weight * Laplace (self))
         """
-        space_dims = [d.root for d in self.dimensions if d.is_Space]
+        space_dims = self.root_dimensions
         derivs = tuple('d%s2' % d.name for d in space_dims)
         return Add(*[getattr(self.laplace * weight, d) for d in derivs])
 
