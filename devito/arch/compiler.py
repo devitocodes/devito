@@ -15,7 +15,7 @@ from codepy.toolchain import (GCCToolchain,
 
 from devito.arch import (AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9,
                          Graviton, Cortex, IntelDevice, get_nvidia_cc,
-                         check_cuda_runtime, get_m1_llvm_path)
+                         check_cuda_runtime, get_m1_llvm_path, get_advisor_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
@@ -767,17 +767,15 @@ class IntelCompiler(Compiler):
 
         if configuration['profiling'] == 'advisor':
             # Locate the Intel Advisor installation and
-            # add the necessary flags to the compiler
-            from devito.operator.profiling import locate_intel_advisor
-            path = locate_intel_advisor()
+            # add the necessary paths and flags to the compiler
+            path = get_advisor_path()
             self.add_include_dirs(path.joinpath('include').as_posix())
 
             _default_libs = ['ittnotify']
             self.add_libraries(_default_libs)
 
             libdir = path.joinpath('lib64').as_posix()
-            self.add_library_dirs(libdir)
-            self.add_ldflags('-Wl,-rpath,%s' % libdir)
+            self.add_library_dirs(libdir, rpath=True)
 
     def __init_intel_mpi__(self, **kwargs):
         # Make sure the MPI compiler uses an Intel compiler underneath,
