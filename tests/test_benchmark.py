@@ -3,7 +3,7 @@ import os
 import sys
 
 from benchmarks.user.benchmark import run
-from devito import configuration, switchconfig
+from devito import configuration, switchconfig, Grid, TimeFunction, Eq, Operator
 from conftest import skipif
 from subprocess import check_call
 
@@ -87,3 +87,16 @@ def test_run_mpi(mode):
         'dump_norms': 'norms.txt'
     }
     run('acoustic', **kwargs)
+
+
+@switchconfig(profiling='advisor')
+def test_advisor_profiling():
+    grid = Grid(shape=(10, 10, 10))
+
+    f = TimeFunction(name='f', grid=grid, space_order=2)
+
+    eq0 = [Eq(f.forward, f.dx + 1.)]
+
+    # Only check codegen, do not run
+    op = Operator(eq0)
+    assert 'ittnotify.h' in op._includes
