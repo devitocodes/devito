@@ -13,15 +13,8 @@ RUN apt-get update && \
     apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip
 
 # Install for basic base not containing it
-RUN apt-get install -y vim wget git flex libnuma-dev tmux \
-        numactl hwloc curl \
-        autoconf libtool build-essential procps
-
-# Install tmpi
-RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
-
-# Install OpenGL library, necessary for the installation of GemPy
-RUN apt-get install -y libgl1-mesa-glx
+RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake \
+        autoconf libtool build-essential procps git
 
 EXPOSE 8888
 CMD ["/bin/bash"]
@@ -29,7 +22,7 @@ CMD ["/bin/bash"]
 ##############################################################
 # Intel OneAPI standard image
 ##############################################################
-FROM base as oneapi
+FROM base AS oneapi
 
 # Download the key to system keyring
 # https://www.intel.com/content/www/us/en/develop/documentation/installation-guide-for-intel-oneapi-toolkits-linux/top/installation/install-using-package-managers/apt.html#apt
@@ -67,7 +60,7 @@ RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/l
 # ICC image
 # This is a legacy setup that is not built anymore but kept for reference
 ##############################################################
-FROM oneapi as icc
+FROM oneapi AS icc
 
 RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi-devel && \
     apt-get clean && apt-get autoclean && apt-get autoremove -y && \
@@ -85,7 +78,7 @@ ENV MPICC=mpiicc
 ##############################################################
 # ICX OpenMP image
 ##############################################################
-FROM oneapi as icx
+FROM oneapi AS icx
 
 RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mpi-devel && \
     apt-get clean && apt-get autoclean && apt-get autoremove -y && \
@@ -102,7 +95,7 @@ ENV MPICC=mpiicc
 ##############################################################
 # ICX SYCL CPU image
 ##############################################################
-FROM icx as cpu-sycl
+FROM icx AS cpu-sycl
 
 # Devito config
 ENV DEVITO_ARCH="sycl"

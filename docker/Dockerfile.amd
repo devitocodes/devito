@@ -5,7 +5,7 @@
 
 ARG ROCM_VERSION=6.3.2
 
-FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete as sdk-base
+FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete AS sdk-base
 
 ARG UCX_BRANCH="v1.16.0"
 ARG OMPI_BRANCH="v5.0.x"
@@ -14,16 +14,12 @@ ARG OMPI_BRANCH="v5.0.x"
 RUN rm /etc/apt/sources.list.d/* \
   && apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates git ssh make vim libtinfo* initramfs-tools libelf-dev \
-    numactl wget tmux build-essential autoconf automake libtool \
-    pkg-config libnuma* gfortran flex hwloc && \
-    apt-get clean
+    dh-autoreconf python3-venv python3-dev python3-pip git \
+    ca-certificates ssh make libtinfo* initramfs-tools libelf-dev \
+    wget build-essential autoconf automake libtool \
+    pkg-config libnuma* gfortran flex hwloc cmake
 
-# Requires cmake > 3.22 
-RUN mkdir -p /opt/cmake  \
-  && wget --no-check-certificate --quiet -O - https://cmake.org/files/v3.22/cmake-3.22.2-linux-x86_64.tar.gz | tar --strip-components=1 -xz -C /opt/cmake
-
-ENV ROCM_HOME=/opt/rocm \
+ENV ROCM_HOME=/opt/rocm\
     UCX_HOME=/opt/ucx \
     OMPI_HOME=/opt/ompi
 
@@ -33,9 +29,6 @@ ENV PATH=$ROCM_HOME/bin:$PATH \
 
 # Until rocm base has it fixed
 RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch | echo "offload-arch already exis"
-
-# Install tmpi
-RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # Install UCX
 RUN cd /tmp/ \
@@ -101,14 +94,6 @@ ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-##############################################################
-# Additional Devito requirements
-##############################################################
-
-# Additional utils and python3
-RUN apt-get update && \
-    apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip
-
 RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
@@ -119,7 +104,7 @@ CMD ["/bin/bash"]
 # AOMP for GPUs (OpenMP offloading)
 ########################################################################
 # This will only trigger if arch is aomp since the final stage depends on it
-FROM sdk-base as amdclang
+FROM sdk-base AS amdclang
 
 # MPI env
 ENV OMPI_CC="amdclang"
@@ -134,7 +119,7 @@ ENV DEVITO_LANGUAGE="openmp"
 # HIPCC for GPUs (HIP)
 ########################################################################
 # This will only trigger if arch is hip since the final stage depends on it
-FROM sdk-base as hip
+FROM sdk-base AS hip
 
 # MPI env
 ENV OMPI_CC="hipcc"

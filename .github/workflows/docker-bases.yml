@@ -16,7 +16,7 @@ on:
       tags:
         description: 'Build compiler bases'
   schedule:
-    # Run once a week
+    # Run once a month
     - cron: "0 0 1 * *"
 
 jobs:
@@ -28,9 +28,19 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: "1"
+
     strategy:
-        matrix:
-          version: ['', '14']
+      matrix:
+        name: [gcc, gcc14]
+
+        include:
+          - name: gcc
+            version: "11"
+            tag: "gcc"
+
+          - name: gcc14
+            version: "14"
+            tag: "gcc14"
 
     steps:
       - name: Checkout devito
@@ -61,7 +71,7 @@ jobs:
           file: './docker/Dockerfile.cpu'
           push: true
           build-args: 'gcc=${{ matrix.version }}'
-          tags: 'devitocodes/bases:cpu-gcc${{ matrix.version }}'
+          tags: 'devitocodes/bases:cpu-${{ matrix.tag }}'
 
 
 #######################################################
