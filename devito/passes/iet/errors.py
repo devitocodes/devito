@@ -109,5 +109,6 @@ error_mapper = {
     'Stability': 100,
     'KernelLaunch': 200,
     'KernelLaunchOutOfResources': 201,
-    'KernelLaunchUnknown': 202,
+    'KernelLaunchClusterConfig': 202,
+    'KernelLaunchUnknown': 203,
 }

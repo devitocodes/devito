@@ -703,6 +703,15 @@ class Operator(Callable):
                 "due to excessive register pressure in one of the Operator "
                 "kernels. Try supplying a smaller `par-tile` value."
             )
+        elif retval == error_mapper['KernelLaunchClusterConfig']:
+            raise ExecutionError(
+                "Kernel launch failed due to an invalid thread block cluster "
+                "configuration. This is probably due to a `tbc-tile` value that "
+                "does not perfectly divide the number of blocks launched for a "
+                "kernel. This is a known, strong limitation which effectively "
+                "prevents the use of `tbc-tile` in realistic scenarios, but it "
+                "will be removed in future versions."
+            )
         elif retval == error_mapper['KernelLaunchUnknown']:
             raise ExecutionError(
                 "Kernel launch failed due to an unknown error. This might "
