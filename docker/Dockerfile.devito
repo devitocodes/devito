@@ -13,10 +13,6 @@ ARG GROUP_ID=1000
 
 ##################  Install devito ############################################
 
-# Update if outdated and install extras
-RUN apt-get update && \
-    apt-get install -y git cmake libncurses5-dev libncursesw5-dev libdrm-dev libsystemd-dev
-
 # Usefull utilities
 # Nvtop
 RUN git clone https://github.com/Syllo/nvtop.git /app/nvtop && \
@@ -43,14 +39,21 @@ RUN eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir --verbose -r /app/d
 # Devito
 RUN /venv/bin/pip install --no-cache-dir -e /app/devito[extras,tests] && rm -rf ~/.cache/pip
 
-FROM $base as user
-# COPY is much faster than RUN chown by order of magnitude so we have a final step that
-# just copies the built image into the user.
+FROM $base AS utilities
+
+# Update if outdated and install extras
+RUN apt-get update && apt-get install -y git cmake \
+    libncurses5-dev libncursesw5-dev libdrm-dev libsystemd-dev \
+    python3-gdb gdb
 
 # Last installs (such as gdb needed in user mode) and cleanup
 RUN apt-get update && apt install gdb -y && \
     apt-get clean && apt-get autoclean && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
+
+FROM utilities as user
+# COPY is much faster than RUN chown by order of magnitude so we have a final step that
+# just copies the built image into the user.
 
 # User/Group Ids
 ARG USER_ID=1000

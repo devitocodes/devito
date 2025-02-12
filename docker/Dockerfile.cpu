@@ -11,19 +11,14 @@ ARG gcc=""
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Add repo for other python versions
-RUN apt-get update && \
-    apt-get install -y software-properties-common
-
 # Install python
 RUN apt-get update && \
-    apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip gdb
+    apt-get install -y software-properties-common dh-autoreconf python3-venv python3-dev python3-pip
 
 # Install for basic base not containing it
 RUN apt-get install -y vim wget git flex libnuma-dev tmux \
         numactl hwloc curl \
         autoconf libtool build-essential procps software-properties-common
-
 
 # Install compilersx
 RUN if [ -n "$gcc" ]; then \
@@ -46,10 +41,8 @@ RUN if [ -n "$gcc" ]; then \
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # Install OpenGL library, necessary for the installation of GemPy
-RUN apt-get install -y libgl1-mesa-glx | echo "Skipping libgl1-mesa-glx installation, outdated"
-RUN apt-get install -y libgl1 libglx-mesa0 | echo "Skipping libgl1 libglx-mesa0 installation, not recent enough"
-
-RUN apt-get clean && apt-get autoclean && apt-get autoremove  -y && \
+RUN apt-get install -y libgl1-mesa-glx && \
+    apt-get clean && apt-get autoclean && apt-get autoremove  -y && \
     rm -rf /var/lib/apt/lists/*
 
 ARG OMPI_BRANCH="v5.0.x"

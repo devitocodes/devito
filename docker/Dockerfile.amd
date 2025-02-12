@@ -14,29 +14,10 @@ ARG OMPI_BRANCH="v5.0.x"
 RUN rm /etc/apt/sources.list.d/* \
   && apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates \
-    git \
-    ssh \
-    make \
-    vim \
-    nano \
-    libtinfo* \
-    initramfs-tools \
-    libelf-dev \
-    numactl \
-    wget \
-    tmux \
-    build-essential \
-    autoconf \
-    automake \
-    libtool \
-    pkg-config \
-    libnuma* \
-    gfortran \
-    flex \
-    hwloc \
-    gdb \
-  && apt-get clean
+    ca-certificates git ssh make vim libtinfo* initramfs-tools libelf-dev \
+    numactl wget tmux build-essential autoconf automake libtool \
+    pkg-config libnuma* gfortran flex hwloc && \
+    apt-get clean
 
 # Requires cmake > 3.22 
 RUN mkdir -p /opt/cmake  \
