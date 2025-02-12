@@ -70,7 +70,7 @@ jobs:
     - name: Build docker image
       if: "contains(matrix.name, 'docker')"
       run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img
+          docker build . --pull --file docker/Dockerfile.devito --tag devito_img
 
     - name: Set run prefix
       run: |

@@ -4,30 +4,39 @@
 # architectures using GCC compilers and OpenMPI.
 ##############################################################
 
-ARG OMPI_BRANCH="v4.1.4"
+ARG gcc="11"
 
 # Base image 
-FROM ubuntu:22.04 as base
+FROM gcc:${gcc}-bookworm AS base
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install python
 RUN apt-get update && \
-    apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip
+    apt-get install -y software-properties-common dh-autoreconf python3-venv python3-dev python3-pip
 
 # Install for basic base not containing it
-RUN apt-get install -y vim wget git flex libnuma-dev tmux \
-        numactl hwloc curl \
-        autoconf libtool build-essential procps software-properties-common
-
-# Install tmpi
-RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
-
-# Install OpenGL library, necessary for the installation of GemPy
-RUN apt-get install -y libgl1-mesa-glx
-
-RUN apt-get clean && apt-get autoclean && apt-get autoremove  -y && \
+RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake git \
+        autoconf libtool build-essential procps software-properties-common && \
+    apt-get clean && apt-get autoclean && apt-get autoremove  -y && \
     rm -rf /var/lib/apt/lists/*
+
+ARG OMPI_BRANCH="v5.0.x"
+# Install OpenMPI
+RUN cd /tmp && mkdir openmpi && \
+    git clone --depth 1 --recursive --branch ${OMPI_BRANCH} https://github.com/open-mpi/ompi.git openmpi && \
+    cd openmpi && ./autogen.pl && \
+    mkdir build &&  cd build && \
+    ../configure --prefix=/opt/openmpi/ \
+                 --disable-mpi-fortran \
+                 --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
+    make -j ${nproc} && \
+    make install && \
+    cd /tmp && rm -rf /tmp/openmpi
+
+# Set OpenMPI path
+ENV PATH=${PATH}:/opt/openmpi/bin
+ENV LD_LIBRARY_PATH=/opt/openmpi/lib
 
 EXPOSE 8888
 CMD ["/bin/bash"]
@@ -35,29 +44,7 @@ CMD ["/bin/bash"]
 ##############################################################
 # GCC standard image
 ##############################################################
-FROM base as gcc
-
-# Install gcc 13 for better hardware and software support
-RUN add-apt-repository ppa:ubuntu-toolchain-r/test -y && apt update && \
-    apt install gcc-13 g++-13 -y && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100 && \
-    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
-
-ARG OMPI_BRANCH="v4.1.4"
-# Install OpenMPI
-RUN mkdir -p /deps && mkdir -p /opt/openmpi && cd /deps && \
-    git clone --depth 1 --recursive --branch ${OMPI_BRANCH} https://github.com/open-mpi/ompi.git openmpi && \
-    cd openmpi && ./autogen.pl && \
-    mkdir build &&  cd build && \
-    ../configure --prefix=/opt/openmpi/ \
-                 --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
-    make -j ${nproc} && \
-    make install && \
-    cd /deps && rm -rf /deps/openmpi
-
-# Set OpenMPI path
-ENV PATH=${PATH}:/opt/openmpi/bin
-ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/opt/openmpi/lib
+FROM base AS gcc
 
 # Env vars defaults
 ENV DEVITO_ARCH="gcc"
