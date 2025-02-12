@@ -87,6 +87,11 @@ class Differentiable(sympy.Expr, Evaluable):
         return tuple(filter_ordered(flatten(getattr(i, 'dimensions', ())
                                             for i in self._args_diff)))
 
+    @cached_property
+    def root_dimensions(self):
+        """Tuple of root Dimensions of the physical space Dimensions."""
+        return tuple(d.root for d in self.dimensions if d.is_Space)
+
     @property
     def indices_ref(self):
         """The reference indices of the object (indices at first creation)."""
