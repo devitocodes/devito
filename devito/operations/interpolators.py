@@ -33,7 +33,7 @@ def check_radius(func):
     return wrapper
 
 
-def extract_subdomain(variables):
+def _extract_subdomain(variables):
     """
     Check if any of the variables provided are defined on a SubDomain
     and extract it if this is the case.
@@ -194,6 +194,10 @@ class WeightedInterpolator(GenericInterpolator):
     def grid(self):
         return self.sfunction.grid
 
+    @property
+    def r(self):
+        return self.sfunction.r
+
     @memoized_meth
     def _weights(self, subdomain=None):
         raise NotImplementedError
@@ -201,10 +205,6 @@ class WeightedInterpolator(GenericInterpolator):
     @property
     def _gdims(self):
         return self.grid.dimensions
-
-    @property
-    def r(self):
-        return self.sfunction.r
 
     @cached_property
     def _cdim(self):
@@ -366,7 +366,7 @@ class WeightedInterpolator(GenericInterpolator):
             _expr = expr
 
         variables = list(retrieve_function_carriers(_expr))
-        subdomain = extract_subdomain(variables)
+        subdomain = _extract_subdomain(variables)
 
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
@@ -416,7 +416,7 @@ class WeightedInterpolator(GenericInterpolator):
             else:
                 assert len(exprs) == len(fields)
 
-        subdomain = extract_subdomain(fields)
+        subdomain = _extract_subdomain(fields)
 
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:

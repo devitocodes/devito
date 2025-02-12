@@ -1119,6 +1119,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         """Tuple of Dimensions defining the physical space."""
         return tuple(d for d in self.dimensions if d.is_Space)
 
+    @cached_property
+    def root_dimensions(self):
+        """Tuple of root Dimensions of the physical space Dimensions."""
+        return tuple(d.root for d in self.space_dimensions)
+
     @property
     def base(self):
         return self.indexed
@@ -1453,7 +1458,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         """Offset of subdomain indices versus the global index."""
         # If defined on a SubDomain, then need to offset indices accordingly
         if not self._is_on_subdomain:
-            return (0,)*len(self.dimensions)
+            return DimensionTuple(*[0 for _ in self.dimensions], getters=self.dimensions)
         # Symbolic offsets to avoid potential issues with user overrides
         offsets = []
         for d in self.dimensions:

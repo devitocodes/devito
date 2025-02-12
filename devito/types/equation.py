@@ -157,11 +157,11 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         if len(subdomains) == 0:
             return None
         elif len(subdomains) == 1:
-            subdomain = subdomains.pop()
-            return subdomain
+            return subdomains.pop()
         else:
-            raise ValueError("Multiple SubDomains present in Eq, but no iteration"
-                             " SubDomain supplied.")
+            raise ValueError("Multiple `SubDomain`s detected. Provide a `SubDomain`"
+                             " explicitly (i.e., via `Eq(..., subdomain=...)`)"
+                             " to unambiguously define the `Eq`'s iteration domain.")
 
     @property
     def substitutions(self):
