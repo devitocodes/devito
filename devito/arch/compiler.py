@@ -45,7 +45,7 @@ def sniff_compiler_version(cc, allow_fail=False):
         if allow_fail:
             return Version("0")
         else:
-            raise RuntimeError("The `%s` compiler isn't available on this system" % cc)
+            raise RuntimeError(f"The `{cc}` compiler isn't available on this system")
 
     ver = ver.strip()
     if ver.startswith("gcc"):
@@ -190,8 +190,7 @@ class Compiler(GCCToolchain):
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
             self.cc = self.CC if self._cpp is False else self.CXX
-            self.cc = self.cc if self.suffix is None else ('%s-%s' %
-                                                           (self.cc, self.suffix))
+            self.cc = self.cc if self.suffix is None else f'{self.cc}-{self.suffix}'
         else:
             self.cc = self.MPICC if self._cpp is False else self.MPICXX
         self.ld = self.cc  # Wanted by the superclass
@@ -214,7 +213,7 @@ class Compiler(GCCToolchain):
         elif platform.system() == "Windows":
             self.so_ext = '.dll'
         else:
-            raise NotImplementedError("Unsupported platform %s" % platform)
+            raise NotImplementedError(f"Unsupported platform {platform}")
 
         self.__init_finalize__(**kwargs)
 
@@ -291,20 +290,19 @@ class Compiler(GCCToolchain):
         """
         sofile = self.get_jit_dir().joinpath(soname).with_suffix(self.so_ext)
         if sofile.is_file():
-            debug("%s: `%s` was not saved in `%s` as it already exists"
-                  % (self, sofile.name, self.get_jit_dir()))
+            debug(f"{self}: `{sofile.name}` was not saved in `{self.get_jit_dir()}`"
+                  " as it already exists")
         else:
             makedirs(self.get_jit_dir(), exist_ok=True)
             with open(str(sofile), 'wb') as f:
                 f.write(binary)
-            debug("%s: `%s` successfully saved in `%s`"
-                  % (self, sofile.name, self.get_jit_dir()))
+            debug(f"{self}: `{sofile.name}` successfully saved in `{self.get_jit_dir()}`")
 
     def make(self, loc, args):
         """Invoke the ``make`` command from within ``loc`` with arguments ``args``."""
         hash_key = sha1((loc + str(args)).encode()).hexdigest()
-        logfile = path.join(self.get_jit_dir(), "%s.log" % hash_key)
-        errfile = path.join(self.get_jit_dir(), "%s.err" % hash_key)
+        logfile = path.join(self.get_jit_dir(), f"{hash_key}.log")
+        errfile = path.join(self.get_jit_dir(), f"{hash_key}.err")
 
         with change_directory(loc):
             with open(logfile, "w") as lf:
@@ -317,12 +315,12 @@ class Compiler(GCCToolchain):
                     try:
                         check_call(command, stderr=ef, stdout=lf)
                     except CalledProcessError as e:
-                        raise CompilationError('Command "%s" return error status %d. '
-                                               'Unable to compile code.\n'
-                                               'Compile log in %s\n'
-                                               'Compile errors in %s\n' %
-                                               (e.cmd, e.returncode, logfile, errfile))
-        debug("Make <%s>" % " ".join(args))
+                        raise CompilationError(f'Command "{e.cmd}" return error status'
+                                               f'{e.returncode}. '
+                                               f'Unable to compile code.\n'
+                                               f'Compile log in {logfile}\n'
+                                               f'Compile errors in {errfile}\n')
+        debug(f"Make <{' '.join(args)}>")
 
     def jit_compile(self, soname, code):
         """
@@ -340,7 +338,7 @@ class Compiler(GCCToolchain):
             The source code to be JIT compiled.
         """
         target = str(self.get_jit_dir().joinpath(soname))
-        src_file = "%s.%s" % (target, self.src_ext)
+        src_file = f"{target}.{self.src_ext}"
 
         cache_dir = self.get_codepy_dir().joinpath(soname[:7])
         if configuration['jit-backdoor'] is False:
@@ -353,15 +351,15 @@ class Compiler(GCCToolchain):
             try:
                 with open(src_file, 'r') as f:
                     code = f.read()
-                    code = ''.join([code, '/* Backdoor edit at %s*/ \n' % time.ctime()])
+                    code = f'{code}/* Backdoor edit at {time.ctime()}*/ \n'
                 # Bypass the devito JIT cache
                 # Note: can't simply use Python's `mkdtemp()` as, with MPI, different
                 # ranks would end up creating different cache dirs
                 cache_dir = cache_dir.joinpath('jit-backdoor')
                 cache_dir.mkdir(parents=True, exist_ok=True)
             except FileNotFoundError:
-                raise ValueError("Trying to use the JIT backdoor for `%s`, but "
-                                 "the file isn't present" % src_file)
+                raise ValueError(f"Trying to use the JIT backdoor for `{src_file}`, but "
+                                 "the file isn't present")
 
         # Should the compilation command be emitted?
         debug = configuration['log-level'] == 'DEBUG'
@@ -392,7 +390,7 @@ class Compiler(GCCToolchain):
         return self.__class__.__name__
 
     def __repr__(self):
-        return "JITCompiler[%s]" % self.__class__.__name__
+        return f"JITCompiler[{self.__class__.__name__}]"
 
     def __getstate__(self):
         # The superclass would otherwise only return a subset of attributes
@@ -406,7 +404,7 @@ class Compiler(GCCToolchain):
         if rpath:
             # Add rpath flag to embed library dir
             for d in as_list(dirs):
-                self.ldflags.append('-Wl,-rpath,%s' % d)
+                self.ldflags.append(f'-Wl,-rpath,{d}')
 
     def add_libraries(self, libs):
         self.libraries = filter_ordered(self.libraries + as_list(libs))
@@ -442,10 +440,10 @@ class GNUCompiler(Compiler):
             # -march isn't supported on power architectures, is -mtune needed?
             self.cflags = ['-mcpu=native'] + self.cflags
         elif isinstance(platform, Graviton):
-            self.cflags = ['-mcpu=%s' % platform.march] + self.cflags
+            self.cflags = [f'-mcpu={platform.march}'] + self.cflags
         elif isinstance(platform, Cortex):
-            self.cflags += ['-march=%s' % platform.march]
-            self.cflags += ['-mtune=%s' % platform.mtune]
+            self.cflags += [f'-march={platform.march}']
+            self.cflags += [f'-mtune={platform.mtune}']
         else:
             self.cflags = ['-march=native'] + self.cflags
 
@@ -491,7 +489,7 @@ class ClangCompiler(Compiler):
             if language in ['C', 'openmp']:
                 cc = get_nvidia_cc()
                 if cc:
-                    self.cflags += ['-Xopenmp-target', '-march=sm_%s' % cc]
+                    self.cflags += ['-Xopenmp-target', f'-march=sm_{cc}']
                 self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
         elif platform is AMDGPUX:
             self.cflags.remove('-std=c99')
@@ -501,7 +499,7 @@ class ClangCompiler(Compiler):
                 self.ldflags += ['-fopenmp',
                                  '-fopenmp-targets=amdgcn-amd-amdhsa',
                                  '-Xopenmp-target=amdgcn-amd-amdhsa']
-                self.ldflags += ['-march=%s' % platform.march]
+                self.ldflags += [f'-march={platform.march}']
         elif isinstance(platform, AppleArm):
             # NOTE:
             # Apple Mx supports OpenMP through Apple's LLVM compiler.
@@ -510,9 +508,9 @@ class ClangCompiler(Compiler):
             llvmm1 = get_m1_llvm_path(language)
             if llvmm1 and language == 'openmp':
                 mx = platform.march
-                self.ldflags += ['-mcpu=apple-%s' % mx,
-                                 '-fopenmp', '-L%s' % llvmm1['libs']]
-                self.cflags += ['-Xclang', '-I%s' % llvmm1['include']]
+                self.ldflags += [f'-mcpu=apple-{mx}',
+                                 '-fopenmp', f'-L{llvmm1["libs"]}']
+                self.cflags += ['-Xclang', f'-I{llvmm1["include"]}']
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
@@ -561,7 +559,7 @@ class AOMPCompiler(Compiler):
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
                 self.ldflags += ['-fopenmp']
-                self.ldflags += ['--offload-arch=%s' % platform.march]
+                self.ldflags += [f'--offload-arch={platform.march}']
         elif platform in [POWER8, POWER9]:
             # It doesn't make much sense to use AOMP on Power, but it should work
             self.cflags.append('-mcpu=native')
@@ -774,15 +772,15 @@ class IntelCompiler(Compiler):
         # whatever the MPI distro is
         mpi_distro = sniff_mpi_distro('mpiexec')
         if mpi_distro != 'IntelMPI':
-            warning("Expected Intel MPI distribution with `%s`, but found `%s`"
-                    % (self.__class__.__name__, mpi_distro))
+            warning(f"Expected Intel MPI distribution with `{self.__class__.__name__}`,"
+                    f"but found `{mpi_distro}`")
 
     def __init_intel_mpi_flags__(self, **kwargs):
-        self.cflags.insert(0, '-cc=%s' % self.CC)
+        self.cflags.insert(0, f'-cc={self.CC}')
 
     def get_version(self):
         if configuration['mpi']:
-            cmd = (self.cc, "-cc=%s" % self.CC, "--version")
+            cmd = (self.cc, f"-cc={self.CC}", "--version")
         else:
             cmd = (self.cc, "--version")
         result, stdout, stderr = call_capture_output(cmd)
@@ -801,7 +799,7 @@ class IntelCompiler(Compiler):
         # we try to use `mpiicc` first, while `mpicc` is our fallback, which may
         # or may not be an Intel distribution
         try:
-            check_output(["mpiicc", "-cc=%s" % self.CC, "--version"]).decode("utf-8")
+            check_output(["mpiicc", f"-cc={self.CC}", "--version"]).decode("utf-8")
             self.MPICC = 'mpiicc'
             self.MPICXX = 'mpicxx'
         except FileNotFoundError:
@@ -903,7 +901,7 @@ class SyclCompiler(OneapiCompiler):
         elif isinstance(platform, IntelDevice):
             self.cflags.append('-fsycl-targets=spir64')
         else:
-            raise NotImplementedError("Unsupported platform %s" % platform)
+            raise NotImplementedError(f"Unsupported platform {platform}")
 
 
 class CustomCompiler(Compiler):
