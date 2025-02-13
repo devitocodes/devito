@@ -466,9 +466,7 @@ class GNUCompiler(Compiler):
 
 
 class ArmCompiler(GNUCompiler):
-
-    def __init_finalize__(self, **kwargs):
-        GNUCompiler.__init_finalize__(self, **kwargs)
+    pass
 
 
 class ClangCompiler(Compiler):
