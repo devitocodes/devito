@@ -24,9 +24,12 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            # Intel CPUs
            'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
            'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
+           # AMD CPUs
+           'AMD',
            # ARM CPUs
-           'AMD', 'ARM', 'AppleArm', 'M1', 'M2', 'M3',
+           'ARM', 'AppleArm', 'M1', 'M2', 'M3',
            'Graviton', 'GRAVITON2', 'GRAVITON3', 'GRAVITON4',
+           'Cortex',
            # Other legacy CPUs
            'POWER8', 'POWER9',
            # Generic GPUs
@@ -226,7 +229,7 @@ def get_gpu_info():
         for i in ['total', 'free', 'used']:
             def make_cbk(i):
                 def cbk(deviceid=0):
-                    info_cmd = ['nvidia-smi', '--query-gpu=memory.%s' % i, '--format=csv']
+                    info_cmd = ['nvidia-smi', f'--query-gpu=memory.{i}', '--format=csv']
                     proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
                     raw_info = str(proc.stdout.read())
 
@@ -248,7 +251,7 @@ def get_gpu_info():
 
                 return cbk
 
-            gpu_info['mem.%s' % i] = make_cbk(i)
+            gpu_info[f'mem.{i}'] = make_cbk(i)
 
         return gpu_info
 
@@ -303,10 +306,10 @@ def get_gpu_info():
                 def cbk(deviceid=0):
                     try:
                         # Should only contain Used and total
-                        assert len(info['card%s' % deviceid]) == 2
-                        used = [int(v) for k, v in info['card%s' % deviceid].items()
+                        assert len(info[f'card{deviceid}']) == 2
+                        used = [int(v) for k, v in info[f'card{deviceid}'].items()
                                 if 'Used' in k][0]
-                        total = [int(v) for k, v in info['card%s' % deviceid].items()
+                        total = [int(v) for k, v in info[f'card{deviceid}'].items()
                                  if 'Used' not in k][0]
                         free = total - used
                         return {'total': total, 'free': free, 'used': used}[i]
@@ -318,7 +321,7 @@ def get_gpu_info():
 
                 return cbk
 
-            gpu_info['mem.%s' % i] = make_cbk(i)
+            gpu_info[f'mem.{i}'] = make_cbk(i)
 
         gpu_infos['architecture'] = 'AMD'
         return gpu_info
@@ -737,7 +740,7 @@ class Cpu64(Platform):
         try:
             return int(lscpu()['NUMA node(s)'])
         except (ValueError, TypeError, KeyError):
-            warning("NUMA domain count autodetection failed")
+            warning("NUMA domain count autodetection failed, assuming 1")
             return 1
 
     @cached_property
@@ -791,6 +794,21 @@ class Graviton(Arm):
             return 'neoverse-v1'
         else:
             return 'neoverse-n1'
+
+
+class Cortex(Arm):
+
+    @property
+    def version(self):
+        return int(self.name.split('cortexa')[-1])
+
+    @cached_property
+    def march(self):
+        return 'armv8-a+crc+simd'
+
+    @cached_property
+    def mtune(self):
+        return f'cortex-a{self.version}'
 
 
 class Amd(Cpu64):
@@ -1007,6 +1025,8 @@ GRAVITON4 = Graviton('graviton4')
 M1 = AppleArm('m1')
 M2 = AppleArm('m2')
 M3 = AppleArm('m3')
+CORTEX = Cortex('cortex')
+CORTEXA76 = Cortex('cortexa76')
 
 AMD = Amd('amd')
 
