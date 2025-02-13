@@ -13,21 +13,39 @@ on:
       - '/docker/Dockerfile.intel'
   workflow_dispatch:
     inputs:
+      cpu:
+        type: boolean
+        default: false
+      nvidia:
+        type: boolean
+        default: false
+      amd:
+        type: boolean
+        default: false
+      intel:
+        type: boolean
+        default: false
+
       tags:
         description: 'Build compiler bases'
   schedule:
-    # Run once a week
-    - cron: "0 13 * * 1"
+    # Run once a month
+    - cron: "0 0 1 * *"
 
 jobs:
 #######################################################
 ############## Basic gcc CPU ##########################
 #######################################################
   deploy-cpu-bases:
+    if: inputs.cpu
     name: "cpu-base"
     runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        gcc: ["", "14"]
 
     steps:
       - name: Checkout devito
@@ -57,15 +75,15 @@ jobs:
           context: .
           file: './docker/Dockerfile.cpu'
           push: true
-          target: 'gcc'
-          build-args: 'arch=gcc'
-          tags: 'devitocodes/bases:cpu-gcc'
+          build-args: 'gcc=${{ matrix.gcc }}'
+          tags: 'devitocodes/bases:cpu-gcc${{ matrix.gcc }}'
 
 
 #######################################################
 ############## Intel OneApi CPU #######################
 #######################################################
   deploy-oneapi-bases:
+    if: inputs.intel
     name: "oneapi-base"
     runs-on: ubuntu-latest
     env:
@@ -127,6 +145,7 @@ jobs:
 ################### Nvidia nvhpc ######################
 #######################################################
   deploy-nvidia-bases:
+    if: inputs.nvidia
     name: "nvidia-bases"
     runs-on: ["self-hosted", "nvidiagpu"]
     env:
@@ -188,6 +207,7 @@ jobs:
 ##################### AMD #############################
 #######################################################
   deploy-amd-bases:
+    if: inputs.amd
     name: "amd-base"
     runs-on: ["self-hosted", "amdgpu"]
     env:

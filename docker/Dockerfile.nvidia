@@ -7,7 +7,7 @@ ARG arch="nvc"
 ########################################################################
 # Build base image with apt setup and common env
 ########################################################################
-FROM ubuntu:22.04 as sdk-base
+FROM ubuntu:22.04 AS sdk-base
 
 SHELL ["/bin/bash", "-c"]
 
@@ -15,16 +15,13 @@ ENV DEBIAN_FRONTEND noninteractive
 
 # Install python
 RUN apt-get update && \
-    apt-get install -y -q gpg apt-utils curl wget vim libnuma-dev tmux numactl \
+    apt-get install -y -q gpg apt-utils curl wget libnuma-dev cmake git \
                           dh-autoreconf python3-venv python3-dev python3-pip
 
 # nodesource: nvdashboard requires nodejs>=10
 RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
 RUN echo 'deb [trusted=yes, signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' | tee /etc/apt/sources.list.d/nvhpc.list
 RUN apt-key update *&& apt-get update -y
-
-# Install tmpi
-RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
 # Install nvhpc. `nvhpc` is the alias for the latest avaialble version
 ARG ver=nvhpc
@@ -133,7 +130,7 @@ CMD ["/bin/bash"]
 ########################################################################
 # NVC for GPUs via OpenACC config
 ########################################################################
-FROM sdk-base as nvc
+FROM sdk-base AS nvc
 
 # Make devito env vars file and extras
 ADD docker/nvdashboard.json /app/nvdashboard.json
@@ -148,7 +145,7 @@ ENV DEVITO_LANGUAGE="openacc"
 ########################################################################
 # NVC for GPUs via CUDA config
 ########################################################################
-FROM nvc as nvcc
+FROM nvc AS nvcc
 
 ENV DEVITO_ARCH="cuda"
 ENV DEVITO_PLATFORM="nvidiaX"
@@ -157,7 +154,7 @@ ENV DEVITO_LANGUAGE="cuda"
 ########################################################################
 # NVC for CPUs config
 ########################################################################
-FROM nvc as nvc-host
+FROM nvc AS nvc-host
 
 ENV DEVITO_ARCH="nvc"
 ENV DEVITO_PLATFORM="cpu64"
