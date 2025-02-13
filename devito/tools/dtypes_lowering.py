@@ -236,7 +236,8 @@ for base_name, base_dtype in mapper.items():
 
         name = "%s%d" % (base_name, count)
         ctype = type(name, (ctypes.Structure,),
-                     {'_fields_': [(i, base_ctype)] for i in field_names[:count]})
+                     {'_fields_': [(i, base_ctype) for i in field_names[:count]],
+                      '_base_dtype': True})
 
         ctypes_vector_mapper[dtype] = ctype
 

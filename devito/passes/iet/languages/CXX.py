@@ -8,39 +8,44 @@ from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 __all__ = ['CXXBB']
 
 
-std_arith = """
+def std_arith(qualifier=None):
+    if qualifier:
+        qual = qualifier if qualifier.endswith(" ") else f"{qualifier} "
+    else:
+        qual = ""
+    return f"""
 #include <complex>
 
 template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){
+{qual}std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){{
   return std::complex<_Tp>(b.real() * a, b.imag() * a);
-}
+}}
 
 template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator * (const std::complex<_Tp> & b, const _Ti & a){
+{qual}std::complex<_Tp> operator * (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() * a, b.imag() * a);
-}
+}}
 
 template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){
-  _Tp denom = b.real() * b.real () + b.imag() * b.imag()
+{qual}std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){{
+  _Tp denom = b.real() * b.real () + b.imag() * b.imag();
   return std::complex<_Tp>(b.real() * a / denom, - b.imag() * a / denom);
-}
+}}
 
 template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator / (const std::complex<_Tp> & b, const _Ti & a){
+{qual}std::complex<_Tp> operator / (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() / a, b.imag() / a);
-}
+}}
 
 template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator + (const _Ti & a, const std::complex<_Tp> & b){
+{qual}std::complex<_Tp> operator + (const _Ti & a, const std::complex<_Tp> & b){{
   return std::complex<_Tp>(b.real() + a, b.imag());
-}
+}}
 
 template<typename _Tp, typename _Ti>
-std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){
+{qual}std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() + a, b.imag());
-}
+}}
 
 """
 
@@ -60,10 +65,10 @@ class CXXBB(LangBB):
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k)),
-        # Complex and float16
+        # Complex
         'includes-complex': 'complex',
         'complex-namespace': [UsingNamespace('std::complex_literals')],
-        'def-complex': std_arith,
+        'def-complex': std_arith(),
     }
 
 

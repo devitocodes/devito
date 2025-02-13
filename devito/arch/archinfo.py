@@ -330,6 +330,67 @@ def get_gpu_info():
     except OSError:
         pass
 
+    # *** Third try: `sycl-ls`
+    try:
+        gpu_infos = {}
+
+        # sycl-ls sometimes finds gpu twice with opencl and without so
+        # we need to make sure we don't get duplicates
+        selected_platform = None
+        platform_block = ""
+
+        proc = Popen(["sycl-ls", "--verbose"], stdout=PIPE, stderr=DEVNULL, text=True)
+        sycl_output, _ = proc.communicate()
+
+        # Extract platform blocks
+        platforms = re.findall(r"Platform \[#(\d+)\]:([\s\S]*?)(?=Platform \[#\d+\]:|$)",
+                               sycl_output)
+
+        # Select Level-Zero if available, otherwise use OpenCL
+        for platform_id, platform_content in platforms:
+            if "Intel(R) Level-Zero" in platform_content:
+                selected_platform = platform_id
+                platform_block = platform_content
+                break
+            elif "Intel(R) OpenCL Graphics" in platform_content and \
+                    selected_platform is None:
+                selected_platform = platform_id
+                platform_block = platform_content
+
+        # Extract GPU devices from the selected platform
+        devices = re.findall(r"Device \[#(\d+)\]:([\s\S]*?)(?=Device \[#\d+\]:|$)",
+                             platform_block)
+
+        for device_id, device_block in devices:
+            if re.search(r"^\s*Type\s*:\s*gpu", device_block, re.MULTILINE):
+                name_match = re.search(r"^\s*Name\s*:\s*(.+)", device_block, re.MULTILINE)
+
+                if name_match:
+                    name = name_match.group(1).strip()
+
+                    # Store GPU info with correct physical ID
+                    gpu_infos[device_id] = {
+                        "physicalid": device_id,
+                        "product": name
+                    }
+
+        gpu_info = homogenise_gpus(list(gpu_infos.values()))
+
+        # Also attach callbacks to retrieve instantaneous memory info
+        # Now this should be done use xpu-smi but for some reason
+        # it throws a lot of weird errors in docker so skipping for now
+        for i in ['total', 'free', 'used']:
+            def make_cbk(i):
+                def cbk(deviceid=0):
+                    return None
+            gpu_info['mem.%s' % i] = make_cbk(i)
+
+        gpu_infos['architecture'] = 'Intel'
+        return gpu_info
+
+    except OSError:
+        pass
+
     # *** Second try: `lshw`
     try:
         info_cmd = ['lshw', '-C', 'video']
@@ -391,7 +452,8 @@ def get_gpu_info():
         gpu_infos = []
         for line in lines:
             # Graphics cards are listed as VGA or 3D controllers in lspci
-            if 'VGA' in line or '3D' in line:
+            if 'VGA' in line or '3D' in line or 'Display' in line:
+                print(line)
                 gpu_info = {}
                 # Lines produced by lspci command are of the form:
                 #   xxxx:xx:xx.x Device Type: Name

@@ -915,7 +915,7 @@ class SyclCompiler(OneapiCompiler):
         elif isinstance(platform, IntelDevice):
             self.cflags.append('-fsycl-targets=spir64')
         else:
-            raise NotImplementedError(f"Unsupported platform {platform}")
+            warning(f"Unsupported platform {platform}")
 
 
 class CustomCompiler(Compiler):

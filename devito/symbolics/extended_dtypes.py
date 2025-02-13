@@ -61,22 +61,11 @@ class CustomType(ReservedWord):
     pass
 
 
-# Dynamically create INT, INT2, .... INTP, INT2P, ... FLOAT, ...
-for base_name in ['int', 'float', 'double']:
-    for i in ['', '2', '3', '4']:
-        v = '%s%s' % (base_name, i)
-        cls = type(v.upper(), (Cast,), {'_base_typ': v})
-        globals()[cls.__name__] = cls
-
-        clsp = type('%sP' % v.upper(), (Cast,), {'base': cls})
-        globals()[clsp.__name__] = clsp
-
-
 def cast_mapper(arg):
     try:
         assert len(arg) == 2 and arg[1] == '*'
         return lambda v, dtype=None, **kw: Cast(v, dtype=arg[0], stars=arg[1], **kw)
-    except TypeError:
+    except (AssertionError, TypeError):
         return lambda v, dtype=None, **kw: Cast(v, dtype=arg, **kw)
 
 
@@ -102,3 +91,11 @@ class VOID(BaseCast):
 class INT(BaseCast):
 
     _dtype = np.int32
+
+
+# Dynamically create INT, INT2, .... INTP, INT2P, ... FLOAT, ...
+for base_name in ['int', 'float', 'double']:
+    for i in ['2', '3', '4']:
+        v = '%s%s' % (base_name, i)
+        globals()[v.upper()] = cast_mapper(v)
+        globals()[f'{v.upper()}P'] = cast_mapper((v, '*'))

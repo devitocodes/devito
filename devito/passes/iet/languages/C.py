@@ -24,7 +24,7 @@ class CBB(LangBB):
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k)),
-        # Complex and float16
+        # Complex
         'includes-complex': 'complex.h',
     }
 
