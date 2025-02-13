@@ -17,7 +17,7 @@ from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.types.basic import AbstractFunction
-from devito.tools import ctypes_to_cstr, dtype_to_ctype
+from devito.tools import ctypes_to_cstr, dtype_to_ctype, ctypes_vector_mapper
 
 __all__ = ['BasePrinter', 'ccode']
 
@@ -117,6 +117,9 @@ class BasePrinter(CodePrinter):
             return self.type_mappings[expr]
         except KeyError:
             return ctypes_to_cstr(expr)
+
+    def _print_VoidDType(self, expr):
+        return ctypes_vector_mapper[expr].__name__
 
     def _print_Function(self, expr):
         if isinstance(expr, AbstractFunction):
