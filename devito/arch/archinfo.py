@@ -326,6 +326,45 @@ def get_gpu_info():
     except OSError:
         pass
 
+    # *** Second try: `sycl-ls`
+    try:
+        gpu_infos = {}
+
+        proc = Popen(["sycl-ls", "--verbose"], stdout=PIPE, stderr=DEVNULL, text=True)
+        sycl_output, _ = proc.communicate()
+
+        # Extract all device sections (split by 'Device [#X]:')
+        devices = re.findall(r"Device \[#(\d+)\]:([\s\S]*?)(?=Device \[#\d+\]:|$)",
+                             sycl_output)
+
+        for device_id, device_block in devices:
+            # Ensure this is a GPU device
+            if "Type              : gpu" in device_block:
+                name_match = re.search(r"^\s*Name\s*:\s*(.+)", device_block, re.MULTILINE)
+                if name_match:
+                    name = name_match.group(1).strip()
+                    gpu_infos[device_id.strip()] = {
+                        "physicalid": device_id.strip(),
+                        "product": name
+                    }
+
+        gpu_info = homogenise_gpus(list(gpu_infos.values()))
+
+        # Also attach callbacks to retrieve instantaneous memory info
+        # Now this should be done use xpu-smi but for some reason
+        # it throws a lot of weird errors in docker so skipping for now
+        for i in ['total', 'free', 'used']:
+            def make_cbk(i):
+                def cbk(deviceid=0):
+                    return None
+            gpu_info['mem.%s' % i] = make_cbk(i)
+
+        gpu_infos['architecture'] = 'Intel'
+        return gpu_info
+
+    except OSError:
+        pass
+
     # *** Second try: `lshw`
     try:
         info_cmd = ['lshw', '-C', 'video']
@@ -387,7 +426,8 @@ def get_gpu_info():
         gpu_infos = []
         for line in lines:
             # Graphics cards are listed as VGA or 3D controllers in lspci
-            if 'VGA' in line or '3D' in line:
+            if 'VGA' in line or '3D' in line or 'Display' in line:
+                print(line)
                 gpu_info = {}
                 # Lines produced by lspci command are of the form:
                 #   xxxx:xx:xx.x Device Type: Name
