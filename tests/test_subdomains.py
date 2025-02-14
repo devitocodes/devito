@@ -12,7 +12,7 @@ from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegis
 from devito.tools import timed_region
 
 
-class TestSubdomains:
+class TestSubDomains:
     """
     Class for testing SubDomains
     """
@@ -28,13 +28,14 @@ class TestSubdomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('middle', 1, 6), y: ('middle', 1, 1)}
-        s_d0 = sd0()
-        grid = Grid(shape=(10, 10), subdomains=(s_d0,))
+
+        grid = Grid(shape=(10, 10))
+        s_d0 = sd0(grid=grid)
         x, y = grid.dimensions
         x1, y1 = s_d0.dimensions
         f = Function(name='f', grid=grid, dtype=np.int32)
 
-        eq0 = Eq(f, x*f+y, subdomain=grid.subdomains['d0'])
+        eq0 = Eq(f, x*f+y, subdomain=s_d0)
         with timed_region('x'):
             # _lower_exprs expects a SymbolRegistry, so create one
             expr = Operator._lower_exprs([eq0], options={},
@@ -51,7 +52,6 @@ class TestSubdomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('middle', 1, 6), y: ('middle', 1, 1)}
-        s_d0 = sd0()
 
         class sd1(SubDomain):
             name = 'd1'
@@ -59,14 +59,15 @@ class TestSubdomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('middle', 6, 1), y: ('middle', 1, 1)}
-        s_d1 = sd1()
 
-        grid = Grid(shape=(10, 10), subdomains=(s_d0, s_d1))
+        grid = Grid(shape=(10, 10))
+        s_d0 = sd0(grid=grid)
+        s_d1 = sd1(grid=grid)
 
         f = Function(name='f', grid=grid, dtype=np.int32)
 
-        eq0 = Eq(f, f+1, subdomain=grid.subdomains['d0'])
-        eq1 = Eq(f, f+2, subdomain=grid.subdomains['d1'])
+        eq0 = Eq(f, f+1, subdomain=s_d0)
+        eq1 = Eq(f, f+2, subdomain=s_d1)
 
         Operator([eq0, eq1])()
 
@@ -89,7 +90,6 @@ class TestSubdomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('middle', 1, 6), y: ('middle', 1, 1)}
-        s_d0 = sd0()
 
         class sd1(SubDomain):
             name = 'd1'
@@ -97,7 +97,6 @@ class TestSubdomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('right', 4), y: ('left', 2)}
-        s_d1 = sd1()
 
         class sd2(SubDomain):
             name = 'd2'
@@ -105,16 +104,18 @@ class TestSubdomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('left', 3), y: ('middle', 1, 2)}
-        s_d2 = sd2()
 
-        grid = Grid(shape=(10, 10), subdomains=(s_d0, s_d1, s_d2))
+        grid = Grid(shape=(10, 10))
+        s_d0 = sd0(grid=grid)
+        s_d1 = sd1(grid=grid)
+        s_d2 = sd2(grid=grid)
 
         assert grid.subdomains['domain'].shape == (10, 10)
         assert grid.subdomains['interior'].shape == (8, 8)
 
-        assert grid.subdomains['d0'].shape == (3, 8)
-        assert grid.subdomains['d1'].shape == (4, 2)
-        assert grid.subdomains['d2'].shape == (3, 7)
+        assert s_d0.shape == (3, 8)
+        assert s_d1.shape == (4, 2)
+        assert s_d2.shape == (3, 7)
 
     def test_definitions(self):
 
@@ -146,21 +147,19 @@ class TestSubdomains:
                 x, y = dimensions
                 return {x: ('middle', 2, 2), y: ('middle', 0, 0)}
 
-        sd_def0 = sd0()
-        sd_def1 = sd1()
-        sd_def2 = sd2()
-        sd_def3 = sd3()
-
-        grid = Grid(shape=(10, 10), extent=(10, 10),
-                    subdomains=(sd_def0, sd_def1, sd_def2, sd_def3))
+        grid = Grid(shape=(10, 10), extent=(10, 10))
+        sd_def0 = sd0(grid=grid)
+        sd_def1 = sd1(grid=grid)
+        sd_def2 = sd2(grid=grid)
+        sd_def3 = sd3(grid=grid)
         u0 = Function(name='u0', grid=grid)
         u1 = Function(name='u1', grid=grid)
         u2 = Function(name='u2', grid=grid)
         u3 = Function(name='u3', grid=grid)
-        eq0 = Eq(u0, u0+1, subdomain=grid.subdomains['sd0'])
-        eq1 = Eq(u1, u1+1, subdomain=grid.subdomains['sd1'])
-        eq2 = Eq(u2, u2+1, subdomain=grid.subdomains['sd2'])
-        eq3 = Eq(u3, u3+1, subdomain=grid.subdomains['sd3'])
+        eq0 = Eq(u0, u0+1, subdomain=sd_def0)
+        eq1 = Eq(u1, u1+1, subdomain=sd_def1)
+        eq2 = Eq(u2, u2+1, subdomain=sd_def2)
+        eq3 = Eq(u3, u3+1, subdomain=sd_def3)
         Operator([eq0, eq1, eq2, eq3])()
 
         assert u0.data.all() == u1.data.all() == u2.data.all() == u3.data.all()
@@ -176,21 +175,21 @@ class TestSubdomains:
         class sd0(SubDomain):
             name = 'd0'
 
-            def __init__(self, spec):
-                super().__init__()
+            def __init__(self, spec, grid=None):
                 self.spec = spec
+                super().__init__(grid=grid)
 
             def define(self, dimensions):
                 x = dimensions[0]
                 return {x: self.spec}
-        s_d0 = sd0(spec)
 
-        grid = Grid(shape=(11,), extent=(10.,), subdomains=(s_d0,))
+        grid = Grid(shape=(11,), extent=(10.,))
+        s_d0 = sd0(spec, grid=grid)
         x = grid.dimensions[0]
-        xd0 = grid.subdomains['d0'].dimensions[0]
+        xd0 = s_d0.dimensions[0]
         f = Function(name='f', grid=grid)
 
-        Operator(Eq(f, f+1, subdomain=grid.subdomains['d0']))()
+        Operator(Eq(f, f+1, subdomain=s_d0))()
 
         # Sets ones on a global array according to the subdomains specified
         # then slices this according to the indices on this rank and compares
@@ -205,6 +204,27 @@ class TestSubdomains:
         check[slice(start, stop)] = 1
 
         assert np.all(check[grid.distributor.glb_slices[x]] == f.data)
+
+    def test_legacy_api(self):
+        class sd0(SubDomain):
+            name = 'd0'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 6), y: ('middle', 1, 1)}
+
+        s_d0 = sd0()
+        grid = Grid(shape=(10, 10), subdomains=(s_d0,))
+        x, y = grid.dimensions
+        x1, y1 = s_d0.dimensions
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        eq0 = Eq(f, x*f+y, subdomain=grid.subdomains['d0'])
+        with timed_region('x'):
+            # _lower_exprs expects a SymbolRegistry, so create one
+            expr = Operator._lower_exprs([eq0], options={},
+                                         sregistry=SymbolRegistry())[0]
+        assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
 
 
 class TestMultiSubDomain:
@@ -233,15 +253,14 @@ class TestMultiSubDomain:
 
         bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
-        inner_sd = Inner(N=n_domains, bounds=bounds)
-
-        grid = Grid(extent=(10, 10), shape=(10, 10), subdomains=(inner_sd, ))
+        grid = Grid(extent=(10, 10), shape=(10, 10))
+        inner_sd = Inner(N=n_domains, bounds=bounds, grid=grid)
 
         f = TimeFunction(name='f', grid=grid, dtype=np.int32)
         f.data[:] = 0
 
         stencil = Eq(f.forward, solve(Eq(f.dt, 1), f.forward),
-                     subdomain=grid.subdomains['inner'])
+                     subdomain=inner_sd)
 
         op = Operator(stencil, opt=opt)
         op(time_m=0, time_M=9, dt=1)
@@ -271,18 +290,18 @@ class TestMultiSubDomain:
         bounds_ym = 1
         bounds_yM = 1
         bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
-        my_sd = MySubdomains(N=n_domains, bounds=bounds)
-        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd, ))
+        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
+        my_sd = MySubdomains(N=n_domains, bounds=bounds, grid=grid)
 
-        assert(grid.subdomains['mydomains'].shape == ((3, 8), (3, 8)))
+        assert(my_sd.shape == ((3, 8), (3, 8)))
 
         f = Function(name='f', grid=grid, dtype=np.int32)
         g = Function(name='g', grid=grid, dtype=np.int32)
         h = Function(name='h', grid=grid, dtype=np.int32)
 
-        eq1 = Eq(f, f+1, subdomain=grid.subdomains['mydomains'])
+        eq1 = Eq(f, f+1, subdomain=my_sd)
         eq2 = Eq(g, g+1)
-        eq3 = Eq(h, h+2, subdomain=grid.subdomains['mydomains'])
+        eq3 = Eq(h, h+2, subdomain=my_sd)
 
         op = Operator([eq1, eq2, eq3])
         op.apply()
@@ -321,9 +340,8 @@ class TestMultiSubDomain:
         class MSD(SubDomainSet):
             name = 'msd'
 
-        msd = MSD(N=1, bounds=(1, 1, 1, 1))
-
-        grid = Grid(shape=(11, 11), subdomains=(msd,))
+        grid = Grid(shape=(11, 11))
+        msd = MSD(N=1, bounds=(1, 1, 1, 1), grid=grid)
 
         f = Function(name='f', grid=grid)
         g = Function(name='g', grid=grid)
@@ -367,16 +385,15 @@ class TestMultiSubDomain:
         bounds_yM = int(1)
         bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
-        my_sd1 = MySubdomains1(N=n_domains, bounds=bounds1)
-        my_sd2 = MySubdomains2(N=n_domains, bounds=bounds2)
-
-        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd1, my_sd2))
+        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
+        my_sd1 = MySubdomains1(N=n_domains, bounds=bounds1, grid=grid)
+        my_sd2 = MySubdomains2(N=n_domains, bounds=bounds2, grid=grid)
 
         f = Function(name='f', grid=grid, dtype=np.int32)
         g = Function(name='g', grid=grid, dtype=np.int32)
 
-        eq1 = Eq(f, f+1, subdomain=grid.subdomains['mydomains1'])
-        eq2 = Eq(g, g+2, subdomain=grid.subdomains['mydomains2'])
+        eq1 = Eq(f, f+1, subdomain=my_sd1)
+        eq2 = Eq(g, g+2, subdomain=my_sd2)
 
         op = Operator([eq1, eq2])
         op.apply()
@@ -415,18 +432,17 @@ class TestMultiSubDomain:
 
         bounds = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
-        inner_sd = Inner(N=n_domains, bounds=bounds)
+        grid = Grid(extent=(10, 10), shape=(10, 10))
+        inner_sd = Inner(N=n_domains, bounds=bounds, grid=grid)
 
-        grid = Grid(extent=(10, 10), shape=(10, 10), subdomains=(inner_sd, ))
-
-        assert(grid.subdomains['inner'].shape == ((10, 1), (8, 1), (6, 1),
-                                                  (4, 1), (2, 1)))
+        assert(inner_sd.shape == ((10, 1), (8, 1), (6, 1),
+                                  (4, 1), (2, 1)))
 
         f = TimeFunction(name='f', grid=grid, dtype=np.int32)
         f.data[:] = 0
 
         stencil = Eq(f.forward, solve(Eq(f.dt, 1), f.forward),
-                     subdomain=grid.subdomains['inner'])
+                     subdomain=inner_sd)
 
         op = Operator(stencil)
         op(time_m=0, time_M=9, dt=1)
@@ -468,18 +484,17 @@ class TestMultiSubDomain:
         bounds_yM = int(1)
         bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
-        my_sd1 = MySubdomains1(N=n_domains, bounds=bounds1)
-        my_sd2 = MySubdomains2(N=n_domains, bounds=bounds2)
-
-        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny), subdomains=(my_sd1, my_sd2))
+        grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
+        my_sd1 = MySubdomains1(N=n_domains, bounds=bounds1, grid=grid)
+        my_sd2 = MySubdomains2(N=n_domains, bounds=bounds2, grid=grid)
 
         f = Function(name='f', grid=grid, dtype=np.int32)
         g = Function(name='g', grid=grid, dtype=np.int32)
 
-        eq1 = Eq(f, f+2, subdomain=grid.subdomains['mydomains1'])
-        eq2 = Eq(g, g+2, subdomain=grid.subdomains['mydomains2'])
-        eq3 = Eq(f, f-1, subdomain=grid.subdomains['mydomains1'])
-        eq4 = Eq(g, g+1, subdomain=grid.subdomains['mydomains2'])
+        eq1 = Eq(f, f+2, subdomain=my_sd1)
+        eq2 = Eq(g, g+2, subdomain=my_sd2)
+        eq3 = Eq(f, f-1, subdomain=my_sd1)
+        eq4 = Eq(g, g+1, subdomain=my_sd2)
 
         op = Operator([eq1, eq2, eq3, eq4])
         op.apply()
@@ -504,17 +519,17 @@ class TestMultiSubDomain:
 
         class DummySubdomains(SubDomainSet):
             name = 'dummydomain'
-        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
 
-        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+        grid = Grid(shape=(10, 10))
+        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1), grid=grid)
 
         f = TimeFunction(name='f', grid=grid)
         g = TimeFunction(name='g', grid=grid)
         theta = Function(name='theta', grid=grid)
         phi = Function(name='phi', grid=grid)
 
-        eqns = [Eq(f.forward, f*sin(phi), subdomain=grid.subdomains['dummydomain']),
-                Eq(g.forward, g*sin(theta), subdomain=grid.subdomains['dummydomain'])]
+        eqns = [Eq(f.forward, f*sin(phi), subdomain=dummy),
+                Eq(g.forward, g*sin(theta), subdomain=dummy)]
 
         op = Operator(eqns)
 
@@ -536,23 +551,21 @@ class TestMultiSubDomain:
         class DummySubdomains(SubDomainSet):
             name = 'dummydomain'
 
-        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
-
         class DummySubdomains2(SubDomainSet):
             name = 'dummydomain2'
 
-        dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1))
-
-        grid = Grid(shape=(10, 10), subdomains=(dummy, dummy2))
+        grid = Grid(shape=(10, 10))
+        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1), grid=grid)
+        dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1), grid=grid)
 
         f = TimeFunction(name='f', grid=grid)
         g = TimeFunction(name='g', grid=grid)
         theta = Function(name='theta', grid=grid)
         phi = Function(name='phi', grid=grid)
 
-        eqns = [Eq(f.forward, f*sin(phi), subdomain=grid.subdomains['dummydomain']),
-                Eq(g.forward, g*sin(theta), subdomain=grid.subdomains['dummydomain2']),
-                Eq(f.forward, f*tan(phi), subdomain=grid.subdomains['dummydomain'])]
+        eqns = [Eq(f.forward, f*sin(phi), subdomain=dummy),
+                Eq(g.forward, g*sin(theta), subdomain=dummy2),
+                Eq(f.forward, f*tan(phi), subdomain=dummy)]
 
         op = Operator(eqns)
 
@@ -572,24 +585,22 @@ class TestMultiSubDomain:
         class DummySubdomains(SubDomainSet):
             name = 'dummydomain'
 
-        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1))
-
         class DummySubdomains2(SubDomainSet):
             name = 'dummydomain2'
 
-        dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1))
-
-        grid = Grid(shape=(10, 10), subdomains=(dummy, dummy2))
+        grid = Grid(shape=(10, 10))
+        dummy = DummySubdomains(N=1, bounds=(1, 1, 1, 1), grid=grid)
+        dummy2 = DummySubdomains2(N=1, bounds=(1, 1, 1, 1), grid=grid)
 
         f = TimeFunction(name='f', grid=grid)
         g = TimeFunction(name='g', grid=grid)
         theta = Function(name='theta', grid=grid)
         phi = Function(name='phi', grid=grid)
 
-        eqns = [Eq(f.forward, f*sin(phi), subdomain=grid.subdomains['dummydomain']),
+        eqns = [Eq(f.forward, f*sin(phi), subdomain=dummy),
                 Eq(g.forward, g*sin(theta) + f.forward.dx,
-                   subdomain=grid.subdomains['dummydomain2']),
-                Eq(f.forward, f*tan(phi), subdomain=grid.subdomains['dummydomain'])]
+                   subdomain=dummy2),
+                Eq(f.forward, f*tan(phi), subdomain=dummy)]
 
         op = Operator(eqns)
 
@@ -610,13 +621,12 @@ class TestMultiSubDomain:
         class Dummy(SubDomainSet):
             name = 'dummy'
 
-        dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
-
-        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+        grid = Grid(shape=(10, 10))
+        dummy = Dummy(N=1, bounds=(1, 1, 1, 1), grid=grid)
 
         f = TimeFunction(name='f', grid=grid, space_order=4)
 
-        eqn = Eq(f.forward, f.dx.dx + 1, subdomain=grid.subdomains['dummy'])
+        eqn = Eq(f.forward, f.dx.dx + 1, subdomain=dummy)
 
         op = Operator(eqn)
 
@@ -631,9 +641,8 @@ class TestMultiSubDomain:
         class Dummy(SubDomainSet):
             name = 'dummy'
 
-        dummy = Dummy(N=1, bounds=(1, 1, 1, 1))
-
-        grid = Grid(shape=(10, 10), subdomains=(dummy,))
+        grid = Grid(shape=(10, 10))
+        dummy = Dummy(N=1, bounds=(1, 1, 1, 1), grid=grid)
         time = grid.time_dim
 
         c = Constant(name='c')
@@ -659,13 +668,12 @@ class TestMultiSubDomain:
         class Dummy(SubDomainSet):
             name = 'dummy'
 
-        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()])
-
-        grid = Grid(shape=(10, 10, 10), subdomains=(dummy,))
+        grid = Grid(shape=(10, 10, 10))
+        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()], grid=grid)
 
         f = TimeFunction(name='f', grid=grid)
 
-        eqn = Eq(f.forward, f.dx + 1, subdomain=grid.subdomains['dummy'])
+        eqn = Eq(f.forward, f.dx + 1, subdomain=dummy)
 
         op = Operator(eqn)
 
@@ -699,13 +707,12 @@ class TestMultiSubDomain:
         class Dummy(SubDomainSet):
             name = 'dummy'
 
-        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()])
-
-        grid = Grid(shape=(10, 10, 10), subdomains=(dummy,))
+        grid = Grid(shape=(10, 10, 10))
+        dummy = Dummy(N=0, bounds=[(), (), (), (), (), ()], grid=grid)
 
         f = TimeFunction(name='f', grid=grid, save=10)
 
-        eqn = Eq(f, 1., subdomain=grid.subdomains['dummy'])
+        eqn = Eq(f, 1., subdomain=dummy)
 
         op = Operator(eqn)
 
@@ -732,8 +739,8 @@ class TestSubDomain_w_condition:
             def define(self, dimensions):
                 return {x: ('middle', 2, 4)}
 
-        mid = Middle()
-        my_grid = Grid(shape=shape, subdomains=(mid, ))
+        my_grid = Grid(shape=shape)
+        mid = Middle(grid=grid)
 
         f = Function(name='f', grid=my_grid)
 
@@ -745,28 +752,24 @@ class TestSubDomain_w_condition:
         ci = ConditionalDimension(name='ci', condition=condition,
                                   parent=mid.dimensions[0])
 
-        op = Operator(Eq(f, f + 10, implicit_dims=ci,
-                      subdomain=my_grid.subdomains['middle']))
+        op = Operator(Eq(f, f + 10, implicit_dims=ci, subdomain=mid))
         op.apply()
 
         assert_structure(op, ['x'], 'x')
 
     def test_condition_w_subdomain_v1(self):
 
-        shape = (10, 10)
-        grid = Grid(shape=shape)
-        x, y = grid.dimensions
-
         class Middle(SubDomain):
             name = 'middle'
 
             def define(self, dimensions):
+                x, y = dimensions
                 return {x: x, y: ('middle', 2, 4)}
 
-        mid = Middle()
-        my_grid = Grid(shape=shape, subdomains=(mid, ))
+        my_grid = Grid(shape=(10, 10))
+        mid = Middle(grid=my_grid)
 
-        sdf = Function(name='sdf', grid=grid)
+        sdf = Function(name='sdf', grid=my_grid)
         sdf.data[:, 5:] = 1
         sdf.data[2:6, 3:5] = 1
 
@@ -777,7 +780,7 @@ class TestSubDomain_w_condition:
 
         f = Function(name='f', grid=my_grid)
         op = Operator(Eq(f, f + 10, implicit_dims=ci,
-                      subdomain=my_grid.subdomains['middle']))
+                      subdomain=mid))
 
         op.apply()
 
@@ -785,18 +788,15 @@ class TestSubDomain_w_condition:
 
     def test_condition_w_subdomain_v2(self):
 
-        shape = (10, 10)
-        grid = Grid(shape=shape)
-        x, y = grid.dimensions
-
         class Middle(SubDomain):
             name = 'middle'
 
             def define(self, dimensions):
+                x, y = dimensions
                 return {x: ('middle', 2, 4), y: ('middle', 2, 4)}
 
-        mid = Middle()
-        my_grid = Grid(shape=shape, subdomains=(mid, ))
+        my_grid = Grid(shape=(10, 10))
+        mid = Middle(grid=my_grid)
 
         sdf = Function(name='sdf', grid=my_grid)
         sdf.data[2:4, 5:] = 1
@@ -809,7 +809,7 @@ class TestSubDomain_w_condition:
 
         f = Function(name='f', grid=my_grid)
         op = Operator(Eq(f, f + 10, implicit_dims=ci,
-                      subdomain=my_grid.subdomains['middle']))
+                      subdomain=mid))
 
         op.apply()
 
@@ -850,12 +850,11 @@ class TestRenaming:
         class MSD1(SubDomainSet):
             name = 'msd'
 
-        sd0 = SD0()
-        sd1 = SD1()
-        msd0 = MSD0(N=1, bounds=(1, 1, 1, 1))
-        msd1 = MSD1(N=1, bounds=(1, 1, 1, 1))
-
-        grid = Grid(shape=(11, 11), subdomains=(sd1, sd0, msd1, msd0))
+        grid = Grid(shape=(11, 11))
+        sd0 = SD0(grid=grid)
+        sd1 = SD1(grid=grid)
+        msd0 = MSD0(N=1, bounds=(1, 1, 1, 1), grid=grid)
+        msd1 = MSD1(N=1, bounds=(1, 1, 1, 1), grid=grid)
 
         f = Function(name='f', grid=grid)
         g = Function(name='g', grid=grid)
