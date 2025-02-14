@@ -55,6 +55,12 @@ class Profiler:
 
         self.initialized = True
 
+    def add_include_dir(self, dir_path):
+        self._include_dirs.append(dir_path)
+
+    def add_lib_dir(self, dir_path):
+        self._lib_dirs.append(dir_path)
+
     def analyze(self, iet):
         """
         Analyze the Sections in the given IET. This populates `self._sections`.
@@ -371,9 +377,8 @@ class AdvisorProfiler(AdvancedProfiler):
         super().__init__(name)
         path = get_advisor_path()
         if path:
-            self._include_dirs = [path.joinpath('include').as_posix()]
-            libdir = path.joinpath('lib64').as_posix()
-            self._lib_dirs = [libdir]
+            self.add_include_dir(path.joinpath('include').as_posix())
+            self.add_lib_dir(path.joinpath('lib64').as_posix())
         else:
             self.initialized = False
 
@@ -510,9 +515,8 @@ def create_profile(name):
     if profiler.initialized:
         return profiler
     else:
-        rlevel = 'advanced'
-        warning(f"Couldn't set up `{level}` profiler; reverting to `{rlevel}`")
-        profiler = profiler_registry[rlevel](name)
+        warning(f"Couldn't set up `{level}` profiler; reverting to 'advanced'")
+        profiler = profiler_registry['advanced'](name)
         # We expect the `advanced` profiler to always initialize successfully
         assert profiler.initialized
         return profiler
