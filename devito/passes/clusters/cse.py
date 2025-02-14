@@ -70,6 +70,9 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     min_cost = options['cse-min-cost']
     mode = options['cse-algo']
 
+    if cluster.is_fence:
+        return cluster
+
     make = lambda: CTemp(name=sregistry.make_name(), dtype=cluster.dtype)
 
     exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)
