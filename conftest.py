@@ -8,7 +8,7 @@ from sympy import Add
 from devito import Eq, configuration, Revolver  # noqa
 from devito.checkpointing import NoopRevolver
 from devito.finite_differences.differentiable import EvalDerivative
-from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm
+from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm, get_advisor_path
 from devito.arch.compiler import (compiler_registry, IntelCompiler, OneapiCompiler,
                                   NvidiaCompiler)
 from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
@@ -32,8 +32,8 @@ def skipif(items, whole_module=False):
     # Sanity check
     accepted = set()
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc', 'cpu64-arm',
-                     'cpu64-icpx', 'chkpnt'})
+                     'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc',
+                     'only-advisor', 'cpu64-arm', 'cpu64-icpx', 'chkpnt'})
     accepted.update({'nodevice'})
     unknown = sorted(set(items) - accepted)
     if unknown:
@@ -78,6 +78,12 @@ def skipif(items, whole_module=False):
            isinstance(configuration['compiler'], OneapiCompiler) and \
            isinstance(configuration['platform'], Cpu64):
             skipit = "`icx+cpu64` won't work with this test"
+            break
+        # Skip if icx or advisor are not available
+        if i not in 'only-advisor' or \
+           not isinstance(configuration['compiler'], IntelCompiler) or \
+           not get_advisor_path():
+            skipit = "Only `icx+advisor` should be tested here"
             break
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):

@@ -89,14 +89,18 @@ def test_run_mpi(mode):
     run('acoustic', **kwargs)
 
 
+@skipif('only-advisor')
 @switchconfig(profiling='advisor')
 def test_advisor_profiling():
+    """
+    Test includes and compilation with `advisor`
+    """
     grid = Grid(shape=(10, 10, 10))
-
     f = TimeFunction(name='f', grid=grid, space_order=2)
 
     eq0 = [Eq(f.forward, f.dx + 1.)]
 
-    # Only check codegen, do not run
     op = Operator(eq0)
     assert 'ittnotify.h' in op._includes
+    op._jit_compile()
+    op.apply(time_M=5)
