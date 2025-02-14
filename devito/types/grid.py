@@ -17,6 +17,7 @@ from devito.types.utils import DimensionTuple
 from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     Spacing, SteppingDimension, SubDimension,
                                     MultiSubDimension, DefaultDimension)
+from devito.deprecations import deprecations
 
 __all__ = ['Grid', 'SubDomain', 'SubDomainSet']
 
@@ -211,6 +212,8 @@ class Grid(CartesianDiscretization, ArgProvider):
             raise ValueError("`time_dimension` must be None or of type TimeDimension")
 
         # Initialize SubDomains for legacy interface
+        if subdomains is not None:
+            deprecations.subdomain_warn
         self._subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
         for i in self._subdomains:
             i.__subdomain_finalize_legacy__(self)
