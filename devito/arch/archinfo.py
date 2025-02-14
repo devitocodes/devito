@@ -29,7 +29,7 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            # ARM CPUs
            'ARM', 'AppleArm', 'M1', 'M2', 'M3',
            'Graviton', 'GRAVITON2', 'GRAVITON3', 'GRAVITON4',
-           'Cortex',
+           'Cortex', 'NvidiaArm', 'GRACE',
            # Other legacy CPUs
            'POWER8', 'POWER9',
            # Generic GPUs
@@ -811,6 +811,16 @@ class Cortex(Arm):
         return f'cortex-a{self.version}'
 
 
+class NvidiaArm(Arm):
+
+    @cached_property
+    def march(self):
+        if self.name == 'grace':
+            return 'neoverse-v2'
+        else:
+            return 'native'
+
+
 class Amd(Cpu64):
 
     known_isas = ('cpp', 'sse', 'avx', 'avx2')
@@ -1027,6 +1037,7 @@ M2 = AppleArm('m2')
 M3 = AppleArm('m3')
 CORTEX = Cortex('cortex')
 CORTEXA76 = Cortex('cortexa76')
+GRACE = NvidiaArm('grace')
 
 AMD = Amd('amd')
 
