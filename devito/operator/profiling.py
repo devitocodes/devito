@@ -8,6 +8,7 @@ import cgen as c
 import numpy as np
 from sympy import S
 
+from devito.arch import get_advisor_path
 from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
                            Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
@@ -31,6 +32,9 @@ class Profiler:
     _default_includes = []
     _default_libs = []
     _ext_calls = []
+
+    _include_dirs = []
+    _lib_dirs = []
 
     _supports_async_sections = False
 
@@ -365,7 +369,11 @@ class AdvisorProfiler(AdvancedProfiler):
 
     def __init__(self, name):
         super(AdvisorProfiler, self).__init__(name)
-        return
+        path = get_advisor_path()
+        self._include_dirs = [path.joinpath('include').as_posix()]
+
+        libdir = path.joinpath('lib64').as_posix()
+        self._lib_dirs = [libdir]
 
     def analyze(self, iet):
         return

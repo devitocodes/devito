@@ -219,6 +219,12 @@ class Operator(Callable):
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
+
+        # Add any metadata from the profiler
+        op._compiler.add_include_dirs(profiler._include_dirs)
+        op._compiler.add_library_dirs(profiler._lib_dirs, rpath=True)
+        op._compiler.add_libraries(profiler._default_libs)
+
         op._language = kwargs['language']
         op._lib = None
         op._cfunction = None
