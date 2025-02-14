@@ -3,6 +3,7 @@ from numpy import sin, floor
 import pytest
 from sympy import Float
 
+from conftest import assert_structure
 from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
                     Function, TimeFunction, DefaultDimension, Eq, switchconfig,
                     PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
@@ -958,6 +959,10 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr0.data, check0))
         assert np.all(np.isclose(sr1.data, check1))
         assert np.all(np.isclose(sr2.data, check2))
+        assert_structure(op,
+                         ['p_sr0', 'p_sr0rsr0xrsr0y', 'p_sr1',
+                          'p_sr1rsr1xrsr1y', 'p_sr2', 'p_sr2rsr2xrsr2y'],
+                         'p_sr0rsr0xrsr0yp_sr1rsr1xrsr1yp_sr2rsr2xrsr2y')
 
     def test_interpolate_subdomain_sinc(self):
         """
@@ -997,6 +1002,10 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(sr0.data, sr2.data))
         assert np.all(np.isclose(sr1.data, sr2.data))
+        assert_structure(op,
+                         ['p_sr0', 'p_sr0rsr0xrsr0y', 'p_sr1',
+                          'p_sr1rsr1xrsr1y', 'p_sr2', 'p_sr2rsr2xrsr2y'],
+                         'p_sr0rsr0xrsr0yp_sr1rsr1xrsr1yp_sr2rsr2xrsr2y')
 
     def test_inject_subdomain(self):
         """
@@ -1041,6 +1050,9 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(f0.data, check0))
         assert np.all(np.isclose(f1.data, check1))
+        assert_structure(op,
+                         ['p_sr0rsr0xrsr0y'],
+                         'p_sr0rsr0xrsr0y')
 
     def test_inject_subdomain_sinc(self):
         """
@@ -1070,6 +1082,9 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(f0.data, f2.data[:9, -9:]))
         assert np.all(np.isclose(f1.data, f2.data[1:-1, 1:-1]))
+        assert_structure(op,
+                         ['p_sr0rsr0xrsr0y'],
+                         'p_sr0rsr0xrsr0y')
 
     @pytest.mark.parallel(mode=4)
     def test_interpolate_subdomain_mpi(self, mode):
