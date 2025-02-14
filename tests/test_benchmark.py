@@ -89,7 +89,7 @@ def test_run_mpi(mode):
     run('acoustic', **kwargs)
 
 
-@skipif('only-advisor')
+@skipif('noadvisor')
 @switchconfig(profiling='advisor')
 def test_advisor_profiling():
     """
@@ -102,5 +102,4 @@ def test_advisor_profiling():
 
     op = Operator(eq0)
     assert 'ittnotify.h' in op._includes
-    op._jit_compile()
     op.apply(time_M=5)
