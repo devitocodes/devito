@@ -241,9 +241,9 @@ class Data(np.ndarray):
                     idx = [slice(r.start - d.glb_min, r.stop - d.glb_min, r.step)
                            for r, d in zip(self._distributor.all_ranges[i],
                                            self._distributor.decomposition)]
-                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
-                        shape.insert(i, glb_shape[i])
-                        idx.insert(i, slice(0, glb_shape[i]+1, 1))
+                    for j in range(len(self.shape) - len(self._distributor.glb_shape)):
+                        shape.insert(j, glb_shape[j])
+                        idx.insert(j, slice(0, glb_shape[j]+1, 1))
                     retval[tuple(idx)] = data_slice.reshape(tuple(shape))
                 return retval
             else:
