@@ -248,14 +248,17 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
-            # Get Grid Dimensions from the variables supplied
+            # If variables are defined on a SubDomain of the Grid, then temprarily add
+            # their dimensions to self._gdims for the purpose of checking if extra
+            # dimensions have been included.
             edims = []
             for v in extras:
                 try:
-                    edims.extend(v.grid.dimensions)
+                    egrid = v.grid
+                    if egrid is not None and egrid.is_SubDomain:
+                        edims = [d for d in egrid.dims if d.root in self._gdims]
                 except AttributeError:
-                    # Not on a Grid, use the variable's Dimensions instead
-                    edims.extend(v.dimensions)
+                    pass
 
             gdims = filter_ordered(edims + list(self._gdims))
             extra = filter_ordered([i for v in extras for i in v.dimensions
