@@ -465,6 +465,7 @@ def get_cuda_path():
     return None
 
 
+@memoized_func
 def get_advisor_path():
     """
     Detect if Intel Advisor is installed on the machine and return
@@ -480,8 +481,7 @@ def get_advisor_path():
         if "intel/advisor" in env_path_dir or "intel/oneapi/advisor" in env_path_dir:
             path = Path(env_path_dir)
             if path.name.startswith('bin'):
-                path = path.parent
-                return path
+                return path.parent
 
     return path
 

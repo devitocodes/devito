@@ -368,12 +368,14 @@ class AdvisorProfiler(AdvancedProfiler):
     _ext_calls = [_api_resume, _api_pause]
 
     def __init__(self, name):
-        super(AdvisorProfiler, self).__init__(name)
+        super().__init__(name)
         path = get_advisor_path()
-        self._include_dirs = [path.joinpath('include').as_posix()]
-
-        libdir = path.joinpath('lib64').as_posix()
-        self._lib_dirs = [libdir]
+        if path:
+            self._include_dirs = [path.joinpath('include').as_posix()]
+            libdir = path.joinpath('lib64').as_posix()
+            self._lib_dirs = [libdir]
+        else:
+            self.initialized = False
 
     def analyze(self, iet):
         return
@@ -508,8 +510,9 @@ def create_profile(name):
     if profiler.initialized:
         return profiler
     else:
-        warning("Couldn't set up `%s` profiler; reverting to `advanced`" % level)
-        profiler = profiler_registry['basic'](name)
+        rlevel = 'advanced'
+        warning(f"Couldn't set up `{level}` profiler; reverting to `{rlevel}`")
+        profiler = profiler_registry[rlevel](name)
         # We expect the `advanced` profiler to always initialize successfully
         assert profiler.initialized
         return profiler
