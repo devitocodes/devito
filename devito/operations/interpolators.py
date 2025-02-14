@@ -254,7 +254,8 @@ class WeightedInterpolator(GenericInterpolator):
             for v in extras:
                 try:
                     if v.grid.is_SubDomain:
-                        edims.extend([d for d in v.grid.dims if d.root in self._gdims])
+                        edims.extend([d for d in v.grid.dimensions
+                                      if d.is_Sub and d.root in self._gdims])
                 except AttributeError:
                     pass
 
