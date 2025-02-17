@@ -14,7 +14,7 @@ from codepy.toolchain import (GCCToolchain,
                               call_capture_output as _call_capture_output)
 
 from devito.arch import (AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9,
-                         Graviton, Cortex, IntelDevice, get_nvidia_cc,
+                         Graviton, Cortex, IntelDevice, get_nvidia_cc, NvidiaArm,
                          check_cuda_runtime, get_m1_llvm_path)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
