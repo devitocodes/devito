@@ -704,7 +704,7 @@ class TestRelationsWithAssumptions:
         op.apply(time_M=5)
         fnorm2 = norm(f)
 
-        assert np.allclose(fnorm, fnorm2, rtol=np.finfo(fnorm.dtype).eps)
+        assert np.isclose(fnorm, fnorm2, rtol=np.finfo(fnorm.dtype).eps)
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[]', 'Min(a, Min(b, Min(c, d)))']),
