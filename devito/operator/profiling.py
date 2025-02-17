@@ -33,9 +33,6 @@ class Profiler:
     _default_libs = []
     _ext_calls = []
 
-    _include_dirs = []
-    _lib_dirs = []
-
     _supports_async_sections = False
 
     _verbosity = 0
@@ -52,6 +49,10 @@ class Profiler:
 
         # Python-level timers
         self.py_timers = OrderedDict()
+
+        # Instance attributes
+        self._include_dirs = []
+        self._lib_dirs = []
 
         self.initialized = True
 
@@ -375,6 +376,7 @@ class AdvisorProfiler(AdvancedProfiler):
 
     def __init__(self, name):
         super().__init__(name)
+
         path = get_advisor_path()
         if path:
             self.add_include_dir(path.joinpath('include').as_posix())
@@ -383,6 +385,9 @@ class AdvisorProfiler(AdvancedProfiler):
             self.initialized = False
 
     def analyze(self, iet):
+        """
+        A no-op, as the Advisor profiler does not need to analyze the IET.
+        """
         return
 
     def instrument(self, iet, timer):
