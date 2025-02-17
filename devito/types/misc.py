@@ -10,11 +10,11 @@ except ImportError:
 
 from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
 from devito.types.basic import IndexedData
-from devito.tools import Pickable, frozendict
+from devito.tools import CustomDtype, Pickable, frozendict
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'nop', 'WeakFence', 'CriticalRegion']
+           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'auto']
 
 
 class Timer(CompositeObject):
@@ -342,3 +342,19 @@ nop = sympy.Function('NOP')
 A wildcard for use in the RHS of Eqs that encode some kind of semantics
 (e.g., a synchronization operation) but no computation.
 """
+
+
+# *** CXX support types
+
+# NOTE: In C++, `auto` is a type specifier more than a type itself, but
+# it's a distinction we can afford to ignore, at least for now
+auto = CustomDtype('auto')
+auto_ref = CustomDtype('auto', modifier='&')
+
+
+class Auto(LocalObject):
+    dtype = auto
+
+
+class AutoRef(LocalObject, sympy.Expr):
+    dtype = auto_ref

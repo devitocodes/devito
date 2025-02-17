@@ -684,6 +684,12 @@ class Platform:
             'max-block-dims': sys.maxsize,
         }
 
+    def supports(self, query, language=None):
+        """
+        Return True if the platform supports a given feature, False otherwise.
+        """
+        return False
+
 
 class Cpu64(Platform):
 
@@ -836,7 +842,8 @@ class Device(Platform):
 
     def __init__(self, name, cores_logical=None, cores_physical=None, isa='cpp',
                  max_threads_per_block=1024, max_threads_dimx=1024,
-                 max_threads_dimy=1024, max_threads_dimz=64):
+                 max_threads_dimy=1024, max_threads_dimz=64,
+                 max_thread_block_cluster_size=8):
         super().__init__(name)
 
         cpu_info = get_cpu_info()
@@ -849,6 +856,7 @@ class Device(Platform):
         self.max_threads_dimx = max_threads_dimx
         self.max_threads_dimy = max_threads_dimy
         self.max_threads_dimz = max_threads_dimz
+        self.max_thread_block_cluster_size = max_thread_block_cluster_size
 
     @classmethod
     def _mro(cls):
@@ -897,12 +905,6 @@ class Device(Platform):
             'max-block-dims': 3,
         }
 
-    def supports(self, query, language=None):
-        """
-        Check if the device supports a given feature.
-        """
-        return False
-
 
 class IntelDevice(Device):
 
@@ -939,7 +941,7 @@ class NvidiaDevice(Device):
         if query == 'async-loads' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
-        elif query == 'tma' and cc >= 90:
+        elif query in ('tma', 'thread-block-cluster') and cc >= 90:
             # Tensor Memory Accelerator -- introduced in Hopper
             return True
         else:
@@ -953,25 +955,23 @@ class Volta(NvidiaDevice):
 class Ampere(Volta):
 
     def supports(self, query, language=None):
-        if language != 'cuda':
-            return False
-
         if query == 'async-loads':
             return True
-
-        return super().supports(query, language)
+        else:
+            return super().supports(query, language)
 
 
 class Hopper(Ampere):
 
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('max_thread_block_cluster_size', 16)
+        super().__init__(*args, **kwargs)
+
     def supports(self, query, language=None):
-        if language != 'cuda':
-            return False
-
-        if query == 'tma':
+        if query in ('tma', 'thread-block-cluster'):
             return True
-
-        return super().supports(query, language)
+        else:
+            return super().supports(query, language)
 
 
 class Blackwell(Hopper):

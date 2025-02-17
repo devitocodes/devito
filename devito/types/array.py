@@ -90,15 +90,16 @@ class Array(ArrayBasic):
         to 'local'. Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack',
-        'static', 'constant', 'shared'. 'static' refers to a static array in a
-        C/C++ sense. 'constant' and 'shared' mean that the Array represents an
-        object allocated in so called constant and shared memory, respectively,
-        which are typical of device architectures. If 'shared' is specified but
-        the underlying architecture doesn't have something akin to shared memory,
-        the behaviour is unspecified. If 'constant' is specified but the underlying
-        architecture doesn't have something akin to constant memory, the Array
-        falls back to a global, const, static array in a C/C++ sense.
-        Note that not all scopes make sense for a given space.
+        'static', 'constant', 'shared', 'shared-remote'. 'static' refers to a
+        static array in a C/C++ sense. 'constant' and 'shared' mean that the
+        Array represents an object allocated in so called constant and shared
+        memory, respectively, which are typical of device architectures. If
+        'shared' is specified but the underlying architecture doesn't have
+        something akin to shared memory, the behaviour is unspecified. If
+        'constant' is specified but the underlying architecture doesn't have
+        something akin to constant memory, the Array falls back to a global,
+        const, static array in a C/C++ sense.  Note that not all scopes make
+        sense for a given space.
     grid : Grid, optional
         Only necessary for distributed-memory parallelism; a Grid contains
         information about the distributed Dimensions, hence it is necessary
@@ -131,7 +132,8 @@ class Array(ArrayBasic):
         super().__init_finalize__(*args, **kwargs)
 
         self._scope = kwargs.get('scope', 'heap')
-        assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared']
+        assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared',
+                               'shared-remote']
 
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
@@ -173,6 +175,10 @@ class Array(ArrayBasic):
     @property
     def _mem_shared(self):
         return self._scope == 'shared'
+
+    @property
+    def _mem_shared_remote(self):
+        return self._scope == 'shared-remote'
 
     @property
     def _mem_constant(self):
@@ -445,16 +451,17 @@ class Bundle(ArrayBasic):
 
     for i in ('_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
-              '_mem_shared', '__padding_dtype__', '_size_domain', '_size_halo',
-              '_size_owned', '_size_padding', '_size_nopad', '_size_nodomain',
-              '_offset_domain', '_offset_halo', '_offset_owned', '_dist_dimensions',
+              '_mem_shared', '_mem_shared_remote', '__padding_dtype__',
+              '_size_domain', '_size_halo', '_size_owned', '_size_padding',
+              '_size_nopad', '_size_nodomain', '_offset_domain',
+              '_offset_halo', '_offset_owned', '_dist_dimensions',
               '_C_get_field', 'grid', 'symbolic_shape',
               *AbstractFunction.__properties__):
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
     @property
     def _mem_heap(self):
-        return not self._mem_stack
+        return not any([self._mem_stack, self._mem_shared, self._mem_shared_remote])
 
     @property
     def _dist_dimensions(self):

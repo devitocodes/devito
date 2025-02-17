@@ -315,14 +315,25 @@ class CGen(Visitor):
 
     def _gen_signature(self, o, is_declaration=False):
         decls = self._args_decl(o.parameters)
+
         prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
-        signature = c.FunctionDeclaration(c.Value(prefix, o.name), decls)
+
+        if o.attributes:
+            # NOTE: ugly, but I can't bother extending `c.FunctionDeclaration`
+            # for such a tiny thing
+            v = f"{' '.join(o.attributes)} {o.name}"
+        else:
+            v = o.name
+
+        signature = c.FunctionDeclaration(c.Value(prefix, v), decls)
+
         if o.templates:
             tparams = ', '.join([i.inline() for i in self._args_decl(o.templates)])
             if is_declaration:
                 signature = TemplateDecl(tparams, signature)
             else:
                 signature = c.Template(tparams, signature)
+
         return signature
 
     def _blankline_logic(self, children):
