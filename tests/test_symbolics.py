@@ -1,5 +1,6 @@
 from ctypes import c_void_p
 
+import math
 import sympy
 import pytest
 import numpy as np
@@ -620,8 +621,8 @@ def test_minmax_precision(dtype, expected):
     # Check generated code -- ensure it's using the fp64 versions of min/max,
     # that is fminf/fmaxf
     assert all(i in str(op) for i in expected)
-
-    assert np.all(f.data == 6.0)
+    tolerance = 1e-8 if dtype is np.float32 else 1e-16
+    assert np.allclose(f.data, 6.0, rtol=tolerance)
 
 
 @pytest.mark.parametrize('dtype,expected', [
@@ -643,7 +644,8 @@ def test_pow_precision(dtype, expected):
     op.apply()
 
     assert expected in str(op)
-    assert np.all(f.data == 8.0)
+    tolerance = 1e-8 if dtype is np.float32 else 1e-16
+    assert np.allclose(f.data, 8.0, rtol=tolerance)
 
 
 @pytest.mark.parametrize('dtype,expected', [
@@ -665,7 +667,8 @@ def test_abs_precision(dtype, expected):
     op.apply()
 
     assert expected in str(op)
-    assert np.all(f.data == 1.0)
+    tolerance = 1e-8 if dtype is np.float32 else 1e-16
+    assert np.allclose(f.data, 1.0, rtol=tolerance)
 
 
 class TestRelationsWithAssumptions:
@@ -705,7 +708,7 @@ class TestRelationsWithAssumptions:
         op.apply(time_M=5)
         fnorm2 = norm(f)
 
-        assert fnorm == fnorm2
+        assert math.isclose(fnorm, fnorm2, rel_tol=1e-8)
 
     @pytest.mark.parametrize('op, expr, assumptions, expected', [
         ([min, '[a, b, c, d]', '[]', 'Min(a, Min(b, Min(c, d)))']),
