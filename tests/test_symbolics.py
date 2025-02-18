@@ -318,6 +318,7 @@ def test_extended_sympy_arithmetic():
     # noncommutative
     o = Object(name='o', dtype=c_void_p)
     bar = FieldFromPointer('bar', o)
+    # TODO: Edit/fix/update according to PR #2513
     assert ccode(-1 + bar) == 'o->bar - 1'
 
 

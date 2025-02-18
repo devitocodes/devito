@@ -307,6 +307,7 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
     if expr is None:
         return default
 
+    # TODO: Edit/fix/update according to PR #2513
     dtypes = {base} - {None}
     for i in expr.args:
         dtype = getattr(i, 'dtype', None)
