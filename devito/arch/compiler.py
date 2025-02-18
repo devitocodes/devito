@@ -549,6 +549,9 @@ class AOMPCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
+        if language == 'openmp':
+            self.ldflags += ['-fopenmp']
+
         if isinstance(platform, NvidiaDevice):
             self.cflags.remove('-std=c99')
         elif platform is AMDGPUX:
@@ -556,7 +559,6 @@ class AOMPCompiler(Compiler):
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
-                self.ldflags += ['-fopenmp']
                 self.ldflags += [f'--offload-arch={platform.march}']
         elif platform in [POWER8, POWER9]:
             # It doesn't make much sense to use AOMP on Power, but it should work
