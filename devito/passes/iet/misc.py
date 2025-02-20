@@ -148,11 +148,12 @@ def _generate_macros(iet, tracker=None, **kwargs):
     # Derive the Macros necessary for the FIndexeds
     iet = _generate_macros_findexeds(iet, tracker=tracker, **kwargs)
 
+    # NOTE: sorting is necessary to ensure deterministic code generation
     headers = [i.header for i in tracker.values()]
     headers = sorted((ccode(define), ccode(expr)) for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    headers.extend(_generate_macros_math(iet))
+    headers.extend(sorted(_generate_macros_math(iet), key=str))
 
     # Remove redundancies while preserving the order
     headers = filter_ordered(headers)
