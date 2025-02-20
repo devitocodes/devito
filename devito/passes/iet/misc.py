@@ -166,9 +166,9 @@ def _generate_macros(iet, tracker=None, lang=None, **kwargs):
     # so we need to include the respective includes
     limits = FindApplications(ValueLimit).visit(iet)
     if limits & (set(limits_mapper[np.int32]) | set(limits_mapper[np.int64])):
-        includes.add('limits.h')
+        includes.append('limits.h')
     elif limits & (set(limits_mapper[np.float32]) | set(limits_mapper[np.float64])):
-        includes.add('float.h')
+        includes.append('float.h')
 
     return iet, {'headers': headers, 'includes': includes}
 
