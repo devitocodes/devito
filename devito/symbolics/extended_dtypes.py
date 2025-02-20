@@ -4,6 +4,7 @@ import numpy as np
 from devito.symbolics.extended_sympy import ReservedWord, Cast, ValueLimit
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4, ctypes_vector_mapper)
+from devito.tools.dtypes_lowering import mapper as dtype_mapper
 
 __all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
            'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex']
@@ -69,8 +70,6 @@ def cast_mapper(arg):
         return lambda v, dtype=None, **kw: Cast(v, dtype=arg, **kw)
 
 
-FLOAT = cast_mapper(np.float32)
-DOUBLE = cast_mapper(np.float64)
 ULONG = cast_mapper(np.uint64)
 UINTP = cast_mapper((np.uint32, '*'))
 
@@ -88,13 +87,10 @@ class VOID(BaseCast):
     _dtype = 'void'
 
 
-class INT(BaseCast):
-
-    _dtype = np.int32
-
-
 # Dynamically create INT, INT2, .... INTP, INT2P, ... FLOAT, ...
-for base_name in ['int', 'float', 'double']:
+for (base_name, dtype) in dtype_mapper.items():
+    name = base_name.upper()
+    globals()[name] = type(name, (BaseCast,), {'_dtype': dtype})
     for i in ['2', '3', '4']:
         v = '%s%s' % (base_name, i)
         globals()[v.upper()] = cast_mapper(v)
