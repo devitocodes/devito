@@ -1113,7 +1113,7 @@ class FindApplications(Visitor):
             try:
                 ret.update(i.find(self.match))
             except (AttributeError, TypeError):
-                continue
+                ret.update(self._visit(i, ret=ret))
         return ret
 
 
