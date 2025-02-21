@@ -111,8 +111,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # case `self._data is None`
                 self.data
         else:
-            raise ValueError("`initializer` must be callable or buffer, not %s"
-                             % type(initializer))
+            raise ValueError(f"`initializer` must be callable or buffer, "
+                             f"not {type(initializer)}")
 
     _subs = Differentiable._subs
 
@@ -125,8 +125,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     # Aliasing Functions must not allocate data
                     return
 
-                debug("Allocating host memory for %s%s [%s]"
-                      % (self.name, self.shape_allocated, humanbytes(self.nbytes)))
+                debug(f"Allocating host memory for {self.name}{self.shape_allocated} "
+                      f"[{humanbytes(self.nbytes)}]")
 
                 # Clear up both SymPy and Devito caches to drop unreachable data
                 CacheManager.clear(force=False)
@@ -176,8 +176,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             if coeffs == 'symbolic':
                 deprecations.symbolic_warn
             else:
-                raise ValueError("coefficients must be one of %s"
-                                 " not %s" % (str(fd_weights_registry), coeffs))
+                raise ValueError(f"coefficients must be one of {fd_weights_registry} "
+                                 f"not {coeffs}")
         return coeffs
 
     def __staggered_setup__(self, **kwargs):
@@ -352,12 +352,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
             try:
-                warning_msg = """A space order of {0} and a halo size of {1} has been
-                                 set but the current rank ({2}) has a domain size of
-                                 only {3}""".format(self._space_order,
-                                                    max(self._size_inhalo),
-                                                    self._distributor.myrank,
-                                                    min(self.grid.shape_local))
+                warning_msg = (
+                    f"A space order of {self._space_order} and a halo size of "
+                    f"{max(self._size_inhalo)} has been set but the current rank "
+                    f"({self._distributor.myrank}) has a domain size of only "
+                    f"{min(self.grid.shape_local)}"
+                )
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:
@@ -768,7 +768,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             offset = 0
             size = ffp(self._C_field_size, self._C_make_index(dim))
         else:
-            raise ValueError("Unknown region `%s`" % str(region))
+            raise ValueError(f"Unknown region `{region}`")
 
         return RegionMeta(offset, size)
 
@@ -781,8 +781,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             # Nothing to do
             return
         if MPI.COMM_WORLD.size > 1 and self._distributor is None:
-            raise RuntimeError("`%s` cannot perform a halo exchange as it has "
-                               "no Grid attached" % self.name)
+            raise RuntimeError(f"`{self.name}` cannot perform a halo exchange "
+                               f"as it has no Grid attached")
 
         neighborhood = self._distributor.neighborhood
         comm = self._distributor.comm
@@ -874,17 +874,16 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             If an incompatibility is detected.
         """
         if self.name not in args:
-            raise InvalidArgument("No runtime value for `%s`" % self.name)
+            raise InvalidArgument(f"No runtime value for `{self.name}`")
 
         data = args[self.name]
 
         if len(data.shape) != self.ndim:
-            raise InvalidArgument("Shape %s of runtime value `%s` does not match "
-                                  "dimensions %s" %
-                                  (data.shape, self.name, self.dimensions))
+            raise InvalidArgument(f"Shape {data.shape} of runtime value `{self.name}` "
+                                  f"does not match dimensions {self.dimensions}")
         if data.dtype != self.dtype:
-            warning("Data type %s of runtime value `%s` does not match the "
-                    "Function data type %s" % (data.dtype, self.name, self.dtype))
+            warning(f"Data type {data.dtype} of runtime value `{self.name}` "
+                    f"does not match the Function data type {self.dtype}")
 
         # Check each Dimension for potential OOB accesses
         for i, s in zip(self.dimensions, data.shape):
@@ -894,11 +893,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
            args.options['linearize'] and \
            self.is_regular and \
            data.size - 1 >= np.iinfo(np.int32).max:
-            raise InvalidArgument("`%s`, with its %d elements, is too big for "
-                                  "int32 pointer arithmetic. Consider using the "
-                                  "'index-mode=int64' option, the save=Buffer(..) "
-                                  "API (TimeFunction only), or domain "
-                                  "decomposition via MPI" % (self.name, data.size))
+            raise InvalidArgument(f"`{self.name}`, with its {data.size} elements, "
+                                  "is too big for int32 pointer arithmetic."
+                                  "Consider using the 'index-mode=int64' option, "
+                                  "the save=Buffer(..) (TimeFunction only), or domain "
+                                  "decomposition via MPI")
 
     def _arg_finalize(self, args, alias=None):
         key = alias or self
@@ -1134,9 +1133,8 @@ class Function(DiscreteFunction):
                 if d in grid.dimensions:
                     size = grid.dimension_map[d]
                     if size.glb != s and s is not None:
-                        raise ValueError("Dimension `%s` is given size `%d`, "
-                                         "while `grid` says `%s` has size `%d` "
-                                         % (d, s, d, size.glb))
+                        raise ValueError(f"Dimension `{d}` is given size `{s}`, "
+                                         f"while `grid` says `{d}` has size `{size.glb}`")
                     else:
                         loc_shape.append(size.loc)
                 else:
@@ -1192,7 +1190,7 @@ class Function(DiscreteFunction):
             padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
 
         else:
-            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
+            raise TypeError(f"`padding` must be int or {self.ndim}-tuple of ints")
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
@@ -1438,7 +1436,7 @@ class TimeFunction(Function):
             elif isinstance(save, int):
                 shape.insert(cls._time_position, save)
             else:
-                raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))
+                raise TypeError(f"`save` can be None, int or Buffer, not {type(save)}")
         elif dimensions is None:
             raise TypeError("`dimensions` required if both `grid` and "
                             "`shape` are provided")
@@ -1502,9 +1500,10 @@ class TimeFunction(Function):
 
         key_time_size = args[self.name].shape[self._time_position]
         if self._time_buffering and self._time_size != key_time_size:
-            raise InvalidArgument("Expected `time_size=%d` for runtime "
-                                  "value `%s`, found `%d` instead"
-                                  % (self._time_size, self.name, key_time_size))
+            raise InvalidArgument(
+                f"Expected `time_size={self._time_size}` for runtime value "
+                f"`{self.name}`, found `{key_time_size}` instead"
+            )
 
 
 class SubFunction(Function):
@@ -1533,8 +1532,8 @@ class SubFunction(Function):
         if self._parent is not None and self.parent.name not in kwargs:
             return self._parent._arg_defaults(alias=self._parent).reduce_all()
         elif self.name in kwargs:
-            raise RuntimeError("`%s` is a SubFunction, so it can't be assigned "
-                               "a value dynamically" % self.name)
+            raise RuntimeError(f"`{self.name}` is a SubFunction, so it can't "
+                               "be assigned a value dynamically")
         else:
             return self._arg_defaults(alias=self)
 
@@ -1678,8 +1677,8 @@ class TempFunction(DiscreteFunction):
             for n, i in enumerate(self.shape):
                 v = i.subs(args)
                 if not v.is_Integer:
-                    raise ValueError("Couldn't resolve `shape[%d]=%s` with the given "
-                                     "kwargs (obtained: `%s`)" % (n, i, v))
+                    raise ValueError(f"Couldn't resolve `shape[{n}]={i}` with the given "
+                                     f"kwargs (obtained: `{v}`)")
                 shape.append(int(v))
             shape = tuple(shape)
         elif len(shape) != self.ndim:
@@ -1706,6 +1705,6 @@ class TempFunction(DiscreteFunction):
                 # Set new values and re-derive defaults
                 return new._arg_defaults().reduce_all()
             else:
-                raise InvalidArgument("Illegal runtime value for `%s`" % self.name)
+                raise InvalidArgument(f"Illegal runtime value for `{self.name}`")
         else:
-            raise InvalidArgument("TempFunction `%s` lacks override" % self.name)
+            raise InvalidArgument(f"TempFunction `{self.name}` lacks override")
