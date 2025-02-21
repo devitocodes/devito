@@ -13,7 +13,7 @@ from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
-from devito.tools import as_tuple, flatten, filter_ordered, Pickable
+from devito.tools import as_tuple, flatten, filter_ordered, Pickable, memoized_meth
 from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
                           CustomDimension, SubFunction)
 from devito.types.utils import DimensionTuple
@@ -31,6 +31,28 @@ def check_radius(func):
             raise ValueError("Space order %d too small for interpolation r %d" % (so, r))
         return func(interp, *args, **kwargs)
     return wrapper
+
+
+def _extract_subdomain(variables):
+    """
+    Check if any of the variables provided are defined on a SubDomain
+    and extract it if this is the case.
+    """
+    sdms = set()
+    for v in variables:
+        try:
+            if v.grid.is_SubDomain:
+                sdms.add(v.grid)
+        except AttributeError:
+            # Variable not on a grid (Indexed for example)
+            pass
+
+    if len(sdms) > 1:
+        raise NotImplementedError("Sparse operation on multiple Functions defined on"
+                                  " different SubDomains currently unsupported")
+    elif len(sdms) == 1:
+        return sdms.pop()
+    return None
 
 
 class UnevaluatedSparseOperation(sympy.Expr, Evaluable, Pickable):
@@ -173,42 +195,73 @@ class WeightedInterpolator(GenericInterpolator):
         return self.sfunction.grid
 
     @property
-    def _weights(self):
+    def r(self):
+        return self.sfunction.r
+
+    @memoized_meth
+    def _weights(self, subdomain=None):
         raise NotImplementedError
 
     @property
     def _gdims(self):
         return self.grid.dimensions
 
-    @property
-    def r(self):
-        return self.sfunction.r
-
     @cached_property
-    def _rdim(self):
+    def _cdim(self):
+        """Base CustomDimensions used to construct _rdim"""
         parent = self.sfunction._sparse_dim
         dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
                                 -self.r+1, self.r, 2*self.r, parent)
                 for d in self._gdims]
+        return dims
+
+    @memoized_meth
+    def _rdim(self, subdomain=None):
+        # If the interpolation operation is limited to a SubDomain,
+        # use the SubDimensions of that SubDomain
+        if subdomain:
+            gdims = tuple(subdomain.dimension_map[d] for d in self._gdims)
+        else:
+            gdims = self._gdims
 
         # Make radius dimension conditional to avoid OOB
         rdims = []
         pos = self.sfunction._position_map.values()
 
-        for (d, rd, p) in zip(self._gdims, dims, pos):
+        for (d, rd, p) in zip(gdims, self._cdim, pos):
             # Add conditional to avoid OOB
             lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
             ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
+
+            # Insert a check to catch cases where interpolation/injection is
+            # into an empty rank. This depends on the injection field or interpolated
+            # expression, and so must be inserted here.
+            if subdomain and subdomain.distributor.is_parallel:
+                rank_populated = subdomain.distributor.rank_populated
+                cond = sympy.And(rank_populated, cond)
+
             rdims.append(ConditionalDimension(rd.name, rd, condition=cond,
                                               indirect=True))
 
-        return DimensionTuple(*rdims, getters=self._gdims)
+        return DimensionTuple(*rdims, getters=gdims)
 
     def _augment_implicit_dims(self, implicit_dims, extras=None):
         if extras is not None:
+            # If variables are defined on a SubDomain of the Grid, then omit the
+            # dimensions of that SubDomain from any extra dimensions found
+            edims = []
+            for v in extras:
+                try:
+                    if v.grid.is_SubDomain:
+                        edims.extend([d for d in v.grid.dimensions
+                                      if d.is_Sub and d.root in self._gdims])
+                except AttributeError:
+                    pass
+
+            gdims = filter_ordered(edims + list(self._gdims))
             extra = filter_ordered([i for v in extras for i in v.dimensions
-                                    if i not in self._gdims and
+                                    if i not in gdims and
                                     i not in self.sfunction.dimensions])
             extra = tuple(extra)
         else:
@@ -227,11 +280,10 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map.items()]
 
-    def _interp_idx(self, variables, implicit_dims=None, pos_only=()):
+    def _interp_idx(self, variables, implicit_dims=None, pos_only=(), subdomain=None):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
-        mapper = {}
         pos = self.sfunction._position_map.values()
 
         # Temporaries for the position
@@ -241,10 +293,13 @@ class WeightedInterpolator(GenericInterpolator):
         temps.extend(self._coeff_temps(implicit_dims))
 
         # Substitution mapper for variables
-        mapper = self._rdim.getters
-        idx_subs = {v: v.subs({k: c + p
-                    for ((k, c), p) in zip(mapper.items(), pos)})
-                    for v in variables}
+        mapper = self._rdim(subdomain=subdomain).getters
+
+        # Index substitution to make in variables
+        subs = {ki: c + p for ((k, c), p)
+                in zip(mapper.items(), pos) for ki in {k, k.root}}
+
+        idx_subs = {v: v.subs(subs) for v in variables}
 
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
@@ -313,18 +368,21 @@ class WeightedInterpolator(GenericInterpolator):
             _expr = expr
 
         variables = list(retrieve_function_carriers(_expr))
+        subdomain = _extract_subdomain(variables)
 
         # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
 
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims)
+        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
+                                           subdomain=subdomain)
 
         # Accumulate point-wise contributions into a temporary
         rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
         summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
         # Substitute coordinate base symbols into the interpolation coefficients
-        summands.extend([Inc(rhs, (self._weights * _expr).xreplace(idx_subs),
+        weights = self._weights(subdomain=subdomain)
+        summands.extend([Inc(rhs, (weights * _expr).xreplace(idx_subs),
                              implicit_dims=implicit_dims)])
 
         # Write/Incr `self`
@@ -360,6 +418,8 @@ class WeightedInterpolator(GenericInterpolator):
             else:
                 assert len(exprs) == len(fields)
 
+        subdomain = _extract_subdomain(fields)
+
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
             _exprs = tuple(e.evaluate for e in exprs)
@@ -374,15 +434,16 @@ class WeightedInterpolator(GenericInterpolator):
         # Move all temporaries inside inner loop to improve parallelism
         # Can only be done for inject as interpolation need a temporary
         # summing temp that wouldn't allow collapsing
-        implicit_dims = implicit_dims + tuple(r.parent for r in self._rdim)
+        implicit_dims = implicit_dims + tuple(r.parent for r in
+                                              self._rdim(subdomain=subdomain))
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
-                                           pos_only=variables)
+                                           pos_only=variables, subdomain=subdomain)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
-                    (self._weights * _expr).xreplace(idx_subs),
+                    (self._weights(subdomain=subdomain) * _expr).xreplace(idx_subs),
                     implicit_dims=implicit_dims)
                 for (_field, _expr) in zip(fields, _exprs)]
 
@@ -401,10 +462,11 @@ class LinearInterpolator(WeightedInterpolator):
 
     _name = 'linear'
 
-    @property
-    def _weights(self):
+    @memoized_meth
+    def _weights(self, subdomain=None):
+        rdim = self._rdim(subdomain=subdomain)
         c = [(1 - p) * (1 - r) + p * r
-             for (p, d, r) in zip(self._point_symbols, self._gdims, self._rdim)]
+             for (p, d, r) in zip(self._point_symbols, self._gdims, rdim)]
         return Mul(*c)
 
     @cached_property
@@ -448,11 +510,11 @@ class PrecomputedInterpolator(WeightedInterpolator):
     def interpolation_coeffs(self):
         return self.sfunction.interpolation_coeffs
 
-    @property
-    def _weights(self):
+    @memoized_meth
+    def _weights(self, subdomain=None):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
         mappers = [{ddim: ri, cdim: rd-rd.parent.symbolic_min}
-                   for (ri, rd) in enumerate(self._rdim)]
+                   for (ri, rd) in enumerate(self._rdim(subdomain=subdomain))]
         return Mul(*[self.interpolation_coeffs.subs(mapper)
                      for mapper in mappers])
 
@@ -485,21 +547,22 @@ of the SincInterpolator that uses i0 (Bessel function).
 
     @cached_property
     def interpolation_coeffs(self):
-        coeffs = {}
+        coeffs = []
         shape = (self.sfunction.npoint, 2 * self.r)
-        for r in self._rdim:
-            dimensions = (self.sfunction._sparse_dim, r.parent)
+        for r in self._cdim:
+            dimensions = (self.sfunction._sparse_dim, r)
             sf = SubFunction(name="wsinc%s" % r.name, dtype=self.sfunction.dtype,
                              shape=shape, dimensions=dimensions,
                              space_order=0, alias=self.sfunction.alias,
                              parent=None)
-            coeffs[r] = sf
-        return coeffs
+            coeffs.append(sf)
+        return tuple(coeffs)
 
-    @property
-    def _weights(self):
+    @memoized_meth
+    def _weights(self, subdomain=None):
+        rdims = self._rdim(subdomain=subdomain)
         return Mul(*[w._subs(rd, rd-rd.parent.symbolic_min)
-                     for (rd, w) in self.interpolation_coeffs.items()])
+                     for (rd, w) in zip(rdims, self.interpolation_coeffs)])
 
     def _arg_defaults(self, coords=None, sfunc=None):
         args = {}
@@ -512,12 +575,12 @@ of the SincInterpolator that uses i0 (Bessel function).
         coords = coords - np.floor(coords)
 
         # Precompute sinc
-        for j, r in enumerate(self._rdim):
+        for j in range(len(self._gdims)):
             data = np.zeros((coords.shape[0], 2*self.r), dtype=sfunc.dtype)
             for ri in range(2*self.r):
                 rpos = ri - self.r + 1 - coords[:, j]
                 num = i0(b*np.sqrt(1 - (rpos/self.r)**2))
                 data[:, ri] = num / b0 * np.sinc(rpos)
-            args[self.interpolation_coeffs[r].name] = data
+            args[self.interpolation_coeffs[j].name] = data
 
         return args

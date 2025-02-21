@@ -309,7 +309,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return self.shape
         retval = []
         for d, s in zip(self.dimensions, self.shape):
-            size = self.grid.dimension_map.get(d)
+            size = self.grid.size_map.get(d)
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
 
@@ -350,7 +350,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right))
 
-        if self._distributor.is_parallel and (any(left) > 0 or any(right)) > 0:
+        if self._distributor.is_parallel and (any(left) or any(right)):
             try:
                 warning_msg = """A space order of {0} and a halo size of {1} has been
                                  set but the current rank ({2}) has a domain size of
@@ -1132,7 +1132,7 @@ class Function(DiscreteFunction):
             loc_shape = []
             for d, s in zip(dimensions, shape):
                 if d in grid.dimensions:
-                    size = grid.dimension_map[d]
+                    size = grid.size_map[d]
                     if size.glb != s and s is not None:
                         raise ValueError("Dimension `%s` is given size `%d`, "
                                          "while `grid` says `%s` has size `%d` "
@@ -1145,6 +1145,10 @@ class Function(DiscreteFunction):
         return shape
 
     def __halo_setup__(self, **kwargs):
+        if self._distributor and self._distributor.loc_empty:
+            # No need to assign a halo on a completely empty rank
+            return DimensionTuple(*[(0, 0) for i in self.dimensions],
+                                  getters=self.dimensions)
         halo = kwargs.get('halo')
         if halo is not None:
             if isinstance(halo, DimensionTuple):

@@ -31,7 +31,7 @@ from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
                           split, timed_pass, timed_region, contains_val)
-from devito.types import (Buffer, Grid, Evaluable, host_layer, device_layer,
+from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
 
@@ -556,12 +556,34 @@ class Operator(Callable):
                 if k not in self._known_arguments:
                     raise InvalidArgument(f"Unrecognized argument `{k}={v}`")
 
+        overrides, defaults = split(self.input, lambda p: p.name in kwargs)
+
+        # DiscreteFunctions may be created from CartesianDiscretizations, which in
+        # turn could be Grids or SubDomains. Both may provide arguments
+        discretizations = {getattr(kwargs.get(p.name, p), 'grid', None)
+                           for p in self.input} - {None}
+
+        # There can only be one Grid from which DiscreteFunctions were created
+        grids = {i.root for i in discretizations}
+
+        if len(grids) > 1 and configuration['mpi']:
+            # We loosely tolerate multiple Grids for backwards compatibility
+            # with spatial subsampling, which should be revisited however. And
+            # With MPI it would definitely break!
+            raise ValueError("Multiple Grids found")
+
+        nodes = set(self.dimensions)
+        if grids:
+            grid = grids.pop()
+            nodes.update(grid.dimensions)
+        else:
+            grid = None
+
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
         # as DerivedDimensions may depend on their parents
-        nodes = self.dimensions
-        edges = [(i, i.parent) for i in self.dimensions
-                 if i.is_Derived and i.parent in set(nodes)]
+        edges = [(i, i.parent) for i in nodes
+                 if i.is_Derived and i.parent in nodes]
         toposort = DAG(nodes, edges).topological_sort()
 
         futures = {}
@@ -615,31 +637,8 @@ class Operator(Callable):
 
         args = kwargs['args'] = args.reduce_all()
 
-        # DiscreteFunctions may be created from CartesianDiscretizations, which in
-        # turn could be Grids or SubDomains. Both may provide arguments
-        discretizations = {getattr(kwargs[p.name], 'grid', None) for p in overrides}
-        discretizations.update({getattr(p, 'grid', None) for p in defaults})
-        discretizations.discard(None)
-        # Remove subgrids if multiple grids
-        if len(discretizations) > 1:
-            discretizations = {g for g in discretizations
-                               if not any(d.is_Derived for d in g.dimensions)}
-
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
-
-        # There can only be one Grid from which DiscreteFunctions were created
-        grids = {i for i in discretizations if isinstance(i, Grid)}
-        if len(grids) > 1:
-            # We loosely tolerate multiple Grids for backwards compatibility
-            # with spacial subsampling, which should be revisited however. And
-            # With MPI it would definitely break!
-            if configuration['mpi']:
-                raise ValueError("Multiple Grids found")
-        try:
-            grid = grids.pop()
-        except KeyError:
-            grid = None
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing

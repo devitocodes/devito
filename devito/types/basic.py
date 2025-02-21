@@ -709,6 +709,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
     def _infer_dims(self):
         grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
+        grids = {g.root for g in grids}
         dimensions = {d for c in self.flat()
                       for d in getattr(c, 'dimensions', ())} - {None}
         # If none of the components are devito objects, returns a sympy Matrix
@@ -854,9 +855,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     # Devito default assumptions
     is_regular = True
     """
-    True if data and iteration points are aligned. Cases where they won't be
-    aligned (currently unsupported): Functions defined on SubDomains; compressed
-    Functions; etc.
+    True if alignment between iteration and data points is affine. Examples of cases
+    where this would be False include types such as compressed Functions, etc.
     """
 
     is_autopaddable = False
@@ -973,6 +973,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return class_key, args, exp, coeff
 
     def __init_finalize__(self, *args, **kwargs):
+        # A `Distributor` to handle domain decomposition
+        self._distributor = self.__distributor_setup__(**kwargs)
+
         # Setup halo, padding, and ghost regions
         self._is_halo_dirty = False
         self._halo = self.__halo_setup__(**kwargs)
@@ -982,8 +985,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # There may or may not be a `Grid`
         self._grid = kwargs.get('grid')
 
-        # A `Distributor` to handle domain decomposition
-        self._distributor = self.__distributor_setup__(**kwargs)
+        # Symbol properties
 
         # "Aliasing" another AbstractFunction means that `self` logically
         # represents another object. For example, `self` might be used as the
@@ -1110,7 +1112,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         f(x) : origin = 0
         f(x + hx/2) : origin = hx/2
         """
-        return DimensionTuple(*(r - d for d, r in zip(self.dimensions, self.indices_ref)),
+        return DimensionTuple(*(r - d + o for d, r, o
+                                in zip(self.dimensions, self.indices_ref,
+                                       self._offset_subdomain)),
                               getters=self.dimensions)
 
     @property
@@ -1122,6 +1126,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def space_dimensions(self):
         """Tuple of Dimensions defining the physical space."""
         return tuple(d for d in self.dimensions if d.is_Space)
+
+    @cached_property
+    def root_dimensions(self):
+        """Tuple of root Dimensions of the physical space Dimensions."""
+        return tuple(d.root for d in self.space_dimensions)
 
     @property
     def base(self):
@@ -1200,6 +1209,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def grid(self):
         """The Grid on which the discretization occurred."""
         return self._grid
+
+    @property
+    def _is_on_subdomain(self):
+        """True if defined on a SubDomain"""
+        return self.grid and self.grid.is_SubDomain
 
     @property
     def dtype(self):
@@ -1446,6 +1460,30 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         offsets = tuple(Offset(i, j) for i, j in zip(left, right))
 
         return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
+
+    @cached_property
+    def _offset_subdomain(self):
+        """Offset of subdomain indices versus the global index."""
+        # If defined on a SubDomain, then need to offset indices accordingly
+        if not self._is_on_subdomain:
+            return DimensionTuple(*[0 for _ in self.dimensions], getters=self.dimensions)
+        # Symbolic offsets to avoid potential issues with user overrides
+        offsets = []
+        for d in self.dimensions:
+            if d.is_Sub:
+                l_tkn, r_tkn = d.tkns
+                if l_tkn.value is None:
+                    # Right subdimension
+                    offsets.append(-r_tkn + d.symbolic_max + 1)
+                elif r_tkn.value is None:
+                    # Left subdimension
+                    offsets.append(0)
+                else:
+                    # Middle subdimension
+                    offsets.append(l_tkn)
+            else:
+                offsets.append(0)
+        return DimensionTuple(*offsets, getters=self.dimensions)
 
     @property
     def _data_alignment(self):
