@@ -2,12 +2,13 @@ import cgen as c
 from sympy import Mod
 import pytest
 
-from devito import Grid, Eq, Function, TimeFunction, Operator, sin
+from devito import Grid, Eq, Function, TimeFunction, Operator, Min, sin
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (Block, Expression, Callable, FindNodes, FindSections,
                            FindSymbols, IsPerfectIteration, Transformer,
-                           Conditional, printAST, Iteration, MapNodes, Call)
-from devito.types import SpaceDimension, Array
+                           Conditional, printAST, Iteration, MapNodes, Call,
+                           FindApplications)
+from devito.types import SpaceDimension, Array, Symbol
 
 
 @pytest.fixture(scope="module")
@@ -395,3 +396,11 @@ def test_map_nodes(block1):
         processed = Transformer({iters[0]: Call(callback.name)}).visit(block1)
 
     assert str(processed) == 'solver();'
+
+
+def test_find_apps_nested_calls(exprs, iters):
+    s = Symbol(name='s')
+    call = Call('foo', Call('bar', [Min(s, 1)]))
+    block = iters[0](iters[1](exprs + [call]))
+
+    assert len(FindApplications().visit(block)) == 1
