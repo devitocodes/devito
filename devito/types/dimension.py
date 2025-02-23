@@ -128,10 +128,11 @@ class Dimension(ArgProvider):
         This is only necessary for backwards compatibility, as originally
         there was no BasicDimension (i.e., Dimension was just the top class).
         """
+        # Dimensions can only be integers, so pass this assumption to the constructor
         if cls is Dimension:
-            return BasicDimension(*args, **kwargs)
+            return BasicDimension(*args, integer=True, **kwargs)
         else:
-            return BasicDimension.__new__(cls, *args, **kwargs)
+            return BasicDimension.__new__(cls, *args, integer=True, **kwargs)
 
     @classmethod
     def class_key(cls):
