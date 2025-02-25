@@ -109,11 +109,11 @@ class CireTransformer:
     def __init__(self, sregistry, options, platform):
         self.sregistry = sregistry
         self.platform = platform
-
         self.opt_minstorage = options['min-storage']
         self.opt_rotate = options['cire-rotate']
         self.opt_ftemps = options['cire-ftemps']
         self.opt_mingain = options['cire-mingain']
+        self.opt_mindtype = options['scalar-min-type']
         self.opt_multisubdomain = True
 
     def _aliases_from_clusters(self, clusters, exclude, meta):
@@ -143,7 +143,7 @@ class CireTransformer:
 
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry,
-                                         self.opt_ftemps)
+                                         self.opt_ftemps, self.opt_mindtype)
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
@@ -831,7 +831,7 @@ def optimize_schedule_rotations(schedule, sregistry):
     return schedule.rebuild(*processed, rmapper=rmapper)
 
 
-def lower_schedule(schedule, meta, sregistry, ftemps):
+def lower_schedule(schedule, meta, sregistry, ftemps, mindtype):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -849,7 +849,8 @@ def lower_schedule(schedule, meta, sregistry, ftemps):
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
         # that would creat a temporary `int r = b` leading to erronous
         # numerical results
-        dtype = sympy_dtype(pivot, base=meta.dtype)
+        mindtype = None if writeto else mindtype
+        dtype = sympy_dtype(pivot, base=meta.dtype, smin=mindtype)
 
         if writeto:
             # The Dimensions defining the shape of Array
