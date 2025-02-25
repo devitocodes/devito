@@ -298,7 +298,7 @@ def has_integer_args(*args):
     return res
 
 
-def sympy_dtype(expr, base=None, default=None):
+def sympy_dtype(expr, base=None, default=None, smin=None):
     """
     Infer the dtype of the expression.
     """
@@ -321,5 +321,8 @@ def sympy_dtype(expr, base=None, default=None):
             dtype = default or np.complex64
         else:
             dtype = np.promote_types(dtype, np.complex64).type
+
+    if smin is not None and not np.issubdtype(dtype, np.integer):
+        dtype = np.promote_types(dtype, smin).type
 
     return dtype

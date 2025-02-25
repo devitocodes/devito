@@ -40,6 +40,9 @@ class DeviceOperatorMixin:
         o['mpi'] = oo.pop('mpi')
         o['parallel'] = True
 
+        # Minimum scalar type
+        o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
+
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
 
