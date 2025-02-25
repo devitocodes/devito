@@ -1,19 +1,23 @@
-from devito.core.cpu import Cpu64AdvOperator
-from devito.passes.iet import CTarget, OmpTarget
+from devito.core.cpu import (Cpu64AdvOperator, Cpu64AdvCXXOperator,
+                             Cpu64AdvCOperator)
+from devito.passes.iet import OmpTarget, CXXOmpTarget
 
-__all__ = ['ArmAdvCOperator', 'ArmAdvOmpOperator']
-
-
-class ArmAdvOperator(Cpu64AdvOperator):
-    pass
+__all__ = ['ArmAdvCOperator', 'ArmAdvOmpOperator', 'ArmAdvCXXOperator',
+           'ArmAdvCXXOmpOperator']
 
 
-class ArmAdvCOperator(ArmAdvOperator):
-    _Target = CTarget
+ArmAdvOperator = Cpu64AdvOperator
+ArmAdvCOperator = Cpu64AdvCOperator
+ArmAdvCXXOperator = Cpu64AdvCXXOperator
 
 
-class ArmAdvOmpOperator(ArmAdvOperator):
+class ArmAdvOmpOperator(ArmAdvCOperator):
     _Target = OmpTarget
 
     # Avoid nested parallelism on ThunderX2
     PAR_NESTED = 4
+
+
+class ArmAdvCXXOmpOperator(ArmAdvOmpOperator):
+    _Target = CXXOmpTarget
+    LINEARIZE = True

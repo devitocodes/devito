@@ -16,7 +16,7 @@ from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
 from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast_mapper, subs_op_args)
-from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, dtype_to_ctype,
+from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, infer_datasize,
                           flatten, generator, is_integer, split)
 from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
                           CompositeObject, CustomDimension)
@@ -605,7 +605,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         return MPIMsg('msg%d' % key, f, halos)
 
     def _make_sendrecv(self, f, hse, key, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
         comm = f.grid.distributor._obj_comm
 
         bufg = FieldFromPointer(msg._C_field_bufg, msg)
@@ -671,7 +671,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
             return compute.make_call(dynamic_args_mapper=hs.omapper.core)
 
     def _make_wait(self, f, hse, key, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
 
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
 
@@ -772,7 +772,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return
 
     def _make_haloupdate(self, f, hse, key, *args, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
         comm = f.grid.distributor._obj_comm
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
@@ -819,7 +819,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         return HaloUpdateCall(name, args)
 
     def _make_halowait(self, f, hse, key, *args, msg=None):
-        cast = cast_mapper[(f.c0.dtype, '*')]
+        cast = cast_mapper((f.c0.dtype, '*'))
 
         fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
 
@@ -1204,8 +1204,8 @@ class MPIMsg(CompositeObject):
             entry.sizes = (c_int*len(shape))(*shape)
 
             # Allocate the send/recv buffers
-            size = reduce(mul, shape)*dtype_len(self.target.dtype)
-            ctype = dtype_to_ctype(f.dtype)
+            ctype, datasize = infer_datasize(f.dtype, shape)
+            size = datasize * dtype_len(self.target.dtype)
             entry.bufg, bufg_memfree_args = allocator._alloc_C_libcall(size, ctype)
             entry.bufs, bufs_memfree_args = allocator._alloc_C_libcall(size, ctype)
 

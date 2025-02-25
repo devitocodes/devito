@@ -11,9 +11,9 @@ from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
                        Uxreplace, filter_iterations, retrieve_iteration_tree,
                        pull_dims)
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.languages.C import CPrinter
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
-from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper,
-                              ccode)
+from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper)
 from devito.tools import Bunch, as_mapper, filter_ordered, split
 from devito.types import FIndexed
 
@@ -144,16 +144,20 @@ def generate_macros(graph, **kwargs):
 
 
 @iet_pass
-def _generate_macros(iet, tracker=None, **kwargs):
+def _generate_macros(iet, tracker=None, lang=None, **kwargs):
     # Derive the Macros necessary for the FIndexeds
     iet = _generate_macros_findexeds(iet, tracker=tracker, **kwargs)
 
     # NOTE: sorting is necessary to ensure deterministic code generation
     headers = [i.header for i in tracker.values()]
-    headers = sorted((ccode(define), ccode(expr)) for define, expr in headers)
+    printer = kwargs.get('printer', CPrinter)
+    headers = sorted((printer()._print(define), printer()._print(expr))
+                     for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    headers.extend(sorted(_generate_macros_math(iet), key=str))
+    mheaders, includes = _generate_macros_math(iet, lang=lang)
+    includes = sorted(includes, key=str)
+    headers.extend(sorted(mheaders, key=str))
 
     # Remove redundancies while preserving the order
     headers = filter_ordered(headers)
@@ -161,11 +165,10 @@ def _generate_macros(iet, tracker=None, **kwargs):
     # Some special Symbols may represent Macros defined in standard libraries,
     # so we need to include the respective includes
     limits = FindApplications(ValueLimit).visit(iet)
-    includes = set()
     if limits & (set(limits_mapper[np.int32]) | set(limits_mapper[np.int64])):
-        includes.add('limits.h')
+        includes.append('limits.h')
     elif limits & (set(limits_mapper[np.float32]) | set(limits_mapper[np.float64])):
-        includes.add('float.h')
+        includes.append('float.h')
 
     return iet, {'headers': headers, 'includes': includes}
 
@@ -196,42 +199,45 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
     return iet
 
 
-def _generate_macros_math(iet):
+def _generate_macros_math(iet, lang=None):
     headers = []
+    includes = []
     for i in FindApplications().visit(iet):
-        headers.extend(_lower_macro_math(i))
+        header, include = _lower_macro_math(i, lang)
+        headers.extend(header)
+        includes.extend(include)
 
-    return headers
+    return headers, set(includes) - {None}
 
 
 @singledispatch
-def _lower_macro_math(expr):
-    return ()
+def _lower_macro_math(expr, lang):
+    return (), {}
 
 
 @_lower_macro_math.register(Min)
 @_lower_macro_math.register(sympy.Min)
-def _(expr):
-    if has_integer_args(*expr.args) and len(expr.args) == 2:
-        return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),)
+def _(expr, lang):
+    if has_integer_args(*expr.args):
+        return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),), {}
     else:
-        return ()
+        return (), (lang.get('header-algorithm'),)
 
 
 @_lower_macro_math.register(Max)
 @_lower_macro_math.register(sympy.Max)
-def _(expr):
-    if has_integer_args(*expr.args) and len(expr.args) == 2:
-        return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),)
+def _(expr, lang):
+    if has_integer_args(*expr.args):
+        return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),), {}
     else:
-        return ()
+        return (), (lang.get('header-algorithm'),)
 
 
 @_lower_macro_math.register(SafeInv)
-def _(expr):
+def _(expr, lang):
     eps = np.finfo(np.float32).resolution**2
     return (('SAFEINV(a, b)',
-             f'(((a) < {eps} || (b) < {eps}) ? (0.0F) : (1.0F / (a)))'),)
+             f'(((a) < {eps} || (b) < {eps}) ? (0.0F) : (1.0F / (a)))'),), {}
 
 
 @iet_pass

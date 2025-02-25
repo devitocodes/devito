@@ -1,7 +1,7 @@
 import abc
 import inspect
 from collections import namedtuple
-from ctypes import POINTER, _Pointer, c_char_p, c_char
+from ctypes import POINTER, _Pointer, c_char_p, c_char, Structure
 from functools import reduce, cached_property
 from operator import mul
 
@@ -13,8 +13,8 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.data import default_allocator
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_tuple, ctypes_to_cstr, dtype_to_ctype,
-                          frozendict, memoized_meth, sympy_mutex)
+from devito.tools import (Pickable, as_tuple, dtype_to_ctype,
+                          frozendict, memoized_meth, sympy_mutex, CustomDtype)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
@@ -81,9 +81,12 @@ class CodeSymbol:
     @property
     def _C_typedata(self):
         """
-        The type of the object in the generated code as a `str`.
+        The type of the object's data in the generated code.
         """
         _type = self._C_ctype
+        if isinstance(_type, CustomDtype):
+            return _type
+
         while issubclass(_type, _Pointer):
             _type = _type._type_
 
@@ -91,7 +94,15 @@ class CodeSymbol:
         if _type is c_char_p:
             _type = c_char
 
-        return ctypes_to_cstr(_type)
+        try:
+            # We have internal types such as c_complex that are
+            # Structure too but should be treated as plain c_type
+            _type._base_dtype
+        except AttributeError:
+            if issubclass(_type, Structure):
+                _type = f'struct {_type.__name__}'
+
+        return _type
 
     @abc.abstractproperty
     def _C_ctype(self):
