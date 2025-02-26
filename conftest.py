@@ -80,9 +80,9 @@ def skipif(items, whole_module=False):
             skipit = "`icx+cpu64` won't work with this test"
             break
         # Skip if icx or advisor are not available
-        if i not in ('noadvisor',) or \
-           not isinstance(configuration['compiler'], IntelCompiler) or \
-           not get_advisor_path():
+        if i == 'noadvisor' and \
+            (not isinstance(configuration['compiler'], IntelCompiler) or
+             not get_advisor_path()):
             skipit = "Only `icx+advisor` should be tested here"
             break
         # Skip if it won't run on Arm
