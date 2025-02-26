@@ -33,9 +33,14 @@ class Profiler:
     _default_libs = []
     _ext_calls = []
 
+    _include_dirs = []
+    _lib_dirs = []
+
     _supports_async_sections = False
 
     _verbosity = 0
+
+    _attempted_init = False
 
     def __init__(self, name):
         self.name = name
@@ -50,17 +55,7 @@ class Profiler:
         # Python-level timers
         self.py_timers = OrderedDict()
 
-        # Instance attributes
-        self._include_dirs = []
-        self._lib_dirs = []
-
-        self.initialized = True
-
-    def add_include_dir(self, dir_path):
-        self._include_dirs.append(dir_path)
-
-    def add_lib_dir(self, dir_path):
-        self._lib_dirs.append(dir_path)
+        self._attempted_init = True
 
     def analyze(self, iet):
         """
@@ -362,9 +357,6 @@ class AdvisorProfiler(AdvancedProfiler):
 
     """
     Rely on Intel Advisor 2025.1 for performance profiling.
-    Tested versions of Intel Advisor:
-    - As contained in Intel Parallel Studio 2020 v 2020 Update 2
-    - As contained in Intel oneAPI 2021 beta08
     """
 
     _api_resume = '__itt_resume'
@@ -375,14 +367,18 @@ class AdvisorProfiler(AdvancedProfiler):
     _ext_calls = [_api_resume, _api_pause]
 
     def __init__(self, name):
+        if self._attempted_init:
+            return
+
         super().__init__(name)
 
         path = get_advisor_path()
         if path:
-            self.add_include_dir(path.joinpath('include').as_posix())
-            self.add_lib_dir(path.joinpath('lib64').as_posix())
+            self._include_dirs.append(path.joinpath('include').as_posix())
+            self._lib_dirs.append(path.joinpath('lib64').as_posix())
+            self._attempted_init = True
         else:
-            self.initialized = False
+            self._attempted_init = False
 
     def analyze(self, iet):
         """
@@ -517,13 +513,13 @@ def create_profile(name):
         level = configuration['profiling']
     profiler = profiler_registry[level](name)
 
-    if profiler.initialized:
+    if profiler._attempted_init:
         return profiler
     else:
         warning(f"Couldn't set up `{level}` profiler; reverting to 'advanced'")
         profiler = profiler_registry['advanced'](name)
         # We expect the `advanced` profiler to always initialize successfully
-        assert profiler.initialized
+        assert profiler._attempted_init
         return profiler
 
 

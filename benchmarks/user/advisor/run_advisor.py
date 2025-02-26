@@ -8,7 +8,7 @@ from pathlib import Path
 from subprocess import check_output, PIPE, Popen
 from tempfile import gettempdir, mkdtemp
 
-from advisor_logging import (check, log, progress, log_process)
+from advisor_logging import check, log, progress, log_process
 
 
 @click.command()
