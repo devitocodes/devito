@@ -451,6 +451,22 @@ class TestFunction:
             assert f.data._local.shape == shape
             MPI.Finalize()
 
+    @pytest.mark.parallel(mode=[1, 2])
+    def test_mpi_w_spacedims_as_free_symbols_issue2214(self, mode):
+        u = Function(name="u", grid=Grid((5, 5)))
+
+        x, y = u.grid.dimensions
+
+        # Operator(Eq(u, exp(-(x-2)**2/.5 - (y-2)**2/.5)))()
+        op = Operator(Eq(u, x+y))
+        op.apply()
+
+        assert np.array_equal(u.data._gather(rank=0), [[0., 1., 2., 3., 4.],
+                                                       [1., 2., 3., 4., 5.],
+                                                       [2., 3., 4., 5., 6.],
+                                                       [3., 4., 5., 6., 7.],
+                                                       [4., 5., 6., 7., 8.]])
+
 
 class TestSparseFunction:
 
