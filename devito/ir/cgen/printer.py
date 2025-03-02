@@ -77,7 +77,11 @@ class BasePrinter(CodePrinter):
         if dtype is None or np.issubdtype(dtype, np.integer):
             real = any(isinstance(i, Float) for i in expr.atoms())
             if real:
-                return self.dtype
+                try:
+                    return np.promote_types(self.dtype, np.float32).type
+                except np.exceptions.DTypePromotionError:
+                    # Corner cases, e.g. Void, cannot (shouldn't) be promoted
+                    return self.dtype
             else:
                 return dtype or self.dtype
         else:
@@ -89,9 +93,9 @@ class BasePrinter(CodePrinter):
     def func_literal(self, expr):
         return self._func_litterals.get(self._prec(expr), '')
 
-    def func_prefix(self, expr, abs=False):
+    def func_prefix(self, expr, mfunc=False):
         prefix = self._func_prefix.get(self._prec(expr), '')
-        if abs:
+        if mfunc:
             return prefix
         else:
             return '' if prefix == 'f' else prefix
@@ -235,7 +239,7 @@ class BasePrinter(CodePrinter):
 
     def _print_fmath_func(self, name, expr):
         args = ",".join([self._print(i) for i in expr.args])
-        func = f'{self.func_prefix(expr, abs=True)}{name}{self.func_literal(expr)}'
+        func = f'{self.func_prefix(expr, mfunc=True)}{name}{self.func_literal(expr)}'
         return f"{self._ns}{func}({args})"
 
     def _print_Min(self, expr):
