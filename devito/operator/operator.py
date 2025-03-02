@@ -32,7 +32,7 @@ from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
                           split, timed_pass, timed_region, contains_val)
-from devito.types import (Buffer, Grid, Evaluable, host_layer, device_layer,
+from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
 

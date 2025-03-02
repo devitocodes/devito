@@ -193,12 +193,7 @@ class Grid(CartesianDiscretization, ArgProvider):
         extent = as_tuple(extent or tuple(1. for _ in self.shape))
         self._extent = tuple(dtype(e) for e in extent)
 
-        # Initialize SubDomains
-        subdomains = tuple(i for i in (Domain(), Interior(), *as_tuple(subdomains)))
-        for i in subdomains:
-            i.__subdomain_finalize__(self)
-        self._subdomains = subdomains
-
+        # The origin of the grid
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
         self._origin = tuple(dtype(o) for o in origin)
         self._origin_symbols = tuple(Scalar(name='o_%s' % d.name, dtype=dtype,
