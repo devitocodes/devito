@@ -155,7 +155,7 @@ class TestGaussianSmooth:
     def test_gs_2d_int(self, sigma):
         """Test the Gaussian smoother in 2d."""
 
-        a = ascent()
+        a = ascent().astype(np.int32)
         sp_smoothed = gaussian_filter(a, sigma=sigma)
         dv_smoothed = gaussian_smooth(a, sigma=sigma)
 
@@ -169,8 +169,7 @@ class TestGaussianSmooth:
     def test_gs_2d_float(self, sigma):
         """Test the Gaussian smoother in 2d."""
 
-        a = ascent()
-        a = a+0.1
+        a = ascent()+0.1
         sp_smoothed = gaussian_filter(a, sigma=sigma)
         dv_smoothed = gaussian_smooth(a, sigma=sigma)
 
