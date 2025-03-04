@@ -3,7 +3,8 @@ from functools import singledispatch
 
 from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
                               retrieve_functions)
-from devito.tools import Ordering, as_tuple, flatten, filter_sorted, filter_ordered
+from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
+                          frozendict)
 from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
                           ConditionalDimension)
 from devito.types.array import Array
@@ -112,11 +113,7 @@ def lower_exprs(expressions, subs=None, **kwargs):
 def _lower_exprs(expressions, subs):
     processed = []
     for expr in as_tuple(expressions):
-        try:
-            dimension_map = expr.subdomain.dimension_map
-        except AttributeError:
-            # Some Relationals may be pure SymPy objects, thus lacking the subdomain
-            dimension_map = {}
+        dimension_map = _make_dimension_map(expr)
 
         # Handle Functions (typical case)
         mapper = {f: _lower_exprs(f.indexify(subs=dimension_map), subs)
@@ -158,6 +155,30 @@ def _lower_exprs(expressions, subs):
     else:
         assert len(processed) == 1
         return processed.pop()
+
+
+def _make_dimension_map(expr):
+    """
+    Make the dimension_map for an expression. In the basic case, this is extracted
+    directly from the SubDomain attached to the expression.
+
+    The indices of a Function defined on a SubDomain will all be the SubDimensions of
+    that SubDomain. In this case, the dimension_map should be extended with
+    `{ix_f: ix_i, iy_f: iy_i}` where `ix_f` is the SubDimension on which the Function is
+    defined, and `ix_i` is the SubDimension to be iterated over.
+    """
+    try:
+        dimension_map = {**expr.subdomain.dimension_map}
+    except AttributeError:
+        # Some Relationals may be pure SymPy objects, thus lacking the SubDomain
+        dimension_map = {}
+    else:
+        functions = [f for f in retrieve_functions(expr) if f._is_on_subdomain]
+        for f in functions:
+            dimension_map.update({d: expr.subdomain.dimension_map[d.root]
+                                  for d in f.space_dimensions if d.is_Sub})
+
+    return frozendict(dimension_map)
 
 
 def concretize_subdims(exprs, **kwargs):
@@ -206,7 +227,14 @@ def _(v, mapper, rebuilt, sregistry):
 
 @_concretize_subdims.register(Eq)
 def _(expr, mapper, rebuilt, sregistry):
-    for d in expr.free_symbols:
+    # Split and reorder symbols so SubDimensions are processed before lone Thicknesses
+    # This means that if a Thickness appears both in the expression and attached to
+    # a SubDimension, it gets concretised with the SubDimension.
+    thicknesses = {i for i in expr.free_symbols if isinstance(i, Thickness)}
+    symbols = expr.free_symbols.difference(thicknesses)
+
+    # Iterate over all other symbols before iterating over standalone thicknesses
+    for d in tuple(symbols) + tuple(thicknesses):
         _concretize_subdims(d, mapper, rebuilt, sregistry)
 
     # Subdimensions can be hiding in implicit dims

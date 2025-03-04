@@ -160,6 +160,11 @@ class TensorFunction(AbstractTensor):
         return self._space_dimensions
 
     @cached_property
+    def root_dimensions(self):
+        """Tuple of root Dimensions of the physical space Dimensions."""
+        return tuple(d.root for d in self.space_dimensions)
+
+    @cached_property
     def space_order(self):
         """The space order for all components."""
         return ({a.space_order for a in self} - {None}).pop()
@@ -209,13 +214,14 @@ class TensorFunction(AbstractTensor):
         comps = []
         func = vec_func(self)
         ndim = len(self.space_dimensions)
+        space_dims = self.root_dimensions
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         order = order or self.space_order
         for i in range(len(self.space_dimensions)):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
                               (x0=shift_x0(shift, d, i, j), fd_order=order,
                                method=method, w=w)
-                              for j, d in enumerate(self.space_dimensions)]))
+                              for j, d in enumerate(space_dims)]))
         return func._new(comps)
 
     @property
@@ -251,13 +257,14 @@ class TensorFunction(AbstractTensor):
         comps = []
         func = vec_func(self)
         order = order or self.space_order
+        space_dims = self.root_dimensions
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         for j in range(ndim):
             comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
                               (x0=shift_x0(shift, d, j, i), fd_order=order,
                                method=method, w=w)
-                              for i, d in enumerate(self.space_dimensions)]))
+                              for i, d in enumerate(space_dims)]))
         return func._new(comps)
 
     def grad(self, shift=None, order=None, method=None, **kwargs):
@@ -343,9 +350,10 @@ class VectorFunction(TensorFunction):
         w = kwargs.get('weights', kwargs.get('w'))
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
+        space_dims = self.root_dimensions
         return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
                                                      fd_order=order, method=method, w=w)
-                    for i, d in enumerate(self.space_dimensions)])
+                    for i, d in enumerate(space_dims)])
 
     @property
     def laplace(self):
@@ -375,9 +383,10 @@ class VectorFunction(TensorFunction):
         func = vec_func(self)
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
+        space_dims = self.root_dimensions
         comps = [sum([getattr(s, 'd%s2' % d.name)(x0=shift_x0(shift, d, None, i),
                                                   fd_order=order, w=w, method=method)
-                      for i, d in enumerate(self.space_dimensions)])
+                      for i, d in enumerate(space_dims)])
                  for s in self]
         return func._new(comps)
 
@@ -402,7 +411,7 @@ class VectorFunction(TensorFunction):
             raise AttributeError("Curl only supported for 3D VectorFunction")
         # The curl of a VectorFunction is a VectorFunction
         w = kwargs.get('weights', kwargs.get('w'))
-        dims = self.space_dimensions
+        dims = self.root_dimensions
         derivs = ['d%s' % d.name for d in dims]
         shift_x0 = make_shift_x0(shift, (len(dims), len(dims)))
         order = order or self.space_order
@@ -443,9 +452,10 @@ class VectorFunction(TensorFunction):
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         order = order or self.space_order
+        space_dims = self.root_dimensions
         comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j), w=w,
                                              fd_order=order, method=method)
-                  for j, d in enumerate(self.space_dimensions)]
+                  for j, d in enumerate(space_dims)]
                  for i, f in enumerate(self)]
         return func._new(comps)
 

@@ -1,6 +1,8 @@
 """User API to specify equations."""
 import sympy
 
+from functools import cached_property
+
 from devito.deprecations import deprecations
 from devito.tools import as_tuple, frozendict, Pickable
 from devito.types.lazy import Evaluable
@@ -140,10 +142,26 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         else:
             return [self]
 
-    @property
+    @cached_property
     def subdomain(self):
         """The SubDomain in which the Eq is defined."""
-        return self._subdomain
+        if self._subdomain is not None:
+            return self._subdomain
+
+        from devito.symbolics.search import retrieve_functions  # noqa
+
+        funcs = retrieve_functions(self)
+        subdomains = {f.grid for f in funcs} - {None}
+        subdomains = {g for g in subdomains if g.is_SubDomain}
+
+        if len(subdomains) == 0:
+            return None
+        elif len(subdomains) == 1:
+            return subdomains.pop()
+        else:
+            raise ValueError("Multiple `SubDomain`s detected. Provide a `SubDomain`"
+                             " explicitly (i.e., via `Eq(..., subdomain=...)`)"
+                             " to unambiguously define the `Eq`'s iteration domain.")
 
     @property
     def substitutions(self):

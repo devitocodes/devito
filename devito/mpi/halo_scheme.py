@@ -12,7 +12,6 @@ from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
                           frozendict, is_integer, filter_sorted, EnrichedTuple)
-from devito.types import Grid
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
 
@@ -435,8 +434,7 @@ def classify(exprs, ispace):
     for f, r in scope.reads.items():
         if not f.is_DiscreteFunction:
             continue
-        elif not isinstance(f.grid, Grid):
-            # TODO: improve me
+        elif f.grid is None:
             continue
 
         # In the case of custom topologies, we ignore the Dimensions that aren't
