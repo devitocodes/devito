@@ -12,8 +12,9 @@ from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
                        pull_dims)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.C import CPrinter
+from devito.passes.iet.languages.CXX import CXXPrinter
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
-from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper)
+from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper, Cast)
 from devito.tools import Bunch, as_mapper, filter_ordered, split
 from devito.types import FIndexed
 
@@ -155,7 +156,7 @@ def _generate_macros(iet, tracker=None, lang=None, **kwargs):
                      for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    mheaders, includes = _generate_macros_math(iet, lang=lang)
+    mheaders, includes = _generate_macros_math(iet, lang=lang, printer=printer)
     includes = sorted(includes, key=str)
     headers.extend(sorted(mheaders, key=str))
 
@@ -199,11 +200,11 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
     return iet
 
 
-def _generate_macros_math(iet, lang=None):
+def _generate_macros_math(iet, lang=None, printer=None):
     headers = []
     includes = []
     for i in FindApplications().visit(iet):
-        header, include = _lower_macro_math(i, lang)
+        header, include = _lower_macro_math(i, lang, printer)
         headers.extend(header)
         includes.extend(include)
 
@@ -211,13 +212,13 @@ def _generate_macros_math(iet, lang=None):
 
 
 @singledispatch
-def _lower_macro_math(expr, lang):
+def _lower_macro_math(expr, lang, printer):
     return (), {}
 
 
 @_lower_macro_math.register(Min)
 @_lower_macro_math.register(sympy.Min)
-def _(expr, lang):
+def _(expr, lang, printer):
     if has_integer_args(*expr.args):
         return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),), {}
     else:
@@ -226,7 +227,7 @@ def _(expr, lang):
 
 @_lower_macro_math.register(Max)
 @_lower_macro_math.register(sympy.Max)
-def _(expr, lang):
+def _(expr, lang, printer):
     if has_integer_args(*expr.args):
         return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),), {}
     else:
@@ -234,10 +235,19 @@ def _(expr, lang):
 
 
 @_lower_macro_math.register(SafeInv)
-def _(expr, lang):
+def _(expr, lang, printer):
     eps = np.finfo(np.float32).resolution**2
+    # For safety in device languages, cast when using c++
+    # and reduced precision
+    if issubclass(printer, CXXPrinter) and expr.dtype == np.float16:
+        eps = printer()._print(Cast(eps, dtype='decltype(a)'))
+        one = printer()._print(Cast(1.0, dtype='decltype(a)'))
+        zero = printer()._print(Cast(0.0, dtype='decltype(a)'))
+    else:
+        one = '1.0F'
+        zero = '0.0F'
     return (('SAFEINV(a, b)',
-             f'(((a) < {eps} || (b) < {eps}) ? (0.0F) : (1.0F / (a)))'),), {}
+             f'(((a) < {eps} || (b) < {eps}) ? ({zero}) : ({one} / (a)))'),), {}
 
 
 @iet_pass
