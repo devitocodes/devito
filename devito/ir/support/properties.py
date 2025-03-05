@@ -195,7 +195,7 @@ def update_properties(properties, exprs):
         except AttributeError:
             break
 
-        if not wf._mem_shared:
+        if not rf or not wf._mem_shared:
             break
         dims.update({d.parent for d in wf.dimensions if d.parent in properties})
 
