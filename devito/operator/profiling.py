@@ -2,19 +2,17 @@ from collections import OrderedDict, defaultdict, namedtuple
 from contextlib import contextmanager
 from functools import reduce
 from operator import mul
-from pathlib import Path
-from subprocess import DEVNULL, PIPE, run
 from time import time as seq_time
-import os
 
 import cgen as c
 import numpy as np
 from sympy import S
 
+from devito.arch import get_advisor_path
 from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
                            Iteration, FindNodes, Transformer)
 from devito.ir.support import IntervalGroup
-from devito.logger import warning, error
+from devito.logger import warning
 from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
@@ -35,9 +33,14 @@ class Profiler:
     _default_libs = []
     _ext_calls = []
 
+    _include_dirs = []
+    _lib_dirs = []
+
     _supports_async_sections = False
 
     _verbosity = 0
+
+    _attempted_init = False
 
     def __init__(self, name):
         self.name = name
@@ -52,7 +55,7 @@ class Profiler:
         # Python-level timers
         self.py_timers = OrderedDict()
 
-        self.initialized = True
+        self._attempted_init = True
 
     def analyze(self, iet):
         """
@@ -353,10 +356,7 @@ class AdvancedProfilerVerbose2(AdvancedProfilerVerbose):
 class AdvisorProfiler(AdvancedProfiler):
 
     """
-    Rely on Intel Advisor ``v >= 2020`` for performance profiling.
-    Tested versions of Intel Advisor:
-    - As contained in Intel Parallel Studio 2020 v 2020 Update 2
-    - As contained in Intel oneAPI 2021 beta08
+    Rely on Intel Advisor 2025.1 for performance profiling.
     """
 
     _api_resume = '__itt_resume'
@@ -367,21 +367,23 @@ class AdvisorProfiler(AdvancedProfiler):
     _ext_calls = [_api_resume, _api_pause]
 
     def __init__(self, name):
-        self.path = locate_intel_advisor()
-        if self.path is None:
-            self.initialized = False
+        if self._attempted_init:
+            return
+
+        super().__init__(name)
+
+        path = get_advisor_path()
+        if path:
+            self._include_dirs.append(path.joinpath('include').as_posix())
+            self._lib_dirs.append(path.joinpath('lib64').as_posix())
+            self._attempted_init = True
         else:
-            super().__init__(name)
-            # Make sure future compilations will get the proper header and
-            # shared object files
-            compiler = configuration['compiler']
-            compiler.add_include_dirs(self.path.joinpath('include').as_posix())
-            compiler.add_libraries(self._default_libs)
-            libdir = self.path.joinpath('lib64').as_posix()
-            compiler.add_library_dirs(libdir)
-            compiler.add_ldflags('-Wl,-rpath,%s' % libdir)
+            self._attempted_init = False
 
     def analyze(self, iet):
+        """
+        A no-op, as the Advisor profiler does not need to analyze the IET.
+        """
         return
 
     def instrument(self, iet, timer):
@@ -511,13 +513,13 @@ def create_profile(name):
         level = configuration['profiling']
     profiler = profiler_registry[level](name)
 
-    if profiler.initialized:
+    if profiler._attempted_init:
         return profiler
     else:
-        warning("Couldn't set up `%s` profiler; reverting to `advanced`" % level)
-        profiler = profiler_registry['basic'](name)
+        warning(f"Couldn't set up `{level}` profiler; reverting to 'advanced'")
+        profiler = profiler_registry['advanced'](name)
         # We expect the `advanced` profiler to always initialize successfully
-        assert profiler.initialized
+        assert profiler._attempted_init
         return profiler
 
 
@@ -531,55 +533,3 @@ profiler_registry = {
     'advisor': AdvisorProfiler
 }
 """Profiling levels."""
-
-
-def locate_intel_advisor():
-    """
-    Detect if Intel Advisor is installed on the machine and return
-    its location if it is.
-
-    """
-    path = None
-
-    try:
-        # Check if the directory to Intel Advisor is specified
-        path = Path(os.environ['DEVITO_ADVISOR_DIR'])
-    except KeyError:
-        # Otherwise, 'sniff' the location of Advisor's directory
-        error_msg = 'Intel Advisor cannot be found on your system, consider if you'\
-                    ' have sourced its environment variables correctly. Information can'\
-                    ' be found at https://software.intel.com/content/www/us/en/develop/'\
-                    'documentation/advisor-user-guide/top/launch-the-intel-advisor/'\
-                    'intel-advisor-cli/setting-and-using-intel-advisor-environment'\
-                    '-variables.html'
-        try:
-            res = run(["advixe-cl", "--version"], stdout=PIPE, stderr=DEVNULL)
-            ver = res.stdout.decode("utf-8")
-            if not ver:
-                error(error_msg)
-                return None
-        except (UnicodeDecodeError, FileNotFoundError):
-            error(error_msg)
-            return None
-
-        env_path = os.environ["PATH"]
-        env_path_dirs = env_path.split(":")
-
-        for env_path_dir in env_path_dirs:
-            # intel/advisor is the advisor directory for Intel Parallel Studio,
-            # intel/oneapi/advisor is the directory for Intel oneAPI
-            if "intel/advisor" in env_path_dir or "intel/oneapi/advisor" in env_path_dir:
-                path = Path(env_path_dir)
-                if path.name.startswith('bin'):
-                    path = path.parent
-
-        if not path:
-            error(error_msg)
-            return None
-
-    if path.joinpath('bin64').joinpath('advixe-cl').is_file():
-        return path
-    else:
-        warning("Requested `advisor` profiler, but couldn't locate executable"
-                "in advisor directory")
-        return None
