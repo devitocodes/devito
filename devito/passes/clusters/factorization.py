@@ -195,7 +195,6 @@ def _collect_nested(expr, strategy):
     Recursion helper for `collect_nested`.
     """
     # Return semantic (rebuilt expression, factorization candidates)
-
     if expr.is_Number:
         return expr, {'coeffs': expr}
     elif q_routine(expr):

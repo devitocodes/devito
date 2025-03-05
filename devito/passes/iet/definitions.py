@@ -16,7 +16,7 @@ from devito.passes import is_gpu_create
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
-                              SizeOf, VOID, Keyword, pow_to_mul)
+                              SizeOf, VOID, pow_to_mul)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import (Array, ComponentAccess, CustomDimension, DeviceMap,
                           DeviceRM, Eq, Symbol)
@@ -276,7 +276,7 @@ class DataManager:
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        nbytes = SizeOf(Keyword('%s*' % obj._C_typedata))*obj.dim.symbolic_size
+        nbytes = SizeOf(obj._C_typedata, stars='*')*obj.dim.symbolic_size
         alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
 
         free0 = self.lang['host-free'](obj._C_symbol)

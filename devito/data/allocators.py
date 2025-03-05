@@ -1,6 +1,4 @@
 import abc
-from functools import reduce
-from operator import mul
 import ctypes
 from ctypes.util import find_library
 import mmap
@@ -11,7 +9,7 @@ import numpy as np
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import dtype_to_ctype, is_integer
+from devito.tools import is_integer, infer_datasize
 
 __all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
            'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
@@ -92,8 +90,7 @@ class MemoryAllocator(AbstractMemoryAllocator):
         return
 
     def alloc(self, shape, dtype, padding=0):
-        datasize = int(reduce(mul, shape))
-        ctype = dtype_to_ctype(dtype)
+        ctype, datasize = infer_datasize(dtype, shape)
 
         # Add padding, if any
         try:
