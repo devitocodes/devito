@@ -4,7 +4,7 @@ import numpy as np
 from devito.symbolics.extended_sympy import ReservedWord, Cast, ValueLimit
 from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
                           int2, int3, int4, ctypes_vector_mapper)
-from devito.tools.dtypes_lowering import mapper as dtype_mapper
+from devito.tools.dtypes_lowering import dtype_mapper
 
 __all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
            'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex']
