@@ -349,8 +349,6 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     is_Symbol = True
 
     # SymPy default assumptions
-    is_real = True
-    is_imaginary = False
     is_commutative = True
 
     __rkwargs__ = ('name', 'dtype', 'is_const')
@@ -410,6 +408,12 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     @property
     def dtype(self):
         return self._dtype
+
+    def _eval_is_real(self):
+        return not self.is_imaginary
+
+    def _eval_is_imaginary(self):
+        return np.iscomplexobj(self.dtype(0))
 
     @property
     def indices(self):
@@ -859,7 +863,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     is_AbstractFunction = True
 
     # SymPy default assumptions
-    is_imaginary = False
     is_commutative = True
 
     # Devito default assumptions
@@ -887,6 +890,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Extract the `indices`, as perhaps they're explicitly provided
         dimensions, indices = cls.__indices_setup__(*args, **kwargs)
+
+        # Sympy assumptions
 
         # If it's an alias or simply has a different name, ignore `function`.
         # These cases imply the construction of a new AbstractFunction off
@@ -955,6 +960,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return str(self)
 
     _latex = _sympystr
+    _eval_is_real = AbstractSymbol._eval_is_real
+    _eval_is_imaginary = AbstractSymbol._eval_is_imaginary
 
     def _pretty(self, printer, **kwargs):
         return printer._print_Function(self, func_name=self.name)
@@ -1314,10 +1321,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def is_transient(self):
         return self._is_transient
-
-    @property
-    def is_real(self):
-        return not np.iscomplex(self.dtype(0))
 
     @property
     def is_persistent(self):
