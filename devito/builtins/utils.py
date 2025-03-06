@@ -23,7 +23,10 @@ accumulator_mapper = {
     # NOTE: np.float128 isn't really a thing, see for example
     # https://github.com/numpy/numpy/issues/10288
     # https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html#1070
-    np.float64: np.float64
+    np.float64: np.float64,
+    # ComplexX accumulates on Complex2X
+    np.complex64: np.complex128,
+    np.complex128: np.complex128,
 }
 
 
