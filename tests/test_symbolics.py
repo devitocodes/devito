@@ -112,6 +112,19 @@ def test_modified_sympy_assumptions():
     assert s2 == s1
 
 
+def test_real():
+    for dtype in [np.float32, np.complex64]:
+        c = Constant(name='c', dtype=dtype)
+        assert c.is_real is not np.iscomplexobj(dtype(0))
+        assert c.is_imaginary is np.iscomplexobj(dtype(0))
+        f = Function(name='f', dtype=dtype, grid=Grid((11,)))
+        assert f.is_real is not np.iscomplexobj(dtype(0))
+        assert f.is_imaginary is np.iscomplexobj(dtype(0))
+        s = dSymbol(name='s', dtype=dtype)
+        assert s.is_real is not np.iscomplexobj(dtype(0))
+        assert s.is_imaginary is np.iscomplexobj(dtype(0))
+
+
 def test_constant():
     c = Constant(name='c')
 

@@ -235,7 +235,11 @@ def _(expr, lang):
 
 @_lower_macro_math.register(SafeInv)
 def _(expr, lang):
-    eps = np.finfo(expr.base.dtype).resolution**2
+    try:
+        eps = np.finfo(expr.base.dtype).resolution**2
+    except ValueError:
+        print(f"Warning: dtype not recognized in SafeInv for {expr.base}")
+        eps = np.finfo(np.float32).resolution**2
     b = Cast('b', dtype=np.float32)
     return (('SAFEINV(a, b)',
              f'(((a) < {eps}F || ({b}) < {eps}F) ? (0.0F) : ((1.0F) / (a)))'),), {}
