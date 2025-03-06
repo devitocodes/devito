@@ -306,7 +306,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             except ValueError:
                 for i in candidates:
                     name = "bag_%s" % i.name
-                    bag = Bag(name=name, components=i)
+                    bag = Bag(name=name, components=(i,))
                     halo_scheme = halo_scheme.add(bag, hse)
 
         hs = hs._rebuild(halo_scheme=halo_scheme)
