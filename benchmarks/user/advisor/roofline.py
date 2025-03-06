@@ -202,15 +202,15 @@ def roofline(name, project, scale, precision, mode, th):
                         prop={'size': 7}, title='Rooflines')
 
     # saving the chart in PDF format
-    plt.savefig('%s.pdf' % name, bbox_extra_artists=(legend,), bbox_inches='tight')
+    plt.savefig(f'{name}.pdf', bbox_extra_artists=(legend,), bbox_inches='tight')
     figpath = os.path.realpath(__file__).split(os.path.basename(__file__))[0]
-    log('\nFigure saved in %s%s.pdf.' % (figpath, name))
+    log(f'\nFigure saved in {figpath}{name}.pdf.')
 
     # Save the JSON file
     with open('%s.json' % name, 'w') as f:
         f.write(json.dumps(roofline_data))
 
-    log('\nJSON file saved as %s.json.' % name)
+    log(f'\nJSON file saved as {name}.json.')
     log('Done!')
 
 
