@@ -859,7 +859,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     is_AbstractFunction = True
 
     # SymPy default assumptions
-    is_real = True
     is_imaginary = False
     is_commutative = True
 
@@ -1315,6 +1314,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def is_transient(self):
         return self._is_transient
+
+    @property
+    def is_real(self):
+        return not np.iscomplex(self.dtype(0))
 
     @property
     def is_persistent(self):
