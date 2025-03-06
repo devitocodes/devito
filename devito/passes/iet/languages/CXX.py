@@ -47,6 +47,16 @@ template<typename _Tp, typename _Ti>
   return std::complex<_Tp>(b.real() + a, b.imag());
 }}
 
+template<typename _Tp, typename _Ti>
+{qual}std::complex<_Tp> operator - (const _Ti & a, const std::complex<_Tp> & b){{
+  return std::complex<_Tp>(a = b.real(), b.imag());
+}}
+
+template<typename _Tp, typename _Ti>
+{qual}std::complex<_Tp> operator - (const std::complex<_Tp> & b, const _Ti & a){{
+  return std::complex<_Tp>(b.real() - a, b.imag());
+}}
+
 """
 
 
