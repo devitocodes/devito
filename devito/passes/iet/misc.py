@@ -13,7 +13,7 @@ from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.C import CPrinter
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
-from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper)
+from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper, Cast)
 from devito.tools import Bunch, as_mapper, filter_ordered, split
 from devito.types import FIndexed
 
@@ -235,9 +235,10 @@ def _(expr, lang):
 
 @_lower_macro_math.register(SafeInv)
 def _(expr, lang):
-    eps = 2 * np.finfo(expr.base.dtype).resolution**2
+    eps = np.finfo(expr.base.dtype).resolution**2
+    b = Cast('b', dtype=np.float32)
     return (('SAFEINV(a, b)',
-             f'(((a + b) < {eps}F) ? (0.0F) : ((1.0F) / (a)))'),), {}
+             f'(((a) < {eps}F || ({b}) < {eps}F) ? (0.0F) : ((1.0F) / (a)))'),), {}
 
 
 @iet_pass
