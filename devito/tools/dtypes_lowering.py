@@ -22,16 +22,16 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
 
 # NOTE: the following is inspired by pyopencl.cltypes
 
-mapper = {
-    "half": np.float16,
+dtype_mapper = {
     "int": np.int32,
     "float": np.float32,
     "double": np.float64
 }
 
 
-def build_dtypes_vector(field_names, counts):
+def build_dtypes_vector(field_names, counts, mapper=None):
     ret = {}
+    mapper = mapper or dtype_mapper
     for base_name, base_dtype in mapper.items():
         for count in counts:
             name = "%s%d" % (base_name, count)
@@ -95,7 +95,7 @@ dtypes_vector_mapper = DTypesVectorMapper()
 # Standard vector dtypes
 dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
 # Fallbacks
-dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
+dtypes_vector_mapper.update({(v, 1): v for v in dtype_mapper.values()})
 
 
 # *** Custom types escaping both the numpy and ctypes namespaces
@@ -181,21 +181,25 @@ def infer_datasize(dtype, shape):
     return np.ctypeslib.as_ctypes_type(dtype), datasize
 
 
+mpi_mapper = {
+    np.ubyte: 'MPI_BYTE',
+    np.ushort: 'MPI_UNSIGNED_SHORT',
+    np.int32: 'MPI_INT',
+    np.float32: 'MPI_FLOAT',
+    np.int64: 'MPI_LONG',
+    np.float64: 'MPI_DOUBLE',
+    np.complex64: 'MPI_C_COMPLEX',
+    np.complex128: 'MPI_C_DOUBLE_COMPLEX'
+}
+
+
 def dtype_to_mpitype(dtype):
     """Map numpy types to MPI datatypes."""
 
     # Resolve vector dtype if necessary
     dtype = dtypes_vector_mapper.get_base_dtype(dtype)
 
-    return {
-        np.ubyte: 'MPI_BYTE',
-        np.ushort: 'MPI_UNSIGNED_SHORT',
-        np.int32: 'MPI_INT',
-        np.float32: 'MPI_FLOAT',
-        np.int64: 'MPI_LONG',
-        np.float64: 'MPI_DOUBLE',
-        np.float16: 'MPI_UNSIGNED_SHORT'
-    }[dtype]
+    return mpi_mapper[dtype]
 
 
 def dtype_to_mpidtype(dtype):
@@ -226,9 +230,7 @@ class c_restrict_void_p(ctypes.c_void_p):
 
 
 ctypes_vector_mapper = {}
-for base_name, base_dtype in mapper.items():
-    if base_dtype is np.float16:
-        continue
+for base_name, base_dtype in dtype_mapper.items():
     base_ctype = dtype_to_ctype(base_dtype)
 
     for count in counts:
@@ -304,11 +306,6 @@ def ctypes_to_cstr(ctype, toarray=None):
     return retval
 
 
-known_ctypes = {
-    'vector_types.h': list(ctypes_vector_mapper.values()),
-}
-
-
 def is_external_ctype(ctype, includes):
     """
     True if `ctype` is known to be declared in one of the given `includes`
@@ -321,9 +318,8 @@ def is_external_ctype(ctype, includes):
     if issubclass(ctype, ctypes._SimpleCData):
         return False
 
-    for k, v in known_ctypes.items():
-        if ctype in v:
-            return True
+    if ctype in ctypes_vector_mapper.values():
+        return True
 
     return False
 
