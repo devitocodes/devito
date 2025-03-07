@@ -3,11 +3,11 @@
 [![Build Status for the Core backend](https://github.com/devitocodes/devito/workflows/CI-core/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-core)
 [![Build Status with MPI](https://github.com/devitocodes/devito/workflows/CI-mpi/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-mpi)
 [![Build Status on GPU](https://github.com/devitocodes/devito/workflows/CI-gpu/badge.svg)](https://github.com/devitocodes/devito/actions?query=workflow%3ACI-gpu)
-[![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/master/graph/badge.svg)](https://codecov.io/gh/devitocodes/devito)
+[![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/main/graph/badge.svg)](https://codecov.io/gh/devitocodes/devito)
 [![Slack Status](https://img.shields.io/badge/chat-on%20slack-%2336C5F0)](https://join.slack.com/t/devitocodes/shared_invite/zt-2hgp6891e-jQDcepOWPQwxL5JJegYKSA)
 [![asv](http://img.shields.io/badge/benchmarked%20by-asv-blue.svg?style=flat)](https://devitocodes.github.io/devito-performance)
 [![PyPI version](https://badge.fury.io/py/devito.svg)](https://badge.fury.io/py/devito)
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/master)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/main)
 [![Docker](https://img.shields.io/badge/dockerhub-images-important.svg?logo=Docker?color=blueviolet&label=docker&sort=semver)](https://hub.docker.com/r/devitocodes/devito)
 
 [Devito](http://www.devitoproject.org) is a Python package to implement
@@ -21,7 +21,7 @@ thereof.
 - [About Devito](#about-devito)
 - [Installation](#installation)
 - [Resources](#resources)
-- [FAQs](https://github.com/devitocodes/devito/blob/master/FAQ.md)
+- [FAQs](https://github.com/devitocodes/devito/blob/main/FAQ.md)
 - [Performance](#performance)
 - [Get in touch](#get-in-touch)
 - [Interactive jupyter notebooks](#interactive-jupyter-notebooks)
@@ -88,7 +88,7 @@ docker-compose up devito
 After running the last command above, the terminal will display a URL such as
 `https://127.0.0.1:8888/?token=XXX`. Copy-paste this URL into a browser window
 to start a [Jupyter](https://jupyter.org/) notebook session where you can go
-through the [tutorials](https://github.com/devitocodes/devito/tree/master/examples)
+through the [tutorials](https://github.com/devitocodes/devito/tree/main/examples)
 provided with Devito or create your own notebooks.
 
 [See here](http://devitocodes.github.io/devito/download.html) for detailed installation
@@ -100,7 +100,7 @@ have seen in the past.
 ## Resources
 
 To learn how to use Devito,
-[here](https://github.com/devitocodes/devito/blob/master/examples) is a good
+[here](https://github.com/devitocodes/devito/blob/main/examples) is a good
 place to start, with lots of examples and tutorials.
 
 The [website](https://www.devitoproject.org/) also provides access to other
@@ -117,7 +117,7 @@ If you are interested in any of the following
 * Benchmarking operators;
 
 then you should take a look at this
-[README](https://github.com/devitocodes/devito/blob/master/benchmarks/user).
+[README](https://github.com/devitocodes/devito/blob/main/benchmarks/user).
 
 ## Get in touch
 
@@ -126,4 +126,4 @@ are facing issues or just trying it out, join the
 [conversation](https://join.slack.com/t/devitocodes/shared_invite/zt-2hgp6891e-jQDcepOWPQwxL5JJegYKSA).
 
 ## Interactive jupyter notebooks
-The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/master) jupyterhub. 
+The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/main) jupyterhub. 

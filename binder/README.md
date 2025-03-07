@@ -4,4 +4,4 @@ This directory contains a ```requirements.txt``` file with the added requirement
 
 Use the binder badge below to start an interactive jupyterhub server.
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/master)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/devitocodes/devito/main)
