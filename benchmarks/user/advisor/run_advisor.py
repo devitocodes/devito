@@ -1,16 +1,14 @@
+import click
 import datetime
 import logging
 import os
+import sys
+
 from pathlib import Path
 from subprocess import check_output, PIPE, Popen
-import sys
 from tempfile import gettempdir, mkdtemp
 
-import click
-
-
-from benchmarks.user.advisor.advisor_logging import (check, log, progress,
-                                                     log_process)
+from advisor_logging import check, log, progress, log_process
 
 
 @click.command()
@@ -30,40 +28,43 @@ from benchmarks.user.advisor.advisor_logging import (check, log, progress,
                                    'in --exec-args (if any).')
 def run_with_advisor(path, output, name, exec_args):
     path = Path(path)
-    check(path.is_file(), '%s not found' % path)
-    check(path.suffix == '.py', '%s not a Python file' % path)
+    check(path.is_file(), f'{path} not found')
+    check(path.suffix == '.py', f'{path} not a Python file')
 
     # Create a directory to store the profiling report
     if name is None:
         name = path.stem
         if exec_args:
-            name = "%s_%s" % (name, ''.join(exec_args.split()))
+            name = f"{name}_{''.join(exec_args.split())}"
     if output is None:
         output = Path(gettempdir()).joinpath('devito-profilings')
         output.mkdir(parents=True, exist_ok=True)
     else:
         output = Path(output)
     if name is None:
-        output = Path(mkdtemp(dir=str(output), prefix="%s-" % name))
+        output = Path(mkdtemp(dir=str(output), prefix=f"{name}-"))
     else:
         output = Path(output).joinpath(name)
         output.mkdir(parents=True, exist_ok=True)
 
-    # Intel Advisor and Intel compilers must be available through either Intel Parallel
-    # Studio or Intel oneAPI (currently tested versions include IPS 2020 Update 2 and
-    # oneAPI 2021 beta08)
+    # advixe-cl and icx should be available through Intel oneAPI
+    # (tested with Intel oneAPI 2025.1)
     try:
         ret = check_output(['advixe-cl', '--version']).decode("utf-8")
+        log(f"Found advixe-cl version: {ret.strip()}\n")
     except FileNotFoundError:
-        check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor.")
+        check(False, "Error: Couldn't detect `advixe-cl` to run Intel Advisor."
+              " Please source the Advisor environment.")
 
     try:
-        ret = check_output(['icc', '--version']).decode("utf-8")
+        ret = check_output(['icx', '--version']).decode("utf-8")
+        log(f"Found icx version: {ret.strip()}\n")
     except FileNotFoundError:
-        check(False, "Error: Couldn't detect Intel Compiler (icc).")
+        check(False, "Error: Couldn't detect Intel Compiler (icx)."
+              " Please source the Intel oneAPI compilers.")
 
     # All good, Intel compiler and advisor are available
-    os.environ['DEVITO_ARCH'] = 'intel'
+    os.environ['DEVITO_ARCH'] = 'icx'
 
     # Tell Devito to instrument the generated code for Advisor
     os.environ['DEVITO_PROFILING'] = 'advisor'
@@ -73,7 +74,7 @@ def run_with_advisor(path, output, name, exec_args):
     if devito_logging is None:
         os.environ['DEVITO_LOGGING'] = 'WARNING'
 
-    with progress('Setting up multi-threading environment'):
+    with progress('Setting up multi-threading environment with OpenMP'):
         # Roofline analyses are recommended with threading enabled
         os.environ['DEVITO_LANGUAGE'] = 'openmp'
 
@@ -84,20 +85,19 @@ def run_with_advisor(path, output, name, exec_args):
             ret = check_output(['numactl', '--show']).decode("utf-8")
             ret = dict(i.split(':') for i in ret.split('\n') if i)
             n_sockets = len(ret['cpubind'].split())
-            n_cores = len(ret['physcpubind'].split())  # noqa
         except FileNotFoundError:
             check(False, "Couldn't detect `numactl`, necessary for thread pinning.")
 
         # Prevent NumPy from using threads, which otherwise leads to a deadlock when
         # used in combination with Advisor. This issue has been described at:
-        #     `software.intel.com/en-us/forums/intel-advisor-xe/topic/780506`
+        #   `software.intel.com/en-us/forums/intel-advisor-xe/topic/780506`
         # Note: we should rather sniff the BLAS library used by NumPy, and set the
         # appropriate env var only
         os.environ['OPENBLAS_NUM_THREADS'] = '1'
         os.environ['MKL_NUM_THREADS'] = '1'
         # Note: `Numaexpr`, used by NumPy, also employs threading, so we shall disable
         # it too via the corresponding env var. See:
-        #     `stackoverflow.com/questions/17053671/python-how-do-you-stop-numpy-from-multithreading`  # noqa
+        #   `stackoverflow.com/questions/17053671/python-how-do-you-stop-numpy-from-multithreading`  # noqa
         os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
     # To build a roofline with Advisor, we need to run two analyses back to
@@ -130,8 +130,8 @@ def run_with_advisor(path, output, name, exec_args):
     ]
     py_cmd = [sys.executable, str(path)] + exec_args.split()
 
-    # Before collecting the `survey` and `tripcounts` a "pure" python run to warmup the
-    # jit cache is preceded
+    # Before collecting the `survey` and `tripcounts` a "pure" python run
+    # to warmup the jit cache is preceded
 
     log('Starting Intel Advisor\'s `roofline` analysis for `%s`' % name)
     dt = datetime.datetime.now()
@@ -146,6 +146,9 @@ def run_with_advisor(path, output, name, exec_args):
     advixe_handler = logging.FileHandler('%s/%s_%s.log' % (output, name, logger_datetime))
     advixe_handler.setFormatter(advixe_formatter)
     advixe_logger.addHandler(advixe_handler)
+
+    log(f"Project folder: {output}")
+    log(f"Logging progress in: `{advixe_handler.baseFilename}`")
 
     with progress('Performing `cache warm-up` run'):
         try:
@@ -170,10 +173,12 @@ def run_with_advisor(path, output, name, exec_args):
         except OSError:
             check(False, 'Failed!')
 
-    log('Storing `survey` and `tripcounts` data in `%s`' % str(output))
+    log(f'Storing `survey` and `tripcounts` data in `{output}`')
     log('To plot a roofline type: ')
-    log('python3 roofline.py --name %s --project %s --scale %f'
-        % (name, str(output), n_sockets))
+    log(f'python3 roofline.py --name {name} --project {output} --scale {n_sockets}')
+
+    log('\nTo open the roofline using advixe-gui: ')
+    log(f'advixe-gui {output}')
 
 
 if __name__ == '__main__':

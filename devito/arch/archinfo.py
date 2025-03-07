@@ -2,6 +2,7 @@
 
 from functools import cached_property
 from subprocess import PIPE, Popen, DEVNULL, run
+from pathlib import Path
 import ctypes
 import re
 import os
@@ -17,8 +18,8 @@ from devito.tools import as_tuple, all_equal, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
-           'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
-           'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+           'get_advisor_path', 'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd',
+           'Arm', 'Power', 'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
            # Brand-agnostic
            'ANYCPU', 'ANYGPU',
            # Intel CPUs
@@ -462,6 +463,27 @@ def get_cuda_path():
                 return cuda_home
 
     return None
+
+
+@memoized_func
+def get_advisor_path():
+    """
+    Detect if Intel Advisor is installed on the machine and return
+    its location if it is.
+    """
+    path = None
+
+    env_path = os.environ["PATH"]
+    env_path_dirs = env_path.split(":")
+
+    for env_path_dir in env_path_dirs:
+        # intel/oneapi/advisor is the directory for Intel oneAPI
+        if "intel/advisor" in env_path_dir or "intel/oneapi/advisor" in env_path_dir:
+            path = Path(env_path_dir)
+            if path.name.startswith('bin'):
+                return path.parent
+
+    return path
 
 
 @memoized_func
