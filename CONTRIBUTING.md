@@ -4,7 +4,7 @@ We welcome third-party contributions, and we would love you to become an active 
 
 Software contributions are made via GitHub pull requests to https://github.com/devitocodes/devito. If you are planning a large contribution, we encourage you to engage with us frequently to ensure that your effort is well-directed. See below for more details.
 
-Devito is distributed under the MIT License, https://github.com/devitocodes/devito/blob/master/LICENSE.md. The act of submitting a pull request or patch (with or without an explicit Signed-off-by tag) will be understood as an affirmation of the following:
+Devito is distributed under the MIT License, https://github.com/devitocodes/devito/blob/main/LICENSE.md. The act of submitting a pull request or patch (with or without an explicit Signed-off-by tag) will be understood as an affirmation of the following:
 
  Developer's Certificate of Origin 1.1
 
@@ -40,7 +40,7 @@ There are several options:
 
 ### Making changes
 
-First of all, read of [code of conduct](https://github.com/devitocodes/devito/blob/master/CODE_OF_CONDUCT.md) and make sure you agree with it.
+First of all, read of [code of conduct](https://github.com/devitocodes/devito/blob/main/CODE_OF_CONDUCT.md) and make sure you agree with it.
 
 The protocol to propose a patch is:
 * [Recommended, but not compulsory] Talk to us on Slack about what you're trying to do. There is a great chance we can support you.
@@ -60,12 +60,12 @@ Tip, especially for newcomers: prefer short, self-contained Pull Requests over l
 
 Some coding rules are "enforced" (and automatically checked by our Continuous Integration systems), some are "strongly recommended", others are "optional" but welcome.
 
-* We _enforce_ [PEP8](https://www.python.org/dev/peps/pep-0008/), with a few exceptions, listed [here](https://github.com/devitocodes/devito/blob/master/setup.cfg#L3)
+* We _enforce_ [PEP8](https://www.python.org/dev/peps/pep-0008/), with a few exceptions, listed [here](https://github.com/devitocodes/devito/blob/main/setup.cfg#L3)
 * We _enforce_ a maximum line length of 90 characters.
 * We _enforce_ indentation via 4 spaces.
 * We _suggest_ to use ``flake8`` to check the above points locally, before filing a Pull Request.
 * We _strongly recommend_ to document any new module, class, routine, ... with [NumPy-like docstrings](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_numpy.html#example-numpy) ("numpydoc").
-* We _strongly recommend_ imports to be at the top of a module, logically grouped and, within each group, to be alphabetically ordered. As an example, condider our [__init__.py](https://github.com/devitocodes/devito/blob/master/devito/__init__.py): the first group is imports from the standard library; then imports from third-party dependencies; finally, imports from devito modules.
+* We _strongly recommend_ imports to be at the top of a module, logically grouped and, within each group, to be alphabetically ordered. As an example, condider our [__init__.py](https://github.com/devitocodes/devito/blob/main/devito/__init__.py): the first group is imports from the standard library; then imports from third-party dependencies; finally, imports from devito modules.
 * We _strongly recommend_ to follow standard Python coding guidelines:
   - Use camel caps for class names, e.g. ``class FooBar``.
   - Method names must start with a small letter; use underscores to separate words, e.g. ``def _my_meth_...``.

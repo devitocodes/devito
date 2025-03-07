@@ -201,7 +201,7 @@ two common reasons why `setup.py` might not be in the root:
 
 * Source trees which contain multiple subprojects, such as
   [Buildbot](https://github.com/buildbot/buildbot), which contains both
-  "master" and "slave" subprojects, each with their own `setup.py`,
+  "main" and "slave" subprojects, each with their own `setup.py`,
   `setup.cfg`, and `tox.ini`. Projects like these produce multiple PyPI
   distributions (and upload multiple independently-installable tarballs).
 * Source trees whose main purpose is to contain a C library, but which also
@@ -727,7 +727,7 @@ def git_versions_from_keywords(
         # refs/heads/ and refs/tags/ prefixes that would let us distinguish
         # between branches and tags. By ignoring refnames without digits, we
         # filter out many common branch names like "release" and
-        # "stabilization", as well as "HEAD" and "master".
+        # "stabilization", as well as "HEAD" and "main".
         tags = {r for r in refs if re.search(r'\d', r)}
         if verbose:
             print("discarding '%%s', no digits" %% ",".join(refs - tags))
@@ -830,8 +830,8 @@ def git_pieces_from_vcs(
 
         # Strip off the leading "* " from the list of branches.
         branches = [branch[2:] for branch in branches]
-        if "master" in branches:
-            branch_name = "master"
+        if "main" in branches:
+            branch_name = "main"
         elif not branches:
             branch_name = None
         else:
@@ -929,8 +929,8 @@ def render_pep440(pieces: Dict[str, Any]) -> str:
 def render_pep440_branch(pieces: Dict[str, Any]) -> str:
     """TAG[[.dev0]+DISTANCE.gHEX[.dirty]] .
 
-    The ".dev0" means not master branch. Note that .dev0 sorts backwards
-    (a feature branch will appear "older" than the master branch).
+    The ".dev0" means not main branch. Note that .dev0 sorts backwards
+    (a feature branch will appear "older" than the main branch).
 
     Exceptions:
     1: no tags. 0[.dev0]+untagged.DISTANCE.gHEX[.dirty]
@@ -938,7 +938,7 @@ def render_pep440_branch(pieces: Dict[str, Any]) -> str:
     if pieces["closest-tag"]:
         rendered = pieces["closest-tag"]
         if pieces["distance"] or pieces["dirty"]:
-            if pieces["branch"] != "master":
+            if pieces["branch"] != "main":
                 rendered += ".dev0"
             rendered += plus_or_dot(pieces)
             rendered += "%%d.g%%s" %% (pieces["distance"], pieces["short"])
@@ -947,7 +947,7 @@ def render_pep440_branch(pieces: Dict[str, Any]) -> str:
     else:
         # exception #1
         rendered = "0"
-        if pieces["branch"] != "master":
+        if pieces["branch"] != "main":
             rendered += ".dev0"
         rendered += "+untagged.%%d.g%%s" %% (pieces["distance"],
                                           pieces["short"])
@@ -1020,7 +1020,7 @@ def render_pep440_post(pieces: Dict[str, Any]) -> str:
 def render_pep440_post_branch(pieces: Dict[str, Any]) -> str:
     """TAG[.postDISTANCE[.dev0]+gHEX[.dirty]] .
 
-    The ".dev0" means not master branch.
+    The ".dev0" means not main branch.
 
     Exceptions:
     1: no tags. 0.postDISTANCE[.dev0]+gHEX[.dirty]
@@ -1029,7 +1029,7 @@ def render_pep440_post_branch(pieces: Dict[str, Any]) -> str:
         rendered = pieces["closest-tag"]
         if pieces["distance"] or pieces["dirty"]:
             rendered += ".post%%d" %% pieces["distance"]
-            if pieces["branch"] != "master":
+            if pieces["branch"] != "main":
                 rendered += ".dev0"
             rendered += plus_or_dot(pieces)
             rendered += "g%%s" %% pieces["short"]
@@ -1038,7 +1038,7 @@ def render_pep440_post_branch(pieces: Dict[str, Any]) -> str:
     else:
         # exception #1
         rendered = "0.post%%d" %% pieces["distance"]
-        if pieces["branch"] != "master":
+        if pieces["branch"] != "main":
             rendered += ".dev0"
         rendered += "+g%%s" %% pieces["short"]
         if pieces["dirty"]:
@@ -1258,7 +1258,7 @@ def git_versions_from_keywords(
         # refs/heads/ and refs/tags/ prefixes that would let us distinguish
         # between branches and tags. By ignoring refnames without digits, we
         # filter out many common branch names like "release" and
-        # "stabilization", as well as "HEAD" and "master".
+        # "stabilization", as well as "HEAD" and "main".
         tags = {r for r in refs if re.search(r'\d', r)}
         if verbose:
             print("discarding '%s', no digits" % ",".join(refs - tags))
@@ -1361,8 +1361,8 @@ def git_pieces_from_vcs(
 
         # Strip off the leading "* " from the list of branches.
         branches = [branch[2:] for branch in branches]
-        if "master" in branches:
-            branch_name = "master"
+        if "main" in branches:
+            branch_name = "main"
         elif not branches:
             branch_name = None
         else:
@@ -1571,8 +1571,8 @@ def render_pep440(pieces: Dict[str, Any]) -> str:
 def render_pep440_branch(pieces: Dict[str, Any]) -> str:
     """TAG[[.dev0]+DISTANCE.gHEX[.dirty]] .
 
-    The ".dev0" means not master branch. Note that .dev0 sorts backwards
-    (a feature branch will appear "older" than the master branch).
+    The ".dev0" means not main branch. Note that .dev0 sorts backwards
+    (a feature branch will appear "older" than the main branch).
 
     Exceptions:
     1: no tags. 0[.dev0]+untagged.DISTANCE.gHEX[.dirty]
@@ -1580,7 +1580,7 @@ def render_pep440_branch(pieces: Dict[str, Any]) -> str:
     if pieces["closest-tag"]:
         rendered = pieces["closest-tag"]
         if pieces["distance"] or pieces["dirty"]:
-            if pieces["branch"] != "master":
+            if pieces["branch"] != "main":
                 rendered += ".dev0"
             rendered += plus_or_dot(pieces)
             rendered += "%d.g%s" % (pieces["distance"], pieces["short"])
@@ -1589,7 +1589,7 @@ def render_pep440_branch(pieces: Dict[str, Any]) -> str:
     else:
         # exception #1
         rendered = "0"
-        if pieces["branch"] != "master":
+        if pieces["branch"] != "main":
             rendered += ".dev0"
         rendered += "+untagged.%d.g%s" % (pieces["distance"],
                                           pieces["short"])
@@ -1662,7 +1662,7 @@ def render_pep440_post(pieces: Dict[str, Any]) -> str:
 def render_pep440_post_branch(pieces: Dict[str, Any]) -> str:
     """TAG[.postDISTANCE[.dev0]+gHEX[.dirty]] .
 
-    The ".dev0" means not master branch.
+    The ".dev0" means not main branch.
 
     Exceptions:
     1: no tags. 0.postDISTANCE[.dev0]+gHEX[.dirty]
@@ -1671,7 +1671,7 @@ def render_pep440_post_branch(pieces: Dict[str, Any]) -> str:
         rendered = pieces["closest-tag"]
         if pieces["distance"] or pieces["dirty"]:
             rendered += ".post%d" % pieces["distance"]
-            if pieces["branch"] != "master":
+            if pieces["branch"] != "main":
                 rendered += ".dev0"
             rendered += plus_or_dot(pieces)
             rendered += "g%s" % pieces["short"]
@@ -1680,7 +1680,7 @@ def render_pep440_post_branch(pieces: Dict[str, Any]) -> str:
     else:
         # exception #1
         rendered = "0.post%d" % pieces["distance"]
-        if pieces["branch"] != "master":
+        if pieces["branch"] != "main":
             rendered += ".dev0"
         rendered += "+g%s" % pieces["short"]
         if pieces["dirty"]:

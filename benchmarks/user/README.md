@@ -104,7 +104,7 @@ or number of fields used in the computation.
 
 `benchmark.py` allows to set optimization mode, as well as several optimization
 options, via the `--opt` argument. Please refer to
-[this](https://github.com/devitocodes/devito/blob/master/examples/performance/00_overview.ipynb)
+[this](https://github.com/devitocodes/devito/blob/main/examples/performance/00_overview.ipynb)
 notebook for a comprehensive list of all optimization modes and options
 available in Devito. You may also want to take a look at the example command
 lines a few sections below.

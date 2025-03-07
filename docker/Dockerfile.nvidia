@@ -115,7 +115,7 @@ RUN rm -f  $HPCSDK_HOME/comm_libs/mpi && \
 # Install python nvidia dependencies
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /venv/bin/pip install --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt && \
+    /venv/bin/pip install --no-cache-dir -r https://raw.githubusercontent.com/devitocodes/devito/main/requirements-nvidia.txt && \
     # Install jupyter and setup nvidia configs.
     /venv/bin/pip install --no-cache-dir jupyter && \
     /venv/bin/jupyter server extension enable dask_labextension && \

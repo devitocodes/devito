@@ -13,7 +13,7 @@ on:
     inputs:
       tags:
         description: 'Run ASV'
-  # Trigger the workflow on push to the master branch
+  # Trigger the workflow on push to the main branch
   push:
     branches:
       - main

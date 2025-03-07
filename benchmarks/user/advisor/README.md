@@ -1,7 +1,7 @@
 # Intel Advisor roofline profiling on Devito
 
 This README aims to help users derive rooflines through using Devito with [Intel Advisor](https://www.intel.com/content/www/us/en/developer/tools/oneapi/advisor.html).
-We recommend going through tutorial [02_advisor_roofline.ipynb](https://github.com/devitocodes/devito/blob/master/examples/performance/02_advisor_roofline.ipynb) for a more detailed step-by-step guidance.
+We recommend going through tutorial [02_advisor_roofline.ipynb](https://github.com/devitocodes/devito/blob/main/examples/performance/02_advisor_roofline.ipynb) for a more detailed step-by-step guidance.
 
 ### Prerequisites:
 * Support is guaranteed only for Intel oneAPI 2025; earlier versions may not work.

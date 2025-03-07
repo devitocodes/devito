@@ -65,7 +65,7 @@ reqs = []
 for ir in required:
     if ir[0:3] == 'git':
         name = ir.split('/')[-1]
-        reqs += ['%s @ %s@master' % (name, ir)]
+        reqs += ['%s @ %s@main' % (name, ir)]
     else:
         reqs += [ir]
 
@@ -78,10 +78,10 @@ for mreqs, mode in (zip([optionals, mpis, nvidias, testing],
         if ';' in ir:
             entries = ir.split(';')
             extras_require[entries[1]] = entries[0]
-        # Git repos, install master
+        # Git repos, install main
         if ir[0:3] == 'git':
             name = ir.split('/')[-1]
-            opt_reqs += ['%s @ %s@master' % (name, ir)]
+            opt_reqs += ['%s @ %s@main' % (name, ir)]
         else:
             opt_reqs += [ir]
     extras_require[mode] = opt_reqs
