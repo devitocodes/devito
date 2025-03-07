@@ -5,7 +5,7 @@ on:
     types: [published]
   push:
     branches:
-      - master         # Push events on master branch
+      - main         # Push events on master branch
 
 jobs:
   deploy-devito:
