@@ -16,7 +16,7 @@ on:
   # Trigger the workflow on push to the master branch
   push:
     branches:
-      - master
+      - main
 
 jobs:
 
