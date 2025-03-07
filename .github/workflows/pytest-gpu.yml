@@ -79,6 +79,11 @@ jobs:
     - name: Remove dangling layers
       run: docker system prune -f
 
+    - name: check codecov setup
+      run: |
+        ci_env=`bash <(curl -s https://codecov.io/env)`
+        echo $ci_env
+
     - name: Test with pytest
       run: |
         # Remove all existing containers for safety
