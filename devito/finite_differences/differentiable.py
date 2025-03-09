@@ -18,8 +18,7 @@ from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
                           infer_dtype, is_integer, split)
-from devito.types import (Array, DimensionTuple, Evaluable, Indexed,
-                          StencilDimension)
+from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction
 
 __all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
@@ -74,7 +73,7 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def dtype(self):
-        dtypes = {f.dtype for f in self.find(Indexed)} - {None}
+        dtypes = {f.dtype for f in self._functions} - {None}
         return infer_dtype(dtypes)
 
     @cached_property

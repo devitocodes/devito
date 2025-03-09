@@ -1,6 +1,8 @@
 from collections.abc import Iterable
 from functools import cached_property
 
+import numpy as np
+
 from devito.core.autotuning import autotune
 from devito.exceptions import InvalidOperator
 from devito.ir import FindSymbols
@@ -65,6 +67,11 @@ class BasicOperator(Operator):
     """
     Strategy used to schedule derivatives across loops. This impacts the operational
     intensity of the generated kernel.
+    """
+
+    SCALAR_MIN_TYPE = np.float16
+    """
+    Minimum datatype for a scalar alias for a common sub-expression or cire temp.
     """
 
     PAR_COLLAPSE_NCORES = 4
@@ -141,6 +148,11 @@ class BasicOperator(Operator):
     _Target = None
     """
     The target language constructor, to be specified by subclasses.
+    """
+
+    LINEARIZE = False
+    """
+    Linearize n-dimensional Indexeds.
     """
 
     @classmethod
