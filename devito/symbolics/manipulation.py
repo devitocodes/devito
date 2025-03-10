@@ -128,7 +128,10 @@ def _(mapper, rule):
 
 @singledispatch
 def _uxreplace_handle(expr, args, kwargs):
-    return expr.func(*args)
+    try:
+        return expr.func(*args, evaluate=False)
+    except TypeError:
+        return expr.func(*args)
 
 
 @_uxreplace_handle.register(Min)
@@ -393,7 +396,7 @@ def normalize_args(args):
     for k, v in args.items():
         try:
             retval[k] = sympify(v, strict=True)
-        except SympifyError:
+        except (TypeError, SympifyError):
             continue
 
     return retval

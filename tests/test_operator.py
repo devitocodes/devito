@@ -9,7 +9,7 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction,
-                    div, grad, switchconfig)
+                    div, grad, switchconfig, exp)
 from devito import  Inc, Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
@@ -640,6 +640,25 @@ class TestArithmetic:
         op2 = Operator([Eq(f, f.dx) for f in f1.values()])
         assert str(op1.ccode) == str(op2.ccode)
 
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_complex(self, dtype):
+        grid = Grid((5, 5))
+        x, y = grid.dimensions
+
+        c = Constant(name='c', dtype=dtype)
+        u = Function(name="u", grid=grid, dtype=dtype)
+
+        eq = Eq(u, x + sympy.I*y + exp(sympy.I + x.spacing) * c)
+        op = Operator(eq)
+        op(c=1.0 + 2.0j)
+
+        # Check against numpy
+        dx = grid.spacing_map[x.spacing]
+        xx, yy = np.meshgrid(np.linspace(0, 4, 5), np.linspace(0, 4, 5))
+        npres = xx + 1j*yy + np.exp(1j + dx) * (1.0 + 2.0j)
+
+        assert np.allclose(u.data, npres.T, rtol=1e-7, atol=0)
+
 
 class TestAllocation:
 
@@ -724,10 +743,10 @@ class TestApplyArguments:
         """
         boilerplate = ['timers']
         parameters = [p.name for p in parameters]
-        for exp in expected:
-            if exp not in parameters + boilerplate:
-                error("Missing parameter: %s" % exp)
-            assert exp in parameters + boilerplate
+        for expi in expected:
+            if expi not in parameters + boilerplate:
+                error("Missing parameter: %s" % expi)
+            assert expi in parameters + boilerplate
         extra = [p for p in parameters if p not in expected and p not in boilerplate]
         if len(extra) > 0:
             error("Redundant parameters: %s" % str(extra))
