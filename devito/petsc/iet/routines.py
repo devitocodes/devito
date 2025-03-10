@@ -14,7 +14,7 @@ from devito.tools import filter_ordered
 
 from devito.petsc.types import PETScArray
 from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
-                                    MatVecCallback, InjectSolveDummy)
+                                    MatVecCallback, PetscMetaData)
 from devito.petsc.iet.utils import petsc_call, petsc_struct
 from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (DM, CallbackDM, Mat, LocalVec, GlobalVec, KSP, PC,
@@ -768,7 +768,7 @@ class Solver:
         spatial_body = []
         for tree in retrieve_iteration_tree(iters[0]):
             root = filter_iterations(tree, key=lambda i: i.dim.is_Space)[0]
-            if injectsolve in FindNodes(InjectSolveDummy).visit(root):
+            if injectsolve in FindNodes(PetscMetaData).visit(root):
                 spatial_body.append(root)
         return spatial_body
 

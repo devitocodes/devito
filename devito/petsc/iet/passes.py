@@ -1,10 +1,15 @@
 import cgen as c
+import numpy as np
 
 from devito.passes.iet.engine import iet_pass
-from devito.ir.iet import Transformer, MapNodes, Iteration, BlankLine
+from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
+                           FindNodes, Call, CallableBody)
 from devito.symbolics import Byref, Macro
-from devito.petsc.types import (PetscMPIInt, PetscErrorCode)
-from devito.petsc.iet.nodes import InjectSolveDummy
+from devito.types.basic import DataSymbol
+from devito.petsc.types import (PetscMPIInt, PetscErrorCode, Initialize,
+                                Finalize, ArgvSymbol)
+from devito.petsc.types.macros import petsc_func_begin_user
+from devito.petsc.iet.nodes import PetscMetaData
 from devito.petsc.utils import core_metadata
 from devito.petsc.iet.routines import (CallbackBuilder, BaseObjectBuilder, BaseSetup,
                                        Solver, TimeDependent, NonTimeDependent)
@@ -14,14 +19,23 @@ from devito.petsc.iet.utils import petsc_call, petsc_call_mpi
 @iet_pass
 def lower_petsc(iet, **kwargs):
     # Check if PETScSolve was used
-    injectsolve_mapper = MapNodes(Iteration, InjectSolveDummy,
+    injectsolve_mapper = MapNodes(Iteration, PetscMetaData,
                                   'groupby').visit(iet)
 
     if not injectsolve_mapper:
         return iet, {}
 
+    metadata = core_metadata()
+
+    data = FindNodes(PetscMetaData).visit(iet)
+
+    if any(filter(lambda i: isinstance(i.expr.rhs, Initialize), data)):
+        return initialize(iet), metadata
+
+    if any(filter(lambda i: isinstance(i.expr.rhs, Finalize), data)):
+        return finalize(iet), metadata
+
     targets = [i.expr.rhs.target for (i,) in injectsolve_mapper.values()]
-    init = init_petsc(**kwargs)
 
     # Assumption is that all targets have the same grid so can use any target here
     objs = build_core_objects(targets[-1], **kwargs)
@@ -47,26 +61,37 @@ def lower_petsc(iet, **kwargs):
     iet = Transformer(subs).visit(iet)
 
     body = core + tuple(setup) + (BlankLine,) + iet.body.body
-    body = iet.body._rebuild(
-        init=init, body=body,
-        frees=(petsc_call('PetscFinalize', []),)
-    )
+    body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
-    metadata = core_metadata()
     metadata.update({'efuncs': tuple(efuncs.values())})
 
     return iet, metadata
 
 
-def init_petsc(**kwargs):
-    # Initialize PETSc -> for now, assuming all solver options have to be
-    # specified via the parameters dict in PETScSolve
-    # TODO: Are users going to be able to use PETSc command line arguments?
-    # In firedrake, they have an options_prefix for each solver, enabling the use
-    # of command line options
-    initialize = petsc_call('PetscInitialize', [Null, Null, Null, Null])
+def initialize(iet):
+    # should be int because the correct type for argc is a C int
+    # and not a int32
+    argc = DataSymbol(name='argc', dtype=np.int32)
+    argv = ArgvSymbol(name='argv')
+    Help = Macro('help')
 
-    return petsc_func_begin_user, initialize
+    help_string = c.Line(r'static char help[] = "This is help text.\n";')
+
+    init_body = petsc_call('PetscInitialize', [Byref(argc), Byref(argv), Null, Help])
+    init_body = CallableBody(
+        body=(petsc_func_begin_user, help_string, init_body),
+        retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+    )
+    return iet._rebuild(body=init_body)
+
+
+def finalize(iet):
+    finalize_body = petsc_call('PetscFinalize', [])
+    finalize_body = CallableBody(
+        body=(petsc_func_begin_user, finalize_body),
+        retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+    )
+    return iet._rebuild(body=finalize_body)
 
 
 def make_core_petsc_calls(objs, **kwargs):
@@ -76,10 +101,7 @@ def make_core_petsc_calls(objs, **kwargs):
 
 
 def build_core_objects(target, **kwargs):
-    if kwargs['options']['mpi']:
-        communicator = target.grid.distributor._obj_comm
-    else:
-        communicator = 'PETSC_COMM_SELF'
+    communicator = 'PETSC_COMM_WORLD'
 
     return {
         'size': PetscMPIInt(name='size'),
@@ -128,9 +150,6 @@ class Builder:
         )
 
 
+# Move these to types folder
 Null = Macro('NULL')
 void = 'void'
-
-
-# TODO: Don't use c.Line here?
-petsc_func_begin_user = c.Line('PetscFunctionBeginUser;')

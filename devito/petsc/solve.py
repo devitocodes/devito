@@ -5,7 +5,7 @@ import sympy
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.derivative import Derivative
 from devito.types import Eq, Symbol, SteppingDimension, TimeFunction
-from devito.types.equation import InjectSolveEq
+from devito.types.equation import PetscEq
 from devito.operations.solve import eval_time_derivatives
 from devito.symbolics import retrieve_functions
 from devito.tools import as_tuple
@@ -65,7 +65,7 @@ def PETScSolve(eqns, target, solver_parameters=None, **kwargs):
     )
     # Placeholder equation for inserting calls to the solver and generating
     # correct time loop etc
-    inject_solve = InjectSolveEq(target, LinearSolveExpr(
+    inject_solve = PetscEq(target, LinearSolveExpr(
         expr=tuple(funcs),
         target=target,
         solver_parameters=solver_parameters,

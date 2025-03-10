@@ -45,7 +45,7 @@ def core_metadata():
     lib_dir = os.path.join(petsc_dir, f'{petsc_arch}', 'lib')
 
     return {
-        'includes': ('petscksp.h', 'petscsnes.h', 'petscdmda.h'),
+        'includes': ('petscsnes.h', 'petscdmda.h'),
         'include_dirs': include_dirs,
         'libs': ('petsc'),
         'lib_dirs': lib_dir,

@@ -1,7 +1,8 @@
-from ctypes import POINTER
+from ctypes import POINTER, c_char
 
 from devito.tools import CustomDtype, dtype_to_cstr
 from devito.types import LocalObject, CCompositeObject, ModuloDimension, TimeDimension
+from devito.types.basic import DataSymbol
 from devito.symbolics import Byref
 
 from devito.petsc.iet.utils import petsc_call
@@ -209,3 +210,9 @@ class StartPtr(LocalObject):
     def __init__(self, name, dtype):
         super().__init__(name=name)
         self.dtype = CustomDtype(dtype_to_cstr(dtype), modifier=' *')
+
+
+class ArgvSymbol(DataSymbol):
+    @property
+    def _C_ctype(self):
+        return POINTER(POINTER(c_char))

@@ -3,7 +3,7 @@ from collections import OrderedDict
 from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional, SyncSpot,
                            Section, HaloSpot, ExpressionBundle)
 from devito.tools import timed_pass
-from devito.petsc.types import LinearSolveExpr
+from devito.petsc.types import MetaData
 from devito.petsc.iet.utils import petsc_iet_mapper
 
 __all__ = ['iet_build']
@@ -26,7 +26,7 @@ def iet_build(stree):
             for e in i.exprs:
                 if e.is_Increment:
                     exprs.append(Increment(e))
-                elif isinstance(e.rhs, LinearSolveExpr):
+                elif isinstance(e.rhs, MetaData):
                     exprs.append(petsc_iet_mapper[e.operation](e, operation=e.operation))
                 else:
                     exprs.append(Expression(e, operation=e.operation))

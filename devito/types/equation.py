@@ -239,5 +239,5 @@ class ReduceMin(Reduction):
     pass
 
 
-class InjectSolveEq(Eq):
+class PetscEq(Eq):
     pass

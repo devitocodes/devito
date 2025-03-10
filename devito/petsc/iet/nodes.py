@@ -1,20 +1,12 @@
 from devito.ir.iet import Expression, Callback, FixedArgsCallable, Call
-from devito.ir.equations import OpInjectSolve
+from devito.ir.equations import OpPetsc
 
 
-class LinearSolverExpression(Expression):
+class PetscMetaData(Expression):
     """
-    Base class for general expressions required by a
-    matrix-free linear solve of the form Ax=b.
+    Base class for general expressions required to run a PETSc solver.
     """
-    pass
-
-
-class InjectSolveDummy(LinearSolverExpression):
-    """
-    Placeholder expression to run the iterative solver.
-    """
-    def __init__(self, expr, pragmas=None, operation=OpInjectSolve):
+    def __init__(self, expr, pragmas=None, operation=OpPetsc):
         super().__init__(expr, pragmas=pragmas, operation=operation)
 
 

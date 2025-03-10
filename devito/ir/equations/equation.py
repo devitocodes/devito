@@ -11,10 +11,10 @@ from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import (Eq, Inc, ReduceMax, ReduceMin,
                           relational_min)
-from devito.types.equation import InjectSolveEq
+from devito.types.equation import PetscEq
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax',
-           'identity_mapper', 'OpInjectSolve']
+           'identity_mapper', 'OpPetsc']
 
 
 class IREq(sympy.Eq, Pickable):
@@ -105,7 +105,7 @@ class Operation(Tag):
             Inc: OpInc,
             ReduceMax: OpMax,
             ReduceMin: OpMin,
-            InjectSolveEq: OpInjectSolve
+            PetscEq: OpPetsc
         }
         try:
             return reduction_mapper[type(expr)]
@@ -122,7 +122,7 @@ class Operation(Tag):
 OpInc = Operation('+')
 OpMax = Operation('max')
 OpMin = Operation('min')
-OpInjectSolve = Operation('solve')
+OpPetsc = Operation('solve')
 
 
 identity_mapper = {

@@ -1,5 +1,5 @@
-from devito.petsc.iet.nodes import InjectSolveDummy, PETScCall
-from devito.ir.equations import OpInjectSolve
+from devito.petsc.iet.nodes import PetscMetaData, PETScCall
+from devito.ir.equations import OpPetsc
 
 
 def petsc_call(specific_call, call_args):
@@ -19,4 +19,4 @@ def petsc_struct(name, fields, pname, liveness='lazy'):
 
 # Mapping special Eq operations to their corresponding IET Expression subclass types.
 # These operations correspond to subclasses of Eq utilised within PETScSolve.
-petsc_iet_mapper = {OpInjectSolve: InjectSolveDummy}
+petsc_iet_mapper = {OpPetsc: PetscMetaData}
