@@ -330,7 +330,7 @@ def get_gpu_info():
     except OSError:
         pass
 
-    # *** Third try: `sycl-ls`
+    # *** Third try: `sycl-ls`, clearly only works with Intel cards
     try:
         gpu_infos = {}
 
@@ -453,7 +453,6 @@ def get_gpu_info():
         for line in lines:
             # Graphics cards are listed as VGA or 3D controllers in lspci
             if 'VGA' in line or '3D' in line or 'Display' in line:
-                print(line)
                 gpu_info = {}
                 # Lines produced by lspci command are of the form:
                 #   xxxx:xx:xx.x Device Type: Name

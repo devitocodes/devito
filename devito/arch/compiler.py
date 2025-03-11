@@ -180,7 +180,7 @@ class Compiler(GCCToolchain):
     """
 
     fields = {'cc', 'ld'}
-    default_cpp = False
+    _default_cpp = False
     _cxxstd = 'c++14'
     _cstd = 'c99'
 
@@ -193,7 +193,7 @@ class Compiler(GCCToolchain):
         super().__init__(**kwargs)
 
         self.__lookup_cmds__()
-        self._cpp = kwargs.get('cpp', self.default_cpp)
+        self._cpp = kwargs.get('cpp', self._default_cpp)
 
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
@@ -602,7 +602,7 @@ class DPCPPCompiler(Compiler):
 
 class PGICompiler(Compiler):
 
-    default_cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
@@ -655,7 +655,7 @@ class NvidiaCompiler(PGICompiler):
 
 class CudaCompiler(Compiler):
 
-    default_cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
@@ -729,7 +729,7 @@ class CudaCompiler(Compiler):
 
 class HipCompiler(Compiler):
 
-    default_cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
@@ -890,7 +890,7 @@ class OneapiCompiler(IntelCompiler):
 
 class SyclCompiler(OneapiCompiler):
 
-    default_cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
         IntelCompiler.__init_finalize__(self, **kwargs)
@@ -957,7 +957,6 @@ class CustomCompiler(Compiler):
         obj = super().__new__(cls)
         # Keep base to initialize accordingly
         obj._base = kwargs.pop('base', _base)
-        obj.default_cpp = obj._base.default_cpp
 
         return obj
 
@@ -987,6 +986,10 @@ class CustomCompiler(Compiler):
 
     def __new_with__(self, **kwargs):
         return super().__new_with__(base=self._base, **kwargs)
+
+    @property
+    def _default_cpp(self):
+        return self._base._default_cpp
 
 
 class CompilerRegistry(dict):

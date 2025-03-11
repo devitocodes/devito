@@ -14,7 +14,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.C import CPrinter
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper, Cast)
-from devito.tools import Bunch, as_mapper, filter_ordered, split
+from devito.tools import Bunch, as_mapper, filter_ordered, split, as_tuple
 from devito.types import FIndexed
 
 __all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
@@ -221,7 +221,7 @@ def _(expr, lang):
     if has_integer_args(*expr.args):
         return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),), {}
     else:
-        return (), (lang.get('header-algorithm'),)
+        return (), as_tuple(lang.get('header-algorithm'))
 
 
 @_lower_macro_math.register(Max)
@@ -230,7 +230,7 @@ def _(expr, lang):
     if has_integer_args(*expr.args):
         return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),), {}
     else:
-        return (), (lang.get('header-algorithm'),)
+        return (), as_tuple(lang.get('header-algorithm'))
 
 
 @_lower_macro_math.register(SafeInv)

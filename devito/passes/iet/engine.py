@@ -40,11 +40,10 @@ class Graph:
     The `visit` method collects info about the nodes in the Graph.
     """
 
-    def __init__(self, iet, options=None, sregistry=None, language=None, **kwargs):
+    def __init__(self, iet, options=None, sregistry=None, **kwargs):
         self.efuncs = OrderedDict([(iet.name, iet)])
 
         self.sregistry = sregistry
-        self.language = language
 
         self.includes = []
         self.headers = []
@@ -148,7 +147,7 @@ class Graph:
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
             efuncs = reuse_compounds(efuncs, self.sregistry)
-            efuncs = reuse_efuncs(self.root, efuncs, self.sregistry, self.language)
+            efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
 
@@ -317,7 +316,7 @@ def _(i, sregistry=None):
     return i._rebuild(pname=pname, cfields=cfields, ncfields=ncfields, function=None)
 
 
-def reuse_efuncs(root, efuncs, sregistry=None, language=None):
+def reuse_efuncs(root, efuncs, sregistry=None):
     """
     Generalise `efuncs` so that syntactically identical Callables may be dropped,
     thus maximizing code reuse.
