@@ -736,7 +736,6 @@ class CGen(Visitor):
                 # Plain string
                 headers.append(c.Line(h))
         headers = headers + [blankline]
-        # headers = [c.Define(*i) for i in o._headers] + [blankline]
 
         # Header files
         includes = self._operator_includes(o) + [blankline]
@@ -1406,8 +1405,7 @@ class MultilineCall(c.Generable):
 
     def generate(self):
         if self.templates:
-            ctemplates = ", ".join(str(i) for i in self.templates)
-            tip = f"{self.name}<{ctemplates}>"
+            tip = f"{self.name}<{', '.join(str(i) for i in self.templates)}>"
         else:
             tip = self.name
         if not self.is_indirect:

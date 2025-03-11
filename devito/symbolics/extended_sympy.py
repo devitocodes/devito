@@ -89,10 +89,10 @@ class IntDiv(sympy.Expr):
         if not is_integer(rhs):
             # Perhaps it's a symbolic RHS -- but we wanna be sure it's of type int
             if not hasattr(rhs, 'dtype'):
-                raise ValueError("Symbolic RHS `%s` lacks dtype" % rhs)
+                raise ValueError(f"Symbolic RHS `{rhs}` lacks dtype")
             if not issubclass(rhs.dtype, np.integer):
-                raise ValueError("Symbolic RHS `%s` must be of type `int`, found "
-                                 "`%s` instead" % (rhs, rhs.dtype))
+                raise ValueError(f"Symbolic RHS `{rhs}` must be of type `int`, found "
+                                 f"`{rhs.dtype}` instead")
         rhs = sympify(rhs)
 
         obj = sympy.Expr.__new__(cls, lhs, rhs)
@@ -103,7 +103,7 @@ class IntDiv(sympy.Expr):
         return obj
 
     def __str__(self):
-        return "IntDiv(%s, %s)" % (self.lhs, self.rhs)
+        return f"IntDiv({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 
@@ -191,8 +191,8 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
         return obj
 
     def __str__(self):
-        return '%s->%s(%s)' % (self.pointer, self.call,
-                               ", ".join(str(i) for i in as_tuple(self.params)))
+        params = ", ".join(str(i) for i in as_tuple(self.params))
+        return f'{self.pointer}->{self.call}({params})'
 
     __repr__ = __str__
 
@@ -228,8 +228,8 @@ class CallFromComposite(CallFromPointer, Pickable):
     """
 
     def __str__(self):
-        return '%s.%s(%s)' % (self.pointer, self.call,
-                              ", ".join(str(i) for i in as_tuple(self.params)))
+        params = ", ".join(str(i) for i in as_tuple(self.params))
+        return f'{self.pointer}.{self.call}({params})'
 
     __repr__ = __str__
 
@@ -246,7 +246,7 @@ class FieldFromPointer(CallFromPointer, Pickable):
         return CallFromPointer.__new__(cls, field, pointer)
 
     def __str__(self):
-        return '%s->%s' % (self.pointer, self.field)
+        return f'{self.pointer}->{self.field}'
 
     @property
     def field(self):
@@ -268,7 +268,7 @@ class FieldFromComposite(CallFromPointer, Pickable):
         return CallFromPointer.__new__(cls, field, composite)
 
     def __str__(self):
-        return '%s.%s' % (self.composite, self.field)
+        return f'{self.composite}.{self.field}'
 
     @property
     def field(self):
@@ -295,13 +295,13 @@ class ListInitializer(sympy.Expr, Pickable):
             try:
                 args.append(sympify(p))
             except sympy.SympifyError:
-                raise ValueError("Illegal param `%s`" % p)
+                raise ValueError(f"Illegal param `{p}`")
         obj = sympy.Expr.__new__(cls, *args)
         obj.params = tuple(args)
         return obj
 
     def __str__(self):
-        return "{%s}" % ", ".join(str(i) for i in self.params)
+        return f"{{{', '.join(str(i) for i in self.params)}}}"
 
     __repr__ = __str__
 
@@ -349,9 +349,9 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
 
     def __str__(self):
         if self.base.is_Symbol:
-            return "%s%s" % (self._op, str(self.base))
+            return f'{self._op}{self.base}'
         else:
-            return "%s(%s)" % (self._op, str(self.base))
+            return f'{self._op}({self.base})'
 
     __repr__ = __str__
 
@@ -398,6 +398,7 @@ class Cast(UnaryOp):
         obj._stars = stars or ''
         obj._dtype = dtype
         obj._reinterpret = reinterpret
+
         return obj
 
     def _hashable_content(self):
@@ -422,16 +423,16 @@ class Cast(UnaryOp):
         ctype = ctypes_vector_mapper.get(self.dtype, self.dtype)
         try:
             ctype = dtype_to_ctype(ctype)
-        except:
+        except TypeError:
             pass
         return ctype
 
     @property
     def _op(self):
-        return '(%s)' % ctypes_to_cstr(self._C_ctype)
+        return f'({ctypes_to_cstr(self._C_ctype)})'
 
     def __str__(self):
-        return "%s%s" % (self._op, self.base)
+        return f"{self._op}{self.base}"
 
 
 class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
@@ -470,7 +471,8 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
         return self._index
 
     def __str__(self):
-        return "%s%s" % (self.base, ''.join('[%s]' % i for i in self.index))
+        indices = ''.join(f'[{i}]' for i in self.index)
+        return f"{self.base}{indices}"
 
     __repr__ = __str__
 
@@ -497,7 +499,7 @@ class ReservedWord(sympy.Atom, Pickable):
 
     def __new__(cls, value, **kwargs):
         if not isinstance(value, str):
-            raise TypeError("Expected str, got `%s`" % type(value))
+            raise TypeError(f"Expected str, got `{type(value)}`")
         obj = sympy.Atom.__new__(cls, **kwargs)
         obj.value = value
 
@@ -533,7 +535,7 @@ class Macro(ReservedWord):
 class Class(ReservedWord):
 
     def __str__(self):
-        return "class %s" % self.value
+        return f"class {self.value}"
 
     __repr__ = __str__
 
@@ -541,7 +543,7 @@ class Class(ReservedWord):
 class MacroArgument(sympy.Symbol):
 
     def __str__(self):
-        return "(%s)" % self.name
+        return f"({self.name})"
 
     __repr__ = __str__
 
@@ -614,11 +616,11 @@ class DefFunction(Function, Pickable):
 
     def __str__(self):
         if self.template:
-            template = '<%s>' % ','.join(str(i) for i in self.template)
+            template = f"<{','.join(str(i) for i in self.template)}>"
         else:
             template = ''
         arguments = ', '.join(str(i) for i in self.arguments)
-        return "%s%s(%s)" % (self.name, template, arguments)
+        return f"{self.name}{template}({arguments})"
 
     __repr__ = __str__
 
@@ -671,7 +673,7 @@ class InlineIf(sympy.Expr, Pickable):
         return self._false_expr
 
     def __str__(self):
-        return "(%s) ? %s : %s" % (self.cond, self.true_expr, self.false_expr)
+        return f"({self.cond}) ? {self.true_expr} : {self.false_expr}"
 
     __repr__ = __str__
 
@@ -755,9 +757,9 @@ class Rvalue(sympy.Expr, Pickable):
     def __str__(self):
         rvalue = str(self.expr)
         if self.namespace:
-            rvalue = "%s::%s" % (self.namespace, rvalue)
+            rvalue = f"{self.namespace}::{rvalue}"
         if self.init:
-            rvalue = "%s%s" % (rvalue, self.init)
+            rvalue = f"{rvalue}{self.init}"
         return rvalue
 
     __repr__ = __str__

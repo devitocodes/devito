@@ -15,18 +15,14 @@ def _complex_includes(iet: Callable, lang: type[LangBB], compiler: Compiler,
     """
     Includes complex arithmetic headers for the given language, if needed.
     """
-
     # Check if there are complex numbers that always take dtype precedence
-    is_complex = False
     for f in FindSymbols().visit(iet):
         try:
             if np.issubdtype(f.dtype, np.complexfloating):
-                is_complex = True
                 break
         except TypeError:
             continue
-
-    if not is_complex:
+    else:
         return iet, {}
 
     metadata = {}

@@ -31,8 +31,8 @@ class LangMeta(type):
             raise NotImplementedError("Missing required mapping for `%s`" % k)
         return self.mapper[k]
 
-    def get(self, k):
-        return self.mapper.get(k)
+    def get(self, k, v=None):
+        return self.mapper.get(k, v)
 
 
 class LangBB(metaclass=LangMeta):

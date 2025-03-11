@@ -6,7 +6,7 @@ from devito.tools import (Bunch, float2, float3, float4, double2, double3, doubl
                           int2, int3, int4, ctypes_vector_mapper)
 from devito.tools.dtypes_lowering import dtype_mapper
 
-__all__ = ['cast_mapper', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
+__all__ = ['cast', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
            'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex']
 
 
@@ -31,7 +31,9 @@ class NoDeclStruct(ctypes.Structure):
 
 
 class c_complex(NoDeclStruct):
-    """Structure for passing complex float to C/C++"""
+    """
+    Structure for passing complex float to C/C++
+    """
 
     _fields_ = [('real', ctypes.c_float), ('imag', ctypes.c_float)]
 
@@ -43,7 +45,9 @@ class c_complex(NoDeclStruct):
 
 
 class c_double_complex(NoDeclStruct):
-    """Structure for passing complex double to C/C++"""
+    """
+    Structure for passing complex double to C/C++
+    """
 
     _fields_ = [('real', ctypes.c_double), ('imag', ctypes.c_double)]
 
@@ -62,16 +66,12 @@ class CustomType(ReservedWord):
     pass
 
 
-def cast_mapper(arg):
-    try:
-        assert len(arg) == 2 and arg[1] == '*'
-        return lambda v, dtype=None, **kw: Cast(v, dtype=arg[0], stars=arg[1], **kw)
-    except (AssertionError, TypeError):
-        return lambda v, dtype=None, **kw: Cast(v, dtype=arg, **kw)
+def cast(casttype, stars=None):
+    return lambda v, dtype=None, **kw: Cast(v, dtype=casttype, stars=stars, **kw)
 
 
-ULONG = cast_mapper(np.uint64)
-UINTP = cast_mapper((np.uint32, '*'))
+ULONG = cast(np.uint64)
+UINTP = cast(np.uint32, '*')
 
 
 # Standard ones, needed as class for e.g. single dispatch
@@ -93,5 +93,5 @@ for (base_name, dtype) in dtype_mapper.items():
     globals()[name] = type(name, (BaseCast,), {'_dtype': dtype})
     for i in ['2', '3', '4']:
         v = '%s%s' % (base_name, i)
-        globals()[v.upper()] = cast_mapper(v)
-        globals()[f'{v.upper()}P'] = cast_mapper((v, '*'))
+        globals()[v.upper()] = cast(v)
+        globals()[f'{v.upper()}P'] = cast(v, '*')

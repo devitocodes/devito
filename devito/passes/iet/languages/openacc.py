@@ -11,7 +11,7 @@ from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLan
                                          PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.CXX import CXXBB, CXXPrinter
 from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
-from devito.symbolics import FieldFromPointer, Macro, cast_mapper
+from devito.symbolics import FieldFromPointer, Macro, cast
 from devito.tools import filter_ordered, UnboundTuple
 from devito.types import Symbol
 
@@ -236,16 +236,16 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
             dpf = List(body=[
                 self.lang.mapper['map-serial-present'](hp, tdp),
-                Block(body=DummyExpr(tdp, cast_mapper(tdp.dtype)(hp, reinterpret=True)))
+                Block(body=DummyExpr(tdp, cast(tdp.dtype)(hp, reinterpret=True)))
             ])
 
             ffp = FieldFromPointer(f._C_field_dmap, f._C_symbol)
-            ctdp = cast_mapper((hp.dtype, '*'))(tdp, reinterpret=True)
-            cast = DummyExpr(ffp, ctdp)
+            ctdp = cast(hp.dtype, '*')(tdp, reinterpret=True)
+            castf = DummyExpr(ffp, ctdp)
 
             ret = Return(ctdp)
 
-            body = List(body=[init, dpf, cast, ret])
+            body = List(body=[init, dpf, castf, ret])
 
             name = self.sregistry.make_name(prefix='map_device_ptr')
             efuncs.append(make_callable(name, body, retval=hp))
@@ -266,5 +266,4 @@ class AccOrchestrator(Orchestrator):
 
 
 class AccPrinter(CXXPrinter):
-
     pass

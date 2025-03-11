@@ -891,8 +891,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Extract the `indices`, as perhaps they're explicitly provided
         dimensions, indices = cls.__indices_setup__(*args, **kwargs)
 
-        # Sympy assumptions
-
         # If it's an alias or simply has a different name, ignore `function`.
         # These cases imply the construction of a new AbstractFunction off
         # an existing one! This relieves the pressure on the caller by not

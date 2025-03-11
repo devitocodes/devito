@@ -65,7 +65,7 @@ class BasePrinter(CodePrinter):
     def doprint(self, expr, assign_to=None):
         """
         The sympy code printer does a lot of extra we do not need as we handle all of
-        it in the compiler so we directly defaults to `_print`
+        it in the compiler so we directly defaults to `_print`.
         """
         return self._print(expr)
 
@@ -75,8 +75,7 @@ class BasePrinter(CodePrinter):
         except TypeError:
             return self.dtype
         if dtype is None or np.issubdtype(dtype, np.integer):
-            real = any(isinstance(i, Float) for i in expr.atoms())
-            if real:
+            if any(isinstance(i, Float) for i in expr.atoms()):
                 try:
                     return np.promote_types(self.dtype, np.float32).type
                 except np.exceptions.DTypePromotionError:

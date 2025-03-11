@@ -138,6 +138,11 @@ class BasicOperator(Operator):
     (default) or `int64`.
     """
 
+    LINEARIZE = False
+    """
+    Linearize n-dimensional Indexeds.
+    """
+
     ERRCTL = None
     """
     Runtime error checking. If this option is enabled, the generated code will
@@ -148,11 +153,6 @@ class BasicOperator(Operator):
     _Target = None
     """
     The target language constructor, to be specified by subclasses.
-    """
-
-    LINEARIZE = False
-    """
-    Linearize n-dimensional Indexeds.
     """
 
     @classmethod
