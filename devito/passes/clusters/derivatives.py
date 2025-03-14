@@ -1,6 +1,7 @@
 from functools import singledispatch
 
 from sympy import S
+import numpy as np
 
 from devito.finite_differences import IndexDerivative
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
@@ -157,7 +158,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     # NOTE: created before recurring so that we ultimately get a sound ordering
     try:
         s = reusables.pop()
-        assert s.dtype is dtype
+        assert np.can_cast(s.dtype, dtype)
     except KeyError:
         name = sregistry.make_name(prefix='r')
         s = Symbol(name=name, dtype=dtype)
