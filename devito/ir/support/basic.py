@@ -1266,6 +1266,7 @@ class ExprGeometry:
         dims = set(as_tuple(dims))
 
         # Check bases and offsets
+        distances = {}
         for i in ['Tbases', 'Toffsets']:
             Ti0 = getattr(self, i)
             Ti1 = getattr(other, i)
@@ -1288,13 +1289,16 @@ class ExprGeometry:
 
                 distance = set(o0 - o1)
                 if len(distance) != 1:
-                    return False
+                    return {}
+                v = distance.pop()
 
                 if not d._defines & dims:
-                    if distance.pop() != 0:
-                        return False
+                    if v != 0:
+                        return {}
 
-        return True
+                distances[d] = v
+
+        return distances
 
     @cached_property
     def iinstances(self):
