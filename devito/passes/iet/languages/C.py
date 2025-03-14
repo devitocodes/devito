@@ -13,6 +13,9 @@ __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 class CBB(LangBB):
 
     mapper = {
+        # Complex
+        'includes-complex': 'complex.h',
+        # Allocs
         'header-memcpy': 'string.h',
         'host-alloc': lambda i, j, k:
             Call('posix_memalign', (i, j, k)),
@@ -24,8 +27,6 @@ class CBB(LangBB):
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k)),
-        # Complex
-        'includes-complex': 'complex.h',
     }
 
 
@@ -44,7 +45,7 @@ class CPrinter(BasePrinter, C99CodePrinter):
     _func_litterals = {np.float32: 'f', np.complex64: 'f'}
     _func_prefix = {np.float32: 'f', np.float64: 'f',
                     np.complex64: 'c', np.complex128: 'c'}
-    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
+    _includes = ['stdlib.h', 'math.h', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances

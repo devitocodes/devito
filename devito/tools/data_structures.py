@@ -267,6 +267,11 @@ class OrderedSet(OrderedDict, MutableSet):
             for e in s:
                 self.add(e)
 
+    def union(self, *args):
+        ret = OrderedSet(*self)
+        ret.update(*args)
+        return ret
+
     def add(self, elem):
         self[elem] = None
 
@@ -299,7 +304,6 @@ class OrderedSet(OrderedDict, MutableSet):
     issuperset = property(lambda self: self.__ge__)
     symmetric_difference = property(lambda self: self.__xor__)
     symmetric_difference_update = property(lambda self: self.__ixor__)
-    union = property(lambda self: self.__or__)
 
 
 class Ordering(tuple):

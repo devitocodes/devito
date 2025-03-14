@@ -649,8 +649,7 @@ class CGen(Visitor):
 
     def visit_KernelLaunch(self, o):
         if o.templates:
-            ctemplates = ','.join([str(i) for i in o.templates])
-            templates = f'<{ctemplates}>'
+            templates = f"<{','.join([str(i) for i in o.templates])}>"
         else:
             templates = ''
 
@@ -669,8 +668,29 @@ class CGen(Visitor):
     # Operator-handle machinery
 
     def _operator_includes(self, o):
+        """
+        Generate cgen includes from an iterable of symbols and expressions.
+        """
         return [c.Include(i, system=(False if i.endswith('.h') else True))
-                for i in o._includes]
+                for i in o.includes] + [blankline]
+
+    def _operator_namespaces(self, o):
+        """
+        Generate cgen namespaces from an iterable of symbols and expressions.
+        """
+        namespaces = [self._visit(i) for i in o.namespaces]
+        if namespaces:
+            namespaces.append(blankline)
+        return namespaces
+
+    def _operator_headers(self, o):
+        """
+        Generate cgen headers from an iterable of symbols and expressions.
+        """
+        headers = [c.Define(*as_tuple(i)) for i in o.headers]
+        if headers:
+            headers.append(blankline)
+        return headers
 
     def _operator_typedecls(self, o, mode='all'):
         xfilter0 = lambda i: self._gen_struct_decl(i) is not None
@@ -728,22 +748,13 @@ class CGen(Visitor):
             efuncs.extend([self._visit(i), blankline])
 
         # Definitions
-        headers = []
-        for h in o._headers:
-            try:
-                headers.append(c.Define(*h))
-            except TypeError:
-                # Plain string
-                headers.append(c.Line(h))
-        headers = headers + [blankline]
+        headers = self._operator_headers(o)
 
         # Header files
-        includes = self._operator_includes(o) + [blankline]
+        includes = self._operator_includes(o)
 
         # Namespaces
-        namespaces = [self._visit(i) for i in o._namespaces]
-        if namespaces:
-            namespaces.append(blankline)
+        namespaces = self._operator_namespaces(o)
 
         # Type declarations
         typedecls = self._operator_typedecls(o, mode)
@@ -1003,8 +1014,8 @@ class FindSymbols(Visitor):
     rules = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
-        'abstractsymbols': lambda n: [i for i in n.expr_symbols
-                                      if isinstance(i, AbstractSymbol)],
+        'symbols': lambda n: [i for i in n.expr_symbols
+                              if isinstance(i, AbstractSymbol)],
         'dimensions': lambda n: [i for i in n.expr_symbols if isinstance(i, Dimension)],
         'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
         'indexedbases': lambda n: [i for i in n.expr_symbols

@@ -21,7 +21,8 @@ from devito.symbolics import FieldFromPointer, normalize_args
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.finite_differences.tools import fd_weights_registry
 from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten,
-                          is_integer, memoized_meth, dtype_to_ctype, humanbytes)
+                          is_integer, memoized_meth, dtype_to_ctype, humanbytes,
+                          mpi4py_mapper)
 from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
@@ -786,6 +787,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         neighborhood = self._distributor.neighborhood
         comm = self._distributor.comm
+        comm_dtype = mpi4py_mapper.get(self.dtype, self.dtype)
 
         for d in self._dist_dimensions:
             for i in [LEFT, RIGHT]:
@@ -795,15 +797,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
                 # Gather send data
                 data = self._data_in_region(OWNED, d, i)
-                sendbuf = np.ascontiguousarray(data)
-                if self.dtype == np.float16:
-                    sendbuf = sendbuf.view(np.uint16)
+                sendbuf = np.ascontiguousarray(data.view(comm_dtype))
 
                 # Setup recv buffer
                 shape = self._data_in_region(HALO, d, i.flip()).shape
-                recvbuf = np.ndarray(shape=shape, dtype=self.dtype)
-                if self.dtype == np.float16:
-                    recvbuf = recvbuf.view(np.uint16)
+                recvbuf = np.ndarray(shape=shape, dtype=comm_dtype)
 
                 # Communication
                 comm.Sendrecv(sendbuf, dest=dest, recvbuf=recvbuf, source=source)

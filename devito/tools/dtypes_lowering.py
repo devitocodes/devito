@@ -15,7 +15,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
            'dtype_to_cstr', 'dtype_to_ctype', 'infer_datasize', 'dtype_to_mpitype',
            'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype', 'CustomDtype']
+           'is_external_ctype', 'infer_dtype', 'CustomDtype', 'mpi4py_mapper']
 
 
 # *** Custom np.dtypes
@@ -181,6 +181,7 @@ def infer_datasize(dtype, shape):
     return np.ctypeslib.as_ctypes_type(dtype), datasize
 
 
+mpi4py_mapper = {}
 mpi_mapper = {
     np.ubyte: 'MPI_BYTE',
     np.ushort: 'MPI_UNSIGNED_SHORT',

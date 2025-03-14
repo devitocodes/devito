@@ -16,7 +16,8 @@ from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
 from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
-                           FindNodes, IsPerfectIteration, retrieve_iteration_tree)
+                           FindNodes, IsPerfectIteration, retrieve_iteration_tree,
+                           FindSymbols)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
@@ -347,6 +348,19 @@ class TestCodeGen:
         assert np.all(np.all(u0.data[i, :] == 2) for i in [0, 3])
         assert np.all(u0.data[1, :] == 4)
         assert np.all(u0.data[2, :] == 8)
+
+    def test_scalar_type(self):
+        grid = Grid(shape=(4, 4), dtype=np.float32)
+        u = Function(name='u', grid=grid, space_order=4)
+
+        eq = Eq(u, u.laplace)
+        op0 = Operator(eq)
+        scalars = [s for s in FindSymbols().visit(op0) if s.name.startswith('r')]
+        assert all(s.dtype == np.float32 for s in scalars)
+
+        op1 = Operator(eq, opt=('advanced', {'scalar-min-type': np.float64}))
+        scalars = [s for s in FindSymbols().visit(op1) if s.name.startswith('r')]
+        assert all(s.dtype == np.float64 for s in scalars)
 
 
 class TestArithmetic:

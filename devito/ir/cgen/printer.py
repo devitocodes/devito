@@ -49,7 +49,11 @@ class BasePrinter(CodePrinter):
 
     _restrict_keyword = 'restrict'
 
-    _default_includes = []
+    _includes = []
+
+    _namespaces = []
+
+    _headers = [('_POSIX_C_SOURCE', '200809L')]
 
     @property
     def dtype(self):

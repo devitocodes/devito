@@ -144,10 +144,6 @@ class Operator(Callable):
     refer to the relevant documentation.
     """
 
-    _default_headers = [('_POSIX_C_SOURCE', '200809L')]
-    _default_globals = []
-    _default_namespaces = []
-
     def __new__(cls, expressions, **kwargs):
         if expressions is None:
             # Return a dummy Callable. This is exploited by unpickling. Users
@@ -195,11 +191,6 @@ class Operator(Callable):
         return expressions
 
     @classmethod
-    @property
-    def _default_includes(cls):
-        return cls._Target.Printer._default_includes
-
-    @classmethod
     def _build(cls, expressions, **kwargs):
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
         profiler = create_profile('timers')
@@ -212,15 +203,11 @@ class Operator(Callable):
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
-        op._headers = OrderedSet(*cls._default_headers)
-        op._headers.update(byproduct.headers)
-        op._globals = OrderedSet(*cls._default_globals)
-        op._globals.update(byproduct.globals)
-        op._includes = OrderedSet(*cls._default_includes)
-        op._includes.update(profiler._default_includes)
+        op._headers = OrderedSet(*byproduct.headers)
+        op._globals = OrderedSet(*byproduct.globals)
+        op._includes = OrderedSet(*profiler._default_includes)
         op._includes.update(byproduct.includes)
-        op._namespaces = OrderedSet(*cls._default_namespaces)
-        op._namespaces.update(byproduct.namespaces)
+        op._namespaces = OrderedSet(*byproduct.namespaces)
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
@@ -273,6 +260,9 @@ class Operator(Callable):
         """
         # Create a symbol registry
         kwargs.setdefault('sregistry', SymbolRegistry())
+        # Add lang-base kwargs
+        kwargs.setdefault('lang', cls._Target.lang())
+        kwargs.setdefault('printer', cls._Target.Printer)
 
         expressions = as_tuple(expressions)
 
@@ -480,7 +470,6 @@ class Operator(Callable):
             * Finalize (e.g., symbol definitions, array casts)
         """
         name = kwargs.get("name", "Kernel")
-        lang = cls._Target.lang()
 
         # Wrap the IET with an EntryFunction (a special Callable representing
         # the entry point of the generated library)
@@ -497,10 +486,10 @@ class Operator(Callable):
         cls._Target.instrument(graph, profiler=profiler, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
-        generate_macros(graph, lang=lang, printer=cls._Target.Printer, **kwargs)
+        generate_macros(graph, **kwargs)
 
         # Add type specific metadata
-        lower_dtypes(graph, lang=lang, **kwargs)
+        lower_dtypes(graph, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
@@ -778,6 +767,18 @@ class Operator(Callable):
     @cached_property
     def _printer(self):
         return self._Target.Printer
+
+    @cached_property
+    def headers(self):
+        return OrderedSet(*self._printer._headers).union(self._headers)
+
+    @cached_property
+    def includes(self):
+        return OrderedSet(*self._printer._includes).union(self._includes)
+
+    @cached_property
+    def namespaces(self):
+        return OrderedSet(*self._printer._namespaces).union(self._namespaces)
 
     @cached_property
     def ccode(self):

@@ -23,7 +23,7 @@ class Target:
 
     @classmethod
     def instrument(cls, *args, **kwargs):
-        instrument(*args, lang=cls.lang(), **kwargs)
+        instrument(*args, **kwargs)
 
 
 class CTarget(Target):
