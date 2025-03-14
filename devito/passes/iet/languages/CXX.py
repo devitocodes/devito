@@ -63,6 +63,11 @@ template<typename _Tp, typename _Ti>
 class CXXBB(LangBB):
 
     mapper = {
+        # Complex
+        'includes-complex': 'complex',
+        'complex-namespace': [UsingNamespace('std::complex_literals')],
+        'def-complex': std_arith(),
+        # Allocs
         'header-memcpy': 'string.h',
         'header-algorithm': 'algorithm',
         'host-alloc': lambda i, j, k:
@@ -75,10 +80,6 @@ class CXXBB(LangBB):
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k)),
-        # Complex
-        'includes-complex': 'complex',
-        'complex-namespace': [UsingNamespace('std::complex_literals')],
-        'def-complex': std_arith(),
     }
 
 
@@ -90,7 +91,7 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     _func_litterals = {}
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
     _restrict_keyword = '__restrict'
-    _default_includes = ['stdlib.h', 'cmath', 'sys/time.h']
+    _includes = ['stdlib.h', 'cmath', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances

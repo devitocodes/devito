@@ -144,6 +144,8 @@ def dont_count_if_seen(func):
 def _estimate_cost(expr, estimate, seen):
     # Retval: flops (int), flag (bool)
     # The flag tells wether it's an integer expression (implying flops==0) or not
+    if not expr.args:
+        return 0, False
     flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
     flops = sum(flops)
     if all(flags):

@@ -377,7 +377,7 @@ def get_gpu_info():
         gpu_info = homogenise_gpus(list(gpu_infos.values()))
 
         # Also attach callbacks to retrieve instantaneous memory info
-        # Now this should be done use xpu-smi but for some reason
+        # Now this should be done using xpu-smi but for some reason
         # it throws a lot of weird errors in docker so skipping for now
         for i in ['total', 'free', 'used']:
             def make_cbk(i):

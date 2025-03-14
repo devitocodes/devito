@@ -1,24 +1,33 @@
 from devito.arch import Cpu64, Intel64, Arm, Power, Device
-from devito.core.cpu import (Cpu64NoopCOperator, Cpu64NoopOmpOperator,
-                             Cpu64AdvCOperator, Cpu64AdvOmpOperator,
-                             Cpu64FsgCOperator, Cpu64FsgOmpOperator,
-                             Cpu64CustomOperator, Cpu64CustomCXXOperator,
-                             Cpu64CXXNoopCOperator, Cpu64CXXNoopOmpOperator,
-                             Cpu64AdvCXXOperator, Cpu64AdvCXXOmpOperator,
-                             Cpu64FsgCXXOperator, Cpu64FsgCXXOmpOperator)
-
-from devito.core.intel import (Intel64AdvCOperator, Intel64AdvOmpOperator,
-                               Intel64FsgCOperator, Intel64FsgOmpOperator,
-                               Intel64CXXAdvCOperator, Intel64AdvCXXOmpOperator,
-                               Intel64FsgCXXOperator, Intel64FsgCXXOmpOperator)
-from devito.core.arm import (ArmAdvCOperator, ArmAdvOmpOperator,
-                             ArmAdvCXXOperator, ArmAdvCXXOmpOperator)
-from devito.core.power import (PowerAdvCOperator, PowerAdvOmpOperator,
-                               PowerCXXAdvCOperator, PowerAdvCXXOmpOperator)
-from devito.core.gpu import (DeviceNoopOmpOperator, DeviceNoopAccOperator,
-                             DeviceAdvOmpOperator, DeviceAdvAccOperator,
-                             DeviceFsgOmpOperator, DeviceFsgAccOperator,
-                             DeviceCustomOmpOperator, DeviceCustomAccOperator)
+from devito.core.cpu import (
+    Cpu64NoopCOperator, Cpu64NoopOmpOperator,
+    Cpu64AdvCOperator, Cpu64AdvOmpOperator,
+    Cpu64FsgCOperator, Cpu64FsgOmpOperator,
+    Cpu64CustomOperator, Cpu64CustomCXXOperator,
+    Cpu64CXXNoopCOperator, Cpu64CXXNoopOmpOperator,
+    Cpu64AdvCXXOperator, Cpu64AdvCXXOmpOperator,
+    Cpu64FsgCXXOperator, Cpu64FsgCXXOmpOperator
+)
+from devito.core.intel import (
+    Intel64AdvCOperator, Intel64AdvOmpOperator,
+    Intel64FsgCOperator, Intel64FsgOmpOperator,
+    Intel64CXXAdvCOperator, Intel64AdvCXXOmpOperator,
+    Intel64FsgCXXOperator, Intel64FsgCXXOmpOperator
+)
+from devito.core.arm import (
+    ArmAdvCOperator, ArmAdvOmpOperator,
+    ArmAdvCXXOperator, ArmAdvCXXOmpOperator
+)
+from devito.core.power import (
+    PowerAdvCOperator, PowerAdvOmpOperator,
+    PowerCXXAdvCOperator, PowerAdvCXXOmpOperator
+)
+from devito.core.gpu import (
+    DeviceNoopOmpOperator, DeviceNoopAccOperator,
+    DeviceAdvOmpOperator, DeviceAdvAccOperator,
+    DeviceFsgOmpOperator, DeviceFsgAccOperator,
+    DeviceCustomOmpOperator, DeviceCustomAccOperator
+)
 from devito.operator.registry import operator_registry
 
 # Register CPU Operators
