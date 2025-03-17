@@ -42,7 +42,7 @@ class CPrinter(BasePrinter, C99CodePrinter):
 
     _default_settings = {**BasePrinter._default_settings,
                          **C99CodePrinter._default_settings}
-    _func_litterals = {np.float32: 'f', np.complex64: 'f'}
+    _func_literals = {np.float32: 'f', np.complex64: 'f'}
     _func_prefix = {np.float32: 'f', np.float64: 'f',
                     np.complex64: 'c', np.complex128: 'c'}
     _includes = ['stdlib.h', 'math.h', 'sys/time.h']

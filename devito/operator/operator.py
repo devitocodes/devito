@@ -1431,7 +1431,9 @@ def parse_kwargs(**kwargs):
 
     # `allocator`
     kwargs['allocator'] = default_allocator(
-        f"{kwargs['compiler'].__class__.__name__}.{kwargs['language']}.{kwargs['platform']}"  # noqa
+        f"{kwargs['compiler'].__class__.__name__}"
+        f".{kwargs['language']}"
+        f".{kwargs['platform']}"
     )
 
     # Normalize `subs`, if any

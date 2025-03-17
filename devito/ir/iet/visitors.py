@@ -208,7 +208,8 @@ class CGen(Visitor):
             while issubclass(ctype, ctypes._Pointer):
                 ctype = ctype._type_
 
-            if not issubclass(ctype, ctypes.Structure) or issubclass(ctype, NoDeclStruct):
+            if not issubclass(ctype, ctypes.Structure) or \
+               issubclass(ctype, NoDeclStruct):
                 return None
         except TypeError:
             # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`

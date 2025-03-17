@@ -71,7 +71,7 @@ class BasicOperator(Operator):
 
     SCALAR_MIN_TYPE = np.float16
     """
-    Minimum datatype for a scalar alias for a common sub-expression or cire temp.
+    Minimum datatype for a scalar alias for a common sub-expression or CIRE temp.
     """
 
     PAR_COLLAPSE_NCORES = 4

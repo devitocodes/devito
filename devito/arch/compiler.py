@@ -606,11 +606,8 @@ class PGICompiler(Compiler):
 
     def __init_finalize__(self, **kwargs):
 
-        self.cflags.remove(f'-std={self.std}')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-
-        self.cflags.append(f'-std={self.std}')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -659,10 +656,9 @@ class CudaCompiler(Compiler):
 
     def __init_finalize__(self, **kwargs):
 
-        self.cflags.remove(f'-std={self.std}')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags.extend([f'-std={self.std}', '-Xcompiler', '-fPIC'])
+        self.cflags.append('-Xcompiler')
 
         if configuration['mpi']:
             # We rather use `nvcc` to compile MPI, but for this we have to
@@ -732,11 +728,6 @@ class HipCompiler(Compiler):
     _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
-
-        self.cflags.remove(f'-std={self.std}')
-        self.cflags.remove('-Wall')
-        self.cflags.remove('-fPIC')
-        self.cflags.extend([f'-std={self.std}', '-fPIC'])
 
         if configuration['mpi']:
             # We rather use `hipcc` to compile MPI, but for this we have to
@@ -843,7 +834,7 @@ class OneapiCompiler(IntelCompiler):
         language = kwargs.pop('language', configuration['language'])
 
         if language == 'sycl':
-            warning("Use SyclCompiler to jit-compile sycl")
+            warning(f"Use SyclCompiler (`sycl`) to jit-compile sycl, not {self.name}")
 
         elif language == 'openmp':
             # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
@@ -899,7 +890,7 @@ class SyclCompiler(OneapiCompiler):
         language = kwargs.pop('language', configuration['language'])
 
         if language != 'sycl':
-            warning("Expected language sycl with SyclCompiler")
+            warning(f"Expected language sycl with SyclCompiler, not {language}")
 
         self.cflags.remove(f'-std={self.std}')
         self.cflags.append('-fsycl')

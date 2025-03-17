@@ -8,52 +8,54 @@ from devito.symbolics.extended_dtypes import c_complex, c_double_complex
 __all__ = ['CXXBB']
 
 
-def std_arith(qualifier=None):
-    if qualifier:
-        qual = qualifier if qualifier.endswith(" ") else f"{qualifier} "
+def std_arith(prefix=None):
+    if prefix:
+        # Method definition prefix, e.g. "__host__"
+        # Make sure there is a space between the prefix and the method name
+        prefix = prefix if prefix.endswith(" ") else f"{prefix} "
     else:
-        qual = ""
+        prefix = ""
     return f"""
 #include <complex>
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){{
+{prefix}std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){{
   return std::complex<_Tp>(b.real() * a, b.imag() * a);
 }}
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator * (const std::complex<_Tp> & b, const _Ti & a){{
+{prefix}std::complex<_Tp> operator * (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() * a, b.imag() * a);
 }}
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){{
+{prefix}std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){{
   _Tp denom = b.real() * b.real () + b.imag() * b.imag();
   return std::complex<_Tp>(b.real() * a / denom, - b.imag() * a / denom);
 }}
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator / (const std::complex<_Tp> & b, const _Ti & a){{
+{prefix}std::complex<_Tp> operator / (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() / a, b.imag() / a);
 }}
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator + (const _Ti & a, const std::complex<_Tp> & b){{
+{prefix}std::complex<_Tp> operator + (const _Ti & a, const std::complex<_Tp> & b){{
   return std::complex<_Tp>(b.real() + a, b.imag());
 }}
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){{
+{prefix}std::complex<_Tp> operator + (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() + a, b.imag());
 }}
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator - (const _Ti & a, const std::complex<_Tp> & b){{
+{prefix}std::complex<_Tp> operator - (const _Ti & a, const std::complex<_Tp> & b){{
   return std::complex<_Tp>(a = b.real(), b.imag());
 }}
 
 template<typename _Tp, typename _Ti>
-{qual}std::complex<_Tp> operator - (const std::complex<_Tp> & b, const _Ti & a){{
+{prefix}std::complex<_Tp> operator - (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() - a, b.imag());
 }}
 
@@ -88,7 +90,7 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     _default_settings = {**BasePrinter._default_settings,
                          **CXX11CodePrinter._default_settings}
     _ns = "std::"
-    _func_litterals = {}
+    _func_literals = {}
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
     _restrict_keyword = '__restrict'
     _includes = ['stdlib.h', 'cmath', 'sys/time.h']

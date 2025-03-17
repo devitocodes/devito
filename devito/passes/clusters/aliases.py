@@ -113,7 +113,7 @@ class CireTransformer:
         self.opt_rotate = options['cire-rotate']
         self.opt_ftemps = options['cire-ftemps']
         self.opt_mingain = options['cire-mingain']
-        self.opt_mindtype = options['scalar-min-type']
+        self.opt_min_dtype = options['scalar-min-type']
         self.opt_multisubdomain = True
 
     def _aliases_from_clusters(self, clusters, exclude, meta):
@@ -143,7 +143,7 @@ class CireTransformer:
 
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry,
-                                         self.opt_ftemps, self.opt_mindtype)
+                                         self.opt_ftemps, self.opt_min_dtype)
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
@@ -831,7 +831,7 @@ def optimize_schedule_rotations(schedule, sregistry):
     return schedule.rebuild(*processed, rmapper=rmapper)
 
 
-def lower_schedule(schedule, meta, sregistry, ftemps, mindtype):
+def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -849,8 +849,6 @@ def lower_schedule(schedule, meta, sregistry, ftemps, mindtype):
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
         # that would creat a temporary `int r = b` leading to erronous
         # numerical results
-        mindtype = None if writeto else mindtype
-        dtype = sympy_dtype(pivot, base=meta.dtype, smin=mindtype)
 
         if writeto:
             # The Dimensions defining the shape of Array
@@ -882,6 +880,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps, mindtype):
                     # E.g., `z` -- a non-shifted Dimension
                     indices.append(i.dim - i.lower)
 
+            dtype = sympy_dtype(pivot, base=meta.dtype)
             obj = make(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
             expression = Eq(obj[indices], uxreplace(pivot, subs))
 
@@ -890,6 +889,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps, mindtype):
             # Degenerate case: scalar expression
             assert writeto.size == 0
 
+            dtype = sympy_dtype(pivot, base=meta.dtype, smin=min_dtype)
             obj = Temp(name=name, dtype=dtype)
             expression = Eq(obj, uxreplace(pivot, subs))
 

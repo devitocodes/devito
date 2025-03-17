@@ -383,6 +383,8 @@ def get_gpu_info():
             def make_cbk(i):
                 def cbk(deviceid=0):
                     return None
+                return cbk
+
             gpu_info['mem.%s' % i] = make_cbk(i)
 
         gpu_infos['architecture'] = 'Intel'
@@ -452,7 +454,7 @@ def get_gpu_info():
         gpu_infos = []
         for line in lines:
             # Graphics cards are listed as VGA or 3D controllers in lspci
-            if 'VGA' in line or '3D' in line or 'Display' in line:
+            if any(i in line for i in ('VGA', '3D', 'Display')):
                 gpu_info = {}
                 # Lines produced by lspci command are of the form:
                 #   xxxx:xx:xx.x Device Type: Name

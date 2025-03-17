@@ -36,7 +36,8 @@ class BasePrinter(CodePrinter):
                          **CodePrinter._default_settings}
 
     _func_prefix = {}
-    _func_litterals = {}
+    _func_literals = {}
+    _prec_literals = {np.float32: 'F', np.complex64: 'F'}
 
     _qualifiers_mapper = {
         'is_const': 'const',
@@ -45,14 +46,10 @@ class BasePrinter(CodePrinter):
         '_mem_shared': '',
     }
 
-    _prec_litterals = {np.float32: 'F', np.complex64: 'F'}
-
     _restrict_keyword = 'restrict'
 
     _includes = []
-
     _namespaces = []
-
     _headers = [('_POSIX_C_SOURCE', '200809L')]
 
     @property
@@ -68,16 +65,13 @@ class BasePrinter(CodePrinter):
 
     def doprint(self, expr, assign_to=None):
         """
-        The sympy code printer does a lot of extra we do not need as we handle all of
-        it in the compiler so we directly defaults to `_print`.
+        The sympy code printer does a lot of extra things we do not need
+        as we handle all of it in the compiler so we directly default to `_print`.
         """
         return self._print(expr)
 
     def _prec(self, expr):
-        try:
-            dtype = sympy_dtype(expr, default=self.dtype)
-        except TypeError:
-            return self.dtype
+        dtype = sympy_dtype(expr, default=self.dtype)
         if dtype is None or np.issubdtype(dtype, np.integer):
             if any(isinstance(i, Float) for i in expr.atoms()):
                 try:
@@ -91,17 +85,19 @@ class BasePrinter(CodePrinter):
             return dtype or self.dtype
 
     def prec_literal(self, expr):
-        return self._prec_litterals.get(self._prec(expr), '')
+        return self._prec_literals.get(self._prec(expr), '')
 
     def func_literal(self, expr):
-        return self._func_litterals.get(self._prec(expr), '')
+        return self._func_literals.get(self._prec(expr), '')
 
     def func_prefix(self, expr, mfunc=False):
         prefix = self._func_prefix.get(self._prec(expr), '')
         if mfunc:
             return prefix
+        elif prefix == 'f':
+            return ''
         else:
-            return '' if prefix == 'f' else prefix
+            return prefix
 
     def parenthesize(self, item, level, strict=False):
         if isinstance(item, BooleanFunction):
@@ -271,7 +267,7 @@ class BasePrinter(CodePrinter):
         arg = expr.args[0]
         # AOMPCC errors with abs, always use fabs
         if isinstance(self.compiler, AOMPCompiler) and \
-                not np.issubdtype(self._prec(expr), np.integer):
+           not np.issubdtype(self._prec(expr), np.integer):
             return f"fabs({self._print(arg)})"
         return self._print_fmath_func('abs', expr)
 
