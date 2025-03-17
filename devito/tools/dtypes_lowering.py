@@ -325,6 +325,16 @@ def is_external_ctype(ctype, includes):
     return False
 
 
+def is_numpy_dtype(dtype):
+    """
+    True if `dtype` is a numpy dtype, False otherwise.
+    """
+    try:
+        return issubclass(dtype, np.generic)
+    except TypeError:
+        return False
+
+
 def infer_dtype(dtypes):
     """
     Given a set of np.dtypes, return the "winning" dtype:
@@ -335,7 +345,9 @@ def infer_dtype(dtypes):
     """
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
-
+    # Only keep number types
+    dtypes = {i for i in dtypes if is_numpy_dtype(i)}
+    # Separate floating point types from the rest
     fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
                np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:

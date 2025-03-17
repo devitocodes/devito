@@ -70,7 +70,10 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     """
     min_cost = options['cse-min-cost']
     mode = options['cse-algo']
-    dtype = np.promote_types(options['scalar-min-type'], cluster.dtype).type
+    try:
+        dtype = np.promote_types(options['scalar-min-type'], cluster.dtype).type
+    except TypeError:
+        dtype = cluster.dtype
 
     if cluster.is_fence:
         return cluster

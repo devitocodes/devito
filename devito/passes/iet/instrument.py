@@ -121,12 +121,12 @@ def instrument_sections(iet, **kwargs):
 
 
 @iet_pass
-def sync_sections(iet, lang=None, profiler=None, **kwargs):
+def sync_sections(iet, langbb=None, profiler=None, **kwargs):
     """
     Wrap sections within global barriers if deemed necessary by the profiler.
     """
     try:
-        sync = lang['map-wait']
+        sync = langbb['map-wait']
     except (KeyError, NotImplementedError):
         return iet, {}
 
@@ -137,7 +137,7 @@ def sync_sections(iet, lang=None, profiler=None, **kwargs):
     for tl in FindNodes(TimedList).visit(iet):
         symbols = FindSymbols().visit(tl)
 
-        queues = [i for i in symbols if isinstance(i, lang.AsyncQueue)]
+        queues = [i for i in symbols if isinstance(i, langbb.AsyncQueue)]
         unnecessary = any(FindNodes(BusyWait).visit(tl))
         if queues and not unnecessary:
             waits = tuple(sync(i) for i in queues)

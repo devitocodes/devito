@@ -185,10 +185,11 @@ class Compiler(GCCToolchain):
     _cstd = 'c99'
 
     def __init__(self, **kwargs):
-        name = kwargs.pop('name', self.__class__.__name__)
-        if isinstance(name, Compiler):
-            name = name.name
-        self._name = name
+        maybe_name = kwargs.pop('name', self.__class__.__name__)
+        if isinstance(maybe_name, Compiler):
+            self._name = maybe_name.name
+        else:
+            self._name = maybe_name
 
         super().__init__(**kwargs)
 
@@ -658,7 +659,7 @@ class CudaCompiler(Compiler):
 
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags.append('-Xcompiler')
+        self.cflags.extend(['-Xcompiler', '-fPIC'])
 
         if configuration['mpi']:
             # We rather use `nvcc` to compile MPI, but for this we have to

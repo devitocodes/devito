@@ -144,7 +144,7 @@ def generate_macros(graph, **kwargs):
 
 
 @iet_pass
-def _generate_macros(iet, tracker=None, lang=None, **kwargs):
+def _generate_macros(iet, tracker=None, langbb=None, **kwargs):
     # Derive the Macros necessary for the FIndexeds
     iet = _generate_macros_findexeds(iet, tracker=tracker, **kwargs)
 
@@ -155,7 +155,7 @@ def _generate_macros(iet, tracker=None, lang=None, **kwargs):
                      for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    mheaders, includes = _generate_macros_math(iet, lang=lang)
+    mheaders, includes = _generate_macros_math(iet, langbb=langbb)
     includes = sorted(includes, key=str)
     headers.extend(sorted(mheaders, key=str))
 
@@ -199,11 +199,11 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
     return iet
 
 
-def _generate_macros_math(iet, lang=None):
+def _generate_macros_math(iet, langbb=None):
     headers = []
     includes = []
     for i in FindApplications().visit(iet):
-        header, include = _lower_macro_math(i, lang)
+        header, include = _lower_macro_math(i, langbb)
         headers.extend(header)
         includes.extend(include)
 
@@ -211,30 +211,30 @@ def _generate_macros_math(iet, lang=None):
 
 
 @singledispatch
-def _lower_macro_math(expr, lang):
+def _lower_macro_math(expr, langbb):
     return (), {}
 
 
 @_lower_macro_math.register(Min)
 @_lower_macro_math.register(sympy.Min)
-def _(expr, lang):
+def _(expr, langbb):
     if has_integer_args(*expr.args):
         return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),), {}
     else:
-        return (), as_tuple(lang.get('header-algorithm'))
+        return (), as_tuple(langbb.get('header-algorithm'))
 
 
 @_lower_macro_math.register(Max)
 @_lower_macro_math.register(sympy.Max)
-def _(expr, lang):
+def _(expr, langbb):
     if has_integer_args(*expr.args):
         return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),), {}
     else:
-        return (), as_tuple(lang.get('header-algorithm'))
+        return (), as_tuple(langbb.get('header-algorithm'))
 
 
 @_lower_macro_math.register(SafeInv)
-def _(expr, lang):
+def _(expr, langbb):
     try:
         eps = np.finfo(expr.base.dtype).resolution**2
     except ValueError:

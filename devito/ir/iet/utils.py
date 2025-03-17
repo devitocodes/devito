@@ -1,3 +1,5 @@
+import numpy as np
+
 from devito.ir.iet import FindSections, FindSymbols
 from devito.symbolics import Keyword, Macro
 from devito.tools import filter_ordered
@@ -166,3 +168,20 @@ def maybe_alias(obj, candidate):
         # the __rkwargs__ except for e.g. the name
 
     return False
+
+
+def has_dtype(iet, dtype):
+    """
+    Check if the given IET has at least one symbol with the given dtype or
+    dtype kind.
+    """
+    for f in FindSymbols().visit(iet):
+        try:
+            # Check if the dtype matches exactly (dtype input)
+            # or matches the generic kind (dtype generic input)
+            if np.issubdtype(f.dtype, dtype) or f.dtype == dtype:
+                return True
+        except TypeError:
+            continue
+    else:
+        return False
