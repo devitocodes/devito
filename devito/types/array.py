@@ -90,16 +90,18 @@ class Array(ArrayBasic):
         to 'local'. Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack',
-        'static', 'constant', 'shared', 'shared-remote'. 'static' refers to a
-        static array in a C/C++ sense. 'constant' and 'shared' mean that the
-        Array represents an object allocated in so called constant and shared
-        memory, respectively, which are typical of device architectures. If
-        'shared' is specified but the underlying architecture doesn't have
-        something akin to shared memory, the behaviour is unspecified. If
-        'constant' is specified but the underlying architecture doesn't have
-        something akin to constant memory, the Array falls back to a global,
-        const, static array in a C/C++ sense.  Note that not all scopes make
-        sense for a given space.
+        'static', 'constant', 'shared', 'shared-remote', 'registers'.
+        'static' refers to a static array in a C/C++ sense. 'constant' and
+        'shared' mean that the Array represents an object allocated in so
+        called constant and shared memory, respectively, which are typical of
+        device architectures. If 'shared' is specified but the underlying
+        architecture doesn't have something akin to shared memory, the
+        behaviour is unspecified. If 'constant' is specified but the underlying
+        architecture doesn't have something akin to constant memory, the Array
+        falls back to a global, const, static array in a C/C++ sense.
+        'registers' is used to indicate that the Array has a small static size
+        and, as such, it could be allocated in registers. Defaults to 'heap'.
+        Note that not all scopes make sense for a given space.
     grid : Grid, optional
         Only necessary for distributed-memory parallelism; a Grid contains
         information about the distributed Dimensions, hence it is necessary
@@ -133,7 +135,7 @@ class Array(ArrayBasic):
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared',
-                               'shared-remote']
+                               'shared-remote', 'registers']
 
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
@@ -166,7 +168,7 @@ class Array(ArrayBasic):
 
     @property
     def _mem_stack(self):
-        return self._scope in ('stack', 'shared')
+        return self._scope in ('stack', 'shared', 'registers')
 
     @property
     def _mem_heap(self):
@@ -179,6 +181,10 @@ class Array(ArrayBasic):
     @property
     def _mem_shared_remote(self):
         return self._scope == 'shared-remote'
+
+    @property
+    def _mem_registers(self):
+        return self._scope == 'registers'
 
     @property
     def _mem_constant(self):
