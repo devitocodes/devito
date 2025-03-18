@@ -162,7 +162,7 @@ class AccBB(PragmaLangBB):
 
 class DeviceAccizer(PragmaDeviceAwareTransformer):
 
-    lang = AccBB
+    langbb = AccBB
 
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
@@ -187,7 +187,7 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
 
 class DeviceAccDataManager(DeviceAwareDataManager):
 
-    lang = AccBB
+    langbb = AccBB
 
     @iet_pass
     def place_devptr(self, iet, **kwargs):
@@ -235,7 +235,7 @@ class DeviceAccDataManager(DeviceAwareDataManager):
             init = DummyExpr(tdp, 0, init=True)
 
             dpf = List(body=[
-                self.lang.mapper['map-serial-present'](hp, tdp),
+                self.langbb.mapper['map-serial-present'](hp, tdp),
                 Block(body=DummyExpr(tdp, cast(tdp.dtype)(hp, reinterpret=True)))
             ])
 
@@ -262,7 +262,7 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
 
 class AccOrchestrator(Orchestrator):
-    lang = AccBB
+    langbb = AccBB
 
 
 class AccPrinter(CXXPrinter):

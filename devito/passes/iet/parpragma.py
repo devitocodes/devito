@@ -50,10 +50,10 @@ class PragmaSimdTransformer(PragmaTransformer):
         indexeds = FindSymbols('indexeds').visit(iet)
         aligned = {i.base for i in indexeds if i.function.is_DiscreteFunction}
         if aligned:
-            simd = self.lang['simd-for-aligned']
+            simd = self.langbb['simd-for-aligned']
             simd = as_tuple(simd(self.simd_reg_nbytes, *aligned))
         else:
-            simd = as_tuple(self.lang['simd-for'])
+            simd = as_tuple(self.langbb['simd-for'])
 
         return simd
 
@@ -239,7 +239,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
         elif all(i is OpInc for _, _, i in reductions):
             # Use atomic increments
-            mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
+            mapper = {i: i._rebuild(pragmas=self.langbb['atomic']) for i in exprs}
         else:
             raise NotImplementedError
 
@@ -319,7 +319,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             vexpandeds.append(VExpanded(i, pi))
 
         if vexpandeds:
-            init = self.lang['thread-num'](retobj=self.threadid)
+            init = self.langbb['thread-num'](retobj=self.threadid)
             prefix = List(body=[init] + vexpandeds + list(partree.prefix),
                           footer=c.Line())
             partree = partree._rebuild(prefix=prefix)
@@ -417,7 +417,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'includes': [self.lang['header']]}
+        return iet, {'includes': [self.langbb['header']]}
 
     def make_parallel(self, graph):
         return self._make_parallel(graph, sync_mapper=graph.sync_mapper)

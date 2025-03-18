@@ -71,7 +71,7 @@ class CXXBB(LangBB):
         'def-complex': std_arith(),
         # Allocs
         'header-memcpy': 'string.h',
-        'header-algorithm': 'algorithm',
+        'header-math': 'algorithm',
         'host-alloc': lambda i, j, k:
             Call('posix_memalign', (i, j, k)),
         'host-alloc-pin': lambda i, j, k:

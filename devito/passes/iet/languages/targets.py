@@ -18,8 +18,8 @@ class Target:
     Printer = None
 
     @classmethod
-    def lang(cls):
-        return cls.Parizer.lang
+    def langbb(cls):
+        return cls.Parizer.langbb
 
     @classmethod
     def instrument(cls, *args, **kwargs):

@@ -261,7 +261,7 @@ class Operator(Callable):
         # Create a symbol registry
         kwargs.setdefault('sregistry', SymbolRegistry())
         # Add lang-base kwargs
-        kwargs.setdefault('langbb', cls._Target.lang())
+        kwargs.setdefault('langbb', cls._Target.langbb())
         kwargs.setdefault('printer', cls._Target.Printer)
 
         expressions = as_tuple(expressions)

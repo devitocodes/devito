@@ -221,7 +221,7 @@ def _(expr, langbb):
     if has_integer_args(*expr.args):
         return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),), {}
     else:
-        return (), as_tuple(langbb.get('header-algorithm'))
+        return (), as_tuple(langbb.get('header-math'))
 
 
 @_lower_macro_math.register(Max)
@@ -230,7 +230,7 @@ def _(expr, langbb):
     if has_integer_args(*expr.args):
         return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),), {}
     else:
-        return (), as_tuple(langbb.get('header-algorithm'))
+        return (), as_tuple(langbb.get('header-math'))
 
 
 @_lower_macro_math.register(SafeInv)
@@ -238,7 +238,7 @@ def _(expr, langbb):
     try:
         eps = np.finfo(expr.base.dtype).resolution**2
     except ValueError:
-        warning(f"Warning: dtype not recognized in SafeInv for {expr.base}")
+        warning(f"dtype not recognized in SafeInv for {expr.base}, assuming float32")
         eps = np.finfo(np.float32).resolution**2
     b = Cast('b', dtype=np.float32)
     return (('SAFEINV(a, b)',

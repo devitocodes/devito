@@ -70,7 +70,7 @@ class Storage(OrderedDict):
 
 class DataManager:
 
-    lang = LangBB
+    langbb = LangBB
     """
     The language used to express data allocations, deletions, and host-device transfers.
     """
@@ -127,13 +127,13 @@ class DataManager:
         name = self.sregistry.make_name(prefix='init_global')
         nbytes = SizeOf(obj._C_typedata)*obj.size
         body = [Definition(src),
-                self.lang['alloc-global-symbol'](obj.indexed, src.indexed, nbytes)]
+                self.langbb['alloc-global-symbol'](obj.indexed, src.indexed, nbytes)]
         efunc = make_callable(name, body)
         alloc = Call(name, efunc.parameters)
 
         storage.update(obj, site, allocs=alloc, efuncs=efunc)
 
-        return self.lang['header-memcpy']
+        return self.langbb['header-memcpy']
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
@@ -150,9 +150,9 @@ class DataManager:
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)*obj.size
-        alloc = self.lang['host-alloc'](memptr, alignment, nbytes)
+        alloc = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
-        free = self.lang['host-free'](obj._C_symbol)
+        free = self.langbb['host-free'](obj._C_symbol)
 
         storage.update(obj, site, allocs=(decl, alloc), frees=free)
 
@@ -172,7 +172,7 @@ class DataManager:
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
-        allocs = [self.lang['host-alloc'](memptr, alignment, nbytes)]
+        allocs = [self.langbb['host-alloc'](memptr, alignment, nbytes)]
 
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
         nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
@@ -180,7 +180,7 @@ class DataManager:
         # Allocate the underlying host data
         ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         memptr = VOID(Byref(ffp0), '**')
-        allocs.append(self.lang['host-alloc-pin'](memptr, alignment, nbytes_param))
+        allocs.append(self.langbb['host-alloc-pin'](memptr, alignment, nbytes_param))
 
         # Initialize the Array struct
         ffp1 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
@@ -188,8 +188,8 @@ class DataManager:
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
         init1 = DummyExpr(ffp2, 0)
 
-        frees = [self.lang['host-free-pin'](ffp0),
-                 self.lang['host-free'](obj._C_symbol)]
+        frees = [self.langbb['host-free-pin'](ffp0),
+                 self.langbb['host-free'](obj._C_symbol)]
 
         # Allocate the underlying device data, if required by the backend
         alloc, free = self._make_dmap_allocfree(obj, nbytes_param)
@@ -226,7 +226,7 @@ class DataManager:
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
-        alloc = self.lang['host-alloc'](memptr, alignment, nbytes)
+        alloc = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
         nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
@@ -237,7 +237,7 @@ class DataManager:
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
         init1 = DummyExpr(ffp2, 0)
 
-        free = self.lang['host-free'](obj._C_symbol)
+        free = self.langbb['host-free'](obj._C_symbol)
 
         ret = Return(obj._C_symbol)
 
@@ -277,17 +277,17 @@ class DataManager:
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata, stars='*')*obj.dim.symbolic_size
-        alloc0 = self.lang['host-alloc'](memptr, alignment, nbytes)
+        alloc0 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
-        free0 = self.lang['host-free'](obj._C_symbol)
+        free0 = self.langbb['host-free'](obj._C_symbol)
 
         # The pointee Array
         pobj = IndexedPointer(obj._C_symbol, obj.dim)
         memptr = VOID(Byref(pobj), '**')
         nbytes = SizeOf(obj._C_typedata)*obj.array.size
-        alloc1 = self.lang['host-alloc'](memptr, alignment, nbytes)
+        alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
-        free1 = self.lang['host-free'](pobj)
+        free1 = self.langbb['host-free'](pobj)
 
         # Dump
         if obj.dim is self.sregistry.threadid:
@@ -322,15 +322,15 @@ class DataManager:
             allocs = as_list(cbody.allocs) + flatten(v.allocs)
             stacks = as_list(cbody.stacks) + flatten(v.stacks)
             for tid, body in as_mapper(v.pallocs, itemgetter(0), itemgetter(1)).items():
-                header = self.lang.Region._make_header(tid.symbolic_size)
-                init = self.lang['thread-num'](retobj=tid)
+                header = self.langbb.Region._make_header(tid.symbolic_size)
+                init = self.langbb['thread-num'](retobj=tid)
                 allocs.append(Block(header=header, body=[init] + body))
 
             # frees/pfrees
             frees = []
             for tid, body in as_mapper(v.pfrees, itemgetter(0), itemgetter(1)).items():
-                header = self.lang.Region._make_header(tid.symbolic_size)
-                init = self.lang['thread-num'](retobj=tid)
+                header = self.langbb.Region._make_header(tid.symbolic_size)
+                init = self.langbb['thread-num'](retobj=tid)
                 frees.append(Block(header=header, body=[init] + body))
             frees.extend(as_list(cbody.frees) + flatten(v.frees))
 
@@ -455,7 +455,7 @@ class DataManager:
         bases = [i for i in bases if i.name != i.function._C_name]
 
         # Create and attach the type casts
-        casts = tuple(self.lang.PointerCast(i.function, obj=i) for i in bases
+        casts = tuple(self.langbb.PointerCast(i.function, obj=i) for i in bases
                       if i not in defines)
         if casts:
             iet = iet._rebuild(body=iet.body._rebuild(casts=casts + iet.body.casts))
@@ -483,9 +483,9 @@ class DeviceAwareDataManager(DataManager):
         """
         Allocate a local Array in the device high bandwidth memory.
         """
-        deviceid = DefFunction(self.lang['device-get'].name)
-        doalloc = self.lang['device-alloc']
-        dofree = self.lang['device-free']
+        deviceid = DefFunction(self.langbb['device-get'].name)
+        doalloc = self.langbb['device-alloc']
+        dofree = self.langbb['device-free']
 
         nbytes = SizeOf(obj._C_typedata)*obj.size
         init = doalloc(nbytes, deviceid, retobj=obj)
@@ -503,8 +503,8 @@ class DeviceAwareDataManager(DataManager):
         if not obj._mem_mapped:
             return
 
-        mmap = self.lang._map_alloc(obj)
-        unmap = self.lang._map_delete(obj)
+        mmap = self.langbb._map_alloc(obj)
+        unmap = self.langbb._map_delete(obj)
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
 
@@ -521,22 +521,22 @@ class DeviceAwareDataManager(DataManager):
         """
         if read_only is False:
             if is_gpu_create(obj, self.gpu_create):
-                mmap = self.lang._map_alloc(obj)
+                mmap = self.langbb._map_alloc(obj)
 
                 efuncs, init = make_zero_init(obj, self.rcompile, self.sregistry)
 
                 mmap = (mmap, init)
             else:
-                mmap = self.lang._map_to(obj)
+                mmap = self.langbb._map_to(obj)
                 efuncs = ()
 
             # Copy back to host memory, release device memory
-            unmap = (self.lang._map_update(obj),
-                     self.lang._map_release(obj, devicerm=devicerm))
+            unmap = (self.langbb._map_update(obj),
+                     self.langbb._map_release(obj, devicerm=devicerm))
         else:
-            mmap = self.lang._map_to(obj)
+            mmap = self.langbb._map_to(obj)
             efuncs = ()
-            unmap = self.lang._map_delete(obj, devicerm=devicerm)
+            unmap = self.langbb._map_delete(obj, devicerm=devicerm)
 
         storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efuncs)
 
@@ -587,7 +587,7 @@ class DeviceAwareDataManager(DataManager):
         dmaps = [i for i in FindSymbols('basics').visit(iet)
                  if isinstance(i, DeviceMap) and i not in defines]
 
-        maps = [self.lang.PointerCast(i.function, obj=i) for i in dmaps]
+        maps = [self.langbb.PointerCast(i.function, obj=i) for i in dmaps]
         body = iet.body._rebuild(maps=iet.body.maps + tuple(maps))
         iet = iet._rebuild(body=body)
 

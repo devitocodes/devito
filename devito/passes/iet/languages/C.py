@@ -31,11 +31,11 @@ class CBB(LangBB):
 
 
 class CDataManager(DataManager):
-    lang = CBB
+    langbb = CBB
 
 
 class COrchestrator(Orchestrator):
-    lang = CBB
+    langbb = CBB
 
 
 class CPrinter(BasePrinter, C99CodePrinter):
