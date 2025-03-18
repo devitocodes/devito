@@ -13,6 +13,7 @@ from devito.finite_differences.differentiable import (
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
+from devito.symbolics.unevaluation import Mul as UMul, Pow as UPow
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.basic import Basic, Indexed
 from devito.types.array import ComponentAccess
@@ -337,13 +338,13 @@ def pow_to_mul(expr):
             # but at least we traverse the base looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
-            return Mul(*[pow_to_mul(base)]*int(exp), evaluate=False)
+            return UMul(*[pow_to_mul(base)]*int(exp), evaluate=False)
         else:
             # SymPy represents 1/x as Pow(x,-1). Also, it represents
             # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
             # but just in case SymPy changes its internal conventions...
             posexpr = Mul(*[base]*(-int(exp)), evaluate=False)
-            return Pow(posexpr, -1, evaluate=False)
+            return UPow(posexpr, -1, evaluate=False)
     else:
         args = [pow_to_mul(i) for i in expr.args]
 

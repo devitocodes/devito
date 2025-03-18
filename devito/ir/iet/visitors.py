@@ -629,8 +629,10 @@ class CGen(Visitor):
                 if body:
                     body.append(c.Line())
                 body.extend(as_tuple(v))
+
         captures = [str(i) for i in o.captures]
         decls = [i.inline() for i in self._args_decl(o.parameters)]
+
         extra = []
         if o.special:
             extra.append(' ')
@@ -638,10 +640,8 @@ class CGen(Visitor):
         if o.attributes:
             extra.append(' ')
             extra.append(' '.join(f'[[{i}]]' for i in o.attributes))
-        ccapt = ', '.join(captures)
-        cdecls = ', '.join(decls)
-        cextra = ''.join(extra)
-        top = c.Line(f'[{ccapt}]({cdecls}){cextra}')
+
+        top = c.Line(f"[{', '.join(captures)}]({', '.join(decls)}){''.join(extra)}")
         return LambdaCollection([top, c.Block(body)])
 
     def visit_HaloSpot(self, o):

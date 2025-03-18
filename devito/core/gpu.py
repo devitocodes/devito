@@ -40,9 +40,6 @@ class DeviceOperatorMixin:
         o['mpi'] = oo.pop('mpi')
         o['parallel'] = True
 
-        # Minimum scalar type
-        o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
-
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
 
@@ -98,6 +95,7 @@ class DeviceOperatorMixin:
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)
         o['errctl'] = oo.pop('errctl', cls.ERRCTL)
+        o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
 
         if oo:
             raise InvalidOperator("Unsupported optimization options: [%s]"

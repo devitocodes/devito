@@ -79,7 +79,7 @@ class Grid(CartesianDiscretization, ArgProvider):
     shape : tuple of ints
         Shape of the computational domain in grid points.
     extent : tuple of values interpretable as dtype, default=unit box of extent 1m
-    in all dimensions
+    in all dimensions.
         Physical extent of the domain in m.
     origin : tuple of values interpretable as dtype, default=0.0 in all dimensions
         Physical coordinate of the origin of the domain.

@@ -32,9 +32,6 @@ class Cpu64OperatorMixin:
         o['mpi'] = oo.pop('mpi')
         o['parallel'] = o['openmp']  # Backwards compatibility
 
-        # Minimum scalar type
-        o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
-
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
 
@@ -87,6 +84,7 @@ class Cpu64OperatorMixin:
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)
         o['errctl'] = oo.pop('errctl', cls.ERRCTL)
+        o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)

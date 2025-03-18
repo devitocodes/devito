@@ -23,7 +23,8 @@ from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
 from devito.types.basic import BoundSymbol, AbstractSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
-                              CallFromPointer, DefFunction, Cast, SizeOf)
+                              CallFromPointer, DefFunction, Cast, SizeOf,
+                              pow_to_mul)
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
@@ -608,6 +609,18 @@ class TestBasic:
         new_un = pickle.loads(pkl_un)
 
         assert un == new_un
+
+    def test_pow_to_mul(self, pickle):
+        grid = Grid(shape=(3,))
+        f = Function(name='f', grid=grid)
+        expr = pow_to_mul(f ** 2)
+
+        assert expr.is_Mul
+
+        pkl_expr = pickle.dumps(expr)
+        new_expr = pickle.loads(pkl_expr)
+
+        assert new_expr.is_Mul
 
 
 class TestAdvanced:

@@ -6,6 +6,7 @@ import sympy
 
 from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
+from devito.logger import warning
 from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
                        FindApplications, FindNodes, FindSymbols, Transformer,
                        Uxreplace, filter_iterations, retrieve_iteration_tree,
@@ -144,13 +145,12 @@ def generate_macros(graph, **kwargs):
 
 
 @iet_pass
-def _generate_macros(iet, tracker=None, langbb=None, **kwargs):
+def _generate_macros(iet, tracker=None, langbb=None, printer=CPrinter, **kwargs):
     # Derive the Macros necessary for the FIndexeds
     iet = _generate_macros_findexeds(iet, tracker=tracker, **kwargs)
 
     # NOTE: sorting is necessary to ensure deterministic code generation
     headers = [i.header for i in tracker.values()]
-    printer = kwargs.get('printer', CPrinter)
     headers = sorted((printer()._print(define), printer()._print(expr))
                      for define, expr in headers)
 
@@ -238,7 +238,7 @@ def _(expr, langbb):
     try:
         eps = np.finfo(expr.base.dtype).resolution**2
     except ValueError:
-        print(f"Warning: dtype not recognized in SafeInv for {expr.base}")
+        warning(f"Warning: dtype not recognized in SafeInv for {expr.base}")
         eps = np.finfo(np.float32).resolution**2
     b = Cast('b', dtype=np.float32)
     return (('SAFEINV(a, b)',
