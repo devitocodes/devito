@@ -3,11 +3,13 @@ from functools import singledispatch
 import numpy as np
 from sympy import (Function, Indexed, Integer, Mul, Number,
                    Pow, S, Symbol, Tuple)
+from sympy.core.numbers import ImaginaryUnit
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.logger import warning
-from devito.symbolics.extended_sympy import (INT, CallFromPointer, Cast,
+from devito.symbolics.extended_dtypes import INT
+from devito.symbolics.extended_sympy import (CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, prod
@@ -142,6 +144,8 @@ def dont_count_if_seen(func):
 def _estimate_cost(expr, estimate, seen):
     # Retval: flops (int), flag (bool)
     # The flag tells wether it's an integer expression (implying flops==0) or not
+    if not expr.args:
+        return 0, False
     flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
     flops = sum(flops)
     if all(flags):
@@ -168,6 +172,7 @@ def _(expr, estimate, seen):
     return 0, True
 
 
+@_estimate_cost.register(ImaginaryUnit)
 @_estimate_cost.register(Number)
 @_estimate_cost.register(ReservedWord)
 def _(expr, estimate, seen):
@@ -190,6 +195,8 @@ def _(expr, estimate, seen):
     flops, flags = _estimate_cost.registry[object](expr, estimate, seen)
     if {S.One, S.NegativeOne}.intersection(expr.args):
         flops -= 1
+    if ImaginaryUnit in expr.args:
+        flops *= 2
     return flops, flags
 
 
@@ -282,7 +289,9 @@ def has_integer_args(*args):
     res = True
     for a in args:
         try:
-            if len(a.args) > 0:
+            if isinstance(a, INT):
+                res = res and True
+            elif len(a.args) > 0:
                 res = res and has_integer_args(*a.args)
             else:
                 res = res and has_integer_args(a)
@@ -291,14 +300,31 @@ def has_integer_args(*args):
     return res
 
 
-def sympy_dtype(expr, base=None):
+def sympy_dtype(expr, base=None, default=None, smin=None):
     """
     Infer the dtype of the expression.
     """
+    if expr is None:
+        return default
+
     dtypes = {base} - {None}
     for i in expr.free_symbols:
         try:
             dtypes.add(i.dtype)
         except AttributeError:
             pass
-    return infer_dtype(dtypes)
+
+    dtype = infer_dtype(dtypes)
+
+    # Promote if we missed complex number, i.e f + I
+    is_im = np.issubdtype(dtype, np.complexfloating)
+    if expr.has(ImaginaryUnit) and not is_im:
+        if dtype is None:
+            dtype = default or np.complex64
+        else:
+            dtype = np.promote_types(dtype, np.complex64).type
+
+    if smin is not None and not np.issubdtype(dtype, np.integer):
+        dtype = np.promote_types(dtype, smin).type
+
+    return dtype

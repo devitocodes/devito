@@ -13,6 +13,7 @@ from devito.finite_differences.differentiable import (
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
+from devito.symbolics.unevaluation import Mul as UMul
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.basic import Basic, Indexed
 from devito.types.array import ComponentAccess
@@ -128,7 +129,10 @@ def _(mapper, rule):
 
 @singledispatch
 def _uxreplace_handle(expr, args, kwargs):
-    return expr.func(*args)
+    try:
+        return expr.func(*args, evaluate=False)
+    except TypeError:
+        return expr.func(*args)
 
 
 @_uxreplace_handle.register(Min)
@@ -329,24 +333,25 @@ def pow_to_mul(expr):
         if exp > 10 or exp < -10 or exp == 0:
             # Large powers remain untouched
             return expr
-        elif exp == -1 or (int(exp) - exp != 0):
-            # Reciprocals and fractional powers also remain untouched,
+        elif (int(exp) - exp != 0):
+            # Fractional powers also remain untouched,
             # but at least we traverse the base looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
-            return Mul(*[pow_to_mul(base)]*int(exp), evaluate=False)
+            return UMul(*[pow_to_mul(base)]*int(exp), evaluate=False)
+        elif exp < 0:
+            # Reciprocal powers become inverse of the negative power
+            # for example Pow(expr, -2) becomes Pow(expr * expr, -1)
+            return expr.func(pow_to_mul(base**(-int(exp))), -1, evaluate=False)
         else:
-            # SymPy represents 1/x as Pow(x,-1). Also, it represents
-            # 2/x as Mul(2, Pow(x, -1)). So we shouldn't end up here,
-            # but just in case SymPy changes its internal conventions...
-            posexpr = Mul(*[base]*(-int(exp)), evaluate=False)
-            return Pow(posexpr, -1, evaluate=False)
+            # Default. We should not end up here as all cases are handled
+            return expr
     else:
         args = [pow_to_mul(i) for i in expr.args]
 
         # Some SymPy versions will evaluate the two-args case
         # `(negative integer, mul)` despite the `evaluate=False`. For example,
-        # `Mul(-2, a*a, evaluate=False)` gets evaluated to `-2/a**2`. By swapping
+        # `Mul(-2, 1/a*a, evaluate=False)` gets evaluated to `-2/a**2`. By swapping
         # the args, the issue disappears...
         try:
             a0, a1 = args
@@ -393,7 +398,7 @@ def normalize_args(args):
     for k, v in args.items():
         try:
             retval[k] = sympify(v, strict=True)
-        except SympifyError:
+        except (TypeError, SympifyError):
             continue
 
     return retval

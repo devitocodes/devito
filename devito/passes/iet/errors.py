@@ -6,7 +6,7 @@ from devito.ir.iet import (Call, Conditional, DummyExpr, EntryFunction, Iteratio
                            List, Break, Return, FindNodes, FindSymbols, Transformer,
                            make_callable)
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import CondEq, DefFunction
+from devito.symbolics import CondEq, MathFunction
 from devito.tools import dtype_to_ctype
 from devito.types import Eq, Inc, LocalObject, Symbol
 
@@ -58,7 +58,7 @@ def _check_stability(iet, wmovs=(), rcompile=None, sregistry=None):
         irs, byproduct = rcompile(eqns)
 
         name = sregistry.make_name(prefix='is_finite')
-        retval = Return(DefFunction('isfinite', accumulator))
+        retval = Return(MathFunction('isfinite', accumulator))
         body = irs.iet.body.body + (retval,)
         efunc = make_callable(name, body, retval='int')
 

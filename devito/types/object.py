@@ -54,6 +54,7 @@ class AbstractObject(Basic, sympy.Basic, Pickable):
         return str(self)
 
     _ccode = _sympystr
+    _cxxcode = _sympystr
 
     def _hashable_content(self):
         return (self.name, self.dtype)

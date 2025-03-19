@@ -5,6 +5,7 @@ from sympy import S
 from conftest import EVAL, skipif  # noqa
 from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
                     Operator, Dimension, SubDimension, switchconfig)
+from devito.ir.cgen import ccode
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import Iteration, FindNodes
@@ -14,7 +15,7 @@ from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
-from devito.symbolics import DefFunction, FieldFromPointer, ccode
+from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
 from devito.types import Array, CriticalRegion, Jump, Scalar, Symbol
 

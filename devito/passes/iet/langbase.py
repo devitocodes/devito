@@ -31,6 +31,9 @@ class LangMeta(type):
             raise NotImplementedError("Missing required mapping for `%s`" % k)
         return self.mapper[k]
 
+    def get(self, k, v=None):
+        return self.mapper.get(k, v)
+
 
 class LangBB(metaclass=LangMeta):
 
@@ -151,7 +154,7 @@ class LangTransformer(ABC):
     an IET for a certain target language (e.g., C, C+OpenMP).
     """
 
-    lang = LangBB
+    langbb = LangBB
     """
     The constructs of the target language. To be specialized by a subclass.
     """
@@ -202,19 +205,19 @@ class LangTransformer(ABC):
 
     @property
     def Region(self):
-        return self.lang.Region
+        return self.langbb.Region
 
     @property
     def HostIteration(self):
-        return self.lang.HostIteration
+        return self.langbb.HostIteration
 
     @property
     def DeviceIteration(self):
-        return self.lang.DeviceIteration
+        return self.langbb.DeviceIteration
 
     @property
     def Prodder(self):
-        return self.lang.Prodder
+        return self.langbb.Prodder
 
 
 class ShmTransformer(LangTransformer):
@@ -433,11 +436,11 @@ class DeviceAwareMixin:
                     except AttributeError:
                         pass
 
-            devicetype = as_list(self.lang[self.platform])
+            devicetype = as_list(self.langbb[self.platform])
             deviceid = self.deviceid
 
             try:
-                lang_init = [self.lang['init'](devicetype)]
+                lang_init = [self.langbb['init'](devicetype)]
             except TypeError:
                 # Not all target languages need to be explicitly initialized
                 lang_init = []
@@ -447,10 +450,10 @@ class DeviceAwareMixin:
                 rank_decl = DummyExpr(rank, 0)
                 rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
 
-                ngpus, call_ngpus = self.lang._get_num_devices(self.platform)
+                ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
 
-                osdd_then = self.lang['set-device']([deviceid] + devicetype)
-                osdd_else = self.lang['set-device']([rank % ngpus] + devicetype)
+                osdd_then = self.langbb['set-device']([deviceid] + devicetype)
+                osdd_else = self.langbb['set-device']([rank % ngpus] + devicetype)
 
                 body = lang_init + [Conditional(
                     CondNe(deviceid, -1),
@@ -458,16 +461,16 @@ class DeviceAwareMixin:
                     List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
                 )]
 
-                header = c.Comment('Begin of %s+MPI setup' % self.lang['name'])
-                footer = c.Comment('End of %s+MPI setup' % self.lang['name'])
+                header = c.Comment('Begin of %s+MPI setup' % self.langbb['name'])
+                footer = c.Comment('End of %s+MPI setup' % self.langbb['name'])
             else:
                 body = lang_init + [Conditional(
                     CondNe(deviceid, -1),
-                    self.lang['set-device']([deviceid] + devicetype)
+                    self.langbb['set-device']([deviceid] + devicetype)
                 )]
 
-                header = c.Comment('Begin of %s setup' % self.lang['name'])
-                footer = c.Comment('End of %s setup' % self.lang['name'])
+                header = c.Comment('Begin of %s setup' % self.langbb['name'])
+                footer = c.Comment('End of %s setup' % self.langbb['name'])
 
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
@@ -476,12 +479,12 @@ class DeviceAwareMixin:
 
         @_initialize.register(AsyncCallable)
         def _(iet):
-            devicetype = as_list(self.lang[self.platform])
+            devicetype = as_list(self.langbb[self.platform])
             deviceid = self.deviceid
 
             init = Conditional(
                 CondNe(deviceid, -1),
-                self.lang['set-device']([deviceid] + devicetype)
+                self.langbb['set-device']([deviceid] + devicetype)
             )
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
 

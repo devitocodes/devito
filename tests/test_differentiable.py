@@ -17,14 +17,17 @@ def test_differentiable():
     assert isinstance(e * a, Mul)
     assert isinstance(a * a, Pow)
     assert isinstance(1 / (a * a), Pow)
+    assert (a + e*a).dtype == a.dtype
 
     addition = a + 1.2 * a.dx
     assert isinstance(addition, Add)
     assert all(isinstance(a, Differentiable) for a in addition.args)
+    assert addition.dtype == a.dtype
 
     addition2 = a + e * a.dx
     assert isinstance(addition2, Add)
     assert all(isinstance(a, Differentiable) for a in addition2.args)
+    assert addition2.dtype == a.dtype
 
 
 def test_diffify():

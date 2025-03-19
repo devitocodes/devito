@@ -3,6 +3,8 @@ Machinery to lower np.dtypes and ctypes into strings
 """
 
 import ctypes
+from functools import reduce
+from operator import mul
 
 import numpy as np
 from cgen import dtype_to_ctype as cgen_dtype_to_ctype
@@ -11,24 +13,25 @@ from .utils import as_tuple
 
 __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # noqa
            'double3', 'double4', 'dtypes_vector_mapper', 'dtype_to_mpidtype',
-           'dtype_to_cstr', 'dtype_to_ctype', 'dtype_to_mpitype', 'dtype_len',
-           'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
-           'is_external_ctype', 'infer_dtype', 'CustomDtype']
+           'dtype_to_cstr', 'dtype_to_ctype', 'infer_datasize', 'dtype_to_mpitype',
+           'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
+           'is_external_ctype', 'infer_dtype', 'CustomDtype', 'mpi4py_mapper']
 
 
 # *** Custom np.dtypes
 
 # NOTE: the following is inspired by pyopencl.cltypes
 
-mapper = {
+dtype_mapper = {
     "int": np.int32,
     "float": np.float32,
     "double": np.float64
 }
 
 
-def build_dtypes_vector(field_names, counts):
+def build_dtypes_vector(field_names, counts, mapper=None):
     ret = {}
+    mapper = mapper or dtype_mapper
     for base_name, base_dtype in mapper.items():
         for count in counts:
             name = "%s%d" % (base_name, count)
@@ -92,7 +95,7 @@ dtypes_vector_mapper = DTypesVectorMapper()
 # Standard vector dtypes
 dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
 # Fallbacks
-dtypes_vector_mapper.update({(v, 1): v for v in mapper.values()})
+dtypes_vector_mapper.update({(v, 1): v for v in dtype_mapper.values()})
 
 
 # *** Custom types escaping both the numpy and ctypes namespaces
@@ -133,6 +136,9 @@ def dtype_to_cstr(dtype):
 
 def dtype_to_ctype(dtype):
     """Translate numpy.dtype into a ctypes type."""
+    if isinstance(dtype, CustomDtype):
+        return dtype
+
     try:
         return ctypes_vector_mapper[dtype]
     except KeyError:
@@ -140,12 +146,52 @@ def dtype_to_ctype(dtype):
 
     if isinstance(dtype, CustomDtype):
         return dtype
-    elif issubclass(dtype, ctypes._SimpleCData):
+    elif issubclass(dtype, (ctypes._Pointer, ctypes.Structure, ctypes._SimpleCData)):
         # Bypass np.ctypeslib's normalization rules such as
         # `np.ctypeslib.as_ctypes_type(ctypes.c_void_p) -> ctypes.c_ulong`
         return dtype
     else:
         return np.ctypeslib.as_ctypes_type(dtype)
+
+
+def infer_datasize(dtype, shape):
+    """
+    Translate numpy.dtype to (ctype, int): type and scale for correct C allocation size.
+    """
+    datasize = int(reduce(mul, shape))
+    if isinstance(dtype, CustomDtype):
+        return dtype, datasize
+
+    try:
+        return ctypes_vector_mapper[dtype], datasize
+    except KeyError:
+        pass
+
+    if issubclass(dtype, ctypes._SimpleCData):
+        return dtype, datasize
+
+    if dtype == np.float16:
+        # Allocate half float as unsigned short
+        return ctypes.c_uint16, datasize
+
+    if np.issubdtype(dtype, np.complexfloating):
+        # For complex float, allocate twice the size of real/imaginary part
+        return np.ctypeslib.as_ctypes_type(dtype(0).real.__class__), 2 * datasize
+
+    return np.ctypeslib.as_ctypes_type(dtype), datasize
+
+
+mpi4py_mapper = {}
+mpi_mapper = {
+    np.ubyte: 'MPI_BYTE',
+    np.ushort: 'MPI_UNSIGNED_SHORT',
+    np.int32: 'MPI_INT',
+    np.float32: 'MPI_FLOAT',
+    np.int64: 'MPI_LONG',
+    np.float64: 'MPI_DOUBLE',
+    np.complex64: 'MPI_C_COMPLEX',
+    np.complex128: 'MPI_C_DOUBLE_COMPLEX'
+}
 
 
 def dtype_to_mpitype(dtype):
@@ -154,14 +200,7 @@ def dtype_to_mpitype(dtype):
     # Resolve vector dtype if necessary
     dtype = dtypes_vector_mapper.get_base_dtype(dtype)
 
-    return {
-        np.ubyte: 'MPI_BYTE',
-        np.ushort: 'MPI_UNSIGNED_SHORT',
-        np.int32: 'MPI_INT',
-        np.float32: 'MPI_FLOAT',
-        np.int64: 'MPI_LONG',
-        np.float64: 'MPI_DOUBLE'
-    }[dtype]
+    return mpi_mapper[dtype]
 
 
 def dtype_to_mpidtype(dtype):
@@ -192,7 +231,7 @@ class c_restrict_void_p(ctypes.c_void_p):
 
 
 ctypes_vector_mapper = {}
-for base_name, base_dtype in mapper.items():
+for base_name, base_dtype in dtype_mapper.items():
     base_ctype = dtype_to_ctype(base_dtype)
 
     for count in counts:
@@ -200,7 +239,8 @@ for base_name, base_dtype in mapper.items():
 
         name = "%s%d" % (base_name, count)
         ctype = type(name, (ctypes.Structure,),
-                     {'_fields_': [(i, base_ctype)] for i in field_names[:count]})
+                     {'_fields_': [(i, base_ctype) for i in field_names[:count]],
+                      '_base_dtype': True})
 
         ctypes_vector_mapper[dtype] = ctype
 
@@ -232,7 +272,6 @@ def ctypes_to_cstr(ctype, toarray=None):
         retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
         name = ctype.__name__[2:]
-
         # A primitive datatype
         # FIXME: Is there a better way of extracting the C typename ?
         # Here, we're following the ctypes convention that each basic type has
@@ -268,11 +307,6 @@ def ctypes_to_cstr(ctype, toarray=None):
     return retval
 
 
-known_ctypes = {
-    'vector_types.h': list(ctypes_vector_mapper.values()),
-}
-
-
 def is_external_ctype(ctype, includes):
     """
     True if `ctype` is known to be declared in one of the given `includes`
@@ -285,11 +319,20 @@ def is_external_ctype(ctype, includes):
     if issubclass(ctype, ctypes._SimpleCData):
         return False
 
-    for k, v in known_ctypes.items():
-        if ctype in v:
-            return True
+    if ctype in ctypes_vector_mapper.values():
+        return True
 
     return False
+
+
+def is_numpy_dtype(dtype):
+    """
+    True if `dtype` is a numpy dtype, False otherwise.
+    """
+    try:
+        return issubclass(dtype, np.generic)
+    except TypeError:
+        return False
 
 
 def infer_dtype(dtypes):
@@ -302,8 +345,11 @@ def infer_dtype(dtypes):
     """
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
-
-    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating)}
+    # Only keep number types
+    dtypes = {i for i in dtypes if is_numpy_dtype(i)}
+    # Separate floating point types from the rest
+    fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
+               np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
         return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:

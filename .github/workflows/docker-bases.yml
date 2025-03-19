@@ -255,4 +255,6 @@ jobs:
           file: './docker/Dockerfile.amd'
           push: true
           target: 'hip'
+          build-args: |
+            ROCM_VERSION=6.3.4
           tags: devitocodes/bases:amd-hip

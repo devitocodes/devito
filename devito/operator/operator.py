@@ -27,6 +27,7 @@ from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
                            error_mapper, is_on_device)
+from devito.passes.iet.dtypes import lower_dtypes
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
@@ -143,11 +144,6 @@ class Operator(Callable):
     refer to the relevant documentation.
     """
 
-    _default_headers = [('_POSIX_C_SOURCE', '200809L')]
-    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
-    _default_globals = []
-    _default_namespaces = []
-
     def __new__(cls, expressions, **kwargs):
         if expressions is None:
             # Return a dummy Callable. This is exploited by unpickling. Users
@@ -207,15 +203,11 @@ class Operator(Callable):
         Callable.__init__(op, **op.args)
 
         # Header files, etc.
-        op._headers = OrderedSet(*cls._default_headers)
-        op._headers.update(byproduct.headers)
-        op._globals = OrderedSet(*cls._default_globals)
-        op._globals.update(byproduct.globals)
-        op._includes = OrderedSet(*cls._default_includes)
-        op._includes.update(profiler._default_includes)
+        op._headers = OrderedSet(*byproduct.headers)
+        op._globals = OrderedSet(*byproduct.globals)
+        op._includes = OrderedSet(*profiler._default_includes)
         op._includes.update(byproduct.includes)
-        op._namespaces = OrderedSet(*cls._default_namespaces)
-        op._namespaces.update(byproduct.namespaces)
+        op._namespaces = OrderedSet(*byproduct.namespaces)
 
         # Required for the jit-compilation
         op._compiler = kwargs['compiler']
@@ -268,6 +260,9 @@ class Operator(Callable):
         """
         # Create a symbol registry
         kwargs.setdefault('sregistry', SymbolRegistry())
+        # Add lang-base kwargs
+        kwargs.setdefault('langbb', cls._Target.langbb())
+        kwargs.setdefault('printer', cls._Target.Printer)
 
         expressions = as_tuple(expressions)
 
@@ -492,6 +487,9 @@ class Operator(Callable):
 
         # Extract the necessary macros from the symbolic objects
         generate_macros(graph, **kwargs)
+
+        # Add type specific metadata
+        lower_dtypes(graph, **kwargs)
 
         # Target-independent optimizations
         minimize_symbols(graph)
@@ -767,12 +765,25 @@ class Operator(Callable):
         return Signer._digest(self, configuration)
 
     @cached_property
+    def _printer(self):
+        return self._Target.Printer
+
+    @cached_property
+    def headers(self):
+        return OrderedSet(*self._printer._headers).union(self._headers)
+
+    @cached_property
+    def includes(self):
+        return OrderedSet(*self._printer._includes).union(self._includes)
+
+    @cached_property
+    def namespaces(self):
+        return OrderedSet(*self._printer._namespaces).union(self._namespaces)
+
+    @cached_property
     def ccode(self):
-        try:
-            return self._ccode_handler(compiler=self._compiler).visit(self)
-        except (AttributeError, TypeError):
-            from devito.ir.iet.visitors import CGen
-            return CGen(compiler=self._compiler).visit(self)
+        from devito.ir.iet.visitors import CGen
+        return CGen(printer=self._printer).visit(self)
 
     def _jit_compile(self):
         """
@@ -787,11 +798,11 @@ class Operator(Callable):
 
             elapsed = self._profiler.py_timers['jit-compile']
             if recompiled:
-                perf("Operator `%s` jit-compiled `%s` in %.2f s with `%s`" %
-                     (self.name, src_file, elapsed, self._compiler))
+                perf(f"Operator `{self.name}` jit-compiled `{src_file}` in "
+                     f"{elapsed:.2f} s with `{self._compiler}`")
             else:
-                perf("Operator `%s` fetched `%s` in %.2f s from jit-cache" %
-                     (self.name, src_file, elapsed))
+                perf(f"Operator `{self.name}` fetched `{src_file}` in "
+                     f"{elapsed:.2f} s from jit-cache")
 
     @property
     def cfunction(self):
@@ -825,7 +836,7 @@ class Operator(Callable):
         dest = self._compiler.get_jit_dir()
         name = dest.joinpath(self.name)
 
-        cfile = name.with_suffix(".%s" % self._compiler.src_ext)
+        cfile = name.with_suffix(f".{self._compiler.src_ext}")
         hfile = name.with_suffix('.h')
 
         # Generate the .c and .h code
@@ -833,11 +844,11 @@ class Operator(Callable):
 
         for f, code in [(cfile, ccode), (hfile, hcode)]:
             if not force and f.is_file():
-                debug("`%s` was not saved in `%s` as it already exists" % (f.name, dest))
+                debug(f"`{f.name}` was not saved in `{dest}` as it already exists")
             else:
                 with open(str(f), 'w') as ff:
                     ff.write(str(code))
-                debug("`%s` successfully saved in `%s`" % (f.name, dest))
+                debug(f"`{f.name}` successfully saved in `{dest}`")
 
         return ccode, hcode
 
@@ -954,7 +965,7 @@ class Operator(Callable):
         timings = self._profiler.py_timers.copy()
 
         tot = timings.pop('op-compile')
-        perf("Operator `%s` generated in %.2f s" % (self.name, fround(tot)))
+        perf(f"Operator `{self.name}` generated in {fround(tot):.2f} s")
 
         max_hotspots = 3
         threshold = 20.
@@ -966,14 +977,14 @@ class Operator(Callable):
                 v = fround(timings[i]['total'])
                 perc = fround(v/tot*100, n=10)
                 if perc > threshold:
-                    perf("%s%s: %.2f s (%.1f %%)" % (indent, i.lstrip('_'), v, perc))
+                    perf(f"{indent}{i.lstrip('_')}: {v:.2f} s ({perc:.1f} %)")
                     _emit_timings(timings[i], ' '*len(indent) + ' * ')
 
         _emit_timings(timings, '  * ')
 
         if self._profiler._ops:
             ops = ['%d --> %d' % i for i in self._profiler._ops]
-            perf("Flops reduction after symbolic optimization: [%s]" % ' ; '.join(ops))
+            perf(f"Flops reduction after symbolic optimization: [{' ; '.join(ops)}]")
 
     def _emit_apply_profiling(self, args):
         """Produce a performance summary of the profiled sections."""
@@ -981,7 +992,7 @@ class Operator(Callable):
         fround = lambda i: ceil(i * 100) / 100
 
         elapsed = fround(self._profiler.py_timers['apply'])
-        info("Operator `%s` ran in %.2f s" % (self.name, elapsed))
+        info(f"Operator `{self.name}` ran in {elapsed:.2f} s")
 
         summary = self._profiler.summary(args, self._dtype, reduce_over=elapsed)
 
@@ -999,16 +1010,16 @@ class Operator(Callable):
             v = summary.globals.get('vanilla')
             if v is not None:
                 if v.oi is not None:
-                    metrics.append("OI=%.2f" % fround(v.oi))
+                    metrics.append(f"OI={fround(v.oi):.2f}")
                 if v.gflopss is not None and np.isfinite(v.gflopss):
-                    metrics.append("%.2f GFlops/s" % fround(v.gflopss))
+                    metrics.append(f"{fround(v.gflopss):.2f} GFlops/s")
 
             v = summary.globals.get('fdlike')
             if v is not None:
-                metrics.append("%.2f GPts/s" % fround(v.gpointss))
+                metrics.append(f"{fround(v.gpointss):.2f} GPts/s")
 
             if metrics:
-                perf("Global performance: [%s]" % ', '.join(metrics))
+                perf(f"Global performance: [{', '.join(metrics)}]")
 
             # Same as above, but excluding the setup phase, e.g. the CPU-GPU
             # data transfers in the case of a GPU run, mallocs, frees, etc.
@@ -1016,10 +1027,10 @@ class Operator(Callable):
 
             v = summary.globals.get('fdlike-nosetup')
             if v is not None:
-                metrics.append("%.2f s" % fround(v.time))
-                metrics.append("%.2f GPts/s" % fround(v.gpointss))
+                metrics.append(f"{fround(v.time):.2f} s")
+                metrics.append(f"{fround(v.gpointss):.2f} GPts/s")
 
-                perf("Global performance <w/o setup>: [%s]" % ', '.join(metrics))
+                perf(f"Global performance <w/o setup>: [{', '.join(metrics)}]")
 
             # Prepare for the local performance indicators
             perf("Local performance:")
@@ -1032,34 +1043,33 @@ class Operator(Callable):
         def lower_perfentry(v):
             values = []
             if v.oi:
-                values.append("OI=%.2f" % fround(v.oi))
+                values.append(f"OI={fround(v.oi):.2f}")
             if v.gflopss:
-                values.append("%.2f GFlops/s" % fround(v.gflopss))
+                values.append(f"{fround(v.gflopss):.2f} GFlops/s")
             if v.gpointss:
-                values.append("%.2f GPts/s" % fround(v.gpointss))
+                values.append(f"{fround(v.gpointss):.2f} GPts/s")
 
             if values:
-                return "[%s]" % ", ".join(values)
+                return f"[{', '.join(values)}]"
             else:
                 return ""
 
         for k, v in summary.items():
-            rank = "[rank%d]" % k.rank if k.rank is not None else ""
-            name = "%s%s" % (k.name, rank)
+            rank = f"[rank{k.rank if k.rank is not None else ''}]"
+            name = f"{k.name}{rank}"
 
             if v.time <= 0.01:
                 # Trim down the output for very fast sections
-                perf("%s* %s ran in %.2f s" % (indent, name, fround(v.time)))
+                perf(f"{indent}* {name} ran in {fround(v.time):.2f} s")
                 continue
 
             metrics = lower_perfentry(v)
-            perf("%s* %s ran in %.2f s %s" % (indent, name, fround(v.time), metrics))
+            perf(f"{indent}* {name} ran in {fround(v.time):.2f} s {metrics}")
             for n, v1 in summary.subsections.get(k.name, {}).items():
                 metrics = lower_perfentry(v1)
 
-                perf("%s+ %s ran in %.2f s [%.2f%%] %s" %
-                     (indent*2, n, fround(v1.time), fround(v1.time/v.time*100),
-                      metrics))
+                perf(f"{indent*2}+ {n} ran in {fround(v1.time):.2f} s "
+                     f"[{fround(v1.time/v.time*100):.2f}%] {metrics}")
 
         # Emit performance mode and arguments
         perf_args = {}
@@ -1077,7 +1087,7 @@ class Operator(Callable):
         if is_integer(self.npthreads):
             perf_args['pthreads'] = self.npthreads
         perf_args = {k: perf_args[k] for k in sorted(perf_args)}
-        perf("Performance[mode=%s] arguments: %s" % (self._mode, perf_args))
+        perf(f"Performance[mode={self._mode}] arguments: {perf_args}")
 
         return summary
 
@@ -1128,7 +1138,7 @@ class Operator(Callable):
             self._lib.name = soname
 
         self._allocator = default_allocator(
-            '%s.%s.%s' % (self._compiler.name, self._language, self._platform)
+            f'{type(self._compiler).__name__}.{self._language}.{self._platform}'
         )
 
 
@@ -1318,7 +1328,7 @@ def parse_kwargs(**kwargs):
             warning("Both `dle` and `opt` were passed; ignoring `dle` argument")
             opt = kwargs.pop('opt')
         else:
-            warning("Setting `opt=%s`" % str(dle))
+            warning(f"Setting `opt={str(dle)}`")
             opt = dle
     elif 'opt' in kwargs:
         opt = kwargs.pop('opt')
@@ -1338,7 +1348,7 @@ def parse_kwargs(**kwargs):
         else:
             mode, options = tuple(flatten(i.split(',') for i in opt)), {}
     else:
-        raise InvalidOperator("Illegal `opt=%s`" % str(opt))
+        raise InvalidOperator(f"Illegal `opt={str(opt)}`")
 
     # `opt`, deprecated kwargs
     kwopenmp = kwargs.get('openmp', options.get('openmp'))
@@ -1358,7 +1368,7 @@ def parse_kwargs(**kwargs):
     for i in deprecated_options:
         try:
             options.pop(i)
-            warning("Ignoring deprecated optimization option `%s`" % i)
+            warning(f"Ignoring deprecated optimization option `{i}`")
         except KeyError:
             pass
     kwargs['options'] = options
@@ -1374,7 +1384,7 @@ def parse_kwargs(**kwargs):
         if not isinstance(platform, str):
             raise ValueError("Argument `platform` should be a `str`")
         if platform not in configuration._accepted['platform']:
-            raise InvalidOperator("Illegal `platform=%s`" % str(platform))
+            raise InvalidOperator(f"Illegal `platform={str(platform)}`")
         kwargs['platform'] = platform_registry[platform]()
     else:
         kwargs['platform'] = configuration['platform']
@@ -1385,7 +1395,7 @@ def parse_kwargs(**kwargs):
         if not isinstance(language, str):
             raise ValueError("Argument `language` should be a `str`")
         if language not in configuration._accepted['language']:
-            raise InvalidOperator("Illegal `language=%s`" % str(language))
+            raise InvalidOperator(f"Illegal `language={str(language)}`")
         kwargs['language'] = language
     elif kwopenmp is not None:
         # Handle deprecated `openmp` kwarg for backward compatibility
@@ -1399,10 +1409,11 @@ def parse_kwargs(**kwargs):
         if not isinstance(compiler, str):
             raise ValueError("Argument `compiler` should be a `str`")
         if compiler not in configuration._accepted['compiler']:
-            raise InvalidOperator("Illegal `compiler=%s`" % str(compiler))
+            raise InvalidOperator(f"Illegal `compiler={str(compiler)}`")
         kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
                                                          language=kwargs['language'],
-                                                         mpi=configuration['mpi'])
+                                                         mpi=configuration['mpi'],
+                                                         name=compiler)
     elif any([platform, language]):
         kwargs['compiler'] =\
             configuration['compiler'].__new_with__(platform=kwargs['platform'],
@@ -1411,11 +1422,18 @@ def parse_kwargs(**kwargs):
     else:
         kwargs['compiler'] = configuration['compiler'].__new_with__()
 
+    # Make sure compiler and language are compatible
+    if compiler is not None and kwargs['compiler']._cpp and \
+            kwargs['language'] in ['C', 'openmp']:
+        kwargs['language'] = 'CXX' if kwargs['language'] == 'C' else 'CXXopenmp'
+    if 'CXX' in kwargs['language'] and not kwargs['compiler']._cpp:
+        kwargs['compiler'] = kwargs['compiler'].__new_with__(cpp=True)
+
     # `allocator`
     kwargs['allocator'] = default_allocator(
-        '%s.%s.%s' % (kwargs['compiler'].name,
-                      kwargs['language'],
-                      kwargs['platform'])
+        f"{kwargs['compiler'].__class__.__name__}"
+        f".{kwargs['language']}"
+        f".{kwargs['platform']}"
     )
 
     # Normalize `subs`, if any

@@ -1,6 +1,7 @@
 from collections import defaultdict
 from functools import cached_property, singledispatch
 
+import numpy as np
 import sympy
 from sympy import Add, Function, Indexed, Mul, Pow
 try:
@@ -69,11 +70,15 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     """
     min_cost = options['cse-min-cost']
     mode = options['cse-algo']
+    try:
+        dtype = np.promote_types(options['scalar-min-type'], cluster.dtype).type
+    except TypeError:
+        dtype = cluster.dtype
 
     if cluster.is_fence:
         return cluster
 
-    make = lambda: CTemp(name=sregistry.make_name(), dtype=cluster.dtype)
+    make = lambda: CTemp(name=sregistry.make_name(), dtype=dtype)
 
     exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)
 

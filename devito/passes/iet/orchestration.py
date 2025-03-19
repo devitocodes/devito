@@ -24,7 +24,7 @@ class Orchestrator:
     Lower the SyncSpot in IET for efficient host-device asynchronous computation.
     """
 
-    lang = LangBB
+    langbb = LangBB
     """
     The language used to implement host-device data movements.
     """
@@ -55,7 +55,7 @@ class Orchestrator:
         return iet, [efunc]
 
     def _make_withlock(self, iet, sync_ops, layer):
-        body, prefix = withlock(layer, iet, sync_ops, self.lang, self.sregistry)
+        body, prefix = withlock(layer, iet, sync_ops, self.langbb, self.sregistry)
 
         # Turn `iet` into an AsyncCallable so that subsequent passes know
         # that we're happy for this Callable to be executed asynchronously
@@ -94,7 +94,7 @@ class Orchestrator:
 
         body = list(iet.body)
         try:
-            body.extend([self.lang._map_update_device(s.target, s.imask, qid=qid)
+            body.extend([self.langbb._map_update_device(s.target, s.imask, qid=qid)
                          for s in sync_ops])
         except NotImplementedError:
             pass
@@ -103,7 +103,7 @@ class Orchestrator:
         return iet, []
 
     def _make_prefetchupdate(self, iet, sync_ops, layer):
-        body, prefix = prefetchupdate(layer, iet, sync_ops, self.lang, self.sregistry)
+        body, prefix = prefetchupdate(layer, iet, sync_ops, self.langbb, self.sregistry)
 
         # Turn `iet` into an AsyncCallable so that subsequent passes know
         # that we're happy for this Callable to be executed asynchronously

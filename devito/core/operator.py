@@ -1,6 +1,8 @@
 from collections.abc import Iterable
 from functools import cached_property
 
+import numpy as np
+
 from devito.core.autotuning import autotune
 from devito.exceptions import InvalidOperator
 from devito.ir import FindSymbols
@@ -67,6 +69,11 @@ class BasicOperator(Operator):
     intensity of the generated kernel.
     """
 
+    SCALAR_MIN_TYPE = np.float16
+    """
+    Minimum datatype for a scalar arising from a common sub-expression or CIRE temp.
+    """
+
     PAR_COLLAPSE_NCORES = 4
     """
     Use a collapse clause if the number of available physical cores is greater
@@ -129,6 +136,11 @@ class BasicOperator(Operator):
     """
     The type of the expression used to compute array indices. Either `int32`
     (default) or `int64`.
+    """
+
+    LINEARIZE = False
+    """
+    Linearize n-dimensional Indexeds.
     """
 
     ERRCTL = None

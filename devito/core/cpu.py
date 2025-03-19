@@ -8,14 +8,16 @@ from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
                                     factorize, fission, fuse, optimize_pows,
                                     optimize_hyperplanes)
-from devito.passes.iet import (CTarget, OmpTarget, avoid_denormals, linearize,
+from devito.passes.iet import (CTarget, CXXTarget, COmpTarget, CXXOmpTarget,
+                               avoid_denormals, linearize,
                                mpiize, hoist_prodders, relax_incr_dimensions,
                                check_stability)
 from devito.tools import timed_pass
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
            'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
-           'Cpu64CustomOperator']
+           'Cpu64CustomOperator', 'Cpu64CustomCXXOperator', 'Cpu64AdvCXXOperator',
+           'Cpu64AdvCXXOmpOperator', 'Cpu64FsgCXXOperator', 'Cpu64FsgCXXOmpOperator']
 
 
 class Cpu64OperatorMixin:
@@ -77,11 +79,12 @@ class Cpu64OperatorMixin:
 
         # Misc
         o['opt-comms'] = oo.pop('opt-comms', True)
-        o['linearize'] = oo.pop('linearize', False)
+        o['linearize'] = oo.pop('linearize', cls.LINEARIZE)
         o['mapify-reduce'] = oo.pop('mapify-reduce', cls.MAPIFY_REDUCE)
         o['index-mode'] = oo.pop('index-mode', cls.INDEX_MODE)
         o['place-transfers'] = oo.pop('place-transfers', True)
         o['errctl'] = oo.pop('errctl', cls.ERRCTL)
+        o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
 
         # Recognised but unused by the CPU backend
         oo.pop('par-disabled', None)
@@ -244,7 +247,7 @@ class Cpu64FsgOperator(Cpu64AdvOperator):
 
 class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
-    _Target = OmpTarget
+    _Target = COmpTarget
 
     @classmethod
     def _make_dsl_passes_mapper(cls, **kwargs):
@@ -317,6 +320,11 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
 
+class Cpu64CustomCXXOperator(Cpu64CustomOperator):
+
+    _Target = CXXTarget
+    LINEARIZE = True
+
 # Language level
 
 
@@ -324,21 +332,51 @@ class Cpu64NoopCOperator(Cpu64NoopOperator):
     _Target = CTarget
 
 
+class Cpu64CXXNoopCOperator(Cpu64NoopOperator):
+    _Target = CXXTarget
+    LINEARIZE = True
+
+
 class Cpu64NoopOmpOperator(Cpu64NoopOperator):
-    _Target = OmpTarget
+    _Target = COmpTarget
+
+
+class Cpu64CXXNoopOmpOperator(Cpu64NoopOperator):
+    _Target = CXXOmpTarget
+    LINEARIZE = True
 
 
 class Cpu64AdvCOperator(Cpu64AdvOperator):
     _Target = CTarget
 
 
+class Cpu64AdvCXXOperator(Cpu64AdvOperator):
+    _Target = CXXTarget
+    LINEARIZE = True
+
+
 class Cpu64AdvOmpOperator(Cpu64AdvOperator):
-    _Target = OmpTarget
+    _Target = COmpTarget
+
+
+class Cpu64AdvCXXOmpOperator(Cpu64AdvOperator):
+    _Target = CXXOmpTarget
+    LINEARIZE = True
 
 
 class Cpu64FsgCOperator(Cpu64FsgOperator):
     _Target = CTarget
 
 
+class Cpu64FsgCXXOperator(Cpu64FsgOperator):
+    _Target = CXXTarget
+    LINEARIZE = True
+
+
 class Cpu64FsgOmpOperator(Cpu64FsgOperator):
-    _Target = OmpTarget
+    _Target = COmpTarget
+
+
+class Cpu64FsgCXXOmpOperator(Cpu64FsgOperator):
+    _Target = CXXOmpTarget
+    LINEARIZE = True

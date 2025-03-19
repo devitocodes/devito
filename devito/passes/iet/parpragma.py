@@ -9,12 +9,12 @@ from devito.data import FULL
 from devito.ir import (Conditional, DummyEq, Dereference, Expression,
                        ExpressionBundle, FindSymbols, FindNodes, ParallelIteration,
                        ParallelTree, Pragma, Prodder, Transfer, List, Transformer,
-                       IsPerfectIteration, OpInc, filter_iterations,
+                       IsPerfectIteration, OpInc, filter_iterations, ccode,
                        retrieve_iteration_tree, IMask, VECTORIZED)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
                                         ShmTransformer, make_sections_from_imask)
-from devito.symbolics import INT, ccode
+from devito.symbolics import INT
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
@@ -50,10 +50,10 @@ class PragmaSimdTransformer(PragmaTransformer):
         indexeds = FindSymbols('indexeds').visit(iet)
         aligned = {i.base for i in indexeds if i.function.is_DiscreteFunction}
         if aligned:
-            simd = self.lang['simd-for-aligned']
+            simd = self.langbb['simd-for-aligned']
             simd = as_tuple(simd(self.simd_reg_nbytes, *aligned))
         else:
-            simd = as_tuple(self.lang['simd-for'])
+            simd = as_tuple(self.langbb['simd-for'])
 
         return simd
 
@@ -239,7 +239,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
         elif all(i is OpInc for _, _, i in reductions):
             # Use atomic increments
-            mapper = {i: i._rebuild(pragmas=self.lang['atomic']) for i in exprs}
+            mapper = {i: i._rebuild(pragmas=self.langbb['atomic']) for i in exprs}
         else:
             raise NotImplementedError
 
@@ -292,7 +292,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
                                       **root.args)
 
             niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
-            value = INT(Max(niters / (nthreads*self.chunk_nonaffine), 1))
+            value = INT(Max(INT(niters / (nthreads*self.chunk_nonaffine)), 1))
             prefix = [Expression(DummyEq(chunk_size, value, dtype=np.int32))]
 
         # Create a ParallelTree
@@ -319,7 +319,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             vexpandeds.append(VExpanded(i, pi))
 
         if vexpandeds:
-            init = self.lang['thread-num'](retobj=self.threadid)
+            init = self.langbb['thread-num'](retobj=self.threadid)
             prefix = List(body=[init] + vexpandeds + list(partree.prefix),
                           footer=c.Line())
             partree = partree._rebuild(prefix=prefix)
@@ -417,7 +417,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 
         iet = Transformer(mapper).visit(iet)
 
-        return iet, {'includes': [self.lang['header']]}
+        return iet, {'includes': [self.langbb['header']]}
 
     def make_parallel(self, graph):
         return self._make_parallel(graph, sync_mapper=graph.sync_mapper)

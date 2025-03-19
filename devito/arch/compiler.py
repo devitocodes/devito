@@ -180,12 +180,21 @@ class Compiler(GCCToolchain):
     """
 
     fields = {'cc', 'ld'}
-    _cpp = False
+    _default_cpp = False
+    _cxxstd = 'c++14'
+    _cstd = 'c99'
 
     def __init__(self, **kwargs):
+        maybe_name = kwargs.pop('name', self.__class__.__name__)
+        if isinstance(maybe_name, Compiler):
+            self._name = maybe_name.name
+        else:
+            self._name = maybe_name
+
         super().__init__(**kwargs)
 
         self.__lookup_cmds__()
+        self._cpp = kwargs.get('cpp', self._default_cpp)
 
         self.suffix = kwargs.get('suffix')
         if not kwargs.get('mpi'):
@@ -195,7 +204,7 @@ class Compiler(GCCToolchain):
             self.cc = self.MPICC if self._cpp is False else self.MPICXX
         self.ld = self.cc  # Wanted by the superclass
 
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', f'-std={self.std}']
         self.ldflags = ['-shared']
 
         self.include_dirs = []
@@ -225,13 +234,13 @@ class Compiler(GCCToolchain):
         Create a new Compiler from an existing one, inherenting from it
         the flags that are not specified via ``kwargs``.
         """
-        return self.__class__(suffix=kwargs.pop('suffix', self.suffix),
+        return self.__class__(name=self.name, suffix=kwargs.pop('suffix', self.suffix),
                               mpi=kwargs.pop('mpi', configuration['mpi']),
                               **kwargs)
 
     @property
     def name(self):
-        return self.__class__.__name__
+        return self._name
 
     @property
     def version(self):
@@ -246,6 +255,10 @@ class Compiler(GCCToolchain):
             version = sniff_compiler_version(self.CC, allow_fail=allow_fail)
 
         return version
+
+    @property
+    def std(self):
+        return self._cxxstd if self._cpp else self._cstd
 
     def get_version(self):
         result, stdout, stderr = call_capture_output((self.cc, "--version"))
@@ -482,7 +495,7 @@ class ClangCompiler(Compiler):
         platform = kwargs.pop('platform', configuration['platform'])
 
         if isinstance(platform, NvidiaDevice):
-            self.cflags.remove('-std=c99')
+            self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 cc = get_nvidia_cc()
@@ -490,7 +503,7 @@ class ClangCompiler(Compiler):
                     self.cflags += ['-Xopenmp-target', f'-march=sm_{cc}']
                 self.ldflags += ['-fopenmp', '-fopenmp-targets=nvptx64-nvidia-cuda']
         elif platform is AMDGPUX:
-            self.cflags.remove('-std=c99')
+            self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
@@ -553,9 +566,9 @@ class AOMPCompiler(Compiler):
             self.ldflags += ['-fopenmp']
 
         if isinstance(platform, NvidiaDevice):
-            self.cflags.remove('-std=c99')
+            self.cflags.remove(f'-std={self.std}')
         elif platform is AMDGPUX:
-            self.cflags.remove('-std=c99')
+            self.cflags.remove(f'-std={self.std}')
             # Add flags for OpenMP offloading
             if language in ['C', 'openmp']:
                 self.ldflags += ['-target', 'x86_64-pc-linux-gnu']
@@ -590,15 +603,12 @@ class DPCPPCompiler(Compiler):
 
 class PGICompiler(Compiler):
 
-    _cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
-        self.cflags.remove('-std=c99')
         self.cflags.remove('-O3')
         self.cflags.remove('-Wall')
-
-        self.cflags.append('-std=c++11')
 
         language = kwargs.pop('language', configuration['language'])
         platform = kwargs.pop('platform', configuration['platform'])
@@ -643,14 +653,13 @@ class NvidiaCompiler(PGICompiler):
 
 class CudaCompiler(Compiler):
 
-    _cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
 
-        self.cflags.remove('-std=c99')
         self.cflags.remove('-Wall')
         self.cflags.remove('-fPIC')
-        self.cflags.extend(['-std=c++14', '-Xcompiler', '-fPIC'])
+        self.cflags.extend(['-Xcompiler', '-fPIC'])
 
         if configuration['mpi']:
             # We rather use `nvcc` to compile MPI, but for this we have to
@@ -717,14 +726,9 @@ class CudaCompiler(Compiler):
 
 class HipCompiler(Compiler):
 
-    _cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
-
-        self.cflags.remove('-std=c99')
-        self.cflags.remove('-Wall')
-        self.cflags.remove('-fPIC')
-        self.cflags.extend(['-std=c++14', '-fPIC'])
 
         if configuration['mpi']:
             # We rather use `hipcc` to compile MPI, but for this we have to
@@ -831,7 +835,7 @@ class OneapiCompiler(IntelCompiler):
         language = kwargs.pop('language', configuration['language'])
 
         if language == 'sycl':
-            raise ValueError("Use SyclCompiler to jit-compile sycl")
+            warning(f"Use SyclCompiler (`sycl`) to jit-compile sycl, not {self.name}")
 
         elif language == 'openmp':
             # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
@@ -878,7 +882,7 @@ class OneapiCompiler(IntelCompiler):
 
 class SyclCompiler(OneapiCompiler):
 
-    _cpp = True
+    _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
         IntelCompiler.__init_finalize__(self, **kwargs)
@@ -887,9 +891,9 @@ class SyclCompiler(OneapiCompiler):
         language = kwargs.pop('language', configuration['language'])
 
         if language != 'sycl':
-            raise ValueError("Expected language sycl with SyclCompiler")
+            warning(f"Expected language sycl with SyclCompiler, not {language}")
 
-        self.cflags.remove('-std=c99')
+        self.cflags.remove(f'-std={self.std}')
         self.cflags.append('-fsycl')
 
         self.cflags.remove('-g')  # -g disables some optimizations in IGC
@@ -903,7 +907,7 @@ class SyclCompiler(OneapiCompiler):
         elif isinstance(platform, IntelDevice):
             self.cflags.append('-fsycl-targets=spir64')
         else:
-            raise NotImplementedError(f"Unsupported platform {platform}")
+            warning(f"Unsupported platform {platform}")
 
 
 class CustomCompiler(Compiler):
@@ -945,7 +949,6 @@ class CustomCompiler(Compiler):
         obj = super().__new__(cls)
         # Keep base to initialize accordingly
         obj._base = kwargs.pop('base', _base)
-        obj._cpp = obj._base._cpp
 
         return obj
 
@@ -976,6 +979,10 @@ class CustomCompiler(Compiler):
     def __new_with__(self, **kwargs):
         return super().__new_with__(base=self._base, **kwargs)
 
+    @property
+    def _default_cpp(self):
+        return self._base._default_cpp
+
 
 class CompilerRegistry(dict):
     """
@@ -984,15 +991,19 @@ class CompilerRegistry(dict):
     """
 
     def __getitem__(self, key):
+        if isinstance(key, Compiler):
+            key = key.name
+
         if key.startswith('gcc-'):
             i = key.split('-')[1]
             return partial(GNUCompiler, suffix=i)
+
         return super().__getitem__(key)
 
-    def __contains__(self, k):
-        if isinstance(k, Compiler):
-            k = k.name
-        return k in self.keys() or k.startswith('gcc-')
+    def __contains__(self, key):
+        if isinstance(key, Compiler):
+            key = key.name
+        return key in self.keys() or key.startswith('gcc-')
 
 
 _compiler_registry = {
@@ -1011,6 +1022,7 @@ _compiler_registry = {
     'nvc++': NvidiaCompiler,
     'nvidia': NvidiaCompiler,
     'cuda': CudaCompiler,
+    'nvcc': CudaCompiler,
     'osx': ClangCompiler,
     'intel': OneapiCompiler,
     'icx': OneapiCompiler,

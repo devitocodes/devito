@@ -87,7 +87,7 @@ class ThreadedProdder(Conditional, Prodder):
 
     def __init__(self, prodder, arguments=None):
         # Atomic-ize any single-thread Prodders in the parallel tree
-        condition = CondEq(DefFunction(Ompizer.lang['thread-num']().name), 0)
+        condition = CondEq(DefFunction(Ompizer.langbb['thread-num']().name), 0)
 
         # Prod within a while loop until all communications have completed
         # In other words, the thread delegated to prodding is entrapped for as long
@@ -210,12 +210,12 @@ class DeviceOmpBB(OmpBB, PragmaLangBB):
 
 
 class SimdOmpizer(PragmaSimdTransformer):
-    lang = OmpBB
+    langbb = OmpBB
 
 
 class Ompizer(PragmaShmTransformer):
 
-    lang = OmpBB
+    langbb = OmpBB
 
     @classmethod
     def _support_array_reduction(cls, compiler):
@@ -228,20 +228,20 @@ class Ompizer(PragmaShmTransformer):
 
 
 class DeviceOmpizer(PragmaDeviceAwareTransformer):
-    lang = DeviceOmpBB
+    langbb = DeviceOmpBB
 
 
 class OmpDataManager(DataManager):
-    lang = OmpBB
+    langbb = OmpBB
 
 
 class DeviceOmpDataManager(DeviceAwareDataManager):
-    lang = DeviceOmpBB
+    langbb = DeviceOmpBB
 
 
 class OmpOrchestrator(Orchestrator):
-    lang = OmpBB
+    langbb = OmpBB
 
 
 class DeviceOmpOrchestrator(Orchestrator):
-    lang = DeviceOmpBB
+    langbb = DeviceOmpBB
