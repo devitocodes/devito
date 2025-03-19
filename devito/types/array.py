@@ -60,6 +60,21 @@ class ArrayBasic(AbstractFunction, LocalType):
     def is_const(self):
         return self._is_const
 
+    @property
+    def _C_free(self):
+        """
+        A symbolic destructor for the Array, injected in the generated code.
+
+        Notes
+        -----
+        To be overridden by subclasses, ignored otherwise.
+        """
+        return None
+
+    @property
+    def _C_free_priority(self):
+        return 0
+
 
 class Array(ArrayBasic):
 

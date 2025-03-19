@@ -256,9 +256,10 @@ class DataManager:
         """
         Allocate an Array of Objects in the low latency memory.
         """
+        frees = getattr(obj, '_C_free', None)
         decl = Definition(obj)
 
-        storage.update(obj, site, allocs=decl)
+        storage.update(obj, site, allocs=decl, frees=frees)
 
     def _alloc_pointed_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -335,7 +336,7 @@ class DataManager:
             frees.extend(as_list(cbody.frees) + flatten(v.frees))
             frees = sorted(frees, key=lambda x: min(
                 (obj._C_free_priority for obj in FindSymbols().visit(x)
-                 if obj.is_LocalObject), default=float('inf')
+                 if obj.is_LocalType), default=float('inf')
             ))
 
             # maps/unmaps

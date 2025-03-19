@@ -1,11 +1,19 @@
 from ctypes import POINTER, c_char
-
-from devito.tools import CustomDtype, dtype_to_cstr
-from devito.types import LocalObject, CCompositeObject, ModuloDimension, TimeDimension
+from devito.tools import CustomDtype, dtype_to_cstr, as_tuple, CustomIntType
+from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
+                          TimeDimension, ArrayObject, CustomDimension)
+from devito.symbolics import Byref, Cast
 from devito.types.basic import DataSymbol
-from devito.symbolics import Byref
-
 from devito.petsc.iet.utils import petsc_call
+
+
+class CallbackDM(LocalObject):
+    """
+    PETSc Data Management object (DM). This is the DM instance
+    accessed within the callback functions via `SNESGetDM` and
+    is not destroyed during callback execution.
+    """
+    dtype = CustomDtype('DM')
 
 
 class DM(LocalObject):
@@ -16,43 +24,38 @@ class DM(LocalObject):
     """
     dtype = CustomDtype('DM')
 
-    def __init__(self, *args, stencil_width=None, **kwargs):
+    def __init__(self, *args, dofs=1, **kwargs):
         super().__init__(*args, **kwargs)
-        self._stencil_width = stencil_width
+        self._dofs = dofs
 
     @property
-    def stencil_width(self):
-        return self._stencil_width
+    def dofs(self):
+        return self._dofs
 
     @property
     def _C_free(self):
         return petsc_call('DMDestroy', [Byref(self.function)])
 
+    # TODO: This is growing out of hand so switch to an enumeration or something?
     @property
     def _C_free_priority(self):
-        return 3
+        return 4
 
 
-class CallbackDM(LocalObject):
+class DMCast(Cast):
+    _base_typ = 'DM'
+
+
+class CallbackMat(LocalObject):
     """
-    PETSc Data Management object (DM). This is the DM instance
-    accessed within the callback functions via `SNESGetDM`.
+    PETSc Matrix object (Mat) used within callback functions.
+    These instances are not destroyed during callback execution;
+    instead, they are managed and destroyed in the main kernel.
     """
-    dtype = CustomDtype('DM')
-
-    def __init__(self, *args, stencil_width=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._stencil_width = stencil_width
-
-    @property
-    def stencil_width(self):
-        return self._stencil_width
+    dtype = CustomDtype('Mat')
 
 
 class Mat(LocalObject):
-    """
-    PETSc Matrix object (Mat).
-    """
     dtype = CustomDtype('Mat')
 
     @property
@@ -61,7 +64,7 @@ class Mat(LocalObject):
 
     @property
     def _C_free_priority(self):
-        return 1
+        return 2
 
 
 class LocalVec(LocalObject):
@@ -73,21 +76,26 @@ class LocalVec(LocalObject):
     dtype = CustomDtype('Vec')
 
 
-class GlobalVec(LocalObject):
+class CallbackGlobalVec(LocalVec):
+    """
+    PETSc global vector object (Vec). For example, used for coupled
+    solves inside the `WholeFormFunc` callback.
+    """
+
+
+class GlobalVec(LocalVec):
     """
     PETSc global vector object (Vec).
     A global vector is a parallel vector that has no duplicate values
     between MPI ranks. A global vector has no ghost locations.
     """
-    dtype = CustomDtype('Vec')
-
     @property
     def _C_free(self):
         return petsc_call('VecDestroy', [Byref(self.function)])
 
     @property
     def _C_free_priority(self):
-        return 0
+        return 1
 
 
 class PetscMPIInt(LocalObject):
@@ -103,7 +111,7 @@ class PetscInt(LocalObject):
     PETSc datatype used to represent `int` parameters
     to PETSc functions.
     """
-    dtype = CustomDtype('PetscInt')
+    dtype = CustomIntType('PetscInt')
 
 
 class KSP(LocalObject):
@@ -114,19 +122,21 @@ class KSP(LocalObject):
     dtype = CustomDtype('KSP')
 
 
-class SNES(LocalObject):
+class CallbackSNES(LocalObject):
     """
     PETSc SNES : Non-Linear Systems Solvers.
     """
     dtype = CustomDtype('SNES')
 
+
+class SNES(CallbackSNES):
     @property
     def _C_free(self):
         return petsc_call('SNESDestroy', [Byref(self.function)])
 
     @property
     def _C_free_priority(self):
-        return 2
+        return 3
 
 
 class PC(LocalObject):
@@ -168,18 +178,25 @@ class DummyArg(LocalObject):
     dtype = CustomDtype('void', modifier='*')
 
 
-class PETScStruct(CCompositeObject):
+class MatReuse(LocalObject):
+    dtype = CustomDtype('MatReuse')
 
-    __rargs__ = ('name', 'pname', 'fields')
 
-    def __init__(self, name, pname, fields, liveness='lazy'):
-        pfields = [(i._C_name, i._C_ctype) for i in fields]
-        super().__init__(name, pname, pfields, liveness)
-        self._fields = fields
+class VecScatter(LocalObject):
+    dtype = CustomDtype('VecScatter')
 
-    @property
-    def fields(self):
-        return self._fields
+
+class StartPtr(LocalObject):
+    def __init__(self, name, dtype):
+        super().__init__(name=name)
+        self.dtype = CustomDtype(dtype_to_cstr(dtype), modifier=' *')
+
+
+class SingleIS(LocalObject):
+    dtype = CustomDtype('IS')
+
+
+class PETScStruct(LocalCompositeObject):
 
     @property
     def time_dim_fields(self):
@@ -198,18 +215,109 @@ class PETScStruct(CCompositeObject):
         """
         return [f for f in self.fields if f not in self.time_dim_fields]
 
-    @property
-    def _C_ctype(self):
-        return POINTER(self.dtype) if self.liveness == \
-            'eager' else self.dtype
-
     _C_modifier = ' *'
 
 
-class StartPtr(LocalObject):
-    def __init__(self, name, dtype):
-        super().__init__(name=name)
-        self.dtype = CustomDtype(dtype_to_cstr(dtype), modifier=' *')
+class JacobianStruct(PETScStruct):
+    def __init__(self, name='jctx', pname='JacobianCtx', fields=None,
+                 modifier='', liveness='lazy'):
+        super().__init__(name, pname, fields, modifier, liveness)
+    _C_modifier = None
+
+
+class SubMatrixStruct(PETScStruct):
+    def __init__(self, name='subctx', pname='SubMatrixCtx', fields=None,
+                 modifier=' *', liveness='lazy'):
+        super().__init__(name, pname, fields, modifier, liveness)
+    _C_modifier = None
+
+
+class JacobianStructCast(Cast):
+    _base_typ = 'struct JacobianCtx *'
+
+
+class PETScArrayObject(ArrayObject):
+    _data_alignment = False
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._nindices = kwargs.pop('nindices', 1)
+        super().__init_finalize__(*args, **kwargs)
+
+    @classmethod
+    def __indices_setup__(cls, **kwargs):
+        try:
+            return as_tuple(kwargs['dimensions']), as_tuple(kwargs['dimensions'])
+        except KeyError:
+            nindices = kwargs.get('nindices', 1)
+            dim = CustomDimension(name='d', symbolic_size=nindices)
+            return (dim,), (dim,)
+
+    @property
+    def dim(self):
+        assert len(self.dimensions) == 1
+        return self.dimensions[0]
+
+    @property
+    def nindices(self):
+        return self._nindices
+
+    @property
+    def _C_name(self):
+        return self.name
+
+    @property
+    def _mem_stack(self):
+        return False
+
+    @property
+    def _C_free_priority(self):
+        return 0
+
+
+class CallbackPointerIS(PETScArrayObject):
+    """
+    Index set object used for efficient indexing into vectors and matrices.
+    https://petsc.org/release/manualpages/IS/IS/
+    """
+    @property
+    def dtype(self):
+        return CustomDtype('IS', modifier=' *')
+
+
+class PointerIS(CallbackPointerIS):
+    @property
+    def _C_free(self):
+        destroy_calls = [
+            petsc_call('ISDestroy', [Byref(self.indexify().subs({self.dim: i}))])
+            for i in range(self._nindices)
+        ]
+        destroy_calls.append(petsc_call('PetscFree', [self.function]))
+        return destroy_calls
+
+
+class CallbackPointerDM(PETScArrayObject):
+    @property
+    def dtype(self):
+        return CustomDtype('DM', modifier=' *')
+
+
+class PointerDM(CallbackPointerDM):
+    @property
+    def _C_free(self):
+        destroy_calls = [
+            petsc_call('DMDestroy', [Byref(self.indexify().subs({self.dim: i}))])
+            for i in range(self._nindices)
+        ]
+        destroy_calls.append(petsc_call('PetscFree', [self.function]))
+        return destroy_calls
+
+
+class PointerMat(PETScArrayObject):
+    _C_modifier = ' *'
+
+    @property
+    def dtype(self):
+        return CustomDtype('Mat', modifier=' *')
 
 
 class ArgvSymbol(DataSymbol):

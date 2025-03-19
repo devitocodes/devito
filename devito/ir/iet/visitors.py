@@ -25,7 +25,7 @@ from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
                           c_restrict_void_p, sorted_priority)
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
-                          IndexedData, DeviceMap)
+                          IndexedData, DeviceMap, LocalCompositeObject)
 
 
 __all__ = ['FindApplications', 'FindNodes', 'FindSections', 'FindSymbols',
@@ -201,7 +201,7 @@ class CGen(Visitor):
 
     def _gen_struct_decl(self, obj, masked=()):
         """
-        Convert ctypes.Struct -> cgen.Structure.
+        Convert ctypes.Struct and LocalCompositeObject -> cgen.Structure.
         """
         ctype = obj._C_ctype
         try:
@@ -213,7 +213,16 @@ class CGen(Visitor):
                 return None
         except TypeError:
             # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`
-            return None
+            if isinstance(obj, LocalCompositeObject):
+                # TODO: Potentially re-evaluate: Setting ctype to obj allows
+                # _gen_struct_decl to generate a cgen.Structure from a
+                # LocalCompositeObject, where obj._C_ctype is a CustomDtype.
+                # LocalCompositeObject has a __fields__ property,
+                # which allows the subsequent code in this function to function
+                # correctly.
+                ctype = obj
+            else:
+                return None
 
         try:
             return obj._C_typedecl
@@ -718,8 +727,11 @@ class CGen(Visitor):
         for i in o._func_table.values():
             if not i.local:
                 continue
-            typedecls.extend([self._gen_struct_decl(j) for j in i.root.parameters
-                              if xfilter(j)])
+            typedecls.extend([
+                self._gen_struct_decl(j)
+                for j in FindSymbols().visit(i.root)
+                if xfilter(j)
+            ])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
 
         return typedecls

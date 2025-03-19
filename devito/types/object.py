@@ -1,14 +1,14 @@
 from ctypes import byref
 import sympy
 
-from devito.tools import Pickable, as_tuple, sympy_mutex
+from devito.tools import Pickable, as_tuple, sympy_mutex, CustomDtype
 from devito.types.args import ArgProvider
 from devito.types.caching import Uncached
 from devito.types.basic import Basic, LocalType
 from devito.types.utils import CtypesFactory
 
 
-__all__ = ['Object', 'LocalObject', 'CompositeObject', 'CCompositeObject']
+__all__ = ['Object', 'LocalObject', 'CompositeObject', 'LocalCompositeObject']
 
 
 class AbstractObject(Basic, sympy.Basic, Pickable):
@@ -242,19 +242,30 @@ class LocalObject(AbstractObject, LocalType):
         return self._is_global
 
 
-class CCompositeObject(CompositeObject, LocalType):
+class LocalCompositeObject(CompositeObject, LocalType):
 
     """
     Object with composite type (e.g., a C struct) defined in C.
     """
 
-    __rargs__ = ('name', 'pname', 'pfields')
+    __rargs__ = ('name', 'pname', 'fields')
 
-    def __init__(self, name, pname, pfields, liveness='lazy'):
-        super().__init__(name, pname, pfields)
+    def __init__(self, name, pname, fields, modifier=None, liveness='lazy'):
+        dtype = CustomDtype(f"struct {pname}", modifier=modifier)
+        Object.__init__(self, name, dtype, None)
+        self._pname = pname
         assert liveness in ['eager', 'lazy']
         self._liveness = liveness
+        self._fields = fields
 
     @property
-    def dtype(self):
-        return self._dtype._type_
+    def fields(self):
+        return self._fields
+
+    @property
+    def _fields_(self):
+        return [(i._C_name, i._C_ctype) for i in self.fields]
+
+    @property
+    def __name__(self):
+        return self.pname

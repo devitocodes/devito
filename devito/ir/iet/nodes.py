@@ -1046,7 +1046,7 @@ class Dereference(ExprStmt, Node):
     The following cases are supported:
 
         * `pointer` is a PointerArray or TempFunction, and `pointee` is an Array.
-        * `pointer` is an ArrayObject or CCompositeObject representing a pointer
+        * `pointer` is an ArrayObject or LocalCompositeObject representing a pointer
            to a C struct, and `pointee` is a field in `pointer`.
         * `pointer` is a Symbol with its _C_ctype deriving from ct._Pointer, and
           `pointee` is a Symbol representing the dereferenced value.
@@ -1070,8 +1070,7 @@ class Dereference(ExprStmt, Node):
     def expr_symbols(self):
         ret = []
         if self.pointer.is_Symbol:
-            assert (isinstance(self.pointer, LocalCompositeObject) or
-                    issubclass(self.pointer._C_ctype, ctypes._Pointer)), \
+            assert issubclass(self.pointer._C_ctype, ctypes._Pointer), \
                    "Scalar dereference must have a pointer ctype"
             ret.extend([self.pointer._C_symbol, self.pointee._C_symbol])
         elif self.pointer.is_PointerArray or self.pointer.is_TempFunction:
@@ -1080,7 +1079,9 @@ class Dereference(ExprStmt, Node):
                                for i in self.pointee.symbolic_shape[1:]))
             ret.extend(self.pointer.free_symbols)
         else:
-            ret.extend([self.pointer.indexed, self.pointee._C_symbol])
+            assert (isinstance(self.pointer, LocalCompositeObject) or
+                    issubclass(self.pointer._C_ctype, ctypes._Pointer))
+            ret.extend([self.pointer._C_symbol, self.pointee._C_symbol])
         return tuple(filter_ordered(ret))
 
     @property

@@ -14,7 +14,7 @@ class PETScCallable(FixedArgsCallable):
     pass
 
 
-class MatVecCallback(Callback):
+class MatShellSetOp(Callback):
     @property
     def callback_form(self):
         param_types_str = ', '.join([str(t) for t in self.param_types])

@@ -4,14 +4,14 @@ import pytest
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator, switchconfig,
-                    configuration)
+                    configuration, norm)
 from devito.ir.iet import (Call, ElementalFunction, Definition, DummyExpr,
                            FindNodes, retrieve_iteration_tree)
-from devito.types import Constant, CCompositeObject
+from devito.types import Constant, LocalCompositeObject
 from devito.passes.iet.languages.C import CDataManager
 from devito.petsc.types import (DM, Mat, LocalVec, PetscMPIInt, KSP,
                                 PC, KSPConvergedReason, PETScArray,
-                                LinearSolveExpr)
+                                LinearSolveExpr, FieldData, MultipleFieldData)
 from devito.petsc.solve import PETScSolve, separate_eqn, centre_stencil
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.initialize import PetscInitialize
@@ -126,20 +126,21 @@ def test_petsc_solve():
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
 
-    matvec_callback = [root for root in callable_roots if root.name == 'MyMatShellMult_0']
+    matvec_callback = [root for root in callable_roots if root.name == 'MatMult0']
 
-    formrhs_callback = [root for root in callable_roots if root.name == 'FormRHS_0']
+    formrhs_callback = [root for root in callable_roots if root.name == 'FormRHS0']
 
     action_expr = FindNodes(Expression).visit(matvec_callback[0])
     rhs_expr = FindNodes(Expression).visit(formrhs_callback[0])
 
-    assert str(action_expr[-1].expr.rhs) == \
-        'x_matvec_f[x + 1, y + 2]/lctx->h_x**2' + \
-        ' - 2.0*x_matvec_f[x + 2, y + 2]/lctx->h_x**2' + \
-        ' + x_matvec_f[x + 3, y + 2]/lctx->h_x**2' + \
-        ' + x_matvec_f[x + 2, y + 1]/lctx->h_y**2' + \
-        ' - 2.0*x_matvec_f[x + 2, y + 2]/lctx->h_y**2' + \
-        ' + x_matvec_f[x + 2, y + 3]/lctx->h_y**2'
+    assert str(action_expr[-1].expr.rhs) == (
+        'x_f[x + 1, y + 2]/ctx0->h_x**2'
+        ' - 2.0*x_f[x + 2, y + 2]/ctx0->h_x**2'
+        ' + x_f[x + 3, y + 2]/ctx0->h_x**2'
+        ' + x_f[x + 2, y + 1]/ctx0->h_y**2'
+        ' - 2.0*x_f[x + 2, y + 2]/ctx0->h_y**2'
+        ' + x_f[x + 2, y + 3]/ctx0->h_y**2'
+    )
 
     assert str(rhs_expr[-1].expr.rhs) == 'g[x + 2, y + 2]'
 
@@ -213,12 +214,12 @@ def test_petsc_cast():
     cb2 = [meta_call.root for meta_call in op2._func_table.values()]
     cb3 = [meta_call.root for meta_call in op3._func_table.values()]
 
-    assert 'float (*restrict x_matvec_f1) = ' + \
-        '(float (*)) x_matvec_f1_vec;' in str(cb1[0])
-    assert 'float (*restrict x_matvec_f2)[info.gxm] = ' + \
-        '(float (*)[info.gxm]) x_matvec_f2_vec;' in str(cb2[0])
-    assert 'float (*restrict x_matvec_f3)[info.gym][info.gxm] = ' + \
-        '(float (*)[info.gym][info.gxm]) x_matvec_f3_vec;' in str(cb3[0])
+    assert 'float (*restrict x_f1) = ' + \
+        '(float (*)) x_f1_vec;' in str(cb1[0])
+    assert 'float (*restrict x_f2)[info.gxm] = ' + \
+        '(float (*)[info.gxm]) x_f2_vec;' in str(cb2[0])
+    assert 'float (*restrict x_f3)[info.gym][info.gxm] = ' + \
+        '(float (*)[info.gym][info.gxm]) x_f3_vec;' in str(cb3[0])
 
 
 @skipif('petsc')
@@ -233,8 +234,9 @@ def test_LinearSolveExpr():
 
     linsolveexpr = LinearSolveExpr(eqn.rhs, target=f)
 
-    # Check the target
-    assert linsolveexpr.target == f
+    # TODO: maybe expand this test now to check the fielddata etc
+    linsolveexpr = LinearSolveExpr(eqn.rhs)
+
     # Check the solver parameters
     assert linsolveexpr.solver_parameters == \
         {'ksp_type': 'gmres', 'pc_type': 'jacobi', 'ksp_rtol': 1e-05,
@@ -266,15 +268,15 @@ def test_dmda_create():
         op3 = Operator(petsc3, opt='noop')
 
     assert 'PetscCall(DMDACreate1d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-        '2,1,2,NULL,&(da_0)));' in str(op1)
+        '2,1,2,NULL,&(da0)));' in str(op1)
 
     assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-        'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,2,2,1,1,1,4,NULL,NULL,&(da_0)));' \
+        'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,2,2,1,1,1,4,NULL,NULL,&(da0)));' \
         in str(op2)
 
     assert 'PetscCall(DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
         'DM_BOUNDARY_GHOSTED,DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,6,5,4' + \
-        ',1,1,1,1,6,NULL,NULL,NULL,&(da_0)));' in str(op3)
+        ',1,1,1,1,6,NULL,NULL,NULL,&(da0)));' in str(op3)
 
 
 @skipif('petsc')
@@ -301,9 +303,9 @@ def test_cinterface_petsc_struct():
 
     assert 'include "%s.h"' % name in ccode
 
-    # The public `struct MatContext` only appears in the header file
-    assert 'struct J_0_ctx\n{' not in ccode
-    assert 'struct J_0_ctx\n{' in hcode
+    # The public `struct UserCtx` only appears in the header file
+    assert 'struct UserCtx0\n{' not in ccode
+    assert 'struct UserCtx0\n{' in hcode
 
 
 @skipif('petsc')
@@ -571,14 +573,14 @@ def test_callback_arguments():
     with switchconfig(openmp=False):
         op = Operator(petsc1)
 
-    mv = op._func_table['MyMatShellMult_0'].root
-    ff = op._func_table['FormFunction_0'].root
+    mv = op._func_table['MatMult0'].root
+    ff = op._func_table['FormFunction0'].root
 
     assert len(mv.parameters) == 3
     assert len(ff.parameters) == 4
 
-    assert str(mv.parameters) == '(J_0, X_global_0, Y_global_0)'
-    assert str(ff.parameters) == '(snes_0, X_global_0, F_global_0, dummy)'
+    assert str(mv.parameters) == '(J, X, Y)'
+    assert str(ff.parameters) == '(snes, X, F, dummy)'
 
 
 @skipif('petsc')
@@ -611,7 +613,7 @@ def test_petsc_struct():
     assert mu2 in op.parameters
 
     # Check PETSc struct not in op.parameters
-    assert all(not isinstance(i, CCompositeObject) for i in op.parameters)
+    assert all(not isinstance(i, LocalCompositeObject) for i in op.parameters)
 
 
 @skipif('petsc')
@@ -630,8 +632,7 @@ def test_apply():
     # Build the op
     op = Operator(petsc)
 
-    # Check the Operator runs without errors. Not verifying output for
-    # now. Need to consolidate BC implementation
+    # Check the Operator runs without errors
     op.apply()
 
     # Verify that users can override `mu`
@@ -656,11 +657,11 @@ def test_petsc_frees():
     frees = op.body.frees
 
     # Check the frees appear in the following order
-    assert str(frees[0]) == 'PetscCall(VecDestroy(&(b_global_0)));'
-    assert str(frees[1]) == 'PetscCall(VecDestroy(&(x_global_0)));'
-    assert str(frees[2]) == 'PetscCall(MatDestroy(&(J_0)));'
-    assert str(frees[3]) == 'PetscCall(SNESDestroy(&(snes_0)));'
-    assert str(frees[4]) == 'PetscCall(DMDestroy(&(da_0)));'
+    assert str(frees[0]) == 'PetscCall(VecDestroy(&(bglobal0)));'
+    assert str(frees[1]) == 'PetscCall(VecDestroy(&(xglobal0)));'
+    assert str(frees[2]) == 'PetscCall(MatDestroy(&(J0)));'
+    assert str(frees[3]) == 'PetscCall(SNESDestroy(&(snes0)));'
+    assert str(frees[4]) == 'PetscCall(DMDestroy(&(da0)));'
 
 
 @skipif('petsc')
@@ -679,8 +680,8 @@ def test_calls_to_callbacks():
 
     ccode = str(op.ccode)
 
-    assert '(void (*)(void))MyMatShellMult_0' in ccode
-    assert 'PetscCall(SNESSetFunction(snes_0,NULL,FormFunction_0,NULL));' in ccode
+    assert '(void (*)(void))MatMult0' in ccode
+    assert 'PetscCall(SNESSetFunction(snes0,NULL,FormFunction0,(void*)(da0)));' in ccode
 
 
 @skipif('petsc')
@@ -702,7 +703,7 @@ def test_start_ptr():
         op1 = Operator(petsc1)
 
     # Verify the case with modulo time stepping
-    assert 'float * start_ptr_0 = t1*localsize_0 + (float*)(u1_vec->data);' in str(op1)
+    assert 'float * u1_ptr0 = t1*localsize0 + (float*)(u1_vec->data);' in str(op1)
 
     # Verify the case with no modulo time stepping
     u2 = TimeFunction(name='u2', grid=grid, space_order=2, dtype=np.float32, save=5)
@@ -712,7 +713,7 @@ def test_start_ptr():
     with switchconfig(openmp=False):
         op2 = Operator(petsc2)
 
-    assert 'float * start_ptr_0 = (time + 1)*localsize_0 + ' + \
+    assert 'float * u2_ptr0 = (time + 1)*localsize0 + ' + \
         '(float*)(u2_vec->data);' in str(op2)
 
 
@@ -735,12 +736,12 @@ def test_time_loop():
     with switchconfig(openmp=False):
         op1 = Operator(petsc1)
     body1 = str(op1.body)
-    rhs1 = str(op1._func_table['FormRHS_0'].root.ccode)
+    rhs1 = str(op1._func_table['FormRHS0'].root.ccode)
 
     assert 'ctx0.t0 = t0' in body1
     assert 'ctx0.t1 = t1' not in body1
-    assert 'lctx->t0' in rhs1
-    assert 'lctx->t1' not in rhs1
+    assert 'ctx0->t0' in rhs1
+    assert 'ctx0->t1' not in rhs1
 
     # Non-modulo time stepping
     u2 = TimeFunction(name='u2', grid=grid, space_order=2, save=5)
@@ -750,10 +751,10 @@ def test_time_loop():
     with switchconfig(openmp=False):
         op2 = Operator(petsc2)
     body2 = str(op2.body)
-    rhs2 = str(op2._func_table['FormRHS_0'].root.ccode)
+    rhs2 = str(op2._func_table['FormRHS0'].root.ccode)
 
     assert 'ctx0.time = time' in body2
-    assert 'lctx->time' in rhs2
+    assert 'ctx0->time' in rhs2
 
     # Modulo time stepping with more than one time step
     # used in one of the callback functions
@@ -762,12 +763,12 @@ def test_time_loop():
     with switchconfig(openmp=False):
         op3 = Operator(petsc3)
     body3 = str(op3.body)
-    rhs3 = str(op3._func_table['FormRHS_0'].root.ccode)
+    rhs3 = str(op3._func_table['FormRHS0'].root.ccode)
 
     assert 'ctx0.t0 = t0' in body3
     assert 'ctx0.t1 = t1' in body3
-    assert 'lctx->t0' in rhs3
-    assert 'lctx->t1' in rhs3
+    assert 'ctx0->t0' in rhs3
+    assert 'ctx0->t1' in rhs3
 
     # Multiple petsc solves within the same time loop
     v2 = Function(name='v2', grid=grid, space_order=2)
@@ -781,3 +782,245 @@ def test_time_loop():
 
     assert 'ctx0.t0 = t0' in body4
     assert body4.count('ctx0.t0 = t0') == 1
+
+
+class TestCoupledLinear:
+    # The coupled interface can be used even for uncoupled problems, meaning
+    # the equations will be solved within a single matrix system.
+    # These tests use simple problems to validate functionality, but they help
+    # ensure correctness in code generation.
+    # TODO: Add more comprehensive tests for fully coupled problems.
+    # TODO: Add subdomain tests, time loop, multiple coupled etc.
+
+    @skipif('petsc')
+    def test_coupled_vs_non_coupled(self):
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        f.data[:] = 5.
+        h.data[:] = 5.
+
+        eq1 = Eq(e.laplace, f)
+        eq2 = Eq(g.laplace, h)
+
+        # Non-coupled
+        petsc1 = PETScSolve(eq1, target=e)
+        petsc2 = PETScSolve(eq2, target=g)
+
+        with switchconfig(openmp=False):
+            op1 = Operator(petsc1 + petsc2, opt='noop')
+        op1.apply()
+
+        enorm1 = norm(e)
+        gnorm1 = norm(g)
+
+        # Reset
+        e.data[:] = 0
+        g.data[:] = 0
+
+        # Coupled
+        # TODO: Need more friendly API for coupled - just
+        # using a dict for now
+        petsc3 = PETScSolve({e: [eq1], g: [eq2]})
+        with switchconfig(openmp=False):
+            op2 = Operator(petsc3, opt='noop')
+        op2.apply()
+
+        enorm2 = norm(e)
+        gnorm2 = norm(g)
+
+        print('enorm1:', enorm1)
+        print('enorm2:', enorm2)
+        assert np.isclose(enorm1, enorm2, rtol=1e-16)
+        assert np.isclose(gnorm1, gnorm2, rtol=1e-16)
+
+        callbacks1 = [meta_call.root for meta_call in op1._func_table.values()]
+        callbacks2 = [meta_call.root for meta_call in op2._func_table.values()]
+
+        # Solving for multiple fields within the same matrix system requires
+        # additional machinery and more callback functions
+        assert len(callbacks1) == 8
+        assert len(callbacks2) == 11
+
+        # Check fielddata type
+        fielddata1 = petsc1[0].rhs.fielddata
+        fielddata2 = petsc2[0].rhs.fielddata
+        fielddata3 = petsc3[0].rhs.fielddata
+
+        assert isinstance(fielddata1, FieldData)
+        assert isinstance(fielddata2, FieldData)
+        assert isinstance(fielddata3, MultipleFieldData)
+
+    @skipif('petsc')
+    def test_coupled_structs(self):
+        grid = Grid(shape=(11, 11))
+
+        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        eq1 = Eq(e + 5, f)
+        eq2 = Eq(g + 10, h)
+
+        petsc = PETScSolve({f: [eq1], h: [eq2]})
+
+        name = "foo"
+        with switchconfig(openmp=False):
+            op = Operator(petsc, name=name)
+
+        # Trigger the generation of a .c and a .h files
+        ccode, hcode = op.cinterface(force=True)
+
+        dirname = op._compiler.get_jit_dir()
+        assert os.path.isfile(os.path.join(dirname, f"{name}.c"))
+        assert os.path.isfile(os.path.join(dirname, f"{name}.h"))
+
+        ccode = str(ccode)
+        hcode = str(hcode)
+
+        assert f'include "{name}.h"' in ccode
+
+        # The public `struct JacobianCtx` only appears in the header file
+        assert 'struct JacobianCtx\n{' not in ccode
+        assert 'struct JacobianCtx\n{' in hcode
+
+        # The public `struct SubMatrixCtx` only appears in the header file
+        assert 'struct SubMatrixCtx\n{' not in ccode
+        assert 'struct SubMatrixCtx\n{' in hcode
+
+        # The public `struct UserCtx0` only appears in the header file
+        assert 'struct UserCtx0\n{' not in ccode
+        assert 'struct UserCtx0\n{' in hcode
+
+    @skipif('petsc')
+    def test_coupled_frees(self):
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        eq1 = Eq(e.laplace, h)
+        eq2 = Eq(f.laplace, h)
+        eq3 = Eq(g.laplace, h)
+
+        petsc1 = PETScSolve({e: [eq1], f: [eq2]})
+        petsc2 = PETScSolve({e: [eq1], f: [eq2], g: [eq3]})
+
+        with switchconfig(openmp=False):
+            op1 = Operator(petsc1, opt='noop')
+            op2 = Operator(petsc2, opt='noop')
+
+        frees1 = op1.body.frees
+        frees2 = op2.body.frees
+
+        # Check solver with two fields
+        # IS destroys
+        assert str(frees1[0]) == 'PetscCall(ISDestroy(&(fields0[0])));'
+        assert str(frees1[1]) == 'PetscCall(ISDestroy(&(fields0[1])));'
+        assert str(frees1[2]) == 'PetscCall(PetscFree(fields0));'
+        # Sub DM destroys
+        assert str(frees1[3]) == 'PetscCall(DMDestroy(&(subdms0[0])));'
+        assert str(frees1[4]) == 'PetscCall(DMDestroy(&(subdms0[1])));'
+        assert str(frees1[5]) == 'PetscCall(PetscFree(subdms0));'
+
+        # Check solver with three fields
+        # IS destroys
+        assert str(frees2[0]) == 'PetscCall(ISDestroy(&(fields0[0])));'
+        assert str(frees2[1]) == 'PetscCall(ISDestroy(&(fields0[1])));'
+        assert str(frees2[2]) == 'PetscCall(ISDestroy(&(fields0[2])));'
+        assert str(frees2[3]) == 'PetscCall(PetscFree(fields0));'
+        # Sub DM destroys
+        assert str(frees2[4]) == 'PetscCall(DMDestroy(&(subdms0[0])));'
+        assert str(frees2[5]) == 'PetscCall(DMDestroy(&(subdms0[1])));'
+        assert str(frees2[6]) == 'PetscCall(DMDestroy(&(subdms0[2])));'
+        assert str(frees2[7]) == 'PetscCall(PetscFree(subdms0));'
+
+    @skipif('petsc')
+    def test_dmda_dofs(self):
+        grid = Grid(shape=(11, 11))
+
+        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        eq1 = Eq(e.laplace, h)
+        eq2 = Eq(f.laplace, h)
+        eq3 = Eq(g.laplace, h)
+
+        petsc1 = PETScSolve({e: [eq1]})
+        petsc2 = PETScSolve({e: [eq1], f: [eq2]})
+        petsc3 = PETScSolve({e: [eq1], f: [eq2], g: [eq3]})
+
+        with switchconfig(openmp=False):
+            op1 = Operator(petsc1, opt='noop')
+            op2 = Operator(petsc2, opt='noop')
+            op3 = Operator(petsc3, opt='noop')
+
+        # Check the number of dofs in the DMDA for each field
+        assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,1,2,NULL,NULL,&(da0)));' \
+            in str(op1)
+
+        assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,2,2,NULL,NULL,&(da0)));' \
+            in str(op2)
+
+        assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,3,2,NULL,NULL,&(da0)));' \
+            in str(op3)
+
+    @skipif('petsc')
+    def test_submatrices(self):
+        grid = Grid(shape=(11, 11))
+
+        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        eq1 = Eq(e.laplace, f)
+        eq2 = Eq(g.laplace, h)
+
+        petsc = PETScSolve({e: [eq1], g: [eq2]})
+
+        submatrices = petsc[0].rhs.fielddata.submatrices
+
+        j00 = submatrices.get_submatrix(e, 'J00')
+        j01 = submatrices.get_submatrix(e, 'J01')
+        j10 = submatrices.get_submatrix(g, 'J10')
+        j11 = submatrices.get_submatrix(g, 'J11')
+
+        # Check the number of submatrices
+        assert len(submatrices.submatrix_keys) == 4
+        assert str(submatrices.submatrix_keys) == "['J00', 'J01', 'J10', 'J11']"
+
+        # Technically a non-coupled problem, so the only non-zero submatrices
+        # should be the diagonal ones i.e J00 and J11
+        assert submatrices.nonzero_submatrix_keys == ['J00', 'J11']
+        assert submatrices.get_submatrix(e, 'J01')['matvecs'] is None
+        assert submatrices.get_submatrix(g, 'J10')['matvecs'] is None
+
+        j00 = submatrices.get_submatrix(e, 'J00')
+        j11 = submatrices.get_submatrix(g, 'J11')
+
+        assert str(j00['matvecs'][0]) == 'Eq(y_e(x, y),' \
+            + ' Derivative(x_e(x, y), (x, 2)) + Derivative(x_e(x, y), (y, 2)))'
+
+        assert str(j11['matvecs'][0]) == 'Eq(y_g(x, y),' \
+            + ' Derivative(x_g(x, y), (x, 2)) + Derivative(x_g(x, y), (y, 2)))'
+
+        # Check the derivative wrt fields
+        assert j00['derivative_wrt'] == e
+        assert j01['derivative_wrt'] == g
+        assert j10['derivative_wrt'] == e
+        assert j11['derivative_wrt'] == g
+
+    # TODO:
+    # @skipif('petsc')
+    # def test_create_submats(self):
+
+    # add tests for all new callbacks
+    # def test_create_whole_matmult():
