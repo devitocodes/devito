@@ -497,6 +497,16 @@ class TestSparseFunction:
         ftest.data[:] = expected
         assert np.all(m.data[0, :, :] == ftest.data[:])
 
+    @pytest.mark.parametrize('dtype, expected', [(np.complex64, np.float32),
+                                                 (np.complex128, np.float64)])
+    def test_coordinate_type(self, dtype, expected):
+        """Test that coordinates are always real"""
+        grid = Grid(shape=(11,))
+        s = SparseFunction(name='src', npoint=1,
+                           grid=grid, dtype=dtype)
+
+        assert s.coordinates.dtype is expected
+
 
 if __name__ == "__main__":
     TestMatrixSparseTimeFunction().test_mpi_no_data()

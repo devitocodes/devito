@@ -841,6 +841,18 @@ def test_sinc_accuracy(r, tol):
     assert err_lin > 0.01
 
 
+@pytest.mark.parametrize('dtype, expected', [(np.complex64, np.float32),
+                                             (np.complex128, np.float64)])
+def test_point_symbol_types(dtype, expected):
+    """Test that positions are always real"""
+    grid = Grid(shape=(11,))
+    s = SparseFunction(name='src', npoint=1,
+                       grid=grid, dtype=dtype)
+    point_symbol = s.interpolator._point_symbols[0]
+
+    assert point_symbol.dtype is expected
+
+
 class SD0(SubDomain):
     name = 'sd0'
 
