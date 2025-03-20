@@ -202,6 +202,12 @@ class AbstractSparseFunction(DiscreteFunction):
             else:
                 dtype = dtype or self.dtype
 
+        # Complex coordinates are not valid, so fall back to corresponding
+        # real floating point type if dtype is complex.
+        if issubclass(dtype, np.complexfloating):
+            dtype = {np.complex64: np.float32,
+                     np.complex128: np.float64}.get(dtype, np.float32)
+
         sf = SparseSubFunction(
             name=name, dtype=dtype, dimensions=dimensions,
             shape=shape, space_order=0, initializer=key, alias=self.alias,
