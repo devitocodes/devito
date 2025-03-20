@@ -473,7 +473,7 @@ class LinearInterpolator(WeightedInterpolator):
     def _point_symbols(self):
         """Symbol for coordinate value in each Dimension of the point."""
         dtype = self.sfunction.coordinates.dtype
-        return DimensionTuple(*(Symbol(name='p%s' % d, dtype=dtype)
+        return DimensionTuple(*(Symbol(name=f'p{d}', dtype=dtype)
                                 for d in self.grid.dimensions),
                               getters=self.grid.dimensions)
 
