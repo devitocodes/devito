@@ -498,9 +498,13 @@ class TestSparseFunction:
         assert np.all(m.data[0, :, :] == ftest.data[:])
 
     @pytest.mark.parametrize('dtype, expected', [(np.complex64, np.float32),
-                                                 (np.complex128, np.float64)])
+                                                 (np.complex128, np.float64),
+                                                 (np.float16, np.float16)])
     def test_coordinate_type(self, dtype, expected):
-        """Test that coordinates are always real"""
+        """
+        Test that coordinates are always real and SparseFunction dtype is
+        otherwise preserved.
+        """
         grid = Grid(shape=(11,))
         s = SparseFunction(name='src', npoint=1,
                            grid=grid, dtype=dtype)
