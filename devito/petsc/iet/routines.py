@@ -4,7 +4,7 @@ from functools import cached_property
 from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
                            Dereference, DummyExpr, BlankLine, Callable, FindNodes,
                            retrieve_iteration_tree, filter_iterations, Iteration)
-from devito.symbolics import (Byref, FieldFromPointer, cast_mapper, VOIDP,
+from devito.symbolics import (Byref, FieldFromPointer, cast, VOID,
                               FieldFromComposite, IntDiv, Deref, Mod)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
@@ -671,8 +671,10 @@ class CCBBuilder(CBBuilder):
             calls += (
                 petsc_call('VecGetSubVector', [X, field_ptr, Byref(sobjs[x_name])]),
                 petsc_call('VecGetSubVector', [F, field_ptr, Byref(sobjs[f_name])]),
-                petsc_call(self.formfuncs[i].name, [objs['snes'], sobjs[x_name],
-                           sobjs[f_name], VOIDP(objs['LocalSubdms'].indexed[i])]),
+                petsc_call(self.formfuncs[i].name, [
+                    objs['snes'], sobjs[x_name], sobjs[f_name],
+                    VOID(objs['LocalSubdms'].indexed[i], stars='*')
+                ]),
                 petsc_call('VecRestoreSubVector', [X, field_ptr, Byref(sobjs[x_name])]),
                 petsc_call('VecRestoreSubVector', [F, field_ptr, Byref(sobjs[f_name])]),
             )
@@ -992,7 +994,7 @@ class BaseSetup:
         The [optional] context for private data for the function evaluation routine.
         https://petsc.org/main/manualpages/SNES/SNESSetFunction/
         """
-        return VOIDP(self.solver_objs['dmda'])
+        return VOID(self.solver_objs['dmda'], stars='*')
 
     def _setup(self):
         objs = self.objs
@@ -1526,11 +1528,12 @@ class TimeDependent(NonTimeDependent):
             xlocal = sobjs.get(f'xlocal{target.name}', sobjs['xlocal'])
             start_ptr = sobjs[f'{target.name}_ptr']
 
+            caster = cast(target.dtype, '*')
             return (
                 petsc_call('VecGetSize', [xlocal, Byref(sobjs['localsize'])]),
                 DummyExpr(
                     start_ptr,
-                    cast_mapper[(target.dtype, '*')](
+                    caster(
                         FieldFromPointer(target._C_field_data, target._C_symbol)
                     ) + Mul(target_time, sobjs['localsize']),
                     init=True

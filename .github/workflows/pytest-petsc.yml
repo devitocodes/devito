@@ -9,9 +9,11 @@ on:
   # but only for the master branch
   push:
     branches:
+      - main
       - master
   pull_request:
     branches:
+      - main
       - master
 
 jobs:

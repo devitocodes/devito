@@ -19,7 +19,6 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'CustomIntType']
 
 
-
 # *** Custom np.dtypes
 
 # NOTE: the following is inspired by pyopencl.cltypes

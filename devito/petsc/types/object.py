@@ -2,7 +2,7 @@ from ctypes import POINTER, c_char
 from devito.tools import CustomDtype, dtype_to_cstr, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
                           TimeDimension, ArrayObject, CustomDimension)
-from devito.symbolics import Byref, Cast
+from devito.symbolics import Byref, cast
 from devito.types.basic import DataSymbol
 from devito.petsc.iet.utils import petsc_call
 
@@ -42,8 +42,7 @@ class DM(LocalObject):
         return 4
 
 
-class DMCast(Cast):
-    _base_typ = 'DM'
+DMCast = cast('DM')
 
 
 class CallbackMat(LocalObject):
@@ -232,8 +231,7 @@ class SubMatrixStruct(PETScStruct):
     _C_modifier = None
 
 
-class JacobianStructCast(Cast):
-    _base_typ = 'struct JacobianCtx *'
+JacobianStructCast = cast('struct JacobianCtx *')
 
 
 class PETScArrayObject(ArrayObject):
