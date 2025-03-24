@@ -296,13 +296,22 @@ class Properties(frozendict):
         return self.add(dims, INBOUND)
 
     def init_core_shm(self, dims):
-        return self.add(dims, INIT_CORE_SHM)
+        properties = self.add(dims, INIT_CORE_SHM)
+        properties = properties.drop(properties={INIT_HALO_LEFT_SHM,
+                                                 INIT_HALO_RIGHT_SHM})
+        return properties
 
     def init_halo_left_shm(self, dims):
-        return self.add(dims, INIT_HALO_LEFT_SHM)
+        properties = self.add(dims, INIT_HALO_LEFT_SHM)
+        properties = properties.drop(properties={INIT_CORE_SHM,
+                                                 INIT_HALO_RIGHT_SHM})
+        return properties
 
     def init_halo_right_shm(self, dims):
-        return self.add(dims, INIT_HALO_RIGHT_SHM)
+        properties = self.add(dims, INIT_HALO_RIGHT_SHM)
+        properties = properties.drop(properties={INIT_CORE_SHM,
+                                                 INIT_HALO_LEFT_SHM})
+        return properties
 
     def is_parallel(self, dims):
         return any(len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
