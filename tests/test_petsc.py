@@ -3,9 +3,9 @@ import os
 import pytest
 
 from conftest import skipif
-from devito import (Grid, Function, TimeFunction, Eq, Operator, switchconfig,
-                    configuration, norm)
-from devito.ir.iet import (Call, ElementalFunction, Definition, DummyExpr,
+from devito import (Grid, Function, TimeFunction, Eq, Operator,
+                    configuration, norm, switchconfig)
+from devito.ir.iet import (Call, ElementalFunction,
                            FindNodes, retrieve_iteration_tree)
 from devito.types import Constant, LocalCompositeObject
 from devito.passes.iet.languages.C import CDataManager
@@ -55,33 +55,6 @@ def test_petsc_local_object():
 
 
 @skipif('petsc')
-def test_petsc_functions():
-    """
-    Test C++ support for PETScArrays.
-    """
-    grid = Grid((2, 2))
-    x, y = grid.dimensions
-
-    f0 = Function(name='f', grid=grid, space_order=2, dtype=np.float32)
-    f1 = Function(name='f', grid=grid, space_order=2, dtype=np.float64)
-
-    ptr0 = PETScArray(name='ptr0', target=f0)
-    ptr1 = PETScArray(name='ptr1', target=f0, is_const=True)
-    ptr2 = PETScArray(name='ptr2', target=f1, is_const=True)
-
-    defn0 = Definition(ptr0)
-    defn1 = Definition(ptr1)
-    defn2 = Definition(ptr2)
-
-    expr = DummyExpr(ptr0.indexed[x, y], ptr1.indexed[x, y] + 1)
-
-    assert str(defn0) == 'float *restrict ptr0_vec;'
-    assert str(defn1) == 'const float *restrict ptr1_vec;'
-    assert str(defn2) == 'const double *restrict ptr2_vec;'
-    assert str(expr) == 'ptr0[x][y] = ptr1[x][y] + 1;'
-
-
-@skipif('petsc')
 def test_petsc_subs():
     """
     Test support for PETScArrays in substitutions.
@@ -112,7 +85,7 @@ def test_petsc_solve():
     """
     Test PETScSolve.
     """
-    grid = Grid((2, 2))
+    grid = Grid((2, 2), dtype=np.float64)
 
     f = Function(name='f', grid=grid, space_order=2)
     g = Function(name='g', grid=grid, space_order=2)
@@ -121,7 +94,7 @@ def test_petsc_solve():
 
     petsc = PETScSolve(eqn, f)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op = Operator(petsc, opt='noop')
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
@@ -161,7 +134,7 @@ def test_multiple_petsc_solves():
     """
     Test multiple PETScSolves.
     """
-    grid = Grid((2, 2))
+    grid = Grid((2, 2), dtype=np.float64)
 
     f1 = Function(name='f1', grid=grid, space_order=2)
     g1 = Function(name='g1', grid=grid, space_order=2)
@@ -175,7 +148,7 @@ def test_multiple_petsc_solves():
     petsc1 = PETScSolve(eqn1, f1)
     petsc2 = PETScSolve(eqn2, f2)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op = Operator(petsc1+petsc2, opt='noop')
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
@@ -189,9 +162,9 @@ def test_petsc_cast():
     """
     Test casting of PETScArray.
     """
-    grid1 = Grid((2))
-    grid2 = Grid((2, 2))
-    grid3 = Grid((4, 5, 6))
+    grid1 = Grid((2), dtype=np.float64)
+    grid2 = Grid((2, 2), dtype=np.float64)
+    grid3 = Grid((4, 5, 6), dtype=np.float64)
 
     f1 = Function(name='f1', grid=grid1, space_order=2)
     f2 = Function(name='f2', grid=grid2, space_order=4)
@@ -205,37 +178,30 @@ def test_petsc_cast():
     petsc2 = PETScSolve(eqn2, f2)
     petsc3 = PETScSolve(eqn3, f3)
 
-    with switchconfig(openmp=False):
-        op1 = Operator(petsc1, opt='noop')
-        op2 = Operator(petsc2, opt='noop')
-        op3 = Operator(petsc3, opt='noop')
+    with switchconfig(language='petsc'):
+        op1 = Operator(petsc1)
+        op2 = Operator(petsc2)
+        op3 = Operator(petsc3)
 
-    cb1 = [meta_call.root for meta_call in op1._func_table.values()]
-    cb2 = [meta_call.root for meta_call in op2._func_table.values()]
-    cb3 = [meta_call.root for meta_call in op3._func_table.values()]
-
-    assert 'float (*restrict x_f1) = ' + \
-        '(float (*)) x_f1_vec;' in str(cb1[0])
-    assert 'float (*restrict x_f2)[info.gxm] = ' + \
-        '(float (*)[info.gxm]) x_f2_vec;' in str(cb2[0])
-    assert 'float (*restrict x_f3)[info.gym][info.gxm] = ' + \
-        '(float (*)[info.gym][info.gxm]) x_f3_vec;' in str(cb3[0])
+    assert 'PetscScalar (* x_f1) = ' + \
+        '(PetscScalar (*)) x_f1_vec;' in str(op1.ccode)
+    assert 'PetscScalar (* x_f2)[info.gxm] = ' + \
+        '(PetscScalar (*)[info.gxm]) x_f2_vec;' in str(op2.ccode)
+    assert 'PetscScalar (* x_f3)[info.gym][info.gxm] = ' + \
+        '(PetscScalar (*)[info.gym][info.gxm]) x_f3_vec;' in str(op3.ccode)
 
 
 @skipif('petsc')
 def test_LinearSolveExpr():
 
-    grid = Grid((2, 2))
+    grid = Grid((2, 2), dtype=np.float64)
 
     f = Function(name='f', grid=grid, space_order=2)
     g = Function(name='g', grid=grid, space_order=2)
 
     eqn = Eq(f, g.laplace)
 
-    linsolveexpr = LinearSolveExpr(eqn.rhs, target=f)
-
-    # TODO: maybe expand this test now to check the fielddata etc
-    linsolveexpr = LinearSolveExpr(eqn.rhs)
+    linsolveexpr = LinearSolveExpr(eqn.rhs, fielddata=FieldData(target=f))
 
     # Check the solver parameters
     assert linsolveexpr.solver_parameters == \
@@ -246,9 +212,9 @@ def test_LinearSolveExpr():
 @skipif('petsc')
 def test_dmda_create():
 
-    grid1 = Grid((2))
-    grid2 = Grid((2, 2))
-    grid3 = Grid((4, 5, 6))
+    grid1 = Grid((2), dtype=np.float64)
+    grid2 = Grid((2, 2), dtype=np.float64)
+    grid3 = Grid((4, 5, 6), dtype=np.float64)
 
     f1 = Function(name='f1', grid=grid1, space_order=2)
     f2 = Function(name='f2', grid=grid2, space_order=4)
@@ -262,7 +228,7 @@ def test_dmda_create():
     petsc2 = PETScSolve(eqn2, f2)
     petsc3 = PETScSolve(eqn3, f3)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op1 = Operator(petsc1, opt='noop')
         op2 = Operator(petsc2, opt='noop')
         op3 = Operator(petsc3, opt='noop')
@@ -282,13 +248,14 @@ def test_dmda_create():
 @skipif('petsc')
 def test_cinterface_petsc_struct():
 
-    grid = Grid(shape=(11, 11))
+    grid = Grid(shape=(11, 11), dtype=np.float64)
     f = Function(name='f', grid=grid, space_order=2)
     eq = Eq(f.laplace, 10)
     petsc = PETScSolve(eq, f)
 
     name = "foo"
-    with switchconfig(openmp=False):
+
+    with switchconfig(language='petsc'):
         op = Operator(petsc, name=name)
 
     # Trigger the generation of a .c and a .h files
@@ -561,7 +528,7 @@ def test_callback_arguments():
     """
     Test the arguments of each callback function.
     """
-    grid = Grid((2, 2))
+    grid = Grid((2, 2), dtype=np.float64)
 
     f1 = Function(name='f1', grid=grid, space_order=2)
     g1 = Function(name='g1', grid=grid, space_order=2)
@@ -570,7 +537,7 @@ def test_callback_arguments():
 
     petsc1 = PETScSolve(eqn1, f1)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op = Operator(petsc1)
 
     mv = op._func_table['MatMult0'].root
@@ -586,7 +553,7 @@ def test_callback_arguments():
 @skipif('petsc')
 def test_petsc_struct():
 
-    grid = Grid((2, 2))
+    grid = Grid((2, 2), dtype=np.float64)
 
     f1 = Function(name='f1', grid=grid, space_order=2)
     g1 = Function(name='g1', grid=grid, space_order=2)
@@ -599,7 +566,7 @@ def test_petsc_struct():
 
     eqn2 = Eq(f1, g1*mu2)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op = Operator([eqn2] + petsc1)
 
     arguments = op.arguments()
@@ -621,19 +588,20 @@ def test_apply():
 
     grid = Grid(shape=(13, 13), dtype=np.float64)
 
-    pn = Function(name='pn', grid=grid, space_order=2, dtype=np.float64)
-    rhs = Function(name='rhs', grid=grid, space_order=2, dtype=np.float64)
+    pn = Function(name='pn', grid=grid, space_order=2)
+    rhs = Function(name='rhs', grid=grid, space_order=2)
     mu = Constant(name='mu', value=2.0)
 
     eqn = Eq(pn.laplace*mu, rhs, subdomain=grid.interior)
 
     petsc = PETScSolve(eqn, pn)
 
-    # Build the op
-    op = Operator(petsc)
+    with switchconfig(language='petsc'):
+        # Build the op
+        op = Operator(petsc)
 
-    # Check the Operator runs without errors
-    op.apply()
+        # Check the Operator runs without errors
+        op.apply()
 
     # Verify that users can override `mu`
     mu_new = Constant(name='mu_new', value=4.0)
@@ -643,7 +611,7 @@ def test_apply():
 @skipif('petsc')
 def test_petsc_frees():
 
-    grid = Grid((2, 2))
+    grid = Grid((2, 2), dtype=np.float64)
 
     f = Function(name='f', grid=grid, space_order=2)
     g = Function(name='g', grid=grid, space_order=2)
@@ -651,7 +619,7 @@ def test_petsc_frees():
     eqn = Eq(f.laplace, g)
     petsc = PETScSolve(eqn, f)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op = Operator(petsc)
 
     frees = op.body.frees
@@ -667,7 +635,7 @@ def test_petsc_frees():
 @skipif('petsc')
 def test_calls_to_callbacks():
 
-    grid = Grid((2, 2))
+    grid = Grid((2, 2), dtype=np.float64)
 
     f = Function(name='f', grid=grid, space_order=2)
     g = Function(name='g', grid=grid, space_order=2)
@@ -675,7 +643,7 @@ def test_calls_to_callbacks():
     eqn = Eq(f.laplace, g)
     petsc = PETScSolve(eqn, f)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op = Operator(petsc)
 
     ccode = str(op.ccode)
@@ -694,27 +662,28 @@ def test_start_ptr():
     This functionality is crucial for VecReplaceArray operations, as it ensures
     that the correct memory location is accessed and modified during each time step.
     """
-    grid = Grid((11, 11))
-    u1 = TimeFunction(name='u1', grid=grid, space_order=2, dtype=np.float32)
+    grid = Grid((11, 11), dtype=np.float64)
+    u1 = TimeFunction(name='u1', grid=grid, space_order=2)
     eq1 = Eq(u1.dt, u1.laplace, subdomain=grid.interior)
     petsc1 = PETScSolve(eq1, u1.forward)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op1 = Operator(petsc1)
 
     # Verify the case with modulo time stepping
-    assert 'float * u1_ptr0 = t1*localsize0 + (float*)(u1_vec->data);' in str(op1)
+    assert ('PetscScalar * u1_ptr0 = t1*localsize0 + '
+            '(PetscScalar*)(u1_vec->data);') in str(op1)
 
     # Verify the case with no modulo time stepping
-    u2 = TimeFunction(name='u2', grid=grid, space_order=2, dtype=np.float32, save=5)
+    u2 = TimeFunction(name='u2', grid=grid, space_order=2, save=5)
     eq2 = Eq(u2.dt, u2.laplace, subdomain=grid.interior)
     petsc2 = PETScSolve(eq2, u2.forward)
 
-    with switchconfig(openmp=False):
+    with switchconfig(language='petsc'):
         op2 = Operator(petsc2)
 
-    assert 'float * u2_ptr0 = (time + 1)*localsize0 + ' + \
-        '(float*)(u2_vec->data);' in str(op2)
+    assert ('PetscScalar * u2_ptr0 = (time + 1)*localsize0 + '
+            '(PetscScalar*)(u2_vec->data);') in str(op2)
 
 
 @skipif('petsc')
@@ -726,15 +695,17 @@ def test_time_loop():
     - Only assign/update the modulo dimensions required by any of the
     PETSc callback functions.
     """
-    grid = Grid((11, 11))
+    grid = Grid((11, 11), dtype=np.float64)
 
     # Modulo time stepping
     u1 = TimeFunction(name='u1', grid=grid, space_order=2)
     v1 = Function(name='v1', grid=grid, space_order=2)
     eq1 = Eq(v1.laplace, u1)
     petsc1 = PETScSolve(eq1, v1)
-    with switchconfig(openmp=False):
+
+    with switchconfig(language='petsc'):
         op1 = Operator(petsc1)
+        op1.apply(time_M=3)
     body1 = str(op1.body)
     rhs1 = str(op1._func_table['FormRHS0'].root.ccode)
 
@@ -748,8 +719,10 @@ def test_time_loop():
     v2 = Function(name='v2', grid=grid, space_order=2, save=5)
     eq2 = Eq(v2.laplace, u2)
     petsc2 = PETScSolve(eq2, v2)
-    with switchconfig(openmp=False):
+
+    with switchconfig(language='petsc'):
         op2 = Operator(petsc2)
+        op2.apply(time_M=3)
     body2 = str(op2.body)
     rhs2 = str(op2._func_table['FormRHS0'].root.ccode)
 
@@ -760,8 +733,10 @@ def test_time_loop():
     # used in one of the callback functions
     eq3 = Eq(v1.laplace, u1 + u1.forward)
     petsc3 = PETScSolve(eq3, v1)
-    with switchconfig(openmp=False):
+
+    with switchconfig(language='petsc'):
         op3 = Operator(petsc3)
+        op3.apply(time_M=3)
     body3 = str(op3.body)
     rhs3 = str(op3._func_table['FormRHS0'].root.ccode)
 
@@ -776,12 +751,38 @@ def test_time_loop():
     petsc4 = PETScSolve(eq4, v1)
     eq5 = Eq(v2.laplace, u1)
     petsc5 = PETScSolve(eq5, v2)
-    with switchconfig(openmp=False):
+
+    with switchconfig(language='petsc'):
         op4 = Operator(petsc4 + petsc5)
+        op4.apply(time_M=3)
     body4 = str(op4.body)
 
     assert 'ctx0.t0 = t0' in body4
     assert body4.count('ctx0.t0 = t0') == 1
+
+
+@skipif('petsc')
+def test_solve_output():
+    """
+    Verify that PETScSolve returns the correct output for
+    simple cases e.g with the identity matrix.
+    """
+    grid = Grid(shape=(11, 11), dtype=np.float64)
+
+    u = Function(name='u', grid=grid, space_order=2)
+    v = Function(name='v', grid=grid, space_order=2)
+
+    # Solving Ax=b where A is the identity matrix
+    v.data[:] = 5.0
+    eqn = Eq(u, v)
+    petsc = PETScSolve(eqn, target=u)
+
+    with switchconfig(language='petsc'):
+        op = Operator(petsc)
+        # Check the solve function returns the correct output
+        op.apply()
+
+    assert np.allclose(u.data, v.data)
 
 
 class TestCoupledLinear:
@@ -796,7 +797,7 @@ class TestCoupledLinear:
     def test_coupled_vs_non_coupled(self):
         grid = Grid(shape=(11, 11), dtype=np.float64)
 
-        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
                      for n in ['e', 'f', 'g', 'h']]
         e, f, g, h = functions
 
@@ -810,9 +811,9 @@ class TestCoupledLinear:
         petsc1 = PETScSolve(eq1, target=e)
         petsc2 = PETScSolve(eq2, target=g)
 
-        with switchconfig(openmp=False):
+        with switchconfig(language='petsc'):
             op1 = Operator(petsc1 + petsc2, opt='noop')
-        op1.apply()
+            op1.apply()
 
         enorm1 = norm(e)
         gnorm1 = norm(g)
@@ -825,9 +826,10 @@ class TestCoupledLinear:
         # TODO: Need more friendly API for coupled - just
         # using a dict for now
         petsc3 = PETScSolve({e: [eq1], g: [eq2]})
-        with switchconfig(openmp=False):
+
+        with switchconfig(language='petsc'):
             op2 = Operator(petsc3, opt='noop')
-        op2.apply()
+            op2.apply()
 
         enorm2 = norm(e)
         gnorm2 = norm(g)
@@ -856,9 +858,9 @@ class TestCoupledLinear:
 
     @skipif('petsc')
     def test_coupled_structs(self):
-        grid = Grid(shape=(11, 11))
+        grid = Grid(shape=(11, 11), dtype=np.float64)
 
-        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
                      for n in ['e', 'f', 'g', 'h']]
         e, f, g, h = functions
 
@@ -868,7 +870,8 @@ class TestCoupledLinear:
         petsc = PETScSolve({f: [eq1], h: [eq2]})
 
         name = "foo"
-        with switchconfig(openmp=False):
+
+        with switchconfig(language='petsc'):
             op = Operator(petsc, name=name)
 
         # Trigger the generation of a .c and a .h files
@@ -899,7 +902,7 @@ class TestCoupledLinear:
     def test_coupled_frees(self):
         grid = Grid(shape=(11, 11), dtype=np.float64)
 
-        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
                      for n in ['e', 'f', 'g', 'h']]
         e, f, g, h = functions
 
@@ -910,7 +913,7 @@ class TestCoupledLinear:
         petsc1 = PETScSolve({e: [eq1], f: [eq2]})
         petsc2 = PETScSolve({e: [eq1], f: [eq2], g: [eq3]})
 
-        with switchconfig(openmp=False):
+        with switchconfig(language='petsc'):
             op1 = Operator(petsc1, opt='noop')
             op2 = Operator(petsc2, opt='noop')
 
@@ -941,9 +944,9 @@ class TestCoupledLinear:
 
     @skipif('petsc')
     def test_dmda_dofs(self):
-        grid = Grid(shape=(11, 11))
+        grid = Grid(shape=(11, 11), dtype=np.float64)
 
-        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
                      for n in ['e', 'f', 'g', 'h']]
         e, f, g, h = functions
 
@@ -955,7 +958,7 @@ class TestCoupledLinear:
         petsc2 = PETScSolve({e: [eq1], f: [eq2]})
         petsc3 = PETScSolve({e: [eq1], f: [eq2], g: [eq3]})
 
-        with switchconfig(openmp=False):
+        with switchconfig(language='petsc'):
             op1 = Operator(petsc1, opt='noop')
             op2 = Operator(petsc2, opt='noop')
             op3 = Operator(petsc3, opt='noop')
@@ -975,9 +978,9 @@ class TestCoupledLinear:
 
     @skipif('petsc')
     def test_submatrices(self):
-        grid = Grid(shape=(11, 11))
+        grid = Grid(shape=(11, 11), dtype=np.float64)
 
-        functions = [Function(name=n, grid=grid, space_order=2, dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
                      for n in ['e', 'f', 'g', 'h']]
         e, f, g, h = functions
 

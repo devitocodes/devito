@@ -17,7 +17,7 @@ from devito.petsc.types import (PetscMPIInt, PetscErrorCode, MultipleFieldData,
                                 SubMatrixStruct, Initialize, Finalize, ArgvSymbol)
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.iet.nodes import PetscMetaData
-from devito.petsc.utils import core_metadata
+from devito.petsc.utils import core_metadata, petsc_languages
 from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
                                        CoupledObjectBuilder, BaseSetup, CoupledSetup,
                                        Solver, CoupledSolver, TimeDependent,
@@ -33,6 +33,12 @@ def lower_petsc(iet, **kwargs):
 
     if not injectsolve_mapper:
         return iet, {}
+
+    if kwargs['language'] not in petsc_languages:
+        raise ValueError(
+            f"Expected 'language' to be one of "
+            f"{petsc_languages}, but got '{kwargs['language']}'"
+        )
 
     metadata = core_metadata()
     data = FindNodes(PetscMetaData).visit(iet)

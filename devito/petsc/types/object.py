@@ -1,5 +1,5 @@
 from ctypes import POINTER, c_char
-from devito.tools import CustomDtype, dtype_to_cstr, as_tuple, CustomIntType
+from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
                           TimeDimension, ArrayObject, CustomDimension)
 from devito.symbolics import Byref, cast
@@ -188,7 +188,7 @@ class VecScatter(LocalObject):
 class StartPtr(LocalObject):
     def __init__(self, name, dtype):
         super().__init__(name=name)
-        self.dtype = CustomDtype(dtype_to_cstr(dtype), modifier=' *')
+        self.dtype = POINTER(dtype_to_ctype(dtype))
 
 
 class SingleIS(LocalObject):

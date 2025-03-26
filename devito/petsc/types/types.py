@@ -1,6 +1,8 @@
 import sympy
 
 from devito.tools import Reconstructable, sympy_mutex
+from devito.tools.dtypes_lowering import dtype_mapper
+from devito.petsc.utils import petsc_variables
 
 
 class MetaData(sympy.Function, Reconstructable):
@@ -132,6 +134,14 @@ class FieldData:
     def __init__(self, target=None, matvecs=None, formfuncs=None, formrhs=None,
                  arrays=None, **kwargs):
         self._target = kwargs.get('target', target)
+
+        petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
+        if self._target.dtype != petsc_precision:
+            raise TypeError(
+                f"Your target dtype must match the precision of your "
+                f"PETSc configuration. "
+                f"Expected {petsc_precision}, but got {self._target.dtype}."
+            )
         self._matvecs = matvecs
         self._formfuncs = formfuncs
         self._formrhs = formrhs

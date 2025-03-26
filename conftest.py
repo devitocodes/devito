@@ -14,7 +14,7 @@ from devito.arch.compiler import (compiler_registry, IntelCompiler, OneapiCompil
 from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
                            retrieve_iteration_tree)
 from devito.tools import as_tuple
-from devito.petsc.utils import get_petsc_dir, get_petsc_arch
+from devito.petsc.utils import PetscOSError, get_petsc_dir
 
 try:
     from mpi4py import MPI  # noqa
@@ -95,18 +95,11 @@ def skipif(items, whole_module=False):
             skipit = "pyrevolve not installed"
             break
         if i == 'petsc':
-            petsc_dir = get_petsc_dir()
-            petsc_arch = get_petsc_arch()
-            if petsc_dir is None or petsc_arch is None:
-                skipit = "PETSC_DIR or PETSC_ARCH are not set"
+            try:
+                _ = get_petsc_dir()
+            except PetscOSError:
+                skipit = "PETSc is not installed"
                 break
-            else:
-                petsc_installed = os.path.join(
-                    petsc_dir, petsc_arch, 'include', 'petscconf.h'
-                )
-                if not os.path.isfile(petsc_installed):
-                    skipit = "PETSc is not installed"
-                    break
 
     if skipit is False:
         return pytest.mark.skipif(False, reason='')

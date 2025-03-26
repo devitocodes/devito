@@ -106,10 +106,6 @@ class PETScArray(ArrayBasic, Differentiable):
 
     @cached_property
     def _C_ctype(self):
-        # TODO: Switch to using PetscScalar instead of float/double
-        # TODO: Use cat $PETSC_DIR/$PETSC_ARCH/lib/petsc/conf/petscvariables
-        # | grep -E "PETSC_(SCALAR|PRECISION)" to determine the precision of
-        # the user's PETSc configuration.
         return POINTER(dtype_to_ctype(self.dtype))
 
     @property
