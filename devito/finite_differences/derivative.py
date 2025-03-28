@@ -5,7 +5,7 @@ from functools import cached_property
 import sympy
 
 from .finite_difference import generic_derivative, cross_derivative
-from .differentiable import Differentiable, interp_for_fd
+from .differentiable import Differentiable, diffify, interp_for_fd
 from .tools import direct, transpose
 from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, filter_ordered, frozendict, is_integer,
@@ -262,7 +262,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     def _rebuild(self, *args, **kwargs):
         kwargs['preprocessed'] = True
-        return super()._rebuild(*args, **kwargs)
+        if args:
+            return super()._rebuild(diffify(args[0]), *args[1:], **kwargs)
+        else:
+            return super()._rebuild(**kwargs)
 
     func = _rebuild
 
