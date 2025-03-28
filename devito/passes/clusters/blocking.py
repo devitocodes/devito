@@ -508,7 +508,9 @@ class BlockSizeGenerator:
             # The user has supplied one specific par-tile per blocked nest
             self.umt_small = par_tile
             self.umt_sparse = par_tile
-            self.umt_reduce = par_tile
+            # Reduction tiles have to be unbounded.
+            self.umt_reduce = UnboundedMultiTuple(
+                *[UnboundTuple(*p, 1) for p in par_tile])
         else:
             # Special case 1: a smaller par-tile to avoid under-utilizing
             # computational resources when the iteration spaces are too small
