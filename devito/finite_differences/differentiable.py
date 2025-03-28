@@ -263,7 +263,16 @@ class Differentiable(sympy.Expr, Evaluable):
         return Mul(sympy.S.NegativeOne, self)
 
     def __eq__(self, other):
-        ret = super().__eq__(other)
+        from devito.finite_differences import Derivative
+        # Prevent recustion if other is also of derivative type
+        if type(self) is type(other) is Derivative:
+            # `sympy.Derivative.__eq__(self, other)` also recurses
+            ret = self.expr == other.expr
+            ret &= self.dimensions == other.dimensions
+            ret &= self.derivative_count == other.derivative_count
+            ret &= self.deriv_order == other.deriv_order
+        else:
+            ret = super().__eq__(other)
         if ret is NotImplemented or not ret:
             # Non comparable or not equal as sympy objects
             return False
