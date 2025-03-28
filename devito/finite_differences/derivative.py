@@ -95,7 +95,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if type(expr) is sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
         if not isinstance(expr, Differentiable):
-            raise ValueError("`expr` must be a Differentiable object")
+            try:
+                expr = diffify(expr)
+            except Exception as e:
+                raise ValueError("`expr` must be a Differentiable object") from e
 
         new_dims, orders, fd_o, var_count = cls._process_kwargs(expr, *dims, **kwargs)
 
@@ -262,10 +265,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     def _rebuild(self, *args, **kwargs):
         kwargs['preprocessed'] = True
-        if args:
-            return super()._rebuild(diffify(args[0]), *args[1:], **kwargs)
-        else:
-            return super()._rebuild(**kwargs)
+        return super()._rebuild(**kwargs)
 
     func = _rebuild
 
