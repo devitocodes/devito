@@ -13,8 +13,8 @@ __all__ = ['cast', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  #
 limits_mapper = {
     np.int32: Bunch(min=ValueLimit('INT_MIN'), max=ValueLimit('INT_MAX')),
     np.int64: Bunch(min=ValueLimit('LONG_MIN'), max=ValueLimit('LONG_MAX')),
-    np.float32: Bunch(min=-ValueLimit('FLT_MIN'), max=ValueLimit('FLT_MAX')),
-    np.float64: Bunch(min=-ValueLimit('DBL_MIN'), max=ValueLimit('DBL_MAX')),
+    np.float32: Bunch(min=-ValueLimit('FLT_MAX'), max=ValueLimit('FLT_MAX')),
+    np.float64: Bunch(min=-ValueLimit('DBL_MAX'), max=ValueLimit('DBL_MAX')),
 }
 
 
