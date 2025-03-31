@@ -453,10 +453,7 @@ class Cast(UnaryOp):
 
     @property
     def _op(self):
-        cstr = ctypes_to_cstr(self._C_ctype)
-        if self.stars:
-            cstr = f"{cstr}{self.stars}"
-        return f'({cstr})'
+        return f'({ctypes_to_cstr(self._C_ctype)}{self.stars})'
 
     def __str__(self):
         return f"{self._op}{self.base}"
