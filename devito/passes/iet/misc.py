@@ -5,7 +5,7 @@ import numpy as np
 import sympy
 
 from devito.finite_differences import Max, Min
-from devito.finite_differences.differentiable import SafeInv
+from devito.finite_differences.differentiable import SafeInv, Re, Im
 from devito.logger import warning
 from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
                        FindApplications, FindNodes, FindSymbols, Transformer,
@@ -243,6 +243,22 @@ def _(expr, langbb):
     b = Cast('b', dtype=np.float32)
     return (('SAFEINV(a, b)',
              f'(((a) < {eps}F || ({b}) < {eps}F) ? (0.0F) : ((1.0F) / (a)))'),), {}
+
+
+@_lower_macro_math.register(Re)
+def _(expr, langbb):
+    return (('Re(x)',
+             '(_Generic((x), '
+             'float _Complex : (float *) &(x), '
+             'double _Complex : (double *) &(x))[0])'),), {}
+
+
+@_lower_macro_math.register(Im)
+def _(expr, langbb):
+    return (('Im(x)',
+             '(_Generic((x), '
+             'float _Complex : (float *) &(x), '
+             'double _Complex : (double *) &(x))[1])'),), {}
 
 
 @iet_pass

@@ -8,7 +8,7 @@ from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
                                Stencil, detect_io, detect_accesses)
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
-from devito.tools import Pickable, Tag, frozendict
+from devito.tools import Pickable, Tag, frozendict, infer_dtype
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
 
 __all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax',
@@ -48,7 +48,12 @@ class IREq(sympy.Eq, Pickable):
 
     @property
     def dtype(self):
-        return self.lhs.dtype
+        try:
+            rhs_dtype = self.rhs.dtype
+        except AttributeError:
+            rhs_dtype = None
+
+        return infer_dtype({self.lhs.dtype, rhs_dtype} - {None})
 
     @property
     def state(self):
