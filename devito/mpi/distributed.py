@@ -91,7 +91,7 @@ def devito_mpi_finalize():
     """
     Finalize MPI, if initialized by Devito.
     """
-    global init_by_devito  # noqa
+    global init_by_devito  # noqa: F824
     if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
         MPI.Finalize()
 
