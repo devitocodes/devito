@@ -5,7 +5,6 @@ from operator import mul
 
 import numpy as np
 import sympy
-from psutil import virtual_memory
 from functools import cached_property
 
 from devito.builtins import assign
@@ -1380,14 +1379,6 @@ class TimeFunction(Function):
         self._time_order = kwargs.get('time_order', 1)
         super().__init_finalize__(*args, **kwargs)
 
-        # Check we won't allocate too much memory for the system
-        available_mem = virtual_memory().available
-        required_mem = np.dtype(self.dtype).itemsize * self.size
-        if required_mem > available_mem:
-            raise MemoryError(
-                f"Trying to allocate more memory ({humanbytes(required_mem)}) "
-                f"for `{self.name}` than available ({humanbytes(available_mem)})"
-            )
         if not isinstance(self.time_order, int):
             raise TypeError("`time_order` must be int")
 
