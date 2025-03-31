@@ -7,7 +7,7 @@ import numpy as np
 from sympy import Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, SubDomain)
+                    Min, Max, Re, Im, SubDomain)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
@@ -924,3 +924,123 @@ def test_customdtype_complex():
 
     assert not f.is_imaginary
     assert f.is_real
+
+
+class TestComplexParts:
+    # TODO: Add a cxx switchconfig
+    def setup_basic(self, dtype):
+        grid = Grid(shape=(5,), extent=(4.,))
+        f = Function(name='f', grid=grid, dtype=dtype)
+        f.data_with_halo[:] = np.arange(7) + 1j*np.arange(7, 14)[::-1]
+
+        f_real = Function(name='f_real', grid=grid)
+        f_imag = Function(name='f_imag', grid=grid)
+        return f, f_real, f_imag
+
+    def run_operator(self, eqs, cxx):
+        if cxx:
+            with switchconfig(language='CXX'):
+                Operator(eqs)()
+        else:
+            Operator(eqs)()
+
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_printing(self, cxx):
+        f, f_real, f_imag = self.setup_basic(np.complex64)
+
+        eq_re = Eq(f_real, Re(f))
+        eq_im = Eq(f_imag, Im(f))
+
+        if cxx:
+            with switchconfig(language='CXX'):
+                op = Operator([eq_re, eq_im])
+                assert "f_real[x + 1] = std::real(f[x + 1])" in str(op.ccode)
+                assert "f_imag[x + 1] = std::imag(f[x + 1])" in str(op.ccode)
+
+        else:
+            op = Operator([eq_re, eq_im])
+            assert "f_real[x + 1] = crealf(f[x + 1])" in str(op.ccode)
+            assert "f_imag[x + 1] = cimagf(f[x + 1])" in str(op.ccode)
+
+    @pytest.mark.parametrize('cxx', [False, True])
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_trivial(self, cxx, dtype):
+        f, f_real, f_imag = self.setup_basic(dtype)
+
+        eq_re = Eq(f_real, Re(f+1.))
+        eq_im = Eq(f_imag, Im(f+1.))
+
+        self.run_operator([eq_re, eq_im], cxx)
+
+        rcheck = np.array([2., 3., 4., 5., 6.])
+        icheck = np.array([12., 11., 10., 9., 8.])
+        assert np.all(np.isclose(f_real.data, rcheck))
+        assert np.all(np.isclose(f_imag.data, icheck))
+
+    @pytest.mark.parametrize('cxx', [False, True])
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_trivial_imag(self, cxx, dtype):
+        f, f_real, f_imag = self.setup_basic(dtype)
+
+        eq_re = Eq(f_real, Re(f+1j))
+        eq_im = Eq(f_imag, Im(f+1j))
+
+        self.run_operator([eq_re, eq_im], cxx)
+
+        rcheck = np.array([1., 2., 3., 4., 5.])
+        icheck = np.array([13., 12., 11., 10., 9.])
+        assert np.all(np.isclose(f_real.data, rcheck))
+        assert np.all(np.isclose(f_imag.data, icheck))
+
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_deriv(self, cxx):
+        f, f_real, f_imag = self.setup_basic(np.complex64)
+
+        eq_re = Eq(f_real, Re(f.dx))
+        eq_im = Eq(f_imag, Im(f.dx))
+
+        self.run_operator([eq_re, eq_im], cxx)
+
+        assert np.all(np.isclose(f_real.data, 1.))
+        assert np.all(np.isclose(f_imag.data, -1.))
+
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_outer_deriv(self, cxx):
+        f, f_real, f_imag = self.setup_basic(np.complex64)
+
+        eq_re = Eq(f_real, Re(f).dx)
+        eq_im = Eq(f_imag, Im(f).dx)
+
+        self.run_operator([eq_re, eq_im], cxx)
+
+        assert np.all(np.isclose(f_real.data, 1.))
+        assert np.all(np.isclose(f_imag.data, -1.))
+
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_mul(self, cxx):
+        grid = Grid(shape=(5,))
+
+        f = Function(name='f', grid=grid, dtype=np.complex64)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid, dtype=np.complex64)
+        f.data[:] = 1 + 1j
+        g.data[:] = 2
+        h.data[:] = 2j
+
+        fg_re = Function(name='fg_re', grid=grid)
+        fg_im = Function(name='fg_im', grid=grid)
+        fh_re = Function(name='fh_re', grid=grid)
+        fh_im = Function(name='fh_im', grid=grid)
+
+        eq_fg_re = Eq(fg_re, Re(f*g))
+        eq_fg_im = Eq(fg_im, Im(f*g))
+        eq_fh_re = Eq(fh_re, Re(f*h))
+        eq_fh_im = Eq(fh_im, Im(f*h))
+
+        self.run_operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im], cxx)
+
+        assert np.all(np.isclose(fg_re.data, 2.))
+        assert np.all(np.isclose(fg_im.data, 2.))
+
+        assert np.all(np.isclose(fh_re.data, -2.))
+        assert np.all(np.isclose(fh_im.data, 2.))

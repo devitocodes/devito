@@ -106,6 +106,13 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return f'1i{self.prec_literal(expr).lower()}'
+        # return '1i'
+
+    def _print_Re(self, expr):
+        return f'{self._ns}real({self._print(expr.args[0])})'
+
+    def _print_Im(self, expr):
+        return f'{self._ns}imag({self._print(expr.args[0])})'
 
     def _print_Cast(self, expr):
         # The CXX recommended way to cast is to use static_cast

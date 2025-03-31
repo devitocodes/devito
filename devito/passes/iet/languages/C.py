@@ -67,3 +67,13 @@ class CPrinter(BasePrinter, C99CodePrinter):
             return f'({tstr}[]){li}'
         else:
             return li
+
+    def _print_Re(self, expr):
+        """Print an Re as an access into the second entry of a float array."""
+        return (f'{self.func_prefix(expr)}real{self.func_literal(expr).lower()}'
+                f'({self._print(expr.args[0])})')
+
+    def _print_Im(self, expr):
+        """Print an Im as an access into the second entry of a float array."""
+        return (f'{self.func_prefix(expr)}imag{self.func_literal(expr).lower()}'
+                f'({self._print(expr.args[0])})')
