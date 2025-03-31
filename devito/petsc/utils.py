@@ -76,12 +76,25 @@ def get_petsc_variables():
 
 petsc_variables = get_petsc_variables()
 
-# TODO: Check to see whether Petsc is compiled with
-# 32-bit or 64-bit integers
-# TODO: Check whether PetscScalar is a float or double
-# and only map the right one
-petsc_type_mappings = {ctypes.c_int: 'PetscInt',
-                       ctypes.c_float: 'PetscScalar',
-                       ctypes.c_double: 'PetscScalar'}
+
+def get_petsc_type_mappings():
+    try:
+        petsc_precision = petsc_variables['PETSC_PRECISION']
+    except KeyError:
+        mapper = {}
+    else:
+        petsc_scalar = 'PetscScalar'
+        # TODO: Check to see whether Petsc is compiled with
+        # 32-bit or 64-bit integers
+        mapper = {ctypes.c_int: 'PetscInt'}
+
+        if petsc_precision == 'single':
+            mapper[ctypes.c_float] = petsc_scalar
+        elif petsc_precision == 'double':
+            mapper[ctypes.c_double] = petsc_scalar
+    return mapper
+
+
+petsc_type_mappings = get_petsc_type_mappings()
 
 petsc_languages = ['petsc']

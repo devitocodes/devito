@@ -9,7 +9,7 @@ from devito.ir.iet import (Call, ElementalFunction,
                            FindNodes, retrieve_iteration_tree)
 from devito.types import Constant, LocalCompositeObject
 from devito.passes.iet.languages.C import CDataManager
-from devito.petsc.types import (DM, Mat, LocalVec, PetscMPIInt, KSP,
+from devito.petsc.types import (DM, Mat, Vec, PetscMPIInt, KSP,
                                 PC, KSPConvergedReason, PETScArray,
                                 LinearSolveExpr, FieldData, MultipleFieldData)
 from devito.petsc.solve import PETScSolve, separate_eqn, centre_stencil
@@ -33,7 +33,7 @@ def test_petsc_local_object():
     """
     lo0 = DM('da', stencil_width=1)
     lo1 = Mat('A')
-    lo2 = LocalVec('x')
+    lo2 = Vec('x')
     lo3 = PetscMPIInt('size')
     lo4 = KSP('ksp')
     lo5 = PC('pc')
@@ -590,7 +590,7 @@ def test_apply():
 
     pn = Function(name='pn', grid=grid, space_order=2)
     rhs = Function(name='rhs', grid=grid, space_order=2)
-    mu = Constant(name='mu', value=2.0)
+    mu = Constant(name='mu', value=2.0, dtype=np.float64)
 
     eqn = Eq(pn.laplace*mu, rhs, subdomain=grid.interior)
 
@@ -604,7 +604,7 @@ def test_apply():
         op.apply()
 
     # Verify that users can override `mu`
-    mu_new = Constant(name='mu_new', value=4.0)
+    mu_new = Constant(name='mu_new', value=4.0, dtype=np.float64)
     op.apply(mu=mu_new)
 
 
@@ -627,9 +627,10 @@ def test_petsc_frees():
     # Check the frees appear in the following order
     assert str(frees[0]) == 'PetscCall(VecDestroy(&(bglobal0)));'
     assert str(frees[1]) == 'PetscCall(VecDestroy(&(xglobal0)));'
-    assert str(frees[2]) == 'PetscCall(MatDestroy(&(J0)));'
-    assert str(frees[3]) == 'PetscCall(SNESDestroy(&(snes0)));'
-    assert str(frees[4]) == 'PetscCall(DMDestroy(&(da0)));'
+    assert str(frees[2]) == 'PetscCall(VecDestroy(&(xlocal0)));'
+    assert str(frees[3]) == 'PetscCall(MatDestroy(&(J0)));'
+    assert str(frees[4]) == 'PetscCall(SNESDestroy(&(snes0)));'
+    assert str(frees[5]) == 'PetscCall(DMDestroy(&(da0)));'
 
 
 @skipif('petsc')

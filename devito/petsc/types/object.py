@@ -66,28 +66,14 @@ class Mat(LocalObject):
         return 2
 
 
-class LocalVec(LocalObject):
+class CallbackVec(LocalObject):
     """
-    PETSc local vector object (Vec).
-    A local vector has ghost locations that contain values that are
-    owned by other MPI ranks.
+    PETSc vector object (Vec).
     """
     dtype = CustomDtype('Vec')
 
 
-class CallbackGlobalVec(LocalVec):
-    """
-    PETSc global vector object (Vec). For example, used for coupled
-    solves inside the `WholeFormFunc` callback.
-    """
-
-
-class GlobalVec(LocalVec):
-    """
-    PETSc global vector object (Vec).
-    A global vector is a parallel vector that has no duplicate values
-    between MPI ranks. A global vector has no ghost locations.
-    """
+class Vec(CallbackVec):
     @property
     def _C_free(self):
         return petsc_call('VecDestroy', [Byref(self.function)])

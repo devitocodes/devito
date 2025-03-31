@@ -70,29 +70,33 @@ class InjectSolve:
         formfunc = self.make_formfunc(eq, F_target, arrays, targets)
         formrhs = self.make_rhs(eq, b, arrays)
 
-        return tuple(expr.subs(self.time_mapper) for expr in (formfunc, formrhs))
+        return (formfunc, formrhs)
 
     def build_matvec_eqns(self, eq, target, arrays):
         b, F_target, targets = separate_eqn(eq, target)
         if not F_target:
             return None
         matvec = self.make_matvec(eq, F_target, arrays, targets)
-        return matvec.subs(self.time_mapper)
+        return matvec
 
     def make_matvec(self, eq, F_target, arrays, targets):
-        rhs = arrays['x'] if isinstance(eq, EssentialBC) else F_target.subs(
-            targets_to_arrays(arrays['x'], targets)
-        )
+        if isinstance(eq, EssentialBC):
+            rhs = arrays['x']
+        else:
+            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
+            rhs = rhs.subs(self.time_mapper)
         return Eq(arrays['y'], rhs, subdomain=eq.subdomain)
 
     def make_formfunc(self, eq, F_target, arrays, targets):
-        rhs = 0. if isinstance(eq, EssentialBC) else F_target.subs(
-            targets_to_arrays(arrays['x'], targets)
-        )
+        if isinstance(eq, EssentialBC):
+            rhs = 0.
+        else:
+            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
+            rhs = rhs.subs(self.time_mapper)
         return Eq(arrays['f'], rhs, subdomain=eq.subdomain)
 
     def make_rhs(self, eq, b, arrays):
-        rhs = 0. if isinstance(eq, EssentialBC) else b
+        rhs = 0. if isinstance(eq, EssentialBC) else b.subs(self.time_mapper)
         return Eq(arrays['b'], rhs, subdomain=eq.subdomain)
 
     def generate_arrays(self, target):
