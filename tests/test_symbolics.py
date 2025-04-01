@@ -834,6 +834,12 @@ class TestComplexParts:
         with switchconfig(language=language):
             Operator(eqs)()
 
+    def test_devito_print(self):
+        f, _, _ = self.setup_basic(np.complex64)
+
+        assert str(Re(f)) == 'Re(f(x))'
+        assert str(Im(f)) == 'Im(f(x))'
+
     @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
     def test_printing(self, language):
         f, f_real, f_imag = self.setup_basic(np.complex64)
