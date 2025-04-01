@@ -658,7 +658,7 @@ class ComplexPart(Differentiable, sympy.core.function.Application):
 
         if not np.issubdtype(new_args[0].dtype, np.complexfloating):
             raise ValueError(f"{cls.__name__} requires a complex dtype,"
-                             f" not {new_args[0].dtype}.")
+                             f" not {new_args[0].dtype.__name__}.")
 
         return super().__new__(cls, *new_args, **kwargs)
 

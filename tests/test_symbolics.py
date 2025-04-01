@@ -7,7 +7,7 @@ import numpy as np
 from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, Re, Im)
+                    Min, Max, Re, Im, switchconfig)
 from devito.finite_differences.differentiable import SafeInv, Weights
 from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
@@ -821,6 +821,7 @@ class TestRelationsWithAssumptions:
 
 
 class TestComplexParts:
+    # TODO: Add a cxx switchconfig
     def setup_basic(self, dtype):
         grid = Grid(shape=(5,), extent=(4.,))
         f = Function(name='f', grid=grid, dtype=dtype)
@@ -830,73 +831,87 @@ class TestComplexParts:
         f_imag = Function(name='f_imag', grid=grid)
         return f, f_real, f_imag
 
-    def test_printing(self):
+    def run_operator(self, eqs, cxx):
+        if cxx:
+            with switchconfig(language='CXX'):
+                Operator(eqs)()
+        else:
+            Operator(eqs)()
+
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_printing(self, cxx):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Re(f))
         eq_im = Eq(f_imag, Im(f))
 
-        op = Operator([eq_re, eq_im])
+        if cxx:
+            with switchconfig(language='CXX'):
+                op = Operator([eq_re, eq_im])
+                assert "f_real[x + 1] = std::real(f[x + 1])" in str(op.ccode)
+                assert "f_imag[x + 1] = std::imag(f[x + 1])" in str(op.ccode)
 
-        assert ("#define Im(x) (_Generic((x), float _Complex : (float *) &(x), "
-                "double _Complex : (double *) &(x))[1])") in str(op.ccode)
-        assert ("#define Re(x) (_Generic((x), float _Complex : (float *) &(x), "
-                "double _Complex : (double *) &(x))[0])") in str(op.ccode)
+        else:
+            op = Operator([eq_re, eq_im])
+            assert "f_real[x + 1] = crealf(f[x + 1])" in str(op.ccode)
+            assert "f_imag[x + 1] = cimagf(f[x + 1])" in str(op.ccode)
 
-        assert "f_real[x + 1] = Re(f[x + 1])" in str(op.ccode)
-        assert "f_imag[x + 1] = Im(f[x + 1])" in str(op.ccode)
-
+    @pytest.mark.parametrize('cxx', [False, True])
     @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-    def test_trivial(self, dtype):
+    def test_trivial(self, cxx, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
-        eq_re = Eq(f_real, Re(f+1))
-        eq_im = Eq(f_imag, Im(f+1))
+        eq_re = Eq(f_real, Re(f+1.))
+        eq_im = Eq(f_imag, Im(f+1.))
 
-        Operator([eq_re, eq_im])()
+        self.run_operator([eq_re, eq_im], cxx)
 
         rcheck = np.array([2., 3., 4., 5., 6.])
         icheck = np.array([12., 11., 10., 9., 8.])
         assert np.all(np.isclose(f_real.data, rcheck))
         assert np.all(np.isclose(f_imag.data, icheck))
 
+    @pytest.mark.parametrize('cxx', [False, True])
     @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-    def test_trivial_imag(self, dtype):
+    def test_trivial_imag(self, cxx, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
         eq_re = Eq(f_real, Re(f+1j))
         eq_im = Eq(f_imag, Im(f+1j))
 
-        Operator([eq_re, eq_im])()
+        self.run_operator([eq_re, eq_im], cxx)
 
         rcheck = np.array([1., 2., 3., 4., 5.])
         icheck = np.array([13., 12., 11., 10., 9.])
         assert np.all(np.isclose(f_real.data, rcheck))
         assert np.all(np.isclose(f_imag.data, icheck))
 
-    def test_deriv(self):
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_deriv(self, cxx):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Re(f.dx))
         eq_im = Eq(f_imag, Im(f.dx))
 
-        Operator([eq_re, eq_im])()
+        self.run_operator([eq_re, eq_im], cxx)
 
         assert np.all(np.isclose(f_real.data, 1.))
         assert np.all(np.isclose(f_imag.data, -1.))
 
-    def test_outer_deriv(self):
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_outer_deriv(self, cxx):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Re(f).dx)
         eq_im = Eq(f_imag, Im(f).dx)
 
-        Operator([eq_re, eq_im])()
+        self.run_operator([eq_re, eq_im], cxx)
 
         assert np.all(np.isclose(f_real.data, 1.))
         assert np.all(np.isclose(f_imag.data, -1.))
 
-    def test_mul(self):
+    @pytest.mark.parametrize('cxx', [False, True])
+    def test_mul(self, cxx):
         grid = Grid(shape=(5,))
 
         f = Function(name='f', grid=grid, dtype=np.complex64)
@@ -916,7 +931,7 @@ class TestComplexParts:
         eq_fh_re = Eq(fh_re, Re(f*h))
         eq_fh_im = Eq(fh_im, Im(f*h))
 
-        Operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im])()
+        self.run_operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im], cxx)
 
         assert np.all(np.isclose(fg_re.data, 2.))
         assert np.all(np.isclose(fg_im.data, 2.))

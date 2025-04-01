@@ -217,14 +217,6 @@ class BasePrinter(CodePrinter):
         val = self._print(expr.val)
         return f'SAFEINV({val}, {base})'
 
-    def _print_Re(self, expr):
-        """Print an Re as an access into the second entry of a float array."""
-        return f"Re({self._print(expr.args[0])})"
-
-    def _print_Im(self, expr):
-        """Print an Im as an access into the second entry of a float array."""
-        return f"Im({self._print(expr.args[0])})"
-
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""
         args = [f'({self._print(a)})' for a in expr.args]
