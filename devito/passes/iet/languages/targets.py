@@ -2,7 +2,8 @@ from devito.passes.iet.languages.C import CDataManager, COrchestrator, CPrinter
 from devito.passes.iet.languages.CXX import CXXPrinter
 from devito.passes.iet.languages.openmp import (SimdOmpizer, Ompizer, DeviceOmpizer,
                                                 OmpDataManager, DeviceOmpDataManager,
-                                                OmpOrchestrator, DeviceOmpOrchestrator)
+                                                OmpOrchestrator, DeviceOmpOrchestrator,
+                                                CXXSimdOmpizer, CXXOmpizer)
 from devito.passes.iet.languages.openacc import (DeviceAccizer, DeviceAccDataManager,
                                                  AccOrchestrator, AccPrinter)
 from devito.passes.iet.instrument import instrument
@@ -34,7 +35,7 @@ class CTarget(Target):
 
 
 class CXXTarget(Target):
-    Parizer = SimdOmpizer
+    Parizer = CXXSimdOmpizer
     DataManager = CDataManager
     Orchestrator = COrchestrator
     Printer = CXXPrinter
@@ -51,7 +52,7 @@ OmpTarget = COmpTarget
 
 
 class CXXOmpTarget(Target):
-    Parizer = Ompizer
+    Parizer = CXXOmpizer
     DataManager = OmpDataManager
     Orchestrator = OmpOrchestrator
     Printer = CXXPrinter

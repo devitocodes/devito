@@ -16,6 +16,7 @@ from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransfo
                                          PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.utils import joins
 from devito.passes.iet.languages.C import CBB
+from devito.passes.iet.languages.CXX import CXXBB
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
@@ -111,7 +112,7 @@ class SimdForAligned(Pragma):
         return self.pragma % (joins(*items), n)
 
 
-class OmpBB(LangBB):
+class AbstractOmpBB(LangBB):
 
     mapper = {
         # Misc
@@ -134,12 +135,19 @@ class OmpBB(LangBB):
         'atomic':
             Pragma('omp atomic update')
     }
-    mapper.update(CBB.mapper)
 
     Region = OmpRegion
     HostIteration = OmpIteration
     DeviceIteration = DeviceOmpIteration
     Prodder = ThreadedProdder
+
+
+class OmpBB(AbstractOmpBB):
+    mapper = {**AbstractOmpBB.mapper, **CBB.mapper}
+
+
+class CXXOmpBB(AbstractOmpBB):
+    mapper = {**AbstractOmpBB.mapper, **CXXBB.mapper}
 
 
 class DeviceOmpBB(OmpBB, PragmaLangBB):
@@ -213,9 +221,11 @@ class SimdOmpizer(PragmaSimdTransformer):
     langbb = OmpBB
 
 
-class Ompizer(PragmaShmTransformer):
+class CXXSimdOmpizer(PragmaSimdTransformer):
+    langbb = CXXOmpBB
 
-    langbb = OmpBB
+
+class AbstractOmpizer(PragmaShmTransformer):
 
     @classmethod
     def _support_array_reduction(cls, compiler):
@@ -229,6 +239,14 @@ class Ompizer(PragmaShmTransformer):
             return False
         else:
             return True
+
+
+class Ompizer(AbstractOmpizer):
+    langbb = OmpBB
+
+
+class CXXOmpizer(AbstractOmpizer):
+    langbb = CXXOmpBB
 
 
 class DeviceOmpizer(PragmaDeviceAwareTransformer):
