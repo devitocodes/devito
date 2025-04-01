@@ -821,7 +821,6 @@ class TestRelationsWithAssumptions:
 
 
 class TestComplexParts:
-    # TODO: Add a cxx switchconfig
     def setup_basic(self, dtype):
         grid = Grid(shape=(5,), extent=(4.,))
         f = Function(name='f', grid=grid, dtype=dtype)
