@@ -5,7 +5,7 @@ import re
 
 import numpy as np
 import sympy
-from sympy import Expr, Function, Number, Tuple, sympify
+from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
 
 from devito.finite_differences.elementary import Min, Max
@@ -21,7 +21,8 @@ __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
            'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
            'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace',
-           'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit']
+           'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
+           'VectorAccess']
 
 
 class CondEq(sympy.Eq):
@@ -791,6 +792,51 @@ class Rvalue(sympy.Expr, Pickable):
         return rvalue
 
     __repr__ = __str__
+
+
+class VectorAccess(Expr, Pickable):
+
+    """
+    Represent a vector access operation at high-level.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        return Expr.__new__(cls, *args)
+
+    def __str__(self):
+        return f"VL4<{self.base}>"
+
+    __repr__ = __str__
+
+    func = Pickable._rebuild
+
+    def _sympystr(self, printer):
+        return str(self)
+
+    @property
+    def base(self):
+        return self.args[0]
+
+    @property
+    def function(self):
+        return self.base.function
+
+    @property
+    def indices(self):
+        return self.base.indices
+
+    @property
+    def dtype(self):
+        return self.function.dtype
+
+    @cacheit
+    def sort_key(self, order=None):
+        # Ensure that the VectorAccess is sorted as the base
+        return self.base.sort_key(order=order)
+
+    # Default assumptions correspond to those of the `base`
+    for i in ('is_real', 'is_imaginary', 'is_commutative'):
+        locals()[i] = property(lambda self, v=i: getattr(self.base, v))
 
 
 # Some other utility objects
