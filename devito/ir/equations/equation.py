@@ -49,11 +49,9 @@ class IREq(sympy.Eq, Pickable):
     @property
     def dtype(self):
         try:
-            rhs_dtype = self.rhs.dtype
+            return infer_dtype({self.lhs.dtype, self.rhs.dtype} - {None})
         except AttributeError:
-            rhs_dtype = None
-
-        return infer_dtype({self.lhs.dtype, rhs_dtype} - {None})
+            return self.lhs.dtype
 
     @property
     def state(self):
