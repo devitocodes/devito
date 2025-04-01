@@ -401,6 +401,7 @@ class BasePrinter(CodePrinter):
     _print_IndexSum = _print_Fallback
     _print_ReservedWord = _print_Fallback
     _print_Basic = _print_Fallback
+    _print_VectorAccess = _print_Fallback
 
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
