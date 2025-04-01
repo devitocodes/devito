@@ -106,7 +106,6 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return f'1i{self.prec_literal(expr).lower()}'
-        # return '1i'
 
     def _print_Re(self, expr):
         return f'{self._ns}real({self._print(expr.args[0])})'

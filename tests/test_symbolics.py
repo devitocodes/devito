@@ -927,7 +927,6 @@ def test_customdtype_complex():
 
 
 class TestComplexParts:
-    # TODO: Add a cxx switchconfig
     def setup_basic(self, dtype):
         grid = Grid(shape=(5,), extent=(4.,))
         f = Function(name='f', grid=grid, dtype=dtype)
@@ -937,87 +936,90 @@ class TestComplexParts:
         f_imag = Function(name='f_imag', grid=grid)
         return f, f_real, f_imag
 
-    def run_operator(self, eqs, cxx):
-        if cxx:
-            with switchconfig(language='CXX'):
-                Operator(eqs)()
-        else:
+    def run_operator(self, eqs, language):
+        with switchconfig(language=language):
             Operator(eqs)()
 
-    @pytest.mark.parametrize('cxx', [False, True])
-    def test_printing(self, cxx):
+    def test_devito_print(self):
+        f, _, _ = self.setup_basic(np.complex64)
+
+        assert str(Re(f)) == 'Re(f(x))'
+        assert str(Im(f)) == 'Im(f(x))'
+
+    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
+    def test_printing(self, language):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Re(f))
         eq_im = Eq(f_imag, Im(f))
 
-        if cxx:
-            with switchconfig(language='CXX'):
-                op = Operator([eq_re, eq_im])
-                assert "f_real[x + 1] = std::real(f[x + 1])" in str(op.ccode)
-                assert "f_imag[x + 1] = std::imag(f[x + 1])" in str(op.ccode)
+        with switchconfig(language=language):
+            op = Operator([eq_re, eq_im])
+
+        if language in ('CXX', 'CXXopenmp'):
+            assert "f_real[x + 1] = std::real(f[x + 1])" in str(op.ccode)
+            assert "f_imag[x + 1] = std::imag(f[x + 1])" in str(op.ccode)
 
         else:
-            op = Operator([eq_re, eq_im])
             assert "f_real[x + 1] = crealf(f[x + 1])" in str(op.ccode)
             assert "f_imag[x + 1] = cimagf(f[x + 1])" in str(op.ccode)
 
-    @pytest.mark.parametrize('cxx', [False, True])
+    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
     @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-    def test_trivial(self, cxx, dtype):
+    def test_trivial(self, language, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
         eq_re = Eq(f_real, Re(f+1.))
         eq_im = Eq(f_imag, Im(f+1.))
 
-        self.run_operator([eq_re, eq_im], cxx)
+        self.run_operator([eq_re, eq_im], language)
 
         rcheck = np.array([2., 3., 4., 5., 6.])
         icheck = np.array([12., 11., 10., 9., 8.])
         assert np.all(np.isclose(f_real.data, rcheck))
         assert np.all(np.isclose(f_imag.data, icheck))
 
-    @pytest.mark.parametrize('cxx', [False, True])
+    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
     @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-    def test_trivial_imag(self, cxx, dtype):
+    def test_trivial_imag(self, language, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
         eq_re = Eq(f_real, Re(f+1j))
         eq_im = Eq(f_imag, Im(f+1j))
 
-        self.run_operator([eq_re, eq_im], cxx)
+        self.run_operator([eq_re, eq_im], language)
 
         rcheck = np.array([1., 2., 3., 4., 5.])
         icheck = np.array([13., 12., 11., 10., 9.])
         assert np.all(np.isclose(f_real.data, rcheck))
         assert np.all(np.isclose(f_imag.data, icheck))
 
-    @pytest.mark.parametrize('cxx', [False, True])
-    def test_deriv(self, cxx):
+    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
+    def test_deriv(self, language):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Re(f.dx))
         eq_im = Eq(f_imag, Im(f.dx))
 
-        self.run_operator([eq_re, eq_im], cxx)
+        self.run_operator([eq_re, eq_im], language)
 
         assert np.all(np.isclose(f_real.data, 1.))
         assert np.all(np.isclose(f_imag.data, -1.))
 
-    @pytest.mark.parametrize('cxx', [False, True])
-    def test_outer_deriv(self, cxx):
+    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
+    def test_outer_deriv(self, language):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Re(f).dx)
         eq_im = Eq(f_imag, Im(f).dx)
 
-        self.run_operator([eq_re, eq_im], cxx)
+        self.run_operator([eq_re, eq_im], language)
 
         assert np.all(np.isclose(f_real.data, 1.))
         assert np.all(np.isclose(f_imag.data, -1.))
 
-    @pytest.mark.parametrize('cxx', [False, True])
-    def test_mul(self, cxx):
+    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
+    def test_mul(self, language):
         grid = Grid(shape=(5,))
 
         f = Function(name='f', grid=grid, dtype=np.complex64)
@@ -1037,7 +1039,7 @@ class TestComplexParts:
         eq_fh_re = Eq(fh_re, Re(f*h))
         eq_fh_im = Eq(fh_im, Im(f*h))
 
-        self.run_operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im], cxx)
+        self.run_operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im], language)
 
         assert np.all(np.isclose(fg_re.data, 2.))
         assert np.all(np.isclose(fg_im.data, 2.))
