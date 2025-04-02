@@ -79,6 +79,10 @@ jobs:
       run: |
         ${{ env.RUN_CMD }} mpiexec -n 1 pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
 
+    - name: Test examples
+      run: |
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 --cov --cov-config=.coveragerc --cov-report=xml examples/petsc/seismic/staggered_acoustic.py
+
     - name: Upload coverage to Codecov
       if: "!contains(matrix.name, 'docker')"
       uses: codecov/codecov-action@v4

@@ -1373,9 +1373,11 @@ class Solver:
         spatial_body = []
         # TODO: remove the iters[0]
         for tree in retrieve_iteration_tree(self.iters[0]):
-            root = filter_iterations(tree, key=lambda i: i.dim.is_Space)[0]
-            if self.injectsolve in FindNodes(PetscMetaData).visit(root):
-                spatial_body.append(root)
+            root = filter_iterations(tree, key=lambda i: i.dim.is_Space)
+            if root:
+                root = root[0]
+                if self.injectsolve in FindNodes(PetscMetaData).visit(root):
+                    spatial_body.append(root)
         spatial_body, = spatial_body
         return spatial_body
 

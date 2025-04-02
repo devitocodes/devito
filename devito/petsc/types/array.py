@@ -59,7 +59,8 @@ class PETScArray(ArrayBasic, Differentiable):
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
-        dimensions = kwargs['target'].space_dimensions
+        target = kwargs['target']
+        dimensions = tuple(target.indices[d] for d in target.space_dimensions)
         if args:
             indices = args
         else:
@@ -91,6 +92,10 @@ class PETScArray(ArrayBasic, Differentiable):
     @property
     def space_order(self):
         return self.target.space_order
+
+    @property
+    def is_Staggered(self):
+        return self.target.staggered is not None
 
     @property
     def localinfo(self):
