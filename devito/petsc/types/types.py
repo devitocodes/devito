@@ -132,7 +132,7 @@ class LinearSolveExpr(MetaData):
 
 class FieldData:
     def __init__(self, target=None, matvecs=None, formfuncs=None, formrhs=None,
-                 arrays=None, **kwargs):
+                 initialguess=None, arrays=None, **kwargs):
         self._target = kwargs.get('target', target)
 
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
@@ -145,6 +145,7 @@ class FieldData:
         self._matvecs = matvecs
         self._formfuncs = formfuncs
         self._formrhs = formrhs
+        self._initialguess = initialguess
         self._arrays = arrays
 
     @property
@@ -162,6 +163,10 @@ class FieldData:
     @property
     def formrhs(self):
         return self._formrhs
+
+    @property
+    def initialguess(self):
+        return self._initialguess
 
     @property
     def arrays(self):

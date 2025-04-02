@@ -57,11 +57,18 @@ class InjectSolve:
         )
         matvecs = [self.build_matvec_eqns(eq, target, arrays) for eq in eqns]
 
+        initialguess = [
+            eq for eq in
+            (self.make_initial_guess(e, target, arrays) for e in eqns)
+            if eq is not None
+        ]
+
         return FieldData(
             target=target,
             matvecs=matvecs,
             formfuncs=formfuncs,
             formrhs=formrhs,
+            initialguess=initialguess,
             arrays=arrays
         )
 
@@ -98,6 +105,22 @@ class InjectSolve:
     def make_rhs(self, eq, b, arrays):
         rhs = 0. if isinstance(eq, EssentialBC) else b.subs(self.time_mapper)
         return Eq(arrays['b'], rhs, subdomain=eq.subdomain)
+
+    def make_initial_guess(self, eq, target, arrays):
+        """
+        Enforce initial guess to satisfy essential BCs.
+        # TODO: For time-stepping, only enforce these once outside the time loop
+        and use the previous time-step solution as the initial guess for next time step.
+        # TODO: Extend this to "coupled".
+        """
+        if isinstance(eq, EssentialBC):
+            assert eq.lhs == target
+            return Eq(
+                arrays['x'], eq.rhs,
+                subdomain=eq.subdomain
+            )
+        else:
+            return None
 
     def generate_arrays(self, target):
         return {

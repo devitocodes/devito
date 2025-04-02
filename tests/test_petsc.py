@@ -4,7 +4,7 @@ import pytest
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
-                    configuration, norm, switchconfig)
+                    configuration, norm, switchconfig, SubDomain)
 from devito.ir.iet import (Call, ElementalFunction,
                            FindNodes, retrieve_iteration_tree)
 from devito.types import Constant, LocalCompositeObject
@@ -12,7 +12,8 @@ from devito.passes.iet.languages.C import CDataManager
 from devito.petsc.types import (DM, Mat, Vec, PetscMPIInt, KSP,
                                 PC, KSPConvergedReason, PETScArray,
                                 LinearSolveExpr, FieldData, MultipleFieldData)
-from devito.petsc.solve import PETScSolve, separate_eqn, centre_stencil
+from devito.petsc.solve import (PETScSolve, separate_eqn, centre_stencil,
+                                EssentialBC)
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.initialize import PetscInitialize
 
@@ -784,6 +785,74 @@ def test_solve_output():
         op.apply()
 
     assert np.allclose(u.data, v.data)
+
+
+@skipif('petsc')
+def test_essential_bcs():
+    """
+    Verify that PETScSolve returns the correct output with
+    essential boundary conditions.
+    """
+    class SubTop(SubDomain):
+        name = 'subtop'
+
+        def define(self, dimensions):
+            x, y = dimensions
+            return {x: x, y: ('right', 1)}
+    sub1 = SubTop()
+
+    class SubBottom(SubDomain):
+        name = 'subbottom'
+
+        def define(self, dimensions):
+            x, y = dimensions
+            return {x: x, y: ('left', 1)}
+    sub2 = SubBottom()
+
+    class SubLeft(SubDomain):
+        name = 'subleft'
+
+        def define(self, dimensions):
+            x, y = dimensions
+            return {x: ('left', 1), y: y}
+    sub3 = SubLeft()
+
+    class SubRight(SubDomain):
+        name = 'subright'
+
+        def define(self, dimensions):
+            x, y = dimensions
+            return {x: ('right', 1), y: y}
+    sub4 = SubRight()
+
+    subdomains = (sub1, sub2, sub3, sub4)
+    grid = Grid(shape=(11, 11), subdomains=subdomains, dtype=np.float64)
+
+    u = Function(name='u', grid=grid, space_order=2)
+    v = Function(name='v', grid=grid, space_order=2)
+
+    # Solving Ax=b where A is the identity matrix
+    v.data[:] = 5.0
+    eqn = Eq(u, v)
+
+    bcs = [EssentialBC(u, 1., subdomain=sub1)]  # top
+    bcs += [EssentialBC(u, 2., subdomain=sub2)]  # bottom
+    bcs += [EssentialBC(u, 3., subdomain=sub3)]  # left
+    bcs += [EssentialBC(u, 4., subdomain=sub4)]  # right
+
+    petsc = PETScSolve([eqn]+bcs, target=u)
+
+    with switchconfig(language='petsc'):
+        op = Operator(petsc)
+        op.apply()
+
+    # Check u is equal to v on the interior
+    assert np.allclose(u.data[1:-1, 1:-1], v.data[1:-1, 1:-1])
+    # Check u satisfies the boundary conditions
+    assert np.allclose(u.data[1:-1, -1], 1.0)  # top
+    assert np.allclose(u.data[1:-1, 0], 2.0)  # bottom
+    assert np.allclose(u.data[0, 1:-1], 3.0)  # left
+    assert np.allclose(u.data[-1, 1:-1], 4.0)  # right
 
 
 class TestCoupledLinear:

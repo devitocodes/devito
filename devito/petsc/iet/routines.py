@@ -47,6 +47,7 @@ class CBBuilder:
         self._matvecs = []
         self._formfuncs = []
         self._formrhs = []
+        self._initialguesses = []
 
         self._make_core()
         self._efuncs = self._uxreplace_efuncs()
@@ -89,6 +90,10 @@ class CBBuilder:
         return self._formrhs
 
     @property
+    def initialguesses(self):
+        return self._initialguesses
+
+    @property
     def user_struct_callback(self):
         return self._user_struct_callback
 
@@ -97,6 +102,8 @@ class CBBuilder:
         self._make_matvec(fielddata, fielddata.matvecs)
         self._make_formfunc(fielddata)
         self._make_formrhs(fielddata)
+        if fielddata.initialguess:
+            self._make_initialguess(fielddata)
         self._make_user_struct_callback()
 
     def _make_matvec(self, fielddata, matvecs, prefix='MatMult'):
@@ -482,6 +489,84 @@ class CBBuilder:
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
         return Uxreplace(subs).visit(formrhs_body)
+
+    def _make_initialguess(self, fielddata):
+        initguess = fielddata.initialguess
+        sobjs = self.solver_objs
+
+        # Compile initital guess `eqns` into an IET via recursive compilation
+        irs, _ = self.rcompile(
+            initguess, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
+        )
+        body_init_guess = self._create_initial_guess_body(
+            List(body=irs.uiet.body), fielddata
+        )
+        objs = self.objs
+        cb = PETScCallable(
+            self.sregistry.make_name(prefix='FormInitialGuess'),
+            body_init_guess,
+            retval=objs['err'],
+            parameters=(sobjs['callbackdm'], objs['xloc'])
+        )
+        self._initialguesses.append(cb)
+        self._efuncs[cb.name] = cb
+
+    def _create_initial_guess_body(self, body, fielddata):
+        linsolve_expr = self.injectsolve.expr.rhs
+        objs = self.objs
+        sobjs = self.solver_objs
+
+        dmda = sobjs['callbackdm']
+        ctx = objs['dummyctx']
+
+        x_arr = fielddata.arrays['x']
+
+        vec_get_array = petsc_call(
+            'VecGetArray', [objs['xloc'], Byref(x_arr._C_symbol)]
+        )
+
+        dm_get_local_info = petsc_call(
+            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+        )
+
+        body = self.timedep.uxreplace_time(body)
+
+        fields = self._dummy_fields(body)
+        self._struct_params.extend(fields)
+
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
+        )
+
+        vec_restore_array = petsc_call(
+            'VecRestoreArray', [objs['xloc'], Byref(x_arr._C_symbol)]
+        )
+
+        body = body._rebuild(body=body.body + (vec_restore_array,))
+
+        stacks = (
+            vec_get_array,
+            dm_get_app_context,
+            dm_get_local_info
+        )
+
+        # Dereference function data in struct
+        dereference_funcs = [Dereference(i, ctx) for i in
+                             fields if isinstance(i.function, AbstractFunction)]
+
+        body = CallableBody(
+            List(body=[body]),
+            init=(objs['begin_user'],),
+            stacks=stacks+tuple(dereference_funcs),
+            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+        )
+
+        # Replace non-function data with pointer to data in struct
+        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
+                i in fields if not isinstance(i.function, AbstractFunction)}
+
+        return Uxreplace(subs).visit(body)
 
     def _make_user_struct_callback(self):
         """
@@ -1250,6 +1335,12 @@ class Solver:
 
         vec_replace_array = self.timedep.replace_array(target)
 
+        if self.cbbuilder.initialguesses:
+            initguess = self.cbbuilder.initialguesses[0]
+            initguess_call = petsc_call(initguess.name, [dmda, sobjs['xlocal']])
+        else:
+            initguess_call = None
+
         dm_local_to_global_x = petsc_call(
             'DMLocalToGlobal', [dmda, sobjs['xlocal'], insert_vals,
                                 sobjs['xglobal']]
@@ -1268,6 +1359,7 @@ class Solver:
         run_solver_calls = (struct_assignment,) + (
             rhs_call,
         ) + vec_replace_array + (
+            initguess_call,
             dm_local_to_global_x,
             snes_solve,
             dm_global_to_local_x,
