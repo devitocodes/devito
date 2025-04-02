@@ -113,6 +113,73 @@ class Differentiable(sympy.Expr, Evaluable):
     def is_TimeDependent(self):
         return any(i.is_Time for i in self.dimensions)
 
+    def as_independent(self, *deps, **hint):
+        """
+        A near copy of sympy.core.expr.Expr.as_independent
+        with a bug fixed
+        """
+        from sympy import Symbol
+        from sympy.core.add import _unevaluated_Add
+        from sympy.core.mul import _unevaluated_Mul
+
+        from sympy.core.singleton import S
+        from sympy.utilities.iterables import sift
+
+        if self is S.Zero:
+            return (self, self)
+
+        func = self.func
+        if hint.get('as_Add', isinstance(self, Add) ):
+            want = Add
+        else:
+            want = Mul
+
+        # sift out deps into symbolic and other and ignore
+        # all symbols but those that are in the free symbols
+        sym = set()
+        other = []
+        for d in deps:
+            if isinstance(d, Symbol):  # Symbol.is_Symbol is True
+                sym.add(d)
+            else:
+                other.append(d)
+
+        def has(e):
+            """return the standard has() if there are no literal symbols, else
+            check to see that symbol-deps are in the free symbols."""
+            has_other = e.has(*other)
+            if not sym:
+                return has_other
+            return has_other or e.has(*(e.free_symbols & sym))
+
+        if (want is not func or
+                not issubclass(func, Add) and not issubclass(func, Mul)):
+            if has(self):
+                return (want.identity, self)
+            else:
+                return (self, want.identity)
+        else:
+            if func is Add:
+                args = list(self.args)
+            else:
+                args, nc = self.args_cnc()
+
+        d = sift(args, has)
+        depend = d[True]
+        indep = d[False]
+
+        if func is Add:  # all terms were treated as commutative
+            return (Add(*indep), _unevaluated_Add(*depend))
+        else:  # handle noncommutative by stopping at first dependent term
+            for i, n in enumerate(nc):
+                if has(n):
+                    depend.extend(nc[i:])
+                    break
+                indep.append(n)
+            return Mul(*indep), (
+                Mul(*depend, evaluate=False) if nc else
+                _unevaluated_Mul(*depend))
+
     @cached_property
     def _fd(self):
         # Filter out all args with fd order too high
