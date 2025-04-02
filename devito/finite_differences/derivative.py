@@ -138,7 +138,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             fd_orders = kwargs.get('fd_order')
             deriv_orders = kwargs.get('deriv_order')
             if len(dims) == 1:
-                dims = tuple([dims[0]]*max(1, deriv_orders[0]))
+                if isinstance(dims[0], Iterable):
+                    assert dims[0][1] == deriv_orders[0]
+                    dims = tuple([dims[0][0]]*max(1, deriv_orders[0]))
+                else:
+                    dims = tuple([dims[0]]*max(1, deriv_orders[0]))
             variable_count = [sympy.Tuple(s, dims.count(s))
                               for s in filter_ordered(dims)]
             return dims, deriv_orders, fd_orders, variable_count
