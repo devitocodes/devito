@@ -13,7 +13,9 @@ from devito.finite_differences.differentiable import (
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
-from devito.symbolics.unevaluation import Mul as UMul
+from devito.symbolics.unevaluation import (
+    Add as UnevalAdd, Mul as UnevalMul, Pow as UnevalPow
+)
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.basic import Basic, Indexed
 from devito.types.array import ComponentAccess
@@ -22,7 +24,7 @@ from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
            'normalize_args', 'uxreplace', 'Uxmapper', 'subs_if_composite',
-           'reuse_if_untouched', 'evalrel', 'flatten_args']
+           'reuse_if_untouched', 'evalrel', 'flatten_args', 'unevaluate']
 
 
 def uxreplace(expr, rule):
@@ -338,7 +340,7 @@ def pow_to_mul(expr):
             # but at least we traverse the base looking for other Pows
             return expr.func(pow_to_mul(base), exp, evaluate=False)
         elif exp > 0:
-            return UMul(*[pow_to_mul(base)]*int(exp), evaluate=False)
+            return UnevalMul(*[pow_to_mul(base)]*int(exp), evaluate=False)
         elif exp < 0:
             # Reciprocal powers become inverse of the negative power
             # for example Pow(expr, -2) becomes Pow(expr * expr, -1)
@@ -502,3 +504,18 @@ def evalrel(func=min, input=None, assumptions=None):
     except TypeError:
         pass
     return rfunc(func, *input)
+
+
+uneval_mapper = {Add: UnevalAdd, Mul: UnevalMul, Pow: UnevalPow}
+
+
+def unevaluate(expr):
+    if q_leaf(expr):
+        return expr
+
+    args = [unevaluate(a) for a in expr.args]
+
+    try:
+        return uneval_mapper[expr.func](*args)
+    except KeyError:
+        return reuse_if_untouched(expr, args)

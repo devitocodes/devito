@@ -746,8 +746,8 @@ class Weights(Array):
         assert isinstance(weights, (list, tuple, np.ndarray))
 
         # Normalize `weights`
-        from devito.symbolics import pow_to_mul  # noqa, sigh
-        weights = tuple(pow_to_mul(sympy.sympify(i)) for i in weights)
+        from devito.symbolics import pow_to_mul, unevaluate  # noqa, sigh
+        weights = tuple(unevaluate(pow_to_mul(sympy.sympify(i))) for i in weights)
 
         kwargs['scope'] = kwargs.get('scope', 'stack')
         kwargs['initvalue'] = weights
