@@ -80,7 +80,11 @@ jobs:
 
     - name: Test examples
       run: |
-        ${{ env.RUN_CMD }} mpiexec -n 1 python3 --cov --cov-config=.coveragerc --cov-report=xml examples/petsc/seismic/staggered_acoustic.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/seismic/01_staggered_acoustic.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/cfd/01_navierstokes.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/01_poisson.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/02_laplace.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/random/01_helmholtz.py
 
     - name: Upload coverage to Codecov
       if: "!contains(matrix.name, 'docker')"

@@ -5,7 +5,6 @@ from devito.types.utils import DimensionTuple
 from devito.types.array import ArrayBasic
 from devito.finite_differences import Differentiable
 from devito.types.basic import AbstractFunction
-from devito.finite_differences.tools import fd_weights_registry
 from devito.tools import dtype_to_ctype, as_tuple
 from devito.symbolics import FieldFromComposite
 
@@ -27,9 +26,6 @@ class PETScArray(ArrayBasic, Differentiable):
 
     _data_alignment = False
 
-    # Default method for the finite difference approximation weights computation.
-    _default_fd = 'taylor'
-
     __rkwargs__ = (AbstractFunction.__rkwargs__ +
                    ('target', 'liveness', 'coefficients', 'localinfo'))
 
@@ -38,15 +34,8 @@ class PETScArray(ArrayBasic, Differentiable):
         self._target = kwargs.get('target')
         self._ndim = kwargs['ndim'] = len(self._target.space_dimensions)
         self._dimensions = kwargs['dimensions'] = self._target.space_dimensions
-
         super().__init_finalize__(*args, **kwargs)
-
-        # Symbolic (finite difference) coefficients
-        self._coefficients = kwargs.get('coefficients', self._default_fd)
-        if self._coefficients not in fd_weights_registry:
-            raise ValueError("coefficients must be one of %s"
-                             " not %s" % (str(fd_weights_registry), self._coefficients))
-
+        self._coefficients = self._target.coefficients
         self._localinfo = kwargs.get('localinfo', None)
 
     @property
@@ -94,6 +83,10 @@ class PETScArray(ArrayBasic, Differentiable):
         return self.target.space_order
 
     @property
+    def staggered(self):
+        return self.target.staggered
+
+    @property
     def is_Staggered(self):
         return self.target.staggered is not None
 
@@ -112,6 +105,10 @@ class PETScArray(ArrayBasic, Differentiable):
     @cached_property
     def _C_ctype(self):
         return POINTER(dtype_to_ctype(self.dtype))
+
+    @cached_property
+    def _fd_priority(self):
+        return self.target._fd_priority
 
     @property
     def symbolic_shape(self):
