@@ -129,7 +129,7 @@ class Differentiable(sympy.Expr, Evaluable):
             return (self, self)
 
         func = self.func
-        if hint.get('as_Add', isinstance(self, Add) ):
+        if hint.get('as_Add', isinstance(self, Add)):
             want = Add
         else:
             want = Mul
