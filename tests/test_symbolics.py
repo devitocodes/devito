@@ -483,6 +483,24 @@ def test_findexed():
     assert new_fi.strides_map == strides_map
 
 
+def test_component_access():
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions
+
+    f = Function(name='f', grid=grid)
+
+    cf0 = ComponentAccess(f.indexify(), 0)
+    cf1 = ComponentAccess(f.indexify(), 1)
+
+    assert ccode(cf0) == 'f[x][y][z].x'
+    assert ccode(cf1) == 'f[x][y][z].y'
+
+    # Reconstruction
+    cf2 = cf1.func(*cf1.args)
+    assert cf2.index == cf1.index
+    assert cf2 == cf1
+
+
 def test_canonical_ordering_of_weights():
     grid = Grid(shape=(3, 3, 3))
     x, y, z = grid.dimensions
