@@ -419,7 +419,7 @@ def test_rvalue():
     assert str(Rvalue(ctype, ns, init)) == 'my::namespace::dummytype{}'
 
 
-def test_cast():
+def test_basecast():
     s = Symbol(name='s', dtype=np.float32)
 
     class BarCast(BaseCast):
@@ -433,6 +433,28 @@ def test_cast():
 
     v1 = BarCast(s, '****')
     assert v != v1
+
+
+def test_str_cast():
+    s = Symbol(name='s', dtype=np.float32)
+
+    v = Cast(s, 'foo')
+    assert not v.stars
+    assert v.dtype == 'foo'
+    assert v._op == '(foo)'
+    assert ccode(v) == '(foo)s'
+
+    v = Cast(s, 'foo*')
+    assert v.stars == '*'
+    assert v.dtype == 'foo'
+    assert v._op == '(foo*)'
+    assert ccode(v) == '(foo*)s'
+
+    v = Cast(s, 'foo **')
+    assert v.stars == '**'
+    assert v.dtype == 'foo'
+    assert v._op == '(foo**)'
+    assert ccode(v) == '(foo**)s'
 
 
 def test_findexed():
