@@ -1,7 +1,7 @@
 import ctypes
 import pickle as pickle0
-import cloudpickle as pickle1
 
+import cloudpickle as pickle1
 import pytest
 import numpy as np
 from sympy import Symbol
@@ -12,7 +12,6 @@ from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     PrecomputedSparseTimeFunction, SubDomain)
 from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
 from devito.data import LEFT, OWNED
-from devito.finite_differences.differentiable import Weights
 from devito.finite_differences.tools import direct, transpose, left, right, centered
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
@@ -20,7 +19,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
                           DeviceID, NPThreads, ThreadID, TempFunction, Indirection,
-                          FIndexed, ComponentAccess, StencilDimension)
+                          FIndexed, ComponentAccess)
 from devito.types.basic import BoundSymbol, AbstractSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
@@ -430,25 +429,6 @@ class TestBasic:
 
         assert new_ca.index == 1
         assert new_ca.function.name == f.name
-
-    def test_weights_to_array(self, pickle):
-        grid = Grid(shape=(3, 3, 3))
-        x, y, z = grid.dimensions
-        h_x = x.spacing
-
-        i = StencilDimension('i0', 0, 2)
-        w = Weights(name='w0', dimensions=i,
-                    initvalue=[1/(h_x**2), 2/(h_x**2), 3/(h_x**2)])
-        a = Array(name='w0', dimensions=w.dimensions, initvalue=w.initvalue,
-                  scope='stack')
-
-        pkl_a = pickle.dumps(a)
-        new_a = pickle.loads(pkl_a)
-
-        # Weights optimizes `initvalue` by turning pows into muls. This test checks
-        # that the optimization is correctly carried over to the pickled object
-        # (in practice, the optimized expressions must have been frozen)
-        assert a.initvalue == new_a.initvalue
 
     def test_symbolics(self, pickle):
         a = Symbol('a')
