@@ -20,7 +20,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
                           DeviceID, NPThreads, ThreadID, TempFunction, Indirection,
-                          FIndexed, StencilDimension)
+                          FIndexed, ComponentAccess, StencilDimension)
 from devito.types.basic import BoundSymbol, AbstractSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
@@ -416,6 +416,20 @@ class TestBasic:
         assert new_fi.accessor == 'fL'
         assert new_fi.indices == (x+1, y, z-2)
         assert new_fi.strides_map == fi.strides_map
+
+    def test_component_access(self, pickle):
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+
+        ca = ComponentAccess(f.indexify(), 1)
+
+        pkl_ca = pickle.dumps(ca)
+        new_ca = pickle.loads(pkl_ca)
+
+        assert new_ca.index == 1
+        assert new_ca.function.name == f.name
 
     def test_weights_to_array(self, pickle):
         grid = Grid(shape=(3, 3, 3))
