@@ -1,0 +1,25 @@
+##############################################################
+# Dockerfile.petsc: Installs PETSc
+##############################################################
+
+# Base image with compilers
+# TODO: to be updated, but made some additions to Dockerfile.cpu so need to
+# use the one from my dockerhub
+ARG base=zoeleibowitz/bases:cpu-gcc
+
+RUN apt-get update && apt-get install -y git && \
+    python3 -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir --no-binary numpy numpy && \
+    mkdir -p /opt/petsc && \
+    cd /opt/petsc && \
+    git clone -b release https://gitlab.com/petsc/petsc.git petsc && \
+    cd petsc && \
+    ./configure --with-fortran-bindings=0 --with-mpi-dir=/opt/openmpi \
+                --with-openblas-include=$(pkg-config --variable=includedir openblas) \
+                --with-openblas-lib=$(pkg-config --variable=libdir openblas)/libopenblas.so \
+                PETSC_ARCH=devito_build && \
+    make all
+
+ENV PETSC_DIR="/opt/petsc/petsc"
+ENV PETSC_ARCH="devito_build"

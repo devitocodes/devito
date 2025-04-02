@@ -4,26 +4,8 @@
 
 # Base image with compilers
 ARG base=devitocodes/bases:cpu-gcc
-ARG petscinstall=""
 
-FROM $base AS copybase
-
-##################  Install PETSc ############################################
-FROM copybase AS petsccopybase
-
-RUN apt-get update && apt-get install -y git && \
-    python3 -m venv /venv && \
-    /venv/bin/pip install --no-cache-dir --upgrade pip && \
-    /venv/bin/pip install --no-cache-dir --no-binary numpy numpy && \
-    mkdir -p /opt/petsc && \
-    cd /opt/petsc && \
-    git clone -b release https://gitlab.com/petsc/petsc.git petsc && \
-    cd petsc && \
-    ./configure --with-fortran-bindings=0 --with-mpi-dir=/opt/openmpi --with-openblas-include=$(pkg-config --variable=includedir openblas) --with-openblas-lib=$(pkg-config --variable=libdir openblas)/libopenblas.so PETSC_ARCH=devito_build && \
-    make all
-
-ARG petscinstall=""
-FROM ${petscinstall}copybase AS builder
+FROM $base AS builder
 
 # User/Group Ids
 ARG USER_ID=1000
@@ -86,9 +68,6 @@ ARG GROUP_ID=1000
 # Set the home directory to our app user's home.
 ENV HOME=/app
 ENV APP_HOME=/app
-
-ENV PETSC_ARCH="devito_build"
-ENV PETSC_DIR="/opt/petsc/petsc"
 
 # Create the home directory for the new app user.
 # Create an app user so our program doesn't run as root.
