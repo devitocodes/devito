@@ -453,7 +453,7 @@ class PerformanceSummary(OrderedDict):
         if not self.input:
             return
 
-        ops = sum(v.ops for v in self.input.values())
+        ops = sum(v.ops for v in self.input.values() if not np.isnan(v.ops))
         traffic = sum(v.traffic for v in self.input.values())
 
         gflops = float(ops)/10**9

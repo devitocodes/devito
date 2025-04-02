@@ -1,6 +1,7 @@
 """
 Extended SymPy hierarchy.
 """
+import re
 
 import numpy as np
 import sympy
@@ -426,12 +427,28 @@ class Cast(UnaryOp):
             # E.g. void
             pass
 
+        dtype, stars = cls._process_dtype(dtype, stars)
+
         obj = super().__new__(cls, base)
         obj._stars = stars or ''
         obj._dtype = dtype
         obj._reinterpret = reinterpret
 
         return obj
+
+    @classmethod
+    def _process_dtype(cls, dtype, stars):
+        if not isinstance(dtype, str) or stars is not None:
+            return dtype, stars
+
+        # String dtype, e.g. "float", "int*", "foo**"
+        match = re.fullmatch(r'(\w+)\s*(\*+)?', dtype)
+        if match:
+            dtype = match.group(1)
+            stars = match.group(2) or ''
+            return dtype, stars
+        else:
+            return dtype, stars
 
     def _hashable_content(self):
         return super()._hashable_content() + (self._stars,)
@@ -461,7 +478,10 @@ class Cast(UnaryOp):
 
     @property
     def _op(self):
-        return f'({ctypes_to_cstr(self._C_ctype)})'
+        cstr = ctypes_to_cstr(self._C_ctype)
+        if self.stars:
+            cstr = f"{cstr}{self.stars}"
+        return f'({cstr})'
 
     def __str__(self):
         return f"{self._op}{self.base}"

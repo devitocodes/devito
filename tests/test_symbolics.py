@@ -432,7 +432,7 @@ def test_rvalue():
     assert str(Rvalue(ctype, ns, init)) == 'my::namespace::dummytype{}'
 
 
-def test_cast():
+def test_basecast():
     s = Symbol(name='s', dtype=np.float32)
 
     class BarCast(BaseCast):
@@ -446,6 +446,28 @@ def test_cast():
 
     v1 = BarCast(s, '****')
     assert v != v1
+
+
+def test_str_cast():
+    s = Symbol(name='s', dtype=np.float32)
+
+    v = Cast(s, 'foo')
+    assert not v.stars
+    assert v.dtype == 'foo'
+    assert v._op == '(foo)'
+    assert ccode(v) == '(foo)s'
+
+    v = Cast(s, 'foo*')
+    assert v.stars == '*'
+    assert v.dtype == 'foo'
+    assert v._op == '(foo*)'
+    assert ccode(v) == '(foo*)s'
+
+    v = Cast(s, 'foo **')
+    assert v.stars == '**'
+    assert v.dtype == 'foo'
+    assert v._op == '(foo**)'
+    assert ccode(v) == '(foo**)s'
 
 
 def test_findexed():
@@ -472,6 +494,24 @@ def test_findexed():
     assert new_fi.accessor.name == 'fL'
     assert new_fi.indices == fi.indices
     assert new_fi.strides_map == strides_map
+
+
+def test_component_access():
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions
+
+    f = Function(name='f', grid=grid)
+
+    cf0 = ComponentAccess(f.indexify(), 0)
+    cf1 = ComponentAccess(f.indexify(), 1)
+
+    assert ccode(cf0) == 'f[x][y][z].x'
+    assert ccode(cf1) == 'f[x][y][z].y'
+
+    # Reconstruction
+    cf2 = cf1.func(*cf1.args)
+    assert cf2.index == cf1.index
+    assert cf2 == cf1
 
 
 def test_canonical_ordering_of_weights():

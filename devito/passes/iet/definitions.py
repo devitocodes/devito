@@ -16,7 +16,7 @@ from devito.passes import is_gpu_create
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
-                              SizeOf, VOID, pow_to_mul)
+                              SizeOf, VOID, pow_to_mul, unevaluate)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import (Array, ComponentAccess, CustomDimension, DeviceMap,
                           DeviceRM, Eq, Symbol)
@@ -119,7 +119,7 @@ class DataManager:
 
         # Create input array
         name = '%s_init' % obj.name
-        initvalue = np.array([pow_to_mul(i) for i in obj.initvalue])
+        initvalue = np.array([unevaluate(pow_to_mul(i)) for i in obj.initvalue])
         src = Array(name=name, dtype=obj.dtype, dimensions=obj.dimensions,
                     space='host', scope='stack', initvalue=initvalue)
 

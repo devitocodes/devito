@@ -4,7 +4,7 @@ from functools import cached_property
 import numpy as np
 from sympy import Expr, cacheit
 
-from devito.tools import (Reconstructable, as_tuple, c_restrict_void_p,
+from devito.tools import (Pickable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper, is_integer)
 from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
@@ -533,10 +533,11 @@ class Bag(Bundle):
         return self.components
 
 
-class ComponentAccess(Expr, Reconstructable):
+class ComponentAccess(Expr, Pickable):
 
     _component_names = ('x', 'y', 'z', 'w')
 
+    __rargs__ = ('arg',)
     __rkwargs__ = ('index',)
 
     def __new__(cls, arg, index=0, **kwargs):
@@ -558,7 +559,7 @@ class ComponentAccess(Expr, Reconstructable):
 
     __repr__ = __str__
 
-    func = Reconstructable._rebuild
+    func = Pickable._rebuild
 
     def _sympystr(self, printer):
         return str(self)
@@ -566,6 +567,10 @@ class ComponentAccess(Expr, Reconstructable):
     @property
     def base(self):
         return self.args[0]
+
+    @property
+    def arg(self):
+        return self.base
 
     @property
     def index(self):

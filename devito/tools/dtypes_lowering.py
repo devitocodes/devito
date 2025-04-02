@@ -256,7 +256,10 @@ for base_name, base_dtype in dtype_mapper.items():
 
 def ctypes_to_cstr(ctype, toarray=None):
     """Translate ctypes types into C strings."""
-    if ctype in ctypes_vector_mapper.values():
+    if isinstance(ctype, str):
+        # Already a C string
+        return ctype
+    elif ctype in ctypes_vector_mapper.values():
         retval = ctype.__name__
     elif isinstance(ctype, CustomDtype):
         retval = str(ctype)
