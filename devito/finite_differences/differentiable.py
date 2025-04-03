@@ -646,6 +646,7 @@ class SafeInv(Differentiable, sympy.core.function.Application):
 
 class ComplexPart(Differentiable, sympy.core.function.Application):
     """Abstract class for `Real`, `Imag`, or `Conj` of an expression"""
+    _name = None
 
     def __new__(cls, *args, **kwargs):
         if len(args) != 1:
@@ -669,17 +670,17 @@ class ComplexPart(Differentiable, sympy.core.function.Application):
 
 class Real(ComplexPart):
     """Get the real part of an expression"""
-    pass
+    _name = 'real'
 
 
 class Imag(ComplexPart):
     """Get the imaginary part of an expression"""
-    pass
+    _name = 'imag'
 
 
 class Conj(ComplexPart):
     """Get the complex conjugate of an expression"""
-    pass
+    _name = 'conj'
 
 
 class IndexSum(sympy.Expr, Evaluable):
