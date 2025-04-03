@@ -65,7 +65,7 @@ def test_floatification_issue_1627(dtype, expected):
 
     eq = Eq(u.forward, ((u/x.spacing) + 2.0)/x.spacing)
 
-    op = Operator(eq)
+    op = Operator(eq, opt=('advanced', {'linearize': False}))
 
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 2
@@ -688,6 +688,8 @@ def test_minmax_precision(dtype, expected):
 
     # Check generated code -- ensure it's using the fp64 versions of min/max,
     # that is fminf/fmaxf
+    if 'CXX' in configuration['language']:
+        expected = [f"std::{e.replace('f(', '(')}" for e in expected]
     assert all(i in str(op) for i in expected)
 
     assert np.all(f.data == 6.0)
@@ -711,6 +713,9 @@ def test_pow_precision(dtype, expected):
 
     op.apply()
 
+    if 'CXX' in configuration['language']:
+        expected = "std::pow"
+
     assert expected in str(op)
     assert np.allclose(f.data, 8.0, rtol=np.finfo(dtype).eps)
 
@@ -732,6 +737,9 @@ def test_abs_precision(dtype, expected):
     g.data[:] = -1.0
 
     op.apply()
+
+    if 'CXX' in configuration['language']:
+        expected = "std::fabs"
 
     assert expected in str(op)
     assert np.all(f.data == 1.0)
