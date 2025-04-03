@@ -96,7 +96,7 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     _func_literals = {}
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
     _restrict_keyword = '__restrict'
-    _includes = ['stdlib.h', 'cmath', 'sys/time.h']
+    _includes = ['cstdlib', 'cmath', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances

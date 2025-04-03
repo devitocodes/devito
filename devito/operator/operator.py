@@ -1337,6 +1337,10 @@ def parse_kwargs(**kwargs):
 
     if not opt or isinstance(opt, str):
         mode, options = opt, {}
+        # Legacy Operator(..., opt='openmp', ...) support
+        if mode == 'openmp':
+            mode = 'noop'
+            options = {'openmp': True}
     elif isinstance(opt, tuple):
         if len(opt) == 0:
             mode, options = 'noop', {}
@@ -1353,7 +1357,7 @@ def parse_kwargs(**kwargs):
     # `opt`, deprecated kwargs
     kwopenmp = kwargs.get('openmp', options.get('openmp'))
     if kwopenmp is None:
-        openmp = kwargs.get('language', configuration['language']) == 'openmp'
+        openmp = 'openmp' in kwargs.get('language', configuration['language'])
     else:
         openmp = kwopenmp
 
@@ -1399,7 +1403,11 @@ def parse_kwargs(**kwargs):
         kwargs['language'] = language
     elif kwopenmp is not None:
         # Handle deprecated `openmp` kwarg for backward compatibility
-        kwargs['language'] = 'openmp' if openmp else 'C'
+        if configuration['language'] in ['C', 'CXX']:
+            lang = configuration['language']
+            kwargs['language'] = f'{lang}openmp' if openmp else lang
+        else:
+            kwargs['language'] = 'openmp' if openmp else 'C'
     else:
         kwargs['language'] = configuration['language']
 
