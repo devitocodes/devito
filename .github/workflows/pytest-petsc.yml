@@ -56,10 +56,6 @@ jobs:
       run: |
           docker build -f docker/Dockerfile.devito --build-arg base=zoeleibowitz/petsc_image:latest --tag zoeleibowitz/petsc_devito_image:latest .
 
-    - name: Push Docker image to DockerHub
-      run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/petsc_devito_image:latest
-
     - name: Set run prefix
       run: |
           echo "RUN_CMD=docker run --rm -t -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun zoeleibowitz/petsc_devito_image:latest"  >> $GITHUB_ENV

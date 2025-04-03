@@ -7,7 +7,10 @@
 # use the one from my dockerhub
 ARG base=zoeleibowitz/bases:cpu-gcc
 
-RUN apt-get update && apt-get install -y git && \
+FROM $base
+
+RUN apt-get update && apt-get install -y \
+    git gfortran pkgconf libopenblas-serial-dev && \
     python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir --no-binary numpy numpy && \
