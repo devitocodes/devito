@@ -268,8 +268,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return self._rebuild(**rkw)
 
     def _rebuild(self, *args, **kwargs):
-        kwargs['preprocessed'] = True
-        return super()._rebuild(**kwargs)
+        if kwargs and not args:
+            kwargs['preprocessed'] = True
+            expr = super()._rebuild(**kwargs)
+        else:
+            expr = self.__class__(*args, **kwargs)
+        return expr
 
     func = _rebuild
 
