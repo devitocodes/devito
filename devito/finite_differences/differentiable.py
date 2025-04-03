@@ -22,7 +22,7 @@ from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction
 
 __all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
-           'Weights', 'Re', 'Im']
+           'Weights', 'Real', 'Imag', 'Conj']
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -645,7 +645,7 @@ class SafeInv(Differentiable, sympy.core.function.Application):
 
 
 class ComplexPart(Differentiable, sympy.core.function.Application):
-    """Abstract class for `Re` or `Im` of an expression"""
+    """Abstract class for `Real`, `Imag`, or `Conj` of an expression"""
 
     def __new__(cls, *args, **kwargs):
         if len(args) != 1:
@@ -667,13 +667,18 @@ class ComplexPart(Differentiable, sympy.core.function.Application):
     __repr__ = __str__
 
 
-class Re(ComplexPart):
+class Real(ComplexPart):
     """Get the real part of an expression"""
     pass
 
 
-class Im(ComplexPart):
+class Imag(ComplexPart):
     """Get the imaginary part of an expression"""
+    pass
+
+
+class Conj(ComplexPart):
+    """Get the complex conjugate of an expression"""
     pass
 
 
