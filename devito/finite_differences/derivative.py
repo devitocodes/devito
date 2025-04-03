@@ -99,6 +99,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 expr = diffify(expr)
             except Exception as e:
                 raise ValueError("`expr` must be a Differentiable object") from e
+        if isinstance(expr, sympy.Number):
+            return 0
 
         new_dims, orders, fd_o, var_count = cls._process_kwargs(expr, *dims, **kwargs)
 
@@ -268,7 +270,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return self._rebuild(**rkw)
 
     def _rebuild(self, *args, **kwargs):
-        if kwargs and not args:
+        if not args:
             kwargs['preprocessed'] = True
             expr = super()._rebuild(**kwargs)
         else:
