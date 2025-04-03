@@ -1,4 +1,5 @@
 matplotlib
+pillow>11
 pyrevolve==2.2.4
 scipy
 distributed
