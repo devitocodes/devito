@@ -36,7 +36,7 @@ class DM(LocalObject):
     def _C_free(self):
         return petsc_call('DMDestroy', [Byref(self.function)])
 
-    # TODO: This is growing out of hand so switch to an enumeration or something?
+    # TODO: Switch to an enumeration?
     @property
     def _C_free_priority(self):
         return 4

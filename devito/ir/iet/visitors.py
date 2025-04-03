@@ -214,11 +214,11 @@ class CGen(Visitor):
         except TypeError:
             # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`
             if isinstance(obj, LocalCompositeObject):
-                # TODO: Potentially re-evaluate: Setting ctype to obj allows
+                # TODO: re-evaluate: Setting ctype to obj allows
                 # _gen_struct_decl to generate a cgen.Structure from a
                 # LocalCompositeObject, where obj._C_ctype is a CustomDtype.
                 # LocalCompositeObject has a __fields__ property,
-                # which allows the subsequent code in this function to function
+                # which allows the subsequent code in this function to work
                 # correctly.
                 ctype = obj
             else:

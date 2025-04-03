@@ -319,6 +319,8 @@ def test_extended_sympy_arithmetic():
     o = Object(name='o', dtype=c_void_p)
     bar = FieldFromPointer('bar', o)
     # TODO: Edit/fix/update according to PR #2513
+    # The order changed due to adding the dtype property
+    # to FieldFromPointer
     assert ccode(-1 + bar) == 'o->bar - 1'
 
 
