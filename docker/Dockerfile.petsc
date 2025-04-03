@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     /venv/bin/pip install --no-cache-dir --no-binary numpy numpy && \
     mkdir -p /opt/petsc && \
     cd /opt/petsc && \
-    git clone -b release https://gitlab.com/petsc/petsc.git petsc && \
+    git clone -b v3.23.0 https://gitlab.com/petsc/petsc.git petsc && \
     cd petsc && \
     ./configure --with-fortran-bindings=0 --with-mpi-dir=/opt/openmpi \
                 --with-openblas-include=$(pkg-config --variable=includedir openblas) \
