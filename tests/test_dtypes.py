@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 import sympy
 
-from devito import Constant, Eq, Function, Grid, Operator, exp, log, sin
+from devito import (
+    Constant, Eq, Function, Grid, Operator, exp, log, sin, configuration
+)
 from devito.ir.cgen.printer import BasePrinter
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import CBB, CPrinter
@@ -179,12 +181,13 @@ def test_math_functions(dtype: np.dtype[np.inexact],
     """
     # Get the expected function call string
     call_str = str(sym)
-    if np.issubdtype(dtype, np.complexfloating):
-        # Complex functions have a 'c' prefix
-        call_str = 'c%s' % call_str
-    if dtype(0).real.itemsize <= 4:
-        # Single precision have an 'f' suffix (half is promoted to single)
-        call_str = '%sf' % call_str
+    if 'CXX' not in configuration['language']:
+        if np.issubdtype(dtype, np.complexfloating):
+            # Complex functions have a 'c' prefix
+            call_str = 'c%s' % call_str
+        if dtype(0).real.itemsize <= 4:
+            # Single precision have an 'f' suffix (half is promoted to single)
+            call_str = '%sf' % call_str
 
     # Operator setup
     a = Symbol(name='a', dtype=dtype)

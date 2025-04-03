@@ -1403,11 +1403,9 @@ def parse_kwargs(**kwargs):
         kwargs['language'] = language
     elif kwopenmp is not None:
         # Handle deprecated `openmp` kwarg for backward compatibility
-        if configuration['language'] in ['C', 'CXX']:
-            lang = configuration['language']
-            kwargs['language'] = f'{lang}openmp' if openmp else lang
-        else:
-            kwargs['language'] = 'openmp' if openmp else 'C'
+        omp = {'C': 'openmp', 'CXX': 'CXXopenmp'}.get(configuration['language'],
+                                                      'openmp')
+        kwargs['language'] = omp if openmp else 'C'
     else:
         kwargs['language'] = configuration['language']
 
