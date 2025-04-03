@@ -56,13 +56,10 @@ class CPrinter(BasePrinter, C99CodePrinter):
     def _print_ImaginaryUnit(self, expr):
         return '_Complex_I'
 
-    def _print_Real(self, expr):
-        return (f'{self.func_prefix(expr)}real{self.func_literal(expr)}'
-                f'({self._print(expr.args[0])})')
-
-    def _print_Imag(self, expr):
-        return (f'{self.func_prefix(expr)}imag{self.func_literal(expr)}'
+    def _print_ComplexPart(self, expr):
+        return (f'{self.func_prefix(expr)}{expr._name}{self.func_literal(expr)}'
                 f'({self._print(expr.args[0])})')
 
     def _print_Conj(self, expr):
+        # In C, conj is not preceeded by the func_prefix
         return (f'conj{self.func_literal(expr)}({self._print(expr.args[0])})')
