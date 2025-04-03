@@ -6,6 +6,7 @@ from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics.extended_dtypes import c_complex, c_double_complex
+from devito.petsc.utils import petsc_type_mappings
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
@@ -55,3 +56,9 @@ class CPrinter(BasePrinter, C99CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return '_Complex_I'
+
+
+class PetscCPrinter(CPrinter):
+    _restrict_keyword = ''
+
+    type_mappings = {**CPrinter.type_mappings, **petsc_type_mappings}

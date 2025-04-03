@@ -3,7 +3,7 @@ from functools import partial, singledispatch, wraps
 
 from devito.ir.iet import (Call, ExprStmt, Iteration, SyncSpot, AsyncCallable,
                            FindNodes, FindSymbols, MapNodes, MetaCall, Transformer,
-                           EntryFunction, ThreadCallable, Uxreplace,
+                           EntryFunction, FixedArgsCallable, Uxreplace,
                            derive_parameters)
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
@@ -129,6 +129,7 @@ class Graph:
                 compiler.add_libraries(as_tuple(metadata.get('libs')))
                 compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')),
                                           rpath=metadata.get('rpath', False))
+                compiler.add_ldflags(as_tuple(metadata.get('ldflags')))
             except KeyError:
                 pass
 
@@ -602,12 +603,12 @@ def update_args(root, efuncs, dag):
 
         foo(..., z) : root(x, z)
     """
-    if isinstance(root, ThreadCallable):
+    if isinstance(root, FixedArgsCallable):
         return efuncs
 
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
-    new_params = derive_parameters(root)
+    new_params = derive_parameters(root, drop_locals=True)
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)
