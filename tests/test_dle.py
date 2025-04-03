@@ -891,11 +891,13 @@ class TestNodeParallelism:
         cond = FindNodes(Expression).visit(op)
         iterations = FindNodes(Iteration).visit(op)
         # Should not creat any temporary for the reduction
-        assert len(cond) == 1
-        if configuration['language'] == 'C':
+        nlin = 2 if op._options['linearize'] else 0
+        assert len(cond) == 1 + nlin
+        if configuration['language'] in ['CXX', 'C']:
             pass
         elif Ompizer._support_array_reduction(configuration['compiler']):
-            assert "reduction(+:n[0])" in iterations[0].pragmas[0].ccode.value
+            i = '0:1' if op._options['linearize'] else '0'
+            assert f"reduction(+:n[{i}])" in iterations[0].pragmas[0].ccode.value
         else:
             # E.g. old GCC's
             assert "atomic update" in str(iterations[-1])
@@ -914,14 +916,16 @@ class TestNodeParallelism:
         op1 = Operator(eqns, opt=('advanced', {'mapify-reduce': True}))
 
         expr0 = FindNodes(Expression).visit(op0)
-        assert len(expr0) == 3
-        assert expr0[1].is_reduction
+        nlin = 2 if op0._options['linearize'] else 0
+        assert len(expr0) == 3 + nlin
+        assert expr0[1+nlin].is_reduction
 
         expr1 = FindNodes(Expression).visit(op1)
-        assert len(expr1) == 4
-        assert expr1[1].expr.lhs.indices == s.indices
-        assert expr1[2].expr.rhs.is_Indexed
-        assert expr1[2].is_reduction
+        nlin = 2 if op0._options['linearize'] else 0
+        assert len(expr1) == 4 + nlin
+        assert expr1[1+nlin].expr.lhs.indices == s.indices
+        assert expr1[2+nlin].expr.rhs.is_Indexed
+        assert expr1[2+nlin].is_reduction
 
         op0()
         assert n0.data[0] == 11
@@ -946,7 +950,8 @@ class TestNodeParallelism:
             op = Operator(eqn, opt=('advanced', {'openmp': True}))
 
             iterations = FindNodes(Iteration).visit(op)
-            assert "reduction(max:n[0])" in iterations[0].pragmas[0].ccode.value
+            i = '0:1' if op._options['linearize'] else '0'
+            assert f"reduction(max:n[{i}])" in iterations[0].pragmas[0].ccode.value
 
             op()
             assert n.data[0] == 26
@@ -980,7 +985,7 @@ class TestNodeParallelism:
 
         op = Operator(eqns)
 
-        if configuration['language'] == 'openmp':
+        if 'openmp' in configuration['language']:
             iterations = FindNodes(Iteration).visit(op)
             expected = "reduction(max:r0) reduction(min:r1)"
             assert expected in iterations[0].pragmas[0].ccode.value

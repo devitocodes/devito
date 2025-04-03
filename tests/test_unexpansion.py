@@ -354,12 +354,13 @@ class Test1Pass:
                                             'blocklevels': 0}))
 
         # Check generated code
+        nlin = 10 if op._options['linearize'] else 0
         assert len(get_arrays(op)) == 0
         assert op._profiler._sections['section0'].sops == 74
         exprs = FindNodes(Expression).visit(op)
-        assert len(exprs) == 5
+        assert len(exprs) == 5 + nlin
         temps = [i for i in FindSymbols().visit(exprs) if isinstance(i, Symbol)]
-        assert len(temps) == 2
+        assert len(temps) == 2 + nlin
 
         op.cfunction
 
