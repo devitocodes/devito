@@ -7,7 +7,7 @@ import numpy as np
 from sympy import Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, Re, Im, SubDomain)
+                    Min, Max, Real, Imag, Conj, SubDomain)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
@@ -943,15 +943,15 @@ class TestComplexParts:
     def test_devito_print(self):
         f, _, _ = self.setup_basic(np.complex64)
 
-        assert str(Re(f)) == 'Re(f(x))'
-        assert str(Im(f)) == 'Im(f(x))'
+        assert str(Real(f)) == 'Real(f(x))'
+        assert str(Imag(f)) == 'Imag(f(x))'
 
     @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
     def test_printing(self, language):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
-        eq_re = Eq(f_real, Re(f))
-        eq_im = Eq(f_imag, Im(f))
+        eq_re = Eq(f_real, Real(f))
+        eq_im = Eq(f_imag, Imag(f))
 
         with switchconfig(language=language):
             op = Operator([eq_re, eq_im])
@@ -969,8 +969,8 @@ class TestComplexParts:
     def test_trivial(self, language, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
-        eq_re = Eq(f_real, Re(f+1.))
-        eq_im = Eq(f_imag, Im(f+1.))
+        eq_re = Eq(f_real, Real(f+1.))
+        eq_im = Eq(f_imag, Imag(f+1.))
 
         self.run_operator([eq_re, eq_im], language)
 
@@ -984,8 +984,8 @@ class TestComplexParts:
     def test_trivial_imag(self, language, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
-        eq_re = Eq(f_real, Re(f+1j))
-        eq_im = Eq(f_imag, Im(f+1j))
+        eq_re = Eq(f_real, Real(f+1j))
+        eq_im = Eq(f_imag, Imag(f+1j))
 
         self.run_operator([eq_re, eq_im], language)
 
@@ -998,8 +998,8 @@ class TestComplexParts:
     def test_deriv(self, language):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
-        eq_re = Eq(f_real, Re(f.dx))
-        eq_im = Eq(f_imag, Im(f.dx))
+        eq_re = Eq(f_real, Real(f.dx))
+        eq_im = Eq(f_imag, Imag(f.dx))
 
         self.run_operator([eq_re, eq_im], language)
 
@@ -1010,8 +1010,8 @@ class TestComplexParts:
     def test_outer_deriv(self, language):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
-        eq_re = Eq(f_real, Re(f).dx)
-        eq_im = Eq(f_imag, Im(f).dx)
+        eq_re = Eq(f_real, Real(f).dx)
+        eq_im = Eq(f_imag, Imag(f).dx)
 
         self.run_operator([eq_re, eq_im], language)
 
@@ -1034,10 +1034,10 @@ class TestComplexParts:
         fh_re = Function(name='fh_re', grid=grid)
         fh_im = Function(name='fh_im', grid=grid)
 
-        eq_fg_re = Eq(fg_re, Re(f*g))
-        eq_fg_im = Eq(fg_im, Im(f*g))
-        eq_fh_re = Eq(fh_re, Re(f*h))
-        eq_fh_im = Eq(fh_im, Im(f*h))
+        eq_fg_re = Eq(fg_re, Real(f*g))
+        eq_fg_im = Eq(fg_im, Imag(f*g))
+        eq_fh_re = Eq(fh_re, Real(f*h))
+        eq_fh_im = Eq(fh_im, Imag(f*h))
 
         self.run_operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im], language)
 
@@ -1046,3 +1046,15 @@ class TestComplexParts:
 
         assert np.all(np.isclose(fh_re.data, -2.))
         assert np.all(np.isclose(fh_im.data, 2.))
+
+    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
+    def test_conj(self, language):
+        grid = Grid(shape=(5,))
+        f = Function(name='f', grid=grid, dtype=np.complex64)
+        g = Function(name='g', grid=grid, dtype=np.complex64)
+
+        f.data[:] = np.arange(5) + 1j*np.arange(5)[::-1]
+
+        self.run_operator([Eq(g, Conj(f))], language)
+
+        assert np.all(np.isclose(g.data, np.conj(f.data)))

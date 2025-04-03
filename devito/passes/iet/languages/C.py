@@ -68,10 +68,14 @@ class CPrinter(BasePrinter, C99CodePrinter):
         else:
             return li
 
-    def _print_Re(self, expr):
+    def _print_Real(self, expr):
         return (f'{self.func_prefix(expr)}real{self.func_literal(expr).lower()}'
                 f'({self._print(expr.args[0])})')
 
-    def _print_Im(self, expr):
+    def _print_Imag(self, expr):
         return (f'{self.func_prefix(expr)}imag{self.func_literal(expr).lower()}'
+                f'({self._print(expr.args[0])})')
+
+    def _print_Conj(self, expr):
+        return (f'conj{self.func_literal(expr).lower()}'
                 f'({self._print(expr.args[0])})')
