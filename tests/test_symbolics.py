@@ -7,7 +7,7 @@ import numpy as np
 from sympy import Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, Real, Imag, Conj, SubDomain)
+                    Min, Max, Real, Imag, Conj, SubDomain, configuration)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
@@ -936,27 +936,21 @@ class TestComplexParts:
         f_imag = Function(name='f_imag', grid=grid)
         return f, f_real, f_imag
 
-    def run_operator(self, eqs, language):
-        with switchconfig(language=language):
-            Operator(eqs)()
-
     def test_devito_print(self):
         f, _, _ = self.setup_basic(np.complex64)
 
         assert str(Real(f)) == 'Real(f(x))'
         assert str(Imag(f)) == 'Imag(f(x))'
 
-    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
-    def test_printing(self, language):
+    def test_printing(self):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Real(f))
         eq_im = Eq(f_imag, Imag(f))
 
-        with switchconfig(language=language):
-            op = Operator([eq_re, eq_im])
+        op = Operator([eq_re, eq_im])
 
-        if language in ('CXX', 'CXXopenmp'):
+        if configuration['language'] in ('CXX', 'CXXopenmp'):
             assert "f_real[x + 1] = std::real(f[x + 1])" in str(op.ccode)
             assert "f_imag[x + 1] = std::imag(f[x + 1])" in str(op.ccode)
 
@@ -964,62 +958,57 @@ class TestComplexParts:
             assert "f_real[x + 1] = crealf(f[x + 1])" in str(op.ccode)
             assert "f_imag[x + 1] = cimagf(f[x + 1])" in str(op.ccode)
 
-    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
     @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-    def test_trivial(self, language, dtype):
+    def test_trivial(self, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
         eq_re = Eq(f_real, Real(f+1.))
         eq_im = Eq(f_imag, Imag(f+1.))
 
-        self.run_operator([eq_re, eq_im], language)
+        Operator([eq_re, eq_im])()
 
         rcheck = np.array([2., 3., 4., 5., 6.])
         icheck = np.array([12., 11., 10., 9., 8.])
         assert np.all(np.isclose(f_real.data, rcheck))
         assert np.all(np.isclose(f_imag.data, icheck))
 
-    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
     @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-    def test_trivial_imag(self, language, dtype):
+    def test_trivial_imag(self, dtype):
         f, f_real, f_imag = self.setup_basic(dtype)
 
         eq_re = Eq(f_real, Real(f+1j))
         eq_im = Eq(f_imag, Imag(f+1j))
 
-        self.run_operator([eq_re, eq_im], language)
+        Operator([eq_re, eq_im])()
 
         rcheck = np.array([1., 2., 3., 4., 5.])
         icheck = np.array([13., 12., 11., 10., 9.])
         assert np.all(np.isclose(f_real.data, rcheck))
         assert np.all(np.isclose(f_imag.data, icheck))
 
-    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
-    def test_deriv(self, language):
+    def test_deriv(self):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Real(f.dx))
         eq_im = Eq(f_imag, Imag(f.dx))
 
-        self.run_operator([eq_re, eq_im], language)
+        Operator([eq_re, eq_im])()
 
         assert np.all(np.isclose(f_real.data, 1.))
         assert np.all(np.isclose(f_imag.data, -1.))
 
-    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
-    def test_outer_deriv(self, language):
+    def test_outer_deriv(self):
         f, f_real, f_imag = self.setup_basic(np.complex64)
 
         eq_re = Eq(f_real, Real(f).dx)
         eq_im = Eq(f_imag, Imag(f).dx)
 
-        self.run_operator([eq_re, eq_im], language)
+        Operator([eq_re, eq_im])()
 
         assert np.all(np.isclose(f_real.data, 1.))
         assert np.all(np.isclose(f_imag.data, -1.))
 
-    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
-    def test_mul(self, language):
+    def test_mul(self):
         grid = Grid(shape=(5,))
 
         f = Function(name='f', grid=grid, dtype=np.complex64)
@@ -1039,7 +1028,7 @@ class TestComplexParts:
         eq_fh_re = Eq(fh_re, Real(f*h))
         eq_fh_im = Eq(fh_im, Imag(f*h))
 
-        self.run_operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im], language)
+        Operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im])()
 
         assert np.all(np.isclose(fg_re.data, 2.))
         assert np.all(np.isclose(fg_im.data, 2.))
@@ -1047,14 +1036,13 @@ class TestComplexParts:
         assert np.all(np.isclose(fh_re.data, -2.))
         assert np.all(np.isclose(fh_im.data, 2.))
 
-    @pytest.mark.parametrize('language', ['C', 'CXX', 'CXXopenmp'])
-    def test_conj(self, language):
+    def test_conj(self):
         grid = Grid(shape=(5,))
         f = Function(name='f', grid=grid, dtype=np.complex64)
         g = Function(name='g', grid=grid, dtype=np.complex64)
 
         f.data[:] = np.arange(5) + 1j*np.arange(5)[::-1]
 
-        self.run_operator([Eq(g, Conj(f))], language)
+        Operator([Eq(g, Conj(f))])()
 
         assert np.all(np.isclose(g.data, np.conj(f.data)))
