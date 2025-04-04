@@ -1,11 +1,12 @@
 from collections import OrderedDict
 from collections.abc import Iterable
 from functools import cached_property
+from itertools import chain
 
 import sympy
 
 from .finite_difference import generic_derivative, cross_derivative
-from .differentiable import Differentiable, interp_for_fd
+from .differentiable import Differentiable, diffify, interp_for_fd, Add
 from .tools import direct, transpose
 from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, filter_ordered, frozendict, is_integer,
@@ -95,7 +96,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if type(expr) is sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
         if not isinstance(expr, Differentiable):
-            raise ValueError("`expr` must be a Differentiable object")
+            try:
+                expr = diffify(expr)
+            except Exception as e:
+                raise ValueError("`expr` must be a Differentiable object") from e
+        if isinstance(expr, sympy.Number):
+            return 0
 
         new_dims, orders, fd_o, var_count = cls._process_kwargs(expr, *dims, **kwargs)
 
@@ -135,7 +141,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             fd_orders = kwargs.get('fd_order')
             deriv_orders = kwargs.get('deriv_order')
             if len(dims) == 1:
-                dims = tuple([dims[0]]*max(1, deriv_orders[0]))
+                if isinstance(dims[0], Iterable):
+                    assert dims[0][1] == deriv_orders[0]
+                    dims = tuple([dims[0][0]]*max(1, deriv_orders[0]))
+                else:
+                    dims = tuple([dims[0]]*max(1, deriv_orders[0]))
             variable_count = [sympy.Tuple(s, dims.count(s))
                               for s in filter_ordered(dims)]
             return dims, deriv_orders, fd_orders, variable_count
@@ -261,8 +271,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return self._rebuild(**rkw)
 
     def _rebuild(self, *args, **kwargs):
-        kwargs['preprocessed'] = True
-        return super()._rebuild(*args, **kwargs)
+        if not args:
+            kwargs['preprocessed'] = True
+            expr = super()._rebuild(**kwargs)
+        else:
+            expr = self.__class__(*args, **kwargs)
+        return expr
 
     func = _rebuild
 
@@ -497,3 +511,33 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             res = res.xreplace(e)
 
         return res
+
+    def _eval_expand_nest(self, **hints):
+        expr = self.args[0]
+        if isinstance(expr, self.__class__):
+            return self.func(expr.args[0], *[(d, ii)
+                for d, ii in zip(
+                    chain(self.dims, expr.dims),
+                    chain(self.deriv_order, expr.deriv_order)
+                )])
+        else:
+            return self
+
+    def _eval_expand_mul(self, **hints):
+        expr = self.args[0]
+        if isinstance(expr, sympy.Mul):
+            ind, dep = expr.as_independent(*self.dims, as_Mul=True)
+            return ind*self.func(dep, *self.args[1:])
+        else:
+            return self
+
+    def _eval_expand_add(self, **hints):
+        expr = self.args[0]
+        if isinstance(expr, sympy.Add):
+            ind, dep = expr.as_independent(*self.dims, as_Add=True)
+            if isinstance(dep, sympy.Add):
+                return Add(*[self.func(s, *self.args[1:]) for s in dep.args])
+            else:
+                return self.func(dep, *self.args[1:])
+        else:
+            return self
