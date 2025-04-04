@@ -4,7 +4,7 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import Expr, Symbol
+from sympy import Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max)
@@ -13,7 +13,7 @@ from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
-                              ReservedWord, ListInitializer, uxreplace,
+                              ReservedWord, ListInitializer, uxreplace, pow_to_mul,
                               retrieve_derivatives, BaseCast)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
@@ -635,6 +635,21 @@ class TestUxreplace:
         assert func1.p0 is g
         assert func1.p1 == (g,)
         assert func1.p2 == 'bar'
+
+    def test_reduce_to_number(self):
+        grid = Grid(shape=(4, 4))
+        x, _ = grid.dimensions
+        h_x = x.spacing
+
+        # Emulate lowered coefficient
+        w = -0.0354212/(h_x*h_x)
+        w_lowered = pow_to_mul(w)
+
+        w_sub = uxreplace(w_lowered, {h_x: Number(3)})
+
+        assert np.isclose(w_sub, -0.003935689)
+        assert not w_sub.is_Mul
+        assert w_sub.is_Number
 
 
 def test_minmax():
