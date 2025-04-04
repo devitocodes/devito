@@ -243,8 +243,6 @@ class TestStreaming:
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == 'sdata0[0].flag = 2;'
 
-        assert False, "Forced failure"
-
         op.apply(time_M=nt-2)
 
         assert np.all(u.data[nt-1] == 8)
