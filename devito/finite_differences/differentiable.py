@@ -1055,7 +1055,7 @@ def interp_for_fd(expr, x0, **kwargs):
 @interp_for_fd.register(sympy.Derivative)
 def _(expr, x0, **kwargs):
     x0_expr = {d: v for d, v in x0.items() if d not in expr.dims}
-    return expr.func(expr=interp_for_fd(expr.expr, x0_expr, **kwargs))
+    return expr.func(interp_for_fd(expr.expr, x0_expr, **kwargs), *expr.args[1:])
 
 
 @interp_for_fd.register(sympy.Expr)
