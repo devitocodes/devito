@@ -275,7 +275,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             kwargs['preprocessed'] = True
             expr = super()._rebuild(**kwargs)
         else:
-            expr = self.__class__(*args, **kwargs)
+            expr = super()._rebuild(*args, **kwargs)
         return expr
 
     func = _rebuild
