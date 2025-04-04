@@ -589,51 +589,52 @@ def test_solve_time():
     assert sympy.simplify(sympy.expand(sol - (-dt**2*u.dx/m + 2.0*u - u.backward))) == 0
 
 
-@pytest.mark.parametrize('expr,subs,expected', [
-    ('f', '{f: g}', 'g'),
-    ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
-    ('cos(f)', '{cos: sin}', 'sin(f)'),
-    ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),
-    ('FIndexed(f.indexed, x, y)', '{x: 0}', 'FIndexed(f.indexed, 0, y)'),
-])
-def test_uxreplace(expr, subs, expected):
-    grid = Grid(shape=(4, 4))
-    x, y = grid.dimensions  # noqa
+class TestUxreplace:
 
-    f = Function(name='f', grid=grid)  # noqa
-    g = Function(name='g', grid=grid)  # noqa
+    @pytest.mark.parametrize('expr,subs,expected', [
+        ('f', '{f: g}', 'g'),
+        ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
+        ('cos(f)', '{cos: sin}', 'sin(f)'),
+        ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),
+        ('FIndexed(f.indexed, x, y)', '{x: 0}', 'FIndexed(f.indexed, 0, y)'),
+    ])
+    def test_expressions(self, expr, subs, expected):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions  # noqa
 
-    assert uxreplace(eval(expr), eval(subs)) == eval(expected)
+        f = Function(name='f', grid=grid)  # noqa
+        g = Function(name='g', grid=grid)  # noqa
 
+        assert uxreplace(eval(expr), eval(subs)) == eval(expected)
 
-def test_uxreplace_custom_reconstructable():
+    def test_custom_reconstructable(self):
 
-    class MyDefFunction(DefFunction):
-        __rargs__ = ('name', 'arguments')
-        __rkwargs__ = ('p0', 'p1', 'p2')
+        class MyDefFunction(DefFunction):
+            __rargs__ = ('name', 'arguments')
+            __rkwargs__ = ('p0', 'p1', 'p2')
 
-        def __new__(cls, name=None, arguments=None, p0=None, p1=None, p2=None):
-            obj = super().__new__(cls, name=name, arguments=arguments)
-            obj.p0 = p0
-            obj.p1 = as_tuple(p1)
-            obj.p2 = p2
-            return obj
+            def __new__(cls, name=None, arguments=None, p0=None, p1=None, p2=None):
+                obj = super().__new__(cls, name=name, arguments=arguments)
+                obj.p0 = p0
+                obj.p1 = as_tuple(p1)
+                obj.p2 = p2
+                return obj
 
-    grid = Grid(shape=(4, 4))
+        grid = Grid(shape=(4, 4))
 
-    f = Function(name='f', grid=grid)
-    g = Function(name='g', grid=grid)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
 
-    func = MyDefFunction(name='foo', arguments=f.indexify(),
-                         p0=f, p1=f, p2='bar')
+        func = MyDefFunction(name='foo', arguments=f.indexify(),
+                             p0=f, p1=f, p2='bar')
 
-    mapper = {f: g, f.indexify(): g.indexify()}
-    func1 = uxreplace(func, mapper)
+        mapper = {f: g, f.indexify(): g.indexify()}
+        func1 = uxreplace(func, mapper)
 
-    assert func1.arguments == (g.indexify(),)
-    assert func1.p0 is g
-    assert func1.p1 == (g,)
-    assert func1.p2 == 'bar'
+        assert func1.arguments == (g.indexify(),)
+        assert func1.p0 is g
+        assert func1.p1 == (g,)
+        assert func1.p2 == 'bar'
 
 
 def test_minmax():
