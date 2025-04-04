@@ -304,12 +304,8 @@ class Cluster:
         """
         dtypes = set()
         for i in self.exprs:
-            try:
-                if np.issubdtype(i.dtype, np.generic):
-                    dtypes.add(i.dtype)
-            except TypeError:
-                # E.g. `i.dtype` is a ctypes pointer, which has no dtype equivalent
-                pass
+            if np.issubdtype(i.dtype, np.generic):
+                dtypes.add(i.dtype)
 
         return infer_dtype(dtypes)
 

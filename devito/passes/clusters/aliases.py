@@ -888,7 +888,6 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
         else:
             # Degenerate case: scalar expression
             assert writeto.size == 0
-
             dtype = sympy_dtype(pivot, base=meta.dtype, smin=min_dtype)
             obj = Temp(name=name, dtype=dtype)
             expression = Eq(obj, uxreplace(pivot, subs))
@@ -1354,7 +1353,7 @@ class Schedule(tuple):
         # Not just the sum for the individual items' cost! There might be
         # redundancies, which we factor out here...
         counter = generator()
-        make = lambda: Symbol(name='dummy%d' % counter(), dtype=np.float32)
+        make = lambda _: Symbol(name='dummy%d' % counter(), dtype=np.float32)
 
         tot = 0
         for v in as_mapper(self, lambda i: i.ispace).values():
