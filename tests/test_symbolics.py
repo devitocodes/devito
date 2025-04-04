@@ -4,7 +4,7 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import Expr, Symbol
+from sympy import Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max)
@@ -13,7 +13,7 @@ from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
-                              ReservedWord, ListInitializer, uxreplace,
+                              ReservedWord, ListInitializer, uxreplace, pow_to_mul,
                               retrieve_derivatives, BaseCast)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
@@ -589,51 +589,67 @@ def test_solve_time():
     assert sympy.simplify(sympy.expand(sol - (-dt**2*u.dx/m + 2.0*u - u.backward))) == 0
 
 
-@pytest.mark.parametrize('expr,subs,expected', [
-    ('f', '{f: g}', 'g'),
-    ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
-    ('cos(f)', '{cos: sin}', 'sin(f)'),
-    ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),
-    ('FIndexed(f.indexed, x, y)', '{x: 0}', 'FIndexed(f.indexed, 0, y)'),
-])
-def test_uxreplace(expr, subs, expected):
-    grid = Grid(shape=(4, 4))
-    x, y = grid.dimensions  # noqa
+class TestUxreplace:
 
-    f = Function(name='f', grid=grid)  # noqa
-    g = Function(name='g', grid=grid)  # noqa
+    @pytest.mark.parametrize('expr,subs,expected', [
+        ('f', '{f: g}', 'g'),
+        ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
+        ('cos(f)', '{cos: sin}', 'sin(f)'),
+        ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),
+        ('FIndexed(f.indexed, x, y)', '{x: 0}', 'FIndexed(f.indexed, 0, y)'),
+    ])
+    def test_expressions(self, expr, subs, expected):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions  # noqa
 
-    assert uxreplace(eval(expr), eval(subs)) == eval(expected)
+        f = Function(name='f', grid=grid)  # noqa
+        g = Function(name='g', grid=grid)  # noqa
 
+        assert uxreplace(eval(expr), eval(subs)) == eval(expected)
 
-def test_uxreplace_custom_reconstructable():
+    def test_custom_reconstructable(self):
 
-    class MyDefFunction(DefFunction):
-        __rargs__ = ('name', 'arguments')
-        __rkwargs__ = ('p0', 'p1', 'p2')
+        class MyDefFunction(DefFunction):
+            __rargs__ = ('name', 'arguments')
+            __rkwargs__ = ('p0', 'p1', 'p2')
 
-        def __new__(cls, name=None, arguments=None, p0=None, p1=None, p2=None):
-            obj = super().__new__(cls, name=name, arguments=arguments)
-            obj.p0 = p0
-            obj.p1 = as_tuple(p1)
-            obj.p2 = p2
-            return obj
+            def __new__(cls, name=None, arguments=None, p0=None, p1=None, p2=None):
+                obj = super().__new__(cls, name=name, arguments=arguments)
+                obj.p0 = p0
+                obj.p1 = as_tuple(p1)
+                obj.p2 = p2
+                return obj
 
-    grid = Grid(shape=(4, 4))
+        grid = Grid(shape=(4, 4))
 
-    f = Function(name='f', grid=grid)
-    g = Function(name='g', grid=grid)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
 
-    func = MyDefFunction(name='foo', arguments=f.indexify(),
-                         p0=f, p1=f, p2='bar')
+        func = MyDefFunction(name='foo', arguments=f.indexify(),
+                             p0=f, p1=f, p2='bar')
 
-    mapper = {f: g, f.indexify(): g.indexify()}
-    func1 = uxreplace(func, mapper)
+        mapper = {f: g, f.indexify(): g.indexify()}
+        func1 = uxreplace(func, mapper)
 
-    assert func1.arguments == (g.indexify(),)
-    assert func1.p0 is g
-    assert func1.p1 == (g,)
-    assert func1.p2 == 'bar'
+        assert func1.arguments == (g.indexify(),)
+        assert func1.p0 is g
+        assert func1.p1 == (g,)
+        assert func1.p2 == 'bar'
+
+    def test_reduce_to_number(self):
+        grid = Grid(shape=(4, 4))
+        x, _ = grid.dimensions
+        h_x = x.spacing
+
+        # Emulate lowered coefficient
+        w = -0.0354212/(h_x*h_x)
+        w_lowered = pow_to_mul(w)
+
+        w_sub = uxreplace(w_lowered, {h_x: Number(3)})
+
+        assert np.isclose(w_sub, -0.003935689)
+        assert not w_sub.is_Mul
+        assert w_sub.is_Number
 
 
 def test_minmax():
