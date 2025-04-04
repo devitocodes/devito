@@ -650,8 +650,8 @@ class ComplexPart(Differentiable, sympy.core.function.Application):
 
     def __new__(cls, *args, **kwargs):
         if len(args) != 1:
-            raise ValueError(f"{cls.__name__} is constructed with exactly one arg;"
-                             f" {len(args)} were supplied.")
+            raise ValueError(f"{cls.__name__} expects exactly one arg;"
+                             f" {len(args)} were supplied instead.")
 
         return super().__new__(cls, *args, **kwargs)
 
