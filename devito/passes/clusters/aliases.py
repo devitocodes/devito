@@ -888,6 +888,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
         else:
             # Degenerate case: scalar expression
             assert writeto.size == 0
+
             dtype = sympy_dtype(pivot, base=meta.dtype, smin=min_dtype)
             obj = Temp(name=name, dtype=dtype)
             expression = Eq(obj, uxreplace(pivot, subs))
