@@ -653,14 +653,7 @@ class ComplexPart(Differentiable, sympy.core.function.Application):
             raise ValueError(f"{cls.__name__} is constructed with exactly one arg;"
                              f" {len(args)} were supplied.")
 
-        # Diffify any Add, Mul, etc which might be in the expression
-        new_args = (diffify(args[0]),)
-
-        if not np.issubdtype(new_args[0].dtype, np.complexfloating):
-            raise ValueError(f"{cls.__name__} requires a complex dtype,"
-                             f" not {new_args[0].dtype.__name__}.")
-
-        return super().__new__(cls, *new_args, **kwargs)
+        return super().__new__(cls, *args, **kwargs)
 
     def __str__(self):
         return f"{self.__class__.__name__}({self.args[0]})"
@@ -668,12 +661,21 @@ class ComplexPart(Differentiable, sympy.core.function.Application):
     __repr__ = __str__
 
 
-class Real(ComplexPart):
+class RealComplexPart(ComplexPart):
+
+    @cached_property
+    def dtype(self):
+        dtypes = {getattr(e, 'dtype', None) for e in self.free_symbols}
+        dtype = infer_dtype(dtypes - {None})
+        return dtype(0).real.__class__
+
+
+class Real(RealComplexPart):
     """Get the real part of an expression"""
     _name = 'real'
 
 
-class Imag(ComplexPart):
+class Imag(RealComplexPart):
     """Get the imaginary part of an expression"""
     _name = 'imag'
 
