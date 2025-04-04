@@ -109,7 +109,7 @@ def test_default_algo(exprs, expected, min_cost):
         exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
-    make = lambda: CTemp(name='r%d' % counter()).indexify()
+    make = lambda _: CTemp(name='r%d' % counter()).indexify()
     processed = _cse(exprs, make, min_cost)
 
     assert len(processed) == len(expected)
@@ -241,7 +241,7 @@ def test_advanced_algo(exprs, expected):
         exprs[i] = DummyEq(indexify(diffify(eval(e).evaluate)))
 
     counter = generator()
-    make = lambda: CTemp(name='r%d' % counter(), dtype=np.float32).indexify()
+    make = lambda _: CTemp(name='r%d' % counter(), dtype=np.float32).indexify()
     processed = _cse(exprs, make, mode='advanced')
 
     assert len(processed) == len(expected)
