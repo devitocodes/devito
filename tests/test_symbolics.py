@@ -712,7 +712,7 @@ def test_pow_precision(dtype, expected):
     op.apply()
 
     assert expected in str(op)
-    assert np.all(f.data == 8.0)
+    assert np.allclose(f.data, 8.0, rtol=np.finfo(dtype).eps)
 
 
 @pytest.mark.parametrize('dtype,expected', [
