@@ -12,6 +12,7 @@ from devito.logger import debug
 from devito.tools import Pickable, is_integer, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
+from devito.types.caching import Cached
 from devito.types.constant import Constant
 
 
@@ -822,6 +823,12 @@ class MultiSubDimension(AbstractSubDimension):
         return self.parent.bound_symbols
 
 
+class SubsamplingFactor(Constant, Cached):
+
+    __hash__ = sympy.Symbol.__hash__
+    _cache_key = Symbol._cache_key
+
+
 class ConditionalDimension(DerivedDimension):
 
     """
@@ -913,7 +920,8 @@ class ConditionalDimension(DerivedDimension):
         if factor is None or factor == 1:
             self._factor = None
         elif is_integer(factor):
-            self._factor = Constant(name="%sf" % name, value=factor, dtype=np.int32)
+            self._factor = SubsamplingFactor(name=f"{name}f", value=factor,
+                                             dtype=np.int32)
         elif factor.is_Constant and is_integer(factor.data):
             self._factor = factor
         else:
