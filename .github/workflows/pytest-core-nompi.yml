@@ -58,7 +58,7 @@ jobs:
 
         - name: pytest-ubuntu-py39-gcc14-omp
           python-version: '3.9'
-          os: ubuntu-22.04
+          os: ubuntu-24.04
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.9"
