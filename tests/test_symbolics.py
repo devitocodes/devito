@@ -15,6 +15,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace, pow_to_mul,
                               retrieve_derivatives, BaseCast)
+from devito.symbolics.unevaluation import Mul
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -874,3 +875,12 @@ class TestRelationsWithAssumptions:
         assumptions = eval(assumptions)
         expected = eval(expected)
         assert evalrel(op, eqn, assumptions) == expected
+
+
+def test_issue_2577():
+
+    u = TimeFunction(name='u', grid=Grid((2,)))
+    eq = Eq(u.forward, Mul(-1, -1., u))
+    op = Operator(eq)
+
+    assert '--' not in str(op.ccode)
