@@ -32,7 +32,7 @@ jobs:
         name: [
            pytest-ubuntu-py311-gcc11-noomp,
            pytest-ubuntu-py312-gcc12-omp,
-           pytest-ubuntu-py39-gcc7-omp,
+           pytest-ubuntu-py39-gcc14-omp,
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
            pytest-ubuntu-py39-gcc9-omp,
@@ -56,10 +56,10 @@ jobs:
           language: "openmp"
           sympy: "1.13"
 
-        - name: pytest-ubuntu-py39-gcc7-omp
+        - name: pytest-ubuntu-py39-gcc14-omp
           python-version: '3.9'
           os: ubuntu-22.04
-          arch: "gcc-7"
+          arch: "gcc-14"
           language: "openmp"
           sympy: "1.9"
 
