@@ -223,7 +223,7 @@ class BasePrinter(CodePrinter):
         return '%'.join(args)
 
     def _print_Mul(self, expr):
-        args = [a for a in expr.args if a != -1]
+        args = [a for a in expr.args if (a != -1. or a != -1)]
         neg = (len(expr.args) - len(args)) % 2
 
         if len(args) > 1:
