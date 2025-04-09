@@ -17,7 +17,7 @@ ARG GROUP_ID=1000
 RUN python3 -m venv /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip && \
     /venv/bin/pip install --no-cache-dir jupyter && \
-    /venv/bin/pip install --no-cache-dir wheel && \
+    /venv/bin/pip install --no-cache-dir --upgrade wheel setuptools && \
     ln -fs /app/nvtop/build/src/nvtop /venv/bin/nvtop
 
 # Copy Devito
