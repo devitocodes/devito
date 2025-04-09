@@ -8,14 +8,13 @@ from sympy import Expr, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max, SubDomain)
-from devito.finite_differences.differentiable import SafeInv, Weights
+from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace,
                               retrieve_derivatives, BaseCast)
-from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -861,16 +860,19 @@ class TestRelationsWithAssumptions:
         assert evalrel(op, eqn, assumptions) == expected
 
 
-def test_issue_2577():
+def test_issue_2577a():
 
     u = TimeFunction(name='u', grid=Grid((2,)))
-    eq = Eq(u.forward, UnevalMul(-1, -1., u))
+    x = u.grid.dimensions[0]
+    expr = Mul(-1, -1., x, u)
+    assert expr.args == (x, u)
+    eq = Eq(u.forward, expr)
     op = Operator(eq)
 
     assert '--' not in str(op.ccode)
 
 
-def test_issue_2577a():
+def test_issue_2577b():
     class SD0(SubDomain):
         name = 'sd0'
 
