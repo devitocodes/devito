@@ -1217,7 +1217,7 @@ class MPIMsg(CompositeObject):
 
     def _arg_values(self, args=None, **kwargs):
         # Any will do
-        for f in self.target.handles:
+        for f in self.target.components:
             try:
                 alias = kwargs[f.name]
                 break
