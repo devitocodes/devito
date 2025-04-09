@@ -548,20 +548,24 @@ class Mul(DifferentiableOp, sympy.Mul):
         nested, others = split(args, lambda e: isinstance(e, Mul))
         args = flatten(e.args for e in nested) + list(others)
 
+        # Gather all numbers and simplify
+        nums, others = split(args, lambda e: isinstance(e, (int, float,
+                                                            sympy.Number, np.number)))
+        scalar = sympy.Mul(*nums)
+        try:
+            scalar = sympy.Integer(scalar)
+        except TypeError:
+            pass
+
         # a*0 -> 0
-        if any(i == 0 for i in args):
+        if scalar == 0:
             return sympy.S.Zero
 
         # a*1 -> a
-        args = [i for i in args if i != 1]
-
-        # a*-1 -> a*-1
-        # a*-1*-1 -> a
-        # a*-1*-1*-1 -> a*-1
-        nminus = len([i for i in args if i == sympy.S.NegativeOne])
-        args = [i for i in args if i != sympy.S.NegativeOne]
-        if nminus % 2 == 1:
-            args.append(sympy.S.NegativeOne)
+        if scalar == 1:
+            args = others
+        else:
+            args = [scalar] + others
 
         # Reorder for homogeneity with pure SymPy types
         _mulsort(args)
