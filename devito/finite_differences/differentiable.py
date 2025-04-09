@@ -552,17 +552,13 @@ class Mul(DifferentiableOp, sympy.Mul):
         nums, others = split(args, lambda e: isinstance(e, (int, float,
                                                             sympy.Number, np.number)))
         scalar = sympy.Mul(*nums)
-        try:
-            scalar = sympy.Integer(scalar)
-        except TypeError:
-            pass
 
         # a*0 -> 0
         if scalar == 0:
             return sympy.S.Zero
 
         # a*1 -> a
-        if scalar == 1:
+        if scalar - 1 == 0:
             args = others
         else:
             args = [scalar] + others
