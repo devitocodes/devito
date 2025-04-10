@@ -17,7 +17,7 @@ from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast, subs_op_args)
 from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, infer_datasize,
-                          flatten, generator, is_integer, split)
+                          flatten, generator, is_integer)
 from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
                           CompositeObject, CustomDimension)
 
@@ -292,19 +292,21 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         mapper = as_mapper(halo_scheme.fmapper, lambda i: halo_scheme.fmapper[i])
         for hse, components in mapper.items():
-            # We recast everything as Bags for simplicity -- worst case scenario
-            # all Bags only have one component. Existing Bundles are preserved
             halo_scheme = halo_scheme.drop(components)
-            bundles, candidates = split(tuple(components), lambda i: i.is_Bundle)
-            for b in bundles:
-                halo_scheme = halo_scheme.add(b, hse)
 
+            # Existing Bundles are preserved
+            if hse.bundle and set(components) == set(hse.bundle.components):
+                halo_scheme = halo_scheme.add(hse.bundle, hse)
+                continue
+
+            # We recast everything else as Bags for simplicity -- worst case
+            # scenario all Bags only have one component.
             try:
-                name = "bag_%s" % "".join(f.name for f in candidates)
-                bag = Bag(name=name, components=candidates)
+                name = "bag_%s" % "".join(f.name for f in components)
+                bag = Bag(name=name, components=components)
                 halo_scheme = halo_scheme.add(bag, hse)
             except ValueError:
-                for i in candidates:
+                for i in components:
                     name = "bag_%s" % i.name
                     bag = Bag(name=name, components=i)
                     halo_scheme = halo_scheme.add(bag, hse)
@@ -363,10 +365,19 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         else:
             swap = lambda i, j: (j, i)
             name = 'scatter%s' % key
+
         if isinstance(f, Bag):
-            for i, c in enumerate(f.components):
-                eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
+            if hse.bundle is not None:
+                # `f` is the only component of `hse.bundle` that is
+                # being communicated
+                assert f.ncomp == 1
+                i = hse.bundle.components.index(f.c0)
+                eqns.append(Eq(*swap(buf[[0] + bdims], hse.bundle[[i] + findices])))
+            else:
+                for i, c in enumerate(f.components):
+                    eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
         else:
+            assert f.is_Bundle
             for i in range(f.ncomp):
                 eqns.append(Eq(*swap(buf[[i] + bdims], f[[i] + findices])))
 
