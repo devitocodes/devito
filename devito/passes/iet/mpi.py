@@ -198,8 +198,8 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
     writes = {i.write for i in FindNodes(Expression).visit(iet)}
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
-        for f in hs.fmapper:
-            if f not in writes and key(f):
+        for f, v in hs.fmapper.items():
+            if not writes.intersection({f, v.bundle}) and key(f):
                 mapper[hs] = mapper.get(hs, hs.halo_scheme).drop(f)
 
     # Post-process analysis
