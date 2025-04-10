@@ -93,7 +93,7 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     _func_literals = {}
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
     _restrict_keyword = '__restrict'
-    _includes = ['stdlib.h', 'cmath', 'sys/time.h']
+    _includes = ['cstdlib', 'cmath', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances
@@ -103,6 +103,9 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return f'1i{self.prec_literal(expr).lower()}'
+
+    def _print_ComplexPart(self, expr):
+        return f'{self._ns}{expr._name}({self._print(expr.args[0])})'
 
     def _print_Cast(self, expr):
         # The CXX recommended way to cast is to use static_cast

@@ -30,9 +30,9 @@ jobs:
 
       matrix:
         name: [
-           pytest-ubuntu-py311-gcc11-noomp,
-           pytest-ubuntu-py312-gcc12-omp,
-           pytest-ubuntu-py39-gcc7-omp,
+           pytest-ubuntu-py311-gcc11-cxxnoomp,
+           pytest-ubuntu-py312-gcc12-cxxomp,
+           pytest-ubuntu-py39-gcc14-omp,
            pytest-ubuntu-py310-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
            pytest-ubuntu-py39-gcc9-omp,
@@ -42,30 +42,30 @@ jobs:
         ]
         set: [base, adjoint]
         include:
-        - name: pytest-ubuntu-py311-gcc11-noomp
+        - name: pytest-ubuntu-py311-gcc11-cxxnoomp
           python-version: '3.11'
           os: ubuntu-22.04
           arch: "gcc-11"
-          language: "C"
+          language: "CXX"
           sympy: "1.11"
 
-        - name: pytest-ubuntu-py312-gcc12-omp
+        - name: pytest-ubuntu-py312-gcc12-cxxomp
           python-version: '3.12'
           os: ubuntu-24.04
           arch: "gcc-12"
-          language: "openmp"
+          language: "CXXopenmp"
           sympy: "1.13"
 
-        - name: pytest-ubuntu-py39-gcc7-omp
+        - name: pytest-ubuntu-py39-gcc14-omp
           python-version: '3.9'
-          os: ubuntu-20.04
-          arch: "gcc-7"
+          os: ubuntu-24.04
+          arch: "gcc-14"
           language: "openmp"
           sympy: "1.9"
 
         - name: pytest-ubuntu-py310-gcc10-noomp
           python-version: '3.10'
-          os: ubuntu-20.04
+          os: ubuntu-22.04
           arch: "gcc-10"
           language: "C"
           sympy: "1.11"
@@ -79,7 +79,7 @@ jobs:
 
         - name: pytest-ubuntu-py39-gcc9-omp
           python-version: '3.9'
-          os: ubuntu-20.04
+          os: ubuntu-22.04
           arch: "custom"
           language: "openmp"
           sympy: "1.10"

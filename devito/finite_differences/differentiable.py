@@ -22,7 +22,7 @@ from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction
 
 __all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
-           'Weights']
+           'Weights', 'Real', 'Imag', 'Conj']
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -643,6 +643,47 @@ class SafeInv(Differentiable, sympy.core.function.Application):
         return Pow(self.args[0], -1).__str__()
 
     __repr__ = __str__
+
+
+class ComplexPart(Differentiable, sympy.core.function.Application):
+    """Abstract class for `Real`, `Imag`, or `Conj` of an expression"""
+    _name = None
+
+    def __new__(cls, *args, **kwargs):
+        if len(args) != 1:
+            raise ValueError(f"{cls.__name__} is constructed with exactly one arg;"
+                             f" {len(args)} were supplied.")
+
+        return super().__new__(cls, *args, **kwargs)
+
+    def __str__(self):
+        return f"{self.__class__.__name__}({self.args[0]})"
+
+    __repr__ = __str__
+
+
+class RealComplexPart(ComplexPart):
+
+    @cached_property
+    def dtype(self):
+        dtypes = {getattr(e, 'dtype', None) for e in self.free_symbols}
+        dtype = infer_dtype(dtypes - {None})
+        return dtype(0).real.__class__
+
+
+class Real(RealComplexPart):
+    """Get the real part of an expression"""
+    _name = 'real'
+
+
+class Imag(RealComplexPart):
+    """Get the imaginary part of an expression"""
+    _name = 'imag'
+
+
+class Conj(ComplexPart):
+    """Get the complex conjugate of an expression"""
+    _name = 'conj'
 
 
 class IndexSum(sympy.Expr, Evaluable):
