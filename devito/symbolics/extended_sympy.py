@@ -148,7 +148,10 @@ class BasicWrapperMixin:
         """
         Overridden SymPy assumption -- now based on the wrapped object dtype.
         """
-        return issubclass(self.dtype, np.number)
+        try:
+            return issubclass(self.dtype, np.number)
+        except TypeError:
+            return self.dtype in ctypes_vector_mapper
 
     def _sympystr(self, printer):
         return str(self)
