@@ -30,18 +30,36 @@ STENCIL = HaloLabel('stencil')
 class HaloSchemeEntry(EnrichedTuple):
 
     __rargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
+    __rkwargs__ = ('bundle',)
 
-    def __init__(self, loc_indices, loc_dirs, halos, dims, getters=None):
-        self.loc_indices = frozendict(loc_indices)
-        self.loc_dirs = frozendict(loc_dirs)
-        self.halos = frozenset(halos)
-        self.dims = frozenset(dims)
+    def __new__(cls, loc_indices, loc_dirs, halos, dims, bundle=None, getters=None):
+        getters = cls.__rargs__ + cls.__rkwargs__
+        items = [frozendict(loc_indices), frozendict(loc_dirs),
+                 frozenset(halos), frozenset(dims), bundle]
+        kwargs = dict(zip(getters, items))
+        return super().__new__(cls, *items, getters=getters, **kwargs)
 
     def __hash__(self):
-        return hash((self.loc_indices,
-                     self.loc_dirs,
-                     self.halos,
-                     self.dims))
+        return hash((self.loc_indices, self.loc_dirs, self.halos, self.dims))
+
+    def union(self, other):
+        """
+        Return a new HaloSchemeEntry that is the union of this and `other`.
+        The `loc_indices` and `loc_dirs` must be the same, otherwise an
+        exception is raised.
+        """
+        if self.loc_indices != other.loc_indices or \
+           self.loc_dirs != other.loc_dirs or \
+           self.bundle is not other.bundle:
+            raise HaloSchemeException(
+                "Inconsistency found while building a HaloScheme"
+            )
+
+        halos = self.halos | other.halos
+        dims = self.dims | other.dims
+
+        return HaloSchemeEntry(self.loc_indices, self.loc_dirs, halos, dims,
+                               bundle=self.bundle, getters=self.getters)
 
 
 Halo = namedtuple('Halo', 'dim side')
@@ -153,7 +171,7 @@ class HaloScheme:
                 elif not v.loc_indices or hse.loc_indices == v.loc_indices:
                     loc_indices, loc_dirs = hse.loc_indices, hse.loc_dirs
                 else:
-                    # The `loc_dirs` must match otherwise it'd be a symptom there's
+                    # These must match otherwise it'd be a symptom there's
                     # something horribly broken elsewhere!
                     assert hse.loc_dirs == v.loc_dirs
                     assert list(hse.loc_indices) == list(v.loc_indices)
@@ -170,7 +188,11 @@ class HaloScheme:
                 halos = hse.halos | v.halos
                 dims = hse.dims | v.dims
 
-                fmapper[k] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
+                assert hse.bundle is v.bundle
+
+                fmapper[k] = HaloSchemeEntry(
+                    loc_indices, loc_dirs, halos, dims, bundle=hse.bundle
+                )
 
             # Compute the `honored` union
             for d, v in i.honored.items():
@@ -410,9 +432,11 @@ class HaloScheme:
         """
         Create a new HaloScheme that contains all entries in `self` plus the one
         passed in input. If `f` already exists in `self`, the old value is
-        overridden.
+        augmented with `hse` (i.e., the halos are unioned).
         """
-        fmapper = dict(self.fmapper.items())
+        fmapper = dict(self.fmapper)
+        if f in fmapper:
+            hse = fmapper[f].union(hse)
         fmapper[f] = hse
         return HaloScheme.build(fmapper, self.honored)
 
@@ -624,8 +648,12 @@ def _uxreplace_dispatch_haloscheme(hs0, rule):
         for i, v in rule.items():
             if i is f:
                 # Yes!
-                g = v
-                hse = hse0
+                if v.is_Bundle:
+                    g = f
+                    hse = hse0._rebuild(bundle=v)
+                else:
+                    g = v
+                    hse = hse0
 
             elif i.is_Indexed and i.function is f and v.is_Indexed:
                 # Yes, but through an Indexed, hence the `loc_indices` may now

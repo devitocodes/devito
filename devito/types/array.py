@@ -1,4 +1,4 @@
-from ctypes import POINTER, Structure, c_void_p, c_ulong, c_uint64
+from ctypes import POINTER, Structure, c_void_p, c_uint64
 from functools import cached_property
 
 import numpy as np
@@ -10,7 +10,7 @@ from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess', 'Bag']
+           'ComponentAccess', 'Bag', 'BundleView']
 
 
 class ArrayBasic(AbstractFunction, LocalType):
@@ -59,6 +59,13 @@ class ArrayBasic(AbstractFunction, LocalType):
     @property
     def is_const(self):
         return self._is_const
+
+    @property
+    def c0(self):
+        # ArrayBasic can be used as a base class for tensorial objects (that is,
+        # arrays whose components are AbstractFunctions). This property enables
+        # treating the two cases uniformly in some lowering passes
+        return self
 
 
 class Array(ArrayBasic):
@@ -202,19 +209,27 @@ class Array(ArrayBasic):
         return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
 
 
-class ArrayMapped(Array):
+class MappedArrayMixin:
 
     _C_structname = 'array'
     _C_field_data = 'data'
     _C_field_dmap = 'dmap'
-    _C_field_nbytes = 'nbytes'
+    _C_field_shape = 'shape'
     _C_field_size = 'size'
+    _C_field_nbytes = 'nbytes'
+
+    _C_size_type = c_uint64
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_restrict_void_p),
-                                          (_C_field_nbytes, c_ulong),
                                           (_C_field_dmap, c_void_p),
-                                          (_C_field_size, c_uint64)]}))
+                                          (_C_field_shape, POINTER(_C_size_type)),
+                                          (_C_field_size, _C_size_type),
+                                          (_C_field_nbytes, _C_size_type)]}))
+
+
+class ArrayMapped(MappedArrayMixin, Array):
+    pass
 
 
 class ArrayObject(ArrayBasic):
@@ -343,7 +358,7 @@ class PointerArray(ArrayBasic):
         return self._array
 
 
-class Bundle(ArrayBasic):
+class Bundle(MappedArrayMixin, ArrayBasic):
 
     """
     Tensor symbol representing an unrolled vector of AbstractFunctions.
@@ -417,7 +432,6 @@ class Bundle(ArrayBasic):
 
     @property
     def c0(self):
-        # Shortcut for self.components[0]
         return self.components[0]
 
     # Class attributes overrides
@@ -456,17 +470,25 @@ class Bundle(ArrayBasic):
     def initvalue(self):
         return None
 
-    # Overrides defaulting to self.c0's behaviour
-
+    # Defaulting to self.c0's behaviour
     for i in ('_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
               '_mem_shared', '_mem_shared_remote', '__padding_dtype__',
               '_size_domain', '_size_halo', '_size_owned', '_size_padding',
-              '_size_nopad', '_size_nodomain', '_offset_domain',
-              '_offset_halo', '_offset_owned', '_dist_dimensions',
-              '_C_get_field', 'grid', 'symbolic_shape',
+              '_size_nopad', '_size_nodomain', '_offset_domain', '_offset_halo',
+              '_offset_owned', '_dist_dimensions', '_C_get_field', 'grid',
               *AbstractFunction.__properties__):
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
+
+    # Other overrides
+
+    @cached_property
+    def symbolic_shape(self):
+        from devito.symbolics import FieldFromPointer, IndexedPointer  # noqa
+        ffp = FieldFromPointer(self._C_field_shape, self._C_symbol)
+        ret = [s if is_integer(s) else IndexedPointer(ffp, i)
+               for i, s in enumerate(super().symbolic_shape)]
+        return DimensionTuple(*ret, getters=self.dimensions)
 
     @property
     def _mem_heap(self):
@@ -490,17 +512,12 @@ class Bundle(ArrayBasic):
             raise ValueError("Expected %d or %d indices, got %d instead"
                              % (self.ndim, self.ndim + 1, len(index)))
 
-    _C_structname = ArrayMapped._C_structname
-    _C_field_data = ArrayMapped._C_field_data
-    _C_field_nbytes = ArrayMapped._C_field_nbytes
-    _C_field_dmap = ArrayMapped._C_field_dmap
-    _C_field_size = ArrayMapped._C_field_size
-
     @property
     def _C_ctype(self):
         if self._mem_mapped:
-            return ArrayMapped._C_ctype
+            return super()._C_ctype
         else:
+            #TODO DROP???
             return POINTER(dtype_to_ctype(self.dtype))
 
 
@@ -516,6 +533,31 @@ class Bag(Bundle):
     @property
     def handles(self):
         return self.components
+
+
+class BundleView(Bundle):
+
+    """
+    A BundleView is like a Bundle but it doesn't represent a concrete object
+    in the generated code. It's used by the compiler to represent a subset
+    of the components of a Bundle.
+    """
+
+    __rkwargs__ = Bundle.__rkwargs__ + ('parent',)
+
+    def __new__(cls, *args, parent=None, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        obj._parent = parent
+
+        return obj
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @property
+    def handles(self):
+        return (self.parent,)
 
 
 class ComponentAccess(Expr, Pickable):
