@@ -10,7 +10,7 @@ from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess', 'Bag']
+           'ComponentAccess', 'Bag', 'BundleView']
 
 
 class ArrayBasic(AbstractFunction, LocalType):
@@ -516,6 +516,31 @@ class Bag(Bundle):
     @property
     def handles(self):
         return self.components
+
+
+class BundleView(Bundle):
+
+    """
+    A BundleView is like a Bundle but it doesn't represent a concrete object
+    in the generated code. It's used by the compiler to represent a subset
+    of the components of a Bundle.
+    """
+
+    __rkwargs__ = Bundle.__rkwargs__ + ('parent',)
+
+    def __new__(cls, *args, parent=None, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        obj._parent = parent
+
+        return obj
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @property
+    def handles(self):
+        return (self.parent,)
 
 
 class ComponentAccess(Expr, Pickable):
