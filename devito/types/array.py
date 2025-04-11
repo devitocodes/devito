@@ -488,7 +488,7 @@ class Bundle(MappedArrayMixin, ArrayBasic):
         from devito.symbolics import FieldFromPointer, IndexedPointer  # noqa
         ffp = FieldFromPointer(self._C_field_shape, self._C_symbol)
         ret = [s if is_integer(s) else IndexedPointer(ffp, i)
-               for i, s in enumerate(self.shape)]
+               for i, s in enumerate(super().symbolic_shape)]
         return tuple(ret)
 
     @property
