@@ -1,4 +1,4 @@
-from ctypes import POINTER, Structure, c_void_p, c_ulong, c_uint64
+from ctypes import POINTER, Structure, c_void_p, c_uint64
 from functools import cached_property
 
 import numpy as np
@@ -202,19 +202,27 @@ class Array(ArrayBasic):
         return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
 
 
-class ArrayMapped(Array):
+class MappedArrayMixin:
 
     _C_structname = 'array'
     _C_field_data = 'data'
     _C_field_dmap = 'dmap'
-    _C_field_nbytes = 'nbytes'
+    _C_field_shape = 'shape'
     _C_field_size = 'size'
+    _C_field_nbytes = 'nbytes'
+
+    _C_size_type = c_uint64
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_restrict_void_p),
-                                          (_C_field_nbytes, c_ulong),
                                           (_C_field_dmap, c_void_p),
-                                          (_C_field_size, c_uint64)]}))
+                                          (_C_field_shape, POINTER(_C_size_type)),
+                                          (_C_field_size, _C_size_type),
+                                          (_C_field_nbytes, _C_size_type)]}))
+
+
+class ArrayMapped(MappedArrayMixin, Array):
+    pass
 
 
 class ArrayObject(ArrayBasic):
@@ -343,7 +351,7 @@ class PointerArray(ArrayBasic):
         return self._array
 
 
-class Bundle(ArrayBasic):
+class Bundle(MappedArrayMixin, ArrayBasic):
 
     """
     Tensor symbol representing an unrolled vector of AbstractFunctions.
@@ -490,17 +498,12 @@ class Bundle(ArrayBasic):
             raise ValueError("Expected %d or %d indices, got %d instead"
                              % (self.ndim, self.ndim + 1, len(index)))
 
-    _C_structname = ArrayMapped._C_structname
-    _C_field_data = ArrayMapped._C_field_data
-    _C_field_nbytes = ArrayMapped._C_field_nbytes
-    _C_field_dmap = ArrayMapped._C_field_dmap
-    _C_field_size = ArrayMapped._C_field_size
-
     @property
     def _C_ctype(self):
         if self._mem_mapped:
-            return ArrayMapped._C_ctype
+            return super()._C_ctype
         else:
+            #TODO DROP???
             return POINTER(dtype_to_ctype(self.dtype))
 
 
