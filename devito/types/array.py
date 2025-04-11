@@ -4,7 +4,6 @@ from functools import cached_property
 import numpy as np
 from sympy import Expr, cacheit
 
-from devito.data import FULL
 from devito.tools import (Pickable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper, is_integer)
 from devito.types.basic import AbstractFunction, LocalType
