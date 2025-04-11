@@ -367,15 +367,13 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             name = 'scatter%s' % key
 
         if isinstance(f, Bag):
-            if hse.bundle is not None:
-                # `f` is the only component of `hse.bundle` that is
-                # being communicated
-                assert f.ncomp == 1
-                i = hse.bundle.components.index(f.c0)
-                eqns.append(Eq(*swap(buf[[0] + bdims], hse.bundle[[i] + findices])))
-            else:
-                for i, c in enumerate(f.components):
-                    eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
+            for i, c0 in enumerate(f.components):
+                if hse.bundle is not None:
+                    indices = [hse.bundle.components.index(c0), *findices]
+                    rhs = hse.bundle[indices]
+                else:
+                    rhs = c0[findices]
+                eqns.append(Eq(*swap(buf[[i] + bdims], rhs)))
         else:
             assert f.is_Bundle
             for i in range(f.ncomp):
