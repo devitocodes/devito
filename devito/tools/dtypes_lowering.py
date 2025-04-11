@@ -218,7 +218,10 @@ def dtype_len(dtype):
     """
     try:
         # Vector types
-        return len(dtype)
+        dlen = len(dtype)
+        if 'padding0' in dtype.fields:
+            dlen -= 1
+        return dlen
     except TypeError:
         return 1
 

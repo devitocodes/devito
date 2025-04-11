@@ -31,17 +31,32 @@ class HaloSchemeEntry(EnrichedTuple):
 
     __rargs__ = ('loc_indices', 'loc_dirs', 'halos', 'dims')
 
-    def __init__(self, loc_indices, loc_dirs, halos, dims, getters=None):
-        self.loc_indices = frozendict(loc_indices)
-        self.loc_dirs = frozendict(loc_dirs)
-        self.halos = frozenset(halos)
-        self.dims = frozenset(dims)
+    def __new__(cls, loc_indices, loc_dirs, halos, dims, getters=None):
+        items = [frozendict(loc_indices), frozendict(loc_dirs),
+                 frozenset(halos), frozenset(dims)]
+        kwargs = dict(zip(cls.__rargs__, items))
+        return super().__new__(cls, *items, getters=cls.__rargs__, **kwargs)
 
     def __hash__(self):
-        return hash((self.loc_indices,
-                     self.loc_dirs,
-                     self.halos,
-                     self.dims))
+        return hash((self.loc_indices, self.loc_dirs, self.halos, self.dims))
+
+    def union(self, other):
+        """
+        Return a new HaloSchemeEntry that is the union of this and `other`.
+        The `loc_indices` and `loc_dirs` must be the same, otherwise an
+        exception is raised.
+        """
+        if self.loc_indices != other.loc_indices or \
+           self.loc_dirs != other.loc_dirs:
+            raise HaloSchemeException(
+                "Inconsistency found while building a HaloScheme"
+            )
+
+        halos = self.halos | other.halos
+        dims = self.dims | other.dims
+
+        return HaloSchemeEntry(self.loc_indices, self.loc_dirs, halos, dims,
+                               getters=self.getters)
 
 
 Halo = namedtuple('Halo', 'dim side')
@@ -410,9 +425,11 @@ class HaloScheme:
         """
         Create a new HaloScheme that contains all entries in `self` plus the one
         passed in input. If `f` already exists in `self`, the old value is
-        overridden.
+        augmented with `hse` (i.e., the halos are unioned).
         """
-        fmapper = dict(self.fmapper.items())
+        fmapper = dict(self.fmapper)
+        if f in fmapper:
+            hse = fmapper[f].union(hse)
         fmapper[f] = hse
         return HaloScheme.build(fmapper, self.honored)
 
