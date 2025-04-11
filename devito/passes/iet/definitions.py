@@ -19,7 +19,7 @@ from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPoint
                               SizeOf, VOID, pow_to_mul, unevaluate)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import (Array, ComponentAccess, CustomDimension, DeviceMap,
-                          DeviceRM, Eq, Symbol)
+                          DeviceRM, Eq, Symbol, size_t)
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -168,7 +168,8 @@ class DataManager:
         """
         decl = Definition(obj)
 
-        # Symbols/pointers
+        arity_param = Symbol(name='arity', dtype=size_t)
+        arity_arg = SizeOf(obj.indexed._C_typedata)
         ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
@@ -189,7 +190,7 @@ class DataManager:
         init = [*[DummyExpr(IndexedPointer(ffp1, i), s)
                   for i, s in enumerate(obj.c0.symbolic_shape)],
                 DummyExpr(ffp2, obj.size),
-                DummyExpr(ffp3, ffp2*SizeOf(obj.indexed._C_typedata))]
+                DummyExpr(ffp3, ffp2*arity_param)]
 
         # Allocate the underlying host data
         memptr = VOID(Byref(ffp0), '**')
@@ -210,7 +211,9 @@ class DataManager:
         name = self.sregistry.make_name(prefix='alloc')
         body = (decl, alloc0, alloc1, *init, alloc2, *as_tuple(alloc_dmap), ret)
         efunc0 = make_callable(name, body, retval=obj)
-        alloc = Call(name, efunc0.parameters, retobj=obj)
+        args = list(efunc0.parameters)
+        args[args.index(arity_param)] = arity_arg
+        alloc = Call(name, args, retobj=obj)
 
         # Same story for the frees
         name = self.sregistry.make_name(prefix='free')
