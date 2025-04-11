@@ -70,6 +70,7 @@ class TensorFunction(AbstractTensor):
     _op_priority = Differentiable._op_priority + 1.
 
     def __init_finalize__(self, *args, **kwargs):
+        super().__init_finalize__(*args, **kwargs)
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
         inds, _ = Function.__indices_setup__(grid=grid,

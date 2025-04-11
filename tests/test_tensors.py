@@ -438,3 +438,28 @@ def test_custom_coeffs_tensor():
         derivs = retrieve_derivatives(dtau)
         for drv in derivs:
             assert list(drv.weights) == c
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                   VectorFunction, VectorTimeFunction])
+def test_rebuild(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+    f2 = f1.func(name="f2")
+    assert f1.grid == f2.grid
+    assert f2.name == 'f2'
+
+    for (i, j) in zip(f1.flat(), f2.flat()):
+        assert j.name == i.name.replace('f1', 'f2')
+        assert j.grid == i.grid
+        assert j.dimensions == i.dimensions
+
+    new_dims = [Dimension(name=f'{i.name}1') for i in grid.dimensions]
+    f3 = f1.func(dimensions=new_dims)
+    assert f3.grid == grid
+    assert f3.name == f1.name
+
+    for (i, j) in zip(f1.flat(), f3.flat()):
+        assert j.name == i.name
+        assert j.grid == i.grid
+        assert j.dimensions == new_dims

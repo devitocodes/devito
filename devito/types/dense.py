@@ -1093,8 +1093,10 @@ class Function(DiscreteFunction):
 
         # Staggered indices
         staggered = kwargs.get("staggered", None)
-        if staggered in [CELL, NODE]:
+        if staggered in [None, NODE]:
             staggered_indices = dimensions
+        elif staggered == CELL:
+            staggered_indices = [d + d.spacing / 2 for d in dimensions]
         else:
             mapper = {d: d for d in dimensions}
             for s in as_tuple(staggered):

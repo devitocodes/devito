@@ -620,196 +620,6 @@ class Scalar(Symbol, ArgProvider):
             return self._arg_defaults(**kwargs)
 
 
-class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
-
-    """
-    Base class for vector and tensor valued functions. It inherits from and
-    mimicks the behavior of a sympy.ImmutableDenseMatrix.
-
-
-    The sub-hierachy is as follows
-
-                         AbstractTensor
-                                |
-                          TensorFunction
-                                |
-                 ---------------------------------
-                 |                               |
-          VectorFunction                 TensorTimeFunction
-                        \\-------\\              |
-                                 \\------- VectorTimeFunction
-
-    There are four relevant AbstractTensor sub-types: ::
-
-        * TensorFunction: A space-varying tensor valued function.
-        * VectorFunction: A space-varying vector valued function.
-        * TensorTimeFunction: A time-space-varying tensor valued function.
-        * VectorTimeFunction: A time-space-varying vector valued function.
-    """
-
-    # SymPy attributes
-    is_MatrixLike = True
-    is_Matrix = True
-
-    # Devito attributes
-    is_AbstractTensor = True
-    is_TensorValued = True
-    is_VectorValued = False
-
-    @classmethod
-    def _new(cls, *args, **kwargs):
-        if args:
-            try:
-                # Constructor if input is (rows, cols, lambda)
-                newobj = super()._new(*args)
-            except ValueError:
-                # Constructor if input is list of list as (row, cols, list_of_list)
-                # doesn't work as it expects a flattened.
-                newobj = super()._new(args[2])
-
-            # Filter grid and dimensions
-            grid, dimensions = newobj._infer_dims()
-            if grid is None and dimensions is None:
-                return sympy.ImmutableDenseMatrix(*args)
-            # Initialized with constructed object
-            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
-                                     grid=grid, dimensions=dimensions)
-        else:
-            # Initialize components and create new Matrix from standard
-            # Devito inputs
-            comps = cls.__subfunc_setup__(*args, **kwargs)
-            newobj = super()._new(comps)
-            newobj.__init_finalize__(*args, **kwargs)
-
-        return newobj
-
-    @classmethod
-    def _fromrep(cls, rep):
-        """
-        This the new constructor mechanism for matrices in sympy 1.9.
-        Standard new object go through `_new` but arithmetic operations directly use
-        the representation based one.
-        This class method is only accessible from an existing AbstractTensor
-        that contains a grid or dimensions.
-        """
-        newobj = super()._fromrep(rep)
-        grid, dimensions = newobj._infer_dims()
-        try:
-            # This is needed when `_fromrep` is called directly in 1.9
-            # for example with mul.
-            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
-                                     grid=grid, dimensions=dimensions)
-        except TypeError:
-            # We can end up here when `_fromrep` is called through the default _new
-            # when input `comps` don't have grid or dimensions. For example
-            # `test_non_devito_tens` in `test_tensor.py`.
-            pass
-        return newobj
-
-    @classmethod
-    def __subfunc_setup__(cls, *args, **kwargs):
-        """Setup each component of the tensor as a Devito type."""
-        return []
-
-    @property
-    def grid(self):
-        """
-        A Tensor is expected to have all its components defined over the same grid
-        """
-        grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
-        if len(grids) == 0:
-            return None
-        assert len(grids) == 1
-        return grids.pop()
-
-    def _infer_dims(self):
-        grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
-        grids = {g.root for g in grids}
-        dimensions = {d for c in self.flat()
-                      for d in getattr(c, 'dimensions', ())} - {None}
-        # If none of the components are devito objects, returns a sympy Matrix
-        if len(grids) == 0 and len(dimensions) == 0:
-            return None, None
-        elif len(grids) > 0:
-            dimensions = None
-            assert len(grids) == 1
-            grid = grids.pop()
-        else:
-            grid = None
-            dimensions = tuple(dimensions)
-
-        return grid, dimensions
-
-    def flat(self):
-        try:
-            return super().flat()
-        except AttributeError:
-            return self._mat
-
-    def __init_finalize__(self, *args, **kwargs):
-        pass
-
-    __hash__ = sympy.ImmutableDenseMatrix.__hash__
-
-    def doit(self, **hint):
-        return self
-
-    def transpose(self, inner=True):
-        new = super().transpose()
-        if inner:
-            return new.applyfunc(lambda x: getattr(x, 'T', x))
-        return new
-
-    def adjoint(self, inner=True):
-        # Real valued adjoint is transpose
-        return self.transpose(inner=inner)
-
-    @call_highest_priority('__radd__')
-    def __add__(self, other):
-        try:
-            # Most case support sympy add
-            tsum = super().__add__(other)
-        except TypeError:
-            # Sympy doesn't support add with scalars
-            tsum = self.applyfunc(lambda x: x + other)
-
-        # As of sympy 1.13, super does not throw an exception but
-        # only returns NotImplemented for some internal dispatch.
-        if tsum is NotImplemented:
-            return self.applyfunc(lambda x: x + other)
-
-        return tsum
-
-    def _eval_matrix_mul(self, other):
-        """
-        Copy paste from sympy to avoid explicit call to sympy.Add
-        TODO: fix inside sympy
-        """
-        other_len = other.rows*other.cols
-        new_len = self.rows*other.cols
-        new_mat = [self.zero]*new_len
-
-        # If we multiply an n x 0 with a 0 x m, the
-        # expected behavior is to produce an n x m matrix of zeros
-        if self.cols != 0 and other.rows != 0:
-            self_cols = self.cols
-            mat = self.flat()
-            try:
-                other_mat = other.flat()
-            except AttributeError:
-                other_mat = other._mat
-            for i in range(new_len):
-                row, col = i // other.cols, i % other.cols
-                row_indices = range(self_cols*row, self_cols*(row+1))
-                col_indices = range(col, other_len, other.cols)
-                vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices)]
-                new_mat[i] = sum(vec)
-
-        # Get new class and return product
-        newcls = self.classof_prod(other, other.cols)
-        return newcls._new(self.rows, other.cols, new_mat, copy=False)
-
-
 class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     """
@@ -1561,6 +1371,214 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             kwargs.pop('function')
 
         return args, kwargs
+
+
+class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
+
+    """
+    Base class for vector and tensor valued functions. It inherits from and
+    mimicks the behavior of a sympy.ImmutableDenseMatrix.
+
+
+    The sub-hierachy is as follows
+
+                         AbstractTensor
+                                |
+                          TensorFunction
+                                |
+                 ---------------------------------
+                 |                               |
+          VectorFunction                 TensorTimeFunction
+                        \\-------\\              |
+                                 \\------- VectorTimeFunction
+
+    There are four relevant AbstractTensor sub-types: ::
+
+        * TensorFunction: A space-varying tensor valued function.
+        * VectorFunction: A space-varying vector valued function.
+        * TensorTimeFunction: A time-space-varying tensor valued function.
+        * VectorTimeFunction: A time-space-varying vector valued function.
+    """
+
+    # SymPy attributes
+    is_MatrixLike = True
+    is_Matrix = True
+
+    # Devito attributes
+    is_AbstractTensor = True
+    is_TensorValued = True
+    is_VectorValued = False
+
+    __rkwargs__ = AbstractFunction.__rkwargs__
+
+    @classmethod
+    def _new(cls, *args, **kwargs):
+        if args:
+            try:
+                # Constructor if input is (rows, cols, lambda)
+                newobj = super()._new(*args)
+            except ValueError:
+                # Constructor if input is list of list as (row, cols, list_of_list)
+                # doesn't work as it expects a flattened.
+                newobj = super()._new(args[2])
+
+            # Filter grid and dimensions
+            grid, dimensions = newobj._infer_dims()
+            if grid is None and dimensions is None:
+                return sympy.ImmutableDenseMatrix(*args)
+            # Initialized with constructed object
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
+                                     grid=grid, dimensions=dimensions,
+                                     name=kwargs['name'])
+        else:
+            # Initialize components and create new Matrix from standard
+            # Devito inputs
+            comps = cls.__subfunc_setup__(*args, **kwargs)
+            newobj = super()._new(comps)
+            newobj.__init_finalize__(*args, **kwargs)
+
+        return newobj
+
+    @classmethod
+    def _fromrep(cls, rep):
+        """
+        This the new constructor mechanism for matrices in sympy 1.9.
+        Standard new object go through `_new` but arithmetic operations directly use
+        the representation based one.
+        This class method is only accessible from an existing AbstractTensor
+        that contains a grid or dimensions.
+        """
+        newobj = super()._fromrep(rep)
+        grid, dimensions = newobj._infer_dims()
+        try:
+            # This is needed when `_fromrep` is called directly in 1.9
+            # for example with mul.
+            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
+                                     grid=grid, dimensions=dimensions)
+        except TypeError:
+            # We can end up here when `_fromrep` is called through the default _new
+            # when input `comps` don't have grid or dimensions. For example
+            # `test_non_devito_tens` in `test_tensor.py`.
+            pass
+        return newobj
+
+    @classmethod
+    def __subfunc_setup__(cls, *args, **kwargs):
+        """Setup each component of the tensor as a Devito type."""
+        return []
+
+    @property
+    def grid(self):
+        """
+        A Tensor is expected to have all its components defined over the same grid
+        """
+        grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
+        if len(grids) == 0:
+            return None
+        assert len(grids) == 1
+        return grids.pop()
+
+    @property
+    def name(self):
+        return self._name
+
+    def _rebuild(self, *args, **kwargs):
+        # We need to rebuild the components with the new name then
+        # rebuild the matrix
+        newname = kwargs.pop('name', self.name)
+        comps = [f.func(*args, name=f.name.replace(self.name, newname), **kwargs)
+                 for f in self.flat()]
+        # Rebuild the matrix with the new components
+        return self._new(comps, name=newname)
+
+    func = _rebuild
+
+    def _infer_dims(self):
+        grids = {getattr(c, 'grid', None) for c in self.flat()} - {None}
+        grids = {g.root for g in grids}
+        dimensions = {d for c in self.flat()
+                      for d in getattr(c, 'dimensions', ())} - {None}
+        # If none of the components are devito objects, returns a sympy Matrix
+        if len(grids) == 0 and len(dimensions) == 0:
+            return None, None
+        elif len(grids) > 0:
+            dimensions = None
+            assert len(grids) == 1
+            grid = grids.pop()
+        else:
+            grid = None
+            dimensions = tuple(dimensions)
+
+        return grid, dimensions
+
+    def flat(self):
+        try:
+            return super().flat()
+        except AttributeError:
+            return self._mat
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._name = kwargs.get('name', None)
+
+    __hash__ = sympy.ImmutableDenseMatrix.__hash__
+
+    def doit(self, **hint):
+        return self
+
+    def transpose(self, inner=True):
+        new = super().transpose()
+        if inner:
+            return new.applyfunc(lambda x: getattr(x, 'T', x))
+        return new
+
+    def adjoint(self, inner=True):
+        # Real valued adjoint is transpose
+        return self.transpose(inner=inner)
+
+    @call_highest_priority('__radd__')
+    def __add__(self, other):
+        try:
+            # Most case support sympy add
+            tsum = super().__add__(other)
+        except TypeError:
+            # Sympy doesn't support add with scalars
+            tsum = self.applyfunc(lambda x: x + other)
+
+        # As of sympy 1.13, super does not throw an exception but
+        # only returns NotImplemented for some internal dispatch.
+        if tsum is NotImplemented:
+            return self.applyfunc(lambda x: x + other)
+
+        return tsum
+
+    def _eval_matrix_mul(self, other):
+        """
+        Copy paste from sympy to avoid explicit call to sympy.Add
+        TODO: fix inside sympy
+        """
+        other_len = other.rows*other.cols
+        new_len = self.rows*other.cols
+        new_mat = [self.zero]*new_len
+
+        # If we multiply an n x 0 with a 0 x m, the
+        # expected behavior is to produce an n x m matrix of zeros
+        if self.cols != 0 and other.rows != 0:
+            self_cols = self.cols
+            mat = self.flat()
+            try:
+                other_mat = other.flat()
+            except AttributeError:
+                other_mat = other._mat
+            for i in range(new_len):
+                row, col = i // other.cols, i % other.cols
+                row_indices = range(self_cols*row, self_cols*(row+1))
+                col_indices = range(col, other_len, other.cols)
+                vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices)]
+                new_mat[i] = sum(vec)
+
+        # Get new class and return product
+        newcls = self.classof_prod(other, other.cols)
+        return newcls._new(self.rows, other.cols, new_mat, copy=False)
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
