@@ -19,7 +19,7 @@ from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPoint
                               SizeOf, VOID, pow_to_mul, unevaluate)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import (Array, ComponentAccess, CustomDimension, DeviceMap,
-                          DeviceRM, Eq, Symbol)
+                          DeviceRM, Eq, Symbol, size_t)
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -168,49 +168,56 @@ class DataManager:
         """
         decl = Definition(obj)
 
+        arity_param = Symbol(name='arity', dtype=size_t)
+        arity_arg = SizeOf(obj.indexed._C_typedata)
+        ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
+        ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
+        ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
+        ffp3 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
+
         # Allocate the Array struct
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
-        allocs = [self.langbb['host-alloc'](memptr, alignment, nbytes)]
+        alloc0 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
-        nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
-        nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
-
-        # Allocate the underlying host data
-        ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
-        memptr = VOID(Byref(ffp0), '**')
-        allocs.append(self.langbb['host-alloc-pin'](memptr, alignment, nbytes_param))
+        # Allocate the shape array
+        memptr = VOID(Byref(ffp1), '**')
+        nbytes = SizeOf(obj._C_size_type)*obj.ndim
+        alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         # Initialize the Array struct
-        ffp1 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
-        init0 = DummyExpr(ffp1, nbytes_param)
-        ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
-        init1 = DummyExpr(ffp2, 0)
+        init = [*[DummyExpr(IndexedPointer(ffp1, i), s)
+                  for i, s in enumerate(obj.c0.symbolic_shape)],
+                DummyExpr(ffp2, obj.size),
+                DummyExpr(ffp3, ffp2*arity_param)]
 
+        # Allocate the underlying host data
+        memptr = VOID(Byref(ffp0), '**')
+        alloc2 = self.langbb['host-alloc-pin'](memptr, alignment, ffp3)
+
+        # Free all of the allocated data
         frees = [self.langbb['host-free-pin'](ffp0),
+                 self.langbb['host-free'](ffp1),
                  self.langbb['host-free'](obj._C_symbol)]
 
         # Allocate the underlying device data, if required by the backend
-        alloc, free = self._make_dmap_allocfree(obj, nbytes_param)
-
-        # Chain together all allocs and frees
-        allocs = as_tuple(allocs) + as_tuple(alloc)
-        frees = as_tuple(free) + as_tuple(frees)
+        alloc_dmap, free_dmap = self._make_dmap_allocfree(obj, ffp3)
 
         ret = Return(obj._C_symbol)
 
         # Wrap everything in a Callable so that we can reuse the same code
         # for equivalent Array structs
         name = self.sregistry.make_name(prefix='alloc')
-        body = (decl, *allocs, init0, init1, ret)
+        body = (decl, alloc0, alloc1, *init, alloc2, *as_tuple(alloc_dmap), ret)
         efunc0 = make_callable(name, body, retval=obj)
         args = list(efunc0.parameters)
-        args[args.index(nbytes_param)] = nbytes_arg
+        args[args.index(arity_param)] = arity_arg
         alloc = Call(name, args, retobj=obj)
 
         # Same story for the frees
         name = self.sregistry.make_name(prefix='free')
+        frees = as_tuple(free_dmap) + as_tuple(frees)
         efunc1 = make_callable(name, frees)
         free = Call(name, efunc1.parameters)
 
@@ -222,35 +229,50 @@ class DataManager:
         """
         decl = Definition(obj)
 
+        arity_param = Symbol(name='arity', dtype=size_t)
+        arity_arg = SizeOf(obj.indexed._C_typedata)
+        ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
+        ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
+        ffp3 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
+
         # Allocate the Bundle struct
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)
-        alloc = self.langbb['host-alloc'](memptr, alignment, nbytes)
+        alloc0 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
-        nbytes_param = Symbol(name='nbytes', dtype=np.uint64, is_const=True)
-        nbytes_arg = SizeOf(obj.indexed._C_typedata)*obj.size
+        # Allocate the shape array
+        memptr = VOID(Byref(ffp1), '**')
+        nbytes = SizeOf(obj._C_size_type)*obj.ndim
+        alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         # Initialize the Bundle struct
-        ffp1 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
-        init0 = DummyExpr(ffp1, nbytes_param)
-        ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
-        init1 = DummyExpr(ffp2, 0)
+        init = [*[DummyExpr(IndexedPointer(ffp1, i), s)
+                  for i, s in enumerate(obj.c0.symbolic_shape)],
+                DummyExpr(ffp2, obj.size),
+                DummyExpr(ffp3, ffp2*arity_param)]
 
-        free = self.langbb['host-free'](obj._C_symbol)
+        # Free all of the allocated data
+        frees = [self.langbb['host-free'](ffp1),
+                 self.langbb['host-free'](obj._C_symbol)]
 
         ret = Return(obj._C_symbol)
 
         # Wrap everything in a Callable so that we can reuse the same code
         # for equivalent Bundle structs
         name = self.sregistry.make_name(prefix='alloc')
-        body = (decl, alloc, init0, init1, ret)
+        body = (decl, alloc0, alloc1, *init, ret)
         efunc0 = make_callable(name, body, retval=obj)
         args = list(efunc0.parameters)
-        args[args.index(nbytes_param)] = nbytes_arg
+        args[args.index(arity_param)] = arity_arg
         alloc = Call(name, args, retobj=obj)
 
-        storage.update(obj, site, allocs=alloc, frees=free, efuncs=efunc0)
+        # Same story for the frees
+        name = self.sregistry.make_name(prefix='free')
+        efunc1 = make_callable(name, frees)
+        free = Call(name, efunc1.parameters)
+
+        storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
 
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """

@@ -14,7 +14,8 @@ from devito.tools import CustomDtype, Pickable, frozendict
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'auto']
+           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'auto',
+           'size_t']
 
 
 class Timer(CompositeObject):
@@ -344,7 +345,9 @@ A wildcard for use in the RHS of Eqs that encode some kind of semantics
 """
 
 
-# *** CXX support types
+# *** C/CXX support types
+
+size_t = CustomDtype('size_t')
 
 # NOTE: In C++, `auto` is a type specifier more than a type itself, but
 # it's a distinction we can afford to ignore, at least for now

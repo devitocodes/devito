@@ -18,8 +18,8 @@ from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposit
                               IndexedPointer, Macro, cast, subs_op_args)
 from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, infer_datasize,
                           flatten, generator, is_integer)
-from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
-                          CompositeObject, CustomDimension)
+from devito.types import (Array, Bag, BundleView, Dimension, Eq, Symbol,
+                          LocalObject, CompositeObject, CustomDimension)
 
 __all__ = ['HaloExchangeBuilder', 'ReductionBuilder', 'mpi_registry']
 
@@ -295,8 +295,15 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             halo_scheme = halo_scheme.drop(components)
 
             # Existing Bundles are preserved
-            if hse.bundle and set(components) == set(hse.bundle.components):
-                halo_scheme = halo_scheme.add(hse.bundle, hse)
+            if hse.bundle:
+                if set(components) == set(hse.bundle.components):
+                    halo_scheme = halo_scheme.add(hse.bundle, hse)
+                else:
+                    name = f'bundleview_{hse.bundle.name}'
+                    bundle_view = BundleView(
+                        name=name, components=components, parent=hse.bundle
+                    )
+                    halo_scheme = halo_scheme.add(bundle_view, hse)
                 continue
 
             # We recast everything else as Bags for simplicity -- worst case
@@ -367,15 +374,13 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             name = 'scatter%s' % key
 
         if isinstance(f, Bag):
-            if hse.bundle is not None:
-                # `f` is the only component of `hse.bundle` that is
-                # being communicated
-                assert f.ncomp == 1
-                i = hse.bundle.components.index(f.c0)
-                eqns.append(Eq(*swap(buf[[0] + bdims], hse.bundle[[i] + findices])))
-            else:
-                for i, c in enumerate(f.components):
-                    eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
+            for i, c in enumerate(f.components):
+                eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
+        elif isinstance(f, BundleView):
+            assert f.parent is hse.bundle
+            for i, c in enumerate(f.components):
+                indices = [f.parent.components.index(c), *findices]
+                eqns.append(Eq(*swap(buf[[i] + bdims], f.parent[indices])))
         else:
             assert f.is_Bundle
             for i in range(f.ncomp):
