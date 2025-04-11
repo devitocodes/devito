@@ -169,7 +169,6 @@ class DataManager:
         decl = Definition(obj)
 
         # Symbols/pointers
-        size = Symbol(name='size', dtype=np.uint64, is_const=True)
         ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
@@ -188,10 +187,9 @@ class DataManager:
 
         # Initialize the Array struct
         init = [*[DummyExpr(IndexedPointer(ffp1, i), s)
-                  for i, s in enumerate(obj.symbolic_shape)],
-                DummyExpr(size, obj.size, init=True),
-                DummyExpr(ffp2, size),
-                DummyExpr(ffp3, size*SizeOf(obj.indexed._C_typedata))]
+                  for i, s in enumerate(obj.c0.symbolic_shape)],
+                DummyExpr(ffp2, obj.size),
+                DummyExpr(ffp3, ffp2*SizeOf(obj.indexed._C_typedata))]
 
         # Allocate the underlying host data
         memptr = VOID(Byref(ffp0), '**')

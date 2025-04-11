@@ -4,6 +4,7 @@ from functools import cached_property
 import numpy as np
 from sympy import Expr, cacheit
 
+from devito.data import FULL
 from devito.tools import (Pickable, as_tuple, c_restrict_void_p,
                           dtype_to_ctype, dtypes_vector_mapper, is_integer)
 from devito.types.basic import AbstractFunction, LocalType
@@ -59,6 +60,13 @@ class ArrayBasic(AbstractFunction, LocalType):
     @property
     def is_const(self):
         return self._is_const
+
+    @property
+    def c0(self):
+        # ArrayBasic can be used as a base class for tensorial objects (that is,
+        # arrays whose components are AbstractFunctions). This property enables
+        # treating the two cases uniformly in some lowering passes
+        return self
 
 
 class Array(ArrayBasic):
@@ -425,7 +433,6 @@ class Bundle(MappedArrayMixin, ArrayBasic):
 
     @property
     def c0(self):
-        # Shortcut for self.components[0]
         return self.components[0]
 
     # Class attributes overrides
@@ -464,17 +471,25 @@ class Bundle(MappedArrayMixin, ArrayBasic):
     def initvalue(self):
         return None
 
-    # Overrides defaulting to self.c0's behaviour
-
+    # Defaulting to self.c0's behaviour
     for i in ('_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
               '_mem_shared', '_mem_shared_remote', '__padding_dtype__',
               '_size_domain', '_size_halo', '_size_owned', '_size_padding',
-              '_size_nopad', '_size_nodomain', '_offset_domain',
-              '_offset_halo', '_offset_owned', '_dist_dimensions',
-              '_C_get_field', 'grid', 'symbolic_shape',
+              '_size_nopad', '_size_nodomain', '_offset_domain', '_offset_halo',
+              '_offset_owned', '_dist_dimensions', '_C_get_field', 'grid',
               *AbstractFunction.__properties__):
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
+
+    # Other overrides
+
+    @cached_property
+    def symbolic_shape(self):
+        from devito.symbolics import FieldFromPointer, IndexedPointer  # noqa
+        ffp = FieldFromPointer(self._C_field_shape, self._C_symbol)
+        ret = [s if is_integer(s) else IndexedPointer(ffp, i)
+               for i, s in enumerate(self.shape)]
+        return tuple(ret)
 
     @property
     def _mem_heap(self):
