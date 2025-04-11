@@ -488,7 +488,7 @@ class Bundle(MappedArrayMixin, ArrayBasic):
         ffp = FieldFromPointer(self._C_field_shape, self._C_symbol)
         ret = [s if is_integer(s) else IndexedPointer(ffp, i)
                for i, s in enumerate(super().symbolic_shape)]
-        return tuple(ret)
+        return DimensionTuple(*ret, getters=self.dimensions)
 
     @property
     def _mem_heap(self):
