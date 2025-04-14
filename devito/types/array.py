@@ -612,6 +612,10 @@ class ComponentAccess(Expr, Pickable):
         return self.base.function
 
     @property
+    def function_access(self):
+        return self.function.components[self.index]
+
+    @property
     def indices(self):
         return self.base.indices
 
