@@ -9,17 +9,22 @@ from operator import itemgetter
 
 import numpy as np
 
-from devito.ir import (Block, Call, Definition, DummyExpr, Return, EntryFunction,
-                       FindNodes, FindSymbols, MapExprStmts, Transformer,
-                       make_callable)
+from devito.ir import (
+    Block, Call, Definition, DummyExpr, Iteration, List, Return, EntryFunction,
+    FindNodes, FindSymbols, MapExprStmts, Transformer, make_callable
+)
 from devito.passes import is_gpu_create
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics import (Byref, DefFunction, FieldFromPointer, IndexedPointer,
-                              SizeOf, VOID, pow_to_mul, unevaluate)
+from devito.symbolics import (
+    Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer,
+    SizeOf, VOID, pow_to_mul, unevaluate
+)
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
-from devito.types import (Array, ComponentAccess, CustomDimension, DeviceMap,
-                          DeviceRM, Eq, Symbol, size_t)
+from devito.types import (
+    Array, ComponentAccess, CustomDimension, Dimension, DeviceMap, DeviceRM,
+    Eq, Symbol, size_t
+)
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
 
@@ -40,6 +45,7 @@ class Storage(OrderedDict):
         super().__init__(*args, **kwargs)
 
         self.defined = set()
+        self.includes = set()
 
     def update(self, key, site, **kwargs):
         if key in self.defined:
@@ -66,6 +72,10 @@ class Storage(OrderedDict):
         self[k] = v
 
         self.defined.add((site[-1], key))
+
+    def include(self, v):
+        if v:
+            self.includes.add(v)
 
 
 class DataManager:
@@ -132,8 +142,7 @@ class DataManager:
         alloc = Call(name, efunc.parameters)
 
         storage.update(obj, site, allocs=alloc, efuncs=efunc)
-
-        return self.langbb['header-memcpy']
+        storage.include(self.langbb['header-memcpy'])
 
     def _alloc_scalar_on_low_lat_mem(self, site, expr, storage):
         """
@@ -170,6 +179,12 @@ class DataManager:
 
         arity_param = Symbol(name='arity', dtype=size_t)
         arity_arg = SizeOf(obj.indexed._C_typedata)
+        ndims_param = Symbol(name='ndims', dtype=size_t)
+        ndims_arg = obj.ndim
+        shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
+                            dimensions=(Dimension(name='d'),), scope='rvalue')
+        shape_arg = ListInitializer(obj.c0.symbolic_shape, dtype=shape_param.dtype)
+
         ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
         ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
@@ -183,14 +198,21 @@ class DataManager:
 
         # Allocate the shape array
         memptr = VOID(Byref(ffp1), '**')
-        nbytes = SizeOf(obj._C_size_type)*obj.ndim
+        nbytes = SizeOf(obj._C_size_type)*ndims_param
         alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
-        # Initialize the Array struct
-        init = [*[DummyExpr(IndexedPointer(ffp1, i), s)
-                  for i, s in enumerate(obj.c0.symbolic_shape)],
-                DummyExpr(ffp2, obj.size),
-                DummyExpr(ffp3, ffp2*arity_param)]
+        # Initialize the Array metadata
+        dim, = shape_param.dimensions
+        init = [DummyExpr(ffp2, 1)]
+        init.append(Iteration(
+            List(body=(
+                DummyExpr(IndexedPointer(ffp1, dim), shape_param[dim]),
+                DummyExpr(ffp2, ffp2*shape_param[dim])
+            )),
+            dim,
+            ndims_param - 1,
+        ))
+        init.append(DummyExpr(ffp3, ffp2*arity_param))
 
         # Allocate the underlying host data
         memptr = VOID(Byref(ffp0), '**')
@@ -213,6 +235,8 @@ class DataManager:
         efunc0 = make_callable(name, body, retval=obj)
         args = list(efunc0.parameters)
         args[args.index(arity_param)] = arity_arg
+        args[args.index(ndims_param)] = ndims_arg
+        args[args.index(shape_param)] = shape_arg
         alloc = Call(name, args, retobj=obj)
 
         # Same story for the frees
@@ -222,6 +246,7 @@ class DataManager:
         free = Call(name, efunc1.parameters)
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
+        storage.include(self.langbb['header-array'])
 
     def _alloc_bundle_struct_on_high_bw_mem(self, site, obj, storage):
         """
@@ -436,18 +461,15 @@ class DataManager:
                 self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
 
         # Handle postponed global objects
-        includes = set()
         if isinstance(iet, EntryFunction) and globs:
             for i in sorted(globs, key=lambda f: f.name):
-                v = self._alloc_array_on_global_mem(iet, i, storage)
-                if v:
-                    includes.add(v)
+                self._alloc_array_on_global_mem(iet, i, storage)
 
         iet, efuncs = self._inject_definitions(iet, storage)
 
         return iet, {'efuncs': efuncs,
                      'globals': as_tuple(globs),
-                     'includes': as_tuple(includes)}
+                     'includes': as_tuple(sorted(storage.includes))}
 
     @iet_pass
     def place_casts(self, iet, **kwargs):

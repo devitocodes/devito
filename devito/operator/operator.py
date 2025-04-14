@@ -13,11 +13,12 @@ from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument,
                                InvalidOperator)
-from devito.logger import debug, info, perf, warning, is_log_enabled_for, switch_log_level
+from devito.logger import (debug, info, perf, warning, is_log_enabled_for,
+                           switch_log_level)
 from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols, MetaCall,
-                           derive_parameters, iet_build)
+from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols,
+                           MetaCall, derive_parameters, iet_build)
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
@@ -26,8 +27,7 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
                            generate_macros, minimize_symbols, unevaluate,
-                           error_mapper, is_on_device)
-from devito.passes.iet.dtypes import lower_dtypes
+                           error_mapper, is_on_device, lower_dtypes)
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
@@ -488,7 +488,7 @@ class Operator(Callable):
         # Extract the necessary macros from the symbolic objects
         generate_macros(graph, **kwargs)
 
-        # Add type specific metadata
+        # Target-specific lowering
         lower_dtypes(graph, **kwargs)
 
         # Target-independent optimizations
