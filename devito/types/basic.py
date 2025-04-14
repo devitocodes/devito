@@ -699,7 +699,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         args, kwargs = cls.__args_setup__(*args, **kwargs)
 
         # Extract the `indices`, as perhaps they're explicitly provided
-        dimensions, indices = cls.__indices_setup__(*args, **kwargs)
+        dimensions, indices, staggered = cls.__indices_setup__(*args, **kwargs)
 
         # If it's an alias or simply has a different name, ignore `function`.
         # These cases imply the construction of a new AbstractFunction off
@@ -743,6 +743,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # when executing __init_finalize__
         newobj._name = name
         newobj._dimensions = dimensions
+        newobj._staggered = staggered
         newobj._shape = cls.__shape_setup__(**kwargs)
         newobj._dtype = cls.__dtype_setup__(**kwargs)
 
@@ -924,6 +925,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def indices(self):
         """The indices of the object."""
         return DimensionTuple(*self.args, getters=self.dimensions)
+
+    @property
+    def staggered(self):
+        """The staggered indices of the object."""
+        return DimensionTuple(*self._staggered, getters=self.dimensions)
 
     @property
     def indices_ref(self):
@@ -1428,8 +1434,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 return sympy.ImmutableDenseMatrix(*args)
             # Initialized with constructed object
             newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
-                                     grid=grid, dimensions=dimensions,
-                                     name=kwargs['name'])
+                                     grid=grid, dimensions=dimensions)
         else:
             # Initialize components and create new Matrix from standard
             # Devito inputs
@@ -1480,7 +1485,15 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
     @property
     def name(self):
-        return self._name
+        for c in self.values():
+            try:
+                return c.name.split('_')[0]
+            except AttributeError:
+                # `c` is not a devito object
+                pass
+        # If we end up here, then we have no devito objects
+        # in the matrix, so we ust return the class name
+        return self.__class__.__name__
 
     def _rebuild(self, *args, **kwargs):
         # We need to rebuild the components with the new name then
@@ -1489,7 +1502,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         comps = [f.func(*args, name=f.name.replace(self.name, newname), **kwargs)
                  for f in self.flat()]
         # Rebuild the matrix with the new components
-        return self._new(comps, name=newname)
+        return self._new(comps)
 
     func = _rebuild
 

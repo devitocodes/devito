@@ -73,8 +73,8 @@ class TensorFunction(AbstractTensor):
         super().__init_finalize__(*args, **kwargs)
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
-        inds, _ = Function.__indices_setup__(grid=grid,
-                                             dimensions=dimensions)
+        inds, _, _ = Function.__indices_setup__(grid=grid,
+                                                dimensions=dimensions)
         self._space_dimensions = inds
 
     @classmethod

@@ -66,9 +66,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'coefficients')
 
     def __init_finalize__(self, *args, function=None, **kwargs):
-        # Staggering metadata
-        self._staggered = self.__staggered_setup__(**kwargs)
-
         # Now that *all* __X_setup__ hooks have been called, we can let the
         # superclass constructor do its job
         super().__init_finalize__(*args, **kwargs)
@@ -180,18 +177,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                  " not %s" % (str(fd_weights_registry), coeffs))
         return coeffs
 
-    def __staggered_setup__(self, **kwargs):
-        """
-        Setup staggering-related metadata. This method assigns:
-
-            * 0 to non-staggered dimensions;
-            * 1 to staggered dimensions.
-        """
-        staggered = kwargs.get('staggered', None)
-        if staggered is CELL:
-            staggered = self.dimensions
-        return staggered
-
     @cached_property
     def _functions(self):
         return {self.function}
@@ -207,10 +192,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @property
     def _mem_heap(self):
         return True
-
-    @property
-    def staggered(self):
-        return self._staggered
 
     @property
     def coefficients(self):
@@ -1078,33 +1059,48 @@ class Function(DiscreteFunction):
         return self
 
     @classmethod
+    def __staggered_setup__(cls, dimensions, **kwargs):
+        """
+        Setup staggering-related metadata. This method assigns:
+
+            * 0 to non-staggered dimensions;
+            * 1 to staggered dimensions.
+        """
+        stagg = kwargs.get('staggered', None)
+        if stagg is CELL:
+            staggered = (sympy.S.One for d in dimensions)
+        elif stagg in [None, NODE]:
+            staggered = (sympy.S.Zero for d in dimensions)
+        elif all(is_integer(s) for s in as_tuple(stagg)):
+            # Staggering is already a tuple likely from rebuild
+            assert len(stagg) == len(dimensions)
+            return tuple(stagg)
+        else:
+            staggered = (sympy.S.One if d in as_tuple(stagg) else sympy.S.Zero
+                         for d in dimensions)
+        return tuple(staggered)
+
+    @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
+        staggered = kwargs.get('staggered')
+
         if grid is None:
             if dimensions is None:
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
             dimensions = grid.dimensions
 
+        staggered = cls.__staggered_setup__(dimensions, staggered=staggered)
         if args:
             assert len(args) == len(dimensions)
-            return tuple(dimensions), tuple(args)
-
-        # Staggered indices
-        staggered = kwargs.get("staggered", None)
-        if staggered in [None, NODE]:
-            staggered_indices = dimensions
-        elif staggered == CELL:
-            staggered_indices = [d + d.spacing / 2 for d in dimensions]
+            staggered_indices = tuple(args)
         else:
-            mapper = {d: d for d in dimensions}
-            for s in as_tuple(staggered):
-                c, s = s.as_coeff_Mul()
-                mapper.update({s: s + c * s.spacing / 2})
-            staggered_indices = mapper.values()
-
-        return tuple(dimensions), tuple(staggered_indices)
+            # Staggered indices
+            staggered_indices = (d + i * d.spacing / 2
+                                for d, i in zip(dimensions, staggered))
+        return tuple(dimensions), tuple(staggered_indices), staggered
 
     @property
     def is_Staggered(self):
@@ -1604,7 +1600,7 @@ class TempFunction(DiscreteFunction):
         # Sanity check
         assert not any(d.is_NonlinearDerived for d in dimensions)
 
-        return dimensions, dimensions
+        return dimensions, dimensions, (sympy.S.Zero for _ in dimensions)
 
     def __halo_setup__(self, **kwargs):
         pointer_dim = kwargs.get('pointer_dim')

@@ -455,6 +455,8 @@ def test_rebuild(func1):
         assert j.dimensions == i.dimensions
 
     new_dims = [Dimension(name=f'{i.name}1') for i in grid.dimensions]
+    if f1.is_TimeDependent:
+        new_dims = [f1[0].time_dim] + new_dims
     f3 = f1.func(dimensions=new_dims)
     assert f3.grid == grid
     assert f3.name == f1.name
@@ -462,4 +464,4 @@ def test_rebuild(func1):
     for (i, j) in zip(f1.flat(), f3.flat()):
         assert j.name == i.name
         assert j.grid == i.grid
-        assert j.dimensions == new_dims
+        assert j.dimensions == tuple(new_dims)
