@@ -699,7 +699,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         args, kwargs = cls.__args_setup__(*args, **kwargs)
 
         # Extract the `indices`, as perhaps they're explicitly provided
-        dimensions, indices, staggered = cls.__indices_setup__(*args, **kwargs)
+        dimensions, indices = cls.__indices_setup__(*args, **kwargs)
 
         # If it's an alias or simply has a different name, ignore `function`.
         # These cases imply the construction of a new AbstractFunction off
@@ -743,7 +743,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # when executing __init_finalize__
         newobj._name = name
         newobj._dimensions = dimensions
-        newobj._staggered = staggered
         newobj._shape = cls.__shape_setup__(**kwargs)
         newobj._dtype = cls.__dtype_setup__(**kwargs)
 
@@ -925,11 +924,6 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def indices(self):
         """The indices of the object."""
         return DimensionTuple(*self.args, getters=self.dimensions)
-
-    @property
-    def staggered(self):
-        """The staggered indices of the object."""
-        return DimensionTuple(*self._staggered, getters=self.dimensions)
 
     @property
     def indices_ref(self):
@@ -1496,6 +1490,10 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         return self.__class__.__name__
 
     def _rebuild(self, *args, **kwargs):
+        # Plain `func` call (row, col, comps)
+        if not kwargs.keys() & self.__rkwargs__:
+            assert len(args) == 3
+            return self._new(*args, **kwargs)
         # We need to rebuild the components with the new name then
         # rebuild the matrix
         newname = kwargs.pop('name', self.name)

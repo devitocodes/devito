@@ -1,4 +1,5 @@
 from ctypes import POINTER, Structure
+from functools import cached_property
 
 from devito.tools import EnrichedTuple, Tag
 # Additional Function-related APIs
@@ -29,6 +30,13 @@ class DimensionTuple(EnrichedTuple):
             if d._defines & dim._defines:
                 return self.getters[d]
         raise KeyError
+
+
+class Staggering(DimensionTuple):
+
+    @cached_property
+    def on_node(self):
+        return not self or all(s == 0 for s in self)
 
 
 class IgnoreDimSort(tuple):

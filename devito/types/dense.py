@@ -26,7 +26,7 @@ from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
-from devito.types.utils import Buffer, DimensionTuple, NODE, CELL, host_layer
+from devito.types.utils import Buffer, DimensionTuple, NODE, CELL, host_layer, Staggering
 
 __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
@@ -1010,6 +1010,10 @@ class Function(DiscreteFunction):
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 
+        # Staggering
+        self._staggered = self.__staggered_setup__(self.dimensions,
+                                                   staggered=kwargs.get('staggered'))
+
         # Space order
         space_order = kwargs.get('space_order', 1)
         if isinstance(space_order, int):
@@ -1042,7 +1046,7 @@ class Function(DiscreteFunction):
 
     @cached_property
     def _fd_priority(self):
-        return 1 if self.staggered in [NODE, None] else 2
+        return 1 if self.staggered.on_node else 2
 
     @property
     def is_parameter(self):
@@ -1059,26 +1063,33 @@ class Function(DiscreteFunction):
         return self
 
     @classmethod
-    def __staggered_setup__(cls, dimensions, **kwargs):
+    def __staggered_setup__(cls, dimensions, staggered=None, **kwargs):
         """
         Setup staggering-related metadata. This method assigns:
 
             * 0 to non-staggered dimensions;
             * 1 to staggered dimensions.
         """
-        stagg = kwargs.get('staggered', None)
-        if stagg is CELL:
-            staggered = (sympy.S.One for d in dimensions)
-        elif stagg in [None, NODE]:
-            staggered = (sympy.S.Zero for d in dimensions)
-        elif all(is_integer(s) for s in as_tuple(stagg)):
+        if not staggered:
+            processed = ()
+        elif staggered is CELL:
+            processed = (sympy.S.One,)*len(dimensions)
+        elif staggered is NODE:
+            processed = (sympy.S.Zero,)*len(dimensions)
+        elif all(is_integer(s) for s in as_tuple(staggered)):
             # Staggering is already a tuple likely from rebuild
-            assert len(stagg) == len(dimensions)
-            return tuple(stagg)
+            assert len(staggered) == len(dimensions)
+            processed = staggered
         else:
-            staggered = (sympy.S.One if d in as_tuple(stagg) else sympy.S.Zero
-                         for d in dimensions)
-        return tuple(staggered)
+            processed = []
+            for d in dimensions:
+                if d in as_tuple(staggered):
+                    processed.append(sympy.S.One)
+                elif -d in as_tuple(staggered):
+                    processed.append(sympy.S.NegativeOne)
+                else:
+                    processed.append(sympy.S.Zero)
+        return tuple(processed)
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
@@ -1097,14 +1108,27 @@ class Function(DiscreteFunction):
             assert len(args) == len(dimensions)
             staggered_indices = tuple(args)
         else:
-            # Staggered indices
-            staggered_indices = (d + i * d.spacing / 2
-                                for d, i in zip(dimensions, staggered))
-        return tuple(dimensions), tuple(staggered_indices), staggered
+            if not staggered:
+                staggered_indices = (d for d in dimensions)
+            else:
+                # Staggered indices
+                staggered_indices = (d + i * d.spacing / 2
+                                     for d, i in zip(dimensions, staggered))
+        return tuple(dimensions), tuple(staggered_indices)
+
+    @property
+    def staggered(self):
+        """The staggered indices of the object."""
+        if self._staggered:
+            return Staggering(*self._staggered, getters=self.dimensions)
+        else:
+            return Staggering(getters=self.dimensions)
 
     @property
     def is_Staggered(self):
-        return self.staggered is not None
+        if not self.staggered:
+            return False
+        return True
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1392,7 +1416,6 @@ class TimeFunction(Function):
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         dimensions = kwargs.get('dimensions')
-        staggered = kwargs.get('staggered')
 
         if dimensions is None:
             save = kwargs.get('save')
@@ -1407,7 +1430,7 @@ class TimeFunction(Function):
             dimensions.insert(cls._time_position, time_dim)
 
         return Function.__indices_setup__(
-            *args, dimensions=dimensions, staggered=staggered
+            *args, dimensions=dimensions, staggered=kwargs.get('staggered')
         )
 
     @classmethod
@@ -1446,7 +1469,7 @@ class TimeFunction(Function):
 
     @cached_property
     def _fd_priority(self):
-        return 2.1 if self.staggered in [NODE, None] else 2.2
+        return 2.1 if self.staggered.on_node else 2.2
 
     @property
     def time_order(self):
@@ -1600,7 +1623,7 @@ class TempFunction(DiscreteFunction):
         # Sanity check
         assert not any(d.is_NonlinearDerived for d in dimensions)
 
-        return dimensions, dimensions, (sympy.S.Zero for _ in dimensions)
+        return dimensions, dimensions
 
     def __halo_setup__(self, **kwargs):
         pointer_dim = kwargs.get('pointer_dim')

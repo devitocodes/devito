@@ -1,6 +1,5 @@
 from functools import wraps
 
-from devito.types import NODE
 from devito.types.dimension import StencilDimension
 from .differentiable import Weights, DiffDerivative
 from .tools import generate_indices, fd_weights_registry
@@ -101,12 +100,7 @@ def check_staggering(func):
     def wrapper(expr, dim, x0=None, expand=True):
         grid = expr.grid
         x0 = {k: v for k, v in x0.items() if k.is_Space}
-        if expr.staggered is NODE or expr.staggered is None:
-            cond = x0 == {} or x0 == all_staggered(grid) or x0 == grid_node(grid)
-        elif expr.staggered == grid.dimensions:
-            cond = x0 == {} or x0 == all_staggered(grid) or x0 == grid_node(grid)
-        else:
-            cond = False
+        cond = x0 == {} or x0 == all_staggered(grid) or x0 == grid_node(grid)
         if cond:
             return func(expr, dim, x0=x0, expand=expand)
         else:
@@ -117,7 +111,8 @@ def check_staggering(func):
 @check_staggering
 def d45(expr, dim, x0=None, expand=True):
     """
-    RSFD approximation of the derivative of `expr` along `dim` at point `x0`.
+    Rotated staggered grid finite-differences (RSFD) discretization
+    of the derivative of `expr` along `dim` at point `x0`.
 
     Parameters
     ----------
@@ -132,7 +127,8 @@ def d45(expr, dim, x0=None, expand=True):
     """
     # Make sure the grid supports RSFD
     if expr.grid.dim not in [2, 3]:
-        raise ValueError('RSFD only supported in 2D and 3D')
+        raise ValueError('Rotated staggered grid finite-differences (RSFD)'
+                         ' only supported in 2D and 3D')
 
     # Diagonals weights
     w = dir_weights[(dim.name, expr.grid.dim)]
