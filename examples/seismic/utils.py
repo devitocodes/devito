@@ -264,4 +264,6 @@ def seismic_args(description):
                         choices=['float32', 'float64'])
     parser.add_argument("-interp", dest="interp", default="linear",
                         choices=['linear', 'sinc'])
+    parser.add_argument("--factor", type=int, default=None,
+                        help="Downsampling factor to use snapshotting, default is None")
     return parser
