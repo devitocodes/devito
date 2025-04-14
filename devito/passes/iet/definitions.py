@@ -256,6 +256,12 @@ class DataManager:
 
         arity_param = Symbol(name='arity', dtype=size_t)
         arity_arg = SizeOf(obj.indexed._C_typedata)
+        ndims_param = Symbol(name='ndims', dtype=size_t)
+        ndims_arg = obj.ndim
+        shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
+                            dimensions=(Dimension(name='d'),), scope='rvalue')
+        shape_arg = ListInitializer(obj.c0.symbolic_shape, dtype=shape_param.dtype)
+
         ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
         ffp3 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
@@ -271,11 +277,18 @@ class DataManager:
         nbytes = SizeOf(obj._C_size_type)*obj.ndim
         alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
-        # Initialize the Bundle struct
-        init = [*[DummyExpr(IndexedPointer(ffp1, i), s)
-                  for i, s in enumerate(obj.c0.symbolic_shape)],
-                DummyExpr(ffp2, obj.size),
-                DummyExpr(ffp3, ffp2*arity_param)]
+        # Initialize the Bundle metadata
+        dim, = shape_param.dimensions
+        init = [DummyExpr(ffp2, 1)]
+        init.append(Iteration(
+            List(body=(
+                DummyExpr(IndexedPointer(ffp1, dim), shape_param[dim]),
+                DummyExpr(ffp2, ffp2*shape_param[dim])
+            )),
+            dim,
+            ndims_param - 1,
+        ))
+        init.append(DummyExpr(ffp3, ffp2*arity_param))
 
         # Free all of the allocated data
         frees = [self.langbb['host-free'](ffp1),
@@ -290,6 +303,8 @@ class DataManager:
         efunc0 = make_callable(name, body, retval=obj)
         args = list(efunc0.parameters)
         args[args.index(arity_param)] = arity_arg
+        args[args.index(ndims_param)] = ndims_arg
+        args[args.index(shape_param)] = shape_arg
         alloc = Call(name, args, retobj=obj)
 
         # Same story for the frees
@@ -298,6 +313,7 @@ class DataManager:
         free = Call(name, efunc1.parameters)
 
         storage.update(obj, site, allocs=alloc, frees=free, efuncs=(efunc0, efunc1))
+        storage.include(self.langbb['header-array'])
 
     def _alloc_object_array_on_low_lat_mem(self, site, obj, storage):
         """
