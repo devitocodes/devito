@@ -40,7 +40,7 @@ class ArrayBasic(AbstractFunction, LocalType):
 
     @property
     def _C_name(self):
-        if self._mem_stack or self._mem_constant:
+        if self._mem_stack or self._mem_constant or self._mem_rvalue:
             # No reason to distinguish between two different names, that is
             # the _C_name and the name -- just `self.name` is enough
             return self.name
@@ -97,7 +97,7 @@ class Array(ArrayBasic):
         to 'local'. Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack',
-        'static', 'constant', 'shared', 'shared-remote', 'registers'.
+        'static', 'constant', 'shared', 'shared-remote', 'registers', 'rvalue'.
         'static' refers to a static array in a C/C++ sense. 'constant' and
         'shared' mean that the Array represents an object allocated in so
         called constant and shared memory, respectively, which are typical of
@@ -107,7 +107,9 @@ class Array(ArrayBasic):
         architecture doesn't have something akin to constant memory, the Array
         falls back to a global, const, static array in a C/C++ sense.
         'registers' is used to indicate that the Array has a small static size
-        and, as such, it could be allocated in registers. Defaults to 'heap'.
+        and, as such, it could be allocated in registers. If `rvalue`, the
+        Array is treated as a temporary or "transient" object, just like
+        C++'s rvalue references or C's compound literals. Defaults to 'heap'.
         Note that not all scopes make sense for a given space.
     grid : Grid, optional
         Only necessary for distributed-memory parallelism; a Grid contains
@@ -142,7 +144,7 @@ class Array(ArrayBasic):
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared',
-                               'shared-remote', 'registers']
+                               'shared-remote', 'registers', 'rvalue']
 
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
@@ -196,6 +198,10 @@ class Array(ArrayBasic):
     @property
     def _mem_constant(self):
         return self._scope == 'constant'
+
+    @property
+    def _mem_rvalue(self):
+        return self._scope == 'rvalue'
 
     @property
     def initvalue(self):
@@ -473,10 +479,11 @@ class Bundle(MappedArrayMixin, ArrayBasic):
     # Defaulting to self.c0's behaviour
     for i in ('_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
-              '_mem_shared', '_mem_shared_remote', '__padding_dtype__',
-              '_size_domain', '_size_halo', '_size_owned', '_size_padding',
-              '_size_nopad', '_size_nodomain', '_offset_domain', '_offset_halo',
-              '_offset_owned', '_dist_dimensions', '_C_get_field', 'grid',
+              '_mem_shared', '_mem_shared_remote', '_mem_registers',
+              '_mem_rvalue', '__padding_dtype__', '_size_domain', '_size_halo',
+              '_size_owned', '_size_padding', '_size_nopad', '_size_nodomain',
+              '_offset_domain', '_offset_halo', '_offset_owned',
+              '_dist_dimensions', '_C_get_field', 'grid',
               *AbstractFunction.__properties__):
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
@@ -517,7 +524,6 @@ class Bundle(MappedArrayMixin, ArrayBasic):
         if self._mem_mapped:
             return super()._C_ctype
         else:
-            #TODO DROP???
             return POINTER(dtype_to_ctype(self.dtype))
 
 

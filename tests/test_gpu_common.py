@@ -461,8 +461,8 @@ class TestStreaming:
             'while(lock0[t1] == 0);'
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 2),
-        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 2),
+        (('buffering', 'streaming', 'orchestrate'), 3),
+        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 3),
     ])
     def test_streaming_basic(self, opt, ntmps):
         nt = 10
@@ -491,8 +491,8 @@ class TestStreaming:
         assert np.all(u.data[1] == 36)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 13),
-        (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 7),
+        (('buffering', 'streaming', 'orchestrate'), 14),
+        (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 8),
     ])
     def test_streaming_two_buffers(self, opt, ntmps):
         nt = 10
@@ -631,7 +631,7 @@ class TestStreaming:
         assert np.all(u.data[1] == 9)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 2),
+        (('buffering', 'streaming', 'orchestrate'), 3),
     ])
     def test_streaming_multi_input(self, opt, ntmps):
         nt = 100
@@ -720,7 +720,7 @@ class TestStreaming:
         assert np.all(v.data == v1.data)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 2),
+        (('buffering', 'streaming', 'orchestrate'), 3),
     ])
     def test_streaming_postponed_deletion(self, opt, ntmps):
         nt = 10
@@ -1094,8 +1094,8 @@ class TestStreaming:
             assert np.all(usave.data[i, :, -3:] == 0)
 
     @pytest.mark.parametrize('opt,ntmps', [
-        (('buffering', 'streaming', 'orchestrate'), 2),
-        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 2),
+        (('buffering', 'streaming', 'orchestrate'), 3),
+        (('buffering', 'streaming', 'orchestrate', {'linearize': True}), 3),
     ])
     def test_streaming_w_shifting(self, opt, ntmps):
         nt = 50
@@ -1178,11 +1178,11 @@ class TestStreaming:
         # Check generated code
         diff = int(configuration['language'] == 'openmp')
         assert len(op1._func_table) == 14 - diff
-        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 8 - diff
+        assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 9 - diff
         assert len(op2._func_table) == 14 - diff
-        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 8 - diff
+        assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 9 - diff
         assert len(op3._func_table) == 10 - diff
-        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 7 - diff
+        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 8 - diff
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
         op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
