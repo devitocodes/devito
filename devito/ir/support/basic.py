@@ -8,7 +8,8 @@ from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
-                              q_constant, q_affine, q_routine, search, uxreplace)
+                              q_constant, q_comp_acc, q_affine, q_routine, search,
+                              uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator)
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
@@ -529,9 +530,16 @@ class Relation:
             (self.source, self.sink, self.source.timestamp == self.sink.timestamp)
         )
 
-    @property
+    @cached_property
     def function(self):
-        return self.source.function
+        if q_comp_acc(self.source.access) and not q_comp_acc(self.sink.access):
+            # E.g., `source=ab[x].x` and `sink=ab[x]` -> `a(x)`
+            return self.source.access.function_access
+        elif q_comp_acc(self.sink.access) and not q_comp_acc(self.source.access):
+            # E.g., `source=ab[x]` and `sink=ab[x].y` -> `b(x)`
+            return self.sink.access.function_access
+        else:
+            return self.source.function
 
     @property
     def findices(self):
@@ -955,7 +963,7 @@ class Scope:
     @memoized_generator
     def reads_smart_gen(self, f):
         """
-        Generate all read access to a given function.
+        Generate all read accesses to a given function.
 
         StencilDimensions, if any, are replaced with their extrema.
 
