@@ -113,6 +113,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         # - an iterable of Dimensions ie: (x, y)
         # - a single tuple of Dimension and order ie: (x, 2)
         # - or an iterable of Dimension, order ie: ((x, 2), (y, 2))
+        # - any combination of the above ie: ((x, 2), y, x, (z, 3))
         if len(dims) == 0:
             raise ValueError('Expected Dimension w.r.t. which to differentiate')
         elif len(dims) == 1 and isinstance(dims[0], Iterable) and len(dims[0]) != 2:
@@ -496,11 +497,19 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     def _eval_expand_nest(self, **hints):
         expr = self.args[0]
         if isinstance(expr, self.__class__):
-            return self.func(expr.args[0], *[(d, ii)
+            new_expr = expr.args[0]
+            new_dims = [
+                (d, ii)
                 for d, ii in zip(
                     chain(self.dims, expr.dims),
                     chain(self.deriv_order, expr.deriv_order)
-                )])
+                )]
+            # This is necessary as tools.abc.Reconstructable._rebuild will copy
+            # all kwargs from the self object
+            # TODO: This dictionary merge needs to be a lot better
+            # EG: Don't actually expand if derivatives are incompatible
+            new_kwargs = {'deriv_order': tuple(chain(self.deriv_order, expr.deriv_order))}
+            return self.func(new_expr, *new_dims, **new_kwargs)
         else:
             return self
 
