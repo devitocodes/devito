@@ -2,11 +2,12 @@ from collections import OrderedDict, defaultdict
 from functools import partial, singledispatch, wraps
 
 import numpy as np
+from sympy import Mul
 
 from devito.ir.iet import (
     Call, DummyExpr, ExprStmt, Expression, List, Iteration, SyncSpot,
     AsyncCallable, FindNodes, FindSymbols, MapNodes, MetaCall, Transformer,
-    EntryFunction, ThreadCallable, Uxreplace, derive_parameters
+    EntryFunction, ThreadCallable, KernelLaunch, Uxreplace, derive_parameters
 )
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
@@ -337,62 +338,51 @@ def abstract_component_accesses(root, efuncs, sregistry=None):
         if not isinstance(efunc, candidates):
             continue
 
+        # We have to run the pass when the KernelLaunches (if any) are visible,
+        # otherwise it gets way too complicated
+        calls = FindNodes(Call).visit(efunc)
+        try:
+            call, = [c for c in calls if isinstance(c, KernelLaunch)]
+        except ValueError:
+            continue
+        kernel = efuncs[call.name]
+
+        # There's either one single ComponentAccess or it's not worth it (as
+        # in the case of a whole-Bundle access)
         found = defaultdict(set)
-        for e in FindNodes(Expression).visit(efunc):
+        for e in FindNodes(Expression).visit(kernel):
             for v in search(e.expr, ComponentAccess):
                 found[e].add(v)
-
-        # Is it a supported `efunc` structure?
         if len(found) != 1:
             continue
         expr, compaccs = found.popitem()
-        if len(compaccs) != 1:
-            # Pointless -- either none or a whole-Bundle access, so not worth
-            continue
+        assert len(compaccs) == 1
 
         ca, = compaccs
         f = ca.function
 
-        dtype = f.c0.indexed._C_ctype
-
         # Access the same entry as `ca` but via pointer arithmetic instead
-        from IPython import embed; embed()
-        base = Symbol(name='base', dtype=dtype)
-        ptr = Symbol(name='ptr', dtype=dtype)
         index = Symbol(name='index', dtype=np.uint32, is_const=True)
+        indices = [Mul(f.ncomp, i, evaluate=False) for i in ca.indices]  #TODO
+        indices[-1] += index
+        kernel1 = Uxreplace({ca: f.c0.indexed[indices]}).visit(kernel)
 
-        body = List(body=[
-            DummyExpr(base, Cast(Byref(f.indexed[ca.indices]), dtype=dtype,
-                                 reinterpret=True)),
-            DummyExpr(ptr, base + index),
-            Uxreplace({ca: Deref(ptr)}).visit(expr)
-        ])
+        # Update the parameters list
+        parameters = [*kernel1.parameters, index]
+        parameters[parameters.index(f.indexed)] = f.c0.indexed
+        kernel1 = kernel1._rebuild(parameters=parameters)
 
-        efunc1 = Transformer({expr: body}).visit(efunc)
-        efunc1 = efunc1._rebuild(parameters=(*efunc1.parameters, index))
+        # Update the Call site
+        args = [*call.arguments, ca.index]
+        args[args.index(f.dmap)] = Cast(f.dmap, dtype=f.c0.indexed._C_ctype,
+                                        reinterpret=True)
+        call1 = call._rebuild(arguments=args)
+        efunc1 = Transformer({call: call1}).visit(efunc)
 
-        processed[k] = (efunc1, ca)
+        # Store the new Callables
+        processed.update({kernel1.name: kernel1, k: efunc1})
 
-    if not processed:
-        return efuncs
-
-    # Update the Call sites
-    mapper = {}
-    dag = create_call_graph(root.name, efuncs)
-    for k, (efunc, ca) in processed.items():
-        mapper[k] = efunc
-
-        for i in dag.downstream(k):
-            caller = efuncs[i]
-
-            calls = [c for c in FindNodes(Call).visit(caller) if c.name == k]
-            subs = {c: c._rebuild(arguments=(*c.arguments, ca.index))
-                    for c in calls}
-
-            mapper[i] = Transformer(subs).visit(caller)
-
-    # Update the efuncs
-    efuncs = {**dict(efuncs), **mapper}
+    efuncs = {**efuncs, **processed}
 
     return efuncs
 
