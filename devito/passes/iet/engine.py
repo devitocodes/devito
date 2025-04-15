@@ -1,18 +1,25 @@
 from collections import OrderedDict, defaultdict
 from functools import partial, singledispatch, wraps
 
-from devito.ir.iet import (Call, ExprStmt, Iteration, SyncSpot, AsyncCallable,
-                           FindNodes, FindSymbols, MapNodes, MetaCall, Transformer,
-                           EntryFunction, ThreadCallable, Uxreplace,
-                           derive_parameters)
+import numpy as np
+
+from devito.ir.iet import (
+    Call, DummyExpr, ExprStmt, Expression, List, Iteration, SyncSpot,
+    AsyncCallable, FindNodes, FindSymbols, MapNodes, MetaCall, Transformer,
+    EntryFunction, ThreadCallable, Uxreplace, derive_parameters
+)
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
+from devito.mpi.routines import CopyBuffer
 from devito.passes import needs_transfer
-from devito.symbolics import FieldFromComposite, FieldFromPointer
+from devito.symbolics import (FieldFromComposite, FieldFromPointer, Byref, Cast,
+                              Deref, search)
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
-from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
-                          ModuloDimension, Indirection, Pointer, SharedData,
-                          ThreadArray, Temp, NPThreads, NThreadsBase, Wildcard)
+from devito.types import (
+    Array, Bundle, ComponentAccess, CompositeObject, Lock, IncrDimension,
+    ModuloDimension, Indirection, Pointer, SharedData, ThreadArray, Symbol, Temp,
+    NPThreads, NThreadsBase, Wildcard
+)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -147,6 +154,7 @@ class Graph:
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
             efuncs = reuse_compounds(efuncs, self.sregistry)
+            efuncs = abstract_component_accesses(self.root, efuncs, self.sregistry)
             efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
@@ -314,6 +322,79 @@ def _(i, sregistry=None):
     ncfields = tuple(m.get(i, i) for i in i.ncfields)
 
     return i._rebuild(pname=pname, cfields=cfields, ncfields=ncfields, function=None)
+
+
+def abstract_component_accesses(root, efuncs, sregistry=None):
+    """
+    Generalise `efuncs` by replacing ComponentAccesses with pointer arithmetic
+    where possible and useful.
+    """
+    candidates = (CopyBuffer,)
+
+    # Transform the candidate efuncs
+    processed = {}
+    for k, efunc in efuncs.items():
+        if not isinstance(efunc, candidates):
+            continue
+
+        found = defaultdict(set)
+        for e in FindNodes(Expression).visit(efunc):
+            for v in search(e.expr, ComponentAccess):
+                found[e].add(v)
+
+        # Is it a supported `efunc` structure?
+        if len(found) != 1:
+            continue
+        expr, compaccs = found.popitem()
+        if len(compaccs) != 1:
+            # Pointless -- either none or a whole-Bundle access, so not worth
+            continue
+
+        ca, = compaccs
+        f = ca.function
+
+        dtype = f.c0.indexed._C_ctype
+
+        # Access the same entry as `ca` but via pointer arithmetic instead
+        from IPython import embed; embed()
+        base = Symbol(name='base', dtype=dtype)
+        ptr = Symbol(name='ptr', dtype=dtype)
+        index = Symbol(name='index', dtype=np.uint32, is_const=True)
+
+        body = List(body=[
+            DummyExpr(base, Cast(Byref(f.indexed[ca.indices]), dtype=dtype,
+                                 reinterpret=True)),
+            DummyExpr(ptr, base + index),
+            Uxreplace({ca: Deref(ptr)}).visit(expr)
+        ])
+
+        efunc1 = Transformer({expr: body}).visit(efunc)
+        efunc1 = efunc1._rebuild(parameters=(*efunc1.parameters, index))
+
+        processed[k] = (efunc1, ca)
+
+    if not processed:
+        return efuncs
+
+    # Update the Call sites
+    mapper = {}
+    dag = create_call_graph(root.name, efuncs)
+    for k, (efunc, ca) in processed.items():
+        mapper[k] = efunc
+
+        for i in dag.downstream(k):
+            caller = efuncs[i]
+
+            calls = [c for c in FindNodes(Call).visit(caller) if c.name == k]
+            subs = {c: c._rebuild(arguments=(*c.arguments, ca.index))
+                    for c in calls}
+
+            mapper[i] = Transformer(subs).visit(caller)
+
+    # Update the efuncs
+    efuncs = {**dict(efuncs), **mapper}
+
+    return efuncs
 
 
 def reuse_efuncs(root, efuncs, sregistry=None):
