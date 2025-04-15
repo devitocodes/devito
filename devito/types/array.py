@@ -223,7 +223,7 @@ class MappedArrayMixin:
     _C_field_shape = 'shape'
     _C_field_size = 'size'
     _C_field_nbytes = 'nbytes'
-    _C_field_sizeofelem = 'sizeofelem'
+    _C_field_arity = 'arity'
 
     _C_size_type = c_uint64
 
@@ -233,7 +233,7 @@ class MappedArrayMixin:
                                           (_C_field_shape, POINTER(_C_size_type)),
                                           (_C_field_size, _C_size_type),
                                           (_C_field_nbytes, _C_size_type),
-                                          (_C_field_sizeofelem, _C_size_type)]}))
+                                          (_C_field_arity, _C_size_type)]}))
 
 
 class ArrayMapped(MappedArrayMixin, Array):

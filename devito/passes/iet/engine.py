@@ -361,23 +361,29 @@ def abstract_component_accesses(root, efuncs, sregistry=None):
         ca, = compaccs
         f = ca.function
 
-        # Access the same entry as `ca` but via pointer arithmetic instead
+        arity = Symbol(name='arity', dtype=np.uint32, is_const=True)
         index = Symbol(name='index', dtype=np.uint32, is_const=True)
-        indices = [Mul(f.ncomp, i, evaluate=False) for i in ca.indices]  #TODO
+
+        # Access the same entry as `ca` but via pointer arithmetic instead
+        indices = [Mul(arity, i, evaluate=False) for i in ca.indices]
         indices[-1] += index
         kernel1 = Uxreplace({ca: f.c0.indexed[indices]}).visit(kernel)
 
         # Update the parameters list
-        parameters = [*kernel1.parameters, index]
+        parameters = [*kernel1.parameters, index, arity]
         parameters[parameters.index(f.indexed)] = f.c0.indexed
         kernel1 = kernel1._rebuild(parameters=parameters)
 
         # Update the Call site
-        args = [*call.arguments, ca.index]
-        args[args.index(f.dmap)] = Cast(f.dmap, dtype=f.c0.indexed._C_ctype,
+        ffp0 = FieldFromPointer(f._C_field_dmap, f._C_symbol)
+        ffp1 = FieldFromPointer(f._C_field_arity, f._C_symbol)
+        args = [*call.arguments, ca.index, ffp1]
+        args[args.index(f.dmap)] = Cast(ffp0, dtype=f.c0.indexed._C_ctype,
                                         reinterpret=True)
         call1 = call._rebuild(arguments=args)
         efunc1 = Transformer({call: call1}).visit(efunc)
+
+        #TODO Propagate index through call stack until haloupdate...
 
         # Store the new Callables
         processed.update({kernel1.name: kernel1, k: efunc1})
