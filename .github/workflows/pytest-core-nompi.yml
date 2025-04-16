@@ -77,6 +77,13 @@ jobs:
           language: "openmp"
           sympy: "1.13"
 
+        - name: pytest-ubuntu-py39-gcc9-omp
+          python-version: '3.9'
+          os: ubuntu-22.04
+          arch: "custom"
+          language: "openmp"
+          sympy: "1.10"
+
         - name: pytest-osx-py312-clang-omp
           python-version: '3.12'
           os: macos-latest
