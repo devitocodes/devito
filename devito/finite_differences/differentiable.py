@@ -17,7 +17,7 @@ except ImportError:
 from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
-                          infer_dtype, is_integer, split)
+                          infer_dtype, is_integer, split, is_number)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction
 
@@ -549,8 +549,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         args = flatten(e.args for e in nested) + list(others)
 
         # Gather all numbers and simplify
-        nums, others = split(args, lambda e: isinstance(e, (int, float,
-                                                            sympy.Number, np.number)))
+        nums, others = split(args, lambda e: is_number(e))
         scalar = sympy.Mul(*nums)
 
         # a*0 -> 0

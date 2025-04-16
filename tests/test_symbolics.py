@@ -14,7 +14,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace, pow_to_mul,
-                              retrieve_derivatives, BaseCast)
+                              retrieve_derivatives, BaseCast, SizeOf)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -877,7 +877,6 @@ class TestRelationsWithAssumptions:
 
 
 def test_issue_2577a():
-
     u = TimeFunction(name='u', grid=Grid((2,)))
     x = u.grid.dimensions[0]
     expr = Mul(-1, -1., x, u)
@@ -906,3 +905,10 @@ def test_issue_2577b():
 
     op = Operator(eq_u)
     assert '--' not in str(op.ccode)
+
+
+def test_print_div():
+    a = SizeOf(np.int32)
+    b = SizeOf(np.int64)
+    cstr = ccode(a / b)
+    assert cstr == 'sizeof(int)/sizeof(long)'
