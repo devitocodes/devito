@@ -4,6 +4,7 @@ of symbols and data.
 """
 
 from collections import OrderedDict
+from ctypes import c_uint64
 from functools import singledispatch
 from operator import itemgetter
 
@@ -187,7 +188,7 @@ class DataManager:
         arity_arg = sizeof_dtypeN / sizeof_dtype1
         ndims_param = Symbol(name='ndims', dtype=size_t)
         ndims_arg = obj.ndim
-        shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
+        shape_param = Array(name=f'{obj.name}_shape', dtype=np.int32,
                             dimensions=(Dimension(name='d'),), scope='rvalue')
         shape_arg = ListInitializer(obj.c0.symbolic_shape, dtype=shape_param.dtype)
 
@@ -205,7 +206,7 @@ class DataManager:
 
         # Allocate the shape array
         memptr = VOID(Byref(ffp1), '**')
-        nbytes = SizeOf(obj._C_size_type)*ndims_param
+        nbytes = SizeOf(c_uint64)*ndims_param
         alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         # Initialize the Array metadata
@@ -289,7 +290,7 @@ class DataManager:
 
         # Allocate the shape array
         memptr = VOID(Byref(ffp1), '**')
-        nbytes = SizeOf(obj._C_size_type)*obj.ndim
+        nbytes = SizeOf(c_uint64)*obj.ndim
         alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         # Initialize the Bundle metadata

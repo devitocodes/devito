@@ -1,4 +1,4 @@
-from ctypes import POINTER, Structure, c_void_p, c_uint64
+from ctypes import POINTER, Structure, c_void_p, c_int, c_uint64
 from functools import cached_property
 
 import numpy as np
@@ -225,15 +225,13 @@ class MappedArrayMixin:
     _C_field_nbytes = 'nbytes'
     _C_field_arity = 'arity'
 
-    _C_size_type = c_uint64
-
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_restrict_void_p),
                                           (_C_field_dmap, c_void_p),
-                                          (_C_field_shape, POINTER(_C_size_type)),
-                                          (_C_field_size, _C_size_type),
-                                          (_C_field_nbytes, _C_size_type),
-                                          (_C_field_arity, _C_size_type)]}))
+                                          (_C_field_shape, POINTER(c_int)),
+                                          (_C_field_size, c_uint64),
+                                          (_C_field_nbytes, c_uint64),
+                                          (_C_field_arity, c_uint64)]}))
 
 
 class ArrayMapped(MappedArrayMixin, Array):
