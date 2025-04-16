@@ -332,8 +332,9 @@ def abstract_component_accesses(root, efuncs, sregistry=None):
     """
     candidates = (CopyBuffer,)
 
+    efuncs = dict(efuncs)
+
     # Transform the candidate efuncs
-    processed = {}
     for k, efunc in efuncs.items():
         if not isinstance(efunc, candidates):
             continue
@@ -377,15 +378,21 @@ def abstract_component_accesses(root, efuncs, sregistry=None):
         # Update the Call site
         ffp0 = FieldFromPointer(f._C_field_dmap, f._C_symbol)
         ffp1 = FieldFromPointer(f._C_field_arity, f._C_symbol)
-        args = [*call.arguments, ca.index, ffp1]
+        args = [*call.arguments, index, ffp1]
         args[args.index(f.dmap)] = Cast(ffp0, dtype=f.c0.indexed._C_ctype,
                                         reinterpret=True)
         call1 = call._rebuild(arguments=args)
         efunc1 = Transformer({call: call1}).visit(efunc)
 
         #TODO Propagate index through call stack until haloupdate...
+        m = {index: ca.index}
+        #TODO _filter->key
+        #TODO UPDATE key so that if efunc.name == root.name, use ca.index...
+        _filter = lambda arguments: [m.get(a, a) for a in arguments]
+        efuncs = update_call_stack(call, efuncs, _filter, cascade=True) 
 
         # Store the new Callables
+        efuncs.up
         processed.update({kernel1.name: kernel1, k: efunc1})
 
     efuncs = {**efuncs, **processed}
@@ -711,7 +718,13 @@ def update_args(root, efuncs, dag):
 
     # Create the new parameters and arguments lists
 
-    def _filter(v, efunc=None):
+    def callback(maybe_call, efunc=None):
+        #TODO: FIX UPDATE HERE
+        if isinstance(maybe_call, Call):
+            v = maybe_call.arguments
+        else:
+            v = maybe_call.parameters
+
         processed = [a for i, a in enumerate(v) if i not in drop_params]
 
         for a in new_params:
@@ -731,13 +744,30 @@ def update_args(root, efuncs, dag):
         return processed
 
     efuncs = OrderedDict(efuncs)
-    efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
+    efuncs[root.name] = root._rebuild(parameters=callback(root.parameters, root))
 
     # Update all call sites to use the new signature
+    efuncs = update_call_stack(root, efuncs, callback, dag=dag)
+
+    return efuncs
+
+
+def update_call_stack(root, efuncs, callback, dag=None, cascade=False):
+    """
+    Update, optionally recursively, the Calls into `root` via a given callback.
+    """
+    efuncs = dict(efuncs)
+    dag = dag or create_call_graph(root.name, efuncs)
+
     for n in dag.downstream(root.name):
-        mapper = {c: c._rebuild(arguments=_filter(c.arguments))
-                  for c in FindNodes(Call).visit(efuncs[n])
-                  if c.name == root.name}
-        efuncs[n] = Transformer(mapper).visit(efuncs[n])
+        efunc = efuncs[n]
+        calls = FindNodes(Call).visit(efunc)
+
+        #TODO WATCH OUT HERE AS I'M NOW ALSO PASSING IN efunc...
+        mapper = {c: c._rebuild(arguments=callback(c, efunc))
+                  for c in calls if c.name == root.name}
+        efuncs[n] = Transformer(mapper).visit(efunc)
+
+    #TODO IMPLEMETN RECURSION IF CASCADE IS TRUE
 
     return efuncs
