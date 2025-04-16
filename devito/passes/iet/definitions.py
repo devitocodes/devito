@@ -177,8 +177,12 @@ class DataManager:
         """
         decl = Definition(obj)
 
+        # NOTE: the `arity` is calculated such as `sizeof(float3)/sizeof(float)`
+        # for portability reasons (since we don't know the size of compound
+        # types a priori)
         arity_param = Symbol(name='arity', dtype=size_t)
-        arity_arg = SizeOf(obj.indexed._C_typedata)
+        arity_arg = (SizeOf(obj.indexed._C_typedata) /
+                     SizeOf(obj.c0.indexed._C_typedata))
         ndims_param = Symbol(name='ndims', dtype=size_t)
         ndims_arg = obj.ndim
         shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
@@ -189,6 +193,7 @@ class DataManager:
         ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
         ffp3 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
+        ffp4 = FieldFromPointer(obj._C_field_arity, obj._C_symbol)
 
         # Allocate the Array struct
         memptr = VOID(Byref(obj._C_symbol), '**')
@@ -213,6 +218,7 @@ class DataManager:
             ndims_param - 1,
         ))
         init.append(DummyExpr(ffp3, ffp2*arity_param))
+        init.append(DummyExpr(ffp4, arity_param))
 
         # Allocate the underlying host data
         memptr = VOID(Byref(ffp0), '**')
@@ -254,8 +260,12 @@ class DataManager:
         """
         decl = Definition(obj)
 
+        # NOTE: the `arity` is calculated such as `sizeof(float3)/sizeof(float)`
+        # for portability reasons (since we don't know the size of compound
+        # types a priori)
         arity_param = Symbol(name='arity', dtype=size_t)
-        arity_arg = SizeOf(obj.indexed._C_typedata)
+        arity_arg = (SizeOf(obj.indexed._C_typedata) /
+                     SizeOf(obj.c0.indexed._C_typedata))
         ndims_param = Symbol(name='ndims', dtype=size_t)
         ndims_arg = obj.ndim
         shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
@@ -265,6 +275,7 @@ class DataManager:
         ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
         ffp2 = FieldFromPointer(obj._C_field_size, obj._C_symbol)
         ffp3 = FieldFromPointer(obj._C_field_nbytes, obj._C_symbol)
+        ffp4 = FieldFromPointer(obj._C_field_arity, obj._C_symbol)
 
         # Allocate the Bundle struct
         memptr = VOID(Byref(obj._C_symbol), '**')
@@ -289,6 +300,7 @@ class DataManager:
             ndims_param - 1,
         ))
         init.append(DummyExpr(ffp3, ffp2*arity_param))
+        init.append(DummyExpr(ffp4, arity_param))
 
         # Free all of the allocated data
         frees = [self.langbb['host-free'](ffp1),
