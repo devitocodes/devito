@@ -567,6 +567,10 @@ class BundleView(Bundle):
     def handles(self):
         return (self.parent,)
 
+    @property
+    def component_indices(self):
+        return tuple(self.parent.components.index(i) for i in self.components)
+
 
 class ComponentAccess(Expr, Pickable):
 

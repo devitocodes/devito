@@ -740,7 +740,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         parameters = list(f.handles) + list(fixed.values()) + [nb, msg]
 
-        return Callable('halowait%d' % key, iet, 'void', parameters, ('static',))
+        return HaloWait(f'halowait{key}', iet, parameters)
 
     def _call_halowait(self, name, f, hse, msg):
         nb = f.grid.distributor._obj_neighborhood
@@ -779,7 +779,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsgEnriched('msg%d' % key, f, halos)
+        return MPIMsgEnriched(f'msg{key}', f, halos)
 
     def _make_sendrecv(self, *args, **kwargs):
         return
@@ -868,7 +868,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ncomms = Symbol(name='ncomms')
         iet = Iteration([waitsend, waitrecv, scatter], dim, ncomms - 1)
         parameters = f.handles + tuple(fixed.values()) + (msg, ncomms)
-        return Callable('halowait%d' % key, iet, 'void', parameters, ('static',))
+        return HaloWait(f'halowait{key}', iet, parameters)
 
     def _call_halowait(self, name, f, hse, msg):
         args = f.handles + tuple(hse.loc_indices.values()) + (msg, msg.npeers)
@@ -1050,9 +1050,11 @@ class SendRecv(MPICallable):
 
 
 class HaloUpdate(MPICallable):
+    pass
 
-    def __init__(self, name, body, parameters):
-        super().__init__(name, body, parameters)
+
+class HaloWait(MPICallable):
+    pass
 
 
 class Remainder(ElementalFunction):
@@ -1254,12 +1256,14 @@ class MPIMsgEnriched(MPIMsg):
     _C_field_ofsg = 'ofsg'
     _C_field_from = 'fromrank'
     _C_field_to = 'torank'
+    _C_field_components = 'components'
 
     fields = MPIMsg.fields + [
         (_C_field_ofss, POINTER(c_int)),
         (_C_field_ofsg, POINTER(c_int)),
         (_C_field_from, c_int),
-        (_C_field_to, c_int)
+        (_C_field_to, c_int),
+        (_C_field_components, POINTER(c_int)),
     ]
 
     def _arg_defaults(self, allocator, alias=None, args=None):
@@ -1297,6 +1301,17 @@ class MPIMsgEnriched(MPIMsg):
                     # `_offset_halo[d].left` as otherwise we would pick the corner
                     ofss.append(f._offset_owned[dim].left)
             entry.ofss = (c_int*len(ofss))(*ofss)
+
+            # Track the component accesses for packing/unpacking as numbers
+            # representing the field being accessed (that is: .x -> 0, .y -> 1,
+            # .z -> 2, .w -> 3), if any
+            if isinstance(self.target, BundleView):
+                ncomp = self.target.ncomp
+                component_indices = self.target.component_indices
+                entry.components = (c_int*ncomp)(*component_indices)
+            elif self.target.is_Bundle:
+                ncomp = self.target.ncomp
+                entry.components = (c_int*ncomp)(*range(ncomp))
 
         return {self.name: self.value}
 

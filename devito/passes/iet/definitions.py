@@ -177,12 +177,14 @@ class DataManager:
         """
         decl = Definition(obj)
 
+        sizeof_dtypeN = SizeOf(obj.indexed._C_typedata)
+        sizeof_dtype1 = SizeOf(obj.c0.indexed._C_typedata)
+
         # NOTE: the `arity` is calculated such as `sizeof(float3)/sizeof(float)`
         # for portability reasons (since we don't know the size of compound
         # types a priori)
         arity_param = Symbol(name='arity', dtype=size_t)
-        arity_arg = (SizeOf(obj.indexed._C_typedata) /
-                     SizeOf(obj.c0.indexed._C_typedata))
+        arity_arg = sizeof_dtypeN / sizeof_dtype1
         ndims_param = Symbol(name='ndims', dtype=size_t)
         ndims_arg = obj.ndim
         shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
@@ -217,7 +219,7 @@ class DataManager:
             dim,
             ndims_param - 1,
         ))
-        init.append(DummyExpr(ffp3, ffp2*arity_param))
+        init.append(DummyExpr(ffp3, ffp2*arity_param*sizeof_dtype1))
         init.append(DummyExpr(ffp4, arity_param))
 
         # Allocate the underlying host data
@@ -260,12 +262,14 @@ class DataManager:
         """
         decl = Definition(obj)
 
+        sizeof_dtypeN = SizeOf(obj.indexed._C_typedata)
+        sizeof_dtype1 = SizeOf(obj.c0.indexed._C_typedata)
+
         # NOTE: the `arity` is calculated such as `sizeof(float3)/sizeof(float)`
         # for portability reasons (since we don't know the size of compound
         # types a priori)
         arity_param = Symbol(name='arity', dtype=size_t)
-        arity_arg = (SizeOf(obj.indexed._C_typedata) /
-                     SizeOf(obj.c0.indexed._C_typedata))
+        arity_arg = sizeof_dtypeN / sizeof_dtype1
         ndims_param = Symbol(name='ndims', dtype=size_t)
         ndims_arg = obj.ndim
         shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
@@ -299,7 +303,7 @@ class DataManager:
             dim,
             ndims_param - 1,
         ))
-        init.append(DummyExpr(ffp3, ffp2*arity_param))
+        init.append(DummyExpr(ffp3, ffp2*arity_param*sizeof_dtype1))
         init.append(DummyExpr(ffp4, arity_param))
 
         # Free all of the allocated data
