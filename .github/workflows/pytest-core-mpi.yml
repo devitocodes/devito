@@ -17,17 +17,17 @@ on:
 jobs:
   test-mpi-basic:
     name: pytest-mpi
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ['3.9', '3.11']
 
     env:
       DEVITO_LANGUAGE: "openmp"
-      DEVITO_ARCH: "gcc"
+      DEVITO_ARCH: "gcc-9"
       OMP_NUM_THREADS: "1"
-      CC: "gcc"
-      CXX: "g++"
+      CC: "gcc-9"
+      CXX: "g++-9"
 
     steps:
     - uses: actions/setup-python@v5
