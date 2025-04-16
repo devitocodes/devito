@@ -28,6 +28,7 @@ jobs:
       OMP_NUM_THREADS: "1"
       CC: "gcc-9"
       CXX: "g++-9"
+      RDMAV_FORK_SAFE: 1
 
     steps:
     - uses: actions/setup-python@v5
