@@ -1,4 +1,5 @@
 from itertools import product
+from copy import deepcopy
 
 import numpy as np
 from sympy import And, Or
@@ -1895,6 +1896,24 @@ class TestConditionalDimension:
         op = Operator([Inc(g, usaved)])
         op(time_m=1, time_M=nt-1, dt=1)
         assert norm(g, order=1) == norm(sum(usaved, dims=time_under), order=1)
+
+    def test_cond_copy(self):
+        grid = Grid((11, 11, 11))
+        time = grid.time_dim
+
+        cd = ConditionalDimension(name='tsub', parent=time, factor=5)
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=Buffer(2))
+        u1 = TimeFunction(name='u1', grid=grid, space_order=0,
+                          time_order=0, save=5, time_dim=cd)
+        u2 = TimeFunction(name='u2', grid=grid, space_order=0,
+                          time_order=0, save=5, time_dim=cd)
+
+        # Mimic what happens when an operator is copied
+        u12 = deepcopy(u1)
+        u22 = deepcopy(u2)
+
+        op = Operator([Eq(u.forward, u.laplace), Eq(u12, u), Eq(u22, u)])
+        assert len([p for p in op.parameters if p.name == 'tsubf']) == 1
 
 
 class TestCustomDimension:
