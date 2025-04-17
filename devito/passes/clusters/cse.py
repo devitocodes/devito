@@ -14,7 +14,7 @@ from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
 from devito.symbolics.manipulation import _uxreplace
-from devito.tools import DAG, as_list, as_tuple, frozendict, infer_dtype
+from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
@@ -278,9 +278,7 @@ class Candidate(tuple):
 
     @property
     def dtype(self):
-        dtypes = {getattr(e, 'dtype', None)
-                  for e in self.expr.free_symbols}
-        return infer_dtype(dtypes - {None})
+        return extract_dtype(self.expr)
 
     @property
     def conditionals(self):

@@ -17,7 +17,7 @@ except ImportError:
 from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
-                          infer_dtype, is_integer, split, is_number)
+                          infer_dtype, extract_dtype, is_integer, split, is_number)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction
 
@@ -665,8 +665,7 @@ class RealComplexPart(ComplexPart):
 
     @cached_property
     def dtype(self):
-        dtypes = {getattr(e, 'dtype', None) for e in self.free_symbols}
-        dtype = infer_dtype(dtypes - {None})
+        dtype = extract_dtype(self)
         return dtype(0).real.__class__
 
 
