@@ -40,7 +40,8 @@ class HaloSchemeEntry(EnrichedTuple):
         return super().__new__(cls, *items, getters=getters, **kwargs)
 
     def __hash__(self):
-        return hash((self.loc_indices, self.loc_dirs, self.halos, self.dims))
+        return hash((self.loc_indices, self.loc_dirs, self.halos, self.dims,
+                     self.bundle))
 
     def union(self, other):
         """
