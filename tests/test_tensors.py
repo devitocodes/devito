@@ -5,7 +5,9 @@ from sympy import Rational
 import pytest
 
 from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
-from devito import Grid, Function, TimeFunction, Dimension, Eq, div, grad, curl, laplace
+from devito import (
+    Grid, Function, TimeFunction, Dimension, Eq, div, grad, curl, laplace, diag
+)
 from devito.symbolics import retrieve_derivatives
 from devito.types import NODE
 
@@ -465,3 +467,30 @@ def test_rebuild(func1):
         assert j.name == i.name
         assert j.grid == i.grid
         assert j.dimensions == tuple(new_dims)
+
+
+@pytest.mark.parametrize('func1', [Function, TimeFunction,
+                                   TensorFunction, TensorTimeFunction,
+                                   VectorFunction, VectorTimeFunction])
+def test_diag(func1):
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+
+    f2 = diag(f1)
+    assert isinstance(f2, TensorFunction)
+    if f1.is_TimeDependent:
+        assert f2.is_TimeDependent
+    print(f2)
+    assert f2.shape == (3, 3)
+    # Vector input
+    if isinstance(f1, VectorFunction):
+        assert all(f2[i, i] == f1[i] for i in range(3))
+        assert all(f2[i, j] == 0 for i in range(3) for j in range(3) if i != j)
+    # Tensor input
+    elif isinstance(f1, TensorFunction):
+        assert all(f2[i, i] == f1[i, i] for i in range(3))
+        assert all(f2[i, j] == 0 for i in range(3) for j in range(3) if i != j)
+    # Function input
+    else:
+        assert all(f2[i, j] == 0 for i in range(3) for j in range(3) if i != j)
+        assert all(f2[i, i] == f1 for i in range(3))

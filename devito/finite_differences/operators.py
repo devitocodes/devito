@@ -165,13 +165,19 @@ def diag(func, size=None):
         size of the diagonal matrix (size x size).
         Defaults to the number of spatial dimensions when unspecified
     """
+    from devito.types.tensor import TensorFunction, TensorTimeFunction
+    if isinstance(func, TensorFunction):
+        if func.is_TensorValued:
+            return func._new(*func.shape, lambda i, j: func[i, i] if i == j else 0)
+        else:
+            n = func.shape[0]
+            return func._new(n, n, lambda i, j: func[i] if i == j else 0)
+
     dim = size or len(func.dimensions)
     dim = dim-1 if func.is_TimeDependent else dim
     to = getattr(func, 'time_order', 0)
 
-    from devito.types.tensor import TensorFunction, TensorTimeFunction
     tens_func = TensorTimeFunction if func.is_TimeDependent else TensorFunction
-
     comps = [[func if i == j else 0 for i in range(dim)] for j in range(dim)]
     return tens_func(name='diag', grid=func.grid, space_order=func.space_order,
                      components=comps, time_order=to, diagonal=True)

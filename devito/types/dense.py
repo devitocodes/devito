@@ -1089,7 +1089,7 @@ class Function(DiscreteFunction):
                     processed.append(sympy.S.NegativeOne)
                 else:
                     processed.append(sympy.S.Zero)
-        return tuple(processed)
+        return Staggering(*processed, getters=dimensions)
 
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
@@ -1109,9 +1109,8 @@ class Function(DiscreteFunction):
             staggered_indices = tuple(args)
         else:
             if not staggered:
-                staggered_indices = (d for d in dimensions)
+                staggered_indices = dimensions
             else:
-                # Staggered indices
                 staggered_indices = (d + i * d.spacing / 2
                                      for d, i in zip(dimensions, staggered))
         return tuple(dimensions), tuple(staggered_indices)
@@ -1119,16 +1118,11 @@ class Function(DiscreteFunction):
     @property
     def staggered(self):
         """The staggered indices of the object."""
-        if self._staggered:
-            return Staggering(*self._staggered, getters=self.dimensions)
-        else:
-            return Staggering(getters=self.dimensions)
+        return self._staggered
 
     @property
     def is_Staggered(self):
-        if not self.staggered:
-            return False
-        return True
+        return bool(self.staggered)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

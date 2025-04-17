@@ -1492,7 +1492,9 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     def _rebuild(self, *args, **kwargs):
         # Plain `func` call (row, col, comps)
         if not kwargs.keys() & self.__rkwargs__:
-            assert len(args) == 3
+            if len(args) != 3:
+                raise ValueError("Invalid number of arguments, expected nrow, ncol, "
+                                 "list of components")
             return self._new(*args, **kwargs)
         # We need to rebuild the components with the new name then
         # rebuild the matrix
