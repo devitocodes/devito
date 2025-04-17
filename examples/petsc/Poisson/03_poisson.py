@@ -37,6 +37,7 @@ class SubRight(SubDomain):
         x, = dimensions
         return {x: ('right', 1)}
 
+
 sub1 = SubLeft()
 sub2 = SubRight()
 

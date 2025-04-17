@@ -96,7 +96,7 @@ for n in n_values:
     bcs.data[:, -1] = np.exp(-np.pi)*np.sin(np.pi*tmpx)
     bcs.data[0, :] = 0.
     bcs.data[-1, :] = 0.
-    
+
     # # Create boundary condition expressions using subdomains
     bc_eqns = [EssentialBC(u, bcs, subdomain=sub1)]
     bc_eqns += [EssentialBC(u, bcs, subdomain=sub2)]
