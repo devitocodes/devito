@@ -7,14 +7,14 @@ import numpy as np
 from sympy import Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max)
-from devito.finite_differences.differentiable import SafeInv, Weights
+                    Min, Max, SubDomain)
+from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace, pow_to_mul,
-                              retrieve_derivatives, BaseCast)
+                              retrieve_derivatives, BaseCast, SizeOf)
 from devito.tools import as_tuple
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -874,3 +874,41 @@ class TestRelationsWithAssumptions:
         assumptions = eval(assumptions)
         expected = eval(expected)
         assert evalrel(op, eqn, assumptions) == expected
+
+
+def test_issue_2577a():
+    u = TimeFunction(name='u', grid=Grid((2,)))
+    x = u.grid.dimensions[0]
+    expr = Mul(-1, -1., x, u)
+    assert expr.args == (x, u)
+    eq = Eq(u.forward, expr)
+    op = Operator(eq)
+
+    assert '--' not in str(op.ccode)
+
+
+def test_issue_2577b():
+    class SD0(SubDomain):
+        name = 'sd0'
+
+        def define(self, dimensions):
+            x, = dimensions
+            return {x: ('middle', 1, 1)}
+
+    grid = Grid(shape=(11,))
+
+    sd0 = SD0(grid=grid)
+
+    u = Function(name='u', grid=grid, space_order=2)
+
+    eq_u = Eq(u, -(u*u).dxc, subdomain=sd0)
+
+    op = Operator(eq_u)
+    assert '--' not in str(op.ccode)
+
+
+def test_print_div():
+    a = SizeOf(np.int32)
+    b = SizeOf(np.int64)
+    cstr = ccode(a / b)
+    assert cstr == 'sizeof(int)/sizeof(long)'

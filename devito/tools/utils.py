@@ -12,7 +12,7 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val', 'sorted_priority', 'as_set']
+           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number']
 
 
 def prod(iterable, initial=1):
@@ -80,6 +80,13 @@ def is_integer(value):
     A thorough instance comparison for all integer types.
     """
     return isinstance(value, (int, np.integer, sympy.Integer))
+
+
+def is_number(value):
+    """
+    A thorough instance comparison for all number types.
+    """
+    return isinstance(value, (int, float, np.number, sympy.Number))
 
 
 def contains_val(val, items):
