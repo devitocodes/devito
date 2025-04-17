@@ -358,7 +358,7 @@ def test_find_symbols_with_duplicates():
 
     eq = Eq(f.forward, sin(g)*f + g)
 
-    op = Operator(eq)
+    op = Operator(eq, opt=('advanced', {'linearize': False}))
 
     exprs = FindNodes(Expression).visit(op)
 

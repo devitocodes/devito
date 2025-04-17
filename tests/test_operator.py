@@ -283,7 +283,7 @@ class TestCodeGen:
         assert op.body.body[1].body[0].is_Section
         assert isinstance(op.body.body[1].body[0].body[0], TimedList)
         timedlist = op.body.body[1].body[0].body[0]
-        if configuration['language'] == 'openmp':
+        if 'openmp' in configuration['language']:
             ompreg = timedlist.body[0]
             assert ompreg.body[0].dim is grid.time_dim
         else:
@@ -1331,12 +1331,13 @@ class TestDeclarator:
         op = Operator(eqns)
 
         exprs = FindNodes(Expression).visit(op)
+        nlin = 2 if op._options['linearize'] else 0
 
-        assert len(exprs) == 2
-        assert exprs[0].init
-        assert 'float' in str(exprs[0])
-        assert not exprs[1].init
-        assert 'float' not in str(exprs[1])
+        assert len(exprs) == 2 + nlin
+        assert exprs[nlin].init
+        assert 'float' in str(exprs[nlin])
+        assert not exprs[1+nlin].init
+        assert 'float' not in str(exprs[1+nlin])
 
 
 class TestLoopScheduling:

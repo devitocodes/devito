@@ -423,7 +423,10 @@ class CGen(Visitor):
             if o.flat is None:
                 shape = ''.join(f"[{self.ccode(i)}]" for i in o.castshape)
                 rshape = f'(*){shape}'
-                lvalue = c.Value(cstr, f'(*{self._restrict_keyword} {v}){shape}')
+                if shape:
+                    lvalue = c.Value(cstr, f'(*{self._restrict_keyword} {v}){shape}')
+                else:
+                    lvalue = c.Value(cstr, f'*{self._restrict_keyword} {v}')
             else:
                 rshape = '*'
                 lvalue = c.Value(cstr, f'*{v}')

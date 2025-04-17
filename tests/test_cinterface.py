@@ -1,6 +1,6 @@
 import os
 
-from devito import Eq, Grid, Operator, TimeFunction
+from devito import Eq, Grid, Operator, TimeFunction, configuration
 from devito.types import Timer
 
 
@@ -15,11 +15,13 @@ def test_basic():
     op = Operator(eq, name=name)
 
     # Trigger the generation of a .c and a .h files
+    cpp = configuration['compiler']._cpp or 'CXX' in configuration['language']
     ccode, hcode = op.cinterface(force=True)
+    ec, eh = ('cpp', 'h') if cpp else ('c', 'h')
 
     dirname = op._compiler.get_jit_dir()
-    assert os.path.isfile(os.path.join(dirname, "%s.c" % name))
-    assert os.path.isfile(os.path.join(dirname, "%s.h" % name))
+    assert os.path.isfile(os.path.join(dirname, f"{name}.{ec}"))
+    assert os.path.isfile(os.path.join(dirname, f"{name}.{eh}"))
 
     ccode = str(ccode)
     hcode = str(hcode)
