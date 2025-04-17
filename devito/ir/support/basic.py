@@ -535,7 +535,7 @@ class Relation:
         if q_comp_acc(self.source.access) and not q_comp_acc(self.sink.access):
             # E.g., `source=ab[x].x` and `sink=ab[x]` -> `a(x)`
             return self.source.access.function_access
-        elif q_comp_acc(self.sink.access) and not q_comp_acc(self.source.access):
+        elif not q_comp_acc(self.source.access) and q_comp_acc(self.sink.access):
             # E.g., `source=ab[x]` and `sink=ab[x].y` -> `b(x)`
             return self.sink.access.function_access
         else:
