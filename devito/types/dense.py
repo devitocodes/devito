@@ -26,7 +26,7 @@ from devito.types.dimension import Dimension
 from devito.types.args import ArgProvider
 from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
-from devito.types.utils import Buffer, DimensionTuple, NODE, CELL, host_layer
+from devito.types.utils import Buffer, DimensionTuple, NODE, CELL, host_layer, Staggering
 
 __all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
 
@@ -66,9 +66,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'coefficients')
 
     def __init_finalize__(self, *args, function=None, **kwargs):
-        # Staggering metadata
-        self._staggered = self.__staggered_setup__(**kwargs)
-
         # Now that *all* __X_setup__ hooks have been called, we can let the
         # superclass constructor do its job
         super().__init_finalize__(*args, **kwargs)
@@ -180,18 +177,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                                  " not %s" % (str(fd_weights_registry), coeffs))
         return coeffs
 
-    def __staggered_setup__(self, **kwargs):
-        """
-        Setup staggering-related metadata. This method assigns:
-
-            * 0 to non-staggered dimensions;
-            * 1 to staggered dimensions.
-        """
-        staggered = kwargs.get('staggered', None)
-        if staggered is CELL:
-            staggered = self.dimensions
-        return staggered
-
     @cached_property
     def _functions(self):
         return {self.function}
@@ -207,10 +192,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @property
     def _mem_heap(self):
         return True
-
-    @property
-    def staggered(self):
-        return self._staggered
 
     @property
     def coefficients(self):
@@ -1029,6 +1010,10 @@ class Function(DiscreteFunction):
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
 
+        # Staggering
+        self._staggered = self.__staggered_setup__(self.dimensions,
+                                                   staggered=kwargs.get('staggered'))
+
         # Space order
         space_order = kwargs.get('space_order', 1)
         if isinstance(space_order, int):
@@ -1061,7 +1046,7 @@ class Function(DiscreteFunction):
 
     @cached_property
     def _fd_priority(self):
-        return 1 if self.staggered in [NODE, None] else 2
+        return 1 if self.staggered.on_node else 2
 
     @property
     def is_parameter(self):
@@ -1078,35 +1063,66 @@ class Function(DiscreteFunction):
         return self
 
     @classmethod
+    def __staggered_setup__(cls, dimensions, staggered=None, **kwargs):
+        """
+        Setup staggering-related metadata. This method assigns:
+
+            * 0 to non-staggered dimensions;
+            * 1 to staggered dimensions.
+        """
+        if not staggered:
+            processed = ()
+        elif staggered is CELL:
+            processed = (sympy.S.One,)*len(dimensions)
+        elif staggered is NODE:
+            processed = (sympy.S.Zero,)*len(dimensions)
+        elif all(is_integer(s) for s in as_tuple(staggered)):
+            # Staggering is already a tuple likely from rebuild
+            assert len(staggered) == len(dimensions)
+            processed = staggered
+        else:
+            processed = []
+            for d in dimensions:
+                if d in as_tuple(staggered):
+                    processed.append(sympy.S.One)
+                elif -d in as_tuple(staggered):
+                    processed.append(sympy.S.NegativeOne)
+                else:
+                    processed.append(sympy.S.Zero)
+        return Staggering(*processed, getters=dimensions)
+
+    @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         grid = kwargs.get('grid')
         dimensions = kwargs.get('dimensions')
+        staggered = kwargs.get('staggered')
+
         if grid is None:
             if dimensions is None:
                 raise TypeError("Need either `grid` or `dimensions`")
         elif dimensions is None:
             dimensions = grid.dimensions
 
+        staggered = cls.__staggered_setup__(dimensions, staggered=staggered)
         if args:
             assert len(args) == len(dimensions)
-            return tuple(dimensions), tuple(args)
-
-        # Staggered indices
-        staggered = kwargs.get("staggered", None)
-        if staggered in [CELL, NODE]:
-            staggered_indices = dimensions
+            staggered_indices = tuple(args)
         else:
-            mapper = {d: d for d in dimensions}
-            for s in as_tuple(staggered):
-                c, s = s.as_coeff_Mul()
-                mapper.update({s: s + c * s.spacing / 2})
-            staggered_indices = mapper.values()
-
+            if not staggered:
+                staggered_indices = dimensions
+            else:
+                staggered_indices = (d + i * d.spacing / 2
+                                     for d, i in zip(dimensions, staggered))
         return tuple(dimensions), tuple(staggered_indices)
 
     @property
+    def staggered(self):
+        """The staggered indices of the object."""
+        return self._staggered
+
+    @property
     def is_Staggered(self):
-        return self.staggered is not None
+        return bool(self.staggered)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1394,7 +1410,6 @@ class TimeFunction(Function):
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         dimensions = kwargs.get('dimensions')
-        staggered = kwargs.get('staggered')
 
         if dimensions is None:
             save = kwargs.get('save')
@@ -1409,7 +1424,7 @@ class TimeFunction(Function):
             dimensions.insert(cls._time_position, time_dim)
 
         return Function.__indices_setup__(
-            *args, dimensions=dimensions, staggered=staggered
+            *args, dimensions=dimensions, staggered=kwargs.get('staggered')
         )
 
     @classmethod
@@ -1448,7 +1463,7 @@ class TimeFunction(Function):
 
     @cached_property
     def _fd_priority(self):
-        return 2.1 if self.staggered in [NODE, None] else 2.2
+        return 2.1 if self.staggered.on_node else 2.2
 
     @property
     def time_order(self):
