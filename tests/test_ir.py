@@ -17,7 +17,7 @@ from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
 from devito.ir.support.guards import GuardOverflow
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
-from devito.types import Array, CriticalRegion, Jump, Scalar, Symbol
+from devito.types import Array, Bundle, CriticalRegion, Jump, Scalar, Symbol
 
 
 class TestVectorHierarchy:
@@ -886,6 +886,32 @@ class TestDependenceAnalysis:
         assert len(scope.writes[mocksym1]) == 1
         assert len(scope.reads[mocksym1]) == 2
         assert len(scope.d_all) == 9
+
+    def test_bundle_components(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        v = Function(name='v', grid=grid)
+        w = Function(name='w', grid=grid)
+        u0 = Function(name='u0', grid=grid)
+        u1 = Function(name='u1', grid=grid)
+
+        fg = Bundle(name='fg', components=(f, g))
+        vw = Bundle(name='vw', components=(v, w))
+
+        exprs = [Eq(fg.indexify(), 1),
+                 Eq(u0.indexify(), fg[0, x, y] + 2),
+                 Eq(vw[0, x, y], 3),
+                 Eq(u1.indexify(), vw[1, x, y] + 4)]
+        exprs = [LoweredEq(i) for i in exprs]
+
+        scope = Scope(exprs)
+        assert len(scope.d_all) == 1
+        assert len(scope.d_flow) == 1
+        dep, = scope.d_flow
+        assert dep.function is f
 
 
 class TestParallelismAnalysis:

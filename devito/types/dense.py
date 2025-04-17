@@ -652,6 +652,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     _C_structname = 'dataobj'
     _C_field_data = 'data'
     _C_field_size = 'size'
+    _C_field_nbytes = 'nbytes'
     _C_field_nopad_size = 'npsize'
     _C_field_domain_size = 'dsize'
     _C_field_halo_size = 'hsize'
@@ -661,7 +662,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_restrict_void_p),
-                                          (_C_field_size, POINTER(c_ulong)),
+                                          (_C_field_size, POINTER(c_int)),
+                                          (_C_field_nbytes, c_ulong),
                                           (_C_field_nopad_size, POINTER(c_ulong)),
                                           (_C_field_domain_size, POINTER(c_ulong)),
                                           (_C_field_halo_size, POINTER(c_int)),
@@ -679,7 +681,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         dataobj = byref(self._C_ctype._type_())
         dataobj._obj.data = data.ctypes.data_as(c_restrict_void_p)
-        dataobj._obj.size = (c_ulong*self.ndim)(*data.shape)
+        dataobj._obj.size = (c_int*self.ndim)(*data.shape)
+        dataobj._obj.nbytes = data.nbytes
 
         # MPI-related fields
         dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in

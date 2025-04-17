@@ -3,7 +3,8 @@ from sympy.printing.cxx import CXX11CodePrinter
 
 from devito.ir import Call, UsingNamespace, BasePrinter
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics.extended_dtypes import c_complex, c_double_complex
+from devito.symbolics import c_complex, c_double_complex
+from devito.tools import dtype_to_cstr
 
 __all__ = ['CXXBB']
 
@@ -65,6 +66,8 @@ template<typename _Tp, typename _Ti>
 class CXXBB(LangBB):
 
     mapper = {
+        # Misc
+        'header-array': 'array',
         # Complex
         'includes-complex': 'complex',
         'complex-namespace': [UsingNamespace('std::complex_literals')],
@@ -112,3 +115,12 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
         caster = 'reinterpret_cast' if expr.reinterpret else 'static_cast'
         cast = f'{caster}<{tstr}{self._print(expr.stars)}>'
         return self._print_UnaryOp(expr, op=cast, parenthesize=True)
+
+    def _print_ListInitializer(self, expr):
+        li = super()._print_ListInitializer(expr)
+        if expr.dtype:
+            # CXX, unlike C99, does not support compound literals
+            tstr = dtype_to_cstr(expr.dtype)
+            return f'std::array<{tstr}, {len(expr.params)}>{li}.data()'
+        else:
+            return li

@@ -23,7 +23,7 @@ def test_read_write():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
     assert buffers.pop().symbolic_shape[0] == 2
 
@@ -51,7 +51,7 @@ def test_write_only():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     op0.apply(time_M=nt-2)
@@ -79,7 +79,7 @@ def test_read_only():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     op0.apply(time_M=nt-2)
@@ -128,7 +128,7 @@ def test_read_only_backwards():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     op0.apply(time_m=1)
@@ -159,7 +159,7 @@ def test_read_only_backwards_unstructured():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     op0.apply(time_m=2)
@@ -183,7 +183,7 @@ def test_async_degree(async_degree):
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
     assert buffers.pop().symbolic_shape[0] == async_degree
 
@@ -212,7 +212,7 @@ def test_two_homogeneous_buffers():
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 5
     assert len(retrieve_iteration_tree(op2)) == 3
-    buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array and i._mem_heap]
     assert len(buffers) == 2
 
     op0.apply(time_M=nt-2)
@@ -243,7 +243,7 @@ def test_two_heterogeneous_buffers():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 5
-    buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array and i._mem_heap]
     assert len(buffers) == 2
 
     op0.apply(time_M=nt-2)
@@ -410,7 +410,7 @@ def test_subdims():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 1
+    assert len([i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]) == 1
 
     op0.apply(time_M=nt-2)
     op1.apply(time_M=nt-2, u=u1)
@@ -442,7 +442,7 @@ def test_conddim_backwards():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     op0.apply(time_m=1, time_M=9)
@@ -475,7 +475,7 @@ def test_conddim_backwards_multi_slots():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     op0.apply(time_m=1, time_M=9)
@@ -512,7 +512,7 @@ def test_conddim_backwards_unstructured():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     # Note 1: cannot use time_m<4 or time_M>14 or there would be OOB accesses
@@ -557,7 +557,7 @@ def test_conddim_w_shifting():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     # From time_m=15 to time_M=35 with a factor=5 -- it means that, thanks
@@ -596,7 +596,7 @@ def test_multi_access():
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array]
+    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
 
     op0.apply(time_M=nt-2)
@@ -660,7 +660,8 @@ def test_everything():
     op1 = Operator(eqns, opt='buffering')
 
     # Check generated code
-    assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array]) == 2
+    assert len([i for i in FindSymbols().visit(op1.body) if i.is_Array
+                and i._mem_heap]) == 2
 
     op0.apply(time_m=15, time_M=35, save_shift=0)
     op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
