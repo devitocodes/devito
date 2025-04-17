@@ -341,16 +341,12 @@ def abstract_component_accesses(efuncs):
         if not isinstance(efunc, (HaloUpdate, HaloWait)):
             continue
 
-        calls = FindNodes((Gather, Scatter)).visit(efunc)
-        if len(calls) != 1:
-            continue
-        call_copy_buffer, = calls
-        copy_buffer = efuncs[call_copy_buffer.name]
-
         # Retrieve expected objects. If this fails, it means it's a structure
         # we don't recognize (e.g., an unsupported MPI scheme?), so we just
         # give up and move on
         try:
+            call_copy_buffer, = FindNodes((Gather, Scatter)).visit(efunc)
+            copy_buffer = efuncs[call_copy_buffer.name]
             f, = [i for i in copy_buffer.parameters if i.is_Bundle]
             msg, = [i for i in efunc.parameters if isinstance(i, MPIMsg)]
             dim, = FindSymbols('dimensions').visit(efunc)
