@@ -188,8 +188,9 @@ class DataManager:
         arity_arg = sizeof_dtypeN / sizeof_dtype1
         ndims_param = Symbol(name='ndims', dtype=size_t)
         ndims_arg = obj.ndim
-        shape_param = Array(name=f'{obj.name}_shape', dtype=np.int32,
-                            dimensions=(Dimension(name='d'),), scope='rvalue')
+        shape_param = Array(name=f'{obj.name}_shape', scope='rvalue',
+                            dtype=np.int32 if obj.is_regular else np.uint64,
+                            dimensions=(Dimension(name='d'),))
         shape_arg = ListInitializer(obj.c0.symbolic_shape, dtype=shape_param.dtype)
 
         ffp0 = FieldFromPointer(obj._C_field_data, obj._C_symbol)
@@ -273,8 +274,9 @@ class DataManager:
         arity_arg = sizeof_dtypeN / sizeof_dtype1
         ndims_param = Symbol(name='ndims', dtype=size_t)
         ndims_arg = obj.ndim
-        shape_param = Array(name=f'{obj.name}_shape', dtype=np.uint64,
-                            dimensions=(Dimension(name='d'),), scope='rvalue')
+        shape_param = Array(name=f'{obj.name}_shape', scope='rvalue',
+                            dtype=np.int32 if obj.is_regular else np.uint64,
+                            dimensions=(Dimension(name='d'),))
         shape_arg = ListInitializer(obj.c0.symbolic_shape, dtype=shape_param.dtype)
 
         ffp1 = FieldFromPointer(obj._C_field_shape, obj._C_symbol)
