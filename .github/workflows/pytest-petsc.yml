@@ -80,6 +80,8 @@ jobs:
         ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/cfd/01_navierstokes.py
         ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/01_poisson.py
         ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/02_laplace.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/03_poisson.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/04_poisson.py
         ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/random/01_helmholtz.py
 
     - name: Upload coverage to Codecov
