@@ -25,7 +25,7 @@ from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
                           c_restrict_void_p, sorted_priority)
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
-                          IndexedData, DeviceMap)
+                          IndexedData, DeviceMap, LocalCompositeObject)
 
 
 __all__ = ['FindApplications', 'FindNodes', 'FindSections', 'FindSymbols',
@@ -201,7 +201,7 @@ class CGen(Visitor):
 
     def _gen_struct_decl(self, obj, masked=()):
         """
-        Convert ctypes.Struct -> cgen.Structure.
+        Convert ctypes.Struct and LocalCompositeObject -> cgen.Structure.
         """
         ctype = obj._C_ctype
         try:
@@ -213,7 +213,16 @@ class CGen(Visitor):
                 return None
         except TypeError:
             # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`
-            return None
+            if isinstance(obj, LocalCompositeObject):
+                # TODO: re-evaluate: Setting ctype to obj allows
+                # _gen_struct_decl to generate a cgen.Structure from a
+                # LocalCompositeObject, where obj._C_ctype is a CustomDtype.
+                # LocalCompositeObject has a __fields__ property,
+                # which allows the subsequent code in this function to work
+                # correctly.
+                ctype = obj
+            else:
+                return None
 
         try:
             return obj._C_typedecl
@@ -265,7 +274,7 @@ class CGen(Visitor):
                     strtype = f'{strtype}{self._restrict_keyword}'
         strtype = ' '.join(qualifiers + [strtype])
 
-        if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
+        if obj.is_LocalType and obj._C_modifier is not None and mode == 2:
             strtype += obj._C_modifier
 
         strname = obj._C_name
@@ -644,6 +653,9 @@ class CGen(Visitor):
         top = c.Line(f"[{', '.join(captures)}]({', '.join(decls)}){''.join(extra)}")
         return LambdaCollection([top, c.Block(body)])
 
+    def visit_Callback(self, o, nested_call=False):
+        return CallbackArg(o)
+
     def visit_HaloSpot(self, o):
         body = flatten(self._visit(i) for i in o.children)
         return c.Collection(body)
@@ -715,8 +727,11 @@ class CGen(Visitor):
         for i in o._func_table.values():
             if not i.local:
                 continue
-            typedecls.extend([self._gen_struct_decl(j) for j in i.root.parameters
-                              if xfilter(j)])
+            typedecls.extend([
+                self._gen_struct_decl(j)
+                for j in FindSymbols().visit(i.root)
+                if xfilter(j)
+            ])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
 
         return typedecls
@@ -1469,3 +1484,12 @@ def sorted_efuncs(efuncs):
         CommCallable: 1
     }
     return sorted_priority(efuncs, priority)
+
+
+class CallbackArg(c.Generable):
+
+    def __init__(self, callback):
+        self.callback = callback
+
+    def generate(self):
+        yield self.callback.callback_form
