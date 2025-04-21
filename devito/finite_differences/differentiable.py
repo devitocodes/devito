@@ -17,7 +17,7 @@ except ImportError:
 from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
-                          infer_dtype, is_integer, split)
+                          infer_dtype, is_integer, split, is_number)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction
 
@@ -548,20 +548,19 @@ class Mul(DifferentiableOp, sympy.Mul):
         nested, others = split(args, lambda e: isinstance(e, Mul))
         args = flatten(e.args for e in nested) + list(others)
 
+        # Gather all numbers and simplify
+        nums, others = split(args, lambda e: is_number(e))
+        scalar = sympy.Mul(*nums)
+
         # a*0 -> 0
-        if any(i == 0 for i in args):
+        if scalar == 0:
             return sympy.S.Zero
 
         # a*1 -> a
-        args = [i for i in args if i != 1]
-
-        # a*-1 -> a*-1
-        # a*-1*-1 -> a
-        # a*-1*-1*-1 -> a*-1
-        nminus = len([i for i in args if i == sympy.S.NegativeOne])
-        args = [i for i in args if i != sympy.S.NegativeOne]
-        if nminus % 2 == 1:
-            args.append(sympy.S.NegativeOne)
+        if scalar - 1 == 0:
+            args = others
+        else:
+            args = [scalar] + others
 
         # Reorder for homogeneity with pure SymPy types
         _mulsort(args)

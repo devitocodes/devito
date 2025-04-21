@@ -654,6 +654,10 @@ class DefFunction(Function, Pickable):
 
         return obj
 
+    def _eval_is_commutative(self):
+        # DefFunction defaults to commutative
+        return True
+
     @property
     def name(self):
         return self._name

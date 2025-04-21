@@ -19,7 +19,7 @@ on:
 jobs:
   test-mpi-basic:
     name: pytest-mpi
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ['3.9', '3.11']
@@ -30,6 +30,7 @@ jobs:
       OMP_NUM_THREADS: "1"
       CC: "gcc-9"
       CXX: "g++-9"
+      RDMAV_FORK_SAFE: 1
 
     steps:
     - uses: actions/setup-python@v5
@@ -78,15 +79,15 @@ jobs:
               os: ubuntu-latest
               # Need safe math for icx due to inaccuracy with mpi+sinc interpolation
               mpiflag: "-e DEVITO_SAFE_MATH=1"
-      
+
       steps:
       - name: Checkout devito
         uses: actions/checkout@v4
-      
+
       - name: Build docker image
         run: |
           docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
-      
+
       - name: Test with pytest
         run: |
           docker run --init -t --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e OMP_NUM_THREADS=1 --name testrun devito_img pytest tests/test_mpi.py

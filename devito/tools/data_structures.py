@@ -82,7 +82,8 @@ class EnrichedTuple(tuple, Pickable):
     def __getnewargs_ex__(self):
         # Bypass default reconstruction logic since this class spawns
         # objects with varying number of attributes
-        return tuple(self), dict(self.__dict__)
+        sdict = {k: v for k, v in self.__dict__.items() if k not in self.getters}
+        return tuple(self), sdict
 
     def get(self, key, val=None):
         return self.getters.get(key, val)

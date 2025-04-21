@@ -2,9 +2,9 @@ import pytest
 import numpy as np
 from sympy import simplify
 
-from devito import (Function, Grid, NODE, VectorTimeFunction,
-                    TimeFunction, Eq, Operator, div)
-from devito.tools import powerset
+from devito import (Function, Grid, NODE, CELL, VectorTimeFunction,
+                    TimeFunction, Eq, Operator, div, Dimension)
+from devito.tools import powerset, as_tuple
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
@@ -160,3 +160,30 @@ def test_staggered_div():
     op2.apply(time_M=0)
 
     assert np.allclose(p1.data[:], p2.data[:], atol=0, rtol=1e-5)
+
+
+@pytest.mark.parametrize('stagg', [
+    'NODE', 'CELL', 'x', 'y', 'z',
+    '(x, y)', '(x, z)', '(y, z)', '(x, y, z)'])
+def test_staggered_rebuild(stagg):
+    grid = Grid(shape=(5, 5, 5))
+    x, y, z = grid.dimensions  # noqa
+    stagg = eval(stagg)
+
+    f = Function(name='f', grid=grid, space_order=4, staggered=stagg)
+    assert tuple(f.staggered.getters.keys()) == grid.dimensions
+
+    new_dims = (Dimension('x1'), Dimension('y1'), Dimension('z1'))
+    f2 = f.func(dimensions=new_dims)
+
+    assert f2.dimensions == new_dims
+    assert tuple(f2.staggered) == tuple(f.staggered)
+    assert tuple(f2.staggered.getters.keys()) == new_dims
+
+    # Check that rebuild correctly set the staggered indices
+    # with the new dimensions
+    for (d, nd) in zip(grid.dimensions, new_dims):
+        if d in as_tuple(stagg) or stagg is CELL:
+            assert f2.indices[nd] == nd + nd.spacing / 2
+        else:
+            assert f2.indices[nd] == nd

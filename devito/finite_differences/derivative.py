@@ -405,7 +405,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             return self
         # For basic equation of the form f = Derivative(g, ...) we can just
         # compare staggering
-        if self.expr.staggered == func.staggered:
+        if self.expr.staggered == func.staggered and self.expr.is_Function:
             return self
 
         x0 = func.indices_ref.getters

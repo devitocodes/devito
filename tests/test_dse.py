@@ -88,7 +88,7 @@ def test_pow_to_mul(expr, expected):
 
 
 @pytest.mark.parametrize('expr,expected', [
-    ('s - SizeOf("int")*fa[x]', 's - fa[x]*sizeof(int)'),
+    ('s - SizeOf("int")*fa[x]', 's - sizeof(int)*fa[x]'),
     ('foo(4*fa[x] + 4*fb[x])', 'foo(4*(fa[x] + fb[x]))'),
     ('floor(0.1*a + 0.1*fa[x])', 'floor(0.1*(a + fa[x]))'),
     ('floor(0.1*(a + fa[x]))', 'floor(0.1*(a + fa[x]))'),

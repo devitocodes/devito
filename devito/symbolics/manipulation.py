@@ -14,7 +14,7 @@ from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import retrieve_indexed, retrieve_functions
 from devito.symbolics.unevaluation import (
-    Add as UnevalAdd, Mul as UnevalMul, Pow as UnevalPow
+    Add as UnevalAdd, Mul as UnevalMul, Pow as UnevalPow, UnevaluableMixin
 )
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
 from devito.types.basic import Basic, Indexed
@@ -300,7 +300,11 @@ def _eval_numbers(expr, args):
     """
     numbers, others = split(args, lambda i: i.is_Number)
     if len(numbers) > 1:
-        args[:] = [expr.func(*numbers)] + others
+        if isinstance(expr, UnevaluableMixin):
+            cls = expr.func.__base__
+        else:
+            cls = expr.func
+        args[:] = [cls(*numbers)] + others
 
 
 def flatten_args(args, op, ignore=None):
