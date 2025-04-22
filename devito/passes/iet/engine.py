@@ -1,18 +1,26 @@
 from collections import OrderedDict, defaultdict
 from functools import partial, singledispatch, wraps
 
-from devito.ir.iet import (Call, ExprStmt, Iteration, SyncSpot, AsyncCallable,
-                           FindNodes, FindSymbols, MapNodes, MetaCall, Transformer,
-                           EntryFunction, ThreadCallable, Uxreplace,
-                           derive_parameters)
+import numpy as np
+from sympy import Mul
+
+from devito.ir.iet import (
+    Call, ExprStmt, Expression, Iteration, SyncSpot, AsyncCallable, FindNodes,
+    FindSymbols, MapNodes, MetaCall, Transformer, EntryFunction,
+    ThreadCallable, Uxreplace, derive_parameters
+)
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
+from devito.mpi.routines import Gather, Scatter, HaloUpdate, HaloWait, MPIMsg
 from devito.passes import needs_transfer
-from devito.symbolics import FieldFromComposite, FieldFromPointer
+from devito.symbolics import (FieldFromComposite, FieldFromPointer, IndexedPointer,
+                              search)
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
-from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
-                          ModuloDimension, Indirection, Pointer, SharedData,
-                          ThreadArray, Temp, NPThreads, NThreadsBase, Wildcard)
+from devito.types import (
+    Array, Bundle, ComponentAccess, CompositeObject, Lock, IncrDimension,
+    ModuloDimension, Indirection, Pointer, SharedData, ThreadArray, Symbol, Temp,
+    NPThreads, NThreadsBase, Wildcard
+)
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
@@ -147,6 +155,7 @@ class Graph:
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
             efuncs = reuse_compounds(efuncs, self.sregistry)
+            efuncs = abstract_component_accesses(efuncs)
             efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
@@ -314,6 +323,76 @@ def _(i, sregistry=None):
     ncfields = tuple(m.get(i, i) for i in i.ncfields)
 
     return i._rebuild(pname=pname, cfields=cfields, ncfields=ncfields, function=None)
+
+
+def abstract_component_accesses(efuncs):
+    """
+    Generalise `efuncs` by replacing ComponentAccesses with pointer arithmetic
+    where possible and useful.
+
+    This pass is only applied to selected Callables:
+
+        1) HaloUpdate/Gather
+        2) HaloWait/Scatter
+    """
+    processed = dict(efuncs)
+
+    for k, efunc in efuncs.items():
+        if not isinstance(efunc, (HaloUpdate, HaloWait)):
+            continue
+
+        # Retrieve expected objects. If this fails, it means it's a structure
+        # we don't recognize (e.g., an unsupported MPI scheme?), so we just
+        # give up and move on
+        try:
+            call_copy_buffer, = FindNodes((Gather, Scatter)).visit(efunc)
+            copy_buffer = efuncs[call_copy_buffer.name]
+            f, = [i for i in copy_buffer.parameters if i.is_Bundle]
+            msg, = [i for i in efunc.parameters if isinstance(i, MPIMsg)]
+            dim, = FindSymbols('dimensions').visit(efunc)
+        except ValueError:
+            continue
+
+        exprs = FindNodes(Expression).visit(copy_buffer)
+        compaccs = set().union(*[search(i.expr, ComponentAccess) for i in exprs])
+        if not compaccs or len(compaccs) == f.ncomp:
+            continue
+
+        # Sorted for deterministic codegen
+        compaccs = sorted(compaccs, key=lambda i: i.index)
+
+        # Access the same entry as `ca` but via pointer arithmetic instead
+        arity_param = Symbol(name='arity', dtype=np.uint32, is_const=True)
+        compoff_params = [Symbol(name=f'c{i}', dtype=np.uint32, is_const=True)
+                          for i in range(len(compaccs))]
+
+        f_flatten = f.func(name='flat_data', components=f.c0)
+
+        subs = {}
+        for ca, o in zip(compaccs, compoff_params):
+            indices = [Mul(arity_param, i, evaluate=False) for i in ca.indices]
+            indices[-1] += o
+            subs[ca] = f_flatten.indexed[indices]
+
+        # Transform the `copy_buffer` to use a flatten representation of the Bundle
+        copy_buffer1 = Uxreplace(subs).visit(copy_buffer)
+        parameters = [*copy_buffer1.parameters, arity_param, *compoff_params]
+        parameters[parameters.index(f)] = f_flatten
+        copy_buffer1 = copy_buffer1._rebuild(parameters=parameters)
+
+        # Update the `efunc` to use the new `copy_buffer1` version
+        arity_arg = FieldFromPointer(f._C_field_arity, f._C_symbol)
+        compoff_args = [IndexedPointer(
+            FieldFromComposite(msg._C_field_components, IndexedPointer(msg, dim)), i
+        ) for i in range(len(compoff_params))]
+
+        arguments = [*call_copy_buffer.arguments, arity_arg, *compoff_args]
+        call_copy_buffer1 = call_copy_buffer._rebuild(arguments=arguments)
+        efunc1 = Transformer({call_copy_buffer: call_copy_buffer1}).visit(efunc)
+
+        processed.update({k: efunc1, copy_buffer.name: copy_buffer1})
+
+    return processed
 
 
 def reuse_efuncs(root, efuncs, sregistry=None):

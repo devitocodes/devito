@@ -223,7 +223,7 @@ def linearize_accesses(iet, key0, tracker=None):
 
     # 2) What `iet` *offers*
     # E.g. `{x_fsz0 -> u_vec->size[1]}`
-    defines = FindSymbols('defines-aliases').visit(iet)
+    defines = FindSymbols('defines').visit(iet)
     offers = filter_ordered(i for i in defines if key0(i.function))
     instances = {}
     for i in offers:
@@ -294,16 +294,9 @@ def _(f, d):
 
 
 @_generate_fsz.register(Array)
-def _(f, d):
-    return f.symbolic_shape[d]
-
-
 @_generate_fsz.register(Bundle)
 def _(f, d):
-    if f.is_DiscreteFunction:
-        return _generate_fsz.registry[DiscreteFunction](f, d)
-    else:
-        return _generate_fsz.registry[Array](f, d)
+    return f.symbolic_shape[d]
 
 
 @singledispatch

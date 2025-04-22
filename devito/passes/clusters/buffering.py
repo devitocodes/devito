@@ -123,9 +123,7 @@ class InjectBuffers(Queue):
     def __init__(self, mapper, sregistry, options):
         super().__init__()
 
-        # Sort the mapper so that we always process the same Function in the
-        # same order, hence we get deterministic code generation
-        self.mapper = {i: mapper[i] for i in sorted(mapper, key=lambda i: i.name)}
+        self.mapper = mapper
 
         self.sregistry = sregistry
         self.options = options
@@ -301,6 +299,9 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
     # {candidate buffered Function -> [Clusters that access it]}
     bfmap = map_buffered_functions(clusters, key)
+
+    # Sort for deterministic code generation
+    bfmap = {i: bfmap[i] for i in sorted(bfmap, key=lambda i: i.name)}
 
     # {buffered Function -> Buffer}
     xds = {}
@@ -718,7 +719,7 @@ def offset_from_centre(d, indices):
             # `time/factor` -- the starting pointing at time_m or time_M
             v = indices[0]
             try:
-                p = sum(v.args[1:])
+                p = v.func(*[i for i in v.args if not is_integer(i)])
                 if not ((p - v).is_Integer or (p - v).is_Symbol):
                     raise ValueError
             except (IndexError, ValueError):

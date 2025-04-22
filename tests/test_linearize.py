@@ -342,20 +342,21 @@ def test_strides_forwarding1():
     linearize(graph, callback=True, options={'index-mode': 'int32'},
               sregistry=SymbolRegistry())
 
-    # Despite `a` is passed via `a.indexed`, and since it's an Array (which
-    # have symbolic shape), we expect the stride exprs to be placed in `bar`,
-    # and in `bar` only, as `foo` doesn't really use `a`, it just propagates it
-    # down to `bar`
+    # `a` is passed via `a.indexed`, so the stride exprs are expected to be
+    # placed in `foo` and then passed down to `bar` as arguments
     foo = graph.root
     bar = graph.efuncs['bar']
 
     assert len(foo.body.body) == 1
     assert foo.body.body[0].is_Call
+    assert len(foo.body.strides) == 3
+    assert foo.body.strides[0].write.name == 'y_fsz0'
+    assert foo.body.strides[2].write.name == 'y_stride0'
 
+    assert len(bar.parameters) == 2
+    assert bar.parameters[0].name == 'a'
+    assert bar.parameters[1].name == 'y_stride0'
     assert len(bar.body.body) == 1
-    assert len(bar.body.strides) == 3
-    assert bar.body.strides[0].write.name == 'y_fsz0'
-    assert bar.body.strides[2].write.name == 'y_stride0'
 
 
 def test_strides_forwarding2():

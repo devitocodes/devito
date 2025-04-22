@@ -148,7 +148,10 @@ class BasicWrapperMixin:
         """
         Overridden SymPy assumption -- now based on the wrapped object dtype.
         """
-        return issubclass(self.dtype, np.number)
+        try:
+            return issubclass(self.dtype, np.number)
+        except TypeError:
+            return self.dtype in ctypes_vector_mapper
 
     def _sympystr(self, printer):
         return str(self)
@@ -289,8 +292,9 @@ class ListInitializer(sympy.Expr, Pickable):
     """
 
     __rargs__ = ('params',)
+    __rkwargs__ = ('dtype',)
 
-    def __new__(cls, params):
+    def __new__(cls, params, dtype=None):
         args = []
         for p in as_tuple(params):
             try:
@@ -298,7 +302,10 @@ class ListInitializer(sympy.Expr, Pickable):
             except sympy.SympifyError:
                 raise ValueError(f"Illegal param `{p}`")
         obj = sympy.Expr.__new__(cls, *args)
+
         obj.params = tuple(args)
+        obj.dtype = dtype
+
         return obj
 
     def __str__(self):
