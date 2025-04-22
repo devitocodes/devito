@@ -264,14 +264,14 @@ def _mark_overlappable(iet):
 
 
 @iet_pass
-def make_halo_exchanges(iet, mpimode=None, **kwargs):
+def make_halo_exchanges(iet, mpimode=None, fallback='basic', **kwargs):
     """
     Lower HaloSpots into halo exchanges for distributed-memory parallelism.
     """
     # To produce unique object names
     generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
 
-    sync_heb = HaloExchangeBuilder('basic', generators, **kwargs)
+    sync_heb = HaloExchangeBuilder(fallback, generators, **kwargs)
     user_heb = HaloExchangeBuilder(mpimode, generators, **kwargs)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
