@@ -268,11 +268,10 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
             raise ValueError(f"More weights ({nweights}) provided than the maximum "
                              f"stencil size ({order + 1}) for order {order} scheme")
         elif do > dw:
+            order = nweights - nweights % 2
             warning(f"Less weights ({nweights}) provided than the stencil size"
                     f"({order + 1}) for order {order} scheme."
-                    " Reducing order to {nweights//2}")
-            order = nweights - nweights % 2
-
+                    f" Reducing order to {order}")
     # Evaluation point
     x0 = sympify(((x0 or {}).get(dim) or expr.indices_ref[dim]))
 
