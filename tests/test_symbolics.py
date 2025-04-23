@@ -15,7 +15,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace, pow_to_mul,
                               retrieve_derivatives, BaseCast, SizeOf)
-from devito.tools import as_tuple
+from devito.tools import as_tuple, CustomDtype
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
 from devito.types.basic import AbstractSymbol
@@ -912,3 +912,15 @@ def test_print_div():
     b = SizeOf(np.int64)
     cstr = ccode(a / b)
     assert cstr == 'sizeof(int)/sizeof(long)'
+
+
+def test_customdtype_complex():
+    """
+    Test that `CustomDtype` doesn't brak is_imag
+    """
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid, dtype=CustomDtype('notnumpy'))
+
+    assert not f.is_imaginary
+    assert f.is_real
