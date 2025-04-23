@@ -5,7 +5,7 @@ import cgen as c
 from sympy import And, Ne, Not
 
 from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX, PVC
-from devito.arch.compiler import GNUCompiler
+from devito.arch.compiler import GNUCompiler, NvidiaCompiler
 from devito.ir import (Call, Conditional, DeviceCall, List, Pragma, Prodder,
                        ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
@@ -224,7 +224,11 @@ class Ompizer(PragmaShmTransformer):
         if isinstance(compiler, GNUCompiler) and \
            compiler.version < Version("6.0"):
             return False
-        return True
+        elif isinstance(compiler, NvidiaCompiler):
+            # NVC++ does not support array reduction and leads to segfault
+            return False
+        else:
+            return True
 
 
 class DeviceOmpizer(PragmaDeviceAwareTransformer):
