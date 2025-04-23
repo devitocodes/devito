@@ -22,7 +22,8 @@ from devito.tools import filter_ordered
 
 __all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
            'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
-           'OmpDataManager', 'OmpOrchestrator', 'DeviceOmpOrchestrator']
+           'OmpDataManager', 'OmpOrchestrator', 'DeviceOmpOrchestrator',
+           'CXXOmpDataManager', 'CXXOmpOrchestrator']
 
 
 class OmpRegion(ParallelBlock):
@@ -257,12 +258,20 @@ class OmpDataManager(DataManager):
     langbb = OmpBB
 
 
+class CXXOmpDataManager(DataManager):
+    langbb = CXXOmpBB
+
+
 class DeviceOmpDataManager(DeviceAwareDataManager):
     langbb = DeviceOmpBB
 
 
 class OmpOrchestrator(Orchestrator):
     langbb = OmpBB
+
+
+class CXXOmpOrchestrator(Orchestrator):
+    langbb = CXXOmpBB
 
 
 class DeviceOmpOrchestrator(Orchestrator):

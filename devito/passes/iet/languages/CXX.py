@@ -2,11 +2,13 @@ import numpy as np
 from sympy.printing.cxx import CXX11CodePrinter
 
 from devito.ir import Call, UsingNamespace, BasePrinter
+from devito.passes.iet.definitions import DataManager
+from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
 
-__all__ = ['CXXBB']
+__all__ = ['CXXBB', 'CXXDataManager', 'CXXOrchestrator']
 
 
 def std_arith(prefix=None):
@@ -86,6 +88,14 @@ class CXXBB(LangBB):
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k)),
     }
+
+
+class CXXDataManager(DataManager):
+    langbb = CXXBB
+
+
+class CXXOrchestrator(Orchestrator):
+    langbb = CXXBB
 
 
 class CXXPrinter(BasePrinter, CXX11CodePrinter):
