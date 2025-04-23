@@ -429,7 +429,12 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         return not self.is_imaginary
 
     def _eval_is_imaginary(self):
-        return np.iscomplexobj(self.dtype(0))
+        try:
+            return np.iscomplexobj(self.dtype(0))
+        except TypeError:
+            # Non-callabale dtype, likely non-numpy
+            # Assuming it's not complex
+            return False
 
     @property
     def indices(self):
