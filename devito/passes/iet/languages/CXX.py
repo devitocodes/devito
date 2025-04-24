@@ -2,11 +2,13 @@ import numpy as np
 from sympy.printing.cxx import CXX11CodePrinter
 
 from devito.ir import Call, UsingNamespace, BasePrinter
+from devito.passes.iet.definitions import DataManager
+from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
 
-__all__ = ['CXXBB']
+__all__ = ['CXXBB', 'CXXDataManager', 'CXXOrchestrator']
 
 
 def std_arith(prefix=None):
@@ -88,6 +90,14 @@ class CXXBB(LangBB):
     }
 
 
+class CXXDataManager(DataManager):
+    langbb = CXXBB
+
+
+class CXXOrchestrator(Orchestrator):
+    langbb = CXXBB
+
+
 class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     _default_settings = {**BasePrinter._default_settings,
@@ -96,7 +106,7 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     _func_literals = {}
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
     _restrict_keyword = '__restrict'
-    _includes = ['stdlib.h', 'cmath', 'sys/time.h']
+    _includes = ['cstdlib', 'cmath', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances
@@ -106,6 +116,9 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return f'1i{self.prec_literal(expr).lower()}'
+
+    def _print_ComplexPart(self, expr):
+        return f'{self._ns}{expr._name}({self._print(expr.args[0])})'
 
     def _print_Cast(self, expr):
         # The CXX recommended way to cast is to use static_cast

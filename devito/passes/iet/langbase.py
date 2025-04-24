@@ -461,7 +461,7 @@ class DeviceAwareMixin:
                     List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
                 )]
 
-                header = c.Comment('Begin of %s+MPI setup' % self.langbb['name'])
+                header = c.Comment('Beginning of %s+MPI setup' % self.langbb['name'])
                 footer = c.Comment('End of %s+MPI setup' % self.langbb['name'])
             else:
                 body = lang_init + [Conditional(
@@ -469,7 +469,7 @@ class DeviceAwareMixin:
                     self.langbb['set-device']([deviceid] + devicetype)
                 )]
 
-                header = c.Comment('Begin of %s setup' % self.langbb['name'])
+                header = c.Comment('Beginning of %s setup' % self.langbb['name'])
                 footer = c.Comment('End of %s setup' % self.langbb['name'])
 
             init = List(header=header, body=body, footer=footer)

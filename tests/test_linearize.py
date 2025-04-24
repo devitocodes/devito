@@ -17,7 +17,7 @@ def test_basic():
 
     eqn = Eq(u.forward, u + 1)
 
-    op0 = Operator(eqn)
+    op0 = Operator(eqn, opt=('advanced', {'linearize': False}))
     op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
 
     # Check generated code
@@ -39,7 +39,7 @@ def test_mpi(mode):
 
     eqn = Eq(u.forward, u.dx2 + 1.)
 
-    op0 = Operator(eqn)
+    op0 = Operator(eqn, opt=('advanced', {'linearize': False}))
     op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
 
     # Check generated code
@@ -60,7 +60,7 @@ def test_cire():
 
     eqn = Eq(u.forward, u.dy.dy + 1.)
 
-    op0 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
+    op0 = Operator(eqn, opt=('advanced', {'linearize': False, 'cire-mingain': 0}))
     op1 = Operator(eqn, opt=('advanced', {'linearize': True, 'cire-mingain': 0}))
 
     # Check generated code
@@ -85,7 +85,7 @@ def test_nested_indexeds():
 
     eqn = Eq(u.forward, u[t, f[g[x], g[x]], y] + 1.)
 
-    op0 = Operator(eqn)
+    op0 = Operator(eqn, opt=('advanced', {'linearize': False}))
     op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
 
     # Check generated code
@@ -113,7 +113,7 @@ def test_interpolation():
             src.inject(field=u.forward, expr=src) +
             rec.interpolate(expr=u.forward))
 
-    op0 = Operator(eqns, opt='advanced')
+    op0 = Operator(eqns, opt=('advanced', {'linearize': False}))
     op1 = Operator(eqns, opt=('advanced', {'linearize': True}))
 
     # Check generated code
@@ -162,7 +162,7 @@ def test_interpolation_msf():
     eqns = sf.inject(field=m0.forward, expr=sf.dt2)
     eqns += sf.inject(field=m1.forward, expr=sf.dt2)
 
-    op0 = Operator(eqns)
+    op0 = Operator(eqns, opt=('advanced', {'linearize': False}))
     op1 = Operator(eqns, opt=('advanced', {'linearize': True}))
 
     assert 'm0L0' in str(op1)
@@ -246,7 +246,7 @@ def test_different_halos():
 
     eqn = Eq(u.forward, u + f + g + 1)
 
-    op0 = Operator(eqn)
+    op0 = Operator(eqn, opt=('advanced', {'linearize': False}))
     op1 = Operator(eqn, opt=('advanced', {'linearize': True}))
 
     # Check generated code
@@ -283,7 +283,7 @@ def test_unsubstituted_indexeds():
 
     eq = Eq(p.forward, sin(f)*p*f)
 
-    op0 = Operator(eq)
+    op0 = Operator(eq, opt=('advanced', {'linearize': False}))
     op1 = Operator(eq, opt=('advanced', {'linearize': True}))
 
     # NOTE: Eventually we compare the numerical output, but truly the most
@@ -492,7 +492,7 @@ def test_issue_1838():
 
     eq = Eq(p0.forward, (sin(b)*p0.dx).dx + (sin(b)*p0.dx).dy + (sin(b)*p0.dx).dz + p0)
 
-    op0 = Operator(eq)
+    op0 = Operator(eq, opt=('advanced', {'linearize': False}))
     op1 = Operator(eq, opt=('advanced', {'linearize': True}))
 
     op0.apply(time_M=3, dt=1.)
