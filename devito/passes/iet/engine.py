@@ -148,7 +148,10 @@ class Graph:
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
             efuncs = reuse_compounds(efuncs, self.sregistry)
-            efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
+            # TODO: fix for petsc bundles
+            # TODO: somethinng to do with this bug is causing the compiler not to combine loops with petsc bundles
+            # from IPython import embed; embed()
+            # efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
 
@@ -391,9 +394,9 @@ def abstract_efunc(efunc):
             - Objects are renamed as "o0", "o1", ...
     """
     functions = FindSymbols('basics|symbolics|dimensions').visit(efunc)
-
+    # from IPython import embed; embed()
     mapper = abstract_objects(functions)
-
+    # from IPython import embed; embed()
     efunc = Uxreplace(mapper).visit(efunc)
     efunc = efunc._rebuild(name='foo')
 
@@ -408,9 +411,10 @@ def abstract_objects(objects0, sregistry=None):
     objects = []
     for i in objects0:
         if i.is_Bundle:
+            # from IPython import embed; embed()
             objects.extend(i.components)
         objects.append(i)
-
+    # from IPython import embed; embed()
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
     keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
@@ -420,7 +424,9 @@ def abstract_objects(objects0, sregistry=None):
     # Build abstraction mappings
     mapper = {}
     sregistry = sregistry or SymbolRegistry()
+    # from IPython import embed; embed()
     for i in objects:
+        # from IPython import embed; embed()
         abstract_object(i, mapper, sregistry)
 
     return mapper

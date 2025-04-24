@@ -1,12 +1,13 @@
 from functools import cached_property
-from ctypes import POINTER
+from ctypes import POINTER, Structure
 
 from devito.types.utils import DimensionTuple
-from devito.types.array import ArrayBasic
+from devito.types.array import ArrayBasic, Bundle, ArrayMapped, ComponentAccess
 from devito.finite_differences import Differentiable
-from devito.types.basic import AbstractFunction
-from devito.tools import dtype_to_ctype, as_tuple
+from devito.types.basic import AbstractFunction, IndexedData
+from devito.tools import dtype_to_ctype, as_tuple, dtypes_vector_mapper, CustomDtype
 from devito.symbolics import FieldFromComposite
+from devito.petsc.types.object import PETScStruct
 
 
 class PETScArray(ArrayBasic, Differentiable):
@@ -116,3 +117,74 @@ class PETScArray(ArrayBasic, Differentiable):
             FieldFromComposite('g%sm' % d.name, self.localinfo) for d in self.dimensions]
         # Reverse it since DMDA is setup backwards to Devito dimensions.
         return DimensionTuple(*field_from_composites[::-1], getters=self.dimensions)
+
+
+class PetscBundle(Bundle):
+    """
+    """
+
+    is_Bundle = True
+    _data_alignment = False
+
+    @property
+    def _C_ctype(self):
+        # TODO: extend to cases with multiple petsc solves...
+        fields = [(i.name, dtype_to_ctype(i.dtype)) for i in self.components]
+        return POINTER(type('Field', (Structure,), {'_fields_': fields}))
+
+    @cached_property
+    def indexed(self):
+        """The wrapped IndexedData object."""
+        return AoSIndexedData(self.name, shape=self._shape, function=self.function)
+
+    @cached_property
+    def vector(self):
+        return PETScArray(
+                    name=self.name,
+                    target=self.c0.target,
+                    liveness=self.c0.liveness,
+                    localinfo=self.c0.localinfo,
+                )
+
+    @property
+    def _C_name(self):
+        return self.vector._C_name
+
+    def __getitem__(self, index):
+        index = as_tuple(index)
+        if len(index) == self.ndim:
+            return super().__getitem__(index)
+        elif len(index) == self.ndim + 1:
+            component_index, indices = index[0], index[1:]
+            # from IPython import embed; embed()
+            return ComponentAccess(self.indexed[indices], component_index)
+        else:
+            raise ValueError("Expected %d or %d indices, got %d instead"
+                             % (self.ndim, self.ndim + 1, len(index)))
+
+    # def access_component(self):
+    #     _component_names = tuple(i.name for i in components)
+    #     class PetscComponentAccess(ComponentAccess):
+    #         _component_names = _component_names
+
+    #     # components = self.components
+
+    #     # _component_names = tuple(i.name for i in components)
+    #     from IPython import embed; embed()
+
+    #     return component
+
+
+
+class AoSIndexedData(IndexedData):
+    @property
+    def dtype(self):
+        return self.function._C_ctype
+
+
+
+
+class PetscComponentAccess(ComponentAccess):
+
+    # _component_names = ('x_u', 'x_v')
+    pass

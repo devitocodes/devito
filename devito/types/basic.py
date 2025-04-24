@@ -87,6 +87,7 @@ class CodeSymbol:
         if isinstance(_type, CustomDtype):
             return _type
 
+        # from IPython import embed; embed()
         while issubclass(_type, _Pointer):
             _type = _type._type_
 

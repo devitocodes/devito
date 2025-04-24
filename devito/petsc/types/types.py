@@ -1,8 +1,10 @@
 import sympy
 
-from devito.tools import Reconstructable, sympy_mutex
+from devito.tools import Reconstructable, sympy_mutex, as_tuple
 from devito.tools.dtypes_lowering import dtype_mapper
 from devito.petsc.utils import petsc_variables
+from devito.petsc.types.object import PETScStruct
+# from devito.petsc.types.array import PetscArrayofStruct
 
 
 class MetaData(sympy.Function, Reconstructable):
@@ -133,7 +135,7 @@ class LinearSolveExpr(MetaData):
 class FieldData:
     def __init__(self, target=None, matvecs=None, formfuncs=None, formrhs=None,
                  initialguess=None, arrays=None, **kwargs):
-        self._target = kwargs.get('target', target)
+        self._target = kwargs.get('target', None)
 
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
         if self._target.dtype != petsc_precision:
@@ -189,32 +191,42 @@ class FieldData:
         return (self.target,)
 
 
+# TODO: should this acc inherhit from fielddata? maybe not?
 class MultipleFieldData(FieldData):
-    def __init__(self, submatrices=None):
-        self.field_data_list = []
+    def __init__(self, targets, arrays, submatrices=None):
+        self._targets = as_tuple(targets)
+        self._arrays = arrays
+        # self.field_data_list = []
         self._submatrices = submatrices
+        self._formfuncs = []
+        # self._f_field = f_field
 
-    def add_field_data(self, field_data):
-        self.field_data_list.append(field_data)
+    # def add_field_data(self, field_data):
+    #     self.field_data_list.append(field_data)
 
-    def get_field_data(self, target):
-        for field_data in self.field_data_list:
-            if field_data.target == target:
-                return field_data
-        raise ValueError(f"FieldData with target {target} not found.")
+    # def get_field_data(self, target):
+    #     for field_data in self.field_data_list:
+    #         if field_data.target == target:
+    #             return field_data
+    #     raise ValueError(f"FieldData with target {target} not found.")
     pass
 
-    @property
-    def target(self):
-        return None
+    def extend_formfuncs(self, formfuncs):
+        self._formfuncs.extend(formfuncs)
 
-    @property
-    def targets(self):
-        return tuple(field_data.target for field_data in self.field_data_list)
+    # @property
+    # def target(self):
+    #     return None
+
+    # @property
+    # def targets(self):
+    #     return tuple(field_data.target for field_data in self.field_data_list)
 
     @property
     def space_dimensions(self):
-        space_dims = {field_data.space_dimensions for field_data in self.field_data_list}
+        # space_dims = {field_data.space_dimensions for field_data in self.field_data_list}
+        space_dims = {t.space_dimensions for t in self.targets}
+        # from IPython import embed; embed()
         if len(space_dims) > 1:
             # TODO: This may not actually have to be the case, but enforcing it for now
             raise ValueError(
@@ -248,6 +260,18 @@ class MultipleFieldData(FieldData):
     @property
     def submatrices(self):
         return self._submatrices
+
+    # @property
+    # def formfuncs(self):
+    #     return self._formfuncs
+
+    @property
+    def targets(self):
+        return self._targets
+
+    @property
+    def arrays(self):
+        return self._arrays
 
 
 class SubMatrices:

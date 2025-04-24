@@ -1,16 +1,17 @@
 from functools import singledispatch
 
 import sympy
+from collections import defaultdict
 
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.derivative import Derivative
 from devito.types import Eq, Symbol, SteppingDimension, TimeFunction
 from devito.types.equation import PetscEq
 from devito.operations.solve import eval_time_derivatives
-from devito.symbolics import retrieve_functions
+from devito.symbolics import retrieve_functions, FieldFromComposite
 from devito.tools import as_tuple, filter_ordered
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
-                                FieldData, MultipleFieldData, SubMatrices)
+                                FieldData, MultipleFieldData, SubMatrices, PetscBundle)
 
 
 __all__ = ['PETScSolve', 'EssentialBC']
@@ -73,14 +74,14 @@ class InjectSolve:
         )
 
     def build_function_eqns(self, eq, target, arrays):
-        b, F_target, targets = separate_eqn(eq, target)
+        b, F_target, zeroed_eqn, targets = separate_eqn(eq, target)
         formfunc = self.make_formfunc(eq, F_target, arrays, targets)
         formrhs = self.make_rhs(eq, b, arrays)
 
         return (formfunc, formrhs)
 
     def build_matvec_eqns(self, eq, target, arrays):
-        b, F_target, targets = separate_eqn(eq, target)
+        b, F_target, zeroed_eqn, targets = separate_eqn(eq, target)
         if not F_target:
             return None
         matvec = self.make_matvec(eq, F_target, arrays, targets)
@@ -98,8 +99,11 @@ class InjectSolve:
         if isinstance(eq, EssentialBC):
             rhs = 0.
         else:
-            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
-            rhs = rhs.subs(self.time_mapper)
+            if isinstance(F_target, (int, float)):
+                rhs = F_target
+            else:
+                rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
+                rhs = rhs.subs(self.time_mapper)
         return Eq(arrays['f'], rhs, subdomain=eq.subdomain)
 
     def make_rhs(self, eq, b, arrays):
@@ -140,21 +144,46 @@ class InjectSolveNested(InjectSolve):
         funcs = get_funcs(combined_eqns)
         self.time_mapper = generate_time_mapper(funcs)
 
-        targets = list(self.target_eqns.keys())
-        jacobian = SubMatrices(targets)
+        coupled_targets = list(self.target_eqns.keys())
+        jacobian = SubMatrices(coupled_targets)
 
-        all_data = MultipleFieldData(jacobian)
+        arrays = self.generate_arrays_combined(*coupled_targets)
+
+
+        # from IPython import embed; embed()
+        # TODO: don't need a 'b' for coupled
+        # arrays = self.generate_arrays_combined(*coupled_targets)
+        # all_formfuncs = []
+
+        # from IPython import embed; embed()
+        # f_field = [arrays[coupled_targets[t]]['f'] for t in range(len(coupled_targets))]
+        # f_field = PetscBundle(name='fuv_field', components=f_field)
+
+
+        all_data = MultipleFieldData(submatrices=jacobian, arrays=arrays, targets=coupled_targets)
+
+        # f_v = arrays[coupled_targets[0]]['f']
+        # f_u = arrays[coupled_targets[1]]['f']
+
+
 
         for target, eqns in self.target_eqns.items():
             eqns = as_tuple(eqns)
-            arrays = self.generate_arrays(target)
 
-            self.update_jacobian(eqns, target, jacobian, arrays)
 
-            fielddata = self.generate_field_data(
-                eqns, target, arrays
-            )
-            all_data.add_field_data(fielddata)
+            # TODO: obvs fix and don't duplicate arrays here
+            # tmp_arr = self.generate_arrays(target)
+            self.update_jacobian(eqns, target, jacobian, arrays[target])
+
+            formfuncs = [self.build_function_eqns(eq, target, coupled_targets, arrays) for eq in eqns]
+
+            all_data.extend_formfuncs(formfuncs)
+
+            # all_formfuncs.extend(formfuncs)
+
+            # all_data.
+
+        # from IPython import embed; embed()
 
         return target, tuple(funcs), all_data
 
@@ -164,21 +193,75 @@ class InjectSolveNested(InjectSolve):
                 self.build_matvec_eqns(eq, mtvs['derivative_wrt'], arrays)
                 for eq in eqns
             ]
-            # Set submatrix only if there's at least one non-zero matvec
-            if any(m is not None for m in matvecs):
+            matvecs = [m for m in matvecs if m is not None]
+            if matvecs:
                 jacobian.set_submatrix(target, submat, matvecs)
 
-    def generate_field_data(self, eqns, target, arrays):
-        formfuncs, formrhs = zip(
-            *[self.build_function_eqns(eq, target, arrays) for eq in eqns]
-        )
+    # def generate_field_data(self, eqns, target, arrays):
+    #     # from IPython import embed; embed()
+    #     formfuncs, formrhs = zip(
+    #         *[self.build_function_eqns(eq, target, arrays) for eq in eqns]
+    #     )
 
-        return FieldData(
-            target=target,
-            formfuncs=formfuncs,
-            formrhs=formrhs,
-            arrays=arrays
-        )
+    #     return FieldData(
+    #         target=target,
+    #         formfuncs=formfuncs,
+    #         formrhs=formrhs,
+    #         arrays=arrays
+    #     )
+
+    def build_function_eqns(self, eq, main_target, coupled_targets, arrays):
+        zeroed = eq.lhs - eq.rhs
+
+        zeroed_eqn = Eq(zeroed, 0)
+        zeroed_eqn = eval_time_derivatives(zeroed)
+
+        mapper = {}
+        for t in coupled_targets:
+            target_funcs = generate_targets(Eq(zeroed, 0), t)
+            mapper.update(targets_to_arrays(arrays[t]['x'], target_funcs))
+
+        # from IPython import embed; embed()
+
+        if isinstance(eq, EssentialBC):
+            rhs = 0.
+        else:
+            if isinstance(zeroed, (int, float)):
+                rhs = zeroed
+            else:
+                rhs = zeroed.subs(mapper)
+                rhs = rhs.subs(self.time_mapper)
+
+        return Eq(arrays[main_target]['f'], rhs, subdomain=eq.subdomain)
+        # return Eq(f_field, rhs, subdomain=eq.subdomain)
+
+    def generate_arrays_combined(self, *targets):
+        return {
+            target: {
+                p: PETScArray(
+                    name=f'{p}_{target.name}',
+                    target=target,
+                    liveness='eager',
+                    localinfo=localinfo
+                )
+                for p in prefixes
+            }
+            for target in targets
+        }
+
+
+    # def make_formfunc(self, eq, F_target, arrays, targets):
+    #     if isinstance(eq, EssentialBC):
+    #         rhs = 0.
+    #     else:
+    #         if isinstance(F_target, (int, float)):
+    #             rhs = F_target
+    #         else:
+    #             # from IPython import embed; embed()
+    #             rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
+    #             rhs = rhs.subs(self.time_mapper)
+    #     return Eq(arrays['f'], rhs, subdomain=eq.subdomain)
+
 
 
 class EssentialBC(Eq):
@@ -194,7 +277,7 @@ def separate_eqn(eqn, target):
     zeroed_eqn = eval_time_derivatives(zeroed_eqn.lhs)
     target_funcs = set(generate_targets(zeroed_eqn, target))
     b, F_target = remove_targets(zeroed_eqn, target_funcs)
-    return -b, F_target, target_funcs
+    return -b, F_target, zeroed_eqn, target_funcs
 
 
 def generate_targets(eq, target):
