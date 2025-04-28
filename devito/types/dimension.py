@@ -9,11 +9,9 @@ import numpy as np
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, is_integer, memoized_meth
+from devito.tools import Pickable, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
-from devito.types.caching import Cached
-from devito.types.constant import Constant
 
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
@@ -823,10 +821,8 @@ class MultiSubDimension(AbstractSubDimension):
         return self.parent.bound_symbols
 
 
-class SubsamplingFactor(Constant, Cached):
-
-    __hash__ = sympy.Symbol.__hash__
-    _cache_key = Symbol._cache_key
+class SubsamplingFactor(Scalar):
+    pass
 
 
 class ConditionalDimension(DerivedDimension):
@@ -905,10 +901,11 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
-    __rkwargs__ = DerivedDimension.__rkwargs__ + ('factor', 'condition', 'indirect')
+    __rkwargs__ = DerivedDimension.__rkwargs__ + \
+        ('symbolic_factor', 'factor', 'condition', 'indirect')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
-                          indirect=False, **kwargs):
+                          indirect=False, symbolic_factor=None, **kwargs):
         # `parent=None` degenerates to a ConditionalDimension outside of
         # any iteration space
         if parent is None:
@@ -916,28 +913,39 @@ class ConditionalDimension(DerivedDimension):
 
         super().__init_finalize__(name, parent)
 
-        # Always make the factor symbolic to allow overrides with different factor.
-        if factor is None or factor == 1:
+        # Process subsampling factor
+        fname = f"{name}f"
+        if factor is None:
             self._factor = None
-        elif is_integer(factor):
-            self._factor = SubsamplingFactor(name=f"{name}f", value=factor,
-                                             dtype=np.int32)
-        elif factor.is_Constant and is_integer(factor.data):
-            self._factor = factor
+        elif is_number(factor):
+            self._factor = int(factor)
+        elif factor.is_Constant:
+            self._factor = factor.data
+            fname = factor.name
         else:
             raise ValueError("factor must be an integer or integer Constant")
+
+        if self._factor is not None:
+            # Always make the factor symbolic to allow overrides with different factor.
+            self._symbolic_factor = symbolic_factor or \
+                SubsamplingFactor(name=fname, dtype=np.int32, is_const=True)
+        else:
+            self._symbolic_factor = None
 
         self._condition = condition
         self._indirect = indirect
 
     @property
     def spacing(self):
-        s = self._factor.data if self._factor is not None else 1
-        return s * self.parent.spacing
+        return self.factor * self.parent.spacing
 
     @property
     def factor(self):
         return self._factor if self._factor is not None else 1
+
+    @property
+    def symbolic_factor(self):
+        return self._symbolic_factor
 
     @property
     def condition(self):
@@ -960,7 +968,7 @@ class ConditionalDimension(DerivedDimension):
 
     def _arg_values(self, interval, grid=None, **kwargs):
         # Parent dimension define the interval
-        fact = self._factor.data if self._factor is not None else 1
+        fact = self.factor
         toint = lambda x: math.ceil(x / fact)
         vals = {}
         try:
@@ -984,12 +992,8 @@ class ConditionalDimension(DerivedDimension):
         dim = alias or self
         if dim.condition is not None or size is None or dim._factor is None:
             return defaults
-        try:
-            # Is it a symbolic factor?
-            factor = defaults[dim._factor.name] = self._factor.data
-        except AttributeError:
-            factor = dim._factor
 
+        factor = defaults[dim.symbolic_factor.name] = self.factor
         defaults[dim.parent.max_name] = range(0, factor*size - 1)
 
         return defaults
