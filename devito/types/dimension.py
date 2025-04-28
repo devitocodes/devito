@@ -915,7 +915,7 @@ class ConditionalDimension(DerivedDimension):
 
         # Process subsampling factor
         fname = f"{name}f"
-        if factor is None:
+        if factor is None or factor == 1:
             self._factor = None
         elif is_number(factor):
             self._factor = int(factor)
@@ -966,9 +966,15 @@ class ConditionalDimension(DerivedDimension):
             pass
         return retval
 
-    def _arg_values(self, interval, grid=None, **kwargs):
-        # Parent dimension define the interval
-        fact = self.factor
+    def _arg_values(self, interval, grid=None, args=None, **kwargs):
+        if self.symbolic_factor is not None:
+            fname = self.symbolic_factor.name
+            args = args or {}
+            fact = kwargs.get(fname, args.get(fname, self.factor))
+        else:
+            # No factor
+            return {}
+
         toint = lambda x: math.ceil(x / fact)
         vals = {}
         try:
@@ -981,6 +987,9 @@ class ConditionalDimension(DerivedDimension):
         except (KeyError, TypeError):
             pass
 
+        if self.symbolic_factor is not None:
+            vals[self.symbolic_factor.name] = fact
+
         return vals
 
     def _arg_defaults(self, _min=None, size=None, alias=None):
@@ -990,11 +999,9 @@ class ConditionalDimension(DerivedDimension):
         # `factor` endpoints are legal, so we return them all. It's then
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
-        if dim.condition is not None or size is None or dim._factor is None:
-            return defaults
-
-        factor = defaults[dim.symbolic_factor.name] = self.factor
-        defaults[dim.parent.max_name] = range(0, factor*size - 1)
+        if dim.symbolic_factor is not None:
+            factor = defaults[dim.symbolic_factor.name] = self.factor
+            defaults[dim.parent.max_name] = range(0, factor*size - 1)
 
         return defaults
 

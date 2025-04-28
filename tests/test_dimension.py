@@ -17,6 +17,7 @@ from devito.ir.equations.algorithms import concretize_subdims
 from devito.ir import SymbolRegistry
 from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
 from devito.types import Array, StencilDimension, Symbol
+from devito.types.basic import Scalar
 from devito.types.dimension import AffineIndexAccessFunction, Thickness
 
 
@@ -1012,9 +1013,9 @@ class TestConditionalDimension:
         op = Operator(Eq(v.forward, v.dx))
         op.apply(time=6)
         exprs = FindNodes(Expression).visit(op)
-        assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, time_sub.factor) + 1
-        assert time_sub.factor.data == 2
-        assert time_sub.factor.is_Constant
+        assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, time_sub.symbolic_factor) + 1
+        assert time_sub.factor == 2
+        assert isinstance(time_sub.symbolic_factor, Scalar)
 
     def test_issue_1753(self):
         grid = Grid(shape=(3, 3, 3))
