@@ -1,6 +1,8 @@
 from functools import cached_property
 from ctypes import POINTER, Structure
 
+from sympy import Expr
+
 from devito.types.utils import DimensionTuple
 from devito.types.array import ArrayBasic, Bundle, ArrayMapped, ComponentAccess
 from devito.finite_differences import Differentiable
@@ -122,14 +124,14 @@ class PETScArray(ArrayBasic, Differentiable):
 class PetscBundle(Bundle):
     """
     """
-
     is_Bundle = True
+
     _data_alignment = False
 
     @property
     def _C_ctype(self):
         # TODO: extend to cases with multiple petsc solves...
-        fields = [(i.name, dtype_to_ctype(i.dtype)) for i in self.components]
+        fields = [(i.target.name, dtype_to_ctype(i.dtype)) for i in self.components]
         return POINTER(type('Field', (Structure,), {'_fields_': fields}))
 
     @cached_property
@@ -156,35 +158,18 @@ class PetscBundle(Bundle):
             return super().__getitem__(index)
         elif len(index) == self.ndim + 1:
             component_index, indices = index[0], index[1:]
-            # from IPython import embed; embed()
-            return ComponentAccess(self.indexed[indices], component_index)
+            names = tuple(i.target.name for i in self.components)
+            return ComponentAccess(
+                self.indexed[indices],
+                component_index,
+                component_names=names
+            )
         else:
             raise ValueError("Expected %d or %d indices, got %d instead"
                              % (self.ndim, self.ndim + 1, len(index)))
-
-    # def access_component(self):
-    #     _component_names = tuple(i.name for i in components)
-    #     class PetscComponentAccess(ComponentAccess):
-    #         _component_names = _component_names
-
-    #     # components = self.components
-
-    #     # _component_names = tuple(i.name for i in components)
-    #     from IPython import embed; embed()
-
-    #     return component
-
 
 
 class AoSIndexedData(IndexedData):
     @property
     def dtype(self):
         return self.function._C_ctype
-
-
-
-
-class PetscComponentAccess(ComponentAccess):
-
-    # _component_names = ('x_u', 'x_v')
-    pass

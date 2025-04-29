@@ -21,7 +21,7 @@ from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (DM, Mat, CallbackVec, Vec, KSP, PC, SNES,
                                 PetscInt, StartPtr, PointerIS, PointerDM, VecScatter,
                                 DMCast, JacobianStructCast, JacobianStruct,
-                                SubMatrixStruct, CallbackDM, PetscComponentAccess)
+                                SubMatrixStruct, CallbackDM)
 
 
 class CBBuilder:
@@ -660,9 +660,9 @@ class CCBBuilder(CBBuilder):
                 if mtvs['matvecs']:
                     self._make_matvec(arrays, mtvs['matvecs'], prefix=f'{submat}_MatMult')
 
-        self._make_user_struct_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc(all_fielddata)
+        self._make_user_struct_callback()
         self._create_submatrices()
         self._efuncs['PopulateMatContext'] = self.objs['dummyefunc']
 
@@ -758,7 +758,7 @@ class CCBBuilder(CBBuilder):
 
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
-
+        # from IPython import embed; embed()
 
         targets = fielddata.targets
         arrays = fielddata.arrays
@@ -769,10 +769,16 @@ class CCBBuilder(CBBuilder):
         x_u = arrays[targets[0]]['x']
         x_v = arrays[targets[1]]['x']
 
-        fbundle = PetscBundle(name='f_vu', components=(f_v, f_u))
-        xbundle = PetscBundle(name='x_vu', components=(x_v, x_u))
 
-        mapper1 = {x_u.base: xbundle.base, x_v.base: xbundle.base}
+        target_indices = {t: i for i, t in enumerate(targets)}
+        # from IPython import embed; embed()
+        
+        # TODO: to group them, maybe pass in struct name as arg to petscbundle
+        fbundle = PetscBundle(name='f_vu', components=(f_u, f_v))
+        xbundle = PetscBundle(name='x_vu', components=(x_u, x_v))
+
+        mapper1 = {x_u.base: xbundle, x_v.base: xbundle, f_u.base: fbundle,
+                   f_v.base: fbundle}
 
         indexeds = FindSymbols('indexeds').visit(body)
 
@@ -780,14 +786,10 @@ class CCBBuilder(CBBuilder):
         for i in indexeds:
             if i.base in mapper1:
                 bundle = mapper1[i.base]
-                subss[i] = i.func(bundle, *i.indices)
-                # subss[i] = bundle.indexed.__getitem__((1,)+i.indices)
-                # subss[i] = subss[i].__getitem__((0,)+i.indices)
-                subss[i] = PetscComponentAccess(subss[i], 1)
-
-                # subss[i] = xbundle.access_component()
-
-                # from IPython import embed; embed()
+                index = target_indices[i.function.target]
+                index = (index,)+i.indices
+                subss[i] = bundle.__getitem__(index)
+            
 
         body = Uxreplace(subss).visit(body)
 
@@ -1373,9 +1375,9 @@ class BaseSetup:
 
 
 class CoupledSetup(BaseSetup):
-    @property
-    def snes_ctx(self):
-        return Byref(self.solver_objs['jacctx'])
+    # @property
+    # def snes_ctx(self):
+    #     return Byref(self.solver_objs['jacctx'])
 
     def _setup(self):
         # TODO: minimise code duplication with superclass
@@ -1661,14 +1663,6 @@ class CoupledSolver(Solver):
                 petsc_call(
                     'VecScatterEnd',
                     [s, target_xglob, xglob, insert_vals, sreverse]
-                ),
-                petsc_call(
-                    'VecScatterBegin',
-                    [s, target_bglob, bglob, insert_vals, sreverse]
-                ),
-                petsc_call(
-                    'VecScatterEnd',
-                    [s, target_bglob, bglob, insert_vals, sreverse]
                 ),
                 BlankLine,
             )

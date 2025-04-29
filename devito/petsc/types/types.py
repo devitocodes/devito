@@ -135,8 +135,7 @@ class LinearSolveExpr(MetaData):
 class FieldData:
     def __init__(self, target=None, matvecs=None, formfuncs=None, formrhs=None,
                  initialguess=None, arrays=None, **kwargs):
-        self._target = kwargs.get('target', None)
-
+        self._target = target
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
         if self._target.dtype != petsc_precision:
             raise TypeError(

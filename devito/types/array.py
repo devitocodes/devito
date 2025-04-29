@@ -495,6 +495,7 @@ class Bundle(ArrayBasic):
         return self.c0._C_get_field(region, dim, side=side)
 
     def __getitem__(self, index):
+        # from IPython import embed; embed()
         index = as_tuple(index)
         if len(index) == self.ndim:
             return super().__getitem__(index)
@@ -535,19 +536,22 @@ class Bag(Bundle):
 
 class ComponentAccess(Expr, Pickable):
 
-    _component_names = ('x', 'y', 'z', 'w')
+    _default_component_names = ('x', 'y', 'z', 'w')
 
     __rargs__ = ('arg',)
     __rkwargs__ = ('index',)
 
-    def __new__(cls, arg, index=0, **kwargs):
+    def __new__(cls, arg, index=0, component_names=None, **kwargs):
         if not arg.is_Indexed:
             raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
         if not is_integer(index) or index > 3:
             raise ValueError("Expected 0 <= index < 4")
 
+        names = component_names or cls._default_component_names
+
         obj = Expr.__new__(cls, arg)
         obj._index = index
+        obj._component_names = names
 
         return obj
 
