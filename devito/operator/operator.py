@@ -1055,7 +1055,7 @@ class Operator(Callable):
                 return ""
 
         for k, v in summary.items():
-            rank = f"[rank{k.rank if k.rank is not None else ''}]"
+            rank = f"[rank{k.rank}]" if k.rank is not None else ''
             name = f"{k.name}{rank}"
 
             if v.time <= 0.01:
