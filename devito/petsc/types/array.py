@@ -1,15 +1,12 @@
 from functools import cached_property
 from ctypes import POINTER, Structure
 
-from sympy import Expr
-
 from devito.types.utils import DimensionTuple
-from devito.types.array import ArrayBasic, Bundle, ArrayMapped, ComponentAccess
+from devito.types.array import ArrayBasic, Bundle, ComponentAccess
 from devito.finite_differences import Differentiable
 from devito.types.basic import AbstractFunction, IndexedData
-from devito.tools import dtype_to_ctype, as_tuple, dtypes_vector_mapper, CustomDtype
+from devito.tools import dtype_to_ctype, as_tuple
 from devito.symbolics import FieldFromComposite
-from devito.petsc.types.object import PETScStruct
 
 
 class PETScArray(ArrayBasic, Differentiable):
@@ -125,12 +122,11 @@ class PetscBundle(Bundle):
     """
     """
     is_Bundle = True
-
     _data_alignment = False
 
     @property
     def _C_ctype(self):
-        # TODO: extend to cases with multiple petsc solves...
+        # TODO: extend to cases with multiple petsc solves...(need diff struct name for each solve)
         fields = [(i.target.name, dtype_to_ctype(i.dtype)) for i in self.components]
         return POINTER(type('Field', (Structure,), {'_fields_': fields}))
 
@@ -142,11 +138,11 @@ class PetscBundle(Bundle):
     @cached_property
     def vector(self):
         return PETScArray(
-                    name=self.name,
-                    target=self.c0.target,
-                    liveness=self.c0.liveness,
-                    localinfo=self.c0.localinfo,
-                )
+            name=self.name,
+            target=self.c0.target,
+            liveness=self.c0.liveness,
+            localinfo=self.c0.localinfo,
+        )
 
     @property
     def _C_name(self):

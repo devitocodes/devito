@@ -495,7 +495,6 @@ class Bundle(ArrayBasic):
         return self.c0._C_get_field(region, dim, side=side)
 
     def __getitem__(self, index):
-        # from IPython import embed; embed()
         index = as_tuple(index)
         if len(index) == self.ndim:
             return super().__getitem__(index)

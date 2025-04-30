@@ -1097,3 +1097,7 @@ class TestCoupledLinear:
 
     # add tests for all new callbacks
     # def test_create_whole_matmult():
+
+
+# // add coupled test with 3 targets
+# // add coupled test with 1 target?

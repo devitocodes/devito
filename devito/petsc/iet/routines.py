@@ -5,9 +5,9 @@ import math
 from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
                            Dereference, DummyExpr, BlankLine, Callable, FindNodes,
                            retrieve_iteration_tree, filter_iterations, Iteration,
-                           PointerCast, Expression, Transformer)
+                           PointerCast)
 from devito.symbolics import (Byref, FieldFromPointer, cast, VOID,
-                              FieldFromComposite, IntDiv, Deref, Mod, uxreplace)
+                              FieldFromComposite, IntDiv, Deref, Mod)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types import Temp, Dimension
@@ -20,7 +20,7 @@ from devito.petsc.iet.utils import petsc_call, petsc_struct
 from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (DM, Mat, CallbackVec, Vec, KSP, PC, SNES,
                                 PetscInt, StartPtr, PointerIS, PointerDM, VecScatter,
-                                DMCast, JacobianStructCast, JacobianStruct,
+                                DMCast, JacobianStruct,
                                 SubMatrixStruct, CallbackDM)
 
 
@@ -99,6 +99,13 @@ class CBBuilder:
     def user_struct_callback(self):
         return self._user_struct_callback
 
+    @property
+    def zero_memory(self):
+        """Indicates whether the memory of the output
+        vector should be set to zero before the computation
+        in the callback."""
+        return True
+
     def _make_core(self):
         fielddata = self.injectsolve.expr.rhs.fielddata
         self._make_matvec(fielddata.arrays, fielddata.matvecs)
@@ -148,6 +155,10 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
+        zero_y_memory = petsc_call(
+            'VecSet', [objs['Y'], 0.0]
+        ) if self.zero_memory else None
+
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(xlocal)]
         )
@@ -163,6 +174,10 @@ class CBBuilder:
 
         dm_get_local_yvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(ylocal)]
+        )
+
+        zero_ylocal_memory = petsc_call(
+            'VecSet', [ylocal, 0.0]
         )
 
         vec_get_array_y = petsc_call(
@@ -186,11 +201,11 @@ class CBBuilder:
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, ylocal, insert_vals, objs['Y']
+            dmda, ylocal, add_vals, objs['Y']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, ylocal, insert_vals, objs['Y']
+            dmda, ylocal, add_vals, objs['Y']
         ])
 
         dm_restore_local_xvec = petsc_call(
@@ -221,10 +236,12 @@ class CBBuilder:
         stacks = (
             mat_get_dm,
             dm_get_app_context,
+            zero_y_memory,
             dm_get_local_xvec,
             global_to_local_begin,
             global_to_local_end,
             dm_get_local_yvec,
+            zero_ylocal_memory,
             vec_get_array_y,
             vec_get_array_x,
             dm_get_local_info
@@ -290,6 +307,10 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
+        zero_f_memory = petsc_call(
+            'VecSet', [objs['F'], 0.0]
+        ) if self.zero_memory else None
+
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(objs['xloc'])]
         )
@@ -328,11 +349,11 @@ class CBBuilder:
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, objs['floc'], insert_vals, objs['F']
+            dmda, objs['floc'], add_vals, objs['F']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, objs['floc'], insert_vals, objs['F']
+            dmda, objs['floc'], add_vals, objs['F']
         ])
 
         dm_restore_local_xvec = petsc_call(
@@ -356,6 +377,7 @@ class CBBuilder:
         stacks = (
             dm_cast,
             dm_get_app_context,
+            zero_f_memory,
             dm_get_local_xvec,
             global_to_local_begin,
             global_to_local_end,
@@ -647,13 +669,19 @@ class CCBBuilder(CBBuilder):
     def main_formfunc_callback(self):
         return self._main_formfunc_callback
 
+    @property
+    def zero_memory(self):
+        """Indicates whether the memory of the output
+        vector should be set to zero before the computation
+        in the callback."""
+        return False
+
     def _make_core(self):
         injectsolve = self.injectsolve
         targets = injectsolve.expr.rhs.fielddata.targets
         all_fielddata = injectsolve.expr.rhs.fielddata
 
         for t in targets:
-    
             row_matvecs = all_fielddata.submatrices.submatrices[t]
             arrays = all_fielddata.arrays[t]
             for submat, mtvs in row_matvecs.items():
@@ -688,6 +716,10 @@ class CCBBuilder(CBBuilder):
 
         nonzero_submats = self.submatrices.nonzero_submatrix_keys
 
+        zero_y_memory = petsc_call(
+            'VecSet', [objs['Y'], 0.0]
+        )
+
         calls = ()
         for sm in nonzero_submats:
             idx = self.submatrices.submat_to_index[sm]
@@ -720,14 +752,13 @@ class CCBBuilder(CBBuilder):
                 ),
             )
         return CallableBody(
-            List(body=(ctx_main, BlankLine) + calls),
+            List(body=(ctx_main, zero_y_memory, BlankLine) + calls),
             init=(objs['begin_user'],),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
     def _make_whole_formfunc(self, fielddata):
         formfuncs = fielddata.formfuncs
-        # from IPython import embed; embed()
         # Compile formfunc `eqns` into an IET via recursive compilation
         irs_formfunc, _ = self.rcompile(
             formfuncs, options={'mpi': False}, sregistry=self.sregistry,
@@ -739,7 +770,6 @@ class CCBBuilder(CBBuilder):
         cb = PETScCallable(
             self.sregistry.make_name(prefix='WholeFormFunc'),
             body_formfunc,
-            # List(body=()),
             retval=objs['err'],
             parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
         )
@@ -758,45 +788,21 @@ class CCBBuilder(CBBuilder):
 
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
-        # from IPython import embed; embed()
 
-        targets = fielddata.targets
-        arrays = fielddata.arrays
-
-        f_u = arrays[targets[0]]['f']
-        f_v = arrays[targets[1]]['f']
-
-        x_u = arrays[targets[0]]['x']
-        x_v = arrays[targets[1]]['x']
-
-
-        target_indices = {t: i for i, t in enumerate(targets)}
-        # from IPython import embed; embed()
-        
-        # TODO: to group them, maybe pass in struct name as arg to petscbundle
-        fbundle = PetscBundle(name='f_vu', components=(f_u, f_v))
-        xbundle = PetscBundle(name='x_vu', components=(x_u, x_v))
-
-        mapper1 = {x_u.base: xbundle, x_v.base: xbundle, f_u.base: fbundle,
-                   f_v.base: fbundle}
-
-        indexeds = FindSymbols('indexeds').visit(body)
-
-        subss = {}
-        for i in indexeds:
-            if i.base in mapper1:
-                bundle = mapper1[i.base]
-                index = target_indices[i.function.target]
-                index = (index,)+i.indices
-                subss[i] = bundle.__getitem__(index)
-            
-
-        body = Uxreplace(subss).visit(body)
+        # Process body for residual callback, including generating bundles etc
+        bundles = sobjs['bundles']
+        fbundle = bundles['f']
+        xbundle = bundles['x']
+        body = self.bundle_residual(body, bundles)
 
         dm_cast = DummyExpr(dmda, DMCast(objs['dummyptr']), init=True)
 
         dm_get_app_context = petsc_call(
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
+        )
+
+        zero_f_memory = petsc_call(
+            'VecSet', [objs['F'], 0.0]
         )
 
         dm_get_local_xvec = petsc_call(
@@ -837,11 +843,11 @@ class CCBBuilder(CBBuilder):
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, objs['floc'], insert_vals, objs['F']
+            dmda, objs['floc'], add_vals, objs['F']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, objs['floc'], insert_vals, objs['F']
+            dmda, objs['floc'], add_vals, objs['F']
         ])
 
         dm_restore_local_xvec = petsc_call(
@@ -854,8 +860,7 @@ class CCBBuilder(CBBuilder):
 
         body = body._rebuild(
             body=body.body +
-            (
-             vec_restore_array_f,
+            (vec_restore_array_f,
              vec_restore_array_x,
              dm_local_to_global_begin,
              dm_local_to_global_end,
@@ -864,9 +869,9 @@ class CCBBuilder(CBBuilder):
         )
 
         stacks = (
-            # cast,
             dm_cast,
             dm_get_app_context,
+            zero_f_memory,
             dm_get_local_xvec,
             global_to_local_begin,
             global_to_local_end,
@@ -880,7 +885,6 @@ class CCBBuilder(CBBuilder):
         dereference_funcs = [Dereference(i, ctx) for i in
                              fields if isinstance(i.function, AbstractFunction)]
 
-
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
 
@@ -888,8 +892,9 @@ class CCBBuilder(CBBuilder):
             List(body=body),
             init=(objs['begin_user'],),
             stacks=stacks+tuple(dereference_funcs),
-            casts=(f_soa,x_soa),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),))
+            casts=(f_soa, x_soa),
+            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+        )
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
@@ -1041,6 +1046,26 @@ class CCBBuilder(CBBuilder):
             stacks=(get_ctx, deref_subdm),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
+    
+    def bundle_residual(self, body, bundles):
+        fbundle = bundles['f']
+        xbundle = bundles['x']
+
+        mapper1 = bundles['bundle_mapper']
+
+        indexeds = FindSymbols('indexeds').visit(body)
+
+        subss = {}
+        for i in indexeds:
+            if i.base in mapper1:
+                bundle = mapper1[i.base]
+                index = bundles['target_indices'][i.function.target]
+                index = (index,)+i.indices
+                subss[i] = bundle.__getitem__(index)
+
+        body = Uxreplace(subss).visit(body)
+        return body
+
 
 
 class BaseObjectBuilder:
@@ -1120,6 +1145,7 @@ class CoupledObjectBuilder(BaseObjectBuilder):
         sreg = self.sregistry
         objs = self.objs
         targets = self.fielddata.targets
+        arrays = self.fielddata.arrays
 
         base_dict['fields'] = PointerIS(
             name=sreg.make_name(prefix='fields'), nindices=len(targets)
@@ -1153,6 +1179,40 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             base_dict[f'{key}X'] = CallbackVec(f'{key}X')
             base_dict[f'{key}Y'] = CallbackVec(f'{key}Y')
             base_dict[f'{key}F'] = CallbackVec(f'{key}F')
+
+
+        # Bundle objects/metadata required by the coupled residual callback
+        f_components = []
+        x_components = []
+        bundle_mapper = {}
+
+        target_indices = {t: i for i, t in enumerate(targets)}
+
+        for t in targets:
+            f_arr = arrays[t]['f']
+            x_arr = arrays[t]['x']
+            f_components.append(f_arr)
+            x_components.append(x_arr)
+
+        # TODO: to group them, maybe pass in struct name as arg to petscbundle
+        fbundle = PetscBundle(name='f_bundle', components=f_components)
+        xbundle = PetscBundle(name='x_bundle', components=x_components)
+
+        # Build the bundle mapper
+        for i, t in enumerate(targets):
+            f_arr = arrays[t]['f']
+            x_arr = arrays[t]['x']
+            bundle_mapper[f_arr.base] = fbundle
+            bundle_mapper[x_arr.base] = xbundle
+
+
+        base_dict['bundles'] = {
+            'f': fbundle,
+            'x': xbundle,
+            'bundle_mapper': bundle_mapper,
+            # TODO: maybe this shouldn't be here
+            'target_indices': target_indices
+        }
 
         return base_dict
 
@@ -1410,9 +1470,6 @@ class CoupledSetup(BaseSetup):
         get_local_size = petsc_call('VecGetSize',
                                     [sobjs['xlocal'], Byref(sobjs['localsize'])])
 
-        global_b = petsc_call('DMCreateGlobalVector',
-                              [dmda, Byref(sobjs['bglobal'])])
-
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
@@ -1500,11 +1557,6 @@ class CoupledSetup(BaseSetup):
             [sobjs[f'da{t.name}'], Byref(sobjs[f'xglobal{t.name}'])]
         ) for t in targets]
 
-        bglobals = [petsc_call(
-            'DMCreateGlobalVector',
-            [sobjs[f'da{t.name}'], Byref(sobjs[f'bglobal{t.name}'])]
-        ) for t in targets]
-
         coupled_setup = dmda_calls + (
             snes_create,
             snes_set_dm,
@@ -1514,7 +1566,6 @@ class CoupledSetup(BaseSetup):
             global_x,
             local_x,
             get_local_size,
-            global_b,
             snes_get_ksp,
             ksp_set_tols,
             ksp_set_type,
@@ -1617,6 +1668,7 @@ class CoupledSolver(Solver):
         Assigns the required time iterators to the struct and executes
         the necessary calls to execute the SNES solver.
         """
+        objs = self.objs
         sobjs = self.solver_objs
 
         struct_assignment = self.timedep.assign_time_iters(sobjs['userctx'])
@@ -1637,13 +1689,11 @@ class CoupledSolver(Solver):
             dm = sobjs[f'da{name}']
             target_xloc = sobjs[f'xlocal{name}']
             target_xglob = sobjs[f'xglobal{name}']
-            target_bglob = sobjs[f'bglobal{name}']
             field = sobjs['fields'].indexed[i]
             s = sobjs[f'scatter{name}']
 
             pre_solve += (
-                # petsc_call(c.name, [dm, target_bglob]),
-                # TODO: switch to createwitharray and move to setup 
+                # TODO: switch to createwitharray and move to setup
                 petsc_call('DMCreateLocalVector', [dm, Byref(target_xloc)]),
 
                 # TODO: need to call reset array
@@ -1682,7 +1732,7 @@ class CoupledSolver(Solver):
                 )
             )
 
-        snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], bglob, xglob]),)
+        snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], objs['Null'], xglob]),)
 
         return List(
             body=(
@@ -1893,5 +1943,6 @@ class TimeDependent(NonTimeDependent):
 
 void = 'void'
 insert_vals = 'INSERT_VALUES'
+add_vals = 'ADD_VALUES'
 sreverse = 'SCATTER_REVERSE'
 sforward = 'SCATTER_FORWARD'

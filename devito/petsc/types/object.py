@@ -7,6 +7,12 @@ from devito.types.basic import DataSymbol
 from devito.petsc.iet.utils import petsc_call
 
 
+class PetscMixin:
+    @property
+    def _C_free_priority(self):
+        return FREE_PRIORITY[self]
+
+
 class CallbackDM(LocalObject):
     """
     PETSc Data Management object (DM). This is the DM instance
@@ -16,7 +22,7 @@ class CallbackDM(LocalObject):
     dtype = CustomDtype('DM')
 
 
-class DM(LocalObject):
+class DM(LocalObject, PetscMixin):
     """
     PETSc Data Management object (DM). This is the primary DM instance
     created within the main kernel and linked to the SNES
@@ -35,11 +41,6 @@ class DM(LocalObject):
     @property
     def _C_free(self):
         return petsc_call('DMDestroy', [Byref(self.function)])
-
-    # TODO: Switch to an enumeration?
-    @property
-    def _C_free_priority(self):
-        return 4
 
 
 DMCast = cast('DM')
@@ -310,8 +311,6 @@ class ArgvSymbol(DataSymbol):
         return POINTER(POINTER(c_char))
 
 
-
-# class PetscArrayofStruct(LocalCompositeObject):
-#     pass
-#     """
-#     """
+FREE_PRIORITY = {
+    DM: 4,
+}

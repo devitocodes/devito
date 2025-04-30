@@ -184,7 +184,6 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
         try:
             v = tracker[i.base].v
             subs[i] = v.func(v.base, *i.indices)
-            # from IPython import embed; embed()
             continue
         except KeyError:
             pass
@@ -194,7 +193,7 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
 
         subs[i] = v
         tracker[i.base] = Bunch(header=header, v=v)
-    # from IPython import embed; embed()
+
     iet = Uxreplace(subs).visit(iet)
 
     return iet

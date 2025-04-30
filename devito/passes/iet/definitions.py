@@ -379,7 +379,7 @@ class DataManager:
         # created by the compiler up to this point (Array, LocalObject, etc.)
         storage = Storage()
         defines = FindSymbols('defines-aliases|globals').visit(iet)
-        # from IPython import embed; embed()
+
         for i in FindSymbols().visit(iet):
             if i in defines:
                 continue
