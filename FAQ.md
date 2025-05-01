@@ -817,29 +817,44 @@ Now, stepping back: you may unfortunately be in the case 3 above -- the numerica
 
 ## Is there a way to get the performance of an Operator
 
-Yes, any logging level below or equal to ``PERF`` will do the trick. For example, if you run:
+Yes — any logging level at or below ``PERF`` will display performance-related information. For example, running:
+
 ```
 DEVITO_LOGGING=PERF python your_code.py
 ```
-you will see that Devito emits lots of useful information concerning the performance of an Operator. The following is reported:
 
-* the code generation, compilation, and execution times;
-* for each section in the generated code, its execution time, operational intensity (OI), GFlops/s and GPts/s performance;
-* global GFlops/s and GPts/s performance of the Operator (i.e., cumulative across all sections);
-* in the case of an MPI run, per-rank GFlops/s and GPts/s performance.
+will cause Devito to emit detailed performance metrics about the Operator. The output includes:
 
-About the GPts/s metric, that is number of gigapoints per seconds. The "points" we refer to here are the actual grid points -- so if the grid is an ``N**3`` cube, the number of timesteps is ``T``, and the Operator runs for ``S`` secs, then we have ``N**3*T/S GPts/s``. This is the typical metric used for finite difference codes.
+* Time taken for code generation, compilation, and execution;
+* For each section in the generated code: execution time, operational intensity (OI), GFlops/s, and GPts/s;
+* Overall (global) GFlops/s and GPts/s performance of the Operator (i.e., aggregated across all sections);
+* In MPI runs, per-rank GFlops/s and GPts/s performance.
 
-An excerpt of the performance profile emitted by Devito upon running an Operator is provided below. In this case, the Operator has two sections, ``section0`` and ``section1``, and ``section1`` consists of two consecutive 6D iteration spaces whose size is given between angle brackets. 
+### About the GPts/s Metric
+
+GPts/s stands for "gigapoints per second." Here, "points" refers to grid points. For a grid shaped like an ``N**3`` cube, run for ``T`` timesteps and completed in ``S`` seconds, the performance in GPts/s is ``N**3 * T / S``. This is a common metric for finite-difference workloads.
+
+### Example Output
+
+Below is an example of the performance profile Devito emits when an Operator is executed. In this case, the Operator has four sections, with the first two dominating execution time:
 
 ```default
-Global performance: [OI=0.16, 8.00 GFlops/s, 0.04 GPts/s]
+Operator `MyOperator` ran in 0.68 s
+Global performance: [OI=0.01, 50.59 GFlops/s, 1.16 GPts/s]
+Global performance <w/o setup>: [0.24 s, 3.27 GPts/s]
 Local performance:
-  * section0<136,136,136> run in 0.10 s [OI=0.16, 0.14 GFlops/s]
-  * section1<<341,16,16,14,14,136>,<341,16,16,8,8,130>> run in 35.91 s [OI=5.36, 8.01 GFlops/s, 0.05 GPts/s]
+  * section0 ran in 0.07 s [OI=0.06, 2063.30 GFlops/s, 11.28 GPts/s]
+  * section1 ran in 0.17 s [OI=0.01, 4984.02 GFlops/s, 4.60 GPts/s]
+  * section2 ran in 0.01 s
+  * section3 ran in 0.01 s
 ```
 
-Note that ``section0`` doesn't show the GPts/s. This is because no TimeFunction is written in this section.
+Notes:
+* The first line shows the total runtime of the Operator, including Python overhead, transition into executing the JIT-compiled binary, and any CPU-GPU data transfers.
+
+* The two "Global performance" lines differ as follows: the <w/o setup> version excludes overhead (e.g., CPU-GPU data transfers) and better reflects actual compute performance, since such overheads are easily amortized way in production-grade runs when a simulation is executed over hundreds/thousands of timesteps.
+
+* The "Local performance" section provides a breakdown by code section. These sections are determined by the Devito compiler based on internal heuristics. Typically, loops related to finite-difference evaluation are grouped together, while operations such as source injection or receiver interpolation are placed in separate sections.
 
 
 [top](#Frequently-Asked-Questions)
