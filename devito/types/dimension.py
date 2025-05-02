@@ -7,11 +7,13 @@ from sympy.core.decorators import call_highest_priority
 import numpy as np
 
 from devito.data import LEFT, RIGHT
+from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
 from devito.tools import Pickable, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
+from devito.types.constant import Constant
 
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
@@ -920,8 +922,9 @@ class ConditionalDimension(DerivedDimension):
         elif is_number(factor):
             self._factor = int(factor)
         elif factor.is_Constant:
-            self._factor = factor.data
-            fname = factor.name
+            deprecations.constant_factor_warn
+            self._factor = factor
+            symbolic_factor = factor
         else:
             raise ValueError("factor must be an integer or integer Constant")
 
@@ -937,7 +940,14 @@ class ConditionalDimension(DerivedDimension):
 
     @property
     def spacing(self):
-        return self.factor * self.parent.spacing
+        return self.factor_data * self.parent.spacing
+
+    @property
+    def factor_data(self):
+        if isinstance(self.factor, Constant):
+            return self.factor.data
+        else:
+            return self.factor
 
     @property
     def factor(self):
@@ -970,7 +980,7 @@ class ConditionalDimension(DerivedDimension):
         if self.symbolic_factor is not None:
             fname = self.symbolic_factor.name
             args = args or {}
-            fact = kwargs.get(fname, args.get(fname, self.factor))
+            fact = kwargs.get(fname, args.get(fname, self.factor_data))
         else:
             # No factor
             return {}
@@ -1000,7 +1010,7 @@ class ConditionalDimension(DerivedDimension):
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
         if dim.symbolic_factor is not None:
-            factor = defaults[dim.symbolic_factor.name] = self.factor
+            factor = defaults[dim.symbolic_factor.name] = self.factor_data
             defaults[dim.parent.max_name] = range(0, factor*size - 1)
 
         return defaults

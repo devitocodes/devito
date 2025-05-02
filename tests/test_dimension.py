@@ -1916,6 +1916,23 @@ class TestConditionalDimension:
         op = Operator([Eq(u.forward, u.laplace), Eq(u12, u), Eq(u22, u)])
         assert len([p for p in op.parameters if p.name == 'tsubf']) == 1
 
+    def test_const_factor(self):
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        f1 = 4
+        f2 = Constant(name='f2', dtype=np.int32, value=4)
+        t1 = ConditionalDimension('t_sub', parent=time, factor=f1)
+        t2 = ConditionalDimension('t_sub2', parent=time, factor=f2)
+
+        assert isinstance(t1.symbolic_factor, Scalar)
+        assert t1.factor == f1
+
+        assert t2.symbolic_factor.is_Constant
+        assert t2.factor == f2
+        assert t2.factor.data == f1
+        assert t2.spacing == t1.spacing
+
 
 class TestCustomDimension:
 
