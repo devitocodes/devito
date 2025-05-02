@@ -131,7 +131,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             )
         if any([not is_integer(d) or d < 0 for d in deriv_order]):
             raise TypeError(
-                'Invalid type in `deriv_order`, all elements must be non-negative Python `int`s'
+                'Invalid type in `deriv_order`, all elements must be non-negative'
+                'Python `int`s'
             )
 
         # Count the number of derivatives for each dimension
@@ -140,7 +141,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             if isinstance(d, Iterable):
                 if not is_integer(d[1]) or d[1] < 0:
                     raise TypeError(
-                        'Invalid type for derivative order, it must be non-negative Python `int`'
+                        'Invalid type for derivative order, it must be'
+                        'non-negative Python `int`'
                     )
                 else:
                     dcounter[d[0]] += d[1]
@@ -506,8 +508,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     def _eval_expand_nest(self, **hints):
         ''' Expands nested derivatives
-        `Derivative(Derivative(f(x), (x, b)), (x, a)) --> Derivative(f(x), (x, a+b))`
-        `Derivative(Derivative(f(x), (y, b)), (x, a)) --> Derivative(f(x), (x, a), (y, b))`
+        `Derivative(Derivative(f(x), (x, b)), (x, a))
+            --> Derivative(f(x), (x, a+b))`
+        `Derivative(Derivative(f(x), (y, b)), (x, a))
+            --> Derivative(f(x), (x, a), (y, b))`
         Note that this is not always a valid expansion depending on the kwargs
         used to construct the derivative.
         '''
@@ -531,7 +535,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     def _eval_expand_mul(self, **hints):
         ''' Expands products, moving independent terms outside the derivative
-        `Derivative(C·f(x)·g(c, y), x) --> C·g(y)·Derivative(f(x), x)`
+        `Derivative(C·f(x)·g(c, y), x)
+            --> C·g(y)·Derivative(f(x), x)`
         '''
         expr = self.args[0]
         if isinstance(expr, sympy.Mul):
@@ -542,7 +547,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     def _eval_expand_add(self, **hints):
         ''' Expands sums, using linearity of derivative
-        `Derivative(f(x) + g(x), x) --> Derivative(f(x), x) + Derivative(g(x), x)`
+        `Derivative(f(x) + g(x), x)
+            --> Derivative(f(x), x) + Derivative(g(x), x)`
         '''
         expr = self.args[0]
         if isinstance(expr, sympy.Add):
