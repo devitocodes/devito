@@ -105,8 +105,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 expr = diffify(expr)
             except Exception as e:
                 raise ValueError("`expr` must be a Differentiable object") from e
-        if isinstance(expr, sympy.Number):
-            return 0
 
         # Validate `dims`. It can be:
         # - a single Dimension ie: x
@@ -131,22 +129,39 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             raise ValueError(
                 'Length of `deriv_order` does not match the length of dimensions'
             )
+        if any([not is_integer(d) or d < 0 for d in deriv_order]):
+            raise TypeError(
+                'Invalid type in `deriv_order`, all elements must be non-negative Python `int`s'
+            )
 
         # Count the number of derivatives for each dimension
         dcounter = defaultdict(int)
         for d, o in zip(dims, deriv_order):
             if isinstance(d, Iterable):
-                dcounter[d[0]] += d[1]
+                if not is_integer(d[1]) or d[1] < 0:
+                    raise TypeError(
+                        'Invalid type for derivative order, it must be non-negative Python `int`'
+                    )
+                else:
+                    dcounter[d[0]] += d[1]
             else:
                 dcounter[d] += o
 
         # Default finite difference orders depending on input dimension (.dt or .dx)
-        default_fdo = tuple([
-            expr.time_order
-            if getattr(d, 'is_Time', False)
-            else expr.space_order
-            for d in dcounter.keys()
-        ])
+        # It's possible that the expr is a `sympy.Number` at this point, which
+        # has derivative 0, unless we're taking a 0th derivative.
+        if isinstance(expr, sympy.Number):
+            if any(dcounter.values()):
+                return 0
+            else:
+                return expr
+        else:
+            default_fdo = tuple([
+                expr.time_order
+                if getattr(d, 'is_Time', False)
+                else expr.space_order
+                for d in dcounter.keys()
+            ])
 
         # SymPy expects the list of variable w.r.t. which we differentiate to be a list
         # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
@@ -253,12 +268,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return self._rebuild(*self.args, **rkw)
 
     def _rebuild(self, *args, **kwargs):
-        if not args:
-            kwargs['preprocessed'] = True
-            expr = super()._rebuild(**kwargs)
-        else:
-            expr = super()._rebuild(*args, **kwargs)
-        return expr
+        return super()._rebuild(*args, **kwargs)
 
     func = _rebuild
 
@@ -495,6 +505,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return res
 
     def _eval_expand_nest(self, **hints):
+        ''' Expands nested derivatives
+        `Derivative(Derivative(f(x), (x, b)), (x, a)) --> Derivative(f(x), (x, a+b))`
+        `Derivative(Derivative(f(x), (y, b)), (x, a)) --> Derivative(f(x), (x, a), (y, b))`
+        Note that this is not always a valid expansion depending on the kwargs
+        used to construct the derivative.
+        '''
         expr = self.args[0]
         if isinstance(expr, self.__class__):
             new_expr = expr.args[0]
@@ -514,6 +530,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             return self
 
     def _eval_expand_mul(self, **hints):
+        ''' Expands products, moving independent terms outside the derivative
+        `Derivative(C·f(x)·g(c, y), x) --> C·g(y)·Derivative(f(x), x)`
+        '''
         expr = self.args[0]
         if isinstance(expr, sympy.Mul):
             ind, dep = expr.as_independent(*self.dims, as_Mul=True)
@@ -522,6 +541,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             return self
 
     def _eval_expand_add(self, **hints):
+        ''' Expands sums, using linearity of derivative
+        `Derivative(f(x) + g(x), x) --> Derivative(f(x), x) + Derivative(g(x), x)`
+        '''
         expr = self.args[0]
         if isinstance(expr, sympy.Add):
             ind, dep = expr.as_independent(*self.dims, as_Add=True)
