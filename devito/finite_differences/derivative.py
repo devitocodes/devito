@@ -267,7 +267,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if fd_order is not None:
             rkw['fd_order'] = self._filter_dims(_fd_order, as_tuple=True)
 
-        return self._rebuild(*self.args, **rkw)
+        return self._rebuild(**rkw)
 
     def _rebuild(self, *args, **kwargs):
         return super()._rebuild(*args, **kwargs)
@@ -325,7 +325,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         expr = self.expr.xreplace(dsubs)
 
         subs = self._ppsubs + (subs,)  # Postponed substitutions
-        return self._rebuild(expr, *self.args[1:], subs=subs), True
+        return self._rebuild(expr, subs=subs), True
 
     @cached_property
     def _metadata(self):
@@ -399,7 +399,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         else:
             adjoint = direct
 
-        return self._rebuild(*self.args, transpose=adjoint)
+        return self._rebuild(transpose=adjoint)
 
     def _eval_at(self, func):
         """
@@ -432,12 +432,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # in most equation with div(a * u) for example. The expression is re-centered
             # at the highest priority index (see _gather_for_diff) to compute the
             # derivative at x0.
-            return self._rebuild(self.expr._gather_for_diff, *self.args[1:], x0=x0)
+            return self._rebuild(self.expr._gather_for_diff, x0=x0)
         else:
             # For every other cases, that has more functions or more complexe arithmetic,
             # there is not actual way to decide what to do so it’s as safe to use
             # the expression as is.
-            return self._rebuild(*self.args, x0=x0)
+            return self._rebuild(x0=x0)
 
     def _evaluate(self, **kwargs):
         # Evaluate finite-difference.
