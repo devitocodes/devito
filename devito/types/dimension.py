@@ -904,10 +904,10 @@ class ConditionalDimension(DerivedDimension):
     is_Conditional = True
 
     __rkwargs__ = DerivedDimension.__rkwargs__ + \
-        ('symbolic_factor', 'factor', 'condition', 'indirect')
+        ('factor', 'condition', 'indirect')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
-                          indirect=False, symbolic_factor=None, **kwargs):
+                          indirect=False, **kwargs):
         # `parent=None` degenerates to a ConditionalDimension outside of
         # any iteration space
         if parent is None:
@@ -916,7 +916,6 @@ class ConditionalDimension(DerivedDimension):
         super().__init_finalize__(name, parent)
 
         # Process subsampling factor
-        fname = f"{name}f"
         if factor is None or factor == 1:
             self._factor = None
         elif is_number(factor):
@@ -924,23 +923,15 @@ class ConditionalDimension(DerivedDimension):
         elif factor.is_Constant:
             deprecations.constant_factor_warn
             self._factor = factor
-            symbolic_factor = factor
         else:
-            raise ValueError("factor must be an integer or integer Constant")
-
-        if self._factor is not None:
-            # Always make the factor symbolic to allow overrides with different factor.
-            self._symbolic_factor = symbolic_factor or \
-                SubsamplingFactor(name=fname, dtype=np.int32, is_const=True)
-        else:
-            self._symbolic_factor = None
+            raise ValueError("factor must be an integer")
 
         self._condition = condition
         self._indirect = indirect
 
     @property
-    def spacing(self):
-        return self.factor_data * self.parent.spacing
+    def uses_symbolic_factor(self):
+        return self._factor is not None
 
     @property
     def factor_data(self):
@@ -950,12 +941,23 @@ class ConditionalDimension(DerivedDimension):
             return self.factor
 
     @property
-    def factor(self):
-        return self._factor if self._factor is not None else 1
+    def spacing(self):
+        return self.factor_data * self.parent.spacing
 
     @property
+    def factor(self):
+        return self._factor if self.uses_symbolic_factor else 1
+
+    @cached_property
     def symbolic_factor(self):
-        return self._symbolic_factor
+        if not self.uses_symbolic_factor:
+            return None
+        elif isinstance(self.factor, Constant):
+            return self.factor
+        else:
+            return SubsamplingFactor(
+                name=f'{self.name}f', dtype=np.int32, is_const=True
+            )
 
     @property
     def condition(self):
@@ -977,13 +979,12 @@ class ConditionalDimension(DerivedDimension):
         return retval
 
     def _arg_values(self, interval, grid=None, args=None, **kwargs):
-        if self.symbolic_factor is not None:
-            fname = self.symbolic_factor.name
-            args = args or {}
-            fact = kwargs.get(fname, args.get(fname, self.factor_data))
-        else:
-            # No factor
+        if not self.uses_symbolic_factor:
             return {}
+
+        args = args or {}
+        fname = self.symbolic_factor.name
+        fact = kwargs.get(fname, args.get(fname, self.factor_data))
 
         toint = lambda x: math.ceil(x / fact)
         vals = {}
@@ -997,8 +998,7 @@ class ConditionalDimension(DerivedDimension):
         except (KeyError, TypeError):
             pass
 
-        if self.symbolic_factor is not None:
-            vals[self.symbolic_factor.name] = fact
+        vals[self.symbolic_factor.name] = fact
 
         return vals
 
@@ -1009,7 +1009,7 @@ class ConditionalDimension(DerivedDimension):
         # `factor` endpoints are legal, so we return them all. It's then
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
-        if dim.symbolic_factor is not None:
+        if dim.uses_symbolic_factor:
             factor = defaults[dim.symbolic_factor.name] = self.factor_data
             defaults[dim.parent.max_name] = range(0, factor*size - 1)
 
