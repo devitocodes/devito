@@ -2044,20 +2044,20 @@ class TestMashup:
 
         # Check generated code -- expect the gsave equation to be scheduled together
         # in the same loop nest with the fsave equation
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x2_blk0', 'x1_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is f
         assert exprs[1].write is g
 
+        exprs = FindNodes(Expression).visit(bns['x1_blk0'])
+        assert len(exprs) == 1
+        assert exprs[0].write is h
+
         exprs = FindNodes(Expression).visit(bns['x2_blk0'])
         assert len(exprs) == 2
         assert exprs[0].write is fsave
         assert exprs[1].write is gsave
-
-        exprs = FindNodes(Expression).visit(bns['x1_blk0'])
-        assert len(exprs) == 1
-        assert exprs[0].write is h
 
     def test_topofusion_w_subdims_conddims_v2(self):
         """
