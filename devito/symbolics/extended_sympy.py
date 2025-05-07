@@ -84,7 +84,7 @@ class IntDiv(sympy.Expr):
     def __new__(cls, lhs, rhs, params=None):
         if rhs == 0:
             raise ValueError("Cannot divide by 0")
-        elif rhs == 1:
+        elif rhs == 1 or rhs is None:
             return lhs
 
         if not is_integer(rhs):

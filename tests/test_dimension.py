@@ -1,4 +1,5 @@
 from itertools import product
+from copy import deepcopy
 
 import numpy as np
 from sympy import And, Or
@@ -16,6 +17,7 @@ from devito.ir.equations.algorithms import concretize_subdims
 from devito.ir import SymbolRegistry
 from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
 from devito.types import Array, StencilDimension, Symbol
+from devito.types.basic import Scalar
 from devito.types.dimension import AffineIndexAccessFunction, Thickness
 
 
@@ -1011,9 +1013,9 @@ class TestConditionalDimension:
         op = Operator(Eq(v.forward, v.dx))
         op.apply(time=6)
         exprs = FindNodes(Expression).visit(op)
-        assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, time_sub.factor) + 1
-        assert time_sub.factor.data == 2
-        assert time_sub.factor.is_Constant
+        assert exprs[-1].expr.lhs.indices[0] == IntDiv(time, time_sub.symbolic_factor) + 1
+        assert time_sub.factor == 2
+        assert isinstance(time_sub.symbolic_factor, Scalar)
 
     def test_issue_1753(self):
         grid = Grid(shape=(3, 3, 3))
@@ -1895,6 +1897,41 @@ class TestConditionalDimension:
         op = Operator([Inc(g, usaved)])
         op(time_m=1, time_M=nt-1, dt=1)
         assert norm(g, order=1) == norm(sum(usaved, dims=time_under), order=1)
+
+    def test_cond_copy(self):
+        grid = Grid((11, 11, 11))
+        time = grid.time_dim
+
+        cd = ConditionalDimension(name='tsub', parent=time, factor=5)
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2, save=Buffer(2))
+        u1 = TimeFunction(name='u1', grid=grid, space_order=0,
+                          time_order=0, save=5, time_dim=cd)
+        u2 = TimeFunction(name='u2', grid=grid, space_order=0,
+                          time_order=0, save=5, time_dim=cd)
+
+        # Mimic what happens when an operator is copied
+        u12 = deepcopy(u1)
+        u22 = deepcopy(u2)
+
+        op = Operator([Eq(u.forward, u.laplace), Eq(u12, u), Eq(u22, u)])
+        assert len([p for p in op.parameters if p.name == 'tsubf']) == 1
+
+    def test_const_factor(self):
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        f1 = 4
+        f2 = Constant(name='f2', dtype=np.int32, value=4)
+        t1 = ConditionalDimension('t_sub', parent=time, factor=f1)
+        t2 = ConditionalDimension('t_sub2', parent=time, factor=f2)
+
+        assert isinstance(t1.symbolic_factor, Scalar)
+        assert t1.factor == f1
+
+        assert t2.symbolic_factor.is_Constant
+        assert t2.factor == f2
+        assert t2.factor.data == f1
+        assert t2.spacing == t1.spacing
 
 
 class TestCustomDimension:
