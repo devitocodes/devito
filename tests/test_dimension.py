@@ -1933,6 +1933,55 @@ class TestConditionalDimension:
         assert t2.factor.data == f1
         assert t2.spacing == t1.spacing
 
+    def test_symbolic_factor_override_legacy(self):
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        fact = Constant(name='fact', dtype=np.int32, value=4)
+        cd = ConditionalDimension(name='cd', parent=time, factor=fact)
+
+        u = TimeFunction(name='u', grid=grid, time_order=0)
+        usave = TimeFunction(name='usave', grid=grid, time_dim=cd, save=4)
+
+        eqns = [Eq(usave, u),
+                Eq(u.forward, u + 1)]
+
+        op = Operator(eqns)
+
+        op.apply()
+
+        assert all(np.all(usave.data[i] == i*4) for i in range(4))
+
+        # Now override the factor
+        fact1 = Constant(name='fact1', dtype=np.int32, value=8)
+
+        op.apply(time_M=31, fact=fact1)
+
+        assert all(np.all(usave.data[i] == 16 + i*8) for i in range(4))
+
+    def test_symbolic_factor_override(self):
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        cd = ConditionalDimension(name='cd', parent=time, factor=4)
+
+        u = TimeFunction(name='u', grid=grid, time_order=0)
+        usave = TimeFunction(name='usave', grid=grid, time_dim=cd, save=4)
+
+        eqns = [Eq(usave, u),
+                Eq(u.forward, u + 1)]
+
+        op = Operator(eqns)
+
+        op.apply()
+
+        assert all(np.all(usave.data[i] == i*4) for i in range(4))
+
+        # Now override the factor
+        op.apply(time_M=31, **{cd.symbolic_factor.name: 8})
+
+        assert all(np.all(usave.data[i] == 16 + i*8) for i in range(4))
+
 
 class TestCustomDimension:
 
