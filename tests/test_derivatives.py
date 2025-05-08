@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import simplify, diff, Float
+from sympy import sympify, simplify, diff, Float, Symbol
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
@@ -1023,3 +1023,124 @@ def bypass_uneval(expr):
     unevals = expr.find(EvalDerivative)
     mapper = {i: Add(*i.args) for i in unevals}
     return expr.xreplace(mapper)
+
+
+class TestExpansion:
+    @classmethod
+    def setup_class(cls):
+        cls.grid = Grid(shape=(11,), extent=(1,))
+        cls.x = cls.grid.dimensions[0]
+        cls.u = Function(name='u', grid=cls.grid, space_order=4)
+
+        a = cls.u.dx
+        cls.b = a.subs({cls.u: -5*cls.u.dx + 4*cls.u + 3})
+
+    def test_reconstructible(self):
+        ''' Check that devito.Derivatives are reconstructible from func and args
+        (as per sympy docs)
+        '''
+        du = self.u.dx
+        assert du.func(*du.args) == du
+        assert du.func(*du.args).args == (self.u, (self.x, 1))
+
+    def test_deriv_order(self):
+        ''' Check default simplification causes the same result
+        '''
+        du11 = Derivative(self.u, self.x, self.x)
+        du2 = Derivative(self.u, (self.x, 2))
+        assert du11 == du2
+        assert du11.deriv_order == du2.deriv_order
+
+    @pytest.mark.xfail(raises=ValueError)
+    def test_wrong_deriv_order(self):
+        ''' Check an exception is raises with incompatible arguments
+        '''
+        _ = Derivative(self.u, self.x, deriv_order=(2, 4))
+
+    @pytest.mark.xfail(raises=ValueError)
+    def test_no_derivative(self):
+        _ = Derivative(sympify(-1))
+
+    @pytest.mark.xfail(raises=ValueError)
+    def test_no_dimension(self):
+        _ = Derivative(sympify(-1), deriv_order=0)
+
+    def test_constant(self):
+        ''' Check constant derivative is zero for non-0th order derivatives
+        '''
+        assert Derivative(sympify(-1), (self.x, 1)) == 0
+        assert Derivative(sympify(-1), (self.x, 2)) == 0
+        assert Derivative(sympify(-1), (self.x, 0)) == -1
+
+    def test_dims_validation(self):
+        ''' Validate `dims` kwarg
+        '''
+        grid = Grid(shape=(11, 11, 11), extent=(1, 1, 1))
+        x, y, z = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=4)
+
+        d = Derivative(u, x)
+        assert d.dims == (x, )
+        assert d.deriv_order == (1, )
+
+        d = Derivative(u, x, y)
+        assert d.dims == (x, y)
+        assert d.deriv_order == (1, 1)
+
+        d = Derivative(u, (x, 2))
+        assert d.dims == (x, )
+        assert d.deriv_order == (2, )
+
+        d = Derivative(u, (x, 2), (y, 2))
+        assert d.dims == (x, y)
+        assert d.deriv_order == (2, 2)
+
+        d = Derivative(u, (x, 2), y, x, (z, 3))
+        assert d.dims == (x, y, z)
+        assert d.deriv_order == (3, 1, 3)
+
+    def test_dims_exceptions(self):
+        ''' Check invalid dimensions and orders raise exceptions
+        '''
+        grid = Grid(shape=(11, 11, 11), extent=(1, 1, 1))
+        x, y, z = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=4)
+
+        # Don't allow negative derivatives
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, -1))
+
+        # Don't allow fractional derivatives
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, 0.5))
+
+        # Don't allow common mistake
+        # NB: Derivative(u, x, y) is probably what was intended
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, y))
+
+        # Don't allow derivative order to be symbolic
+        a = Symbol('a', integer=True)
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, a))
+
+    def test_expand_mul(self):
+        ''' Check independent terms can be extracted from the derivative.
+        The multiply expansion is the only hint executed by default when
+        `.expand()` is called.
+        '''
+        expanded = Derivative(4*self.u - 5*Derivative(self.u, self.x) + 3, self.x)
+        assert self.b.expand() == expanded
+
+    def test_expand_add(self):
+        ''' Check linearity
+        '''
+        expanded = 4*Derivative(self.u, self.x)
+        expanded -= 5*Derivative(Derivative(self.u, self.x), self.x)
+        assert self.b.expand(add=True) == expanded
+
+    def test_expand_nest(self):
+        ''' Check valid nested derivative expands (combining x derivatives)
+        '''
+        expanded = 4*Derivative(self.u, self.x) - 5*Derivative(self.u, (self.x, 2))
+        assert self.b.expand(add=True, nest=True) == expanded
