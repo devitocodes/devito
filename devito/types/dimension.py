@@ -987,6 +987,8 @@ class ConditionalDimension(DerivedDimension):
         args = args or {}
         fname = self.symbolic_factor.name
         fact = kwargs.get(fname, args.get(fname, self.factor_data))
+        if isinstance(fact, Constant):
+            fact = fact.data
 
         toint = lambda x: math.ceil(x / fact)
         vals = {}
