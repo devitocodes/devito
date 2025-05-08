@@ -916,7 +916,7 @@ class ConditionalDimension(DerivedDimension):
         super().__init_finalize__(name, parent)
 
         # Process subsampling factor
-        if factor is None or factor == 1:
+        if factor is None:
             self._factor = None
         elif is_number(factor):
             self._factor = int(factor)
@@ -937,8 +937,10 @@ class ConditionalDimension(DerivedDimension):
     def factor_data(self):
         if isinstance(self.factor, Constant):
             return self.factor.data
-        else:
+        elif self.factor is not None:
             return self.factor
+        else:
+            return 1
 
     @property
     def spacing(self):
@@ -946,7 +948,7 @@ class ConditionalDimension(DerivedDimension):
 
     @property
     def factor(self):
-        return self._factor if self.uses_symbolic_factor else 1
+        return self._factor
 
     @cached_property
     def symbolic_factor(self):

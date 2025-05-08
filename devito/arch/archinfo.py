@@ -1023,7 +1023,12 @@ class NvidiaDevice(Device):
             return False
 
         cc = get_nvidia_cc()
-        if query == 'async-loads' and cc >= 80:
+        if cc is None:
+            # Something off with `get_nvidia_cc` on this system
+            warning(f"Couldn't establish if `query={query}` is supported on this "
+                    "system. Assuming it is not.")
+            return False
+        elif query == 'async-loads' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
         elif query in ('tma', 'thread-block-cluster') and cc >= 90:

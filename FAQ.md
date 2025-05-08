@@ -292,6 +292,9 @@ Used to select a specific "backend compiler". The backend compiler takes as inpu
 #### DEVITO_PLATFORM
 This environment variable is mostly needed when running on GPUs, to ask Devito to generate code for a particular device (see for example this [tutorial](https://github.com/devitocodes/devito/blob/main/examples/gpu/01_diffusion_with_openmp_offloading.ipynb)). Can be also used to specify CPU architectures such as Intel's -- Haswell, Broadwell, SKL and KNL -- ARM, AMD, and Power. Often one can ignore this variable because Devito typically does a decent job at auto-detecting the underlying platform.
 
+#### DEVITO_DEVICEID
+Specify the default device to use when running on a GPU. This is useful when multiple GPUs are available on the system. The default is `0`, which means the first device. Use `1` for the second device, and so on.
+
 #### DEVITO_LANGUAGE
 Specify the generated code language. The default is `C`, which means sequential C. Use `openmp` to emit C+OpenMP or `openacc` for C+OpenACC.
 
