@@ -1234,8 +1234,16 @@ class MPIMsg(CompositeObject):
         return {self.name: self.value}
 
     def _arg_values(self, args=None, **kwargs):
-        # Any will do
-        for f in self.target.components:
+        # Since the components are by construction homogeneous, any will do
+        v = self.target
+        if isinstance(v, BundleView):
+            # NOTE: This is a tricky one: think about a BundleView with just K
+            # components, while its parent has N (clearly N > K). There could be
+            # an override for one of the N-K parent's components, but not for any
+            # of the K BundleView's components. So we need to check the parent
+            # for the override, and not the BundleView itself
+            v = v.parent
+        for f in v.components:
             try:
                 alias = kwargs[f.name]
                 break
