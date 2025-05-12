@@ -794,7 +794,7 @@ class Rvalue(sympy.Expr, Pickable):
     __repr__ = __str__
 
 
-class VectorAccess(Expr, Pickable):
+class VectorAccess(Expr, Pickable, BasicWrapperMixin):
 
     """
     Represent a vector access operation at high-level.
@@ -804,39 +804,24 @@ class VectorAccess(Expr, Pickable):
         return Expr.__new__(cls, *args)
 
     def __str__(self):
-        return f"VL4<{self.base}>"
+        return f"VL<{self.base}>"
 
     __repr__ = __str__
 
     func = Pickable._rebuild
-
-    def _sympystr(self, printer):
-        return str(self)
 
     @property
     def base(self):
         return self.args[0]
 
     @property
-    def function(self):
-        return self.base.function
-
-    @property
     def indices(self):
         return self.base.indices
-
-    @property
-    def dtype(self):
-        return self.function.dtype
 
     @cacheit
     def sort_key(self, order=None):
         # Ensure that the VectorAccess is sorted as the base
         return self.base.sort_key(order=order)
-
-    # Default assumptions correspond to those of the `base`
-    for i in ('is_real', 'is_imaginary', 'is_commutative'):
-        locals()[i] = property(lambda self, v=i: getattr(self.base, v))
 
 
 # Some other utility objects
