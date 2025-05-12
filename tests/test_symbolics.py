@@ -513,11 +513,11 @@ def test_vector_access():
     assert v.function is f
 
     # Code generation
-    assert ccode(v) == 'VL4<f[x, y, z]>'
+    assert ccode(v) == 'VL<f[x, y, z]>'
 
     # Reconstruction
     v1 = v.func(g.indexify())
-    assert ccode(v1) == 'VL4<g[x, y, z]>'
+    assert ccode(v1) == 'VL<g[x, y, z]>'
 
 
 def test_canonical_ordering_of_weights():
