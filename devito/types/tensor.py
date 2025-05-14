@@ -80,26 +80,15 @@ class TensorFunction(AbstractTensor):
         self._space_dimensions = inds
 
     @classmethod
-    def _component_kwargs(cls, *inds, **kwargs):
+    def _component_kwargs(cls, inds, **kwargs):
         """
         Get the kwargs for a single component
         from the kwargs of the TensorFunction.
         """
         kw = {}
         for k, v in kwargs.items():
-            if k in ('staggered', 'name', 'dimensions', 'shape'):
-                # Standard Function kwargs
-                kw[k] = v
-            elif isinstance(v, MatrixBase):
-                if len(inds) > 1:
-                    kw[k] = v[inds[0], inds[1]]
-                else:
-                    kw[k] = v[inds[0]]
-            elif isinstance(v, (list, tuple)):
-                if len(inds) > 1:
-                    kw[k] = v[inds[0]][inds[1]]
-                else:
-                    kw[k] = v[inds[0]]
+            if isinstance(v, MatrixBase):
+                kw[k] = v[inds]
             else:
                 kw[k] = v
         return kw
@@ -135,7 +124,7 @@ class TensorFunction(AbstractTensor):
             for j in range(start, stop):
                 staggj = (stagg[i][j] if stagg is not None
                           else (NODE if i == j else (d, dims[j])))
-                sub_kwargs = cls._component_kwargs(i, j, **kwargs)
+                sub_kwargs = cls._component_kwargs((i, j), **kwargs)
                 sub_kwargs.update({'name': f"{name}_{d.name}{dims[j].name}",
                                    'staggered': staggj})
                 funcs2[j] = cls._sub_type(**sub_kwargs)
