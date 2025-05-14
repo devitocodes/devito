@@ -68,7 +68,8 @@ class CodeSymbol:
         """
         return
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def _C_name(self):
         """
         The name of the object in the generated code.
@@ -105,7 +106,8 @@ class CodeSymbol:
 
         return _type
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def _C_ctype(self):
         """
         The type of the object in the generated code as a `ctypes` class.
