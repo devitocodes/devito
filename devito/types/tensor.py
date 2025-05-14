@@ -80,6 +80,31 @@ class TensorFunction(AbstractTensor):
         self._space_dimensions = inds
 
     @classmethod
+    def _component_kwargs(cls, *inds, **kwargs):
+        """
+        Get the kwargs for a single component
+        from the kwargs of the TensorFunction.
+        """
+        kw = {}
+        for k, v in kwargs.items():
+            if k in ('staggered', 'name', 'dimensions', 'shape'):
+                # Standard Function kwargs
+                kw[k] = v
+            elif isinstance(v, MatrixBase):
+                if len(inds) > 1:
+                    kw[k] = v[inds[0], inds[1]]
+                else:
+                    kw[k] = v[inds[0]]
+            elif isinstance(v, (list, tuple)):
+                if len(inds) > 1:
+                    kw[k] = v[inds[0]][inds[1]]
+                else:
+                    kw[k] = v[inds[0]]
+            else:
+                kw[k] = v
+        return kw
+
+    @classmethod
     def __subfunc_setup__(cls, *args, **kwargs):
         """
         Creates the components of the TensorFunction
@@ -110,18 +135,9 @@ class TensorFunction(AbstractTensor):
             for j in range(start, stop):
                 staggj = (stagg[i][j] if stagg is not None
                           else (NODE if i == j else (d, dims[j])))
-                # Setup kwargs for subfunction
-                # Through rebuilding or user input, the kwargs could be
-                # Tensors as well from a per-component property
-                sub_kwargs = {'name': f"{name}_{d.name}{dims[j].name}",
-                              'staggered': staggj}
-                for k, v in kwargs.items():
-                    if isinstance(v, MatrixBase):
-                        sub_kwargs[k] = v[i, j]
-                    elif isinstance(v, (list, tuple)):
-                        sub_kwargs[k] = v[i][j]
-                    else:
-                        sub_kwargs[k] = v
+                sub_kwargs = cls._component_kwargs(i, j, **kwargs)
+                sub_kwargs.update({'name': f"{name}_{d.name}{dims[j].name}",
+                                   'staggered': staggj})
                 funcs2[j] = cls._sub_type(**sub_kwargs)
             funcs.append(funcs2)
 
@@ -335,17 +351,9 @@ class VectorFunction(TensorFunction):
         stagg = kwargs.get("staggered", None)
         name = kwargs.get("name")
         for i, d in enumerate(dims):
-            kwargs["name"] = "%s_%s" % (name, d.name)
-            kwargs["staggered"] = stagg[i] if stagg is not None else d
-            # Setup kwargs for subfunction
-            # Through rebuilding or user input, the kwargs could be
-            # Tensors as well from a per-component property
-            sub_kwargs = {}
-            for k, v in kwargs.items():
-                if isinstance(v, (list, tuple, MatrixBase)):
-                    sub_kwargs[k] = v[i]
-                else:
-                    sub_kwargs[k] = v
+            sub_kwargs = cls._component_kwargs(i, **kwargs)
+            sub_kwargs.update({'name': f"{name}_{d.name}",
+                               'staggered': stagg[i] if stagg is not None else d})
             funcs.append(cls._sub_type(**sub_kwargs))
 
         return funcs
