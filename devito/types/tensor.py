@@ -2,6 +2,7 @@ from collections import OrderedDict
 from functools import cached_property
 
 import numpy as np
+from sympy.matrices.matrixbase import MatrixBase
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
@@ -107,10 +108,21 @@ class TensorFunction(AbstractTensor):
             start = i if (symm or diag) else 0
             stop = i + 1 if diag else len(dims)
             for j in range(start, stop):
-                kwargs["name"] = "%s_%s%s" % (name, d.name, dims[j].name)
-                kwargs["staggered"] = (stagg[i][j] if stagg is not None
-                                       else (NODE if i == j else (d, dims[j])))
-                funcs2[j] = cls._sub_type(**kwargs)
+                staggj = (stagg[i][j] if stagg is not None
+                          else (NODE if i == j else (d, dims[j])))
+                # Setup kwargs for subfunction
+                # Through rebuilding or user input, the kwargs could be
+                # Tensors as well from a per-component property
+                sub_kwargs = {'name': f"{name}_{d.name}{dims[j].name}",
+                              'staggered': staggj}
+                for k, v in kwargs.items():
+                    if isinstance(v, MatrixBase):
+                        sub_kwargs[k] = v[i, j]
+                    elif isinstance(v, (list, tuple)):
+                        sub_kwargs[k] = v[i][j]
+                    else:
+                        sub_kwargs[k] = v
+                funcs2[j] = cls._sub_type(**sub_kwargs)
             funcs.append(funcs2)
 
         # Symmetrize and fill diagonal if symmetric
@@ -169,7 +181,11 @@ class TensorFunction(AbstractTensor):
     @cached_property
     def space_order(self):
         """The space order for all components."""
-        return ({a.space_order for a in self} - {None}).pop()
+        orders = self.applyfunc(lambda x: x.space_order)
+        if len(set(orders)) > 1:
+            return orders
+        else:
+            return orders[0]
 
     @property
     def is_diagonal(self):
@@ -321,7 +337,16 @@ class VectorFunction(TensorFunction):
         for i, d in enumerate(dims):
             kwargs["name"] = "%s_%s" % (name, d.name)
             kwargs["staggered"] = stagg[i] if stagg is not None else d
-            funcs.append(cls._sub_type(**kwargs))
+            # Setup kwargs for subfunction
+            # Through rebuilding or user input, the kwargs could be
+            # Tensors as well from a per-component property
+            sub_kwargs = {}
+            for k, v in kwargs.items():
+                if isinstance(v, (list, tuple, MatrixBase)):
+                    sub_kwargs[k] = v[i]
+                else:
+                    sub_kwargs[k] = v
+            funcs.append(cls._sub_type(**sub_kwargs))
 
         return funcs
 
