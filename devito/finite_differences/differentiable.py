@@ -803,14 +803,16 @@ class Weights(Array):
         dimensions = as_tuple(kwargs.get('dimensions'))
         weights = kwargs.get('initvalue')
 
-        assert len(dimensions) == 1
-        d = dimensions[0]
-        assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
+        # assert len(dimensions) == 1
+        # d = dimensions[0]
+        # assert isinstance(d, StencilDimension) and d.symbolic_size == len(weights)
         assert isinstance(weights, (list, tuple, np.ndarray))
 
         # Normalize `weights`
         from devito.symbolics import pow_to_mul  # noqa, sigh
-        weights = tuple(pow_to_mul(sympy.sympify(i)) for i in weights)
+
+        # NOTE: Remove for now as it breaks when weights are a multidimensional array
+        # weights = tuple(pow_to_mul(sympy.sympify(i)) for i in weights)
 
         kwargs['scope'] = kwargs.get('scope', 'stack')
         kwargs['initvalue'] = weights
@@ -903,6 +905,7 @@ class IndexDerivative(IndexSum):
 
         return obj
 
+    # NOTE: Dropped for now, since comparison of the mappers breaks adds
     def _hashable_content(self):
         return super()._hashable_content() + (self.mapper,)
 

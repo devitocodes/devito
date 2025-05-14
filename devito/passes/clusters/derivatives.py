@@ -71,6 +71,7 @@ def _lower_index_derivatives(clusters, **kwargs):
                 exprs.append(expr)
 
         dump(exprs, c)
+    # from IPython import embed; embed()
 
     return processed, weights, mapper
 
@@ -121,6 +122,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     w0 = ideriv.weights.function
     dtype = infer_dtype([w0.dtype, c.dtype])  # At least np.float32
     k = tuple(w0.weights)
+    from IPython import embed; embed()
     try:
         w = weights[k]
     except KeyError:

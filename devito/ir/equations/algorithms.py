@@ -137,7 +137,11 @@ def _lower_exprs(expressions, subs):
 
             # Handle Array
             if isinstance(f, Array) and f.initvalue is not None:
+                # FIXME: I think this inadvertently converts the initvalue
+                # from array to list
                 initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
+                print(type(f.initvalue), type(initvalue))
+                from IPython import embed; embed()
                 # TODO: fix rebuild to avoid new name
                 f = f._rebuild(name='%si' % f.name, initvalue=initvalue)
 
@@ -151,6 +155,7 @@ def _lower_exprs(expressions, subs):
         processed.append(uxreplace(expr, mapper))
 
     if isinstance(expressions, Iterable):
+        # FIXME: Convert to original iterable type before returning
         return processed
     else:
         assert len(processed) == 1
