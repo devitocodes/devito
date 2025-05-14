@@ -50,7 +50,8 @@ class AbstractInterval:
     def _rebuild(self):
         return
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def relaxed(self):
         return
 
