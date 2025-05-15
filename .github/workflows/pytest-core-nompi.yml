@@ -68,7 +68,7 @@ jobs:
           os: ubuntu-22.04
           arch: "gcc-10"
           language: "C"
-          sympy: "1.11"
+          sympy: "1.12"
 
         - name: pytest-ubuntu-py312-gcc13-omp
           python-version: '3.12'
