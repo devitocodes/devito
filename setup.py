@@ -1,89 +1,21 @@
-import versioneer
-from packaging.version import Version
 import os
-
-try:
-    import importlib.metadata as metadata
-    get_version = lambda x: metadata.version(x)
-    PkgNotFound = metadata.PackageNotFoundError
-except ImportError:
-    import pkg_resources
-    get_version = lambda x: pkg_resources.get_distribution(x).version
-    PkgNotFound = pkg_resources.DistributionNotFound
-
 from setuptools import setup, find_packages
+import versioneer
 
 
-def min_max(pkgs, pkg_name):
-    pkg = [p for p in pkgs if pkg_name in p][0]
-    minsign = '>=' if '>=' in pkg else '>'
-    maxsign = '<=' if '<=' in pkg else '<'
-    vmin = pkg.split(minsign)[1].split(',')[0]
-    vmax = pkg.split(maxsign)[-1]
-    return vmin, vmax
+def load_requirements(filename):
+    with open(filename) as f:
+        lines = f.read().splitlines()
+    return lines
 
 
-def numpy_compat(required):
-    new_reqs = [r for r in required if "numpy" not in r and "sympy" not in r]
-    sympy_lb, sympy_ub = min_max(required, "sympy")
-    numpy_lb, numpy_ub = min_max(required, "numpy")
-
-    # Due to api changes in numpy 2.0, it requires sympy 1.12.1 at the minimum
-    # Check if sympy is installed and enforce numpy version accordingly.
-    # If sympy isn't installed, enforce sympy>=1.12.1 and numpy>=2.0
-    try:
-        sympy_version = Version(get_version("sympy"))
-        min_ver2 = Version("1.12.1")
-        if sympy_version < min_ver2:
-            new_reqs.extend([f"numpy>{numpy_lb},<2.0", f"sympy=={sympy_version}"])
-        else:
-            new_reqs.extend([f"numpy>=2.0,<{numpy_ub}", f"sympy=={sympy_version}"])
-    except PkgNotFound:
-        new_reqs.extend([f"sympy>=1.12.1,<{sympy_ub}", f"numpy>=2.0,<{numpy_ub}"])
-
-    return new_reqs
-
-
-with open('requirements.txt') as f:
-    required = f.read().splitlines()
-    required = numpy_compat(required)
-
-with open('requirements-optional.txt') as f:
-    optionals = f.read().splitlines()
-
-with open('requirements-testing.txt') as f:
-    testing = f.read().splitlines()
-
-with open('requirements-mpi.txt') as f:
-    mpis = f.read().splitlines()
-
-with open('requirements-nvidia.txt') as f:
-    nvidias = f.read().splitlines()
-
-reqs = []
-for ir in required:
-    if ir[0:3] == 'git':
-        name = ir.split('/')[-1]
-        reqs += ['%s @ %s@main' % (name, ir)]
-    else:
-        reqs += [ir]
-
-extras_require = {}
-for mreqs, mode in (zip([optionals, mpis, nvidias, testing],
-                        ['extras', 'mpi', 'nvidia', 'tests'])):
-    opt_reqs = []
-    for ir in mreqs:
-        # For conditionals like pytest=2.1; python == 3.6
-        if ';' in ir:
-            entries = ir.split(';')
-            extras_require[entries[1]] = entries[0]
-        # Git repos, install main
-        if ir[0:3] == 'git':
-            name = ir.split('/')[-1]
-            opt_reqs += ['%s @ %s@main' % (name, ir)]
-        else:
-            opt_reqs += [ir]
-    extras_require[mode] = opt_reqs
+reqs = load_requirements('requirements.txt')
+extras_require = {
+    'mpi': load_requirements('requirements-mpi.txt'),
+    'nvidia': load_requirements('requirements-nvidia.txt'),
+    'tests': load_requirements('requirements-testing.txt'),
+    'extras': load_requirements('requirements-optional.txt'),
+}
 
 # If interested in benchmarking devito, we need the `examples` too
 exclude = ['docs', 'tests']
@@ -91,7 +23,7 @@ try:
     if not bool(int(os.environ.get('DEVITO_BENCHMARKS', 0))):
         exclude += ['examples']
     else:
-        required += testing
+        reqs += extras_require['tests']
 except (TypeError, ValueError):
     exclude += ['examples']
 

@@ -1,6 +1,7 @@
 pip>=9.0.1
-numpy>1.16,<2.3
-sympy>=1.9,<1.14
+numpy>=2,<2.2.6
+sympy>=1.12.1,<1.14; python_version < '3.10'
+sympy>=1.12.1,<1.15; python_version >= '3.10'
 psutil>=5.1.0,<8.0
 py-cpuinfo<10
 cgen>=2020.1,<2021
