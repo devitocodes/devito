@@ -14,7 +14,7 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               CallFromPointer, Cast, DefFunction, FieldFromPointer,
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace, pow_to_mul,
-                              retrieve_derivatives, BaseCast, SizeOf)
+                              retrieve_derivatives, BaseCast, SizeOf, VectorAccess)
 from devito.tools import as_tuple, CustomDtype
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -499,6 +499,25 @@ def test_component_access():
     cf2 = cf1.func(*cf1.args)
     assert cf2.index == cf1.index
     assert cf2 == cf1
+
+
+def test_vector_access():
+    grid = Grid(shape=(3, 3, 3))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    v = VectorAccess(f.indexify())
+
+    assert v.base == f.indexify()
+    assert v.function is f
+
+    # Code generation
+    assert ccode(v) == 'VL<f[x, y, z]>'
+
+    # Reconstruction
+    v1 = v.func(g.indexify())
+    assert ccode(v1) == 'VL<g[x, y, z]>'
 
 
 def test_canonical_ordering_of_weights():

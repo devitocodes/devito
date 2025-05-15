@@ -705,9 +705,13 @@ class CudaCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('--use_fast_math')
 
-        # Optionally print out per-kernel shared memory and register usage
         if configuration['profiling'] == 'advanced2':
+            # Optionally print out per-kernel shared memory and register usage
             self.cflags.append('--ptxas-options=-v')
+
+            # Useful for Nsight Compute to associate the source code with
+            # profiling information
+            self.cflags.append('-lineinfo')
 
         self.src_ext = 'cu'
 
