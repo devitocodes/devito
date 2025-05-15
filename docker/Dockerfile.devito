@@ -13,11 +13,11 @@ ARG GROUP_ID=1000
 
 ##################  Install devito ############################################
 
+ENV PIP_USE_PEP517=1
 # Install pip dependencies
 RUN python3 -m venv /venv && \
-    /venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip wheel setuptools && \
     /venv/bin/pip install --no-cache-dir jupyter && \
-    /venv/bin/pip install --no-cache-dir --upgrade wheel setuptools && \
     ln -fs /app/nvtop/build/src/nvtop /venv/bin/nvtop
 
 # Copy Devito

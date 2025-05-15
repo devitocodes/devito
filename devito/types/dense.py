@@ -1019,7 +1019,7 @@ class Function(DiscreteFunction):
 
         # Space order
         space_order = kwargs.get('space_order', 1)
-        if isinstance(space_order, int):
+        if is_integer(space_order):
             self._space_order = space_order
         elif isinstance(space_order, tuple) and len(space_order) >= 2:
             self._space_order = space_order[0]
@@ -1175,7 +1175,7 @@ class Function(DiscreteFunction):
                 halo = tuple(halo[d] for d in self.dimensions)
         else:
             space_order = kwargs.get('space_order', 1)
-            if isinstance(space_order, int):
+            if is_integer(space_order):
                 v = (space_order, space_order)
                 halo = [v if i.is_Space else (0, 0) for i in self.dimensions]
 
@@ -1208,12 +1208,12 @@ class Function(DiscreteFunction):
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
 
-        elif isinstance(padding, int):
+        elif is_integer(padding):
             padding = tuple((0, padding) if d.is_Space else (0, 0)
                             for d in self.dimensions)
 
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            padding = tuple((0, i) if isinstance(i, int) else i for i in padding)
+            padding = tuple((0, i) if is_integer(i) else i for i in padding)
 
         else:
             raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
@@ -1398,7 +1398,7 @@ class TimeFunction(Function):
         self._time_order = kwargs.get('time_order', 1)
         super().__init_finalize__(*args, **kwargs)
 
-        if not isinstance(self.time_order, int):
+        if not is_integer(self.time_order):
             raise TypeError("`time_order` must be int")
 
         self.save = kwargs.get('save')
@@ -1420,7 +1420,7 @@ class TimeFunction(Function):
             time_dim = kwargs.get('time_dim')
 
             if time_dim is None:
-                time_dim = grid.time_dim if isinstance(save, int) else grid.stepping_dim
+                time_dim = grid.time_dim if is_integer(save) else grid.stepping_dim
             elif not (isinstance(time_dim, Dimension) and time_dim.is_Time):
                 raise TypeError("`time_dim` must be a time dimension")
             dimensions = list(Function.__indices_setup__(**kwargs)[0])
@@ -1450,7 +1450,7 @@ class TimeFunction(Function):
                 shape.insert(cls._time_position, time_order + 1)
             elif isinstance(save, Buffer):
                 shape.insert(cls._time_position, save.val)
-            elif isinstance(save, int):
+            elif is_integer(save):
                 shape.insert(cls._time_position, save)
             else:
                 raise TypeError("`save` can be None, int or Buffer, not %s" % type(save))

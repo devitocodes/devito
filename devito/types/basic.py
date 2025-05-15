@@ -1489,6 +1489,15 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         """Setup each component of the tensor as a Devito type."""
         return []
 
+    @classmethod
+    def _sympify(self, arg):
+        # This is used internally by sympy to process arguments at rebuilt. And since
+        # some of our properties are non-sympyfiable we need to have a fallback
+        try:
+            return super()._sympify(arg)
+        except sympy.SympifyError:
+            return arg
+
     @property
     def grid(self):
         """
