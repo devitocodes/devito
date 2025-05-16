@@ -393,6 +393,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         # Create the new Symbol
         # Note: use __xnew__ to bypass sympy caching
         newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+        newobj._assumptions = cls.default_assumptions
 
         # Initialization
         newobj._dtype = cls.__dtype_setup__(**kwargs)
@@ -559,6 +560,7 @@ class Symbol(AbstractSymbol, Cached):
 
         # Note: use __xnew__ to bypass sympy caching
         newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+        newobj._assumptions = cls.default_assumptions
 
         # Initialization
         newobj._dtype = cls.__dtype_setup__(**kwargs)
@@ -577,21 +579,6 @@ class DataSymbol(AbstractSymbol, Uncached, ArgProvider):
     """
     A unique scalar symbol that carries data.
     """
-
-    def __new__(cls, *args, **kwargs):
-        # Create a new Symbol via sympy.Symbol
-        name = kwargs.get('name') or args[0]
-        assumptions, kwargs = cls._filter_assumptions(**kwargs)
-
-        # Note: use __xnew__ to bypass sympy caching
-        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
-
-        # Initialization
-        newobj._dtype = cls.__dtype_setup__(**kwargs)
-        newobj.__init_finalize__(*args, **kwargs)
-
-        return newobj
-
     __hash__ = Uncached.__hash__
 
 
