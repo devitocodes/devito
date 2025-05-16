@@ -68,3 +68,4 @@ exclude = ["docs", "tests", "examples"]
 
 [tool.setuptools_scm]
 version_file = "devito/_version.py"
+fallback_version = "0+untagged"
