@@ -47,9 +47,7 @@ from devito.operator import profiler_registry, operator_registry
 from devito.mpatches import *  # noqa
 
 
-from ._version import get_versions  # noqa
-__version__ = get_versions()['version']
-del get_versions
+from ._version import version as __version__  # noqa
 
 
 def reinit_compiler(val):

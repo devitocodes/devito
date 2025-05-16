@@ -2,7 +2,11 @@ from collections import OrderedDict
 from functools import cached_property
 
 import numpy as np
-from sympy.matrices.matrixbase import MatrixBase
+try:
+    from sympy.matrices.matrixbase import MatrixBase
+except ImportError:
+    # Before 1.13
+    from sympy.matrices.matrices import MatrixBase
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable

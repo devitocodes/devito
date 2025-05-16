@@ -15,13 +15,16 @@ jobs:
         python-version: '3.x'
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install setuptools wheel twine==5.0.0
+        python -m pip install --upgrade pip build twine
 
-    - name: Build and publish
+    - name: Build distribution artifacts
+      run: |
+        # this will read pyproject.toml and produce both sdist and wheel in dist/
+        python -m build --sdist --wheel
+
+    - name: Publish to PyPI
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
       run: |
-        python setup.py sdist bdist_wheel
         twine upload dist/*

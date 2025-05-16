@@ -168,9 +168,13 @@ class CacheManager:
 
         # Wipe out the hidden module-private SymPy caches
         sympy.polys.rootoftools.ComplexRootOf.clear_cache()
-        sympy.polys.rings._ring_cache.clear()
-        sympy.polys.fields._field_cache.clear()
         sympy.polys.domains.modularinteger._modular_integer_cache.clear()
+        try:
+            sympy.polys.rings._ring_cache.clear()
+            sympy.polys.fields._field_cache.clear()
+        except AttributeError:
+            # SymPy 1.14 and later
+            pass
 
         # Take a copy of the dictionary so we can safely iterate over it
         # even if another thread is making changes
