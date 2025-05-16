@@ -1,4 +1,3 @@
-from collections import OrderedDict
 from functools import cached_property
 
 import numpy as np
@@ -208,13 +207,24 @@ class TensorFunction(AbstractTensor):
         return self.applyfunc(_do_evaluate)
 
     def values(self):
+        """
+        Returns all unique values in the TensorFunction unlike sympy
+        which returns all non-zero values including duplicates.
+
+        We also sort those values by diagonal rather than by flat index.
+        """
+        # Trivial cases
         if self.is_diagonal:
-            return [self[i, i] for i in range(self.shape[0])]
-        elif self.is_symmetric:
-            val = super().values()
-            return list(OrderedDict.fromkeys(val))
+            return list(self.diagonal())
+        elif self.is_VectorValued:
+            return list(super().values())
+        # Get the diagonals we need then extract the values
+        if self.is_symmetric:
+            diags = range(0, self.rows)
         else:
-            return super().values()
+            diags = sorted(range(-self.rows+1, self.rows),
+                           key=lambda x: abs(x))
+        return [v for d in diags for v in self.diagonal(d)]
 
     def div(self, shift=None, order=None, method='FD', **kwargs):
         """
