@@ -16,3 +16,14 @@ updates:
       prefix: "pip prod"
       prefix-development: "pip dev"
       include: "scope"
+  - package-ecosystem: "github-actions"
+    directory: "/" # Location of package manifests
+    schedule:
+      interval: "weekly"
+    # Add assignees
+    assignees:
+      - "mloubout"
+    commit-message:
+      prefix: "gh"
+      prefix-development: "gh dev"
+      include: "scope"
