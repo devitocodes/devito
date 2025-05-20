@@ -93,7 +93,7 @@ jobs:
         run: echo "${{ steps.meta.outputs.tags }}"
 
       - name: Build and push image
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./docker/Dockerfile.devito
