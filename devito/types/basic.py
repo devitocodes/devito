@@ -588,6 +588,20 @@ class DataSymbol(AbstractSymbol, Uncached, ArgProvider):
     """
     __hash__ = Uncached.__hash__
 
+    def __new__(cls, *args, **kwargs):
+        # Create a new Symbol via sympy.Symbol
+        name = kwargs.get('name') or args[0]
+        assumptions, kwargs = cls._filter_assumptions(**kwargs)
+
+        # Note: use __xnew__ to bypass sympy caching
+        newobj = cls.__xnew__(cls, name, **assumptions)
+
+        # Initialization
+        newobj._dtype = cls.__dtype_setup__(**kwargs)
+        newobj.__init_finalize__(*args, **kwargs)
+
+        return newobj
+
 
 class Scalar(Symbol, ArgProvider):
 
