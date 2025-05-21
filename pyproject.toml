@@ -66,8 +66,9 @@ optional-dependencies.extras = { file = ["requirements-optional.txt"] }
 where   = ["."]
 exclude = ["docs", "tests", "examples"]
 
+
 [tool.setuptools_scm]
-version_file = "devito/_version.py"
+write_to = 'devito/_version.py'
 fallback_version = "0+untagged"
 
 [tool.flake8]
