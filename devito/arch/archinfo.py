@@ -192,7 +192,7 @@ def get_gpu_info():
 
         warning('Different models of graphics cards detected')
 
-        return {}
+        return {'ncards': len(gpu_infos)}
 
     # Parse textual gpu info into a dict
 
