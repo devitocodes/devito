@@ -1011,16 +1011,15 @@ class MapNodes(Visitor):
         return ret
 
 
-class FindSymbols(Visitor):
-
-    class Retval(list):
-        def __init__(self, *retvals):
-            elements = filter_ordered(flatten(retvals), key=id)
-            super().__init__(elements)
+class FindSymbols(LazyVisitor):
 
     @classmethod
-    def default_retval(cls):
-        return cls.Retval()
+    def retval(cls, *its: Iterable[Any]) -> Iterator[Any]:
+        """
+        Filterrs and flattens nested iterables while preserving relative order.
+        """
+        ret = chain(flatten_iter(it) for it in its)
+        return filter_ordered_iter(flatten_iter(ret), key=id)
 
     """
     Find symbols in an Iteration/Expression tree.
@@ -1040,31 +1039,29 @@ class FindSymbols(Visitor):
     """
 
     def _defines_aliases(n):
-        retval = []
         for i in n.defines:
             f = i.function
             if f.is_ArrayBasic:
-                retval.extend([f, f.indexed])
+                yield from (f, f.indexed)
             else:
-                retval.append(i)
-        return tuple(retval)
+                yield i
 
     rules = {
         'symbolics': lambda n: n.functions,
-        'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
-        'symbols': lambda n: [i for i in n.expr_symbols
-                              if isinstance(i, AbstractSymbol)],
-        'dimensions': lambda n: [i for i in n.expr_symbols if isinstance(i, Dimension)],
-        'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
-        'indexedbases': lambda n: [i for i in n.expr_symbols
-                                   if isinstance(i, IndexedBase)],
+        'basics': lambda n: (i for i in n.expr_symbols if isinstance(i, Basic)),
+        'symbols': lambda n: (i for i in n.expr_symbols
+                              if isinstance(i, AbstractSymbol)),
+        'dimensions': lambda n: (i for i in n.expr_symbols if isinstance(i, Dimension)),
+        'indexeds': lambda n: (i for i in n.expr_symbols if i.is_Indexed),
+        'indexedbases': lambda n: (i for i in n.expr_symbols
+                                   if isinstance(i, IndexedBase)),
         'writes': lambda n: as_tuple(n.writes),
         'defines': lambda n: as_tuple(n.defines),
-        'globals': lambda n: [f.base for f in n.functions if f._mem_global],
+        'globals': lambda n: (f.base for f in n.functions if f._mem_global),
         'defines-aliases': _defines_aliases
     }
 
-    def __init__(self, mode='symbolics'):
+    def __init__(self, mode: str = 'symbolics') -> None:
         super().__init__()
 
         modes = mode.split('|')
@@ -1073,27 +1070,27 @@ class FindSymbols(Visitor):
         else:
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
-    def _post_visit(self, ret):
+    def _post_visit(self, ret: Iterable[Any]) -> list[Any]:
         return sorted(ret, key=lambda i: str(i))
 
-    def visit_tuple(self, o):
-        return self.Retval(*[self._visit(i) for i in o])
+    def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
+        yield from self.retval(self._visit(i) for i in o)
 
     visit_list = visit_tuple
 
-    def visit_Node(self, o):
-        return self.Retval(self._visit(o.children), self.rule(o))
+    def visit_Node(self, o: Node) -> Iterator[Any]:
+        yield from self.retval(self._visit(o.children), self.rule(o))
 
-    def visit_ThreadedProdder(self, o):
+    def visit_ThreadedProdder(self, o) -> Iterator[Any]:
         # TODO: this handle required because ThreadedProdder suffers from the
         # long-standing issue affecting all Node subclasses which rely on
         # multiple inheritance
-        return self.Retval(self._visit(o.then_body), self.rule(o))
+        yield from self.retval(self._visit(o.then_body), self.rule(o))
 
-    def visit_Operator(self, o):
-        ret = self._visit(o.body)
-        ret.extend(flatten(self._visit(v) for v in o._func_table.values()))
-        return self.Retval(ret, self.rule(o))
+    def visit_Operator(self, o) -> Iterator[Any]:
+        yield from self.retval(self._visit(o.body),
+                               flatten_iter(self._visit(i) for i in o._dspace.parts),
+                               self.rule(o))
 
 
 class FindNodes(Visitor):
