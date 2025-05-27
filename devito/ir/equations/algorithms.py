@@ -1,6 +1,8 @@
 from collections.abc import Iterable
 from functools import singledispatch
 
+import numpy as np
+
 from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
                               retrieve_functions)
 from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
@@ -140,8 +142,10 @@ def _lower_exprs(expressions, subs):
                 # FIXME: I think this inadvertently converts the initvalue
                 # from array to list
                 initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
-                print(type(f.initvalue), type(initvalue))
-                from IPython import embed; embed()
+
+                # FIXME: Horrible hack
+                if isinstance(f.initvalue, np.ndarray):
+                    initvalue = np.array(initvalue)
                 # TODO: fix rebuild to avoid new name
                 f = f._rebuild(name='%si' % f.name, initvalue=initvalue)
 

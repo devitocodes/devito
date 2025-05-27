@@ -121,12 +121,21 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     name = sregistry.make_name(prefix='w')
     w0 = ideriv.weights.function
     dtype = infer_dtype([w0.dtype, c.dtype])  # At least np.float32
-    k = tuple(w0.weights)
-    from IPython import embed; embed()
+    # from IPython import embed; embed()
+
+    # FIXME: Another horrible hack
+    if isinstance(w0.weights, np.ndarray):
+        k = tuple(w0.weights.flatten())
+    else:
+        k = tuple(w0.weights)
+
     try:
         w = weights[k]
     except KeyError:
         initvalue = tuple(i.subs(subs_user) for i in k)
+        # FIXME: More horrible hack
+        if isinstance(w0.weights, np.ndarray):
+            initvalue = np.reshape(np.array(initvalue), w0.weights.shape)
         w = weights[k] = w0._rebuild(name=name, dtype=dtype, initvalue=initvalue)
 
     # Replace the abstract Weights array with the concrete one
