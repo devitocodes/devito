@@ -5,13 +5,14 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from itertools import chain, groupby
 import ctypes
 
 import cgen as c
 from sympy import IndexedBase
 from sympy.core.function import Application
+from typing import Any
 
 from devito.exceptions import CompilationError
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
@@ -23,6 +24,7 @@ from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
                           filter_sorted, flatten, is_external_ctype,
                           c_restrict_void_p, sorted_priority)
+from devito.tools.utils import filter_ordered_iter, flatten_iter
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -55,6 +57,38 @@ class Visitor(GenericVisitor):
         ops, okwargs = o.operands()
         new_ops = [self._visit(op, *args, **kwargs) for op in ops]
         return o._rebuild(*new_ops, **okwargs)
+
+
+class LazyVisitor(GenericVisitor):
+
+    """
+    A generic visitor that lazily yields results instead of flattening results
+    from children at every step (unless required for rebuilding).
+
+    Subclass-defined visit methods (and default_retval) should be generators.
+    """
+
+    @classmethod
+    def default_retval(cls) -> Iterator[Any]:
+        yield from ()
+
+    def lookup_method(self, instance) -> Callable[[], Iterator[Any]]:
+        return super().lookup_method(instance)
+
+    def _visit(self, o, *args, **kwargs) -> Iterator[Any]:
+        """Visit ``o``."""
+        meth = self.lookup_method(o)
+        yield from meth(o, *args, **kwargs)
+
+    def _post_visit(self, ret: Iterator[Any]) -> list[Any]:
+        """Postprocess the visitor output before returning it to the caller."""
+        return list(ret)
+
+    def visit_object(self, o: object, **kwargs) -> Iterator[Any]:
+        yield from self.default_retval()
+
+    def visit_Node(self, o: Node, **kwargs):
+        yield from self._visit(o.children, **kwargs)
 
 
 class PrintAST(Visitor):
