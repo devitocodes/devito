@@ -1093,11 +1093,7 @@ class FindSymbols(LazyVisitor):
                                self.rule(o))
 
 
-class FindNodes(Visitor):
-
-    @classmethod
-    def default_retval(cls):
-        return []
+class FindNodes(LazyVisitor):
 
     """
     Find all instances of given type.
@@ -1123,24 +1119,17 @@ class FindNodes(Visitor):
         self.match = match
         self.rule = self.rules[mode]
 
-    def visit_object(self, o, ret=None):
-        return ret
-
-    def visit_tuple(self, o, ret=None):
+    def visit_tuple(self, o: Sequence):
         for i in o:
-            ret = self._visit(i, ret=ret)
-        return ret
+            yield from self._visit(i)
 
     visit_list = visit_tuple
 
-    def visit_Node(self, o, ret=None):
-        if ret is None:
-            ret = self.default_retval()
+    def visit_Node(self, o: Node):
         if self.rule(self.match, o):
-            ret.append(o)
+            yield o
         for i in o.children:
-            ret = self._visit(i, ret=ret)
-        return ret
+            yield from self._visit(i)
 
 
 class FindApplications(Visitor):
