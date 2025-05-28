@@ -328,7 +328,7 @@ def get_gpu_info():
 
         return gpu_info
 
-    except OSError:
+    except (json.JSONDecodeError, OSError):
         pass
 
     # *** Third try: `sycl-ls`, clearly only works with Intel cards
