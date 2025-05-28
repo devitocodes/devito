@@ -4,14 +4,12 @@ from functools import reduce
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
 import types
-from typing import Any, Iterator
 
 import numpy as np
 import sympy
 
 __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
-           'roundm', 'powerset', 'invert', 'flatten', 'flatten_iter', 'single_or',
-           'filter_ordered', 'filter_ordered_iter',
+           'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
            'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number']
@@ -164,15 +162,6 @@ def flatten(l):
     return newlist
 
 
-def flatten_iter(it: Iterable[Iterable | Any]) -> Iterator[Any]:
-    """Flatten nested iterables into a single iterator."""
-    for item in it:
-        if isinstance(item, Iterable) and not isinstance(item, (str, bytes, np.ndarray)):
-            yield from flatten_iter(item)
-        else:
-            yield item
-
-
 def single_or(l):
     """Return True iff only one item is different than ``None``, False otherwise.
     Note that this is not a XOR function, according to the truth table of the XOR
@@ -200,16 +189,6 @@ def filter_ordered(elements, key=None):
         return list(dict.fromkeys(elements))
     else:
         return list(dict(zip([key(i) for i in elements], elements)).values())
-
-
-def filter_ordered_iter(it: Iterable[Any], key=None) -> Iterator[Any]:
-    """Filter elements in an iterable while preserving order."""
-    seen = set()
-    for item in it:
-        k = key(item) if key else item
-        if k not in seen:
-            seen.add(k)
-            yield item
 
 
 def filter_sorted(elements, key=None):

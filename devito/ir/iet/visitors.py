@@ -24,7 +24,6 @@ from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
                           filter_sorted, flatten, is_external_ctype,
                           c_restrict_void_p, sorted_priority)
-from devito.tools.utils import filter_ordered_iter, flatten_iter
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
@@ -72,7 +71,7 @@ class LazyVisitor(GenericVisitor):
     def default_retval(cls) -> Iterator[Any]:
         yield from ()
 
-    def lookup_method(self, instance) -> Callable[[], Iterator[Any]]:
+    def lookup_method(self, instance) -> Callable[..., Iterator[Any]]:
         return super().lookup_method(instance)
 
     def _visit(self, o, *args, **kwargs) -> Iterator[Any]:
@@ -1013,17 +1012,6 @@ class MapNodes(Visitor):
 
 class FindSymbols(LazyVisitor):
 
-    @classmethod
-    def join(cls, *its: Iterable[Any], key: Callable[[Any], Any] = str) -> Iterator[Any]:
-        """
-        Flattens nested iterables and filters for uniqueness, ordering results
-        lexicographically so we don't need to sort the final result.
-        """
-
-        _it = (flatten_iter(it) for it in its)
-        yield from filter_ordered_iter(flatten_iter(_it), key=id)
-
-
     """
     Find symbols in an Iteration/Expression tree.
 
@@ -1074,26 +1062,30 @@ class FindSymbols(LazyVisitor):
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret: Iterable[Any]) -> Iterable[Any]:
-        return sorted(ret, key=str)
+        return sorted(filter_ordered(ret, key = id), key=str)
 
     def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
-        yield from self.join(self._visit(i) for i in o)
+        for i in o:
+            yield from self._visit(i)
 
     visit_list = visit_tuple
 
     def visit_Node(self, o: Node) -> Iterator[Any]:
-        yield from self.join(self._visit(o.children), self.rule(o))
+        yield from self._visit(o.children)
+        yield from self.rule(o)
 
     def visit_ThreadedProdder(self, o) -> Iterator[Any]:
         # TODO: this handle required because ThreadedProdder suffers from the
         # long-standing issue affecting all Node subclasses which rely on
         # multiple inheritance
-        yield from self.join(self._visit(o.then_body), self.rule(o))
+        yield from self._visit(o.then_body)
+        yield from self.rule(o)
 
     def visit_Operator(self, o) -> Iterator[Any]:
-        yield from self.join(self._visit(o.body),
-                             self.rule(o),
-                             *(self._visit(i) for i in o._dspace.parts))
+        yield from self._visit(o.body)
+        yield from self.rule(o)
+        for i in o._dspace.parts:
+            yield from self._visit(i)
 
 
 class FindNodes(LazyVisitor):
@@ -1122,13 +1114,13 @@ class FindNodes(LazyVisitor):
         self.match = match
         self.rule = self.rules[mode]
 
-    def visit_tuple(self, o: Sequence):
+    def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
         for i in o:
             yield from self._visit(i)
 
     visit_list = visit_tuple
 
-    def visit_Node(self, o: Node):
+    def visit_Node(self, o: Node) -> Iterator[Any]:
         if self.rule(self.match, o):
             yield o
         for i in o.children:
