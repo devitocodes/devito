@@ -151,7 +151,7 @@ class Graph:
         if len(efuncs) > len(self.efuncs):
             efuncs = reuse_compounds(efuncs, self.sregistry)
             # TODO: fix for petsc bundles
-            # efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
+            efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
 
@@ -355,7 +355,7 @@ def reuse_efuncs(root, efuncs, sregistry=None):
         if isinstance(efunc, AsyncCallable):
             mapper[len(mapper)] = (efunc, [efunc])
             continue
-        # from IPython import embed; embed()
+
         afunc = abstract_efunc(efunc)
         key = afunc._signature()
 
@@ -396,7 +396,7 @@ def abstract_efunc(efunc):
     functions = FindSymbols('basics|symbolics|dimensions').visit(efunc)
 
     mapper = abstract_objects(functions)
-    # from IPython import embed; embed()
+
     efunc = Uxreplace(mapper).visit(efunc)
     efunc = efunc._rebuild(name='foo')
 
@@ -416,8 +416,8 @@ def abstract_objects(objects0, sregistry=None):
 
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    # keys = [Bundle, Array, PETScArray, DiscreteFunction, AbstractIncrDimension, BlockDimension]
-    keys = [Bundle, PETScArray, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    keys = [Bundle, Array, PETScArray, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    # keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
     priority = {k: i for i, k in enumerate(keys, start=1)}
     objects = sorted_priority(objects, priority)
 
@@ -428,7 +428,6 @@ def abstract_objects(objects0, sregistry=None):
     for i in objects:
         abstract_object(i, mapper, sregistry)
 
-    # from IPython import embed; embed()
     return mapper
 
 
@@ -455,6 +454,7 @@ def _(i, mapper, sregistry):
 
 
 @abstract_object.register(Array)
+@abstract_object.register(PETScArray)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):
         name = sregistry.make_name(prefix='lock')
@@ -470,20 +470,6 @@ def _(i, mapper, sregistry):
     })
     if i.dmap is not None:
         mapper[i.dmap] = v.dmap
-
-
-# @abstract_object.register(PETScArray)
-# def _(i, mapper, sregistry):
-#     name = sregistry.make_name(prefix='xx')
-
-#     v = i._rebuild(name=name, initializer=None, alias=True)
-
-#     mapper.update({
-#         i: v,
-#         i.indexed: v.indexed,
-#         i.dmap: v.dmap,
-#         i._C_symbol: v._C_symbol,
-#     })
 
 
 @abstract_object.register(Bundle)
@@ -508,7 +494,6 @@ def _(i, mapper, sregistry):
     name = sregistry.make_name(prefix='o')
 
     v = i._rebuild(name)
-
     mapper[i] = v
 
 

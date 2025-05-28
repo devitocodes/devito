@@ -218,9 +218,6 @@ class SubMatrixStruct(PETScStruct):
     _C_modifier = None
 
 
-JacobianStructCast = cast('struct JacobianCtx *')
-
-
 class PETScArrayObject(ArrayObject):
     _data_alignment = False
 
