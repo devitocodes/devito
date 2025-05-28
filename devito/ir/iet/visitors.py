@@ -63,7 +63,7 @@ class LazyVisitor(GenericVisitor):
 
     """
     A generic visitor that lazily yields results instead of flattening results
-    from children at every step (unless required for rebuilding).
+    from children at every step.
 
     Subclass-defined visit methods (and default_retval) should be generators.
     """
@@ -1014,12 +1014,15 @@ class MapNodes(Visitor):
 class FindSymbols(LazyVisitor):
 
     @classmethod
-    def retval(cls, *its: Iterable[Any]) -> Iterator[Any]:
+    def join(cls, *its: Iterable[Any], key: Callable[[Any], Any] = str) -> Iterator[Any]:
         """
-        Filterrs and flattens nested iterables while preserving relative order.
+        Flattens nested iterables and filters for uniqueness, ordering results
+        lexicographically so we don't need to sort the final result.
         """
-        ret = chain(flatten_iter(it) for it in its)
-        return filter_ordered_iter(flatten_iter(ret), key=id)
+
+        _it = (flatten_iter(it) for it in its)
+        yield from filter_ordered_iter(flatten_iter(_it), key=id)
+
 
     """
     Find symbols in an Iteration/Expression tree.
@@ -1070,27 +1073,27 @@ class FindSymbols(LazyVisitor):
         else:
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
-    def _post_visit(self, ret: Iterable[Any]) -> list[Any]:
-        return sorted(ret, key=lambda i: str(i))
+    def _post_visit(self, ret: Iterable[Any]) -> Iterable[Any]:
+        return sorted(ret, key=str)
 
     def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
-        yield from self.retval(self._visit(i) for i in o)
+        yield from self.join(self._visit(i) for i in o)
 
     visit_list = visit_tuple
 
     def visit_Node(self, o: Node) -> Iterator[Any]:
-        yield from self.retval(self._visit(o.children), self.rule(o))
+        yield from self.join(self._visit(o.children), self.rule(o))
 
     def visit_ThreadedProdder(self, o) -> Iterator[Any]:
         # TODO: this handle required because ThreadedProdder suffers from the
         # long-standing issue affecting all Node subclasses which rely on
         # multiple inheritance
-        yield from self.retval(self._visit(o.then_body), self.rule(o))
+        yield from self.join(self._visit(o.then_body), self.rule(o))
 
     def visit_Operator(self, o) -> Iterator[Any]:
-        yield from self.retval(self._visit(o.body),
-                               flatten_iter(self._visit(i) for i in o._dspace.parts),
-                               self.rule(o))
+        yield from self.join(self._visit(o.body),
+                             self.rule(o),
+                             *(self._visit(i) for i in o._dspace.parts))
 
 
 class FindNodes(LazyVisitor):
