@@ -337,7 +337,7 @@ def sorted_priority(items, priority):
     """
 
     def key(i):
-        for cls in sorted(priority, key=priority.get, reverse=True):
+        for cls in sorted(priority, key=priority.get):
             if isinstance(i, cls):
                 v = priority[cls]
                 break

@@ -52,10 +52,18 @@ class InjectSolve:
         return target, tuple(funcs), self.generate_field_data(eqns, target, arrays)
 
     def generate_field_data(self, eqns, target, arrays):
-        formfuncs, formrhs = zip(
-            *[self.build_function_eqns(eq, target, arrays) for eq in eqns]
+        # TODO: Ensure essential BCs are handled first - this is required to 
+        # maintain the symmetry of the operator when "constructing" the Jacobian.
+        eqns = sorted(eqns, key=lambda e: 0 if isinstance(e, EssentialBC) else 1)
+
+        # TODO: scaling
+
+        formfuncs, formrhs = map(
+            lambda x: [e for i in x for e in (i if isinstance(i, tuple) else [i])],
+            zip(*[self.build_function_eqns(eq, target, arrays) for eq in eqns])
         )
-        matvecs = [self.build_matvec_eqns(eq, target, arrays) for eq in eqns]
+        matvecs = [e for i in [self.build_matvec_eqns(eq, target, arrays) for eq in eqns]
+                   for e in (i if isinstance(i, (tuple)) else [i])]
 
         initialguess = [
             eq for eq in
@@ -88,7 +96,14 @@ class InjectSolve:
 
     def make_matvec(self, eq, F_target, arrays, targets):
         if isinstance(eq, EssentialBC):
+            # TODO: SCALING
+            # NOTE: Until PetscSection + DMDA is supported, we leave
+            # the essential BCs in the solver.
+            # Trivial equations for bc rows -> place 1.0 on diagonal (scaled)
+            # and zero symmetrically.
             rhs = arrays['x']
+            zero_column = Eq(arrays['x'], 0.0, subdomain=eq.subdomain)
+            return (Eq(arrays['y'], rhs, subdomain=eq.subdomain), zero_column)
         else:
             rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
             rhs = rhs.subs(self.time_mapper)
@@ -96,9 +111,16 @@ class InjectSolve:
 
     def make_formfunc(self, eq, F_target, arrays, targets):
         if isinstance(eq, EssentialBC):
-            # TODO: CHECK THIS
-            rhs = arrays[main_target]['x'] - eq.rhs
-            # rhs = 0.
+            # The initial guess already satisfies the essential boundary conditions,
+            # so this term will always be zero. It's included here to allow
+            # testing of the Jacobian via finite differences.
+            rhs = arrays['x'] - eq.rhs
+            # Create equation to handle essential boundary conditions - we
+            # move the essential BCs to the right-hand side
+            # and zero the corresponding column in the Jacobian.
+            # TODO: extend this to mixed problems
+            move_bc = Eq(arrays['x'], eq.rhs, subdomain=eq.subdomain)
+            return (Eq(arrays['f'], rhs, subdomain=eq.subdomain), move_bc)
         else:
             if isinstance(F_target, (int, float)):
                 rhs = F_target
@@ -215,6 +237,17 @@ class InjectSolveNested(InjectSolve):
 
 
 class EssentialBC(Eq):
+    """
+    A special equation representing an essential boundary condition.
+    It is used to handle essential boundary conditions in the PETSc solver.
+    Until PetscSection + DMDA is supported, we treat essential boundary conditions
+    as trivial equations in the solver, where we place 1.0 on the diagonal of the jacobian, 
+    zero symmetrically and move the essential boundary condition to the right-hand side.
+
+    NOTE: When users define essential boundary conditions, they need to ensure that
+    the SubDomains do not overlap. Solver will still run but may see unexpected behaviour
+    along boundaries.
+    """
     pass
 
 

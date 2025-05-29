@@ -76,8 +76,7 @@ subdomains = (sub1, sub2, sub3, sub4)
 Lx = np.float64(1.)
 Ly = np.float64(1.)
 
-# n_values = [33, 53, 73, 93, 113]
-n_values = [33]
+n_values = [33, 53, 73, 93, 113]
 dx = np.array([Lx/(n-1) for n in n_values])
 
 u_errors = []
@@ -135,14 +134,11 @@ for n in n_values:
     v_error = np.linalg.norm(v_diff.ravel(), ord=np.inf) / np.linalg.norm(lap_u.data[:].ravel(), ord=np.inf)
     v_errors.append(v_error)
 
-# u_slope, _ = np.polyfit(np.log(dx), np.log(u_errors), 1)
-# v_slope, _ = np.polyfit(np.log(dx), np.log(v_errors), 1)
+u_slope, _ = np.polyfit(np.log(dx), np.log(u_errors), 1)
+v_slope, _ = np.polyfit(np.log(dx), np.log(v_errors), 1)
 
-# assert u_slope > 1.9
-# assert u_slope < 2.1
+assert u_slope > 1.9
+assert u_slope < 2.1
 
-# assert v_slope > 1.9
-# assert v_slope < 2.1
-print(op.ccode)
-print("u_errors:", u_errors)
-print("v_errors:", v_errors)
+assert v_slope > 1.9
+assert v_slope < 2.1

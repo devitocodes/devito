@@ -339,7 +339,7 @@ def test_separate_eqn(eqn, target, expected):
     f2 = TimeFunction(name='f2', grid=grid, space_order=so)  # noqa
     g2 = TimeFunction(name='g2', grid=grid, space_order=so)  # noqa
 
-    b, F, _ = separate_eqn(eval(eqn), eval(target))
+    b, F, _, _= separate_eqn(eval(eqn), eval(target))
     expected_b, expected_F = expected
 
     assert str(b) == expected_b
@@ -471,7 +471,7 @@ def test_separate_eval_eqn(eqn, target, expected):
     f2 = TimeFunction(name='f2', grid=grid, space_order=so)  # noqa
     g2 = TimeFunction(name='g2', grid=grid, space_order=so)  # noqa
 
-    b, F, _ = separate_eqn(eval(eqn), eval(target))
+    b, F, _, _ = separate_eqn(eval(eqn), eval(target))
     expected_b, expected_F = expected
 
     assert str(b) == expected_b
@@ -793,6 +793,9 @@ def test_essential_bcs():
     Verify that PETScSolve returns the correct output with
     essential boundary conditions.
     """
+
+    # SubDomains used for essential boundary conditions 
+    # should not overlap.
     class SubTop(SubDomain):
         name = 'subtop'
 
@@ -814,7 +817,7 @@ def test_essential_bcs():
 
         def define(self, dimensions):
             x, y = dimensions
-            return {x: ('left', 1), y: y}
+            return {x: ('left', 1), y: ('middle', 1, 1)}
     sub3 = SubLeft()
 
     class SubRight(SubDomain):
@@ -822,7 +825,7 @@ def test_essential_bcs():
 
         def define(self, dimensions):
             x, y = dimensions
-            return {x: ('right', 1), y: y}
+            return {x: ('right', 1), y: ('middle', 1, 1)}
     sub4 = SubRight()
 
     subdomains = (sub1, sub2, sub3, sub4)
@@ -913,9 +916,10 @@ class TestCoupledLinear:
         callbacks2 = [meta_call.root for meta_call in op2._func_table.values()]
 
         # Solving for multiple fields within the same matrix system requires
-        # additional machinery and more callback functions
+        # less callback functions than solving them separately.
+        # TODO: check reuse of callback functions where appropriate
         assert len(callbacks1) == 8
-        assert len(callbacks2) == 11
+        assert len(callbacks2) == 6
 
         # Check fielddata type
         fielddata1 = petsc1[0].rhs.fielddata

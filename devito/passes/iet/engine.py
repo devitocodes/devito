@@ -416,8 +416,7 @@ def abstract_objects(objects0, sregistry=None):
 
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    keys = [Bundle, Array, PETScArray, DiscreteFunction, AbstractIncrDimension, BlockDimension]
-    # keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    keys = [Bundle, ArrayBasic, DiscreteFunction, AbstractIncrDimension, BlockDimension]
     priority = {k: i for i, k in enumerate(keys, start=1)}
     objects = sorted_priority(objects, priority)
 
@@ -453,8 +452,7 @@ def _(i, mapper, sregistry):
     })
 
 
-@abstract_object.register(Array)
-@abstract_object.register(PETScArray)
+@abstract_object.register(ArrayBasic)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):
         name = sregistry.make_name(prefix='lock')

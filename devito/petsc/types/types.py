@@ -188,15 +188,12 @@ class FieldData:
         return (self.target,)
 
 
-# TODO: should this acc inherhit from fielddata? maybe not?
 class MultipleFieldData(FieldData):
     def __init__(self, targets, arrays, submatrices=None):
         self._targets = as_tuple(targets)
         self._arrays = arrays
         self._submatrices = submatrices
         self._formfuncs = []
-
-    # pass
 
     def extend_formfuncs(self, formfuncs):
         self._formfuncs.extend(formfuncs)

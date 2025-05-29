@@ -23,12 +23,14 @@ PetscInitialize()
 
 
 # Subdomains to implement BCs
+# NOTE: For essential BCs, we ensure the SubDomains do not overlap
+
 class SubTop(SubDomain):
     name = 'subtop'
 
     def define(self, dimensions):
         x, y = dimensions
-        return {x: x, y: ('right', 1)}
+        return {x: ('middle', 1, 1), y: ('right', 1)}
 
 
 class SubBottom(SubDomain):
@@ -36,7 +38,7 @@ class SubBottom(SubDomain):
 
     def define(self, dimensions):
         x, y = dimensions
-        return {x: x, y: ('left', 1)}
+        return {x: ('middle', 1, 1), y: ('left', 1)}
 
 
 class SubLeft(SubDomain):
