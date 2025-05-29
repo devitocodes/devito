@@ -1,6 +1,7 @@
 from functools import singledispatch
 
 import sympy
+import numpy as np
 
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.derivative import Derivative
@@ -28,9 +29,11 @@ class InjectSolve:
         self.solver_params = solver_parameters
         self.time_mapper = None
         self.target_eqns = target_eqns
+        self.cell_area = None
 
     def build_eq(self):
         target, funcs, fielddata = self.linear_solve_args()
+
         # Placeholder equation for inserting calls to the solver
         linear_solve = LinearSolveExpr(
             funcs,
@@ -44,6 +47,7 @@ class InjectSolve:
     def linear_solve_args(self):
         target, eqns = next(iter(self.target_eqns.items()))
         eqns = as_tuple(eqns)
+        self.cell_area = np.prod(target.grid.spacing_symbols)
 
         funcs = get_funcs(eqns)
         self.time_mapper = generate_time_mapper(funcs)
@@ -52,11 +56,9 @@ class InjectSolve:
         return target, tuple(funcs), self.generate_field_data(eqns, target, arrays)
 
     def generate_field_data(self, eqns, target, arrays):
-        # TODO: Ensure essential BCs are handled first - this is required to 
-        # maintain the symmetry of the operator when "constructing" the Jacobian.
+        # TODO: Apply essential boundary conditions first to preserve operator symmetry 
+        # during Jacobian "construction".
         eqns = sorted(eqns, key=lambda e: 0 if isinstance(e, EssentialBC) else 1)
-
-        # TODO: scaling
 
         formfuncs, formrhs = map(
             lambda x: [e for i in x for e in (i if isinstance(i, tuple) else [i])],
@@ -64,7 +66,7 @@ class InjectSolve:
         )
         matvecs = [e for i in [self.build_matvec_eqns(eq, target, arrays) for eq in eqns]
                    for e in (i if isinstance(i, (tuple)) else [i])]
-
+        from IPython import embed; embed()
         initialguess = [
             eq for eq in
             (self.make_initial_guess(e, target, arrays) for e in eqns)
@@ -96,17 +98,17 @@ class InjectSolve:
 
     def make_matvec(self, eq, F_target, arrays, targets):
         if isinstance(eq, EssentialBC):
-            # TODO: SCALING
             # NOTE: Until PetscSection + DMDA is supported, we leave
             # the essential BCs in the solver.
             # Trivial equations for bc rows -> place 1.0 on diagonal (scaled)
             # and zero symmetrically.
             rhs = arrays['x']
             zero_column = Eq(arrays['x'], 0.0, subdomain=eq.subdomain)
-            return (Eq(arrays['y'], rhs, subdomain=eq.subdomain), zero_column)
+            return (EssentialBC(arrays['y'], rhs, subdomain=eq.subdomain), zero_column)
         else:
             rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
             rhs = rhs.subs(self.time_mapper)
+            rhs = rhs * self.cell_area
         return Eq(arrays['y'], rhs, subdomain=eq.subdomain)
 
     def make_formfunc(self, eq, F_target, arrays, targets):
@@ -120,17 +122,19 @@ class InjectSolve:
             # and zero the corresponding column in the Jacobian.
             # TODO: extend this to mixed problems
             move_bc = Eq(arrays['x'], eq.rhs, subdomain=eq.subdomain)
-            return (Eq(arrays['f'], rhs, subdomain=eq.subdomain), move_bc)
+            return (EssentialBC(arrays['f'], rhs, subdomain=eq.subdomain), move_bc)
         else:
             if isinstance(F_target, (int, float)):
-                rhs = F_target
+                rhs = F_target * self.cell_area
             else:
                 rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
                 rhs = rhs.subs(self.time_mapper)
+                rhs = rhs * self.cell_area
         return Eq(arrays['f'], rhs, subdomain=eq.subdomain)
 
     def make_rhs(self, eq, b, arrays):
         rhs = 0. if isinstance(eq, EssentialBC) else b.subs(self.time_mapper)
+        rhs = rhs*self.cell_area
         return Eq(arrays['b'], rhs, subdomain=eq.subdomain)
 
     def make_initial_guess(self, eq, target, arrays):
@@ -175,6 +179,8 @@ class InjectSolveNested(InjectSolve):
         all_data = MultipleFieldData(submatrices=jacobian, arrays=arrays,
                                      targets=coupled_targets)
 
+        self.cell_area = np.prod(all_data.grid.spacing_symbols)
+
         for target, eqns in self.target_eqns.items():
             eqns = as_tuple(eqns)
             self.update_jacobian(eqns, target, jacobian, arrays[target])
@@ -189,11 +195,11 @@ class InjectSolveNested(InjectSolve):
 
     def update_jacobian(self, eqns, target, jacobian, arrays):
         for submat, mtvs in jacobian.submatrices[target].items():
-            matvecs = [
-                self.build_matvec_eqns(eq, mtvs['derivative_wrt'], arrays)
-                for eq in eqns
-            ]
+            # TODO: maintain symmetry for coupled
+            matvecs = [e for i in [self.build_matvec_eqns(eq, mtvs['derivative_wrt'], arrays)
+                       for eq in eqns] for e in (i if isinstance(i, (tuple)) else [i])]
             matvecs = [m for m in matvecs if m is not None]
+
             if matvecs:
                 jacobian.set_submatrix(target, submat, matvecs)
 
@@ -210,14 +216,14 @@ class InjectSolveNested(InjectSolve):
             mapper.update(targets_to_arrays(arrays[t]['x'], target_funcs))
 
         if isinstance(eq, EssentialBC):
-            # TODO: CHECK THIS
             rhs = arrays[main_target]['x'] - eq.rhs
         else:
             if isinstance(zeroed, (int, float)):
-                rhs = zeroed
+                rhs = zeroed * self.cell_area
             else:
                 rhs = zeroed.subs(mapper)
                 rhs = rhs.subs(self.time_mapper)
+                rhs = rhs * self.cell_area
 
         return Eq(arrays[main_target]['f'], rhs, subdomain=eq.subdomain)
 
@@ -235,6 +241,20 @@ class InjectSolveNested(InjectSolve):
             for target in targets
         }
 
+    def make_matvec(self, eq, F_target, arrays, targets):
+        if isinstance(eq, EssentialBC):
+            # TODO: SHOULDN'T NEED this subclass once fixed mixed problems + symmetry
+            # NOTE: Until PetscSection + DMDA is supported, we leave
+            # the essential BCs in the solver.
+            # Trivial equations for bc rows -> place 1.0 on diagonal
+            # and zero symmetrically. FIX FOR MIXED PROBLEMS
+            rhs = arrays['x']
+        else:
+            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
+            rhs = rhs.subs(self.time_mapper)
+            rhs = rhs * self.cell_area
+        return Eq(arrays['y'], rhs, subdomain=eq.subdomain)
+
 
 class EssentialBC(Eq):
     """
@@ -246,7 +266,7 @@ class EssentialBC(Eq):
 
     NOTE: When users define essential boundary conditions, they need to ensure that
     the SubDomains do not overlap. Solver will still run but may see unexpected behaviour
-    along boundaries.
+    at boundaries.
     """
     pass
 

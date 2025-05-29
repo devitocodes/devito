@@ -97,7 +97,7 @@ int main(int argc,char **argv) {
     user.f = &f_fcn;
     PetscCall(DMDACreate2d(PETSC_COMM_WORLD,
                         DM_BOUNDARY_NONE, DM_BOUNDARY_NONE, DMDA_STENCIL_STAR,
-                        33,33,PETSC_DECIDE,PETSC_DECIDE,
+                        6,6,PETSC_DECIDE,PETSC_DECIDE,
                         2,1,              // degrees of freedom, stencil width
                         NULL,NULL,&da));
     PetscCall(DMSetApplicationContext(da,&user));

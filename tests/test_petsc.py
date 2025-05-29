@@ -108,15 +108,15 @@ def test_petsc_solve():
     rhs_expr = FindNodes(Expression).visit(formrhs_callback[0])
 
     assert str(action_expr[-1].expr.rhs) == (
-        'x_f[x + 1, y + 2]/ctx0->h_x**2'
+        '(x_f[x + 1, y + 2]/ctx0->h_x**2'
         ' - 2.0*x_f[x + 2, y + 2]/ctx0->h_x**2'
         ' + x_f[x + 3, y + 2]/ctx0->h_x**2'
         ' + x_f[x + 2, y + 1]/ctx0->h_y**2'
         ' - 2.0*x_f[x + 2, y + 2]/ctx0->h_y**2'
-        ' + x_f[x + 2, y + 3]/ctx0->h_y**2'
+        ' + x_f[x + 2, y + 3]/ctx0->h_y**2)*ctx0->h_x*ctx0->h_y'
     )
 
-    assert str(rhs_expr[-1].expr.rhs) == 'g[x + 2, y + 2]'
+    assert str(rhs_expr[-1].expr.rhs) == 'ctx0->h_x*ctx0->h_y*g[x + 2, y + 2]'
 
     # Check the iteration bounds are correct.
     assert op.arguments().get('x_m') == 0
@@ -836,7 +836,7 @@ def test_essential_bcs():
 
     # Solving Ax=b where A is the identity matrix
     v.data[:] = 5.0
-    eqn = Eq(u, v)
+    eqn = Eq(u, v, subdomain=grid.interior)
 
     bcs = [EssentialBC(u, 1., subdomain=sub1)]  # top
     bcs += [EssentialBC(u, 2., subdomain=sub2)]  # bottom
@@ -1083,11 +1083,12 @@ class TestCoupledLinear:
         j00 = submatrices.get_submatrix(e, 'J00')
         j11 = submatrices.get_submatrix(g, 'J11')
 
+        # Compatible scaling to reduce condition number of jacobian 
         assert str(j00['matvecs'][0]) == 'Eq(y_e(x, y),' \
-            + ' Derivative(x_e(x, y), (x, 2)) + Derivative(x_e(x, y), (y, 2)))'
+            + ' h_x*h_y*(Derivative(x_e(x, y), (x, 2)) + Derivative(x_e(x, y), (y, 2))))'
 
         assert str(j11['matvecs'][0]) == 'Eq(y_g(x, y),' \
-            + ' Derivative(x_g(x, y), (x, 2)) + Derivative(x_g(x, y), (y, 2)))'
+            + ' h_x*h_y*(Derivative(x_g(x, y), (x, 2)) + Derivative(x_g(x, y), (y, 2))))'
 
         # Check the derivative wrt fields
         assert j00['derivative_wrt'] == e
