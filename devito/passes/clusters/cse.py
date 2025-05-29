@@ -12,6 +12,7 @@ except ImportError:
 
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
+from devito.passes.clusters.buffering import is_buffering
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
@@ -77,6 +78,12 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
 
     if cluster.is_fence:
         return cluster
+
+    # Buffering clusters cannot be topologically sorted
+    # as in backward mode, the naming of temporaries is reversed leading to
+    # incorrect named-base sorting of the buffers.
+    if is_buffering(cluster.exprs):
+        mode = 'basic'
 
     make_dtype = lambda e: np.promote_types(e.dtype, dtype).type
     make = lambda e: CTemp(name=sregistry.make_name(), dtype=make_dtype(e))
