@@ -1128,53 +1128,43 @@ class FindNodes(LazyVisitor[list[Node]]):
             yield from self._visit(i)
 
 
-class FindApplications(Visitor):
+TApp = TypeVar('TApp')
+class FindApplications(LazyVisitor[set[TApp]]):
 
     """
     Find all SymPy applied functions (aka, `Application`s). The user may refine
     the search by supplying a different target class.
     """
 
-    def __init__(self, cls=Application):
+    def __init__(self, cls: type[TApp] = Application):
         super().__init__()
         self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
 
-    @classmethod
-    def default_retval(cls):
-        return set()
+    def _post_visit(self, ret):
+        return set(ret)
 
-    def visit_object(self, o, **kwargs):
-        return self.default_retval()
-
-    def visit_tuple(self, o, ret=None):
-        ret = ret or self.default_retval()
+    def visit_tuple(self, o: Sequence[Any]) -> Iterator[TApp]:
         for i in o:
-            ret.update(self._visit(i, ret=ret))
-        return ret
+            yield from self._visit(i)
 
-    def visit_Node(self, o, ret=None):
-        ret = ret or self.default_retval()
+    def visit_Node(self, o: Node) -> Iterator[TApp]:
         for i in o.children:
-            ret.update(self._visit(i, ret=ret))
-        return ret
+            yield from self._visit(i)
 
-    def visit_Expression(self, o, **kwargs):
-        return o.expr.find(self.match)
+    def visit_Expression(self, o: Expression, **kwargs) -> Iterator[TApp]:
+        yield from set(o.expr.find(self.match))
 
-    def visit_Iteration(self, o, **kwargs):
-        ret = self._visit(o.children) or self.default_retval()
-        ret.update(o.symbolic_min.find(self.match))
-        ret.update(o.symbolic_max.find(self.match))
-        return ret
+    def visit_Iteration(self, o: Iteration, **kwargs) -> Iterator[TApp]:
+        yield from self._visit(o.children)
+        yield from set(o.symbolic_min.find(self.match))
+        yield from set(o.symbolic_max.find(self.match))
 
-    def visit_Call(self, o, **kwargs):
-        ret = self.default_retval()
+    def visit_Call(self, o: Call, **kwargs) -> Iterator[TApp]:
         for i in o.arguments:
             try:
-                ret.update(i.find(self.match))
+                yield from set(i.find(self.match))
             except (AttributeError, TypeError):
-                ret.update(self._visit(i, ret=ret))
-        return ret
+                yield from self._visit(i)
 
 
 class IsPerfectIteration(Visitor):
