@@ -12,7 +12,7 @@ import ctypes
 import cgen as c
 from sympy import IndexedBase
 from sympy.core.function import Application
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 from devito.exceptions import CompilationError
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
@@ -58,7 +58,8 @@ class Visitor(GenericVisitor):
         return o._rebuild(*new_ops, **okwargs)
 
 
-class LazyVisitor(GenericVisitor):
+TResult = TypeVar('TResult')
+class LazyVisitor(GenericVisitor, Generic[TResult]):
 
     """
     A generic visitor that lazily yields results instead of flattening results
@@ -79,7 +80,7 @@ class LazyVisitor(GenericVisitor):
         meth = self.lookup_method(o)
         yield from meth(o, *args, **kwargs)
 
-    def _post_visit(self, ret: Iterator[Any]) -> list[Any]:
+    def _post_visit(self, ret: Iterator[Any]) -> TResult:
         """Postprocess the visitor output before returning it to the caller."""
         return list(ret)
 
@@ -1010,7 +1011,7 @@ class MapNodes(Visitor):
         return ret
 
 
-class FindSymbols(LazyVisitor):
+class FindSymbols(LazyVisitor[list[Any]]):
 
     """
     Find symbols in an Iteration/Expression tree.
@@ -1061,7 +1062,7 @@ class FindSymbols(LazyVisitor):
         else:
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
-    def _post_visit(self, ret: Iterable[Any]) -> Iterable[Any]:
+    def _post_visit(self, ret):
         return sorted(filter_ordered(ret, key = id), key=str)
 
     def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
@@ -1088,7 +1089,7 @@ class FindSymbols(LazyVisitor):
             yield from self._visit(i)
 
 
-class FindNodes(LazyVisitor):
+class FindNodes(LazyVisitor[list[Node]]):
 
     """
     Find all instances of given type.
@@ -1104,12 +1105,12 @@ class FindNodes(LazyVisitor):
                      appears.
     """
 
-    rules = {
+    rules: dict[str, Callable[[type, Node], bool]] = {
         'type': lambda match, o: isinstance(o, match),
         'scope': lambda match, o: match in flatten(o.children)
     }
 
-    def __init__(self, match, mode='type'):
+    def __init__(self, match: type, mode: str = 'type'):
         super().__init__()
         self.match = match
         self.rule = self.rules[mode]
