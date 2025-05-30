@@ -58,10 +58,10 @@ class Visitor(GenericVisitor):
         return o._rebuild(*new_ops, **okwargs)
 
 
-TResult = TypeVar('TResult')
+ResultType = TypeVar('ResultType')
 
 
-class LazyVisitor(GenericVisitor, Generic[TResult]):
+class LazyVisitor(GenericVisitor, Generic[ResultType]):
 
     """
     A generic visitor that lazily yields results instead of flattening results
@@ -82,7 +82,7 @@ class LazyVisitor(GenericVisitor, Generic[TResult]):
         meth = self.lookup_method(o)
         yield from meth(o, *args, **kwargs)
 
-    def _post_visit(self, ret: Iterator[Any]) -> TResult:
+    def _post_visit(self, ret: Iterator[Any]) -> ResultType:
         """Postprocess the visitor output before returning it to the caller."""
         return list(ret)
 
@@ -1072,7 +1072,7 @@ class FindSymbols(LazyVisitor[list[Any]]):
             self.rule = lambda n: chain(self.rules[mode](n) for mode in modes)
 
     def _post_visit(self, ret):
-        return sorted(filter_ordered(ret, key=id), key=str)
+        return sorted(filter_ordered(ret), key=str)
 
     def visit_Node(self, o: Node) -> Iterator[Any]:
         yield from self._visit(o.children)
@@ -1126,36 +1126,36 @@ class FindNodes(LazyVisitor[list[Node]]):
             yield from self._visit(i)
 
 
-TApp = TypeVar('TApp')
+ApplicationType = TypeVar('ApplicationType')
 
 
-class FindApplications(LazyVisitor[set[TApp]]):
+class FindApplications(LazyVisitor[set[ApplicationType]]):
 
     """
     Find all SymPy applied functions (aka, `Application`s). The user may refine
     the search by supplying a different target class.
     """
 
-    def __init__(self, cls: type[TApp] = Application):
+    def __init__(self, cls: type[ApplicationType] = Application):
         super().__init__()
         self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
 
     def _post_visit(self, ret):
         return set(ret)
 
-    def visit_Node(self, o: Node) -> Iterator[TApp]:
+    def visit_Node(self, o: Node) -> Iterator[ApplicationType]:
         for i in o.children:
             yield from self._visit(i)
 
-    def visit_Expression(self, o: Expression, **kwargs) -> Iterator[TApp]:
+    def visit_Expression(self, o: Expression, **kwargs) -> Iterator[ApplicationType]:
         yield from o.expr.find(self.match)
 
-    def visit_Iteration(self, o: Iteration, **kwargs) -> Iterator[TApp]:
+    def visit_Iteration(self, o: Iteration, **kwargs) -> Iterator[ApplicationType]:
         yield from self._visit(o.children)
         yield from o.symbolic_min.find(self.match)
         yield from o.symbolic_max.find(self.match)
 
-    def visit_Call(self, o: Call, **kwargs) -> Iterator[TApp]:
+    def visit_Call(self, o: Call, **kwargs) -> Iterator[ApplicationType]:
         for i in o.arguments:
             try:
                 yield from i.find(self.match)
