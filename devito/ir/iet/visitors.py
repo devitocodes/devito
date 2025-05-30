@@ -59,6 +59,8 @@ class Visitor(GenericVisitor):
 
 
 TResult = TypeVar('TResult')
+
+
 class LazyVisitor(GenericVisitor, Generic[TResult]):
 
     """
@@ -1063,7 +1065,7 @@ class FindSymbols(LazyVisitor[list[Any]]):
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret):
-        return sorted(filter_ordered(ret, key = id), key=str)
+        return sorted(filter_ordered(ret, key=id), key=str)
 
     def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
         for i in o:
@@ -1129,6 +1131,8 @@ class FindNodes(LazyVisitor[list[Node]]):
 
 
 TApp = TypeVar('TApp')
+
+
 class FindApplications(LazyVisitor[set[TApp]]):
 
     """
