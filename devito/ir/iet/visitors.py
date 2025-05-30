@@ -7,12 +7,12 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 from collections import OrderedDict
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from itertools import chain, groupby
+from typing import Any, Generic, TypeAlias, TypeVar
 import ctypes
 
 import cgen as c
 from sympy import IndexedBase
 from sympy.core.function import Application
-from typing import Any, Generic, TypeVar
 
 from devito.exceptions import CompilationError
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
@@ -1046,7 +1046,8 @@ class FindSymbols(LazyVisitor[list[Any]]):
             else:
                 yield i
 
-    rules = {
+    RulesDict: TypeAlias = dict[str, Callable[[Node], Iterator[Any]]]
+    rules: RulesDict = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: (i for i in n.expr_symbols if isinstance(i, Basic)),
         'symbols': lambda n: (i for i in n.expr_symbols
@@ -1068,7 +1069,7 @@ class FindSymbols(LazyVisitor[list[Any]]):
         if len(modes) == 1:
             self.rule = self.rules[mode]
         else:
-            self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
+            self.rule = lambda n: chain(self.rules[mode](n) for mode in modes)
 
     def _post_visit(self, ret):
         return sorted(filter_ordered(ret, key=id), key=str)
@@ -1107,7 +1108,8 @@ class FindNodes(LazyVisitor[list[Node]]):
                      appears.
     """
 
-    rules: dict[str, Callable[[type, Node], bool]] = {
+    RulesDict: TypeAlias = dict[str, Callable[[type, Node], bool]]
+    rules: RulesDict = {
         'type': lambda match, o: isinstance(o, match),
         'scope': lambda match, o: match in flatten(o.children)
     }
