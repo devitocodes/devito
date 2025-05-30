@@ -78,7 +78,7 @@ class LazyVisitor(GenericVisitor, Generic[TResult]):
         return super().lookup_method(instance)
 
     def _visit(self, o, *args, **kwargs) -> Iterator[Any]:
-        """Visit ``o``."""
+        """Visit `o`."""
         meth = self.lookup_method(o)
         yield from meth(o, *args, **kwargs)
 
@@ -89,8 +89,14 @@ class LazyVisitor(GenericVisitor, Generic[TResult]):
     def visit_object(self, o: object, **kwargs) -> Iterator[Any]:
         yield from self.default_retval()
 
-    def visit_Node(self, o: Node, **kwargs):
+    def visit_Node(self, o: Node, **kwargs) -> Iterator[Any]:
         yield from self._visit(o.children, **kwargs)
+
+    def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
+        for i in o:
+            yield from self._visit(i)
+
+    visit_list = visit_tuple
 
 
 class PrintAST(Visitor):
@@ -1067,12 +1073,6 @@ class FindSymbols(LazyVisitor[list[Any]]):
     def _post_visit(self, ret):
         return sorted(filter_ordered(ret, key=id), key=str)
 
-    def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
-        for i in o:
-            yield from self._visit(i)
-
-    visit_list = visit_tuple
-
     def visit_Node(self, o: Node) -> Iterator[Any]:
         yield from self._visit(o.children)
         yield from self.rule(o)
@@ -1117,12 +1117,6 @@ class FindNodes(LazyVisitor[list[Node]]):
         self.match = match
         self.rule = self.rules[mode]
 
-    def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
-        for i in o:
-            yield from self._visit(i)
-
-    visit_list = visit_tuple
-
     def visit_Node(self, o: Node) -> Iterator[Any]:
         if self.rule(self.match, o):
             yield o
@@ -1147,26 +1141,22 @@ class FindApplications(LazyVisitor[set[TApp]]):
     def _post_visit(self, ret):
         return set(ret)
 
-    def visit_tuple(self, o: Sequence[Any]) -> Iterator[TApp]:
-        for i in o:
-            yield from self._visit(i)
-
     def visit_Node(self, o: Node) -> Iterator[TApp]:
         for i in o.children:
             yield from self._visit(i)
 
     def visit_Expression(self, o: Expression, **kwargs) -> Iterator[TApp]:
-        yield from set(o.expr.find(self.match))
+        yield from o.expr.find(self.match)
 
     def visit_Iteration(self, o: Iteration, **kwargs) -> Iterator[TApp]:
         yield from self._visit(o.children)
-        yield from set(o.symbolic_min.find(self.match))
-        yield from set(o.symbolic_max.find(self.match))
+        yield from o.symbolic_min.find(self.match)
+        yield from o.symbolic_max.find(self.match)
 
     def visit_Call(self, o: Call, **kwargs) -> Iterator[TApp]:
         for i in o.arguments:
             try:
-                yield from set(i.find(self.match))
+                yield from i.find(self.match)
             except (AttributeError, TypeError):
                 yield from self._visit(i)
 
