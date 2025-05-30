@@ -2,6 +2,8 @@ from functools import singledispatch
 
 import sympy
 import numpy as np
+from itertools import chain
+from collections import defaultdict
 
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.derivative import Derivative
@@ -29,7 +31,14 @@ class InjectSolve:
         self.solver_params = solver_parameters
         self.time_mapper = None
         self.target_eqns = target_eqns
+        # TODO: make this _
         self.cell_area = None
+        # self._centre_stencils = set()
+        self._diag_scale = defaultdict(set)
+
+    @property
+    def diag_scale(self):
+        return self._diag_scale
 
     def build_eq(self):
         target, funcs, fielddata = self.linear_solve_args()
@@ -56,17 +65,35 @@ class InjectSolve:
         return target, tuple(funcs), self.generate_field_data(eqns, target, arrays)
 
     def generate_field_data(self, eqns, target, arrays):
-        # TODO: Apply essential boundary conditions first to preserve operator symmetry 
-        # during Jacobian "construction".
+        # Apply essential boundary conditions first to preserve
+        # operator symmetry during Jacobian "construction"
         eqns = sorted(eqns, key=lambda e: 0 if isinstance(e, EssentialBC) else 1)
 
+        matvecs = [e for eq in eqns for e in self.build_matvec_eq(eq, target, arrays)]
+
         formfuncs, formrhs = map(
-            lambda x: [e for i in x for e in (i if isinstance(i, tuple) else [i])],
-            zip(*[self.build_function_eqns(eq, target, arrays) for eq in eqns])
+            lambda x: [e for i in x for e in i],
+            zip(*[self.build_function_eq(eq, target, arrays) for eq in eqns])
         )
-        matvecs = [e for i in [self.build_matvec_eqns(eq, target, arrays) for eq in eqns]
-                   for e in (i if isinstance(i, (tuple)) else [i])]
-        from IPython import embed; embed()
+
+        # self._centre_stencils[arrays['x']].update(
+        stencils = set()
+        for eq in matvecs:
+            if not isinstance(eq, EssentialBC):
+                stencil = centre_stencil(eq.rhs, arrays['x'], as_coeff=True)
+                stencils.add(stencil)
+
+        if len(stencils) > 1:
+            # Scaling of jacobian is therefore ambiguous, potentially could average across the subblock
+            # for now just set to trivial 1.0
+            scale = 1.0
+        else:
+            scale = next(iter(stencils))
+
+        # from IPython import embed; embed()
+        matvecs = self.scale_essential_bcs(matvecs, scale)
+        formfuncs = self.scale_essential_bcs(formfuncs, scale)
+
         initialguess = [
             eq for eq in
             (self.make_initial_guess(e, target, arrays) for e in eqns)
@@ -82,19 +109,18 @@ class InjectSolve:
             arrays=arrays
         )
 
-    def build_function_eqns(self, eq, target, arrays):
+    def build_function_eq(self, eq, target, arrays):
         b, F_target, _, targets = separate_eqn(eq, target)
         formfunc = self.make_formfunc(eq, F_target, arrays, targets)
         formrhs = self.make_rhs(eq, b, arrays)
 
         return (formfunc, formrhs)
 
-    def build_matvec_eqns(self, eq, target, arrays):
+    def build_matvec_eq(self, eq, target, arrays):
         b, F_target, _, targets = separate_eqn(eq, target)
-        if not F_target:
-            return None
-        matvec = self.make_matvec(eq, F_target, arrays, targets)
-        return matvec
+        if F_target:
+            return self.make_matvec(eq, F_target, arrays, targets)
+        return (None,)
 
     def make_matvec(self, eq, F_target, arrays, targets):
         if isinstance(eq, EssentialBC):
@@ -103,39 +129,41 @@ class InjectSolve:
             # Trivial equations for bc rows -> place 1.0 on diagonal (scaled)
             # and zero symmetrically.
             rhs = arrays['x']
-            zero_column = Eq(arrays['x'], 0.0, subdomain=eq.subdomain)
-            return (EssentialBC(arrays['y'], rhs, subdomain=eq.subdomain), zero_column)
+            zero_row = ZeroRow(arrays['y'], rhs, subdomain=eq.subdomain)
+            zero_column = ZeroColumn(arrays['x'], 0.0, subdomain=eq.subdomain)
+            return (zero_row, zero_column)
         else:
             rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
-            rhs = rhs.subs(self.time_mapper)
-            rhs = rhs * self.cell_area
-        return Eq(arrays['y'], rhs, subdomain=eq.subdomain)
+            rhs = rhs.subs(self.time_mapper) * self.cell_area
+            # TODO: Average centre stencils if they vary, to scale essential BC rows.
+            # self.centre = centre_stencil(rhs, arrays['x'], as_coeff=True)
+            # stencil = centre_stencil(rhs, arrays['x'], as_coeff=True)
+            # self._centre_stencils[arrays['x']].add(stencil)
+            # self._centre_stencils.add(stencil)
+
+        return as_tuple(Eq(arrays['y'], rhs, subdomain=eq.subdomain))
 
     def make_formfunc(self, eq, F_target, arrays, targets):
         if isinstance(eq, EssentialBC):
-            # The initial guess already satisfies the essential boundary conditions,
-            # so this term will always be zero. It's included here to allow
-            # testing of the Jacobian via finite differences.
+            # The initial guess satisfies the essential BCs, so this term is zero.
+            # Still included to support Jacobian testing via finite differences.
             rhs = arrays['x'] - eq.rhs
-            # Create equation to handle essential boundary conditions - we
-            # move the essential BCs to the right-hand side
-            # and zero the corresponding column in the Jacobian.
-            # TODO: extend this to mixed problems
-            move_bc = Eq(arrays['x'], eq.rhs, subdomain=eq.subdomain)
-            return (EssentialBC(arrays['f'], rhs, subdomain=eq.subdomain), move_bc)
+            zero_row = ZeroRow(arrays['f'], rhs, subdomain=eq.subdomain)
+            # Move essential boundary condition to the right-hand side
+            zero_col = ZeroColumn(arrays['x'], eq.rhs, subdomain=eq.subdomain)
+            return (zero_row, zero_col)
         else:
             if isinstance(F_target, (int, float)):
                 rhs = F_target * self.cell_area
             else:
                 rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
-                rhs = rhs.subs(self.time_mapper)
-                rhs = rhs * self.cell_area
-        return Eq(arrays['f'], rhs, subdomain=eq.subdomain)
+                rhs = rhs.subs(self.time_mapper) * self.cell_area
+        return as_tuple(Eq(arrays['f'], rhs, subdomain=eq.subdomain))
 
     def make_rhs(self, eq, b, arrays):
         rhs = 0. if isinstance(eq, EssentialBC) else b.subs(self.time_mapper)
-        rhs = rhs*self.cell_area
-        return Eq(arrays['b'], rhs, subdomain=eq.subdomain)
+        rhs = rhs * self.cell_area
+        return as_tuple(Eq(arrays['b'], rhs, subdomain=eq.subdomain))
 
     def make_initial_guess(self, eq, target, arrays):
         """
@@ -162,9 +190,28 @@ class InjectSolve:
             for p in prefixes
         }
 
+    def scale_essential_bcs(self, equations, scale):
+        """
+        Scale the essential boundary rows so that the Jacobian has a constant diagonal,
+        thereby reducing its condition number.
+        """
+        # # stencils = self.centre_stencils[arrays['x']]
+        # if len(stencils) > 1:
+        #     # Scaling of jacobian is therefore ambiguous, potentially could averge across the subblock
+        #     # for now just set to trivial 1.0
+        #     scale = 1.0
+        # else:
+        #     scale = next(iter(stencils))
+        return [
+            eq._rebuild(rhs=scale * eq.rhs) if isinstance(eq, ZeroRow) else eq
+            for eq in equations
+        ]
+
 
 class InjectSolveNested(InjectSolve):
+
     def linear_solve_args(self):
+
         combined_eqns = []
         for eqns in self.target_eqns.values():
             combined_eqns.extend(eqns)
@@ -181,51 +228,90 @@ class InjectSolveNested(InjectSolve):
 
         self.cell_area = np.prod(all_data.grid.spacing_symbols)
 
-        for target, eqns in self.target_eqns.items():
-            eqns = as_tuple(eqns)
-            self.update_jacobian(eqns, target, jacobian, arrays[target])
+        all_formfuncs = []
 
-            formfuncs = [
-                self.build_function_eqns(eq, target, coupled_targets, arrays)
-                for eq in eqns
-            ]
-            all_data.extend_formfuncs(formfuncs)
+        for target, eqns in self.target_eqns.items():
+
+            # Update all rows of the Jacobian for this target
+            self.update_jacobian(as_tuple(eqns), target, jacobian, arrays[target])
+
+            formfuncs = chain.from_iterable(
+                self.build_function_eq(eq, target, coupled_targets, arrays)
+                for eq in as_tuple(eqns)
+            )
+            # from IPython import embed; embed()
+            scale, = self._diag_scale[arrays[target]['x']]
+            all_formfuncs.extend(self.scale_essential_bcs(formfuncs, scale))
+
+        formfuncs = tuple(sorted(
+            all_formfuncs, key=lambda e: not isinstance(e, EssentialBC)
+        ))
+        all_data.extend_formfuncs(formfuncs)
 
         return target, tuple(funcs), all_data
 
     def update_jacobian(self, eqns, target, jacobian, arrays):
+
         for submat, mtvs in jacobian.submatrices[target].items():
-            # TODO: maintain symmetry for coupled
-            matvecs = [e for i in [self.build_matvec_eqns(eq, mtvs['derivative_wrt'], arrays)
-                       for eq in eqns] for e in (i if isinstance(i, (tuple)) else [i])]
+            matvecs = [
+                e for eq in eqns for e in
+                self.build_matvec_eq(eq, mtvs['derivative_wrt'], arrays)
+            ]
             matvecs = [m for m in matvecs if m is not None]
+
+            if submat in jacobian.diagonal_submatrix_keys:
+                stencils = set()
+                for eq in matvecs:
+                    if not isinstance(eq, EssentialBC):
+                        stencil = centre_stencil(eq.rhs, arrays['x'], as_coeff=True)
+                        stencils.add(stencil)
+                # from IPython import embed; embed()
+                if len(stencils) > 1:
+                    # Scaling of jacobian is therefore ambiguous, potentially could average across the subblock
+                    # for now just set to trivial 1.0
+                    # TODO: doens't need to be a defaultdict, just a dict?
+                    self._diag_scale[arrays['x']].add(1.0)
+                    scale = 1.0
+                else:
+                    scale = next(iter(stencils))
+                    self._diag_scale[arrays['x']].add(scale)
+                    # scale = next(iter(stencils))
+
+                matvecs = self.scale_essential_bcs(matvecs, scale)
+
+            matvecs = tuple(sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC)))
 
             if matvecs:
                 jacobian.set_submatrix(target, submat, matvecs)
 
-    def build_function_eqns(self, eq, main_target, coupled_targets, arrays):
+    def build_function_eq(self, eq, main_target, coupled_targets, arrays):
         zeroed = eq.lhs - eq.rhs
 
-        # TODO: clean up, test coupled with time dependence
-        zeroed_eqn = Eq(zeroed, 0)
-        zeroed_eqn = eval_time_derivatives(zeroed)
+        zeroed_eqn = Eq(eq.lhs - eq.rhs, 0)
+        eval_zeroed_eqn = eval_time_derivatives(zeroed_eqn.lhs)
 
         mapper = {}
         for t in coupled_targets:
-            target_funcs = generate_targets(Eq(zeroed, 0), t)
+            target_funcs = set(generate_targets(Eq(eval_zeroed_eqn, 0), t))
             mapper.update(targets_to_arrays(arrays[t]['x'], target_funcs))
 
         if isinstance(eq, EssentialBC):
             rhs = arrays[main_target]['x'] - eq.rhs
+            zero_row = ZeroRow(
+                arrays[main_target]['f'], rhs, subdomain=eq.subdomain
+            )
+            zero_col = ZeroColumn(
+                arrays[main_target]['x'], eq.rhs, subdomain=eq.subdomain
+            )
+            return (zero_row, zero_col)
         else:
             if isinstance(zeroed, (int, float)):
                 rhs = zeroed * self.cell_area
             else:
                 rhs = zeroed.subs(mapper)
-                rhs = rhs.subs(self.time_mapper)
-                rhs = rhs * self.cell_area
+                rhs = rhs.subs(self.time_mapper)*self.cell_area
 
-        return Eq(arrays[main_target]['f'], rhs, subdomain=eq.subdomain)
+        return as_tuple(Eq(arrays[main_target]['f'], rhs, subdomain=eq.subdomain))
 
     def generate_arrays_combined(self, *targets):
         return {
@@ -241,32 +327,37 @@ class InjectSolveNested(InjectSolve):
             for target in targets
         }
 
-    def make_matvec(self, eq, F_target, arrays, targets):
-        if isinstance(eq, EssentialBC):
-            # TODO: SHOULDN'T NEED this subclass once fixed mixed problems + symmetry
-            # NOTE: Until PetscSection + DMDA is supported, we leave
-            # the essential BCs in the solver.
-            # Trivial equations for bc rows -> place 1.0 on diagonal
-            # and zero symmetrically. FIX FOR MIXED PROBLEMS
-            rhs = arrays['x']
-        else:
-            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
-            rhs = rhs.subs(self.time_mapper)
-            rhs = rhs * self.cell_area
-        return Eq(arrays['y'], rhs, subdomain=eq.subdomain)
-
 
 class EssentialBC(Eq):
     """
-    A special equation representing an essential boundary condition.
-    It is used to handle essential boundary conditions in the PETSc solver.
-    Until PetscSection + DMDA is supported, we treat essential boundary conditions
-    as trivial equations in the solver, where we place 1.0 on the diagonal of the jacobian, 
-    zero symmetrically and move the essential boundary condition to the right-hand side.
+    A special equation used to handle essential boundary conditions
+    in the PETSc solver. Until PetscSection + DMDA is supported,
+    we treat essential boundary conditions as trivial equations
+    in the solver, where we place 1.0 (scaled) on the diagonal of
+    the jacobian, zero symmetrically and move the boundary
+    data to the right-hand side.
 
     NOTE: When users define essential boundary conditions, they need to ensure that
     the SubDomains do not overlap. Solver will still run but may see unexpected behaviour
-    at boundaries.
+    at boundaries. This will be documented in the PETSc examples.
+    """
+    pass
+
+
+class ZeroRow(EssentialBC):
+    """
+    Equation used to zero the row of the Jacobian corresponding
+    to an essential BC.
+    This is only used interally by the compiler, not by users.
+    """
+    pass
+
+
+class ZeroColumn(EssentialBC):
+    """
+    Equation used to zero the column of the Jacobian corresponding
+    to an essential BC.
+    This is only used interally by the compiler, not by users.
     """
     pass
 
@@ -354,26 +445,34 @@ def _(expr, targets):
 
 
 @singledispatch
-def centre_stencil(expr, target):
+def centre_stencil(expr, target, as_coeff=False):
     """
     Extract the centre stencil from an expression. Its coefficient is what
     would appear on the diagonal of the matrix system if the matrix were
     formed explicitly.
+    Parameters
+    ----------
+    expr : the expression to extract the centre stencil from
+    target : the target function whose centre stencil we want
+    as_coeff : bool, optional
+        If True, return the coefficient of the centre stencil
     """
-    return expr if expr == target else 0
+    if expr == target:
+        return 1 if as_coeff else expr
+    return 0
 
 
 @centre_stencil.register(sympy.Add)
-def _(expr, target):
+def _(expr, target, as_coeff=False):
     if not expr.has(target):
         return 0
 
-    args = [centre_stencil(a, target) for a in expr.args]
+    args = [centre_stencil(a, target, as_coeff) for a in expr.args]
     return expr.func(*args, evaluate=False)
 
 
 @centre_stencil.register(Mul)
-def _(expr, target):
+def _(expr, target, as_coeff=False):
     if not expr.has(target):
         return 0
 
@@ -382,16 +481,16 @@ def _(expr, target):
         if not a.has(target):
             args.append(a)
         else:
-            args.append(centre_stencil(a, target))
+            args.append(centre_stencil(a, target, as_coeff))
 
     return expr.func(*args, evaluate=False)
 
 
 @centre_stencil.register(Derivative)
-def _(expr, target):
+def _(expr, target, as_coeff=False):
     if not expr.has(target):
         return 0
-    args = [centre_stencil(a, target) for a in expr.evaluate.args]
+    args = [centre_stencil(a, target, as_coeff) for a in expr.evaluate.args]
     return expr.evaluate.func(*args)
 
 

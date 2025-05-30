@@ -12,9 +12,12 @@ from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
 
+
 PetscInitialize()
 
+
 # Subdomains to implement BCs
+
 class SubTop(SubDomain):
     name = 'subtop'
 
@@ -50,17 +53,22 @@ class SubRight(SubDomain):
 def c(x):
     return x**3 * (1 - x)**3
 
+
 def ddc(x):
     return 6.0 * x * (1 - x) * (1 - 5.0 * x + 5.0 * x**2)
+
 
 def d4c(x):
     return -72.0 * (1 - 5.0 * x + 5.0 * x**2)
 
+
 def u_exact_fcn(x, y):
     return c(x) * c(y)
 
+
 def lap_u_exact_fcn(x, y):
     return -ddc(x) * c(y) - c(x) * ddc(y)
+
 
 def f_fcn(x, y):
     return d4c(x) * c(y) + 2.0 * ddc(x) * ddc(y) + c(x) * d4c(y)
@@ -77,6 +85,7 @@ Lx = np.float64(1.)
 Ly = np.float64(1.)
 
 n_values = [33, 53, 73, 93, 113]
+n_values = [9]
 dx = np.array([Lx/(n-1) for n in n_values])
 
 u_errors = []
@@ -115,7 +124,8 @@ for n in n_values:
     bc_v += [EssentialBC(v, 0., subdomain=sub4)]
 
     # T (see ref) is nonsymmetric so need to set default KSP type to GMRES
-    petsc = PETScSolve({v: [eqn1]+bc_v, u: [eqn2]+bc_u}, solver_parameters={'ksp_rtol': 1e-10})
+    params = {'ksp_rtol': 1e-10}
+    petsc = PETScSolve({v: [eqn1]+bc_v, u: [eqn2]+bc_u}, solver_parameters=params)
 
     with switchconfig(language='petsc'):
         op = Operator(petsc)
@@ -126,12 +136,14 @@ for n in n_values:
 
     # Compute infinity norm for u
     u_diff = u_exact.data[:] - u.data[:]
-    u_error = np.linalg.norm(u_diff.ravel(), ord=np.inf) / np.linalg.norm(u_exact.data[:].ravel(), ord=np.inf)
+    u_diff_norm = np.linalg.norm(u_diff.ravel(), ord=np.inf)
+    u_error = u_diff_norm / np.linalg.norm(u_exact.data[:].ravel(), ord=np.inf)
     u_errors.append(u_error)
 
     # Compute infinity norm for lap_u
     v_diff = lap_u.data[:] - v.data[:]
-    v_error = np.linalg.norm(v_diff.ravel(), ord=np.inf) / np.linalg.norm(lap_u.data[:].ravel(), ord=np.inf)
+    v_diff_norm = np.linalg.norm(v_diff.ravel(), ord=np.inf)
+    v_error = v_diff_norm / np.linalg.norm(lap_u.data[:].ravel(), ord=np.inf)
     v_errors.append(v_error)
 
 u_slope, _ = np.polyfit(np.log(dx), np.log(u_errors), 1)

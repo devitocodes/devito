@@ -346,4 +346,3 @@ def sorted_priority(items, priority):
         return (v, str(type(i)))
 
     return sorted(items, key=key, reverse=True)
-

@@ -10,14 +10,13 @@ from devito.mpi.distributed import MPINeighborhood
 from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
-from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
+from devito.types import (Bundle, CompositeObject, Lock, IncrDimension,
                           ModuloDimension, Indirection, Pointer, SharedData,
                           ThreadArray, Temp, NPThreads, NThreadsBase, Wildcard)
 from devito.types.array import ArrayBasic
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
-from devito.petsc.types import PETScArray
 
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
@@ -150,7 +149,6 @@ class Graph:
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
             efuncs = reuse_compounds(efuncs, self.sregistry)
-            # TODO: fix for petsc bundles
             efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
@@ -423,7 +421,6 @@ def abstract_objects(objects0, sregistry=None):
     # Build abstraction mappings
     mapper = {}
     sregistry = sregistry or SymbolRegistry()
-
     for i in objects:
         abstract_object(i, mapper, sregistry)
 
@@ -473,7 +470,6 @@ def _(i, mapper, sregistry):
 @abstract_object.register(Bundle)
 def _(i, mapper, sregistry):
     name = sregistry.make_name(prefix='a')
-
     components = [mapper[f] for f in i.components]
 
     v = i._rebuild(name=name, components=components, alias=True)
@@ -492,6 +488,7 @@ def _(i, mapper, sregistry):
     name = sregistry.make_name(prefix='o')
 
     v = i._rebuild(name)
+
     mapper[i] = v
 
 

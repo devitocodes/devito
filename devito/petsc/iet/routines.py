@@ -793,7 +793,7 @@ class CCBBuilder(CBBuilder):
         bundles = sobjs['bundles']
         fbundle = bundles['f']
         xbundle = bundles['x']
-        body = self.bundle_residual(body, bundles)
+        body = self.residual_bundle(body, bundles)
 
         dm_cast = DummyExpr(dmda, DMCast(objs['dummyptr']), init=True)
 
@@ -1046,13 +1046,9 @@ class CCBBuilder(CBBuilder):
             stacks=(get_ctx, deref_subdm),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
-    
-    def bundle_residual(self, body, bundles):
-        fbundle = bundles['f']
-        xbundle = bundles['x']
 
+    def residual_bundle(self, body, bundles):
         mapper1 = bundles['bundle_mapper']
-
         indexeds = FindSymbols('indexeds').visit(body)
 
         subss = {}
@@ -1065,7 +1061,6 @@ class CCBBuilder(CBBuilder):
 
         body = Uxreplace(subss).visit(body)
         return body
-
 
 
 class BaseObjectBuilder:
@@ -1180,7 +1175,6 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             base_dict[f'{key}Y'] = CallbackVec(f'{key}Y')
             base_dict[f'{key}F'] = CallbackVec(f'{key}F')
 
-
         # Bundle objects/metadata required by the coupled residual callback
         f_components = []
         x_components = []
@@ -1194,9 +1188,13 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             f_components.append(f_arr)
             x_components.append(x_arr)
 
-        # TODO: to group them, maybe pass in struct name as arg to petscbundle
-        fbundle = PetscBundle(name='f_bundle', components=f_components)
-        xbundle = PetscBundle(name='x_bundle', components=x_components)
+        bundle_pname = sreg.make_name(prefix='Field')
+        fbundle = PetscBundle(
+            name='f_bundle', components=f_components, pname=bundle_pname
+        )
+        xbundle = PetscBundle(
+            name='x_bundle', components=x_components, pname=bundle_pname
+        )
 
         # Build the bundle mapper
         for i, t in enumerate(targets):
@@ -1204,7 +1202,6 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             x_arr = arrays[t]['x']
             bundle_mapper[f_arr.base] = fbundle
             bundle_mapper[x_arr.base] = xbundle
-
 
         base_dict['bundles'] = {
             'f': fbundle,
@@ -1346,6 +1343,10 @@ class BaseSetup:
              self.snes_ctx]
         )
 
+        snes_set_options = petsc_call(
+            'SNESSetFromOptions', [sobjs['snes']]
+        )
+
         dmda_calls = self._create_dmda_calls(dmda)
 
         mainctx = sobjs['userctx']
@@ -1377,6 +1378,7 @@ class BaseSetup:
             ksp_set_from_ops,
             matvec_operation,
             formfunc_operation,
+            snes_set_options,
             call_struct_callback,
             mat_set_dm,
             calls_set_app_ctx,
@@ -1504,6 +1506,10 @@ class CoupledSetup(BaseSetup):
              self.snes_ctx]
         )
 
+        snes_set_options = petsc_call(
+            'SNESSetFromOptions', [sobjs['snes']]
+        )
+
         dmda_calls = self._create_dmda_calls(dmda)
 
         mainctx = sobjs['userctx']
@@ -1574,6 +1580,7 @@ class CoupledSetup(BaseSetup):
             ksp_set_from_ops,
             matvec_operation,
             formfunc_operation,
+            snes_set_options,
             call_struct_callback,
             mat_set_dm,
             calls_set_app_ctx,
@@ -1670,17 +1677,12 @@ class CoupledSolver(Solver):
         """
         objs = self.objs
         sobjs = self.solver_objs
+        xglob = sobjs['xglobal']
 
         struct_assignment = self.timedep.assign_time_iters(sobjs['userctx'])
-
-        # rhs_callbacks = self.cbbuilder.formrhs
-
-        xglob = sobjs['xglobal']
-        bglob = sobjs['bglobal']
-
         targets = self.injectsolve.expr.rhs.fielddata.targets
 
-        # TODO: optimise the ccode generated here
+        # TODO: Optimise the ccode generated here
         pre_solve = ()
         post_solve = ()
 
@@ -1693,10 +1695,10 @@ class CoupledSolver(Solver):
             s = sobjs[f'scatter{name}']
 
             pre_solve += (
-                # TODO: switch to createwitharray and move to setup
+                # TODO: Switch to createwitharray and move to setup
                 petsc_call('DMCreateLocalVector', [dm, Byref(target_xloc)]),
 
-                # TODO: need to call reset array
+                # TODO: Need to call reset array
                 self.timedep.place_array(t),
                 petsc_call(
                     'DMLocalToGlobal',

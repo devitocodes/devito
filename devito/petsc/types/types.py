@@ -321,6 +321,18 @@ class SubMatrices:
         Retrieve a specific submatrix.
         """
         return self.submatrices.get(field, {}).get(key, None)
+    
+    @property
+    def diagonal_submatrix_keys(self):
+        """
+        Return a list of diagonal submatrix keys (e.g., ['J00', 'J11']).
+        """
+        keys = []
+        for i, target in enumerate(self.targets):
+            diag_key = f'J{i}{i}'
+            if diag_key in self.submatrices[target]:
+                keys.append(diag_key)
+        return keys
 
     def __repr__(self):
         return str(self.submatrices)

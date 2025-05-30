@@ -339,7 +339,7 @@ def test_separate_eqn(eqn, target, expected):
     f2 = TimeFunction(name='f2', grid=grid, space_order=so)  # noqa
     g2 = TimeFunction(name='g2', grid=grid, space_order=so)  # noqa
 
-    b, F, _, _= separate_eqn(eval(eqn), eval(target))
+    b, F, _, _ = separate_eqn(eval(eqn), eval(target))
     expected_b, expected_F = expected
 
     assert str(b) == expected_b
@@ -793,8 +793,7 @@ def test_essential_bcs():
     Verify that PETScSolve returns the correct output with
     essential boundary conditions.
     """
-
-    # SubDomains used for essential boundary conditions 
+    # SubDomains used for essential boundary conditions
     # should not overlap.
     class SubTop(SubDomain):
         name = 'subtop'
@@ -917,7 +916,6 @@ class TestCoupledLinear:
 
         # Solving for multiple fields within the same matrix system requires
         # less callback functions than solving them separately.
-        # TODO: check reuse of callback functions where appropriate
         assert len(callbacks1) == 8
         assert len(callbacks2) == 6
 
@@ -971,6 +969,10 @@ class TestCoupledLinear:
         # The public `struct UserCtx0` only appears in the header file
         assert 'struct UserCtx0\n{' not in ccode
         assert 'struct UserCtx0\n{' in hcode
+
+        # The public struct Field0 only appears in the header file
+        assert 'struct Field0\n{' not in ccode
+        assert 'struct Field0\n{' in hcode
 
     @skipif('petsc')
     def test_coupled_frees(self):
@@ -1083,7 +1085,7 @@ class TestCoupledLinear:
         j00 = submatrices.get_submatrix(e, 'J00')
         j11 = submatrices.get_submatrix(g, 'J11')
 
-        # Compatible scaling to reduce condition number of jacobian 
+        # Compatible scaling to reduce condition number of jacobian
         assert str(j00['matvecs'][0]) == 'Eq(y_e(x, y),' \
             + ' h_x*h_y*(Derivative(x_e(x, y), (x, 2)) + Derivative(x_e(x, y), (y, 2))))'
 
@@ -1096,13 +1098,98 @@ class TestCoupledLinear:
         assert j10['derivative_wrt'] == e
         assert j11['derivative_wrt'] == g
 
-    # TODO:
-    # @skipif('petsc')
-    # def test_create_submats(self):
+    @skipif('petsc')
+    def test_residual_bundle(self):
+        grid = Grid(shape=(11, 11), dtype=np.float64)
 
-    # add tests for all new callbacks
-    # def test_create_whole_matmult():
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
 
+        eq1 = Eq(e.laplace, h)
+        eq2 = Eq(f.laplace, h)
+        eq3 = Eq(g.laplace, h)
 
-# // add coupled test with 3 targets
-# // add coupled test with 1 target?
+        petsc1 = PETScSolve({e: [eq1]})
+        petsc2 = PETScSolve({e: [eq1], f: [eq2]})
+        petsc3 = PETScSolve({e: [eq1], f: [eq2], g: [eq3]})
+
+        with switchconfig(language='petsc'):
+            op1 = Operator(petsc1, opt='noop', name='op1')
+            op2 = Operator(petsc2, opt='noop', name='op2')
+            op3 = Operator(petsc3, opt='noop', name='op3')
+
+        # Check pointers to array of Field structs. Note this is only
+        # required when dof>1 when constructing the multi-component DMDA.
+        f_aos = 'struct Field0 (* f_bundle)[info.gxm] = ' \
+            + '(struct Field0 (*)[info.gxm]) f_bundle_vec;'
+        x_aos = 'struct Field0 (* x_bundle)[info.gxm] = ' \
+            + '(struct Field0 (*)[info.gxm]) x_bundle_vec;'
+
+        for op in (op1, op2, op3):
+            ccode = str(op.ccode)
+            assert f_aos in ccode
+            assert x_aos in ccode
+
+        assert 'struct Field0\n{\n  PetscScalar e;\n}' \
+            in str(op1.ccode)
+        assert 'struct Field0\n{\n  PetscScalar e;\n  PetscScalar f;\n}' \
+            in str(op2.ccode)
+        assert 'struct Field0\n{\n  PetscScalar e;\n  PetscScalar f;\n  ' \
+            + 'PetscScalar g;\n}' in str(op3.ccode)
+
+    @skipif('petsc')
+    def test_essential_bcs(self):
+        """
+        Test mixed problem with SubDomains
+        """
+        class SubTop(SubDomain):
+            name = 'subtop'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 1), y: ('right', 1)}
+
+        sub1 = SubTop()
+
+        grid = Grid(shape=(9, 9), subdomains=(sub1,), dtype=np.float64)
+
+        u = Function(name='u', grid=grid, space_order=2)
+        v = Function(name='v', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid, space_order=2)
+
+        eqn1 = Eq(-v.laplace, f, subdomain=grid.interior)
+        eqn2 = Eq(-u.laplace, v, subdomain=grid.interior)
+
+        bc_u = [EssentialBC(u, 0., subdomain=sub1)]
+        bc_v = [EssentialBC(v, 0., subdomain=sub1)]
+
+        petsc = PETScSolve({v: [eqn1]+bc_v, u: [eqn2]+bc_u})
+
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+
+        # Test scaling
+        J00 = op._func_table['J00_MatMult0'].root
+
+        # Essential BC row
+        assert 'a1[ix + 2][iy + 2] = (2.0/((o0->h_y*o0->h_y))' \
+            ' + 2.0/((o0->h_x*o0->h_x)))*o0->h_x*o0->h_y*a0[ix + 2][iy + 2];' in str(J00)
+        # Check zeroing of essential BC columns
+        assert 'a0[ix + 2][iy + 2] = 0.0;' in str(J00)
+        # Interior loop
+        assert 'a1[ix + 2][iy + 2] = (2.0*(r0*a0[ix + 2][iy + 2] ' \
+            '+ r1*a0[ix + 2][iy + 2]) - (r0*a0[ix + 1][iy + 2] + ' \
+            'r0*a0[ix + 3][iy + 2] + r1*a0[ix + 2][iy + 1] ' \
+            '+ r1*a0[ix + 2][iy + 3]))*o0->h_x*o0->h_y;' in str(J00)
+
+        # J00 and J11 are semantically identical so check efunc reuse
+        assert len(op._func_table.values()) == 7
+        # J00_MatMult0 is reused (in replace of J11_MatMult0)
+        create = op._func_table['MatCreateSubMatrices0'].root
+        assert 'MatShellSetOperation(submat_arr[0],' \
+            + 'MATOP_MULT,(void (*)(void))J00_MatMult0)' in str(create)
+        assert 'MatShellSetOperation(submat_arr[3],' \
+            + 'MATOP_MULT,(void (*)(void))J00_MatMult0)' in str(create)
+
+    # TODO: Test mixed, time dependent solvers

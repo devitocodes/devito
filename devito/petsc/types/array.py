@@ -124,11 +124,16 @@ class PetscBundle(Bundle):
     is_Bundle = True
     _data_alignment = False
 
+    __rkwargs__ = Bundle.__rkwargs__ + ('pname',)
+
+    def __init__(self, *args, pname="Field", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pname = pname
+
     @property
     def _C_ctype(self):
-        # TODO: extend to cases with multiple petsc solves...(need diff struct name for each solve)
         fields = [(i.target.name, dtype_to_ctype(i.dtype)) for i in self.components]
-        return POINTER(type('Field', (Structure,), {'_fields_': fields}))
+        return POINTER(type(self.pname, (Structure,), {'_fields_': fields}))
 
     @cached_property
     def indexed(self):
@@ -163,6 +168,10 @@ class PetscBundle(Bundle):
         else:
             raise ValueError("Expected %d or %d indices, got %d instead"
                              % (self.ndim, self.ndim + 1, len(index)))
+
+    @property
+    def pname(self):
+        return self._pname
 
 
 class AoSIndexedData(IndexedData):
