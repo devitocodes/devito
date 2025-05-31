@@ -1069,10 +1069,10 @@ class FindSymbols(LazyVisitor[list[Any]]):
         if len(modes) == 1:
             self.rule = self.rules[mode]
         else:
-            self.rule = lambda n: chain(self.rules[mode](n) for mode in modes)
+            self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret):
-        return sorted(filter_ordered(ret), key=str)
+        return sorted(filter_ordered(ret, key=id), key=str)
 
     def visit_Node(self, o: Node) -> Iterator[Any]:
         yield from self._visit(o.children)
