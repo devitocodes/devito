@@ -13,7 +13,7 @@ from devito.operations.solve import eval_time_derivatives
 from devito.symbolics import retrieve_functions
 from devito.tools import as_tuple, filter_ordered
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
-                                FieldData, MultipleFieldData, SubMatrices)
+                                FieldData, MultipleFieldData, Jacobian)
 
 
 __all__ = ['PETScSolve', 'EssentialBC']
@@ -219,11 +219,11 @@ class InjectSolveNested(InjectSolve):
         self.time_mapper = generate_time_mapper(funcs)
 
         coupled_targets = list(self.target_eqns.keys())
-        jacobian = SubMatrices(coupled_targets)
+        jacobian = Jacobian(coupled_targets)
 
         arrays = self.generate_arrays_combined(*coupled_targets)
 
-        all_data = MultipleFieldData(submatrices=jacobian, arrays=arrays,
+        all_data = MultipleFieldData(jacobian=jacobian, arrays=arrays,
                                      targets=coupled_targets)
 
         self.cell_area = np.prod(all_data.grid.spacing_symbols)

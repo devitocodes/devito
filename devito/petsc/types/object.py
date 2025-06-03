@@ -10,10 +10,17 @@ from devito.petsc.iet.utils import petsc_call
 class PetscMixin:
     @property
     def _C_free_priority(self):
-        return FREE_PRIORITY[self]
+        if type(self) in FREE_PRIORITY:
+            return FREE_PRIORITY[type(self)]
+        else:
+            return super()._C_free_priority
 
 
-class CallbackDM(LocalObject):
+class PetscObject(PetscMixin, LocalObject):
+    pass
+
+
+class CallbackDM(PetscObject):
     """
     PETSc Data Management object (DM). This is the DM instance
     accessed within the callback functions via `SNESGetDM` and
@@ -22,14 +29,12 @@ class CallbackDM(LocalObject):
     dtype = CustomDtype('DM')
 
 
-class DM(LocalObject, PetscMixin):
+class DM(CallbackDM):
     """
     PETSc Data Management object (DM). This is the primary DM instance
     created within the main kernel and linked to the SNES
     solver using `SNESSetDM`.
     """
-    dtype = CustomDtype('DM')
-
     def __init__(self, *args, dofs=1, **kwargs):
         super().__init__(*args, **kwargs)
         self._dofs = dofs
@@ -46,7 +51,7 @@ class DM(LocalObject, PetscMixin):
 DMCast = cast('DM')
 
 
-class CallbackMat(LocalObject):
+class CallbackMat(PetscObject):
     """
     PETSc Matrix object (Mat) used within callback functions.
     These instances are not destroyed during callback execution;
@@ -55,19 +60,13 @@ class CallbackMat(LocalObject):
     dtype = CustomDtype('Mat')
 
 
-class Mat(LocalObject):
-    dtype = CustomDtype('Mat')
-
+class Mat(CallbackMat):
     @property
     def _C_free(self):
         return petsc_call('MatDestroy', [Byref(self.function)])
 
-    @property
-    def _C_free_priority(self):
-        return 2
 
-
-class CallbackVec(LocalObject):
+class CallbackVec(PetscObject):
     """
     PETSc vector object (Vec).
     """
@@ -79,12 +78,8 @@ class Vec(CallbackVec):
     def _C_free(self):
         return petsc_call('VecDestroy', [Byref(self.function)])
 
-    @property
-    def _C_free_priority(self):
-        return 1
 
-
-class PetscMPIInt(LocalObject):
+class PetscMPIInt(PetscObject):
     """
     PETSc datatype used to represent `int` parameters
     to MPI functions.
@@ -92,7 +87,7 @@ class PetscMPIInt(LocalObject):
     dtype = CustomDtype('PetscMPIInt')
 
 
-class PetscInt(LocalObject):
+class PetscInt(PetscObject):
     """
     PETSc datatype used to represent `int` parameters
     to PETSc functions.
@@ -100,7 +95,7 @@ class PetscInt(LocalObject):
     dtype = CustomIntType('PetscInt')
 
 
-class KSP(LocalObject):
+class KSP(PetscObject):
     """
     PETSc KSP : Linear Systems Solvers.
     Manages Krylov Methods.
@@ -108,7 +103,7 @@ class KSP(LocalObject):
     dtype = CustomDtype('KSP')
 
 
-class CallbackSNES(LocalObject):
+class CallbackSNES(PetscObject):
     """
     PETSc SNES : Non-Linear Systems Solvers.
     """
@@ -120,19 +115,15 @@ class SNES(CallbackSNES):
     def _C_free(self):
         return petsc_call('SNESDestroy', [Byref(self.function)])
 
-    @property
-    def _C_free_priority(self):
-        return 3
 
-
-class PC(LocalObject):
+class PC(PetscObject):
     """
     PETSc object that manages all preconditioners (PC).
     """
     dtype = CustomDtype('PC')
 
 
-class KSPConvergedReason(LocalObject):
+class KSPConvergedReason(PetscObject):
     """
     PETSc object - reason a Krylov method was determined
     to have converged or diverged.
@@ -140,7 +131,7 @@ class KSPConvergedReason(LocalObject):
     dtype = CustomDtype('KSPConvergedReason')
 
 
-class DMDALocalInfo(LocalObject):
+class DMDALocalInfo(PetscObject):
     """
     PETSc object - C struct containing information
     about the local grid.
@@ -148,7 +139,7 @@ class DMDALocalInfo(LocalObject):
     dtype = CustomDtype('DMDALocalInfo')
 
 
-class PetscErrorCode(LocalObject):
+class PetscErrorCode(PetscObject):
     """
     PETSc datatype used to return PETSc error codes.
     https://petsc.org/release/manualpages/Sys/PetscErrorCode/
@@ -156,7 +147,7 @@ class PetscErrorCode(LocalObject):
     dtype = CustomDtype('PetscErrorCode')
 
 
-class DummyArg(LocalObject):
+class DummyArg(PetscObject):
     """
     A void pointer used to satisfy the function
     signature of the `FormFunction` callback.
@@ -164,21 +155,21 @@ class DummyArg(LocalObject):
     dtype = CustomDtype('void', modifier='*')
 
 
-class MatReuse(LocalObject):
+class MatReuse(PetscObject):
     dtype = CustomDtype('MatReuse')
 
 
-class VecScatter(LocalObject):
+class VecScatter(PetscObject):
     dtype = CustomDtype('VecScatter')
 
 
-class StartPtr(LocalObject):
+class StartPtr(PetscObject):
     def __init__(self, name, dtype):
         super().__init__(name=name)
         self.dtype = POINTER(dtype_to_ctype(dtype))
 
 
-class SingleIS(LocalObject):
+class SingleIS(PetscObject):
     dtype = CustomDtype('IS')
 
 
@@ -218,7 +209,8 @@ class SubMatrixStruct(PETScStruct):
     _C_modifier = None
 
 
-class PETScArrayObject(ArrayObject):
+
+class PETScArrayObject(PetscMixin, ArrayObject):
     _data_alignment = False
 
     def __init_finalize__(self, *args, **kwargs):
@@ -250,10 +242,6 @@ class PETScArrayObject(ArrayObject):
     @property
     def _mem_stack(self):
         return False
-
-    @property
-    def _C_free_priority(self):
-        return 0
 
 
 class CallbackPointerIS(PETScArrayObject):
@@ -309,5 +297,9 @@ class ArgvSymbol(DataSymbol):
 
 
 FREE_PRIORITY = {
+    PETScArrayObject: 0,
+    Vec: 1,
+    Mat: 2,
+    SNES: 3,
     DM: 4,
 }

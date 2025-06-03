@@ -653,8 +653,8 @@ class CCBBuilder(CBBuilder):
         return self._submatrices_callback
 
     @property
-    def submatrices(self):
-        return self.injectsolve.expr.rhs.fielddata.submatrices
+    def jacobian(self):
+        return self.injectsolve.expr.rhs.fielddata.jacobian
 
     @property
     def main_matvec_callback(self):
@@ -682,7 +682,7 @@ class CCBBuilder(CBBuilder):
         all_fielddata = injectsolve.expr.rhs.fielddata
 
         for t in targets:
-            row_matvecs = all_fielddata.submatrices.submatrices[t]
+            row_matvecs = all_fielddata.jacobian.submatrices[t]
             arrays = all_fielddata.arrays[t]
             for submat, mtvs in row_matvecs.items():
                 if mtvs['matvecs']:
@@ -714,7 +714,7 @@ class CCBBuilder(CBBuilder):
         jctx = objs['ljacctx']
         ctx_main = petsc_call('MatShellGetContext', [objs['J'], Byref(jctx)])
 
-        nonzero_submats = self.submatrices.nonzero_submatrix_keys
+        nonzero_submats = self.jacobian.nonzero_submatrix_keys
 
         zero_y_memory = petsc_call(
             'VecSet', [objs['Y'], 0.0]
@@ -722,7 +722,7 @@ class CCBBuilder(CBBuilder):
 
         calls = ()
         for sm in nonzero_submats:
-            idx = self.submatrices.submat_to_index[sm]
+            idx = self.jacobian.submat_to_index[sm]
             ctx = sobjs[f'{sm}ctx']
             X = sobjs[f'{sm}X']
             Y = sobjs[f'{sm}Y']
@@ -1012,14 +1012,14 @@ class CCBBuilder(CBBuilder):
         upper_bound = objs['nsubmats'] - 1
         iteration = Iteration(List(body=iter_body), i, upper_bound)
 
-        nonzero_submats = self.submatrices.nonzero_submatrix_keys
+        nonzero_submats = self.jacobian.nonzero_submatrix_keys
         matvec_lookup = {mv.name.split('_')[0]: mv for mv in self.matvecs}
 
         matmult_op = [
             petsc_call(
                 'MatShellSetOperation',
                 [
-                    objs['submat_arr'].indexed[self.submatrices.submat_to_index[sb]],
+                    objs['submat_arr'].indexed[self.jacobian.submat_to_index[sb]],
                     'MATOP_MULT',
                     MatShellSetOp(matvec_lookup[sb].name, void, void),
                 ],
@@ -1157,8 +1157,8 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             dim_labels[i]: PetscInt(dim_labels[i]) for i in range(space_dims)
         })
 
-        submatrices = injectsolve.expr.rhs.fielddata.submatrices
-        submatrix_keys = submatrices.submatrix_keys
+        jacobian = injectsolve.expr.rhs.fielddata.jacobian
+        submatrix_keys = jacobian.submatrix_keys
 
         base_dict['jacctx'] = JacobianStruct(
             name=sreg.make_name(prefix=objs['ljacctx'].name),

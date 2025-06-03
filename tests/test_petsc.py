@@ -1065,25 +1065,25 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        submatrices = petsc[0].rhs.fielddata.submatrices
+        jacobian = petsc[0].rhs.fielddata.jacobian
 
-        j00 = submatrices.get_submatrix(e, 'J00')
-        j01 = submatrices.get_submatrix(e, 'J01')
-        j10 = submatrices.get_submatrix(g, 'J10')
-        j11 = submatrices.get_submatrix(g, 'J11')
+        j00 = jacobian.get_submatrix(e, 'J00')
+        j01 = jacobian.get_submatrix(e, 'J01')
+        j10 = jacobian.get_submatrix(g, 'J10')
+        j11 = jacobian.get_submatrix(g, 'J11')
 
         # Check the number of submatrices
-        assert len(submatrices.submatrix_keys) == 4
-        assert str(submatrices.submatrix_keys) == "['J00', 'J01', 'J10', 'J11']"
+        assert len(jacobian.submatrix_keys) == 4
+        assert str(jacobian.submatrix_keys) == "['J00', 'J01', 'J10', 'J11']"
 
         # Technically a non-coupled problem, so the only non-zero submatrices
         # should be the diagonal ones i.e J00 and J11
-        assert submatrices.nonzero_submatrix_keys == ['J00', 'J11']
-        assert submatrices.get_submatrix(e, 'J01')['matvecs'] is None
-        assert submatrices.get_submatrix(g, 'J10')['matvecs'] is None
+        assert jacobian.nonzero_submatrix_keys == ['J00', 'J11']
+        assert jacobian.get_submatrix(e, 'J01')['matvecs'] is None
+        assert jacobian.get_submatrix(g, 'J10')['matvecs'] is None
 
-        j00 = submatrices.get_submatrix(e, 'J00')
-        j11 = submatrices.get_submatrix(g, 'J11')
+        j00 = jacobian.get_submatrix(e, 'J00')
+        j11 = jacobian.get_submatrix(g, 'J11')
 
         # Compatible scaling to reduce condition number of jacobian
         assert str(j00['matvecs'][0]) == 'Eq(y_e(x, y),' \

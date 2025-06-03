@@ -189,10 +189,10 @@ class FieldData:
 
 
 class MultipleFieldData(FieldData):
-    def __init__(self, targets, arrays, submatrices=None):
+    def __init__(self, targets, arrays, jacobian=None):
         self._targets = as_tuple(targets)
         self._arrays = arrays
-        self._submatrices = submatrices
+        self._jacobian = jacobian
         self._formfuncs = []
 
     def extend_formfuncs(self, formfuncs):
@@ -232,8 +232,8 @@ class MultipleFieldData(FieldData):
         return space_orders.pop()
 
     @property
-    def submatrices(self):
-        return self._submatrices
+    def jacobian(self):
+        return self._jacobian
 
     @property
     def targets(self):
@@ -244,7 +244,7 @@ class MultipleFieldData(FieldData):
         return self._arrays
 
 
-class SubMatrices:
+class Jacobian:
     def __init__(self, targets):
         self.targets = targets
         self.submatrices = self._initialize_submatrices()
