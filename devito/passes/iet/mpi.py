@@ -11,6 +11,7 @@ from devito.ir.support.guards import GuardFactorEq
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
+from devito.passes.clusters.buffering import BufferDimension
 from devito.passes.iet.engine import iet_pass
 from devito.tools import generator
 
@@ -158,6 +159,8 @@ def _merge_halospots(iet):
             for f, v in hs1.fmapper.items():
                 for dep in scope.d_flow.project(f):
                     if not any(rule(dep, hs1, v.loc_indices) for rule in rules):
+                        break
+                    elif _rule_merge(dep, v.loc_indices):
                         break
                 else:
                     # All good -- `hs1` can be merged with `hs0`
@@ -388,6 +391,20 @@ def _rule1(dep, hs, loc_indices):
     # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
     return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
                for d, v in loc_indices.items())
+
+
+def _rule_merge(dep, loc_indices):
+    # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>` and `loc_indices={t: t0}`
+    # => `hs1` cannot be merged with `hs0` as semantically modulo 1
+    # dimensions will degenerate to zero
+    for d, v in loc_indices.items():
+        if isinstance(d, BufferDimension) and v == 0:
+            return True
+        elif dep.source[d] is None:
+            continue
+        elif v.is_Modulo and v.modulo == 1:
+            return True
+    return False
 
 
 rules = (_rule0, _rule1)
