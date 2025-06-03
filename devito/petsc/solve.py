@@ -16,9 +16,10 @@ from devito.symbolics.extraction import (separate_eqn, centre_stencil,
 from devito.tools import as_tuple, filter_ordered
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
                                 FieldData, MultipleFieldData, Jacobian)
+from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 
 
-__all__ = ['PETScSolve', 'EssentialBC']
+__all__ = ['PETScSolve']
 
 
 def PETScSolve(target_eqns, target=None, solver_parameters=None, **kwargs):
@@ -329,67 +330,38 @@ class InjectSolveNested(InjectSolve):
         }
 
 
-class EssentialBC(Eq):
-    """
-    A special equation used to handle essential boundary conditions
-    in the PETSc solver. Until PetscSection + DMDA is supported,
-    we treat essential boundary conditions as trivial equations
-    in the solver, where we place 1.0 (scaled) on the diagonal of
-    the jacobian, zero symmetrically and move the boundary
-    data to the right-hand side.
-
-    NOTE: When users define essential boundary conditions, they need to ensure that
-    the SubDomains do not overlap. Solver will still run but may see unexpected behaviour
-    at boundaries. This will be documented in the PETSc examples.
-    """
-    pass
-
-
-class ZeroRow(EssentialBC):
-    """
-    Equation used to zero the row of the Jacobian corresponding
-    to an essential BC.
-    This is only used interally by the compiler, not by users.
-    """
-    pass
-
-
-class ZeroColumn(EssentialBC):
-    """
-    Equation used to zero the column of the Jacobian corresponding
-    to an essential BC.
-    This is only used interally by the compiler, not by users.
-    """
-    pass
-
-
-# def separate_eqn(eqn, target):
+# class EssentialBC(Eq):
 #     """
-#     Separate the equation into two separate expressions,
-#     where F(target) = b.
+#     A special equation used to handle essential boundary conditions
+#     in the PETSc solver. Until PetscSection + DMDA is supported,
+#     we treat essential boundary conditions as trivial equations
+#     in the solver, where we place 1.0 (scaled) on the diagonal of
+#     the jacobian, zero symmetrically and move the boundary
+#     data to the right-hand side.
+
+#     NOTE: When users define essential boundary conditions, they need to ensure that
+#     the SubDomains do not overlap. Solver will still run but may see unexpected behaviour
+#     at boundaries. This will be documented in the PETSc examples.
 #     """
-#     zeroed_eqn = Eq(eqn.lhs - eqn.rhs, 0)
-#     zeroed_eqn = eval_time_derivatives(zeroed_eqn.lhs)
-#     target_funcs = set(generate_targets(zeroed_eqn, target))
-#     b, F_target = remove_targets(zeroed_eqn, target_funcs)
-#     return -b, F_target, zeroed_eqn, target_funcs
+#     pass
 
 
-# def generate_targets(eq, target):
+# class ZeroRow(EssentialBC):
 #     """
-#     Extract all the functions that share the same time index as the target
-#     but may have different spatial indices.
+#     Equation used to zero the row of the Jacobian corresponding
+#     to an essential BC.
+#     This is only used interally by the compiler, not by users.
 #     """
-#     funcs = retrieve_functions(eq)
-#     if isinstance(target, TimeFunction):
-#         time_idx = target.indices[target.time_dim]
-#         targets = [
-#             f for f in funcs if f.function is target.function and time_idx
-#             in f.indices
-#         ]
-#     else:
-#         targets = [f for f in funcs if f.function is target.function]
-#     return targets
+#     pass
+
+
+# class ZeroColumn(EssentialBC):
+#     """
+#     Equation used to zero the column of the Jacobian corresponding
+#     to an essential BC.
+#     This is only used interally by the compiler, not by users.
+#     """
+#     pass
 
 
 def targets_to_arrays(array, targets):
