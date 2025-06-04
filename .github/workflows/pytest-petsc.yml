@@ -83,7 +83,7 @@ jobs:
         ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/03_poisson.py
         ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/Poisson/04_poisson.py
         ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/random/01_helmholtz.py
-        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/random/biharmonic/02_biharmonic.py
+        ${{ env.RUN_CMD }} mpiexec -n 1 python3 examples/petsc/random/02_biharmonic.py
 
     - name: Upload coverage to Codecov
       if: "!contains(matrix.name, 'docker')"

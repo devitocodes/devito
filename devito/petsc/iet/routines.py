@@ -108,11 +108,10 @@ class CBBuilder:
 
     def _make_core(self):
         fielddata = self.injectsolve.expr.rhs.fielddata
-        # from IPython.core.debugger import set_trace
         self._make_matvec(fielddata.arrays, fielddata.jacobian.matvecs)
         self._make_formfunc(fielddata)
         self._make_formrhs(fielddata)
-        if fielddata.initialguess:
+        if fielddata.initialguess.equations:
             self._make_initialguess(fielddata)
         self._make_user_struct_callback()
 
@@ -516,7 +515,7 @@ class CBBuilder:
         return Uxreplace(subs).visit(formrhs_body)
 
     def _make_initialguess(self, fielddata):
-        initguess = fielddata.initialguess
+        initguess = fielddata.initialguess.equations
         sobjs = self.solver_objs
 
         # Compile initital guess `eqns` into an IET via recursive compilation
@@ -1208,7 +1207,6 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             'f': fbundle,
             'x': xbundle,
             'bundle_mapper': bundle_mapper,
-            # TODO: maybe this shouldn't be here
             'target_indices': target_indices
         }
 
@@ -1438,10 +1436,6 @@ class BaseSetup:
 
 
 class CoupledSetup(BaseSetup):
-    # @property
-    # def snes_ctx(self):
-    #     return Byref(self.solver_objs['jacctx'])
-
     def _setup(self):
         # TODO: minimise code duplication with superclass
         objs = self.objs
@@ -1683,7 +1677,7 @@ class CoupledSolver(Solver):
         struct_assignment = self.timedep.assign_time_iters(sobjs['userctx'])
         targets = self.injectsolve.expr.rhs.fielddata.targets
 
-        # TODO: Optimise the ccode generated here
+        # TODO: optimise the ccode generated here
         pre_solve = ()
         post_solve = ()
 

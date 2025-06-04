@@ -209,7 +209,6 @@ class SubMatrixStruct(PETScStruct):
     _C_modifier = None
 
 
-
 class PETScArrayObject(PetscMixin, ArrayObject):
     _data_alignment = False
 

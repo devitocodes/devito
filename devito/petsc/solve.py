@@ -1,29 +1,55 @@
-from functools import singledispatch
-
-import sympy
-import numpy as np
-from itertools import chain
-from collections import defaultdict
-
-from devito.finite_differences.differentiable import Mul
-from devito.finite_differences.derivative import Derivative
-from devito.types import Eq, Symbol, SteppingDimension, TimeFunction
+from devito.types import Symbol, SteppingDimension
 from devito.types.equation import PetscEq
 from devito.operations.solve import eval_time_derivatives
 from devito.symbolics import retrieve_functions
-from devito.symbolics.extraction import (separate_eqn, centre_stencil,
-                                         generate_targets)
 from devito.tools import as_tuple, filter_ordered
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
                                 FieldData, MultipleFieldData, Jacobian, Residual,
-                                MixedResidual, MixedJacobian)
-from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
+                                MixedResidual, MixedJacobian, InitialGuess)
+from devito.petsc.types.equation import EssentialBC
 
 
 __all__ = ['PETScSolve']
 
 
-def PETScSolve(target_eqns, target=None, solver_parameters=None, **kwargs):
+def PETScSolve(target_eqns, target=None, solver_parameters=None):
+    """
+    Returns a symbolic equation representing a linear PETSc solver,
+    enriched with all the necessary metadata for execution within an `Operator`.
+    When passed to an `Operator`, this symbolic equation triggers code generation
+    and lowering to the PETSc backend.
+
+    This function supports both single- and multi-target systems. In the multi-target
+    (mixed system) case, the solution vector spans all provided target fields.
+
+    Parameters
+    ----------
+    target_eqns : Eq or list of Eq, or dict of Function-like -> Eq or list of Eq
+        The targets and symbolic equations defining the system to be solved.
+
+        - **Single-field problem**:
+            Pass a single Eq or list of Eq, and specify `target` separately:
+                PETScSolve(Eq1, target)
+                PETScSolve([Eq1, Eq2], target)
+
+        - **Multi-field (mixed) problem**:
+            Pass a dictionary mapping each target field to its Eq(s):
+                PETScSolve({u: Eq1, v: Eq2})
+                PETScSolve({u: [Eq1, Eq2], v: [Eq3, Eq4]})
+
+    target : Function-like
+        The function (e.g., `Function`, `TimeFunction`) into which the linear
+        system solves. This represents the solution vector updated by the solver.
+
+    solver_parameters : dict, optional
+        PETSc solver options.
+
+    Returns
+    -------
+    Eq
+        A symbolic equation that wraps the system, solver metadata,
+        and boundary conditions. This can be passed directly to a Devito Operator.
+    """
     if target is not None:
         return InjectSolve(solver_parameters, {target: target_eqns}).build_eq()
     else:
@@ -59,19 +85,11 @@ class InjectSolve:
 
         eqns = sorted(eqns, key=lambda e: 0 if isinstance(e, EssentialBC) else 1)
 
-        jacobian = Jacobian(target, self.time_mapper, arrays)
-        jacobian.build_block(eqns)
+        jacobian = Jacobian(target, eqns, arrays, self.time_mapper)
 
-        scale = 1.0
+        residual = Residual(target, eqns, arrays, self.time_mapper, jacobian.scdiag)
 
-        residual = Residual(target, self.time_mapper, arrays, scale)
-        residual.build_equations(eqns)
-
-        initialguess = [
-            eq for eq in
-            (self.make_initial_guess(e, target, arrays) for e in eqns)
-            if eq is not None
-        ]
+        initialguess = InitialGuess(target, eqns, arrays)
 
         field_data = FieldData(
             target=target,
@@ -82,22 +100,6 @@ class InjectSolve:
         )
 
         return target, tuple(funcs), field_data
-
-    def make_initial_guess(self, eq, target, arrays):
-        """
-        Enforce initial guess to satisfy essential BCs.
-        # TODO: For time-stepping, only enforce these once outside the time loop
-        and use the previous time-step solution as the initial guess for next time step.
-        # TODO: Extend this to "coupled".
-        """
-        if isinstance(eq, EssentialBC):
-            assert eq.lhs == target
-            return Eq(
-                arrays['x'], eq.rhs,
-                subdomain=eq.subdomain
-            )
-        else:
-            return None
 
     def generate_arrays(self, target):
         return {
@@ -112,7 +114,6 @@ class InjectSolve:
 class InjectMixedSolve(InjectSolve):
 
     def linear_solve_args(self):
-
         combined_eqns = []
         for eqns in self.target_eqns.values():
             combined_eqns.extend(eqns)
@@ -123,11 +124,14 @@ class InjectMixedSolve(InjectSolve):
 
         arrays = self.generate_arrays_combined(*coupled_targets)
 
-        jacobian = MixedJacobian(coupled_targets, self.time_mapper, arrays)
-        jacobian.build_blocks(self.target_eqns)
+        jacobian = MixedJacobian(
+            self.target_eqns, arrays, self.time_mapper
+        )
 
-        residual = MixedResidual(coupled_targets, self.time_mapper, arrays)
-        residual.build_equations(self.target_eqns)
+        residual = MixedResidual(
+            self.target_eqns, arrays,
+            self.time_mapper, jacobian.target_scaler_mapper
+        )
 
         all_data = MultipleFieldData(
             targets=coupled_targets,
@@ -136,46 +140,10 @@ class InjectMixedSolve(InjectSolve):
             residual=residual
         )
 
-        # TODO: rethink what target to return here???
         return coupled_targets[0], tuple(funcs), all_data
 
     def generate_arrays_combined(self, *targets):
-        return {
-            target: {
-                p: PETScArray(
-                    name=f'{p}_{target.name}',
-                    target=target,
-                    liveness='eager',
-                    localinfo=localinfo
-                )
-                for p in prefixes
-            }
-            for target in targets
-        }
-
-
-def targets_to_arrays(array, targets):
-    """
-    Map each target in `targets` to a corresponding array generated from `array`,
-    matching the spatial indices of the target.
-    Example:
-    --------
-    >>> array
-    vec_u(x, y)
-    >>> targets
-    {u(t + dt, x + h_x, y), u(t + dt, x - h_x, y), u(t + dt, x, y)}
-    >>> targets_to_arrays(array, targets)
-    {u(t + dt, x - h_x, y): vec_u(x - h_x, y),
-     u(t + dt, x + h_x, y): vec_u(x + h_x, y),
-     u(t + dt, x, y): vec_u(x, y)}
-    """
-    space_indices = [
-        tuple(f.indices[d] for d in f.space_dimensions) for f in targets
-    ]
-    array_targets = [
-        array.subs(dict(zip(array.indices, i))) for i in space_indices
-    ]
-    return dict(zip(targets, array_targets))
+        return {target: self.generate_arrays(target) for target in targets}
 
 
 def generate_time_mapper(funcs):

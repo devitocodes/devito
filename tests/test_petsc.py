@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import pytest
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,

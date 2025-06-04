@@ -70,6 +70,10 @@ class PETScArray(ArrayBasic, Differentiable):
         return self._target
 
     @property
+    def grid(self):
+        return self.target.grid
+
+    @property
     def coefficients(self):
         """Form of the coefficients of the function."""
         return self._coefficients

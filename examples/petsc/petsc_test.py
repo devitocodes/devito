@@ -20,7 +20,7 @@ v = Function(name='v', grid=grid, dtype=np.float64, space_order=2)
 
 v.data[:] = 5.0
 
-eq = Eq(v, u.laplace, subdomain=grid.interior)
+eq = Eq(0., u.laplace, subdomain=grid.interior)
 
 petsc = PETScSolve([eq], u)
 
