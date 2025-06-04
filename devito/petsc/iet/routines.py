@@ -108,7 +108,8 @@ class CBBuilder:
 
     def _make_core(self):
         fielddata = self.injectsolve.expr.rhs.fielddata
-        self._make_matvec(fielddata.arrays, fielddata.matvecs)
+        # from IPython.core.debugger import set_trace
+        self._make_matvec(fielddata.arrays, fielddata.jacobian.matvecs)
         self._make_formfunc(fielddata)
         self._make_formrhs(fielddata)
         if fielddata.initialguess:
@@ -266,7 +267,7 @@ class CBBuilder:
         return matvec_body
 
     def _make_formfunc(self, fielddata):
-        formfuncs = fielddata.formfuncs
+        formfuncs = fielddata.residual.formfuncs
         # Compile formfunc `eqns` into an IET via recursive compilation
         irs_formfunc, _ = self.rcompile(
             formfuncs, options={'mpi': False}, sregistry=self.sregistry,
@@ -403,7 +404,7 @@ class CBBuilder:
         return Uxreplace(subs).visit(formfunc_body)
 
     def _make_formrhs(self, fielddata):
-        formrhs = fielddata.formrhs
+        formrhs = fielddata.residual.formrhs
         sobjs = self.solver_objs
 
         # Compile formrhs `eqns` into an IET via recursive compilation
@@ -758,7 +759,7 @@ class CCBBuilder(CBBuilder):
         )
 
     def _make_whole_formfunc(self, fielddata):
-        formfuncs = fielddata.formfuncs
+        formfuncs = fielddata.residual.formfuncs
         # Compile formfunc `eqns` into an IET via recursive compilation
         irs_formfunc, _ = self.rcompile(
             formfuncs, options={'mpi': False}, sregistry=self.sregistry,
