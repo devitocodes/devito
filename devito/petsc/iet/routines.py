@@ -106,22 +106,30 @@ class CBBuilder:
         in the callback."""
         return True
 
+    @property
+    def fielddata(self):
+        return self.injectsolve.expr.rhs.fielddata
+
+    @property
+    def arrays(self):
+        return self.fielddata.arrays
+
     def _make_core(self):
-        fielddata = self.injectsolve.expr.rhs.fielddata
-        self._make_matvec(fielddata.arrays, fielddata.jacobian.matvecs)
-        self._make_formfunc(fielddata)
-        self._make_formrhs(fielddata)
-        if fielddata.initialguess.eqs:
-            self._make_initialguess(fielddata)
+        self._make_matvec(self.fielddata.jacobian)
+        self._make_formfunc()
+        self._make_formrhs()
+        if self.fielddata.initialguess.eqs:
+            self._make_initialguess()
         self._make_user_struct_callback()
 
-    def _make_matvec(self, arrays, matvecs, prefix='MatMult'):
+    def _make_matvec(self, jacobian, prefix='MatMult'):
         # Compile matvec `eqns` into an IET via recursive compilation
+        matvecs = jacobian.matvecs
         irs_matvec, _ = self.rcompile(matvecs,
                                       options={'mpi': False}, sregistry=self.sregistry,
                                       concretize_mapper=self.concretize_mapper)
         body_matvec = self._create_matvec_body(List(body=irs_matvec.uiet.body),
-                                               arrays)
+                                               jacobian)
 
         objs = self.objs
         cb = PETScCallable(
@@ -133,7 +141,7 @@ class CBBuilder:
         self._matvecs.append(cb)
         self._efuncs[cb.name] = cb
 
-    def _create_matvec_body(self, body, arrays):
+    def _create_matvec_body(self, body, jacobian):
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
@@ -142,8 +150,8 @@ class CBBuilder:
         ctx = objs['dummyctx']
         xlocal = objs['xloc']
         ylocal = objs['yloc']
-        y_matvec = arrays['y']
-        x_matvec = arrays['x']
+        y_matvec = self.arrays[jacobian.row_target]['y']
+        x_matvec = self.arrays[jacobian.col_target]['x']
 
         body = self.timedep.uxreplace_time(body)
 
@@ -265,15 +273,15 @@ class CBBuilder:
         self._struct_params.extend(fields)
         return matvec_body
 
-    def _make_formfunc(self, fielddata):
-        formfuncs = fielddata.residual.formfuncs
+    def _make_formfunc(self):
+        formfuncs = self.fielddata.residual.formfuncs
         # Compile formfunc `eqns` into an IET via recursive compilation
         irs_formfunc, _ = self.rcompile(
             formfuncs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
         body_formfunc = self._create_formfunc_body(
-            List(body=irs_formfunc.uiet.body), fielddata
+            List(body=irs_formfunc.uiet.body)
         )
         objs = self.objs
         cb = PETScCallable(
@@ -285,10 +293,11 @@ class CBBuilder:
         self._formfuncs.append(cb)
         self._efuncs[cb.name] = cb
 
-    def _create_formfunc_body(self, body, fielddata):
+    def _create_formfunc_body(self, body):
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
+        target = self.fielddata.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
@@ -298,8 +307,8 @@ class CBBuilder:
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
 
-        f_formfunc = fielddata.arrays['f']
-        x_formfunc = fielddata.arrays['x']
+        f_formfunc = self.fielddata.arrays[target]['f']
+        x_formfunc = self.fielddata.arrays[target]['x']
 
         dm_cast = DummyExpr(dmda, DMCast(objs['dummyptr']), init=True)
 
@@ -402,8 +411,8 @@ class CBBuilder:
 
         return Uxreplace(subs).visit(formfunc_body)
 
-    def _make_formrhs(self, fielddata):
-        formrhs = fielddata.residual.formrhs
+    def _make_formrhs(self):
+        formrhs = self.fielddata.residual.formrhs
         sobjs = self.solver_objs
 
         # Compile formrhs `eqns` into an IET via recursive compilation
@@ -412,7 +421,7 @@ class CBBuilder:
             concretize_mapper=self.concretize_mapper
         )
         body_formrhs = self._create_form_rhs_body(
-            List(body=irs_formrhs.uiet.body), fielddata
+            List(body=irs_formrhs.uiet.body)
         )
         objs = self.objs
         cb = PETScCallable(
@@ -424,10 +433,11 @@ class CBBuilder:
         self._formrhs.append(cb)
         self._efuncs[cb.name] = cb
 
-    def _create_form_rhs_body(self, body, fielddata):
+    def _create_form_rhs_body(self, body):
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
+        target = self.fielddata.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
@@ -446,7 +456,7 @@ class CBBuilder:
             sobjs['blocal']
         ])
 
-        b_arr = fielddata.arrays['b']
+        b_arr = self.fielddata.arrays[target]['b']
 
         vec_get_array = petsc_call(
             'VecGetArray', [sobjs['blocal'], Byref(b_arr._C_symbol)]
@@ -514,8 +524,8 @@ class CBBuilder:
 
         return Uxreplace(subs).visit(formrhs_body)
 
-    def _make_initialguess(self, fielddata):
-        initguess = fielddata.initialguess.eqs
+    def _make_initialguess(self):
+        initguess = self.fielddata.initialguess.eqs
         sobjs = self.solver_objs
 
         # Compile initital guess `eqns` into an IET via recursive compilation
@@ -524,7 +534,7 @@ class CBBuilder:
             concretize_mapper=self.concretize_mapper
         )
         body_init_guess = self._create_initial_guess_body(
-            List(body=irs.uiet.body), fielddata
+            List(body=irs.uiet.body)
         )
         objs = self.objs
         cb = PETScCallable(
@@ -536,15 +546,16 @@ class CBBuilder:
         self._initialguesses.append(cb)
         self._efuncs[cb.name] = cb
 
-    def _create_initial_guess_body(self, body, fielddata):
+    def _create_initial_guess_body(self, body):
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
+        target = self.fielddata.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
-        x_arr = fielddata.arrays['x']
+        x_arr = self.fielddata.arrays[target]['x']
 
         vec_get_array = petsc_call(
             'VecGetArray', [objs['xloc'], Byref(x_arr._C_symbol)]
@@ -681,8 +692,8 @@ class CCBBuilder(CBBuilder):
         all_fielddata = injectsolve.expr.rhs.fielddata
 
         for sm in all_fielddata.jacobian.nonzero_submatrices:
-            arrays = all_fielddata.arrays[sm.row_target]
-            self._make_matvec(arrays, sm.matvecs, prefix=f'{sm.name}_MatMult')
+            # arrays = all_fielddata.arrays[sm.row_target]
+            self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
 
         self._make_whole_matvec()
         self._make_whole_formfunc(all_fielddata)
@@ -1044,18 +1055,18 @@ class CCBBuilder(CBBuilder):
         )
 
     def residual_bundle(self, body, bundles):
-        mapper1 = bundles['bundle_mapper']
+        mapper = bundles['bundle_mapper']
         indexeds = FindSymbols('indexeds').visit(body)
+        subs = {}
 
-        subss = {}
         for i in indexeds:
-            if i.base in mapper1:
-                bundle = mapper1[i.base]
+            if i.base in mapper:
+                bundle = mapper[i.base]
                 index = bundles['target_indices'][i.function.target]
                 index = (index,)+i.indices
-                subss[i] = bundle.__getitem__(index)
+                subs[i] = bundle.__getitem__(index)
 
-        body = Uxreplace(subss).visit(body)
+        body = Uxreplace(subs).visit(body)
         return body
 
 

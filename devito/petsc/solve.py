@@ -81,7 +81,7 @@ class InjectSolve:
 
         funcs = get_funcs(eqns)
         self.time_mapper = generate_time_mapper(funcs)
-        arrays = self.generate_arrays(target)
+        arrays = self.generate_arrays_combined(target)
 
         eqns = sorted(eqns, key=lambda e: 0 if isinstance(e, EssentialBC) else 1)
 
@@ -107,6 +107,9 @@ class InjectSolve:
                           localinfo=localinfo)
             for p in prefixes
         }
+
+    def generate_arrays_combined(self, *targets):
+        return {target: self.generate_arrays(target) for target in targets}
 
 
 class InjectMixedSolve(InjectSolve):
@@ -140,8 +143,8 @@ class InjectMixedSolve(InjectSolve):
 
         return coupled_targets[0], tuple(funcs), all_data
 
-    def generate_arrays_combined(self, *targets):
-        return {target: self.generate_arrays(target) for target in targets}
+    # def generate_arrays_combined(self, *targets):
+    #     return {target: self.generate_arrays(target) for target in targets}
 
 
 def generate_time_mapper(funcs):

@@ -260,6 +260,14 @@ class Jacobian:
     def scdiag(self):
         return self._scdiag
 
+    @property
+    def row_target(self):
+        return self.target
+
+    @property
+    def col_target(self):
+        return self.target
+
     def _build_matvecs(self):
         matvecs = [
             e for eq in self.eqns for e in
@@ -275,30 +283,35 @@ class Jacobian:
         self._matvecs = matvecs
         self._scdiag = scdiag
 
-    def _build_matvec_eq(self, eq, target=None, arrays=None):
-        target = target or self.target
-        arrays = arrays or self.arrays
+    def _build_matvec_eq(self, eq, col_target=None, row_target=None):
+        col_target = col_target or self.target
+        row_target = row_target or self.target
 
-        b, F_target, _, targets = separate_eqn(eq, target)
+        b, F_target, _, targets = separate_eqn(eq, col_target)
         if F_target:
-            return self._make_matvec(eq, F_target, targets, arrays)
+            return self._make_matvec(
+                eq, F_target, targets, col_target, row_target
+            )
         return (None,)
 
-    def _make_matvec(self, eq, F_target, targets, arrays):
+    def _make_matvec(self, eq, F_target, targets, col_target, row_target):
+        y = self.arrays[row_target]['y']
+        x = self.arrays[col_target]['x']
+
         if isinstance(eq, EssentialBC):
             # NOTE: Essential BCs are trivial equations in the solver.
             # See `EssentialBC` for more details.
-            rhs = arrays['x']
-            zero_row = ZeroRow(arrays['y'], rhs, subdomain=eq.subdomain)
-            zero_column = ZeroColumn(arrays['x'], 0., subdomain=eq.subdomain)
+            zero_row = ZeroRow(y, x, subdomain=eq.subdomain)
+            zero_column = ZeroColumn(x, 0., subdomain=eq.subdomain)
             return (zero_row, zero_column)
         else:
-            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
+            rhs = F_target.subs(targets_to_arrays(x, targets))
             rhs = rhs.subs(self.time_mapper)
-        return as_tuple(Eq(arrays['y'], rhs, subdomain=eq.subdomain))
+        return as_tuple(Eq(y, rhs, subdomain=eq.subdomain))
 
     def _scale_non_bcs(self, matvecs, target=None):
         target = target or self.target
+        # TODO: make this a property of the class so don't need target as an arg
         vol = target.grid.symbolic_volume_cell
 
         return [
@@ -306,13 +319,13 @@ class Jacobian:
             for m in matvecs
         ]
 
-    def _compute_scdiag(self, matvecs, arrays=None):
+    def _compute_scdiag(self, matvecs, col_target=None):
         """
         """
-        arrays = arrays or self.arrays
+        x = self.arrays[col_target or self.target]['x']
 
         centres = {
-            centre_stencil(m.rhs, arrays['x'], as_coeff=True)
+            centre_stencil(m.rhs, x, as_coeff=True)
             for m in matvecs if not isinstance(m, EssentialBC)
         }
         # add comments
@@ -329,8 +342,8 @@ class Jacobian:
 
 
 class SubMatrixBlock:
-    def __init__(self, name, matvecs, scdiag,
-                 row_target, col_target, row_idx, col_idx, linear_idx):
+    def __init__(self, name, matvecs, scdiag, row_target,
+                 col_target, row_idx, col_idx, linear_idx):
         self.name = name
         self.matvecs = matvecs
         self.scdiag = scdiag
@@ -408,11 +421,10 @@ class MixedJacobian(Jacobian):
         """
         for i, row_target in enumerate(self.targets):
             eqns = target_eqns[row_target]
-            arrays = self.arrays[row_target]
             for j, col_target in enumerate(self.targets):
                 matvecs = [
                     e for eq in eqns for e in
-                    self._build_matvec_eq(eq, col_target, arrays)
+                    self._build_matvec_eq(eq, col_target, row_target)
                 ]
                 matvecs = [m for m in matvecs if m is not None]
                 # Sort to put EssentialBC first if any
@@ -420,7 +432,7 @@ class MixedJacobian(Jacobian):
                     sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC))
                 )
                 matvecs = self._scale_non_bcs(matvecs, row_target)
-                scdiag = self._compute_scdiag(matvecs, arrays)
+                scdiag = self._compute_scdiag(matvecs, col_target)
                 matvecs = self._scale_bcs(matvecs, scdiag)
 
                 name = f'J{i}{j}'
@@ -492,7 +504,7 @@ class Residual:
         self._formrhs = rhs
 
     def _make_F_target(self, eq, F_target, targets):
-        arrays = self.arrays
+        arrays = self.arrays[self.target]
         volume = self.target.grid.symbolic_volume_cell
         if isinstance(eq, EssentialBC):
             # The initial guess satisfies the essential BCs, so this term is zero.
@@ -511,9 +523,10 @@ class Residual:
         return as_tuple(Eq(arrays['f'], rhs, subdomain=eq.subdomain))
 
     def _make_b(self, eq, b):
+        b_arr = self.arrays[self.target]['b']
         rhs = 0. if isinstance(eq, EssentialBC) else b.subs(self.time_mapper)
         rhs = rhs * self.target.grid.symbolic_volume_cell
-        return as_tuple(Eq(self.arrays['b'], rhs, subdomain=eq.subdomain))
+        return as_tuple(Eq(b_arr, rhs, subdomain=eq.subdomain))
 
     def _scale_bcs(self, eq, scdiag=None):
         """
@@ -616,7 +629,7 @@ class InitialGuess:
         if isinstance(eq, EssentialBC):
             assert eq.lhs == self.target
             return Eq(
-                self.arrays['x'], eq.rhs,
+                self.arrays[self.target]['x'], eq.rhs,
                 subdomain=eq.subdomain
             )
         else:

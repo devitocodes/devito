@@ -1,3 +1,5 @@
+from sympy import Expr
+
 from functools import cached_property
 from ctypes import POINTER, Structure
 
@@ -164,7 +166,7 @@ class PetscBundle(Bundle):
         elif len(index) == self.ndim + 1:
             component_index, indices = index[0], index[1:]
             names = tuple(i.target.name for i in self.components)
-            return ComponentAccess(
+            return PetscComponentAccess(
                 self.indexed[indices],
                 component_index,
                 component_names=names
@@ -176,6 +178,19 @@ class PetscBundle(Bundle):
     @property
     def pname(self):
         return self._pname
+
+
+class PetscComponentAccess(ComponentAccess):
+    def __new__(cls, arg, index=0, component_names=None, **kwargs):
+        if not arg.is_Indexed:
+            raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
+        names = component_names or cls._default_component_names
+
+        obj = Expr.__new__(cls, arg)
+        obj._index = index
+        obj._component_names = names
+
+        return obj
 
 
 class AoSIndexedData(IndexedData):

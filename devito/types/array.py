@@ -538,7 +538,7 @@ class ComponentAccess(Expr, Pickable):
     _default_component_names = ('x', 'y', 'z', 'w')
 
     __rargs__ = ('arg',)
-    __rkwargs__ = ('index',)
+    __rkwargs__ = ('index', 'component_names')
 
     def __new__(cls, arg, index=0, component_names=None, **kwargs):
         if not arg.is_Indexed:
@@ -578,6 +578,10 @@ class ComponentAccess(Expr, Pickable):
     @property
     def index(self):
         return self._index
+
+    @property
+    def component_names(self):
+        return self._component_names
 
     @property
     def sindex(self):
