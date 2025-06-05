@@ -14,6 +14,7 @@ from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.clusters.buffering import BufferDimension
 from devito.passes.iet.engine import iet_pass
 from devito.tools import generator
+from devito.types.dimension import ModuloDimension
 
 __all__ = ['mpiize']
 
@@ -160,7 +161,9 @@ def _merge_halospots(iet):
                 for dep in scope.d_flow.project(f):
                     if not any(rule(dep, hs1, v.loc_indices) for rule in rules):
                         break
-                    elif _rule_merge(dep, v.loc_indices):
+                    elif _rule_merge(dep, hs1, v.loc_indices):
+                        # `hs1` cannot be merged with `hs0` as semantically modulo 1
+                        # dimensions will degenerate to zero
                         break
                 else:
                     # All good -- `hs1` can be merged with `hs0`
@@ -393,7 +396,7 @@ def _rule1(dep, hs, loc_indices):
                for d, v in loc_indices.items())
 
 
-def _rule_merge(dep, loc_indices):
+def _rule_merge(dep, hs, loc_indices):
     # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>` and `loc_indices={t: t0}`
     # => `hs1` cannot be merged with `hs0` as semantically modulo 1
     # dimensions will degenerate to zero
@@ -402,8 +405,9 @@ def _rule_merge(dep, loc_indices):
             return True
         elif dep.source[d] is None:
             continue
-        elif v.is_Modulo and v.modulo == 1:
-            return True
+        elif isinstance(v, ModuloDimension) and v.modulo == 1:
+            return (isinstance(dep.source[d], ModuloDimension)
+                    and dep.source[d].modulo == 1)
     return False
 
 
