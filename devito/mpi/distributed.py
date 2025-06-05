@@ -3,7 +3,6 @@ from ctypes import c_int, c_void_p, sizeof
 from itertools import groupby, product
 from functools import cached_property
 
-from math import ceil, pow
 from sympy import factorint, Interval
 
 import atexit
@@ -942,15 +941,8 @@ class CustomTopology(tuple):
             alloc_procs = np.prod([i for i in items if i != '*'])
             rem_procs = int(input_comm.size // alloc_procs)
 
-            # List of all factors of rem_procs in decreasing order
-            factors = factorint(rem_procs)
-            vals = [k for (k, v) in factors.items() for _ in range(v)][::-1]
-
-            # Split in number of stars
-            split = np.array_split(vals, nstars)
-
-            # Reduce
-            star_vals = [int(np.prod(s)) for s in split]
+            # Split in number of stars as balanced as possible
+            star_vals = compute_dims(rem_procs, nstars)
 
             # Apply computed star values to the processed
             for index, value in zip(star_pos, star_vals):
@@ -966,19 +958,18 @@ class CustomTopology(tuple):
 
 
 def compute_dims(nprocs, ndim):
-    # We don't do anything clever here. In fact, we do something very basic --
-    # we just try to distribute `nprocs` evenly over the number of dimensions,
-    # and if we can't we fallback to whatever MPI.Compute_dims gives...
-    v = pow(nprocs, 1/ndim)
-    if not v.is_integer():
-        # Since pow(64, 1/3) == 3.999..4
-        v = int(ceil(v))
-        if not v**ndim == nprocs:
-            # Fallback
-            return tuple(MPI.Compute_dims(nprocs, ndim))
-    else:
-        v = int(v)
-    return tuple(v for _ in range(ndim))
+    # Get prime factors
+    factors = [k for (k, v) in factorint(nprocs).items() for _ in range(v)][::-1]
+    # Split the factors into `n` parts, such that the product of each part is
+    # as balanced as possible. The algorithm always picks
+    # the smallest product so far and multiplies it by the next factor.
+    # The factor are expected to be sorted in descending order.
+    decomp = [1] * ndim
+    for p in factors:
+        # Pick smallest decomposition so far
+        i = min(range(ndim), key=lambda i: decomp[i])
+        decomp[i] *= p
+    return tuple(decomp)
 
 
 # Yes, AFAICT, nothing like this is available in mpi4py
