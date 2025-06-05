@@ -86,9 +86,7 @@ class InjectSolve:
         eqns = sorted(eqns, key=lambda e: 0 if isinstance(e, EssentialBC) else 1)
 
         jacobian = Jacobian(target, eqns, arrays, self.time_mapper)
-
         residual = Residual(target, eqns, arrays, self.time_mapper, jacobian.scdiag)
-
         initialguess = InitialGuess(target, eqns, arrays)
 
         field_data = FieldData(
@@ -129,8 +127,8 @@ class InjectMixedSolve(InjectSolve):
         )
 
         residual = MixedResidual(
-            self.target_eqns, arrays,
-            self.time_mapper, jacobian.target_scaler_mapper
+            self.target_eqns, arrays, self.time_mapper,
+            jacobian.target_scaler_mapper
         )
 
         all_data = MultipleFieldData(

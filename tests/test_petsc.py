@@ -817,36 +817,37 @@ class TestCoupledLinear:
 
         jacobian = petsc[0].rhs.fielddata.jacobian
 
-        j00 = jacobian.get_submatrix(e, 'J00')
-        j01 = jacobian.get_submatrix(e, 'J01')
-        j10 = jacobian.get_submatrix(g, 'J10')
-        j11 = jacobian.get_submatrix(g, 'J11')
+        j00 = jacobian.get_submatrix(0, 0)
+        j01 = jacobian.get_submatrix(0, 1)
+        j10 = jacobian.get_submatrix(1, 0)
+        j11 = jacobian.get_submatrix(1, 1)
 
         # Check the number of submatrices
-        assert len(jacobian.submatrix_keys) == 4
-        assert str(jacobian.submatrix_keys) == "['J00', 'J01', 'J10', 'J11']"
+        assert jacobian.no_submatrices == 4
 
         # Technically a non-coupled problem, so the only non-zero submatrices
         # should be the diagonal ones i.e J00 and J11
-        assert jacobian.nonzero_submatrix_keys == ['J00', 'J11']
-        assert jacobian.get_submatrix(e, 'J01')['matvecs'] is None
-        assert jacobian.get_submatrix(g, 'J10')['matvecs'] is None
-
-        j00 = jacobian.get_submatrix(e, 'J00')
-        j11 = jacobian.get_submatrix(g, 'J11')
+        nonzero_submats = jacobian.nonzero_submatrices
+        assert len(nonzero_submats) == 2
+        assert j00 in nonzero_submats
+        assert j11 in nonzero_submats
+        assert j01 not in nonzero_submats
+        assert j10 not in nonzero_submats
+        assert not j01.matvecs
+        assert not j10.matvecs
 
         # Compatible scaling to reduce condition number of jacobian
-        assert str(j00['matvecs'][0]) == 'Eq(y_e(x, y),' \
+        assert str(j00.matvecs[0]) == 'Eq(y_e(x, y),' \
             + ' h_x*h_y*(Derivative(x_e(x, y), (x, 2)) + Derivative(x_e(x, y), (y, 2))))'
 
-        assert str(j11['matvecs'][0]) == 'Eq(y_g(x, y),' \
+        assert str(j11.matvecs[0]) == 'Eq(y_g(x, y),' \
             + ' h_x*h_y*(Derivative(x_g(x, y), (x, 2)) + Derivative(x_g(x, y), (y, 2))))'
 
-        # Check the derivative wrt fields
-        assert j00['derivative_wrt'] == e
-        assert j01['derivative_wrt'] == g
-        assert j10['derivative_wrt'] == e
-        assert j11['derivative_wrt'] == g
+        # Check the col_targets
+        assert j00.col_target == e
+        assert j01.col_target == g
+        assert j10.col_target == e
+        assert j11.col_target == g
 
     @skipif('petsc')
     def test_residual_bundle(self):

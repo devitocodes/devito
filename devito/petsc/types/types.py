@@ -235,6 +235,16 @@ class MultipleFieldData(FieldData):
 
 
 class Jacobian:
+    """
+    Represents a Jacobian matrix in a matrix-free form.
+
+    This Jacobian is defined implicitly via matrix-vector products
+    derived from the symbolic equations provided in `matvecs`.
+
+    It assumes the problem is linear, meaning the Jacobian
+    corresponds to a constant coefficient matrix and does not
+    require explicit symbolic differentiation.
+    """
     def __init__(self, target, eqns, arrays, time_mapper):
         self.target = target
         self.eqns = eqns
@@ -318,140 +328,129 @@ class Jacobian:
         ]
 
 
+class SubMatrixBlock:
+    def __init__(self, name, matvecs, scdiag,
+                 row_target, col_target, row_idx, col_idx, linear_idx):
+        self.name = name
+        self.matvecs = matvecs
+        self.scdiag = scdiag
+        self.row_target = row_target
+        self.col_target = col_target
+        self.row_idx = row_idx
+        self.col_idx = col_idx
+        self.linear_idx = linear_idx
+
+    def is_diag(self):
+        return self.row_idx == self.col_idx
+
+    def __repr__(self):
+        return (f"<SubMatrixBlock {self.name}>")
+
+
 class MixedJacobian(Jacobian):
+    """
+    Represents a Jacobian for a linear system with a solution vector
+    composed of multiple fields (targets).
+
+    Defines matrix-vector products for each sub-block,
+    each with its own generated callback. The matrix may be treated
+    as monolithic or block-structured in PETSc, but sub-block
+    callbacks are generated in both cases.
+
+    Assumes a **linear** problem, so this Jacobian corresponds to a
+    coefficient matrix and does not require differentiation.
+
+    # TODO: pcfieldsplit support for each block
+    """
     def __init__(self, target_eqns, arrays, time_mapper):
         """
         """
         self.targets = as_tuple(target_eqns.keys())
         self.arrays = arrays
         self.time_mapper = time_mapper
-        self.submatrices = self._initialize_submatrices()
+        self._submatrices = []
         self._build_blocks(target_eqns)
 
-    def _initialize_submatrices(self):
+    @property
+    def submatrices(self):
         """
-        Create a dict of submatrices for each target with metadata.
+        Return a list of all submatrix blocks.
+        Each block contains metadata about the matrix-vector products.
         """
-        submatrices = {}
-        num_targets = len(self.targets)
-
-        for i, target in enumerate(self.targets):
-            submatrices[target] = {}
-            for j in range(num_targets):
-                key = f'J{i}{j}'
-                submatrices[target][key] = {
-                    'matvecs': None,
-                    'derivative_wrt': self.targets[j],
-                    'index': i * num_targets + j,
-                    'scdiag': None
-                }
-
-        return submatrices
-
-    def _build_blocks(self, target_eqns):
-        for target, eqns in target_eqns.items():
-            self._build_block(target, eqns)
-
-    def _build_block(self, target, eqns):
-        arrays = self.arrays[target]
-        for submat, mtvs in self.submatrices[target].items():
-            matvecs = [
-                e for eq in eqns for e in
-                self._build_matvec_eq(eq, mtvs['derivative_wrt'], arrays)
-            ]
-            matvecs = [m for m in matvecs if m is not None]
-            matvecs = tuple(sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC)))
-
-            matvecs = self._scale_non_bcs(matvecs, target)
-            scdiag = self._compute_scdiag(matvecs, arrays)
-            matvecs = self._scale_bcs(matvecs, scdiag)
-
-            if matvecs:
-                self.set_submatrix(target, submat, matvecs, scdiag)
+        return self._submatrices
 
     @property
-    def submatrix_keys(self):
+    def no_submatrices(self):
         """
-        Return a list of all submatrix keys (e.g., ['J00', 'J01', 'J10', 'J11']).
+        Return the number of submatrix blocks.
         """
-        return [key for submats in self.submatrices.values() for key in submats.keys()]
+        return len(self._submatrices)
 
     @property
-    def nonzero_submatrix_keys(self):
-        """
-        Returns a list of submats where 'matvecs' is not None.
-        """
-        return [
-            key
-            for submats in self.submatrices.values()
-            for key, value in submats.items()
-            if value['matvecs'] is not None
-        ]
-
-    @property
-    def submat_to_index(self):
-        """
-        Returns a dict mapping submatrix keys to their index.
-        """
-        return {
-            key: value['index']
-            for submats in self.submatrices.values()
-            for key, value in submats.items()
-        }
-
-    # CHECK/TEST THIS
-    def is_diagonal_submatrix(self, key):
-        """
-        Return True if the given key corresponds to a diagonal
-        submatrix (e.g., 'J00', 'J11'), else False.
-        """
-        for i, t in enumerate(self.targets):
-            diag_key = f'J{i}{i}'
-            if key == diag_key and diag_key in self.submatrices[t]:
-                return True
-        return False
-
-    def set_submatrix(self, field, key, matvecs, scdiag):
-        """
-        Set the matrix-vector equations for a submatrix.
-
-        Parameters
-        ----------
-        field : Function
-            The target field that the submatrix operates on.
-        key: str
-            The identifier for the submatrix (e.g., 'J00', 'J01').
-        matvecs: list of Eq
-            The matrix-vector equations forming the submatrix.
-        """
-        if field in self.submatrices and key in self.submatrices[field]:
-            self.submatrices[field][key]['matvecs'] = matvecs
-            self.submatrices[field][key]['scdiag'] = scdiag
-        else:
-            raise KeyError(f'Invalid field ({field}) or submatrix key ({key})')
-
-    def get_submatrix(self, field, key):
-        """
-        Retrieve a specific submatrix.
-        """
-        return self.submatrices.get(field, {}).get(key, None)
+    def nonzero_submatrices(self):
+        """Return SubMatrixBlock objects that have non-empty matvecs."""
+        return [submat for submat in self.submatrices if submat.matvecs]
 
     @property
     def target_scaler_mapper(self):
         """
-        Return a mapping from each target to its diagonal submatrix's scaler.
+        Map each row_target index to its diagonal submatrix's scaler.
         """
         mapper = {}
-        for target, submats in self.submatrices.items():
-            for key, value in submats.items():
-                if self.is_diagonal_submatrix(key):
-                    mapper[target] = value.get('scdiag')
-                    break
+        for sm in self.submatrices:
+            if sm.row_idx == sm.col_idx:
+                mapper[sm.row_target] = sm.scdiag
         return mapper
 
+    def _build_blocks(self, target_eqns):
+        """
+        Build all SubMatrixBlock objects for the Jacobian.
+        """
+        for i, row_target in enumerate(self.targets):
+            eqns = target_eqns[row_target]
+            arrays = self.arrays[row_target]
+            for j, col_target in enumerate(self.targets):
+                matvecs = [
+                    e for eq in eqns for e in
+                    self._build_matvec_eq(eq, col_target, arrays)
+                ]
+                matvecs = [m for m in matvecs if m is not None]
+                # Sort to put EssentialBC first if any
+                matvecs = tuple(
+                    sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC))
+                )
+                matvecs = self._scale_non_bcs(matvecs, row_target)
+                scdiag = self._compute_scdiag(matvecs, arrays)
+                matvecs = self._scale_bcs(matvecs, scdiag)
+
+                name = f'J{i}{j}'
+                block = SubMatrixBlock(
+                    name=name,
+                    matvecs=matvecs,
+                    scdiag=scdiag,
+                    row_target=row_target,
+                    col_target=col_target,
+                    row_idx=i,
+                    col_idx=j,
+                    linear_idx=i * len(self.targets) + j
+                )
+                self._submatrices.append(block)
+
+    def get_submatrix(self, row_idx, col_idx):
+        """
+        Return the SubMatrixBlock at (row_idx, col_idx), or None if not found.
+        """
+        for sm in self.submatrices:
+            if sm.row_idx == row_idx and sm.col_idx == col_idx:
+                return sm
+        return None
+
     def __repr__(self):
-        # TODO: edit
-        return str(self.submatrices)
+        summary = ', '.join(
+            f"{sm.name} (row={sm.row_idx}, col={sm.col_idx})"
+            for sm in self.submatrices
+        )
+        return f"<MixedJacobian with {self.no_submatrices} submatrices: [{summary}]>"
 
 
 class Residual:
@@ -486,7 +485,7 @@ class Residual:
         for eq in self.eqns:
             b, F_target, _, targets = separate_eqn(eq, self.target)
             funcs.extend(self._make_F_target(eq, F_target, targets))
-            # TODO: if b is zero then don't need a rhs vector+callback
+            # TODO: If b is zero then don't need a rhs vector+callback
             rhs.extend(self._make_b(eq, b))
 
         self._formfuncs = [self._scale_bcs(eq) for eq in funcs]
@@ -596,18 +595,18 @@ class InitialGuess:
         self.eqns = as_tuple(eqns)
         self.arrays = arrays
         self._build_equations()
-    
+
     @property
-    def equations(self):
+    def eqs(self):
         """
         """
-        return self._equations
+        return self._eqs
 
     def _build_equations(self):
         """
         Return a list of initial guess equations.
         """
-        self._equations = [
+        self._eqs = [
             eq for eq in
             (self._make_initial_guess(e) for e in self.eqns)
             if eq is not None

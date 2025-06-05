@@ -111,7 +111,7 @@ class CBBuilder:
         self._make_matvec(fielddata.arrays, fielddata.jacobian.matvecs)
         self._make_formfunc(fielddata)
         self._make_formrhs(fielddata)
-        if fielddata.initialguess.equations:
+        if fielddata.initialguess.eqs:
             self._make_initialguess(fielddata)
         self._make_user_struct_callback()
 
@@ -515,7 +515,7 @@ class CBBuilder:
         return Uxreplace(subs).visit(formrhs_body)
 
     def _make_initialguess(self, fielddata):
-        initguess = fielddata.initialguess.equations
+        initguess = fielddata.initialguess.eqs
         sobjs = self.solver_objs
 
         # Compile initital guess `eqns` into an IET via recursive compilation
@@ -678,15 +678,11 @@ class CCBBuilder(CBBuilder):
 
     def _make_core(self):
         injectsolve = self.injectsolve
-        targets = injectsolve.expr.rhs.fielddata.targets
         all_fielddata = injectsolve.expr.rhs.fielddata
 
-        for t in targets:
-            row_matvecs = all_fielddata.jacobian.submatrices[t]
-            arrays = all_fielddata.arrays[t]
-            for submat, mtvs in row_matvecs.items():
-                if mtvs['matvecs']:
-                    self._make_matvec(arrays, mtvs['matvecs'], prefix=f'{submat}_MatMult')
+        for sm in all_fielddata.jacobian.nonzero_submatrices:
+            arrays = all_fielddata.arrays[sm.row_target]
+            self._make_matvec(arrays, sm.matvecs, prefix=f'{sm.name}_MatMult')
 
         self._make_whole_matvec()
         self._make_whole_formfunc(all_fielddata)
@@ -714,7 +710,7 @@ class CCBBuilder(CBBuilder):
         jctx = objs['ljacctx']
         ctx_main = petsc_call('MatShellGetContext', [objs['J'], Byref(jctx)])
 
-        nonzero_submats = self.jacobian.nonzero_submatrix_keys
+        nonzero_submats = self.jacobian.nonzero_submatrices
 
         zero_y_memory = petsc_call(
             'VecSet', [objs['Y'], 0.0]
@@ -722,17 +718,17 @@ class CCBBuilder(CBBuilder):
 
         calls = ()
         for sm in nonzero_submats:
-            idx = self.jacobian.submat_to_index[sm]
-            ctx = sobjs[f'{sm}ctx']
-            X = sobjs[f'{sm}X']
-            Y = sobjs[f'{sm}Y']
+            name = sm.name
+            ctx = sobjs[f'{name}ctx']
+            X = sobjs[f'{name}X']
+            Y = sobjs[f'{name}Y']
             rows = objs['rows'].base
             cols = objs['cols'].base
-            sm_indexed = objs['Submats'].indexed[idx]
+            sm_indexed = objs['Submats'].indexed[sm.linear_idx]
 
             calls += (
-                DummyExpr(sobjs[sm], FieldFromPointer(sm_indexed, jctx)),
-                petsc_call('MatShellGetContext', [sobjs[sm], Byref(ctx)]),
+                DummyExpr(sobjs[name], FieldFromPointer(sm_indexed, jctx)),
+                petsc_call('MatShellGetContext', [sobjs[name], Byref(ctx)]),
                 petsc_call(
                     'VecGetSubVector',
                     [objs['X'], Deref(FieldFromPointer(cols, ctx)), Byref(X)]
@@ -741,7 +737,7 @@ class CCBBuilder(CBBuilder):
                     'VecGetSubVector',
                     [objs['Y'], Deref(FieldFromPointer(rows, ctx)), Byref(Y)]
                 ),
-                petsc_call('MatMult', [sobjs[sm], X, Y]),
+                petsc_call('MatMult', [sobjs[name], X, Y]),
                 petsc_call(
                     'VecRestoreSubVector',
                     [objs['X'], Deref(FieldFromPointer(cols, ctx)), Byref(X)]
@@ -1012,19 +1008,19 @@ class CCBBuilder(CBBuilder):
         upper_bound = objs['nsubmats'] - 1
         iteration = Iteration(List(body=iter_body), i, upper_bound)
 
-        nonzero_submats = self.jacobian.nonzero_submatrix_keys
+        nonzero_submats = self.jacobian.nonzero_submatrices
         matvec_lookup = {mv.name.split('_')[0]: mv for mv in self.matvecs}
 
         matmult_op = [
             petsc_call(
                 'MatShellSetOperation',
                 [
-                    objs['submat_arr'].indexed[self.jacobian.submat_to_index[sb]],
+                    objs['submat_arr'].indexed[sb.linear_idx],
                     'MATOP_MULT',
-                    MatShellSetOp(matvec_lookup[sb].name, void, void),
+                    MatShellSetOp(matvec_lookup[sb.name].name, void, void),
                 ],
             )
-            for sb in nonzero_submats if sb in matvec_lookup
+            for sb in nonzero_submats if sb.name in matvec_lookup
         ]
 
         body = [
@@ -1158,22 +1154,23 @@ class CoupledObjectBuilder(BaseObjectBuilder):
         })
 
         jacobian = injectsolve.expr.rhs.fielddata.jacobian
-        submatrix_keys = jacobian.submatrix_keys
+        submatrices = jacobian.nonzero_submatrices
 
         base_dict['jacctx'] = JacobianStruct(
             name=sreg.make_name(prefix=objs['ljacctx'].name),
             fields=objs['ljacctx'].fields,
         )
 
-        for key in submatrix_keys:
-            base_dict[key] = Mat(name=key)
-            base_dict[f'{key}ctx'] = SubMatrixStruct(
-                name=f'{key}ctx',
+        for sm in submatrices:
+            name = sm.name
+            base_dict[name] = Mat(name=name)
+            base_dict[f'{name}ctx'] = SubMatrixStruct(
+                name=f'{name}ctx',
                 fields=objs['subctx'].fields,
             )
-            base_dict[f'{key}X'] = CallbackVec(f'{key}X')
-            base_dict[f'{key}Y'] = CallbackVec(f'{key}Y')
-            base_dict[f'{key}F'] = CallbackVec(f'{key}F')
+            base_dict[f'{name}X'] = CallbackVec(f'{name}X')
+            base_dict[f'{name}Y'] = CallbackVec(f'{name}Y')
+            base_dict[f'{name}F'] = CallbackVec(f'{name}F')
 
         # Bundle objects/metadata required by the coupled residual callback
         f_components = []

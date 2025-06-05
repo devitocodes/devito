@@ -129,7 +129,8 @@ for n in n_values:
 
     with switchconfig(language='petsc'):
         op = Operator(petsc)
-        op.apply()
+        # op.apply()
+        print(op.ccode)
 
     u_exact.data[:] = u_exact_fcn(X, Y)
     lap_u.data[:] = lap_u_exact_fcn(X, Y)
