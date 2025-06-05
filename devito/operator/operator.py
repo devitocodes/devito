@@ -36,6 +36,7 @@ from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
 
+from devito.operator.new_classes import MultiStage
 
 __all__ = ['Operator']
 
@@ -184,8 +185,9 @@ class Operator(Callable):
         expressions = as_tuple(expressions)
 
         for i in expressions:
-            if not isinstance(i, Evaluable):
-                raise CompilationError(f"`{i!s}` is not an Evaluable object; "
+            i_check = i.eq if isinstance(i, MultiStage) else i
+            if not isinstance(i_check, Evaluable):
+                raise CompilationError(f"`{i_check!s}` is not an Evaluable object; "
                                        "check your equation again")
 
         return expressions
@@ -271,6 +273,9 @@ class Operator(Callable):
         # expression for which a partial or complete lowering is desired
         kwargs['rcompile'] = cls._rcompile_wrapper(**kwargs)
 
+        # [MultiStage] -> [Eqs]
+        expressions = cls._lower_multistage(expressions, **kwargs)
+
         # [Eq] -> [LoweredEq]
         expressions = cls._lower_exprs(expressions, **kwargs)
 
@@ -313,6 +318,27 @@ class Operator(Callable):
         Backend hook for specialization at the expression level.
         """
         return expressions
+
+    @classmethod
+    @timed_pass(name='lowering.MultiStages')
+    def _lower_multistage(cls, expressions, **kwargs):
+        """
+        Separating the multi-stage time-integrator scheme in stages:
+
+            * Check if the time-integrator is Multistage;
+            * Creating the stages of the method.
+        """
+
+        lowered = []
+        for i, eq in enumerate(as_tuple(expressions)):
+            if isinstance(eq, MultiStage):
+                time_int = eq.method
+                stage_eqs = time_int.expand_stages(eq.eq, eq_num=i)
+                lowered.extend(stage_eqs)
+            else:
+                lowered.append(eq)
+
+        return lowered
 
     @classmethod
     @timed_pass(name='lowering.Expressions')
