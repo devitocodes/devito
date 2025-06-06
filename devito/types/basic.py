@@ -298,6 +298,7 @@ class Basic(CodeSymbol):
     is_Object = False
     is_LocalObject = False
     is_LocalType = False
+    is_CTemp = False
 
     # Created by the user
     is_Input = False
