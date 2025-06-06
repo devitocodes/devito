@@ -25,6 +25,8 @@ class CTemp(Temp):
     """
     A cluster-level Temp, similar to Temp, ensured to have different priority
     """
+    is_CTemp = True
+
     ordering_of_classes.insert(ordering_of_classes.index('Temp') + 1, 'CTemp')
 
 
@@ -220,13 +222,39 @@ def _compact(exprs, exclude):
     `for (i = ...) { a = b; for (j = a ...) ... }`. Hence, this routine
     only targets CTemps.
     """
+    # FIXME: Can use is_CTemp rather than isinstance
     candidates = [e for e in exprs
                   if isinstance(e.lhs, CTemp) and e.lhs not in exclude]
 
     mapper = {e.lhs: e.rhs for e in candidates if q_leaf(e.rhs)}
 
-    mapper.update({e.lhs: e.rhs for e in candidates
-                   if sum([i.rhs.count(e.lhs) for i in exprs]) == 1})
+    # FIXME: Move this to searches as retrieve_ctemps
+    from devito.symbolics.search import search
+
+    def q_ctemp(expr):
+        try:
+            return expr.is_CTemp
+        except AttributeError:
+            return False
+
+    # Find all the CTemps in expressions without removing duplicates
+    # ctemps = search(exprs, q_ctemp, 'all', 'dfs')
+    # I think it was more like
+    ctemps = search([e.rhs for e in exprs], q_ctemp, 'all', 'dfs')
+
+    # print(ctemps, len(ctemps), len(set(ctemps)), len(candidates))
+
+    # FIXME: This line is kinda slow. I should find some way to replace it.
+    # FIXME: Specifically sum([i.rhs.count(e.lhs) for i in exprs]) == 1 is slow as hell
+    # mapper.update({e.lhs: e.rhs for e in candidates
+    #                if sum([i.rhs.count(e.lhs) for i in exprs]) == 1})
+
+    # If there are ctemps in the expressions, then add any to the mapper which only
+    # appear once
+    # TODO: Double check this is exactly the prior behaviour?
+    if ctemps:
+        mapper.update({e.lhs: e.rhs for e in candidates
+                       if ctemps.count(e.lhs) == 1})
 
     processed = []
     for e in exprs:
