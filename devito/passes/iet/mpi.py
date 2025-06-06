@@ -56,73 +56,81 @@ def _drop_reduction_halospots(iet):
 
 def _hoist_invariant(iet):
     """
-    Hoist HaloSpots from inner to outer Iterations where all data dependencies
-    would be honored. This pass avoids redundant halo exchanges when the same
-    data is redundantly exchanged within the same Iteration tree level.
+    Hoist redundant HaloSpots out of Iterations.
 
     Example:
-                                   haloupd v[t0]
-    for time                       for time
-      W v[t1]- R v[t0]               W v[t1]- R v[t0]
-      haloupd v[t1]                  haloupd v[t1]
-      R v[t1]                        R v[t1]
-      haloupd v[t0]                  R v[t0]
-      R v[t0]
 
+                                    haloupd v[t0]
+                                    haloupd v[t0]'
+    for time                        for time
+      haloupd v[t0]
+      W v[t1]- R v[t0]   --->         W v[t1]- R v[t0]
+      haloupd v[t1]                   haloupd v[t1]
+      R v[t1]                         R v[t1]
+      haloupd v[t0]'
+      R v[t0]                         R v[t0]
+
+    Where `haloupd v[t0]` and `haloupd v[t0]'` are subsets of `haloupd v[t1]`.
     """
-
-    # Precompute scopes to save time
-    scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
-
-    # Analysis
-    hsmapper = {}
-    imapper = defaultdict(list)
-
     cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
 
+    hsmapper = defaultdict(list)
+    imapper = defaultdict(list)
     for it, halo_spots in iter_mapper.items():
+        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
+
         for hs0, hs1 in combinations(halo_spots, r=2):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
-            # If there are overlapping loc_indices, skip
-            hs0_mdims = hs0.halo_scheme.loc_values
-            hs1_mdims = hs1.halo_scheme.loc_values
-            if hs0_mdims.intersection(hs1_mdims):
+            functions = set(hs0.fmapper) & set(hs1.fmapper)
+            if not functions:
+                continue
+            functions = sorted(functions, key=lambda f: f.name)  # Determinism
+
+            hsf0 = hs0.halo_scheme.project(functions)
+            hsf1 = hs1.halo_scheme.project(functions)
+
+            # NOTE: lexicographic order is important here, as if both `hsf0` and
+            # `hsf1` are iteration-carried, we must hoist the later one in the
+            # control flow (that is `hsf1`)
+            flag0 = hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope)
+            flag1 = hsf0.issubset(hsf1) and _is_iter_carried(hsf0, scope)
+            if flag0 and flag1:
+                # Special case: `_merge_halospots` will merge `hsf0` and `hsf1`
+                # anyway, so we can avoid a useless hoisting
+                continue
+            elif flag0:
+                hs, hsf = hs1, hsf1
+            elif flag1:
+                hs, hsf = hs0, hsf0
+            else:
+                # No hoisting possible, skip
                 continue
 
-            for f, v in hs1.fmapper.items():
-                if f not in hs0.functions:
-                    continue
+            # At this point, we must infer valid loc_indices for `found`
+            hhs = hsf.drop(functions)  # hhs -> hoisted HaloScheme
+            for f, hse in hsf.fmapper.items():
+                loc_indices = {}
+                for d, v in hse.loc_indices.items():
+                    if v in it.uindices:
+                        loc_indices[d] = v.symbolic_min.subs(it.dim, it.start)
+                    else:
+                        loc_indices[d] = v
 
-                for dep in scopes[it].d_flow.project(f):
-                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
-                        break
-                else:
-                    # `hs1`` can be hoisted out of `it`, but we need to infer valid
-                    # loc_indices
-                    hse = hs1.halo_scheme.fmapper[f]
-                    loc_indices = {}
+                hhs = hhs.add(f, hse._rebuild(loc_indices=loc_indices))
 
-                    for d, v in hse.loc_indices.items():
-                        if v in it.uindices:
-                            loc_indices[d] = v.symbolic_min.subs(it.dim, it.start)
-                        else:
-                            loc_indices[d] = v
+            hsmapper[hs].extend(functions)
+            imapper[it].append(hhs)
 
-                    hse = hse._rebuild(loc_indices=loc_indices)
-                    hs1.halo_scheme.fmapper[f] = hse
-
-                    hsmapper[hs1] = hsmapper.get(hs1, hs1.halo_scheme).drop(f)
-                    imapper[it].append(hs1.halo_scheme.project(f))
-
-    mapper = {i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
-              for i, hss in imapper.items()}
-    mapper.update({i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
-                   for i, hs in hsmapper.items()})
     # Transform the IET hoisting/dropping HaloSpots as according to the analysis
+    mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
+              for hs, functions in hsmapper.items()}
+    mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
+                   for i, hss in imapper.items()})
     iet = Transformer(mapper, nested=True).visit(iet)
+
     return iet
 
 
@@ -134,18 +142,16 @@ def _merge_halospots(iet):
 
     Example:
 
-    for time                       for time
-      haloupd v[t0]                  haloupd v[t0], h
-      W v[t1]- R v[t0]               W v[t1]- R v[t0]
+    for time                           for time
+      haloupd v[t0]                      haloupd v[t0], h
+      W v[t1]- R v[t0]      --->         W v[t1]- R v[t0]
       haloupd v[t0], h
-      W g[t1]- R v[t0], h            W g[t1]- R v[t0], h
+      W g[t1]- R v[t0], h                W g[t1]- R v[t0], h
     """
-
-    # Analysis
-    mapper = {}
     cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
 
+    mapper = {}
     for it, halo_spots in iter_mapper.items():
         scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
 
@@ -157,19 +163,19 @@ def _merge_halospots(iet):
 
             for f, v in hs1.fmapper.items():
                 for dep in scope.d_flow.project(f):
-                    if not any(rule(dep, hs1, v.loc_indices) for rule in rules):
+                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
                         break
                 else:
-                    # All good -- `hs1` can be merged with `hs0`
-                    hs = hs1.halo_scheme.project(f)
-                    mapper[hs0] = HaloScheme.union([mapper.get(hs0, hs0.halo_scheme), hs])
+                    # All good -- `hsf1` can be merged within `hs0`
+                    hsf1 = hs1.halo_scheme.project(f)
+                    mapper[hs0] = HaloScheme.union(
+                        [mapper.get(hs0, hs0.halo_scheme), hsf1]
+                    )
                     mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
 
-    # Post-process analysis
+    # Transform the IET merging/dropping HaloSpots as according to the analysis
     mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
               for i, hs in mapper.items()}
-
-    # Transform the IET merging/dropping HaloSpots as according to the analysis
     iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
@@ -373,6 +379,23 @@ def _check_control_flow(hs0, hs1, cond_mapper):
     cond1 = cond_mapper.get(hs1)
 
     return cond0 != cond1
+
+
+def _is_iter_carried(hs, scope):
+    """
+    True if the HaloScheme `hs` is iteration-carried, i.e., if the exchanged halo
+    *only* uses values computed in a past iteration, False otherwise.
+    """
+    for f, hse in hs.fmapper.items():
+        try:
+            writes = scope.writes[f]
+        except KeyError:
+            continue
+
+        if any(hse.loc_values.intersection(w.aindices) for w in writes):
+            return False
+
+    return True
 
 
 # Code motion rules -- if the retval is True, then it means the input `dep` is not

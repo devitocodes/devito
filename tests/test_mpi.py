@@ -1104,6 +1104,8 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+        calls = FindNodes(Call).visit(get_time_loop(op))
+        assert len(calls) == 1
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_redundant_haloupdate_cond(self, mode):
@@ -1123,7 +1125,7 @@ class TestCodeGeneration:
                        # access `f` at `t`, not `t+1` through factor subdim!
                        Eq(g, f[t, j] + 1, implicit_dim=t_sub)])
 
-        calls = FindNodes(Call).visit(op)
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
         assert calls[0].functions[0] is f
 
@@ -1242,6 +1244,8 @@ class TestCodeGeneration:
                        Inc(g[i], f[t, h[i]] + 1.)])
 
         calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
 
         # Below, there is a flow-dependence along `x`, so a further halo update
@@ -1405,16 +1409,22 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+        calls = FindNodes(Call).visit(get_time_loop(op))
+        assert len(calls) == 1
 
         op.apply(time_M=1)
         glb_pos_map = f.grid.distributor.glb_pos_map
         R = 1e-07  # Can't use np.all due to rounding error at the tails
         if LEFT in glb_pos_map[x]:
-            assert np.allclose(f.data_ro_domain[0, :5], [5.6, 6.8, 5.8, 4.8, 4.8], rtol=R)
-            assert np.allclose(g.data_ro_domain[0, :5], [2., 5.8, 5.8, 4.8, 4.8], rtol=R)
+            assert np.allclose(f.data_ro_domain[0, :5], [5.6, 6.8, 5.8, 4.8, 4.8],
+                               rtol=R)
+            assert np.allclose(g.data_ro_domain[0, :5], [2., 5.8, 5.8, 4.8, 4.8],
+                               rtol=R)
         else:
-            assert np.allclose(f.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 3.6], rtol=R)
-            assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.], rtol=R)
+            assert np.allclose(f.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 3.6],
+                               rtol=R)
+            assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.],
+                               rtol=R)
 
     @pytest.mark.parallel(mode=2)
     def test_unmerge_haloupdate_if_no_locindices(self, mode):
@@ -1436,7 +1446,7 @@ class TestCodeGeneration:
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-        titer = op.body.body[-1].body[0]
+        titer = get_time_loop(op)
         assert titer.dim is grid.time_dim
         assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
         assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
@@ -1483,8 +1493,8 @@ class TestCodeGeneration:
         """
         This test is a revisited, more complex version of
         `test_merge_haloupdate_if_diff_locindices`, also checking hoisting.
-        And in addition to checking the generated code,
-        it also checks the numerical output.
+        And in addition to checking the generated code, it also checks the
+        numerical output.
 
         In the Operator there are three Eqs:
 
@@ -1851,11 +1861,12 @@ class TestCodeGeneration:
         op.cfunction
 
         # Ensure there's a halo exchange over v2 before the rec interpolation
-        section1 = op.body.body[-1].body[1].nodes[1]
-        assert section1.is_Section
-        calls = FindNodes(HaloUpdateCall).visit(section1)
-        assert len(calls) == 1
-        assert calls[0].arguments[0] is v2
+        calls = FindNodes(HaloUpdateCall).visit(op)
+        assert len(calls) == 3
+        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
+        assert len(calls) == 2
+        assert calls[0].arguments[0] is v1
+        assert calls[1].arguments[0] is v2
 
 
 class TestOperatorAdvanced:
@@ -3160,6 +3171,14 @@ class TestTTIOp:
         assert len(calls) == 1
         assert calls[0].functions[0].name == 'u'
         assert calls[0].functions[1].name == 'v'
+
+
+def get_time_loop(op):
+    iters = FindNodes(Iteration).visit(op)
+    for i in iters:
+        if i.dim.is_Time:
+            return i
+    assert False
 
 
 if __name__ == "__main__":
