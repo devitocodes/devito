@@ -363,6 +363,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 # Case 1: `sit` is an IterationInterval with statically known
                 # trip count. E.g. it ranges from 0 to 3; `other` performs a
                 # constant access at 4
+                # TODO: This case represents the majority of time constructing a DAG
                 for v in (self[n], other[n]):
                     try:
                         if bool(v < sit.symbolic_min or v > sit.symbolic_max):
@@ -830,6 +831,7 @@ class Scope:
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
+    # FIXME: Should be put somewhere sensible
     @cached_property
     def thingy(self):
         return any(i.cause for i in self.d_anti_gen())

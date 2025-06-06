@@ -122,6 +122,7 @@ class Schedule(QueueStateful):
 
     @timed_pass(name='schedule')
     def process(self, clusters):
+        # from IPython import embed; embed()
         return self._process_fatd(clusters, 1)
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
@@ -156,6 +157,7 @@ class Schedule(QueueStateful):
         # Schedule Clusters over different IterationSpaces if this increases
         # parallelism
         for i in range(1, len(clusters)):
+            # FIXME: This eats a lot of time (four seconds each time)
             if self._break_for_parallelism(scope, candidates, i):
                 return self.callback(clusters[:i], prefix, clusters[i:] + backlog,
                                      candidates | known_break)
@@ -191,6 +193,8 @@ class Schedule(QueueStateful):
     def _break_for_parallelism(self, scope, candidates, i):
         # `test` will be True if there's at least one data-dependence that would
         # break parallelism
+
+        # TODO: Can this loop be made to short-circuit?
         test = False
         for d in scope.d_from_access_gen(scope.a_query(i)):
             if d.is_local or d.is_storage_related(candidates):

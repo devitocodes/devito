@@ -967,8 +967,10 @@ class Operator(Callable):
         tot = timings.pop('op-compile')
         perf(f"Operator `{self.name}` generated in {fround(tot):.2f} s")
 
-        max_hotspots = 3
-        threshold = 20.
+        # max_hotspots = 3
+        # threshold = 20.
+        max_hotspots = 300
+        threshold = 0.5
 
         def _emit_timings(timings, indent=''):
             timings.pop('total', None)
