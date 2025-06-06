@@ -386,7 +386,9 @@ def _rule0(dep, hs, loc_indices):
 
 def _rule1(dep, hs, loc_indices):
     # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
-    return any(dep.distance_mapper[d] == 0 and dep.source[d] is not v
+    return any(dep.distance_mapper[d] == 0 and
+               dep.source[d] is not v and
+               dep.sink[d] is not v
                for d, v in loc_indices.items())
 
 

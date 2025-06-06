@@ -382,32 +382,36 @@ class TimedAccess(IterationInstance, AccessMode):
                     if disjoint_test(self[n], other[n], sai, sit):
                         return Vector(S.ImaginaryUnit)
 
+            # Compute the distance along the current IterationInterval
             if self.function._mem_shared:
                 # Special case: the distance between two regular, thread-shared
-                # objects fallbacks to zero, as any other value would be nonsensical
+                # objects fallbacks to zero, as any other value would be
+                # nonsensical
                 ret.append(S.Zero)
-
+            elif degenerating_dimensions(sai, oai):
+                # Special case: `sai` and `oai` may be different symbolic objects
+                # but they can be proved to systematically generate the same value
+                ret.append(S.Zero)
             elif sai and oai and sai._defines & sit.dim._defines:
-                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`, `ai=t`
+                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`,
+                # and `ai=t`
                 if sit.direction is Backward:
                     ret.append(other[n] - self[n])
                 else:
                     ret.append(self[n] - other[n])
-
             elif not sai and not oai:
                 # E.g., `self=R<a,[3]>` and `other=W<a,[4]>`
                 if self[n] - other[n] == 0:
                     ret.append(S.Zero)
                 else:
                     break
-
             elif sai in self.ispace and oai in other.ispace:
                 # E.g., `self=R<f,[x, y]>`, `sai=time`,
                 #       `self.itintervals=(time, x, y)`, `n=0`
                 continue
-
             else:
-                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`, `n=1`
+                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`,
+                # and `n=1`
                 return vinf(ret)
 
         n = len(ret)
@@ -1408,3 +1412,19 @@ def disjoint_test(e0, e1, d, it):
     i1 = sympy.Interval(min(p10, p11), max(p10, p11))
 
     return not bool(i0.intersect(i1))
+
+
+def degenerating_dimensions(d0, d1):
+    """
+    True if `d0` and `d1` are Dimensions that are possibly symbolically
+    different, but they can be proved to systematically degenerate to the
+    same value, False otherwise.
+    """
+    # Case 1: ModuloDimensions of size 1
+    try:
+        if d0.is_Modulo and d1.is_Modulo and d0.modulo == d1.modulo == 1:
+            return True
+    except AttributeError:
+        pass
+
+    return False

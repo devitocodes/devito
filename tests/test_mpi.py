@@ -1832,6 +1832,31 @@ class TestCodeGeneration:
         # ModuloDimensions
         assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
 
+    @pytest.mark.parallel(mode=1)
+    def test_haloupdate_buffer1_v2(self, mode):
+        grid = Grid((65, 65, 65), topology=('*', 1, '*'))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)
+
+        eqns = [Eq(v1.forward, v2.dx2 + v1),
+                Eq(v2.forward, v1.forward.dx2 + v2),
+                rec.interpolate(v2)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        # Ensure there's a halo exchange over v2 before the rec interpolation
+        section1 = op.body.body[-1].body[1].nodes[1]
+        assert section1.is_Section
+        calls = FindNodes(HaloUpdateCall).visit(section1)
+        assert len(calls) == 1
+        assert calls[0].arguments[0] is v2
+
 
 class TestOperatorAdvanced:
 
