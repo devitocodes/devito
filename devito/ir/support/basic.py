@@ -830,6 +830,10 @@ class Scope:
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
+    @cached_property
+    def thingy(self):
+        return any(i.cause for i in self.d_anti_gen())
+
     @memoized_generator
     def writes_gen(self):
         """
