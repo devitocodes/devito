@@ -413,6 +413,37 @@ class HaloScheme:
     def arguments(self):
         return self.dimensions | set(flatten(self.honored.values()))
 
+    def issubset(self, other):
+        """
+        Check if `self` is a subset of `other`.
+        """
+        if not isinstance(other, HaloScheme):
+            return False
+
+        if not all(f in other.fmapper for f in self.fmapper):
+            return False
+
+        for f, hse0 in self.fmapper.items():
+            hse1 = other.fmapper[f]
+
+            # Clearly, `hse0`'s halos must be a subset of `hse1`'s halos...
+            if not hse0.halos.issubset(hse1.halos) or \
+               hse0.bundle is not hse1.bundle:
+                return False
+
+            # But now, to be a subset, `hse0`'s must be expecting such halos
+            # at a time index that is less than or equal to that of `hse1`
+            if hse0.loc_dirs != hse1.loc_dirs:
+                return False
+
+            loc_dirs = hse0.loc_dirs
+            loc_indices = {**hse0.loc_indices, **hse1.loc_indices}
+            projected_loc_indices, _ = process_loc_indices(loc_indices, loc_dirs)
+            if projected_loc_indices != hse1.loc_indices:
+                return False
+
+        return True
+
     def project(self, functions):
         """
         Create a new HaloScheme that only retains the HaloSchemeEntries corresponding

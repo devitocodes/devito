@@ -1103,6 +1103,8 @@ class TestCodeGeneration:
                        Eq(g, f[t, j] + 1)])  # access `f` at `t`, not `t+1`!
 
         calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
 
     @pytest.mark.parallel(mode=1)
@@ -1123,7 +1125,7 @@ class TestCodeGeneration:
                        # access `f` at `t`, not `t+1` through factor subdim!
                        Eq(g, f[t, j] + 1, implicit_dim=t_sub)])
 
-        calls = FindNodes(Call).visit(op)
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
         assert calls[0].functions[0] is f
 
@@ -1242,6 +1244,8 @@ class TestCodeGeneration:
                        Inc(g[i], f[t, h[i]] + 1.)])
 
         calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
 
         # Below, there is a flow-dependence along `x`, so a further halo update
@@ -1404,6 +1408,8 @@ class TestCodeGeneration:
         op = Operator(eqns)
 
         calls = FindNodes(Call).visit(op)
+        assert len(calls) == 2
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
 
         op.apply(time_M=1)
@@ -1851,11 +1857,12 @@ class TestCodeGeneration:
         op.cfunction
 
         # Ensure there's a halo exchange over v2 before the rec interpolation
-        section1 = op.body.body[-1].body[1].nodes[1]
-        assert section1.is_Section
-        calls = FindNodes(HaloUpdateCall).visit(section1)
-        assert len(calls) == 1
-        assert calls[0].arguments[0] is v2
+        calls = FindNodes(HaloUpdateCall).visit(op)
+        assert len(calls) == 3
+        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
+        assert len(calls) == 2
+        assert calls[0].arguments[0] is v1
+        assert calls[1].arguments[0] is v2
 
 
 class TestOperatorAdvanced:
@@ -3160,6 +3167,14 @@ class TestTTIOp:
         assert len(calls) == 1
         assert calls[0].functions[0].name == 'u'
         assert calls[0].functions[1].name == 'v'
+
+
+def get_time_loop(op):
+    iters = FindNodes(Iteration).visit(op)
+    for i in iters:
+        if i.dim.is_Time:
+            return i
+    assert False
 
 
 if __name__ == "__main__":
