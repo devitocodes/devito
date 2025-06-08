@@ -1,31 +1,11 @@
 import os
-
-import click
-
-from benchmark import option_simulation
+import argparse
 import devito
 
 
-@click.group()
-def menu():
-    pass
-
-
-@menu.command(name='generate')
-@option_simulation
-@click.option('-nn', multiple=True, default=[1], help='Number of nodes')
-@click.option('-ncpus', default=1, help='Number of cores *per node*')  # Should be ncores
-@click.option('-mem', default=120, help='Requested DRAM *per node*')
-@click.option('-np', default=1, help='Number of MPI processes *per node*')
-@click.option('-nt', default=1, help='Number of OpenMP threads *per MPI process*')
-@click.option('--mpi', multiple=True, default=['basic'], help='Devito MPI mode(s)')
-@click.option('--arch', default='unknown', help='Test-bed architecture')
-@click.option('-r', '--resultsdir', default='results', help='Results directory')
-@click.option('--load', multiple=True, default=[], help='Modules to be loaded')
-@click.option('--export', multiple=True, default=[], help='Env vars to be exported')
-def generate(**kwargs):
+def generate(args):
     join = lambda l: ' '.join('%d' % i for i in l)
-    args = dict(kwargs)
+    args = vars(args)
     args['shape'] = join(args['shape'])
     args['space_order'] = join(args['space_order'])
 
@@ -62,11 +42,11 @@ DEVITO_MPI=%(mpi)s mpiexec python benchmark.py bench -P %(problem)s -bm O2 -d %(
 """  # noqa
 
     # Generate one PBS file for each `np` value
-    for nn in kwargs['nn']:
+    for nn in args['nn']:
         args['nn'] = nn
 
         cmds = []
-        for i in kwargs['mpi']:
+        for i in args['mpi']:
             args['mpi'] = i
             cmds.append(template_cmd % args)
         cmds = ' \n'.join(cmds)
@@ -77,12 +57,44 @@ DEVITO_MPI=%(mpi)s mpiexec python benchmark.py bench -P %(problem)s -bm O2 -d %(
             f.write(body)
 
 
-@menu.command(name='cleanup')
-def cleanup():
+def cleanup(args):
     for f in os.listdir():
         if f.endswith('.gen.sh'):
             os.remove(f)
 
+def create_parser():
+    parser = argparse.ArgumentParser(description='Generate PBS scripts')
+    subparsers = parser.add_subparsers(dest='command', required=True)
+
+    gen = subparsers.add_parser('generate')
+    gen.add_argument('-P', '--problem', required=True)
+    gen.add_argument('-d', '--shape', type=int, nargs='+', default=[50, 50, 50])
+    gen.add_argument('-so', '--space-order', type=int, nargs='+', default=[2])
+    gen.add_argument('--tn', type=float, default=250)
+    gen.add_argument('-nn', type=int, nargs='+', default=[1])
+    gen.add_argument('-ncpus', type=int, default=1)
+    gen.add_argument('-mem', type=int, default=120)
+    gen.add_argument('-np', type=int, default=1)
+    gen.add_argument('-nt', type=int, default=1)
+    gen.add_argument('--mpi', nargs='+', default=['basic'])
+    gen.add_argument('--arch', default='unknown')
+    gen.add_argument('-r', '--resultsdir', default='results')
+    gen.add_argument('--load', nargs='*', default=[])
+    gen.add_argument('--export', nargs='*', default=[])
+
+    subparsers.add_parser('cleanup')
+    return parser
+
+
+def main():
+    parser = create_parser()
+    args = parser.parse_args()
+
+    if args.command == 'generate':
+        generate(args)
+    elif args.command == 'cleanup':
+        cleanup(args)
+
 
 if __name__ == "__main__":
-    menu()
+    main()
