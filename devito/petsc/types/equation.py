@@ -27,8 +27,9 @@ class ZeroRow(EssentialBC):
     Equation used to zero all entries, except the diagonal,
     of a row in the Jacobian.
 
-    Note:
-        This is only used interally by the compiler, not by users.
+    Warnings
+    --------
+    Created and managed directly by Devito, not by users.
     """
     pass
 
@@ -37,7 +38,8 @@ class ZeroColumn(EssentialBC):
     """
     Equation used to zero the column of the Jacobian.
 
-    Note:
-        This is only used interally by the compiler, not by users.
+    Warnings
+    --------
+    Created and managed directly by Devito, not by users.
     """
     pass

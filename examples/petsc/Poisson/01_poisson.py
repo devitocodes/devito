@@ -16,8 +16,6 @@ PetscInitialize()
 
 
 # Subdomains to implement BCs
-# NOTE: For essential BCs, we ensure the SubDomains do not overlap
-
 class SubTop(SubDomain):
     name = 'subtop'
 
@@ -66,7 +64,6 @@ Lx = np.float64(1.)
 Ly = np.float64(1.)
 
 n_values = list(range(13, 174, 10))
-n_values = [9]
 dx = np.array([Lx/(n-1) for n in n_values])
 errors = []
 

@@ -85,7 +85,6 @@ Lx = np.float64(1.)
 Ly = np.float64(1.)
 
 n_values = [33, 53, 73, 93, 113]
-n_values = [9]
 dx = np.array([Lx/(n-1) for n in n_values])
 
 u_errors = []
@@ -129,8 +128,7 @@ for n in n_values:
 
     with switchconfig(language='petsc'):
         op = Operator(petsc)
-        # op.apply()
-        print(op.ccode)
+        op.apply()
 
     u_exact.data[:] = u_exact_fcn(X, Y)
     lap_u.data[:] = lap_u_exact_fcn(X, Y)

@@ -236,7 +236,7 @@ class MultipleFieldData(FieldData):
 
 class Jacobian:
     """
-    Represents a Jacobian matrix in a matrix-free form.
+    Represents a Jacobian matrix.
 
     This Jacobian is defined implicitly via matrix-vector products
     derived from the symbolic equations provided in `matvecs`.
@@ -311,7 +311,6 @@ class Jacobian:
 
     def _scale_non_bcs(self, matvecs, target=None):
         target = target or self.target
-        # TODO: make this a property of the class so don't need target as an arg
         vol = target.grid.symbolic_volume_cell
 
         return [
@@ -328,7 +327,6 @@ class Jacobian:
             centre_stencil(m.rhs, x, as_coeff=True)
             for m in matvecs if not isinstance(m, EssentialBC)
         }
-        # add comments
         return centres.pop() if len(centres) == 1 else 1.0
 
     def _scale_bcs(self, matvecs, scdiag):
@@ -370,7 +368,7 @@ class MixedJacobian(Jacobian):
     as monolithic or block-structured in PETSc, but sub-block
     callbacks are generated in both cases.
 
-    Assumes a **linear** problem, so this Jacobian corresponds to a
+    Assumes a linear problem, so this Jacobian corresponds to a
     coefficient matrix and does not require differentiation.
 
     # TODO: pcfieldsplit support for each block
@@ -407,7 +405,8 @@ class MixedJacobian(Jacobian):
     @property
     def target_scaler_mapper(self):
         """
-        Map each row_target index to its diagonal submatrix's scaler.
+        Map each row target to the scdiag of its corresponding
+        diagonal subblock.
         """
         mapper = {}
         for sm in self.submatrices:
@@ -601,7 +600,6 @@ class MixedResidual(Residual):
 class InitialGuess:
     """
     Enforce initial guess to satisfy essential BCs.
-    # TODO: Extend this to "coupled".
     """
     def __init__(self, target, eqns, arrays):
         self.target = target

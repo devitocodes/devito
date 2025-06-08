@@ -1,6 +1,7 @@
 from collections import OrderedDict, defaultdict
 from functools import partial, singledispatch, wraps
 
+from devito.finite_differences.differentiable import Differentiable
 from devito.ir.iet import (Call, ExprStmt, Iteration, SyncSpot, AsyncCallable,
                            FindNodes, FindSymbols, MapNodes, MetaCall, Transformer,
                            EntryFunction, FixedArgsCallable, Uxreplace,
@@ -10,13 +11,13 @@ from devito.mpi.distributed import MPINeighborhood
 from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
-from devito.types import (Bundle, CompositeObject, Lock, IncrDimension,
+from devito.types import (Array, Bundle, CompositeObject, Lock, IncrDimension,
                           ModuloDimension, Indirection, Pointer, SharedData,
                           ThreadArray, Temp, NPThreads, NThreadsBase, Wildcard)
-from devito.types.array import ArrayBasic
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
+from devito.types.array import ArrayBasic
 
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
@@ -414,7 +415,8 @@ def abstract_objects(objects0, sregistry=None):
 
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    keys = [Bundle, ArrayBasic, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    keys = [Bundle, Array, Differentiable, DiscreteFunction,
+            AbstractIncrDimension, BlockDimension]
     priority = {k: i for i, k in enumerate(keys, start=1)}
     objects = sorted_priority(objects, priority)
 
@@ -449,6 +451,7 @@ def _(i, mapper, sregistry):
     })
 
 
+@abstract_object.register(Array)
 @abstract_object.register(ArrayBasic)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):

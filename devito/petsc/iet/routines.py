@@ -688,15 +688,11 @@ class CCBBuilder(CBBuilder):
         return False
 
     def _make_core(self):
-        injectsolve = self.injectsolve
-        all_fielddata = injectsolve.expr.rhs.fielddata
-
-        for sm in all_fielddata.jacobian.nonzero_submatrices:
-            # arrays = all_fielddata.arrays[sm.row_target]
+        for sm in self.fielddata.jacobian.nonzero_submatrices:
             self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
 
         self._make_whole_matvec()
-        self._make_whole_formfunc(all_fielddata)
+        self._make_whole_formfunc()
         self._make_user_struct_callback()
         self._create_submatrices()
         self._efuncs['PopulateMatContext'] = self.objs['dummyefunc']
@@ -764,15 +760,15 @@ class CCBBuilder(CBBuilder):
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
-    def _make_whole_formfunc(self, fielddata):
-        formfuncs = fielddata.residual.formfuncs
+    def _make_whole_formfunc(self):
+        formfuncs = self.fielddata.residual.formfuncs
         # Compile formfunc `eqns` into an IET via recursive compilation
         irs_formfunc, _ = self.rcompile(
             formfuncs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        body_formfunc = self._whole_formfunc_body(List(body=irs_formfunc.uiet.body),
-                                                  fielddata)
+        body_formfunc = self._whole_formfunc_body(List(body=irs_formfunc.uiet.body))
+
         objs = self.objs
         cb = PETScCallable(
             self.sregistry.make_name(prefix='WholeFormFunc'),
@@ -783,7 +779,7 @@ class CCBBuilder(CBBuilder):
         self._main_formfunc_callback = cb
         self._efuncs[cb.name] = cb
 
-    def _whole_formfunc_body(self, body, fielddata):
+    def _whole_formfunc_body(self, body):
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
@@ -796,7 +792,7 @@ class CCBBuilder(CBBuilder):
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
 
-        # Process body for residual callback, including generating bundles etc
+        # Process body with bundles for residual callback
         bundles = sobjs['bundles']
         fbundle = bundles['f']
         xbundle = bundles['x']
@@ -1143,7 +1139,6 @@ class BaseObjectBuilder:
 
 class CoupledObjectBuilder(BaseObjectBuilder):
     def _extend_build(self, base_dict):
-        injectsolve = self.injectsolve
         sreg = self.sregistry
         objs = self.objs
         targets = self.fielddata.targets
@@ -1164,8 +1159,7 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             dim_labels[i]: PetscInt(dim_labels[i]) for i in range(space_dims)
         })
 
-        jacobian = injectsolve.expr.rhs.fielddata.jacobian
-        submatrices = jacobian.nonzero_submatrices
+        submatrices = self.fielddata.jacobian.nonzero_submatrices
 
         base_dict['jacctx'] = JacobianStruct(
             name=sreg.make_name(prefix=objs['ljacctx'].name),

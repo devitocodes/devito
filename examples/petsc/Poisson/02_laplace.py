@@ -23,8 +23,6 @@ PetscInitialize()
 
 
 # Subdomains to implement BCs
-# NOTE: For essential BCs, we ensure the SubDomains do not overlap
-
 class SubTop(SubDomain):
     name = 'subtop'
 

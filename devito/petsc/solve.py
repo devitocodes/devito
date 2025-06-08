@@ -27,12 +27,12 @@ def PETScSolve(target_eqns, target=None, solver_parameters=None):
     target_eqns : Eq or list of Eq, or dict of Function-like -> Eq or list of Eq
         The targets and symbolic equations defining the system to be solved.
 
-        - **Single-field problem**:
+        - Single-field problem:
             Pass a single Eq or list of Eq, and specify `target` separately:
                 PETScSolve(Eq1, target)
                 PETScSolve([Eq1, Eq2], target)
 
-        - **Multi-field (mixed) problem**:
+        - Multi-field (mixed) problem:
             Pass a dictionary mapping each target field to its Eq(s):
                 PETScSolve({u: Eq1, v: Eq2})
                 PETScSolve({u: [Eq1, Eq2], v: [Eq3, Eq4]})
@@ -47,8 +47,8 @@ def PETScSolve(target_eqns, target=None, solver_parameters=None):
     Returns
     -------
     Eq
-        A symbolic equation that wraps the system, solver metadata,
-        and boundary conditions. This can be passed directly to a Devito Operator.
+        A symbolic equation that wraps the linear solver.
+        This can be passed directly to a Devito Operator.
     """
     if target is not None:
         return InjectSolve(solver_parameters, {target: target_eqns}).build_eq()
@@ -142,9 +142,6 @@ class InjectMixedSolve(InjectSolve):
         )
 
         return coupled_targets[0], tuple(funcs), all_data
-
-    # def generate_arrays_combined(self, *targets):
-    #     return {target: self.generate_arrays(target) for target in targets}
 
 
 def generate_time_mapper(funcs):

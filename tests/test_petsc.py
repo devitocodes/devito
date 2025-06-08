@@ -852,63 +852,84 @@ class TestCoupledLinear:
         assert j10.col_target == e
         assert j11.col_target == g
 
+    @pytest.mark.parametrize('eq1, eq2, j01_matvec, j10_matvec', [
+        ('Eq(-e.laplace, g)', 'Eq(-g.laplace, e)',
+         'Eq(y_e(x, y), -h_x*h_y*x_g(x, y))',
+         'Eq(y_g(x, y), -h_x*h_y*x_e(x, y))'),
+        ('Eq(-e.laplace, 2.*g)', 'Eq(-g.laplace, 2.*e)',
+         'Eq(y_e(x, y), -2.0*h_x*h_y*x_g(x, y))',
+         'Eq(y_g(x, y), -2.0*h_x*h_y*x_e(x, y))'),
+        ('Eq(-e.laplace, g.dx)', 'Eq(-g.laplace, e.dx)',
+         'Eq(y_e(x, y), -h_x*h_y*Derivative(x_g(x, y), x))',
+         'Eq(y_g(x, y), -h_x*h_y*Derivative(x_e(x, y), x))'),
+        ('Eq(-e.laplace, g.dx + g)', 'Eq(-g.laplace, e.dx + e)',
+         'Eq(y_e(x, y), h_x*h_y*(-x_g(x, y) - Derivative(x_g(x, y), x)))',
+         'Eq(y_g(x, y), h_x*h_y*(-x_e(x, y) - Derivative(x_e(x, y), x)))'),
+        ('Eq(e, g.dx + g)', 'Eq(g, e.dx + e)',
+         'Eq(y_e(x, y), h_x*h_y*(-x_g(x, y) - Derivative(x_g(x, y), x)))',
+         'Eq(y_g(x, y), h_x*h_y*(-x_e(x, y) - Derivative(x_e(x, y), x)))'),
+        ('Eq(e, g.dx + g.dy)', 'Eq(g, e.dx + e.dy)',
+         'Eq(y_e(x, y), h_x*h_y*(-Derivative(x_g(x, y), x) - Derivative(x_g(x, y), y)))',
+         'Eq(y_g(x, y), h_x*h_y*(-Derivative(x_e(x, y), x) - Derivative(x_e(x, y), y)))'),
+        ('Eq(g, -e.laplace)', 'Eq(e, -g.laplace)',
+         'Eq(y_e(x, y), h_x*h_y*x_g(x, y))',
+         'Eq(y_g(x, y), h_x*h_y*x_e(x, y))'),
+        ('Eq(e + g, e.dx + 2.*g.dx)', 'Eq(g + e, g.dx + 2.*e.dx)',
+         'Eq(y_e(x, y), h_x*h_y*(x_g(x, y) - 2.0*Derivative(x_g(x, y), x)))',
+         'Eq(y_g(x, y), h_x*h_y*(x_e(x, y) - 2.0*Derivative(x_e(x, y), x)))'),
+    ])
+    @skipif('petsc')
+    def test_coupling(self, eq1, eq2, j01_matvec, j10_matvec):
+        """
+        Test linear coupling between fields, where the off-diagonal
+        Jacobian submatrices are nonzero.
+        """
+        grid = Grid(shape=(9, 9), dtype=np.float64)
 
-    # TODO: FIX THIS LOGIC - THE OUTPUT FOR J01_MATVEC IS Eq(y_e(x, y), -h_x*h_y*x_e(x, y)) BUT IT SHOULD
-    # BE Eq(y_e(x, y), -h_x*h_y*x_G(x, y))
-    
-    # @pytest.mark.parametrize('eq1, eq2, so, j01_matvec, j10_matvec', [
-    #     ('Eq(-e.laplace, g)', 'Eq(-g.laplace, e)', '2', 'h_x*h_y*(-2.0/h_y**2 - 2.0/h_x**2)'),
-    # ])
-    # @skipif('petsc')
-    # def test_coupling(self, eq1, eq2, so, scale):
-    #     """
-    #     Test linear coupling between fields, where the off-diagonal
-    #     Jacobian submatrices are nonzero.
-    #     """
-    #     grid = Grid(shape=(9,9), dtype=np.float64)
+        e = Function(name='e', grid=grid, space_order=2)
+        g = Function(name='g', grid=grid, space_order=2)
 
-    #     functions = [Function(name=n, grid=grid, space_order=eval(so))
-    #                  for n in ['e', 'f', 'g', 'h']]
-    #     e, f, g, h = functions
+        eq1 = eval(eq1)
+        eq2 = eval(eq2)
 
-    #     eq1 = eval(eq1)
-    #     eq2 = eval(eq2)
+        petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-    #     petsc = PETScSolve({e: [eq1], g: [eq2]})
+        jacobian = petsc[0].rhs.fielddata.jacobian
 
-    #     jacobian = petsc[0].rhs.fielddata.jacobian
+        j01 = jacobian.get_submatrix(0, 1)
+        j10 = jacobian.get_submatrix(1, 0)
 
-    #     j01 = jacobian.get_submatrix(0, 1)
-    #     j10 = jacobian.get_submatrix(1, 0)
+        assert j01.col_target == g
+        assert j10.col_target == e
 
-    #     assert len(j01.matvecs) == 1
-    #     assert len(j10.matvecs) == 1
-
-    #     assert j01.col_target == g
-    #     assert j10.col_target == e
-
-    #     assert str(j01.matvecs[0]) == j01_matvec
-    #     assert str(j10.matvecs[0]) == j10_matvec
+        assert str(j01.matvecs[0]) == j01_matvec
+        assert str(j10.matvecs[0]) == j10_matvec
 
     @pytest.mark.parametrize('eq1, eq2, so, scale', [
         ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2', '-2.0*h_x/h_x**2'),
         ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4', '-2.5*h_x/h_x**2'),
         ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2', 'h_x*(1 - 2.0/h_x**2)'),
         ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4', 'h_x*(1 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2', 'h_x*(5.0 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4', 'h_x*(5.0 - 2.5/h_x**2)'),
-        ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '2', 'h_x*(1 + 1/h_x - 2.0/h_x**2)'), 
-        ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '4', 'h_x*(1 - 2.5/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2', 'h_x*(1 - 4.0/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4', 'h_x*(1 - 5.0/h_x**2)'),
+        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2',
+         'h_x*(5.0 - 2.0/h_x**2)'),
+        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
+         'h_x*(5.0 - 2.5/h_x**2)'),
+        ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '2',
+         'h_x*(1 + 1/h_x - 2.0/h_x**2)'),
+        ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '4',
+         'h_x*(1 - 2.5/h_x**2)'),
+        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
+         'h_x*(1 - 4.0/h_x**2)'),
+        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4',
+         'h_x*(1 - 5.0/h_x**2)'),
     ])
     @skipif('petsc')
     def test_jacobian_scaling_1D(self, eq1, eq2, so, scale):
         """
         Test the computation of diagonal scaling in a 1D Jacobian system.
 
-        This scaling would be applied to the boundary rows of the matrix 
-        if essential boundary conditions were enforced in the solver. 
+        This scaling would be applied to the boundary rows of the matrix
+        if essential boundary conditions were enforced in the solver.
         Its purpose is to reduce the condition number of the matrix.
         """
         grid = Grid(shape=(9,), dtype=np.float64)
@@ -931,28 +952,37 @@ class TestCoupledLinear:
         assert str(j11.scdiag) == scale
 
     @pytest.mark.parametrize('eq1, eq2, so, scale', [
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2', 'h_x*h_y*(-2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4', 'h_x*h_y*(-2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2', 'h_x*h_y*(1 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4', 'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2', 'h_x*h_y*(5.0 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4', 'h_x*h_y*(5.0 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)', '2', 'h_x*h_y*(1 + 1/h_y - 2.0/h_y**2 + 1/h_x - 2.0/h_x**2)'),
-        ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)', '4', 'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'), 
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2', 'h_x*h_y*(1 - 4.0/h_y**2 - 4.0/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4', 'h_x*h_y*(1 - 5.0/h_y**2 - 5.0/h_x**2)'),
-
+        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2',
+         'h_x*h_y*(-2.0/h_y**2 - 2.0/h_x**2)'),
+        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4',
+         'h_x*h_y*(-2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2',
+         'h_x*h_y*(1 - 2.0/h_y**2 - 2.0/h_x**2)'),
+        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4',
+         'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2',
+         'h_x*h_y*(5.0 - 2.0/h_y**2 - 2.0/h_x**2)'),
+        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
+         'h_x*h_y*(5.0 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
+         '2', 'h_x*h_y*(1 + 1/h_y - 2.0/h_y**2 + 1/h_x - 2.0/h_x**2)'),
+        ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
+         '4', 'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
+         'h_x*h_y*(1 - 4.0/h_y**2 - 4.0/h_x**2)'),
+        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4',
+         'h_x*h_y*(1 - 5.0/h_y**2 - 5.0/h_x**2)'),
     ])
     @skipif('petsc')
     def test_jacobian_scaling_2D(self, eq1, eq2, so, scale):
         """
         Test the computation of diagonal scaling in a 2D Jacobian system.
 
-        This scaling would be applied to the boundary rows of the matrix 
-        if essential boundary conditions were enforced in the solver. 
+        This scaling would be applied to the boundary rows of the matrix
+        if essential boundary conditions were enforced in the solver.
         Its purpose is to reduce the condition number of the matrix.
         """
-        grid = Grid(shape=(9,9), dtype=np.float64)
+        grid = Grid(shape=(9, 9), dtype=np.float64)
 
         functions = [Function(name=n, grid=grid, space_order=eval(so))
                      for n in ['e', 'f', 'g', 'h']]
@@ -972,28 +1002,40 @@ class TestCoupledLinear:
         assert str(j11.scdiag) == scale
 
     @pytest.mark.parametrize('eq1, eq2, so, scale', [
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2', 'h_x*h_y*h_z*(-2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4', 'h_x*h_y*h_z*(-2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2', 'h_x*h_y*h_z*(1 - 2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4', 'h_x*h_y*h_z*(1 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2', 'h_x*h_y*h_z*(5.0 - 2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4', 'h_x*h_y*h_z*(5.0 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)', 'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '2', 'h_x*h_y*h_z*(1 + 1/h_z - 2.0/h_z**2 + 1/h_y - 2.0/h_y**2 + 1/h_x - 2.0/h_x**2)'),
-        ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)', 'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '4', 'h_x*h_y*h_z*(1 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'), 
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2', 'h_x*h_y*h_z*(1 - 4.0/h_z**2 - 4.0/h_y**2 - 4.0/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4', 'h_x*h_y*h_z*(1 - 5.0/h_z**2 - 5.0/h_y**2 - 5.0/h_x**2)'),
-
+        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2',
+         'h_x*h_y*h_z*(-2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
+        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4',
+         'h_x*h_y*h_z*(-2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2',
+         'h_x*h_y*h_z*(1 - 2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
+        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4',
+         'h_x*h_y*h_z*(1 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2',
+         'h_x*h_y*h_z*(5.0 - 2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
+        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
+         'h_x*h_y*h_z*(5.0 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
+         'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '2',
+         'h_x*h_y*h_z*(1 + 1/h_z - 2.0/h_z**2 + 1/h_y - 2.0/h_y**2 + ' +
+         '1/h_x - 2.0/h_x**2)'),
+        ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
+         'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '4',
+         'h_x*h_y*h_z*(1 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
+         'h_x*h_y*h_z*(1 - 4.0/h_z**2 - 4.0/h_y**2 - 4.0/h_x**2)'),
+        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4',
+         'h_x*h_y*h_z*(1 - 5.0/h_z**2 - 5.0/h_y**2 - 5.0/h_x**2)'),
     ])
     @skipif('petsc')
     def test_jacobian_scaling_3D(self, eq1, eq2, so, scale):
         """
         Test the computation of diagonal scaling in a 3D Jacobian system.
 
-        This scaling would be applied to the boundary rows of the matrix 
-        if essential boundary conditions were enforced in the solver. 
+        This scaling would be applied to the boundary rows of the matrix
+        if essential boundary conditions were enforced in the solver.
         Its purpose is to reduce the condition number of the matrix.
         """
-        grid = Grid(shape=(9,9,9), dtype=np.float64)
+        grid = Grid(shape=(9, 9, 9), dtype=np.float64)
 
         functions = [Function(name=n, grid=grid, space_order=eval(so))
                      for n in ['e', 'f', 'g', 'h']]
@@ -1011,9 +1053,6 @@ class TestCoupledLinear:
 
         assert str(j00.scdiag) == scale
         assert str(j11.scdiag) == scale
-
-    # test coupled residual callback - check the .dot for each field etc
-
 
     @skipif('petsc')
     def test_residual_bundle(self):
@@ -1054,6 +1093,42 @@ class TestCoupledLinear:
             in str(op2.ccode)
         assert 'struct Field0\n{\n  PetscScalar e;\n  PetscScalar f;\n  ' \
             + 'PetscScalar g;\n}' in str(op3.ccode)
+
+    @skipif('petsc')
+    def test_residual_callback(self):
+        """
+        Check that the main residual callback correctly accesses the
+        target fields in the bundle.
+        """
+        grid = Grid(shape=(9, 9), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        eq1 = Eq(e.laplace, f)
+        eq2 = Eq(g.laplace, h)
+
+        petsc = PETScSolve({e: [eq1], g: [eq2]})
+
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+
+        # Check the residual callback
+        residual = op._func_table['WholeFormFunc0'].root
+
+        exprs = FindNodes(Expression).visit(residual)
+        exprs = [str(e) for e in exprs]
+
+        assert 'f_bundle[x + 2][y + 2].e = (r4*x_bundle[x + 1][y + 2].e + ' + \
+            'r4*x_bundle[x + 3][y + 2].e + r5*x_bundle[x + 2][y + 1].e + r5*' + \
+            'x_bundle[x + 2][y + 3].e - 2.0*(r4*x_bundle[x + 2][y + 2].e + r5*' + \
+            'x_bundle[x + 2][y + 2].e) - f[x + 2][y + 2])*ctx0->h_x*ctx0->h_y;' in exprs
+
+        assert 'f_bundle[x + 2][y + 2].g = (r4*x_bundle[x + 1][y + 2].g + ' + \
+            'r4*x_bundle[x + 3][y + 2].g + r5*x_bundle[x + 2][y + 1].g + r5*' + \
+            'x_bundle[x + 2][y + 3].g - 2.0*(r4*x_bundle[x + 2][y + 2].g + r5*' + \
+            'x_bundle[x + 2][y + 2].g) - h[x + 2][y + 2])*ctx0->h_x*ctx0->h_y;' in exprs
 
     @skipif('petsc')
     def test_essential_bcs(self):
