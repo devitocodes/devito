@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 from functools import cached_property, singledispatch
 
 import numpy as np
@@ -230,13 +230,14 @@ def _compact(exprs, exclude):
 
     # Find all the CTemps in expression right-hand-sides without removing duplicates
     ctemps = retrieve_ctemps([e.rhs for e in exprs])
+    ctemp_count = Counter(ctemps)
 
     # If there are ctemps in the expressions, then add any to the mapper which only
     # appear once
     # TODO: Double check this is exactly the prior behaviour
     if ctemps:
         mapper.update({e.lhs: e.rhs for e in candidates
-                       if ctemps.count(e.lhs) == 1})
+                       if ctemp_count[e.lhs] == 1})
 
     processed = []
     for e in exprs:
