@@ -317,6 +317,8 @@ class TimedAccess(IterationInstance, AccessMode):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
+    # NOTE: This is called a lot with the same arguments - memoize yields mild speedup
+    @memoized_meth
     def distance(self, other):
         """
         Compute the distance from ``self`` to ``other``.
@@ -365,7 +367,9 @@ class TimedAccess(IterationInstance, AccessMode):
                 # constant access at 4
                 for v in (self[n], other[n]):
                     try:
-                        if bool(v < sit.symbolic_min or v > sit.symbolic_max):
+                        # NOTE: Split the boolean to make the conditional short circuit
+                        # more frequently for mild speedup
+                        if bool(v < sit.symbolic_min) or bool(v > sit.symbolic_max):
                             return Vector(S.ImaginaryUnit)
                     except TypeError:
                         pass
@@ -1170,6 +1174,7 @@ class Scope:
         Generate all flow, anti, and output dependences involving any of
         the given TimedAccess objects.
         """
+        # FIXME: This seems to be a hotspot
         accesses = as_tuple(accesses)
         for d in self.d_all_gen():
             for i in accesses:
