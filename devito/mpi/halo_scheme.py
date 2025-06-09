@@ -441,8 +441,9 @@ class HaloScheme:
                 return False
 
             loc_dirs = hse0.loc_dirs
-            loc_indices = {**hse0.loc_indices, **hse1.loc_indices}
-            projected_loc_indices, _ = process_loc_indices(loc_indices, loc_dirs)
+            raw_loc_indices = {d: (hse0.loc_indices[d], hse1.loc_indices[d])
+                               for d in hse0.loc_indices}
+            projected_loc_indices, _ = process_loc_indices(raw_loc_indices, loc_dirs)
             if projected_loc_indices != hse1.loc_indices:
                 return False
 

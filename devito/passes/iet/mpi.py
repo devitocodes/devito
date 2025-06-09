@@ -24,8 +24,8 @@ def optimize_halospots(iet, **kwargs):
     merged and moved around in order to improve the halo exchange performance.
     """
     iet = _drop_reduction_halospots(iet)
-    iet = _hoist_invariant(iet)
     iet = _merge_halospots(iet)
+    iet = _hoist_invariant(iet)
     iet = _drop_if_unwritten(iet, **kwargs)
     iet = _mark_overlappable(iet)
 
@@ -34,8 +34,8 @@ def optimize_halospots(iet, **kwargs):
 
 def _drop_reduction_halospots(iet):
     """
-    Remove HaloSpots that are used to compute Increments
-    (in which case, a halo exchange is actually unnecessary)
+    Remove HaloSpots that are used to compute Increments (in which case, a halo
+    exchange is actually unnecessary)
     """
     mapper = defaultdict(set)
 
@@ -54,23 +54,79 @@ def _drop_reduction_halospots(iet):
     return iet
 
 
+def _merge_halospots(iet):
+    """
+    Merge HaloSpots on the same IET level when data dependences allow it. This
+    has two effects: anticipating communication over computation, and (potentially)
+    avoiding redundant halo exchanges.
+
+    Examples
+    --------
+    In the following example, we have two HaloSpots that both require a halo
+    exchange for the same Function `v` at `t0`. Since `v[t0]` is not written
+    to in the Iteration nest, we can merge the second HaloSpot into the first
+    one, thus avoiding a redundant halo exchange.
+
+    for time                        for time
+      haloupd v[t0]                   haloupd v[t0], h
+      W v[t1]- R v[t0]      --->      W v[t1]- R v[t0]
+      haloupd v[t0], h
+      W g[t1]- R v[t0], h             W g[t1]- R v[t0], h
+    """
+    cond_mapper = _make_cond_mapper(iet)
+    iter_mapper = _filter_iter_mapper(iet)
+
+    mapper = {}
+    for it, halo_spots in iter_mapper.items():
+        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
+
+        hs0 = halo_spots[0]
+
+        for hs1 in halo_spots[1:]:
+            if _check_control_flow(hs0, hs1, cond_mapper):
+                continue
+
+            for f, v in hs1.fmapper.items():
+                hsf0 = hs0.halo_scheme.project(f)
+                hsf1 = hs1.halo_scheme.project(f)
+                if hsf0.loc_values != hsf1.loc_values:
+                    continue
+
+                for dep in scope.d_flow.project(f):
+                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
+                        break
+                else:
+                    # All good -- `hsf1` can be merged within `hs0`
+                    mapper[hs0] = HaloScheme.union(
+                        [mapper.get(hs0, hs0.halo_scheme), hsf1]
+                    )
+                    mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
+
+    # Transform the IET merging/dropping HaloSpots as according to the analysis
+    mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
+              for i, hs in mapper.items()}
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    return iet
+
+
 def _hoist_invariant(iet):
     """
-    Hoist redundant HaloSpots out of Iterations.
+    Hoist iteration-carried HaloSpots out of Iterations.
 
-    Example:
+    Examples
+    --------
+    There is one typical case in which hoisting is possible, i.e., when a
+    HaloSpot is iteration-carried, and it is a subset of another HaloSpot
+    that is not iteration-carried. In this case, we can hoist the former
+    out of the Iteration containing the latter, as follows:
 
-                                    haloupd v[t0]
-                                    haloupd v[t0]'
-    for time                        for time
+                                haloupd v[t0]
+    for time                    for time
       haloupd v[t0]
-      W v[t1]- R v[t0]   --->         W v[t1]- R v[t0]
-      haloupd v[t1]                   haloupd v[t1]
-      R v[t1]                         R v[t1]
-      haloupd v[t0]'
-      R v[t0]                         R v[t0]
-
-    Where `haloupd v[t0]` and `haloupd v[t0]'` are subsets of `haloupd v[t1]`.
+      W v[t1]- R v[t0]   --->     W v[t1]- R v[t0]
+      haloupd v[t1]               haloupd v[t1]
+      R v[t1]                     R v[t1]
     """
     cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
@@ -78,8 +134,6 @@ def _hoist_invariant(iet):
     hsmapper = defaultdict(list)
     imapper = defaultdict(list)
     for it, halo_spots in iter_mapper.items():
-        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
-
         for hs0, hs1 in combinations(halo_spots, r=2):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
@@ -92,24 +146,15 @@ def _hoist_invariant(iet):
             hsf0 = hs0.halo_scheme.project(functions)
             hsf1 = hs1.halo_scheme.project(functions)
 
-            # NOTE: lexicographic order is important here, as if both `hsf0` and
-            # `hsf1` are iteration-carried, we must hoist the later one in the
-            # control flow (that is `hsf1`)
-            flag0 = hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope)
-            flag1 = hsf0.issubset(hsf1) and _is_iter_carried(hsf0, scope)
-            if flag0 and flag1:
-                # Special case: `_merge_halospots` will merge `hsf0` and `hsf1`
-                # anyway, so we can avoid a useless hoisting
-                continue
-            elif flag0:
+            if hsf1.issubset(hsf0):
                 hs, hsf = hs1, hsf1
-            elif flag1:
+            elif hsf0.issubset(hsf1):
                 hs, hsf = hs0, hsf0
             else:
                 # No hoisting possible, skip
                 continue
 
-            # At this point, we must infer valid loc_indices for `found`
+            # At this point, we must infer valid loc_indices
             hhs = hsf.drop(functions)  # hhs -> hoisted HaloScheme
             for f, hse in hsf.fmapper.items():
                 loc_indices = {}
@@ -129,53 +174,6 @@ def _hoist_invariant(iet):
               for hs, functions in hsmapper.items()}
     mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
                    for i, hss in imapper.items()})
-    iet = Transformer(mapper, nested=True).visit(iet)
-
-    return iet
-
-
-def _merge_halospots(iet):
-    """
-    Using data dependence analysis, merge HaloSpots on the same IET level. This
-    has two effects: anticipating communication over computation, and (potentially)
-    avoiding redundant halo exchanges.
-
-    Example:
-
-    for time                           for time
-      haloupd v[t0]                      haloupd v[t0], h
-      W v[t1]- R v[t0]      --->         W v[t1]- R v[t0]
-      haloupd v[t0], h
-      W g[t1]- R v[t0], h                W g[t1]- R v[t0], h
-    """
-    cond_mapper = _make_cond_mapper(iet)
-    iter_mapper = _filter_iter_mapper(iet)
-
-    mapper = {}
-    for it, halo_spots in iter_mapper.items():
-        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
-
-        hs0 = halo_spots[0]
-
-        for hs1 in halo_spots[1:]:
-            if _check_control_flow(hs0, hs1, cond_mapper):
-                continue
-
-            for f, v in hs1.fmapper.items():
-                for dep in scope.d_flow.project(f):
-                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
-                        break
-                else:
-                    # All good -- `hsf1` can be merged within `hs0`
-                    hsf1 = hs1.halo_scheme.project(f)
-                    mapper[hs0] = HaloScheme.union(
-                        [mapper.get(hs0, hs0.halo_scheme), hsf1]
-                    )
-                    mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
-
-    # Transform the IET merging/dropping HaloSpots as according to the analysis
-    mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
-              for i, hs in mapper.items()}
     iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
@@ -381,23 +379,6 @@ def _check_control_flow(hs0, hs1, cond_mapper):
     return cond0 != cond1
 
 
-def _is_iter_carried(hs, scope):
-    """
-    True if the HaloScheme `hs` is iteration-carried, i.e., if the exchanged halo
-    *only* uses values computed in a past iteration, False otherwise.
-    """
-    for f, hse in hs.fmapper.items():
-        try:
-            writes = scope.writes[f]
-        except KeyError:
-            continue
-
-        if any(hse.loc_values.intersection(w.aindices) for w in writes):
-            return False
-
-    return True
-
-
 # Code motion rules -- if the retval is True, then it means the input `dep` is not
 # a stopper to moving the HaloSpot `hs` around
 
@@ -407,6 +388,7 @@ def _rule0(dep, hs, loc_indices):
                    for d in dep.cause)
 
 
+#TODO: MAYBE AVOID PASSING IN LOC_INDICES AND PULL THEM STRAIGHT FROM HS
 def _rule1(dep, hs, loc_indices):
     # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
     return any(dep.distance_mapper[d] == 0 and
