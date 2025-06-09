@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterable, Iterator
-from typing import Literal
+from typing import Any, Literal
 
 import sympy
 
@@ -11,21 +11,22 @@ __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers
            'retrieve_terminals', 'retrieve_symbols', 'retrieve_dimensions',
            'retrieve_derivatives', 'search']
 
-class Set(set[sympy.Basic]):
+
+class Set(set):
 
     @staticmethod
-    def wrap(obj: sympy.Basic) -> set[sympy.Basic]:
+    def wrap(obj) -> set:
         return {obj}
 
 
-class List(list[sympy.Basic]):
+class List(list):
 
     @staticmethod
-    def wrap(obj: sympy.Basic) -> list[sympy.Basic]:
+    def wrap(obj) -> list:
         return [obj]
 
-    def update(self, obj: sympy.Basic) -> None:
-        self.extend(obj)
+    def update(self, obj: Iterable[Any]) -> None:
+        return self.extend(obj)
     
 
 modes: dict[Literal['all', 'unique'], type[List] | type[Set]] = {
@@ -35,55 +36,59 @@ modes: dict[Literal['all', 'unique'], type[List] | type[Set]] = {
 
 
 class Search:
-
-    def __init__(self, query: Callable[[sympy.Basic], bool],
-                 order: Literal['postorder', 'preorder'], deep: bool = False) -> None:
+    def __init__(self, query: Callable[[Any], bool], deep: bool = False) -> None:
         """
-        Search objects in an expression. This is much quicker than the more
-        general SymPy's find.
+        Search objects in an expression. This is much quicker than the more general
+        SymPy's find.
 
         Parameters
         ----------
         query
             Any query from :mod:`queries`.
-        order : str
-            Either `preorder` or `postorder`, for the search order.
         deep : bool, optional
             If True, propagate the search within an Indexed's indices. Defaults to False.
         """
         self.query = query
-        self.order = order
         self.deep = deep
 
-    def _next(self, expr) -> Iterator[sympy.Basic]:
+    def _next(self, expr) -> Iterator[Any]:
         if self.deep and expr.is_Indexed:
             yield from expr.indices
         elif not q_leaf(expr):
             yield from expr.args
 
-    def visit(self, expr: sympy.Basic) -> Iterator[sympy.Basic]:
-        """Visit the expression in the specified order."""
-        if self.order == 'preorder':
-            if self.query(expr):
-                yield expr
-            for child in self._next(expr):
-                yield from self.visit(child)
-        else:
-            for child in self._next(expr):
-                yield from self.visit(child)
-            if self.query(expr):
-                yield expr
+    def visit_postorder(self, expr) -> Iterator[Any]:
+        for i in self._next(expr):
+            yield from self.visit_postorder(i)
+        if self.query(expr):
+            yield expr
+
+    def visit_preorder(self, expr) -> Iterator[Any]:
+        if self.query(expr):
+            yield expr
+        for i in self._next(expr):
+            yield from self.visit_preorder(i)
+
+    def visit_preorder_first_hit(self, expr) -> tuple[Any, ...]:
+        """Visit the expression in preorder and return the first hit."""
+        if self.query(expr):
+            return (expr,)
+        for i in self._next(expr):
+            result = self.visit_preorder_first_hit(i)
+            if result:
+                return result
+        return ()
 
 
-def search(exprs: sympy.Basic | Iterable[sympy.Basic],
-           query: type | Callable[[sympy.Basic], bool],
+
+def search(exprs,
+           query: type | Callable[[Any], bool],
            mode: Literal['all', 'unique'] = 'unique',
            visit: Literal['dfs', 'bfs', 'bfs_first_hit'] = 'dfs',
            deep: bool = False) -> List | Set:
     """Interface to Search."""
 
     assert mode in ('all', 'unique'), "Unknown mode"
-    assert visit in ('dfs', 'bfs', 'bfs_first_hit'), "Unknown visit type"
 
     if isinstance(query, type):
         Q = lambda obj: isinstance(obj, query)
@@ -92,21 +97,23 @@ def search(exprs: sympy.Basic | Iterable[sympy.Basic],
 
     # Search doesn't actually use a BFS (rather, a preorder DFS), but the terminology
     # is retained in this function's parameters for backwards compatibility
-    order = 'postorder' if visit == 'dfs' else 'preorder'
-    searcher = Search(Q, order, deep)
+    searcher = Search(Q, deep)
 
-    Collection = modes[mode]
-    found = Collection()
+    if visit == 'dfs':
+        _visit = searcher.visit_postorder
+    elif visit == 'bfs':
+        _visit = searcher.visit_preorder
+    elif visit == 'bfs_first_hit':
+        _visit = searcher.visit_preorder_first_hit
+    else:
+        raise ValueError(f"Unknown visit mode '{visit}'")
+
+    found = modes[mode]()
     for e in as_tuple(exprs):
         if not isinstance(e, sympy.Basic):
             continue
 
-        for i in searcher.visit(e):
-            found.update(Collection.wrap(i))
-            
-            if visit == 'bfs_first_hit':
-                # Stop at the first hit for this outer expression
-                break
+        found.update(_visit(e))
 
     return found
 
