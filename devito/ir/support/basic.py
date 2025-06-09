@@ -363,7 +363,6 @@ class TimedAccess(IterationInstance, AccessMode):
                 # Case 1: `sit` is an IterationInterval with statically known
                 # trip count. E.g. it ranges from 0 to 3; `other` performs a
                 # constant access at 4
-                # TODO: This case represents the majority of time constructing a DAG
                 for v in (self[n], other[n]):
                     try:
                         if bool(v < sit.symbolic_min or v > sit.symbolic_max):
@@ -1126,10 +1125,6 @@ class Scope:
     def d_anti(self):
         """Anti (or "write-after-read") dependences."""
         return DependenceGroup(self.d_anti_gen())
-
-    @cached_property
-    def has_antidependencies(self):
-        return any(i.cause for i in self.d_anti_gen())
 
     @memoized_generator
     def d_output_gen(self):

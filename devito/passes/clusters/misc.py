@@ -362,8 +362,9 @@ class Fusion(Queue):
                 # (intuitively, "the loop nests are to be kept separated")
                 # * All ClusterGroups between `cg0` and `cg1` must precede `cg1`
                 # * All ClusterGroups after `cg1` cannot precede `cg1`
-                # TODO: Check that this is indeed what the attribute does
-                if prefix and scope.has_antidependencies:
+
+                # FIXME: Slow
+                if any(i.cause & prefix for i in scope.d_anti_gen()):
                     for cg2 in cgroups[n:cgroups.index(cg1)]:
                         dag.add_edge(cg2, cg1)
                     for cg2 in cgroups[cgroups.index(cg1)+1:]:
