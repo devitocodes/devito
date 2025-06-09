@@ -1843,30 +1843,47 @@ class TestCodeGeneration:
         assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
 
     @pytest.mark.parallel(mode=1)
-    def test_haloupdate_buffer1_v2(self, mode):
+    @pytest.mark.parametrize('sz,fwd,expr,exp0,exp1,args', [
+        (1, True, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2')),
+        (1, True, 'Eq(v3.forward, v2.laplace + 1)', 1, 1, ('v2',)),
+        (1, True, 'Eq(v3.forward, v2.forward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+        (2, True, 'Eq(v3.forward, v2.forward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+        (1, False, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2')),
+        (1, False, 'Eq(v3.backward, v2.laplace + 1)', 1, 1, ('v2',)),
+        (1, False, 'Eq(v3.backward, v2.backward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+        (2, False, 'Eq(v3.backward, v2.backward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+    ])
+    def test_haloupdate_buffer_cases(self, sz, fwd, expr, exp0, exp1, args, mode):
         grid = Grid((65, 65, 65), topology=('*', 1, '*'))
 
         v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
                           save=Buffer(1))
         v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
                           save=Buffer(1))
+        v3 = TimeFunction(name='v3', grid=grid, space_order=2, time_order=1,  # noqa
+                          save=Buffer(1))
 
         rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)
 
-        eqns = [Eq(v1.forward, v2.dx2 + v1),
-                Eq(v2.forward, v1.forward.dx2 + v2),
-                rec.interpolate(v2)]
+        if fwd:
+            eqns = [Eq(v1.forward, v2.laplace + v1),
+                    Eq(v2.forward, v1.forward.dx2 + v2),
+                    eval(expr)]
+        else:
+            eqns = [Eq(v1.backward, v2.laplace + v1),
+                    Eq(v2.backward, v1.backward.dx2 + v2),
+                    eval(expr)]
 
         op = Operator(eqns)
         op.cfunction
 
         # Ensure there's a halo exchange over v2 before the rec interpolation
         calls = FindNodes(HaloUpdateCall).visit(op)
-        assert len(calls) == 3
+        assert len(calls) == exp0
         calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
-        assert len(calls) == 2
-        assert calls[0].arguments[0] is v1
-        assert calls[1].arguments[0] is v2
+        assert len(calls) == exp1
+        for i, v in enumerate(args):
+            assert calls[i].arguments[0] is eval(v)
 
 
 class TestOperatorAdvanced:
