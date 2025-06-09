@@ -288,6 +288,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 # e.g `f.dx.subs(f: 1) = 1.dx = 0`
                 # returning zero
                 return sympy.S.Zero
+        elif not hints.pop('postprocess', True):
+            # This allows a redundant substitution to be applied to an entire
+            # expression without un-consumed substitutions being added to the
+            # postprocessing substitution dict `self._ppsubs`.
+            return self
 
         # In case `x0` was passed as a substitution instead of `(x0=`
         if str(old) == 'x0':
