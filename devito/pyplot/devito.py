@@ -1,6 +1,12 @@
 import numpy as np
+import matplotlib as mpl
 from matplotlib.path import Path
 from matplotlib.colors import LinearSegmentedColormap
+
+__all__ = [
+    'devito_marker', 'devito_color_hex', 'devito_color_rgb', 'devito_light',
+    'devito_dark', 'devito_colormap', 'devito_colormap_x'
+]
 
 devito_marker = Path(
     np.array(
@@ -120,8 +126,33 @@ devito_marker = Path(
     )
 )
 
-devito_color = '#62C2A4'
 
+# Color definitions
+devito_color_hex = '#62C2A4'
+devito_color_rgb = (98, 194, 164)
+
+# Light colormap (not much range)
+devito_light = LinearSegmentedColormap.from_list(
+    'devito_light',
+    np.array([[255, 255, 255], list(devito_color_rgb)])/255
+)
+mpl.colormaps.register(cmap=devito_light)
+
+# Dark colormap
+devito_dark = LinearSegmentedColormap.from_list(
+    'devito_dark',
+    np.array([list(devito_color_rgb), [0, 0, 0]])/255
+)
+mpl.colormaps.register(cmap=devito_dark)
+
+# Diverging colormap, symmetric in lightness
+devito_colormap_x = LinearSegmentedColormap.from_list(
+    'devito_x',
+    np.array([list(devito_color_rgb), [255, 255, 255], [177, 174, 173]])/255
+)
+mpl.colormaps.register(cmap=devito_colormap_x)
+
+# Glamour colormap used for promotional material (do not use for science!)
 devito_colormap = LinearSegmentedColormap.from_list(
     'devito',
     np.array(
@@ -382,18 +413,20 @@ devito_colormap = LinearSegmentedColormap.from_list(
         [  0,   0,   0],
         [  0,   0,   0]],
         dtype=np.uint8
-    ) / 256
+    ) / 255
 )
+mpl.colormaps.register(cmap=devito_colormap)
+
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     x = np.linspace(0, 2*np.pi, 21)
-    plt.plot(x, np.sin(x), marker=devito_marker, markersize=40, color=devito_color, linestyle='none')
+    plt.plot(x, np.sin(x), marker=devito_marker, markersize=40, color=devito_color_hex, linestyle='none')
     plt.show()
 
     t = np.linspace(0, 2 * np.pi, 1024)
     data2d = np.sin(t)[:, np.newaxis] * np.cos(t)[np.newaxis, :]
-    cm = plt.imshow(data2d, cmap=devito_colormap)
+    cm = plt.imshow(data2d, cmap=devito_colormap_x)
     plt.gcf().colorbar(cm)
     plt.show()
 
