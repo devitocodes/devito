@@ -24,6 +24,7 @@ def optimize_halospots(iet, **kwargs):
     merged and moved around in order to improve the halo exchange performance.
     """
     iet = _drop_reduction_halospots(iet)
+    #iet = _drop_redundant(iet)
     iet = _merge_halospots(iet)
     iet = _hoist_invariant(iet)
     iet = _drop_if_unwritten(iet, **kwargs)
@@ -52,6 +53,26 @@ def _drop_reduction_halospots(iet):
     iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
+
+
+def _drop_redundant(iet):
+    """
+    Remove redundant HaloSpots out of Iterations.
+
+    Examples
+    --------
+    One notable case is when the same HaloSpot appears both within a Conditional
+    and outside of it and no dimension-independent dependences exist between
+    the two.
+
+    for time                    for time
+      if(cond)
+        haloupd v[t0]             haloupd v[t0]
+      W v[t1]- R v[t0]   --->     W v[t1]- R v[t0]
+      haloupd v[t0]
+      R v[t0]                     R v[t0]
+    """
+    raise NotImplementedError
 
 
 def _merge_halospots(iet):
