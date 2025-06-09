@@ -1051,6 +1051,16 @@ class TestOperatorSimple:
         assert np.all(f2.data == 1.)
 
 
+def check_halo_exchanges(op, exp0, exp1):
+    calls = FindNodes(HaloUpdateCall).visit(op)
+    assert len(calls) == exp0
+    tloop = get_time_loop(op)
+    calls = FindNodes(HaloUpdateCall).visit(tloop)
+    assert len(calls) == exp1
+
+    return calls, tloop
+
+
 class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
@@ -1551,6 +1561,28 @@ class TestCodeGeneration:
             assert np.allclose(h.data_ro_domain[0, 5:], [4.4, 4.4, 4.4, 3.4, 3.1], rtol=R)
 
     @pytest.mark.parallel(mode=1)
+    def test_merge_and_hoist_haloupdate_if_diff_locindices_v2(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
+
+        eqns = [Eq(v1.forward, v2.laplace),
+                Eq(v2.forward, v1.forward.laplace + v2),
+                rec.interpolate(expr=v1)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 3, 2)
+        for i, v in enumerate([v2, v1]):
+            assert calls[i].arguments[0] is v
+
+    @pytest.mark.parallel(mode=1)
     @switchconfig(autopadding=True)
     def test_process_but_avoid_haloupdate_along_replicated(self, mode):
         dx = Dimension(name='dx')
@@ -1863,7 +1895,7 @@ class TestCodeGeneration:
         v3 = TimeFunction(name='v3', grid=grid, space_order=2, time_order=1,  # noqa
                           save=Buffer(1))
 
-        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
 
         if fwd:
             eqns = [Eq(v1.forward, v2.laplace + v1),
@@ -1877,13 +1909,91 @@ class TestCodeGeneration:
         op = Operator(eqns)
         op.cfunction
 
-        # Ensure there's a halo exchange over v2 before the rec interpolation
-        calls = FindNodes(HaloUpdateCall).visit(op)
-        assert len(calls) == exp0
-        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
-        assert len(calls) == exp1
+        calls, _ = check_halo_exchanges(op, exp0, exp1)
         for i, v in enumerate(args):
             assert calls[i].arguments[0] is eval(v)
+
+    @pytest.mark.parallel(mode=1)
+    def test_avoid_hoisting_if_antidep(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v3 = TimeFunction(name='v3', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+
+        eqns = [Eq(v1, v2.laplace + v3),
+                Eq(v2, v1.dx2 + v2),
+                Eq(v3, v2.laplace + v1)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 3, 2)
+        # More specifically, we ensure HaloSpot(v2) is on the last loop nest
+        assert calls[0].arguments[0] is v1
+        assert calls[1].arguments[0] is v2
+
+    @pytest.mark.parallel(mode=1)
+    def test_hoist_haloupdate_if_in_the_middle(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1)
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1)
+
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
+
+        eqns = [Eq(v1.forward, v2.laplace),
+                Eq(v2.forward, v1.laplace + v2),
+                rec.interpolate(expr=v1.forward)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 3, 2)
+        assert calls[0].arguments[0] is v2
+        assert calls[1].arguments[0] is v1
+
+    @pytest.mark.parallel(mode=2)
+    def test_merge_smart_if_within_conditional(self, mode):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        t_sub = ConditionalDimension(name='t_sub', parent=time, factor=3)
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=100)
+
+        eq = Eq(f.forward, f.laplace + .002)
+
+        rec = s.interpolate(expr=f, implicit_dims=t_sub)
+
+        op = Operator(rec + [eq])
+
+        # Check generated code -- the halo exchange is expected at the top of
+        # the time loop, outside of any conditional
+        calls, tloop = check_halo_exchanges(op, 1, 1)
+        assert tloop.nodes[0].body[0].body[0] is calls[0]
+
+        op.apply(time_M=3)
+
+        assert np.isclose(norm(f), 254292.75, atol=1e-1, rtol=0)
+        assert np.isclose(norm(s), 191.44644, atol=1e-1, rtol=0)
+
+        # Analogous to above, but going backwards in time
+        eq1 = Eq(f.backward, f.laplace + .002)
+
+        op1 = Operator(rec + [eq1])
+        op1.cfunction
+
+        check_halo_exchanges(op1, 1, 1)
+
+        # Check that the halo update is still at the top of the time loop and
+        # so outside of any conditional
+        for n in FindNodes(Conditional).visit(op1):
+            assert len(FindNodes(HaloUpdateCall).visit(n)) == 0
 
 
 class TestOperatorAdvanced:
@@ -2979,12 +3089,12 @@ class TestElasticLike:
         u_t = Eq(tau.forward, damp * solve(pde_tau, tau.forward))
 
         op = Operator([u_v] + [u_t] + rec_term)
+        op.cfunction
+
         assert len(op._func_table) == 11
 
         calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
-
         assert len(calls) == 5
-
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[0])) == 1
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[1])) == 4
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[2])) == 0
@@ -3032,6 +3142,7 @@ class TestElasticLike:
 
         op0 = Operator([u_v, u_tau, rec_term0])
 
+        check_halo_exchanges(op0, 3, 2)
         calls = [i for i in FindNodes(Call).visit(op0) if isinstance(i, HaloUpdateCall)]
 
         assert len(calls) == 3
@@ -3048,15 +3159,11 @@ class TestElasticLike:
         rec_term1 = rec.interpolate(expr=v.forward)
 
         op1 = Operator([u_v, u_tau, rec_term1])
+        op1.cfunction
 
-        calls = [i for i in FindNodes(Call).visit(op1) if isinstance(i, HaloUpdateCall)]
-
-        assert len(calls) == 3
-        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[0])) == 0
-        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[1])) == 3
+        calls, _ = check_halo_exchanges(op1, 2, 2)
         assert calls[0].arguments[0] is tau
         assert calls[1].arguments[0] is v
-        assert calls[2].arguments[0] is v
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_v2(self, mode, setup):
@@ -3113,25 +3220,25 @@ class TestElasticLike:
         rec_term3 = rec2.interpolate(expr=v2.forward)
 
         op3 = Operator([u_v, u_v2, u_tau, u_tau2, rec_term0, rec_term3])
+        op3.cfunction
 
         calls = [i for i in FindNodes(Call).visit(op3) if isinstance(i, HaloUpdateCall)]
 
-        assert len(calls) == 5
+        assert len(calls) == 4
         assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[0])) == 1
-        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 4
+        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 3
         assert calls[0].arguments[0] is v
         assert calls[1].arguments[0] is tau
         assert calls[1].arguments[1] is tau2
         assert calls[2].arguments[0] is v
         assert calls[3].arguments[0] is v2
-        assert calls[4].arguments[0] is v2
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_backward(self, mode):
-        '''
+        """
         Similar to test_issue_2448, but with backward instead of forward
         so that the hoisted halo has different starting point
-        '''
+        """
         shape = (2,)
         so = 2
 

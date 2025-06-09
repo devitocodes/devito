@@ -28,9 +28,10 @@ from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
 
 
-__all__ = ['FindApplications', 'FindNodes', 'FindSections', 'FindSymbols',
-           'MapExprStmts', 'MapHaloSpots', 'MapNodes', 'IsPerfectIteration',
-           'printAST', 'CGen', 'CInterface', 'Transformer', 'Uxreplace']
+__all__ = ['FindApplications', 'FindNodes', 'FindWithin', 'FindSections',
+           'FindSymbols', 'MapExprStmts', 'MapHaloSpots', 'MapNodes',
+           'IsPerfectIteration', 'printAST', 'CGen', 'CInterface', 'Transformer',
+           'Uxreplace']
 
 
 class Visitor(GenericVisitor):
@@ -1110,6 +1111,46 @@ class FindNodes(Visitor):
         for i in o.children:
             ret = self._visit(i, ret=ret)
         return ret
+
+
+class FindWithin(FindNodes):
+
+    @classmethod
+    def default_retval(cls):
+        return [], False
+
+    """
+    Like FindNodes, but given an additional parameter `within=(start, stop)`,
+    it starts collecting matching nodes only after `start` is found, and stops
+    collecting matching nodes after `stop` is found.
+    """
+
+    def __init__(self, match, start, stop=None):
+        super().__init__(match)
+        self.start = start
+        self.stop = stop
+
+    def visit(self, o, ret=None):
+        found, _ = self._visit(o, ret=ret)
+        return found
+
+    def visit_Node(self, o, ret=None):
+        if ret is None:
+            ret = self.default_retval()
+        found, flag = ret
+
+        if o is self.start:
+            flag = True
+
+        if flag and self.rule(self.match, o):
+            found.append(o)
+        for i in o.children:
+            found, flag = self._visit(i, ret=(found, flag))
+
+        if o is self.stop:
+            flag = False
+
+        return found, flag
 
 
 class FindApplications(Visitor):
