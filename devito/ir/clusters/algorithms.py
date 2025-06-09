@@ -122,7 +122,6 @@ class Schedule(QueueStateful):
 
     @timed_pass(name='schedule')
     def process(self, clusters):
-        # from IPython import embed; embed()
         return self._process_fatd(clusters, 1)
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):

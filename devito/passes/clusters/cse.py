@@ -13,6 +13,7 @@ except ImportError:
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
+from devito.symbolics.search import retrieve_ctemps
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
 from devito.types import Eq, Symbol, Temp
@@ -222,36 +223,17 @@ def _compact(exprs, exclude):
     `for (i = ...) { a = b; for (j = a ...) ... }`. Hence, this routine
     only targets CTemps.
     """
-    # FIXME: Can use is_CTemp rather than isinstance
     candidates = [e for e in exprs
                   if isinstance(e.lhs, CTemp) and e.lhs not in exclude]
 
     mapper = {e.lhs: e.rhs for e in candidates if q_leaf(e.rhs)}
 
-    # FIXME: Move this to searches as retrieve_ctemps
-    from devito.symbolics.search import search
-
-    def q_ctemp(expr):
-        try:
-            return expr.is_CTemp
-        except AttributeError:
-            return False
-
-    # Find all the CTemps in expressions without removing duplicates
-    # ctemps = search(exprs, q_ctemp, 'all', 'dfs')
-    # I think it was more like
-    ctemps = search([e.rhs for e in exprs], q_ctemp, 'all', 'dfs')
-
-    # print(ctemps, len(ctemps), len(set(ctemps)), len(candidates))
-
-    # FIXME: This line is kinda slow. I should find some way to replace it.
-    # FIXME: Specifically sum([i.rhs.count(e.lhs) for i in exprs]) == 1 is slow as hell
-    # mapper.update({e.lhs: e.rhs for e in candidates
-    #                if sum([i.rhs.count(e.lhs) for i in exprs]) == 1})
+    # Find all the CTemps in expression right-hand-sides without removing duplicates
+    ctemps = retrieve_ctemps([e.rhs for e in exprs])
 
     # If there are ctemps in the expressions, then add any to the mapper which only
     # appear once
-    # TODO: Double check this is exactly the prior behaviour?
+    # TODO: Double check this is exactly the prior behaviour
     if ctemps:
         mapper.update({e.lhs: e.rhs for e in candidates
                        if ctemps.count(e.lhs) == 1})

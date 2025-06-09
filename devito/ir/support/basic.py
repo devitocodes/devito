@@ -835,11 +835,6 @@ class Scope:
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
-    # FIXME: Should be put somewhere sensible
-    @cached_property
-    def thingy(self):
-        return any(i.cause for i in self.d_anti_gen())
-
     @memoized_generator
     def writes_gen(self):
         """
@@ -1131,6 +1126,10 @@ class Scope:
     def d_anti(self):
         """Anti (or "write-after-read") dependences."""
         return DependenceGroup(self.d_anti_gen())
+
+    @cached_property
+    def has_antidependencies(self):
+        return any(i.cause for i in self.d_anti_gen())
 
     @memoized_generator
     def d_output_gen(self):

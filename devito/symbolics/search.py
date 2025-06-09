@@ -1,7 +1,7 @@
 import sympy
 
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
-                                      q_symbol, q_dimension, q_derivative)
+                                      q_symbol, q_ctemp, q_dimension, q_derivative)
 from devito.tools import as_tuple
 
 __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
@@ -155,8 +155,13 @@ def retrieve_functions(exprs, mode='all', deep=False):
 
 
 def retrieve_symbols(exprs, mode='all'):
-    """Shorthand to retrieve the Scalar in ``exprs``."""
+    """Shorthand to retrieve the Scalar in `exprs`."""
     return search(exprs, q_symbol, mode, 'dfs')
+
+
+def retrieve_ctemps(exprs, mode='all'):
+    """Shorthand to retrieve the CTemps in `exprs`"""
+    return search(exprs, q_ctemp, mode, 'dfs')
 
 
 def retrieve_function_carriers(exprs, mode='all'):
