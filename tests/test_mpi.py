@@ -1919,7 +1919,7 @@ class TestCodeGeneration:
         assert calls[0].arguments[0] is v1
         assert calls[1].arguments[0] is v2
 
-    @pytest.mark.parallel(mode=1)
+    @pytest.mark.parallel(mode=2)
     def test_merge_smart_if_within_conditional(self, mode):
         grid = Grid(shape=(11, 11))
         time = grid.time_dim
