@@ -107,21 +107,22 @@ def _merge_halospots(iet):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
-            for f, v in hs1.fmapper.items():
+            for f in hs1.fmapper:
+                # First, ensure it's a compatible HaloSpot
                 hsf0 = hs0.halo_scheme.project(f)
                 hsf1 = hs1.halo_scheme.project(f)
-                if hsf0.loc_values != hsf1.loc_values:
+                if hsf0.loc_values != hsf1.loc_values or \
+                   hsf0.dimensions != hsf1.dimensions:
                     continue
 
-                for dep in scope.d_flow.project(f):
-                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
-                        break
-                else:
-                    # All good -- `hsf1` can be merged within `hs0`
-                    mapper[hs0] = HaloScheme.union(
-                        [mapper.get(hs0, hs0.halo_scheme), hsf1]
-                    )
-                    mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
+                # Then, check the data dependences would be satisfied
+                if not _is_iter_carried(hsf1, scope):
+                    continue
+
+                # All good -- `hsf1` can be merged within `hs0`
+                mapper[hs0] = HaloScheme.union([mapper.get(hs0, hs0.halo_scheme),
+                                                hsf1])
+                mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
 
     # Transform the IET merging/dropping HaloSpots as according to the analysis
     mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
@@ -400,22 +401,29 @@ def _check_control_flow(hs0, hs1, cond_mapper):
     return cond0 != cond1
 
 
-# Code motion rules -- if the retval is True, then it means the input `dep` is not
-# a stopper to moving the HaloSpot `hs` around
+def _is_iter_carried(hsf, scope):
+    """
+    True if the provided HaloScheme `hsf` is iteration-carried, i.e., it induces
+    a halo exchange that requires values from the previous iteration(s); False
+    otherwise.
+    """
 
-def _rule0(dep, hs, loc_indices):
-    # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>` => True
-    return not any(d in hs.dimensions or dep.distance_mapper[d] is S.Infinity
-                   for d in dep.cause)
-
-
-#TODO: MAYBE AVOID PASSING IN LOC_INDICES AND PULL THEM STRAIGHT FROM HS
-def _rule1(dep, hs, loc_indices):
-    # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>` and `loc_indices={t: t0}` => True
-    return any(dep.distance_mapper[d] == 0 and
-               dep.source[d] is not v and
-               dep.sink[d] is not v
-               for d, v in loc_indices.items())
+    def rule0(dep):
+        # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>`, `d=t` => OK
+        return not any(d in hsf.dimensions or dep.distance_mapper[d] is S.Infinity
+                       for d in dep.cause)
 
 
-rules = (_rule0, _rule1)
+    def rule1(dep, loc_indices):
+        # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>`, `loc_indices={t: t0}` => OK
+        return any(dep.distance_mapper[d] == 0 and
+                   dep.source[d] is not v and
+                   dep.sink[d] is not v
+                   for d, v in loc_indices.items())
+
+    for f, v in hsf.fmapper.items():
+        for dep in scope.d_flow.project(f):
+            if not rule0(dep) and not rule1(dep, v.loc_indices):
+                return False
+
+    return True

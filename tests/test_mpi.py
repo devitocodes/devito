@@ -1877,13 +1877,38 @@ class TestCodeGeneration:
         op = Operator(eqns)
         op.cfunction
 
-        # Ensure there's a halo exchange over v2 before the rec interpolation
         calls = FindNodes(HaloUpdateCall).visit(op)
         assert len(calls) == exp0
         calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
         assert len(calls) == exp1
         for i, v in enumerate(args):
             assert calls[i].arguments[0] is eval(v)
+
+    @pytest.mark.parallel(mode=1)
+    def test_flow_anti_dep(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v3 = TimeFunction(name='v3', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+
+        eqns = [Eq(v1, v2.laplace + v3),
+                Eq(v2, v1.dx2 + v2),
+                Eq(v3, v2.laplace + v1)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls = FindNodes(HaloUpdateCall).visit(op)
+        assert len(calls) == 3
+        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
+        assert len(calls) == 2
+        # More specifically, we ensure the HaloSpot for v2 is on the last
+        # loop nest
+        #TODO
 
 
 class TestOperatorAdvanced:
