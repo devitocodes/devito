@@ -317,7 +317,7 @@ class TimedAccess(IterationInstance, AccessMode):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
-    # NOTE: This is called a lot with the same arguments - memoize yields mild speedup
+    # Note: memoization yields mild compiler speedup
     @memoized_meth
     def distance(self, other):
         """
@@ -365,14 +365,21 @@ class TimedAccess(IterationInstance, AccessMode):
                 # Case 1: `sit` is an IterationInterval with statically known
                 # trip count. E.g. it ranges from 0 to 3; `other` performs a
                 # constant access at 4
-                for v in (self[n], other[n]):
-                    try:
-                        # NOTE: Split the boolean to make the conditional short circuit
-                        # more frequently for mild speedup
-                        if bool(v < sit.symbolic_min) or bool(v > sit.symbolic_max):
-                            return Vector(S.ImaginaryUnit)
-                    except TypeError:
-                        pass
+
+                # To avoid evaluating expensive symbolic Lt or Gt operations,
+                # we pre-empt such operations by checking if the values to be compared
+                # to are symbolic, and skip this case if not.
+                if not any(isinstance(i, sympy.core.Basic)
+                           for i in (sit.symbolic_min, sit.symbolic_max)):
+
+                    for v in (self[n], other[n]):
+                        try:
+                            # Note: Boolean is split to make the conditional short
+                            # circuit more frequently for mild speedup
+                            if bool(v < sit.symbolic_min) or bool(v > sit.symbolic_max):
+                                return Vector(S.ImaginaryUnit)
+                        except TypeError:
+                            pass
 
                 # Case 2: `sit` is an IterationInterval over a local SubDimension
                 # and `other` performs a constant access
@@ -1174,7 +1181,6 @@ class Scope:
         Generate all flow, anti, and output dependences involving any of
         the given TimedAccess objects.
         """
-        # FIXME: This seems to be a hotspot
         accesses = as_tuple(accesses)
         for d in self.d_all_gen():
             for i in accesses:

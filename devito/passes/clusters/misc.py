@@ -362,7 +362,6 @@ class Fusion(Queue):
                 # * All ClusterGroups between `cg0` and `cg1` must precede `cg1`
                 # * All ClusterGroups after `cg1` cannot precede `cg1`
 
-                # FIXME: Slow
                 if any(i.cause & prefix for i in scope.d_anti_gen()):
                     for cg2 in cgroups[n:cgroups.index(cg1)]:
                         dag.add_edge(cg2, cg1)

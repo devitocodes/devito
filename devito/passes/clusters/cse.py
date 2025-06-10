@@ -234,7 +234,6 @@ def _compact(exprs, exclude):
 
     # If there are ctemps in the expressions, then add any to the mapper which only
     # appear once
-    # TODO: Double check this is exactly the prior behaviour
     if ctemps:
         mapper.update({e.lhs: e.rhs for e in candidates
                        if ctemp_count[e.lhs] == 1})
