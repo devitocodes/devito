@@ -24,7 +24,7 @@ def optimize_halospots(iet, **kwargs):
     merged and moved around in order to improve the halo exchange performance.
     """
     iet = _drop_reduction_halospots(iet)
-    #iet = _drop_redundant(iet)
+    iet = _hoist_redundant_from_conditionals(iet)
     iet = _merge_halospots(iet)
     iet = _hoist_invariant(iet)
     iet = _drop_if_unwritten(iet, **kwargs)
@@ -55,24 +55,69 @@ def _drop_reduction_halospots(iet):
     return iet
 
 
-def _drop_redundant(iet):
+def _hoist_redundant_from_conditionals(iet):
     """
-    Remove redundant HaloSpots out of Iterations.
+    Hoist redundant HaloSpots from Conditionals. The idea is that, by doing so,
+    the subsequent passes (hoist, merge) will be able to optimize them away.
 
     Examples
     --------
-    One notable case is when the same HaloSpot appears both within a Conditional
-    and outside of it and no dimension-independent dependences exist between
-    the two.
 
-    for time                    for time
-      if(cond)
-        haloupd v[t0]             haloupd v[t0]
-      W v[t1]- R v[t0]   --->     W v[t1]- R v[t0]
-      haloupd v[t0]
-      R v[t0]                     R v[t0]
+    for time                          for time
+      if(cond)                          if(cond)
+        haloupd u[t0]                     haloupd u[t0]
+        haloupd v[t0]                   haloupd v[t0]
+      W v[t1]- R u[t0],v[t0]   --->     W v[t1]- R u[t0],v[t0]
+      haloupd v[t0]                     haloupd v[t0]
+      R v[t0]                           R v[t0]
+
+    Note that in the above example, the `haloupd v[t0]` in the if branch is
+    redundant, as it also appears later on in the Iteration body, so it is
+    hoisted out of the Conditional.
     """
-    raise NotImplementedError
+    cond_mapper = _make_cond_mapper(iet)
+    iter_mapper = _filter_iter_mapper(iet)
+
+    hsmapper = defaultdict(list)
+    imapper = defaultdict(list)
+    for it, halo_spots in iter_mapper.items():
+        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
+
+        for hs0 in halo_spots:
+            conditions = cond_mapper[hs0]
+            if not conditions:
+                continue
+            condition = conditions[-1]  # Take the innermost Conditional
+
+            for f in hs0.fmapper:
+                hsf0 = hs0.halo_scheme.project(f)
+
+                # Find candidate for subsequent merging
+                for hs1 in halo_spots:
+                    if hs0 is hs1 or cond_mapper[hs1]:
+                        continue
+
+                    hsf1 = hs1.halo_scheme.project(f)
+                    if not _is_mergeable(hsf1, hsf0, scope) or \
+                       not hsf1.issubset(hsf0):
+                        continue
+
+                    break
+                else:
+                    # No candidate found, skip
+                    continue
+
+                hsmapper[hs0].append(f)
+                imapper[condition].append(hsf0)
+
+    # Transform the IET according to the analysis
+    mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
+              for hs, functions in hsmapper.items()}
+    mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
+                   for i, hss in imapper.items()})
+    iet = Transformer(mapper, nested=True).visit(iet)
+
+    return iet
 
 
 def _merge_halospots(iet):
@@ -110,14 +155,7 @@ def _merge_halospots(iet):
             for f in hs1.fmapper:
                 hsf0 = hs0.halo_scheme.project(f)
                 hsf1 = hs1.halo_scheme.project(f)
-
-                # First, ensure it's a compatible HaloSpot
-                if hsf0.loc_values != hsf1.loc_values or \
-                   hsf0.dimensions != hsf1.dimensions:
-                    continue
-
-                # Then, check the data dependences would be satisfied
-                if not _is_iter_carried(hsf1, scope):
+                if not _is_mergeable(hsf0, hsf1, scope):
                     continue
 
                 # All good -- `hsf1` can be merged within `hs0`
@@ -125,7 +163,7 @@ def _merge_halospots(iet):
                                                 hsf1])
                 mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
 
-    # Transform the IET merging/dropping HaloSpots as according to the analysis
+    # Transform the IET according to the analysis
     mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
               for i, hs in mapper.items()}
     iet = Transformer(mapper, nested=True).visit(iet)
@@ -160,6 +198,7 @@ def _hoist_invariant(iet):
         scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
 
         for hs0, hs1 in combinations(halo_spots, r=2):
+            #TODO:REFUSE TO HOIST IF ONE OF THE TWO HAS CONDITIONAL INSTEAD??
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
@@ -194,7 +233,7 @@ def _hoist_invariant(iet):
                 hsmapper[hs].append(f)
                 imapper[it].append(hhs)
 
-    # Transform the IET hoisting/dropping HaloSpots as according to the analysis
+    # Transform the IET according to the analysis
     mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
               for hs, functions in hsmapper.items()}
     mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
@@ -384,11 +423,10 @@ def _make_cond_mapper(iet):
     """
     Return a mapper from HaloSpots to the Conditionals that contain them.
     """
+    #TODO
     cond_mapper = {}
     for hs, v in MapHaloSpots().visit(iet).items():
-        conditionals = {i for i in v if i.is_Conditional and
-                        not isinstance(i.condition, GuardFactorEq)}
-        cond_mapper[hs] = conditionals
+        cond_mapper[hs] = tuple(i for i in v if i.is_Conditional)
 
     return cond_mapper
 
@@ -427,5 +465,26 @@ def _is_iter_carried(hsf, scope):
         for dep in scope.d_flow.project(f):
             if not rule0(dep) and not rule1(dep, v.loc_indices):
                 return False
+
+    return True
+
+
+def _is_mergeable(hsf0, hsf1, scope):
+    """
+    True if `hsf1` can be merged into `hsf0`, i.e., if they are compatible
+    and the data dependences would be satisfied, False otherwise.
+    """
+    # If `hsf1` is empty there's nothing to merge
+    if hsf1.is_void:
+        return False
+
+    # Ensure `hsf0` and `hsf1` are compatible
+    if hsf0.loc_values != hsf1.loc_values or \
+       hsf0.dimensions != hsf1.dimensions:
+        return False
+
+    # Then, check the data dependences would be satisfied
+    if not _is_iter_carried(hsf1, scope):
+        return False
 
     return True

@@ -1053,6 +1053,15 @@ class TestOperatorSimple:
 
 class TestCodeGeneration:
 
+    def _check_halo_exchanges(self, op, exp0, exp1):
+        calls = FindNodes(HaloUpdateCall).visit(op)
+        assert len(calls) == exp0
+        tloop = get_time_loop(op)
+        calls = FindNodes(HaloUpdateCall).visit(tloop)
+        assert len(calls) == exp1
+
+        return calls, tloop
+
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_as_nostencil_basic(self, mode):
         grid = Grid(shape=(12,))
@@ -1909,6 +1918,32 @@ class TestCodeGeneration:
         # More specifically, we ensure HaloSpot(v2) is on the last loop nest
         assert calls[0].arguments[0] is v1
         assert calls[1].arguments[0] is v2
+
+    @pytest.mark.parallel(mode=1)
+    def test_merge_smart_if_within_conditional(self, mode):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        t_sub = ConditionalDimension(name='t_sub', parent=time, factor=3)
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=100)
+
+        eq = Eq(f.forward, f.laplace + .002)
+
+        rec = s.interpolate(expr=f, implicit_dims=t_sub)
+
+        op = Operator(rec + [eq])
+
+        # Check generated code -- the halo exchange is expected at the top of
+        # the time loop, outside of any conditional
+        calls, tloop = self._check_halo_exchanges(op, 1, 1)
+        assert tloop.nodes[0].body[0].body[0] is calls[0]
+
+        op.apply(time_M=3)
+
+        assert np.isclose(norm(f), 254292.75, atol=1e-1, rtol=0)
+        assert np.isclose(norm(s), 191.44644, atol=1e-1, rtol=0)
 
 
 class TestOperatorAdvanced:
