@@ -5,7 +5,8 @@ from devito.ir import Call, BasePrinter
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics.extended_dtypes import c_complex, c_double_complex
+from devito.symbolics import c_complex, c_double_complex
+from devito.tools import dtype_to_cstr
 from devito.petsc.utils import petsc_type_mappings
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
@@ -14,6 +15,8 @@ __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 class CBB(LangBB):
 
     mapper = {
+        # Misc
+        'header-array': None,
         # Complex
         'includes-complex': 'complex.h',
         # Allocs
@@ -56,6 +59,23 @@ class CPrinter(BasePrinter, C99CodePrinter):
 
     def _print_ImaginaryUnit(self, expr):
         return '_Complex_I'
+
+    def _print_ListInitializer(self, expr):
+        li = super()._print_ListInitializer(expr)
+        if expr.dtype:
+            # C99, unlike CXX, supports compound literals
+            tstr = dtype_to_cstr(expr.dtype)
+            return f'({tstr}[]){li}'
+        else:
+            return li
+
+    def _print_ComplexPart(self, expr):
+        return (f'{self.func_prefix(expr)}{expr._name}{self.func_literal(expr)}'
+                f'({self._print(expr.args[0])})')
+
+    def _print_Conj(self, expr):
+        # In C, conj is not preceeded by the func_prefix
+        return (f'conj{self.func_literal(expr)}({self._print(expr.args[0])})')
 
 
 class PetscCPrinter(CPrinter):

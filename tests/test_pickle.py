@@ -320,6 +320,7 @@ class TestBasic:
         assert cd.name == new_cd.name
         assert cd.parent.name == new_cd.parent.name
         assert cd.factor == new_cd.factor
+        assert cd.symbolic_factor == new_cd.symbolic_factor
         assert cd.condition == new_cd.condition
 
     def test_incr_dimension(self, pickle):
@@ -603,7 +604,7 @@ class TestBasic:
         assert new_eq.lhs.name == f.name
         assert str(new_eq.rhs) == 'f(x) + 1'
         assert new_eq.implicit_dims[0].name == 'xs'
-        assert new_eq.implicit_dims[0].factor.data == 4
+        assert new_eq.implicit_dims[0].factor == 4
 
     @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct truct'])
     def test_Cast(self, pickle, typ):

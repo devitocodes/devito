@@ -7,7 +7,7 @@ import numpy as np
 from sympy import Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, SubDomain)
+                    Min, Max, Real, Imag, Conj, SubDomain, configuration)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
 from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
@@ -15,8 +15,8 @@ from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # 
                               INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
                               ReservedWord, ListInitializer, uxreplace, pow_to_mul,
                               retrieve_derivatives, BaseCast, SizeOf, sympy_dtype,
-                              separate_eqn, centre_stencil)
-from devito.tools import as_tuple
+                              VectorAccess, separate_eqn, centre_stencil)
+from devito.tools import as_tuple, CustomDtype
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol,
                           CompositeObject)
@@ -67,7 +67,7 @@ def test_floatification_issue_1627(dtype, expected):
 
     eq = Eq(u.forward, ((u/x.spacing) + 2.0)/x.spacing)
 
-    op = Operator(eq)
+    op = Operator(eq, opt=('advanced', {'linearize': False}))
 
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 2
@@ -517,6 +517,25 @@ def test_component_access():
     assert cf2 == cf1
 
 
+def test_vector_access():
+    grid = Grid(shape=(3, 3, 3))
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    v = VectorAccess(f.indexify())
+
+    assert v.base == f.indexify()
+    assert v.function is f
+
+    # Code generation
+    assert ccode(v) == 'VL<f[x, y, z]>'
+
+    # Reconstruction
+    v1 = v.func(g.indexify())
+    assert ccode(v1) == 'VL<g[x, y, z]>'
+
+
 def test_canonical_ordering_of_weights():
     grid = Grid(shape=(3, 3, 3))
     x, y, z = grid.dimensions
@@ -704,6 +723,8 @@ def test_minmax_precision(dtype, expected):
 
     # Check generated code -- ensure it's using the fp64 versions of min/max,
     # that is fminf/fmaxf
+    if 'CXX' in configuration['language']:
+        expected = [f"std::{e.replace('f(', '(')}" for e in expected]
     assert all(i in str(op) for i in expected)
 
     assert np.all(f.data == 6.0)
@@ -727,6 +748,9 @@ def test_pow_precision(dtype, expected):
 
     op.apply()
 
+    if 'CXX' in configuration['language']:
+        expected = "std::pow"
+
     assert expected in str(op)
     assert np.allclose(f.data, 8.0, rtol=np.finfo(dtype).eps)
 
@@ -748,6 +772,9 @@ def test_abs_precision(dtype, expected):
     g.data[:] = -1.0
 
     op.apply()
+
+    if 'CXX' in configuration['language']:
+        expected = "std::fabs"
 
     assert expected in str(op)
     assert np.all(f.data == 1.0)
@@ -930,6 +957,7 @@ def test_print_div():
     assert cstr == 'sizeof(int)/sizeof(long)'
 
 
+<<<<<<< HEAD
 @pytest.mark.parametrize('eqn, target, expected', [
     ('Eq(f1.laplace, g1)',
      'f1', ('g1(x, y)', 'Derivative(f1(x, y), (x, 2)) + Derivative(f1(x, y), (y, 2))')),
@@ -1166,3 +1194,137 @@ def test_centre_stencil(expr, so, target, expected):
     centre = centre_stencil(eval(expr), eval(target))
 
     assert str(centre) == expected
+=======
+def test_customdtype_complex():
+    """
+    Test that `CustomDtype` doesn't brak is_imag
+    """
+    grid = Grid(shape=(4, 4))
+
+    f = Function(name='f', grid=grid, dtype=CustomDtype('notnumpy'))
+
+    assert not f.is_imaginary
+    assert f.is_real
+
+
+class TestComplexParts:
+    def setup_basic(self, dtype):
+        grid = Grid(shape=(5,), extent=(4.,))
+        f = Function(name='f', grid=grid, dtype=dtype)
+        f.data_with_halo[:] = np.arange(7) + 1j*np.arange(7, 14)[::-1]
+
+        f_real = Function(name='f_real', grid=grid)
+        f_imag = Function(name='f_imag', grid=grid)
+        return f, f_real, f_imag
+
+    def test_devito_print(self):
+        f, _, _ = self.setup_basic(np.complex64)
+
+        assert str(Real(f)) == 'Real(f(x))'
+        assert str(Imag(f)) == 'Imag(f(x))'
+
+    def test_printing(self):
+        f, f_real, f_imag = self.setup_basic(np.complex64)
+
+        eq_re = Eq(f_real, Real(f))
+        eq_im = Eq(f_imag, Imag(f))
+
+        op = Operator([eq_re, eq_im])
+
+        if configuration['language'] in ('CXX', 'CXXopenmp'):
+            assert "f_real[x + 1] = std::real(f[x + 1])" in str(op.ccode)
+            assert "f_imag[x + 1] = std::imag(f[x + 1])" in str(op.ccode)
+
+        else:
+            assert "f_real[x + 1] = crealf(f[x + 1])" in str(op.ccode)
+            assert "f_imag[x + 1] = cimagf(f[x + 1])" in str(op.ccode)
+
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_trivial(self, dtype):
+        f, f_real, f_imag = self.setup_basic(dtype)
+
+        eq_re = Eq(f_real, Real(f+1.))
+        eq_im = Eq(f_imag, Imag(f+1.))
+
+        Operator([eq_re, eq_im])()
+
+        rcheck = np.array([2., 3., 4., 5., 6.])
+        icheck = np.array([12., 11., 10., 9., 8.])
+        assert np.all(np.isclose(f_real.data, rcheck))
+        assert np.all(np.isclose(f_imag.data, icheck))
+
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_trivial_imag(self, dtype):
+        f, f_real, f_imag = self.setup_basic(dtype)
+
+        eq_re = Eq(f_real, Real(f+1j))
+        eq_im = Eq(f_imag, Imag(f+1j))
+
+        Operator([eq_re, eq_im])()
+
+        rcheck = np.array([1., 2., 3., 4., 5.])
+        icheck = np.array([13., 12., 11., 10., 9.])
+        assert np.all(np.isclose(f_real.data, rcheck))
+        assert np.all(np.isclose(f_imag.data, icheck))
+
+    def test_deriv(self):
+        f, f_real, f_imag = self.setup_basic(np.complex64)
+
+        eq_re = Eq(f_real, Real(f.dx))
+        eq_im = Eq(f_imag, Imag(f.dx))
+
+        Operator([eq_re, eq_im])()
+
+        assert np.all(np.isclose(f_real.data, 1.))
+        assert np.all(np.isclose(f_imag.data, -1.))
+
+    def test_outer_deriv(self):
+        f, f_real, f_imag = self.setup_basic(np.complex64)
+
+        eq_re = Eq(f_real, Real(f).dx)
+        eq_im = Eq(f_imag, Imag(f).dx)
+
+        Operator([eq_re, eq_im])()
+
+        assert np.all(np.isclose(f_real.data, 1.))
+        assert np.all(np.isclose(f_imag.data, -1.))
+
+    def test_mul(self):
+        grid = Grid(shape=(5,))
+
+        f = Function(name='f', grid=grid, dtype=np.complex64)
+        g = Function(name='g', grid=grid)
+        h = Function(name='h', grid=grid, dtype=np.complex64)
+        f.data[:] = 1 + 1j
+        g.data[:] = 2
+        h.data[:] = 2j
+
+        fg_re = Function(name='fg_re', grid=grid)
+        fg_im = Function(name='fg_im', grid=grid)
+        fh_re = Function(name='fh_re', grid=grid)
+        fh_im = Function(name='fh_im', grid=grid)
+
+        eq_fg_re = Eq(fg_re, Real(f*g))
+        eq_fg_im = Eq(fg_im, Imag(f*g))
+        eq_fh_re = Eq(fh_re, Real(f*h))
+        eq_fh_im = Eq(fh_im, Imag(f*h))
+
+        Operator([eq_fg_re, eq_fg_im, eq_fh_re, eq_fh_im])()
+
+        assert np.all(np.isclose(fg_re.data, 2.))
+        assert np.all(np.isclose(fg_im.data, 2.))
+
+        assert np.all(np.isclose(fh_re.data, -2.))
+        assert np.all(np.isclose(fh_im.data, 2.))
+
+    def test_conj(self):
+        grid = Grid(shape=(5,))
+        f = Function(name='f', grid=grid, dtype=np.complex64)
+        g = Function(name='g', grid=grid, dtype=np.complex64)
+
+        f.data[:] = np.arange(5) + 1j*np.arange(5)[::-1]
+
+        Operator([Eq(g, Conj(f))])()
+
+        assert np.all(np.isclose(g.data, np.conj(f.data)))
+>>>>>>> petsc

@@ -130,9 +130,9 @@ def test_cache_blocking_structure_subdims():
     # Non-local SubDimension -> blocking expected
     op = Operator(Eq(f.forward, f.dx + 1, subdomain=grid.interior))
 
-    bns, _ = assert_blocking(op, {'ix0_blk0'})
+    bns, _ = assert_blocking(op, {'x0_blk0'})
 
-    trees = retrieve_iteration_tree(bns['ix0_blk0'])
+    trees = retrieve_iteration_tree(bns['x0_blk0'])
     tree = trees[0]
     assert len(tree) == 5
     assert tree[0].dim.is_Block and tree[0].dim.parent.name == 'ix' and\
@@ -257,7 +257,7 @@ class TestBlockingOptRelax:
 
         op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
 
-        bns, _ = assert_blocking(op, {'x0_blk0', 'xl0_blk0', 'xr0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
         assert all(IsPerfectIteration().visit(i) for i in bns.values())
         assert all(len(FindNodes(Iteration).visit(i)) == 4 for i in bns.values())
 
@@ -891,11 +891,13 @@ class TestNodeParallelism:
         cond = FindNodes(Expression).visit(op)
         iterations = FindNodes(Iteration).visit(op)
         # Should not creat any temporary for the reduction
-        assert len(cond) == 1
-        if configuration['language'] == 'C':
+        nlin = 2 if op._options['linearize'] else 0
+        assert len(cond) == 1 + nlin
+        if configuration['language'] in ['CXX', 'C']:
             pass
         elif Ompizer._support_array_reduction(configuration['compiler']):
-            assert "reduction(+:n[0])" in iterations[0].pragmas[0].ccode.value
+            i = '0:1' if op._options['linearize'] else '0'
+            assert f"reduction(+:n[{i}])" in iterations[0].pragmas[0].ccode.value
         else:
             # E.g. old GCC's
             assert "atomic update" in str(iterations[-1])
@@ -914,14 +916,16 @@ class TestNodeParallelism:
         op1 = Operator(eqns, opt=('advanced', {'mapify-reduce': True}))
 
         expr0 = FindNodes(Expression).visit(op0)
-        assert len(expr0) == 3
-        assert expr0[1].is_reduction
+        nlin = 2 if op0._options['linearize'] else 0
+        assert len(expr0) == 3 + nlin
+        assert expr0[1+nlin].is_reduction
 
         expr1 = FindNodes(Expression).visit(op1)
-        assert len(expr1) == 4
-        assert expr1[1].expr.lhs.indices == s.indices
-        assert expr1[2].expr.rhs.is_Indexed
-        assert expr1[2].is_reduction
+        nlin = 2 if op0._options['linearize'] else 0
+        assert len(expr1) == 4 + nlin
+        assert expr1[1+nlin].expr.lhs.indices == s.indices
+        assert expr1[2+nlin].expr.rhs.is_Indexed
+        assert expr1[2+nlin].is_reduction
 
         op0()
         assert n0.data[0] == 11
@@ -946,7 +950,8 @@ class TestNodeParallelism:
             op = Operator(eqn, opt=('advanced', {'openmp': True}))
 
             iterations = FindNodes(Iteration).visit(op)
-            assert "reduction(max:n[0])" in iterations[0].pragmas[0].ccode.value
+            i = '0:1' if op._options['linearize'] else '0'
+            assert f"reduction(max:n[{i}])" in iterations[0].pragmas[0].ccode.value
 
             op()
             assert n.data[0] == 26
@@ -980,7 +985,7 @@ class TestNodeParallelism:
 
         op = Operator(eqns)
 
-        if configuration['language'] == 'openmp':
+        if 'openmp' in configuration['language']:
             iterations = FindNodes(Iteration).visit(op)
             expected = "reduction(max:r0) reduction(min:r1)"
             assert expected in iterations[0].pragmas[0].ccode.value
@@ -1357,9 +1362,9 @@ class TestNestedParallelism:
                             'par-collapse-ncores': 2,
                             'par-dynamic-work': 0}))
 
-        bns, _ = assert_blocking(op, {'ix0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0'})
 
-        trees = retrieve_iteration_tree(bns['ix0_blk0'])
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 1
         tree = trees[0]
         assert len(tree) == 5 + (blocklevels - 1) * 2

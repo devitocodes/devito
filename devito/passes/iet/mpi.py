@@ -85,7 +85,6 @@ def _hoist_invariant(iet):
 
     for it, halo_spots in iter_mapper.items():
         for hs0, hs1 in combinations(halo_spots, r=2):
-
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
@@ -131,10 +130,9 @@ def _hoist_invariant(iet):
 
 def _merge_halospots(iet):
     """
-    Merge HaloSpots on the same Iteration tree level where all data dependencies
-    would be honored. Avoids redundant halo exchanges when the same data is
-    redundantly exchanged within the same Iteration tree level as well as to initiate
-    multiple halo exchanges at once.
+    Using data dependence analysis, merge HaloSpots on the same IET level. This
+    has two effects: anticipating communication over computation, and (potentially)
+    avoiding redundant halo exchanges.
 
     Example:
 
@@ -143,7 +141,6 @@ def _merge_halospots(iet):
       W v[t1]- R v[t0]               W v[t1]- R v[t0]
       haloupd v[t0], h
       W g[t1]- R v[t0], h            W g[t1]- R v[t0], h
-
     """
 
     # Analysis
@@ -157,16 +154,15 @@ def _merge_halospots(iet):
         hs0 = halo_spots[0]
 
         for hs1 in halo_spots[1:]:
-
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
             for f, v in hs1.fmapper.items():
                 for dep in scope.d_flow.project(f):
-                    if not any(r(dep, hs1, v.loc_indices) for r in rules):
+                    if not any(rule(dep, hs1, v.loc_indices) for rule in rules):
                         break
                 else:
-                    # hs1 is merged with hs0
+                    # All good -- `hs1` can be merged with `hs0`
                     hs = hs1.halo_scheme.project(f)
                     mapper[hs0] = HaloScheme.union([mapper.get(hs0, hs0.halo_scheme), hs])
                     mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
@@ -200,8 +196,8 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
     writes = {i.write for i in FindNodes(Expression).visit(iet)}
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):
-        for f in hs.fmapper:
-            if f not in writes and key(f):
+        for f, v in hs.fmapper.items():
+            if not writes.intersection({f, v.bundle}) and key(f):
                 mapper[hs] = mapper.get(hs, hs.halo_scheme).drop(f)
 
     # Post-process analysis
@@ -270,14 +266,14 @@ def _mark_overlappable(iet):
 
 
 @iet_pass
-def make_halo_exchanges(iet, mpimode=None, **kwargs):
+def make_halo_exchanges(iet, mpimode=None, fallback='basic', **kwargs):
     """
     Lower HaloSpots into halo exchanges for distributed-memory parallelism.
     """
     # To produce unique object names
     generators = {'msg': generator(), 'comm': generator(), 'comp': generator()}
 
-    sync_heb = HaloExchangeBuilder('basic', generators, **kwargs)
+    sync_heb = HaloExchangeBuilder(fallback, generators, **kwargs)
     user_heb = HaloExchangeBuilder(mpimode, generators, **kwargs)
     mapper = {}
     for hs in FindNodes(HaloSpot).visit(iet):

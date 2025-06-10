@@ -184,7 +184,7 @@ def test_petsc_cast():
         op2 = Operator(petsc2)
         op3 = Operator(petsc3)
 
-    assert 'PetscScalar (* x_f1) = ' + \
+    assert 'PetscScalar * x_f1 = ' + \
         '(PetscScalar (*)) x_f1_vec;' in str(op1.ccode)
     assert 'PetscScalar (* x_f2)[info.gxm] = ' + \
         '(PetscScalar (*)[info.gxm]) x_f2_vec;' in str(op2.ccode)

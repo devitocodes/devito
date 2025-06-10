@@ -2,10 +2,13 @@ import numpy as np
 from sympy.printing.cxx import CXX11CodePrinter
 
 from devito.ir import Call, UsingNamespace, BasePrinter
+from devito.passes.iet.definitions import DataManager
+from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics.extended_dtypes import c_complex, c_double_complex
+from devito.symbolics import c_complex, c_double_complex
+from devito.tools import dtype_to_cstr
 
-__all__ = ['CXXBB']
+__all__ = ['CXXBB', 'CXXDataManager', 'CXXOrchestrator']
 
 
 def std_arith(prefix=None):
@@ -65,6 +68,8 @@ template<typename _Tp, typename _Ti>
 class CXXBB(LangBB):
 
     mapper = {
+        # Misc
+        'header-array': 'array',
         # Complex
         'includes-complex': 'complex',
         'complex-namespace': [UsingNamespace('std::complex_literals')],
@@ -85,6 +90,14 @@ class CXXBB(LangBB):
     }
 
 
+class CXXDataManager(DataManager):
+    langbb = CXXBB
+
+
+class CXXOrchestrator(Orchestrator):
+    langbb = CXXBB
+
+
 class CXXPrinter(BasePrinter, CXX11CodePrinter):
 
     _default_settings = {**BasePrinter._default_settings,
@@ -93,7 +106,7 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     _func_literals = {}
     _func_prefix = {np.float32: 'f', np.float64: 'f'}
     _restrict_keyword = '__restrict'
-    _includes = ['stdlib.h', 'cmath', 'sys/time.h']
+    _includes = ['cstdlib', 'cmath', 'sys/time.h']
 
     # These cannot go through _print_xxx because they are classes not
     # instances
@@ -104,6 +117,9 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
     def _print_ImaginaryUnit(self, expr):
         return f'1i{self.prec_literal(expr).lower()}'
 
+    def _print_ComplexPart(self, expr):
+        return f'{self._ns}{expr._name}({self._print(expr.args[0])})'
+
     def _print_Cast(self, expr):
         # The CXX recommended way to cast is to use static_cast
         tstr = self._print(expr._C_ctype)
@@ -112,3 +128,12 @@ class CXXPrinter(BasePrinter, CXX11CodePrinter):
         caster = 'reinterpret_cast' if expr.reinterpret else 'static_cast'
         cast = f'{caster}<{tstr}{self._print(expr.stars)}>'
         return self._print_UnaryOp(expr, op=cast, parenthesize=True)
+
+    def _print_ListInitializer(self, expr):
+        li = super()._print_ListInitializer(expr)
+        if expr.dtype:
+            # CXX, unlike C99, does not support compound literals
+            tstr = dtype_to_cstr(expr.dtype)
+            return f'std::array<{tstr}, {len(expr.params)}>{li}.data()'
+        else:
+            return li

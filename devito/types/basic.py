@@ -42,7 +42,8 @@ class CodeSymbol:
         * "liveness": `_mem_external`, `_mem_internal_eager`, `_mem_internal_lazy`
         * "space": `_mem_local`, `_mem_mapped`, `_mem_host`
         * "scope": `_mem_stack`, `_mem_heap`, `_mem_global`, `_mem_shared`,
-                   `_mem_shared_remote`, `_mem_constant`
+                   `_mem_shared_remote`, `_mem_constant`, `_mem_registers`,
+                   `_mem_rvalue`
 
     For example, an object that is `<_mem_internal_lazy, _mem_local, _mem_heap>`
     is allocated within the Operator entry point, on either the host or device
@@ -67,7 +68,8 @@ class CodeSymbol:
         """
         return
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def _C_name(self):
         """
         The name of the object in the generated code.
@@ -104,7 +106,8 @@ class CodeSymbol:
 
         return _type
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def _C_ctype(self):
         """
         The type of the object in the generated code as a `ctypes` class.
@@ -227,6 +230,21 @@ class CodeSymbol:
         """
         True if the associated data is allocated in so called remote shared
         memory, False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_registers(self):
+        """
+        True if the associated data is allocated in registers, False otherwise.
+        """
+        return False
+
+    @property
+    def _mem_rvalue(self):
+        """
+        True if the associated data is allocated in a temporary (or "transient")
+        variable, such as rvalues in CXX, False otherwise.
         """
         return False
 
@@ -368,13 +386,24 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
         return assumptions, kwargs
 
+    @staticmethod
+    def __xnew__(cls, name, **assumptions):
+        # Create the new Symbol
+        # Note: use __xnew__ to bypass sympy caching
+        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+
+        assumptions = newobj._assumptions.copy()
+        for key in ('real', 'imaginary', 'complex'):
+            assumptions.pop(key, None)
+        newobj._assumptions = assumptions
+
+        return newobj
+
     def __new__(cls, *args, **kwargs):
         name = kwargs.get('name') or args[0]
         assumptions, kwargs = cls._filter_assumptions(**kwargs)
 
-        # Create the new Symbol
-        # Note: use __xnew__ to bypass sympy caching
-        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+        newobj = cls.__xnew__(cls, name, **assumptions)
 
         # Initialization
         newobj._dtype = cls.__dtype_setup__(**kwargs)
@@ -413,7 +442,12 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         return not self.is_imaginary
 
     def _eval_is_imaginary(self):
-        return np.iscomplexobj(self.dtype(0))
+        try:
+            return np.iscomplexobj(self.dtype(0))
+        except TypeError:
+            # Non-callabale dtype, likely non-numpy
+            # Assuming it's not complex
+            return False
 
     @property
     def indices(self):
@@ -533,9 +567,7 @@ class Symbol(AbstractSymbol, Cached):
         # Not in cache. Create a new Symbol via sympy.Symbol
         args = list(args)
         name = kwargs.pop('name', None) or args.pop(0)
-
-        # Note: use __xnew__ to bypass sympy caching
-        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
+        newobj = cls.__xnew__(cls, name, **assumptions)
 
         # Initialization
         newobj._dtype = cls.__dtype_setup__(**kwargs)
@@ -554,21 +586,6 @@ class DataSymbol(AbstractSymbol, Uncached, ArgProvider):
     """
     A unique scalar symbol that carries data.
     """
-
-    def __new__(cls, *args, **kwargs):
-        # Create a new Symbol via sympy.Symbol
-        name = kwargs.get('name') or args[0]
-        assumptions, kwargs = cls._filter_assumptions(**kwargs)
-
-        # Note: use __xnew__ to bypass sympy caching
-        newobj = sympy.Symbol.__xnew__(cls, name, **assumptions)
-
-        # Initialization
-        newobj._dtype = cls.__dtype_setup__(**kwargs)
-        newobj.__init_finalize__(*args, **kwargs)
-
-        return newobj
-
     __hash__ = Uncached.__hash__
 
 
@@ -1465,6 +1482,15 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     def __subfunc_setup__(cls, *args, **kwargs):
         """Setup each component of the tensor as a Devito type."""
         return []
+
+    @classmethod
+    def _sympify(self, arg):
+        # This is used internally by sympy to process arguments at rebuilt. And since
+        # some of our properties are non-sympyfiable we need to have a fallback
+        try:
+            return super()._sympify(arg)
+        except sympy.SympifyError:
+            return arg
 
     @property
     def grid(self):

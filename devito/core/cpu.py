@@ -323,7 +323,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
 class Cpu64CustomCXXOperator(Cpu64CustomOperator):
 
-    _Target = CXXTarget
+    _Target = CXXOmpTarget
     LINEARIZE = True
 
 # Language level

@@ -599,11 +599,11 @@ class TestAliases:
                                               'cire-rotate': rotate}))
 
         # Check code generation
-        bns, pbs = assert_blocking(op1, {'ix0_blk0'})
-        xs, ys, zs = get_params(op1, 'ix0_blk0_size', 'iy0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(bns['ix0_blk0']) if i.is_Array]
+        bns, pbs = assert_blocking(op1, {'x0_blk0'})
+        xs, ys, zs = get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 1
-        assert len(FindNodes(VExpanded).visit(pbs['ix0_blk0'])) == 1
+        assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 1
         check_array(arrays[0], ((1, 1), (1, 1), (1, 1)), (xs+2, ys+2, zs+2), rotate)
 
         # Check numerical output
@@ -773,11 +773,11 @@ class TestAliases:
                                   'cire-mingain': 0, 'cire-rotate': rotate}))
 
         # Check code generation
-        bns, pbs = assert_blocking(op1, {'ix0_blk0'})
-        xs, ys, zs = get_params(op1, 'ix0_blk0_size', 'iy0_blk0_size', 'z_size')
-        arrays = [i for i in FindSymbols().visit(bns['ix0_blk0']) if i.is_Array]
+        bns, pbs = assert_blocking(op1, {'x0_blk0'})
+        xs, ys, zs = get_params(op1, 'x0_blk0_size', 'y0_blk0_size', 'z_size')
+        arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 2
-        assert len(FindNodes(VExpanded).visit(pbs['ix0_blk0'])) == 2
+        assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 2
         check_array(arrays[0], ((1, 0), (1, 0), (0, 0)), (xs+1, ys+1, zs), rotate)
         check_array(arrays[1], ((1, 1), (1, 0)), (ys+2, zs+1), rotate)
 
@@ -1095,7 +1095,7 @@ class TestAliases:
         arrays = [i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]
         assert len(arrays) == 6
         vexpandeds = FindNodes(VExpanded).visit(pbs['x0_blk0'])
-        assert len(vexpandeds) == (2 if configuration['language'] == 'openmp' else 0)
+        assert len(vexpandeds) == (2 if 'openmp' in configuration['language'] else 0)
         assert all(i._mem_heap and not i._mem_external for i in arrays)
         trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 2
@@ -1219,6 +1219,8 @@ class TestAliases:
         assert len(arrays) == 4
 
         exprs = FindNodes(Expression).visit(op)
+        if op._options['linearize']:
+            exprs = exprs[6:]
         sqrt_exprs = exprs[:2]
         assert all(e.write in arrays for e in sqrt_exprs)
         assert all(e.expr.rhs.is_Pow for e in sqrt_exprs)
@@ -2314,12 +2316,14 @@ class TestAliases:
 
         op0 = Operator(eq, opt='noop')
         op1 = Operator(eq, opt=('advanced', {'blocklevels': 2, 'cire-rotate': rotate,
+                                             'linearize': False,
                                              'min-storage': True}))
         op2 = Operator(eq, opt=('advanced', {'blocklevels': 2, 'par-nested': 0,
+                                             'linearize': False,
                                              'cire-rotate': rotate, 'min-storage': True}))
 
         # Check code generation
-        if configuration['language'] == 'openmp':
+        if 'openmp' in configuration['language']:
             prefix = ['t']
         else:
             prefix = []
@@ -2341,7 +2345,7 @@ class TestAliases:
                 prefix + ['t,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z']*3,
                 't,x0_blk0,y0_blk0,x0_blk1,y0_blk1,x,y,z,x,y,z,y,z'
             )
-        if configuration['language'] == 'openmp':
+        if 'openmp' in configuration['language']:
             bns, _ = assert_blocking(op2, {'x0_blk0'})
 
             pariters = FindNodes(ParallelIteration).visit(bns['x0_blk0'])
@@ -2382,7 +2386,8 @@ class TestAliases:
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
         op1 = Operator(eqn, opt=('advanced', {'openmp': True, 'cire-mingain': 0,
-                                              'cire-ftemps': True}))
+                                              'cire-ftemps': True,
+                                              'linearize': False}))
         op2 = Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'cire-mingain': 0,
                                                   'cire-ftemps': True}))
 
@@ -2636,7 +2641,8 @@ class TestAliases:
         op = Operator(Eq(fo, f.dx))
         op.apply()
 
-        assert FindNodes(Expression).visit(op)[0].dtype == np.float32
+        k = 2 if op._options['linearize'] else 0
+        assert FindNodes(Expression).visit(op)[k].dtype == np.float32
         assert np.all(fo.data[:-1, :-1] == 8)
 
     def test_sparse_const(self):
@@ -2795,7 +2801,7 @@ class TestTTI:
         assert len(arrays) == 6
         assert all(not i._mem_external for i in arrays)
         assert len([i for i in arrays if i._mem_heap]) == 6
-        vexpanded = 2 if configuration['language'] == 'openmp' else 0
+        vexpanded = 2 if 'openmp' in configuration['language'] else 0
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == vexpanded
 
     @switchconfig(profiling='advanced')

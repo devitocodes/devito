@@ -88,7 +88,7 @@ jobs:
         rm -f /tmp/ssh-auth.sock
 
     - name: Deploy results to devitocodes/devito-performance/gh-pages
-      uses: peaceiris/actions-gh-pages@v3
+      uses: peaceiris/actions-gh-pages@v4
       with:
         deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
         external_repository: devitocodes/devito-performance

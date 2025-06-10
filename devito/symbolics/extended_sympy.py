@@ -5,7 +5,7 @@ import re
 
 import numpy as np
 import sympy
-from sympy import Expr, Function, Number, Tuple, sympify
+from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
 
 from devito.finite_differences.elementary import Min, Max
@@ -22,7 +22,7 @@ __all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
            'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
            'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace',
            'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
-           'Mod']
+           'Mod', 'VectorAccess']
 
 
 class CondEq(sympy.Eq):
@@ -85,7 +85,7 @@ class IntDiv(sympy.Expr):
     def __new__(cls, lhs, rhs, params=None):
         if rhs == 0:
             raise ValueError("Cannot divide by 0")
-        elif rhs == 1:
+        elif rhs == 1 or rhs is None:
             return lhs
 
         if not is_integer(rhs):
@@ -176,7 +176,10 @@ class BasicWrapperMixin:
         """
         Overridden SymPy assumption -- now based on the wrapped object dtype.
         """
-        return issubclass(self.dtype, np.number)
+        try:
+            return issubclass(self.dtype, np.number)
+        except TypeError:
+            return self.dtype in ctypes_vector_mapper
 
     def _sympystr(self, printer):
         return str(self)
@@ -321,8 +324,9 @@ class ListInitializer(sympy.Expr, Pickable):
     """
 
     __rargs__ = ('params',)
+    __rkwargs__ = ('dtype',)
 
-    def __new__(cls, params):
+    def __new__(cls, params, dtype=None):
         args = []
         for p in as_tuple(params):
             try:
@@ -330,7 +334,10 @@ class ListInitializer(sympy.Expr, Pickable):
             except sympy.SympifyError:
                 raise ValueError(f"Illegal param `{p}`")
         obj = sympy.Expr.__new__(cls, *args)
+
         obj.params = tuple(args)
+        obj.dtype = dtype
+
         return obj
 
     def __str__(self):
@@ -478,10 +485,7 @@ class Cast(UnaryOp):
 
     @property
     def _op(self):
-        cstr = ctypes_to_cstr(self._C_ctype)
-        if self.stars:
-            cstr = f"{cstr}{self.stars}"
-        return f'({cstr})'
+        return f'({ctypes_to_cstr(self._C_ctype)}{self.stars})'
 
     def __str__(self):
         return f"{self._op}{self.base}"
@@ -819,6 +823,36 @@ class Rvalue(sympy.Expr, Pickable):
         return rvalue
 
     __repr__ = __str__
+
+
+class VectorAccess(Expr, Pickable, BasicWrapperMixin):
+
+    """
+    Represent a vector access operation at high-level.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        return Expr.__new__(cls, *args)
+
+    def __str__(self):
+        return f"VL<{self.base}>"
+
+    __repr__ = __str__
+
+    func = Pickable._rebuild
+
+    @property
+    def base(self):
+        return self.args[0]
+
+    @property
+    def indices(self):
+        return self.base.indices
+
+    @cacheit
+    def sort_key(self, order=None):
+        # Ensure that the VectorAccess is sorted as the base
+        return self.base.sort_key(order=order)
 
 
 # Some other utility objects

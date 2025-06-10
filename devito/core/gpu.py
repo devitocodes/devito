@@ -10,15 +10,17 @@ from devito.passes.equations import collect_derivatives
 from devito.passes.clusters import (Lift, tasking, memcpy_prefetch, blocking,
                                     buffering, cire, cse, factorize, fission, fuse,
                                     optimize_pows)
-from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, mpiize,
-                               hoist_prodders, linearize, pthreadify,
+from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, DeviceCXXOmpTarget,
+                               mpiize, hoist_prodders, linearize, pthreadify,
                                relax_incr_dimensions, check_stability)
 from devito.tools import as_tuple, timed_pass
 
 __all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
            'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceFsgOmpOperator',
            'DeviceCustomOmpOperator', 'DeviceNoopAccOperator', 'DeviceAdvAccOperator',
-           'DeviceFsgAccOperator', 'DeviceCustomAccOperator']
+           'DeviceFsgAccOperator', 'DeviceCustomAccOperator', 'DeviceNoopCXXOmpOperator',
+           'DeviceAdvCXXOmpOperator', 'DeviceFsgCXXOmpOperator',
+           'DeviceCustomCXXOmpOperator']
 
 
 class DeviceOperatorMixin:
@@ -364,12 +366,27 @@ class DeviceNoopOmpOperator(DeviceOmpOperatorMixin, DeviceNoopOperator):
     pass
 
 
+class DeviceNoopCXXOmpOperator(DeviceNoopOmpOperator):
+    _Target = DeviceCXXOmpTarget
+    LINEARIZE = True
+
+
 class DeviceAdvOmpOperator(DeviceOmpOperatorMixin, DeviceAdvOperator):
     pass
 
 
+class DeviceAdvCXXOmpOperator(DeviceAdvOmpOperator):
+    _Target = DeviceCXXOmpTarget
+    LINEARIZE = True
+
+
 class DeviceFsgOmpOperator(DeviceOmpOperatorMixin, DeviceFsgOperator):
     pass
+
+
+class DeviceFsgCXXOmpOperator(DeviceFsgOmpOperator):
+    _Target = DeviceCXXOmpTarget
+    LINEARIZE = True
 
 
 class DeviceCustomOmpOperator(DeviceOmpOperatorMixin, DeviceCustomOperator):
@@ -382,6 +399,11 @@ class DeviceCustomOmpOperator(DeviceOmpOperatorMixin, DeviceCustomOperator):
         mapper = super()._make_iet_passes_mapper(**kwargs)
         mapper['openmp'] = mapper['parallel']
         return mapper
+
+
+class DeviceCustomCXXOmpOperator(DeviceCustomOmpOperator):
+    _Target = DeviceCXXOmpTarget
+    LINEARIZE = True
 
 
 # OpenACC
