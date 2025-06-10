@@ -416,7 +416,6 @@ def _is_iter_carried(hsf, scope):
         return not any(d in hsf.dimensions or dep.distance_mapper[d] is S.Infinity
                        for d in dep.cause)
 
-
     def rule1(dep, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>`, `loc_indices={t: t0}` => OK
         return any(dep.distance_mapper[d] == 0 and

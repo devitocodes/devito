@@ -1863,7 +1863,7 @@ class TestCodeGeneration:
         v3 = TimeFunction(name='v3', grid=grid, space_order=2, time_order=1,  # noqa
                           save=Buffer(1))
 
-        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
 
         if fwd:
             eqns = [Eq(v1.forward, v2.laplace + v1),
