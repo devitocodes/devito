@@ -1,4 +1,4 @@
-from ctypes import POINTER, Structure, c_void_p, c_ulong, c_uint64
+from ctypes import POINTER, Structure, c_void_p, c_int, c_uint64
 from functools import cached_property
 
 import numpy as np
@@ -10,7 +10,7 @@ from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
 
 __all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess', 'Bag']
+           'ComponentAccess', 'Bag', 'BundleView']
 
 
 class ArrayBasic(AbstractFunction, LocalType):
@@ -40,7 +40,7 @@ class ArrayBasic(AbstractFunction, LocalType):
 
     @property
     def _C_name(self):
-        if self._mem_stack or self._mem_constant:
+        if self._mem_stack or self._mem_constant or self._mem_rvalue:
             # No reason to distinguish between two different names, that is
             # the _C_name and the name -- just `self.name` is enough
             return self.name
@@ -75,6 +75,12 @@ class ArrayBasic(AbstractFunction, LocalType):
     def _C_free_priority(self):
         return 0
 
+    def c0(self):
+        # ArrayBasic can be used as a base class for tensorial objects (that is,
+        # arrays whose components are AbstractFunctions). This property enables
+        # treating the two cases uniformly in some lowering passes
+        return self
+
 
 class Array(ArrayBasic):
 
@@ -105,7 +111,7 @@ class Array(ArrayBasic):
         to 'local'. Used to override `_mem_local` and `_mem_mapped`.
     scope : str, optional
         The scope in the given memory space. Allowed values: 'heap', 'stack',
-        'static', 'constant', 'shared', 'shared-remote', 'registers'.
+        'static', 'constant', 'shared', 'shared-remote', 'registers', 'rvalue'.
         'static' refers to a static array in a C/C++ sense. 'constant' and
         'shared' mean that the Array represents an object allocated in so
         called constant and shared memory, respectively, which are typical of
@@ -115,7 +121,9 @@ class Array(ArrayBasic):
         architecture doesn't have something akin to constant memory, the Array
         falls back to a global, const, static array in a C/C++ sense.
         'registers' is used to indicate that the Array has a small static size
-        and, as such, it could be allocated in registers. Defaults to 'heap'.
+        and, as such, it could be allocated in registers. If `rvalue`, the
+        Array is treated as a temporary or "transient" object, just like
+        C++'s rvalue references or C's compound literals. Defaults to 'heap'.
         Note that not all scopes make sense for a given space.
     grid : Grid, optional
         Only necessary for distributed-memory parallelism; a Grid contains
@@ -150,7 +158,7 @@ class Array(ArrayBasic):
 
         self._scope = kwargs.get('scope', 'heap')
         assert self._scope in ['heap', 'stack', 'static', 'constant', 'shared',
-                               'shared-remote', 'registers']
+                               'shared-remote', 'registers', 'rvalue']
 
         self._initvalue = kwargs.get('initvalue')
         assert self._initvalue is None or self._scope != 'heap'
@@ -206,6 +214,10 @@ class Array(ArrayBasic):
         return self._scope == 'constant'
 
     @property
+    def _mem_rvalue(self):
+        return self._scope == 'rvalue'
+
+    @property
     def initvalue(self):
         return self._initvalue
 
@@ -217,19 +229,27 @@ class Array(ArrayBasic):
         return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
 
 
-class ArrayMapped(Array):
+class MappedArrayMixin:
 
     _C_structname = 'array'
     _C_field_data = 'data'
     _C_field_dmap = 'dmap'
-    _C_field_nbytes = 'nbytes'
+    _C_field_shape = 'shape'
     _C_field_size = 'size'
+    _C_field_nbytes = 'nbytes'
+    _C_field_arity = 'arity'
 
     _C_ctype = POINTER(type(_C_structname, (Structure,),
                             {'_fields_': [(_C_field_data, c_restrict_void_p),
-                                          (_C_field_nbytes, c_ulong),
                                           (_C_field_dmap, c_void_p),
-                                          (_C_field_size, c_uint64)]}))
+                                          (_C_field_shape, POINTER(c_int)),
+                                          (_C_field_size, c_uint64),
+                                          (_C_field_nbytes, c_uint64),
+                                          (_C_field_arity, c_uint64)]}))
+
+
+class ArrayMapped(MappedArrayMixin, Array):
+    pass
 
 
 class ArrayObject(ArrayBasic):
@@ -358,7 +378,7 @@ class PointerArray(ArrayBasic):
         return self._array
 
 
-class Bundle(ArrayBasic):
+class Bundle(MappedArrayMixin, ArrayBasic):
 
     """
     Tensor symbol representing an unrolled vector of AbstractFunctions.
@@ -432,7 +452,6 @@ class Bundle(ArrayBasic):
 
     @property
     def c0(self):
-        # Shortcut for self.components[0]
         return self.components[0]
 
     # Class attributes overrides
@@ -471,17 +490,26 @@ class Bundle(ArrayBasic):
     def initvalue(self):
         return None
 
-    # Overrides defaulting to self.c0's behaviour
-
+    # Defaulting to self.c0's behaviour
     for i in ('_mem_internal_eager', '_mem_internal_lazy', '_mem_local',
               '_mem_mapped', '_mem_host', '_mem_stack', '_mem_constant',
-              '_mem_shared', '_mem_shared_remote', '__padding_dtype__',
-              '_size_domain', '_size_halo', '_size_owned', '_size_padding',
-              '_size_nopad', '_size_nodomain', '_offset_domain',
-              '_offset_halo', '_offset_owned', '_dist_dimensions',
-              '_C_get_field', 'grid', 'symbolic_shape',
+              '_mem_shared', '_mem_shared_remote', '_mem_registers',
+              '_mem_rvalue', '__padding_dtype__', '_size_domain', '_size_halo',
+              '_size_owned', '_size_padding', '_size_nopad', '_size_nodomain',
+              '_offset_domain', '_offset_halo', '_offset_owned',
+              '_dist_dimensions', '_C_get_field', 'grid',
               *AbstractFunction.__properties__):
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
+
+    # Other overrides
+
+    @cached_property
+    def symbolic_shape(self):
+        from devito.symbolics import FieldFromPointer, IndexedPointer  # noqa
+        ffp = FieldFromPointer(self._C_field_shape, self._C_symbol)
+        ret = [s if is_integer(s) else IndexedPointer(ffp, i)
+               for i, s in enumerate(super().symbolic_shape)]
+        return DimensionTuple(*ret, getters=self.dimensions)
 
     @property
     def _mem_heap(self):
@@ -505,16 +533,10 @@ class Bundle(ArrayBasic):
             raise ValueError("Expected %d or %d indices, got %d instead"
                              % (self.ndim, self.ndim + 1, len(index)))
 
-    _C_structname = ArrayMapped._C_structname
-    _C_field_data = ArrayMapped._C_field_data
-    _C_field_nbytes = ArrayMapped._C_field_nbytes
-    _C_field_dmap = ArrayMapped._C_field_dmap
-    _C_field_size = ArrayMapped._C_field_size
-
     @property
     def _C_ctype(self):
         if self._mem_mapped:
-            return ArrayMapped._C_ctype
+            return super()._C_ctype
         else:
             return POINTER(dtype_to_ctype(self.dtype))
 
@@ -531,6 +553,35 @@ class Bag(Bundle):
     @property
     def handles(self):
         return self.components
+
+
+class BundleView(Bundle):
+
+    """
+    A BundleView is like a Bundle but it doesn't represent a concrete object
+    in the generated code. It's used by the compiler to represent a subset
+    of the components of a Bundle.
+    """
+
+    __rkwargs__ = Bundle.__rkwargs__ + ('parent',)
+
+    def __new__(cls, *args, parent=None, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        obj._parent = parent
+
+        return obj
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @property
+    def handles(self):
+        return (self.parent,)
+
+    @property
+    def component_indices(self):
+        return tuple(self.parent.components.index(i) for i in self.components)
 
 
 class ComponentAccess(Expr, Pickable):
@@ -583,6 +634,10 @@ class ComponentAccess(Expr, Pickable):
     @property
     def function(self):
         return self.base.function
+
+    @property
+    def function_access(self):
+        return self.function.components[self.index]
 
     @property
     def indices(self):

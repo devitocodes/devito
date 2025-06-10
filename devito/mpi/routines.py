@@ -17,9 +17,9 @@ from devito.mpi import MPI
 from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
                               IndexedPointer, Macro, cast, subs_op_args)
 from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, infer_datasize,
-                          flatten, generator, is_integer, split)
-from devito.types import (Array, Bag, Dimension, Eq, Symbol, LocalObject,
-                          CompositeObject, CustomDimension)
+                          flatten, generator, is_integer)
+from devito.types import (Array, Bag, BundleView, Dimension, Eq, Symbol,
+                          LocalObject, CompositeObject, CustomDimension)
 
 __all__ = ['HaloExchangeBuilder', 'ReductionBuilder', 'mpi_registry']
 
@@ -292,19 +292,28 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         mapper = as_mapper(halo_scheme.fmapper, lambda i: halo_scheme.fmapper[i])
         for hse, components in mapper.items():
-            # We recast everything as Bags for simplicity -- worst case scenario
-            # all Bags only have one component. Existing Bundles are preserved
             halo_scheme = halo_scheme.drop(components)
-            bundles, candidates = split(tuple(components), lambda i: i.is_Bundle)
-            for b in bundles:
-                halo_scheme = halo_scheme.add(b, hse)
 
+            # Existing Bundles are preserved
+            if hse.bundle:
+                if set(components) == set(hse.bundle.components):
+                    halo_scheme = halo_scheme.add(hse.bundle, hse)
+                else:
+                    name = f'bundleview_{hse.bundle.name}'
+                    bundle_view = BundleView(
+                        name=name, components=components, parent=hse.bundle
+                    )
+                    halo_scheme = halo_scheme.add(bundle_view, hse)
+                continue
+
+            # We recast everything else as Bags for simplicity -- worst case
+            # scenario all Bags only have one component.
             try:
-                name = "bag_%s" % "".join(f.name for f in candidates)
-                bag = Bag(name=name, components=candidates)
+                name = "bag_%s" % "".join(f.name for f in components)
+                bag = Bag(name=name, components=components)
                 halo_scheme = halo_scheme.add(bag, hse)
             except ValueError:
-                for i in candidates:
+                for i in components:
                     name = "bag_%s" % i.name
                     bag = Bag(name=name, components=i)
                     halo_scheme = halo_scheme.add(bag, hse)
@@ -363,10 +372,17 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         else:
             swap = lambda i, j: (j, i)
             name = 'scatter%s' % key
+
         if isinstance(f, Bag):
             for i, c in enumerate(f.components):
                 eqns.append(Eq(*swap(buf[[i] + bdims], c[findices])))
+        elif isinstance(f, BundleView):
+            assert f.parent is hse.bundle
+            for i, c in enumerate(f.components):
+                indices = [f.parent.components.index(c), *findices]
+                eqns.append(Eq(*swap(buf[[i] + bdims], f.parent[indices])))
         else:
+            assert f.is_Bundle
             for i in range(f.ncomp):
                 eqns.append(Eq(*swap(buf[[i] + bdims], f[[i] + findices])))
 
@@ -724,7 +740,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         parameters = list(f.handles) + list(fixed.values()) + [nb, msg]
 
-        return Callable('halowait%d' % key, iet, 'void', parameters, ('static',))
+        return HaloWait(f'halowait{key}', iet, parameters)
 
     def _call_halowait(self, name, f, hse, msg):
         nb = f.grid.distributor._obj_neighborhood
@@ -763,7 +779,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsgEnriched('msg%d' % key, f, halos)
+        return MPIMsgEnriched(f'msg{key}', f, halos)
 
     def _make_sendrecv(self, *args, **kwargs):
         return
@@ -852,7 +868,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ncomms = Symbol(name='ncomms')
         iet = Iteration([waitsend, waitrecv, scatter], dim, ncomms - 1)
         parameters = f.handles + tuple(fixed.values()) + (msg, ncomms)
-        return Callable('halowait%d' % key, iet, 'void', parameters, ('static',))
+        return HaloWait(f'halowait{key}', iet, parameters)
 
     def _call_halowait(self, name, f, hse, msg):
         args = f.handles + tuple(hse.loc_indices.values()) + (msg, msg.npeers)
@@ -1034,9 +1050,11 @@ class SendRecv(MPICallable):
 
 
 class HaloUpdate(MPICallable):
+    pass
 
-    def __init__(self, name, body, parameters):
-        super().__init__(name, body, parameters)
+
+class HaloWait(MPICallable):
+    pass
 
 
 class Remainder(ElementalFunction):
@@ -1216,8 +1234,16 @@ class MPIMsg(CompositeObject):
         return {self.name: self.value}
 
     def _arg_values(self, args=None, **kwargs):
-        # Any will do
-        for f in self.target.components:
+        # Since the components are by construction homogeneous, any will do
+        v = self.target
+        if isinstance(v, BundleView):
+            # NOTE: This is a tricky one: think about a BundleView with just K
+            # components, while its parent has N (clearly N > K). There could be
+            # an override for one of the N-K parent's components, but not for any
+            # of the K BundleView's components. So we need to check the parent
+            # for the override, and not the BundleView itself
+            v = v.parent
+        for f in v.components:
             try:
                 alias = kwargs[f.name]
                 break
@@ -1238,12 +1264,14 @@ class MPIMsgEnriched(MPIMsg):
     _C_field_ofsg = 'ofsg'
     _C_field_from = 'fromrank'
     _C_field_to = 'torank'
+    _C_field_components = 'components'
 
     fields = MPIMsg.fields + [
         (_C_field_ofss, POINTER(c_int)),
         (_C_field_ofsg, POINTER(c_int)),
         (_C_field_from, c_int),
-        (_C_field_to, c_int)
+        (_C_field_to, c_int),
+        (_C_field_components, POINTER(c_int)),
     ]
 
     def _arg_defaults(self, allocator, alias=None, args=None):
@@ -1281,6 +1309,17 @@ class MPIMsgEnriched(MPIMsg):
                     # `_offset_halo[d].left` as otherwise we would pick the corner
                     ofss.append(f._offset_owned[dim].left)
             entry.ofss = (c_int*len(ofss))(*ofss)
+
+            # Track the component accesses for packing/unpacking as numbers
+            # representing the field being accessed (that is: .x -> 0, .y -> 1,
+            # .z -> 2, .w -> 3), if any
+            if isinstance(self.target, BundleView):
+                ncomp = self.target.ncomp
+                component_indices = self.target.component_indices
+                entry.components = (c_int*ncomp)(*component_indices)
+            elif self.target.is_Bundle:
+                ncomp = self.target.ncomp
+                entry.components = (c_int*ncomp)(*range(ncomp))
 
         return {self.name: self.value}
 

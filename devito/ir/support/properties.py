@@ -85,6 +85,13 @@ array accesses, typically through the use of custom conditionals in the body. Th
 is used for iteration spaces that are larger than the data space.
 """
 
+INBOUND_IF_RELAXED = Property('inbound-if-relaxed')
+"""
+Similar to INBOUND, but devised for IncrDimensions whose iteration space is
+_not_ larger than the data space and, as such, still require full lowering
+(see the `relax_incr_dimensions` pass for more info).
+"""
+
 PREFETCHABLE = Property('prefetchable')
 """
 A Dimension along which prefetching is feasible and beneficial.
@@ -295,6 +302,9 @@ class Properties(frozendict):
     def inbound(self, dims):
         return self.add(dims, INBOUND)
 
+    def inbound_if_relaxed(self, dims):
+        return self.add(dims, INBOUND_IF_RELAXED)
+
     def init_core_shm(self, dims):
         properties = self.add(dims, INIT_CORE_SHM)
         properties = properties.drop(properties={INIT_HALO_LEFT_SHM,
@@ -327,7 +337,8 @@ class Properties(frozendict):
         return any(AFFINE in self.get(d, ()) for d in as_tuple(dims))
 
     def is_inbound(self, dims):
-        return any(INBOUND in self.get(d, ()) for d in as_tuple(dims))
+        return any({INBOUND, INBOUND_IF_RELAXED}.intersection(self.get(d, set()))
+                   for d in as_tuple(dims))
 
     def is_sequential(self, dims):
         return any(SEQUENTIAL in self.get(d, ()) for d in as_tuple(dims))

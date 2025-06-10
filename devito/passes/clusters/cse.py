@@ -14,7 +14,7 @@ from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
 from devito.symbolics.manipulation import _uxreplace
-from devito.tools import DAG, as_list, as_tuple, frozendict
+from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
@@ -78,7 +78,8 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     if cluster.is_fence:
         return cluster
 
-    make = lambda: CTemp(name=sregistry.make_name(), dtype=dtype)
+    make_dtype = lambda e: np.promote_types(e.dtype, dtype).type
+    make = lambda e: CTemp(name=sregistry.make_name(), dtype=make_dtype(e))
 
     exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)
 
@@ -118,7 +119,7 @@ def _cse(maybe_exprs, make, min_cost=1, mode='basic'):
             exprs = maybe_exprs
             scope = Scope(maybe_exprs)
         else:
-            exprs = [Eq(make(), e) for e in maybe_exprs]
+            exprs = [Eq(make(e), e) for e in maybe_exprs]
             scope = Scope([])
 
     # Some sub-expressions aren't really "common" -- that's the case of Dimension-
@@ -155,7 +156,7 @@ def _cse(maybe_exprs, make, min_cost=1, mode='basic'):
         candidates = [c for c in candidates if c.cost == cost]
 
         # Apply replacements
-        chosen = [(c, scheduled.get(c.key) or make()) for c in candidates]
+        chosen = [(c, scheduled.get(c.key) or make(c)) for c in candidates]
         exprs = _inject(exprs, chosen, scheduled)
 
     # Drop useless temporaries (e.g., r0=r1)
@@ -274,6 +275,10 @@ class Candidate(tuple):
     @property
     def expr(self):
         return self[0]
+
+    @property
+    def dtype(self):
+        return extract_dtype(self.expr)
 
     @property
     def conditionals(self):

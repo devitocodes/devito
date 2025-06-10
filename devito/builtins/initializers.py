@@ -79,6 +79,7 @@ def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
         eqs = [eq.xreplace(subs) for eq in eqs]
 
     op = dv.Operator(eqs, name=name, **kwargs)
+
     try:
         op()
     except ValueError:

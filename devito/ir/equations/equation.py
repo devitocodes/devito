@@ -224,7 +224,7 @@ class LoweredEq(IREq):
             index = d.index
             if d.condition is not None and d in expr.free_symbols:
                 index = index - relational_min(d.condition, d.parent)
-            expr = uxreplace(expr, {d: IntDiv(index, d.factor)})
+            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor)})
 
         conditionals = frozendict(conditionals)
 

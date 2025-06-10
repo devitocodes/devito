@@ -102,9 +102,15 @@ class Node(Signer):
 
     @property
     def view(self):
-        """A representation of the IET rooted in ``self``."""
+        """A high-level representation of the IET rooted in `self`."""
         from devito.ir.iet.visitors import printAST
         return printAST(self)
+
+    @property
+    def view_cir(self):
+        from devito.ir.iet.visitors import CGen
+        from devito.passes.iet.languages.CIR import CIRPrinter
+        return str(CGen(printer=CIRPrinter).visit(self))
 
     @property
     def children(self):
@@ -148,7 +154,7 @@ class Node(Signer):
         return ()
 
     def _signature_items(self):
-        return (str(self),)
+        return (self.view_cir,)
 
 
 class ExprStmt:

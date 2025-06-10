@@ -27,5 +27,12 @@ class DevitoDeprecation():
              DeprecationWarning, stacklevel=2)
         return
 
+    @cached_property
+    def constant_factor_warn(self):
+        warn("Using a `Constant` as a factor when creating a ConditionalDimension"
+             " is deprecated. Use an integer instead.",
+             DeprecationWarning, stacklevel=2)
+        return
+
 
 deprecations = DevitoDeprecation()

@@ -107,7 +107,8 @@ class TestCodeGenSkewing:
         assert iters[2].dim is z
 
         skewed = [i.expr for i in FindNodes(Expression).visit(op)]
-        assert str(skewed[0]).replace(' ', '') == expected
+        n = 4 if op._options['linearize'] else 0
+        assert str(skewed[n]).replace(' ', '') == expected
 
     '''
     Test code generation with skewing only
@@ -171,4 +172,5 @@ class TestCodeGenSkewing:
             assert iters[3].symbolic_min == iters[3].dim.symbolic_min
             assert iters[3].symbolic_max == iters[3].dim.symbolic_max
 
-        assert str(skewed[0]).replace(' ', '') == expected
+        n = 6 if op._options['linearize'] else 0
+        assert str(skewed[n]).replace(' ', '') == expected
