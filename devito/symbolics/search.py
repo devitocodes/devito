@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterable, Iterator
 from typing import Any, Literal
 
+import numpy as np
 import sympy
 
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
@@ -12,31 +13,33 @@ __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers
            'retrieve_derivatives', 'search']
 
 
-class Set(set):
+Expression = sympy.Basic | np.number | int | float
 
+
+class Set(set[Expression]):
     @staticmethod
-    def wrap(obj) -> set:
+    def wrap(obj: Expression) -> set[Expression]:
         return {obj}
 
 
-class List(list):
-
+class List(list[Expression]):
     @staticmethod
-    def wrap(obj) -> list:
+    def wrap(obj: Expression) -> list[Expression]:
         return [obj]
 
-    def update(self, obj: Iterable[Any]) -> None:
-        return self.extend(obj)
-    
+    def update(self, obj: Iterable[Expression]) -> None:
+        self.extend(obj)
 
-modes: dict[Literal['all', 'unique'], type[List] | type[Set]] = {
+
+Mode = Literal['all', 'unique']
+modes: dict[Mode, type[List] | type[Set]] = {
     'all': List,
     'unique': Set
 }
 
 
 class Search:
-    def __init__(self, query: Callable[[Any], bool], deep: bool = False) -> None:
+    def __init__(self, query: Callable[[Expression], bool], deep: bool = False) -> None:
         """
         Search objects in an expression. This is much quicker than the more general
         SymPy's find.
@@ -51,39 +54,46 @@ class Search:
         self.query = query
         self.deep = deep
 
-    def _next(self, expr) -> Iterator[Any]:
+    def _next(self, expr: Expression) -> Iterator[Expression]:
         if self.deep and expr.is_Indexed:
             yield from expr.indices
         elif not q_leaf(expr):
             yield from expr.args
 
-    def visit_postorder(self, expr) -> Iterator[Any]:
+    def visit_postorder(self, expr: Expression) -> Iterator[Expression]:
+        """
+        Visit the expression with a postorder traversal, yielding all hits.
+        """
         for i in self._next(expr):
             yield from self.visit_postorder(i)
         if self.query(expr):
             yield expr
 
-    def visit_preorder(self, expr) -> Iterator[Any]:
+    def visit_preorder(self, expr: Expression) -> Iterator[Expression]:
+        """
+        Visit the expression with a preorder traversal, yielding all hits.
+        """
         if self.query(expr):
             yield expr
         for i in self._next(expr):
             yield from self.visit_preorder(i)
 
-    def visit_preorder_first_hit(self, expr) -> tuple[Any, ...]:
-        """Visit the expression in preorder and return the first hit."""
+    def visit_preorder_first_hit(self, expr: Expression) -> Iterator[Expression]:
+        """
+        Visit the expression in preorder and return a tuple containing the first hit,
+        if any. This can return more than a single result, as it looks for the first
+        hit from any branch but may find a hit in multiple branches.
+        """
         if self.query(expr):
-            return (expr,)
+            yield expr
+            return
         for i in self._next(expr):
-            result = self.visit_preorder_first_hit(i)
-            if result:
-                return result
-        return ()
+            yield from self.visit_preorder_first_hit(i)
 
 
-
-def search(exprs,
+def search(exprs: Expression | Iterable[Expression],
            query: type | Callable[[Any], bool],
-           mode: Literal['all', 'unique'] = 'unique',
+           mode: Mode = 'unique',
            visit: Literal['dfs', 'bfs', 'bfs_first_hit'] = 'dfs',
            deep: bool = False) -> List | Set:
     """Interface to Search."""
@@ -98,13 +108,12 @@ def search(exprs,
     # Search doesn't actually use a BFS (rather, a preorder DFS), but the terminology
     # is retained in this function's parameters for backwards compatibility
     searcher = Search(Q, deep)
-
     if visit == 'dfs':
-        _visit = searcher.visit_postorder
+        _search = searcher.visit_postorder
     elif visit == 'bfs':
-        _visit = searcher.visit_preorder
+        _search = searcher.visit_preorder
     elif visit == 'bfs_first_hit':
-        _visit = searcher.visit_preorder_first_hit
+        _search = searcher.visit_preorder_first_hit
     else:
         raise ValueError(f"Unknown visit mode '{visit}'")
 
@@ -113,7 +122,7 @@ def search(exprs,
         if not isinstance(e, sympy.Basic):
             continue
 
-        found.update(_visit(e))
+        found.update(_search(e))
 
     return found
 
