@@ -140,6 +140,10 @@ class PetscBundle(Bundle):
     def _C_ctype(self):
         fields = [(i.target.name, dtype_to_ctype(i.dtype)) for i in self.components]
         return POINTER(type(self.pname, (Structure,), {'_fields_': fields}))
+    
+    @cached_property
+    def symbolic_shape(self):
+        return self.c0.symbolic_shape
 
     @cached_property
     def indexed(self):
