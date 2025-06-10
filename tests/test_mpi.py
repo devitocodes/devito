@@ -1885,7 +1885,7 @@ class TestCodeGeneration:
             assert calls[i].arguments[0] is eval(v)
 
     @pytest.mark.parallel(mode=1)
-    def test_flow_anti_dep(self, mode):
+    def test_avoid_hoisting_if_antidep(self, mode):
         grid = Grid(shape=(65, 65, 65))
 
         v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
@@ -1906,9 +1906,9 @@ class TestCodeGeneration:
         assert len(calls) == 3
         calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
         assert len(calls) == 2
-        # More specifically, we ensure the HaloSpot for v2 is on the last
-        # loop nest
-        #TODO
+        # More specifically, we ensure HaloSpot(v2) is on the last loop nest
+        assert calls[0].arguments[0] is v1
+        assert calls[1].arguments[0] is v2
 
 
 class TestOperatorAdvanced:

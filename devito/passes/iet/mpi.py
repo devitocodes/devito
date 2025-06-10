@@ -108,9 +108,10 @@ def _merge_halospots(iet):
                 continue
 
             for f in hs1.fmapper:
-                # First, ensure it's a compatible HaloSpot
                 hsf0 = hs0.halo_scheme.project(f)
                 hsf1 = hs1.halo_scheme.project(f)
+
+                # First, ensure it's a compatible HaloSpot
                 if hsf0.loc_values != hsf1.loc_values or \
                    hsf0.dimensions != hsf1.dimensions:
                     continue
@@ -138,10 +139,10 @@ def _hoist_invariant(iet):
 
     Examples
     --------
-    There is one typical case in which hoisting is possible, i.e., when a
-    HaloSpot is iteration-carried, and it is a subset of another HaloSpot
-    that is not iteration-carried. In this case, we can hoist the former
-    out of the Iteration containing the latter, as follows:
+    There is one typical case in which hoisting is possible, i.e., when a HaloSpot
+    is iteration-carried, and it is a subset of another HaloSpot within the same
+    Iteration. In this case, we can hoist the former out of the Iteration
+    containing the latter, as follows:
 
                                 haloupd v[t0]
     for time                    for time
@@ -156,40 +157,42 @@ def _hoist_invariant(iet):
     hsmapper = defaultdict(list)
     imapper = defaultdict(list)
     for it, halo_spots in iter_mapper.items():
+        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
+
         for hs0, hs1 in combinations(halo_spots, r=2):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
-            functions = set(hs0.fmapper) & set(hs1.fmapper)
-            if not functions:
-                continue
-            functions = sorted(functions, key=lambda f: f.name)  # Determinism
+            for f in hs1.fmapper:
+                hsf0 = hs0.halo_scheme.project(f)
+                if hsf0.is_void:
+                    continue
+                hsf1 = hs1.halo_scheme.project(f)
 
-            hsf0 = hs0.halo_scheme.project(functions)
-            hsf1 = hs1.halo_scheme.project(functions)
+                # Ensure there's another HaloScheme that could cover for
+                # us should we get hoisted while still satisfying the
+                # data dependences
+                if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
+                    hs, hsf = hs1, hsf1
+                elif hsf0.issubset(hsf1) and hs0 is halo_spots[0]:
+                    # Special case
+                    hs, hsf = hs0, hsf0
+                else:
+                    # No hoisting possible, skip
+                    continue
 
-            if hsf1.issubset(hsf0):
-                hs, hsf = hs1, hsf1
-            elif hsf0.issubset(hsf1):
-                hs, hsf = hs0, hsf0
-            else:
-                # No hoisting possible, skip
-                continue
-
-            # At this point, we must infer valid loc_indices
-            hhs = hsf.drop(functions)  # hhs -> hoisted HaloScheme
-            for f, hse in hsf.fmapper.items():
+                # At this point, we must infer valid loc_indices
+                hse = hsf.fmapper[f]
                 loc_indices = {}
                 for d, v in hse.loc_indices.items():
                     if v in it.uindices:
                         loc_indices[d] = v.symbolic_min.subs(it.dim, it.start)
                     else:
                         loc_indices[d] = v
+                hhs = hsf.drop(f).add(f, hse._rebuild(loc_indices=loc_indices))
 
-                hhs = hhs.add(f, hse._rebuild(loc_indices=loc_indices))
-
-            hsmapper[hs].extend(functions)
-            imapper[it].append(hhs)
+                hsmapper[hs].append(f)
+                imapper[it].append(hhs)
 
     # Transform the IET hoisting/dropping HaloSpots as according to the analysis
     mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
