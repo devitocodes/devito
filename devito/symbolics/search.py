@@ -1,4 +1,5 @@
 from collections.abc import Callable, Iterable, Iterator
+from itertools import chain
 from typing import Any, Literal
 
 import numpy as np
@@ -54,11 +55,12 @@ class Search:
         self.query = query
         self.deep = deep
 
-    def _next(self, expr: Expression) -> Iterator[Expression]:
+    def _next(self, expr: Expression) -> Iterable[Expression]:
         if self.deep and expr.is_Indexed:
-            yield from expr.indices
-        elif not q_leaf(expr):
-            yield from expr.args
+            return expr.indices
+        elif q_leaf(expr):
+            return ()
+        return expr.args
 
     def visit_postorder(self, expr: Expression) -> Iterator[Expression]:
         """
@@ -116,13 +118,9 @@ def search(exprs: Expression | Iterable[Expression],
         _search = searcher.visit_preorder_first_hit
     else:
         raise ValueError(f"Unknown visit mode '{visit}'")
-
-    found = modes[mode]()
-    for e in as_tuple(exprs):
-        if not isinstance(e, sympy.Basic):
-            continue
-
-        found.update(_search(e))
+    
+    exprs = filter(lambda e: isinstance(e, sympy.Basic), as_tuple(exprs))
+    found = modes[mode](chain(*map(_search, exprs)))
 
     return found
 
