@@ -75,6 +75,7 @@ class ArrayBasic(AbstractFunction, LocalType):
     def _C_free_priority(self):
         return 0
 
+    @property
     def c0(self):
         # ArrayBasic can be used as a base class for tensorial objects (that is,
         # arrays whose components are AbstractFunctions). This property enables
