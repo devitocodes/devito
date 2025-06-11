@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from collections.abc import Iterable
-from functools import reduce
+from functools import reduce, wraps
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
 import types
@@ -349,30 +349,36 @@ def sorted_priority(items, priority):
     return sorted(items, key=key, reverse=True)
 
 
-def avoid_symbolic_relations(func):
+def avoid_symbolic(default_val):
     """
-    Decorator to avoid calculating a relation symbolically if doing so may be slow.
-    In the case that one of the values being compared is symbolic, just give up
-    and return False.
+    Decorator to avoid calling a function where doing so will result in symbolic
+    computation being performed. For use if symbolic computation may be slow. In
+    the case that an arg is symbolic, just give up and return a default value.
     """
-    def wrapper(a, b):
-        if any(isinstance(expr, sympy.Basic) for expr in (a, b)):
-            # An argument is symbolic, so give up and assume False
-            return False
+    def _avoid_symbolic(func):
+        @wraps(func)
+        def wrapper(*args):
+            if any(isinstance(expr, sympy.Basic) for expr in args):
+                # An argument is symbolic, so give up and assume default
+                return default_val
 
-        try:
-            return func(a, b)
-        except TypeError:
-            return False
+            try:
+                return func(*args)
+            except TypeError:
+                return default_val
 
-    return wrapper
+        return wrapper
+
+    return _avoid_symbolic
 
 
-@avoid_symbolic_relations
+@avoid_symbolic(False)
 def smart_lt(a, b):
+    """An Lt that gives up and returns False if supplied a symbolic argument"""
     return bool(a < b)
 
 
-@avoid_symbolic_relations
+@avoid_symbolic(False)
 def smart_gt(a, b):
+    """A Gt that gives up and returns False if supplied a symbolic argument"""
     return bool(a > b)
