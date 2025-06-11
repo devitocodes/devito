@@ -134,6 +134,12 @@ def log(msg, level=INFO, *args, **kwargs):
         ERROR, CRITICAL``.
     """
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
+    # TODO: Think about a proper fix for this:
+    # When running with PETSc, `PetscFinalize` will helpfully close the stream
+    # that is being used for logging before all messages are displayed. Specifically
+    # the operator `info` logging.
+    if logger.handlers[0] is stream_handler and logger.handlers[0].stream.closed:
+        logger.handlers[0].stream = sys.stdout
     logger.log(level, color % msg, *args, **kwargs)
 
 

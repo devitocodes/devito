@@ -61,6 +61,21 @@ class ArrayBasic(AbstractFunction, LocalType):
         return self._is_const
 
     @property
+    def _C_free(self):
+        """
+        A symbolic destructor for the Array, injected in the generated code.
+
+        Notes
+        -----
+        To be overridden by subclasses, ignored otherwise.
+        """
+        return None
+
+    @property
+    def _C_free_priority(self):
+        return 0
+
+    @property
     def c0(self):
         # ArrayBasic can be used as a base class for tensorial objects (that is,
         # arrays whose components are AbstractFunctions). This property enables

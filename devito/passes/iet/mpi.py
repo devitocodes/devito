@@ -72,7 +72,9 @@ def _hoist_invariant(iet):
     """
 
     # Precompute scopes to save time
-    scopes = {i: Scope([e.expr for e in v]) for i, v in MapNodes().visit(iet).items()}
+    scopes = {}
+    for i, v in MapNodes(child_types=Expression).visit(iet).items():
+        scopes[i] = Scope([e.expr for e in v])
 
     # Analysis
     hsmapper = {}
