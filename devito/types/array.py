@@ -531,8 +531,10 @@ class Bundle(MappedArrayMixin, ArrayBasic):
             component_index, indices = index[0], index[1:]
             return ComponentAccess(self.indexed[indices], component_index)
         else:
-            raise ValueError("Expected %d or %d indices, got %d instead"
-                             % (self.ndim, self.ndim + 1, len(index)))
+            raise ValueError(
+                f"Expected {self.ndim} or {self.ndim + 1} indices, "
+                f"got {len(index)} instead"
+            )
 
     @property
     def _C_ctype(self):

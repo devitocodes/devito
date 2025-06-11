@@ -126,6 +126,34 @@ class PETScArray(ArrayBasic, Differentiable):
 
 class PetscBundle(Bundle):
     """
+    Tensor symbol representing an unrolled vector of PETScArrays.
+
+    This class declares a struct in the generated ccode to represent the
+    fields defined at each node of the grid. For example:
+
+            typedef struct {
+                PetscScalar u,v,omega,temperature;
+            } Field;
+
+    Residual evaluations are then written using:
+
+    f[i][j].omega = ...
+
+    Reference - https://petsc.org/release/manual/vec/#sec-struct
+
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    components : tuple of PETScArray
+        The PETScArrays of the Bundle.
+    pname : str, optional
+        The name of the struct in the generated C code. Defaults to "Field".
+
+    Warnings
+    --------
+    PetscBundles are created and managed directly by Devito (IOW, they are not
+    expected to be used directly in user code).
     """
     is_Bundle = True
     _data_alignment = False
@@ -136,11 +164,11 @@ class PetscBundle(Bundle):
         super().__init__(*args, **kwargs)
         self._pname = pname
 
-    @property
+    @cached_property
     def _C_ctype(self):
         fields = [(i.target.name, dtype_to_ctype(i.dtype)) for i in self.components]
         return POINTER(type(self.pname, (Structure,), {'_fields_': fields}))
-    
+
     @cached_property
     def symbolic_shape(self):
         return self.c0.symbolic_shape
@@ -176,8 +204,10 @@ class PetscBundle(Bundle):
                 component_names=names
             )
         else:
-            raise ValueError("Expected %d or %d indices, got %d instead"
-                             % (self.ndim, self.ndim + 1, len(index)))
+            raise ValueError(
+                f"Expected {self.ndim} or {self.ndim + 1} indices, "
+                f"got {len(index)} instead"
+            )
 
     @property
     def pname(self):
@@ -187,7 +217,7 @@ class PetscBundle(Bundle):
 class PetscComponentAccess(ComponentAccess):
     def __new__(cls, arg, index=0, component_names=None, **kwargs):
         if not arg.is_Indexed:
-            raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
+            raise ValueError(f"Expected Indexed, got `{type(arg)}` instead")
         names = component_names or cls._default_component_names
 
         obj = Expr.__new__(cls, arg)

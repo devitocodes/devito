@@ -530,7 +530,6 @@ def _(i, mapper, sregistry):
     })
 
 
-@abstract_object.register(Array)
 @abstract_object.register(ArrayBasic)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):

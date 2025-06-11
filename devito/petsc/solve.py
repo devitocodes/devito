@@ -83,7 +83,7 @@ class InjectSolve:
         self.time_mapper = generate_time_mapper(funcs)
         arrays = self.generate_arrays_combined(target)
 
-        eqns = sorted(eqns, key=lambda e: 0 if isinstance(e, EssentialBC) else 1)
+        eqns = sorted(eqns, key=lambda e: not isinstance(e, EssentialBC))
 
         jacobian = Jacobian(target, eqns, arrays, self.time_mapper)
         residual = Residual(target, eqns, arrays, self.time_mapper, jacobian.scdiag)

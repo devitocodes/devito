@@ -114,6 +114,10 @@ class CBBuilder:
     def arrays(self):
         return self.fielddata.arrays
 
+    @property
+    def target(self):
+        return self.fielddata.target
+
     def _make_core(self):
         self._make_matvec(self.fielddata.jacobian)
         self._make_formfunc()
@@ -163,9 +167,7 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_y_memory = petsc_call(
-            'VecSet', [objs['Y'], 0.0]
-        ) if self.zero_memory else None
+        zero_y_memory = self.zero_vector(objs['Y'])
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(xlocal)]
@@ -297,7 +299,8 @@ class CBBuilder:
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
-        target = self.fielddata.target
+        arrays = self.arrays
+        target = self.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
@@ -307,8 +310,8 @@ class CBBuilder:
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
 
-        f_formfunc = self.fielddata.arrays[target]['f']
-        x_formfunc = self.fielddata.arrays[target]['x']
+        f_formfunc = arrays[target]['f']
+        x_formfunc = arrays[target]['x']
 
         dm_cast = DummyExpr(dmda, DMCast(objs['dummyptr']), init=True)
 
@@ -316,9 +319,7 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_f_memory = petsc_call(
-            'VecSet', [objs['F'], 0.0]
-        ) if self.zero_memory else None
+        zero_f_memory = self.zero_vector(objs['F'])
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(objs['xloc'])]
@@ -437,7 +438,7 @@ class CBBuilder:
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
-        target = self.fielddata.target
+        target = self.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
@@ -508,13 +509,15 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        dereference_funcs = [Dereference(i, ctx) for i in
-                             fields if isinstance(i.function, AbstractFunction)]
+        dereference_funcs = tuple(
+            [Dereference(i, ctx) for i in
+             fields if isinstance(i.function, AbstractFunction)]
+        )
 
         formrhs_body = CallableBody(
             List(body=[body]),
             init=(objs['begin_user'],),
-            stacks=stacks+tuple(dereference_funcs),
+            stacks=stacks+dereference_funcs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
@@ -550,7 +553,7 @@ class CBBuilder:
         linsolve_expr = self.injectsolve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
-        target = self.fielddata.target
+        target = self.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
@@ -652,6 +655,12 @@ class CBBuilder:
         for k, v in self._efuncs.items():
             mapper.update({k: visitor.visit(v)})
         return mapper
+
+    def zero_vector(self, vec):
+        """
+        Zeros the memory of the output vector before computation
+        """
+        return petsc_call('VecSet', [vec, 0.0]) if self.zero_memory else None
 
 
 class CCBBuilder(CBBuilder):
@@ -1059,7 +1068,7 @@ class CCBBuilder(CBBuilder):
             if i.base in mapper:
                 bundle = mapper[i.base]
                 index = bundles['target_indices'][i.function.target]
-                index = (index,)+i.indices
+                index = (index,) + i.indices
                 subs[i] = bundle.__getitem__(index)
 
         body = Uxreplace(subs).visit(body)
@@ -1178,9 +1187,9 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             base_dict[f'{name}F'] = CallbackVec(f'{name}F')
 
         # Bundle objects/metadata required by the coupled residual callback
-        f_components = []
-        x_components = []
+        f_components, x_components = [], []
         bundle_mapper = {}
+        pname = sreg.make_name(prefix='Field')
 
         target_indices = {t: i for i, t in enumerate(targets)}
 
@@ -1190,18 +1199,15 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             f_components.append(f_arr)
             x_components.append(x_arr)
 
-        bundle_pname = sreg.make_name(prefix='Field')
         fbundle = PetscBundle(
-            name='f_bundle', components=f_components, pname=bundle_pname
+            name='f_bundle', components=f_components, pname=pname
         )
         xbundle = PetscBundle(
-            name='x_bundle', components=x_components, pname=bundle_pname
+            name='x_bundle', components=x_components, pname=pname
         )
 
         # Build the bundle mapper
-        for i, t in enumerate(targets):
-            f_arr = arrays[t]['f']
-            x_arr = arrays[t]['x']
+        for f_arr, x_arr in zip(f_components, x_components):
             bundle_mapper[f_arr.base] = fbundle
             bundle_mapper[x_arr.base] = xbundle
 

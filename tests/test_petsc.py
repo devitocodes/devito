@@ -826,7 +826,7 @@ class TestCoupledLinear:
         j11 = jacobian.get_submatrix(1, 1)
 
         # Check the number of submatrices
-        assert jacobian.no_submatrices == 4
+        assert jacobian.n_submatrices == 4
 
         # Technically a non-coupled problem, so the only non-zero submatrices
         # should be the diagonal ones i.e J00 and J11

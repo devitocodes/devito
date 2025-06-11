@@ -2,7 +2,7 @@ import sympy
 
 from itertools import chain
 
-from devito.tools import Reconstructable, sympy_mutex, as_tuple
+from devito.tools import Reconstructable, sympy_mutex, as_tuple, frozendict
 from devito.tools.dtypes_lowering import dtype_mapper
 from devito.petsc.utils import petsc_variables
 from devito.symbolics.extraction import separate_eqn, generate_targets, centre_stencil
@@ -269,11 +269,11 @@ class Jacobian:
         return self.target
 
     def _build_matvecs(self):
-        matvecs = [
-            e for eq in self.eqns for e in
-            self._build_matvec_eq(eq)
-            if e is not None
-        ]
+        matvecs = []
+        for eq in self.eqns:
+            matvecs.extend(
+                e for e in self._build_matvec_eq(eq) if e is not None
+            )
         matvecs = tuple(sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC)))
 
         matvecs = self._scale_non_bcs(matvecs)
@@ -287,12 +287,13 @@ class Jacobian:
         col_target = col_target or self.target
         row_target = row_target or self.target
 
-        b, F_target, _, targets = separate_eqn(eq, col_target)
+        _, F_target, _, targets = separate_eqn(eq, col_target)
         if F_target:
             return self._make_matvec(
                 eq, F_target, targets, col_target, row_target
             )
-        return (None,)
+        else:
+            return (None,)
 
     def _make_matvec(self, eq, F_target, targets, col_target, row_target):
         y = self.arrays[row_target]['y']
@@ -307,7 +308,7 @@ class Jacobian:
         else:
             rhs = F_target.subs(targets_to_arrays(x, targets))
             rhs = rhs.subs(self.time_mapper)
-        return as_tuple(Eq(y, rhs, subdomain=eq.subdomain))
+            return (Eq(y, rhs, subdomain=eq.subdomain),)
 
     def _scale_non_bcs(self, matvecs, target=None):
         target = target or self.target
@@ -376,7 +377,7 @@ class MixedJacobian(Jacobian):
     def __init__(self, target_eqns, arrays, time_mapper):
         """
         """
-        self.targets = as_tuple(target_eqns.keys())
+        self.targets = tuple(target_eqns.keys())
         self.arrays = arrays
         self.time_mapper = time_mapper
         self._submatrices = []
@@ -391,7 +392,7 @@ class MixedJacobian(Jacobian):
         return self._submatrices
 
     @property
-    def no_submatrices(self):
+    def n_submatrices(self):
         """
         Return the number of submatrix blocks.
         """
@@ -421,11 +422,13 @@ class MixedJacobian(Jacobian):
         for i, row_target in enumerate(self.targets):
             eqns = target_eqns[row_target]
             for j, col_target in enumerate(self.targets):
-                matvecs = [
-                    e for eq in eqns for e in
-                    self._build_matvec_eq(eq, col_target, row_target)
-                ]
+                matvecs = []
+                for eq in eqns:
+                    matvecs.extend(
+                        e for e in self._build_matvec_eq(eq, col_target, row_target)
+                    )
                 matvecs = [m for m in matvecs if m is not None]
+
                 # Sort to put EssentialBC first if any
                 matvecs = tuple(
                     sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC))
@@ -461,7 +464,7 @@ class MixedJacobian(Jacobian):
             f"{sm.name} (row={sm.row_idx}, col={sm.col_idx})"
             for sm in self.submatrices
         )
-        return f"<MixedJacobian with {self.no_submatrices} submatrices: [{summary}]>"
+        return f"<MixedJacobian with {self.n_submatrices} submatrices: [{summary}]>"
 
 
 class Residual:
@@ -499,12 +502,13 @@ class Residual:
             # TODO: If b is zero then don't need a rhs vector+callback
             rhs.extend(self._make_b(eq, b))
 
-        self._formfuncs = [self._scale_bcs(eq) for eq in funcs]
-        self._formrhs = rhs
+        self._formfuncs = tuple([self._scale_bcs(eq) for eq in funcs])
+        self._formrhs = tuple(rhs)
 
     def _make_F_target(self, eq, F_target, targets):
         arrays = self.arrays[self.target]
         volume = self.target.grid.symbolic_volume_cell
+
         if isinstance(eq, EssentialBC):
             # The initial guess satisfies the essential BCs, so this term is zero.
             # Still included to support Jacobian testing via finite differences.
@@ -513,19 +517,20 @@ class Residual:
             # Move essential boundary condition to the right-hand side
             zero_col = ZeroColumn(arrays['x'], eq.rhs, subdomain=eq.subdomain)
             return (zero_row, zero_col)
+
         else:
             if isinstance(F_target, (int, float)):
                 rhs = F_target * volume
             else:
                 rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
                 rhs = rhs.subs(self.time_mapper) * volume
-        return as_tuple(Eq(arrays['f'], rhs, subdomain=eq.subdomain))
+        return (Eq(arrays['f'], rhs, subdomain=eq.subdomain),)
 
     def _make_b(self, eq, b):
         b_arr = self.arrays[self.target]['b']
         rhs = 0. if isinstance(eq, EssentialBC) else b.subs(self.time_mapper)
         rhs = rhs * self.target.grid.symbolic_volume_cell
-        return as_tuple(Eq(b_arr, rhs, subdomain=eq.subdomain))
+        return (Eq(b_arr, rhs, subdomain=eq.subdomain),)
 
     def _scale_bcs(self, eq, scdiag=None):
         """
@@ -617,11 +622,11 @@ class InitialGuess:
         """
         Return a list of initial guess equations.
         """
-        self._eqs = [
+        self._eqs = tuple([
             eq for eq in
             (self._make_initial_guess(e) for e in self.eqns)
             if eq is not None
-        ]
+        ])
 
     def _make_initial_guess(self, eq):
         if isinstance(eq, EssentialBC):
@@ -655,4 +660,4 @@ def targets_to_arrays(array, targets):
     array_targets = [
         array.subs(dict(zip(array.indices, i))) for i in space_indices
     ]
-    return dict(zip(targets, array_targets))
+    return frozendict(zip(targets, array_targets))
