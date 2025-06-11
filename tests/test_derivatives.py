@@ -1051,19 +1051,19 @@ class TestExpansion:
         assert du11 == du2
         assert du11.deriv_order == du2.deriv_order
 
-    @pytest.mark.xfail(raises=ValueError)
     def test_wrong_deriv_order(self):
         ''' Check an exception is raises with incompatible arguments
         '''
-        _ = Derivative(self.u, self.x, deriv_order=(2, 4))
+        with pytest.raises(ValueError):
+            _ = Derivative(self.u, self.x, deriv_order=(2, 4))
 
-    @pytest.mark.xfail(raises=ValueError)
     def test_no_derivative(self):
-        _ = Derivative(sympify(-1))
+        with pytest.raises(ValueError):
+            _ = Derivative(sympify(-1))
 
-    @pytest.mark.xfail(raises=ValueError)
     def test_no_dimension(self):
-        _ = Derivative(sympify(-1), deriv_order=0)
+        with pytest.raises(ValueError):
+            _ = Derivative(sympify(-1), deriv_order=0)
 
     def test_constant(self):
         ''' Check constant derivative is zero for non-0th order derivatives
@@ -1144,3 +1144,41 @@ class TestExpansion:
         '''
         expanded = 4*Derivative(self.u, self.x) - 5*Derivative(self.u, (self.x, 2))
         assert self.b.expand(add=True, nest=True) == expanded
+
+    def test_nested_orders(self):
+        ''' Check nested expansion results in correct derivative and fd order
+        '''
+        # Default fd_order
+        du22 = Derivative(Derivative(self.u, (self.x, 2)), (self.x, 2))
+        du22_expanded = du22.expand(nest=True)
+        du4 = Derivative(self.u, (self.x, 4))
+        assert du22_expanded == du4
+        assert du22_expanded.deriv_order == du4.deriv_order
+        assert du22_expanded.fd_order == du4.fd_order
+
+        # Specified fd_order
+        du22 = Derivative(
+            Derivative(self.u, (self.x, 2), fd_order=2),
+            (self.x, 2),
+            fd_order=2
+        )
+        du22_expanded = du22.expand(nest=True)
+        du4 = Derivative(self.u, (self.x, 4), fd_order=4)
+        assert du22_expanded == du4
+        assert du22_expanded.deriv_order == du4.deriv_order
+        assert du22_expanded.fd_order == du4.fd_order
+
+        # Specified fd_order greater than the space order
+        ## When no order specified
+        du44 = Derivative(Derivative(self.u, (self.x, 4)), (self.x, 4))
+        with pytest.raises(ValueError):
+            du44_expanded = du44.expand(nest=True)
+
+        ## When order specified is too large
+        du44 = Derivative(
+            Derivative(self.u, (self.x, 4), fd_order=4),
+            (self.x, 4),
+            fd_order=4
+        )
+        with pytest.raises(ValueError):
+            du44_expanded = du44.expand(nest=True)

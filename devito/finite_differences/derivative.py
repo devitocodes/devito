@@ -149,7 +149,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             else:
                 dcounter[d] += o
 
-        # Default finite difference orders depending on input dimension (.dt or .dx)
         # It's possible that the expr is a `sympy.Number` at this point, which
         # has derivative 0, unless we're taking a 0th derivative.
         if isinstance(expr, sympy.Number):
@@ -157,8 +156,24 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 return 0
             else:
                 return expr
+
+        # Use `fd_order` if specified
+        fd_order = kwargs.get('fd_order')
+        if fd_order is not None:
+            _fd_order_specified = True
+            # If `fd_order` is specified collect these together
+            fcounter = defaultdict(int)
+            for d, o in zip(dims, as_tuple(fd_order)):
+                fcounter[d] += o
+            for d, o in dcounter.items():
+                order = expr.time_order if getattr(d, 'is_Time', False) else expr.space_order
+                if o > order:
+                    raise ValueError(f'Function does not support {d} derivative of order {o}')
+            fd_order = fcounter.values()
         else:
-            default_fdo = tuple([
+            _fd_order_specified = False
+            # Default finite difference orders depending on input dimension (.dt or .dx)
+            fd_order = tuple([
                 expr.time_order
                 if getattr(d, 'is_Time', False)
                 else expr.space_order
@@ -174,8 +189,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         obj = Differentiable.__new__(cls, expr, *derivatives)
         obj._dims = tuple(dcounter.keys())
 
+        obj._fd_order_specified = _fd_order_specified
         obj._fd_order = DimensionTuple(
-            *as_tuple(kwargs.get('fd_order', default_fdo)),
+            *as_tuple(fd_order),
             getters=obj._dims
         )
         obj._deriv_order = DimensionTuple(
@@ -533,7 +549,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # all kwargs from the self object
             # TODO: This dictionary merge needs to be a lot better
             # EG: Don't actually expand if derivatives are incompatible
-            new_kwargs = {'deriv_order': tuple(chain(self.deriv_order, expr.deriv_order))}
+            new_kwargs = {
+                'deriv_order': tuple(chain(self.deriv_order, expr.deriv_order))
+            }
+            if self._fd_order_specified or expr._fd_order_specified:
+                new_kwargs.update({'fd_order': tuple(chain(self.fd_order, expr.fd_order))})
             return self.func(new_expr, *new_dims, **new_kwargs)
         else:
             return self
@@ -564,3 +584,16 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 return self.func(dep, *self.args[1:])
         else:
             return self
+
+    def _eval_expand_product_rule(self, **hints):
+        ''' Expands products, of functions of the dependent variable
+        `Derivative(f(x)·g(x), x)
+            --> Derivative(f(x), x)·g(x) + f(x)·Derivative(g(x), x)`
+        This is only implemented for first derivatives with an arbitrary number
+        of multiplicands and second derivatives with two multiplicands. The
+        resultant expression for higher derivatives and mixed derivatives is much
+        more difficult to implement.
+        '''
+        # expr = self.args[0]
+        # if isinstance(expr, sympy.Mul):
+        raise NotImplementedError('Product rule expansion has not been written')
