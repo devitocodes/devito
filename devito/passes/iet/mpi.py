@@ -4,7 +4,7 @@ from sympy import S
 from itertools import combinations
 
 from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
-                           MapNodes, MapHaloSpots, Transformer,
+                           FindWithin, MapNodes, MapHaloSpots, Transformer,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
 from devito.ir.support.guards import GuardFactorEq
@@ -111,6 +111,7 @@ def _hoist_redundant_from_conditionals(iet):
                 imapper[condition].append(hsf0)
 
     # Transform the IET according to the analysis
+    #TODO: MOVE THIS INTO UTILITY
     mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
               for hs, functions in hsmapper.items()}
     mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
@@ -144,23 +145,20 @@ def _merge_halospots(iet):
 
     mapper = {}
     for it, halo_spots in iter_mapper.items():
-        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
-
-        hs0 = halo_spots[0]
-
-        for hs1 in halo_spots[1:]:
+        for hs0, hs1 in combinations(halo_spots, r=2):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
+            scope = _derive_scope(it, hs0, hs1)
+
             for f in hs1.fmapper:
-                hsf0 = hs0.halo_scheme.project(f)
+                hsf0 = mapper.get(hs0, hs0.halo_scheme)
                 hsf1 = hs1.halo_scheme.project(f)
                 if not _is_mergeable(hsf0, hsf1, scope):
                     continue
 
                 # All good -- `hsf1` can be merged within `hs0`
-                mapper[hs0] = HaloScheme.union([mapper.get(hs0, hs0.halo_scheme),
-                                                hsf1])
+                mapper[hs0] = HaloScheme.union([hsf0, hsf1])
                 mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
 
     # Transform the IET according to the analysis
@@ -198,7 +196,6 @@ def _hoist_invariant(iet):
         scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
 
         for hs0, hs1 in combinations(halo_spots, r=2):
-            #TODO:REFUSE TO HOIST IF ONE OF THE TWO HAS CONDITIONAL INSTEAD??
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
 
@@ -234,6 +231,7 @@ def _hoist_invariant(iet):
                 imapper[it].append(hhs)
 
     # Transform the IET according to the analysis
+    #TODO: MOVE THIS INTO UTILITY
     mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
               for hs, functions in hsmapper.items()}
     mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
@@ -431,6 +429,18 @@ def _make_cond_mapper(iet):
     return cond_mapper
 
 
+def _derive_scope(it, hs0, hs1):
+    """
+    Derive a Scope within the Iteration `it` that starts at the HaloSpot `hs0`
+    and ends at the HaloSpot `hs1`.
+    """
+    expressions = FindWithin(Expression, hs0, stop=hs1).visit(it)
+    assert len(expressions) > 0, \
+        "Expected at least one Expression between %s and %s" % (hs0, hs1)
+
+    return Scope([e.expr for e in expressions])
+
+
 def _check_control_flow(hs0, hs1, cond_mapper):
     """
     If there are Conditionals involved, both `hs0` and `hs1` must be
@@ -451,8 +461,7 @@ def _is_iter_carried(hsf, scope):
 
     def rule0(dep):
         # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>`, `d=t` => OK
-        return not any(d in hsf.dimensions or dep.distance_mapper[d] is S.Infinity
-                       for d in dep.cause)
+        return not any(dep.distance_mapper[d] is S.Infinity for d in dep.cause)
 
     def rule1(dep, loc_indices):
         # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>`, `loc_indices={t: t0}` => OK
@@ -479,8 +488,7 @@ def _is_mergeable(hsf0, hsf1, scope):
         return False
 
     # Ensure `hsf0` and `hsf1` are compatible
-    if hsf0.loc_values != hsf1.loc_values or \
-       hsf0.dimensions != hsf1.dimensions:
+    if hsf0.dimensions != hsf1.dimensions:
         return False
 
     # Then, check the data dependences would be satisfied

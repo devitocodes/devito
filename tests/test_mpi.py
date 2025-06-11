@@ -1921,7 +1921,7 @@ class TestCodeGeneration:
         assert calls[1].arguments[0] is v2
 
     @pytest.mark.parallel(mode=1)
-    def test_avoid_hoisting_if_not_subset(self, mode):
+    def test_merge_haloupdate_even_if_multiple_loc_indices(self, mode):
         grid = Grid(shape=(65, 65, 65))
 
         v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
@@ -1938,8 +1938,8 @@ class TestCodeGeneration:
         op = Operator(eqns)
         op.cfunction
 
-        calls, _ = check_halo_exchanges(op, 3, 3)
-        for i, v in enumerate([v2, v1, v1]):
+        calls, _ = check_halo_exchanges(op, 2, 2)
+        for i, v in enumerate([v2, v1]):
             assert calls[i].arguments[0] is v
 
     @pytest.mark.parallel(mode=1)
