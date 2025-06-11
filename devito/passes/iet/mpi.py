@@ -7,7 +7,6 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            FindWithin, MapNodes, MapHaloSpots, Transformer,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
-from devito.ir.support.guards import GuardFactorEq
 from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
@@ -78,8 +77,7 @@ def _hoist_redundant_from_conditionals(iet):
     cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
 
-    hsmapper = defaultdict(list)
-    imapper = defaultdict(list)
+    mapper = HaloSpotMapper()
     for it, halo_spots in iter_mapper.items():
         scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
 
@@ -107,16 +105,10 @@ def _hoist_redundant_from_conditionals(iet):
                     # No candidate found, skip
                     continue
 
-                hsmapper[hs0].append(f)
-                imapper[condition].append(hsf0)
+                mapper.drop(hs0, f)
+                mapper.add(condition, hsf0)
 
-    # Transform the IET according to the analysis
-    #TODO: MOVE THIS INTO UTILITY
-    mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
-              for hs, functions in hsmapper.items()}
-    mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
-                   for i, hss in imapper.items()})
-    iet = Transformer(mapper, nested=True).visit(iet)
+    iet = mapper.apply(iet)
 
     return iet
 
@@ -143,7 +135,7 @@ def _merge_halospots(iet):
     cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
 
-    mapper = {}
+    mapper = HaloSpotMapper()
     for it, halo_spots in iter_mapper.items():
         for hs0, hs1 in combinations(halo_spots, r=2):
             if _check_control_flow(hs0, hs1, cond_mapper):
@@ -152,24 +144,21 @@ def _merge_halospots(iet):
             scope = _derive_scope(it, hs0, hs1)
 
             for f in hs1.fmapper:
-                hsf0 = mapper.get(hs0, hs0.halo_scheme)
-                hsf1 = mapper.get(hs1, hs1.halo_scheme).project(f)
+                hsf0 = mapper.get(hs0).halo_scheme
+                hsf1 = mapper.get(hs1).halo_scheme.project(f)
                 if not _is_mergeable(hsf0, hsf1, scope):
                     continue
 
                 # All good -- `hsf1` can be merged within `hs0`
-                mapper[hs0] = HaloScheme.union([hsf0, hsf1])
+                mapper.add(hs0, hsf1)
 
                 # If the `loc_indices` differ, we rely on hoisting to optimize
                 # `hsf1` out of `it`, otherwise we just drop it
                 if hsf0.loc_values != hsf1.loc_values:
                     continue
-                mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
+                mapper.drop(hs1, f)
 
-    # Transform the IET according to the analysis
-    mapper = {i: i.body if hs.is_void else i._rebuild(halo_scheme=hs)
-              for i, hs in mapper.items()}
-    iet = Transformer(mapper, nested=True).visit(iet)
+    iet = mapper.apply(iet)
 
     return iet
 
@@ -195,8 +184,7 @@ def _hoist_invariant(iet):
     cond_mapper = _make_cond_mapper(iet)
     iter_mapper = _filter_iter_mapper(iet)
 
-    hsmapper = defaultdict(list)
-    imapper = defaultdict(list)
+    mapper = HaloSpotMapper()
     for it, halo_spots in iter_mapper.items():
         for hs0, hs1 in combinations(halo_spots, r=2):
             if _check_control_flow(hs0, hs1, cond_mapper):
@@ -232,16 +220,10 @@ def _hoist_invariant(iet):
                         loc_indices[d] = v
                 hhs = hsf.drop(f).add(f, hse._rebuild(loc_indices=loc_indices))
 
-                hsmapper[hs].append(f)
-                imapper[it].append(hhs)
+                mapper.drop(hs, f)
+                mapper.add(it, hhs)
 
-    # Transform the IET according to the analysis
-    #TODO: MOVE THIS INTO UTILITY
-    mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(functions))
-              for hs, functions in hsmapper.items()}
-    mapper.update({i: HaloSpot(i._rebuild(), HaloScheme.union(hss))
-                   for i, hss in imapper.items()})
-    iet = Transformer(mapper, nested=True).visit(iet)
+    iet = mapper.apply(iet)
 
     return iet
 
@@ -408,6 +390,46 @@ def mpiize(graph, **kwargs):
 
 # *** Utilities
 
+
+class HaloSpotMapper(dict):
+
+    def get(self, hs):
+        return super().get(hs, hs)
+
+    def drop(self, hs, functions):
+        """
+        Drop `functions` from the HaloSpot `hs`.
+        """
+        v = self.get(hs)
+        hss = v.halo_scheme.drop(functions)
+        self[hs] = hs._rebuild(halo_scheme=hss)
+
+    def add(self, node, hss):
+        """
+        Add the HaloScheme `hss` to `node`:
+
+            * If `node` is a HaloSpot, then `hss` is added to its
+              existing HaloSchemes;
+            * Otherwise, a HaloSpot is created wrapping `node`, and `hss`
+              is added to it.
+        """
+        v = self.get(node)
+        if isinstance(v, HaloSpot):
+            hss = HaloScheme.union([v.halo_scheme, hss])
+            hs = v._rebuild(halo_scheme=hss)
+        else:
+            hs = HaloSpot(v._rebuild(), hss)
+        self[node] = hs
+
+    def apply(self, iet):
+        """
+        Transform `iet` using the HaloSpotMapper.
+        """
+        mapper = {i: i.body if hs.is_void else hs for i, hs in self.items()}
+        iet = Transformer(mapper, nested=True).visit(iet)
+        return iet
+
+
 def _filter_iter_mapper(iet):
     """
     Given an IET, return a mapper from Iterations to the HaloSpots.
@@ -426,12 +448,8 @@ def _make_cond_mapper(iet):
     """
     Return a mapper from HaloSpots to the Conditionals that contain them.
     """
-    #TODO
-    cond_mapper = {}
-    for hs, v in MapHaloSpots().visit(iet).items():
-        cond_mapper[hs] = tuple(i for i in v if i.is_Conditional)
-
-    return cond_mapper
+    return {hs: tuple(i for i in v if i.is_Conditional)
+            for hs, v in MapHaloSpots().visit(iet).items()}
 
 
 def _derive_scope(it, hs0, hs1):

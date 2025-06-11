@@ -1437,7 +1437,7 @@ class TestCodeGeneration:
                                rtol=R)
 
     @pytest.mark.parallel(mode=2)
-    def test_unmerge_haloupdate_if_no_locindices(self, mode):
+    def test_avoid_merging_if_no_locindices(self, mode):
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1476,6 +1476,25 @@ class TestCodeGeneration:
         else:
             assert np.allclose(f.data_ro_domain[5:], [8., 8., 8., 6., 5.], rtol=R)
             assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
+
+    @pytest.mark.parallel(mode=1)
+    def test_avoid_merging_if_diff_functions(self, mode):
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name="u", grid=grid, space_order=2)
+        U = TimeFunction(name="U", grid=grid, space_order=2)
+        src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1,
+                                 coordinates=np.array([(0.5, 0.5, 0.5)]))
+
+        eqns = [Eq(u.forward, u.dx)]
+        eqns += src.inject(field=u.forward, expr=src)
+        eqns += [Eq(U.forward, U.dx + u.forward)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        check_halo_exchanges(op, 2, 2)
 
     @pytest.mark.parallel(mode=1)
     def test_merge_haloupdate_if_diff_locindices(self, mode):
