@@ -1081,8 +1081,8 @@ class TestExpansion:
         u = Function(name='u', grid=grid, space_order=4)
 
         d = Derivative(u, x)
-        assert d.dims == (x, )
-        assert d.deriv_order == (1, )
+        assert d.dims == (x,)
+        assert d.deriv_order == (1,)
 
         d = Derivative(u, x, y)
         assert d.dims == (x, y)
