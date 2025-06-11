@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from functools import cached_property
 from itertools import chain
+from warnings import warn
 
 import sympy
 
@@ -160,18 +161,24 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         # Use `fd_order` if specified
         fd_order = kwargs.get('fd_order')
         if fd_order is not None:
-            _fd_order_specified = True
             # If `fd_order` is specified collect these together
             fcounter = defaultdict(int)
             for d, o in zip(dims, as_tuple(fd_order)):
-                fcounter[d] += o
-            for d, o in dcounter.items():
-                order = expr.time_order if getattr(d, 'is_Time', False) else expr.space_order
+                if isinstance(d, Iterable):
+                    fcounter[d[0]] += o
+                else:
+                    fcounter[d] += o
+            for d, o in fcounter.items():
+                if getattr(d, 'is_Time', False):
+                    order = expr.time_order
+                else:
+                    order = expr.space_order
                 if o > order:
-                    raise ValueError(f'Function does not support {d} derivative of order {o}')
+                    raise ValueError(
+                        f'Function does not support {d}-derivative with `fd_order` {o}'
+                    )
             fd_order = fcounter.values()
         else:
-            _fd_order_specified = False
             # Default finite difference orders depending on input dimension (.dt or .dx)
             fd_order = tuple([
                 expr.time_order
@@ -180,16 +187,16 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 for d in dcounter.keys()
             ])
 
-        # SymPy expects the list of variable w.r.t. which we differentiate to be a list
-        # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
-        # of the derivative
+        # SymPy expects the list of variables w.r.t. which we differentiate to be a list
+        # of 2-tuples: `(s, count)` where:
+        # - `s` is the entity to diff w.r.t. and
+        # - `count` is the order of the derivative
         derivatives = [sympy.Tuple(d, o) for d, o in dcounter.items()]
 
         # Construct the actual Derivative object
         obj = Differentiable.__new__(cls, expr, *derivatives)
         obj._dims = tuple(dcounter.keys())
 
-        obj._fd_order_specified = _fd_order_specified
         obj._fd_order = DimensionTuple(
             *as_tuple(fd_order),
             getters=obj._dims
@@ -544,17 +551,49 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 for d, ii in zip(
                     chain(self.dims, expr.dims),
                     chain(self.deriv_order, expr.deriv_order)
-                )]
+                )
+            ]
             # This is necessary as tools.abc.Reconstructable._rebuild will copy
             # all kwargs from the self object
             # TODO: This dictionary merge needs to be a lot better
             # EG: Don't actually expand if derivatives are incompatible
+            new_deriv_order = tuple(chain(self.deriv_order, expr.deriv_order))
+            # The `fd_order` may need to be reduced to construct the nested derivative
+            dcounter = defaultdict(int)
+            fcounter = defaultdict(int)
+            new_fd_order = tuple(chain(self.fd_order, expr.fd_order))
+            for d, do, fo in zip(new_dims, new_deriv_order, new_fd_order):
+                if isinstance(d, Iterable):
+                    dcounter[d[0]] += d[1]
+                    fcounter[d[0]] += fo
+                else:
+                    dcounter[d] += do
+                    fcounter[d] += fo
+            for (d, do), (_, fo) in zip(dcounter.items(), fcounter.items()):
+                if getattr(d, 'is_Time', False):
+                    dim_name = 'time'
+                    order = expr.time_order
+                else:
+                    dim_name = 'space'
+                    order = expr.space_order
+                if fo > order:
+                    if do > order:
+                        raise ValueError(
+                            f'Nested {do}-derivative constructed which is bigger '
+                            f'than the {dim_name}_order={order}'
+                        )
+                    else:
+                        warn(
+                            f'Nested derivative constructed with fd_order={fo}, '
+                            f'but {dim_name}_order={order}. Adjusting '
+                            f'fd_order={order} for the {d} dimension.'
+                        )
+                        fcounter[d] = order
             new_kwargs = {
-                'deriv_order': tuple(chain(self.deriv_order, expr.deriv_order))
+                'deriv_order': tuple(dcounter.values()),
+                'fd_order': tuple(fcounter.values())
             }
-            if self._fd_order_specified or expr._fd_order_specified:
-                new_kwargs.update({'fd_order': tuple(chain(self.fd_order, expr.fd_order))})
-            return self.func(new_expr, *new_dims, **new_kwargs)
+            return self.func(new_expr, *dcounter.items(), **new_kwargs)
         else:
             return self
 

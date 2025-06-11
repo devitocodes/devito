@@ -378,9 +378,9 @@ class TestFD:
         grid = Grid((10,))
         u = Function(name="u", grid=grid, space_order=so)
         u1 = Function(name="u", grid=grid, space_order=so//2)
-        u2 = Function(name="u", grid=grid, space_order=2*so)
+        u2 = Function(name="u", grid=grid, space_order=so//2 + 1)
         assert str(u.dx(fd_order=so//2).evaluate) == str(u1.dx.evaluate)
-        assert str(u.dx(fd_order=2*so).evaluate) == str(u2.dx.evaluate)
+        assert str(u.dx(fd_order=so//2 + 1).evaluate) == str(u2.dx.evaluate)
 
     def test_xderiv_order(self):
         grid = Grid(shape=(11, 11), extent=(10., 10.))
@@ -1032,8 +1032,9 @@ class TestExpansion:
         cls.x = cls.grid.dimensions[0]
         cls.u = Function(name='u', grid=cls.grid, space_order=4)
 
+        # Note that using the `.dx` shortcut method specifies the fd_order kwarg
         a = cls.u.dx
-        cls.b = a.subs({cls.u: -5*cls.u.dx + 4*cls.u + 3})
+        cls.b = a.subs({cls.u: -5*cls.u.dx + 4*cls.u + 3}, postprocess=False)
 
     def test_reconstructible(self):
         ''' Check that devito.Derivatives are reconstructible from func and args
@@ -1150,7 +1151,8 @@ class TestExpansion:
         '''
         # Default fd_order
         du22 = Derivative(Derivative(self.u, (self.x, 2)), (self.x, 2))
-        du22_expanded = du22.expand(nest=True)
+        with pytest.warns(UserWarning):
+            du22_expanded = du22.expand(nest=True)
         du4 = Derivative(self.u, (self.x, 4))
         assert du22_expanded == du4
         assert du22_expanded.deriv_order == du4.deriv_order
@@ -1169,16 +1171,16 @@ class TestExpansion:
         assert du22_expanded.fd_order == du4.fd_order
 
         # Specified fd_order greater than the space order
-        ## When no order specified
+        # > When no order specified
         du44 = Derivative(Derivative(self.u, (self.x, 4)), (self.x, 4))
         with pytest.raises(ValueError):
-            du44_expanded = du44.expand(nest=True)
+            _ = du44.expand(nest=True)
 
-        ## When order specified is too large
+        # > When order specified is too large
         du44 = Derivative(
             Derivative(self.u, (self.x, 4), fd_order=4),
             (self.x, 4),
             fd_order=4
         )
         with pytest.raises(ValueError):
-            du44_expanded = du44.expand(nest=True)
+            _ = du44.expand(nest=True)
