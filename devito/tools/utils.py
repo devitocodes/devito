@@ -12,7 +12,8 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number']
+           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number',
+           'smart_lt', 'smart_gt']
 
 
 def prod(iterable, initial=1):
@@ -346,3 +347,32 @@ def sorted_priority(items, priority):
         return (v, str(type(i)))
 
     return sorted(items, key=key, reverse=True)
+
+
+def avoid_symbolic_relations(func):
+    """
+    Decorator to avoid calculating a relation symbolically if doing so may be slow.
+    In the case that one of the values being compared is symbolic, just give up
+    and return False.
+    """
+    def wrapper(a, b):
+        if any(isinstance(expr, sympy.Basic) for expr in (a, b)):
+            # An argument is symbolic, so give up and assume False
+            return False
+
+        try:
+            return func(a, b)
+        except TypeError:
+            return False
+
+    return wrapper
+
+
+@avoid_symbolic_relations
+def smart_lt(a, b):
+    return bool(a < b)
+
+
+@avoid_symbolic_relations
+def smart_gt(a, b):
+    return bool(a > b)
