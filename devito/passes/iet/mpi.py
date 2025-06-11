@@ -159,6 +159,11 @@ def _merge_halospots(iet):
 
                 # All good -- `hsf1` can be merged within `hs0`
                 mapper[hs0] = HaloScheme.union([hsf0, hsf1])
+
+                # If the `loc_indices` differ, we rely on hoisting to optimize
+                # `hsf1` out of `it`, otherwise we just drop it
+                if hsf0.loc_values != hsf1.loc_values:
+                    continue
                 mapper[hs1] = mapper.get(hs1, hs1.halo_scheme).drop(f)
 
     # Transform the IET according to the analysis
