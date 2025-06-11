@@ -3145,6 +3145,7 @@ class TestElasticLike:
         rec_term1 = rec.interpolate(expr=v.forward)
 
         op1 = Operator([u_v, u_tau, rec_term1])
+        op1.cfunction
 
         calls = [i for i in FindNodes(Call).visit(op1) if isinstance(i, HaloUpdateCall)]
 
