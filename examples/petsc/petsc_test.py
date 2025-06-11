@@ -28,4 +28,4 @@ with switchconfig(language='petsc'):
     op = Operator(petsc)
     op.apply()
 
-print(op.ccode)
+# print(op.ccode)
