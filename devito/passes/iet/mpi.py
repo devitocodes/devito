@@ -153,7 +153,7 @@ def _merge_halospots(iet):
 
             for f in hs1.fmapper:
                 hsf0 = mapper.get(hs0, hs0.halo_scheme)
-                hsf1 = hs1.halo_scheme.project(f)
+                hsf1 = mapper.get(hs1, hs1.halo_scheme).project(f)
                 if not _is_mergeable(hsf0, hsf1, scope):
                     continue
 
@@ -493,7 +493,8 @@ def _is_mergeable(hsf0, hsf1, scope):
         return False
 
     # Ensure `hsf0` and `hsf1` are compatible
-    if hsf0.dimensions != hsf1.dimensions:
+    if hsf0.dimensions != hsf1.dimensions or \
+       not hsf0.functions & hsf1.functions:
         return False
 
     # Then, check the data dependences would be satisfied

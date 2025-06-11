@@ -389,6 +389,10 @@ class HaloScheme:
         return mapper
 
     @cached_property
+    def functions(self):
+        return frozenset(self.fmapper)
+
+    @cached_property
     def dimensions(self):
         retval = set()
         for i in set().union(*self.halos.values()):

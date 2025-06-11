@@ -3076,12 +3076,12 @@ class TestElasticLike:
         u_t = Eq(tau.forward, damp * solve(pde_tau, tau.forward))
 
         op = Operator([u_v] + [u_t] + rec_term)
+        op.cfunction
+
         assert len(op._func_table) == 11
 
         calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
-
         assert len(calls) == 5
-
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[0])) == 1
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[1])) == 4
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[2])) == 0
