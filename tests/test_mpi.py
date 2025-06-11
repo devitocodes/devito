@@ -3211,22 +3211,21 @@ class TestElasticLike:
 
         calls = [i for i in FindNodes(Call).visit(op3) if isinstance(i, HaloUpdateCall)]
 
-        assert len(calls) == 5
+        assert len(calls) == 4
         assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[0])) == 1
-        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 4
+        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 3
         assert calls[0].arguments[0] is v
         assert calls[1].arguments[0] is tau
         assert calls[1].arguments[1] is tau2
         assert calls[2].arguments[0] is v
         assert calls[3].arguments[0] is v2
-        assert calls[4].arguments[0] is v2
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_backward(self, mode):
-        '''
+        """
         Similar to test_issue_2448, but with backward instead of forward
         so that the hoisted halo has different starting point
-        '''
+        """
         shape = (2,)
         so = 2
 
