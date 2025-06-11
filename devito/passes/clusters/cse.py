@@ -235,8 +235,8 @@ def _compact(exprs, exclude):
     # Find all the CTemps in expression right-hand-sides without removing duplicates
     ctemps = retrieve_ctemps(e.rhs for e in exprs)
 
-    # If there are ctemps in the expressions, then add any to the mapper which only
-    # appear once
+    # If there are ctemps in the expressions, then add any that only appear once to
+    # the mapper
     if ctemps:
         ctemp_count = Counter(ctemps)
         mapper.update({e.lhs: e.rhs for e in candidates
