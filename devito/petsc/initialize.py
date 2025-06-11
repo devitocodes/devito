@@ -3,7 +3,8 @@ import sys
 from ctypes import POINTER, cast, c_char
 import atexit
 
-from devito import Operator, switchconfig
+from devito import switchconfig
+from devito.operator.operator import SpecialOp
 from devito.types import Symbol
 from devito.types.equation import PetscEq
 from devito.petsc.types import Initialize, Finalize
@@ -21,11 +22,11 @@ def PetscInitialize():
         # This would prevent circular imports when initializing during import
         # from the PETSc module.
         with switchconfig(language='petsc'):
-            op_init = Operator(
+            op_init = SpecialOp(
                 [PetscEq(dummy, Initialize(dummy))],
                 name='kernel_init', opt='noop'
             )
-            op_finalize = Operator(
+            op_finalize = SpecialOp(
                 [PetscEq(dummy, Finalize(dummy))],
                 name='kernel_finalize', opt='noop'
             )

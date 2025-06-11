@@ -963,7 +963,7 @@ class CCBBuilder(CBBuilder):
 
         ptr = DummyExpr(objs['submat_arr']._C_symbol, Deref(objs['Submats']), init=True)
 
-        mat_create = petsc_call('MatCreate', [self.objs['comm'], Byref(objs['block'])])
+        mat_create = petsc_call('MatCreate', [sobjs['comm'], Byref(objs['block'])])
 
         mat_set_sizes = petsc_call(
             'MatSetSizes', [
@@ -1085,6 +1085,7 @@ class BaseObjectBuilder:
         self.injectsolve = kwargs.get('injectsolve')
         self.objs = kwargs.get('objs')
         self.sregistry = kwargs.get('sregistry')
+        self.grid = kwargs.get('grid')
         self.fielddata = self.injectsolve.expr.rhs.fielddata
         self.solver_objs = self._build()
 
@@ -1124,6 +1125,8 @@ class BaseObjectBuilder:
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
         }
+        # TODO: Devito MPI + PETSc testing
+        base_dict['comm'] = self.grid.distributor._obj_comm
         self._target_dependent(base_dict)
         return self._extend_build(base_dict)
 
@@ -1279,7 +1282,7 @@ class BaseSetup:
 
         solver_params = self.injectsolve.expr.rhs.solver_parameters
 
-        snes_create = petsc_call('SNESCreate', [objs['comm'], Byref(sobjs['snes'])])
+        snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
@@ -1305,7 +1308,7 @@ class BaseSetup:
             v for v, dim in zip(target.shape_allocated, target.dimensions) if dim.is_Space
         )
         local_x = petsc_call('VecCreateMPIWithArray',
-                             ['PETSC_COMM_WORLD', 1, local_size, 'PETSC_DECIDE',
+                             [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
                               field_from_ptr, Byref(sobjs['xlocal'])])
 
         # TODO: potentially also need to set the DM and local/global map to xlocal
@@ -1408,11 +1411,12 @@ class BaseSetup:
 
     def _create_dmda(self, dmda):
         objs = self.objs
+        sobjs = self.solver_objs
         grid = self.fielddata.grid
         nspace_dims = len(grid.dimensions)
 
         # MPI communicator
-        args = [objs['comm']]
+        args = [sobjs['comm']]
 
         # Type of ghost nodes
         args.extend(['DM_BOUNDARY_GHOSTED' for _ in range(nspace_dims)])
@@ -1453,7 +1457,7 @@ class CoupledSetup(BaseSetup):
 
         solver_params = self.injectsolve.expr.rhs.solver_parameters
 
-        snes_create = petsc_call('SNESCreate', [objs['comm'], Byref(sobjs['snes'])])
+        snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
