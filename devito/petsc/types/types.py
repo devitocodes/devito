@@ -241,7 +241,7 @@ class Jacobian:
     This Jacobian is defined implicitly via matrix-vector products
     derived from the symbolic equations provided in `matvecs`.
 
-    It assumes the problem is linear, meaning the Jacobian
+    The class assumes the problem is linear, meaning the Jacobian
     corresponds to a constant coefficient matrix and does not
     require explicit symbolic differentiation.
     """
@@ -274,6 +274,7 @@ class Jacobian:
             matvecs.extend(
                 e for e in self._build_matvec_eq(eq) if e is not None
             )
+
         matvecs = tuple(sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC)))
 
         matvecs = self._scale_non_bcs(matvecs)
@@ -469,6 +470,20 @@ class MixedJacobian(Jacobian):
 
 class Residual:
     """
+    Gennerates the metadata needed to define the nonlinear residual function
+    F(target) = 0 for use with PETSc's SNES interface.
+
+    PETSc's SNES interface includes methods for solving nonlinear systems of
+    equations using Newton-type methods. For linear problems, `SNESKSPONLY`
+    is used to perform a single Newton iteration, unifying the
+    interface for both linear and nonlinear problems.
+
+    This class encapsulates the symbolic equations used to construct the
+    residual function F(target) = F_(target) - b, where b contains all
+    terms independent of the solution `target`.
+
+    References:
+        - https://petsc.org/main/manual/snes/
     """
     def __init__(self, target, eqns, arrays, time_mapper, scdiag):
         self.target = target
@@ -481,12 +496,18 @@ class Residual:
     @property
     def formfuncs(self):
         """
+        Stores the equations used to build the `FormFunction`
+        callback generated at the IET level. This function is
+        passed to PETSc via `SNESSetFunction(..., FormFunction, ...)`.
         """
         return self._formfuncs
 
     @property
     def formrhs(self):
         """
+        Stores the equations used to generate the RHS
+        vector `b` through the `FormRHS` callback generated at the IET level.
+        The SNES solver is then called via `SNESSolve(..., b, target)`.
         """
         return self._formrhs
 
@@ -544,7 +565,7 @@ class MixedResidual(Residual):
     """
     """
     def __init__(self, target_eqns, arrays, time_mapper, scdiag):
-        self.targets = as_tuple(target_eqns.keys())
+        self.targets = tuple(target_eqns.keys())
         self.arrays = arrays
         self.time_mapper = time_mapper
         self.scdiag = scdiag
@@ -592,6 +613,7 @@ class MixedResidual(Residual):
                 self.arrays[target]['x'], eq.rhs, subdomain=eq.subdomain
             )
             return (zero_row, zero_col)
+
         else:
             if isinstance(zeroed, (int, float)):
                 rhs = zeroed * volume
@@ -599,7 +621,7 @@ class MixedResidual(Residual):
                 rhs = zeroed.subs(mapper)
                 rhs = rhs.subs(self.time_mapper)*volume
 
-        return as_tuple(Eq(self.arrays[target]['f'], rhs, subdomain=eq.subdomain))
+        return (Eq(self.arrays[target]['f'], rhs, subdomain=eq.subdomain),)
 
 
 class InitialGuess:

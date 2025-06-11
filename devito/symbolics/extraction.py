@@ -20,9 +20,10 @@ def separate_eqn(eqn, target):
 
     from devito.operations.solve import eval_time_derivatives
     zeroed_eqn = eval_time_derivatives(zeroed_eqn.lhs)
-    target_funcs = set(generate_targets(zeroed_eqn, target))
 
+    target_funcs = set(generate_targets(zeroed_eqn, target))
     b, F_target = remove_targets(zeroed_eqn, target_funcs)
+
     return -b, F_target, zeroed_eqn, target_funcs
 
 

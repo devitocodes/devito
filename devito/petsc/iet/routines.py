@@ -258,13 +258,12 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        dereference_funcs = [Dereference(i, ctx) for i in
-                             fields if isinstance(i.function, AbstractFunction)]
+        derefs = self.dereference_funcs(ctx, fields)
 
         matvec_body = CallableBody(
             List(body=body),
             init=(objs['begin_user'],),
-            stacks=stacks+tuple(dereference_funcs),
+            stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
@@ -398,13 +397,12 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        dereference_funcs = [Dereference(i, ctx) for i in
-                             fields if isinstance(i.function, AbstractFunction)]
+        derefs = self.dereference_funcs(ctx, fields)
 
         formfunc_body = CallableBody(
             List(body=body),
             init=(objs['begin_user'],),
-            stacks=stacks+tuple(dereference_funcs),
+            stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),))
 
         # Replace non-function data with pointer to data in struct
@@ -509,15 +507,12 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        dereference_funcs = tuple(
-            [Dereference(i, ctx) for i in
-             fields if isinstance(i.function, AbstractFunction)]
-        )
+        derefs = self.dereference_funcs(ctx, fields)
 
         formrhs_body = CallableBody(
             List(body=[body]),
             init=(objs['begin_user'],),
-            stacks=stacks+dereference_funcs,
+            stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
@@ -590,13 +585,12 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        dereference_funcs = [Dereference(i, ctx) for i in
-                             fields if isinstance(i.function, AbstractFunction)]
+        derefs = self.dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=[body]),
             init=(objs['begin_user'],),
-            stacks=stacks+tuple(dereference_funcs),
+            stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
@@ -661,6 +655,12 @@ class CBBuilder:
         Zeros the memory of the output vector before computation
         """
         return petsc_call('VecSet', [vec, 0.0]) if self.zero_memory else None
+
+    def dereference_funcs(self, struct, fields):
+        return tuple(
+            [Dereference(i, struct) for i in
+             fields if isinstance(i.function, AbstractFunction)]
+        )
 
 
 class CCBBuilder(CBBuilder):
@@ -894,8 +894,7 @@ class CCBBuilder(CBBuilder):
         )
 
         # Dereference function data in struct
-        dereference_funcs = [Dereference(i, ctx) for i in
-                             fields if isinstance(i.function, AbstractFunction)]
+        derefs = self.dereference_funcs(ctx, fields)
 
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
@@ -903,7 +902,7 @@ class CCBBuilder(CBBuilder):
         formfunc_body = CallableBody(
             List(body=body),
             init=(objs['begin_user'],),
-            stacks=stacks+tuple(dereference_funcs),
+            stacks=stacks+derefs,
             casts=(f_soa, x_soa),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
