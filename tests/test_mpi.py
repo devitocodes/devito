@@ -1561,6 +1561,28 @@ class TestCodeGeneration:
             assert np.allclose(h.data_ro_domain[0, 5:], [4.4, 4.4, 4.4, 3.4, 3.1], rtol=R)
 
     @pytest.mark.parallel(mode=1)
+    def test_merge_and_hoist_haloupdate_if_diff_locindices_v2(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
+
+        eqns = [Eq(v1.forward, v2.laplace),
+                Eq(v2.forward, v1.forward.laplace + v2),
+                rec.interpolate(expr=v1)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 3, 2)
+        for i, v in enumerate([v2, v1]):
+            assert calls[i].arguments[0] is v
+
+    @pytest.mark.parallel(mode=1)
     @switchconfig(autopadding=True)
     def test_process_but_avoid_haloupdate_along_replicated(self, mode):
         dx = Dimension(name='dx')
@@ -1887,10 +1909,7 @@ class TestCodeGeneration:
         op = Operator(eqns)
         op.cfunction
 
-        calls = FindNodes(HaloUpdateCall).visit(op)
-        assert len(calls) == exp0
-        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
-        assert len(calls) == exp1
+        calls, _ = check_halo_exchanges(op, exp0, exp1)
         for i, v in enumerate(args):
             assert calls[i].arguments[0] is eval(v)
 
@@ -1912,35 +1931,10 @@ class TestCodeGeneration:
         op = Operator(eqns)
         op.cfunction
 
-        calls = FindNodes(HaloUpdateCall).visit(op)
-        assert len(calls) == 3
-        calls = FindNodes(HaloUpdateCall).visit(get_time_loop(op))
-        assert len(calls) == 2
+        calls, _ = check_halo_exchanges(op, 3, 2)
         # More specifically, we ensure HaloSpot(v2) is on the last loop nest
         assert calls[0].arguments[0] is v1
         assert calls[1].arguments[0] is v2
-
-    @pytest.mark.parallel(mode=1)
-    def test_merge_haloupdate_even_if_multiple_loc_indices(self, mode):
-        grid = Grid(shape=(65, 65, 65))
-
-        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
-                          save=Buffer(1))
-        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
-                          save=Buffer(1))
-
-        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
-
-        eqns = [Eq(v1.forward, v2.laplace),
-                Eq(v2.forward, v1.forward.laplace + v2),
-                rec.interpolate(expr=v1)]
-
-        op = Operator(eqns)
-        op.cfunction
-
-        calls, _ = check_halo_exchanges(op, 2, 2)
-        for i, v in enumerate([v2, v1]):
-            assert calls[i].arguments[0] is v
 
     @pytest.mark.parallel(mode=1)
     def test_hoist_haloupdate_if_in_the_middle(self, mode):

@@ -198,11 +198,11 @@ def _hoist_invariant(iet):
     hsmapper = defaultdict(list)
     imapper = defaultdict(list)
     for it, halo_spots in iter_mapper.items():
-        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
-
         for hs0, hs1 in combinations(halo_spots, r=2):
             if _check_control_flow(hs0, hs1, cond_mapper):
                 continue
+
+            scope = _derive_scope(it, hs0, hs1)
 
             for f in hs1.fmapper:
                 hsf0 = hs0.halo_scheme.project(f)
