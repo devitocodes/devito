@@ -1,8 +1,11 @@
-from collections.abc import Hashable
-from functools import partial
+from collections.abc import Hashable, Callable
+from functools import partial, wraps
 from itertools import tee
+from typing import TypeVar
+from weakref import WeakValueDictionary
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator']
+
+__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator', 'memoized_constructor']
 
 
 class memoized_func:
@@ -125,3 +128,29 @@ class memoized_generator:
         it = cache[key] if key in cache else self.func(*args, **kwargs)
         cache[key], result = tee(it)
         return result
+
+
+InstanceType = TypeVar('InstanceType')
+Constructor = Callable[..., InstanceType]
+
+
+def memoized_constructor(new: Constructor[InstanceType]) -> Constructor[InstanceType]:
+    """
+    Decorator for a class's __new__ method that caches weak references to
+    instances based on the hash values of constructing arguments.
+    """
+
+    @wraps(new)
+    def _wrapper(cls, *args: Hashable, **kwargs: Hashable) -> InstanceType:
+        if not hasattr(cls, '__cached_instances'):
+            cls.__cached_instances = WeakValueDictionary()
+        cache: WeakValueDictionary[int, InstanceType] = cls.__cached_instances
+
+        key = hash((*args, frozenset(kwargs.items())))
+        obj = cache.get(key, None)
+        if obj is None:
+            obj = new(cls, *args, **kwargs)
+            cache[key] = obj
+        return obj
+
+    return _wrapper
