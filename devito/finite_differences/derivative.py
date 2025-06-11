@@ -543,25 +543,24 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         Note that this is not always a valid expansion depending on the kwargs
         used to construct the derivative.
         '''
-        expr = self.args[0]
-        if isinstance(expr, self.__class__):
-            new_expr = expr.args[0]
+        if isinstance(self.expr, self.__class__):
+            new_expr = self.expr.args[0]
             new_dims = [
                 (d, ii)
                 for d, ii in zip(
-                    chain(self.dims, expr.dims),
-                    chain(self.deriv_order, expr.deriv_order)
+                    chain(self.dims, self.expr.dims),
+                    chain(self.deriv_order, self.expr.deriv_order)
                 )
             ]
             # This is necessary as tools.abc.Reconstructable._rebuild will copy
             # all kwargs from the self object
             # TODO: This dictionary merge needs to be a lot better
             # EG: Don't actually expand if derivatives are incompatible
-            new_deriv_order = tuple(chain(self.deriv_order, expr.deriv_order))
+            new_deriv_order = tuple(chain(self.deriv_order, self.expr.deriv_order))
             # The `fd_order` may need to be reduced to construct the nested derivative
             dcounter = defaultdict(int)
             fcounter = defaultdict(int)
-            new_fd_order = tuple(chain(self.fd_order, expr.fd_order))
+            new_fd_order = tuple(chain(self.fd_order, self.expr.fd_order))
             for d, do, fo in zip(new_dims, new_deriv_order, new_fd_order):
                 if isinstance(d, Iterable):
                     dcounter[d[0]] += d[1]
@@ -572,10 +571,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             for (d, do), (_, fo) in zip(dcounter.items(), fcounter.items()):
                 if getattr(d, 'is_Time', False):
                     dim_name = 'time'
-                    order = expr.time_order
+                    order = self.expr.time_order
                 else:
                     dim_name = 'space'
-                    order = expr.space_order
+                    order = self.expr.space_order
                 if fo > order:
                     if do > order:
                         raise ValueError(
@@ -602,9 +601,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         `Derivative(C·f(x)·g(c, y), x)
             --> C·g(y)·Derivative(f(x), x)`
         '''
-        expr = self.args[0]
-        if isinstance(expr, sympy.Mul):
-            ind, dep = expr.as_independent(*self.dims, as_Mul=True)
+        if self.expr.is_Mul:
+            ind, dep = self.expr.as_independent(*self.dims, as_Mul=True)
             return ind*self.func(dep, *self.args[1:])
         else:
             return self
@@ -614,10 +612,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         `Derivative(f(x) + g(x), x)
             --> Derivative(f(x), x) + Derivative(g(x), x)`
         '''
-        expr = self.args[0]
-        if isinstance(expr, sympy.Add):
-            ind, dep = expr.as_independent(*self.dims, as_Add=True)
-            if isinstance(dep, sympy.Add):
+        if self.expr.is_Add:
+            ind, dep = self.expr.as_independent(*self.dims, as_Add=True)
+            if dep.is_Add:
                 return Add(*[self.func(s, *self.args[1:]) for s in dep.args])
             else:
                 return self.func(dep, *self.args[1:])
@@ -633,6 +630,5 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         resultant expression for higher derivatives and mixed derivatives is much
         more difficult to implement.
         '''
-        # expr = self.args[0]
-        # if isinstance(expr, sympy.Mul):
+        # if self.expr.is_Mul:
         raise NotImplementedError('Product rule expansion has not been written')
