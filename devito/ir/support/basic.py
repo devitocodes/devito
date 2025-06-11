@@ -1,10 +1,12 @@
 from itertools import chain, product
 from functools import cached_property
+from typing import Any
+from weakref import WeakValueDictionary
 
 from sympy import S
 import sympy
 
-from devito.ir.support.space import Backward, null_ispace
+from devito.ir.support.space import Backward, IterationSpace, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
@@ -198,6 +200,7 @@ class IterationInstance(LabeledVector):
         return self.rank == 0
 
 
+# @memoize_instances
 class TimedAccess(IterationInstance, AccessMode):
 
     """
@@ -216,7 +219,9 @@ class TimedAccess(IterationInstance, AccessMode):
     on the values of the index functions and the access mode (read, write).
     """
 
-    def __new__(cls, access, mode, timestamp, ispace=None):
+    # @memoized_constructor
+    def __new__(cls, access: Any, mode: str, timestamp: int,
+                ispace: IterationSpace | None = None) -> 'TimedAccess':
         obj = super().__new__(cls, access)
         AccessMode.__init__(obj, mode=mode)
         return obj
@@ -629,6 +634,11 @@ class Dependence(Relation):
     """
     A data dependence between two TimedAccess objects.
     """
+
+    @memoized_constructor
+    def __new__(cls, source: TimedAccess, sink: TimedAccess) -> 'Dependence':
+        obj = super().__new__(cls)
+        return obj
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
