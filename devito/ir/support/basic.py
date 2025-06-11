@@ -317,7 +317,8 @@ class TimedAccess(IterationInstance, AccessMode):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
-    # Note: memoization yields mild compiler speedup
+    # Note: memoization yields mild compiler speedup. Will need to be made
+    # thread-safe for multithreading the compiler.
     @memoized_meth
     def distance(self, other):
         """
@@ -369,7 +370,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 # To avoid evaluating expensive symbolic Lt or Gt operations,
                 # we pre-empt such operations by checking if the values to be compared
                 # to are symbolic, and skip this case if not.
-                if not any(isinstance(i, sympy.core.Basic)
+                if not any(isinstance(i, sympy.Basic)
                            for i in (sit.symbolic_min, sit.symbolic_max)):
 
                     for v in (self[n], other[n]):

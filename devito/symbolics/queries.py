@@ -32,13 +32,6 @@ def q_symbol(expr):
         return False
 
 
-def q_ctemp(expr):
-    try:
-        return expr.is_CTemp
-    except AttributeError:
-        return False
-
-
 def q_comp_acc(expr):
     return isinstance(expr, ComponentAccess)
 
