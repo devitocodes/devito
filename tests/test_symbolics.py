@@ -957,7 +957,6 @@ def test_print_div():
     assert cstr == 'sizeof(int)/sizeof(long)'
 
 
-<<<<<<< HEAD
 @pytest.mark.parametrize('eqn, target, expected', [
     ('Eq(f1.laplace, g1)',
      'f1', ('g1(x, y)', 'Derivative(f1(x, y), (x, 2)) + Derivative(f1(x, y), (y, 2))')),
@@ -1194,7 +1193,8 @@ def test_centre_stencil(expr, so, target, expected):
     centre = centre_stencil(eval(expr), eval(target))
 
     assert str(centre) == expected
-=======
+
+
 def test_customdtype_complex():
     """
     Test that `CustomDtype` doesn't brak is_imag
@@ -1327,4 +1327,3 @@ class TestComplexParts:
         Operator([Eq(g, Conj(f))])()
 
         assert np.all(np.isclose(g.data, np.conj(f.data)))
->>>>>>> petsc
