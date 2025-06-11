@@ -3129,6 +3129,7 @@ class TestElasticLike:
 
         op0 = Operator([u_v, u_tau, rec_term0])
 
+        check_halo_exchanges(op0, 3, 2)
         calls = [i for i in FindNodes(Call).visit(op0) if isinstance(i, HaloUpdateCall)]
 
         assert len(calls) == 3
@@ -3147,14 +3148,9 @@ class TestElasticLike:
         op1 = Operator([u_v, u_tau, rec_term1])
         op1.cfunction
 
-        calls = [i for i in FindNodes(Call).visit(op1) if isinstance(i, HaloUpdateCall)]
-
-        assert len(calls) == 3
-        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[0])) == 0
-        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[1])) == 3
+        calls, _ = check_halo_exchanges(op1, 2, 2)
         assert calls[0].arguments[0] is tau
         assert calls[1].arguments[0] is v
-        assert calls[2].arguments[0] is v
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_v2(self, mode, setup):
@@ -3211,6 +3207,7 @@ class TestElasticLike:
         rec_term3 = rec2.interpolate(expr=v2.forward)
 
         op3 = Operator([u_v, u_v2, u_tau, u_tau2, rec_term0, rec_term3])
+        op3.cfunction
 
         calls = [i for i in FindNodes(Call).visit(op3) if isinstance(i, HaloUpdateCall)]
 
