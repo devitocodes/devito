@@ -47,20 +47,21 @@ maintainers = [
 ]
 dynamic = ["version", "dependencies", "optional-dependencies"]
 
-
 [project.urls]
 Documentation = "https://www.devitoproject.org/devito/index.html"
-"Source Code"   = "https://github.com/devitocodes/devito"
-"Issue Tracker" = "https://github.com/devitocodes/devito/issues"
+Repository   = "https://github.com/devitocodes/devito"
+Issues = "https://github.com/devitocodes/devito/issues"
+
+[project.optional-dependencies]
+# Map each extra to its requirements-*.txt
+mpi    = { file = ["requirements-mpi.txt"] }
+nvidia = { file = ["requirements-nvidia.txt"] }
+tests  = { file = ["requirements-testing.txt"] }
+extras = { file = ["requirements-optional.txt"] }
 
 [tool.setuptools.dynamic]
 # Read install_requires from requirements.txt
 dependencies = { file = ["requirements.txt"] }
-# Map each extra to its requirements-*.txt
-optional-dependencies.mpi    = { file = ["requirements-mpi.txt"] }
-optional-dependencies.nvidia = { file = ["requirements-nvidia.txt"] }
-optional-dependencies.tests  = { file = ["requirements-testing.txt"] }
-optional-dependencies.extras = { file = ["requirements-optional.txt"] }
 
 [tool.setuptools.packages.find]
 where   = ["."]
