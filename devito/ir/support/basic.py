@@ -365,9 +365,8 @@ class TimedAccess(IterationInstance, AccessMode):
                 # trip count. E.g. it ranges from 0 to 3; `other` performs a
                 # constant access at 4
                 for v in (self[n], other[n]):
-                    # Note: To avoid evaluating expensive symbolic Lt or Gt operations,
-                    # we pre-empt such operations by checking if the values to be compared
-                    # to are symbolic, and skip this case if not.
+                    # Note: Uses smart_ comparisons avoid evaluating expensive
+                    # symbolic Lt or Gt operations,
                     # Note: Boolean is split to make the conditional short
                     # circuit more frequently for mild speedup.
                     if smart_lt(v, sit.symbolic_min) or smart_gt(v, sit.symbolic_max):
