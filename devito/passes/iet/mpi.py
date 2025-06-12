@@ -458,9 +458,6 @@ def _derive_scope(it, hs0, hs1):
     and ends at the HaloSpot `hs1`.
     """
     expressions = FindWithin(Expression, hs0, stop=hs1).visit(it)
-    assert len(expressions) > 0, \
-        "Expected at least one Expression between %s and %s" % (hs0, hs1)
-
     return Scope([e.expr for e in expressions])
 
 
@@ -515,8 +512,5 @@ def _is_mergeable(hsf0, hsf1, scope):
        not hsf0.functions & hsf1.functions:
         return False
 
-    # Then, check the data dependences would be satisfied
-    if not _is_iter_carried(hsf1, scope):
-        return False
-
-    return True
+    # Finally, check the data dependences would be satisfied
+    return _is_iter_carried(hsf1, scope)
