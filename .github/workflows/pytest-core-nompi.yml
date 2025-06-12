@@ -32,13 +32,13 @@ jobs:
         name: [
            pytest-ubuntu-py311-gcc11-cxxnoomp,
            pytest-ubuntu-py312-gcc12-cxxomp,
-           pytest-ubuntu-py39-gcc14-omp,
-           pytest-ubuntu-py310-gcc10-noomp,
+           pytest-ubuntu-py310-gcc14-omp,
+           pytest-ubuntu-py311-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
-           pytest-ubuntu-py39-gcc9-omp,
+           pytest-ubuntu-py310-gcc9-omp,
            pytest-osx-py312-clang-omp,
-           pytest-docker-py39-gcc-omp,
-           pytest-docker-py39-icx-omp
+           pytest-docker-py310-gcc-omp,
+           pytest-docker-py310-icx-omp
         ]
         set: [base, adjoint]
         include:
@@ -56,15 +56,15 @@ jobs:
           language: "CXXopenmp"
           sympy: "1.13"
 
-        - name: pytest-ubuntu-py39-gcc14-omp
-          python-version: '3.9'
+        - name: pytest-ubuntu-py310-gcc14-omp
+          python-version: '3.10'
           os: ubuntu-24.04
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.12"
 
-        - name: pytest-ubuntu-py310-gcc10-noomp
-          python-version: '3.10'
+        - name: pytest-ubuntu-py311-gcc10-noomp
+          python-version: '3.11'
           os: ubuntu-22.04
           arch: "gcc-10"
           language: "C"
@@ -77,8 +77,8 @@ jobs:
           language: "openmp"
           sympy: "1.13"
 
-        - name: pytest-ubuntu-py39-gcc9-omp
-          python-version: '3.9'
+        - name: pytest-ubuntu-py310-gcc9-omp
+          python-version: '3.10'
           os: ubuntu-22.04
           arch: "custom"
           language: "openmp"
@@ -91,15 +91,15 @@ jobs:
           language: "openmp"
           sympy: "1.12"
 
-        - name: pytest-docker-py39-gcc-omp
-          python-version: '3.9'
+        - name: pytest-docker-py310-gcc-omp
+          python-version: '3.10'
           os: ubuntu-latest
           arch: "gcc"
           language: "openmp"
           sympy: "1.13"
 
-        - name: pytest-docker-py39-icx-omp
-          python-version: '3.9'
+        - name: pytest-docker-py310-icx-omp
+          python-version: '3.10'
           os: ubuntu-latest
           arch: "icx"
           language: "openmp"

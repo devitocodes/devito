@@ -28,17 +28,17 @@ jobs:
       fail-fast: false
       matrix:
         name: [
-          tutos-ubuntu-gcc-py39,
+          tutos-ubuntu-gcc-py310,
           tutos-osx-clang-py311,
-          tutos-docker-gcc-py39
+          tutos-docker-gcc-py310
           ]
 
         include:
-          - name: tutos-ubuntu-gcc-py39
+          - name: tutos-ubuntu-gcc-py310
             os: ubuntu-latest
             compiler: gcc
             language: "openmp"
-            pyver: "3.9"
+            pyver: "3.10"
 
           - name: tutos-osx-clang-py311
             os: macos-latest
@@ -46,11 +46,11 @@ jobs:
             language: "C"
             pyver: "3.11"
 
-          - name: tutos-docker-gcc-py39
+          - name: tutos-docker-gcc-py310
             os: ubuntu-latest
             compiler: gcc
             language: "openmp"
-            pyver: "3.9"
+            pyver: "3.10"
 
     steps:
     - name: Checkout devito
