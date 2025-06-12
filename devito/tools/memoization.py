@@ -130,6 +130,7 @@ class memoized_generator:
         return result
 
 
+# Describes the type of an object cached by `memoized_constructor`
 InstanceType = TypeVar('InstanceType')
 Constructor = Callable[..., InstanceType]
 
@@ -142,15 +143,19 @@ def memoized_constructor(new: Constructor[InstanceType]) -> Constructor[Instance
 
     @wraps(new)
     def _wrapper(cls, *args: Hashable, **kwargs: Hashable) -> InstanceType:
+        # Store an instance cache on the class itself, weakly referencing values
         if not hasattr(cls, '__cached_instances'):
             cls.__cached_instances = WeakValueDictionary()
         cache: WeakValueDictionary[int, InstanceType] = cls.__cached_instances
 
         key = hash((*args, frozenset(kwargs.items())))
         obj = cache.get(key, None)
+
+        # Construct a new instance if it doesn't exist in the cache
         if obj is None:
             obj = new(cls, *args, **kwargs)
             cache[key] = obj
+
         return obj
 
     return _wrapper

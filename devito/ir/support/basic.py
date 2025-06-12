@@ -1,7 +1,6 @@
 from itertools import chain, product
 from functools import cached_property
 from typing import Any
-from weakref import WeakValueDictionary
 
 from sympy import S
 import sympy
@@ -200,7 +199,6 @@ class IterationInstance(LabeledVector):
         return self.rank == 0
 
 
-# @memoize_instances
 class TimedAccess(IterationInstance, AccessMode):
 
     """
@@ -219,7 +217,6 @@ class TimedAccess(IterationInstance, AccessMode):
     on the values of the index functions and the access mode (read, write).
     """
 
-    # @memoized_constructor
     def __new__(cls, access: Any, mode: str, timestamp: int,
                 ispace: IterationSpace | None = None) -> 'TimedAccess':
         obj = super().__new__(cls, access)
