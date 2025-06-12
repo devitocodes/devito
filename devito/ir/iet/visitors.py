@@ -68,27 +68,21 @@ class LazyVisitor(GenericVisitor, Generic[ResultType]):
     A generic visitor that lazily yields results instead of flattening results
     from children at every step.
 
-    Subclass-defined visit methods (and default_retval) should be generators.
+    Subclass-defined visit methods should be generators.
     """
-
-    @classmethod
-    def default_retval(cls) -> Iterator[Any]:
-        yield from ()
 
     def lookup_method(self, instance) -> Callable[..., Iterator[Any]]:
         return super().lookup_method(instance)
 
     def _visit(self, o, *args, **kwargs) -> Iterator[Any]:
-        """Visit `o`."""
         meth = self.lookup_method(o)
         yield from meth(o, *args, **kwargs)
 
     def _post_visit(self, ret: Iterator[Any]) -> ResultType:
-        """Postprocess the visitor output before returning it to the caller."""
         return list(ret)
 
     def visit_object(self, o: object, **kwargs) -> Iterator[Any]:
-        yield from self.default_retval()
+        yield from ()
 
     def visit_Node(self, o: Node, **kwargs) -> Iterator[Any]:
         yield from self._visit(o.children, **kwargs)
@@ -1053,6 +1047,7 @@ class FindSymbols(LazyVisitor[list[Any]]):
         - `defines-aliases`: Collect all defined objects and their aliases
     """
 
+    @staticmethod
     def _defines_aliases(n):
         for i in n.defines:
             f = i.function
