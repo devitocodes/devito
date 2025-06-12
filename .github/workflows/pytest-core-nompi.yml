@@ -167,7 +167,7 @@ jobs:
         python3 -m pip install ${{ env.PIPFLAGS }} sympy==${{matrix.sympy}}
 
     - name: Check Docker image Python version
-      if: "contains(matrix.name, 'docker')""
+      if: "contains(matrix.name, 'docker')"
       run: |
         declared_pyver="${{ matrix.pyver }}"
         actual_pyver=$(${{ env.RUN_CMD }} python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
