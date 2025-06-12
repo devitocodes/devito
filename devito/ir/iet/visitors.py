@@ -5,8 +5,9 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from itertools import chain, groupby
+from typing import Any, Generic, TypeVar
 import ctypes
 
 import cgen as c
@@ -56,6 +57,47 @@ class Visitor(GenericVisitor):
         ops, okwargs = o.operands()
         new_ops = [self._visit(op, *args, **kwargs) for op in ops]
         return o._rebuild(*new_ops, **okwargs)
+
+
+ResultType = TypeVar('ResultType')
+
+
+class LazyVisitor(GenericVisitor, Generic[ResultType]):
+
+    """
+    A generic visitor that lazily yields results instead of flattening results
+    from children at every step.
+
+    Subclass-defined visit methods (and default_retval) should be generators.
+    """
+
+    @classmethod
+    def default_retval(cls) -> Iterator[Any]:
+        yield from ()
+
+    def lookup_method(self, instance) -> Callable[..., Iterator[Any]]:
+        return super().lookup_method(instance)
+
+    def _visit(self, o, *args, **kwargs) -> Iterator[Any]:
+        """Visit `o`."""
+        meth = self.lookup_method(o)
+        yield from meth(o, *args, **kwargs)
+
+    def _post_visit(self, ret: Iterator[Any]) -> ResultType:
+        """Postprocess the visitor output before returning it to the caller."""
+        return list(ret)
+
+    def visit_object(self, o: object, **kwargs) -> Iterator[Any]:
+        yield from self.default_retval()
+
+    def visit_Node(self, o: Node, **kwargs) -> Iterator[Any]:
+        yield from self._visit(o.children, **kwargs)
+
+    def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
+        for i in o:
+            yield from self._visit(i)
+
+    visit_list = visit_tuple
 
 
 class PrintAST(Visitor):
@@ -992,16 +1034,7 @@ class MapNodes(Visitor):
         return ret
 
 
-class FindSymbols(Visitor):
-
-    class Retval(list):
-        def __init__(self, *retvals):
-            elements = filter_ordered(flatten(retvals), key=id)
-            super().__init__(elements)
-
-    @classmethod
-    def default_retval(cls):
-        return cls.Retval()
+class FindSymbols(LazyVisitor[list[Any]]):
 
     """
     Find symbols in an Iteration/Expression tree.
@@ -1021,31 +1054,30 @@ class FindSymbols(Visitor):
     """
 
     def _defines_aliases(n):
-        retval = []
         for i in n.defines:
             f = i.function
             if f.is_ArrayBasic:
-                retval.extend([f, f.indexed])
+                yield from (f, f.indexed)
             else:
-                retval.append(i)
-        return tuple(retval)
+                yield i
 
-    rules = {
+    RulesDict = dict[str, Callable[[Node], Iterator[Any]]]
+    rules: RulesDict = {
         'symbolics': lambda n: n.functions,
-        'basics': lambda n: [i for i in n.expr_symbols if isinstance(i, Basic)],
-        'symbols': lambda n: [i for i in n.expr_symbols
-                              if isinstance(i, AbstractSymbol)],
-        'dimensions': lambda n: [i for i in n.expr_symbols if isinstance(i, Dimension)],
-        'indexeds': lambda n: [i for i in n.expr_symbols if i.is_Indexed],
-        'indexedbases': lambda n: [i for i in n.expr_symbols
-                                   if isinstance(i, IndexedBase)],
+        'basics': lambda n: (i for i in n.expr_symbols if isinstance(i, Basic)),
+        'symbols': lambda n: (i for i in n.expr_symbols
+                              if isinstance(i, AbstractSymbol)),
+        'dimensions': lambda n: (i for i in n.expr_symbols if isinstance(i, Dimension)),
+        'indexeds': lambda n: (i for i in n.expr_symbols if i.is_Indexed),
+        'indexedbases': lambda n: (i for i in n.expr_symbols
+                                   if isinstance(i, IndexedBase)),
         'writes': lambda n: as_tuple(n.writes),
         'defines': lambda n: as_tuple(n.defines),
-        'globals': lambda n: [f.base for f in n.functions if f._mem_global],
+        'globals': lambda n: (f.base for f in n.functions if f._mem_global),
         'defines-aliases': _defines_aliases
     }
 
-    def __init__(self, mode='symbolics'):
+    def __init__(self, mode: str = 'symbolics') -> None:
         super().__init__()
 
         modes = mode.split('|')
@@ -1055,33 +1087,27 @@ class FindSymbols(Visitor):
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret):
-        return sorted(ret, key=lambda i: str(i))
+        return sorted(filter_ordered(ret, key=id), key=str)
 
-    def visit_tuple(self, o):
-        return self.Retval(*[self._visit(i) for i in o])
+    def visit_Node(self, o: Node) -> Iterator[Any]:
+        yield from self._visit(o.children)
+        yield from self.rule(o)
 
-    visit_list = visit_tuple
-
-    def visit_Node(self, o):
-        return self.Retval(self._visit(o.children), self.rule(o))
-
-    def visit_ThreadedProdder(self, o):
+    def visit_ThreadedProdder(self, o) -> Iterator[Any]:
         # TODO: this handle required because ThreadedProdder suffers from the
         # long-standing issue affecting all Node subclasses which rely on
         # multiple inheritance
-        return self.Retval(self._visit(o.then_body), self.rule(o))
+        yield from self._visit(o.then_body)
+        yield from self.rule(o)
 
-    def visit_Operator(self, o):
-        ret = self._visit(o.body)
-        ret.extend(flatten(self._visit(v) for v in o._func_table.values()))
-        return self.Retval(ret, self.rule(o))
+    def visit_Operator(self, o) -> Iterator[Any]:
+        yield from self._visit(o.body)
+        yield from self.rule(o)
+        for i in o._func_table.values():
+            yield from self._visit(i)
 
 
-class FindNodes(Visitor):
-
-    @classmethod
-    def default_retval(cls):
-        return []
+class FindNodes(LazyVisitor[list[Node]]):
 
     """
     Find all instances of given type.
@@ -1097,34 +1123,22 @@ class FindNodes(Visitor):
                      appears.
     """
 
-    rules = {
+    RulesDict = dict[str, Callable[[type, Node], bool]]
+    rules: RulesDict = {
         'type': lambda match, o: isinstance(o, match),
         'scope': lambda match, o: match in flatten(o.children)
     }
 
-    def __init__(self, match, mode='type'):
+    def __init__(self, match: type, mode: str = 'type'):
         super().__init__()
         self.match = match
         self.rule = self.rules[mode]
 
-    def visit_object(self, o, ret=None):
-        return ret
-
-    def visit_tuple(self, o, ret=None):
-        for i in o:
-            ret = self._visit(i, ret=ret)
-        return ret
-
-    visit_list = visit_tuple
-
-    def visit_Node(self, o, ret=None):
-        if ret is None:
-            ret = self.default_retval()
+    def visit_Node(self, o: Node) -> Iterator[Any]:
         if self.rule(self.match, o):
-            ret.append(o)
+            yield o
         for i in o.children:
-            ret = self._visit(i, ret=ret)
-        return ret
+            yield from self._visit(i)
 
 
 class FindWithin(FindNodes):
@@ -1170,53 +1184,36 @@ class FindWithin(FindNodes):
         return found, flag
 
 
-class FindApplications(Visitor):
+ApplicationType = TypeVar('ApplicationType')
 
+
+class FindApplications(LazyVisitor[set[ApplicationType]]):
     """
     Find all SymPy applied functions (aka, `Application`s). The user may refine
     the search by supplying a different target class.
     """
 
-    def __init__(self, cls=Application):
+    def __init__(self, cls: type[ApplicationType] = Application):
         super().__init__()
         self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
 
-    @classmethod
-    def default_retval(cls):
-        return set()
+    def _post_visit(self, ret):
+        return set(ret)
 
-    def visit_object(self, o, **kwargs):
-        return self.default_retval()
+    def visit_Expression(self, o: Expression, **kwargs) -> Iterator[ApplicationType]:
+        yield from o.expr.find(self.match)
 
-    def visit_tuple(self, o, ret=None):
-        ret = ret or self.default_retval()
-        for i in o:
-            ret.update(self._visit(i, ret=ret))
-        return ret
+    def visit_Iteration(self, o: Iteration, **kwargs) -> Iterator[ApplicationType]:
+        yield from self._visit(o.children)
+        yield from o.symbolic_min.find(self.match)
+        yield from o.symbolic_max.find(self.match)
 
-    def visit_Node(self, o, ret=None):
-        ret = ret or self.default_retval()
-        for i in o.children:
-            ret.update(self._visit(i, ret=ret))
-        return ret
-
-    def visit_Expression(self, o, **kwargs):
-        return o.expr.find(self.match)
-
-    def visit_Iteration(self, o, **kwargs):
-        ret = self._visit(o.children) or self.default_retval()
-        ret.update(o.symbolic_min.find(self.match))
-        ret.update(o.symbolic_max.find(self.match))
-        return ret
-
-    def visit_Call(self, o, **kwargs):
-        ret = self.default_retval()
+    def visit_Call(self, o: Call, **kwargs) -> Iterator[ApplicationType]:
         for i in o.arguments:
             try:
-                ret.update(i.find(self.match))
+                yield from i.find(self.match)
             except (AttributeError, TypeError):
-                ret.update(self._visit(i, ret=ret))
-        return ret
+                yield from self._visit(i)
 
 
 class IsPerfectIteration(Visitor):
