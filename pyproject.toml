@@ -12,7 +12,7 @@ description = "Finite Difference DSL for symbolic computation."
 license = { file = "LICENSE.md" }
 readme = "README.md"
 keywords = ["finite-difference", "DSL", "symbolic", "jit", "devito"]
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.13"
 authors = [
   { name = "Imperial College London", email = "g.gorman@imperial.ac.uk" },
   { name = "Fabio Luporini",  email = "fabio@devitocodes.com" },
