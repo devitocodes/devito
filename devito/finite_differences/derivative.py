@@ -173,7 +173,10 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                     order = expr.time_order
                 else:
                     order = expr.space_order
-                if o > order:
+                if o > order > 1:
+                    # Only handle cases greater than 2 since mumble
+                    # interpolation and averaging
+                    # TODO: Check if this is sane
                     raise ValueError(
                         f'Function does not support {d}-derivative with `fd_order` {o}'
                     )
