@@ -171,6 +171,8 @@ jobs:
       run: |
         declared_pyver="${{ matrix.pyver }}"
         actual_pyver=$(${{ env.RUN_CMD }} python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+        echo "Declared Python version: $declared_pyver"
+        echo "Actual Python version: $actual_pyver"
         if [ "$declared_pyver" != "$actual_pyver" ]; then
           echo "Python version mismatch: declared $declared_pyver, image has $actual_pyver"
           exit 1
