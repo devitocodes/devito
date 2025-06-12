@@ -349,7 +349,7 @@ def sorted_priority(items, priority):
     return sorted(items, key=key, reverse=True)
 
 
-def avoid_symbolic(default_val):
+def avoid_symbolic(default=None):
     """
     Decorator to avoid calling a function where doing so will result in symbolic
     computation being performed. For use if symbolic computation may be slow. In
@@ -360,25 +360,25 @@ def avoid_symbolic(default_val):
         def wrapper(*args):
             if any(isinstance(expr, sympy.Basic) for expr in args):
                 # An argument is symbolic, so give up and assume default
-                return default_val
+                return default
 
             try:
                 return func(*args)
             except TypeError:
-                return default_val
+                return default
 
         return wrapper
 
     return _avoid_symbolic
 
 
-@avoid_symbolic(False)
+@avoid_symbolic(default=False)
 def smart_lt(a, b):
     """An Lt that gives up and returns False if supplied a symbolic argument"""
     return bool(a < b)
 
 
-@avoid_symbolic(False)
+@avoid_symbolic(default=False)
 def smart_gt(a, b):
     """A Gt that gives up and returns False if supplied a symbolic argument"""
     return bool(a > b)
