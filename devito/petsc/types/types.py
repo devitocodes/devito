@@ -137,6 +137,26 @@ class LinearSolveExpr(MetaData):
 
 
 class FieldData:
+    """
+    Metadata class passed to `LinearSolveExpr`. Encapsulates metadata for a single
+    `target` field needed to interface with PETSc SNES solvers.
+
+    Parameters
+    ----------
+
+    target : Function-like
+        The target field to solve into, which is a Function-like object.
+    jacobian : Jacobian
+        Defines the matrix-vector product for the linear system, where the vector is 
+        the PETScArray representing the `target`.
+    residual : Residual
+        Defines the nonlinear residual function F(target) = 0.
+    initialguess : InitialGuess
+        Defines the initial guess for the solution, which satisfies
+        essential boundary conditions.
+    arrays : dict
+        A dictionary mapping `target` to its corresponding PETScArrays.
+    """
     def __init__(self, target=None, jacobian=None, residual=None,
                  initialguess=None, arrays=None, **kwargs):
         self._target = target
@@ -190,6 +210,24 @@ class FieldData:
 
 
 class MultipleFieldData(FieldData):
+    """
+    Metadata class passed to `LinearSolveExpr`, for mixed-field problems,
+    where the solution vector spans multiple `targets`.
+
+    Parameters
+    ----------
+    targets : list of Function-like
+        The fields to solve into, each represented by a Function-like object.
+    jacobian : MixedJacobian
+        Defines the matrix-vector products for the full system Jacobian.
+    residual : MixedResidual
+        Defines the nonlinear residual function F(targets) = 0.
+    initialguess : InitialGuess
+        Defines the initial guess metadata, which satisfies
+        essential boundary conditions.
+    arrays : dict
+        A dictionary mapping the `targets` to their corresponding PETScArrays.
+    """
     def __init__(self, targets, arrays, jacobian=None, residual=None):
         self._targets = as_tuple(targets)
         self._arrays = arrays
@@ -208,6 +246,7 @@ class MultipleFieldData(FieldData):
 
     @property
     def grid(self):
+        """The unique `Grid` associated with all targets."""
         grids = [t.grid for t in self.targets]
         if len(set(grids)) > 1:
             raise ValueError(
@@ -233,88 +272,11 @@ class MultipleFieldData(FieldData):
     def targets(self):
         return self._targets
 
-
-class Jacobian:
-    """
-    Represents a Jacobian matrix.
-
-    This Jacobian is defined implicitly via matrix-vector products
-    derived from the symbolic expressions provided in `matvecs`.
-
-    The class assumes the problem is linear, meaning the Jacobian
-    corresponds to a constant coefficient matrix and does not
-    require explicit symbolic differentiation.
-    """
-    def __init__(self, target, exprs, arrays, time_mapper):
-        self.target = target
-        self.exprs = exprs
+    
+class BaseJacobian:
+    def __init__(self, arrays, target=None):
         self.arrays = arrays
-        self.time_mapper = time_mapper
-        self._build_matvecs()
-
-    @property
-    def matvecs(self):
-        """
-        Stores the expressions used to generate the `MatMult`
-        callback generated at the IET level. This function is
-        passed to PETSc via `MatShellSetOperation(...,MATOP_MULT,(void (*)(void))MatMult)`.
-        """
-        return self._matvecs
-
-    @property
-    def scdiag(self):
-        return self._scdiag
-
-    @property
-    def row_target(self):
-        return self.target
-
-    @property
-    def col_target(self):
-        return self.target
-
-    def _build_matvecs(self):
-        matvecs = []
-        for eq in self.exprs:
-            matvecs.extend(
-                e for e in self._build_matvec_expr(eq) if e is not None
-            )
-
-        matvecs = tuple(sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC)))
-
-        matvecs = self._scale_non_bcs(matvecs)
-        scdiag = self._compute_scdiag(matvecs)
-        matvecs = self._scale_bcs(matvecs, scdiag)
-
-        self._matvecs = matvecs
-        self._scdiag = scdiag
-
-    def _build_matvec_expr(self, expr, col_target=None, row_target=None):
-        col_target = col_target or self.target
-        row_target = row_target or self.target
-
-        _, F_target, _, targets = separate_eqn(expr, col_target)
-        if F_target:
-            return self._make_matvec(
-                expr, F_target, targets, col_target, row_target
-            )
-        else:
-            return (None,)
-
-    def _make_matvec(self, expr, F_target, targets, col_target, row_target):
-        y = self.arrays[row_target]['y']
-        x = self.arrays[col_target]['x']
-
-        if isinstance(expr, EssentialBC):
-            # NOTE: Essential BCs are trivial equations in the solver.
-            # See `EssentialBC` for more details.
-            zero_row = ZeroRow(y, x, subdomain=expr.subdomain)
-            zero_column = ZeroColumn(x, 0., subdomain=expr.subdomain)
-            return (zero_row, zero_column)
-        else:
-            rhs = F_target.subs(targets_to_arrays(x, targets))
-            rhs = rhs.subs(self.time_mapper)
-            return (Eq(y, rhs, subdomain=expr.subdomain),)
+        self.target = target
 
     def _scale_non_bcs(self, matvecs, target=None):
         target = target or self.target
@@ -344,28 +306,91 @@ class Jacobian:
             m._rebuild(rhs=m.rhs * scdiag) if isinstance(m, ZeroRow) else m
             for m in matvecs
         ]
+    
+    def _build_matvec_expr(self, expr, **kwargs):
+        col_target = kwargs.get('col_target', self.target)
+        row_target = kwargs.get('row_target', self.target)
+
+        _, F_target, _, targets = separate_eqn(expr, col_target)
+        if F_target:
+            return self._make_matvec(
+                expr, F_target, targets, col_target, row_target
+            )
+        else:
+            return (None,)
+
+    def _make_matvec(self, expr, F_target, targets, col_target, row_target):
+        y = self.arrays[row_target]['y']
+        x = self.arrays[col_target]['x']
+
+        if isinstance(expr, EssentialBC):
+            # NOTE: Essential BCs are trivial equations in the solver.
+            # See `EssentialBC` for more details.
+            zero_row = ZeroRow(y, x, subdomain=expr.subdomain)
+            zero_column = ZeroColumn(x, 0., subdomain=expr.subdomain)
+            return (zero_row, zero_column)
+        else:
+            rhs = F_target.subs(targets_to_arrays(x, targets))
+            rhs = rhs.subs(self.time_mapper)
+            return (Eq(y, rhs, subdomain=expr.subdomain),)
 
 
-class SubMatrixBlock:
-    def __init__(self, name, matvecs, scdiag, row_target,
-                 col_target, row_idx, col_idx, linear_idx):
-        self.name = name
-        self.matvecs = matvecs
-        self.scdiag = scdiag
-        self.row_target = row_target
-        self.col_target = col_target
-        self.row_idx = row_idx
-        self.col_idx = col_idx
-        self.linear_idx = linear_idx
+class Jacobian(BaseJacobian):
+    """
+    Represents a Jacobian matrix.
 
-    def is_diag(self):
-        return self.row_idx == self.col_idx
+    This Jacobian is defined implicitly via matrix-vector products
+    derived from the symbolic expressions provided in `matvecs`.
 
-    def __repr__(self):
-        return (f"<SubMatrixBlock {self.name}>")
+    The class assumes the problem is linear, meaning the Jacobian
+    corresponds to a constant coefficient matrix and does not
+    require explicit symbolic differentiation.
+    """
+    def __init__(self, target, exprs, arrays, time_mapper):
+        super().__init__(arrays=arrays, target=target)
+        self.exprs = exprs
+        self.time_mapper = time_mapper
+        self._build_matvecs()
+
+    @property
+    def matvecs(self):
+        # TODO: add shortcut explanation etc
+        """
+        Stores the expressions used to generate the `MatMult`
+        callback generated at the IET level. This function is
+        passed to PETSc via `MatShellSetOperation(...,MATOP_MULT,(void (*)(void))MatMult)`.
+        """
+        return self._matvecs
+
+    @property
+    def scdiag(self):
+        return self._scdiag
+
+    @property
+    def row_target(self):
+        return self.target
+
+    @property
+    def col_target(self):
+        return self.target
+
+    def _build_matvecs(self):
+        matvecs = []
+        for eq in self.exprs:
+            matvecs.extend(
+                e for e in self._build_matvec_expr(eq) if e is not None
+            )
+        matvecs = tuple(sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC)))
+
+        matvecs = self._scale_non_bcs(matvecs)
+        scdiag = self._compute_scdiag(matvecs)
+        matvecs = self._scale_bcs(matvecs, scdiag)
+
+        self._matvecs = matvecs
+        self._scdiag = scdiag
 
 
-class MixedJacobian(Jacobian):
+class MixedJacobian(BaseJacobian):
     """
     Represents a Jacobian for a linear system with a solution vector
     composed of multiple fields (targets).
@@ -380,12 +405,12 @@ class MixedJacobian(Jacobian):
 
     # TODO: pcfieldsplit support for each block
     """
-    def __init__(self, target_eqns, arrays, time_mapper):
-        self.targets = tuple(target_eqns.keys())
-        self.arrays = arrays
+    def __init__(self, target_exprs, arrays, time_mapper):
+        super().__init__(arrays=arrays, target=None)
+        self.targets = tuple(target_exprs.keys())
         self.time_mapper = time_mapper
         self._submatrices = []
-        self._build_blocks(target_eqns)
+        self._build_blocks(target_exprs)
 
     @property
     def submatrices(self):
@@ -427,7 +452,9 @@ class MixedJacobian(Jacobian):
                 matvecs = []
                 for expr in exprs:
                     matvecs.extend(
-                        e for e in self._build_matvec_expr(expr, col_target, row_target)
+                        e for e in self._build_matvec_expr(
+                            expr, col_target=col_target, row_target=row_target
+                        )
                     )
                 matvecs = [m for m in matvecs if m is not None]
 
@@ -467,6 +494,25 @@ class MixedJacobian(Jacobian):
             for sm in self.submatrices
         )
         return f"<MixedJacobian with {self.n_submatrices} submatrices: [{summary}]>"
+
+
+class SubMatrixBlock:
+    def __init__(self, name, matvecs, scdiag, row_target,
+                 col_target, row_idx, col_idx, linear_idx):
+        self.name = name
+        self.matvecs = matvecs
+        self.scdiag = scdiag
+        self.row_target = row_target
+        self.col_target = col_target
+        self.row_idx = row_idx
+        self.col_idx = col_idx
+        self.linear_idx = linear_idx
+
+    def is_diag(self):
+        return self.row_idx == self.col_idx
+
+    def __repr__(self):
+        return (f"<SubMatrixBlock {self.name}>")
 
 
 class Residual:
