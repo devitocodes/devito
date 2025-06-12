@@ -46,9 +46,9 @@ class CBBuilder:
         self._user_struct_callback = None
         # TODO: Test pickling. The mutability of these lists
         # could cause issues when pickling?
-        self._matvecs = []
-        self._formfuncs = []
-        self._formrhs = []
+        self._J_efuncs = []
+        self._F_efuncs = []
+        self._b_efuncs = []
         self._initialguesses = []
 
         self._make_core()
@@ -73,23 +73,23 @@ class CBBuilder:
         is set in the main kernel via
         `PetscCall(MatShellSetOperation(J,MATOP_MULT,(void (*)(void))...));`
         """
-        return self._matvecs[0]
+        return self._J_efuncs[0]
 
     @property
     def main_formfunc_callback(self):
-        return self._formfuncs[0]
+        return self._F_efuncs[0]
 
     @property
-    def matvecs(self):
-        return self._matvecs
+    def J_efuncs(self):
+        return self._J_efuncs
 
     @property
-    def formfuncs(self):
-        return self._formfuncs
+    def F_efuncs(self):
+        return self._F_efuncs
 
     @property
-    def formrhs(self):
-        return self._formrhs
+    def b_efuncs(self):
+        return self._b_efuncs
 
     @property
     def initialguesses(self):
@@ -122,27 +122,27 @@ class CBBuilder:
         self._make_matvec(self.fielddata.jacobian)
         self._make_formfunc()
         self._make_formrhs()
-        if self.fielddata.initialguess.eqs:
+        if self.fielddata.initialguess.exprs:
             self._make_initialguess()
         self._make_user_struct_callback()
 
     def _make_matvec(self, jacobian, prefix='MatMult'):
         # Compile matvec `eqns` into an IET via recursive compilation
         matvecs = jacobian.matvecs
-        irs_matvec, _ = self.rcompile(matvecs,
+        irs, _ = self.rcompile(matvecs,
                                       options={'mpi': False}, sregistry=self.sregistry,
                                       concretize_mapper=self.concretize_mapper)
-        body_matvec = self._create_matvec_body(List(body=irs_matvec.uiet.body),
+        body = self._create_matvec_body(List(body=irs.uiet.body),
                                                jacobian)
 
         objs = self.objs
         cb = PETScCallable(
             self.sregistry.make_name(prefix=prefix),
-            body_matvec,
+            body,
             retval=objs['err'],
             parameters=(objs['J'], objs['X'], objs['Y'])
         )
-        self._matvecs.append(cb)
+        self._J_efuncs.append(cb)
         self._efuncs[cb.name] = cb
 
     def _create_matvec_body(self, body, jacobian):
@@ -260,7 +260,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = self.dereference_funcs(ctx, fields)
 
-        matvec_body = CallableBody(
+        body = CallableBody(
             List(body=body),
             init=(objs['begin_user'],),
             stacks=stacks+derefs,
@@ -269,20 +269,20 @@ class CBBuilder:
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
-        matvec_body = Uxreplace(subs).visit(matvec_body)
+        body = Uxreplace(subs).visit(body)
 
         self._struct_params.extend(fields)
-        return matvec_body
+        return body
 
     def _make_formfunc(self):
-        formfuncs = self.fielddata.residual.formfuncs
-        # Compile formfunc `eqns` into an IET via recursive compilation
-        irs_formfunc, _ = self.rcompile(
-            formfuncs, options={'mpi': False}, sregistry=self.sregistry,
+        F_exprs = self.fielddata.residual.F_exprs
+        # Compile `F_exprs` into an IET via recursive compilation
+        irs, _ = self.rcompile(
+            F_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
         body_formfunc = self._create_formfunc_body(
-            List(body=irs_formfunc.uiet.body)
+            List(body=irs.uiet.body)
         )
         objs = self.objs
         cb = PETScCallable(
@@ -291,7 +291,7 @@ class CBBuilder:
             retval=objs['err'],
             parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
         )
-        self._formfuncs.append(cb)
+        self._F_efuncs.append(cb)
         self._efuncs[cb.name] = cb
 
     def _create_formfunc_body(self, body):
@@ -399,7 +399,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = self.dereference_funcs(ctx, fields)
 
-        formfunc_body = CallableBody(
+        body = CallableBody(
             List(body=body),
             init=(objs['begin_user'],),
             stacks=stacks+derefs,
@@ -408,28 +408,28 @@ class CBBuilder:
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
-        return Uxreplace(subs).visit(formfunc_body)
+        return Uxreplace(subs).visit(body)
 
     def _make_formrhs(self):
-        formrhs = self.fielddata.residual.formrhs
+        b_exprs = self.fielddata.residual.b_exprs
         sobjs = self.solver_objs
 
-        # Compile formrhs `eqns` into an IET via recursive compilation
-        irs_formrhs, _ = self.rcompile(
-            formrhs, options={'mpi': False}, sregistry=self.sregistry,
+        # Compile `b_exprs` into an IET via recursive compilation
+        irs, _ = self.rcompile(
+            b_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        body_formrhs = self._create_form_rhs_body(
-            List(body=irs_formrhs.uiet.body)
+        body = self._create_form_rhs_body(
+            List(body=irs.uiet.body)
         )
         objs = self.objs
         cb = PETScCallable(
             self.sregistry.make_name(prefix='FormRHS'),
-            body_formrhs,
+            body,
             retval=objs['err'],
             parameters=(sobjs['callbackdm'], objs['B'])
         )
-        self._formrhs.append(cb)
+        self._b_efuncs.append(cb)
         self._efuncs[cb.name] = cb
 
     def _create_form_rhs_body(self, body):
@@ -509,7 +509,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = self.dereference_funcs(ctx, fields)
 
-        formrhs_body = CallableBody(
+        body = CallableBody(
             List(body=[body]),
             init=(objs['begin_user'],),
             stacks=stacks+derefs,
@@ -520,24 +520,24 @@ class CBBuilder:
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
-        return Uxreplace(subs).visit(formrhs_body)
+        return Uxreplace(subs).visit(body)
 
     def _make_initialguess(self):
-        initguess = self.fielddata.initialguess.eqs
+        exprs = self.fielddata.initialguess.exprs
         sobjs = self.solver_objs
 
         # Compile initital guess `eqns` into an IET via recursive compilation
         irs, _ = self.rcompile(
-            initguess, options={'mpi': False}, sregistry=self.sregistry,
+            exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        body_init_guess = self._create_initial_guess_body(
+        body = self._create_initial_guess_body(
             List(body=irs.uiet.body)
         )
         objs = self.objs
         cb = PETScCallable(
             self.sregistry.make_name(prefix='FormInitialGuess'),
-            body_init_guess,
+            body,
             retval=objs['err'],
             parameters=(sobjs['callbackdm'], objs['xloc'])
         )
@@ -770,10 +770,10 @@ class CCBBuilder(CBBuilder):
         )
 
     def _make_whole_formfunc(self):
-        formfuncs = self.fielddata.residual.formfuncs
+        F_exprs = self.fielddata.residual.F_exprs
         # Compile formfunc `eqns` into an IET via recursive compilation
         irs_formfunc, _ = self.rcompile(
-            formfuncs, options={'mpi': False}, sregistry=self.sregistry,
+            F_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
         body_formfunc = self._whole_formfunc_body(List(body=irs_formfunc.uiet.body))
@@ -1024,7 +1024,7 @@ class CCBBuilder(CBBuilder):
         iteration = Iteration(List(body=iter_body), i, upper_bound)
 
         nonzero_submats = self.jacobian.nonzero_submatrices
-        matvec_lookup = {mv.name.split('_')[0]: mv for mv in self.matvecs}
+        matvec_lookup = {mv.name.split('_')[0]: mv for mv in self.J_efuncs}
 
         matmult_op = [
             petsc_call(
@@ -1616,11 +1616,11 @@ class Solver:
 
         struct_assignment = self.timedep.assign_time_iters(sobjs['userctx'])
 
-        rhs_callback = self.cbbuilder.formrhs[0]
+        b_efunc = self.cbbuilder.b_efuncs[0]
 
         dmda = sobjs['dmda']
 
-        rhs_call = petsc_call(rhs_callback.name, [sobjs['dmda'], sobjs['bglobal']])
+        rhs_call = petsc_call(b_efunc.name, [sobjs['dmda'], sobjs['bglobal']])
 
         vec_place_array = self.timedep.place_array(target)
 

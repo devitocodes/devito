@@ -100,12 +100,12 @@ def test_petsc_solve():
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
 
-    matvec_callback = [root for root in callable_roots if root.name == 'MatMult0']
+    matvec_efunc = [root for root in callable_roots if root.name == 'MatMult0']
 
-    formrhs_callback = [root for root in callable_roots if root.name == 'FormRHS0']
+    b_efunc = [root for root in callable_roots if root.name == 'FormRHS0']
 
-    action_expr = FindNodes(Expression).visit(matvec_callback[0])
-    rhs_expr = FindNodes(Expression).visit(formrhs_callback[0])
+    action_expr = FindNodes(Expression).visit(matvec_efunc[0])
+    rhs_expr = FindNodes(Expression).visit(b_efunc[0])
 
     assert str(action_expr[-1].expr.rhs) == (
         '(x_f[x + 1, y + 2]/ctx0->h_x**2'
@@ -127,7 +127,7 @@ def test_petsc_solve():
     assert len(retrieve_iteration_tree(op)) == 0
 
     # TODO: Remove pragmas from PETSc callback functions
-    assert len(matvec_callback[0].parameters) == 3
+    assert len(matvec_efunc[0].parameters) == 3
 
 
 @skipif('petsc')
