@@ -17,25 +17,19 @@ __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers
 Expression = sympy.Basic | np.number | int | float
 
 
-class Set(set[Expression]):
-    @staticmethod
-    def wrap(obj: Expression) -> set[Expression]:
-        return {obj}
-
-
 class List(list[Expression]):
-    @staticmethod
-    def wrap(obj: Expression) -> list[Expression]:
-        return [obj]
+    """
+    A list that aliases `extend` to `update` to mirror the `set` interface.
+    """
 
     def update(self, obj: Iterable[Expression]) -> None:
         self.extend(obj)
 
 
 Mode = Literal['all', 'unique']
-modes: dict[Mode, type[List] | type[Set]] = {
+modes: dict[Mode, type[List] | type[set[Expression]]] = {
     'all': List,
-    'unique': Set
+    'unique': set
 }
 
 
@@ -97,7 +91,7 @@ def search(exprs: Expression | Iterable[Expression],
            query: type | Callable[[Any], bool],
            mode: Mode = 'unique',
            visit: Literal['dfs', 'bfs', 'bfs_first_hit'] = 'dfs',
-           deep: bool = False) -> List | Set:
+           deep: bool = False) -> List | set[Expression]:
     """Interface to Search."""
 
     assert mode in ('all', 'unique'), "Unknown mode"
@@ -118,7 +112,7 @@ def search(exprs: Expression | Iterable[Expression],
         _search = searcher.visit_preorder_first_hit
     else:
         raise ValueError(f"Unknown visit mode '{visit}'")
-    
+
     exprs = filter(lambda e: isinstance(e, sympy.Basic), as_tuple(exprs))
     found = modes[mode](chain(*map(_search, exprs)))
 
