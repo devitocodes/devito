@@ -169,8 +169,8 @@ jobs:
     - name: Check Docker image Python version
       if: "contains(matrix.name, 'docker')"
       run: |
-        declared_pyver="${{ matrix.pyver }}"
-        actual_pyver=$(${{ env.RUN_CMD }} python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+        declared_pyver="${{ matrix.python-version }}"
+        actual_pyver=$(${{ env.RUN_CMD }} python3 --version | grep "Python " | cut -d' ' -f2 | cut -d'.' -f1,2)
         echo "Declared Python version: $declared_pyver"
         echo "Actual Python version: $actual_pyver"
         if [ "$declared_pyver" != "$actual_pyver" ]; then
