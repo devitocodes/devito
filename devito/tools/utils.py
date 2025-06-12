@@ -362,10 +362,7 @@ def avoid_symbolic(default=None):
                 # An argument is symbolic, so give up and assume default
                 return default
 
-            try:
-                return func(*args)
-            except TypeError:
-                return default
+            return func(*args)
 
         return wrapper
 
@@ -375,10 +372,10 @@ def avoid_symbolic(default=None):
 @avoid_symbolic(default=False)
 def smart_lt(a, b):
     """An Lt that gives up and returns False if supplied a symbolic argument"""
-    return bool(a < b)
+    return a < b
 
 
 @avoid_symbolic(default=False)
 def smart_gt(a, b):
     """A Gt that gives up and returns False if supplied a symbolic argument"""
-    return bool(a > b)
+    return a > b
