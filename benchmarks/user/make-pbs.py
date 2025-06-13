@@ -62,6 +62,7 @@ def cleanup(args):
         if f.endswith('.gen.sh'):
             os.remove(f)
 
+
 def create_parser():
     parser = argparse.ArgumentParser(description='Generate PBS scripts')
     subparsers = parser.add_subparsers(dest='command', required=True)
