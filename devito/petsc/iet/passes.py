@@ -93,17 +93,6 @@ def initialize(iet):
     help_string = c.Line(r'static char help[] = "This is help text.\n";')
 
     init_body = petsc_call('PetscInitialize', [Byref(argc), Byref(argv), Null, Help])
-
-    # print_comm_size = 
-
-    # size = c.Line('PetscMPIInt size;')
-    # get_size = c.Line('PetscCallMPI(MPI_Comm_size(comm,&(size)));')
-    # rank = c.Line('PetscMPIInt rank;')
-    # get_rank = c.Line('PetscCallMPI(MPI_Comm_rank(comm,&(rank)));')
-    # print_comm_size = c.Line('PetscSynchronizedPrintf(comm, "MPI_Comm_size: %d\\n", size);')
-    # print_comm_rank = c.Line('PetscSynchronizedPrintf(comm, "MPI_Comm_rank: %d\\n", rank);')
-
-
     init_body = CallableBody(
         body=(petsc_func_begin_user, help_string, init_body),
         retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
@@ -128,20 +117,14 @@ def make_core_petsc_calls(objs, grid, **kwargs):
         comm = 'PETSC_COMM_WORLD'
         
     call_mpi = petsc_call_mpi('MPI_Comm_size', [comm, Byref(objs['size'])])
-    # from IPython import embed; embed()
-    # get_size = c.Line('PetscCallMPI(MPI_Comm_size(comm,&(size)));')
+
     rank = c.Line('PetscMPIInt rank;')
     get_rank = c.Line('PetscCallMPI(MPI_Comm_rank(comm,&(rank)));')
     print_comm_size = c.Line('PetscSynchronizedPrintf(comm, "MPI_Comm_size: %d\\n", size);')
-
     print_comm_rank = c.Line('PetscSynchronizedPrintf(comm, "MPI_Comm_rank: %d\\n", rank);')
-
-
     flush = c.Line('PetscSynchronizedFlush(comm, PETSC_STDOUT);')
 
-
     return call_mpi, rank, get_rank, print_comm_size, flush, print_comm_rank, flush, BlankLine
-    # return call_mpi, BlankLine
 
 
 class Builder:

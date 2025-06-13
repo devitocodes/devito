@@ -1087,7 +1087,6 @@ class BaseObjectBuilder:
         self.objs = kwargs.get('objs')
         self.sregistry = kwargs.get('sregistry')
         self.grid = kwargs.get('grid')
-        # from IPython import embed; embed()
         self.devito_mpi = kwargs['options'].get('mpi', False)
         self.fielddata = self.injectsolve.expr.rhs.fielddata
         self.solver_objs = self._build()
@@ -1129,7 +1128,6 @@ class BaseObjectBuilder:
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
         }
         # TODO: Devito MPI + PETSc testing
-        # from IPython import embed; embed()
         if self.devito_mpi:
             base_dict['comm'] = self.grid.distributor._obj_comm
         else:

@@ -38,7 +38,7 @@ from devito.types.dimension import Thickness
 from devito.petsc.iet.passes import lower_petsc
 from devito.petsc.clusters import petsc_preprocess
 
-__all__ = ['Operator', 'SpecialOp']
+__all__ = ['Operator']
 
 
 class Operator(Callable):
@@ -1456,7 +1456,3 @@ def parse_kwargs(**kwargs):
     kwargs['subs'] = {k: sympify(v) for k, v in kwargs.get('subs', {}).items()}
 
     return kwargs
-
-
-class SpecialOp(Operator):
-    pass
