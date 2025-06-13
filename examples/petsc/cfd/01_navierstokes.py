@@ -288,7 +288,7 @@ bc_petsc_v1 += [EssentialBC(v1.forward, 0., subdomain=sub2)]  # bottom
 tentu = PETScSolve([eq_u1]+bc_petsc_u1, u1.forward)
 tentv = PETScSolve([eq_v1]+bc_petsc_v1, v1.forward)
 
-exprs = tentu + tentv + eqn_p + [update_u, update_v] + bc_u1 + bc_v1
+exprs = [tentu, tentv, eqn_p, update_u, update_v, bc_u1, bc_v1]
 
 with switchconfig(language='petsc'):
     op = Operator(exprs)

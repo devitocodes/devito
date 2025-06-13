@@ -138,8 +138,8 @@ class LinearSolveExpr(MetaData):
 
 class FieldData:
     """
-    Metadata class passed to `LinearSolveExpr`. Encapsulates metadata for a single
-    `target` field needed to interface with PETSc SNES solvers.
+    Metadata for a single `target` field passed to `LinearSolveExpr`.
+    Used to interface with PETSc SNES solvers at the IET level.
 
     Parameters
     ----------
@@ -147,10 +147,10 @@ class FieldData:
     target : Function-like
         The target field to solve into, which is a Function-like object.
     jacobian : Jacobian
-        Defines the matrix-vector product for the linear system, where the vector is 
+        Defines the matrix-vector product for the linear system, where the vector is
         the PETScArray representing the `target`.
     residual : Residual
-        Defines the nonlinear residual function F(target) = 0.
+        Defines the residual function F(target) = 0.
     initialguess : InitialGuess
         Defines the initial guess for the solution, which satisfies
         essential boundary conditions.
@@ -212,7 +212,8 @@ class FieldData:
 class MultipleFieldData(FieldData):
     """
     Metadata class passed to `LinearSolveExpr`, for mixed-field problems,
-    where the solution vector spans multiple `targets`.
+    where the solution vector spans multiple `targets`. Used to interface
+    with PETSc SNES solvers at the IET level.
 
     Parameters
     ----------
@@ -221,7 +222,7 @@ class MultipleFieldData(FieldData):
     jacobian : MixedJacobian
         Defines the matrix-vector products for the full system Jacobian.
     residual : MixedResidual
-        Defines the nonlinear residual function F(targets) = 0.
+        Defines the residual function F(targets) = 0.
     initialguess : InitialGuess
         Defines the initial guess metadata, which satisfies
         essential boundary conditions.
@@ -272,13 +273,17 @@ class MultipleFieldData(FieldData):
     def targets(self):
         return self._targets
 
-    
+
 class BaseJacobian:
     def __init__(self, arrays, target=None):
         self.arrays = arrays
         self.target = target
 
     def _scale_non_bcs(self, matvecs, target=None):
+        """
+        Scale the symbolic expressions `matvecs` by the grid cell volume,
+        excluding EssentialBCs.
+        """
         target = target or self.target
         vol = target.grid.symbolic_volume_cell
 
@@ -287,8 +292,20 @@ class BaseJacobian:
             for m in matvecs
         ]
 
+    def _scale_bcs(self, matvecs, scdiag):
+        """
+        Scale the EssentialBCs in `matvecs` by `scdiag`.
+        """
+        return [
+            m._rebuild(rhs=m.rhs * scdiag) if isinstance(m, ZeroRow) else m
+            for m in matvecs
+        ]
+
     def _compute_scdiag(self, matvecs, col_target=None):
         """
+        Compute the diagonal scaling factor from the symbolic matrix-vector
+        expressions in `matvecs`. If the centre stencil (i.e. the diagonal term of the
+        matrix) is not unique, defaults to 1.0.
         """
         x = self.arrays[col_target or self.target]['x']
 
@@ -298,15 +315,6 @@ class BaseJacobian:
         }
         return centres.pop() if len(centres) == 1 else 1.0
 
-    def _scale_bcs(self, matvecs, scdiag):
-        """
-        Scale the essential BCs
-        """
-        return [
-            m._rebuild(rhs=m.rhs * scdiag) if isinstance(m, ZeroRow) else m
-            for m in matvecs
-        ]
-    
     def _build_matvec_expr(self, expr, **kwargs):
         col_target = kwargs.get('col_target', self.target)
         row_target = kwargs.get('row_target', self.target)
@@ -356,9 +364,9 @@ class Jacobian(BaseJacobian):
     def matvecs(self):
         # TODO: add shortcut explanation etc
         """
-        Stores the expressions used to generate the `MatMult`
-        callback generated at the IET level. This function is
-        passed to PETSc via `MatShellSetOperation(...,MATOP_MULT,(void (*)(void))MatMult)`.
+        Stores the expressions used to generate the `MatMult` callback generated
+        at the IET level. This function is passed to PETSc via
+        `MatShellSetOperation(...,MATOP_MULT,(void (*)(void))MatMult)`.
         """
         return self._matvecs
 
@@ -517,7 +525,7 @@ class SubMatrixBlock:
 
 class Residual:
     """
-    Gennerates the metadata needed to define the nonlinear residual function
+    Generates the metadata needed to define the nonlinear residual function
     F(target) = 0 for use with PETSc's SNES interface.
 
     PETSc's SNES interface includes methods for solving nonlinear systems of
@@ -610,6 +618,8 @@ class Residual:
 
 class MixedResidual(Residual):
     """
+    Generates the metadata needed to define the nonlinear residual function
+    F(targets) = 0 for use with PETSc's SNES interface.
     """
     def __init__(self, target_exprs, arrays, time_mapper, scdiag):
         self.targets = tuple(target_exprs.keys())
@@ -621,6 +631,9 @@ class MixedResidual(Residual):
     @property
     def b_exprs(self):
         """
+        For mixed solvers, a callback to form the RHS vector `b` is not generated,
+        a single residual callback is generated to compute F(targets).
+        TODO: Investigate if this is optimal.
         """
         return None
 
@@ -629,10 +642,10 @@ class MixedResidual(Residual):
         for t, exprs in target_exprs.items():
 
             residual_exprs.extend(
-                chain.from_iterable(self._build_residual(e, t)
-                for e in as_tuple(exprs)
-            ))
-
+                chain.from_iterable(
+                    self._build_residual(e, t) for e in as_tuple(exprs)
+                )
+            )
         self._F_exprs = tuple(sorted(
             residual_exprs, key=lambda e: not isinstance(e, EssentialBC)
         ))
@@ -671,7 +684,9 @@ class MixedResidual(Residual):
 
 class InitialGuess:
     """
-    Enforce initial guess to satisfy essential BCs.
+    Metadata passed to `LinearSolveExpr` to define the initial guess
+    symbolic expressions, enforcing the initial guess to satisfy essential
+    boundary conditions.
     """
     def __init__(self, target, exprs, arrays):
         self.target = target
@@ -680,13 +695,12 @@ class InitialGuess:
 
     @property
     def exprs(self):
-        """
-        """
         return self._exprs
 
     def _build_exprs(self, exprs):
         """
-        Return a list of initial guess expressions.
+        Return a list of initial guess symbolic expressions
+        that satisfy essential boundary conditions.
         """
         self._exprs = tuple([
             eq for eq in

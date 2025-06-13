@@ -73,7 +73,7 @@ class InjectSolve:
             time_mapper=self.time_mapper,
             localinfo=localinfo
         )
-        return [PetscEq(target, linear_solve)]
+        return PetscEq(target, linear_solve)
 
     def linear_solve_args(self):
         target, exprs = next(iter(self.target_exprs.items()))
@@ -98,14 +98,16 @@ class InjectSolve:
         )
 
         return target, tuple(funcs), field_data
-    
+
     def generate_arrays(self, *targets):
         return {
             t: {
-                p: PETScArray(name=f'{p}_{t.name}',
-                            target=t,
-                            liveness='eager',
-                            localinfo=localinfo)
+                p: PETScArray(
+                    name=f'{p}_{t.name}',
+                    target=t,
+                    liveness='eager',
+                    localinfo=localinfo
+                )
                 for p in prefixes
             }
             for t in targets

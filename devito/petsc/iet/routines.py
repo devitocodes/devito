@@ -129,11 +129,13 @@ class CBBuilder:
     def _make_matvec(self, jacobian, prefix='MatMult'):
         # Compile matvec `eqns` into an IET via recursive compilation
         matvecs = jacobian.matvecs
-        irs, _ = self.rcompile(matvecs,
-                                      options={'mpi': False}, sregistry=self.sregistry,
-                                      concretize_mapper=self.concretize_mapper)
-        body = self._create_matvec_body(List(body=irs.uiet.body),
-                                               jacobian)
+        irs, _ = self.rcompile(
+            matvecs, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
+        )
+        body = self._create_matvec_body(
+            List(body=irs.uiet.body), jacobian
+        )
 
         objs = self.objs
         cb = PETScCallable(
