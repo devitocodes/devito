@@ -1,0 +1,90 @@
+[build-system]
+requires = [
+  "setuptools>=62.6",
+  "wheel",
+  "setuptools-scm"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devito"
+description = "Finite Difference DSL for symbolic computation."
+license = { file = "LICENSE.md" }
+readme = "README.md"
+keywords = ["finite-difference", "DSL", "symbolic", "jit", "devito"]
+requires-python = ">=3.9"
+authors = [
+  { name = "Imperial College London", email = "g.gorman@imperial.ac.uk" },
+  { name = "Fabio Luporini",  email = "fabio@devitocodes.com" },
+  { name = "Mathias Louboutin",  email = "mathias@devitocodes.com" },
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Education",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Unix",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Software Development :: Code Generators",
+  "Topic :: Software Development :: Compilers"
+]
+maintainers = [
+  { name = "Fabio Luporini",  email = "fabio@devitocodes.com" },
+  { name = "Mathias Louboutin",  email = "mathias@devitocodes.com" },
+  { name = "Gerard Gorman", email = "gerard@devitocodes.com" },
+]
+dynamic = ["version", "dependencies", "optional-dependencies"]
+
+[project.urls]
+Documentation = "https://www.devitoproject.org/devito/index.html"
+Repository   = "https://github.com/devitocodes/devito"
+Issues = "https://github.com/devitocodes/devito/issues"
+
+[tool.setuptools.dynamic]
+# Read install_requires from requirements.txt
+dependencies = { file = ["requirements.txt"] }
+
+[tool.setuptools.dynamic.optional-dependencies]
+# Map each extra to its requirements-*.txt
+mpi    = { file = ["requirements-mpi.txt"] }
+nvidia = { file = ["requirements-nvidia.txt"] }
+tests  = { file = ["requirements-testing.txt"] }
+extras = { file = ["requirements-optional.txt"] }
+
+[tool.setuptools.packages.find]
+where   = ["."]
+exclude = ["docs", "tests", "examples"]
+
+
+[tool.setuptools_scm]
+fallback_version = "0+untagged"
+
+[tool.flake8]
+max-line-length = 90
+ignore = [
+  "F403","E226","E731","E275",
+  "W503","F405","E722","E741",
+  "W504","W605"
+]
+exclude = [ ".github" ]
+
+[tool.flake8.nb]
+max-line-length = 90
+ignore = [
+  "F403","E226","E731","E275",
+  "W503","F405","E722","E741",
+  "W504","W605"
+]
+exclude = [ ".github" ]

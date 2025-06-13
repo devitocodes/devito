@@ -3,3 +3,4 @@ pillow>11,<11.2.2
 pyrevolve==2.2.4
 scipy<1.15.3
 distributed<2025.4.2
+click<9.0

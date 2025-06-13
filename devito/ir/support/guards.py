@@ -47,7 +47,7 @@ class GuardFactor(Guard, CondEq, Pickable):
     def __new__(cls, d, **kwargs):
         assert d.is_Conditional
 
-        obj = super().__new__(cls, d.parent % d.factor, 0)
+        obj = super().__new__(cls, d.parent % d.symbolic_factor, 0)
         obj.d = d
 
         return obj
@@ -129,7 +129,7 @@ class BaseGuardBoundNext(Guard, Pickable):
             p1 = d.root.symbolic_max
 
             if d.is_Conditional:
-                v = d.factor
+                v = d.symbolic_factor
                 # Round `p0 + 1` up to the nearest multiple of `v`
                 p0 = Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
             else:
@@ -140,7 +140,7 @@ class BaseGuardBoundNext(Guard, Pickable):
             p1 = d.root
 
             if d.is_Conditional:
-                v = d.factor
+                v = d.symbolic_factor
                 # Round `p1 - 1` down to the nearest sub-multiple of `v`
                 # NOTE: we use ABS to make sure we handle negative values properly.
                 # Once `p1 - 1` is negative (e.g. `iteration=time - 1` and `time=0`),

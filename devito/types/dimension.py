@@ -7,9 +7,10 @@ from sympy.core.decorators import call_highest_priority
 import numpy as np
 
 from devito.data import LEFT, RIGHT
+from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, is_integer, memoized_meth
+from devito.tools import Pickable, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
@@ -822,6 +823,10 @@ class MultiSubDimension(AbstractSubDimension):
         return self.parent.bound_symbols
 
 
+class SubsamplingFactor(Scalar):
+    pass
+
+
 class ConditionalDimension(DerivedDimension):
 
     """
@@ -898,7 +903,8 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
-    __rkwargs__ = DerivedDimension.__rkwargs__ + ('factor', 'condition', 'indirect')
+    __rkwargs__ = DerivedDimension.__rkwargs__ + \
+        ('factor', 'condition', 'indirect')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
                           indirect=False, **kwargs):
@@ -909,27 +915,51 @@ class ConditionalDimension(DerivedDimension):
 
         super().__init_finalize__(name, parent)
 
-        # Always make the factor symbolic to allow overrides with different factor.
-        if factor is None or factor == 1:
+        # Process subsampling factor
+        if factor is None:
             self._factor = None
-        elif is_integer(factor):
-            self._factor = Constant(name="%sf" % name, value=factor, dtype=np.int32)
-        elif factor.is_Constant and is_integer(factor.data):
+        elif is_number(factor):
+            self._factor = int(factor)
+        elif factor.is_Constant:
+            deprecations.constant_factor_warn
             self._factor = factor
         else:
-            raise ValueError("factor must be an integer or integer Constant")
+            raise ValueError("factor must be an integer")
 
         self._condition = condition
         self._indirect = indirect
 
     @property
+    def uses_symbolic_factor(self):
+        return self._factor is not None
+
+    @property
+    def factor_data(self):
+        if isinstance(self.factor, Constant):
+            return self.factor.data
+        elif self.factor is not None:
+            return self.factor
+        else:
+            return 1
+
+    @property
     def spacing(self):
-        s = self._factor.data if self._factor is not None else 1
-        return s * self.parent.spacing
+        return self.factor_data * self.parent.spacing
 
     @property
     def factor(self):
-        return self._factor if self._factor is not None else 1
+        return self._factor
+
+    @cached_property
+    def symbolic_factor(self):
+        if not self.uses_symbolic_factor:
+            return None
+        elif isinstance(self.factor, Constant):
+            return self.factor
+        else:
+            return SubsamplingFactor(
+                name=f'{self.name}f', dtype=np.int32, is_const=True
+            )
 
     @property
     def condition(self):
@@ -950,9 +980,16 @@ class ConditionalDimension(DerivedDimension):
             pass
         return retval
 
-    def _arg_values(self, interval, grid=None, **kwargs):
-        # Parent dimension define the interval
-        fact = self._factor.data if self._factor is not None else 1
+    def _arg_values(self, interval, grid=None, args=None, **kwargs):
+        if not self.uses_symbolic_factor:
+            return {}
+
+        args = args or {}
+        fname = self.symbolic_factor.name
+        fact = kwargs.get(fname, args.get(fname, self.factor_data))
+        if isinstance(fact, Constant):
+            fact = fact.data
+
         toint = lambda x: math.ceil(x / fact)
         vals = {}
         try:
@@ -965,6 +1002,8 @@ class ConditionalDimension(DerivedDimension):
         except (KeyError, TypeError):
             pass
 
+        vals[self.symbolic_factor.name] = fact
+
         return vals
 
     def _arg_defaults(self, _min=None, size=None, alias=None):
@@ -974,15 +1013,9 @@ class ConditionalDimension(DerivedDimension):
         # `factor` endpoints are legal, so we return them all. It's then
         # up to the caller to decide which one to pick upon reduction
         dim = alias or self
-        if dim.condition is not None or size is None or dim._factor is None:
-            return defaults
-        try:
-            # Is it a symbolic factor?
-            factor = defaults[dim._factor.name] = self._factor.data
-        except AttributeError:
-            factor = dim._factor
-
-        defaults[dim.parent.max_name] = range(0, factor*size - 1)
+        if dim.uses_symbolic_factor:
+            factor = defaults[dim.symbolic_factor.name] = self.factor_data
+            defaults[dim.parent.max_name] = range(0, factor*size - 1)
 
         return defaults
 

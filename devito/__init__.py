@@ -47,9 +47,12 @@ from devito.operator import profiler_registry, operator_registry
 from devito.mpatches import *  # noqa
 
 
-from ._version import get_versions  # noqa
-__version__ = get_versions()['version']
-del get_versions
+from importlib.metadata import version, PackageNotFoundError
+try:
+    __version__ = version("devito")
+except PackageNotFoundError:
+    # devito is not installed
+    __version__ = '0+untagged'
 
 
 def reinit_compiler(val):

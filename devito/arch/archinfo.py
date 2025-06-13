@@ -179,7 +179,6 @@ def get_gpu_info():
         homogeneous, otherwise None.
         """
         if gpu_infos == []:
-            warning('No graphics cards detected')
             return {}
 
         # Check must ignore physical IDs as they may differ
@@ -192,7 +191,7 @@ def get_gpu_info():
 
         warning('Different models of graphics cards detected')
 
-        return {}
+        return {'ncards': len(gpu_infos)}
 
     # Parse textual gpu info into a dict
 
@@ -324,10 +323,12 @@ def get_gpu_info():
 
             gpu_info[f'mem.{i}'] = make_cbk(i)
 
-        gpu_infos['architecture'] = 'AMD'
+        gpu_info['architecture'] = 'unspecified'
+        gpu_info['vendor'] = 'AMD'
+
         return gpu_info
 
-    except OSError:
+    except (json.JSONDecodeError, OSError):
         pass
 
     # *** Third try: `sycl-ls`, clearly only works with Intel cards
@@ -387,13 +388,15 @@ def get_gpu_info():
 
             gpu_info['mem.%s' % i] = make_cbk(i)
 
-        gpu_infos['architecture'] = 'Intel'
+        gpu_info['architecture'] = 'unspecified'
+        gpu_info['vendor'] = 'INTEL'
+
         return gpu_info
 
     except OSError:
         pass
 
-    # *** Second try: `lshw`
+    # *** Fourth try: `lshw`
     try:
         info_cmd = ['lshw', '-C', 'video']
         proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
@@ -438,7 +441,7 @@ def get_gpu_info():
     except OSError:
         pass
 
-    # Third try: `lspci`, which is more readable but less detailed than `lshw`
+    # Fifth try: `lspci`, which is more readable but less detailed than `lshw`
     try:
         info_cmd = ['lspci']
         proc = Popen(info_cmd, stdout=PIPE, stderr=DEVNULL)
@@ -756,8 +759,15 @@ class Platform:
         Number of items of type `dtype` that can be transferred in a single
         memory transaction.
         """
-        assert self.max_mem_trans_nbytes % np.dtype(dtype).itemsize == 0
-        return int(self.max_mem_trans_nbytes / np.dtype(dtype).itemsize)
+        itemsize = np.dtype(dtype).itemsize
+
+        # NOTE: This method conservatively uses the node's `max_mem_trans_size`,
+        # instead of self's, so that we always pad by a compatible amount should
+        # the user switch target platforms dynamically
+        mmtb = node_max_mem_trans_nbytes(self)
+        assert mmtb % itemsize == 0
+
+        return int(mmtb / itemsize)
 
     def limits(self, compiler=None, language=None):
         """
@@ -1023,7 +1033,12 @@ class NvidiaDevice(Device):
             return False
 
         cc = get_nvidia_cc()
-        if query == 'async-loads' and cc >= 80:
+        if cc is None:
+            # Something off with `get_nvidia_cc` on this system
+            warning(f"Couldn't establish if `query={query}` is supported on this "
+                    "system. Assuming it is not.")
+            return False
+        elif query == 'async-loads' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
         elif query in ('tma', 'thread-block-cluster') and cc >= 90:
@@ -1094,6 +1109,42 @@ class AmdDevice(Device):
             return output.decode("utf-8").strip()
         else:
             return fallback
+
+
+@memoized_func
+def node_max_mem_trans_nbytes(platform):
+    """
+    Return the maximum memory transaction size in bytes for the underlying
+    node, which, as such, takes into account all available platforms.
+    """
+    mmtb0 = platform.max_mem_trans_nbytes
+
+    if isinstance(platform, Cpu64):
+        gpu_info = get_gpu_info()
+        if not gpu_info:
+            # This node may simply not have a GPU
+            return mmtb0
+
+        mapper = {
+            'NVIDIA': NvidiaDevice,
+            'AMD': AmdDevice,
+            'INTEL': IntelDevice,
+        }
+        try:
+            mmtb1 = mapper[gpu_info['vendor']].max_mem_trans_nbytes
+            return max(mmtb0, mmtb1)
+        except KeyError:
+            # Fallback -- act even more conservatively
+            mmtb1 = max(p.max_mem_trans_nbytes for p in
+                        [NvidiaDevice, AmdDevice, IntelDevice])
+            mmtb = max(mmtb0, mmtb1)
+            warning("Unable to determine GPU type, assuming a maximum memory "
+                    f"transaction size of {mmtb} bytes")
+            return mmtb
+    elif isinstance(platform, Device):
+        return max(Cpu64.max_mem_trans_nbytes, mmtb0)
+    else:
+        assert False, f"Unknown platform type: {type(platform)}"
 
 
 # CPUs

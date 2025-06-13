@@ -10,7 +10,8 @@ class ArgProvider:
     executed (JIT-compiled) code.
     """
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def _arg_names(self):
         raise NotImplementedError('%s does not provide any default argument names' %
                                   self.__class__)

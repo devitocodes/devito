@@ -680,8 +680,8 @@ class TestMultiSubDomain:
         # Make sure it jit-compiles
         op.cfunction
 
-        assert_structure(op, ['t,n0', 't,n0,ix0_blk0,iy0_blk0,x,y,z'],
-                         't,n0,ix0_blk0,iy0_blk0,x,y,z')
+        assert_structure(op, ['t,n0', 't,n0,x0_blk0,y0_blk0,x,y,z'],
+                         't,n0,x0_blk0,y0_blk0,x,y,z')
 
         # Drag a rebuilt MultiSubDimension out of the operator
         dims = {d.name: d for d in FindSymbols('dimensions').visit(op)}

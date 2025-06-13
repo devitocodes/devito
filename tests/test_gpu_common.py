@@ -57,6 +57,22 @@ class TestGPUInfo:
         assert nth == get_cpu_info()['physical']
         assert nth == Cpu64("test").cores_physical
 
+    @switchconfig(platform='intel64', autopadding=True)
+    def test_autopad_with_platform_switch(self):
+        grid = Grid(shape=(10, 10))
+
+        f = Function(name='f', grid=grid, space_order=0)
+
+        assert f.shape_allocated[0] == 10
+
+        info = get_gpu_info()
+        if info['vendor'] == 'INTEL':
+            assert f.shape_allocated[1] == 16
+        elif info['vendor'] == 'NVIDIA':
+            assert f.shape_allocated[1] == 32
+        elif info['vendor'] == 'AMD':
+            assert f.shape_allocated[1] == 64
+
 
 class TestCodeGeneration:
 

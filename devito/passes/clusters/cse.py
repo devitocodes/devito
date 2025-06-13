@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 from functools import cached_property, singledispatch
 
 import numpy as np
@@ -13,6 +13,7 @@ except ImportError:
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
+from devito.symbolics.search import search
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
 from devito.types import Eq, Symbol, Temp
@@ -25,7 +26,13 @@ class CTemp(Temp):
     """
     A cluster-level Temp, similar to Temp, ensured to have different priority
     """
+
     ordering_of_classes.insert(ordering_of_classes.index('Temp') + 1, 'CTemp')
+
+
+def retrieve_ctemps(exprs, mode='all'):
+    """Shorthand to retrieve the CTemps in `exprs`"""
+    return search(exprs, lambda expr: isinstance(expr, CTemp), mode, 'dfs')
 
 
 @cluster_pass
@@ -225,8 +232,15 @@ def _compact(exprs, exclude):
 
     mapper = {e.lhs: e.rhs for e in candidates if q_leaf(e.rhs)}
 
-    mapper.update({e.lhs: e.rhs for e in candidates
-                   if sum([i.rhs.count(e.lhs) for i in exprs]) == 1})
+    # Find all the CTemps in expression right-hand-sides without removing duplicates
+    ctemps = retrieve_ctemps(e.rhs for e in exprs)
+
+    # If there are ctemps in the expressions, then add any that only appear once to
+    # the mapper
+    if ctemps:
+        ctemp_count = Counter(ctemps)
+        mapper.update({e.lhs: e.rhs for e in candidates
+                       if ctemp_count[e.lhs] == 1})
 
     processed = []
     for e in exprs:

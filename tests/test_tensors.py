@@ -1,6 +1,6 @@
 import numpy as np
 import sympy
-from sympy import Rational
+from sympy import Rational, Matrix
 
 import pytest
 
@@ -494,3 +494,10 @@ def test_diag(func1):
     else:
         assert all(f2[i, j] == 0 for i in range(3) for j in range(3) if i != j)
         assert all(f2[i, i] == f1 for i in range(3))
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, VectorFunction])
+def test_kwargs(func1):
+    orders = Matrix([[1, 2], [3, 4]]) if func1 is TensorFunction else Matrix([1, 2])
+    f = func1(name="f", grid=Grid((5, 5)), space_order=orders, symmetric=False)
+    assert f.space_order == orders

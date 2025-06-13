@@ -130,9 +130,9 @@ def test_cache_blocking_structure_subdims():
     # Non-local SubDimension -> blocking expected
     op = Operator(Eq(f.forward, f.dx + 1, subdomain=grid.interior))
 
-    bns, _ = assert_blocking(op, {'ix0_blk0'})
+    bns, _ = assert_blocking(op, {'x0_blk0'})
 
-    trees = retrieve_iteration_tree(bns['ix0_blk0'])
+    trees = retrieve_iteration_tree(bns['x0_blk0'])
     tree = trees[0]
     assert len(tree) == 5
     assert tree[0].dim.is_Block and tree[0].dim.parent.name == 'ix' and\
@@ -169,9 +169,10 @@ def test_cache_blocking_structure_distributed(mode):
     eqns += [Eq(U.forward, U.dx + u.forward)]
 
     op = Operator(eqns)
+    op.cfunction
 
     bns0, _ = assert_blocking(op._func_table['compute0'].root, {'x0_blk0'})
-    bns1, _ = assert_blocking(op, {'x1_blk0'})
+    bns1, _ = assert_blocking(op._func_table['compute2'].root, {'x1_blk0'})
 
     for i in [bns0['x0_blk0'], bns1['x1_blk0']]:
         iters = FindNodes(Iteration).visit(i)
@@ -257,7 +258,7 @@ class TestBlockingOptRelax:
 
         op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
 
-        bns, _ = assert_blocking(op, {'x0_blk0', 'xl0_blk0', 'xr0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
         assert all(IsPerfectIteration().visit(i) for i in bns.values())
         assert all(len(FindNodes(Iteration).visit(i)) == 4 for i in bns.values())
 
@@ -1362,9 +1363,9 @@ class TestNestedParallelism:
                             'par-collapse-ncores': 2,
                             'par-dynamic-work': 0}))
 
-        bns, _ = assert_blocking(op, {'ix0_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0'})
 
-        trees = retrieve_iteration_tree(bns['ix0_blk0'])
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
         assert len(trees) == 1
         tree = trees[0]
         assert len(tree) == 5 + (blocklevels - 1) * 2
