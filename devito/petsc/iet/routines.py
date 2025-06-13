@@ -16,7 +16,8 @@ from devito.tools import filter_ordered
 from devito.petsc.types import PETScArray, PetscBundle
 from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
                                     MatShellSetOp, PetscMetaData)
-from devito.petsc.iet.utils import petsc_call, petsc_struct, zero_vector
+from devito.petsc.iet.utils import (petsc_call, petsc_struct, zero_vector,
+                                    dereference_funcs, residual_bundle)
 from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (DM, Mat, CallbackVec, Vec, KSP, PC, SNES,
                                 PetscInt, StartPtr, PointerIS, PointerDM, VecScatter,
@@ -120,7 +121,7 @@ class CBBuilder:
         self._make_user_struct_callback()
 
     def _make_matvec(self, jacobian, prefix='MatMult'):
-        # Compile matvec `eqns` into an IET via recursive compilation
+        # Compile `matvecs` into an IET via recursive compilation
         matvecs = jacobian.matvecs
         irs, _ = self.rcompile(
             matvecs, options={'mpi': False}, sregistry=self.sregistry,
@@ -251,7 +252,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=body),
@@ -390,7 +391,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=body),
@@ -500,7 +501,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=[body]),
@@ -578,7 +579,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=[body]),
@@ -642,12 +643,6 @@ class CBBuilder:
         for k, v in self._efuncs.items():
             mapper.update({k: visitor.visit(v)})
         return mapper
-
-    def dereference_funcs(self, struct, fields):
-        return tuple(
-            [Dereference(i, struct) for i in
-             fields if isinstance(i.function, AbstractFunction)]
-        )
 
 
 class CCBBuilder(CBBuilder):
@@ -749,17 +744,17 @@ class CCBBuilder(CBBuilder):
 
     def _make_whole_formfunc(self):
         F_exprs = self.fielddata.residual.F_exprs
-        # Compile formfunc `eqns` into an IET via recursive compilation
-        irs_formfunc, _ = self.rcompile(
+        # Compile `F_exprs` into an IET via recursive compilation
+        irs, _ = self.rcompile(
             F_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        body_formfunc = self._whole_formfunc_body(List(body=irs_formfunc.uiet.body))
+        body = self._whole_formfunc_body(List(body=irs.uiet.body))
 
         objs = self.objs
         cb = PETScCallable(
             self.sregistry.make_name(prefix='WholeFormFunc'),
-            body_formfunc,
+            body,
             retval=objs['err'],
             parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
         )
@@ -783,7 +778,8 @@ class CCBBuilder(CBBuilder):
         bundles = sobjs['bundles']
         fbundle = bundles['f']
         xbundle = bundles['x']
-        body = self.residual_bundle(body, bundles)
+
+        body = residual_bundle(body, bundles)
 
         dm_cast = DummyExpr(dmda, DMCast(objs['dummyptr']), init=True)
 
@@ -870,7 +866,7 @@ class CCBBuilder(CBBuilder):
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
@@ -1033,21 +1029,6 @@ class CCBBuilder(CBBuilder):
             stacks=(get_ctx, deref_subdm),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
-
-    def residual_bundle(self, body, bundles):
-        mapper = bundles['bundle_mapper']
-        indexeds = FindSymbols('indexeds').visit(body)
-        subs = {}
-
-        for i in indexeds:
-            if i.base in mapper:
-                bundle = mapper[i.base]
-                index = bundles['target_indices'][i.function.target]
-                index = (index,) + i.indices
-                subs[i] = bundle.__getitem__(index)
-
-        body = Uxreplace(subs).visit(body)
-        return body
 
 
 class BaseObjectBuilder:
