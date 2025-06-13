@@ -43,7 +43,7 @@ class HaloSchemeEntry(EnrichedTuple):
         return hash((self.loc_indices, self.loc_dirs, self.halos, self.dims,
                      self.bundle))
 
-    @property
+    @cached_property
     def loc_values(self):
         return frozenset(self.loc_indices.values())
 

@@ -385,7 +385,7 @@ class TimedAccess(IterationInstance, AccessMode):
             # Compute the distance along the current IterationInterval
             if self.function._mem_shared:
                 # Special case: the distance between two regular, thread-shared
-                # objects fallbacks to zero, as any other value would be
+                # objects falls back to zero, as any other value would be
                 # nonsensical
                 ret.append(S.Zero)
             elif degenerating_dimensions(sai, oai):

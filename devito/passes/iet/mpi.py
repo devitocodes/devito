@@ -41,7 +41,7 @@ def _drop_reduction_halospots(iet):
 
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
-        scope = Scope([i.expr for i in expressions])
+        scope = Scope(i.expr for i in expressions)
         for f, v in scope.reads.items():
             if f in hs.fmapper and all(i.is_reduction for i in v):
                 mapper[hs].add(f)
@@ -79,7 +79,7 @@ def _hoist_redundant_from_conditionals(iet):
 
     mapper = HaloSpotMapper()
     for it, halo_spots in iter_mapper.items():
-        scope = Scope([e.expr for e in FindNodes(Expression).visit(it)])
+        scope = Scope(e.expr for e in FindNodes(Expression).visit(it))
 
         for hs0 in halo_spots:
             conditions = cond_mapper[hs0]
@@ -156,6 +156,7 @@ def _merge_halospots(iet):
                 # `hsf1` out of `it`, otherwise we just drop it
                 if hsf0.loc_values != hsf1.loc_values:
                     continue
+
                 mapper.drop(hs1, f)
 
     iet = mapper.apply(iet)
@@ -278,7 +279,7 @@ def _mark_overlappable(iet):
         if not expressions:
             continue
 
-        scope = Scope([i.expr for i in expressions])
+        scope = Scope(i.expr for i in expressions)
 
         # Comp/comm overlaps is legal only if the OWNED regions can grow
         # arbitrarly, which means all of the dependences must be carried
@@ -448,8 +449,8 @@ def _make_cond_mapper(iet):
     """
     Return a mapper from HaloSpots to the Conditionals that contain them.
     """
-    return {hs: tuple(i for i in v if i.is_Conditional)
-            for hs, v in MapHaloSpots().visit(iet).items()}
+    mapper = MapHaloSpots().visit(iet)
+    return {hs: tuple(i for i in v if i.is_Conditional) for hs, v in mapper.items()}
 
 
 def _derive_scope(it, hs0, hs1):
@@ -458,7 +459,7 @@ def _derive_scope(it, hs0, hs1):
     and ends at the HaloSpot `hs1`.
     """
     expressions = FindWithin(Expression, hs0, stop=hs1).visit(it)
-    return Scope([e.expr for e in expressions])
+    return Scope(e.expr for e in expressions)
 
 
 def _check_control_flow(hs0, hs1, cond_mapper):
