@@ -1145,7 +1145,10 @@ class FindWithin(FindNodes):
         if flag and self.rule(self.match, o):
             found.append(o)
         for i in o.children:
-            found, flag = self._visit(i, ret=(found, flag))
+            found, newflag = self._visit(i, ret=(found, flag))
+            if flag and not newflag:
+                return found, newflag
+            flag = newflag
 
         if o is self.stop:
             flag = False
