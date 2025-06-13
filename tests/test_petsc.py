@@ -625,12 +625,12 @@ def test_jacobian():
         def define(self, dimensions):
             x, = dimensions
             return {x: ('right', 1)}
-        
+
     sub1 = SubLeft()
     sub2 = SubRight()
 
     grid = Grid(shape=(11,), subdomains=(sub1, sub2), dtype=np.float64)
-    
+
     e = Function(name='e', grid=grid, space_order=2)
     f = Function(name='f', grid=grid, space_order=2)
 
@@ -645,7 +645,7 @@ def test_jacobian():
 
     assert jac.row_target == e
     assert jac.col_target == e
-    
+
     # 2 symbolic expressions for each each EssentialBC (One ZeroRow and one ZeroColumn).
     # NOTE: this is likely to change when PetscSection + DMDA is supported
     assert len(jac.matvecs) == 5
