@@ -17,7 +17,7 @@ def generate(args):
     template_header = """\
 #!/bin/bash
 
-#PBS -lselect=%(nn)s:ncpus=%(ncpus)s:mem=120gb:mpiprocs=%(np)s:ompthreads=%(nt)s
+#PBS -lselect=%(nn)s:ncpus=%(ncpus)s:mem=%(mem)dgb:mpiprocs=%(np)s:ompthreads=%(nt)s
 #PBS -lwalltime=02:00:00
 
 lscpu
