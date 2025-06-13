@@ -188,9 +188,7 @@ class CBBuilder:
             'DMGetLocalVector', [dmda, Byref(ylocal)]
         )
 
-        zero_ylocal_memory = petsc_call(
-            'VecSet', [ylocal, 0.0]
-        )
+        zero_ylocal_memory = self.zero_vector(ylocal)
 
         vec_get_array_y = petsc_call(
             'VecGetArray', [ylocal, Byref(y_matvec._C_symbol)]
@@ -730,9 +728,7 @@ class CCBBuilder(CBBuilder):
 
         nonzero_submats = self.jacobian.nonzero_submatrices
 
-        zero_y_memory = petsc_call(
-            'VecSet', [objs['Y'], 0.0]
-        )
+        zero_y_memory = self.zero_vector(objs['Y'])
 
         calls = ()
         for sm in nonzero_submats:
