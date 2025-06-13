@@ -1516,8 +1516,8 @@ class HaloSpot(Node):
         return self.halo_scheme.arguments
 
     @property
-    def is_empty(self):
-        return len(self.halo_scheme) == 0
+    def is_void(self):
+        return self.halo_scheme.is_void
 
     @property
     def body(self):
