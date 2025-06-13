@@ -352,8 +352,7 @@ class Fusion(Queue):
                 v = len(cg0.exprs)
                 return t0 < v <= t1 or t1 < v <= t0
 
-            for cg1 in cgroups[n+1:]:
-                n1 = cgroups.index(cg1)
+            for n1, cg1 in enumerate(cgroups[n+1:], start=n+1):
 
                 # A Scope to compute all cross-ClusterGroup anti-dependences
                 scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=is_cross)

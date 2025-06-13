@@ -11,7 +11,8 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_comp_acc, q_affine, q_routine, search,
                               uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth, memoized_generator)
+                          flatten, memoized_meth, memoized_generator, smart_gt,
+                          smart_lt)
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -364,11 +365,12 @@ class TimedAccess(IterationInstance, AccessMode):
                 # trip count. E.g. it ranges from 0 to 3; `other` performs a
                 # constant access at 4
                 for v in (self[n], other[n]):
-                    try:
-                        if bool(v < sit.symbolic_min or v > sit.symbolic_max):
-                            return Vector(S.ImaginaryUnit)
-                    except TypeError:
-                        pass
+                    # Note: Uses smart_ comparisons avoid evaluating expensive
+                    # symbolic Lt or Gt operations,
+                    # Note: Boolean is split to make the conditional short
+                    # circuit more frequently for mild speedup.
+                    if smart_lt(v, sit.symbolic_min) or smart_gt(v, sit.symbolic_max):
+                        return Vector(S.ImaginaryUnit)
 
                 # Case 2: `sit` is an IterationInterval over a local SubDimension
                 # and `other` performs a constant access
