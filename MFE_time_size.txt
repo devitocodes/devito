@@ -1,0 +1,242 @@
+import numpy as np
+import sympy as sym
+from devito import (Grid, Function, TimeFunction,
+                    Derivative, Operator, Eq)
+from devito import configuration
+from devito.symbolics import uxreplace
+    
+# Configure Devito logging
+configuration['log-level'] = 'DEBUG'
+
+# Simulation parameters
+extent = (1, 1)           # Physical domain size
+shape = (201, 201)        # Grid resolution
+origin = (0, 0)           # Domain origin
+deg = 3                   # Degree for source derivatives
+n_eq = 2                  # Number of PDE unknowns (u, v)
+alpha = [1]*4             # SSPRK coefficients (toy example)
+
+# Create computational grid
+grid = Grid(origin=origin, extent=extent, shape=shape, dtype=np.float64)
+x, y = grid.dimensions
+t, dt = grid.time_dim, grid.stepping_dim.spacing
+
+print(f"Grid created: {shape} points over domain {extent}")
+print(f"Spatial dimensions: x={x}, y={y}")
+print(f"Time dimension: t={t}, dt={dt}")
+
+# Define wavefield unknowns: u (displacement) and v (velocity)
+fun_labels = ['u_multi_stage', 'v_multi_stage']
+U_multi_stage = [TimeFunction(name=name, grid=grid, space_order=2,
+                              time_order=1, dtype=np.float64) for name in fun_labels]
+
+print("Wavefield functions created:")
+for i, u in enumerate(U_multi_stage):
+    print(f"  {fun_labels[i]}: {u}")
+
+# Source definition
+src_spatial = Function(name="src_spat", grid=grid, space_order=2, dtype=np.float64)
+src_spatial.data[100, 100] = 1  # Point source at grid center
+src_temporal = sym.exp(- 100 * (t - 0.01) ** 2)  # Gaussian pulse
+
+print(f"\nSource spatial function: {src_spatial}")
+print(f"Source temporal function: {src_temporal}")
+
+# PDE right-hand side: du/dt = v, dv/dt = ∇²u
+system_eqs_rhs = [U_multi_stage[1],  # du/dt = v
+                  Derivative(U_multi_stage[0], (x, 2), fd_order=2) +
+                  Derivative(U_multi_stage[0], (y, 2), fd_order=2)]  # dv/dt = ∇²u
+
+# Source coupling: [spatial, temporal, associated variable]
+src = [[src_spatial, src_temporal, U_multi_stage[0]],
+       [src_spatial, src_temporal * 10, U_multi_stage[0]],
+       [src_spatial, src_temporal, U_multi_stage[1]]]
+
+print(f"\nPDE system right-hand side:")
+for i, rhs in enumerate(system_eqs_rhs):
+    print(f"  d{fun_labels[i]}/dt = {rhs}")
+
+# Temporary variables for Runge-Kutta stages
+k = [Function(name=f'k{i}', grid=grid, space_order=2, time_order=1, 
+              dtype=U_multi_stage[i].dtype) for i in range(n_eq)]
+k_old = [Function(name=f'k0{i}', grid=grid, space_order=2, time_order=1, 
+                  dtype=U_multi_stage[i].dtype) for i in range(n_eq)]
+
+print(f"\nRunge-Kutta temporary variables:")
+print(f"  k: {[ki.name for ki in k]}")
+print(f"  k_old: {[ki.name for ki in k_old]}")
+
+def source_derivatives(deg, src, src_index, t):
+    """
+    Compute time derivatives of the source wavelet up to given degree.
+    
+    Parameters:
+    -----------
+    deg : int
+        Degree of derivatives to compute
+    src : list
+        List of source terms
+    src_index : list
+        Indices for source terms
+    t : symbol
+        Time symbol
+        
+    Returns:
+    --------
+    f_deriv : list
+        List of derivative expressions
+    """
+    f_deriv = [[src[i][1] for i in range(len(src))]]
+    
+    # Compute derivatives up to order p
+    for _ in range(deg - 1):
+        f_deriv.append([f_deriv[-1][i].diff(t) for i in range(len(src_index))])
+    
+    f_deriv.reverse()
+    return f_deriv
+
+def source_inclusion(rhs, u, k, src_index, src_deriv, e_p, t, dt, n_eq):
+    """
+    Add source terms to the PDE system at each Runge-Kutta stage.
+    
+    Parameters:
+    -----------
+    rhs : list
+        Right-hand side of PDE system
+    u : list  
+        Wavefield variables
+    k : list
+        Runge-Kutta stage variables
+    src_index : list
+        Source indices
+    src_deriv : list
+        Source derivatives
+    e_p : list
+        Expansion coefficients
+    t : symbol
+        Time symbol
+    dt : symbol
+        Time step symbol
+    n_eq : int
+        Number of equations
+        
+    Returns:
+    --------
+    src_lhs : list
+        Modified left-hand side with sources
+    e_p : list
+        Updated expansion coefficients
+    """
+    # Replace wavefield variables with stage variables
+    src_lhs = [uxreplace(rhs[i], {u[m]: k[m] for m in range(n_eq)}) for i in range(n_eq)]
+    
+    p = len(src_deriv)
+    
+    # Add source contributions
+    for i in range(p):
+        if e_p[i] != 0:
+            for j in range(len(src_index)):
+                src_lhs[src_index[j]] += src[j][0] * src_deriv[i][j].subs({t: t * dt}) * e_p[i]
+    
+    # Update expansion coefficients
+    e_p = [e_p[i] + dt * e_p[i + 1] for i in range(p - 1)] + [e_p[-1]]
+    
+    return src_lhs, e_p
+
+print("Helper functions defined:")
+print("  - source_derivatives(): Computes time derivatives of source wavelet")
+print("  - source_inclusion(): Adds source terms to PDE system at RK stages")
+
+# Create mapping from wavefield variables to indices
+src_index_map = {val: i for i, val in enumerate(U_multi_stage)}
+print("Source index mapping:")
+for var, idx in src_index_map.items():
+    print(f"  {var} -> {idx}")
+
+# Extract source indices based on associated variables
+src_index = [src_index_map[val] for val in [src[i][2] for i in range(len(src))]]
+print(f"\nSource indices: {src_index}")
+
+# Compute source derivatives
+src_deriv = source_derivatives(deg, src, src_index, t)
+print(f"\nSource derivatives computed up to degree {deg}")
+print(f"Number of derivative levels: {len(src_deriv)}")
+
+# Initialize expansion source coefficients
+e_p = [0] * deg
+eta = 1
+e_p[-1] = 1 / eta
+
+print(f"\nExpansion coefficients initialized:")
+print(f"  e_p = {e_p}")
+print(f"  eta = {eta}")
+
+# Initialize list to store all stage equations
+stage_eqs = []
+
+print("Building Runge-Kutta-like scheme...")
+
+# Stage 0: Initialization
+print("  Stage 0: Initialization")
+stage_eqs.extend([Eq(k[i], U_multi_stage[i]) for i in range(n_eq)])
+[stage_eqs.append(Eq(U_multi_stage[i].forward, U_multi_stage[i] * alpha[0])) for i in range(n_eq)]
+
+# Stage 1
+print("  Stage 1: First RK stage")
+[stage_eqs.append(Eq(k_old[j], k[j])) for j in range(n_eq)]
+src_lhs, e_p = source_inclusion(system_eqs_rhs, U_multi_stage, k_old, src_index, src_deriv, e_p, t, dt, n_eq)
+[stage_eqs.append(Eq(k[j], k_old[j] + dt * src_lhs[j])) for j in range(n_eq)]
+[stage_eqs.append(Eq(U_multi_stage[j].forward, U_multi_stage[j].forward + k[j] * alpha[1])) for j in range(n_eq)]
+
+# Stage 2
+print("  Stage 2: Second RK stage")
+[stage_eqs.append(Eq(k_old[j], k[j])) for j in range(n_eq)]
+src_lhs, e_p = source_inclusion(system_eqs_rhs, U_multi_stage, k_old, src_index, src_deriv, e_p, t, dt, n_eq)
+[stage_eqs.append(Eq(k[j], k_old[j] + dt * src_lhs[j])) for j in range(n_eq)]
+
+# Stage 3 and final update
+print("  Stage 3: Final RK stage and update")
+[stage_eqs.append(Eq(k_old[j], k[j])) for j in range(n_eq)]
+src_lhs, _ = source_inclusion(system_eqs_rhs, U_multi_stage, k_old, src_index, src_deriv, e_p, t, dt, n_eq)
+[stage_eqs.append(Eq(k[j], k_old[j] + dt * src_lhs[j])) for j in range(n_eq)]
+[stage_eqs.append(Eq(U_multi_stage[j].forward, U_multi_stage[j].forward + k[j] * alpha[deg - 1])) for j in range(n_eq)]
+
+print(f"\nTotal equations created: {len(stage_eqs)}")
+print("Scheme structure:")
+print(f"  - {n_eq} unknowns per stage")
+print(f"  - {deg} stages total")
+print(f"  - Alpha coefficients: {alpha}")
+
+# Create the Devito Operator
+print("Creating Devito Operator...")
+op = Operator(stage_eqs, subs=grid.spacing_map)
+
+print("Operator successfully created!")
+print(f"  Number of equations: {len(stage_eqs)}")
+print(f"  Grid spacing substitutions applied: {grid.spacing_map}")
+
+# Define simulation parameters
+dt_value = 0.001    # Time step size
+time_max = 2000     # Maximum simulation time
+time_size = 10      # Number of time steps to execute
+
+print(f"\nSimulation parameters:")
+print(f"  Time step (dt): {dt_value}")
+print(f"  Maximum time: {time_max}")
+print(f"  Time steps: {time_size}")
+print(f"  Total simulation time: {dt_value * time_size}")
+
+# Execute the simulation
+print("\nRunning simulation...")
+op(dt=dt_value, time=time_max, time_size=time_size)
+
+print("Simulation completed successfully!")
+
+# Display final wavefield shapes and some statistics
+print(f"\nFinal wavefield statistics:")
+for i, u in enumerate(U_multi_stage):
+    print(f"  {fun_labels[i]}:")
+    print(f"    Shape: {u.data.shape}")
+    print(f"    Max value: {np.max(u.data):.6f}")
+    print(f"    Min value: {np.min(u.data):.6f}")
+    print(f"    Mean value: {np.mean(u.data):.6f}")

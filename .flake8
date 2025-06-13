@@ -1,0 +1,22 @@
+[flake8]
+max-line-length = 88
+ignore = 
+    # E203: whitespace before ':' (conflicts with black)
+    E203,
+    # W503: line break before binary operator (conflicts with black)
+    W503
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .venv,
+    venv,
+    .tox,
+    .eggs,
+    *.egg
+per-file-ignores =
+    # Tests can have longer lines for readability
+    tests/*.py:E501
+    # Examples might have different style requirements
+    examples/*.py:E501

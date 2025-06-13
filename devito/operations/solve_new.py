@@ -7,7 +7,7 @@ from devito.finite_differences.differentiable import Add, Mul, EvalDerivative
 from devito.finite_differences.derivative import Derivative
 from devito.tools import as_tuple
 
-from devito.types.multistage import resolve_method
+from devito.types.multistage_new import multistage_method
 
 __all__ = ['solve', 'linsolve']
 
@@ -17,7 +17,7 @@ class SolveError(Exception):
     pass
 
 
-def solve(eq, target, method = None, eq_num = 0, **kwargs):
+def solve(eq, target, **kwargs):
     """
     Algebraically rearrange an Eq w.r.t. a given symbol.
 
@@ -63,7 +63,11 @@ def solve(eq, target, method = None, eq_num = 0, **kwargs):
         sols_temp = sols[0]
 
     method = kwargs.get("method", None)
-    return sols_temp if method is None else resolve_method(method)(target, sols_temp)
+    if method is None:
+        return sols_temp
+    else:
+        return multistage_method(target, sols_temp, method, source=kwargs.get("src", None),
+                                  degree=kwargs.get("degree", None), optimized_feature=kwargs.get("optimized_feature", None))
 
 
 def linsolve(expr, target, **kwargs):

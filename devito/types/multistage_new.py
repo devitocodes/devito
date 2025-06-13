@@ -542,4 +542,173 @@ class HighOrderRungeKuttaExponential(MultiStage):
        
         return stage_eqs
 
+
+@register_method(aliases=['HORK_EXP_OPT'])
+class HighOrderRungeKuttaExponentialOptimized(MultiStage):
+    # In construction
+    """
+    n stages Runge-Kutta (HORK) time integration method.
+
+    This class implements the arbitrary high-order explicit Runge-Kutta method.
+
+    Attributes
+    ----------
+    a : list[list[float]]
+        Coefficients of the `a` matrix for intermediate stage coupling.
+    b : list[float]
+        Weights for final combination.
+    c : list[float]
+        Time positions of intermediate stages.
+    """
+
+    def source_derivatives(self, src_index, **kwargs):
+
+        # Compute the base wavelet function
+        f_deriv = [[src[1] for src in self.src]]
+
+        # Compute derivatives up to order p
+        for _ in range(self.deg - 1):
+            f_deriv.append([deriv.diff(self.t) for deriv in f_deriv[-1]])
+
+        f_deriv.reverse()
+        return f_deriv
+
+    def ssprk_alpha(self, optimized_feature):
+        """
+        Computes the coefficients for the Strong Stability Preserving Runge-Kutta (SSPRK) method.
+
+        Parameters:
+        optimized_feature : str or None
+            The optimization feature to use ('conv' for convergence, 'stab' for stability).
+            If None, defaults to 'conv'.
+
+        Returns:
+        numpy.ndarray
+            Array of SSPRK coefficients.
+        """
+
+        # Low-storage SSPRK coefficients from Ketcheson (2008)
+        # Get the path to the coefficient files (they're in the same directory as this module)
+        import os
+        module_dir = os.path.dirname(__file__)
+        coeff_file = os.path.join(module_dir, f'{optimized_feature}_poly_coefficients_combined.npy')
+        coeffs = np.load(coeff_file) 
+
+        alpha = coeffs[coeffs[:,0]==self.deg, 1:(self.deg + 2)]
+
+        # Convert numpy array to Python list of floats for SymPy compatibility
+        return [float(a) for a in alpha.flatten()]
+
+    def source_inclusion(self, current_state, stage_values, e_p, **integration_params):
+        """
+        Include source terms in the time integration step.
+
+        This method applies source term contributions to the right-hand side
+        of the differential equations during time integration, accounting for
+        time derivatives of the source function and expansion coefficients.
+
+        Parameters
+        ----------
+        current_state : list
+            Current state variables (u).
+        stage_values : list
+            Current stage values (k).
+        e_p : list
+            Expansion coefficients for stability control.
+        **integration_params : dict
+            Integration parameters containing 't', 'dt', 'mu', 'src_index',
+            'src_deriv', 'n_eq'.
+
+        Returns
+        -------
+        tuple
+            (modified_rhs, updated_e_p) - Updated right-hand side
+            equations and modified expansion coefficients.
+        """
+        # Extract integration parameters
+        mu = integration_params['mu']
+        src_index = integration_params['src_index']
+        src_deriv = integration_params['src_deriv']
+        n_eq = integration_params['n_eq']
+
+        # Build base right-hand side by substituting current stage values
+        src_lhs = [uxreplace(self.rhs[i], {current_state[m]: stage_values[m] for m in range(n_eq)})
+                   for i in range(n_eq)]
+
+        # Apply source term contributions if sources exist
+        if self.src is not None:
+            p = len(src_deriv)
+
+            # Add source contributions for each derivative order
+            for i in range(p):
+                if e_p[i] != 0:
+                    for j, idx in enumerate(src_index):
+                        # Add weighted source derivative contribution
+                        source_contribution = (self.src[j][0] * src_deriv[i][j].subs({self.t: self.t * self.dt}) * e_p[i])
+                        src_lhs[idx] += source_contribution
+
+            # Update expansion coefficients for next stage
+            e_p = [mu*self.dt*e_p[i + 1] for i in range(p - 1)] + [0]
+
+        return src_lhs, e_p
+
+    def _evaluate(self, **kwargs):
+        """
+        Generate the stage-wise equations for a Runge-Kutta time integration method.
+
+        This method takes a single equation of the form `Eq(u.forward, rhs)` and
+        expands it into a sequence of intermediate stage evaluations and a final
+        update equation according to the Runge-Kutta coefficients `a`, `b`, and `c`.
+
+        Returns
+        -------
+        list of Eq
+            A list of SymPy Eq objects representing:
+            - `s` stage equations of the form `k_i = rhs evaluated at intermediate state`
+            - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
+        """
+
+        sregistry = kwargs.get('sregistry')
+        # Create a temporary Array for each variable to save the time stages
+        # k = [Array(name=f'{sregistry.make_name(prefix='k')}', dimensions=u[i].grid.dimensions, grid=u[i].grid, dtype=u[i].dtype) for i in range(n_eq)]
+        k = [TimeFunction(name=f'{sregistry.make_name(prefix="k")}', grid=self.lhs[i].grid,
+                      space_order=self.lhs[i].space_order, time_order=0, dtype=self.lhs[i].dtype) for i in range(self.n_eq)]
+        k_old = [TimeFunction(name=f'{sregistry.make_name(prefix="k_old")}', grid=self.lhs[i].grid,
+                          space_order=self.lhs[i].space_order, time_order=0, dtype=self.lhs[i].dtype) for i in range(self.n_eq)]
+
+        # Compute SSPRK coefficients
+        optimized_feature = self._optimized_feature
+        alpha = self.ssprk_alpha(optimized_feature)
+
+        # Initialize symbolic differentiation for source terms
+        field_map = {val: i for i, val in enumerate(self.lhs)}
+        if self.src is not None:
+            src_index = [field_map[src[2]] for src in self.src]
+            src_deriv = self.source_derivatives(src_index, **kwargs)
+        else:
+            src_index = None
+            src_deriv = None
+
+        # Expansion coefficients for stability control
+        e_p = [0] * self.deg
+        eta = 1
+        e_p[-1] = 1 / eta
+
+        stage_eqs = [Eq(ki, ui) for ki, ui in zip(k, self.lhs)]
+        stage_eqs.extend([Eq(lhs_i.forward, lhs_i*alpha[0]) for lhs_i in self.lhs])
+
+        # Prepare integration parameters for source inclusion
+        integration_params = {'mu': 1, 'src_index': src_index,
+                              'src_deriv': src_deriv, 'n_eq': self.n_eq}
+
+        # Build each stage
+        for i in range(1, self.deg + 1):
+            stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
+            src_lhs, e_p = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
+            stage_eqs.extend([Eq(k_j, self.dt*src_lhs_j) for k_j, src_lhs_j in zip(k, src_lhs)])
+            stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[i]) for lhs_j, k_j in zip(self.lhs, k)])
+
+        return stage_eqs
+
+
 method_registry = MappingProxyType(method_registry)
