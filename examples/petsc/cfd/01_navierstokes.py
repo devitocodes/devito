@@ -297,3 +297,8 @@ with switchconfig(language='petsc'):
 # Pressure norm check
 tol = 1e-3
 assert np.sum((pn1.data[0]-pn1.data[1])**2/np.maximum(pn1.data[0]**2, 1e-10)) < tol
+
+from devito import norm
+print(norm(u1))
+print(norm(v1))
+print(norm(pn1))

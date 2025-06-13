@@ -382,6 +382,10 @@ class Jacobian(BaseJacobian):
     def col_target(self):
         return self.target
 
+    @property
+    def zero_memory(self):
+        return True
+
     def _build_matvecs(self):
         matvecs = []
         for eq in self.exprs:
@@ -516,8 +520,9 @@ class SubMatrixBlock:
         self.col_idx = col_idx
         self.linear_idx = linear_idx
 
-    def is_diag(self):
-        return self.row_idx == self.col_idx
+    @property
+    def zero_memory(self):
+        return False
 
     def __repr__(self):
         return (f"<SubMatrixBlock {self.name}>")

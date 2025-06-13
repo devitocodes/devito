@@ -16,7 +16,7 @@ from devito.tools import filter_ordered
 from devito.petsc.types import PETScArray, PetscBundle
 from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
                                     MatShellSetOp, PetscMetaData)
-from devito.petsc.iet.utils import petsc_call, petsc_struct
+from devito.petsc.iet.utils import petsc_call, petsc_struct, zero_vector
 from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (DM, Mat, CallbackVec, Vec, KSP, PC, SNES,
                                 PetscInt, StartPtr, PointerIS, PointerDM, VecScatter,
@@ -100,13 +100,6 @@ class CBBuilder:
         return self._user_struct_callback
 
     @property
-    def zero_memory(self):
-        """Indicates whether the memory of the output
-        vector should be set to zero before the computation
-        in the callback."""
-        return True
-
-    @property
     def fielddata(self):
         return self.injectsolve.expr.rhs.fielddata
 
@@ -169,7 +162,7 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_y_memory = self.zero_vector(objs['Y'])
+        zero_y_memory = zero_vector(objs['Y']) if jacobian.zero_memory else None
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(xlocal)]
@@ -188,9 +181,7 @@ class CBBuilder:
             'DMGetLocalVector', [dmda, Byref(ylocal)]
         )
 
-        zero_ylocal_memory = petsc_call(
-            'VecSet', [ylocal, 0.0]
-        )
+        zero_ylocal_memory = zero_vector(ylocal)
 
         vec_get_array_y = petsc_call(
             'VecGetArray', [ylocal, Byref(y_matvec._C_symbol)]
@@ -320,7 +311,7 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_f_memory = self.zero_vector(objs['F'])
+        zero_f_memory = zero_vector(objs['F'])
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(objs['xloc'])]
@@ -652,12 +643,6 @@ class CBBuilder:
             mapper.update({k: visitor.visit(v)})
         return mapper
 
-    def zero_vector(self, vec):
-        """
-        Zeros the memory of the output vector before computation
-        """
-        return petsc_call('VecSet', [vec, 0.0]) if self.zero_memory else None
-
     def dereference_funcs(self, struct, fields):
         return tuple(
             [Dereference(i, struct) for i in
@@ -691,13 +676,6 @@ class CCBBuilder(CBBuilder):
     def main_formfunc_callback(self):
         return self._main_formfunc_callback
 
-    @property
-    def zero_memory(self):
-        """Indicates whether the memory of the output
-        vector should be set to zero before the computation
-        in the callback."""
-        return False
-
     def _make_core(self):
         for sm in self.fielddata.jacobian.nonzero_submatrices:
             self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
@@ -730,9 +708,7 @@ class CCBBuilder(CBBuilder):
 
         nonzero_submats = self.jacobian.nonzero_submatrices
 
-        zero_y_memory = petsc_call(
-            'VecSet', [objs['Y'], 0.0]
-        )
+        zero_y_memory = zero_vector(objs['Y'])
 
         calls = ()
         for sm in nonzero_submats:
@@ -815,9 +791,7 @@ class CCBBuilder(CBBuilder):
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_f_memory = petsc_call(
-            'VecSet', [objs['F'], 0.0]
-        )
+        zero_f_memory = zero_vector(objs['F'])
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(objs['xloc'])]

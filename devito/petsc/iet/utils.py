@@ -18,6 +18,10 @@ def petsc_struct(name, fields, pname, liveness='lazy', modifier=None):
                        modifier=modifier)
 
 
+def zero_vector(vec):
+    return petsc_call('VecSet', [vec, 0.0])
+
+
 # Mapping special Eq operations to their corresponding IET Expression subclass types.
 # These operations correspond to subclasses of Eq utilised within PETScSolve.
 petsc_iet_mapper = {OpPetsc: PetscMetaData}
