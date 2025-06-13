@@ -13,7 +13,9 @@ from devito.types.dimension import MultiSubDimension, Thickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
-__all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
+from devito.types.multistage import MultiStage
+
+__all__ = ['dimension_sort', 'lower_multistage', 'lower_exprs', 'concretize_subdims']
 
 
 def dimension_sort(expr):
@@ -93,6 +95,34 @@ def dimension_sort(expr):
     ordering = Ordering(extra, relations=implicit_relations, mode='partial')
 
     return ordering
+
+
+def lower_multistage(expressions):
+    """
+    Separating the multi-stage time-integrator scheme in stages:
+        * If the object is MultiStage, it creates the stages of the method.
+    """
+    lowered = []
+    for i, eq in enumerate(as_tuple(expressions)):
+        lowered.extend(_lower_multistage(eq, i))
+    return lowered
+
+
+@singledispatch
+def _lower_multistage(expr, index):
+    """
+    Default handler for expressions that are not MultiStage.
+    Simply return them in a list.
+    """
+    return [expr]
+
+
+@_lower_multistage.register
+def _(expr: MultiStage, index):
+    """
+    Specialized handler for MultiStage expressions.
+    """
+    return expr.method(expr.eq.rhs, expr.eq.lhs)._evaluate(eq_num=index)
 
 
 def lower_exprs(expressions, subs=None, **kwargs):
