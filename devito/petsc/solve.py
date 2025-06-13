@@ -12,9 +12,9 @@ from devito.petsc.types.equation import EssentialBC
 __all__ = ['PETScSolve']
 
 
-def PETScSolve(target_eqns, target=None, solver_parameters=None):
+def PETScSolve(target_exprs, target=None, solver_parameters=None):
     """
-    Returns a symbolic equation representing a linear PETSc solver,
+    Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
     When passed to an `Operator`, this symbolic equation triggers code generation
     and lowering to the PETSc backend.
@@ -24,8 +24,8 @@ def PETScSolve(target_eqns, target=None, solver_parameters=None):
 
     Parameters
     ----------
-    target_eqns : Eq or list of Eq, or dict of Function-like -> Eq or list of Eq
-        The targets and symbolic equations defining the system to be solved.
+    target_exprs : Eq or list of Eq, or dict of Function-like -> Eq or list of Eq
+        The targets and symbolic expressions defining the system to be solved.
 
         - Single-field problem:
             Pass a single Eq or list of Eq, and specify `target` separately:
@@ -46,26 +46,26 @@ def PETScSolve(target_eqns, target=None, solver_parameters=None):
 
     Returns
     -------
-    Eq
-        A symbolic equation that wraps the linear solver.
+    Eq:
+        A symbolic expression that wraps the linear solver.
         This can be passed directly to a Devito Operator.
     """
     if target is not None:
-        return InjectSolve(solver_parameters, {target: target_eqns}).build_eq()
+        return InjectSolve(solver_parameters, {target: target_exprs}).build_expr()
     else:
-        return InjectMixedSolve(solver_parameters, target_eqns).build_eq()
+        return InjectMixedSolve(solver_parameters, target_exprs).build_expr()
 
 
 class InjectSolve:
-    def __init__(self, solver_parameters=None, target_eqns=None):
+    def __init__(self, solver_parameters=None, target_exprs=None):
         self.solver_params = solver_parameters
         self.time_mapper = None
-        self.target_eqns = target_eqns
+        self.target_exprs = target_exprs
 
-    def build_eq(self):
+    def build_expr(self):
         target, funcs, fielddata = self.linear_solve_args()
 
-        # Placeholder equation for inserting calls to the solver
+        # Placeholder expression for inserting calls to the solver
         linear_solve = LinearSolveExpr(
             funcs,
             self.solver_params,
@@ -73,21 +73,21 @@ class InjectSolve:
             time_mapper=self.time_mapper,
             localinfo=localinfo
         )
-        return [PetscEq(target, linear_solve)]
+        return PetscEq(target, linear_solve)
 
     def linear_solve_args(self):
-        target, eqns = next(iter(self.target_eqns.items()))
-        eqns = as_tuple(eqns)
+        target, exprs = next(iter(self.target_exprs.items()))
+        exprs = as_tuple(exprs)
 
-        funcs = get_funcs(eqns)
+        funcs = get_funcs(exprs)
         self.time_mapper = generate_time_mapper(funcs)
-        arrays = self.generate_arrays_combined(target)
+        arrays = self.generate_arrays(target)
 
-        eqns = sorted(eqns, key=lambda e: not isinstance(e, EssentialBC))
+        exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
 
-        jacobian = Jacobian(target, eqns, arrays, self.time_mapper)
-        residual = Residual(target, eqns, arrays, self.time_mapper, jacobian.scdiag)
-        initialguess = InitialGuess(target, eqns, arrays)
+        jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
+        residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
+        initialguess = InitialGuess(target, exprs, arrays)
 
         field_data = FieldData(
             target=target,
@@ -99,54 +99,56 @@ class InjectSolve:
 
         return target, tuple(funcs), field_data
 
-    def generate_arrays(self, target):
+    def generate_arrays(self, *targets):
         return {
-            p: PETScArray(name=f'{p}_{target.name}',
-                          target=target,
-                          liveness='eager',
-                          localinfo=localinfo)
-            for p in prefixes
+            t: {
+                p: PETScArray(
+                    name=f'{p}_{t.name}',
+                    target=t,
+                    liveness='eager',
+                    localinfo=localinfo
+                )
+                for p in prefixes
+            }
+            for t in targets
         }
-
-    def generate_arrays_combined(self, *targets):
-        return {target: self.generate_arrays(target) for target in targets}
 
 
 class InjectMixedSolve(InjectSolve):
 
     def linear_solve_args(self):
-        combined_eqns = []
-        for eqns in self.target_eqns.values():
-            combined_eqns.extend(eqns)
-        funcs = get_funcs(combined_eqns)
+        exprs = []
+        for e in self.target_exprs.values():
+            exprs.extend(e)
+
+        funcs = get_funcs(exprs)
         self.time_mapper = generate_time_mapper(funcs)
 
-        coupled_targets = list(self.target_eqns.keys())
-
-        arrays = self.generate_arrays_combined(*coupled_targets)
+        targets = list(self.target_exprs.keys())
+        arrays = self.generate_arrays(*targets)
 
         jacobian = MixedJacobian(
-            self.target_eqns, arrays, self.time_mapper
+            self.target_exprs, arrays, self.time_mapper
         )
 
         residual = MixedResidual(
-            self.target_eqns, arrays, self.time_mapper,
+            self.target_exprs, arrays, self.time_mapper,
             jacobian.target_scaler_mapper
         )
 
         all_data = MultipleFieldData(
-            targets=coupled_targets,
+            targets=targets,
             arrays=arrays,
             jacobian=jacobian,
             residual=residual
         )
 
-        return coupled_targets[0], tuple(funcs), all_data
+        return targets[0], tuple(funcs), all_data
 
 
 def generate_time_mapper(funcs):
     """
-    Replace time indices with `Symbols` in equations used within
+    Replace time indices with `Symbols` in expressions used within
     PETSc callback functions. These symbols are Uxreplaced at the IET
     level to align with the `TimeDimension` and `ModuloDimension` objects
     present in the initial lowering.
@@ -176,11 +178,10 @@ def generate_time_mapper(funcs):
     return dict(zip(time_indices, tau_symbs))
 
 
-def get_funcs(eqns):
+def get_funcs(exprs):
     funcs = [
-        func
-        for eq in eqns
-        for func in retrieve_functions(eval_time_derivatives(eq.lhs - eq.rhs))
+        f for e in exprs
+        for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
     ]
     return filter_ordered(funcs)
 

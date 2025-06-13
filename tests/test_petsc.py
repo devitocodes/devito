@@ -100,12 +100,12 @@ def test_petsc_solve():
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
 
-    matvec_callback = [root for root in callable_roots if root.name == 'MatMult0']
+    matvec_efunc = [root for root in callable_roots if root.name == 'MatMult0']
 
-    formrhs_callback = [root for root in callable_roots if root.name == 'FormRHS0']
+    b_efunc = [root for root in callable_roots if root.name == 'FormRHS0']
 
-    action_expr = FindNodes(Expression).visit(matvec_callback[0])
-    rhs_expr = FindNodes(Expression).visit(formrhs_callback[0])
+    action_expr = FindNodes(Expression).visit(matvec_efunc[0])
+    rhs_expr = FindNodes(Expression).visit(b_efunc[0])
 
     assert str(action_expr[-1].expr.rhs) == (
         '(x_f[x + 1, y + 2]/ctx0->h_x**2'
@@ -127,7 +127,7 @@ def test_petsc_solve():
     assert len(retrieve_iteration_tree(op)) == 0
 
     # TODO: Remove pragmas from PETSc callback functions
-    assert len(matvec_callback[0].parameters) == 3
+    assert len(matvec_efunc[0].parameters) == 3
 
 
 @skipif('petsc')
@@ -150,7 +150,7 @@ def test_multiple_petsc_solves():
     petsc2 = PETScSolve(eqn2, f2)
 
     with switchconfig(language='petsc'):
-        op = Operator(petsc1+petsc2, opt='noop')
+        op = Operator([petsc1, petsc2], opt='noop')
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
 
@@ -320,7 +320,7 @@ def test_petsc_struct():
     eqn2 = Eq(f1, g1*mu2)
 
     with switchconfig(language='petsc'):
-        op = Operator([eqn2] + petsc1)
+        op = Operator([eqn2, petsc1])
 
     arguments = op.arguments()
 
@@ -507,7 +507,7 @@ def test_time_loop():
     petsc5 = PETScSolve(eq5, v2)
 
     with switchconfig(language='petsc'):
-        op4 = Operator(petsc4 + petsc5)
+        op4 = Operator([petsc4, petsc5])
         op4.apply(time_M=3)
     body4 = str(op4.body)
 
@@ -609,6 +609,53 @@ def test_essential_bcs():
     assert np.allclose(u.data[-1, 1:-1], 4.0)  # right
 
 
+@skipif('petsc')
+def test_jacobian():
+
+    class SubLeft(SubDomain):
+        name = 'subleft'
+
+        def define(self, dimensions):
+            x, = dimensions
+            return {x: ('left', 1)}
+
+    class SubRight(SubDomain):
+        name = 'subright'
+
+        def define(self, dimensions):
+            x, = dimensions
+            return {x: ('right', 1)}
+
+    sub1 = SubLeft()
+    sub2 = SubRight()
+
+    grid = Grid(shape=(11,), subdomains=(sub1, sub2), dtype=np.float64)
+
+    e = Function(name='e', grid=grid, space_order=2)
+    f = Function(name='f', grid=grid, space_order=2)
+
+    bc_1 = EssentialBC(e, 1.0, subdomain=sub1)
+    bc_2 = EssentialBC(e, 2.0, subdomain=sub2)
+
+    eq1 = Eq(e.laplace + e, f + 2.0)
+
+    petsc = PETScSolve([eq1, bc_1, bc_2], target=e)
+
+    jac = petsc.rhs.fielddata.jacobian
+
+    assert jac.row_target == e
+    assert jac.col_target == e
+
+    # 2 symbolic expressions for each each EssentialBC (One ZeroRow and one ZeroColumn).
+    # NOTE: this is likely to change when PetscSection + DMDA is supported
+    assert len(jac.matvecs) == 5
+    # TODO: I think some internals are preventing symplification here?
+    assert str(jac.scdiag) == 'h_x*(1 - 2.0/h_x**2)'
+
+    assert all(isinstance(m, EssentialBC) for m in jac.matvecs[:4])
+    assert not isinstance(jac.matvecs[-1], EssentialBC)
+
+
 class TestCoupledLinear:
     # The coupled interface can be used even for uncoupled problems, meaning
     # the equations will be solved within a single matrix system.
@@ -655,7 +702,7 @@ class TestCoupledLinear:
         petsc2 = PETScSolve(eq2, target=g)
 
         with switchconfig(language='petsc'):
-            op1 = Operator(petsc1 + petsc2, opt='noop')
+            op1 = Operator([petsc1, petsc2], opt='noop')
             op1.apply()
 
         enorm1 = norm(e)
@@ -689,9 +736,9 @@ class TestCoupledLinear:
         assert len(callbacks2) == 6
 
         # Check fielddata type
-        fielddata1 = petsc1[0].rhs.fielddata
-        fielddata2 = petsc2[0].rhs.fielddata
-        fielddata3 = petsc3[0].rhs.fielddata
+        fielddata1 = petsc1.rhs.fielddata
+        fielddata2 = petsc2.rhs.fielddata
+        fielddata3 = petsc3.rhs.fielddata
 
         assert isinstance(fielddata1, FieldData)
         assert isinstance(fielddata2, FieldData)
@@ -818,7 +865,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc[0].rhs.fielddata.jacobian
+        jacobian = petsc.rhs.fielddata.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j01 = jacobian.get_submatrix(0, 1)
@@ -894,7 +941,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc[0].rhs.fielddata.jacobian
+        jacobian = petsc.rhs.fielddata.jacobian
 
         j01 = jacobian.get_submatrix(0, 1)
         j10 = jacobian.get_submatrix(1, 0)
@@ -943,7 +990,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc[0].rhs.fielddata.jacobian
+        jacobian = petsc.rhs.fielddata.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j11 = jacobian.get_submatrix(1, 1)
@@ -993,7 +1040,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc[0].rhs.fielddata.jacobian
+        jacobian = petsc.rhs.fielddata.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j11 = jacobian.get_submatrix(1, 1)
@@ -1046,7 +1093,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc[0].rhs.fielddata.jacobian
+        jacobian = petsc.rhs.fielddata.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j11 = jacobian.get_submatrix(1, 1)
