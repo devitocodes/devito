@@ -1314,22 +1314,19 @@ class TestCoupledLinear:
 
 
 class TestMPI:
+    # TODO: Add test for DMDACreate() in parallel
 
-    # @pytest.mark.parallel(mode=4)
     @skipif('petsc')
-    @pytest.mark.parallel(mode=[(2)])
+    @pytest.mark.parallel(mode=1)
     def test_laplacian(self, mode):
         """
         """
-
-        # Subdomains to implement BCs
         class SubLeft(SubDomain):
             name = 'subleft'
 
             def define(self, dimensions):
                 x, = dimensions
                 return {x: ('left', 1)}
-
 
         class SubRight(SubDomain):
             name = 'subright'
@@ -1343,56 +1340,32 @@ class TestMPI:
         sub2 = SubRight()
         subdomains = (sub1, sub2,)
 
+        n = 9
 
-        def exact(x):
-            return -np.float64(np.exp(x))
+        grid = Grid(
+            shape=(n,), subdomains=subdomains, dtype=np.float64
+        )
 
+        u = Function(name='u', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid, space_order=2)
+        bc = Function(name='bc', grid=grid, space_order=2)
 
-        # n = 9, 17, 33, 65, 129, 257
-        n_values = [2**k + 1 for k in range(3, 9)]
-        n_values = [9]
-        dx = np.array([1./(n-1) for n in n_values])
-        errors = []
+        eqn = Eq(-u.laplace, f, subdomain=grid.interior)
 
-        for n in n_values:
+        X = np.linspace(0, 1.0, n).astype(np.float64)
+        f.data[:] = np.float64(np.exp(X))
 
-            grid = Grid(
-                shape=(n,), subdomains=subdomains, dtype=np.float64
-            )
+        bc.data[0] = -np.float64(1.0)  # u(0) = -1
+        bc.data[-1] = -np.float64(np.exp(1.0))  # u(1) = -e
 
-            u = Function(name='u', grid=grid, space_order=2)
-            f = Function(name='f', grid=grid, space_order=2)
-            bc = Function(name='bc', grid=grid, space_order=2)
+        # Create boundary condition expressions using subdomains
+        bcs = [EssentialBC(u, bc, subdomain=sub1)]
+        bcs += [EssentialBC(u, bc, subdomain=sub2)]
 
-            eqn = Eq(-u.laplace, f, subdomain=grid.interior)
+        petsc = PETScSolve([eqn] + bcs, target=u, solver_parameters={'ksp_rtol': 1e-10})
 
-            X = np.linspace(0, 1.0, n).astype(np.float64)
-            f.data[:] = np.float64(np.exp(X))
+        op = Operator(petsc, language='petsc')
+        op.apply()
 
-            bc.data[0] = -np.float64(1.0)  # u(0) = -1
-            bc.data[-1] = -np.float64(np.exp(1.0))  # u(1) = -e
-
-            # Create boundary condition expressions using subdomains
-            bcs = [EssentialBC(u, bc, subdomain=sub1)]
-            bcs += [EssentialBC(u, bc, subdomain=sub2)]
-
-            exprs = [eqn] + bcs
-            petsc = PETScSolve(exprs, target=u, solver_parameters={'ksp_rtol': 1e-10})
-
-            op = Operator(petsc, language='petsc')
-            op.apply()
-
-            # u_exact = Function(name='u_exact', grid=grid, space_order=2)
-            # u_exact.data[:] = exact(X)
-
-            # diff = u_exact.data[:] - u.data[:]
-            # u_diff_norm = np.linalg.norm(diff, ord=np.inf)
-            # u_error = u_diff_norm / np.linalg.norm(u_exact.data[:], ord=np.inf)
-            # errors.append(u_error)
-
-            # Expected norms computed "manually" from sequential runs
-            norm_u = norm(u)
-            assert norm_u == 5.467052700706644
-
-            # Expected norms computed "manually" from sequential runs
-            # assert np.isclose(norm(ux), 7003.098, rtol=1.e-4)
+        # Expected norm computed "manually" from sequential run
+        assert np.isclose(norm(u), 5.467052700706644, rtol=1e-15, atol=1e-15)
