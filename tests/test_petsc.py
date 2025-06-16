@@ -1232,3 +1232,15 @@ class TestCoupledLinear:
             + 'MATOP_MULT,(void (*)(void))J00_MatMult0)' in str(create)
 
     # TODO: Test mixed, time dependent solvers
+
+
+class TestMPI:
+
+    @pytest.mark.parallel(mode=4)
+    def test_laplacian(self, mode):
+        """
+        """
+        grid = Grid(shape=(4,))
+
+        f = Function(name='f')
+
