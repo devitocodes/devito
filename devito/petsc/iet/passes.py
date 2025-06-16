@@ -65,7 +65,7 @@ def lower_petsc(iet, **kwargs):
 
     for iters, (injectsolve,) in injectsolve_mapper.items():
 
-        builder = Builder(injectsolve, objs, iters, grid, comm, **kwargs)
+        builder = Builder(injectsolve, objs, iters, comm, **kwargs)
 
         setup.extend(builder.solversetup.calls)
 
@@ -125,11 +125,10 @@ class Builder:
     returning subclasses of the objects initialised in __init__,
     depending on the properties of `injectsolve`.
     """
-    def __init__(self, injectsolve, objs, iters, grid, comm, **kwargs):
+    def __init__(self, injectsolve, objs, iters, comm, **kwargs):
         self.injectsolve = injectsolve
         self.objs = objs
         self.iters = iters
-        self.grid = grid
         self.comm = comm
         self.kwargs = kwargs
         self.coupled = isinstance(injectsolve.expr.rhs.fielddata, MultipleFieldData)
@@ -137,7 +136,6 @@ class Builder:
             'injectsolve': self.injectsolve,
             'objs': self.objs,
             'iters': self.iters,
-            'grid': self.grid,
             'comm': self.comm,
             **self.kwargs
         }

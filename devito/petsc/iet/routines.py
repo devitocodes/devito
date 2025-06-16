@@ -1081,11 +1081,6 @@ class BaseObjectBuilder:
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
         }
-        # TODO: Devito MPI + PETSc testing
-        # if self.devito_mpi:
-        #     base_dict['comm'] = self.grid.distributor._obj_comm
-        # else:
-        #     base_dict['comm'] = 'PETSC_COMM_WORLD'
         base_dict['comm'] = self.comm
         self._target_dependent(base_dict)
         return self._extend_build(base_dict)

@@ -1385,4 +1385,5 @@ class TestMPI:
         op.apply()
 
         # Expected norm computed "manually" from sequential run
+        # What rtol and atol should be used?
         assert np.isclose(norm(u), unorm, rtol=1e-13, atol=1e-13)
