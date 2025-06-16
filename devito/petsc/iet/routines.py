@@ -1041,8 +1041,7 @@ class BaseObjectBuilder:
         self.injectsolve = kwargs.get('injectsolve')
         self.objs = kwargs.get('objs')
         self.sregistry = kwargs.get('sregistry')
-        self.grid = kwargs.get('grid')
-        self.devito_mpi = kwargs['options'].get('mpi', False)
+        self.comm = kwargs.get('comm')
         self.fielddata = self.injectsolve.expr.rhs.fielddata
         self.solver_objs = self._build()
 
@@ -1083,10 +1082,11 @@ class BaseObjectBuilder:
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
         }
         # TODO: Devito MPI + PETSc testing
-        if self.devito_mpi:
-            base_dict['comm'] = self.grid.distributor._obj_comm
-        else:
-            base_dict['comm'] = 'PETSC_COMM_WORLD'
+        # if self.devito_mpi:
+        #     base_dict['comm'] = self.grid.distributor._obj_comm
+        # else:
+        #     base_dict['comm'] = 'PETSC_COMM_WORLD'
+        base_dict['comm'] = self.comm
         self._target_dependent(base_dict)
         return self._extend_build(base_dict)
 

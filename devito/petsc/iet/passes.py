@@ -53,9 +53,11 @@ def lower_petsc(iet, **kwargs):
     if len(unique_grids) > 1:
         raise ValueError("All PETScSolves must use the same Grid, but multiple found.")
     grid = unique_grids.pop()
+    devito_mpi = kwargs['options'].get('mpi', False)
+    comm = grid.distributor._obj_comm if devito_mpi else 'PETSC_COMM_WORLD'
 
     # Create core PETSc calls (not specific to each PETScSolve)
-    core = make_core_petsc_calls(objs, grid, **kwargs)
+    core = make_core_petsc_calls(objs, comm)
 
     setup = []
     subs = {}
@@ -63,7 +65,7 @@ def lower_petsc(iet, **kwargs):
 
     for iters, (injectsolve,) in injectsolve_mapper.items():
 
-        builder = Builder(injectsolve, objs, iters, grid, **kwargs)
+        builder = Builder(injectsolve, objs, iters, grid, comm, **kwargs)
 
         setup.extend(builder.solversetup.calls)
 
@@ -109,13 +111,7 @@ def finalize(iet):
     return iet._rebuild(body=finalize_body)
 
 
-def make_core_petsc_calls(objs, grid, **kwargs):
-    devito_mpi = kwargs['options'].get('mpi', False)
-    if devito_mpi:
-        comm = grid.distributor._obj_comm
-    else:
-        comm = 'PETSC_COMM_WORLD'
-
+def make_core_petsc_calls(objs, comm):
     call_mpi = petsc_call_mpi('MPI_Comm_size', [comm, Byref(objs['size'])])
     return call_mpi, BlankLine
 
@@ -129,11 +125,12 @@ class Builder:
     returning subclasses of the objects initialised in __init__,
     depending on the properties of `injectsolve`.
     """
-    def __init__(self, injectsolve, objs, iters, grid, **kwargs):
+    def __init__(self, injectsolve, objs, iters, grid, comm, **kwargs):
         self.injectsolve = injectsolve
         self.objs = objs
         self.iters = iters
         self.grid = grid
+        self.comm = comm
         self.kwargs = kwargs
         self.coupled = isinstance(injectsolve.expr.rhs.fielddata, MultipleFieldData)
         self.args = {
@@ -141,6 +138,7 @@ class Builder:
             'objs': self.objs,
             'iters': self.iters,
             'grid': self.grid,
+            'comm': self.comm,
             **self.kwargs
         }
         self.args['solver_objs'] = self.objbuilder.solver_objs
