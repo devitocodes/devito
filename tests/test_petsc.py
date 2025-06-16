@@ -1317,7 +1317,8 @@ class TestMPI:
 
     # @pytest.mark.parallel(mode=4)
     @skipif('petsc')
-    def test_laplacian(self):
+    @pytest.mark.parallel(mode=[(2)])
+    def test_laplacian(self, mode):
         """
         """
 
@@ -1391,7 +1392,7 @@ class TestMPI:
 
             # Expected norms computed "manually" from sequential runs
             norm_u = norm(u)
-            assert norm_u == 2.0
+            assert norm_u == 5.467052700706644
 
             # Expected norms computed "manually" from sequential runs
             # assert np.isclose(norm(ux), 7003.098, rtol=1.e-4)
