@@ -124,7 +124,8 @@ def make_core_petsc_calls(objs, grid, **kwargs):
     print_comm_rank = c.Line('PetscSynchronizedPrintf(comm, "MPI_Comm_rank: %d\\n", rank);')
     flush = c.Line('PetscSynchronizedFlush(comm, PETSC_STDOUT);')
 
-    return call_mpi, rank, get_rank, print_comm_size, flush, print_comm_rank, flush, BlankLine
+    # return call_mpi, rank, get_rank, print_comm_size, flush, print_comm_rank, flush, BlankLine
+    return call_mpi, BlankLine
 
 
 class Builder:

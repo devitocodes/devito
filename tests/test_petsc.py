@@ -1236,11 +1236,83 @@ class TestCoupledLinear:
 
 class TestMPI:
 
-    @pytest.mark.parallel(mode=4)
-    def test_laplacian(self, mode):
+    # @pytest.mark.parallel(mode=4)
+    @skipif('petsc')
+    def test_laplacian(self):
         """
         """
-        grid = Grid(shape=(4,))
 
-        f = Function(name='f')
+        # Subdomains to implement BCs
+        class SubLeft(SubDomain):
+            name = 'subleft'
 
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('left', 1)}
+
+
+        class SubRight(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('right', 1)}
+
+
+        sub1 = SubLeft()
+        sub2 = SubRight()
+        subdomains = (sub1, sub2,)
+
+
+        def exact(x):
+            return -np.float64(np.exp(x))
+
+
+        # n = 9, 17, 33, 65, 129, 257
+        n_values = [2**k + 1 for k in range(3, 9)]
+        n_values = [9]
+        dx = np.array([1./(n-1) for n in n_values])
+        errors = []
+
+        for n in n_values:
+
+            grid = Grid(
+                shape=(n,), subdomains=subdomains, dtype=np.float64
+            )
+
+            u = Function(name='u', grid=grid, space_order=2)
+            f = Function(name='f', grid=grid, space_order=2)
+            bc = Function(name='bc', grid=grid, space_order=2)
+
+            eqn = Eq(-u.laplace, f, subdomain=grid.interior)
+
+            X = np.linspace(0, 1.0, n).astype(np.float64)
+            f.data[:] = np.float64(np.exp(X))
+
+            bc.data[0] = -np.float64(1.0)  # u(0) = -1
+            bc.data[-1] = -np.float64(np.exp(1.0))  # u(1) = -e
+
+            # Create boundary condition expressions using subdomains
+            bcs = [EssentialBC(u, bc, subdomain=sub1)]
+            bcs += [EssentialBC(u, bc, subdomain=sub2)]
+
+            exprs = [eqn] + bcs
+            petsc = PETScSolve(exprs, target=u, solver_parameters={'ksp_rtol': 1e-10})
+
+            op = Operator(petsc, language='petsc')
+            op.apply()
+
+            # u_exact = Function(name='u_exact', grid=grid, space_order=2)
+            # u_exact.data[:] = exact(X)
+
+            # diff = u_exact.data[:] - u.data[:]
+            # u_diff_norm = np.linalg.norm(diff, ord=np.inf)
+            # u_error = u_diff_norm / np.linalg.norm(u_exact.data[:], ord=np.inf)
+            # errors.append(u_error)
+
+            # Expected norms computed "manually" from sequential runs
+            norm_u = norm(u)
+            assert norm_u == 2.0
+
+            # Expected norms computed "manually" from sequential runs
+            # assert np.isclose(norm(ux), 7003.098, rtol=1.e-4)
