@@ -20,9 +20,18 @@ from devito.petsc.initialize import PetscInitialize
 
 
 @skipif('petsc')
+@pytest.mark.order(0)
 def test_petsc_initialization():
     # TODO: Temporary workaround until PETSc is automatically
     # initialized
+    configuration['compiler'] = 'custom'
+    os.environ['CC'] = 'mpicc'
+    PetscInitialize()
+
+
+@skipif('petsc')
+@pytest.mark.parallel(mode=[1, 2, 4, 6])
+def test_petsc_initialization_parallel(mode):
     configuration['compiler'] = 'custom'
     os.environ['CC'] = 'mpicc'
     PetscInitialize()
@@ -1316,11 +1325,22 @@ class TestCoupledLinear:
 class TestMPI:
     # TODO: Add test for DMDACreate() in parallel
 
+    @pytest.mark.parametrize('nx, unorm', [
+        (17, 7.441506654790017),
+        (33, 10.317652759863675),
+        (65, 14.445123374862874),
+        (129, 20.32492895656658),
+        (257, 28.67050632840985)
+    ])
     @skipif('petsc')
-    @pytest.mark.parallel(mode=1)
-    def test_laplacian(self, mode):
+    @pytest.mark.parallel(mode=[1, 2, 4, 8])
+    def test_laplacian_1d(self, nx, unorm, mode):
         """
         """
+        configuration['compiler'] = 'custom'
+        os.environ['CC'] = 'mpicc'
+        PetscInitialize()
+
         class SubLeft(SubDomain):
             name = 'subleft'
 
@@ -1335,15 +1355,12 @@ class TestMPI:
                 x, = dimensions
                 return {x: ('right', 1)}
 
-
         sub1 = SubLeft()
         sub2 = SubRight()
         subdomains = (sub1, sub2,)
 
-        n = 9
-
         grid = Grid(
-            shape=(n,), subdomains=subdomains, dtype=np.float64
+            shape=(nx,), subdomains=subdomains, dtype=np.float64
         )
 
         u = Function(name='u', grid=grid, space_order=2)
@@ -1352,7 +1369,7 @@ class TestMPI:
 
         eqn = Eq(-u.laplace, f, subdomain=grid.interior)
 
-        X = np.linspace(0, 1.0, n).astype(np.float64)
+        X = np.linspace(0, 1.0, nx).astype(np.float64)
         f.data[:] = np.float64(np.exp(X))
 
         bc.data[0] = -np.float64(1.0)  # u(0) = -1
@@ -1368,4 +1385,4 @@ class TestMPI:
         op.apply()
 
         # Expected norm computed "manually" from sequential run
-        assert np.isclose(norm(u), 5.467052700706644, rtol=1e-15, atol=1e-15)
+        assert np.isclose(norm(u), unorm, rtol=1e-13, atol=1e-13)
