@@ -16,7 +16,8 @@ from devito.tools import filter_ordered
 from devito.petsc.types import PETScArray, PetscBundle
 from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
                                     MatShellSetOp, PetscMetaData)
-from devito.petsc.iet.utils import petsc_call, petsc_struct
+from devito.petsc.iet.utils import (petsc_call, petsc_struct, zero_vector,
+                                    dereference_funcs, residual_bundle)
 from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (DM, Mat, CallbackVec, Vec, KSP, PC, SNES,
                                 PetscInt, StartPtr, PointerIS, PointerDM, VecScatter,
@@ -100,13 +101,6 @@ class CBBuilder:
         return self._user_struct_callback
 
     @property
-    def zero_memory(self):
-        """Indicates whether the memory of the output
-        vector should be set to zero before the computation
-        in the callback."""
-        return True
-
-    @property
     def fielddata(self):
         return self.injectsolve.expr.rhs.fielddata
 
@@ -127,7 +121,7 @@ class CBBuilder:
         self._make_user_struct_callback()
 
     def _make_matvec(self, jacobian, prefix='MatMult'):
-        # Compile matvec `eqns` into an IET via recursive compilation
+        # Compile `matvecs` into an IET via recursive compilation
         matvecs = jacobian.matvecs
         irs, _ = self.rcompile(
             matvecs, options={'mpi': False}, sregistry=self.sregistry,
@@ -169,7 +163,7 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_y_memory = self.zero_vector(objs['Y'])
+        zero_y_memory = zero_vector(objs['Y']) if jacobian.zero_memory else None
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(xlocal)]
@@ -188,7 +182,7 @@ class CBBuilder:
             'DMGetLocalVector', [dmda, Byref(ylocal)]
         )
 
-        zero_ylocal_memory = self.zero_vector(ylocal)
+        zero_ylocal_memory = zero_vector(ylocal)
 
         vec_get_array_y = petsc_call(
             'VecGetArray', [ylocal, Byref(y_matvec._C_symbol)]
@@ -258,7 +252,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=body),
@@ -318,7 +312,7 @@ class CBBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_f_memory = self.zero_vector(objs['F'])
+        zero_f_memory = zero_vector(objs['F'])
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(objs['xloc'])]
@@ -397,7 +391,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=body),
@@ -507,7 +501,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=[body]),
@@ -585,7 +579,7 @@ class CBBuilder:
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         body = CallableBody(
             List(body=[body]),
@@ -650,18 +644,6 @@ class CBBuilder:
             mapper.update({k: visitor.visit(v)})
         return mapper
 
-    def zero_vector(self, vec):
-        """
-        Zeros the memory of the output vector before computation
-        """
-        return petsc_call('VecSet', [vec, 0.0]) if self.zero_memory else None
-
-    def dereference_funcs(self, struct, fields):
-        return tuple(
-            [Dereference(i, struct) for i in
-             fields if isinstance(i.function, AbstractFunction)]
-        )
-
 
 class CCBBuilder(CBBuilder):
     def __init__(self, **kwargs):
@@ -688,13 +670,6 @@ class CCBBuilder(CBBuilder):
     @property
     def main_formfunc_callback(self):
         return self._main_formfunc_callback
-
-    @property
-    def zero_memory(self):
-        """Indicates whether the memory of the output
-        vector should be set to zero before the computation
-        in the callback."""
-        return False
 
     def _make_core(self):
         for sm in self.fielddata.jacobian.nonzero_submatrices:
@@ -728,7 +703,7 @@ class CCBBuilder(CBBuilder):
 
         nonzero_submats = self.jacobian.nonzero_submatrices
 
-        zero_y_memory = self.zero_vector(objs['Y'])
+        zero_y_memory = zero_vector(objs['Y'])
 
         calls = ()
         for sm in nonzero_submats:
@@ -769,17 +744,17 @@ class CCBBuilder(CBBuilder):
 
     def _make_whole_formfunc(self):
         F_exprs = self.fielddata.residual.F_exprs
-        # Compile formfunc `eqns` into an IET via recursive compilation
-        irs_formfunc, _ = self.rcompile(
+        # Compile `F_exprs` into an IET via recursive compilation
+        irs, _ = self.rcompile(
             F_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        body_formfunc = self._whole_formfunc_body(List(body=irs_formfunc.uiet.body))
+        body = self._whole_formfunc_body(List(body=irs.uiet.body))
 
         objs = self.objs
         cb = PETScCallable(
             self.sregistry.make_name(prefix='WholeFormFunc'),
-            body_formfunc,
+            body,
             retval=objs['err'],
             parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
         )
@@ -803,7 +778,8 @@ class CCBBuilder(CBBuilder):
         bundles = sobjs['bundles']
         fbundle = bundles['f']
         xbundle = bundles['x']
-        body = self.residual_bundle(body, bundles)
+
+        body = residual_bundle(body, bundles)
 
         dm_cast = DummyExpr(dmda, DMCast(objs['dummyptr']), init=True)
 
@@ -811,9 +787,7 @@ class CCBBuilder(CBBuilder):
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        zero_f_memory = petsc_call(
-            'VecSet', [objs['F'], 0.0]
-        )
+        zero_f_memory = zero_vector(objs['F'])
 
         dm_get_local_xvec = petsc_call(
             'DMGetLocalVector', [dmda, Byref(objs['xloc'])]
@@ -892,7 +866,7 @@ class CCBBuilder(CBBuilder):
         )
 
         # Dereference function data in struct
-        derefs = self.dereference_funcs(ctx, fields)
+        derefs = dereference_funcs(ctx, fields)
 
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
@@ -1055,21 +1029,6 @@ class CCBBuilder(CBBuilder):
             stacks=(get_ctx, deref_subdm),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
-
-    def residual_bundle(self, body, bundles):
-        mapper = bundles['bundle_mapper']
-        indexeds = FindSymbols('indexeds').visit(body)
-        subs = {}
-
-        for i in indexeds:
-            if i.base in mapper:
-                bundle = mapper[i.base]
-                index = bundles['target_indices'][i.function.target]
-                index = (index,) + i.indices
-                subs[i] = bundle.__getitem__(index)
-
-        body = Uxreplace(subs).visit(body)
-        return body
 
 
 class BaseObjectBuilder:

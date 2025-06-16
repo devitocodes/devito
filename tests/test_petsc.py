@@ -12,7 +12,8 @@ from devito.types import Constant, LocalCompositeObject
 from devito.passes.iet.languages.C import CDataManager
 from devito.petsc.types import (DM, Mat, Vec, PetscMPIInt, KSP,
                                 PC, KSPConvergedReason, PETScArray,
-                                LinearSolveExpr, FieldData, MultipleFieldData)
+                                LinearSolveExpr, FieldData, MultipleFieldData,
+                                SubMatrixBlock)
 from devito.petsc.solve import PETScSolve, EssentialBC
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.initialize import PetscInitialize
@@ -647,13 +648,55 @@ def test_jacobian():
     assert jac.col_target == e
 
     # 2 symbolic expressions for each each EssentialBC (One ZeroRow and one ZeroColumn).
-    # NOTE: this is likely to change when PetscSection + DMDA is supported
+    # NOTE: This is likely to change when PetscSection + DMDA is supported
     assert len(jac.matvecs) == 5
     # TODO: I think some internals are preventing symplification here?
     assert str(jac.scdiag) == 'h_x*(1 - 2.0/h_x**2)'
 
     assert all(isinstance(m, EssentialBC) for m in jac.matvecs[:4])
     assert not isinstance(jac.matvecs[-1], EssentialBC)
+
+
+@skipif('petsc')
+def test_residual():
+    class SubLeft(SubDomain):
+        name = 'subleft'
+
+        def define(self, dimensions):
+            x, = dimensions
+            return {x: ('left', 1)}
+
+    class SubRight(SubDomain):
+        name = 'subright'
+
+        def define(self, dimensions):
+            x, = dimensions
+            return {x: ('right', 1)}
+
+    sub1 = SubLeft()
+    sub2 = SubRight()
+
+    grid = Grid(shape=(11,), subdomains=(sub1, sub2), dtype=np.float64)
+
+    e = Function(name='e', grid=grid, space_order=2)
+    f = Function(name='f', grid=grid, space_order=2)
+
+    bc_1 = EssentialBC(e, 1.0, subdomain=sub1)
+    bc_2 = EssentialBC(e, 2.0, subdomain=sub2)
+
+    eq1 = Eq(e.laplace + e, f + 2.0)
+
+    petsc = PETScSolve([eq1, bc_1, bc_2], target=e)
+
+    res = petsc.rhs.fielddata.residual
+
+    assert res.target == e
+    # NOTE: This is likely to change when PetscSection + DMDA is supported
+    assert len(res.F_exprs) == 5
+    assert len(res.b_exprs) == 3
+
+    assert not res.time_mapper
+    assert str(res.scdiag) == 'h_x*(1 - 2.0/h_x**2)'
 
 
 class TestCoupledLinear:
@@ -871,6 +914,42 @@ class TestCoupledLinear:
         j01 = jacobian.get_submatrix(0, 1)
         j10 = jacobian.get_submatrix(1, 0)
         j11 = jacobian.get_submatrix(1, 1)
+
+        # Check type of each submatrix is a SubMatrixBlock
+        assert isinstance(j00, SubMatrixBlock)
+        assert isinstance(j01, SubMatrixBlock)
+        assert isinstance(j10, SubMatrixBlock)
+        assert isinstance(j11, SubMatrixBlock)
+
+        assert j00.name == 'J00'
+        assert j01.name == 'J01'
+        assert j10.name == 'J10'
+        assert j11.name == 'J11'
+
+        assert j00.row_target == e
+        assert j01.row_target == e
+        assert j10.row_target == g
+        assert j11.row_target == g
+
+        assert j00.col_target == e
+        assert j01.col_target == g
+        assert j10.col_target == e
+        assert j11.col_target == g
+
+        assert j00.row_idx == 0
+        assert j01.row_idx == 0
+        assert j10.row_idx == 1
+        assert j11.row_idx == 1
+
+        assert j00.col_idx == 0
+        assert j01.col_idx == 1
+        assert j10.col_idx == 0
+        assert j11.col_idx == 1
+
+        assert j00.linear_idx == 0
+        assert j01.linear_idx == 1
+        assert j10.linear_idx == 2
+        assert j11.linear_idx == 3
 
         # Check the number of submatrices
         assert jacobian.n_submatrices == 4
