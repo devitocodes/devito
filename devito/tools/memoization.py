@@ -142,11 +142,14 @@ def memoized_constructor(new: Constructor[InstanceType]) -> Constructor[Instance
     """
 
     @wraps(new)
-    def _wrapper(cls, *args: Hashable, **kwargs: Hashable) -> InstanceType:
-        # Store an instance cache on the class itself, weakly referencing values
-        if not hasattr(cls, '__cached_instances'):
-            cls.__cached_instances = WeakValueDictionary()
-        cache: WeakValueDictionary[int, InstanceType] = cls.__cached_instances
+    def _new(cls, *args: Hashable, **kwargs: Hashable) -> InstanceType:
+        # Use an instance cache on the class itself, weakly referencing values
+        # try/except here should be faster on the happy path than hasattr
+        try:
+            cache: WeakValueDictionary[int, InstanceType] = cls.__cached_instances
+        except AttributeError:
+            # Initialize the cache if it doesn't exist
+            cache = cls.__cached_instances = WeakValueDictionary()
 
         key = hash((*args, frozenset(kwargs.items())))
         obj = cache.get(key, None)
@@ -158,4 +161,4 @@ def memoized_constructor(new: Constructor[InstanceType]) -> Constructor[Instance
 
         return obj
 
-    return _wrapper
+    return _new
