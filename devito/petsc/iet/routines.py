@@ -1389,7 +1389,10 @@ class BaseSetup:
         # Number of degrees of freedom per node
         args.append(dmda.dofs)
         # "Stencil width" -> size of overlap
+        # TODO: Instead, this probably should be
+        # extracted from fielddata.target._size_outhalo?
         stencil_width = self.fielddata.space_order
+
         args.append(stencil_width)
         args.extend([objs['Null']]*nspace_dims)
 
