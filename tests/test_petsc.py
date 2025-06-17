@@ -20,7 +20,7 @@ from devito.petsc.initialize import PetscInitialize
 
 
 @skipif('petsc')
-@pytest.mark.order(0)
+@pytest.fixture(scope='session', autouse=True)
 def test_petsc_initialization():
     # TODO: Temporary workaround until PETSc is automatically
     # initialized
@@ -1341,27 +1341,37 @@ class TestMPI:
         os.environ['CC'] = 'mpicc'
         PetscInitialize()
 
-        class SubLeft(SubDomain):
-            name = 'subleft'
+        # class SubLeft(SubDomain):
+        #     name = 'subleft'
+
+        #     def define(self, dimensions):
+        #         x, = dimensions
+        #         return {x: ('left', 1)}
+
+        # class SubRight(SubDomain):
+        #     name = 'subright'
+
+        #     def define(self, dimensions):
+        #         x, = dimensions
+        #         return {x: ('right', 1)}
+            
+        # grid = Grid(shape=(nx,), dtype=np.float64)
+
+        # sub1 = SubLeft(grid=grid)
+        # sub2 = SubRight(grid=grid)
+
+        class SubSide(SubDomain):
+            def __init__(self, side='left', grid=None):
+                self.side = side
+                self.name = f'sub{side}'
+                super().__init__(grid=grid)
 
             def define(self, dimensions):
                 x, = dimensions
-                return {x: ('left', 1)}
+                return {x: (self.side, 1)}
 
-        class SubRight(SubDomain):
-            name = 'subright'
-
-            def define(self, dimensions):
-                x, = dimensions
-                return {x: ('right', 1)}
-
-        sub1 = SubLeft()
-        sub2 = SubRight()
-        subdomains = (sub1, sub2,)
-
-        grid = Grid(
-            shape=(nx,), subdomains=subdomains, dtype=np.float64
-        )
+        grid = Grid(shape=(nx,), dtype=np.float64)
+        sub1, sub2 = [SubSide(side=s, grid=grid) for s in ('left', 'right')]
 
         u = Function(name='u', grid=grid, space_order=2)
         f = Function(name='f', grid=grid, space_order=2)
