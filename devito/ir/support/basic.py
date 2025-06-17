@@ -248,7 +248,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 self.ispace == other.ispace)
 
     def __hash__(self):
-        return super().__hash__()
+        return hash((super().__hash__(), self.mode, self.timestamp, self.ispace))
 
     @property
     def function(self):
