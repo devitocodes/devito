@@ -346,7 +346,7 @@ class WeakValueCache(Generic[KeyType, ValueType]):
                 # Listener for when the weak reference expires
                 def on_obj_destroyed(k: KeyType = key, f: Future[ref[ValueType]] = future):
                     with self._lock:
-                        if self._futures.get(k) is f:
+                        if self._futures.get(k, None) is f:
                             del self._futures[k]
 
                 # Register the callback and store a weak reference in the new future
@@ -355,11 +355,28 @@ class WeakValueCache(Generic[KeyType, ValueType]):
 
                 return obj
 
-            except Exeption as e:
+            except Exception as e:
                 # If the supplier failed, clean up the future and re-raise
                 with self._lock:
-                    if self._cache.get(key) is future:
+                    if self._futures.get(key) is future:
                         del self._futures[key]
 
                 future.set_exception(e)
                 raise e from None
+
+    def clear(self):
+        """
+        Clears all entries in the cache.
+
+        Objects currently being constructed will still be returned to callers waiting for
+        them, but they will not be retrievable after this call.
+        """
+        with self._lock:
+            self._futures.clear()
+
+    def __len__(self) -> int:
+        """
+        Returns the number of keys currently in the cache.
+        """
+        with self._lock:
+            return len(self._futures)
