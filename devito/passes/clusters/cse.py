@@ -279,7 +279,8 @@ def _toposort(exprs):
             first = sorted(tmps, key=lambda i: i.lhs.name).pop(0)
             queue.remove(first)
         else:
-            first = queue.popleft()
+            first = sorted(queue, key=lambda i: exprs.index(i)).pop(0)
+            queue.remove(first)
         return first
 
     processed = dag.topological_sort(choose_element)
