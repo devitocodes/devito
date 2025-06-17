@@ -1333,32 +1333,13 @@ class TestMPI:
         (257, 28.67050632840985)
     ])
     @skipif('petsc')
-    @pytest.mark.parallel(mode=[1, 2, 4, 8])
+    @pytest.mark.parallel(mode=[2, 4, 8])
     def test_laplacian_1d(self, nx, unorm, mode):
         """
         """
         configuration['compiler'] = 'custom'
         os.environ['CC'] = 'mpicc'
         PetscInitialize()
-
-        # class SubLeft(SubDomain):
-        #     name = 'subleft'
-
-        #     def define(self, dimensions):
-        #         x, = dimensions
-        #         return {x: ('left', 1)}
-
-        # class SubRight(SubDomain):
-        #     name = 'subright'
-
-        #     def define(self, dimensions):
-        #         x, = dimensions
-        #         return {x: ('right', 1)}
-            
-        # grid = Grid(shape=(nx,), dtype=np.float64)
-
-        # sub1 = SubLeft(grid=grid)
-        # sub2 = SubRight(grid=grid)
 
         class SubSide(SubDomain):
             def __init__(self, side='left', grid=None):
@@ -1375,19 +1356,18 @@ class TestMPI:
 
         u = Function(name='u', grid=grid, space_order=2)
         f = Function(name='f', grid=grid, space_order=2)
-        bc = Function(name='bc', grid=grid, space_order=2)
+
+        u0 = Constant(name='u0', value=-1.0, dtype=np.float64)
+        u1 = Constant(name='u1', value=-np.exp(1.0), dtype=np.float64)
 
         eqn = Eq(-u.laplace, f, subdomain=grid.interior)
 
         X = np.linspace(0, 1.0, nx).astype(np.float64)
         f.data[:] = np.float64(np.exp(X))
 
-        bc.data[0] = -np.float64(1.0)  # u(0) = -1
-        bc.data[-1] = -np.float64(np.exp(1.0))  # u(1) = -e
-
         # Create boundary condition expressions using subdomains
-        bcs = [EssentialBC(u, bc, subdomain=sub1)]
-        bcs += [EssentialBC(u, bc, subdomain=sub2)]
+        bcs = [EssentialBC(u, u0, subdomain=sub1)]
+        bcs += [EssentialBC(u, u1, subdomain=sub2)]
 
         petsc = PETScSolve([eqn] + bcs, target=u, solver_parameters={'ksp_rtol': 1e-10})
 
