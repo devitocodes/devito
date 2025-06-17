@@ -12,8 +12,8 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_comp_acc, q_affine, q_routine, search,
                               uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth, memoized_generator, smart_gt,
-                          smart_lt)
+                          flatten, memoized_meth, memoized_generator)
+from devito.tools.memoization import _memoized_instances
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -510,6 +510,7 @@ class TimedAccess(IterationInstance, AccessMode):
         return (touch_halo_left, touch_halo_right)
 
 
+@_memoized_instances
 class Relation:
 
     """
@@ -631,11 +632,6 @@ class Dependence(Relation):
     """
     A data dependence between two TimedAccess objects.
     """
-
-    @memoized_constructor
-    def __new__(cls, source: TimedAccess, sink: TimedAccess) -> 'Dependence':
-        obj = super().__new__(cls)
-        return obj
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)

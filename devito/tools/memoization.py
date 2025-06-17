@@ -2,10 +2,11 @@ from collections.abc import Hashable, Callable
 from functools import partial, wraps
 from itertools import tee
 from typing import TypeVar
-from weakref import WeakValueDictionary
+
+from devito.tools import WeakValueCache
 
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator', 'memoized_constructor']
+__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator']
 
 
 class memoized_func:
@@ -135,30 +136,54 @@ InstanceType = TypeVar('InstanceType')
 Constructor = Callable[..., InstanceType]
 
 
-def memoized_constructor(new: Constructor[InstanceType]) -> Constructor[InstanceType]:
+def _memoized_instances(cls: type[InstanceType]) -> type[InstanceType]:
     """
-    Decorator for a class's __new__ method that caches weak references to
-    instances based on the hash values of constructing arguments.
+    Decorator for a class that caches instances based on the hash values of
+    constructing arguments. The constructed values are stored weakly and
+    evicted from the cache when no longer referenced.
+
+    We need to override both __new__ and __init__ to ensure initialization
+    only happens once for a cached instance.
     """
+
+    cache: WeakValueCache[int, InstanceType] = WeakValueCache()
+    new = cls.__new__
+    init = cls.__init__
 
     @wraps(new)
     def _new(cls, *args: Hashable, **kwargs: Hashable) -> InstanceType:
-        # Use an instance cache on the class itself, weakly referencing values
+        key = hash((cls, *args, frozenset(kwargs.items())))
+
+        # We need to handle the full initialization process so that threads waiting for
+        # construction will receive the finalized instance
+        def create_instance() -> InstanceType:
+            # If the class doesn't override __new__, we can't pass it any arguments
+            if new is object.__new__:
+                obj = new(cls)
+            else:
+                obj = new(cls, *args, **kwargs)
+
+            # Call init so the instance will be ready for threads awaiting construction
+            init(obj, *args, **kwargs)
+            obj.__initialized = True  # Mark the instance as initialized
+            return obj
+
+        return cache.get_or_create(key, create_instance)
+
+    @wraps(init)
+    def _init(self: InstanceType, *args: Hashable, **kwargs: Hashable) -> None:
+        # If the instance is already initialized, skip re-initialization
         # try/except here should be faster on the happy path than hasattr
         try:
-            cache: WeakValueDictionary[int, InstanceType] = cls.__cached_instances
+            if self.__initialized:
+                return
         except AttributeError:
-            # Initialize the cache if it doesn't exist
-            cache = cls.__cached_instances = WeakValueDictionary()
+            # If for some reason the instance was created outside of our __new__ override
+            # we still need to initialize it here
+            init(self, *args, **kwargs)
 
-        key = hash((*args, frozenset(kwargs.items())))
-        obj = cache.get(key, None)
+    # Update the class's __new__ and __init__ methods
+    cls.__new__ = _new
+    cls.__init__ = _init
 
-        # Construct a new instance if it doesn't exist in the cache
-        if obj is None:
-            obj = new(cls, *args, **kwargs)
-            cache[key] = obj
-
-        return obj
-
-    return _new
+    return cls
