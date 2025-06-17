@@ -258,6 +258,10 @@ def _toposort(exprs):
     """
     Ensure the expression list is topologically sorted.
     """
+    if not any(isinstance(e.lhs, CTemp) for e in exprs):
+        # No CSE temps, no need to topological sort
+        return exprs
+
     dag = DAG(exprs)
 
     for e0 in exprs:
@@ -269,9 +273,13 @@ def _toposort(exprs):
                 dag.add_edge(e0, e1, force_add=True)
 
     def choose_element(queue, scheduled):
-        # Try to honor temporary names as much as possible
-        first = sorted(queue, key=lambda i: str(i.lhs)).pop(0)
-        queue.remove(first)
+        tmps = [i for i in queue if isinstance(i.lhs, CTemp)]
+        if tmps:
+            # Try to honor temporary names as much as possible
+            first = sorted(tmps, key=lambda i: i.lhs.name).pop(0)
+            queue.remove(first)
+        else:
+            first = queue.pop()
         return first
 
     processed = dag.topological_sort(choose_element)
