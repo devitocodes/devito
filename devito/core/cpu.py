@@ -2,6 +2,7 @@ from functools import partial
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
+from devito.logger import debug
 from devito.operator.operator import rcompile
 from devito.passes import stream_dimensions
 from devito.passes.equations import collect_derivatives
@@ -76,6 +77,10 @@ class Cpu64OperatorMixin:
         o['expand'] = oo.pop('expand', cls.EXPAND)
         o['deriv-schedule'] = oo.pop('deriv-schedule', cls.DERIV_SCHEDULE)
         o['deriv-unroll'] = oo.pop('deriv-unroll', False)
+        # deriv-unroll with expand=False is not good for cpu
+        if not o['expand'] and not o['deriv-unroll']:
+            debug("Setting `deriv-unroll` to 'full' because `expand` is False")
+            o['deriv-unroll'] = 'full'
 
         # Misc
         o['opt-comms'] = oo.pop('opt-comms', True)
