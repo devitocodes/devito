@@ -146,6 +146,11 @@ def _memoized_instances(cls: type[InstanceType]) -> type[InstanceType]:
     only happens once for a cached instance.
     """
 
+    # If the decorator has already been applied (e.g. to a parent class), don't reapply
+    if getattr(cls, '__has_memoized_instances', False):
+        return cls
+    cls.__has_memoized_instances = True
+
     cache: WeakValueCache[int, InstanceType] = WeakValueCache()
     new = cls.__new__
     init = cls.__init__
