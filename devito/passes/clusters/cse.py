@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, Counter
 from functools import cached_property, singledispatch
 
 import numpy as np
@@ -13,6 +13,7 @@ except ImportError:
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
+from devito.symbolics.search import search
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
 from devito.types import Eq, Symbol, Temp
@@ -25,7 +26,13 @@ class CTemp(Temp):
     """
     A cluster-level Temp, similar to Temp, ensured to have different priority
     """
+
     ordering_of_classes.insert(ordering_of_classes.index('Temp') + 1, 'CTemp')
+
+
+def retrieve_ctemps(exprs, mode='all'):
+    """Shorthand to retrieve the CTemps in `exprs`"""
+    return search(exprs, lambda expr: isinstance(expr, CTemp), mode, 'dfs')
 
 
 @cluster_pass
@@ -225,8 +232,15 @@ def _compact(exprs, exclude):
 
     mapper = {e.lhs: e.rhs for e in candidates if q_leaf(e.rhs)}
 
-    mapper.update({e.lhs: e.rhs for e in candidates
-                   if sum([i.rhs.count(e.lhs) for i in exprs]) == 1})
+    # Find all the CTemps in expression right-hand-sides without removing duplicates
+    ctemps = retrieve_ctemps(e.rhs for e in exprs)
+
+    # If there are ctemps in the expressions, then add any that only appear once to
+    # the mapper
+    if ctemps:
+        ctemp_count = Counter(ctemps)
+        mapper.update({e.lhs: e.rhs for e in candidates
+                       if ctemp_count[e.lhs] == 1})
 
     processed = []
     for e in exprs:
@@ -244,6 +258,10 @@ def _toposort(exprs):
     """
     Ensure the expression list is topologically sorted.
     """
+    if not any(isinstance(e.lhs, CTemp) for e in exprs):
+        # No CSE temps, no need to topological sort
+        return exprs
+
     dag = DAG(exprs)
 
     for e0 in exprs:
@@ -255,9 +273,14 @@ def _toposort(exprs):
                 dag.add_edge(e0, e1, force_add=True)
 
     def choose_element(queue, scheduled):
-        # Try to honor temporary names as much as possible
-        first = sorted(queue, key=lambda i: str(i.lhs)).pop(0)
-        queue.remove(first)
+        tmps = [i for i in queue if isinstance(i.lhs, CTemp)]
+        if tmps:
+            # Try to honor temporary names as much as possible
+            first = sorted(tmps, key=lambda i: i.lhs.name).pop(0)
+            queue.remove(first)
+        else:
+            first = sorted(queue, key=lambda i: exprs.index(i)).pop(0)
+            queue.remove(first)
         return first
 
     processed = dag.topological_sort(choose_element)

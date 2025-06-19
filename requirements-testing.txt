@@ -1,6 +1,6 @@
 pytest>=7.2,<8.5
 pytest-runner<6.0.2
-pytest-cov<6.1.2
+pytest-cov<6.2.2
 flake8-pyproject>=1.2.3,<1.2.4
 nbval<0.11.1
 scipy<1.15.3

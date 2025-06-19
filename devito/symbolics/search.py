@@ -155,7 +155,7 @@ def retrieve_functions(exprs, mode='all', deep=False):
 
 
 def retrieve_symbols(exprs, mode='all'):
-    """Shorthand to retrieve the Scalar in ``exprs``."""
+    """Shorthand to retrieve the Scalar in `exprs`."""
     return search(exprs, q_symbol, mode, 'dfs')
 
 

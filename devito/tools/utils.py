@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from collections.abc import Iterable
-from functools import reduce
+from functools import reduce, wraps
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
 import types
@@ -12,7 +12,8 @@ __all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
            'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
            'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
            'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number']
+           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number',
+           'smart_lt', 'smart_gt']
 
 
 def prod(iterable, initial=1):
@@ -346,3 +347,35 @@ def sorted_priority(items, priority):
         return (v, str(type(i)))
 
     return sorted(items, key=key, reverse=True)
+
+
+def avoid_symbolic(default=None):
+    """
+    Decorator to avoid calling a function where doing so will result in symbolic
+    computation being performed. For use if symbolic computation may be slow. In
+    the case that an arg is symbolic, just give up and return a default value.
+    """
+    def _avoid_symbolic(func):
+        @wraps(func)
+        def wrapper(*args):
+            if any(isinstance(expr, sympy.Basic) for expr in args):
+                # An argument is symbolic, so give up and assume default
+                return default
+
+            return func(*args)
+
+        return wrapper
+
+    return _avoid_symbolic
+
+
+@avoid_symbolic(default=False)
+def smart_lt(a, b):
+    """An Lt that gives up and returns False if supplied a symbolic argument"""
+    return a < b
+
+
+@avoid_symbolic(default=False)
+def smart_gt(a, b):
+    """A Gt that gives up and returns False if supplied a symbolic argument"""
+    return a > b
