@@ -104,14 +104,15 @@ def search(exprs: Expression | Iterable[Expression],
     # Search doesn't actually use a BFS (rather, a preorder DFS), but the terminology
     # is retained in this function's parameters for backwards compatibility
     searcher = Search(Q, deep)
-    if visit == 'dfs':
-        _search = searcher.visit_postorder
-    elif visit == 'bfs':
-        _search = searcher.visit_preorder
-    elif visit == 'bfs_first_hit':
-        _search = searcher.visit_preorder_first_hit
-    else:
-        raise ValueError(f"Unknown visit mode '{visit}'")
+    match visit:
+        case 'dfs':
+            _search = searcher.visit_postorder
+        case 'bfs':
+            _search = searcher.visit_preorder
+        case 'bfs_first_hit':
+            _search = searcher.visit_preorder_first_hit
+        case _:
+            raise ValueError(f"Unknown visit mode '{visit}'")
 
     exprs = filter(lambda e: isinstance(e, sympy.Basic), as_tuple(exprs))
     found = modes[mode](chain(*map(_search, exprs)))

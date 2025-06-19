@@ -1194,6 +1194,7 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
 
         # Update the flag if we found a stop
         flag &= (o is not self.stop)
+
         return flag
 
 
