@@ -52,9 +52,12 @@ def lower_petsc(iet, **kwargs):
     # Assumption is that all solves are on the same grid
     if len(unique_grids) > 1:
         raise ValueError("All PETScSolves must use the same Grid, but multiple found.")
+    grid = unique_grids.pop()
+    devito_mpi = kwargs['options'].get('mpi', False)
+    comm = grid.distributor._obj_comm if devito_mpi else 'PETSC_COMM_WORLD'
 
     # Create core PETSc calls (not specific to each PETScSolve)
-    core = make_core_petsc_calls(objs, **kwargs)
+    core = make_core_petsc_calls(objs, comm)
 
     setup = []
     subs = {}
@@ -62,7 +65,7 @@ def lower_petsc(iet, **kwargs):
 
     for iters, (injectsolve,) in injectsolve_mapper.items():
 
-        builder = Builder(injectsolve, objs, iters, **kwargs)
+        builder = Builder(injectsolve, objs, iters, comm, **kwargs)
 
         setup.extend(builder.solversetup.calls)
 
@@ -108,9 +111,8 @@ def finalize(iet):
     return iet._rebuild(body=finalize_body)
 
 
-def make_core_petsc_calls(objs, **kwargs):
-    call_mpi = petsc_call_mpi('MPI_Comm_size', [objs['comm'], Byref(objs['size'])])
-
+def make_core_petsc_calls(objs, comm):
+    call_mpi = petsc_call_mpi('MPI_Comm_size', [comm, Byref(objs['size'])])
     return call_mpi, BlankLine
 
 
@@ -123,16 +125,18 @@ class Builder:
     returning subclasses of the objects initialised in __init__,
     depending on the properties of `injectsolve`.
     """
-    def __init__(self, injectsolve, objs, iters, **kwargs):
+    def __init__(self, injectsolve, objs, iters, comm, **kwargs):
         self.injectsolve = injectsolve
         self.objs = objs
         self.iters = iters
+        self.comm = comm
         self.kwargs = kwargs
         self.coupled = isinstance(injectsolve.expr.rhs.fielddata, MultipleFieldData)
         self.args = {
             'injectsolve': self.injectsolve,
             'objs': self.objs,
             'iters': self.iters,
+            'comm': self.comm,
             **self.kwargs
         }
         self.args['solver_objs'] = self.objbuilder.solver_objs
@@ -190,9 +194,6 @@ def populate_matrix_context(efuncs, objs):
     )
 
 
-# TODO: Devito MPI + PETSc testing
-# if kwargs['options']['mpi'] -> communicator = grid.distributor._obj_comm
-communicator = 'PETSC_COMM_WORLD'
 subdms = PointerDM(name='subdms')
 fields = PointerIS(name='fields')
 submats = PointerMat(name='submats')
@@ -208,7 +209,6 @@ cols = PointerIS(name='cols')
 # they are semantically identical.
 objs = frozendict({
     'size': PetscMPIInt(name='size'),
-    'comm': communicator,
     'err': PetscErrorCode(name='err'),
     'block': CallbackMat('block'),
     'submat_arr': PointerMat(name='submat_arr'),

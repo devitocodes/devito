@@ -76,9 +76,10 @@ def set_log_level(level, comm=None):
         used, for example, if one wants to log to one file per rank.
     """
     from devito import configuration
+    from devito.mpi.distributed import MPI
 
     if comm is not None and configuration['mpi']:
-        if comm.rank != 0:
+        if comm != MPI.COMM_NULL and comm.rank != 0:
             logger.removeHandler(stream_handler)
             logger.addHandler(logging.NullHandler())
     else:

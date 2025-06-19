@@ -249,8 +249,10 @@ class LocalCompositeObject(CompositeObject, LocalType):
     """
 
     __rargs__ = ('name', 'pname', 'fields')
+    __rkwargs__ = ('modifier', 'liveness')
 
     def __init__(self, name, pname, fields, modifier=None, liveness='lazy'):
+        self.modifier = modifier
         dtype = CustomDtype(f"struct {pname}", modifier=modifier)
         Object.__init__(self, name, dtype, None)
         self._pname = pname

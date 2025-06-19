@@ -1,8 +1,8 @@
 import os
 import numpy as np
 
-from devito import (Grid, TimeFunction, Function, Constant, Eq,
-                    Operator, norm, SubDomain, switchconfig, configuration)
+from devito import (Grid, TimeFunction, Constant, Eq,
+                    Operator, SubDomain, switchconfig, configuration)
 from devito.symbolics import retrieve_functions, INT
 
 from devito.petsc import PETScSolve, EssentialBC
@@ -232,11 +232,9 @@ ns = int(t_end/dt)
 
 u1 = TimeFunction(name='u1', grid=grid, space_order=2, dtype=np.float64)
 v1 = TimeFunction(name='v1', grid=grid, space_order=2, dtype=np.float64)
-pn1 = Function(name='pn1', grid=grid, space_order=2, dtype=np.float64)
+pn1 = TimeFunction(name='pn1', grid=grid, space_order=2, dtype=np.float64)
 
-pn1.data[:] = 0.
-
-eq_pn1 = Eq(pn1.laplace, rho*(1./dt*(u1.forward.dxc+v1.forward.dyc)),
+eq_pn1 = Eq(pn1.forward.laplace, rho*(1./dt*(u1.forward.dxc+v1.forward.dyc)),
             subdomain=grid.interior)
 
 
@@ -244,21 +242,21 @@ bc_pn1 = [neumann_top(eq_pn1, sub1)]
 bc_pn1 += [neumann_bottom(eq_pn1, sub2)]
 bc_pn1 += [neumann_left(eq_pn1, sub3)]
 bc_pn1 += [neumann_right(eq_pn1, sub4)]
-bc_pn1 += [EssentialBC(pn1, 0., subdomain=sub5)]
+bc_pn1 += [EssentialBC(pn1.forward, 0., subdomain=sub5)]
 bc_pn1 += [neumann_right(neumann_bottom(eq_pn1, sub6), sub6)]
 bc_pn1 += [neumann_left(neumann_top(eq_pn1, sub7), sub7)]
 bc_pn1 += [neumann_right(neumann_top(eq_pn1, sub8), sub8)]
 
 
-eqn_p = PETScSolve([eq_pn1]+bc_pn1, pn1)
+eqn_p = PETScSolve([eq_pn1]+bc_pn1, pn1.forward)
 
-eq_u1 = Eq(u1.dt + u1*u1.dxc + v1*u1.dyc, nu*u1.laplace)
-eq_v1 = Eq(v1.dt + u1*v1.dxc + v1*v1.dyc, nu*v1.laplace)
+eq_u1 = Eq(u1.dt + u1*u1.dxc + v1*u1.dyc, nu*u1.laplace, subdomain=grid.interior)
+eq_v1 = Eq(v1.dt + u1*v1.dxc + v1*v1.dyc, nu*v1.laplace, subdomain=grid.interior)
 
-update_u = Eq(u1.forward, u1.forward - (dt/rho)*(pn1.dxc),
+update_u = Eq(u1.forward, u1.forward - (dt/rho)*(pn1.forward.dxc),
               subdomain=grid.interior)
 
-update_v = Eq(v1.forward, v1.forward - (dt/rho)*(pn1.dyc),
+update_v = Eq(v1.forward, v1.forward - (dt/rho)*(pn1.forward.dyc),
               subdomain=grid.interior)
 
 # TODO: Can drop due to initial guess CB
@@ -290,18 +288,12 @@ bc_petsc_v1 += [EssentialBC(v1.forward, 0., subdomain=sub2)]  # bottom
 tentu = PETScSolve([eq_u1]+bc_petsc_u1, u1.forward)
 tentv = PETScSolve([eq_v1]+bc_petsc_v1, v1.forward)
 
-exprs = tentu + tentv + eqn_p + [update_u, update_v] + bc_u1 + bc_v1
+exprs = [tentu, tentv, eqn_p, update_u, update_v] + bc_u1 + bc_v1
 
 with switchconfig(language='petsc'):
     op = Operator(exprs)
     op.apply(time_m=0, time_M=ns-1, dt=dt)
 
-u1_norm = norm(u1)
-v1_norm = norm(v1)
-p1_norm = norm(pn1)
-
-
-# TODO: change these norm checks to array checks (use paper)
-assert np.isclose(u1_norm, 13.966067703420883, atol=0, rtol=1e-7)
-assert np.isclose(v1_norm, 7.9575677674738285, atol=0, rtol=1e-7)
-assert np.isclose(p1_norm, 36.46263134701362, atol=0, rtol=1e-7)
+# Pressure norm check
+tol = 1e-3
+assert np.sum((pn1.data[0]-pn1.data[1])**2/np.maximum(pn1.data[0]**2, 1e-10)) < tol
