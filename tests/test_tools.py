@@ -10,6 +10,7 @@ import time
 from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
                           filter_ordered, transitive_closure, UnboundTuple)
 from devito.tools.abc import WeakValueCache
+from devito.tools.memoization import _memoized_instances
 from devito.types.basic import Symbol
 
 
@@ -222,6 +223,7 @@ class TestWeakValueCache:
         barrier = Barrier(num_threads)
 
         def worker(_: int) -> CacheObject:
+            # Wait until all threads can try to access the cache at once
             barrier.wait()
             return cache.get_or_create(1, CacheObject)
 
@@ -323,3 +325,126 @@ class TestWeakValueCache:
         # Ensure all threads received the exception
         for exc in exceptions:
             assert isinstance(exc, SupplierException)
+
+
+class TestMemoizedInstances:
+    """
+    Tests for the `memoized_instances` decorator.
+    """
+
+    def test_memo(self):
+        """
+        Tests basic functionality of memoized instances.
+        """
+        @_memoized_instances
+        class Box:
+            def __init__(self, value: int):
+                self.value = value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+        # Create instances with the same value
+        box1 = Box(10)
+        box2 = Box(10)
+        box3 = Box(20)
+
+        # Ensure they are the same instance
+        assert box1.value == 10
+        assert box1 is box2
+
+        # Ensure initialization only happened once
+        assert box1.init_calls == 1
+
+        # Ensure different values create different instances
+        assert box1 is not box3
+        assert box3.init_calls == 1
+
+    def test_memo_with_new(self):
+        """
+        Tests that `memoized_instances` works correctly with `__new__`.
+        """
+        @_memoized_instances
+        class BoxWithNew:
+            def __new__(cls, value: int):
+                instance = super().__new__(cls)
+                instance.value = value
+                return instance
+
+            def __init__(self, value: int):
+                self.value += value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+        # Create instances with the same value
+        box1 = BoxWithNew(10)
+        box2 = BoxWithNew(10)
+        box3 = BoxWithNew(20)
+
+        # Ensure they are the same instance
+        assert box1.value == 20
+        assert box1 is box2
+
+        # Ensure initialization only happened once
+        assert box1.init_calls == 1
+
+        # Ensure different values create different instances
+        assert box1 is not box3
+        assert box3.init_calls == 1
+
+    def test_idempotency(self):
+        """
+        Tests that applying the decorator multiple times in an inheritance chain
+        does not change the behavior.
+        """
+        @_memoized_instances
+        @_memoized_instances
+        class Box:
+            def __init__(self, value: int):
+                self.value = value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+        @_memoized_instances
+        class SubBox(Box):
+            def __init__(self, value: int):
+                super().__init__(value)
+                self.sub_init_calls = getattr(self, 'sub_init_calls', 0) + 1
+
+        # Create instances with the same value
+        box = Box(10)
+        subbox1 = SubBox(10)
+        subbox2 = SubBox(10)
+        subbox3 = SubBox(20)
+
+        # Ensure the subclass instances are not the same as the base class
+        assert box is not subbox1
+        assert subbox1 is subbox2
+        assert subbox1 is not subbox3
+
+    def test_constructed_elsewhere(self):
+        """
+        Tests that instances somehow constructed without the replaced new function
+        are still initialized correctly (edge case).
+        """
+        class Box:
+            def __new__(cls, _: int):
+                return super().__new__(cls)
+
+            def __init__(self, value: int):
+                self.value = value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+        # Store the original __new__ method
+        original_new = Box.__new__
+        Box = _memoized_instances(Box)
+
+        # Create a cached instance as normal
+        box1 = Box(10)
+
+        # Restore the original __new__ method and construct a new instance
+        Box.__new__ = original_new
+        box2 = Box(10)
+
+        # Ensure the new instance is initialized correctly
+        assert box2.value == 10
+        assert box2.init_calls == 1
+
+        # Ensure the instances are not the same
+        assert box1 is not box2
