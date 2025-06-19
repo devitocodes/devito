@@ -11,10 +11,12 @@ on:
     branches:
       - main
       - petsc
+      - biharmonic
   pull_request:
     branches:
       - main
       - petsc
+      - biharmonic
 
 jobs:
   pytest:
