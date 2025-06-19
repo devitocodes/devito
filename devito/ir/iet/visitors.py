@@ -5,7 +5,7 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
 from collections import OrderedDict
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 import ctypes
@@ -59,37 +59,51 @@ class Visitor(GenericVisitor):
         return o._rebuild(*new_ops, **okwargs)
 
 
-ResultType = TypeVar('ResultType')
+# Type variables for LazyVisitor
+YieldType = TypeVar('YieldType', covariant=True)
+FlagType = TypeVar('FlagType', covariant=True)
+ResultType = TypeVar('ResultType', covariant=True)
+
+# Describes the return type of a LazyVisitor visit method which yields objects of
+# type YieldType and returns a FlagType (or NoneType)
+LazyVisit = Generator[YieldType, None, FlagType]
 
 
-class LazyVisitor(GenericVisitor, Generic[ResultType]):
+class LazyVisitor(GenericVisitor, Generic[YieldType, ResultType, FlagType]):
 
     """
     A generic visitor that lazily yields results instead of flattening results
-    from children at every step.
+    from children at every step. Intermediate visit methods may return a flag
+    of type FlagType in addition to yielding results; by default, the last flag
+    returned by a child is the one propagated.
 
     Subclass-defined visit methods should be generators.
     """
 
-    def lookup_method(self, instance) -> Callable[..., Iterator[Any]]:
+    def lookup_method(self, instance) \
+            -> Callable[..., LazyVisit[YieldType, FlagType]]:
         return super().lookup_method(instance)
 
-    def _visit(self, o, *args, **kwargs) -> Iterator[Any]:
+    def _visit(self, o, *args, **kwargs) -> LazyVisit[YieldType, FlagType]:
         meth = self.lookup_method(o)
-        yield from meth(o, *args, **kwargs)
+        flag = yield from meth(o, *args, **kwargs)
+        return flag
 
-    def _post_visit(self, ret: Iterator[Any]) -> ResultType:
+    def _post_visit(self, ret: LazyVisit[YieldType, FlagType]) -> ResultType:
         return list(ret)
 
-    def visit_object(self, o: object, **kwargs) -> Iterator[Any]:
+    def visit_object(self, o: object, **kwargs) -> LazyVisit[YieldType, FlagType]:
         yield from ()
 
-    def visit_Node(self, o: Node, **kwargs) -> Iterator[Any]:
-        yield from self._visit(o.children, **kwargs)
+    def visit_Node(self, o: Node, **kwargs) -> LazyVisit[YieldType, FlagType]:
+        flag = yield from self._visit(o.children, **kwargs)
+        return flag
 
-    def visit_tuple(self, o: Sequence[Any]) -> Iterator[Any]:
+    def visit_tuple(self, o: Sequence[Any], **kwargs) -> LazyVisit[YieldType, FlagType]:
+        flag: FlagType = None
         for i in o:
-            yield from self._visit(i)
+            flag = yield from self._visit(i, **kwargs)
+        return flag
 
     visit_list = visit_tuple
 
@@ -1028,7 +1042,7 @@ class MapNodes(Visitor):
         return ret
 
 
-class FindSymbols(LazyVisitor[list[Any]]):
+class FindSymbols(LazyVisitor[Any, list[Any], None]):
 
     """
     Find symbols in an Iteration/Expression tree.
@@ -1102,7 +1116,7 @@ class FindSymbols(LazyVisitor[list[Any]]):
             yield from self._visit(i)
 
 
-class FindNodes(LazyVisitor[list[Node]]):
+class FindNodes(LazyVisitor[Node, list[Node], None]):
 
     """
     Find all instances of given type.
@@ -1124,23 +1138,19 @@ class FindNodes(LazyVisitor[list[Node]]):
         'scope': lambda match, o: match in flatten(o.children)
     }
 
-    def __init__(self, match: type, mode: str = 'type'):
+    def __init__(self, match: type, mode: str = 'type') -> None:
         super().__init__()
         self.match = match
         self.rule = self.rules[mode]
 
-    def visit_Node(self, o: Node) -> Iterator[Any]:
+    def visit_Node(self, o: Node, **kwargs) -> Iterator[Node]:
         if self.rule(self.match, o):
             yield o
         for i in o.children:
-            yield from self._visit(i)
+            yield from self._visit(i, **kwargs)
 
 
-class FindWithin(FindNodes):
-
-    @classmethod
-    def default_retval(cls):
-        return [], False
+class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
 
     """
     Like FindNodes, but given an additional parameter `within=(start, stop)`,
@@ -1148,41 +1158,50 @@ class FindWithin(FindNodes):
     collecting matching nodes after `stop` is found.
     """
 
-    def __init__(self, match, start, stop=None):
+    def __init__(self, match: type, start: Node, stop: Node | None = None) -> None:
         super().__init__(match)
         self.start = start
         self.stop = stop
 
-    def visit(self, o, ret=None):
-        found, _ = self._visit(o, ret=ret)
-        return found
+    def visit_object(self, o: object, flag: bool = False) -> LazyVisit[Node, bool]:
+        yield from ()
+        return flag
 
-    def visit_Node(self, o, ret=None):
-        if ret is None:
-            ret = self.default_retval()
-        found, flag = ret
+    def visit_tuple(self, o: Sequence[Any], flag: bool = False) -> LazyVisit[Node, bool]:
+        for el in o:
+            # Yield results from visiting this element, and update the flag
+            flag = yield from self._visit(el, flag=flag)
 
-        if o is self.start:
-            flag = True
+        return flag
+
+    visit_list = visit_tuple
+
+    def visit_Node(self, o: Node, flag: bool = False) -> LazyVisit[Node, bool]:
+        flag = flag or (o is self.start)
 
         if flag and self.rule(self.match, o):
-            found.append(o)
-        for i in o.children:
-            found, newflag = self._visit(i, ret=(found, flag))
-            if flag and not newflag:
-                return found, newflag
-            flag = newflag
+            yield o
 
-        if o is self.stop:
-            flag = False
+        for child in o.children:
+            # Yield results from this child and retrieve its flag
+            nflag = yield from self._visit(child, flag=flag)
 
-        return found, flag
+            # If we started collecting outside of here and the child found a stop,
+            # don't visit the rest of the children
+            if flag and not nflag:
+                return False
+            flag = nflag
+
+        # Update the flag if we found a stop
+        flag &= (o is not self.stop)
+        return flag
 
 
 ApplicationType = TypeVar('ApplicationType')
 
 
-class FindApplications(LazyVisitor[set[ApplicationType]]):
+class FindApplications(LazyVisitor[ApplicationType, set[ApplicationType], None]):
+
     """
     Find all SymPy applied functions (aka, `Application`s). The user may refine
     the search by supplying a different target class.
