@@ -1,4 +1,5 @@
 from concurrent.futures import Future, ThreadPoolExecutor
+import gc
 from threading import Barrier
 from weakref import ref
 import numpy as np
@@ -190,8 +191,10 @@ class TestWeakValueCache:
             old_obj = cache.get_or_create(1, CacheObject)
             old_id = id(old_obj)
 
-        # Ensure the object is evicted after leaving the scope
+        # Ensure the object is evicted after being dropped
         scope()
+        gc.collect()
+
         new_obj = cache.get_or_create(1, CacheObject)
         assert id(new_obj) != old_id
 
