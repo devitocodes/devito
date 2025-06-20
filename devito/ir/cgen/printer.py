@@ -391,6 +391,9 @@ class BasePrinter(CodePrinter):
     def _print_MathFunction(self, expr):
         return f"{self._ns}{self._print_DefFunction(expr)}"
 
+    def _print_String(self, expr):
+        return f'"{expr.value}"'
+
     def _print_Fallback(self, expr):
         return expr.__str__()
 

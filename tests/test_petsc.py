@@ -2,10 +2,12 @@ import pytest
 
 import numpy as np
 import os
+from collections import OrderedDict
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
                     configuration, norm, switchconfig, SubDomain)
+from devito.operator.profiling import PerformanceSummary
 from devito.ir.iet import (Call, ElementalFunction,
                            FindNodes, retrieve_iteration_tree)
 from devito.types import Constant, LocalCompositeObject
@@ -17,11 +19,11 @@ from devito.petsc.types import (DM, Mat, Vec, PetscMPIInt, KSP,
 from devito.petsc.solve import PETScSolve, EssentialBC
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.initialize import PetscInitialize
+from devito.petsc.logging import PetscSummary
 
 
-@skipif('petsc')
 @pytest.fixture(scope='session', autouse=True)
-def test_petsc_initialization():
+def petsc_initialization():
     # TODO: Temporary workaround until PETSc is automatically
     # initialized
     configuration['compiler'] = 'custom'
@@ -1377,3 +1379,119 @@ class TestMPI:
         # Expected norm computed "manually" from sequential run
         # What rtol and atol should be used?
         assert np.isclose(norm(u), unorm, rtol=1e-13, atol=1e-13)
+
+
+class TestLogging:
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_logging(self, log_level):
+        """Verify PetscSummary output when the log level is 'PERF' or 'DEBUG."""
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f']]
+        e, f = functions
+        f.data[:] = 5.0
+        eq = Eq(e.laplace, f)
+
+        petsc = PETScSolve(eq, target=e, options_prefix='poisson')
+
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        # One PerformanceSummary and one PetscSummary
+        assert len(summary) == 2
+
+        perf_summary = summary.perf
+        petsc_summary = summary.lang
+
+        assert isinstance(perf_summary, PerformanceSummary)
+        assert isinstance(petsc_summary, PetscSummary)
+
+        # One section with a single solver
+        assert len(petsc_summary) == 1
+
+        entry = petsc_summary.get_entry('section0', 'poisson')
+        assert str(entry) == \
+            'PetscEntry(KSPGetIterationNumber=16, SNESGetIterationNumber=1)'
+
+        assert entry.SNESGetIterationNumber == 1
+
+        # Check the OrderedDict for a specific PETSc call
+        snesiters = petsc_summary.SNESGetIterationNumber
+        assert isinstance(snesiters, OrderedDict)
+        assert len(snesiters) == 1
+        key, value = next(iter(snesiters.items()))
+        assert str(key) == "PetscKey(name='section0', options_prefix='poisson')"
+        assert value == 1
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['INFO', 'WARNING', 'ERROR', 'CRITICAL'])
+    def test_no_logging(self, log_level):
+        """
+        Test that no PETSc information is emitted when the logging level is
+        set to 'INFO', 'WARNING', 'ERROR', or 'CRITICAL'.
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f']]
+        e, f = functions
+        f.data[:] = 5.0
+        eq = Eq(e.laplace, f)
+
+        petsc = PETScSolve(eq, target=e, options_prefix='poisson')
+
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        # One PerformanceSummary, no PETScSummary
+        assert len(summary) == 1
+        assert isinstance(summary, PerformanceSummary)
+
+    @skipif('petsc')
+    def test_logging_multiple_solves(self):
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        e.data[:] = 5.0
+        f.data[:] = 6.0
+
+        eq1 = Eq(g.laplace, e)
+        eq2 = Eq(h, f + 5.0)
+
+        solver1 = PETScSolve(eq1, target=g, options_prefix='poisson1')
+        solver2 = PETScSolve(eq2, target=h, options_prefix='poisson2')
+
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            op = Operator([solver1, solver2])
+            summary = op.apply()
+
+        # One PerformanceSummary and one PetscSummary
+        assert len(summary) == 2
+
+        petsc_summary = summary.lang
+        # One PetscKey, PetscEntry for each solver
+        assert len(petsc_summary) == 2
+
+        entry1 = petsc_summary.get_entry('section0', 'poisson1')
+        entry2 = petsc_summary.get_entry('section1', 'poisson2')
+
+        assert str(entry1) == \
+            'PetscEntry(KSPGetIterationNumber=16, SNESGetIterationNumber=1)'
+        assert str(entry2) == \
+            'PetscEntry(KSPGetIterationNumber=1, SNESGetIterationNumber=1)'
+
+        assert len(petsc_summary.KSPGetIterationNumber) == 2
+        assert len(petsc_summary.SNESGetIterationNumber) == 2
+
+        assert entry1.KSPGetIterationNumber == 16
+        assert entry1.SNESGetIterationNumber == 1
+        assert entry2.KSPGetIterationNumber == 1
+        assert entry2.SNESGetIterationNumber == 1

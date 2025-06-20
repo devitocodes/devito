@@ -60,7 +60,7 @@ class LinearSolveExpr(MetaData):
 
     __rargs__ = ('expr',)
     __rkwargs__ = ('solver_parameters', 'fielddata', 'time_mapper',
-                   'localinfo')
+                   'localinfo', 'options_prefix')
 
     defaults = {
         'ksp_type': 'gmres',
@@ -72,7 +72,8 @@ class LinearSolveExpr(MetaData):
     }
 
     def __new__(cls, expr, solver_parameters=None,
-                fielddata=None, time_mapper=None, localinfo=None, **kwargs):
+                fielddata=None, time_mapper=None, localinfo=None,
+                options_prefix=None, **kwargs):
 
         if solver_parameters is None:
             solver_parameters = cls.defaults
@@ -88,6 +89,7 @@ class LinearSolveExpr(MetaData):
         obj._fielddata = fielddata if fielddata else FieldData()
         obj._time_mapper = time_mapper
         obj._localinfo = localinfo
+        obj._options_prefix = options_prefix
         return obj
 
     def __repr__(self):
@@ -124,6 +126,10 @@ class LinearSolveExpr(MetaData):
     @property
     def localinfo(self):
         return self._localinfo
+
+    @property
+    def options_prefix(self):
+        return self._options_prefix
 
     @property
     def grid(self):

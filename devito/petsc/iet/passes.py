@@ -2,10 +2,11 @@ import cgen as c
 import numpy as np
 from functools import cached_property
 
+from devito import configuration
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
                            DummyExpr, CallableBody, List, Call, Callable,
-                           FindNodes)
+                           FindNodes, Section)
 from devito.symbolics import Byref, Macro, FieldFromPointer
 from devito.types import Symbol, Scalar
 from devito.types.basic import DataSymbol
@@ -22,6 +23,7 @@ from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
                                        CoupledObjectBuilder, BaseSetup, CoupledSetup,
                                        Solver, CoupledSolver, TimeDependent,
                                        NonTimeDependent)
+from devito.petsc.iet.logging import petsc_logger_registry, BaseLogger
 from devito.petsc.iet.utils import petsc_call, petsc_call_mpi
 
 
@@ -63,14 +65,17 @@ def lower_petsc(iet, **kwargs):
     subs = {}
     efuncs = {}
 
+    # Map PETScSolve to its Section (for logging)
+    section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
+
     for iters, (injectsolve,) in injectsolve_mapper.items():
 
-        builder = Builder(injectsolve, objs, iters, comm, **kwargs)
+        builder = Builder(injectsolve, objs, iters, comm, section_mapper, **kwargs)
 
         setup.extend(builder.solversetup.calls)
 
         # Transform the spatial iteration loop with the calls to execute the solver
-        subs.update({builder.solve.spatial_body: builder.solve.calls})
+        subs.update({builder.solve.spatial_body: builder.calls})
 
         efuncs.update(builder.cbbuilder.efuncs)
 
@@ -78,7 +83,7 @@ def lower_petsc(iet, **kwargs):
 
     iet = Transformer(subs).visit(iet)
 
-    body = core + tuple(setup) + (BlankLine,) + iet.body.body
+    body = core + tuple(setup) + (BlankLine,) + iet.body.body + (BlankLine,)
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
@@ -125,11 +130,12 @@ class Builder:
     returning subclasses of the objects initialised in __init__,
     depending on the properties of `injectsolve`.
     """
-    def __init__(self, injectsolve, objs, iters, comm, **kwargs):
+    def __init__(self, injectsolve, objs, iters, comm, section_mapper, **kwargs):
         self.injectsolve = injectsolve
         self.objs = objs
         self.iters = iters
         self.comm = comm
+        self.section_mapper = section_mapper
         self.kwargs = kwargs
         self.coupled = isinstance(injectsolve.expr.rhs.fielddata, MultipleFieldData)
         self.args = {
@@ -137,11 +143,13 @@ class Builder:
             'objs': self.objs,
             'iters': self.iters,
             'comm': self.comm,
+            'section_mapper': self.section_mapper,
             **self.kwargs
         }
         self.args['solver_objs'] = self.objbuilder.solver_objs
         self.args['timedep'] = self.timedep
         self.args['cbbuilder'] = self.cbbuilder
+        self.args['logger'] = self.logger
 
     @cached_property
     def objbuilder(self):
@@ -168,6 +176,16 @@ class Builder:
     @cached_property
     def solve(self):
         return CoupledSolver(**self.args) if self.coupled else Solver(**self.args)
+
+    @cached_property
+    def logger(self):
+        log_level = configuration.get('log-level', None)
+        logger_class = petsc_logger_registry.get(log_level, BaseLogger)
+        return logger_class(**self.args)
+
+    @cached_property
+    def calls(self):
+        return List(body=self.solve.calls+self.logger.calls)
 
 
 def populate_matrix_context(efuncs, objs):

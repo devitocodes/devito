@@ -37,6 +37,7 @@ from devito.types import (Buffer, Evaluable, host_layer, device_layer,
 from devito.types.dimension import Thickness
 from devito.petsc.iet.passes import lower_petsc
 from devito.petsc.clusters import petsc_preprocess
+from devito.petsc.logging import petsc_summary
 
 __all__ = ['Operator']
 
@@ -961,7 +962,14 @@ class Operator(Callable):
 
         # In case MPI is used restrict result logging to one rank only
         with switch_log_level(comm=args.comm):
-            return self._emit_apply_profiling(args)
+            perf_summary = self._emit_apply_profiling(args)
+            lang_summary = self._emit_language_info()
+
+        if lang_summary is None:
+            return perf_summary
+
+        # Combine the performance and language specific summaries
+        return CombinedSummary(perf=perf_summary, lang=lang_summary)
 
     # Performance profiling
 
@@ -1101,6 +1109,10 @@ class Operator(Callable):
 
         return summary
 
+    def _emit_language_info(self):
+        if self._language == 'petsc':
+            return petsc_summary(self.parameters)
+
     # Pickling support
 
     def __getstate__(self):
@@ -1190,6 +1202,7 @@ def rcompile(expressions, kwargs, options, target=None):
 
 
 IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
+CombinedSummary = namedtuple('CombinedSummary', ['perf', 'lang'])
 
 
 class ArgumentsMap(dict):
