@@ -16,7 +16,7 @@ from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IterationSpace)
 from devito.ir.support.guards import GuardOverflow
 from devito.symbolics import DefFunction, FieldFromPointer
-from devito.tools import prod
+from devito.tools import frozendict, prod
 from devito.types import Array, Bundle, CriticalRegion, Jump, Scalar, Symbol
 
 
@@ -595,7 +595,7 @@ class TestDependenceAnalysis:
 
         # Force innatural flow, only to stress the compiler to see if it was
         # capable of detecting anti-dependences
-        expr.ispace._directions = {i: Forward for i in expr.ispace.directions}
+        expr.ispace._directions = frozendict({i: Forward for i in expr.ispace.directions})
 
         scope = Scope(expr)
         deps = scope.d_all
@@ -694,7 +694,7 @@ class TestDependenceAnalysis:
         # Force innatural flow, only to stress the compiler to see if it was
         # capable of detecting anti-dependences
         for i in exprs:
-            i.ispace._directions = {i: Forward for i in i.ispace.directions}
+            i.ispace._directions = frozendict({i: Forward for i in i.ispace.directions})
 
         scope = Scope(exprs)
         assert len(scope.d_all) == len(expected)
