@@ -5,7 +5,7 @@ from functools import cached_property
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
                            DummyExpr, CallableBody, List, Call, Callable,
-                           FindNodes)
+                           FindNodes, Section)
 from devito.symbolics import Byref, Macro, FieldFromPointer
 from devito.types import Symbol, Scalar
 from devito.types.basic import DataSymbol
@@ -22,7 +22,10 @@ from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
                                        CoupledObjectBuilder, BaseSetup, CoupledSetup,
                                        Solver, CoupledSolver, TimeDependent,
                                        NonTimeDependent)
+from devito.petsc.iet.logging import PetscLogger
 from devito.petsc.iet.utils import petsc_call, petsc_call_mpi
+
+import devito.logger as dl
 
 
 @iet_pass
@@ -63,14 +66,17 @@ def lower_petsc(iet, **kwargs):
     subs = {}
     efuncs = {}
 
+    # Map PETScSolve to its Section (for logging)
+    section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
+
     for iters, (injectsolve,) in injectsolve_mapper.items():
 
-        builder = Builder(injectsolve, objs, iters, comm, **kwargs)
+        builder = Builder(injectsolve, objs, iters, comm, section_mapper, **kwargs)
 
         setup.extend(builder.solversetup.calls)
 
         # Transform the spatial iteration loop with the calls to execute the solver
-        subs.update({builder.solve.spatial_body: builder.solve.calls})
+        subs.update({builder.solve.spatial_body: builder.calls})
 
         efuncs.update(builder.cbbuilder.efuncs)
 
@@ -78,7 +84,7 @@ def lower_petsc(iet, **kwargs):
 
     iet = Transformer(subs).visit(iet)
 
-    body = core + tuple(setup) + (BlankLine,) + iet.body.body
+    body = core + tuple(setup) + iet.body.body
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
@@ -125,49 +131,64 @@ class Builder:
     returning subclasses of the objects initialised in __init__,
     depending on the properties of `injectsolve`.
     """
-    def __init__(self, injectsolve, objs, iters, comm, **kwargs):
+    def __init__(self, injectsolve, objs, iters, comm, section_mapper, **kwargs):
         self.injectsolve = injectsolve
         self.objs = objs
         self.iters = iters
         self.comm = comm
+        self.section_mapper = section_mapper
         self.kwargs = kwargs
         self.coupled = isinstance(injectsolve.expr.rhs.fielddata, MultipleFieldData)
-        self.args = {
+        self.common_kwargs = {
             'injectsolve': self.injectsolve,
             'objs': self.objs,
             'iters': self.iters,
             'comm': self.comm,
+            'section_mapper': self.section_mapper,
             **self.kwargs
         }
-        self.args['solver_objs'] = self.objbuilder.solver_objs
-        self.args['timedep'] = self.timedep
-        self.args['cbbuilder'] = self.cbbuilder
+        self.common_kwargs['solver_objs'] = self.objbuilder.solver_objs
+        self.common_kwargs['timedep'] = self.timedep
+        self.common_kwargs['cbbuilder'] = self.cbbuilder
+        self.common_kwargs['logger'] = self.logger
 
     @cached_property
     def objbuilder(self):
         return (
-            CoupledObjectBuilder(**self.args)
+            CoupledObjectBuilder(**self.common_kwargs)
             if self.coupled else
-            BaseObjectBuilder(**self.args)
+            BaseObjectBuilder(**self.common_kwargs)
         )
 
     @cached_property
     def timedep(self):
         time_mapper = self.injectsolve.expr.rhs.time_mapper
         timedep_class = TimeDependent if time_mapper else NonTimeDependent
-        return timedep_class(**self.args)
+        return timedep_class(**self.common_kwargs)
 
     @cached_property
     def cbbuilder(self):
-        return CCBBuilder(**self.args) if self.coupled else CBBuilder(**self.args)
+        return CCBBuilder(**self.common_kwargs) \
+            if self.coupled else CBBuilder(**self.common_kwargs)
 
     @cached_property
     def solversetup(self):
-        return CoupledSetup(**self.args) if self.coupled else BaseSetup(**self.args)
+        return CoupledSetup(**self.common_kwargs) \
+            if self.coupled else BaseSetup(**self.common_kwargs)
 
     @cached_property
     def solve(self):
-        return CoupledSolver(**self.args) if self.coupled else Solver(**self.args)
+        return CoupledSolver(**self.common_kwargs) \
+            if self.coupled else Solver(**self.common_kwargs)
+
+    @cached_property
+    def logger(self):
+        log_level = dl.logger.level
+        return PetscLogger(log_level, **self.common_kwargs)
+
+    @cached_property
+    def calls(self):
+        return List(body=self.solve.calls+self.logger.calls)
 
 
 def populate_matrix_context(efuncs, objs):
