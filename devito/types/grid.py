@@ -1,15 +1,16 @@
 from abc import ABC
 from collections import namedtuple
 from functools import cached_property
+from itertools import product
 
 import numpy as np
 from sympy import prod
 
 from devito import configuration
-from devito.data import LEFT, RIGHT
+from devito.data import LEFT, RIGHT, CENTER
 from devito.logger import warning
 from devito.mpi import Distributor, MPI, SubDistributor
-from devito.tools import ReducerMap, as_tuple
+from devito.tools import ReducerMap, as_tuple, frozendict
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -19,7 +20,7 @@ from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     MultiSubDimension, DefaultDimension)
 from devito.deprecations import deprecations
 
-__all__ = ['Grid', 'SubDomain', 'SubDomainSet']
+__all__ = ['Grid', 'SubDomain', 'SubDomainSet', 'Border']
 
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
@@ -871,7 +872,7 @@ class SubDomainSet(MultiSubDomain):
         # Dimensions with identical names hash the same, hence tag them with the
         # SubDomainSet ID to make them unique so they can be used to key a dictionary
         # of replacements without risking overwriting.
-        i_dim = Dimension('n_%s' % str(id(self)))
+        i_dim = Dimension(f'n_{str(id(self))}')
         d_dim = DefaultDimension(name='d', default_value=2*grid.dim)
         sd_func = Function(name=self.name, grid=self._grid,
                            shape=(self._n_domains, 2*grid.dim),
@@ -885,7 +886,7 @@ class SubDomainSet(MultiSubDomain):
                 sd_func.data[:, idx] = self._local_bounds[idx]
 
             dimensions.append(MultiSubDimension(
-                'i%s' % d.name, d, None, functions=sd_func,
+                f'i{d.name}', d, None, functions=sd_func,
                 bounds_indices=(2*i, 2*i+1), implicit_dimension=i_dim
             ))
 
@@ -905,6 +906,101 @@ class SubDomainSet(MultiSubDomain):
     @property
     def bounds(self):
         return self._local_bounds
+
+
+class Border(SubDomainSet):
+    # FIXME: Completely untested
+    """
+    A convenience class for constructing a SubDomainSet which
+    covers specified edges of the domain to a thickness of `border`.
+    """
+
+    def __init__(self, grid, border, dims=None, name='border'):
+        self._border = border
+
+        if dims is None:
+            _border_dims = {d: d for d in grid.dimensions}
+        elif isinstance(dims, Dimension):
+            _border_dims = {dims: dims}
+        elif isinstance(dims, dict):
+            _border_dims = dims
+        else:
+            raise ValueError("Dimensions should be supplied as a single dimension, or "
+                             "a dict of the form `{x: x, y: 'left'}`")
+
+        self._border_dims = frozendict(_border_dims)
+
+        self._name = name
+
+        # FIXME: Really horrible, refactor once working
+        ndomains, bounds = self._build_domain_map(grid)
+
+        super().__init__(N=ndomains, bounds=bounds, grid=grid)
+
+    @property
+    def border(self):
+        return self._border
+
+    @property
+    def border_dims(self):
+        return self._border_dims
+
+    @property
+    def name(self):
+        return self._name
+
+    def _build_domain_map(self, grid):
+        """
+        """
+
+        # TODO: Really doesn't need to be a method
+        # TODO: Fix this mess
+
+        domain_map = {}
+        interval_map = {}
+
+        for d, s in zip(grid.dimensions, grid.shape):
+            if d in self.border_dims:
+                side = self.border_dims[d]
+
+                if isinstance(side, Dimension):
+                    domain_map[d] = (LEFT, CENTER, RIGHT)
+                    # Also build a mapper here
+                    interval_map[d] = {LEFT: (0, s-self.border),
+                                       CENTER: (self.border, self.border),
+                                       RIGHT: (s-self.border, 0)}
+                elif side == 'left':
+                    domain_map[d] = (LEFT, CENTER)
+                    interval_map[d] = {LEFT: (0, s-self.border),
+                                       CENTER: (self.border, 0)}
+                elif side == 'right':
+                    domain_map[d] = (CENTER, RIGHT)
+                    interval_map[d] = {CENTER: (0, self.border),
+                                       RIGHT: (s-self.border, 0)}
+                else:
+                    raise ValueError(f"Unrecognised side {side}")
+            else:
+                domain_map[d] = (CENTER,)
+                interval_map[d] = {CENTER: (0, 0)}
+
+        self._domain_map = frozendict(domain_map)
+
+        abstract_domains = list(product(*self._domain_map.values()))
+        for d in abstract_domains:
+            if all(i == CENTER for i in d):
+                abstract_domains.remove(d)
+
+        concrete_domains = []
+        for dom in abstract_domains:
+            concrete_domains.append([interval_map[d][i]
+                                     for d, i in zip(grid.dimensions, dom)])
+
+        concrete_domains = np.array(concrete_domains)
+
+        reshaped = np.reshape(concrete_domains, (concrete_domains.shape[0], concrete_domains.shape[1]*concrete_domains.shape[2]))
+
+        bounds = reshaped.T
+        return concrete_domains.shape[0], tuple(bounds)
 
 
 # Preset SubDomains
