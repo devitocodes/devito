@@ -28,17 +28,17 @@ jobs:
       fail-fast: false
       matrix:
         name: [
-          tutos-ubuntu-gcc-py39,
+          tutos-ubuntu-gcc-py310,
           tutos-osx-clang-py311,
-          tutos-docker-gcc-py39
+          tutos-docker-gcc-py310
           ]
 
         include:
-          - name: tutos-ubuntu-gcc-py39
+          - name: tutos-ubuntu-gcc-py310
             os: ubuntu-latest
             compiler: gcc
             language: "openmp"
-            pyver: "3.9"
+            pyver: "3.10"
 
           - name: tutos-osx-clang-py311
             os: macos-latest
@@ -46,11 +46,11 @@ jobs:
             language: "C"
             pyver: "3.11"
 
-          - name: tutos-docker-gcc-py39
+          - name: tutos-docker-gcc-py310
             os: ubuntu-latest
             compiler: gcc
             language: "openmp"
-            pyver: "3.9"
+            pyver: "3.10"
 
     steps:
     - name: Checkout devito
@@ -74,7 +74,7 @@ jobs:
 
     - name: Set run prefix
       run: |
-          if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py39' ]; then
+          if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py310' ]; then
               echo "RUN_CMD=docker run --init -t --rm --name testrun devito_img" >> $GITHUB_ENV
           else
               echo "RUN_CMD=" >> $GITHUB_ENV
@@ -82,11 +82,23 @@ jobs:
       id: set-run
 
     - name: Install dependencies
-      if: matrix.name != 'tutos-docker-gcc-py39'
+      if: matrix.name != 'tutos-docker-gcc-py310'
       run: |
         python -m pip install --upgrade pip
         pip install -e .[tests,extras]
         pip install blosc
+
+    - name: Check Docker image Python version
+      if: matrix.name == 'tutos-docker-gcc-py310'
+      run: |
+        declared_pyver="${{ matrix.pyver }}"
+        actual_pyver=$(${{ env.RUN_CMD }} python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+        echo "Declared Python version: $declared_pyver"
+        echo "Actual Python version: $actual_pyver"
+        if [ "$declared_pyver" != "$actual_pyver" ]; then
+          echo "Python version mismatch: declared $declared_pyver, image has $actual_pyver"
+          exit 1
+        fi
 
     - name: Seismic notebooks
       run: |
