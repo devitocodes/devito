@@ -257,7 +257,8 @@ class TestWeakValueCache:
 
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             start_time = time.perf_counter()
-            results = list(executor.map(worker, (i % num_keys for i in range(num_threads))))
+            results = list(executor.map(worker, (i % num_keys
+                                                 for i in range(num_threads))))
             duration = time.perf_counter() - start_time
 
         # Ensure construction took a reasonable amount of time

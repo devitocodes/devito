@@ -344,7 +344,9 @@ class WeakValueCache(Generic[KeyType, ValueType]):
                 obj = supplier()
 
                 # Listener for when the weak reference expires
-                def on_obj_destroyed(k: KeyType = key, f: Future[ReferenceType[ValueType]] = future):
+                def on_obj_destroyed(k: KeyType = key,
+                                     f: Future[ReferenceType[ValueType]] = future) \
+                        -> None:
                     with self._lock:
                         if self._futures.get(k, None) is f:
                             del self._futures[k]
