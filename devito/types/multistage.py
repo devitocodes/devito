@@ -1,9 +1,26 @@
-# from devito import Function, Eq
 from .equation import Eq
 from .dense import Function
 from devito.symbolics import uxreplace
 
+from functools import cached_property
+
+# from devito.ir.support import SymbolRegistry
+
 from .array import Array  # Trying Array
+
+
+method_registry = {}
+
+def register_method(cls):
+    method_registry[cls.__name__] = cls
+    return cls
+
+
+def resolve_method(method):
+    try:
+        return method_registry[method]
+    except KeyError:
+        raise ValueError(f"The time integrator '{method}' is not implemented.")
 
 
 class MultiStage(Eq):
@@ -35,32 +52,10 @@ class MultiStage(Eq):
         The integration method class resolved from the `method` string.
     """
 
-    def __new__(cls, rhs, target, method=None):
-        eq = Eq(target, rhs)
-        obj = Eq.__new__(cls, eq.lhs, eq.rhs)
-        obj._eq = eq
-        obj._method = cls._resolve_method(method)
-        return obj
+    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None, **kwargs):
+        return super().__new__(cls, lhs, rhs=rhs, subdomain=subdomain, coefficients=coefficients, implicit_dims=implicit_dims, **kwargs)
 
-    @classmethod
-    def _resolve_method(cls, method):
-        try:
-            if cls is MultiStage:
-                return globals()[method]
-            else:
-                return  cls
-        except KeyError:
-            raise ValueError(f"The time integrator '{method}' is not implemented.")
-
-    @property
-    def eq(self):
-        return self._eq
-
-    @property
-    def method(self):
-        return self._method
-
-    def _evaluate(self, expand=False):
+    def _evaluate(self, **kwargs):
         raise NotImplementedError(
             f"_evaluate() must be implemented in the subclass {self.__class__.__name__}")
 
@@ -96,21 +91,22 @@ class RK(MultiStage):
         Number of stages in the RK method, inferred from `b`.
     """
 
-    def __init__(self, *args):
-        self.a = getattr(self, 'a', None)
-        self.b = getattr(self, 'b', None)
-        self.c = getattr(self, 'c', None)
-        self.s = len(self.b) if self.b is not None else 0  # Number of stages
+    def __init__(self, **kwargs):
+        self.a, self.b, self.c = self._validate(**kwargs)
 
-        self._validate()
+    def _validate(self, **kwargs):
+        a = kwargs.get('a', None)
+        b = kwargs.get('b', None)
+        c = kwargs.get('c', None)
+        if a is None or b is None or c is None:
+            raise ValueError("RK subclass must define class attributes of the Butcher's array a, b, and c")
+        return a, b, c
 
-    def _validate(self):
-        assert self.a is not None and self.b is not None and self.c is not None, \
-            f"RK subclass must define class attributes a, b, and c"
-        assert len(self.a) == self.s, f"'a'={a} must have {self.s} rows"
-        assert len(self.c) == self.s, f"'c'={c} must have {self.s} elements"
+    @cached_property
+    def s(self):
+        return len(self.b)
 
-    def _evaluate(self, eq_num=0):
+    def _evaluate(self, **kwargs):
         """
         Generate the stage-wise equations for a Runge-Kutta time integration method.
 
@@ -131,9 +127,9 @@ class RK(MultiStage):
             - `s` stage equations of the form `k_i = rhs evaluated at intermediate state`
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
-        base_eq=self.eq
-        u = base_eq.lhs.function
-        rhs = base_eq.rhs
+        eq_num = kwargs['eq_num']
+        u = self.lhs.function
+        rhs = self.rhs
         grid = u.grid
         t = grid.time_dim
         dt = t.spacing
@@ -161,6 +157,7 @@ class RK(MultiStage):
         return stage_eqs
 
 
+@register_method
 class RK44(RK):
     """
     Classic 4th-order Runge-Kutta (RK4) time integration method.
@@ -184,3 +181,10 @@ class RK44(RK):
          [0, 0, 1, 0]]
     b = [1/6, 1/3, 1/3, 1/6]
     c = [0, 1/2, 1/2, 1]
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('a', self.a)
+        kwargs.setdefault('b', self.b)
+        kwargs.setdefault('c', self.c)
+        super().__init__(**kwargs)
+

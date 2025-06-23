@@ -6,14 +6,13 @@ from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
 from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
                           frozendict)
 from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
-                          ConditionalDimension)
+                          ConditionalDimension, MultiStage)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension, Thickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
-from devito.types.multistage import MultiStage
 
 __all__ = ['dimension_sort', 'lower_multistage', 'lower_exprs', 'concretize_subdims']
 
@@ -97,19 +96,16 @@ def dimension_sort(expr):
     return ordering
 
 
-def lower_multistage(expressions):
+def lower_multistage(expressions, **kwargs):
     """
     Separating the multi-stage time-integrator scheme in stages:
         * If the object is MultiStage, it creates the stages of the method.
     """
-    lowered = []
-    for i, eq in enumerate(as_tuple(expressions)):
-        lowered.extend(_lower_multistage(eq, i))
-    return lowered
+    return _lower_multistage(expressions, **kwargs)
 
 
 @singledispatch
-def _lower_multistage(expr, index):
+def _lower_multistage(expr, **kwargs):
     """
     Default handler for expressions that are not MultiStage.
     Simply return them in a list.
@@ -117,12 +113,23 @@ def _lower_multistage(expr, index):
     return [expr]
 
 
-@_lower_multistage.register
-def _(expr: MultiStage, index):
+@_lower_multistage.register(MultiStage)
+def _(expr, **kwargs):
     """
     Specialized handler for MultiStage expressions.
     """
-    return expr.method(expr.eq.rhs, expr.eq.lhs)._evaluate(eq_num=index)
+    return expr._evaluate(**kwargs)
+
+
+@_lower_multistage.register(Iterable)
+def _(exprs, **kwargs):
+    """
+    Handle iterables of expressions.
+    """
+    lowered = []
+    for i, expr in enumerate(exprs):
+        lowered.extend(_lower_multistage(expr, eq_num=i))
+    return lowered
 
 
 def lower_exprs(expressions, subs=None, **kwargs):

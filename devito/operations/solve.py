@@ -7,7 +7,7 @@ from devito.finite_differences.differentiable import Add, Mul, EvalDerivative
 from devito.finite_differences.derivative import Derivative
 from devito.tools import as_tuple
 
-from devito.types.multistage import MultiStage
+from devito.types.multistage import resolve_method
 
 __all__ = ['solve', 'linsolve']
 
@@ -17,7 +17,7 @@ class SolveError(Exception):
     pass
 
 
-def solve(eq, target, method = None, eq_num = 0, **kwargs):
+def solve(eq, target, **kwargs):
     """
     Algebraically rearrange an Eq w.r.t. a given symbol.
 
@@ -58,13 +58,14 @@ def solve(eq, target, method = None, eq_num = 0, **kwargs):
 
     # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
     if len(sols) > 1:
-        sols_temp=target.new_from_mat(sols)
+        sols_temp = target.new_from_mat(sols)
     else:
-        sols_temp=sols[0]
+        sols_temp = sols[0]
 
+    method = kwargs.get("method", None)
     if method is not None:
-        method_cls = MultiStage._resolve_method(method)
-        return method_cls(sols_temp, target)._evaluate(eq_num=eq_num)
+        method_cls = resolve_method(method)
+        return method_cls(target, sols_temp)._evaluate(**kwargs)
     else:
         return sols_temp
 

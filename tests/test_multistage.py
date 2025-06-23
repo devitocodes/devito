@@ -3,7 +3,7 @@ from sympy import exp
 
 from devito import (Grid, Function, TimeFunction,
                     Derivative, Operator, solve, Eq)
-from devito.types.multistage import MultiStage
+from devito.types.multistage import resolve_method
 
 
 def test_multistage_solve(time_int='RK44'):
@@ -67,14 +67,15 @@ def test_multistage_op_constructing_directly(time_int='RK44'):
                       src_spatial * src_temporal]
 
     # Time integration scheme
-    pdes = [MultiStage(system_eqs_rhs[i], U[i], time_int) for i in range(2)]
+
+    pdes = [resolve_method(time_int)(U[i], system_eqs_rhs[i]) for i in range(2)]
     op = Operator(pdes, subs=grid.spacing_map)
     op(dt=0.01, time=1)
 
 
 def test_multistage_op_computing_directly(time_int='RK44'):
     extent = (1, 1)
-    shape = (3, 3)
+    shape = (200, 200)
     origin = (0, 0)
 
     # Grid setup
@@ -84,7 +85,7 @@ def test_multistage_op_computing_directly(time_int='RK44'):
     t = grid.time_dim
 
     # Define wavefield unknowns: u (displacement) and v (velocity)
-    u_time_int = TimeFunction(name='u_time_int', grid=grid, space_order=2, time_order=1, dtype=float64)
+    u_multi_stage = TimeFunction(name='u_multi_stage', grid=grid, space_order=2, time_order=1, dtype=float64)
 
     # Source definition
     src_spatial = Function(name="src_spat", grid=grid, space_order=2, dtype=float64)
@@ -93,11 +94,11 @@ def test_multistage_op_computing_directly(time_int='RK44'):
     src_temporal = (1 - 2 * (pi * f0 * (t * dt - 1 / f0)) ** 2) * exp(-(pi * f0 * (t * dt - 1 / f0)) ** 2)
 
     # PDE (2D heat eq.)
-    eq_rhs = (Derivative(u_time_int, (x, 2), fd_order=2) + Derivative(u_time_int, (y, 2), fd_order=2) +
+    eq_rhs = (Derivative(u_multi_stage, (x, 2), fd_order=2) + Derivative(u_multi_stage, (y, 2), fd_order=2) +
               src_spatial * src_temporal)
 
     # Time integration scheme
-    pde = MultiStage(eq_rhs, u_time_int, method=time_int)
+    pde = [MultiStage(eq_rhs, u_multi_stage, method=time_int)]
     op = Operator(pde, subs=grid.spacing_map)
     op(dt=0.01, time=1)
 
@@ -111,8 +112,11 @@ def test_multistage_op_computing_directly(time_int='RK44'):
     op = Operator(pde, subs=grid.spacing_map)
     op(dt=0.01, time=1)
 
-    return max(abs(u_time_int.data[0, :] - u.data[0, :]))
+    return max(abs(u_multi_stage.data[0, :] - u.data[0, :]))
 
+# test_multistage_op_constructing_directly()
+
+# test_multistage_op_computing_directly()
 
 def test_multistage_op_solve_computing(time_int='RK44'):
     extent = (1, 1)
@@ -154,3 +158,5 @@ def test_multistage_op_solve_computing(time_int='RK44'):
     op(dt=0.01, time=1)
 
     return max(abs(u_time_int.data[0,:]-u.data[0,:]))
+
+# test_multistage_op_solve_computing()
