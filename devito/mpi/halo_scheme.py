@@ -47,17 +47,18 @@ class HaloSchemeEntry(EnrichedTuple):
     def loc_values(self):
         return frozenset(self.loc_indices.values())
 
-    def union(self, other):
+    def merge(self, other):
         """
-        Return a new HaloSchemeEntry that is the union of this and `other`.
-        The `loc_indices` and `loc_dirs` must be the same, otherwise an
-        exception is raised.
+        Return a new HaloSchemeEntry that is the result of merging `other`
+        into `self`, irrespective of whether the `loc_indices` and `loc_dirs`
+        are the same or not. Thus, the returned HaloSchemeEntry will have
+        in general more halo exchanges than `self`, or exactly the same halo
+        exchanges in the worst case).
         """
-        if self.loc_indices != other.loc_indices or \
-           self.loc_dirs != other.loc_dirs or \
+        if self.loc_dirs != other.loc_dirs or \
            self.bundle is not other.bundle:
             raise HaloSchemeException(
-                "Inconsistency found while building a HaloScheme"
+                "Inconsistency found while merging HaloSchemeEntries"
             )
 
         halos = self.halos | other.halos
@@ -65,6 +66,22 @@ class HaloSchemeEntry(EnrichedTuple):
 
         return HaloSchemeEntry(self.loc_indices, self.loc_dirs, halos, dims,
                                bundle=self.bundle, getters=self.getters)
+
+    def union(self, other):
+        """
+        Return a new HaloSchemeEntry that is the union of this and `other`.
+        The `loc_indices` and `loc_dirs` must be the same, otherwise an
+        exception is raised. This is a more restrictive version of `merge`,
+        which is used when we want to ensure that the halo exchanges are
+        performed at the same time index, i.e., the same `loc_indices` are
+        are expected.
+        """
+        if self.loc_indices != other.loc_indices:
+            raise HaloSchemeException(
+                "Inconsistency found while taking the union of HaloSchemeEntries"
+            )
+
+        return self.merge(other)
 
 
 Halo = namedtuple('Halo', 'dim side')
@@ -479,6 +496,15 @@ class HaloScheme:
         if f in fmapper:
             hse = fmapper[f].union(hse)
         fmapper[f] = hse
+        return HaloScheme.build(fmapper, self.honored)
+
+    def merge(self, hs):
+        """
+        Create a new HaloScheme that is the result of merging `hs` into `self`.
+        """
+        fmapper = dict(self.fmapper)
+        for f, hse in hs.fmapper.items():
+            fmapper[f] = fmapper.get(f, hse).merge(hse)
         return HaloScheme.build(fmapper, self.honored)
 
 

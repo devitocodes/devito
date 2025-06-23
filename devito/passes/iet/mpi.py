@@ -7,7 +7,6 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            FindWithin, MapNodes, MapHaloSpots, Transformer,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
-from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
@@ -154,7 +153,7 @@ def _merge_halospots(iet):
 
                 # If the `loc_indices` differ, we rely on hoisting to optimize
                 # `hsf1` out of `it`, otherwise we just drop it
-                if hsf0.loc_values != hsf1.loc_values:
+                if not _semantical_eq_loc_indices(hsf0, hsf1):
                     continue
 
                 mapper.drop(hs1, f)
@@ -416,7 +415,7 @@ class HaloSpotMapper(dict):
         """
         v = self.get(node)
         if isinstance(v, HaloSpot):
-            hss = HaloScheme.union([v.halo_scheme, hss])
+            hss = v.halo_scheme.merge(hss)
             hs = v._rebuild(halo_scheme=hss)
         else:
             hs = HaloSpot(v._rebuild(), hss)
@@ -515,3 +514,21 @@ def _is_mergeable(hsf0, hsf1, scope):
 
     # Finally, check the data dependences would be satisfied
     return _is_iter_carried(hsf1, scope)
+
+
+def _semantical_eq_loc_indices(hsf0, hsf1):
+    if hsf0.loc_indices != hsf1.loc_indices:
+        return False
+
+    for v0, v1 in zip(hsf0.loc_values, hsf1.loc_values):
+        if v0 is v1:
+            continue
+
+        # Special case: they might be syntactically different, but semantically
+        # equivalent, e.g., `t0` and `t1` with same modulus
+        if v0.modulo == v1.modulo == 1:
+            continue
+
+        return False
+
+    return True
