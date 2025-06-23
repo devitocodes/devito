@@ -7,7 +7,6 @@ from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
                            FindWithin, MapNodes, MapHaloSpots, Transformer,
                            retrieve_iteration_tree)
 from devito.ir.support import PARALLEL, Scope
-from devito.mpi.halo_scheme import HaloScheme
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
@@ -42,9 +41,13 @@ def _drop_reduction_halospots(iet):
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
         scope = Scope(i.expr for i in expressions)
-        for f, v in scope.reads.items():
-            if f in hs.fmapper and all(i.is_reduction for i in v):
-                mapper[hs].add(f)
+        for k, v in hs.fmapper.items():
+            f = v.bundle or k
+            if f not in scope.reads:
+                continue
+            v = scope.reads[f]
+            if all(i.is_reduction for i in v):
+                mapper[hs].add(k)
 
     # Transform the IET introducing the "reduced" HaloSpots
     mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(mapper[hs]))
@@ -154,7 +157,7 @@ def _merge_halospots(iet):
 
                 # If the `loc_indices` differ, we rely on hoisting to optimize
                 # `hsf1` out of `it`, otherwise we just drop it
-                if hsf0.loc_values != hsf1.loc_values:
+                if not _semantical_eq_loc_indices(hsf0, hsf1):
                     continue
 
                 mapper.drop(hs1, f)
@@ -416,7 +419,7 @@ class HaloSpotMapper(dict):
         """
         v = self.get(node)
         if isinstance(v, HaloSpot):
-            hss = HaloScheme.union([v.halo_scheme, hss])
+            hss = v.halo_scheme.merge(hss)
             hs = v._rebuild(halo_scheme=hss)
         else:
             hs = HaloSpot(v._rebuild(), hss)
@@ -515,3 +518,21 @@ def _is_mergeable(hsf0, hsf1, scope):
 
     # Finally, check the data dependences would be satisfied
     return _is_iter_carried(hsf1, scope)
+
+
+def _semantical_eq_loc_indices(hsf0, hsf1):
+    if hsf0.loc_indices != hsf1.loc_indices:
+        return False
+
+    for v0, v1 in zip(hsf0.loc_values, hsf1.loc_values):
+        if v0 is v1:
+            continue
+
+        # Special case: they might be syntactically different, but semantically
+        # equivalent, e.g., `t0` and `t1` with same modulus
+        if v0.modulo == v1.modulo == 1:
+            continue
+
+        return False
+
+    return True
