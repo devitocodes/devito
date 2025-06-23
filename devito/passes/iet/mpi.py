@@ -41,9 +41,13 @@ def _drop_reduction_halospots(iet):
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
         scope = Scope(i.expr for i in expressions)
-        for f, v in scope.reads.items():
-            if f in hs.fmapper and all(i.is_reduction for i in v):
-                mapper[hs].add(f)
+        for k, v in hs.fmapper.items():
+            f = v.bundle or k
+            if f not in scope.reads:
+                continue
+            v = scope.reads[f]
+            if all(i.is_reduction for i in v):
+                mapper[hs].add(k)
 
     # Transform the IET introducing the "reduced" HaloSpots
     mapper = {hs: hs._rebuild(halo_scheme=hs.halo_scheme.drop(mapper[hs]))
