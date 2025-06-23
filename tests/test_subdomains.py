@@ -7,7 +7,7 @@ from sympy import sin, tan
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
                     Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseTimeFunction,
-                    VectorFunction, TensorFunction)
+                    VectorFunction, TensorFunction, Border)
 from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegistry
 from devito.tools import timed_region
 
@@ -723,6 +723,27 @@ class TestMultiSubDomain:
         assert x.is_Parallel
         assert y.is_Parallel
         assert z.is_Parallel
+
+    def test_border_3d(self):
+        """
+        Test the functionality of the Border class in higher dimensions.
+        Note that this class is also covered by doctests and examples.
+        """
+        grid = Grid(shape=(3, 3, 3))
+
+        border = Border(grid, 1)
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        Operator(Eq(f, f+1, subdomain=border))()
+
+        check = np.array([
+            [[1, 1, 1], [1, 1, 1], [1, 1, 1]],
+            [[1, 1, 1], [1, 0, 1], [1, 1, 1]],
+            [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+        ])
+
+        assert np.all(f.data == check)
 
 
 class TestSubDomain_w_condition:
