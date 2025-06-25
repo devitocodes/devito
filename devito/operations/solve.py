@@ -63,11 +63,7 @@ def solve(eq, target, **kwargs):
         sols_temp = sols[0]
 
     method = kwargs.get("method", None)
-    if method is not None:
-        method_cls = resolve_method(method)
-        return method_cls(target, sols_temp)._evaluate(**kwargs)
-    else:
-        return sols_temp
+    return sols_temp if method is None else resolve_method(method)(target, sols_temp)
 
 
 def linsolve(expr, target, **kwargs):

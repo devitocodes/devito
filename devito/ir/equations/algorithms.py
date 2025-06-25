@@ -127,8 +127,8 @@ def _(exprs, **kwargs):
     Handle iterables of expressions.
     """
     lowered = []
-    for i, expr in enumerate(exprs):
-        lowered.extend(_lower_multistage(expr, eq_num=i))
+    for expr in exprs:
+        lowered.extend(_lower_multistage(expr, **kwargs))
     return lowered
 
 

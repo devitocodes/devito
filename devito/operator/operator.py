@@ -326,7 +326,7 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
-        expressions = lower_multistage(expressions)
+        expressions = lower_multistage(expressions, **kwargs)
 
         expand = kwargs['options'].get('expand', True)
 

@@ -127,7 +127,8 @@ class RK(MultiStage):
             - `s` stage equations of the form `k_i = rhs evaluated at intermediate state`
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
-        eq_num = kwargs['eq_num']
+        stage_id = kwargs.get('sregistry').make_name(prefix='k')
+
         u = self.lhs.function
         rhs = self.rhs
         grid = u.grid
@@ -135,8 +136,8 @@ class RK(MultiStage):
         dt = t.spacing
 
         # Create temporary Functions to hold each stage
-        # k = [Array(name=f'k{eq_num}{i}', dimensions=grid.shape, grid=grid, dtype=u.dtype) for i in range(self.s)]  # Trying Array
-        k = [Function(name=f'k{eq_num}{i}', grid=grid, space_order=u.space_order, dtype=u.dtype)
+        # k = [Array(name=f'{stage_id}{i}', dimensions=grid.shape, grid=grid, dtype=u.dtype) for i in range(self.s)]  # Trying Array
+        k = [Function(name=f'{stage_id}{i}', grid=grid, space_order=u.space_order, dtype=u.dtype)
              for i in range(self.s)]
 
         stage_eqs = []
