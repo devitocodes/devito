@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="a4615c42-bf2f-488d-af46-64d66f1e9423" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/tests/test_saving_multistage.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/devito/ir/equations/algorithms.py" beforeDir="false" afterPath="$PROJECT_DIR$/devito/ir/equations/algorithms.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/devito/types/multistage.py" beforeDir="false" afterPath="$PROJECT_DIR$/devito/types/multistage.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/test_multistage.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_multistage.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="2wgCxLP7TsuwTowciqYftV26pjx" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python tests.Doctest via pytest in operator.py.executor": "Debug",
+    "Python tests.pytest in test_multistage.py.executor": "Run",
+    "Python tests.unittest in test_multistage.py.executor": "Run",
+    "Python.__init__.executor": "Run",
+    "Python.multistage.executor": "Run",
+    "Python.solve.executor": "Debug",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "multi-stage-time-integrator",
+    "last_opened_file_path": "/home/fernan/Desktop/Trabajo/pos-doc/posdoc_fernando/acoustic_b_2/acoustic_source_comp.py",
+    "settings.editor.selected.configurable": "vcs.Git"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration name="pytest in test_multistage.py" type="tests" factoryName="py.test">
+      <module name="devito" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/tests" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_keywords" value="&quot;&quot;" />
+      <option name="_new_parameters" value="&quot;&quot;" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/tests/test_multistage.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-53e2683a6804-9cdd278e9d02-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-251.26094.141" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="a4615c42-bf2f-488d-af46-64d66f1e9423" name="Changes" comment="" />
+      <created>1746454074784</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1746454074784</updated>
+    </task>
+    <servers />
+  </component>
+</project>

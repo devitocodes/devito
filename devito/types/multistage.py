@@ -2,8 +2,6 @@ from .equation import Eq
 from .dense import Function
 from devito.symbolics import uxreplace
 
-from functools import cached_property
-
 # from devito.ir.support import SymbolRegistry
 
 from .array import Array  # Trying Array
@@ -25,32 +23,35 @@ def resolve_method(method):
 
 class MultiStage(Eq):
     """
-    Abstract base class for multi-stage time integration methods
-    (e.g., Runge-Kutta schemes) in Devito.
+       Abstract base class for multi-stage time integration methods
+       (e.g., Runge-Kutta schemes) in Devito.
 
-    This class wraps a symbolic equation of the form `target = rhs` and
-    provides a mechanism to associate a time integration scheme via the
-    `method` argument. Subclasses must implement the `_evaluate` method to
-    generate stage-wise update expressions.
+       This class represents a symbolic equation of the form `target = rhs`
+       and provides a mechanism to associate it with a time integration
+       scheme. The specific integration behavior must be implemented by
+       subclasses via the `_evaluate` method.
 
-    Parameters
-    ----------
-    rhs : expr-like
-        The right-hand side of the equation to integrate.
-    target : Function
-        The time-updated symbol on the left-hand side, e.g., `u` or `u.forward`.
-    method : str or None
-        A string identifying the time integration method (e.g., 'RK44'),
-        which must correspond to a class defined in the global scope and
-        implementing `_evaluate`. If None, no method is applied.
+       Parameters
+       ----------
+       lhs : expr-like
+           The left-hand side of the equation, typically a time-updated Function
+           (e.g., `u.forward`).
+       rhs : expr-like, optional
+           The right-hand side of the equation to integrate. Defaults to 0.
+       subdomain : SubDomain, optional
+           A subdomain over which the equation applies.
+       coefficients : dict, optional
+           Optional dictionary of symbolic coefficients for the integration.
+       implicit_dims : tuple, optional
+           Additional dimensions that should be treated implicitly in the equation.
+       **kwargs : dict
+           Additional keyword arguments, such as time integration method selection.
 
-    Attributes
-    ----------
-    eq : Eq
-        The symbolic equation `target = rhs`.
-    method : class
-        The integration method class resolved from the `method` string.
-    """
+       Notes
+       -----
+       Subclasses must override the `_evaluate()` method to return a sequence
+       of update expressions for each stage in the integration process.
+       """
 
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None, **kwargs):
         return super().__new__(cls, lhs, rhs=rhs, subdomain=subdomain, coefficients=coefficients, implicit_dims=implicit_dims, **kwargs)
@@ -91,18 +92,15 @@ class RK(MultiStage):
         Number of stages in the RK method, inferred from `b`.
     """
 
-    def __init__(self, **kwargs):
-        self.a, self.b, self.c = self._validate(**kwargs)
+    def __init__(self, a=None, b=None, c=None, **kwargs):
+        self.a, self.b, self.c = self._validate(a, b, c)
 
-    def _validate(self, **kwargs):
-        a = kwargs.get('a', None)
-        b = kwargs.get('b', None)
-        c = kwargs.get('c', None)
+    def _validate(self, a, b, c):
         if a is None or b is None or c is None:
             raise ValueError("RK subclass must define class attributes of the Butcher's array a, b, and c")
         return a, b, c
 
-    @cached_property
+    @property
     def s(self):
         return len(self.b)
 
@@ -114,12 +112,6 @@ class RK(MultiStage):
         expands it into a sequence of intermediate stage evaluations and a final
         update equation according to the Runge-Kutta coefficients `a`, `b`, and `c`.
 
-        Parameters
-        ----------
-        eq_num : int, optional
-            An identifier index used to uniquely name the intermediate stage variables
-            (`k{eq_num}i`) in case of multiple equations being expanded.
-
         Returns
         -------
         list of Eq
@@ -127,7 +119,6 @@ class RK(MultiStage):
             - `s` stage equations of the form `k_i = rhs evaluated at intermediate state`
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
-        stage_id = kwargs.get('sregistry').make_name(prefix='k')
 
         u = self.lhs.function
         rhs = self.rhs
@@ -136,8 +127,8 @@ class RK(MultiStage):
         dt = t.spacing
 
         # Create temporary Functions to hold each stage
-        # k = [Array(name=f'{stage_id}{i}', dimensions=grid.shape, grid=grid, dtype=u.dtype) for i in range(self.s)]  # Trying Array
-        k = [Function(name=f'{stage_id}{i}', grid=grid, space_order=u.space_order, dtype=u.dtype)
+        # k = [Array(name=f'{kwargs.get('sregistry').make_name(prefix='k')}', dimensions=grid.shape, grid=grid, dtype=u.dtype) for i in range(self.s)]  # Trying Array
+        k = [Function(name=f'{kwargs.get('sregistry').make_name(prefix='k')}', grid=grid, space_order=u.space_order, dtype=u.dtype)
              for i in range(self.s)]
 
         stage_eqs = []
@@ -184,8 +175,5 @@ class RK44(RK):
     c = [0, 1/2, 1/2, 1]
 
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault('a', self.a)
-        kwargs.setdefault('b', self.b)
-        kwargs.setdefault('c', self.c)
-        super().__init__(**kwargs)
+        super().__init__(a=self.a, b=self.b, c=self.c)
 

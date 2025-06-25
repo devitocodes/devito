@@ -126,10 +126,7 @@ def _(exprs, **kwargs):
     """
     Handle iterables of expressions.
     """
-    lowered = []
-    for expr in exprs:
-        lowered.extend(_lower_multistage(expr, **kwargs))
-    return lowered
+    return sum([_lower_multistage(expr, **kwargs) for expr in exprs], [])
 
 
 def lower_exprs(expressions, subs=None, **kwargs):
