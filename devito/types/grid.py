@@ -920,12 +920,17 @@ class Border(SubDomainSet):
     dimension, but only on the left of the y. One can also supply a single dimension on
     which to construct a border, using `dims=x` or similar.
 
+    Corners can be included, excluded, or overlapped by setting the `corners` kwarg.
+
     Parameters
     ----------
     grid : Grid
         The computational grid on which the border should be constructed
-    border : int
-        The thickness of the border in gridpoints
+    border : int, tuple of int, or tuple of tuple of int
+        The thickness of the border in gridpoints. A tuple with thickness for each
+        dimension can be supplied if different thicknesses are required per-dimension.
+        A tuple of tuples can also be supplied for more granular control of left and
+        right border thicknesses for each dimension.
     dims : Dimension, dict, or None, optional
         The dimensions on which a border should be applied. Default is None, corresponding
         to borders on both sides of all dimensions.
@@ -1008,13 +1013,16 @@ class Border(SubDomainSet):
     DimSpec = None | dict[Dimension, Dimension | str]
     ParsedDimSpec = frozendict[Dimension, Dimension | str]
 
-    def __init__(self, grid: Grid, border: int | np.integer,
+    BorderInt = int | np.integer
+    BorderSpec = BorderInt | tuple[BorderInt] | tuple[tuple[BorderInt]]
+    ParsedBorderSpec = tuple[tuple[BorderInt]]
+
+    def __init__(self, grid: Grid, border: BorderSpec,
                  dims: DimSpec = None, name: str = 'border',
                  corners: str = 'nooverlap') -> None:
 
         self._name = name
-        # FIXME: Needs to accept int, tuple of int, or tuple of tuple of int
-        self._border = border
+        self._border = Border._parse_border(border, grid)
         self._border_dims = Border._parse_dims(dims, grid)
 
         if corners not in ('overlap', 'nooverlap', 'nocorners'):
@@ -1054,6 +1062,27 @@ class Border(SubDomainSet):
 
         return frozendict(_border_dims)
 
+    @staticmethod
+    def _parse_border(border: BorderSpec, grid: Grid) -> ParsedBorderSpec:
+        if isinstance(border, (int, np.integer)):
+            return ((border, border),)*len(grid.dimensions)
+
+        else:  # Tuple guaranteed by typing
+            if not len(border) == len(grid.dimensions):
+                raise ValueError("Length of border thickness specification should "
+                                 "match number of dimensions")
+            retval = []  # FIXME: make a better name later
+            for b, d in zip(border, grid.dimensions):
+                if isinstance(b, tuple):
+                    if not len(b) == 2:
+                        raise ValueError(f"{b}: more than two thicknesses supplied "
+                                         f"for dimension {d}")
+                    retval.append(b)
+                else:
+                    retval.append((b, b))
+
+            return tuple(retval)
+
     def _build_domains(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
         """
         Constructs the bounds and ndomains kwargs for the SubDomainSet.
@@ -1066,25 +1095,25 @@ class Border(SubDomainSet):
     def _build_domains_overlap(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
 
         bounds = []
-        for i, (d, s) in enumerate(zip(grid.dimensions, grid.shape)):
+        for i, (d, s, b) in enumerate(zip(grid.dimensions, grid.shape, self.border)):
 
             if d in self.border_dims:
                 side = self.border_dims[d]
 
                 if isinstance(side, Dimension):
-                    bounds_l = [0 if j != 2*i else s-self.border
+                    bounds_l = [0 if j != 2*i else s - b[0]
                                 for j in range(2*len(grid.dimensions))]
-                    bounds_r = [0 if j != 2*i+1 else s-self.border
+                    bounds_r = [0 if j != 2*i+1 else s - b[1]
                                 for j in range(2*len(grid.dimensions))]
 
                     bounds.extend([bounds_l, bounds_r])
 
                 elif side == 'left':
-                    bounds.append([0 if j != 2*i else s-self.border
+                    bounds.append([0 if j != 2*i else s - b[0]
                                    for j in range(2*len(grid.dimensions))])
 
                 elif side == 'right':
-                    bounds.append([0 if j != 2*i+1 else s-self.border
+                    bounds.append([0 if j != 2*i+1 else s - b[1]
                                    for j in range(2*len(grid.dimensions))])
 
                 else:
@@ -1099,23 +1128,23 @@ class Border(SubDomainSet):
         # Unpack the user-provided specification into a set of sides (on which
         # a cartesian product is taken) and a mapper from those sides to a set of
         # bounds for each dimension.
-        for d, s in zip(grid.dimensions, grid.shape):
+        for d, s, b in zip(grid.dimensions, grid.shape, self.border):
             if d in self.border_dims:
                 side = self.border_dims[d]
 
                 if isinstance(side, Dimension):
                     domain_map[d] = (LEFT, CENTER, RIGHT)
-                    interval_map[d] = {LEFT: (0, s-self.border),
-                                       CENTER: (self.border, self.border),
-                                       RIGHT: (s-self.border, 0)}
+                    interval_map[d] = {LEFT: (0, s - b[0]),
+                                       CENTER: (b[0], b[1]),
+                                       RIGHT: (s - b[1], 0)}
                 elif side == 'left':
                     domain_map[d] = (LEFT, CENTER)
-                    interval_map[d] = {LEFT: (0, s-self.border),
-                                       CENTER: (self.border, 0)}
+                    interval_map[d] = {LEFT: (0, s - b[0]),
+                                       CENTER: (b[0], 0)}
                 elif side == 'right':
                     domain_map[d] = (CENTER, RIGHT)
-                    interval_map[d] = {CENTER: (0, self.border),
-                                       RIGHT: (s-self.border, 0)}
+                    interval_map[d] = {CENTER: (0, b[1]),
+                                       RIGHT: (s - b[1], 0)}
                 else:
                     raise ValueError(f"Unrecognised side value {side}")
             else:
