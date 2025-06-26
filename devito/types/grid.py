@@ -985,6 +985,21 @@ class Border(SubDomainSet):
           [1, 1, 0, 0, 0, 1, 1],
           [1, 1, 0, 0, 0, 1, 1]], dtype=int32)
 
+    which is equivalent to:
+
+    >>> border4 = Border(grid, 2, dims={y: y})
+    >>> i = Function(name='i', grid=grid, dtype=np.int32)
+    >>> eq4 = Eq(i, i+1, subdomain=border4)
+    >>> summary = Operator(eq4)()
+    >>> i.data
+    Data([[1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1]], dtype=int32)
+
     """
 
     DimSpec = None | dict[Dimension, Dimension | str]
