@@ -724,6 +724,8 @@ class TestMultiSubDomain:
         assert y.is_Parallel
         assert z.is_Parallel
 
+
+class TestBorder:
     def test_border_3d(self):
         """
         Test the functionality of the Border class in higher dimensions.

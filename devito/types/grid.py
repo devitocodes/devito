@@ -1101,25 +1101,28 @@ class Border(SubDomainSet):
                 side = self.border_dims[d]
 
                 if isinstance(side, Dimension):
-                    bounds_l = [0 if j != 2*i else s - b[0]
+                    # Note: counterintuitive since the left-side boundary only has
+                    # right-side thickness
+                    bounds_l = [0 if j != 2*i+1 else s - b[0]
                                 for j in range(2*len(grid.dimensions))]
-                    bounds_r = [0 if j != 2*i+1 else s - b[1]
+                    bounds_r = [0 if j != 2*i else s - b[1]
                                 for j in range(2*len(grid.dimensions))]
 
                     bounds.extend([bounds_l, bounds_r])
 
                 elif side == 'left':
-                    bounds.append([0 if j != 2*i else s - b[0]
+                    bounds.append([0 if j != 2*i+1 else s - b[0]
                                    for j in range(2*len(grid.dimensions))])
 
                 elif side == 'right':
-                    bounds.append([0 if j != 2*i+1 else s - b[1]
+                    bounds.append([0 if j != 2*i else s - b[1]
                                    for j in range(2*len(grid.dimensions))])
 
                 else:
                     raise ValueError(f"Unrecognised side value {side}")
 
-        return len(bounds), tuple(np.array(bounds))
+        # Need to transpose array to fit into expected format for SubDomainSet
+        return len(bounds), tuple(np.array(bounds).T)
 
     def _build_domains_nooverlap(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
         domain_map = {}  # Stores the side
@@ -1139,11 +1142,14 @@ class Border(SubDomainSet):
                                        RIGHT: (s - b[1], 0)}
                 elif side == 'left':
                     domain_map[d] = (LEFT, CENTER)
+                    # For intuitive behaviour, 'nocorners' should always skip corners
+                    centerval = b[1] if self.corners == 'nocorners' else 0
                     interval_map[d] = {LEFT: (0, s - b[0]),
-                                       CENTER: (b[0], 0)}
+                                       CENTER: (b[0], centerval)}
                 elif side == 'right':
                     domain_map[d] = (CENTER, RIGHT)
-                    interval_map[d] = {CENTER: (0, b[1]),
+                    centerval = b[0] if self.corners == 'nocorners' else 0
+                    interval_map[d] = {CENTER: (centerval, b[1]),
                                        RIGHT: (s - b[1], 0)}
                 else:
                     raise ValueError(f"Unrecognised side value {side}")
