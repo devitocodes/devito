@@ -911,8 +911,7 @@ class SubDomainSet(MultiSubDomain):
 class Border(SubDomainSet):
     """
     A convenience class for constructing a SubDomainSet which covers specified edges
-    of the domain to a thickness of `border`. Note that none of the subdomains in this
-    MultiSubDomain will overlap with one another.
+    of the domain to a thickness of `border`.
 
     By default, this border covers all sides of the grid. Alternatively, it is possible
     to add the border selectively to specific sides by supplying, for example,
@@ -932,6 +931,10 @@ class Border(SubDomainSet):
         to borders on both sides of all dimensions.
     name : str, optional
         A unique name for the SubDomainSet created. Default is 'border'.
+    corners : str, optional
+        Behaviour at the corners. Can be set to 'overlap' for overlapping subdomains at
+        the corners, 'nooverlap' for non-overlapping corner subdomains, or 'nocorners'
+        to omit the corners entirely. Default is `nooverlap`.
 
     Examples
     --------
@@ -1006,11 +1009,17 @@ class Border(SubDomainSet):
     ParsedDimSpec = frozendict[Dimension, Dimension | str]
 
     def __init__(self, grid: Grid, border: int | np.integer,
-                 dims: DimSpec = None, name: str = 'border') -> None:
+                 dims: DimSpec = None, name: str = 'border',
+                 corners: str = 'nooverlap') -> None:
 
         self._name = name
+        # FIXME: Needs to accept int, tuple of int, or tuple of tuple of int
         self._border = border
         self._border_dims = Border._parse_dims(dims, grid)
+
+        if corners not in ('overlap', 'nooverlap', 'nocorners'):
+            raise ValueError(f"Unrecognised corners option: {corners}")
+        self._corners = corners
 
         ndomains, bounds = self._build_domains(grid)
         super().__init__(N=ndomains, bounds=bounds, grid=grid)
@@ -1026,6 +1035,10 @@ class Border(SubDomainSet):
     @property
     def name(self):
         return self._name
+
+    @property
+    def corners(self):
+        return self._corners
 
     @staticmethod
     def _parse_dims(dims: DimSpec, grid: Grid) -> ParsedDimSpec:
@@ -1045,7 +1058,41 @@ class Border(SubDomainSet):
         """
         Constructs the bounds and ndomains kwargs for the SubDomainSet.
         """
+        if self.corners == 'overlap':
+            return self._build_domains_overlap(grid)
+        else:
+            return self._build_domains_nooverlap(grid)
 
+    def _build_domains_overlap(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
+
+        bounds = []
+        for i, (d, s) in enumerate(zip(grid.dimensions, grid.shape)):
+
+            if d in self.border_dims:
+                side = self.border_dims[d]
+
+                if isinstance(side, Dimension):
+                    bounds_l = [0 if j != 2*i else s-self.border
+                                for j in range(2*len(grid.dimensions))]
+                    bounds_r = [0 if j != 2*i+1 else s-self.border
+                                for j in range(2*len(grid.dimensions))]
+
+                    bounds.extend([bounds_l, bounds_r])
+
+                elif side == 'left':
+                    bounds.append([0 if j != 2*i else s-self.border
+                                   for j in range(2*len(grid.dimensions))])
+
+                elif side == 'right':
+                    bounds.append([0 if j != 2*i+1 else s-self.border
+                                   for j in range(2*len(grid.dimensions))])
+
+                else:
+                    raise ValueError(f"Unrecognised side value {side}")
+
+        return len(bounds), tuple(np.array(bounds))
+
+    def _build_domains_nooverlap(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
         domain_map = {}  # Stores the side
         interval_map = {}  # Stores the mapping from the side to bounds
 
@@ -1081,6 +1128,10 @@ class Border(SubDomainSet):
         abstract_domains = list(product(*domain_map.values()))
         for d in abstract_domains:
             if all(i == CENTER for i in d):
+                abstract_domains.remove(d)
+
+            # If 'no corners' option selected, then remove any corners
+            if self.corners == 'nocorners' and not any(i == CENTER for i in d):
                 abstract_domains.remove(d)
 
         domains = []
