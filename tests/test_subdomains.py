@@ -737,11 +737,8 @@ class TestMultiSubDomain:
 
         Operator(Eq(f, f+1, subdomain=border))()
 
-        check = np.array([
-            [[1, 1, 1], [1, 1, 1], [1, 1, 1]],
-            [[1, 1, 1], [1, 0, 1], [1, 1, 1]],
-            [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
-        ])
+        check = np.ones((3, 3, 3))
+        check[1, 1, 1] = 0
 
         assert np.all(f.data == check)
 
