@@ -1,8 +1,7 @@
 from .equation import Eq
 from .dense import Function
 from devito.symbolics import uxreplace
-
-# from devito.ir.support import SymbolRegistry
+from numpy import number
 
 from .array import Array  # Trying Array
 
@@ -92,13 +91,8 @@ class RK(MultiStage):
         Number of stages in the RK method, inferred from `b`.
     """
 
-    def __init__(self, a=None, b=None, c=None, **kwargs):
-        self.a, self.b, self.c = self._validate(a, b, c)
-
-    def _validate(self, a, b, c):
-        if a is None or b is None or c is None:
-            raise ValueError("RK subclass must define class attributes of the Butcher's array a, b, and c")
-        return a, b, c
+    def __init__(self, a: list[list[float | number]], b: list[float | number], c: list[float | number], **kwargs) -> None:
+        self.a, self.b, self.c = a, b, c
 
     @property
     def s(self):
