@@ -1162,9 +1162,9 @@ class Border(SubDomainSet):
         maybe_domains = list(product(*domain_map.values()))
         domains = []
         for d in maybe_domains:
-            if not all(i == CENTER for i in d):
+            if not all(i is CENTER for i in d):
                 # Don't add any domains that are completely centered
-                if self.corners != 'nocorners' or any(i == CENTER for i in d):
+                if self.corners != 'nocorners' or any(i is CENTER for i in d):
                     # Don't add corners if 'no corners' option selected
                     domains.append([interval_map[dim][dom] for (dim, dom)
                                     in zip(grid.dimensions, d)])
