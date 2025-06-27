@@ -726,11 +726,78 @@ class TestMultiSubDomain:
 
 
 class TestBorder:
+    def test_exceptions(self):
+        """Test exceptions are raised for malformed specifications"""
+        grid = Grid(shape=(5,))
+
+        with pytest.raises(ValueError):
+            _ = Border(grid, (1, 1))
+
+        with pytest.raises(ValueError):
+            _ = Border(grid, ((1, 1, 1),))
+
+    @pytest.mark.parametrize('corners', ['nooverlap', 'overlap', 'nocorners'])
+    def test_uneven_border(self, corners):
+        """Test border specifications which vary by dimension"""
+        shape = (6, 8)
+        grid = Grid(shape=shape)
+        x, y = grid.dimensions
+
+        border = Border(grid, (1, (2, 1)), corners=corners)
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        eq = Eq(f, f+1, subdomain=border)
+
+        Operator(eq)()
+
+        check = np.ones(shape)
+        check[1:-1, 2:-1] = 0
+
+        if corners == 'nocorners':
+            check[0, :2] = 0
+            check[-1, :2] = 0
+            check[0, -1] = 0
+            check[-1, -1] = 0
+        elif corners == 'overlap':
+            check[0, :2] = 2
+            check[-1, :2] = 2
+            check[0, -1] = 2
+            check[-1, -1] = 2
+
+        assert np.all(f.data == check)
+
+    @pytest.mark.parametrize('corners', ['nooverlap', 'overlap', 'nocorners'])
+    def test_one_sided_border(self, corners):
+        """Test borders where a particular side is specified"""
+        shape = (6, 8)
+        grid = Grid(shape=shape)
+        x, y = grid.dimensions
+
+        # border = Border(grid, 2, dims={x: x, y: 'right'})
+        border = Border(grid, 1, dims={x: 'left', y: 'right'}, corners=corners)
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        eq = Eq(f, f+1, subdomain=border)
+
+        Operator(eq)()
+
+        check = np.zeros(shape)
+        check[0, :] = 1
+        check[:, -1] = 1
+
+        if corners == 'overlap':
+            check[0, -1] = 2
+        elif corners == 'nocorners':
+            check[0, 0] = 0
+            check[0, -1] = 0
+            check[-1, -1] = 0
+
+        assert np.all(f.data == check)
+
     def test_border_3d(self):
-        """
-        Test the functionality of the Border class in higher dimensions.
-        Note that this class is also covered by doctests and examples.
-        """
+        """Test the functionality of the Border class in higher dimensions"""
         grid = Grid(shape=(3, 3, 3))
 
         border = Border(grid, 1)

@@ -1071,7 +1071,7 @@ class Border(SubDomainSet):
             if not len(border) == len(grid.dimensions):
                 raise ValueError("Length of border thickness specification should "
                                  "match number of dimensions")
-            retval = []  # FIXME: make a better name later
+            retval = []
             for b, d in zip(border, grid.dimensions):
                 if isinstance(b, tuple):
                     if not len(b) == 2:
@@ -1157,22 +1157,17 @@ class Border(SubDomainSet):
                 domain_map[d] = (CENTER,)
                 interval_map[d] = {CENTER: (0, 0)}
 
-        # Get the cartesian product, then remove any which solely consist of
-        # the central region. The sides are used to make this step more
-        # straightforward.
-        abstract_domains = list(product(*domain_map.values()))
-        for d in abstract_domains:
-            if all(i == CENTER for i in d):
-                abstract_domains.remove(d)
-
-            # If 'no corners' option selected, then remove any corners
-            if self.corners == 'nocorners' and not any(i == CENTER for i in d):
-                abstract_domains.remove(d)
-
+        # Get the cartesian product, then select the required domains. The sides are used
+        # to make this step more straightforward.
+        maybe_domains = list(product(*domain_map.values()))
         domains = []
-        for dom in abstract_domains:
-            domains.append([interval_map[d][i]
-                            for d, i in zip(grid.dimensions, dom)])
+        for d in maybe_domains:
+            if not all(i == CENTER for i in d):
+                # Don't add any domains that are completely centered
+                if self.corners != 'nocorners' or any(i == CENTER for i in d):
+                    # Don't add corners if 'no corners' option selected
+                    domains.append([interval_map[dim][dom] for (dim, dom)
+                                    in zip(grid.dimensions, d)])
 
         domains = np.array(domains)
 
