@@ -13,7 +13,7 @@ from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, REGULAR, IRREGULAR, mocksym0,
                                      mocksym1)
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
-                                     IterationSpace)
+                                     IntervalGroup, IterationSpace)
 from devito.ir.support.guards import GuardOverflow
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
@@ -507,6 +507,24 @@ class TestSpace:
         assert ix.switch(y) == iy
         assert iy.switch(x) == ix
         assert ix.switch(y).switch(x) == ix
+
+    def test_space_intersection(self, x, y):
+        ig0 = IntervalGroup([Interval(x, 1, -1)])
+        ig1 = IntervalGroup([Interval(x, 2, -2), Interval(y, 3, -3)])
+
+        ig = IntervalGroup.generate('intersection', ig0, ig1)
+
+        assert len(ig) == 1
+        assert ig[0] == Interval(x, 2, -2)
+
+        # Now the same but with IterationSpaces
+        ispace0 = IterationSpace(ig0)
+        ispace1 = IterationSpace(ig1)
+
+        ispace = IterationSpace.intersection(ispace0, ispace1)
+
+        assert len(ispace) == 1
+        assert ispace.intervals == ig
 
 
 class TestDependenceAnalysis:
