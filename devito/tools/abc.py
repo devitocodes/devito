@@ -2,8 +2,8 @@ import abc
 from concurrent.futures import Future
 from hashlib import sha1
 from threading import RLock
-from typing import Callable, Generic, Hashable, TypeVar
-from weakref import ReferenceType, ref
+from typing import Generic, Hashable, TypeVar
+from weakref import ref, ReferenceType
 import weakref
 
 
@@ -289,82 +289,105 @@ class Stamp:
     __str__ = __repr__
 
 
-KeyType = TypeVar('KeyType', bound=Hashable)
-ValueType = TypeVar('ValueType', covariant=True)
+# Cached instance type for `WeakValueCache` (not covariant to avoid weird init logic)
+ValueType = TypeVar('ValueType')
 
 
-class WeakValueCache(Generic[KeyType, ValueType]):
+class WeakValueCache(Generic[ValueType]):
     """
-    A thread-safe cache that stores weak references to values, evicting entries when
-    they are no longer reachable. Any thread querying for a key that's currently being
-    constructed will block until the value is available.
+    A thread-safe cache that stores weak references to instances of a certain type,
+    evicting entries when they are no longer reachable.
 
-    This ensures safe concurrent access while still allowing threaded construction,
-    with the trade-off of the extra overhead of callbacks for each value.
-
-    For simplicity, this class doesn't implement the full `MutableMapping` interface.
+    Any thread querying with construction arguments that match an existing instance
+    will receive the cached value; if another thread is currently constructing that
+    value, the query thread will block until it's available. This ensures safe
+    concurrent access while still allowing for threaded construction.
     """
 
-    def __init__(self):
-        self._futures: dict[KeyType, Future[ReferenceType[ValueType]]] = {}
+    def __init__(self, cls: type[ValueType]):
+        self._cls = cls
+        self._futures: dict[int, Future[ReferenceType[ValueType]]] = {}
         self._lock = RLock()
 
-    def get_or_create(self, key: KeyType,
-                      supplier: Callable[[], ValueType]) -> ValueType:
+    def _make_key(self, *args: Hashable, **kwargs: Hashable) -> int:
+        return hash((*args, frozenset(kwargs.items())))
+
+    def _create_instance(self, *args: Hashable, **kwargs: Hashable) -> ValueType:
+        if self._cls is object.__new__:
+            # If the constructor is object's __new__, we cannot pass any arguments
+            obj = self._cls()
+        else:
+            # Otherwise, forward all construction arguments
+            obj = self._cls(*args, **kwargs)
+
+        # Initialize the object so it's ready for consuming threads
+        obj.__init__(*args, **kwargs)
+
+        return obj
+
+    def get_or_create(self, *args: Hashable, **kwargs: Hashable) -> ValueType:
         """
-        Gets the value for `key`, or creates it with `supplier` if it doesn't exist.
-        If another thread is already creating the value, blocks until it's available.
+        Gets an instance for the given construction arguments, creating it on this thread
+        if it doesn't exist. If another thread is currently constructing it, blocks until
+        the instance is available.
         """
-        while True:
-            future = self._futures.get(key, None)
-            if future is not None:
-                # Block until the object is available
-                obj_ref = future.result()
-                obj = obj_ref()
+        key = self._make_key(*args, **kwargs)
+        future = self._futures.get(key, None)
+        if future is not None:
+            # Block until the object is available
+            obj_ref = future.result()
+            obj = obj_ref()
 
-                if obj is None:
-                    # The object was garbage collected but future has yet to be cleared
-                    continue
+            if obj is None:
+                # The object was garbage collected but future has yet to be cleared
+                return self.get_or_create(*args, **kwargs)  # Retry to create
 
-                # The object is available
-                return obj
+            # The object is available
+            return obj
 
-            with self._lock:
-                # Check that another thread hasn't created the future while we spun
-                future = self._futures.get(key, None)
-                if future is not None:
-                    continue
+        # Don't use a context manager; we need to release before the recursive call
+        self._lock.acquire()
 
-                # This thread will supply the value
-                future: Future[ReferenceType[ValueType]] = Future()
-                self._futures[key] = future
+        # Check that another thread hasn't created the future while we spun
+        future = self._futures.get(key, None)
+        if future is not None:
+            # Release the lock and retry to retrieve the existing future
+            self._lock.release()
+            return self.get_or_create(*args, **kwargs)
 
-            # Perform construction outside the lock to avoid blocking other threads
-            try:
-                obj = supplier()
+        # This thread will supply the value
+        future: Future[ReferenceType[ValueType]] = Future()
+        self._futures[key] = future
 
-                # Listener for when the weak reference expires
-                def on_obj_destroyed(k: KeyType = key,
-                                     f: Future[ReferenceType[ValueType]] = future) \
-                        -> None:
-                    with self._lock:
-                        if self._futures.get(k, None) is f:
-                            del self._futures[k]
+        # Release the lock to allow for concurrent construction
+        self._lock.release()
 
-                # Register the callback and store a weak reference in the new future
-                weakref.finalize(obj, on_obj_destroyed)
-                future.set_result(ref(obj))
+        # Perform construction outside the lock to avoid blocking other threads
+        try:
+            obj = self._create_instance(*args, **kwargs)
 
-                return obj
-
-            except Exception as e:
-                # If the supplier failed, clean up the future and re-raise
+            # Listener for when the weak reference expires
+            def on_obj_destroyed(k: int = key,
+                                    f: Future[ReferenceType[ValueType]] = future) \
+                    -> None:
                 with self._lock:
-                    if self._futures.get(key) is future:
-                        del self._futures[key]
+                    if self._futures.get(k, None) is f:
+                        del self._futures[k]
 
-                future.set_exception(e)
-                raise e from None
+            # Register the callback and store a weak reference in the new future
+            weakref.finalize(obj, on_obj_destroyed)
+            future.set_result(ref(obj))
+
+            return obj
+
+        except Exception as e:
+            # If the supplier failed, clean up the future and re-raise
+            with self._lock:
+                if self._futures.get(key) is future:
+                    del self._futures[key]
+
+            future.set_exception(e)
+            raise e from None
 
     def clear(self):
         """
