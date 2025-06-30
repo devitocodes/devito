@@ -198,8 +198,13 @@ def _memoized_instances(cls: type[InstanceType]) -> type[InstanceType]:
         init(self, *args, **kwargs)
         self._memoized_instances__initialized = True
 
-    # Update the class's __new__ and __init__ methods
+    def _copy(self: InstanceType) -> InstanceType:
+        # Copy should just return the cached instance; bypass the cache machinery
+        return self
+
+    # Update the class's methods
     cls.__new__ = _new
     cls.__init__ = _init
+    cls.__copy__ = _copy
 
     return cls

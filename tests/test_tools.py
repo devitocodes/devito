@@ -1,4 +1,5 @@
 from concurrent.futures import Future, ThreadPoolExecutor
+import copy
 import gc
 from threading import Barrier
 from weakref import ref
@@ -474,3 +475,22 @@ class TestMemoizedInstances:
 
         # Ensure the instances are not the same
         assert box1 is not box2
+
+    def test_copy(self):
+        """
+        Tests that copying a memoized object returns the same instance.
+        """
+
+        @_memoized_instances
+        class Box:
+            def __init__(self, value: int):
+                self.value = value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+        box1 = Box(10)
+        box2 = copy.copy(box1)
+
+        # Ensure the copied instance is the same as the original
+        assert box1 is box2
+        assert box1.value == 10
+        assert box1.init_calls == 1
