@@ -1,10 +1,10 @@
 import abc
+import weakref
 from concurrent.futures import Future
 from hashlib import sha1
 from threading import RLock
 from typing import Generic, Hashable, TypeVar
-from weakref import ref, ReferenceType
-import weakref
+from weakref import ReferenceType
 
 
 __all__ = ['Tag', 'Signer', 'Reconstructable', 'Pickable', 'Singleton', 'Stamp',
@@ -368,7 +368,7 @@ class WeakValueCache(Generic[ValueType]):
 
             # Listener for when the weak reference expires
             def on_obj_destroyed(k: int = key,
-                                    f: Future[ReferenceType[ValueType]] = future) \
+                                 f: Future[ReferenceType[ValueType]] = future) \
                     -> None:
                 with self._lock:
                     if self._futures.get(k, None) is f:
@@ -376,7 +376,7 @@ class WeakValueCache(Generic[ValueType]):
 
             # Register the callback and store a weak reference in the new future
             weakref.finalize(obj, on_obj_destroyed)
-            future.set_result(ref(obj))
+            future.set_result(weakref.ref(obj))
 
             return obj
 
