@@ -611,7 +611,7 @@ class TestDependenceAnalysis:
         """
         expr = LoweredEq(EVAL(expr, ti0.base, ti1.base, fa))
 
-        # Force innatural flow, only to stress the compiler to see if it was
+        # Force unnatural flow, only to stress the compiler to see if it is
         # capable of detecting anti-dependences
         expr.ispace._directions = frozendict({i: Forward for i in expr.ispace.directions})
 
@@ -709,7 +709,7 @@ class TestDependenceAnalysis:
         exprs = [LoweredEq(i) for i in EVAL(exprs, ti0.base, ti1.base, ti3.base, fa)]
         expected = [tuple(i.split(',')) for i in expected]
 
-        # Force innatural flow, only to stress the compiler to see if it was
+        # Force unnatural flow, only to stress the compiler to see if it is
         # capable of detecting anti-dependences
         for i in exprs:
             i.ispace._directions = frozendict({i: Forward for i in i.ispace.directions})
