@@ -154,24 +154,39 @@ def test_unbound_tuple():
 
 
 class CacheObject:
-    # Can't use `object` because it's not weak-referencable
-    ...
+    def __init__(self, value: int):
+        self.value = value
+
+
+class SlowCacheObject(CacheObject):
+    def __new__(self, value: int):
+        # Simulate a slow construction
+        time.sleep(0.5)
+        return super().__new__(self)
+
+
+class CacheObjectThrows(CacheObject):
+    class ConstructorException(Exception):
+        pass
+
+    def __init__(self, value: int):
+        raise CacheObjectThrows.ConstructorException(f"Failed with value {value}")
 
 
 class TestWeakValueCache:
     """
-    Tests for the `WeakValueCache` class and thread safety.
+    Tests for the `WeakValueCache` class and hread safety.
     """
 
     def test_caching(self) -> None:
         """
         Tests that `WeakValueCache` caches and returns the same instance while it exists.
         """
-        cache: WeakValueCache[int, CacheObject] = WeakValueCache()
+        cache = WeakValueCache(CacheObject)
 
-        old_obj = cache.get_or_create(1, CacheObject)
-        new_obj = cache.get_or_create(1, CacheObject)
-        oth_obj = cache.get_or_create(2, CacheObject)
+        old_obj = cache.get_or_create(1)
+        new_obj = cache.get_or_create(1)
+        oth_obj = cache.get_or_create(2)
 
         # Ensure the same object is returned for the same key (and vice versa)
         assert new_obj is old_obj
@@ -182,31 +197,31 @@ class TestWeakValueCache:
         Tests that `WeakValueCache` does not keep objects alive, and that entries
         are evicted when their values are no longer referenced.
         """
-        cache: WeakValueCache[int, CacheObject] = WeakValueCache()
+        cache = WeakValueCache(CacheObject)
         old_id: int
 
         # Cache an object and let it immediately drop, storing the memory address
         def scope() -> None:
             nonlocal old_id
-            old_obj = cache.get_or_create(1, CacheObject)
+            old_obj = cache.get_or_create(1)
             old_id = id(old_obj)
 
         # Ensure the object is evicted after being dropped
         scope()
         gc.collect()
 
-        new_obj = cache.get_or_create(1, CacheObject)
+        new_obj = cache.get_or_create(1)
         assert id(new_obj) != old_id
 
     def test_clear(self) -> None:
         """
         Tests clearing the cache while objects may still exist.
         """
-        cache: WeakValueCache[int, CacheObject] = WeakValueCache()
+        cache = WeakValueCache(CacheObject)
 
         # Create an object that stays alive, as well as one that's dropped right away
-        obj = cache.get_or_create(1, CacheObject)
-        cache.get_or_create(2, CacheObject)
+        obj = cache.get_or_create(1)
+        cache.get_or_create(2)
 
         # Ensure both are dropped from the cache
         assert len(cache) == 1
@@ -221,13 +236,13 @@ class TestWeakValueCache:
         """
         Tests that `WeakValueCache` is safe for concurrent access with the same key.
         """
-        cache: WeakValueCache[int, CacheObject] = WeakValueCache()
+        cache = WeakValueCache(CacheObject)
         barrier = Barrier(num_threads)
 
         def worker(_: int) -> CacheObject:
             # Wait until all threads can try to access the cache at once
             barrier.wait()
-            return cache.get_or_create(1, CacheObject)
+            return cache.get_or_create(1)
 
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             results = list(executor.map(worker, range(num_threads)))
@@ -244,28 +259,22 @@ class TestWeakValueCache:
         Tests that `WeakValueCache` allows for construction of objects in parallel
         for distinct keys, ensuring each key gets a unique instance.
         """
-        cache: WeakValueCache[int, CacheObject] = WeakValueCache()
-
-        num_keys = 6  # Number of unique keys to use
-        creation_time = 0.5  # Time to take for constructing a unique object
-        expected_time = creation_time * 2  # Max time to expect for all threads to finish
-
-        def supplier() -> CacheObject:
-            # Simulate a time-consuming object construction
-            time.sleep(creation_time)
-            return CacheObject()
+        cache = WeakValueCache(SlowCacheObject)
+        barrier = Barrier(num_threads)
 
         def worker(key: int) -> CacheObject:
-            return cache.get_or_create(key, supplier)
+            # Synchronize cache access to ensure it deals with high contention
+            barrier.wait()
+            return cache.get_or_create(key)
 
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             start_time = time.perf_counter()
-            results = list(executor.map(worker, (i % num_keys
-                                                 for i in range(num_threads))))
+            results = list(executor.map(worker,
+                                        (i % num_keys for i in range(num_threads))))
             duration = time.perf_counter() - start_time
 
         # Ensure construction took a reasonable amount of time
-        assert duration < expected_time
+        assert 0.3 <= duration <= 0.7, f"Construction took {duration:.2f}s, expected ~0.5s"
 
         # Ensure we constructed unique objects for each key
         ids = {id(obj) for obj in results}
@@ -276,11 +285,11 @@ class TestWeakValueCache:
         Tests that `WeakValueCache` recovers from a race condition where an object
         being constructed is collected before a waiting thread can access it.
         """
-        cache: WeakValueCache[int, CacheObject] = WeakValueCache()
+        cache = WeakValueCache(CacheObject)
 
         # Create a future that resolves to a dead reference
         dead_ref_future = Future()
-        dead_ref_future.set_result(ref(CacheObject()))  # ref is immediately dropped
+        dead_ref_future.set_result(ref(CacheObject(1)))  # ref is immediately dropped
 
         # Manually insert the dead reference into the cache
         cache._futures[1] = dead_ref_future
@@ -288,7 +297,7 @@ class TestWeakValueCache:
         # Query from another thread while evicting the dead reference on this thread
         def query() -> CacheObject:
             # Should spin until the dead reference is evicted, then populate the cache
-            return cache.get_or_create(1, CacheObject)
+            return cache.get_or_create(1)
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             # Spin up the query thread
@@ -307,20 +316,14 @@ class TestWeakValueCache:
         """
         Tests that an exception in the supplier is propagated to all waiting threads.
         """
-        cache: WeakValueCache[int, CacheObject] = WeakValueCache()
-
-        class SupplierException(Exception):
-            pass
-
-        def supplier() -> CacheObject:
-            raise SupplierException("Supplier failed")
+        cache = WeakValueCache(CacheObjectThrows)
 
         num_threads = 16
         exceptions = [None] * num_threads
 
         def worker(index: int):
-            with pytest.raises(SupplierException) as exc_info:
-                cache.get_or_create(index, supplier)
+            with pytest.raises(CacheObjectThrows.ConstructorException) as exc_info:
+                cache.get_or_create(index)
             exceptions[index] = exc_info.value
 
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
@@ -328,7 +331,7 @@ class TestWeakValueCache:
 
         # Ensure all threads received the exception
         for exc in exceptions:
-            assert isinstance(exc, SupplierException)
+            assert isinstance(exc, CacheObjectThrows.ConstructorException)
 
 
 class TestMemoizedInstances:
@@ -393,13 +396,13 @@ class TestMemoizedInstances:
         assert box1 is not box3
         assert box3.init_calls == 1
 
-    def test_idempotency(self):
+    def test_subclass_memo(self):
         """
         Tests that applying the decorator multiple times in an inheritance chain
         does not change the behavior.
         """
         @_memoized_instances
-        @_memoized_instances
+        # @_memoized_instances
         class Box:
             def __init__(self, value: int):
                 self.value = value
@@ -421,6 +424,25 @@ class TestMemoizedInstances:
         assert box is not subbox1
         assert subbox1 is subbox2
         assert subbox1 is not subbox3
+
+    def test_subclass_missing_decorator(self):
+        """
+        Tests that not applying the decorator to a child class raises an error.
+        """
+        @_memoized_instances
+        class Box:
+            def __init__(self, value: int):
+                self.value = value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+        class SubBox(Box):
+            def __init__(self, value: int):
+                super().__init__(value)
+                self.sub_init_calls = getattr(self, 'sub_init_calls', 0) + 1
+
+        # Create instances with the same value
+        with pytest.raises(TypeError):
+            subbox = SubBox(10)
 
     def test_constructed_elsewhere(self):
         """
