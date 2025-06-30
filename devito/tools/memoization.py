@@ -146,46 +146,57 @@ def _memoized_instances(cls: type[InstanceType]) -> type[InstanceType]:
     only happens once for a cached instance.
     """
 
-    # If the decorator has already been applied (e.g. to a parent class), don't reapply
-    if getattr(cls, '__has_memoized_instances', False):
-        return cls
-    cls.__has_memoized_instances = True
+    # Check if we already decorated a parent class
+    already_applied = getattr(cls, '_memoized_instances__exists', False)
+    cls._memoized_instances__exists = True
 
-    cache: WeakValueCache[int, InstanceType] = WeakValueCache()
     new = cls.__new__
     init = cls.__init__
+    cache: WeakValueCache[InstanceType] = WeakValueCache(cls)
 
     @wraps(new)
-    def _new(cls, *args: Hashable, **kwargs: Hashable) -> InstanceType:
-        key = hash((cls, *args, frozenset(kwargs.items())))
+    def _new(_cls: type[InstanceType], *args: Hashable,
+             _memoized_instances__use_cache: bool = True,
+             **kwargs: Hashable) -> InstanceType:
+        # The decorator must be reapplied to a child class, so we make sure cls matches
+        if _memoized_instances__use_cache and _cls is not cls:
+            raise TypeError(f"_memoized_instances must be applied to {_cls.__name__}, "
+                            f"not (just) {cls.__name__}")
 
-        # We need to handle the full initialization process so that threads waiting for
-        # construction will receive the finalized instance
-        def create_instance() -> InstanceType:
-            # If the class doesn't override __new__, we can't pass it any arguments
+        # The cache called the constructor; avoid infinite recursion
+        if not _memoized_instances__use_cache:
+            # If the class doesn't define __new__, we can't pass any args
             if new is object.__new__:
-                obj = new(cls)
-            else:
-                obj = new(cls, *args, **kwargs)
+                obj = new(_cls)
 
-            # Call init so the instance will be ready for threads awaiting construction
-            init(obj, *args, **kwargs)
-            obj.__initialized = True  # Mark the instance as initialized
+            # Otherwise forward all arguments
+            else:
+                # If we applied the decorator to a parent class, forward the caching flag
+                if already_applied:
+                    kwargs['_memoized_instances__use_cache'] = False
+                obj = new(_cls, *args, **kwargs)
+
+            # Set our initialization flag and return
+            obj._memoized_instances__initialized = False
             return obj
 
-        return cache.get_or_create(key, create_instance)
+        return cache.get_or_create(*args, _memoized_instances__use_cache=False, **kwargs)
+
 
     @wraps(init)
     def _init(self: InstanceType, *args: Hashable, **kwargs: Hashable) -> None:
-        # If the instance is already initialized, skip re-initialization
-        # try/except here should be faster on the happy path than hasattr
+        # Skip reinitialization if this object was obtained from the cache
         try:
-            if self.__initialized:
+            if self._memoized_instances__initialized:
                 return
         except AttributeError:
-            # If for some reason the instance was created outside of our __new__ override
-            # we still need to initialize it here
-            init(self, *args, **kwargs)
+            # If the attribute doesn't exist, this is a new instance
+            self._memoized_instances__initialized = False
+
+        # Don't forward our extra argument to the original __init__
+        kwargs.pop('_memoized_instances__use_cache', None)
+        init(self, *args, **kwargs)
+        self._memoized_instances__initialized = True
 
     # Update the class's __new__ and __init__ methods
     cls.__new__ = _new

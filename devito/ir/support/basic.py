@@ -628,6 +628,7 @@ class Relation:
         return S.ImaginaryUnit in self.distance
 
 
+@_memoized_instances
 class Dependence(Relation):
 
     """
