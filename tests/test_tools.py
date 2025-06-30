@@ -216,13 +216,12 @@ class TestWeakValueCache:
         # Ensure the object is still alive
         assert isinstance(obj, CacheObject)
 
-    def test_safety(self) -> None:
+    @pytest.mark.parametrize('num_threads', [17, 31, 57])
+    def test_safety(self, num_threads: int) -> None:
         """
         Tests that `WeakValueCache` is safe for concurrent access with the same key.
         """
         cache: WeakValueCache[int, CacheObject] = WeakValueCache()
-
-        num_threads = 16
         barrier = Barrier(num_threads)
 
         def worker(_: int) -> CacheObject:
@@ -238,14 +237,15 @@ class TestWeakValueCache:
         assert len(ids) == 1
         assert isinstance(results[0], CacheObject)
 
-    def test_concurrent_construction(self) -> None:
+    @pytest.mark.parametrize('num_threads', [17, 31, 57])
+    @pytest.mark.parametrize('num_keys', [3, 5, 7])
+    def test_concurrent_construction(self, num_threads: int, num_keys: int) -> None:
         """
         Tests that `WeakValueCache` allows for construction of objects in parallel
         for distinct keys, ensuring each key gets a unique instance.
         """
         cache: WeakValueCache[int, CacheObject] = WeakValueCache()
 
-        num_threads = 24
         num_keys = 6  # Number of unique keys to use
         creation_time = 0.5  # Time to take for constructing a unique object
         expected_time = creation_time * 2  # Max time to expect for all threads to finish
