@@ -182,7 +182,6 @@ def _memoized_instances(cls: type[InstanceType]) -> type[InstanceType]:
 
         return cache.get_or_create(*args, _memoized_instances__use_cache=False, **kwargs)
 
-
     @wraps(init)
     def _init(self: InstanceType, *args: Hashable, **kwargs: Hashable) -> None:
         # Skip reinitialization if this object was obtained from the cache

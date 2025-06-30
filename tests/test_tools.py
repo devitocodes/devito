@@ -275,7 +275,7 @@ class TestWeakValueCache:
             duration = time.perf_counter() - start_time
 
         # Ensure construction took a reasonable amount of time
-        assert 0.3 <= duration <= 0.7, f"Construction took {duration:.2f}s, expected ~0.5s"
+        assert .3 <= duration <= .7, f"Construction took {duration:.2f}s, expected ~0.5s"
 
         # Ensure we constructed unique objects for each key
         ids = {id(obj) for obj in results}
@@ -443,7 +443,7 @@ class TestMemoizedInstances:
 
         # Create instances with the same value
         with pytest.raises(TypeError):
-            subbox = SubBox(10)
+            SubBox(10)
 
     def test_constructed_elsewhere(self):
         """
