@@ -332,52 +332,48 @@ class WeakValueCache(Generic[ValueType]):
         the instance is available.
         """
         key = self._make_key(*args, **kwargs)
-        future = self._futures.get(key, None)
-        if future is not None:
-            # Block until the object is available
-            obj_ref = future.result()
-            obj = obj_ref()
+        future: Future[ReferenceType[ValueType]]
 
+        while True:
+            with self._lock:
+                future = self._futures.get(key, None)
+                if future is None:
+                    # This thread will construct the instance
+                    future = Future()
+                    self._futures[key] = future
+
+                    # We'll proceed with construction outside the loop
+                    break
+
+            # If we got to here, another thread is constructing the instance (or has
+            # already done so), so block until the result is available
+            _ref = future.result()
+            obj = _ref()
+
+            # If the object has been garbage collected, retry to acquire or create it
             if obj is None:
-                # The object was garbage collected but future has yet to be cleared
-                return self.get_or_create(*args, **kwargs)  # Retry to create
+                continue
 
-            # The object is available
+            # Otherwise the object is available; return it
             return obj
 
-        # Don't use a context manager; we need to release before the recursive call
-        self._lock.acquire()
-
-        # Check that another thread hasn't created the future while we spun
-        future = self._futures.get(key, None)
-        if future is not None:
-            # Release the lock and retry to retrieve the existing future
-            self._lock.release()
-            return self.get_or_create(*args, **kwargs)
-
-        # This thread will supply the value
-        future: Future[ReferenceType[ValueType]] = Future()
-        self._futures[key] = future
-
-        # Release the lock to allow for concurrent construction
-        self._lock.release()
-
-        # Perform construction outside the lock to avoid blocking other threads
+        # If we got here, this is the thread that will create the new instance
+        # Do this outside the lock to allow for concurrent construction
         try:
             obj = self._create_instance(*args, **kwargs)
 
             # Listener for when the weak reference expires
             def on_obj_destroyed(k: int = key,
-                                 f: Future[ReferenceType[ValueType]] = future) \
-                    -> None:
+                                 f: Future[ReferenceType[ValueType]] = future) -> None:
                 with self._lock:
                     if self._futures.get(k, None) is f:
                         del self._futures[k]
 
-            # Register the callback and store a weak reference in the new future
+            # Register the finalizer and store a weak reference in the future we cached
             weakref.finalize(obj, on_obj_destroyed)
             future.set_result(weakref.ref(obj))
 
+            # Return the newly created object
             return obj
 
         except Exception as e:
