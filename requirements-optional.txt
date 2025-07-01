@@ -1,5 +1,5 @@
 matplotlib<3.10.4
-pillow>11,<11.2.2
+pillow>11,<11.3.1
 pyrevolve==2.2.5
 scipy<1.15.4
 distributed<2025.5.2
