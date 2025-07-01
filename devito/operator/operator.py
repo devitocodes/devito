@@ -769,6 +769,10 @@ class Operator(Callable):
         return self._Target.Printer
 
     @cached_property
+    def description(self):
+        return f"Devito generated code for Operator `{self.name}`"
+
+    @cached_property
     def headers(self):
         return OrderedSet(*self._printer._headers).union(self._headers)
 

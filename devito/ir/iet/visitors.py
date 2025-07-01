@@ -671,6 +671,17 @@ class CGen(Visitor):
         return c.Statement(f'{o.name}{templates}<<<{launch_config}>>>({arguments})')
 
     # Operator-handle machinery
+    def _operator_description(self, o):
+        """
+        Generate cgen description from an iterable of symbols and expressions.
+        """
+        if o.description:
+            if isinstance(o.description, str):
+                return [c.Comment(o.description), blankline]
+            elif isinstance(o.description, Iterable):
+                return [c.MultilineComment(o.description), blankline]
+        else:
+            return [c.Comment("Devito generated operator"), blankline]
 
     def _operator_includes(self, o):
         """
@@ -752,6 +763,9 @@ class CGen(Visitor):
             esigns.append(self._gen_signature(i, is_declaration=True))
             efuncs.extend([self._visit(i), blankline])
 
+        # Top description
+        description = self._operator_description(o)
+
         # Definitions
         headers = self._operator_headers(o)
 
@@ -772,8 +786,8 @@ class CGen(Visitor):
         if globs:
             globs.append(blankline)
 
-        return c.Module(headers + includes + namespaces + typedecls + globs +
-                        esigns + [blankline, kernel] + efuncs)
+        return c.Module(description + headers + includes + namespaces + typedecls
+                        + globs + esigns + [blankline, kernel] + efuncs)
 
 
 class CInterface(CGen):
