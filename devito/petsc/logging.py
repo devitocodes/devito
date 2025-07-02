@@ -1,9 +1,8 @@
 from collections import namedtuple, OrderedDict
-from devito.operator.profiling import PerformanceSummary
 from devito.petsc.iet.logging import PetscInfo
 
 
-class PetscSummary(PerformanceSummary):
+class PetscSummary(OrderedDict):
     """
     A summary of PETSc statistics collected for all solver runs
     associated with a single operator during execution.
@@ -21,6 +20,7 @@ class PetscSummary(PerformanceSummary):
 
         # Dynamically create a property on this class for each PETSc function
         self._add_properties(functions)
+        self._functions = functions
 
         # Initialize the summary by adding PETSc information
         # from each PetscInfo object (each corresponding to
@@ -83,7 +83,7 @@ class PetscSummary(PerformanceSummary):
                 f" options_prefix='{options_prefix}'"
             )
         return self[key]
-
+    
 
 def petsc_summary(params):
     petscinfos = [i for i in params if isinstance(i, PetscInfo)]
