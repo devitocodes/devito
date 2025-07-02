@@ -1300,7 +1300,11 @@ class ArgumentsMap(dict):
                     continue
                 try:
                     if i._mem_mapped:
-                        mapper[device_layer] -= i.nbytes
+                        try:
+                            v = self[i.name]._obj.nbytes
+                        except AttributeError:
+                            v = i.nbytes
+                        mapper[device_layer] -= v
                 except AttributeError:
                     pass
 
