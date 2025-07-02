@@ -1112,6 +1112,8 @@ class Operator(Callable):
     def _emit_language_info(self):
         if self._language == 'petsc':
             return petsc_summary(self.parameters)
+        else:
+            return None
 
     # Pickling support
 
