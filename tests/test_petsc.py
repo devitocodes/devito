@@ -1420,10 +1420,17 @@ class TestLogging:
         assert entry.SNESGetIterationNumber == 1
 
         # Check the OrderedDict for a specific PETSc call
-        snesiters = petsc_summary.SNESGetIterationNumber
-        assert isinstance(snesiters, OrderedDict)
-        assert len(snesiters) == 1
-        key, value = next(iter(snesiters.items()))
+        snesiters0 = petsc_summary.SNESGetIterationNumber
+        # Check case insensitive key access
+        snesiters1 = petsc_summary['SNESGetIterationNumber']
+        snesiters2 = petsc_summary['snesgetiterationnumber']
+        snesiters3 = petsc_summary['SNESgetiterationNumber']
+        # They should all be equal
+        assert snesiters0 == snesiters1 == snesiters2 == snesiters3
+    
+        assert isinstance(snesiters0, OrderedDict)
+        assert len(snesiters0) == 1
+        key, value = next(iter(snesiters0.items()))
         assert str(key) == "PetscKey(name='section0', options_prefix='poisson')"
         assert value == 1
 

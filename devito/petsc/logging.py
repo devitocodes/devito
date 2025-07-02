@@ -18,6 +18,7 @@ class PetscSummary(OrderedDict):
         for i in petscinfos:
             functions.update(i.function_mapper.keys())
 
+        self._property_name_map = {}
         # Dynamically create a property on this class for each PETSc function
         self._add_properties(functions)
         self._functions = functions
@@ -69,6 +70,7 @@ class PetscSummary(OrderedDict):
         for f in functions:
             # Inject the new property onto the class itself
             setattr(self.__class__, f, make_property(f))
+            self._property_name_map[f.lower()] = f
 
     def get_entry(self, name, options_prefix=None):
         """
@@ -84,6 +86,16 @@ class PetscSummary(OrderedDict):
             )
         return self[key]
     
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            # Original corresponds to the actual PETSc function name
+            original = self._property_name_map.get(key.lower())
+            if original:
+                return getattr(self, original)
+            raise KeyError(f"No PETSc function named '{key}'")
+        else:
+            return super().__getitem__(key)
+
 
 def petsc_summary(params):
     petscinfos = [i for i in params if isinstance(i, PetscInfo)]
