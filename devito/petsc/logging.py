@@ -85,16 +85,29 @@ class PetscSummary(OrderedDict):
                 f" options_prefix='{options_prefix}'"
             )
         return self[key]
-    
+
     def __getitem__(self, key):
         if isinstance(key, str):
-            # Original corresponds to the actual PETSc function name
+            # Allow case insensitive key access
             original = self._property_name_map.get(key.lower())
             if original:
                 return getattr(self, original)
             raise KeyError(f"No PETSc function named '{key}'")
+        elif isinstance(key, tuple) and len(key) == 2:
+            # Allow tuple keys (name, options_prefix)
+            key = self.PetscKey(*key)
+            return super().__getitem__(key)
         else:
             return super().__getitem__(key)
+
+    def __getattr__(self, name):
+        """
+        Allow case insensitive attribute access.
+        """
+        original = self._property_name_map.get(name.lower())
+        if original:
+            return getattr(self, original)
+        raise AttributeError(f"No attribute named '{name}'")
 
 
 def petsc_summary(params):

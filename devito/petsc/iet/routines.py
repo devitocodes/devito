@@ -1069,7 +1069,7 @@ class BaseObjectBuilder:
         targets = self.fielddata.targets
 
         snes_name = sreg.make_name(prefix='snes')
-        options_prefix = self.injectsolve.expr.rhs.options_prefix or snes_name
+        options_prefix = self.injectsolve.expr.rhs.options_prefix
 
         base_dict = {
             'Jac': Mat(sreg.make_name(prefix='J')),
@@ -1083,7 +1083,7 @@ class BaseObjectBuilder:
             'localsize': PetscInt(sreg.make_name(prefix='localsize')),
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
-            'snesprefix': String(options_prefix+'_'),
+            'snesprefix': String((options_prefix or '') + '_'),
             'options_prefix': options_prefix,
         }
         base_dict['comm'] = self.comm
@@ -1246,7 +1246,7 @@ class BaseSetup:
 
         snes_options_prefix = petsc_call(
             'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
-        )
+        ) if sobjs['options_prefix'] else None
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
@@ -1422,14 +1422,13 @@ class CoupledSetup(BaseSetup):
         sobjs = self.solver_objs
 
         dmda = sobjs['dmda']
-
         solver_params = self.injectsolve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
         snes_options_prefix = petsc_call(
             'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
-        )
+        ) if sobjs['options_prefix'] else None
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 

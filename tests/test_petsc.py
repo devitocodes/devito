@@ -1413,21 +1413,26 @@ class TestLogging:
         # One section with a single solver
         assert len(petsc_summary) == 1
 
-        entry = petsc_summary.get_entry('section0', 'poisson')
-        assert str(entry) == \
+        entry0 = petsc_summary.get_entry('section0', 'poisson')
+        entry1 = petsc_summary[('section0', 'poisson')]
+        assert entry0 == entry1
+        assert str(entry0) == \
             'PetscEntry(KSPGetIterationNumber=16, SNESGetIterationNumber=1)'
 
-        assert entry.SNESGetIterationNumber == 1
+        assert entry0.SNESGetIterationNumber == 1
 
-        # Check the OrderedDict for a specific PETSc call
+        # Check case insensitive access
         snesiters0 = petsc_summary.SNESGetIterationNumber
-        # Check case insensitive key access
-        snesiters1 = petsc_summary['SNESGetIterationNumber']
-        snesiters2 = petsc_summary['snesgetiterationnumber']
-        snesiters3 = petsc_summary['SNESgetiterationNumber']
+        snesiters1 = petsc_summary.snesgetiterationnumber
+        snesiters2 = petsc_summary.SNESgetiterationNumber
+
+        snesiters3 = petsc_summary['SNESGetIterationNumber']
+        snesiters4 = petsc_summary['snesgetiterationnumber']
+        snesiters5 = petsc_summary['SNESgetiterationNumber']
         # They should all be equal
-        assert snesiters0 == snesiters1 == snesiters2 == snesiters3
-    
+        assert snesiters0 == snesiters1 == snesiters2 == \
+            snesiters3 == snesiters4 == snesiters5
+
         assert isinstance(snesiters0, OrderedDict)
         assert len(snesiters0) == 1
         key, value = next(iter(snesiters0.items()))
