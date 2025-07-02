@@ -42,7 +42,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt install mpich -y
         pip3 install --upgrade pip
-        pip3 install -e .[extras,mpi,tests]
+        pip3 install -e ".[extras,mpi,tests]" --no-binary=mpi4py
 
     - name: Test with pytest
       run: |
