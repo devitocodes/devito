@@ -1,10 +1,12 @@
 from ctypes import POINTER, c_char
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
-                          TimeDimension, ArrayObject, CustomDimension)
+                          TimeDimension, ArrayObject, CustomDimension,
+                          CompositeObject)
 from devito.symbolics import Byref, cast
 from devito.types.basic import DataSymbol
 from devito.petsc.iet.utils import petsc_call
+from devito.petsc.utils import petsc_type_mappings
 
 
 class PetscMixin:
@@ -293,6 +295,43 @@ class ArgvSymbol(DataSymbol):
     @property
     def _C_ctype(self):
         return POINTER(POINTER(c_char))
+
+
+class PetscInfo(CompositeObject):
+
+    __rargs__ = ('name', 'pname', 'logobjs', 'sobjs', 'section_mapper',
+                 'injectsolve', 'function_mapper')
+
+    def __init__(self, name, pname, logobjs, sobjs, section_mapper,
+                 injectsolve, function_mapper):
+
+        self.logobjs = logobjs
+        self.sobjs = sobjs
+        self.section_mapper = section_mapper
+        self.injectsolve = injectsolve
+        self.function_mapper = function_mapper
+
+        mapper = {v: k for k, v in petsc_type_mappings.items()}
+        fields = [(str(i), mapper[str(i._C_ctype)]) for i in logobjs.values()]
+        super().__init__(name, pname, fields)
+
+    @property
+    def section(self):
+        section = self.section_mapper.items()
+        return next((k[0].name for k, v in section if self.injectsolve in v), None)
+
+    @property
+    def summary_key(self):
+        return (self.section, self.sobjs['options_prefix'])
+
+    def __getattr__(self, attr):
+        mapper = self.function_mapper
+        if attr in mapper:
+            key = mapper[attr][0]
+            if key in self.logobjs:
+                return getattr(self.value._obj, self.logobjs[key].name)
+            raise AttributeError(f"{attr} not found in logobjs")
+        raise AttributeError(f"{attr} not found")
 
 
 FREE_PRIORITY = {

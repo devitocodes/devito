@@ -12,7 +12,7 @@ from devito.petsc.types.equation import EssentialBC
 __all__ = ['PETScSolve']
 
 
-def PETScSolve(target_exprs, target=None, solver_parameters=None):
+def PETScSolve(target_exprs, target=None, solver_parameters=None, options_prefix=None):
     """
     Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
@@ -51,16 +51,21 @@ def PETScSolve(target_exprs, target=None, solver_parameters=None):
         This can be passed directly to a Devito Operator.
     """
     if target is not None:
-        return InjectSolve(solver_parameters, {target: target_exprs}).build_expr()
+        return InjectSolve(
+            solver_parameters, {target: target_exprs}, options_prefix
+        ).build_expr()
     else:
-        return InjectMixedSolve(solver_parameters, target_exprs).build_expr()
+        return InjectMixedSolve(
+            solver_parameters, target_exprs, options_prefix
+        ).build_expr()
 
 
 class InjectSolve:
-    def __init__(self, solver_parameters=None, target_exprs=None):
+    def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None):
         self.solver_params = solver_parameters
         self.time_mapper = None
         self.target_exprs = target_exprs
+        self.options_prefix = options_prefix
 
     def build_expr(self):
         target, funcs, fielddata = self.linear_solve_args()
@@ -71,7 +76,8 @@ class InjectSolve:
             self.solver_params,
             fielddata=fielddata,
             time_mapper=self.time_mapper,
-            localinfo=localinfo
+            localinfo=localinfo,
+            options_prefix=self.options_prefix
         )
         return PetscEq(target, linear_solve)
 
