@@ -7,10 +7,10 @@ from devito import Eq, Function, Grid, Operator, TimeFunction, solve
 from devito.timestepping.superstep import superstep_generator
 
 # Parameters
-## Spatial
+# Spatial
 shape = (501, )
 pad = (0, )
-origin= (0, )
+origin = (0, )
 extent = (1, )
 # Time
 t0 = 0
@@ -22,10 +22,12 @@ sigma_sq = 0.005
 ylim = np.ceil(1/np.sqrt(2*np.pi*sigma_sq))
 xlim = (0, 1)
 
+
 def gaussian(x, mu=0, sigma_sq=1):
     ''' Generate a Gaussian initial condition
     '''
     return np.exp(-((x - mu)**2)/(2*sigma_sq))/(np.sqrt(2*np.pi*sigma_sq))
+
 
 def wave_on_string(step=1):
     grid = Grid(shape=shape, extent=extent)
@@ -69,6 +71,7 @@ def wave_on_string(step=1):
 
     idx = tn % 3
     return newu.data[idx]
+
 
 if __name__ == '__main__':
     fig, ax = plt.subplots(1, 1)

@@ -10,10 +10,11 @@ from devito.timestepping.superstep import superstep_generator
 def gaussian2d(xx, yy, mu=0, sigma_sq=1):
     return np.exp(-((xx - mu)**2 + (yy - mu)**2)/(2*sigma_sq))/(np.sqrt(2*np.pi*sigma_sq))
 
+
 # Spatial Domain
 shape = (101, 101)
 origin = (0., 0.)
-extent = (1000, 1000) # 1kmx1km
+extent = (1000, 1000)  # 1kmx1km
 # Time Domain
 t0 = 0
 t1 = 0.5
@@ -35,8 +36,7 @@ def ripple_on_pond(step=1, snapshots=1):
 
     u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
 
-    # The source/sink terms are injected in after the fact (???)
-    pde = (1/velocity**2)*u.dt2 - u.laplace # + damp*u.dt
+    pde = (1/velocity**2)*u.dt2 - u.laplace
     stencil = Eq(u.forward, solve(pde, u.forward))
 
     # Initial condition
@@ -82,6 +82,7 @@ def ripple_on_pond(step=1, snapshots=1):
 
     return u_save.data
 
+
 if __name__ == '__main__':
     # Supersteps
     k = [1, 3, 4]
@@ -111,4 +112,3 @@ if __name__ == '__main__':
         hspace=0.06
     )
     plt.show()
-
