@@ -23,8 +23,8 @@ class BaseLogger:
         self.section_mapper = kwargs.get('section_mapper', {})
         self.injectsolve = kwargs.get('injectsolve', None)
 
-        name = self.sreg.make_name(prefix='solverinfo')
-        pname = self.sreg.make_name(prefix='petscstats')
+        name = self.sreg.make_name(prefix='petscinfo')
+        pname = self.sreg.make_name(prefix='petscprofiler')
 
         self.statstruct = PetscInfo(
             name, pname, self.logobjs, self.sobjs,
