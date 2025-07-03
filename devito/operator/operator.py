@@ -649,6 +649,9 @@ class Operator(Callable):
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 
+        # TODO: Want to be able to simply stop at this stage and get
+        # the ArgumentsMap for processing
+
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
@@ -1307,6 +1310,27 @@ class ArgumentsMap(dict):
             nproc = 1
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
+        for layer, consumed in zip((host_layer, device_layer), self.nbytes_consumed):
+            mapper[layer] -= consumed
+
+        mapper = {k: int(v) for k, v in mapper.items()}
+
+        return mapper
+
+    # TODO: This will want some suitable tests in due course
+    @cached_property
+    def nbytes_consumed(self):
+        consumed_host, consumed_device = self.nbytes_consumed_heap
+        return consumed_host, consumed_device + self.nbytes_consumed_memmapped
+
+    @cached_property
+    def nbytes_consumed_heap(self):
+        """
+        Memory consumed on both device and host by the corresponding operator.
+        """
+        host_layer = 0
+        device_layer = 0
+
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
         for i in FindSymbols().visit(self.op):
@@ -1323,17 +1347,26 @@ class ArgumentsMap(dict):
                 continue
 
             if i._mem_host:
-                mapper[host_layer] -= v
+                host_layer += v
             elif i._mem_local:
                 if isinstance(self.platform, Device):
-                    mapper[device_layer] -= v
+                    device_layer += v
                 else:
-                    mapper[host_layer] -= v
+                    host_layer += v
             elif i._mem_mapped:
                 if isinstance(self.platform, Device):
-                    mapper[device_layer] -= v
-                mapper[host_layer] -= v
+                    device_layer += v
+                host_layer += v
 
+        return host_layer, device_layer
+
+    @cached_property
+    def nbytes_consumed_memmapped(self):
+        """
+        Memory also consumed on device by data which is to be memcpy-d
+        from host to device at the start of computation.
+        """
+        device_layer = 0
         # All input Functions are yet to be memcpy-ed to the device
         # TODO: this may not be true depending on `devicerm`, which is however
         # virtually never used
@@ -1347,13 +1380,11 @@ class ArgumentsMap(dict):
                             v = self[i.name]._obj.nbytes
                         except AttributeError:
                             v = i.nbytes
-                        mapper[device_layer] -= v
+                        device_layer += v
                 except AttributeError:
                     pass
 
-        mapper = {k: int(v) for k, v in mapper.items()}
-
-        return mapper
+        return device_layer
 
 
 def parse_kwargs(**kwargs):
