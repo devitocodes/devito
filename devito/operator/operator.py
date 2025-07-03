@@ -872,28 +872,46 @@ class Operator(Callable):
         # Build the arguments list for which to get the memory consumption
         # This is so that the estimate will factor in overrides
         args = self.arguments(**kwargs)
-        mem = args.nbytes_avail_mapper
+        mem = args.nbytes_consumed
 
         if human_readable:
-            # TODO: Fill real values in here
-            # TODO: Format these values to have 3 digits and suitable units
+            def fancy_units(v):
+                """
+                Automatically format an integer number of bytes
+                to KB, MB, GB, and so forth.
+                """
+                width = 10
+                units = {0: "B ", 1: "KB", 2: "MB", 3: "GB"}
+
+                if v == 0:
+                    return "0B".center(width)
+
+                key = int(np.log2(v)/10)
+                unit = units.get(key, "TB")
+                val = v/(2**(10*key))
+
+                return f"{val:.4g}{unit}".center(10)
 
             headline = f"Memory consumption for operator `{self.name}`:"
-            # Table is 28 characters wide
-            lpad = " "*((len(headline) - 28) // 2)
+            w = len(headline)
+            fdisk = fancy_units(mem[disk_layer])
+            fhost = fancy_units(mem[host_layer])
+            fdevice = fancy_units(mem[device_layer])
+
             info(
                 "\n"
                 f"{headline}\n"
-                f"{lpad}┌────────┬────────┬────────┐\n"
-                f"{lpad}│  Disk  │  Host  │ Device │\n"
-                f"{lpad}├────────┼────────┼────────┤\n"
-                f"{lpad}│   1    │   2    │   3    │\n"
-                f"{lpad}└────────┴────────┴────────┘\n"
+                f"{'┌──────────┬──────────┬──────────┐'.center(w)}\n"
+                f"{'│   Disk   │   Host   │  Device  │'.center(w)}\n"
+                f"{'├──────────┼──────────┼──────────┤'.center(w)}\n"
+                f"{f'│{fdisk}│{fhost}│{fdevice}│'.center(w)}\n"
+                f"{'└──────────┴──────────┴──────────┘'.center(w)}\n"
             )
+
+            # TODO: add hinting if the specified operator won't fit
+
         else:
             info(f"{self.name} {mem[disk_layer]} {mem[host_layer]} {mem[device_layer]}")
-
-        from IPython import embed; embed()
 
     def apply(self, **kwargs):
         """
