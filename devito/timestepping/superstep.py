@@ -1,7 +1,7 @@
 from devito.types import Eq, Function, TimeFunction
 
 
-def superstep_generator_iterative(field, stencil, k):
+def superstep_generator_iterative(field, stencil, k, tn=0):
     ''' Generate superstep iteratively:
     A^j+1 = A·A^j
     '''
@@ -10,6 +10,8 @@ def superstep_generator_iterative(field, stencil, k):
     grid = field.grid
     u = TimeFunction(name=f'{name}_ss', grid=grid, time_order=2, space_order=2*k)
     u_prev = TimeFunction(name=f'{name}_ss_p', grid=grid, time_order=2, space_order=2*k)
+
+    superstep_solution_transfer(field, u, u_prev, tn)
 
     # Substitute new fields into stencil
     ss_stencil = stencil.subs({field: u, field.backward: u_prev}, postprocess=False)
@@ -38,7 +40,7 @@ def superstep_generator_iterative(field, stencil, k):
     return u, u_prev, Eq(u.forward, stencil_next), Eq(u_prev.forward, current)
 
 
-def superstep_generator(field, stencil, k):
+def superstep_generator(field, stencil, k, tn=0):
     ''' Generate superstep using a binary decomposition:
     A^k = a_j A^2^j + ... + a_2 A^2^2 + a_1 A² + a_0 A
     '''
@@ -47,6 +49,8 @@ def superstep_generator(field, stencil, k):
     grid = field.grid
     u = TimeFunction(name=f'{name}_ss', grid=grid, time_order=2, space_order=2*k)
     u_prev = TimeFunction(name=f'{name}_ss_p', grid=grid, time_order=2, space_order=2*k)
+
+    superstep_solution_transfer(field, u, u_prev, tn)
 
     # Substitute new fields into stencil
     ss_stencil = stencil.subs({field: u, field.backward: u_prev}, postprocess=False)
@@ -58,13 +62,25 @@ def superstep_generator(field, stencil, k):
     accumulate = current if r else (1, 1)
     while q:
         q, r = divmod(q, 2)
-        current = combine_superstep(current, current, u, u_prev, k)
+        current = _combine_superstep(current, current, u, u_prev, k)
         if r:
-            accumulate = combine_superstep(accumulate, current, u, u_prev, k)
+            accumulate = _combine_superstep(accumulate, current, u, u_prev, k)
 
     return u, u_prev, Eq(u.forward, accumulate[0]), Eq(u_prev.forward, accumulate[1])
 
-def combine_superstep(stencil_a, stencil_b, u, u_prev, k):
+
+def superstep_solution_transfer(old, new, new_p, tn):
+    ''' Transfer the timesteps from a previous simulation to a 2 field superstep simulation
+    Used after injecting source using standard timestepping.
+    '''
+    idx = tn % 3  if old.save is None else -1
+    new.data[0, :] = old.data[idx - 1]
+    new.data[1, :] = old.data[idx]
+    new_p.data[0, :] = old.data[idx - 2]
+    new_p.data[1, :] = old.data[idx - 1]
+
+
+def _combine_superstep(stencil_a, stencil_b, u, u_prev, k):
     ''' Combine two arbitrary order supersteps
     '''
     # Placeholder fields for forming the superstep
