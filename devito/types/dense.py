@@ -800,7 +800,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Tuple of argument names introduced by this function."""
         return (self.name,)
 
-    def _arg_defaults(self, alias=None, metadata=None):
+    def _arg_defaults(self, alias=None, metadata=None, estimate_memory=False):
         """
         A map of default argument values defined by this symbol.
 
@@ -810,7 +810,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             To bind the argument values to different names.
         """
         key = alias or self
-        args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
+        # TODO: Tidy this up. The idea is to avoid touching the data
+        if estimate_memory:
+            args = ReducerMap({key.name: self})
+        else:
+            args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
 
         # Collect default dimension arguments from all indices
         for a, i, s in zip(key.dimensions, self.dimensions, self.shape):
@@ -818,7 +822,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         return args
 
-    def _arg_values(self, metadata=None, **kwargs):
+    def _arg_values(self, metadata=None, estimate_memory=False, **kwargs):
         """
         A map of argument values after evaluating user input. If no
         user input is provided, return a default value.
@@ -834,7 +838,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             new = kwargs.pop(self.name)
             if isinstance(new, DiscreteFunction):
                 # Set new values and re-derive defaults
-                values = new._arg_defaults(alias=self, metadata=metadata)
+                values = new._arg_defaults(alias=self, metadata=metadata,
+                                           estimate_memory=estimate_memory)
                 values = values.reduce_all()
             else:
                 # We've been provided a pure-data replacement (array)
@@ -844,7 +849,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     size = s - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
         else:
-            values = self._arg_defaults(alias=self, metadata=metadata)
+            values = self._arg_defaults(alias=self, metadata=metadata,
+                                        estimate_memory=estimate_memory)
             values = values.reduce_all()
 
         return values
