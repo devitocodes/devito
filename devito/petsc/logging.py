@@ -9,8 +9,10 @@ class PetscSummary(OrderedDict):
     """
     PetscKey = namedtuple('PetscKey', 'name options_prefix')
 
-    def __init__(self, petscinfos, *args, **kwargs):
+    def __init__(self, params, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        petscinfos = [i for i in params if isinstance(i, PetscInfo)]
         self.petscinfos = petscinfos
 
         # Gather all unique PETSc function names across all PetscInfo objects
@@ -110,8 +112,8 @@ class PetscSummary(OrderedDict):
         raise AttributeError(f"No attribute named '{name}'")
 
 
-def petsc_summary(params):
-    petscinfos = [i for i in params if isinstance(i, PetscInfo)]
-    if petscinfos:
-        return PetscSummary(petscinfos)
-    return None
+# def petsc_summary(params):
+#     petscinfos = [i for i in params if isinstance(i, PetscInfo)]
+#     if petscinfos:
+#         return PetscSummary(petscinfos)
+#     return None

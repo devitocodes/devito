@@ -37,7 +37,7 @@ from devito.types import (Buffer, Evaluable, host_layer, device_layer,
 from devito.types.dimension import Thickness
 from devito.petsc.iet.passes import lower_petsc
 from devito.petsc.clusters import petsc_preprocess
-from devito.petsc.logging import petsc_summary
+# from devito.petsc.logging import petsc_summary
 
 __all__ = ['Operator']
 
@@ -195,7 +195,7 @@ class Operator(Callable):
     @classmethod
     def _build(cls, expressions, **kwargs):
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
-        profiler = create_profile('timers')
+        profiler = create_profile('timers', kwargs['language'])
 
         # Lower the input expressions into an IET
         irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
@@ -960,16 +960,20 @@ class Operator(Callable):
         # Post-process runtime arguments
         self._postprocess_arguments(args, **kwargs)
 
+        # # In case MPI is used restrict result logging to one rank only
+        # with switch_log_level(comm=args.comm):
+        #     perf_summary = self._emit_apply_profiling(args)
+        #     lang_summary = self._emit_language_info()
+
+        # if lang_summary is None:
+        #     return perf_summary
+
+        # # Combine the performance and language specific summaries
+        # return CombinedSummary(perf=perf_summary, lang=lang_summary)
+
         # In case MPI is used restrict result logging to one rank only
         with switch_log_level(comm=args.comm):
-            perf_summary = self._emit_apply_profiling(args)
-            lang_summary = self._emit_language_info()
-
-        if lang_summary is None:
-            return perf_summary
-
-        # Combine the performance and language specific summaries
-        return CombinedSummary(perf=perf_summary, lang=lang_summary)
+            return self._emit_apply_profiling(args)
 
     # Performance profiling
 
@@ -1012,7 +1016,7 @@ class Operator(Callable):
         elapsed = fround(self._profiler.py_timers['apply'])
         info(f"Operator `{self.name}` ran in {elapsed:.2f} s")
 
-        summary = self._profiler.summary(args, self._dtype, reduce_over=elapsed)
+        summary = self._profiler.summary(args, self._dtype,  self.parameters, reduce_over=elapsed)
 
         if not is_log_enabled_for('PERF'):
             # Do not waste time
@@ -1109,11 +1113,11 @@ class Operator(Callable):
 
         return summary
 
-    def _emit_language_info(self):
-        if self._language == 'petsc':
-            return petsc_summary(self.parameters)
-        else:
-            return None
+    # def _emit_language_info(self):
+    #     if self._language == 'petsc':
+    #         return petsc_summary(self.parameters)
+    #     else:
+    #         return None
 
     # Pickling support
 
