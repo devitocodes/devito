@@ -16,18 +16,14 @@ class PetscSummary(OrderedDict):
         self.petscinfos = petscinfos
 
         # Gather all unique PETSc function names across all PetscInfo objects
-        functions = set()
-        for i in petscinfos:
-            functions.update(i.function_mapper.keys())
+        self._functions = set().union(*(i.function_mapper.keys() for i in petscinfos))
 
         self._property_name_map = {}
         # Dynamically create a property on this class for each PETSc function
-        self._add_properties(functions)
-        self._functions = functions
+        self._add_properties()
 
-        # Initialize the summary by adding PETSc information
-        # from each PetscInfo object (each corresponding to
-        # an individual PETScSolve)
+        # Initialize the summary by adding PETSc information from each PetscInfo
+        # object (each corresponding to an individual PETScSolve)
         for i in petscinfos:
             self.add_info(i)
 
@@ -50,15 +46,16 @@ class PetscSummary(OrderedDict):
         PetscEntry = namedtuple('PetscEntry', calls)
         return PetscEntry(*values)
 
-    def _add_properties(self, functions):
+    def _add_properties(self):
         """
-        For each function name in `functions` (e.g., 'KSPGetIterationNumber'),
+        For each function name in `self._functions` (e.g., 'KSPGetIterationNumber'),
         dynamically add a property to the class with the same name.
 
         Each property returns an OrderedDict that maps each PetscKey to the
         result of looking up that function on the corresponding PetscEntry,
         if the function exists on that entry.
         """
+        
         def make_property(function):
             def getter(self):
                 return OrderedDict(
@@ -69,7 +66,7 @@ class PetscSummary(OrderedDict):
                 )
             return property(getter)
 
-        for f in functions:
+        for f in self._functions:
             # Inject the new property onto the class itself
             setattr(self.__class__, f, make_property(f))
             self._property_name_map[f.lower()] = f

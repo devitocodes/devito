@@ -1,7 +1,11 @@
+from functools import cached_property
+
 from devito.petsc.iet.utils import petsc_call
 from devito.petsc.types import PetscInt, PetscInfo
+
 from devito.symbolics import Byref, FieldFromPointer
 from devito.ir.iet import DummyExpr, BlankLine
+from devito.tools import frozendict
 
 
 class BaseLogger:
@@ -11,7 +15,7 @@ class BaseLogger:
     This class can be subclassed to emit different information based
     on the 'log-level' set in the Devito configuration.
     """
-    function_mapper = {}
+    function_mapper = frozendict()
 
     def __init__(self, **kwargs):
         self.sobjs = kwargs.get('solver_objs')
@@ -19,25 +23,24 @@ class BaseLogger:
         self.section_mapper = kwargs.get('section_mapper', {})
         self.injectsolve = kwargs.get('injectsolve', None)
 
-        name = self.sreg.make_name(prefix='info')
+        name = self.sreg.make_name(prefix='solverinfo')
         pname = self.sreg.make_name(prefix='petscstats')
-        self.logobjs = self._generate_objs()
 
         self.statstruct = PetscInfo(
             name, pname, self.logobjs, self.sobjs,
             self.section_mapper, self.injectsolve,
             self.function_mapper,
-
         )
-        self.calls = self._generate_calls()
 
-    def _generate_objs(self):
+    @cached_property
+    def logobjs(self):
         """
         Create PETSc objects to store metadata.
         """
         return {}
 
-    def _generate_calls(self):
+    @cached_property
+    def calls(self):
         """
         Generate the PETSc calls that will be injected into the C code to
         extract solver statistics.
@@ -51,19 +54,21 @@ class BaseLogger:
 class PerfLogger(BaseLogger):
     """Logger for log-level 'PERF'"""
 
-    function_mapper = {
+    function_mapper = frozendict({
         'KSPGetIterationNumber': ('kspits', PetscInt),
         'SNESGetIterationNumber': ('snesits', PetscInt)
-    }
-
-    def _generate_objs(self):
+    })
+    
+    @cached_property
+    def logobjs(self):
         """Create PETSc objects for the given function_mapper"""
         return {
             name: obj_type(self.sreg.make_name(prefix=name))
-            for _, (name, obj_type) in self.function_mapper.items()
+            for name, obj_type in self.function_mapper.values()
         }
 
-    def _generate_calls(self):
+    @cached_property
+    def calls(self):
         struct = self.statstruct
         calls = []
         for name in ['snes', 'ksp']:
