@@ -110,10 +110,3 @@ class PetscSummary(OrderedDict):
         if original:
             return getattr(self, original)
         raise AttributeError(f"No attribute named '{name}'")
-
-
-# def petsc_summary(params):
-#     petscinfos = [i for i in params if isinstance(i, PetscInfo)]
-#     if petscinfos:
-#         return PetscSummary(petscinfos)
-#     return None

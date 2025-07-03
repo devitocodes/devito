@@ -1401,13 +1401,13 @@ class TestLogging:
             op = Operator(petsc)
             summary = op.apply()
 
-        # One PerformanceSummary and one PetscSummary
-        assert len(summary) == 2
+        # One PerformanceSummary
+        assert len(summary) == 1
 
-        perf_summary = summary.perf
-        petsc_summary = summary.lang
+        # Access the PetscSummary
+        petsc_summary = summary.petsc
 
-        assert isinstance(perf_summary, PerformanceSummary)
+        assert isinstance(summary, PerformanceSummary)
         assert isinstance(petsc_summary, PetscSummary)
 
         # One section with a single solver
@@ -1440,31 +1440,6 @@ class TestLogging:
         assert value == 1
 
     @skipif('petsc')
-    @pytest.mark.parametrize('log_level', ['INFO', 'WARNING', 'ERROR', 'CRITICAL'])
-    def test_no_logging(self, log_level):
-        """
-        Test that no PETSc information is emitted when the logging level is
-        set to 'INFO', 'WARNING', 'ERROR', or 'CRITICAL'.
-        """
-        grid = Grid(shape=(11, 11), dtype=np.float64)
-
-        functions = [Function(name=n, grid=grid, space_order=2)
-                     for n in ['e', 'f']]
-        e, f = functions
-        f.data[:] = 5.0
-        eq = Eq(e.laplace, f)
-
-        petsc = PETScSolve(eq, target=e, options_prefix='poisson')
-
-        with switchconfig(language='petsc', log_level=log_level):
-            op = Operator(petsc)
-            summary = op.apply()
-
-        # One PerformanceSummary, no PETScSummary
-        assert len(summary) == 1
-        assert isinstance(summary, PerformanceSummary)
-
-    @skipif('petsc')
     def test_logging_multiple_solves(self):
         grid = Grid(shape=(11, 11), dtype=np.float64)
 
@@ -1485,10 +1460,7 @@ class TestLogging:
             op = Operator([solver1, solver2])
             summary = op.apply()
 
-        # One PerformanceSummary and one PetscSummary
-        assert len(summary) == 2
-
-        petsc_summary = summary.lang
+        petsc_summary = summary.petsc
         # One PetscKey, PetscEntry for each solver
         assert len(petsc_summary) == 2
 

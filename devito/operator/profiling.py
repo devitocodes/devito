@@ -342,10 +342,11 @@ class AdvancedProfiler(Profiler):
                     # data transfers)
                     summary.add_glb_fdlike('fdlike-nosetup', points, reduce_over_nosetup)
 
-            # from IPython import embed; embed()
-            language_summary = language_mapper[self.language](params)
-            summary.add_language_summary('petsc', language_summary)
-
+        # Add the language specific summary
+        summary.add_language_summary(
+            self.language,
+            language_summary_mapper[self.language](params)
+        )
         return summary
 
 
@@ -487,24 +488,17 @@ class PerformanceSummary(OrderedDict):
 
         self.globals[key] = PerfEntry(time, None, gpointss, None, None, None)
 
-    def add_language_summary(self, language_name, summary_obj):
+    def add_language_summary(self, lang, summary):
         """
-        Register a language-specific summary (e.g., PetscSummary)
+        Register a language specific summary (e.g., PetscSummary)
         and dynamically add a property to access it via perf_summary.<language_name>.
         """
-        canonical_name = language_name.lower()
-        self._language_summaries[canonical_name] = summary_obj
+        self._language_summaries[lang] = summary
 
-        # Dynamically create a property if not already defined
-        if not hasattr(self.__class__, canonical_name):
-            # Use a closure to bind canonical_name
-            def prop_getter(self):
-                return self._language_summaries[canonical_name]
-            setattr(
-                self.__class__,
-                canonical_name,
-                property(prop_getter)
-            )
+        def getter(self):
+            return self._language_summaries[lang]
+
+        setattr(self.__class__, lang, property(getter))
 
     @property
     def globals_all(self):
@@ -563,4 +557,6 @@ profiler_registry = {
 """Profiling levels."""
 
 
-language_mapper = {'petsc': PetscSummary}
+language_summary_mapper = {
+    'petsc': PetscSummary
+}
