@@ -70,10 +70,10 @@ def superstep_generator(field, stencil, k, tn=0):
 
 
 def superstep_solution_transfer(old, new, new_p, tn):
-    ''' Transfer the timesteps from a previous simulation to a 2 field superstep simulation
+    ''' Transfer state from a previous TimeFunction to a 2 field superstep
     Used after injecting source using standard timestepping.
     '''
-    idx = tn % 3  if old.save is None else -1
+    idx = tn % 3 if old.save is None else -1
     new.data[0, :] = old.data[idx - 1]
     new.data[1, :] = old.data[idx]
     new_p.data[0, :] = old.data[idx - 2]

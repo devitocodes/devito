@@ -52,9 +52,10 @@ def layered_velocity(grid, step=0):
     velocity.data[:, 3*q:] = 3000
     return velocity
 
+
 def marmousi(grid, step=0):
     # Grab dataset from pwd or download
-    url = 'https://github.com/devitocodes/data/raw/refs/heads/master/Simple2D/vp_marmousi_bi' # noqa: E501
+    url = 'https://github.com/devitocodes/data/raw/refs/heads/master/Simple2D/vp_marmousi_bi'  # noqa: E501
     filename = Path('marmousi.np')
     shape = (1601, 401)
     if not filename.exists():
@@ -95,7 +96,7 @@ def acoustic_model(model, step=1, snapshots=1):
     velocity = model.velocity(grid, step)
     u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
 
-    pde = (1/velocity**2)*u.dt2 - u.laplace # + damp*u.dt
+    pde = (1/velocity**2)*u.dt2 - u.laplace
     stencil = Eq(u.forward, solve(pde, u.forward))
 
     tn1 = int(np.ceil((t1 - t0)/model.critical_dt))
@@ -158,29 +159,29 @@ def acoustic_model(model, step=1, snapshots=1):
 layered_model = model(
     name='layered',
     velocity=layered_velocity,
-    shape = (101, 101),
-    origin = (0., 0.),
-    extent = (1000, 1000), # 1kmx1km
-    source = (500, 20),
-    t0 = 0,
-    t1 = 0.2,
-    t2 = 0.65,
-    critical_dt = 0.002357,
-    zlim = 30
+    shape=(101, 101),
+    origin=(0., 0.),
+    extent=(1000, 1000),  # 1kmx1km
+    source=(500, 20),
+    t0=0,
+    t1=0.2,
+    t2=0.65,
+    critical_dt=0.002357,
+    zlim=30
 )
 
 marmousi_model = model(
     name='marmousi',
     velocity=marmousi,
-    shape = (274, 301),
-    origin = (4875., 262.5),
-    extent = (3000, 2737.5), # 3kmx2.7km
-    source = (1000, 1200),
-    t0 = 0,
-    t1 = 0.2,
-    t2 = 0.5,
-    critical_dt = 0.0013728,
-    zlim = 20
+    shape=(274, 301),
+    origin=(4875., 262.5),
+    extent=(3000, 2737.5),  # 3kmx2.7km
+    source=(1000, 1200),
+    t0=0,
+    t1=0.2,
+    t2=0.5,
+    critical_dt=0.0013728,
+    zlim=20
 )
 
 
