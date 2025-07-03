@@ -1,10 +1,11 @@
 from itertools import chain, product
 from functools import cached_property
+from typing import Any
 
 from sympy import S
 import sympy
 
-from devito.ir.support.space import Backward, null_ispace
+from devito.ir.support.space import Backward, IterationSpace, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
@@ -13,6 +14,7 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator, smart_gt,
                           smart_lt)
+from devito.tools.memoization import _memoized_instances
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -216,7 +218,8 @@ class TimedAccess(IterationInstance, AccessMode):
     on the values of the index functions and the access mode (read, write).
     """
 
-    def __new__(cls, access, mode, timestamp, ispace=None):
+    def __new__(cls, access: Any, mode: str, timestamp: int,
+                ispace: IterationSpace | None = None) -> 'TimedAccess':
         obj = super().__new__(cls, access)
         AccessMode.__init__(obj, mode=mode)
         return obj
@@ -246,7 +249,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 self.ispace == other.ispace)
 
     def __hash__(self):
-        return super().__hash__()
+        return hash((self.access, self.mode, self.timestamp, self.ispace))
 
     @property
     def function(self):
@@ -508,6 +511,7 @@ class TimedAccess(IterationInstance, AccessMode):
         return (touch_halo_left, touch_halo_right)
 
 
+@_memoized_instances
 class Relation:
 
     """
@@ -624,6 +628,7 @@ class Relation:
         return S.ImaginaryUnit in self.distance
 
 
+@_memoized_instances
 class Dependence(Relation):
 
     """

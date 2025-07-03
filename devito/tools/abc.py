@@ -1,8 +1,14 @@
 import abc
+import weakref
+from concurrent.futures import Future
 from hashlib import sha1
+from threading import RLock
+from typing import Generic, Hashable, TypeVar
+from weakref import ReferenceType
 
 
-__all__ = ['Tag', 'Signer', 'Reconstructable', 'Pickable', 'Singleton', 'Stamp']
+__all__ = ['Tag', 'Signer', 'Reconstructable', 'Pickable', 'Singleton', 'Stamp',
+           'WeakValueCache']
 
 
 class Tag(abc.ABC):
@@ -281,3 +287,117 @@ class Stamp:
         return "<%s>" % str(id(self))[-3:]
 
     __str__ = __repr__
+
+
+# Cached instance type for `WeakValueCache` (not covariant to avoid weird init logic)
+ValueType = TypeVar('ValueType')
+
+
+class WeakValueCache(Generic[ValueType]):
+    """
+    A thread-safe cache that stores weak references to instances of a certain type,
+    evicting entries when they are no longer reachable.
+
+    Any thread querying with construction arguments that match an existing instance
+    will receive the cached value; if another thread is currently constructing that
+    value, the query thread will block until it's available. This ensures safe
+    concurrent access while still allowing for threaded construction.
+    """
+
+    def __init__(self, cls: type[ValueType]):
+        self._cls = cls
+        self._futures: dict[int, Future[ReferenceType[ValueType]]] = {}
+        self._lock = RLock()
+
+    def _make_key(self, *args: Hashable, **kwargs: Hashable) -> int:
+        return hash((*args, frozenset(kwargs.items())))
+
+    def _create_instance(self, *args: Hashable, **kwargs: Hashable) -> ValueType:
+        if self._cls is object.__new__:
+            # If the constructor is object's __new__, we cannot pass any arguments
+            obj = self._cls()
+        else:
+            # Otherwise, forward all construction arguments
+            obj = self._cls(*args, **kwargs)
+
+        # Initialize the object so it's ready for consuming threads
+        obj.__init__(*args, **kwargs)
+
+        return obj
+
+    def get_or_create(self, *args: Hashable, **kwargs: Hashable) -> ValueType:
+        """
+        Gets an instance for the given construction arguments, creating it on this thread
+        if it doesn't exist. If another thread is currently constructing it, blocks until
+        the instance is available.
+        """
+        key = self._make_key(*args, **kwargs)
+        future: Future[ReferenceType[ValueType]]
+
+        while True:
+            with self._lock:
+                future = self._futures.get(key, None)
+                if future is None:
+                    # This thread will construct the instance
+                    future = Future()
+                    self._futures[key] = future
+
+                    # We'll proceed with construction outside the loop
+                    break
+
+            # If we got to here, another thread is constructing the instance (or has
+            # already done so), so block until the result is available
+            _ref = future.result()
+            obj = _ref()
+
+            # If the object has been garbage collected, retry to acquire or create it
+            if obj is None:
+                continue
+
+            # Otherwise the object is available; return it
+            return obj
+
+        # If we got here, this is the thread that will create the new instance
+        # Do this outside the lock to allow for concurrent construction
+        try:
+            obj = self._create_instance(*args, **kwargs)
+
+            # Listener for when the weak reference expires
+            def on_obj_destroyed(k: int = key,
+                                 f: Future[ReferenceType[ValueType]] = future) -> None:
+                with self._lock:
+                    if self._futures.get(k, None) is f:
+                        del self._futures[k]
+
+            # Register the finalizer and store a weak reference in the future we cached
+            weakref.finalize(obj, on_obj_destroyed)
+            future.set_result(weakref.ref(obj))
+
+            # Return the newly created object
+            return obj
+
+        except Exception as e:
+            # If the supplier failed, clean up the future and re-raise
+            with self._lock:
+                if self._futures.get(key) is future:
+                    del self._futures[key]
+
+            future.set_exception(e)
+            raise e from None
+
+    def clear(self):
+        """
+        Clears all entries in the cache.
+
+        Objects currently being constructed will still be returned to callers waiting for
+        them, but they will not be retrievable after this call.
+        """
+        with self._lock:
+            self._futures.clear()
+
+    def __len__(self) -> int:
+        """
+        Returns the number of keys currently in the cache.
+        """
+        with self._lock:
+            return len(self._futures)
