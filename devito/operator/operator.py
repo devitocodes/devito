@@ -37,7 +37,6 @@ from devito.types import (Buffer, Evaluable, host_layer, device_layer,
 from devito.types.dimension import Thickness
 from devito.petsc.iet.passes import lower_petsc
 from devito.petsc.clusters import petsc_preprocess
-# from devito.petsc.logging import petsc_summary
 
 __all__ = ['Operator']
 
@@ -1006,7 +1005,7 @@ class Operator(Callable):
         info(f"Operator `{self.name}` ran in {elapsed:.2f} s")
 
         summary = self._profiler.summary(
-            args, self._dtype,  self.parameters, reduce_over=elapsed
+            args, self._dtype, self.parameters, reduce_over=elapsed
         )
 
         if not is_log_enabled_for('PERF'):
@@ -1193,7 +1192,6 @@ def rcompile(expressions, kwargs, options, target=None):
 
 
 IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
-CombinedSummary = namedtuple('CombinedSummary', ['perf', 'lang'])
 
 
 class ArgumentsMap(dict):

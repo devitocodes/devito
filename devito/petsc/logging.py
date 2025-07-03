@@ -12,19 +12,19 @@ class PetscSummary(OrderedDict):
     def __init__(self, params, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        petscinfos = [i for i in params if isinstance(i, PetscInfo)]
-        self.petscinfos = petscinfos
+        self.petscinfos = [i for i in params if isinstance(i, PetscInfo)]
 
         # Gather all unique PETSc function names across all PetscInfo objects
-        self._functions = set().union(*(i.function_mapper.keys() for i in petscinfos))
-
+        self._functions = set().union(
+            *(i.function_mapper.keys() for i in self.petscinfos)
+        )
         self._property_name_map = {}
         # Dynamically create a property on this class for each PETSc function
         self._add_properties()
 
         # Initialize the summary by adding PETSc information from each PetscInfo
         # object (each corresponding to an individual PETScSolve)
-        for i in petscinfos:
+        for i in self.petscinfos:
             self.add_info(i)
 
     def add_info(self, petscinfo):
@@ -55,7 +55,6 @@ class PetscSummary(OrderedDict):
         result of looking up that function on the corresponding PetscEntry,
         if the function exists on that entry.
         """
-        
         def make_property(function):
             def getter(self):
                 return OrderedDict(

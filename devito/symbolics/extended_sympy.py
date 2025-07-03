@@ -584,7 +584,7 @@ class String(ReservedWord):
 
     def __str__(self):
         return f'"{self.value}"'
-    
+
     __repr__ = __str__
 
 

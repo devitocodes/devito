@@ -58,7 +58,7 @@ class PerfLogger(BaseLogger):
         'KSPGetIterationNumber': ('kspits', PetscInt),
         'SNESGetIterationNumber': ('snesits', PetscInt)
     })
-    
+
     @cached_property
     def logobjs(self):
         """Create PETSc objects for the given function_mapper"""
