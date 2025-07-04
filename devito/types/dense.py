@@ -800,7 +800,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         """Tuple of argument names introduced by this function."""
         return (self.name,)
 
-    def _arg_defaults(self, alias=None, metadata=None):
+    def _arg_defaults(self, alias=None, metadata=None, **kwargs):
         """
         A map of default argument values defined by this symbol.
 
@@ -810,7 +810,15 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             To bind the argument values to different names.
         """
         key = alias or self
-        args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
+        print("Between here? (upper)")
+        # TODO: This access to self._data_buffer results in the memory allocation
+        # When merely checking the memory, this should not occur and should be None
+        # instead -> or should it never hit this point? -> or just {key.name: self}
+        if kwargs.get('estimate_memory', False):
+            args = ReducerMap({key.name: self})
+        else:
+            args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
+        print("Between here? (lower)")
 
         # Collect default dimension arguments from all indices
         for a, i, s in zip(key.dimensions, self.dimensions, self.shape):
@@ -834,7 +842,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             new = kwargs.pop(self.name)
             if isinstance(new, DiscreteFunction):
                 # Set new values and re-derive defaults
-                values = new._arg_defaults(alias=self, metadata=metadata)
+                values = new._arg_defaults(alias=self, metadata=metadata, **kwargs)
                 values = values.reduce_all()
             else:
                 # We've been provided a pure-data replacement (array)
@@ -844,7 +852,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     size = s - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
         else:
-            values = self._arg_defaults(alias=self, metadata=metadata)
+            values = self._arg_defaults(alias=self, metadata=metadata, **kwargs)
             values = values.reduce_all()
 
         return values
