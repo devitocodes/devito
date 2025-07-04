@@ -810,15 +810,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             To bind the argument values to different names.
         """
         key = alias or self
-        print("Between here? (upper)")
-        # TODO: This access to self._data_buffer results in the memory allocation
-        # When merely checking the memory, this should not occur and should be None
-        # instead -> or should it never hit this point? -> or just {key.name: self}
+        # TODO: Tidy this up. The idea is to avoid touching the data
         if kwargs.get('estimate_memory', False):
             args = ReducerMap({key.name: self})
         else:
             args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
-        print("Between here? (lower)")
 
         # Collect default dimension arguments from all indices
         for a, i, s in zip(key.dimensions, self.dimensions, self.shape):

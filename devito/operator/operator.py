@@ -614,7 +614,6 @@ class Operator(Callable):
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
-        print("Args before overrides", args)
         # Process data-carrier overrides
         for p in overrides:
             args.update(p._arg_values(**kwargs))
@@ -626,7 +625,6 @@ class Operator(Callable):
                     f"Override `{p}` is incompatible with overrides `{v}`"
                 )
 
-        print("Args before defaults", args)
         # Process data-carrier defaults
         for p in defaults:
             if p.name in args:
@@ -654,8 +652,6 @@ class Operator(Callable):
 
         args = kwargs['args'] = args.reduce_all()
 
-        print("Args after", args)
-
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 
@@ -663,6 +659,7 @@ class Operator(Callable):
         # the subsequent phases of the arguments processing
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
+        # FIXME: Will want to remove this if not using prepare_args to estimate memory
         if kwargs.get('estimate_memory', False):
             # No need to do anything more if only checking the memory
             return args
