@@ -32,7 +32,7 @@ from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
-                          split, timed_pass, timed_region, contains_val)
+                          split, timed_pass, timed_region, contains_val, humanbytes)
 from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
@@ -561,7 +561,7 @@ class Operator(Callable):
         # Sanity check -- all user-provided keywords must be known to the Operator
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():
-                if k not in self._known_arguments:
+                if k not in self._known_arguments and not k == "estimate_memory":
                     raise InvalidArgument(f"Unrecognized argument `{k}={v}`")
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
@@ -602,7 +602,6 @@ class Operator(Callable):
         # Prepare to process data-carriers
         args = kwargs['args'] = ReducerMap()
 
-        # TODO: Add 'estimate-memory' here
         kwargs['metadata'] = {'language': self._language,
                               'platform': self._platform,
                               'transients': self.transients,
@@ -610,6 +609,7 @@ class Operator(Callable):
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
+        print("Args before overrides", args)
         # Process data-carrier overrides
         for p in overrides:
             args.update(p._arg_values(**kwargs))
@@ -621,11 +621,13 @@ class Operator(Callable):
                     f"Override `{p}` is incompatible with overrides `{v}`"
                 )
 
+        print("Args before defaults", args)
         # Process data-carrier defaults
         for p in defaults:
             if p.name in args:
                 # E.g., SubFunctions
                 continue
+            # print(p._arg_values(**kwargs))  # Trigger first-touch
             for k, v in p._arg_values(**kwargs).items():
                 if k not in args:
                     args[k] = v
@@ -647,12 +649,18 @@ class Operator(Callable):
 
         args = kwargs['args'] = args.reduce_all()
 
+        print("Args after", args)
+
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
 
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
+
+        if kwargs.get('estimate_memory', False):
+            # No need to do anything more if only checking the memory
+            return args
 
         # Process Dimensions
         for d in reversed(toposort):
@@ -875,32 +883,16 @@ class Operator(Callable):
         """
         # Build the arguments list for which to get the memory consumption
         # This is so that the estimate will factor in overrides
-        args = self.arguments(**kwargs)
+        args = self._prepare_arguments(estimate_memory=True, **kwargs)
         mem = args.nbytes_consumed
 
         if human_readable:
-            def fancy_units(v):
-                """
-                Automatically format an integer number of bytes
-                to KB, MB, GB, and so forth.
-                """
-                width = 10
-                units = {0: "B ", 1: "KB", 2: "MB", 3: "GB"}
-
-                if v == 0:
-                    return "0B".center(width)
-
-                key = int(np.log2(v)/10)
-                unit = units.get(key, "TB")
-                val = v/(2**(10*key))
-
-                return f"{val:.4g}{unit}".center(10)
-
             headline = f"Memory consumption for operator `{self.name}`:"
             w = len(headline)
-            fdisk = fancy_units(mem[disk_layer])
-            fhost = fancy_units(mem[host_layer])
-            fdevice = fancy_units(mem[device_layer])
+            # Columns are width 10
+            fdisk = str(humanbytes(mem[disk_layer])).center(10)
+            fhost = str(humanbytes(mem[host_layer])).center(10)
+            fdevice = str(humanbytes(mem[device_layer])).center(10)
 
             info(
                 "\n"
