@@ -644,7 +644,7 @@ class AbstractSparseFunction(DiscreteFunction):
         # no-op for SparseFunctions
         return
 
-    def _arg_defaults(self, alias=None, **kwargs):
+    def _arg_defaults(self, alias=None, estimate_memory=False):
         key = alias or self
         mapper = {self: key}
         for i in self._sub_functions:
@@ -652,7 +652,7 @@ class AbstractSparseFunction(DiscreteFunction):
             if f is not None:
                 mapper[getattr(self, i)] = f
 
-        if kwargs.get("estimate_memory", False):
+        if estimate_memory:  # kwargs.get("estimate_memory", False):
             # Avoid touching the data in any capacity, and simply return
             # the symbolic objects if merely estimating memory consumption.
             return ReducerMap({v.name: k for k, v in mapper.items()})
@@ -667,14 +667,15 @@ class AbstractSparseFunction(DiscreteFunction):
                 args.update(i._arg_defaults(_min=0, size=s))
         return args
 
-    def _arg_values(self, **kwargs):
+    def _arg_values(self, estimate_memory=False, **kwargs):
         # Add value override for own data if it is provided, otherwise
         # use defaults
         if self.name in kwargs:
             new = kwargs.pop(self.name)
             if isinstance(new, AbstractSparseFunction):
                 # Set new values and re-derive defaults
-                values = new._arg_defaults(alias=self, **kwargs).reduce_all()
+                values = new._arg_defaults(alias=self,
+                                           estimate_memory=estimate_memory).reduce_all()
             else:
                 # We've been provided a pure-data replacement (array)
                 values = {}
@@ -682,9 +683,10 @@ class AbstractSparseFunction(DiscreteFunction):
                     values[k.name] = v
                     for i, s in zip(k.indices, v.shape):
                         size = s - sum(k._size_nodomain[i])
-                        values.update(i._arg_defaults(size=size, **kwargs))
+                        values.update(i._arg_defaults(size=size))
         else:
-            values = self._arg_defaults(alias=self, **kwargs).reduce_all()
+            values = self._arg_defaults(alias=self,
+                                        estimate_memory=estimate_memory).reduce_all()
 
         return values
 
@@ -903,10 +905,10 @@ class SparseFunction(AbstractSparseFunction):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
         return tuple(mapper.get(d) for d in self.dimensions)
 
-    def _arg_defaults(self, alias=None, **kwargs):
+    def _arg_defaults(self, alias=None, estimate_memory=False, **kwargs):
         defaults = super()._arg_defaults(alias=alias, **kwargs)
         # FIXME: Repeated use of this structure is ugly
-        if kwargs.get('estimate_memory', False):
+        if estimate_memory:
             return defaults
 
         key = alias or self
