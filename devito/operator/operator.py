@@ -553,7 +553,7 @@ class Operator(Callable):
         return frozendict({i: AccessMode(i in self.reads, i in self.writes)
                            for i in self.input})
 
-    def _prepare_arguments(self, autotune=None, **kwargs):
+    def _prepare_arguments(self, autotune=None, estimate_memory=False, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
@@ -561,7 +561,7 @@ class Operator(Callable):
         # Sanity check -- all user-provided keywords must be known to the Operator
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():
-                if k not in self._known_arguments and not k == "estimate_memory":
+                if k not in self._known_arguments:
                     raise InvalidArgument(f"Unrecognized argument `{k}={v}`")
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
@@ -611,7 +611,7 @@ class Operator(Callable):
 
         # Process data-carrier overrides
         for p in overrides:
-            args.update(p._arg_values(**kwargs))
+            args.update(p._arg_values(estimate_memory=estimate_memory, **kwargs))
             try:
                 args.reduce_inplace()
             except ValueError:
@@ -626,7 +626,7 @@ class Operator(Callable):
                 # E.g., SubFunctions
                 continue
             # print(p._arg_values(**kwargs))  # Trigger first-touch
-            for k, v in p._arg_values(**kwargs).items():
+            for k, v in p._arg_values(estimate_memory=estimate_memory, **kwargs).items():
                 if k not in args:
                     args[k] = v
                 elif k in futures:
@@ -655,7 +655,7 @@ class Operator(Callable):
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
         # FIXME: Will want to remove this if not using prepare_args to estimate memory
-        if kwargs.get('estimate_memory', False):
+        if estimate_memory:
             # No need to do anything more if only checking the memory
             return args
 
