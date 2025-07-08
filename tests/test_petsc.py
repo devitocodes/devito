@@ -1480,7 +1480,7 @@ class TestLogging:
         assert entry2.KSPGetIterationNumber == 1
         assert entry2.SNESGetIterationNumber == 1
 
-        # Test case insensitiver access to PetscEntry
+        # Test case insensitive access to PetscEntry
         assert entry1.kspgetiterationnumber == 16
         assert entry1.snesgetiterationnumber == 1
 

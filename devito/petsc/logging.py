@@ -30,7 +30,7 @@ class PetscEntry:
         return f"PetscEntry({', '.join(f'{k}={v}' for k, v in self._properties.items())})"
 
 
-class PetscSummary(OrderedDict):
+class PetscSummary(dict):
     """
     A summary of PETSc statistics collected for all solver runs
     associated with a single operator during execution.
