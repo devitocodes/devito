@@ -1,15 +1,16 @@
 from abc import ABC
 from collections import namedtuple
 from functools import cached_property
+from itertools import product
 
 import numpy as np
 from sympy import prod
 
 from devito import configuration
-from devito.data import LEFT, RIGHT
+from devito.data import LEFT, RIGHT, CENTER
 from devito.logger import warning
 from devito.mpi import Distributor, MPI, SubDistributor
-from devito.tools import ReducerMap, as_tuple
+from devito.tools import ReducerMap, as_tuple, frozendict
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
@@ -19,7 +20,7 @@ from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     MultiSubDimension, DefaultDimension)
 from devito.deprecations import deprecations
 
-__all__ = ['Grid', 'SubDomain', 'SubDomainSet']
+__all__ = ['Grid', 'SubDomain', 'SubDomainSet', 'Border']
 
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
@@ -871,7 +872,7 @@ class SubDomainSet(MultiSubDomain):
         # Dimensions with identical names hash the same, hence tag them with the
         # SubDomainSet ID to make them unique so they can be used to key a dictionary
         # of replacements without risking overwriting.
-        i_dim = Dimension('n_%s' % str(id(self)))
+        i_dim = Dimension(f'n_{str(id(self))}')
         d_dim = DefaultDimension(name='d', default_value=2*grid.dim)
         sd_func = Function(name=self.name, grid=self._grid,
                            shape=(self._n_domains, 2*grid.dim),
@@ -885,7 +886,7 @@ class SubDomainSet(MultiSubDomain):
                 sd_func.data[:, idx] = self._local_bounds[idx]
 
             dimensions.append(MultiSubDimension(
-                'i%s' % d.name, d, None, functions=sd_func,
+                f'i{d.name}', d, None, functions=sd_func,
                 bounds_indices=(2*i, 2*i+1), implicit_dimension=i_dim
             ))
 
@@ -905,6 +906,276 @@ class SubDomainSet(MultiSubDomain):
     @property
     def bounds(self):
         return self._local_bounds
+
+
+class Border(SubDomainSet):
+    """
+    A convenience class for constructing a SubDomainSet which covers specified edges
+    of the domain to a thickness of `border`.
+
+    By default, this border covers all sides of the grid. Alternatively, it is possible
+    to add the border selectively to specific sides by supplying, for example,
+    `dims={y: 'left'}` to obtain only a border on the left (from index zero) side of the
+    y dimension, or `dims={x: x, y: 'left'}` to obtain borders on both sides of the x
+    dimension, but only on the left of the y. One can also supply a single dimension on
+    which to construct a border, using `dims=x` or similar.
+
+    Corners can be included, excluded, or overlapped by setting the `corners` kwarg.
+
+    Parameters
+    ----------
+    grid : Grid
+        The computational grid on which the border should be constructed
+    border : int, tuple of int, or tuple of tuple of int
+        The thickness of the border in gridpoints. A tuple with thickness for each
+        dimension can be supplied if different thicknesses are required per-dimension.
+        A tuple of tuples can also be supplied for more granular control of left and
+        right border thicknesses for each dimension.
+    dims : Dimension, dict, or None, optional
+        The dimensions on which a border should be applied. Default is None, corresponding
+        to borders on both sides of all dimensions.
+    name : str, optional
+        A unique name for the SubDomainSet created. Default is 'border'.
+    corners : str, optional
+        Behaviour at the corners. Can be set to 'overlap' for overlapping subdomains at
+        the corners, 'nooverlap' for non-overlapping corner subdomains, or 'nocorners'
+        to omit the corners entirely. Default is `nooverlap`.
+
+    Examples
+    --------
+    Set up a border surrounding the whole grid:
+
+    >>> from devito import Grid, Border, Function, Eq, Operator
+    >>> grid = Grid(shape=(7, 7))
+    >>> x, y = grid.dimensions
+
+    >>> border = Border(grid, 2)  # Border of thickness 2
+    >>> f = Function(name='f', grid=grid, dtype=np.int32)
+    >>> eq = Eq(f, f+1, subdomain=border)
+    >>> summary = Operator(eq)()
+    >>> f.data
+    Data([[1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 1, 1, 1, 1, 1]], dtype=int32)
+
+    Set up a border consisting of the right side of the x dimension and both sides
+    of the y dimension:
+
+    >>> border2 = Border(grid, 2, dims={x: 'right', y: y})
+    >>> g = Function(name='g', grid=grid, dtype=np.int32)
+    >>> eq2 = Eq(g, g+1, subdomain=border2)
+    >>> summary = Operator(eq2)()
+    >>> g.data
+    Data([[1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 1, 1, 1, 1, 1],
+          [1, 1, 1, 1, 1, 1, 1]], dtype=int32)
+
+    Set up a border consisting of only the sides in the y dimension:
+
+    >>> border3 = Border(grid, 2, dims=y)
+    >>> h = Function(name='h', grid=grid, dtype=np.int32)
+    >>> eq3 = Eq(h, h+1, subdomain=border3)
+    >>> summary = Operator(eq3)()
+    >>> h.data
+    Data([[1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1]], dtype=int32)
+
+    which is equivalent to:
+
+    >>> border4 = Border(grid, 2, dims={y: y})
+    >>> i = Function(name='i', grid=grid, dtype=np.int32)
+    >>> eq4 = Eq(i, i+1, subdomain=border4)
+    >>> summary = Operator(eq4)()
+    >>> i.data
+    Data([[1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1],
+          [1, 1, 0, 0, 0, 1, 1]], dtype=int32)
+
+    """
+
+    DimSpec = None | dict[Dimension, Dimension | str]
+    ParsedDimSpec = frozendict[Dimension, Dimension | str]
+
+    BorderInt = int | np.integer
+    BorderSpec = BorderInt | tuple[BorderInt] | tuple[tuple[BorderInt]]
+    ParsedBorderSpec = tuple[tuple[BorderInt]]
+
+    def __init__(self, grid: Grid, border: BorderSpec,
+                 dims: DimSpec = None, name: str = 'border',
+                 corners: str = 'nooverlap') -> None:
+
+        self._name = name
+        self._border = Border._parse_border(border, grid)
+        self._border_dims = Border._parse_dims(dims, grid)
+
+        if corners not in ('overlap', 'nooverlap', 'nocorners'):
+            raise ValueError(f"Unrecognised corners option: {corners}")
+        self._corners = corners
+
+        ndomains, bounds = self._build_domains(grid)
+        super().__init__(N=ndomains, bounds=bounds, grid=grid)
+
+    @property
+    def border(self):
+        return self._border
+
+    @property
+    def border_dims(self):
+        return self._border_dims
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def corners(self):
+        return self._corners
+
+    @staticmethod
+    def _parse_dims(dims: DimSpec, grid: Grid) -> ParsedDimSpec:
+        if dims is None:
+            _border_dims = {d: d for d in grid.dimensions}
+        elif isinstance(dims, Dimension):
+            _border_dims = {dims: dims}
+        elif isinstance(dims, dict):
+            _border_dims = dims
+        else:
+            raise ValueError("Dimensions should be supplied as a single dimension, or "
+                             "a dict of the form `{x: x, y: 'left'}`")
+
+        return frozendict(_border_dims)
+
+    @staticmethod
+    def _parse_border(border: BorderSpec, grid: Grid) -> ParsedBorderSpec:
+        if isinstance(border, (int, np.integer)):
+            return ((border, border),)*len(grid.dimensions)
+
+        else:  # Tuple guaranteed by typing
+            if not len(border) == len(grid.dimensions):
+                raise ValueError("Length of border thickness specification should "
+                                 "match number of dimensions")
+            retval = []
+            for b, d in zip(border, grid.dimensions):
+                if isinstance(b, tuple):
+                    if not len(b) == 2:
+                        raise ValueError(f"{b}: more than two thicknesses supplied "
+                                         f"for dimension {d}")
+                    retval.append(b)
+                else:
+                    retval.append((b, b))
+
+            return tuple(retval)
+
+    def _build_domains(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
+        """
+        Constructs the bounds and ndomains kwargs for the SubDomainSet.
+        """
+        if self.corners == 'overlap':
+            return self._build_domains_overlap(grid)
+        else:
+            return self._build_domains_nooverlap(grid)
+
+    def _build_domains_overlap(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
+
+        bounds = []
+        for i, (d, s, b) in enumerate(zip(grid.dimensions, grid.shape, self.border)):
+
+            if d in self.border_dims:
+                side = self.border_dims[d]
+
+                if isinstance(side, Dimension):
+                    # Note: counterintuitive since the left-side boundary only has
+                    # right-side thickness
+                    bounds_l = [0 if j != 2*i+1 else s - b[0]
+                                for j in range(2*len(grid.dimensions))]
+                    bounds_r = [0 if j != 2*i else s - b[1]
+                                for j in range(2*len(grid.dimensions))]
+
+                    bounds.extend([bounds_l, bounds_r])
+
+                elif side == 'left':
+                    bounds.append([0 if j != 2*i+1 else s - b[0]
+                                   for j in range(2*len(grid.dimensions))])
+
+                elif side == 'right':
+                    bounds.append([0 if j != 2*i else s - b[1]
+                                   for j in range(2*len(grid.dimensions))])
+
+                else:
+                    raise ValueError(f"Unrecognised side value {side}")
+
+        # Need to transpose array to fit into expected format for SubDomainSet
+        return len(bounds), tuple(np.array(bounds).T)
+
+    def _build_domains_nooverlap(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
+        domain_map = {}  # Stores the side
+        interval_map = {}  # Stores the mapping from the side to bounds
+
+        # Unpack the user-provided specification into a set of sides (on which
+        # a cartesian product is taken) and a mapper from those sides to a set of
+        # bounds for each dimension.
+        for d, s, b in zip(grid.dimensions, grid.shape, self.border):
+            if d in self.border_dims:
+                side = self.border_dims[d]
+
+                if isinstance(side, Dimension):
+                    domain_map[d] = (LEFT, CENTER, RIGHT)
+                    interval_map[d] = {LEFT: (0, s - b[0]),
+                                       CENTER: (b[0], b[1]),
+                                       RIGHT: (s - b[1], 0)}
+                elif side == 'left':
+                    domain_map[d] = (LEFT, CENTER)
+                    # For intuitive behaviour, 'nocorners' should always skip corners
+                    centerval = b[1] if self.corners == 'nocorners' else 0
+                    interval_map[d] = {LEFT: (0, s - b[0]),
+                                       CENTER: (b[0], centerval)}
+                elif side == 'right':
+                    domain_map[d] = (CENTER, RIGHT)
+                    centerval = b[0] if self.corners == 'nocorners' else 0
+                    interval_map[d] = {CENTER: (centerval, b[1]),
+                                       RIGHT: (s - b[1], 0)}
+                else:
+                    raise ValueError(f"Unrecognised side value {side}")
+            else:
+                domain_map[d] = (CENTER,)
+                interval_map[d] = {CENTER: (0, 0)}
+
+        # Get the cartesian product, then select the required domains. The sides are used
+        # to make this step more straightforward.
+        maybe_domains = list(product(*domain_map.values()))
+        domains = []
+        for d in maybe_domains:
+            if not all(i is CENTER for i in d):
+                # Don't add any domains that are completely centered
+                if self.corners != 'nocorners' or any(i is CENTER for i in d):
+                    # Don't add corners if 'no corners' option selected
+                    domains.append([interval_map[dim][dom] for (dim, dom)
+                                    in zip(grid.dimensions, d)])
+
+        domains = np.array(domains)
+
+        # Reshape the bounds into the format expected by the SubDomainSet init
+        shape = (domains.shape[0], domains.shape[1]*domains.shape[2])
+        bounds = np.reshape(domains, shape).T
+
+        return domains.shape[0], tuple(bounds)
 
 
 # Preset SubDomains
