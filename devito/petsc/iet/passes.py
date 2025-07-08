@@ -83,7 +83,7 @@ def lower_petsc(iet, **kwargs):
 
     iet = Transformer(subs).visit(iet)
 
-    body = core + tuple(setup) + (BlankLine,) + iet.body.body + (BlankLine,)
+    body = core + tuple(setup) + iet.body.body
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}

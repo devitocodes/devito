@@ -4,7 +4,6 @@ from devito.petsc.iet.utils import petsc_call
 from devito.petsc.types import PetscInt, PetscInfo
 
 from devito.symbolics import Byref, FieldFromPointer
-from devito.ir.iet import DummyExpr, BlankLine
 from devito.tools import frozendict
 
 
@@ -82,7 +81,6 @@ class PerfLogger(BaseLogger):
             expr = DummyExpr(FieldFromPointer(logobj._C_symbol, struct), logobj._C_symbol)
             calls.append(expr)
 
-        calls.append(BlankLine,)
         return tuple(calls)
 
 

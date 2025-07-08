@@ -121,9 +121,7 @@ class PetscSummary(OrderedDict):
         elif isinstance(key, tuple) and len(key) == 2:
             # Allow tuple keys (name, options_prefix)
             key = self.PetscKey(*key)
-            return super().__getitem__(key)
-        else:
-            return super().__getitem__(key)
+        return super().__getitem__(key)
 
     def __getattr__(self, name):
         """
