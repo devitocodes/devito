@@ -2,6 +2,34 @@ from collections import namedtuple, OrderedDict
 from devito.petsc.iet.logging import PetscInfo
 
 
+class PetscEntry:
+    def __init__(self, **kwargs):
+        self._property_names = {k.lower(): k for k in kwargs.keys()}
+        self._properties = kwargs
+
+    def __getattr__(self, name):
+        """
+        Allow case insensitive attribute access.
+        """
+        original = self._property_names.get(name.lower())
+        if original:
+            return self._properties[original]
+        raise AttributeError(f"No attribute named '{name}'")
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            # Allow case insensitive key access
+            original = self._property_names.get(key.lower())
+            if original:
+                return self._properties[original]
+            raise KeyError(f"No PETSc function named '{key}'")
+        else:
+            return super().__getitem__(key)
+
+    def __repr__(self):
+        return f"PetscEntry({', '.join(f'{k}={v}' for k, v in self._properties.items())})"
+
+
 class PetscSummary(OrderedDict):
     """
     A summary of PETSc statistics collected for all solver runs
@@ -43,8 +71,7 @@ class PetscSummary(OrderedDict):
         """
         calls = petscinfo.function_mapper.keys()
         values = tuple(getattr(petscinfo, c) for c in calls)
-        PetscEntry = namedtuple('PetscEntry', calls)
-        return PetscEntry(*values)
+        return PetscEntry(**{k: v for k, v in zip(calls, values)})
 
     def _add_properties(self):
         """

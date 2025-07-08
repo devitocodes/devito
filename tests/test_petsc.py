@@ -1479,3 +1479,13 @@ class TestLogging:
         assert entry1.SNESGetIterationNumber == 1
         assert entry2.KSPGetIterationNumber == 1
         assert entry2.SNESGetIterationNumber == 1
+
+        # Test case insensitiver access to PetscEntry
+        assert entry1.kspgetiterationnumber == 16
+        assert entry1.snesgetiterationnumber == 1
+
+        # Test key access to PetscEntry
+        assert entry1['KSPGetIterationNumber'] == 16
+        assert entry1['SNESGetIterationNumber'] == 1
+        # Case insensitive
+        assert entry1['kspgetiterationnumber'] == 16

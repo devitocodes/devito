@@ -418,7 +418,6 @@ class PerformanceSummary(OrderedDict):
         self.subsections = DefaultOrderedDict(lambda: OrderedDict())
         self.input = OrderedDict()
         self.globals = {}
-        self._language_summaries = {}
 
     def add(self, name, rank, time,
             ops=None, points=None, traffic=None, sops=None, itershapes=None):
@@ -493,12 +492,7 @@ class PerformanceSummary(OrderedDict):
         Register a language specific summary (e.g., PetscSummary)
         and dynamically add a property to access it via perf_summary.<language_name>.
         """
-        self._language_summaries[lang] = summary
-
-        def getter(self):
-            return self._language_summaries[lang]
-
-        setattr(self.__class__, lang, property(getter))
+        setattr(self, lang, summary)
 
     @property
     def globals_all(self):
