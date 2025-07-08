@@ -492,6 +492,8 @@ class PerformanceSummary(OrderedDict):
         Register a language specific summary (e.g., PetscSummary)
         and dynamically add a property to access it via perf_summary.<language_name>.
         """
+        # TODO: potentially rename `PerformanceSummary` to something more
+        # generic e.g `Summary`?`
         setattr(self, lang, summary)
 
     @property

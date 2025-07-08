@@ -1,10 +1,11 @@
 from functools import cached_property
 
+from devito.symbolics import Byref, FieldFromPointer
+from devito.ir.iet import DummyExpr
+from devito.tools import frozendict
+
 from devito.petsc.iet.utils import petsc_call
 from devito.petsc.types import PetscInt, PetscInfo
-
-from devito.symbolics import Byref, FieldFromPointer
-from devito.tools import frozendict
 
 
 class BaseLogger:
@@ -54,8 +55,8 @@ class PerfLogger(BaseLogger):
     """Logger for log-level 'PERF'"""
 
     function_mapper = frozendict({
-        'KSPGetIterationNumber': ('kspits', PetscInt),
-        'SNESGetIterationNumber': ('snesits', PetscInt)
+        'KSPGetIterationNumber': ('kspiter', PetscInt),
+        'SNESGetIterationNumber': ('snesiter', PetscInt)
     })
 
     @cached_property
@@ -72,7 +73,7 @@ class PerfLogger(BaseLogger):
         calls = []
         for name in ['snes', 'ksp']:
             obj = self.sobjs[name]
-            logobj = self.logobjs[f"{name}its"]
+            logobj = self.logobjs[f"{name}iter"]
 
             calls.append(
                 petsc_call(f"{name.upper()}GetIterationNumber", [obj, Byref(logobj)])
