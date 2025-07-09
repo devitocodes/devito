@@ -2217,4 +2217,25 @@ class TestEstimateMemory:
             expected = ("Kernel", 0, check, 0)
             self.parse_output(caplog, expected)
 
-    # Test with OpenACC
+    def test_device(self, caplog):
+        # Note: this uses switchconfig and runs on all backends to reflect expected
+        # usage: users are likely to run the estimate on the orchestration node which
+        # may not have the intended hardware, before using this output to determine which
+        # nodes to farm jobs out to.
+        grid = Grid(shape=(101, 101))
+
+        f = Function(name='f', grid=grid, space_order=2)
+
+        # Compiler is never invoked, so this should be fine
+        config = {'log_level': 'DEBUG', 'language': 'openacc',
+                  'platform': 'nvidiaX'}
+        with switchconfig(**config), caplog.at_level(logging.DEBUG):
+            op = Operator(Eq(f, 1))
+
+            op.estimate_memory(human_readable=False)
+
+            check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
+
+            # Matching memory allocated both on host and device for memmap
+            expected = ("Kernel", 0, check, check)
+            self.parse_output(caplog, expected)
