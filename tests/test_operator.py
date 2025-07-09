@@ -2083,7 +2083,7 @@ class TestEstimateMemory:
             op.estimate_memory(human_readable=False)
 
             # Check output of estimate_memory
-            host = reduce(mul, [s + 2*so for s in shape])*np.dtype(dtype).itemsize
+            host = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
             expected = ("Kernel", 0, host, 0)
             self.parse_output(caplog, expected)
 
