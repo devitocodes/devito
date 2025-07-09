@@ -896,6 +896,8 @@ class Operator(Callable):
             fhost = str(humanbytes(mem[host_layer])).center(10)
             fdevice = str(humanbytes(mem[device_layer])).center(10)
 
+            # TODO: There is nominally a table generator in pytools which is a dependency
+            # of a dependency and thus in the env anyway
             info(
                 "\n"
                 f"{headline}\n"
@@ -1410,10 +1412,11 @@ class ArgumentsMap(dict):
 
         # Filter out arrays, aliases and non-AbstractFunction objects
         op_symbols = [i for i in op_symbols if i.is_AbstractFunction
-                      and not i.is_Array and not i.alias]
+                      and not i.is_ArrayBasic and not i.alias]
 
         for i in op_symbols:
             # FIXME: Probably wrong for streamed functions
+            # TODO: Need a hook for PRO here
             # Will overreport memory usage currently
             try:
                 # TODO: is _obj even needed?
@@ -1421,17 +1424,17 @@ class ArgumentsMap(dict):
             except AttributeError:
                 v = get_nbytes(self.get(i.name, i))
 
-            if i._mem_host:
+            print(i, humanbytes(v))
+
+            if i._mem_host or i._mem_mapped:
+                # No need to add to device , as it will be counted
+                # by nbytes_consumed_memmapped
                 host += v
             elif i._mem_local:
                 if isinstance(self.platform, Device):
                     device += v
                 else:
                     host += v
-            elif i._mem_mapped:
-                # No need to add to device, as it will be counted
-                # by nbytes_consumed_memmapped
-                host += v
 
         return {disk_layer: 0, host_layer: host, device_layer: device}
 
@@ -1458,6 +1461,8 @@ class ArgumentsMap(dict):
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue
+
+            print(i, humanbytes(v))
 
             if i._mem_host:
                 host += v
