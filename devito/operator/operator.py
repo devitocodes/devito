@@ -1429,8 +1429,8 @@ class ArgumentsMap(dict):
                 else:
                     host += v
             elif i._mem_mapped:
-                if isinstance(self.platform, Device):
-                    device += v
+                # No need to add to device, as it will be counted
+                # by nbytes_consumed_memmapped
                 host += v
 
         return {disk_layer: 0, host_layer: host, device_layer: device}
