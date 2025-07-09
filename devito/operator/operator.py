@@ -194,7 +194,7 @@ class Operator(Callable):
     @classmethod
     def _build(cls, expressions, **kwargs):
         # Python- (i.e., compile-) and C-level (i.e., run-time) performance
-        profiler = create_profile('timers')
+        profiler = create_profile('timers', kwargs['language'])
 
         # Lower the input expressions into an IET
         irs, byproduct = cls._lower(expressions, profiler=profiler, **kwargs)
@@ -1004,7 +1004,9 @@ class Operator(Callable):
         elapsed = fround(self._profiler.py_timers['apply'])
         info(f"Operator `{self.name}` ran in {elapsed:.2f} s")
 
-        summary = self._profiler.summary(args, self._dtype, reduce_over=elapsed)
+        summary = self._profiler.summary(
+            args, self._dtype, self.parameters, reduce_over=elapsed
+        )
 
         if not is_log_enabled_for('PERF'):
             # Do not waste time

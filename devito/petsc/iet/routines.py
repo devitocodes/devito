@@ -7,22 +7,21 @@ from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
                            retrieve_iteration_tree, filter_iterations, Iteration,
                            PointerCast)
 from devito.symbolics import (Byref, FieldFromPointer, cast, VOID,
-                              FieldFromComposite, IntDiv, Deref, Mod)
+                              FieldFromComposite, IntDiv, Deref, Mod, String)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types import Temp, Dimension
 from devito.tools import filter_ordered
 
-from devito.petsc.types import PETScArray, PetscBundle
 from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
                                     MatShellSetOp, PetscMetaData)
 from devito.petsc.iet.utils import (petsc_call, petsc_struct, zero_vector,
                                     dereference_funcs, residual_bundle)
 from devito.petsc.utils import solver_mapper
-from devito.petsc.types import (DM, Mat, CallbackVec, Vec, KSP, PC, SNES,
-                                PetscInt, StartPtr, PointerIS, PointerDM, VecScatter,
-                                DMCast, JacobianStruct,
-                                SubMatrixStruct, CallbackDM)
+from devito.petsc.types import (PETScArray, PetscBundle, DM, Mat, CallbackVec, Vec,
+                                KSP, PC, SNES, PetscInt, StartPtr, PointerIS, PointerDM,
+                                VecScatter, DMCast, JacobianStruct, SubMatrixStruct,
+                                CallbackDM)
 
 
 class CBBuilder:
@@ -1068,6 +1067,10 @@ class BaseObjectBuilder:
         """
         sreg = self.sregistry
         targets = self.fielddata.targets
+
+        snes_name = sreg.make_name(prefix='snes')
+        options_prefix = self.injectsolve.expr.rhs.options_prefix
+
         base_dict = {
             'Jac': Mat(sreg.make_name(prefix='J')),
             'xglobal': Vec(sreg.make_name(prefix='xglobal')),
@@ -1076,10 +1079,12 @@ class BaseObjectBuilder:
             'blocal': CallbackVec(sreg.make_name(prefix='blocal')),
             'ksp': KSP(sreg.make_name(prefix='ksp')),
             'pc': PC(sreg.make_name(prefix='pc')),
-            'snes': SNES(sreg.make_name(prefix='snes')),
+            'snes': SNES(snes_name),
             'localsize': PetscInt(sreg.make_name(prefix='localsize')),
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
+            'snesprefix': String((options_prefix or '') + '_'),
+            'options_prefix': options_prefix,
         }
         base_dict['comm'] = self.comm
         self._target_dependent(base_dict)
@@ -1239,6 +1244,10 @@ class BaseSetup:
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
+        snes_options_prefix = petsc_call(
+            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
+        ) if sobjs['options_prefix'] else None
+
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
         create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
@@ -1327,6 +1336,7 @@ class BaseSetup:
 
         base_setup = dmda_calls + (
             snes_create,
+            snes_options_prefix,
             snes_set_dm,
             create_matrix,
             snes_set_jac,
@@ -1412,10 +1422,13 @@ class CoupledSetup(BaseSetup):
         sobjs = self.solver_objs
 
         dmda = sobjs['dmda']
-
         solver_params = self.injectsolve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
+
+        snes_options_prefix = petsc_call(
+            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
+        ) if sobjs['options_prefix'] else None
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
@@ -1530,6 +1543,7 @@ class CoupledSetup(BaseSetup):
 
         coupled_setup = dmda_calls + (
             snes_create,
+            snes_options_prefix,
             snes_set_dm,
             create_matrix,
             snes_set_jac,
@@ -1618,7 +1632,7 @@ class Solver:
             vec_reset_array,
             BlankLine,
         )
-        return List(body=run_solver_calls)
+        return run_solver_calls
 
     @cached_property
     def spatial_body(self):
@@ -1701,15 +1715,7 @@ class CoupledSolver(Solver):
 
         snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], objs['Null'], xglob]),)
 
-        return List(
-            body=(
-                (struct_assignment,)
-                + pre_solve
-                + snes_solve
-                + post_solve
-                + (BlankLine,)
-            )
-        )
+        return (struct_assignment,) + pre_solve + snes_solve + post_solve + (BlankLine,)
 
 
 class NonTimeDependent:
