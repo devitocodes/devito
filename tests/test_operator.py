@@ -7,7 +7,14 @@ import numpy as np
 import sympy
 
 import pytest
-from conftest import assert_structure, skipif
+
+# Try-except required to allow for import of classes from this file
+# for testing in PRO
+try:
+    from ..conftest import assert_structure, skipif
+except ImportError:
+    from conftest import assert_structure, skipif
+
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
@@ -2059,6 +2066,8 @@ class TestInternals:
 class TestEstimateMemory:
     """Tests for the Operator.estimate_memory() utility"""
 
+    _array_temp = "r0[x][y]"
+
     def parse_output(self, output, expected):
         """Parse estimate_memory machine-readable output"""
         # Check that no allocation occurs as estimate_memory should avoid data touch
@@ -2083,7 +2092,7 @@ class TestEstimateMemory:
             op.estimate_memory(human_readable=False)
 
             # Check output of estimate_memory
-            host = reduce(mul, [s + 2*so for s in shape])*np.dtype(dtype).itemsize
+            host = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
             expected = ("Kernel", 0, host, 0)
             self.parse_output(caplog, expected)
 
@@ -2163,6 +2172,9 @@ class TestEstimateMemory:
         g = TimeFunction(name='g', grid=grid, space_order=2)
         a = Function(name='a', grid=grid, space_order=2)
 
+        # Fake array allocated in Python land so that shape_allocated can be used
+        b = Function(name='b', grid=grid, space_order=0)
+
         # Reuse an expensive function to encourage generation of an array temp
         eq0 = Eq(f.forward, g + sympy.sin(a))
         eq1 = Eq(g.forward, f + sympy.sin(a))
@@ -2172,7 +2184,7 @@ class TestEstimateMemory:
 
             # Regression to ensure this test functions as intended
             # Ensure an array temporary is created
-            assert "r0[x][y]" in str(op.ccode)
+            assert self._array_temp in str(op.ccode)
 
             op.estimate_memory(human_readable=False)
 
@@ -2180,7 +2192,7 @@ class TestEstimateMemory:
                         for func in (f, g, a))
 
             # Factor in the temp array
-            check += reduce(mul, a.shape)*np.dtype(a.dtype).itemsize
+            check += reduce(mul, b.shape_allocated)*np.dtype(a.dtype).itemsize
 
             expected = ("Kernel", 0, check, 0)
             self.parse_output(caplog, expected)
@@ -2217,4 +2229,25 @@ class TestEstimateMemory:
             expected = ("Kernel", 0, check, 0)
             self.parse_output(caplog, expected)
 
-    # Test with OpenACC
+    def test_device(self, caplog):
+        # Note: this uses switchconfig and runs on all backends to reflect expected
+        # usage: users are likely to run the estimate on the orchestration node which
+        # may not have the intended hardware, before using this output to determine which
+        # nodes to farm jobs out to.
+        grid = Grid(shape=(101, 101))
+
+        f = Function(name='f', grid=grid, space_order=2)
+
+        # Compiler is never invoked, so this should be fine
+        config = {'log_level': 'DEBUG', 'language': 'openacc',
+                  'platform': 'nvidiaX'}
+        with switchconfig(**config), caplog.at_level(logging.DEBUG):
+            op = Operator(Eq(f, 1))
+
+            op.estimate_memory(human_readable=False)
+
+            check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
+
+            # Matching memory allocated both on host and device for memmap
+            expected = ("Kernel", 0, check, check)
+            self.parse_output(caplog, expected)
