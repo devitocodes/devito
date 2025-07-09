@@ -2059,6 +2059,8 @@ class TestInternals:
 class TestEstimateMemory:
     """Tests for the Operator.estimate_memory() utility"""
 
+    _array_temp = "r0[x][y]"
+
     def parse_output(self, output, expected):
         """Parse estimate_memory machine-readable output"""
         # Check that no allocation occurs as estimate_memory should avoid data touch
@@ -2163,6 +2165,9 @@ class TestEstimateMemory:
         g = TimeFunction(name='g', grid=grid, space_order=2)
         a = Function(name='a', grid=grid, space_order=2)
 
+        # Fake array allocated in Python land so that shape_allocated can be used
+        b = Function(name='b', grid=grid, space_order=0)
+
         # Reuse an expensive function to encourage generation of an array temp
         eq0 = Eq(f.forward, g + sympy.sin(a))
         eq1 = Eq(g.forward, f + sympy.sin(a))
@@ -2172,7 +2177,7 @@ class TestEstimateMemory:
 
             # Regression to ensure this test functions as intended
             # Ensure an array temporary is created
-            assert "r0[x][y]" in str(op.ccode)
+            assert self._array_temp in str(op.ccode)
 
             op.estimate_memory(human_readable=False)
 
@@ -2180,7 +2185,7 @@ class TestEstimateMemory:
                         for func in (f, g, a))
 
             # Factor in the temp array
-            check += reduce(mul, a.shape)*np.dtype(a.dtype).itemsize
+            check += reduce(mul, b.shape_allocated)*np.dtype(a.dtype).itemsize
 
             expected = ("Kernel", 0, check, 0)
             self.parse_output(caplog, expected)
