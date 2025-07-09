@@ -1,4 +1,7 @@
 from itertools import permutations
+from functools import reduce
+from operator import mul
+import logging
 
 import numpy as np
 import sympy
@@ -2051,3 +2054,82 @@ class TestInternals:
 
         assert np.all(f.data[0] == 0.)
         assert np.all(f.data[i] == 3. for i in range(1, 10))
+
+
+class TestEstimateMemory:
+    """Tests for the Operator.estimate_memory() utility"""
+
+    def parse_output(self, output):
+        """Parse estimate_memory machine-readable output"""
+        name, disk, host, device = output.split()
+        return name, int(disk), int(host), int(device)
+
+    @pytest.mark.parametrize('shape', [(11,), (101, 101), (101, 101, 101)])
+    @pytest.mark.parametrize('dtype', [np.int8, np.int16, np.float32,
+                                       np.float32, np.complex64])
+    @pytest.mark.parametrize('so', [0, 2, 4, 6])
+    def test_basic_usage(self, caplog, shape, dtype, so):
+        grid = Grid(shape=shape)
+        f = Function(name='f', grid=grid, space_order=so, dtype=dtype)
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator(Eq(f, 1))
+
+            # Machine-readable output for parsing
+            op.estimate_memory(human_readable=False)
+
+            # Check that no allocation occurs as estimate_memory should avoid data touch
+            assert "Allocating" not in caplog.text
+
+            # Check output of estimate_memory
+            name, dist, host, device = self.parse_output(caplog.records[-1].message)
+            assert name == "Kernel"
+            assert dist == 0
+            assert device == 0
+            assert host == reduce(mul, [s + 2*so for s in shape])*np.dtype(dtype).itemsize
+
+    def test_multiple_objects(self, caplog):
+        grid = Grid(shape=(101, 101))
+
+        f = Function(name='f', grid=grid, space_order=2, dtype=np.float32)
+        g = Function(name='g', grid=grid, space_order=4, dtype=np.float64)
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator([Eq(f, 1), Eq(g, 1)])
+
+            op.estimate_memory(human_readable=False)
+            assert "Allocating" not in caplog.text
+            name, dist, host, device = self.parse_output(caplog.records[-1].message)
+            assert name == "Kernel"
+            assert dist == 0
+            assert device == 0
+            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                        for func in (f, g))
+            assert host == check
+
+    def test_sparse(self, caplog):
+        # FIXME: Can be consolidated with previous test
+        grid = Grid(shape=(101, 101))
+        f = Function(name='f', grid=grid, space_order=2)
+        src = SparseFunction(name='src', grid=grid, npoint=10000)
+        src_term = src.inject(field=f, expr=src)
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator(src_term)
+            op.estimate_memory(human_readable=False)
+            assert "Allocating" not in caplog.text
+            name, dist, host, device = self.parse_output(caplog.records[-1].message)
+            assert name == "Kernel"
+            assert dist == 0
+            assert device == 0
+
+            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                        for func in (f, src, src.coordinates))
+
+            assert host == check
+
+    # Check with timefunctions (with both buffer and save)
+    # Check with sparsetimefunctions
+    # Check mashup
+    # Check overrides for functions
+    # Check overrides for sparsefunctions
+    # Check overrides for timefunctions
+    # Check overrides for sparsetimefunctions
