@@ -1416,9 +1416,10 @@ class ArgumentsMap(dict):
             # FIXME: Probably wrong for streamed functions
             # Will overreport memory usage currently
             try:
+                # TODO: is _obj even needed?
                 v = get_nbytes(self[i.name]._obj)
             except AttributeError:
-                v = get_nbytes(i)
+                v = get_nbytes(self.get(i.name, i))
 
             if i._mem_host:
                 host += v
