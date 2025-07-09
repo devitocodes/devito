@@ -7,7 +7,14 @@ import numpy as np
 import sympy
 
 import pytest
-from conftest import assert_structure, skipif
+
+# Try-except required to allow for import of classes from this file
+# for testing in PRO
+try:
+    from ..conftest import assert_structure, skipif
+except ImportError:
+    from conftest import assert_structure, skipif
+
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
