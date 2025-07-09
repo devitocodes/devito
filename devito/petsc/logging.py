@@ -14,7 +14,7 @@ class PetscEntry:
         original = self._property_names.get(name.lower())
         if original:
             return self._properties[original]
-        raise AttributeError(f"No attribute named '{name}'")
+        return object.__getattr__(self, name)
 
     def __getitem__(self, key):
         if isinstance(key, str):
@@ -130,4 +130,4 @@ class PetscSummary(dict):
         original = self._property_name_map.get(name.lower())
         if original:
             return getattr(self, original)
-        raise AttributeError(f"No attribute named '{name}'")
+        return object.__getattr__(self, name)
