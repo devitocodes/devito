@@ -905,9 +905,8 @@ class SparseFunction(AbstractSparseFunction):
         mapper = {self._sparse_dim: self._distributor.decomposition[self._sparse_dim]}
         return tuple(mapper.get(d) for d in self.dimensions)
 
-    def _arg_defaults(self, alias=None, estimate_memory=False, **kwargs):
-        defaults = super()._arg_defaults(alias=alias, **kwargs)
-        # FIXME: Repeated use of this structure is ugly
+    def _arg_defaults(self, alias=None, estimate_memory=False):
+        defaults = super()._arg_defaults(alias=alias, estimate_memory=estimate_memory)
         if estimate_memory:
             return defaults
 
