@@ -2066,7 +2066,7 @@ class TestInternals:
 class TestEstimateMemory:
     """Tests for the Operator.estimate_memory() utility"""
 
-    _array_temp = "r0[x][y]"
+    _array_temp = "r0L0(x, y)" if "CXX" in configuration['language'] else "r0[x][y]"
 
     def parse_output(self, output, expected):
         """Parse estimate_memory machine-readable output"""
