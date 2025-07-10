@@ -6,7 +6,7 @@ from typing import TypeVar
 from devito.tools import WeakValueCache
 
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator']
+__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator', 'weak_instance_cache']
 
 
 class memoized_func:
@@ -131,79 +131,28 @@ class memoized_generator:
         return result
 
 
-# Describes the type of an object cached by `memoized_constructor`
+# Describes the type of an object cached by `weak_instance_cache`
 InstanceType = TypeVar('InstanceType')
-Constructor = Callable[..., InstanceType]
+Constructor = TypeVar('Constructor', bound=Callable[..., InstanceType])
 
 
-def _memoized_instances(cls: type[InstanceType]) -> type[InstanceType]:
+def weak_instance_cache(fun: Constructor[InstanceType]) -> Constructor[InstanceType]:
     """
-    Decorator for a class that caches instances based on the hash values of
-    constructing arguments. The constructed values are stored weakly and
-    evicted from the cache when no longer referenced.
+    Decorator for a class method that caches instances based on the hash
+    values of constructing arguments. The constructed values are stored
+    weakly and evicted from the cache when no longer referenced.
 
-    We need to override both __new__ and __init__ to ensure initialization
-    only happens once for a cached instance.
+    See `Dependence` for a usage example.
     """
 
-    # Check if we already decorated a parent class
-    already_applied = getattr(cls, '_memoized_instances__exists', False)
-    cls._memoized_instances__exists = True
+    # Initialize a weak value cache bound to this constructor
+    cache = WeakValueCache(fun)
 
-    new = cls.__new__
-    init = cls.__init__
-    cache: WeakValueCache[InstanceType] = WeakValueCache(cls)
+    @wraps(fun)
+    def _wrapper(cls: type[InstanceType], *args: Hashable, **kwargs: Hashable) \
+            -> InstanceType:
+        # Retrieve from the cache or create a new instance
+        return cache.get_or_create(cls, *args, **kwargs)
 
-    @wraps(new)
-    def _new(_cls: type[InstanceType], *args: Hashable,
-             _memoized_instances__use_cache: bool = True,
-             **kwargs: Hashable) -> InstanceType:
-        # The decorator must be reapplied to a child class, so we make sure cls matches
-        if _memoized_instances__use_cache and _cls is not cls:
-            raise TypeError(f"_memoized_instances must be applied to {_cls.__name__}, "
-                            f"not (just) {cls.__name__}")
+    return _wrapper
 
-        # The cache called the constructor; avoid infinite recursion
-        if not _memoized_instances__use_cache:
-            # If the class doesn't define __new__, we can't pass any args
-            if new is object.__new__:
-                obj = new(_cls)
-
-            # Otherwise forward all arguments
-            else:
-                # If we applied the decorator to a parent class, forward the caching flag
-                if already_applied:
-                    kwargs['_memoized_instances__use_cache'] = False
-                obj = new(_cls, *args, **kwargs)
-
-            # Set our initialization flag and return
-            obj._memoized_instances__initialized = False
-            return obj
-
-        return cache.get_or_create(*args, _memoized_instances__use_cache=False, **kwargs)
-
-    @wraps(init)
-    def _init(self: InstanceType, *args: Hashable, **kwargs: Hashable) -> None:
-        # Skip reinitialization if this object was obtained from the cache
-        try:
-            if self._memoized_instances__initialized:
-                return
-        except AttributeError:
-            # If the attribute doesn't exist, this is a new instance
-            self._memoized_instances__initialized = False
-
-        # Don't forward our extra argument to the original __init__
-        kwargs.pop('_memoized_instances__use_cache', None)
-        init(self, *args, **kwargs)
-        self._memoized_instances__initialized = True
-
-    def _copy(self: InstanceType) -> InstanceType:
-        # Copy should just return the cached instance; bypass the cache machinery
-        return self
-
-    # Update the class's methods
-    cls.__new__ = _new
-    cls.__init__ = _init
-    cls.__copy__ = _copy
-
-    return cls

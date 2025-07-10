@@ -1,6 +1,6 @@
 from itertools import chain, product
 from functools import cached_property
-from typing import Any
+from typing import Any, TypeVar
 
 from sympy import S
 import sympy
@@ -12,9 +12,8 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_comp_acc, q_affine, q_routine, search,
                               uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth, memoized_generator,
-                          smart_gt, smart_lt)
-from devito.tools.memoization import _memoized_instances
+                          flatten, memoized_meth, memoized_generator, smart_gt,
+                          smart_lt, weak_instance_cache)
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -511,12 +510,25 @@ class TimedAccess(IterationInstance, AccessMode):
         return (touch_halo_left, touch_halo_right)
 
 
-@_memoized_instances
+# Type variable for subclass of `Relation` returned from `maybe_cached`
+RelationType = TypeVar('RelationType', bound='Relation')
+
+
 class Relation:
 
     """
     A relation between two TimedAccess objects.
     """
+
+    @classmethod
+    @weak_instance_cache
+    def maybe_cached(cls: type[RelationType],
+                     source: TimedAccess, sink: TimedAccess) -> RelationType:
+        """
+        Constructs a new Relation or retrieves one from the cache if it
+        already/still exists.
+        """
+        return cls(source, sink)
 
     def __init__(self, source, sink):
         assert isinstance(source, TimedAccess) and isinstance(sink, TimedAccess)
@@ -628,7 +640,6 @@ class Relation:
         return S.ImaginaryUnit in self.distance
 
 
-@_memoized_instances
 class Dependence(Relation):
 
     """
@@ -1082,7 +1093,7 @@ class Scope:
                     if any(not rule(w, r) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(w, r)
+                    dependence = Dependence.maybe_cached(w, r)
 
                     if dependence.is_imaginary:
                         continue
@@ -1112,7 +1123,7 @@ class Scope:
                     if any(not rule(r, w) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(r, w)
+                    dependence = Dependence.maybe_cached(r, w)
 
                     if dependence.is_imaginary:
                         continue
@@ -1142,7 +1153,7 @@ class Scope:
                     if any(not rule(w2, w1) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(w2, w1)
+                    dependence = Dependence.maybe_cached(w2, w1)
 
                     if dependence.is_imaginary:
                         continue
@@ -1204,7 +1215,7 @@ class Scope:
                 if a0 is a1:
                     continue
 
-                r = Relation(a0, a1)
+                r = Relation.maybe_cached(a0, a1)
                 if r.is_imaginary:
                     continue
 

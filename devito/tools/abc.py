@@ -1,4 +1,5 @@
 import abc
+from collections.abc import Callable
 import weakref
 from concurrent.futures import Future
 from hashlib import sha1
@@ -289,8 +290,9 @@ class Stamp:
     __str__ = __repr__
 
 
-# Cached instance type for `WeakValueCache` (not covariant to avoid weird init logic)
-ValueType = TypeVar('ValueType')
+# Cached instance type for `WeakValueCache`
+ValueType = TypeVar('ValueType', covariant=True)
+Constructor = Callable[..., ValueType]
 
 
 class WeakValueCache(Generic[ValueType]):
@@ -304,34 +306,22 @@ class WeakValueCache(Generic[ValueType]):
     concurrent access while still allowing for threaded construction.
     """
 
-    def __init__(self, cls: type[ValueType]):
-        self._cls = cls
+    def __init__(self, constructor: Constructor[ValueType]):
+        self._constructor = constructor
         self._futures: dict[int, Future[ReferenceType[ValueType]]] = {}
         self._lock = RLock()
 
-    def _make_key(self, *args: Hashable, **kwargs: Hashable) -> int:
-        return hash((*args, frozenset(kwargs.items())))
+    def _make_key(self, cls: type[ValueType], *args: Hashable, **kwargs: Hashable) -> int:
+        return hash((cls, *args, frozenset(kwargs.items())))
 
-    def _create_instance(self, *args: Hashable, **kwargs: Hashable) -> ValueType:
-        if self._cls is object.__new__:
-            # If the constructor is object's __new__, we cannot pass any arguments
-            obj = self._cls()
-        else:
-            # Otherwise, forward all construction arguments
-            obj = self._cls(*args, **kwargs)
-
-        # Initialize the object so it's ready for consuming threads
-        obj.__init__(*args, **kwargs)
-
-        return obj
-
-    def get_or_create(self, *args: Hashable, **kwargs: Hashable) -> ValueType:
+    def get_or_create(self, cls: type[ValueType],
+                      *args: Hashable, **kwargs: Hashable) -> ValueType:
         """
         Gets an instance for the given construction arguments, creating it on this thread
         if it doesn't exist. If another thread is currently constructing it, blocks until
         the instance is available.
         """
-        key = self._make_key(*args, **kwargs)
+        key = self._make_key(cls, *args, **kwargs)
         future: Future[ReferenceType[ValueType]]
 
         while True:
@@ -360,7 +350,7 @@ class WeakValueCache(Generic[ValueType]):
         # If we got here, this is the thread that will create the new instance
         # Do this outside the lock to allow for concurrent construction
         try:
-            obj = self._create_instance(*args, **kwargs)
+            obj = self._constructor(cls, *args, **kwargs)
 
             # Listener for when the weak reference expires
             def on_obj_destroyed(k: int = key,
