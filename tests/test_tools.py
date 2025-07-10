@@ -10,9 +10,9 @@ from sympy.abc import a, b, c, d, e
 import time
 
 from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
-                          filter_ordered, transitive_closure, UnboundTuple)
+                          filter_ordered, transitive_closure, UnboundTuple,
+                          weak_instance_cache)
 from devito.tools.abc import WeakValueCache
-from devito.tools.memoization import _memoized_instances
 from devito.types.basic import Symbol
 
 
@@ -176,7 +176,7 @@ class CacheObjectThrows(CacheObject):
 
 class TestWeakValueCache:
     """
-    Tests for the `WeakValueCache` class and hread safety.
+    Tests for the `WeakValueCache` class and thread safety.
     """
 
     def test_caching(self) -> None:
@@ -335,25 +335,29 @@ class TestWeakValueCache:
             assert isinstance(exc, CacheObjectThrows.ConstructorException)
 
 
-class TestMemoizedInstances:
+class TestWeakInstanceCache:
     """
-    Tests for the `memoized_instances` decorator.
+    Tests for the `weak_instance_cache` decorator.
     """
 
     def test_memo(self):
         """
         Tests basic functionality of memoized instances.
         """
-        @_memoized_instances
         class Box:
             def __init__(self, value: int):
                 self.value = value
                 self.init_calls = getattr(self, 'init_calls', 0) + 1
 
+            @classmethod
+            @weak_instance_cache
+            def create(cls, value: int):
+                return cls(value)
+
         # Create instances with the same value
-        box1 = Box(10)
-        box2 = Box(10)
-        box3 = Box(20)
+        box1 = Box.create(10)
+        box2 = Box.create(10)
+        box3 = Box.create(20)
 
         # Ensure they are the same instance
         assert box1.value == 10
@@ -368,9 +372,8 @@ class TestMemoizedInstances:
 
     def test_memo_with_new(self):
         """
-        Tests that `memoized_instances` works correctly with `__new__`.
+        Tests that `weak_instance_cache` works correctly with `__new__`.
         """
-        @_memoized_instances
         class BoxWithNew:
             def __new__(cls, value: int):
                 instance = super().__new__(cls)
@@ -381,10 +384,15 @@ class TestMemoizedInstances:
                 self.value += value
                 self.init_calls = getattr(self, 'init_calls', 0) + 1
 
+            @classmethod
+            @weak_instance_cache
+            def create(cls, value: int):
+                return cls(value)
+
         # Create instances with the same value
-        box1 = BoxWithNew(10)
-        box2 = BoxWithNew(10)
-        box3 = BoxWithNew(20)
+        box1 = BoxWithNew.create(10)
+        box2 = BoxWithNew.create(10)
+        box3 = BoxWithNew.create(20)
 
         # Ensure they are the same instance
         assert box1.value == 20
@@ -402,95 +410,29 @@ class TestMemoizedInstances:
         Tests that applying the decorator multiple times in an inheritance chain
         does not change the behavior.
         """
-        @_memoized_instances
-        # @_memoized_instances
         class Box:
             def __init__(self, value: int):
                 self.value = value
                 self.init_calls = getattr(self, 'init_calls', 0) + 1
 
-        @_memoized_instances
+            @classmethod
+            @weak_instance_cache
+            def create(cls, value: int):
+                return cls(value)
+
         class SubBox(Box):
             def __init__(self, value: int):
                 super().__init__(value)
                 self.sub_init_calls = getattr(self, 'sub_init_calls', 0) + 1
 
         # Create instances with the same value
-        box = Box(10)
-        subbox1 = SubBox(10)
-        subbox2 = SubBox(10)
-        subbox3 = SubBox(20)
+        box = Box.create(10)
+        subbox1 = SubBox.create(10)
+        subbox2 = SubBox.create(10)
+        subbox3 = SubBox.create(20)
 
         # Ensure the subclass instances are not the same as the base class
         assert box is not subbox1
         assert subbox1 is subbox2
         assert subbox1 is not subbox3
 
-    def test_subclass_missing_decorator(self):
-        """
-        Tests that not applying the decorator to a child class raises an error.
-        """
-        @_memoized_instances
-        class Box:
-            def __init__(self, value: int):
-                self.value = value
-                self.init_calls = getattr(self, 'init_calls', 0) + 1
-
-        class SubBox(Box):
-            def __init__(self, value: int):
-                super().__init__(value)
-                self.sub_init_calls = getattr(self, 'sub_init_calls', 0) + 1
-
-        # Create instances with the same value
-        with pytest.raises(TypeError):
-            SubBox(10)
-
-    def test_constructed_elsewhere(self):
-        """
-        Tests that instances somehow constructed without the replaced new function
-        are still initialized correctly (edge case).
-        """
-        class Box:
-            def __new__(cls, _: int):
-                return super().__new__(cls)
-
-            def __init__(self, value: int):
-                self.value = value
-                self.init_calls = getattr(self, 'init_calls', 0) + 1
-
-        # Store the original __new__ method
-        original_new = Box.__new__
-        Box = _memoized_instances(Box)
-
-        # Create a cached instance as normal
-        box1 = Box(10)
-
-        # Restore the original __new__ method and construct a new instance
-        Box.__new__ = original_new
-        box2 = Box(10)
-
-        # Ensure the new instance is initialized correctly
-        assert box2.value == 10
-        assert box2.init_calls == 1
-
-        # Ensure the instances are not the same
-        assert box1 is not box2
-
-    def test_copy(self):
-        """
-        Tests that copying a memoized object returns the same instance.
-        """
-
-        @_memoized_instances
-        class Box:
-            def __init__(self, value: int):
-                self.value = value
-                self.init_calls = getattr(self, 'init_calls', 0) + 1
-
-        box1 = Box(10)
-        box2 = copy.copy(box1)
-
-        # Ensure the copied instance is the same as the original
-        assert box1 is box2
-        assert box1.value == 10
-        assert box1.init_calls == 1
