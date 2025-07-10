@@ -136,7 +136,7 @@ InstanceType = TypeVar('InstanceType')
 Constructor = TypeVar('Constructor', bound=Callable[..., InstanceType])
 
 
-def weak_instance_cache(fun: Constructor[InstanceType]) -> Constructor[InstanceType]:
+def weak_instance_cache(fun: Constructor) -> Constructor:
     """
     Decorator for a class method that caches instances based on the hash
     values of constructing arguments. The constructed values are stored
