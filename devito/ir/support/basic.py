@@ -852,6 +852,15 @@ class Scope:
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
+    @classmethod
+    @weak_instance_cache
+    def maybe_cached(cls, exprs, rules=None) -> 'Scope':
+        """
+        Constructs a new Scope or retrieves one from the cache if it already/still
+        exists.
+        """
+        return cls(exprs, rules)
+
     @memoized_generator
     def writes_gen(self):
         """

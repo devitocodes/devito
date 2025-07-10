@@ -183,7 +183,7 @@ class Cluster:
 
     @cached_property
     def scope(self):
-        return Scope(self.exprs)
+        return Scope.maybe_cached(as_tuple(self.exprs))
 
     @cached_property
     def functions(self):
@@ -473,7 +473,7 @@ class ClusterGroup(tuple):
 
     @cached_property
     def scope(self):
-        return Scope(exprs=self.exprs)
+        return Scope.maybe_cached(exprs=as_tuple(self.exprs))
 
     @cached_property
     def ispace(self):

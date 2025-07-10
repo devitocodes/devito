@@ -134,7 +134,7 @@ class QueueStateful(Queue):
         exprs = flatten(c.exprs for c in as_tuple(clusters))
         key = tuple(exprs)
         if key not in self.state.scopes:
-            self.state.scopes[key] = Scope(exprs)
+            self.state.scopes[key] = Scope.maybe_cached(as_tuple(exprs))
         return self.state.scopes[key]
 
     def _fetch_properties(self, clusters, prefix):
