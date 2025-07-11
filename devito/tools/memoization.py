@@ -134,7 +134,6 @@ class memoized_generator:
 
 # Describes the type of an object cached by `weak_instance_cache`
 InstanceType = TypeVar('InstanceType')
-# Constructor = TypeVar('Constructor', bound=Callable[..., InstanceType])
 
 
 class PersistEntriesContext:

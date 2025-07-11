@@ -28,9 +28,6 @@ def analyze(clusters: list[Cluster]) -> list[Cluster]:
     # Reconstruct Clusters attaching the discovered properties
     processed = [c.rebuild(properties=properties.get(c)) for c in clusters]
 
-    # Stop persisting `Scope`s we created during this pass
-    # _fetch_scope.cache_clear()
-
     return processed
 
 

@@ -7,7 +7,7 @@ from devito.ir.clusters.cluster import Cluster
 from devito.ir.support import IterationSpace, Scope, null_ispace
 from devito.tools import as_tuple, flatten, timed_pass
 
-__all__ = ['Queue', 'QueueStateful', 'cluster_pass']
+__all__ = ['Queue', 'cluster_pass']
 
 
 class Queue:

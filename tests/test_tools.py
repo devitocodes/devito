@@ -1,6 +1,5 @@
 from concurrent.futures import Future, ThreadPoolExecutor
 import copy
-import gc
 from threading import Barrier
 from weakref import ref
 import numpy as np
@@ -204,10 +203,8 @@ class TestWeakValueCache:
         def scope() -> None:
             cache.get_or_create(1)
 
-        scope()
-        gc.collect()
-
         # Ensure the object is evicted after going out of scope
+        scope()
         assert len(cache) == 0
 
     def test_clear(self) -> None:
