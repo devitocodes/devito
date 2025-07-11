@@ -149,7 +149,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                         # Perhaps user only wants to initialise the physical domain
                         self._initializer(self.data)
                 else:
-                    self.data_with_halo.fill(0)
+                    self._data_allocated.fill(0)
 
             return func(self)
         return wrapper
@@ -297,7 +297,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     def symbolic_shape(self):
-        return tuple(self._C_get_field(FULL, d).size for d in self.dimensions)
+        return DimensionTuple(*[self._C_get_field(FULL, d).size for d in self.dimensions],
+                              getters=self.dimensions)
 
     @property
     def size_global(self):
