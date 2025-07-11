@@ -26,7 +26,7 @@ from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
                           c_restrict_void_p, sorted_priority)
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
-                          IndexedData, DeviceMap)
+                          IndexedData, DeviceMap, LocalObject)
 
 
 __all__ = ['FindApplications', 'FindNodes', 'FindWithin', 'FindSections',
@@ -303,7 +303,7 @@ class CGen(Visitor):
             * 2: Declaration suitable for a function parameter list.
         """
         qualifiers = [v for k, v in self._qualifiers_mapper.items()
-                      if getattr(obj.function, k, False) and v not in masked]
+                    if getattr(obj.function, k, False) and v not in masked]
 
         if (obj._mem_stack or obj._mem_constant) and mode == 1:
             strtype = self.ccode(obj._C_typedata)
@@ -348,12 +348,16 @@ class CGen(Visitor):
             return self._gen_value(obj, 0).typename
         except AttributeError:
             pass
+
         if isinstance(obj, str):
             return obj
         elif isinstance(obj, (FieldFromComposite, FieldFromPointer)):
             return self._gen_value(obj.function.base, 0).typename
         else:
-            return None
+            try:
+                return obj._type_.__name__
+            except AttributeError:
+                return None
 
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""

@@ -169,6 +169,7 @@ class PosixAllocator(MemoryAllocator):
         c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.c_void_p)
         alignment = self.lib.getpagesize()
         ret = self.lib.posix_memalign(ctypes.byref(c_pointer), alignment, c_bytesize)
+        self.lib.memset(c_pointer, 0, c_bytesize)
         if ret == 0:
             return c_pointer, (c_pointer, )
         else:
@@ -211,6 +212,7 @@ class GuardAllocator(PosixAllocator):
         c_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.c_void_p)
         alignment = self.lib.getpagesize()
         ret = self.lib.posix_memalign(ctypes.byref(c_pointer), alignment, c_bytesize)
+        self.lib.memset(c_pointer, 0, c_bytesize)
         if ret != 0:
             return None, None
 
