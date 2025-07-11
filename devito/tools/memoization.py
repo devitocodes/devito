@@ -6,7 +6,8 @@ from typing import TypeVar
 from devito.tools import WeakValueCache
 
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator', 'weak_instance_cache']
+__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator',
+           'PersistEntriesContext', 'weak_instance_cache']
 
 
 class memoized_func:
@@ -133,10 +134,32 @@ class memoized_generator:
 
 # Describes the type of an object cached by `weak_instance_cache`
 InstanceType = TypeVar('InstanceType')
-Constructor = TypeVar('Constructor', bound=Callable[..., InstanceType])
+# Constructor = TypeVar('Constructor', bound=Callable[..., InstanceType])
 
 
-def weak_instance_cache(fun: Constructor) -> Constructor:
+class PersistEntriesContext:
+    """
+    Context manager to persist entries in a weak instance cache.
+    Entries retrieved during the context will be forced to remain in memory until
+    the context manager exits, when they will be allowed to be evicted as normal.
+    """
+
+    def __init__(self) -> None:
+        self._counter = 0
+
+    def __enter__(self):
+        self._counter += 1
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._counter -= 1
+
+    @property
+    def do_persist_entries(self) -> bool:
+        return self._counter > 0
+
+
+def weak_instance_cache(fun: Callable[..., InstanceType]) -> Callable[..., InstanceType]:
     """
     Decorator for a class method that caches instances based on the hash
     values of constructing arguments. The constructed values are stored
@@ -147,11 +170,34 @@ def weak_instance_cache(fun: Constructor) -> Constructor:
 
     # Initialize a weak value cache bound to this constructor
     cache = WeakValueCache(fun)
+    persistent_entry_context = PersistEntriesContext()
+    persistent_entry_cache: dict[int, InstanceType] = {}
 
     @wraps(fun)
     def _wrapper(cls: type[InstanceType], *args: Hashable, **kwargs: Hashable) \
             -> InstanceType:
+        # If we're in a context that forces persistence, use a direct cache
+        if persistent_entry_context.do_persist_entries:
+            key = cache._make_key(cls, *args, **kwargs)
+            if key in persistent_entry_cache:
+                return persistent_entry_cache[key]
+
+            # The object might not be in our direct cache, but could still
+            # exist in the weak cache
+            instance = cache.get_or_create(cls, *args, **kwargs)
+            persistent_entry_cache[key] = instance
+            return instance
+
         # Retrieve from the cache or create a new instance
         return cache.get_or_create(cls, *args, **kwargs)
+
+    def _persist_entries() -> PersistEntriesContext:
+        """
+        Context manager to persist entries in the cache.
+        """
+        return persistent_entry_context
+
+    # Allow accessing the persistent entry context from the wrapper
+    _wrapper.persist_entries = _persist_entries
 
     return _wrapper
