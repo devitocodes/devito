@@ -12,13 +12,15 @@ from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
 from devito.ir.equations import OpMin, OpMax, identity_mapper
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
+from devito.ir.clusters.visitors import Queue, cluster_pass
+from devito.ir.support.basic import Scope
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
                               xreplace_indices)
 from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
                           is_integer, split, timed_pass, toposort)
+from devito.tools.utils import as_tuple
 from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
@@ -77,7 +79,7 @@ def impose_total_ordering(clusters):
     return processed
 
 
-class Schedule(QueueStateful):
+class Schedule(Queue):
 
     """
     This special Queue produces a new sequence of "scheduled" Clusters, which
@@ -122,7 +124,9 @@ class Schedule(QueueStateful):
 
     @timed_pass(name='schedule')
     def process(self, clusters):
-        return self._process_fatd(clusters, 1)
+        # Persist `Scope`s constructed during the duration of this pass
+        with Scope.persist_cache_entries():
+            return self._process_fatd(clusters, 1)
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:
@@ -135,7 +139,8 @@ class Schedule(QueueStateful):
         # `clusters` are supposed to share it
         candidates = prefix[-1].dim._defines
 
-        scope = self._fetch_scope(clusters)
+        exprs = flatten(c.exprs for c in as_tuple(clusters))
+        scope = Scope.maybe_cached(exprs)
 
         # Handle the nastiest case -- ambiguity due to the presence of both a
         # flow- and an anti-dependence.

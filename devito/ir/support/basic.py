@@ -15,6 +15,7 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator, smart_gt,
                           smart_lt, weak_instance_cache)
+from devito.tools.memoization import PersistEntriesContext
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -872,6 +873,19 @@ class Scope:
         already/still exists in memory.
         """
         return cls._maybe_cached(as_tuple(exprs), rules)
+
+    @classmethod
+    def persist_cache_entries(cls: type['Scope']) -> PersistEntriesContext:
+        """
+        Usually, `Scope.maybe_cached` weakly caches the created entries such that
+        they are evicted whenever the cached instance is no longer referenced.
+
+        This method provides a context manager for the duration of which any
+        entries retrieved from `Scope.maybe_cached` will be persisted in memory
+        at least until the context manager exits, after which they will be
+        evicted as normal when garbage collected.
+        """
+        return cls._maybe_cached.persist_entries()
 
     @memoized_generator
     def writes_gen(self):

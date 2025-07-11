@@ -3,6 +3,7 @@ from collections.abc import Iterable
 
 from itertools import groupby
 
+from devito.ir.clusters.cluster import Cluster
 from devito.ir.support import IterationSpace, Scope, null_ispace
 from devito.tools import as_tuple, flatten, timed_pass
 
@@ -111,48 +112,6 @@ class Queue:
                 processed.extend(self._process_fatd(_clusters, level + 1, pfx, **kwargs))
 
         return processed
-
-
-class QueueStateful(Queue):
-
-    """
-    A Queue carrying along some state. This is useful when one wants to avoid
-    expensive re-computations of information.
-    """
-
-    class State:
-
-        def __init__(self):
-            self.properties = {}
-            self.scopes = {}
-
-    def __init__(self, state=None):
-        super().__init__()
-        self.state = state or QueueStateful.State()
-
-    def _fetch_scope(self, clusters):
-        exprs = flatten(c.exprs for c in as_tuple(clusters))
-        key = tuple(exprs)
-        if key not in self.state.scopes:
-            self.state.scopes[key] = Scope.maybe_cached(exprs)
-        return self.state.scopes[key]
-
-    def _fetch_properties(self, clusters, prefix):
-        # If the situation is:
-        #
-        # t
-        #   x0
-        #     <some clusters>
-        #   x1
-        #     <some other clusters>
-        #
-        # then retain only the "common" properties, that is those along `t`
-        properties = defaultdict(set)
-        for c in clusters:
-            v = self.state.properties.get(c, {})
-            for i in prefix:
-                properties[i.dim].update(v.get(i.dim, set()))
-        return properties
 
 
 class Prefix(IterationSpace):
