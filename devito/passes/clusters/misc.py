@@ -5,6 +5,7 @@ from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
 from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WaitLock,
                                WithLock, InitArray, SyncArray, PrefetchUpdate)
+from devito.ir.support.basic import TimedAccess
 from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul, search
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
@@ -345,7 +346,7 @@ class Fusion(Queue):
         dag = DAG(nodes=cgroups)
         for n, cg0 in enumerate(cgroups):
 
-            def is_cross(source, sink):
+            def is_cross(source: TimedAccess, sink: TimedAccess) -> bool:
                 # True if a cross-ClusterGroup dependence, False otherwise
                 t0 = source.timestamp
                 t1 = sink.timestamp
@@ -355,7 +356,7 @@ class Fusion(Queue):
             for n1, cg1 in enumerate(cgroups[n+1:], start=n+1):
 
                 # A Scope to compute all cross-ClusterGroup anti-dependences
-                scope = Scope(exprs=cg0.exprs + cg1.exprs, rules=is_cross)
+                scope = Scope(exprs=tuple(cg0.exprs + cg1.exprs), rules=is_cross)
 
                 # Anti-dependences along `prefix` break the execution flow
                 # (intuitively, "the loop nests are to be kept separated")
@@ -444,7 +445,7 @@ class Fission(Queue):
             return clusters
 
         # Analyze and abort if fissioning would break a dependence
-        scope = Scope(flatten(c.exprs for c in clusters))
+        scope = Scope.maybe_cached(flatten(c.exprs for c in clusters))
         if any(d._defines & dep.cause or dep.is_reduce(d) for dep in scope.d_all_gen()):
             return clusters
 

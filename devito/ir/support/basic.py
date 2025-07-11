@@ -1,10 +1,12 @@
+from collections.abc import Callable
 from itertools import chain, product
 from functools import cached_property
+from typing import Any, Iterable, TypeVar
 
-from sympy import S
+from sympy import S, Expr
 import sympy
 
-from devito.ir.support.space import Backward, null_ispace
+from devito.ir.support.space import Backward, IterationSpace, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
@@ -12,7 +14,8 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator, smart_gt,
-                          smart_lt)
+                          smart_lt, weak_instance_cache)
+from devito.tools.memoization import PersistEntriesContext
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -216,7 +219,8 @@ class TimedAccess(IterationInstance, AccessMode):
     on the values of the index functions and the access mode (read, write).
     """
 
-    def __new__(cls, access, mode, timestamp, ispace=None):
+    def __new__(cls, access: Any, mode: str, timestamp: int,
+                ispace: IterationSpace | None = None) -> 'TimedAccess':
         obj = super().__new__(cls, access)
         AccessMode.__init__(obj, mode=mode)
         return obj
@@ -246,7 +250,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 self.ispace == other.ispace)
 
     def __hash__(self):
-        return super().__hash__()
+        return hash((self.access, self.mode, self.timestamp, self.ispace))
 
     @property
     def function(self):
@@ -508,11 +512,25 @@ class TimedAccess(IterationInstance, AccessMode):
         return (touch_halo_left, touch_halo_right)
 
 
+# Type variable for subclass of `Relation` returned from `maybe_cached`
+RelationType = TypeVar('RelationType', bound='Relation')
+
+
 class Relation:
 
     """
     A relation between two TimedAccess objects.
     """
+
+    @classmethod
+    @weak_instance_cache
+    def maybe_cached(cls: type[RelationType],
+                     source: TimedAccess, sink: TimedAccess) -> RelationType:
+        """
+        Constructs a new Relation or retrieves one from the cache if it
+        already/still exists.
+        """
+        return cls(source, sink)
 
     def __init__(self, source, sink):
         assert isinstance(source, TimedAccess) and isinstance(sink, TimedAccess)
@@ -836,6 +854,39 @@ class Scope:
         self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
+    @classmethod
+    @weak_instance_cache
+    def _maybe_cached(cls: type['Scope'], exprs: tuple[Expr],
+                      rules: Callable[[TimedAccess, TimedAccess], bool] | None = None) \
+            -> 'Scope':
+        """
+        Helper for `maybe_cached` called with hashable `exprs`.
+        """
+        return cls(exprs, rules)
+
+    @classmethod
+    def maybe_cached(cls: type['Scope'], exprs: Expr | Iterable[Expr],
+                     rules: Callable[[TimedAccess, TimedAccess], bool] | None = None) \
+            -> 'Scope':
+        """
+        Constructs a new Scope or retrieves one from the cache if it
+        already/still exists in memory.
+        """
+        return cls._maybe_cached(as_tuple(exprs), rules)
+
+    @classmethod
+    def persist_cache_entries(cls: type['Scope']) -> PersistEntriesContext:
+        """
+        Usually, `Scope.maybe_cached` weakly caches the created entries such that
+        they are evicted whenever the cached instance is no longer referenced.
+
+        This method provides a context manager for the duration of which any
+        entries retrieved from `Scope.maybe_cached` will be persisted in memory
+        at least until the context manager exits, after which they will be
+        evicted as normal when garbage collected.
+        """
+        return cls._maybe_cached.persist_entries()
+
     @memoized_generator
     def writes_gen(self):
         """
@@ -1077,7 +1128,7 @@ class Scope:
                     if any(not rule(w, r) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(w, r)
+                    dependence = Dependence.maybe_cached(w, r)
 
                     if dependence.is_imaginary:
                         continue
@@ -1107,7 +1158,7 @@ class Scope:
                     if any(not rule(r, w) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(r, w)
+                    dependence = Dependence.maybe_cached(r, w)
 
                     if dependence.is_imaginary:
                         continue
@@ -1137,7 +1188,7 @@ class Scope:
                     if any(not rule(w2, w1) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(w2, w1)
+                    dependence = Dependence.maybe_cached(w2, w1)
 
                     if dependence.is_imaginary:
                         continue
@@ -1199,7 +1250,7 @@ class Scope:
                 if a0 is a1:
                     continue
 
-                r = Relation(a0, a1)
+                r = Relation.maybe_cached(a0, a1)
                 if r.is_imaginary:
                     continue
 

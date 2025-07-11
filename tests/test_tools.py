@@ -1,3 +1,7 @@
+from concurrent.futures import Future, ThreadPoolExecutor
+import copy
+from threading import Barrier
+from weakref import ref
 import numpy as np
 import pytest
 from sympy.abc import a, b, c, d, e
@@ -5,7 +9,9 @@ from sympy.abc import a, b, c, d, e
 import time
 
 from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
-                          filter_ordered, transitive_closure, UnboundTuple)
+                          filter_ordered, transitive_closure, UnboundTuple,
+                          weak_instance_cache)
+from devito.tools.abc import WeakValueCache
 from devito.types.basic import Symbol
 
 
@@ -145,3 +151,281 @@ def test_unbound_tuple():
     assert ub.next() == 2
     ub.iter()
     assert ub.next() == 1
+
+
+class CacheObject:
+    def __init__(self, value: int):
+        self.value = value
+
+
+class SlowCacheObject(CacheObject):
+    def __new__(self, value: int):
+        # Simulate a slow construction
+        time.sleep(0.5)
+        return super().__new__(self)
+
+
+class CacheObjectThrows(CacheObject):
+    class ConstructorException(Exception):
+        pass
+
+    def __init__(self, value: int):
+        raise CacheObjectThrows.ConstructorException(f"Failed with value {value}")
+
+
+class TestWeakValueCache:
+    """
+    Tests for the `WeakValueCache` class and thread safety.
+    """
+
+    def test_caching(self) -> None:
+        """
+        Tests that `WeakValueCache` caches and returns the same instance while it exists.
+        """
+        cache = WeakValueCache(CacheObject)
+
+        old_obj = cache.get_or_create(1)
+        new_obj = cache.get_or_create(1)
+        oth_obj = cache.get_or_create(2)
+
+        # Ensure the same object is returned for the same key (and vice versa)
+        assert new_obj is old_obj
+        assert oth_obj is not new_obj
+
+    def test_eviction(self) -> None:
+        """
+        Tests that `WeakValueCache` does not keep objects alive, and that entries
+        are evicted when their values are no longer referenced.
+        """
+        cache = WeakValueCache(CacheObject)
+
+        # Cache an object and let it immediately drop
+        def scope() -> None:
+            cache.get_or_create(1)
+
+        # Ensure the object is evicted after going out of scope
+        scope()
+        assert len(cache) == 0
+
+    def test_clear(self) -> None:
+        """
+        Tests clearing the cache while objects may still exist.
+        """
+        cache = WeakValueCache(CacheObject)
+
+        # Create an object that stays alive, as well as one that's dropped right away
+        obj = cache.get_or_create(1)
+        cache.get_or_create(2)
+
+        # Ensure both are dropped from the cache
+        assert len(cache) == 1
+        cache.clear()
+        assert len(cache) == 0
+
+        # Ensure the object is still alive
+        assert isinstance(obj, CacheObject)
+
+    @pytest.mark.parametrize('num_threads', [17, 31, 57])
+    def test_safety(self, num_threads: int) -> None:
+        """
+        Tests that `WeakValueCache` is safe for concurrent access with the same key.
+        """
+        cache = WeakValueCache(CacheObject)
+        barrier = Barrier(num_threads)
+
+        def worker(_: int) -> CacheObject:
+            # Wait until all threads can try to access the cache at once
+            barrier.wait()
+            return cache.get_or_create(1)
+
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            results = list(executor.map(worker, range(num_threads)))
+
+        # All threads should get the same instance
+        ids = {id(obj) for obj in results}
+        assert len(ids) == 1
+        assert isinstance(results[0], CacheObject)
+
+    @pytest.mark.parametrize('num_threads', [17, 31, 57])
+    @pytest.mark.parametrize('num_keys', [3, 5, 7])
+    def test_concurrent_construction(self, num_threads: int, num_keys: int) -> None:
+        """
+        Tests that `WeakValueCache` allows for construction of objects in parallel
+        for distinct keys, ensuring each key gets a unique instance.
+        """
+        cache = WeakValueCache(SlowCacheObject)
+        barrier = Barrier(num_threads)
+
+        def worker(key: int) -> CacheObject:
+            # Synchronize cache access to ensure it deals with high contention
+            barrier.wait()
+            return cache.get_or_create(key)
+
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            start_time = time.perf_counter()
+            results = list(executor.map(worker,
+                                        (i % num_keys for i in range(num_threads))))
+            duration = time.perf_counter() - start_time
+
+        # Ensure construction took a reasonable amount of time
+        assert .3 <= duration <= .7, f"Construction took {duration:.2f}s, expected ~0.5s"
+
+        # Ensure we constructed unique objects for each key
+        ids = {id(obj) for obj in results}
+        assert len(ids) == num_keys, "Expected unique objects for each key"
+
+    def test_retry_on_dead_ref(self) -> None:
+        """
+        Tests that `WeakValueCache` recovers from a race condition where an object
+        being constructed is collected before a waiting thread can access it.
+        """
+        cache = WeakValueCache(CacheObject)
+
+        # Create a future that resolves to a dead reference
+        dead_ref_future = Future()
+        dead_ref_future.set_result(ref(CacheObject(1)))  # ref is immediately dropped
+
+        # Manually insert the dead reference into the cache
+        cache._futures[1] = dead_ref_future
+
+        # Query from another thread while evicting the dead reference on this thread
+        def query() -> CacheObject:
+            # Should spin until the dead reference is evicted, then populate the cache
+            return cache.get_or_create(1)
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            # Spin up the query thread
+            query_future = executor.submit(query)
+
+            # Evict the dead reference
+            assert cache._futures[1] is dead_ref_future
+            del cache._futures[1]
+
+            # Query should succeed after eviction
+            result = query_future.result(timeout=1)
+            assert isinstance(result, CacheObject)
+            assert len(cache) == 1
+
+    def test_supplier_exception(self):
+        """
+        Tests that an exception in the supplier is propagated to all waiting threads.
+        """
+        cache = WeakValueCache(CacheObjectThrows)
+
+        num_threads = 16
+        exceptions = [None] * num_threads
+
+        def worker(index: int):
+            with pytest.raises(CacheObjectThrows.ConstructorException) as exc_info:
+                cache.get_or_create(index)
+            exceptions[index] = exc_info.value
+
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+            executor.map(worker, range(num_threads))
+
+        # Ensure all threads received the exception
+        for exc in exceptions:
+            assert isinstance(exc, CacheObjectThrows.ConstructorException)
+
+
+class TestWeakInstanceCache:
+    """
+    Tests for the `weak_instance_cache` decorator.
+    """
+
+    def test_memo(self):
+        """
+        Tests basic functionality of memoized instances.
+        """
+        class Box:
+            def __init__(self, value: int):
+                self.value = value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+            @classmethod
+            @weak_instance_cache
+            def create(cls, value: int):
+                return cls(value)
+
+        # Create instances with the same value
+        box1 = Box.create(10)
+        box2 = Box.create(10)
+        box3 = Box.create(20)
+
+        # Ensure they are the same instance
+        assert box1.value == 10
+        assert box1 is box2
+
+        # Ensure initialization only happened once
+        assert box1.init_calls == 1
+
+        # Ensure different values create different instances
+        assert box1 is not box3
+        assert box3.init_calls == 1
+
+    def test_memo_with_new(self):
+        """
+        Tests that `weak_instance_cache` works correctly with `__new__`.
+        """
+        class BoxWithNew:
+            def __new__(cls, value: int):
+                instance = super().__new__(cls)
+                instance.value = value
+                return instance
+
+            def __init__(self, value: int):
+                self.value += value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+            @classmethod
+            @weak_instance_cache
+            def create(cls, value: int):
+                return cls(value)
+
+        # Create instances with the same value
+        box1 = BoxWithNew.create(10)
+        box2 = BoxWithNew.create(10)
+        box3 = BoxWithNew.create(20)
+
+        # Ensure they are the same instance
+        assert box1.value == 20
+        assert box1 is box2
+
+        # Ensure initialization only happened once
+        assert box1.init_calls == 1
+
+        # Ensure different values create different instances
+        assert box1 is not box3
+        assert box3.init_calls == 1
+
+    def test_subclass_memo(self):
+        """
+        Tests that applying the decorator multiple times in an inheritance chain
+        does not change the behavior.
+        """
+        class Box:
+            def __init__(self, value: int):
+                self.value = value
+                self.init_calls = getattr(self, 'init_calls', 0) + 1
+
+            @classmethod
+            @weak_instance_cache
+            def create(cls, value: int):
+                return cls(value)
+
+        class SubBox(Box):
+            def __init__(self, value: int):
+                super().__init__(value)
+                self.sub_init_calls = getattr(self, 'sub_init_calls', 0) + 1
+
+        # Create instances with the same value
+        box = Box.create(10)
+        subbox1 = SubBox.create(10)
+        subbox2 = SubBox.create(10)
+        subbox3 = SubBox.create(20)
+
+        # Ensure the subclass instances are not the same as the base class
+        assert box is not subbox1
+        assert subbox1 is subbox2
+        assert subbox1 is not subbox3
+
