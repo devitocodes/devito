@@ -353,7 +353,10 @@ class CGen(Visitor):
         elif isinstance(obj, (FieldFromComposite, FieldFromPointer)):
             return self._gen_value(obj.function.base, 0).typename
         else:
-            return None
+            try:
+                return obj._type_.__name__
+            except AttributeError:
+                return None
 
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
