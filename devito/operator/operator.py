@@ -1383,6 +1383,8 @@ class ArgumentsMap(dict):
             except AttributeError:
                 v = get_nbytes(self.get(i.name, i))
 
+            print(i, humanbytes(v))
+
             if i._mem_host or i._mem_mapped:
                 # No need to add to device , as it will be counted
                 # by nbytes_consumed_memmapped
@@ -1418,6 +1420,8 @@ class ArgumentsMap(dict):
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue
+
+            print(i, humanbytes(v))
 
             if i._mem_host:
                 host += v
