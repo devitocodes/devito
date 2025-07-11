@@ -1,15 +1,25 @@
 from itertools import permutations
+from functools import reduce
+from operator import mul
+import logging
 
 import numpy as np
 import sympy
 
 import pytest
-from conftest import assert_structure, skipif
+
+# Try-except required to allow for import of classes from this file
+# for testing in PRO
+try:
+    from ..conftest import assert_structure, skipif
+except ImportError:
+    from conftest import assert_structure, skipif
+
 from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction,
-                    div, grad, switchconfig, exp)
+                    div, grad, switchconfig, exp, Buffer)
 from devito import  Inc, Le, Lt, Ge, Gt  # noqa
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
@@ -2051,3 +2061,193 @@ class TestInternals:
 
         assert np.all(f.data[0] == 0.)
         assert np.all(f.data[i] == 3. for i in range(1, 10))
+
+
+class TestEstimateMemory:
+    """Tests for the Operator.estimate_memory() utility"""
+
+    _array_temp = "r0L0(x, y)" if "CXX" in configuration['language'] else "r0[x][y]"
+
+    def parse_output(self, output, expected):
+        """Parse estimate_memory machine-readable output"""
+        # Check that no allocation occurs as estimate_memory should avoid data touch
+        assert "Allocating" not in output.text
+
+        name, disk, host, device = output.records[-1].message.split()
+        extracted = (name, int(disk), int(host), int(device))
+
+        assert extracted == expected
+
+    @pytest.mark.parametrize('shape', [(11,), (101, 101), (101, 101, 101)])
+    @pytest.mark.parametrize('dtype', [np.int8, np.int16, np.float32,
+                                       np.float32, np.complex64])
+    @pytest.mark.parametrize('so', [0, 2, 4, 6])
+    def test_basic_usage(self, caplog, shape, dtype, so):
+        grid = Grid(shape=shape)
+        f = Function(name='f', grid=grid, space_order=so, dtype=dtype)
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator(Eq(f, 1))
+
+            # Machine-readable output for parsing
+            op.estimate_memory(human_readable=False)
+
+            # Check output of estimate_memory
+            host = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
+            expected = ("Kernel", 0, host, 0)
+            self.parse_output(caplog, expected)
+
+    def test_multiple_objects(self, caplog):
+        grid = Grid(shape=(101, 101))
+
+        f = Function(name='f', grid=grid, space_order=2, dtype=np.float32)
+        g = Function(name='g', grid=grid, space_order=4, dtype=np.float64)
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator([Eq(f, 1), Eq(g, 1)])
+            op.estimate_memory(human_readable=False)
+
+            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                        for func in (f, g))
+            expected = ("Kernel", 0, check, 0)
+            self.parse_output(caplog, expected)
+
+    @pytest.mark.parametrize('time', [True, False])
+    def test_sparse(self, caplog, time):
+        grid = Grid(shape=(101, 101))
+        f = Function(name='f', grid=grid, space_order=2)
+        if time:
+            src = SparseTimeFunction(name='src', grid=grid, npoint=1000, nt=10)
+        else:
+            src = SparseFunction(name='src', grid=grid, npoint=1000)
+        src_term = src.inject(field=f, expr=src)
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator(src_term)
+            op.estimate_memory(human_readable=False)
+
+            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                        for func in (f, src, src.coordinates))
+            expected = ("Kernel", 0, check, 0)
+            self.parse_output(caplog, expected)
+
+    @pytest.mark.parametrize('save', [None, Buffer(3), 10])
+    def test_timefunction(self, caplog, save):
+        grid = Grid(shape=(101, 101))
+        f = Function(name='f', grid=grid, space_order=2, save=save)
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator(Eq(f, 1))
+            op.estimate_memory(human_readable=False)
+            check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
+            expected = ("Kernel", 0, check, 0)
+            self.parse_output(caplog, expected)
+
+    def test_mashup(self, caplog):
+        grid = Grid(shape=(101, 101))
+        f = Function(name='f', grid=grid, space_order=4)
+        g = TimeFunction(name='g', grid=grid, space_order=4)
+
+        src0 = SparseFunction(name='src0', grid=grid, npoint=100)
+        src1 = SparseFunction(name='src1', grid=grid, npoint=100)
+
+        eq0 = Eq(f, 1)
+        eq1 = Eq(g, 1)
+
+        src_term0 = src0.inject(field=f, expr=src0)
+        src_term1 = src1.inject(field=f, expr=src1)
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator([eq0, eq1] + src_term0 + src_term1)
+            op.estimate_memory(human_readable=False)
+
+            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                        for func in (f, g, src0, src0.coordinates,
+                                     src1, src1.coordinates))
+            expected = ("Kernel", 0, check, 0)
+            self.parse_output(caplog, expected)
+
+    def test_temp_array(self, caplog):
+        """Check that temporary arrays will be factored into the memory calculation"""
+        grid = Grid(shape=(101, 101))
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        g = TimeFunction(name='g', grid=grid, space_order=2)
+        a = Function(name='a', grid=grid, space_order=2)
+
+        # Fake array allocated in Python land so that shape_allocated can be used
+        b = Function(name='b', grid=grid, space_order=0)
+
+        # Reuse an expensive function to encourage generation of an array temp
+        eq0 = Eq(f.forward, g + sympy.sin(a))
+        eq1 = Eq(g.forward, f + sympy.sin(a))
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator([eq0, eq1])
+
+            # Regression to ensure this test functions as intended
+            # Ensure an array temporary is created
+            assert self._array_temp in str(op.ccode)
+
+            op.estimate_memory(human_readable=False)
+
+            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                        for func in (f, g, a))
+
+            # Factor in the temp array
+            check += reduce(mul, b.shape_allocated)*np.dtype(a.dtype).itemsize
+
+            expected = ("Kernel", 0, check, 0)
+            self.parse_output(caplog, expected)
+
+    def test_overrides(self, caplog):
+        grid0 = Grid(shape=(101, 101))
+        # Original fields
+        f0 = Function(name='f0', grid=grid0, space_order=4)
+        tf0 = TimeFunction(name='tf0', grid=grid0, space_order=4)
+        s0 = SparseFunction(name='s0', grid=grid0, npoint=100)
+        st0 = SparseTimeFunction(name='st0', grid=grid0, npoint=100, nt=10)
+
+        grid1 = Grid(shape=(201, 201))  # Bigger grid so overrides are distinct
+        # Replacement fields
+        f1 = Function(name='f1', grid=grid1, space_order=4)
+        tf1 = TimeFunction(name='tf1', grid=grid1, space_order=4)
+        s1 = SparseFunction(name='s1', grid=grid1, npoint=200)
+        st1 = SparseTimeFunction(name='st1', grid=grid1, npoint=200, nt=20)
+
+        eq0 = Eq(f0, 1)
+        eq1 = Eq(tf0, 1)
+        s0_term = s0.inject(field=f0, expr=s0)
+        st0_term = st0.inject(field=tf0, expr=st0)
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op = Operator([eq0, eq1] + s0_term + st0_term)
+
+            # Apply overrides for the check
+            op.estimate_memory(f0=f1, tf0=tf1, s0=s1, st0=st1, human_readable=False)
+
+            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                        for func in (f1, tf1, s1, s1.coordinates, st1, st1.coordinates))
+
+            expected = ("Kernel", 0, check, 0)
+            self.parse_output(caplog, expected)
+
+    def test_device(self, caplog):
+        # Note: this uses switchconfig and runs on all backends to reflect expected
+        # usage: users are likely to run the estimate on the orchestration node which
+        # may not have the intended hardware, before using this output to determine which
+        # nodes to farm jobs out to.
+        grid = Grid(shape=(101, 101))
+
+        f = Function(name='f', grid=grid, space_order=2)
+
+        # Compiler is never invoked, so this should be fine
+        config = {'log_level': 'DEBUG', 'language': 'openacc',
+                  'platform': 'nvidiaX'}
+        with switchconfig(**config), caplog.at_level(logging.DEBUG):
+            op = Operator(Eq(f, 1))
+
+            op.estimate_memory(human_readable=False)
+
+            check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
+
+            # Matching memory allocated both on host and device for memmap
+            expected = ("Kernel", 0, check, check)
+            self.parse_output(caplog, expected)
