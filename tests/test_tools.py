@@ -199,20 +199,16 @@ class TestWeakValueCache:
         are evicted when their values are no longer referenced.
         """
         cache = WeakValueCache(CacheObject)
-        old_id: int
 
-        # Cache an object and let it immediately drop, storing the memory address
+        # Cache an object and let it immediately drop
         def scope() -> None:
-            nonlocal old_id
-            old_obj = cache.get_or_create(1)
-            old_id = id(old_obj)
+            cache.get_or_create(1)
 
-        # Ensure the object is evicted after being dropped
         scope()
         gc.collect()
 
-        new_obj = cache.get_or_create(1)
-        assert id(new_obj) != old_id
+        # Ensure the object is evicted after going out of scope
+        assert len(cache) == 0
 
     def test_clear(self) -> None:
         """
