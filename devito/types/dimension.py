@@ -1482,7 +1482,7 @@ class CustomDimension(BasicDimension):
     def _arg_values(self, *args, **kwargs):
         return {}
 
-    def _arg_check(self, *args):
+    def _arg_check(self, *args, **kwargs):
         """A CustomDimension performs no runtime checks."""
         return
 
