@@ -40,7 +40,7 @@ def _drop_reduction_halospots(iet):
 
     # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
-        scope = Scope.maybe_cached(tuple(i.expr for i in expressions))
+        scope = Scope.maybe_cached(i.expr for i in expressions)
         for k, v in hs.fmapper.items():
             f = v.bundle or k
             if f not in scope.reads:
@@ -82,7 +82,7 @@ def _hoist_redundant_from_conditionals(iet):
 
     mapper = HaloSpotMapper()
     for it, halo_spots in iter_mapper.items():
-        scope = Scope.maybe_cached(tuple(e.expr for e in FindNodes(Expression).visit(it)))
+        scope = Scope.maybe_cached(e.expr for e in FindNodes(Expression).visit(it))
 
         for hs0 in halo_spots:
             conditions = cond_mapper[hs0]
@@ -282,7 +282,7 @@ def _mark_overlappable(iet):
         if not expressions:
             continue
 
-        scope = Scope.maybe_cached(tuple(i.expr for i in expressions))
+        scope = Scope.maybe_cached(i.expr for i in expressions)
 
         # Comp/comm overlaps is legal only if the OWNED regions can grow
         # arbitrarly, which means all of the dependences must be carried
@@ -462,7 +462,7 @@ def _derive_scope(it, hs0, hs1):
     and ends at the HaloSpot `hs1`.
     """
     expressions = FindWithin(Expression, hs0, stop=hs1).visit(it)
-    return Scope.maybe_cached(tuple(e.expr for e in expressions))
+    return Scope.maybe_cached(e.expr for e in expressions)
 
 
 def _check_control_flow(hs0, hs1, cond_mapper):

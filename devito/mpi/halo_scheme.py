@@ -519,7 +519,7 @@ def classify(exprs, ispace):
     # performed before (reads) or after (writes) the OWNED region is computed
     loc_indices_from_reads = configuration['mpi'] not in ('dual',)
 
-    scope = Scope.maybe_cached(as_tuple(exprs))
+    scope = Scope.maybe_cached(exprs)
 
     mapper = {}
     for f, r in scope.reads.items():

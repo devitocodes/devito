@@ -279,7 +279,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
         if len(clusters) > 1:
             # Heuristic: same as above if it induces dynamic bounds
             exprs = flatten(c.exprs for c in as_tuple(clusters))
-            scope = Scope.maybe_cached(as_tuple(exprs))
+            scope = Scope.maybe_cached(exprs)
             if any(i.is_lex_non_stmt for i in scope.d_all_gen()):
                 return clusters
         else:

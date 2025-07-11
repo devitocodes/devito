@@ -155,4 +155,3 @@ def weak_instance_cache(fun: Constructor) -> Constructor:
         return cache.get_or_create(cls, *args, **kwargs)
 
     return _wrapper
-

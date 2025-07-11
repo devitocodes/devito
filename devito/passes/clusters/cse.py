@@ -124,7 +124,7 @@ def _cse(maybe_exprs, make, min_cost=1, mode='basic'):
         maybe_exprs = as_list(maybe_exprs)
         if all(e.is_Equality for e in maybe_exprs):
             exprs = maybe_exprs
-            scope = Scope.maybe_cached(tuple(maybe_exprs))
+            scope = Scope.maybe_cached(maybe_exprs)
         else:
             exprs = [Eq(make(e), e) for e in maybe_exprs]
             scope = Scope([])

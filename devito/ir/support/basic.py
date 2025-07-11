@@ -1,8 +1,9 @@
+from collections.abc import Callable
 from itertools import chain, product
 from functools import cached_property
-from typing import Any, TypeVar
+from typing import Any, Iterable, TypeVar
 
-from sympy import S
+from sympy import S, Expr
 import sympy
 
 from devito.ir.support.space import Backward, IterationSpace, null_ispace
@@ -854,12 +855,23 @@ class Scope:
 
     @classmethod
     @weak_instance_cache
-    def maybe_cached(cls, exprs, rules=None) -> 'Scope':
+    def _maybe_cached(cls: type['Scope'], exprs: tuple[Expr],
+                      rules: Callable[[TimedAccess, TimedAccess], bool] | None = None) \
+            -> 'Scope':
         """
-        Constructs a new Scope or retrieves one from the cache if it already/still
-        exists.
+        Helper for `maybe_cached` called with hashable `exprs`.
         """
         return cls(exprs, rules)
+
+    @classmethod
+    def maybe_cached(cls: type['Scope'], exprs: Expr | Iterable[Expr],
+                     rules: Callable[[TimedAccess, TimedAccess], bool] | None = None) \
+            -> 'Scope':
+        """
+        Constructs a new Scope or retrieves one from the cache if it
+        already/still exists in memory.
+        """
+        return cls._maybe_cached(as_tuple(exprs), rules)
 
     @memoized_generator
     def writes_gen(self):
