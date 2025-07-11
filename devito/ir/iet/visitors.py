@@ -1295,6 +1295,28 @@ class Transformer(Visitor):
         self.mapper = mapper
         self.nested = nested
 
+    def transform(self, o, handle, **kwargs):
+        if handle is None:
+            # None -> drop `o`
+            return None
+        elif isinstance(handle, Iterable):
+            # Iterable -> inject `handle` into `o`'s children
+            if not o.children:
+                raise CompilationError("Cannot inject nodes in a leaf node")
+            if self.nested:
+                children = [self._visit(i, **kwargs) for i in o.children]
+            else:
+                children = o.children
+            children = (tuple(handle) + children[0],) + tuple(children[1:])
+            return o._rebuild(*children, **o.args_frozen)
+        else:
+            # Replace `o` with `handle`
+            if self.nested:
+                children = [self._visit(i, **kwargs) for i in handle.children]
+                return handle._rebuild(*children, **handle.args_frozen)
+            else:
+                return handle
+
     def visit_object(self, o, **kwargs):
         return o
 
@@ -1304,32 +1326,30 @@ class Transformer(Visitor):
 
     visit_list = visit_tuple
 
+    def visit_ExpressionBundle(self, o, **kwargs):
+        if o in self.mapper:
+            handle = self.mapper[o]
+            return self.transform(o, handle, **kwargs)
+        children = [self._visit(i) for i in o.children]
+        if not [i for i in children if i]:
+            return None
+        return o._rebuild(*children, **o.args_frozen)
+
+    def visit_Iteration(self, o, **kwargs):
+        if o in self.mapper:
+            handle = self.mapper[o]
+            return self.transform(o, handle, **kwargs)
+        children = [self._visit(i) for i in o.children]
+        if not [i for i in children if i]:
+            return None
+        return o._rebuild(*children, **o.args_frozen)
+
     def visit_Node(self, o, **kwargs):
         if o in self.mapper:
             handle = self.mapper[o]
-            if handle is None:
-                # None -> drop `o`
-                return None
-            elif isinstance(handle, Iterable):
-                # Iterable -> inject `handle` into `o`'s children
-                if not o.children:
-                    raise CompilationError("Cannot inject nodes in a leaf node")
-                if self.nested:
-                    children = [self._visit(i, **kwargs) for i in o.children]
-                else:
-                    children = o.children
-                children = (tuple(handle) + children[0],) + tuple(children[1:])
-                return o._rebuild(*children, **o.args_frozen)
-            else:
-                # Replace `o` with `handle`
-                if self.nested:
-                    children = [self._visit(i, **kwargs) for i in handle.children]
-                    return handle._rebuild(*children, **handle.args_frozen)
-                else:
-                    return handle
-        else:
-            children = [self._visit(i, **kwargs) for i in o.children]
-            return o._rebuild(*children, **o.args_frozen)
+            return self.transform(o, handle, **kwargs)
+        children = [self._visit(i, **kwargs) for i in o.children]
+        return o._rebuild(*children, **o.args_frozen)
 
     def visit_Operator(self, o, **kwargs):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
