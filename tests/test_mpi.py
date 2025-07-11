@@ -2014,6 +2014,24 @@ class TestCodeGeneration:
         for n in FindNodes(Conditional).visit(op1):
             assert len(FindNodes(HaloUpdateCall).visit(n)) == 0
 
+    @pytest.mark.parallel(mode=2)
+    def test_allreduce_time(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 10
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(tt, ), shape=(nt,))
+
+        op = Operator([Eq(ux.forward, ux + tt), Inc(g, ux)], name="Op")
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+
+        op.apply(time_m=0, time_M=nt-1)
+        assert np.isclose(np.max(g.data), 4356.0)
+
 
 class TestOperatorAdvanced:
 
