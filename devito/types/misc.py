@@ -1,4 +1,5 @@
 from ctypes import c_double, c_void_p
+from functools import cached_property
 
 import numpy as np
 import sympy
@@ -240,6 +241,35 @@ class TempArray(Array):
         if padding is None:
             padding = self.__padding_setup_smart__(**kwargs)
         return super().__padding_setup__(padding=padding, **kwargs)
+
+
+class FixedArray(Array):
+
+    """
+    A dimensionless fixed-length Array, i.e., an Array whose size is known at compile time.
+    """
+    _data_alignment = False
+
+    __rkwargs__ = Array.__rkwargs__ + ('shape',)
+
+    @classmethod
+    def __shape_setup__(self, *args, **kwargs):
+        try:
+            return kwargs['shape']
+        except KeyError:
+            raise ValueError("FixedArray requires a 'shape' keyword argument")
+
+    @classmethod
+    def __indices_setup__(cls, *args, **kwargs):
+        # FixedArray has no dimensions
+        return (), ()
+
+    @cached_property
+    def symbolic_shape(self):
+        """
+        The symbolic shape of a FixedArray is the same as its shape.
+        """
+        return self._shape
 
 
 class Fence:
