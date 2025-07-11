@@ -577,7 +577,7 @@ def get_advisor_path():
 @memoized_func
 def get_hip_path():
     # *** First try: via commonly used environment variables
-    for i in ['HIP_HOME']:
+    for i in ['HIP_HOME', 'ROCM_HOME']:
         hip_home = os.environ.get(i)
         if hip_home:
             return hip_home
