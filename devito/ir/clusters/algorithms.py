@@ -8,7 +8,7 @@ import sympy
 from devito.exceptions import CompilationError
 from devito.finite_differences.elementary import Max, Min
 from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
-                               pull_dims, null_ispace)
+                               pull_dims)
 from devito.ir.equations import OpMin, OpMax, identity_mapper
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
@@ -493,9 +493,9 @@ def reduction_comms(clusters):
         processed.append(c)
 
     # Leftover reductions are placed at the very end
-    if fifo:
-        exprs = [Eq(dr.var, dr) for dr in fifo]
-        processed.append(Cluster(exprs=exprs, ispace=null_ispace))
+    for ispace, reds in groupby(fifo, key=lambda r: r.ispace):
+        exprs = [Eq(dr.var, dr) for dr in reds]
+        processed.append(Cluster(exprs=exprs, ispace=ispace))
 
     return processed
 
