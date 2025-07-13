@@ -426,10 +426,10 @@ def test_basecast():
         _dtype = 'bar'
 
     v = BarCast(s, '**')
-    assert ccode(v) == '(bar**)s'
+    assert ccode(v) == '(bar**)(s)'
 
     # Reconstruction
-    assert ccode(v.func(*v.args)) == '(bar**)s'
+    assert ccode(v.func(*v.args)) == '(bar**)(s)'
 
     v1 = BarCast(s, '****')
     assert v != v1
@@ -442,19 +442,19 @@ def test_str_cast():
     assert not v.stars
     assert v.dtype == 'foo'
     assert v._op == '(foo)'
-    assert ccode(v) == '(foo)s'
+    assert ccode(v) == '(foo)(s)'
 
     v = Cast(s, 'foo*')
     assert v.stars == '*'
     assert v.dtype == 'foo'
     assert v._op == '(foo*)'
-    assert ccode(v) == '(foo*)s'
+    assert ccode(v) == '(foo*)(s)'
 
     v = Cast(s, 'foo **')
     assert v.stars == '**'
     assert v.dtype == 'foo'
     assert v._op == '(foo**)'
-    assert ccode(v) == '(foo**)s'
+    assert ccode(v) == '(foo**)(s)'
 
 
 def test_findexed():

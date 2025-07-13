@@ -19,7 +19,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (
     Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer,
-    SizeOf, VOID, pow_to_mul, unevaluate
+    SizeOf, VOID, pow_to_mul, unevaluate, LONG, retrieve_symbols
 )
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import (
@@ -90,6 +90,17 @@ class DataManager:
         self.rcompile = rcompile
         self.sregistry = sregistry
         self.platform = platform
+        self.index_mode = kwargs.get('options', {'index-mode': 'int32'})['index-mode']
+
+    def intm(self, nbytes):
+        if self.index_mode == 'int64':
+            try:
+                syms = retrieve_symbols(nbytes)
+                return nbytes.subs({s: LONG(s) for s in syms})
+            except AttributeError:
+                return LONG(nbytes)
+        else:
+            return nbytes
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
@@ -136,7 +147,7 @@ class DataManager:
 
         # Copy input array into global array
         name = self.sregistry.make_name(prefix='init_global')
-        nbytes = SizeOf(obj._C_typedata)*obj.size
+        nbytes = SizeOf(obj._C_typedata)*self.intm(obj.size)
         body = [Definition(src),
                 self.langbb['alloc-global-symbol'](obj.indexed, src.indexed, nbytes)]
         efunc = make_callable(name, body)
@@ -159,7 +170,7 @@ class DataManager:
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        nbytes = SizeOf(obj._C_typedata)*obj.size
+        nbytes = SizeOf(obj._C_typedata)*self.intm(obj.size)
         alloc = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         free = self.langbb['host-free'](obj._C_symbol)
@@ -358,7 +369,7 @@ class DataManager:
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        nbytes = SizeOf(obj._C_typedata, stars='*')*obj.dim.symbolic_size
+        nbytes = SizeOf(obj._C_typedata, stars='*')*self.intm(obj.dim.symbolic_size)
         alloc0 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         free0 = self.langbb['host-free'](obj._C_symbol)
@@ -366,7 +377,7 @@ class DataManager:
         # The pointee Array
         pobj = IndexedPointer(obj._C_symbol, obj.dim)
         memptr = VOID(Byref(pobj), '**')
-        nbytes = SizeOf(obj._C_typedata)*obj.array.size
+        nbytes = SizeOf(obj._C_typedata)*self.intm(obj.array.size)
         alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         free1 = self.langbb['host-free'](pobj)
