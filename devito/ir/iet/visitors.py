@@ -1326,22 +1326,13 @@ class Transformer(Visitor):
 
     visit_list = visit_tuple
 
-    def visit_Iteration(self, o, **kwargs):
-        if o in self.mapper:
-            handle = self.mapper[o]
-            return self.transform(o, handle, **kwargs)
-        children = [self._visit(i) for i in o.children]
-        if not any(children):
-            return None
-        return o._rebuild(*children, **o.args_frozen)
-
-    visit_ExpressionBundle = visit_Iteration
-
     def visit_Node(self, o, **kwargs):
         if o in self.mapper:
             handle = self.mapper[o]
             return self.transform(o, handle, **kwargs)
         children = [self._visit(i, **kwargs) for i in o.children]
+        if o._traversable and not any(children):
+            return None
         return o._rebuild(*children, **o.args_frozen)
 
     def visit_Operator(self, o, **kwargs):
