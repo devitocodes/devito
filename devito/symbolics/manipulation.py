@@ -10,9 +10,11 @@ from sympy.core.mul import _mulsort
 from devito.finite_differences.differentiable import (
     EvalDerivative, IndexDerivative
 )
-from devito.symbolics.extended_sympy import DefFunction, rfunc
+from devito.symbolics.extended_sympy import DefFunction, rfunc, LONG
 from devito.symbolics.queries import q_leaf
-from devito.symbolics.search import retrieve_indexed, retrieve_functions
+from devito.symbolics.search import (
+    retrieve_indexed, retrieve_functions, retrieve_symbols
+)
 from devito.symbolics.unevaluation import (
     Add as UnevalAdd, Mul as UnevalMul, Pow as UnevalPow, UnevaluableMixin
 )
@@ -24,7 +26,8 @@ from devito.types.relational import Le, Lt, Gt, Ge
 
 __all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
            'normalize_args', 'uxreplace', 'Uxmapper', 'subs_if_composite',
-           'reuse_if_untouched', 'evalrel', 'flatten_args', 'unevaluate']
+           'reuse_if_untouched', 'evalrel', 'flatten_args', 'unevaluate',
+           'as_long']
 
 
 def uxreplace(expr, rule):
@@ -523,3 +526,14 @@ def unevaluate(expr):
         return uneval_mapper[expr.func](*args)
     except KeyError:
         return reuse_if_untouched(expr, args)
+
+
+def as_long(expr):
+    """
+    Convert an expression and its symbolic args to a long integer.
+    """
+    try:
+        syms = retrieve_symbols(expr)
+        return expr.subs({s: LONG(s) for s in syms})
+    except AttributeError:
+        return LONG(expr)
