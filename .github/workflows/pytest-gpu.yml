@@ -74,7 +74,7 @@ jobs:
 
     - name: Build docker image
       run: |
-          docker build . --rm --pull --file docker/Dockerfile.devito --tag ${{ matrix.name }} --build-arg base=${{ matrix.base }}
+          docker build . --rm --pull --file docker/Dockerfile.devito --tag ${{ matrix.name }}-${{ github.ref }} --build-arg base=${{ matrix.base }}
 
     - name: Remove dangling layers
       run: |
@@ -87,13 +87,13 @@ jobs:
         docker ps -aq | xargs -r docker rm -f
         # Run tests
         ci_env=`bash <(curl -s https://codecov.io/env)`
-        docker run ${{ matrix.flags }} ${{ matrix.name }} ${{ matrix.test_drive_cmd }}
-        docker run ${{ matrix.flags }} $ci_env -e CI=true ${{ matrix.name }} pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
+        docker run ${{ matrix.flags }} ${{ matrix.name }}-${{ github.ref }} ${{ matrix.test_drive_cmd }}
+        docker run ${{ matrix.flags }} $ci_env -e CI=true ${{ matrix.name }}-${{ github.ref }} pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
     - name: Test examples
       run: |
-        docker run ${{ matrix.flags }} ${{ matrix.name }} pytest ${{ matrix.test_examples }}
+        docker run ${{ matrix.flags }} ${{ matrix.name }}-${{ github.ref }} pytest ${{ matrix.test_examples }}
 
     - name: Test examples with MPI
       run: |
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }} mpiexec -n 2 pytest ${{ matrix.test_examples }}
+        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }}-${{ github.ref }} mpiexec -n 2 pytest ${{ matrix.test_examples }}
