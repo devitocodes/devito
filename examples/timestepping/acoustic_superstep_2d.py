@@ -224,8 +224,8 @@ if __name__ == '__main__':
                 ax.set_title(f't = {time[idx]:0.3f}')
                 idx += 1
                 if ii > 0:
-                    ax.set_xticks([])
-                    ax.set_yticks([])
+                    ax.set_xticklabels([])
+                    ax.set_yticklabels([])
                 else:
                     xticks = ax.get_xticks()
                     ax.set_xticks(np.array((

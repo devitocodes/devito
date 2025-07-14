@@ -89,6 +89,8 @@ if __name__ == '__main__':
     # Snapshots
     m = 13
     fig, axes = plt.subplots(len(k), m)
+    fig.set_size_inches(16, 5)
+
     for step, ax_row in zip(k, axes, strict=True):
         data = ripple_on_pond(step=step, snapshots=m)
         idx = 0
@@ -101,14 +103,22 @@ if __name__ == '__main__':
                     cmap='seismic'
                 )
                 idx += 1
+                if step == 1:
+                    ax.set_title(f't = {(ii*t1)/(m - 1) :0.3f}')
+                    if ii != 0:
+                        ax.set_yticklabels([])
+                    if ii % 2 == 1:
+                        ax.set_xticklabels([])
             else:
                 ax.remove()
     fig.subplots_adjust(
         left=0.05,
-        bottom=0.025,
+        bottom=0.02,
         right=0.99,
-        top=0.97,
-        wspace=0.06,
-        hspace=0.06
+        top=0.96,
+        wspace=0.23,
+        hspace=0.0
     )
+
+    fig.savefig('2d_example.png', dpi=300)
     plt.show()
