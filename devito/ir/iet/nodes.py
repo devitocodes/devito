@@ -407,7 +407,10 @@ class Expression(ExprStmt, Node):
     @cached_property
     def write(self):
         """The Function written by the Expression."""
-        return self.expr.lhs.base.function
+        try:
+            return self.expr.rhs.writes[0]
+        except (AttributeError, IndexError):
+            return self.expr.lhs.base.function
 
     @cached_property
     def dimensions(self):
