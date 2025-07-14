@@ -1331,7 +1331,7 @@ class Transformer(Visitor):
             handle = self.mapper[o]
             return self.transform(o, handle, **kwargs)
         children = [self._visit(i, **kwargs) for i in o.children]
-        if o._traversable and not any(children):
+        if o._traversable and not any(children) and not o.args_frozen:
             return None
         return o._rebuild(*children, **o.args_frozen)
 
