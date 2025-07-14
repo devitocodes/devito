@@ -891,6 +891,8 @@ class Operator(Callable):
             fhost = str(humanbytes(mem[host_layer])).center(10)
             fdevice = str(humanbytes(mem[device_layer])).center(10)
 
+            # TODO: There is nominally a table generator in pytools which is a dependency
+            # of a dependency and thus in the env anyway
             info(
                 "\n"
                 f"{headline}\n"
