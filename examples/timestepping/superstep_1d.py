@@ -75,6 +75,7 @@ def wave_on_string(step=1):
 
 if __name__ == '__main__':
     fig, ax = plt.subplots(1, 1)
+    fig.set_size_inches(8, 4)
     x = np.linspace(0, 1, *shape)
     ax.plot(
         x, gaussian(x, mu=mu, sigma_sq=sigma_sq),
@@ -88,4 +89,6 @@ if __name__ == '__main__':
     ax.set_xlim(*xlim)
     ax.set_ylim(-ylim, ylim)
     ax.legend()
+
+    fig.savefig('1d_example.png', dpi=300)
     plt.show()
