@@ -375,11 +375,11 @@ class AdvisorProfiler(AdvancedProfiler):
     _default_libs = ['ittnotify']
     _ext_calls = [_api_resume, _api_pause]
 
-    def __init__(self, name):
+    def __init__(self, name, language):
         if self._attempted_init:
             return
 
-        super().__init__(name)
+        super().__init__(name, language)
 
         path = get_advisor_path()
         if path:
