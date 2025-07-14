@@ -468,7 +468,7 @@ class GNUCompiler(Compiler):
                 # they support `#pragma omp simd`
                 self.ldflags += ['-fopenmp']
         except (TypeError, ValueError):
-            if language == 'openmp':
+            if 'openmp' in language:
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -517,7 +517,7 @@ class ClangCompiler(Compiler):
             # The compiler can be installed with Homebrew or can be built from scratch.
             # Check if installed and set compiler flags accordingly
             llvmm1 = get_m1_llvm_path(language)
-            if llvmm1 and language == 'openmp':
+            if llvmm1 and 'openmp' in language:
                 mx = platform.march
                 self.ldflags += [f'-mcpu=apple-{mx}',
                                  '-fopenmp', f'-L{llvmm1["libs"]}']
@@ -528,7 +528,7 @@ class ClangCompiler(Compiler):
                 self.cflags += ['-mcpu=native']
             else:
                 self.cflags += ['-march=native']
-            if language == 'openmp':
+            if 'openmp' in language:
                 self.ldflags += ['-fopenmp']
 
     def __lookup_cmds__(self):
@@ -562,7 +562,7 @@ class AOMPCompiler(Compiler):
         if not configuration['safe-math']:
             self.cflags.append('-ffast-math')
 
-        if language == 'openmp':
+        if 'openmp' in language:
             self.ldflags += ['-fopenmp']
 
         if isinstance(platform, NvidiaDevice):
@@ -621,10 +621,10 @@ class PGICompiler(Compiler):
 
             if language == 'openacc':
                 self.cflags.extend(['-mp', '-acc:gpu'])
-            elif language == 'openmp':
+            elif 'openmp' in language:
                 self.cflags.extend(['-mp=gpu'])
         elif isinstance(platform, Cpu64):
-            if language == 'openmp':
+            if 'openmp' in language:
                 self.cflags.append('-mp')
             if isinstance(platform, NvidiaArm):
                 self.cflags.append(f'-mcpu={platform.march}')
@@ -770,7 +770,7 @@ class IntelCompiler(Compiler):
             # Systematically use 512-bit vectors if avx512 is available.
             self.cflags.append("-qopt-zmm-usage=high")
 
-        if language == 'openmp':
+        if 'openmp' in language:
             self.ldflags.append('-qopenmp')
 
         if kwargs.get('mpi'):
@@ -841,7 +841,7 @@ class OneapiCompiler(IntelCompiler):
         if language == 'sycl':
             warning(f"Use SyclCompiler (`sycl`) to jit-compile sycl, not {self.name}")
 
-        elif language == 'openmp':
+        elif 'openmp' in language:
             # Earlier versions to OneAPI 2023.2.0 (clang17 underneath), have an
             # OpenMP bug concerning reductions, hence with them we're forced to
             # use the obsolete -fopenmp

@@ -653,5 +653,9 @@ def test_int64_array(order):
 
     eqs = [Eq(f, a.indexify() + 1)]
     op = Operator(eqs, opt=('advanced', {'linearize': True, 'index-mode': 'int64'}))
-    long = 'static_cast<long>' if 'CXX' in configuration['language'] else '(long)'
-    assert f'({2*order} + {long}(y_size))*({2*order} + {long}(x_size)))' in str(op)
+    if 'CXX' in configuration['language']:
+        long = 'static_cast<long>'
+        assert f'({2*order} + {long}(y_size))*({2*order} + {long}(x_size)))' in str(op)
+    else:
+        long = '(long)'
+        assert f'({2*order} + {long}y_size)*({2*order} + {long}x_size))' in str(op)

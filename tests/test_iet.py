@@ -345,7 +345,7 @@ def test_cpp_local_object():
     assert 'bar<int,float>& obj2;' in str(iet)
     assert 'dummy obj3 = meh;' in str(iet)
     assert 'dummy obj4(1,2) = meh;' in str(iet)
-    assert 'dummy obj5(ceil(1.0F/(float)(s))) = meh;' in str(iet)
+    assert 'dummy obj5(ceil(1.0F/(float)s)) = meh;' in str(iet)
     assert 'float obj6 = meh;' in str(iet)
 
 

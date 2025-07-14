@@ -10,7 +10,8 @@ from sympy.core.mul import _mulsort
 from devito.finite_differences.differentiable import (
     EvalDerivative, IndexDerivative
 )
-from devito.symbolics.extended_sympy import DefFunction, rfunc, LONG
+from devito.symbolics.extended_sympy import DefFunction, rfunc
+from devito.symbolics.extended_dtypes import LONG
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import (
     retrieve_indexed, retrieve_functions, retrieve_symbols
