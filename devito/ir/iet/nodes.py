@@ -30,7 +30,7 @@ __all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
            'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
            'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
            'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
-           'Using', 'CallableBody', 'Transfer']
+           'Using', 'CallableBody', 'Transfer', 'EmptyList']
 
 # First-class IET nodes
 
@@ -216,6 +216,11 @@ class List(Node):
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
                                       len(self.body), len(self.footer))
+
+
+class EmptyList(List):
+    """A plain List node without a body, such as a header/footer only"""
+    _traversable = []
 
 
 class Block(List):
