@@ -342,11 +342,11 @@ class AdvancedProfiler(Profiler):
                     # data transfers)
                     summary.add_glb_fdlike('fdlike-nosetup', points, reduce_over_nosetup)
 
-        # Add the language specific summary
-        summary.add_language_summary(
-            self.language,
-            language_summary_mapper[self.language](params)
-        )
+        # Add the language specific summary if necessary
+        mapper_func = language_summary_mapper.get(self.language)
+        if mapper_func:
+            summary.add_language_summary(self.language, mapper_func(params))
+
         return summary
 
 
