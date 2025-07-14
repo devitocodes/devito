@@ -581,7 +581,11 @@ class Keyword(ReservedWord):
 
 
 class String(ReservedWord):
-    pass
+
+    def __str__(self):
+        return f'"{self.value}"'
+
+    __repr__ = __str__
 
 
 class Macro(ReservedWord):
