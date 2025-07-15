@@ -1,7 +1,9 @@
+from collections.abc import Iterable
 from itertools import chain, product
-from functools import cached_property
+from functools import cached_property, lru_cache
+from typing import Callable
 
-from sympy import S
+from sympy import S, Expr
 import sympy
 
 from devito.ir.support.space import Backward, null_ispace
@@ -825,16 +827,39 @@ class DependenceGroup(set):
 
 class Scope:
 
-    def __init__(self, exprs, rules=None):
+    # Describes a rule for dependencies
+    Rule = Callable[[TimedAccess, TimedAccess], bool]
+
+    def __init__(self, exprs: tuple[Expr],
+                 rules: Rule | tuple[Rule] | None = None) \
+            -> None:
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
         """
-        self.exprs = as_tuple(exprs)
+        self.exprs = exprs
 
         # A set of rules to drive the collection of dependencies
-        self.rules = as_tuple(rules)
+        self.rules: tuple[Scope.Rule] = as_tuple(rules)  # type: ignore[assignment]
         assert all(callable(i) for i in self.rules)
+
+    @classmethod
+    @lru_cache(maxsize=128)
+    def _fetch_scope(cls: type['Scope'], exprs: tuple[Expr],
+                     rules: Rule | tuple[Rule] | None = None) -> 'Scope':
+        """
+        Obtains a (potentially cached) Scope from a sequence of expressions.
+        Helper function called with hashable arguments.
+        """
+        return cls(exprs, rules=rules)
+
+    @classmethod
+    def fetch_scope(cls: type['Scope'], exprs: Expr | Iterable[Expr],
+                    rules: Rule | tuple[Rule] | None = None) -> 'Scope':
+        """
+        Obtains a (potentially cached) Scope from a sequence of expressions.
+        """
+        return cls._fetch_scope(as_tuple(exprs), rules=rules)
 
     @memoized_generator
     def writes_gen(self):
