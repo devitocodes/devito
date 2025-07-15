@@ -124,10 +124,10 @@ def _cse(maybe_exprs, make, min_cost=1, mode='basic'):
         maybe_exprs = as_list(maybe_exprs)
         if all(e.is_Equality for e in maybe_exprs):
             exprs = maybe_exprs
-            scope = Scope(maybe_exprs)
+            scope = Scope.fetch_scope(maybe_exprs)
         else:
             exprs = [Eq(make(e), e) for e in maybe_exprs]
-            scope = Scope([])
+            scope = Scope.fetch_scope([])
 
     # Some sub-expressions aren't really "common" -- that's the case of Dimension-
     # independent data dependences. For example:
