@@ -883,30 +883,38 @@ class Operator(Callable):
         args = self._prepare_arguments(estimate_memory=True, **kwargs)
         mem = args.nbytes_consumed
 
+        # Extra information for enhanced operators
+        extras = self._enrich_memreport(args, human_readable=human_readable)
+
         if human_readable:
             headline = f"Memory consumption for operator `{self.name}`:"
             w = len(headline)
             # Columns are width 10
-            fdisk = str(humanbytes(mem[disk_layer])).center(10)
             fhost = str(humanbytes(mem[host_layer])).center(10)
             fdevice = str(humanbytes(mem[device_layer])).center(10)
 
-            # TODO: There is nominally a table generator in pytools which is a dependency
-            # of a dependency and thus in the env anyway
-            info(
+            memreport = (
                 "\n"
                 f"{headline}\n"
-                f"{'┌──────────┬──────────┬──────────┐'.center(w)}\n"
-                f"{'│   Disk   │   Host   │  Device  │'.center(w)}\n"
-                f"{'├──────────┼──────────┼──────────┤'.center(w)}\n"
-                f"{f'│{fdisk}│{fhost}│{fdevice}│'.center(w)}\n"
-                f"{'└──────────┴──────────┴──────────┘'.center(w)}\n"
+                f"{'┌──────────┬──────────┐'.center(w)}\n"
+                f"{'│   Host   │  Device  │'.center(w)}\n"
+                f"{'├──────────┼──────────┤'.center(w)}\n"
+                f"{f'│{fhost}│{fdevice}│'.center(w)}\n"
+                f"{'└──────────┴──────────┘'.center(w)}\n"
             )
 
             # TODO: add hinting if the specified operator won't fit
-
         else:
-            info(f"{self.name} {mem[disk_layer]} {mem[host_layer]} {mem[device_layer]}")
+            memreport = f"{self.name} {mem[host_layer]} {mem[device_layer]}"
+
+        if extras is not None:
+            memreport += extras
+
+        info(memreport)
+
+    def _enrich_memreport(self, args, human_readable=True):
+        # Hook for enriching memory report
+        pass
 
     def apply(self, **kwargs):
         """
@@ -1326,8 +1334,6 @@ class ArgumentsMap(dict):
 
         return mapper
 
-    # TODO: This will want some suitable tests in due course
-    # TODO: Might want to also check the spillover onto disk
     @cached_property
     def nbytes_consumed(self):
         """Memory consumed by all objects in the operator"""
@@ -1376,8 +1382,6 @@ class ArgumentsMap(dict):
                       and not i.is_ArrayBasic and not i.alias]
 
         for i in op_symbols:
-            # FIXME: Probably wrong for streamed functions
-            # TODO: Need a hook for PRO here
             # Will overreport memory usage currently
             try:
                 # TODO: is _obj even needed?
@@ -1464,6 +1468,27 @@ class ArgumentsMap(dict):
                     pass
 
         return {disk_layer: 0, host_layer: 0, device_layer: device}
+
+    @cached_property
+    def nbytes_snapshots(self):
+        disk = 0
+
+        # Symbols in the operator which may or may not carry data
+        op_symbols = FindSymbols().visit(self.op)
+
+        # Filter to streamed functions
+        op_symbols = [i for i in op_symbols if i.is_AbstractFunction
+                      and not i.is_ArrayBasic and not i.alias]
+
+        for i in op_symbols:
+            try:
+                disk += i.size_snapshot
+            except AttributeError:
+                pass
+
+        print(disk)
+
+        return {disk_layer: 0, host_layer: 0, device_layer: 0}
 
 
 def parse_kwargs(**kwargs):
