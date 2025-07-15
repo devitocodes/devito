@@ -658,7 +658,6 @@ class Operator(Callable):
         # the subsequent phases of the arguments processing
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
-        # FIXME: Will want to remove this if not using prepare_args to estimate memory
         if estimate_memory:
             # No need to do anything more if only checking the memory
             return args
@@ -1345,7 +1344,6 @@ class ArgumentsMap(dict):
         """
         mapper = {}
 
-        # TODO: This doesn't account for the size of the snapshots?
         # The amount of space available on the disk
         usage = shutil.disk_usage(gettempdir())
         mapper[disk_layer] = usage.free
@@ -1363,10 +1361,7 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            try:
-                mapper[layer] -= self.nbytes_consumed_operator[layer]
-            except KeyError:
-                continue
+            mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
 
         mapper = {k: int(v) for k, v in mapper.items()}
 
@@ -1505,7 +1500,6 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_snapshots(self):
-        disk = 0
 
         # Symbols in the operator which may or may not carry data
         op_symbols = FindSymbols().visit(self.op)
@@ -1514,14 +1508,14 @@ class ArgumentsMap(dict):
         op_symbols = [i for i in op_symbols if i.is_AbstractFunction
                       and not i.is_ArrayBasic and not i.alias]
 
+        disk = 0
         for i in op_symbols:
             try:
-                disk += i.size_snapshot
-                print(i.size_snapshot, i._time_size_ideal)
+                disk += i.size_snapshot*i._time_size_ideal*np.dtype(i.dtype).itemsize
             except AttributeError:
                 pass
 
-        return {disk_layer: 0, host_layer: 0, device_layer: 0}
+        return {disk_layer: disk, host_layer: 0, device_layer: 0}
 
 
 def parse_kwargs(**kwargs):
