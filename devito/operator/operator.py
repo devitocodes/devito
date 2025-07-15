@@ -625,7 +625,6 @@ class Operator(Callable):
             if p.name in args:
                 # E.g., SubFunctions
                 continue
-            # print(p._arg_values(**kwargs))  # Trigger first-touch
             for k, v in p._arg_values(estimate_memory=estimate_memory, **kwargs).items():
                 if k not in args:
                     args[k] = v
@@ -1389,8 +1388,6 @@ class ArgumentsMap(dict):
             except AttributeError:
                 v = get_nbytes(self.get(i.name, i))
 
-            print(i, humanbytes(v))
-
             if i._mem_host or i._mem_mapped:
                 # No need to add to device , as it will be counted
                 # by nbytes_consumed_memmapped
@@ -1426,8 +1423,6 @@ class ArgumentsMap(dict):
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue
-
-            print(i, humanbytes(v))
 
             if i._mem_host:
                 host += v
@@ -1483,10 +1478,9 @@ class ArgumentsMap(dict):
         for i in op_symbols:
             try:
                 disk += i.size_snapshot
+                print(i.size_snapshot, i._time_size_ideal)
             except AttributeError:
                 pass
-
-        print(disk)
 
         return {disk_layer: 0, host_layer: 0, device_layer: 0}
 
