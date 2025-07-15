@@ -3,7 +3,7 @@ from devito.types import Eq, Function, TimeFunction
 
 def superstep_generator_iterative(field, stencil, k, tn=0):
     ''' Generate superstep iteratively:
-    A^j+1 = A·A^j
+    Aʲ⁺¹ = A·Aʲ
     '''
     # New fields, for vector formulation both current and previous timestep are needed
     name = field.name
@@ -42,13 +42,15 @@ def superstep_generator_iterative(field, stencil, k, tn=0):
 
 def superstep_generator(field, stencil, k, tn=0):
     ''' Generate superstep using a binary decomposition:
-    A^k = a_j A^2^j + ... + a_2 A^2^2 + a_1 A² + a_0 A
+    A^k = aⱼ A^2ʲ × ... × a₂ A^2² × a₁ A² × a₀ A
+    where k = aⱼ·2ʲ + ... + a₂·2² + a₁·2¹ + a₀·2⁰
     '''
     # New fields, for vector formulation both current and previous timestep are needed
     name = field.name
     grid = field.grid
-    u = TimeFunction(name=f'{name}_ss', grid=grid, time_order=2, space_order=2*k)
-    u_prev = TimeFunction(name=f'{name}_ss_p', grid=grid, time_order=2, space_order=2*k)
+    # time_order of `field` needs to be 2
+    u = TimeFunction(name=f'{name}_ss', grid=grid, time_order=1, space_order=2*k)
+    u_prev = TimeFunction(name=f'{name}_ss_p', grid=grid, time_order=1, space_order=2*k)
 
     superstep_solution_transfer(field, u, u_prev, tn)
 
@@ -73,6 +75,7 @@ def superstep_solution_transfer(old, new, new_p, tn):
     ''' Transfer state from a previous TimeFunction to a 2 field superstep
     Used after injecting source using standard timestepping.
     '''
+    # 3 should be replaced with `old.time_order + 1` although this needs some thought
     idx = tn % 3 if old.save is None else -1
     new.data[0, :] = old.data[idx - 1]
     new.data[1, :] = old.data[idx]
