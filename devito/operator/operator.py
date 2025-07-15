@@ -630,7 +630,6 @@ class Operator(Callable):
             if p.name in args:
                 # E.g., SubFunctions
                 continue
-            # print(p._arg_values(**kwargs))  # Trigger first-touch
             for k, v in p._arg_values(estimate_memory=estimate_memory, **kwargs).items():
                 if k not in args:
                     args[k] = v
@@ -659,7 +658,6 @@ class Operator(Callable):
         # the subsequent phases of the arguments processing
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
 
-        # FIXME: Will want to remove this if not using prepare_args to estimate memory
         if estimate_memory:
             # No need to do anything more if only checking the memory
             return args
@@ -888,30 +886,38 @@ class Operator(Callable):
         args = self._prepare_arguments(estimate_memory=True, **kwargs)
         mem = args.nbytes_consumed
 
+        # Extra information for enhanced operators
+        extras = self._enrich_memreport(args, human_readable=human_readable)
+
         if human_readable:
             headline = f"Memory consumption for operator `{self.name}`:"
             w = len(headline)
             # Columns are width 10
-            fdisk = str(humanbytes(mem[disk_layer])).center(10)
             fhost = str(humanbytes(mem[host_layer])).center(10)
             fdevice = str(humanbytes(mem[device_layer])).center(10)
 
-            # TODO: There is nominally a table generator in pytools which is a dependency
-            # of a dependency and thus in the env anyway
-            info(
+            memreport = (
                 "\n"
                 f"{headline}\n"
-                f"{'┌──────────┬──────────┬──────────┐'.center(w)}\n"
-                f"{'│   Disk   │   Host   │  Device  │'.center(w)}\n"
-                f"{'├──────────┼──────────┼──────────┤'.center(w)}\n"
-                f"{f'│{fdisk}│{fhost}│{fdevice}│'.center(w)}\n"
-                f"{'└──────────┴──────────┴──────────┘'.center(w)}\n"
+                f"{'┌──────────┬──────────┐'.center(w)}\n"
+                f"{'│   Host   │  Device  │'.center(w)}\n"
+                f"{'├──────────┼──────────┤'.center(w)}\n"
+                f"{f'│{fhost}│{fdevice}│'.center(w)}\n"
+                f"{'└──────────┴──────────┘'.center(w)}\n"
             )
 
             # TODO: add hinting if the specified operator won't fit
-
         else:
-            info(f"{self.name} {mem[disk_layer]} {mem[host_layer]} {mem[device_layer]}")
+            memreport = f"{self.name} {mem[host_layer]} {mem[device_layer]}"
+
+        if extras is not None:
+            memreport += extras
+
+        info(memreport)
+
+    def _enrich_memreport(self, args, human_readable=True):
+        # Hook for enriching memory report
+        pass
 
     def apply(self, **kwargs):
         """
@@ -1338,7 +1344,6 @@ class ArgumentsMap(dict):
         """
         mapper = {}
 
-        # TODO: This doesn't account for the size of the snapshots?
         # The amount of space available on the disk
         usage = shutil.disk_usage(gettempdir())
         mapper[disk_layer] = usage.free
@@ -1356,17 +1361,12 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            try:
-                mapper[layer] -= self.nbytes_consumed_operator[layer]
-            except KeyError:
-                continue
+            mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
 
         mapper = {k: int(v) for k, v in mapper.items()}
 
         return mapper
 
-    # TODO: This will want some suitable tests in due course
-    # TODO: Might want to also check the spillover onto disk
     @cached_property
     def nbytes_consumed(self):
         """Memory consumed by all objects in the operator"""
@@ -1415,16 +1415,12 @@ class ArgumentsMap(dict):
                       and not i.is_ArrayBasic and not i.alias]
 
         for i in op_symbols:
-            # FIXME: Probably wrong for streamed functions
-            # TODO: Need a hook for PRO here
             # Will overreport memory usage currently
             try:
                 # TODO: is _obj even needed?
                 v = get_nbytes(self[i.name]._obj)
             except AttributeError:
                 v = get_nbytes(self.get(i.name, i))
-
-            print(i, humanbytes(v))
 
             if i._mem_host or i._mem_mapped:
                 # No need to add to device , as it will be counted
@@ -1461,8 +1457,6 @@ class ArgumentsMap(dict):
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
                 continue
-
-            print(i, humanbytes(v))
 
             if i._mem_host:
                 host += v
@@ -1503,6 +1497,25 @@ class ArgumentsMap(dict):
                     pass
 
         return {disk_layer: 0, host_layer: 0, device_layer: device}
+
+    @cached_property
+    def nbytes_snapshots(self):
+
+        # Symbols in the operator which may or may not carry data
+        op_symbols = FindSymbols().visit(self.op)
+
+        # Filter to streamed functions
+        op_symbols = [i for i in op_symbols if i.is_AbstractFunction
+                      and not i.is_ArrayBasic and not i.alias]
+
+        disk = 0
+        for i in op_symbols:
+            try:
+                disk += i.size_snapshot*i._time_size_ideal*np.dtype(i.dtype).itemsize
+            except AttributeError:
+                pass
+
+        return {disk_layer: disk, host_layer: 0, device_layer: 0}
 
 
 def parse_kwargs(**kwargs):

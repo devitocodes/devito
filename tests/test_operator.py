@@ -2073,8 +2073,9 @@ class TestEstimateMemory:
         # Check that no allocation occurs as estimate_memory should avoid data touch
         assert "Allocating" not in output.text
 
-        name, disk, host, device = output.records[-1].message.split()
-        extracted = (name, int(disk), int(host), int(device))
+        parsed = output.records[-1].message.split()
+        name, host, device = parsed[:3]
+        extracted = (name, int(host), int(device))
 
         assert extracted == expected
 
@@ -2093,7 +2094,7 @@ class TestEstimateMemory:
 
             # Check output of estimate_memory
             host = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
-            expected = ("Kernel", 0, host, 0)
+            expected = ("Kernel", host, 0)
             self.parse_output(caplog, expected)
 
     def test_multiple_objects(self, caplog):
@@ -2107,7 +2108,7 @@ class TestEstimateMemory:
 
             check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
                         for func in (f, g))
-            expected = ("Kernel", 0, check, 0)
+            expected = ("Kernel", check, 0)
             self.parse_output(caplog, expected)
 
     @pytest.mark.parametrize('time', [True, False])
@@ -2126,7 +2127,7 @@ class TestEstimateMemory:
 
             check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
                         for func in (f, src, src.coordinates))
-            expected = ("Kernel", 0, check, 0)
+            expected = ("Kernel", check, 0)
             self.parse_output(caplog, expected)
 
     @pytest.mark.parametrize('save', [None, Buffer(3), 10])
@@ -2138,7 +2139,7 @@ class TestEstimateMemory:
             op = Operator(Eq(f, 1))
             op.estimate_memory(human_readable=False)
             check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
-            expected = ("Kernel", 0, check, 0)
+            expected = ("Kernel", check, 0)
             self.parse_output(caplog, expected)
 
     def test_mashup(self, caplog):
@@ -2162,7 +2163,7 @@ class TestEstimateMemory:
             check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
                         for func in (f, g, src0, src0.coordinates,
                                      src1, src1.coordinates))
-            expected = ("Kernel", 0, check, 0)
+            expected = ("Kernel", check, 0)
             self.parse_output(caplog, expected)
 
     def test_temp_array(self, caplog):
@@ -2194,7 +2195,7 @@ class TestEstimateMemory:
             # Factor in the temp array
             check += reduce(mul, b.shape_allocated)*np.dtype(a.dtype).itemsize
 
-            expected = ("Kernel", 0, check, 0)
+            expected = ("Kernel", check, 0)
             self.parse_output(caplog, expected)
 
     def test_overrides(self, caplog):
@@ -2226,7 +2227,7 @@ class TestEstimateMemory:
             check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
                         for func in (f1, tf1, s1, s1.coordinates, st1, st1.coordinates))
 
-            expected = ("Kernel", 0, check, 0)
+            expected = ("Kernel", check, 0)
             self.parse_output(caplog, expected)
 
     def test_device(self, caplog):
@@ -2249,5 +2250,5 @@ class TestEstimateMemory:
             check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
 
             # Matching memory allocated both on host and device for memmap
-            expected = ("Kernel", 0, check, check)
+            expected = ("Kernel", check, check)
             self.parse_output(caplog, expected)

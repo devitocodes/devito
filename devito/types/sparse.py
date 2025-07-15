@@ -652,7 +652,7 @@ class AbstractSparseFunction(DiscreteFunction):
             if f is not None:
                 mapper[getattr(self, i)] = f
 
-        if estimate_memory:  # kwargs.get("estimate_memory", False):
+        if estimate_memory:
             # Avoid touching the data in any capacity, and simply return
             # the symbolic objects if merely estimating memory consumption.
             return ReducerMap({v.name: k for k, v in mapper.items()})
