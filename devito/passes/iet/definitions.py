@@ -19,7 +19,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (
     Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer,
-    SizeOf, VOID, pow_to_mul, unevaluate
+    SizeOf, VOID, pow_to_mul, unevaluate, as_long
 )
 from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
 from devito.types import (
@@ -136,7 +136,7 @@ class DataManager:
 
         # Copy input array into global array
         name = self.sregistry.make_name(prefix='init_global')
-        nbytes = SizeOf(obj._C_typedata)*obj.size
+        nbytes = SizeOf(obj._C_typedata)*as_long(obj.size)
         body = [Definition(src),
                 self.langbb['alloc-global-symbol'](obj.indexed, src.indexed, nbytes)]
         efunc = make_callable(name, body)
@@ -159,7 +159,7 @@ class DataManager:
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        nbytes = SizeOf(obj._C_typedata)*obj.size
+        nbytes = SizeOf(obj._C_typedata)*as_long(obj.size)
         alloc = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         free = self.langbb['host-free'](obj._C_symbol)
@@ -358,7 +358,7 @@ class DataManager:
 
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
-        nbytes = SizeOf(obj._C_typedata, stars='*')*obj.dim.symbolic_size
+        nbytes = SizeOf(obj._C_typedata, stars='*')*as_long(obj.dim.symbolic_size)
         alloc0 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         free0 = self.langbb['host-free'](obj._C_symbol)
@@ -366,7 +366,7 @@ class DataManager:
         # The pointee Array
         pobj = IndexedPointer(obj._C_symbol, obj.dim)
         memptr = VOID(Byref(pobj), '**')
-        nbytes = SizeOf(obj._C_typedata)*obj.array.size
+        nbytes = SizeOf(obj._C_typedata)*as_long(obj.array.size)
         alloc1 = self.langbb['host-alloc'](memptr, alignment, nbytes)
 
         free1 = self.langbb['host-free'](pobj)
@@ -551,10 +551,10 @@ class DataManager:
 
 class DeviceAwareDataManager(DataManager):
 
-    def __init__(self, **kwargs):
-        self.gpu_fit = kwargs['options']['gpu-fit']
-        self.gpu_create = kwargs['options']['gpu-create']
-        self.pmode = kwargs['options'].get('place-transfers')
+    def __init__(self, options=None, **kwargs):
+        self.gpu_fit = options['gpu-fit']
+        self.gpu_create = options['gpu-create']
+        self.pmode = options.get('place-transfers')
 
         super().__init__(**kwargs)
 

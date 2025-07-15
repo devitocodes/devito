@@ -3,7 +3,7 @@ import numpy as np
 import scipy.sparse
 
 from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    Inc, MatrixSparseTimeFunction, sin, switchconfig)
+                    Inc, MatrixSparseTimeFunction, sin, switchconfig, configuration)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, linearize, generate_macros
 from devito.types import Array, Bundle, DefaultDimension
@@ -640,3 +640,22 @@ def test_different_dtype(autopadding):
         assert "L0(x,y) f[(x)*y_stride0 + (y)]" in str(op1)
 
     _test_different_dtype()
+
+
+@pytest.mark.parametrize('order', [2, 4])
+def test_int64_array(order):
+
+    grid = Grid(shape=(4, 4))
+    f = Function(name='f', grid=grid, space_order=order)
+
+    a = Array(name='a', dimensions=grid.dimensions, shape=grid.shape,
+              halo=f.halo)
+
+    eqs = [Eq(f, a.indexify() + 1)]
+    op = Operator(eqs, opt=('advanced', {'linearize': True, 'index-mode': 'int64'}))
+    if 'CXX' in configuration['language']:
+        long = 'static_cast<long>'
+        assert f'({2*order} + {long}(y_size))*({2*order} + {long}(x_size)))' in str(op)
+    else:
+        long = '(long)'
+        assert f'({2*order} + {long}y_size)*({2*order} + {long}x_size))' in str(op)

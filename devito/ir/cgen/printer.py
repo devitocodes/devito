@@ -370,7 +370,7 @@ class BasePrinter(CodePrinter):
 
     def _print_Cast(self, expr):
         cast = f'({self._print(expr._C_ctype)}{self._print(expr.stars)})'
-        return self._print_UnaryOp(expr, op=cast)
+        return self._print_UnaryOp(expr, op=cast, parenthesize=not expr.base.is_Atom)
 
     def _print_ComponentAccess(self, expr):
         return f"{self._print(expr.base)}.{expr.sindex}"
