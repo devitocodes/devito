@@ -2073,7 +2073,8 @@ class TestEstimateMemory:
         # Check that no allocation occurs as estimate_memory should avoid data touch
         assert "Allocating" not in output.text
 
-        name, host, device = output.records[-1].message.split()
+        parsed = output.records[-1].message.split()
+        name, host, device = parsed[:3]
         extracted = (name, int(host), int(device))
 
         assert extracted == expected
