@@ -1206,12 +1206,10 @@ class Scope:
         Generate all flow, anti, and output dependences involving any of
         the given TimedAccess objects.
         """
-        accesses = as_tuple(accesses)
+        accesses = set(as_tuple(accesses))
         for d in self.d_all_gen():
-            for i in accesses:
-                if d.source == i or d.sink == i:
-                    yield d
-                    break
+            if accesses & {d.source, d.sink}:
+                yield d
 
     @memoized_meth
     def d_from_access(self, accesses):
