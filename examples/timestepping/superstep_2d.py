@@ -28,7 +28,6 @@ zlim = 1/(2*np.sqrt(2*np.pi*sigma_sq))
 def ripple_on_pond(step=1, snapshots=1):
     # Construct 2D Grid
     grid = Grid(shape=shape, extent=extent)
-    x, y = grid.dimensions
 
     # Need to ensure that the velocity function supports the largest superstep stencil
     velocity = Function(name="velocity", grid=grid, space_order=(2, step, step))

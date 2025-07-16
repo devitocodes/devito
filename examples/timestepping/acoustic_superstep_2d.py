@@ -127,7 +127,7 @@ def acoustic_model(model, step=1, snapshots=1):
         new_u.data[1, :] = u.data[idx - 1]
         new_u.data[2, :] = u.data[idx]
     else:
-        new_u, new_u_p, *stencil = superstep_generator(u, stencil.rhs, step)
+        new_u, new_u_p, *stencil = superstep_generator(u, stencil.rhs, step, tn=tn1)
 
     tn2 = int(np.ceil((t2 - t1)/model.critical_dt))
     dt = (t2 - t1)/tn2
