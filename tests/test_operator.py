@@ -2164,15 +2164,28 @@ class TestEstimateMemory:
             expected = (check, 0)
             self.parse_output(summary, expected)
 
-    def test_temp_array(self, caplog):
+    @pytest.mark.parametrize('override', [True, False])
+    def test_temp_array(self, caplog, override):
         """Check that temporary arrays will be factored into the memory calculation"""
         grid = Grid(shape=(101, 101))
         f = TimeFunction(name='f', grid=grid, space_order=2)
         g = TimeFunction(name='g', grid=grid, space_order=2)
         a = Function(name='a', grid=grid, space_order=2)
 
-        # Fake array allocated in Python land so that shape_allocated can be used
-        b = Function(name='b', grid=grid, space_order=0)
+        if override:
+            grid0 = Grid(shape=(51, 51))
+            f0 = TimeFunction(name='f0', grid=grid0, space_order=2)
+            g0 = TimeFunction(name='g0', grid=grid0, space_order=2)
+            a0 = Function(name='a0', grid=grid0, space_order=2)
+            funcs = (f0, g0, a0)
+            kwargs = {'f': f0, 'g': g0, 'a': a0}
+
+            # Fake array allocated in Python land so that shape_allocated can be used
+            b = Function(name='b', grid=grid0, space_order=0)
+        else:
+            funcs = (f, g, a)
+            kwargs = {}
+            b = Function(name='b', grid=grid, space_order=0)
 
         # Reuse an expensive function to encourage generation of an array temp
         eq0 = Eq(f.forward, g + sympy.sin(a))
@@ -2185,14 +2198,14 @@ class TestEstimateMemory:
             # Ensure an array temporary is created
             assert self._array_temp in str(op.ccode)
 
-            summary = op.estimate_memory()
+            summary = op.estimate_memory(**kwargs)
             assert "Allocating" not in caplog.text
 
             check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                        for func in (f, g, a))
+                        for func in funcs)
 
             # Factor in the temp array
-            check += reduce(mul, b.shape_allocated)*np.dtype(a.dtype).itemsize
+            check += reduce(mul, b.shape_allocated)*np.dtype(b.dtype).itemsize
 
             expected = (check, 0)
             self.parse_output(summary, expected)
@@ -2246,44 +2259,6 @@ class TestEstimateMemory:
 
             expected1 = (check1, 0)
             self.parse_output(summary1, expected1)
-
-    def test_overrides_w_temp_array(self, caplog):
-        """Check that temporary arrays are correctly adjusted for overrides"""
-        grid = Grid(shape=(101, 101))
-        f = TimeFunction(name='f', grid=grid, space_order=2)
-        g = TimeFunction(name='g', grid=grid, space_order=2)
-        a = Function(name='a', grid=grid, space_order=2)
-
-        grid0 = Grid(shape=(51, 51))
-        f0 = TimeFunction(name='f0', grid=grid0, space_order=2)
-        g0 = TimeFunction(name='g0', grid=grid0, space_order=2)
-        a0 = Function(name='a0', grid=grid0, space_order=2)
-
-        # Fake array allocated in Python land so that shape_allocated can be used
-        b = Function(name='b', grid=grid0, space_order=0)
-
-        # Reuse an expensive function to encourage generation of an array temp
-        eq0 = Eq(f.forward, g + sympy.sin(a))
-        eq1 = Eq(g.forward, f + sympy.sin(a))
-
-        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
-            op = Operator([eq0, eq1])
-
-            # Regression to ensure this test functions as intended
-            # Ensure an array temporary is created
-            assert self._array_temp in str(op.ccode)
-
-            summary = op.estimate_memory(f=f0, g=g0, a=a0)
-            assert "Allocating" not in caplog.text
-
-            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                        for func in (f0, g0, a0))
-
-            # Factor in the temp array
-            check += reduce(mul, b.shape_allocated)*np.dtype(a0.dtype).itemsize
-
-            expected = (check, 0)
-            self.parse_output(summary, expected)
 
     def test_device(self, caplog):
         # Note: this uses switchconfig and runs on all backends to reflect expected
