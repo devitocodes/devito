@@ -136,7 +136,7 @@ class Schedule(Queue):
         # `clusters` are supposed to share it
         candidates = prefix[-1].dim._defines
 
-        scope = Scope.fetch_scope(flatten(c.exprs for c in clusters))
+        scope = Scope.fetch(flatten(c.exprs for c in clusters))
 
         # Handle the nastiest case -- ambiguity due to the presence of both a
         # flow- and an anti-dependence.

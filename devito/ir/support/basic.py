@@ -854,8 +854,8 @@ class Scope:
 
     @classmethod
     @lru_cache(maxsize=128)
-    def _fetch_scope(cls: type['Scope'], exprs: tuple[Expr],
-                     rules: Rule | tuple[Rule] | None = None) -> 'Scope':
+    def _fetch(cls: type['Scope'], exprs: tuple[Expr],
+               rules: Rule | tuple[Rule] | None = None) -> 'Scope':
         """
         Obtains a (potentially cached) Scope from a sequence of expressions.
         Helper function called with hashable arguments.
@@ -863,12 +863,12 @@ class Scope:
         return cls(exprs, rules=rules)
 
     @classmethod
-    def fetch_scope(cls: type['Scope'], exprs: Expr | Iterable[Expr],
-                    rules: Rule | tuple[Rule] | None = None) -> 'Scope':
+    def fetch(cls: type['Scope'], exprs: Expr | Iterable[Expr],
+              rules: Rule | tuple[Rule] | None = None) -> 'Scope':
         """
         Obtains a (potentially cached) Scope from a sequence of expressions.
         """
-        return cls._fetch_scope(as_tuple(exprs), rules=rules)
+        return cls._fetch(as_tuple(exprs), rules=rules)
 
     @memoized_generator
     def writes_gen(self):

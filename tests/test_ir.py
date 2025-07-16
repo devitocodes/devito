@@ -615,7 +615,7 @@ class TestDependenceAnalysis:
         # capable of detecting anti-dependences
         expr.ispace._directions = {i: Forward for i in expr.ispace.directions}
 
-        scope = Scope.fetch_scope(expr)
+        scope = Scope.fetch(expr)
         deps = scope.d_all
         if expected is None:
             assert len(deps) == 0
@@ -714,7 +714,7 @@ class TestDependenceAnalysis:
         for i in exprs:
             i.ispace._directions = {i: Forward for i in i.ispace.directions}
 
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
         assert len(scope.d_all) == len(expected)
 
         for i in ['flow', 'anti', 'output']:
@@ -737,7 +737,7 @@ class TestDependenceAnalysis:
         exprs = [Eq(ffp, 1), Eq(g.indexify(), f.indexify())]
         exprs = [LoweredEq(i) for i in exprs]
 
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
         assert len(scope.d_all) == 2
         assert len(scope.d_flow) == 1
         v = scope.d_flow.pop()
@@ -761,7 +761,7 @@ class TestDependenceAnalysis:
                  Eq(g.indexed, f.indexed)]
         exprs = [LoweredEq(i) for i in exprs]
 
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
         assert len(scope.d_all) == 3
         assert len(scope.d_flow) == 2
         assert len(scope.d_anti) == 1
@@ -778,7 +778,7 @@ class TestDependenceAnalysis:
         exprs = [Eq(s1, 1), Eq(f[s0, s1], 5)]
         exprs = [LoweredEq(i) for i in exprs]
 
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
         assert len(scope.d_all) == len(scope.d_flow) == 1
         v = scope.d_flow.pop()
         assert v.function is s1
@@ -792,7 +792,7 @@ class TestDependenceAnalysis:
 
         exprs = [Eq(a[x, y], 1), Eq(s, a[x, y-2] + a[x, y+2])]
         exprs = [LoweredEq(i) for i in exprs]
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
         # There *seems* to be a WAR here, but the fact that `a` is thread-shared
         # ensures that is not the case
         # There is instead a RAW -- no surprises here
@@ -803,7 +803,7 @@ class TestDependenceAnalysis:
         # is a WAR
         exprs = [Eq(s, a[x, y-2] + a[x, y+2]), Eq(a[x, y], 1)]
         exprs = [LoweredEq(i) for i in exprs]
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
         assert len(scope.d_all) == len(scope.d_anti) == 2
         assert scope.d_anti.pop().function is a
 
@@ -824,7 +824,7 @@ class TestDependenceAnalysis:
         for i, e in enumerate(list(eqns)):
             eqns[i] = LoweredEq(eval(e))
 
-        scope = Scope.fetch_scope(eqns)
+        scope = Scope.fetch(eqns)
         assert len(scope.d_all) == 0
 
     @pytest.mark.parametrize('eqns', [
@@ -843,7 +843,7 @@ class TestDependenceAnalysis:
         for i, e in enumerate(list(eqns)):
             eqns[i] = LoweredEq(eval(e))
 
-        scope = Scope.fetch_scope(eqns)
+        scope = Scope.fetch(eqns)
         assert len(scope.d_all) == 1
 
     def test_critical_region_v0(self):
@@ -859,7 +859,7 @@ class TestDependenceAnalysis:
                  Eq(s1, CriticalRegion(False))]
         exprs = [LoweredEq(i) for i in exprs]
 
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
 
         # Mock depedencies so that the fences (CriticalRegions) don't float around
         assert len(scope.writes[mocksym0]) == 2
@@ -890,7 +890,7 @@ class TestDependenceAnalysis:
                  Eq(u.indexify(), 3)]
         exprs = [LoweredEq(i) for i in exprs]
 
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
 
         # Mock depedencies so that the fences (CriticalRegions) don't float around
         assert len(scope.writes[mocksym0]) == 2
@@ -925,7 +925,7 @@ class TestDependenceAnalysis:
                  Eq(u1.indexify(), vw[1, x, y] + 4)]
         exprs = [LoweredEq(i) for i in exprs]
 
-        scope = Scope.fetch_scope(exprs)
+        scope = Scope.fetch(exprs)
         assert len(scope.d_all) == 1
         assert len(scope.d_flow) == 1
         dep, = scope.d_flow
