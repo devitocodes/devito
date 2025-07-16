@@ -12,6 +12,7 @@ from devito.ir.iet import Iteration, FindNodes
 from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
                                      Vector, AFFINE, REGULAR, IRREGULAR, mocksym0,
                                      mocksym1)
+from devito.ir.support.caching import CacheInstances
 from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
                                      IntervalGroup, IterationSpace)
 from devito.ir.support.guards import GuardOverflow
@@ -1101,3 +1102,46 @@ class TestGuards:
         guard = GuardOverflow(freespace, size)
 
         assert ccode(guard) == 'freespace >= f_vec->size[0]*f_vec->size[1]'
+
+
+class TestCacheInstances:
+
+    def test_caching(self):
+        """
+        Tests basic functionality of cached instances.
+        """
+        class Object(CacheInstances):
+            def __init__(self, value: int):
+                self.value = value
+
+        obj1 = Object(1)
+        obj2 = Object(1)
+        obj3 = Object(2)
+
+        assert obj1 is obj2
+        assert obj1 is not obj3
+
+    def test_cache_size(self):
+        """
+        Tests specifying the size of the instance cache.
+        """
+        class Object(CacheInstances):
+            _instance_cache_size = 2
+
+            def __init__(self, value: int):
+                self.value = value
+
+        obj1 = Object(1)
+        obj2 = Object(2)
+        obj3 = Object(3)
+        obj4 = Object(1)
+        obj5 = Object(3)
+
+        # obj1 should have been evicted before obj4 was created
+        assert obj1 is not obj4
+        assert obj1 is not obj2
+        assert obj3 is obj5
+
+        hits, _, _, cursize = Object._instance_cache.cache_info()
+        assert hits == 1  # obj5 hit the cache
+        assert cursize == 2
