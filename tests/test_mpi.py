@@ -2029,8 +2029,44 @@ class TestCodeGeneration:
         op = Operator([Eq(ux.forward, ux + tt), Inc(g, ux)], name="Op")
         assert_structure(op, ['t,x,y', 't'], 'txy')
 
+        # Reduce should be in time loop but not in space loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 1  # one allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
         op.apply(time_m=0, time_M=nt-1)
         assert np.isclose(np.max(g.data), 4356.0)
+
+    @pytest.mark.parallel(mode=2)
+    def test_multi_allreduce_time(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 10
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(tt, ), shape=(nt,))
+        h = TimeFunction(name="h", grid=grid, dimensions=(tt, ), shape=(nt,))
+
+        op = Operator([Eq(ux.forward, ux + tt), Inc(g, ux), Inc(h, ux)], name="Op")
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+        assert np.isclose(np.max(g.data), 4356.0)
+        assert np.isclose(np.max(h.data), 4356.0)
 
 
 class TestOperatorAdvanced:
