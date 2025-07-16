@@ -1,10 +1,9 @@
-from .equation import Eq
-from .dense import Function
+from devito.types.equation import Eq
+from devito.types.dense import Function
 from devito.symbolics import uxreplace
 from numpy import number
-
-from .array import Array  # Trying Array
-
+from devito.types.array import Array
+from types import MappingProxyType
 
 method_registry = {}
 
@@ -22,38 +21,63 @@ def resolve_method(method):
 
 class MultiStage(Eq):
     """
-       Abstract base class for multi-stage time integration methods
-       (e.g., Runge-Kutta schemes) in Devito.
+    Abstract base class for multi-stage time integration methods
+    (e.g., Runge-Kutta schemes) in Devito.
 
-       This class represents a symbolic equation of the form `target = rhs`
-       and provides a mechanism to associate it with a time integration
-       scheme. The specific integration behavior must be implemented by
-       subclasses via the `_evaluate` method.
+    This class represents a symbolic equation of the form `target = rhs`
+    and provides a mechanism to associate it with a time integration
+    scheme. The specific integration behavior must be implemented by
+    subclasses via the `_evaluate` method.
 
-       Parameters
-       ----------
-       lhs : expr-like
-           The left-hand side of the equation, typically a time-updated Function
-           (e.g., `u.forward`).
-       rhs : expr-like, optional
-           The right-hand side of the equation to integrate. Defaults to 0.
-       subdomain : SubDomain, optional
-           A subdomain over which the equation applies.
-       coefficients : dict, optional
-           Optional dictionary of symbolic coefficients for the integration.
-       implicit_dims : tuple, optional
-           Additional dimensions that should be treated implicitly in the equation.
-       **kwargs : dict
-           Additional keyword arguments, such as time integration method selection.
+    Parameters
+    ----------
+    lhs : expr-like
+       The left-hand side of the equation, typically a time-updated Function
+       (e.g., `u.forward`).
+    rhs : expr-like, optional
+       The right-hand side of the equation to integrate. Defaults to 0.
+    subdomain : SubDomain, optional
+       A subdomain over which the equation applies.
+    coefficients : dict, optional
+       Optional dictionary of symbolic coefficients for the integration.
+    implicit_dims : tuple, optional
+       Additional dimensions that should be treated implicitly in the equation.
+    **kwargs : dict
+       Additional keyword arguments, such as time integration method selection.
 
-       Notes
-       -----
-       Subclasses must override the `_evaluate()` method to return a sequence
-       of update expressions for each stage in the integration process.
-       """
+    Notes
+    -----
+    Subclasses must override the `_evaluate()` method to return a sequence
+    of update expressions for each stage in the integration process.
+    """
 
-    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None, **kwargs):
-        return super().__new__(cls, lhs, rhs=rhs, subdomain=subdomain, coefficients=coefficients, implicit_dims=implicit_dims, **kwargs)
+    def __new__(cls, lhs, rhs, **kwargs):
+        if not isinstance(lhs, list):
+            lhs=[lhs]
+            rhs=[rhs]
+        obj = super().__new__(cls, lhs[0], rhs[0], **kwargs)
+
+        # Store all equations
+        obj._eq = [Eq(lhs[i], rhs[i]) for i in range(len(lhs))]
+        obj._lhs = lhs
+        obj._rhs = rhs
+
+        return obj
+
+    @property
+    def eq(self):
+        """Return the full list of equations."""
+        return self._eq
+
+    @property
+    def lhs(self):
+        """Return list of left-hand sides."""
+        return self._lhs
+
+    @property
+    def rhs(self):
+        """Return list of right-hand sides."""
+        return self._rhs
 
     def _evaluate(self, **kwargs):
         raise NotImplementedError(
@@ -91,7 +115,7 @@ class RK(MultiStage):
         Number of stages in the RK method, inferred from `b`.
     """
 
-    def __init__(self, a: list[list[float | number]], b: list[float | number], c: list[float | number], **kwargs) -> None:
+    def __init__(self, a: list[list[float | number]], b: list[float | number], c: list[float | number], lhs, rhs, **kwargs) -> None:
         self.a, self.b, self.c = a, b, c
 
     @property
@@ -113,32 +137,30 @@ class RK(MultiStage):
             - `s` stage equations of the form `k_i = rhs evaluated at intermediate state`
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
-
-        u = self.lhs.function
-        rhs = self.rhs
-        grid = u.grid
-        t = grid.time_dim
+        n_eq=len(self.eq)
+        u = [i.function for i in self.lhs]
+        grid = [u[i].grid for i in range(n_eq)]
+        t = grid[0].time_dim
         dt = t.spacing
 
         # Create temporary Functions to hold each stage
-        # k = [Array(name=f'{kwargs.get('sregistry').make_name(prefix='k')}', dimensions=grid.shape, grid=grid, dtype=u.dtype) for i in range(self.s)]  # Trying Array
-        k = [Function(name=f'{kwargs.get('sregistry').make_name(prefix='k')}', grid=grid, space_order=u.space_order, dtype=u.dtype)
-             for i in range(self.s)]
+        k = [[Array(name=f'{kwargs.get('sregistry').make_name(prefix='k')}', dimensions=grid[j].dimensions, grid=grid[j], dtype=u[j].dtype) for i in range(self.s)]
+             for j in range(n_eq)]
 
         stage_eqs = []
 
         # Build each stage
         for i in range(self.s):
-            u_temp = u + dt * sum(aij * kj for aij, kj in zip(self.a[i][:i], k[:i]))
+            u_temp = [u[l] + dt * sum(aij * kj for aij, kj in zip(self.a[i][:i], k[l][:i])) for l in range(n_eq)]
             t_shift = t + self.c[i] * dt
 
             # Evaluate RHS at intermediate value
-            stage_rhs = uxreplace(rhs, {u: u_temp, t: t_shift})
-            stage_eqs.append(Eq(k[i], stage_rhs))
+            stage_rhs = [uxreplace(self.rhs[l], {**{u[m]: u_temp[m] for m in range(n_eq)}, t: t_shift}) for l in range(n_eq)]
+            [stage_eqs.append(Eq(k[l][i], stage_rhs[l])) for l in range(n_eq)]
 
         # Final update: u.forward = u + dt * sum(b_i * k_i)
-        u_next = u + dt * sum(bi * ki for bi, ki in zip(self.b, k))
-        stage_eqs.append(Eq(u.forward, u_next))
+        u_next = [u[l] + dt * sum(bi * ki for bi, ki in zip(self.b, k[l])) for l in range(n_eq)]
+        [stage_eqs.append(Eq(u[l].forward, u_next[l])) for l in range(n_eq)]
 
         return stage_eqs
 
@@ -166,8 +188,8 @@ class RK44(RK):
     b = [1/6, 1/3, 1/3, 1/6]
     c = [0, 1/2, 1/2, 1]
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(a=self.a, b=self.b, c=self.c, **kwargs)
+    def __init__(self, lhs, rhs, **kwargs):
+        super().__init__(a=self.a, b=self.b, c=self.c, lhs=lhs, rhs=rhs, **kwargs)
 
 
 @register_method
@@ -355,3 +377,6 @@ class HORK(MultiStage):
         stage_eqs.append(Eq(u.forward, u_next))
 
         return stage_eqs
+
+
+method_registry = MappingProxyType(method_registry)

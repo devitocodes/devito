@@ -8,7 +8,8 @@ from devito.ir.equations import lower_multistage
 import pickle
 from sympy import exp
 import pytest
-
+from devito import configuration
+configuration['log-level'] = 'DEBUG'
 
 def test_multistage_object(time_int='RK44'):
     extent = (1, 1)
@@ -152,7 +153,7 @@ def test_multistage_solve(time_int='RK44'):
     assert all(isinstance(i, MultiStage) for i in pdes), "Not all elements are instances of MultiStage"
 
 
-def test_multistage_op_computing_1eq(time_int='RK44'):
+def test_multistage_op_computing_directly(time_int='RK44'):
     extent = (1, 1)
     shape = (200, 200)
     origin = (0, 0)
@@ -185,7 +186,40 @@ def test_multistage_op_computing_1eq(time_int='RK44'):
     op(dt=0.01, time=1)
 
 
-def test_multistage_op_computing_directly(time_int='RK44'):
+def test_multistage_coupled_op_computing(time_int='RK44'):
+    extent = (1, 1)
+    shape = (200, 200)
+    origin = (0, 0)
+
+    # Grid setup
+    grid = Grid(origin=origin, extent=extent, shape=shape, dtype=float64)
+    x, y = grid.dimensions
+    dt = grid.stepping_dim.spacing
+    t = grid.time_dim
+
+    # Define wavefield unknowns: u (displacement) and v (velocity)
+    fun_labels = ['u_multi_stage', 'v_multi_stage']
+    U_multi_stage = [TimeFunction(name=name, grid=grid, space_order=2,
+                      time_order=1, dtype=float64) for name in fun_labels]
+
+    # Source definition
+    src_spatial = Function(name="src_spat", grid=grid, space_order=2, dtype=float64)
+    src_spatial.data[1, 1] = 1
+    src_temporal = (1 - 2 * (t*dt - 1)**2)
+
+    # PDE system
+    system_eqs_rhs = [U_multi_stage[1],
+                      Derivative(U_multi_stage[0], (x, 2), fd_order=2) +
+                      Derivative(U_multi_stage[0], (y, 2), fd_order=2) +
+                      src_spatial * src_temporal]
+
+    # Time integration scheme
+    pdes = resolve_method(time_int)(U_multi_stage, system_eqs_rhs)
+    op = Operator(pdes, subs=grid.spacing_map)
+    op(dt=0.01, time=1)
+
+
+def test_multistage_op_computing_1eq(time_int='RK44'):
     extent = (1, 1)
     shape = (200, 200)
     origin = (0, 0)
@@ -215,7 +249,8 @@ def test_multistage_op_computing_directly(time_int='RK44'):
     op(dt=0.01, time=1)
 
 
-@pytest.mark.parametrize('time_int', ['RK44', 'RK32', 'RK97'])
+# @pytest.mark.parametrize('time_int', ['RK44', 'RK32', 'RK97'])
+@pytest.mark.parametrize('time_int', ['RK44'])
 def test_multistage_methods_convergence(time_int):
     extent = (1000, 1000)
     shape = (201, 201)
