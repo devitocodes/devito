@@ -632,6 +632,15 @@ class Dependence(Relation):
     A data dependence between two TimedAccess objects.
     """
 
+    @classmethod
+    @lru_cache(maxsize=128)
+    def fetch(cls: type['Dependence'],
+              source: TimedAccess, sink: TimedAccess) -> 'Dependence':
+        """
+        Obtain a (potentially cached) Dependence for analysis.
+        """
+        return cls(source, sink)
+
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
 
@@ -1102,7 +1111,7 @@ class Scope:
                     if any(not rule(w, r) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(w, r)
+                    dependence = Dependence.fetch(w, r)
 
                     if dependence.is_imaginary:
                         continue
@@ -1132,7 +1141,7 @@ class Scope:
                     if any(not rule(r, w) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(r, w)
+                    dependence = Dependence.fetch(r, w)
 
                     if dependence.is_imaginary:
                         continue
@@ -1162,7 +1171,7 @@ class Scope:
                     if any(not rule(w2, w1) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(w2, w1)
+                    dependence = Dependence.fetch(w2, w1)
 
                     if dependence.is_imaginary:
                         continue
