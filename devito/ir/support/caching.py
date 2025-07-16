@@ -15,19 +15,18 @@ class CacheInstancesMeta(type):
     Metaclass to wrap construction in an LRU cache.
     """
 
-    _cache_clear_funcs: dict[type, Callable[[], None]] = {}
+    _cached_types: set[type['CacheInstances']] = set()
 
     def __init__(cls: type[InstanceType], *args) -> None:  # type: ignore
         super().__init__(*args)
 
-        # Define an instance cache attribute and register a cache clear function
-        cls._instance_cache: Callable | None = None
-        CacheInstancesMeta._cache_clear_funcs[cls] = cls._clear_cache
+        # Register the cached type
+        CacheInstancesMeta._cached_types.add(cls)
 
     def __call__(cls: type[InstanceType],  # type: ignore
                  *args, **kwargs) -> InstanceType:
         if cls._instance_cache is None:
-            maxsize = getattr(cls, '_instance_cache_size', 128)
+            maxsize = cls._instance_cache_size
             cls._instance_cache = lru_cache(maxsize=maxsize)(super().__call__)
 
         args, kwargs = cls._preprocess_args(*args, **kwargs)
@@ -38,14 +37,18 @@ class CacheInstancesMeta(type):
         """
         Clear all caches for classes using this metaclass.
         """
-        for clear_func in cls._cache_clear_funcs.values():
-            clear_func()
+        for cached_type in cls._cached_types:
+            if cached_type._instance_cache is not None:
+                cached_type._instance_cache.cache_clear()
 
 
 class CacheInstances(metaclass=CacheInstancesMeta):
     """
     Parent class that wraps construction in an LRU cache.
     """
+
+    _instance_cache: Callable | None = None
+    _instance_cache_size: int = 128
 
     @classmethod
     def _preprocess_args(cls, *args, **kwargs):
@@ -54,14 +57,6 @@ class CacheInstances(metaclass=CacheInstancesMeta):
         to customize argument handling (e.g. to convert to hashable types).
         """
         return args, kwargs
-
-    @classmethod
-    def _clear_cache(cls) -> None:
-        """
-        Clears the cache for this class, if any has been initialized.
-        """
-        if cls._instance_cache is not None:
-            cls._instance_cache.cache_clear()  # type: ignore
 
     @staticmethod
     def clear_caches() -> None:
