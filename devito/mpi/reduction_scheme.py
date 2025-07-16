@@ -19,7 +19,6 @@ class DistReduce(sympy.Function, Reconstructable):
         obj.op = op
         obj.grid = grid
         obj.ispace = ispace
-        obj.guards = kwargs.get('guards', None)
         return obj
 
     def __repr__(self):
