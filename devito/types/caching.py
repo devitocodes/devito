@@ -166,11 +166,6 @@ class CacheManager:
         # Wipe out the "true" SymPy cache
         cache.clear_cache()
 
-        # Clear Scope + Dependence caches (imported here to avoid circular imports)
-        from devito.ir.support.basic import Scope, Dependence  # noqa: E402
-        Scope._fetch.cache_clear()
-        Dependence.fetch.cache_clear()
-
         # Wipe out the hidden module-private SymPy caches
         sympy.polys.rootoftools.ComplexRootOf.clear_cache()
         sympy.polys.domains.modularinteger._modular_integer_cache.clear()

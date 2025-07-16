@@ -13,6 +13,7 @@ from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
 from devito.data import default_allocator
 from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument,
                                InvalidOperator)
+from devito.ir.support.basic import Dependence, Scope
 from devito.logger import (debug, info, perf, warning, is_log_enabled_for,
                            switch_log_level)
 from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
@@ -244,6 +245,10 @@ class Operator(Callable):
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
+
+        # Clear Scope + Dependence caches
+        Scope._fetch.cache_clear()
+        Dependence.fetch.cache_clear()
 
         return op
 
