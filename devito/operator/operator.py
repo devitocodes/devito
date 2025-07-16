@@ -34,7 +34,7 @@ from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
                           split, timed_pass, timed_region, contains_val,
-                          CacheInstances, humanbytes)
+                          CacheInstances, MemoryEstimate, humanbytes)
 from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
@@ -875,49 +875,54 @@ class Operator(Callable):
     def __call__(self, **kwargs):
         return self.apply(**kwargs)
 
-    def estimate_memory(self, human_readable=True, **kwargs):
+    def estimate_memory(self, **kwargs):
         """
-        Estimate the memory consumed by the Operator.
+        Estimate the memory consumed by the Operator without touching or allocating any
+        data. This interface is designed to mimic `Operator.apply(**kwargs)` and can be
+        called with the kwargs for a prospective Operator execution. With no arguments,
+        it will simply estimate memory for the default Operator parameters. However, if
+        desired, overrides can be supplied (as per `apply`) and these will be used for
+        the memory estimate.
 
-        TODO: Finish this docstring
+        If estimating memory for an Operator which is expected to allocate large arrays,
+        it is strongly recommended that one avoids touching the data in Python (thus
+        avoiding allocation). `AbstractFunction` types have their data allocated lazily -
+        the underlying array is only created at the point at which the `data`,
+        `data_with_halo`, etc, attributes are first accessed. Thus by avoiding accessing
+        such attributes in the memory estimation script, one can check the nominal memory
+        usage of proposed Operators far larger than will fit in system DRAM.
+
+        Note that this estimate will build the Operator in order to factor in memory
+        allocation for array temporaries and buffers generated during compilation.
+
+        Parameters
+        ----------
+        human_readable: bool
+            Return human-readable values, rather than raw byte counts. Default is False.
+        **kwargs: dict
+            As per `Operator.apply()`.
+
+        Returns
+        -------
+        summary: MemoryEstimate
+            An estimate of memory consumed in each of the specified locations.
         """
         # Build the arguments list for which to get the memory consumption
         # This is so that the estimate will factor in overrides
         args = self._prepare_arguments(estimate_memory=True, **kwargs)
         mem = args.nbytes_consumed
 
-        # Extra information for enhanced operators
-        extras = self._enrich_memreport(args, human_readable=human_readable)
+        memreport = {'host': mem[host_layer], 'device': mem[device_layer]}
 
-        if human_readable:
-            headline = f"Memory consumption for operator `{self.name}`:"
-            w = len(headline)
-            # Columns are width 10
-            fhost = str(humanbytes(mem[host_layer])).center(10)
-            fdevice = str(humanbytes(mem[device_layer])).center(10)
+        # Extra information for enriched Operators
+        extras = self._enrich_memreport(args)
+        memreport.update(extras)
 
-            memreport = (
-                "\n"
-                f"{headline}\n"
-                f"{'┌──────────┬──────────┐'.center(w)}\n"
-                f"{'│   Host   │  Device  │'.center(w)}\n"
-                f"{'├──────────┼──────────┤'.center(w)}\n"
-                f"{f'│{fhost}│{fdevice}│'.center(w)}\n"
-                f"{'└──────────┴──────────┘'.center(w)}\n"
-            )
+        return MemoryEstimate(memreport, name=self.name)
 
-            # TODO: add hinting if the specified operator won't fit
-        else:
-            memreport = f"{self.name} {mem[host_layer]} {mem[device_layer]}"
-
-        if extras is not None:
-            memreport += extras
-
-        info(memreport)
-
-    def _enrich_memreport(self, args, human_readable=True):
-        # Hook for enriching memory report
-        pass
+    def _enrich_memreport(self, args):
+        # Hook for enriching memory report with additional metadata
+        return {}
 
     def apply(self, **kwargs):
         """
@@ -1361,7 +1366,10 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
+            try:
+                mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
+            except KeyError:  # Might not have this layer in the mapper
+                pass
 
         mapper = {k: int(v) for k, v in mapper.items()}
 
@@ -1369,28 +1377,28 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_consumed(self):
-        """Memory consumed by all objects in the operator"""
+        """Memory consumed by all objects in the Operator"""
         mem_locations = (
-            self.nbytes_consumed_function,
-            self.nbytes_consumed_array,
+            self.nbytes_consumed_functions,
+            self.nbytes_consumed_arrays,
             self.nbytes_consumed_memmapped
         )
         return {layer: sum(loc[layer] for loc in mem_locations) for layer in _layers}
 
     @cached_property
     def nbytes_consumed_operator(self):
-        """Memory consumed by objects allocated within the operator"""
+        """Memory consumed by objects allocated within the Operator"""
         mem_locations = (
-            self.nbytes_consumed_array,
+            self.nbytes_consumed_arrays,
             self.nbytes_consumed_memmapped
         )
         return {layer: sum(loc[layer] for loc in mem_locations) for layer in _layers}
 
     @cached_property
-    def nbytes_consumed_function(self):
+    def nbytes_consumed_functions(self):
         """
         Memory consumed on both device and host by Functions in the
-        corresponding operator.
+        corresponding Operator.
         """
         def get_nbytes(obj):
             if obj.is_regular:
@@ -1407,15 +1415,11 @@ class ArgumentsMap(dict):
         host = 0
         device = 0
 
-        # Symbols in the operator which may or may not carry data
-        op_symbols = FindSymbols().visit(self.op)
-
         # Filter out arrays, aliases and non-AbstractFunction objects
-        op_symbols = [i for i in op_symbols if i.is_AbstractFunction
+        op_symbols = [i for i in self._op_symbols if i.is_AbstractFunction
                       and not i.is_ArrayBasic and not i.alias]
 
         for i in op_symbols:
-            # Will overreport memory usage currently
             try:
                 # TODO: is _obj even needed?
                 v = get_nbytes(self[i.name]._obj)
@@ -1435,17 +1439,17 @@ class ArgumentsMap(dict):
         return {disk_layer: 0, host_layer: host, device_layer: device}
 
     @cached_property
-    def nbytes_consumed_array(self):
+    def nbytes_consumed_arrays(self):
         """
         Memory consumed on both device and host by C-land Arrays
-        in the corresponding operator.
+        in the corresponding Operator.
         """
         host = 0
         device = 0
 
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
-        for i in FindSymbols().visit(self.op):
+        for i in self._op_symbols:
             if not i.is_Array or not i._mem_heap or i.alias:
                 continue
 
@@ -1500,22 +1504,28 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_snapshots(self):
-
-        # Symbols in the operator which may or may not carry data
-        op_symbols = FindSymbols().visit(self.op)
-
         # Filter to streamed functions
-        op_symbols = [i for i in op_symbols if i.is_AbstractFunction
+        op_symbols = [i for i in self._op_symbols if i.is_AbstractFunction
                       and not i.is_ArrayBasic and not i.alias]
 
         disk = 0
         for i in op_symbols:
             try:
-                disk += i.size_snapshot*i._time_size_ideal*np.dtype(i.dtype).itemsize
+                v = self[i.name]._obj
+            except AttributeError:
+                v = self.get(i.name, i)
+
+            try:
+                disk += v.size_snapshot*v._time_size_ideal*np.dtype(v.dtype).itemsize
             except AttributeError:
                 pass
 
         return {disk_layer: disk, host_layer: 0, device_layer: 0}
+
+    @cached_property
+    def _op_symbols(self):
+        """Symbols in the Operator which may or may not carry data"""
+        return FindSymbols().visit(self.op)
 
 
 def parse_kwargs(**kwargs):

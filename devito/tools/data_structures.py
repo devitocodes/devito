@@ -1,17 +1,17 @@
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
-from functools import reduce
+from functools import reduce, cached_property
 
 import numpy as np
 from multidict import MultiDict
 
 from devito.tools import Pickable
-from devito.tools.utils import as_tuple, filter_ordered
+from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
            'OrderedSet', 'Ordering', 'DAG', 'frozendict',
-           'UnboundTuple', 'UnboundedMultiTuple']
+           'UnboundTuple', 'UnboundedMultiTuple', 'MemoryEstimate']
 
 
 class Bunch:
@@ -658,6 +658,31 @@ class frozendict(Mapping):
                 h ^= hash((key, value))
             self._hash = h
         return self._hash
+
+
+class MemoryEstimate(frozendict):
+    """
+    An immutable wrapper for a memory estimate, showing the
+    various values.
+
+    TODO: Finish this docstring
+    """
+
+    def __init__(self, *args, **kwargs):
+        self._name = kwargs.pop('name', 'memory_estimate')
+        super().__init__(*args, **kwargs)
+
+    @property
+    def name(self):
+        return self._name
+
+    @cached_property
+    def human_readable(self):
+        """The memory estimate in human-readable format"""
+        return frozendict({k: humanbytes(v) for k, v in self.items()})
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.name}): {self.human_readable._dict}'
 
 
 class UnboundTuple(tuple):
