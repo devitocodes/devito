@@ -457,8 +457,8 @@ def reduction_comms(clusters):
         # if `c`'s IterationSpace is such that the reduction can be carried out
         found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))
         for ispace, reds in groupby(found, key=lambda r: r.ispace):
-            exprs = [Eq(dr.var, dr) for dr in reds]
-            processed.append(Cluster(exprs=exprs, ispace=ispace))
+            exprs = flatten([dr.exprs for dr in reds])
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         # Detect the global distributed reductions in `c`
         for e in c.exprs:
@@ -487,15 +487,16 @@ def reduction_comms(clusters):
             # The IterationSpace within which the global distributed reduction
             # must be carried out
             ispace = c.ispace.prefix(lambda d: d in var.free_symbols)
-
-            fifo.append(DistReduce(var, op=op, grid=grid, ispace=ispace))
+            expr = [Eq(var, DistReduce(var, op=op, grid=grid, ispace=ispace))]
+            fifo.append(c.rebuild(exprs=expr, ispace=ispace))
 
         processed.append(c)
 
     # Leftover reductions are placed at the very end
     for ispace, reds in groupby(fifo, key=lambda r: r.ispace):
-        exprs = [Eq(dr.var, dr) for dr in reds]
-        processed.append(Cluster(exprs=exprs, ispace=ispace))
+        reds = list(reds)
+        exprs = flatten([dr.exprs for dr in reds])
+        processed.append(reds[0].rebuild(exprs=exprs, ispace=ispace))
 
     return processed
 
