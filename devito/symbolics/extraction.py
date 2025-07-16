@@ -79,10 +79,13 @@ def centre_stencil(expr, target, as_coeff=False):
     Extract the centre stencil from an expression. Its coefficient is what
     would appear on the diagonal of the matrix system if the matrix were
     formed explicitly.
+
     Parameters
     ----------
-    expr : the expression to extract the centre stencil from
-    target : the target function whose centre stencil we want
+    expr : expr-like
+        The expression to extract the centre stencil from
+    target : Function
+        The target function whose centre stencil we want
     as_coeff : bool, optional
         If True, return the coefficient of the centre stencil
     """

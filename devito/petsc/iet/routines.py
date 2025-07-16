@@ -42,14 +42,12 @@ class CBBuilder:
         self._struct_params = []
 
         self._main_matvec_callback = None
-        self._main_formfunc_callback = None
         self._user_struct_callback = None
-        # TODO: Test pickling. The mutability of these lists
-        # could cause issues when pickling?
+        self._F_efunc = None
+        self._b_efunc = None
+
         self._J_efuncs = []
-        self._F_efuncs = []
-        self._b_efuncs = []
-        self._initialguesses = []
+        self._initial_guesses = []
 
         self._make_core()
         self._efuncs = self._uxreplace_efuncs()
@@ -69,31 +67,26 @@ class CBBuilder:
     @property
     def main_matvec_callback(self):
         """
-        This is the matvec callback associated with the whole Jacobian i.e
-        is set in the main kernel via
-        `PetscCall(MatShellSetOperation(J,MATOP_MULT,(void (*)(void))...));`
+        The matrix-vector callback for the full Jacobian.
+        This is the function set in the main Kernel via:
+            PetscCall(MatShellSetOperation(J, MATOP_MULT, (void (*)(void))...));
+        The callback has the signature `(Mat, Vec, Vec)`.
         """
         return self._J_efuncs[0]
 
     @property
-    def main_formfunc_callback(self):
-        return self._F_efuncs[0]
-
-    @property
     def J_efuncs(self):
+        """
+        List of matrix-vector callbacks.
+        Each callback has the signature `(Mat, Vec, Vec)`. Typically, this list
+        contains a single element, but in mixed systems it can include multiple
+        callbacks, one for each subblock.
+        """
         return self._J_efuncs
 
     @property
-    def F_efuncs(self):
-        return self._F_efuncs
-
-    @property
-    def b_efuncs(self):
-        return self._b_efuncs
-
-    @property
-    def initialguesses(self):
-        return self._initialguesses
+    def initial_guesses(self):
+        return self._initial_guesses
 
     @property
     def user_struct_callback(self):
@@ -284,7 +277,7 @@ class CBBuilder:
             retval=objs['err'],
             parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
         )
-        self._F_efuncs.append(cb)
+        self._F_efunc = cb
         self._efuncs[cb.name] = cb
 
     def _create_formfunc_body(self, body):
@@ -422,7 +415,7 @@ class CBBuilder:
             retval=objs['err'],
             parameters=(sobjs['callbackdm'], objs['B'])
         )
-        self._b_efuncs.append(cb)
+        self._b_efunc = cb
         self._efuncs[cb.name] = cb
 
     def _create_form_rhs_body(self, body):
@@ -534,7 +527,7 @@ class CBBuilder:
             retval=objs['err'],
             parameters=(sobjs['callbackdm'], objs['xloc'])
         )
-        self._initialguesses.append(cb)
+        self._initial_guesses.append(cb)
         self._efuncs[cb.name] = cb
 
     def _create_initial_guess_body(self, body):
@@ -660,15 +653,11 @@ class CCBBuilder(CBBuilder):
     @property
     def main_matvec_callback(self):
         """
-        This is the matvec callback associated with the whole Jacobian i.e
+        This is the matrix-vector callback associated with the whole Jacobian i.e
         is set in the main kernel via
         `PetscCall(MatShellSetOperation(J,MATOP_MULT,(void (*)(void))MyMatShellMult));`
         """
         return self._main_matvec_callback
-
-    @property
-    def main_formfunc_callback(self):
-        return self._main_formfunc_callback
 
     def _make_core(self):
         for sm in self.fielddata.jacobian.nonzero_submatrices:
@@ -757,7 +746,7 @@ class CCBBuilder(CBBuilder):
             retval=objs['err'],
             parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
         )
-        self._main_formfunc_callback = cb
+        self._F_efunc = cb
         self._efuncs[cb.name] = cb
 
     def _whole_formfunc_body(self, body):
@@ -1310,7 +1299,7 @@ class BaseSetup:
             'MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
         )
-        formfunc = self.cbbuilder.main_formfunc_callback
+        formfunc = self.cbbuilder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
             [sobjs['snes'], objs['Null'], FormFunctionCallback(formfunc.name, void, void),
@@ -1477,7 +1466,7 @@ class CoupledSetup(BaseSetup):
             'MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
         )
-        formfunc = self.cbbuilder.main_formfunc_callback
+        formfunc = self.cbbuilder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
             [sobjs['snes'], objs['Null'], FormFunctionCallback(formfunc.name, void, void),
@@ -1593,7 +1582,7 @@ class Solver:
 
         struct_assignment = self.timedep.assign_time_iters(sobjs['userctx'])
 
-        b_efunc = self.cbbuilder.b_efuncs[0]
+        b_efunc = self.cbbuilder._b_efunc
 
         dmda = sobjs['dmda']
 
@@ -1601,8 +1590,8 @@ class Solver:
 
         vec_place_array = self.timedep.place_array(target)
 
-        if self.cbbuilder.initialguesses:
-            initguess = self.cbbuilder.initialguesses[0]
+        if self.cbbuilder.initial_guesses:
+            initguess = self.cbbuilder.initial_guesses[0]
             initguess_call = petsc_call(initguess.name, [dmda, sobjs['xlocal']])
         else:
             initguess_call = None

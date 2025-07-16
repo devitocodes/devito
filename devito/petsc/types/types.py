@@ -1,6 +1,7 @@
 import sympy
 
 from itertools import chain
+from functools import cached_property
 
 from devito.tools import Reconstructable, sympy_mutex, as_tuple, frozendict
 from devito.tools.dtypes_lowering import dtype_mapper
@@ -241,7 +242,7 @@ class MultipleFieldData(FieldData):
         self._jacobian = jacobian
         self._residual = residual
 
-    @property
+    @cached_property
     def space_dimensions(self):
         space_dims = {t.space_dimensions for t in self.targets}
         if len(space_dims) > 1:
@@ -251,7 +252,7 @@ class MultipleFieldData(FieldData):
             )
         return space_dims.pop()
 
-    @property
+    @cached_property
     def grid(self):
         """The unique `Grid` associated with all targets."""
         grids = [t.grid for t in self.targets]
@@ -261,7 +262,7 @@ class MultipleFieldData(FieldData):
             )
         return grids.pop()
 
-    @property
+    @cached_property
     def space_order(self):
         # NOTE: since we use DMDA to create vecs for the coupled solves,
         # all fields must have the same space order
@@ -398,7 +399,8 @@ class Jacobian(BaseJacobian):
             matvecs.extend(
                 e for e in self._build_matvec_expr(eq) if e is not None
             )
-        matvecs = tuple(sorted(matvecs, key=lambda e: not isinstance(e, EssentialBC)))
+        key = lambda e: not isinstance(e, EssentialBC)
+        matvecs = tuple(sorted(matvecs, key=key))
 
         matvecs = self._scale_non_bcs(matvecs)
         scdiag = self._compute_scdiag(matvecs)
@@ -425,7 +427,7 @@ class MixedJacobian(BaseJacobian):
     """
     def __init__(self, target_exprs, arrays, time_mapper):
         super().__init__(arrays=arrays, target=None)
-        self.targets = tuple(target_exprs.keys())
+        self.targets = tuple(target_exprs)
         self.time_mapper = time_mapper
         self._submatrices = []
         self._build_blocks(target_exprs)
@@ -443,12 +445,12 @@ class MixedJacobian(BaseJacobian):
         """Return the number of submatrix blocks."""
         return len(self._submatrices)
 
-    @property
+    @cached_property
     def nonzero_submatrices(self):
         """Return SubMatrixBlock objects that have non-empty matvecs."""
         return [m for m in self.submatrices if m.matvecs]
 
-    @property
+    @cached_property
     def target_scaler_mapper(self):
         """
         Map each row target to the scdiag of its corresponding
@@ -467,13 +469,8 @@ class MixedJacobian(BaseJacobian):
         for i, row_target in enumerate(self.targets):
             exprs = target_exprs[row_target]
             for j, col_target in enumerate(self.targets):
-                matvecs = []
-                for expr in exprs:
-                    matvecs.extend(
-                        e for e in self._build_matvec_expr(
-                            expr, col_target=col_target, row_target=row_target
-                        )
-                    )
+
+                matvecs = self._build_submatrix_matvecs(exprs, row_target, col_target)
                 matvecs = [m for m in matvecs if m is not None]
 
                 # Sort to put EssentialBC first if any
@@ -496,6 +493,16 @@ class MixedJacobian(BaseJacobian):
                     linear_idx=i * len(self.targets) + j
                 )
                 self._submatrices.append(block)
+
+    def _build_submatrix_matvecs(self, exprs, row_target, col_target):
+        matvecs = []
+        for expr in exprs:
+            matvecs.extend(
+                e for e in self._build_matvec_expr(
+                    expr, col_target=col_target, row_target=row_target
+                )
+            )
+        return matvecs
 
     def get_submatrix(self, row_idx, col_idx):
         """
