@@ -810,7 +810,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             To bind the argument values to different names.
         """
         key = alias or self
-        # TODO: Tidy this up. The idea is to avoid touching the data
+        # Avoid touching the data if just estimating memory usage
         if estimate_memory:
             args = ReducerMap({key.name: self})
         else:
