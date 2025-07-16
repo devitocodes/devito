@@ -1,11 +1,12 @@
 from collections.abc import Iterable
 from itertools import chain, product
-from functools import cached_property, lru_cache
+from functools import cached_property
 from typing import Callable
 
 from sympy import S, Expr
 import sympy
 
+from devito.ir.support.caching import CacheInstances
 from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
@@ -626,20 +627,11 @@ class Relation:
         return S.ImaginaryUnit in self.distance
 
 
-class Dependence(Relation):
+class Dependence(Relation, CacheInstances):
 
     """
     A data dependence between two TimedAccess objects.
     """
-
-    @classmethod
-    @lru_cache(maxsize=128)
-    def fetch(cls: type['Dependence'],
-              source: TimedAccess, sink: TimedAccess) -> 'Dependence':
-        """
-        Obtain a (potentially cached) Dependence for analysis.
-        """
-        return cls(source, sink)
 
     def __repr__(self):
         return "%s -> %s" % (self.source, self.sink)
@@ -834,14 +826,18 @@ class DependenceGroup(set):
         return DependenceGroup(i for i in self if i.function is function)
 
 
-class Scope:
+class Scope(CacheInstances):
 
     # Describes a rule for dependencies
     Rule = Callable[[TimedAccess, TimedAccess], bool]
 
+    @classmethod
+    def _preprocess_args(cls, exprs: Expr | Iterable[Expr],
+                         **kwargs) -> tuple[tuple, dict]:
+        return (as_tuple(exprs),), kwargs
+
     def __init__(self, exprs: tuple[Expr],
-                 rules: Rule | tuple[Rule] | None = None) \
-            -> None:
+                 rules: Rule | tuple[Rule] | None = None) -> None:
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
@@ -851,24 +847,6 @@ class Scope:
         # A set of rules to drive the collection of dependencies
         self.rules: tuple[Scope.Rule] = as_tuple(rules)  # type: ignore[assignment]
         assert all(callable(i) for i in self.rules)
-
-    @classmethod
-    @lru_cache(maxsize=128)
-    def _fetch(cls: type['Scope'], exprs: tuple[Expr],
-               rules: Rule | tuple[Rule] | None = None) -> 'Scope':
-        """
-        Obtains a (potentially cached) Scope from a sequence of expressions.
-        Helper function called with hashable arguments.
-        """
-        return cls(exprs, rules=rules)
-
-    @classmethod
-    def fetch(cls: type['Scope'], exprs: Expr | Iterable[Expr],
-              rules: Rule | tuple[Rule] | None = None) -> 'Scope':
-        """
-        Obtains a (potentially cached) Scope from a sequence of expressions.
-        """
-        return cls._fetch(as_tuple(exprs), rules=rules)
 
     @memoized_generator
     def writes_gen(self):
@@ -1111,7 +1089,7 @@ class Scope:
                     if any(not rule(w, r) for rule in self.rules):
                         continue
 
-                    dependence = Dependence.fetch(w, r)
+                    dependence = Dependence(w, r)
 
                     if dependence.is_imaginary:
                         continue
@@ -1141,7 +1119,7 @@ class Scope:
                     if any(not rule(r, w) for rule in self.rules):
                         continue
 
-                    dependence = Dependence.fetch(r, w)
+                    dependence = Dependence(r, w)
 
                     if dependence.is_imaginary:
                         continue
@@ -1171,7 +1149,7 @@ class Scope:
                     if any(not rule(w2, w1) for rule in self.rules):
                         continue
 
-                    dependence = Dependence.fetch(w2, w1)
+                    dependence = Dependence(w2, w1)
 
                     if dependence.is_imaginary:
                         continue

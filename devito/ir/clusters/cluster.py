@@ -183,7 +183,7 @@ class Cluster:
 
     @cached_property
     def scope(self):
-        return Scope.fetch(self.exprs)
+        return Scope(self.exprs)
 
     @cached_property
     def functions(self):
@@ -473,7 +473,7 @@ class ClusterGroup(tuple):
 
     @cached_property
     def scope(self):
-        return Scope.fetch(exprs=self.exprs)
+        return Scope(exprs=self.exprs)
 
     @cached_property
     def ispace(self):

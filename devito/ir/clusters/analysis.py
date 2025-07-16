@@ -99,7 +99,7 @@ class Parallelism(Detector):
         is_parallel_indep = True
         is_parallel_atomic = False
 
-        scope = Scope.fetch(flatten(c.exprs for c in clusters))
+        scope = Scope(flatten(c.exprs for c in clusters))
         for dep in scope.d_all_gen():
             test00 = dep.is_indep(dim) and not dep.is_storage_related(dim)
             test01 = all(dep.is_reduce_atmost(i) for i in prev)
@@ -136,7 +136,7 @@ class Affiness(Detector):
     """
 
     def _callback(self, clusters, dim, prefix):
-        scope = Scope.fetch(flatten(c.exprs for c in clusters))
+        scope = Scope(flatten(c.exprs for c in clusters))
         accesses = [a for a in scope.accesses if not a.is_scalar]
 
         if all(a.is_regular and a.affine_if_present(dim._defines) for a in accesses):
