@@ -1037,24 +1037,27 @@ class TestExpansion:
         cls.b = a.subs({cls.u: -5*cls.u.dx + 4*cls.u + 3}, postprocess=False)
 
     def test_reconstructible(self):
-        ''' Check that devito.Derivatives are reconstructible from func and args
+        """
+        Check that devito.Derivatives are reconstructible from func and args
         (as per sympy docs)
-        '''
+        """
         du = self.u.dx
         assert du.func(*du.args) == du
         assert du.func(*du.args).args == (self.u, (self.x, 1))
 
     def test_deriv_order(self):
-        ''' Check default simplification causes the same result
-        '''
+        """
+        Check default simplification causes the same result
+        """
         du11 = Derivative(self.u, self.x, self.x)
         du2 = Derivative(self.u, (self.x, 2))
         assert du11 == du2
         assert du11.deriv_order == du2.deriv_order
 
     def test_wrong_deriv_order(self):
-        ''' Check an exception is raises with incompatible arguments
-        '''
+        """
+        Check an exception is raises with incompatible arguments
+        """
         with pytest.raises(ValueError):
             _ = Derivative(self.u, self.x, deriv_order=(2, 4))
 
@@ -1067,15 +1070,17 @@ class TestExpansion:
             _ = Derivative(sympify(-1), deriv_order=0)
 
     def test_constant(self):
-        ''' Check constant derivative is zero for non-0th order derivatives
-        '''
+        """
+        Check constant derivative is zero for non-0th order derivatives
+        """
         assert Derivative(sympify(-1), (self.x, 1)) == 0
         assert Derivative(sympify(-1), (self.x, 2)) == 0
         assert Derivative(sympify(-1), (self.x, 0)) == -1
 
     def test_dims_validation(self):
-        ''' Validate `dims` kwarg
-        '''
+        """
+        Validate `dims` kwarg
+        """
         grid = Grid(shape=(11, 11, 11), extent=(1, 1, 1))
         x, y, z = grid.dimensions
         u = Function(name='u', grid=grid, space_order=4)
@@ -1101,8 +1106,9 @@ class TestExpansion:
         assert d.deriv_order == (3, 1, 3)
 
     def test_dims_exceptions(self):
-        ''' Check invalid dimensions and orders raise exceptions
-        '''
+        """
+        Check invalid dimensions and orders raise exceptions
+        """
         grid = Grid(shape=(11, 11, 11), extent=(1, 1, 1))
         x, y, z = grid.dimensions
         u = Function(name='u', grid=grid, space_order=4)
@@ -1126,29 +1132,33 @@ class TestExpansion:
             _ = Derivative(u, (x, a))
 
     def test_expand_mul(self):
-        ''' Check independent terms can be extracted from the derivative.
+        """
+        Check independent terms can be extracted from the derivative.
         The multiply expansion is the only hint executed by default when
         `.expand()` is called.
-        '''
+        """
         expanded = Derivative(4*self.u - 5*Derivative(self.u, self.x) + 3, self.x)
         assert self.b.expand() == expanded
 
     def test_expand_add(self):
-        ''' Check linearity
-        '''
+        """
+        Check linearity
+        """
         expanded = 4*Derivative(self.u, self.x)
         expanded -= 5*Derivative(Derivative(self.u, self.x), self.x)
         assert self.b.expand(add=True) == expanded
 
     def test_expand_nest(self):
-        ''' Check valid nested derivative expands (combining x derivatives)
-        '''
+        """
+        Check valid nested derivative expands (combining x derivatives)
+        """
         expanded = 4*Derivative(self.u, self.x) - 5*Derivative(self.u, (self.x, 2))
         assert self.b.expand(add=True, nest=True) == expanded
 
     def test_nested_orders(self):
-        ''' Check nested expansion results in correct derivative and fd order
-        '''
+        """
+        Check nested expansion results in correct derivative and fd order
+        """
         # Default fd_order
         du22 = Derivative(Derivative(self.u, (self.x, 2)), (self.x, 2))
         with pytest.warns(UserWarning):
