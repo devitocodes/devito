@@ -2,7 +2,7 @@ from functools import wraps, partial
 from itertools import product
 
 import numpy as np
-from sympy import S, finite_diff_weights, cacheit, sympify, Function, Rational
+from sympy import S, finite_diff_weights, cacheit, sympify, Rational, Expr
 
 from devito.logger import warning
 from devito.tools import Tag, as_tuple
@@ -326,9 +326,13 @@ def make_shift_x0(shift, ndim):
 
 
 def process_weights(weights, expr, dim):
+    from devito.symbolics import retrieve_functions
     if weights is None:
         return 0, None, False
-    elif isinstance(weights, Function):
+    elif isinstance(weights, Expr):
+        w_func = retrieve_functions(weights)
+        assert len(w_func) == 1, "Only one function expected in weights"
+        weights = w_func[0]
         if len(weights.dimensions) == 1:
             return weights.shape[0], weights.dimensions[0], False
         try:

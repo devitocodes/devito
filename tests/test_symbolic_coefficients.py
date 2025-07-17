@@ -120,6 +120,20 @@ class TestSC:
         expr1 = f.dxdy(w=w).evaluate
         assert sp.simplify(expr0 - expr1) == 0
 
+    def test_coefficients_expr(self):
+        p = Dimension('p')
+
+        grid = Grid(shape=(51, 51, 51))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=4)
+        w = Function(name='w', space_order=0, shape=(*grid.shape, 5),
+                     dimensions=(x, y, z, p))
+
+        expr0 = f.dx(w=w/x.spacing).evaluate
+        expr1 = f.dx(w=w).evaluate / x.spacing
+        assert sp.simplify(expr0 - expr1) == 0
+
     def test_coefficients_w_xreplace(self):
         """Test custom coefficients with an xreplace before they are applied"""
         grid = Grid(shape=(4, 4))

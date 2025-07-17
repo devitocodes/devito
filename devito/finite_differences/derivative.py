@@ -213,7 +213,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         weights = kwargs.get('weights', kwargs.get('w'))
         if weights is None:
             return None
-        elif isinstance(weights, sympy.Function):
+        elif isinstance(weights, Differentiable):
             return weights
         else:
             return as_tuple(weights)
