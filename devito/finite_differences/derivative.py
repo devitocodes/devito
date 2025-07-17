@@ -605,7 +605,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             --> C·g(y)·Derivative(f(x), x)`
         '''
         if self.expr.is_Mul:
-            ind, dep = self.expr.as_independent(*self.dims, as_Mul=True)
+            ind, dep = self.expr.as_independent(*self.dims, as_Add=False)
             return ind*self.func(dep, *self.args[1:])
         else:
             return self
