@@ -60,7 +60,7 @@ class LinearSolveExpr(MetaData):
     """
 
     __rargs__ = ('expr',)
-    __rkwargs__ = ('solver_parameters', 'fielddata', 'time_mapper',
+    __rkwargs__ = ('solver_parameters', 'field_data', 'time_mapper',
                    'localinfo', 'options_prefix')
 
     defaults = {
@@ -73,7 +73,7 @@ class LinearSolveExpr(MetaData):
     }
 
     def __new__(cls, expr, solver_parameters=None,
-                fielddata=None, time_mapper=None, localinfo=None,
+                field_data=None, time_mapper=None, localinfo=None,
                 options_prefix=None, **kwargs):
 
         if solver_parameters is None:
@@ -87,7 +87,7 @@ class LinearSolveExpr(MetaData):
 
         obj._expr = expr
         obj._solver_parameters = solver_parameters
-        obj._fielddata = fielddata if fielddata else FieldData()
+        obj._field_data = field_data if field_data else FieldData()
         obj._time_mapper = time_mapper
         obj._localinfo = localinfo
         obj._options_prefix = options_prefix
@@ -113,8 +113,8 @@ class LinearSolveExpr(MetaData):
         return self._expr
 
     @property
-    def fielddata(self):
-        return self._fielddata
+    def field_data(self):
+        return self._field_data
 
     @property
     def solver_parameters(self):
@@ -134,7 +134,7 @@ class LinearSolveExpr(MetaData):
 
     @property
     def grid(self):
-        return self.fielddata.grid
+        return self.field_data.grid
 
     @classmethod
     def eval(cls, *args):
@@ -158,14 +158,14 @@ class FieldData:
         the PETScArray representing the `target`.
     residual : Residual
         Defines the residual function F(target) = 0.
-    initialguess : InitialGuess
+    initial_guess : InitialGuess
         Defines the initial guess for the solution, which satisfies
         essential boundary conditions.
     arrays : dict
         A dictionary mapping `target` to its corresponding PETScArrays.
     """
     def __init__(self, target=None, jacobian=None, residual=None,
-                 initialguess=None, arrays=None, **kwargs):
+                 initial_guess=None, arrays=None, **kwargs):
         self._target = target
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
         if self._target.dtype != petsc_precision:
@@ -176,7 +176,7 @@ class FieldData:
             )
         self._jacobian = jacobian
         self._residual = residual
-        self._initialguess = initialguess
+        self._initial_guess = initial_guess
         self._arrays = arrays
 
     @property
@@ -192,8 +192,8 @@ class FieldData:
         return self._residual
 
     @property
-    def initialguess(self):
-        return self._initialguess
+    def initial_guess(self):
+        return self._initial_guess
 
     @property
     def arrays(self):
@@ -230,7 +230,7 @@ class MultipleFieldData(FieldData):
         Defines the matrix-vector products for the full system Jacobian.
     residual : MixedResidual
         Defines the residual function F(targets) = 0.
-    initialguess : InitialGuess
+    initial_guess : InitialGuess
         Defines the initial guess metadata, which satisfies
         essential boundary conditions.
     arrays : dict

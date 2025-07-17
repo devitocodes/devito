@@ -214,7 +214,7 @@ def test_LinearSolveExpr():
 
     eqn = Eq(f, g.laplace)
 
-    linsolveexpr = LinearSolveExpr(eqn.rhs, fielddata=FieldData(target=f))
+    linsolveexpr = LinearSolveExpr(eqn.rhs, field_data=FieldData(target=f))
 
     # Check the solver parameters
     assert linsolveexpr.solver_parameters == \
@@ -653,7 +653,7 @@ def test_jacobian():
 
     petsc = PETScSolve([eq1, bc_1, bc_2], target=e)
 
-    jac = petsc.rhs.fielddata.jacobian
+    jac = petsc.rhs.field_data.jacobian
 
     assert jac.row_target == e
     assert jac.col_target == e
@@ -699,7 +699,7 @@ def test_residual():
 
     petsc = PETScSolve([eq1, bc_1, bc_2], target=e)
 
-    res = petsc.rhs.fielddata.residual
+    res = petsc.rhs.field_data.residual
 
     assert res.target == e
     # NOTE: This is likely to change when PetscSection + DMDA is supported
@@ -789,14 +789,14 @@ class TestCoupledLinear:
         assert len(callbacks1) == 8
         assert len(callbacks2) == 6
 
-        # Check fielddata type
-        fielddata1 = petsc1.rhs.fielddata
-        fielddata2 = petsc2.rhs.fielddata
-        fielddata3 = petsc3.rhs.fielddata
+        # Check field_data type
+        field0 = petsc1.rhs.field_data
+        field1 = petsc2.rhs.field_data
+        field2 = petsc3.rhs.field_data
 
-        assert isinstance(fielddata1, FieldData)
-        assert isinstance(fielddata2, FieldData)
-        assert isinstance(fielddata3, MultipleFieldData)
+        assert isinstance(field0, FieldData)
+        assert isinstance(field1, FieldData)
+        assert isinstance(field2, MultipleFieldData)
 
     @skipif('petsc')
     def test_coupled_structs(self):
@@ -919,7 +919,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc.rhs.fielddata.jacobian
+        jacobian = petsc.rhs.field_data.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j01 = jacobian.get_submatrix(0, 1)
@@ -1031,7 +1031,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc.rhs.fielddata.jacobian
+        jacobian = petsc.rhs.field_data.jacobian
 
         j01 = jacobian.get_submatrix(0, 1)
         j10 = jacobian.get_submatrix(1, 0)
@@ -1080,7 +1080,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc.rhs.fielddata.jacobian
+        jacobian = petsc.rhs.field_data.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j11 = jacobian.get_submatrix(1, 1)
@@ -1130,7 +1130,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc.rhs.fielddata.jacobian
+        jacobian = petsc.rhs.field_data.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j11 = jacobian.get_submatrix(1, 1)
@@ -1183,7 +1183,7 @@ class TestCoupledLinear:
 
         petsc = PETScSolve({e: [eq1], g: [eq2]})
 
-        jacobian = petsc.rhs.fielddata.jacobian
+        jacobian = petsc.rhs.field_data.jacobian
 
         j00 = jacobian.get_submatrix(0, 0)
         j11 = jacobian.get_submatrix(1, 1)

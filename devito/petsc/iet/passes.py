@@ -31,10 +31,10 @@ import devito.logger as dl
 @iet_pass
 def lower_petsc(iet, **kwargs):
     # Check if PETScSolve was used
-    injectsolve_mapper = MapNodes(Iteration, PetscMetaData,
+    inject_solve_mapper = MapNodes(Iteration, PetscMetaData,
                                   'groupby').visit(iet)
 
-    if not injectsolve_mapper:
+    if not inject_solve_mapper:
         return iet, {}
 
     if kwargs['language'] not in petsc_languages:
@@ -51,7 +51,7 @@ def lower_petsc(iet, **kwargs):
     if any(filter(lambda i: isinstance(i.expr.rhs, Finalize), data)):
         return finalize(iet), core_metadata()
 
-    unique_grids = {i.expr.rhs.grid for (i,) in injectsolve_mapper.values()}
+    unique_grids = {i.expr.rhs.grid for (i,) in inject_solve_mapper.values()}
     # Assumption is that all solves are on the same grid
     if len(unique_grids) > 1:
         raise ValueError("All PETScSolves must use the same Grid, but multiple found.")
@@ -69,9 +69,9 @@ def lower_petsc(iet, **kwargs):
     # Map PETScSolve to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
-    for iters, (injectsolve,) in injectsolve_mapper.items():
+    for iters, (inject_solve,) in inject_solve_mapper.items():
 
-        builder = Builder(injectsolve, objs, iters, comm, section_mapper, **kwargs)
+        builder = Builder(inject_solve, objs, iters, comm, section_mapper, **kwargs)
 
         setup.extend(builder.solversetup.calls)
 
@@ -129,18 +129,18 @@ class Builder:
     and other functionalities as needed.
     The class will be extended to accommodate different solver types by
     returning subclasses of the objects initialised in __init__,
-    depending on the properties of `injectsolve`.
+    depending on the properties of `inject_solve`.
     """
-    def __init__(self, injectsolve, objs, iters, comm, section_mapper, **kwargs):
-        self.injectsolve = injectsolve
+    def __init__(self, inject_solve, objs, iters, comm, section_mapper, **kwargs):
+        self.inject_solve = inject_solve
         self.objs = objs
         self.iters = iters
         self.comm = comm
         self.section_mapper = section_mapper
         self.kwargs = kwargs
-        self.coupled = isinstance(injectsolve.expr.rhs.fielddata, MultipleFieldData)
+        self.coupled = isinstance(inject_solve.expr.rhs.field_data, MultipleFieldData)
         self.common_kwargs = {
-            'injectsolve': self.injectsolve,
+            'inject_solve': self.inject_solve,
             'objs': self.objs,
             'iters': self.iters,
             'comm': self.comm,
@@ -148,7 +148,7 @@ class Builder:
             **self.kwargs
         }
         self.common_kwargs['solver_objs'] = self.objbuilder.solver_objs
-        self.common_kwargs['timedep'] = self.timedep
+        self.common_kwargs['time_dependence'] = self.time_dependence
         self.common_kwargs['cbbuilder'] = self.cbbuilder
         self.common_kwargs['logger'] = self.logger
 
@@ -161,10 +161,10 @@ class Builder:
         )
 
     @cached_property
-    def timedep(self):
-        time_mapper = self.injectsolve.expr.rhs.time_mapper
-        timedep_class = TimeDependent if time_mapper else NonTimeDependent
-        return timedep_class(**self.common_kwargs)
+    def time_dependence(self):
+        mapper = self.inject_solve.expr.rhs.time_mapper
+        time_class = TimeDependent if mapper else NonTimeDependent
+        return time_class(**self.common_kwargs)
 
     @cached_property
     def cbbuilder(self):

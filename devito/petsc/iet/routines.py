@@ -33,10 +33,10 @@ class CBBuilder:
         self.rcompile = kwargs.get('rcompile', None)
         self.sregistry = kwargs.get('sregistry', None)
         self.concretize_mapper = kwargs.get('concretize_mapper', {})
-        self.timedep = kwargs.get('timedep')
+        self.time_dependence = kwargs.get('time_dependence')
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
-        self.injectsolve = kwargs.get('injectsolve')
+        self.inject_solve = kwargs.get('inject_solve')
 
         self._efuncs = OrderedDict()
         self._struct_params = []
@@ -93,23 +93,23 @@ class CBBuilder:
         return self._user_struct_callback
 
     @property
-    def fielddata(self):
-        return self.injectsolve.expr.rhs.fielddata
+    def field_data(self):
+        return self.inject_solve.expr.rhs.field_data
 
     @property
     def arrays(self):
-        return self.fielddata.arrays
+        return self.field_data.arrays
 
     @property
     def target(self):
-        return self.fielddata.target
+        return self.field_data.target
 
     def _make_core(self):
-        self._make_matvec(self.fielddata.jacobian)
+        self._make_matvec(self.field_data.jacobian)
         self._make_formfunc()
         self._make_formrhs()
-        if self.fielddata.initialguess.exprs:
-            self._make_initialguess()
+        if self.field_data.initial_guess.exprs:
+            self._make_initial_guess()
         self._make_user_struct_callback()
 
     def _make_matvec(self, jacobian, prefix='MatMult'):
@@ -134,7 +134,7 @@ class CBBuilder:
         self._efuncs[cb.name] = cb
 
     def _create_matvec_body(self, body, jacobian):
-        linsolve_expr = self.injectsolve.expr.rhs
+        linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
 
@@ -145,7 +145,7 @@ class CBBuilder:
         y_matvec = self.arrays[jacobian.row_target]['y']
         x_matvec = self.arrays[jacobian.col_target]['x']
 
-        body = self.timedep.uxreplace_time(body)
+        body = self.time_dependence.uxreplace_time(body)
 
         fields = self._dummy_fields(body)
 
@@ -261,7 +261,7 @@ class CBBuilder:
         return body
 
     def _make_formfunc(self):
-        F_exprs = self.fielddata.residual.F_exprs
+        F_exprs = self.field_data.residual.F_exprs
         # Compile `F_exprs` into an IET via recursive compilation
         irs, _ = self.rcompile(
             F_exprs, options={'mpi': False}, sregistry=self.sregistry,
@@ -281,7 +281,7 @@ class CBBuilder:
         self._efuncs[cb.name] = cb
 
     def _create_formfunc_body(self, body):
-        linsolve_expr = self.injectsolve.expr.rhs
+        linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
         arrays = self.arrays
@@ -290,7 +290,7 @@ class CBBuilder:
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
-        body = self.timedep.uxreplace_time(body)
+        body = self.time_dependence.uxreplace_time(body)
 
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
@@ -397,7 +397,7 @@ class CBBuilder:
         return Uxreplace(subs).visit(body)
 
     def _make_formrhs(self):
-        b_exprs = self.fielddata.residual.b_exprs
+        b_exprs = self.field_data.residual.b_exprs
         sobjs = self.solver_objs
 
         # Compile `b_exprs` into an IET via recursive compilation
@@ -419,7 +419,7 @@ class CBBuilder:
         self._efuncs[cb.name] = cb
 
     def _create_form_rhs_body(self, body):
-        linsolve_expr = self.injectsolve.expr.rhs
+        linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
         target = self.target
@@ -441,7 +441,7 @@ class CBBuilder:
             sobjs['blocal']
         ])
 
-        b_arr = self.fielddata.arrays[target]['b']
+        b_arr = self.field_data.arrays[target]['b']
 
         vec_get_array = petsc_call(
             'VecGetArray', [sobjs['blocal'], Byref(b_arr._C_symbol)]
@@ -451,7 +451,7 @@ class CBBuilder:
             'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
         )
 
-        body = self.timedep.uxreplace_time(body)
+        body = self.time_dependence.uxreplace_time(body)
 
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
@@ -508,8 +508,8 @@ class CBBuilder:
 
         return Uxreplace(subs).visit(body)
 
-    def _make_initialguess(self):
-        exprs = self.fielddata.initialguess.exprs
+    def _make_initial_guess(self):
+        exprs = self.field_data.initial_guess.exprs
         sobjs = self.solver_objs
 
         # Compile initital guess `eqns` into an IET via recursive compilation
@@ -531,7 +531,7 @@ class CBBuilder:
         self._efuncs[cb.name] = cb
 
     def _create_initial_guess_body(self, body):
-        linsolve_expr = self.injectsolve.expr.rhs
+        linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
         target = self.target
@@ -539,7 +539,7 @@ class CBBuilder:
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
-        x_arr = self.fielddata.arrays[target]['x']
+        x_arr = self.field_data.arrays[target]['x']
 
         vec_get_array = petsc_call(
             'VecGetArray', [objs['xloc'], Byref(x_arr._C_symbol)]
@@ -549,7 +549,7 @@ class CBBuilder:
             'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
         )
 
-        body = self.timedep.uxreplace_time(body)
+        body = self.time_dependence.uxreplace_time(body)
 
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
@@ -648,7 +648,7 @@ class CCBBuilder(CBBuilder):
 
     @property
     def jacobian(self):
-        return self.injectsolve.expr.rhs.fielddata.jacobian
+        return self.inject_solve.expr.rhs.field_data.jacobian
 
     @property
     def main_matvec_callback(self):
@@ -660,7 +660,7 @@ class CCBBuilder(CBBuilder):
         return self._main_matvec_callback
 
     def _make_core(self):
-        for sm in self.fielddata.jacobian.nonzero_submatrices:
+        for sm in self.field_data.jacobian.nonzero_submatrices:
             self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
 
         self._make_whole_matvec()
@@ -731,7 +731,7 @@ class CCBBuilder(CBBuilder):
         )
 
     def _make_whole_formfunc(self):
-        F_exprs = self.fielddata.residual.F_exprs
+        F_exprs = self.field_data.residual.F_exprs
         # Compile `F_exprs` into an IET via recursive compilation
         irs, _ = self.rcompile(
             F_exprs, options={'mpi': False}, sregistry=self.sregistry,
@@ -750,14 +750,14 @@ class CCBBuilder(CBBuilder):
         self._efuncs[cb.name] = cb
 
     def _whole_formfunc_body(self, body):
-        linsolve_expr = self.injectsolve.expr.rhs
+        linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
-        body = self.timedep.uxreplace_time(body)
+        body = self.time_dependence.uxreplace_time(body)
 
         fields = self._dummy_fields(body)
         self._struct_params.extend(fields)
@@ -1026,11 +1026,11 @@ class BaseObjectBuilder:
     method to support specific use cases.
     """
     def __init__(self, **kwargs):
-        self.injectsolve = kwargs.get('injectsolve')
+        self.inject_solve = kwargs.get('inject_solve')
         self.objs = kwargs.get('objs')
         self.sregistry = kwargs.get('sregistry')
         self.comm = kwargs.get('comm')
-        self.fielddata = self.injectsolve.expr.rhs.fielddata
+        self.field_data = self.inject_solve.expr.rhs.field_data
         self.solver_objs = self._build()
 
     def _build(self):
@@ -1055,10 +1055,10 @@ class BaseObjectBuilder:
                    functions via `SNESGetDM`.
         """
         sreg = self.sregistry
-        targets = self.fielddata.targets
+        targets = self.field_data.targets
 
         snes_name = sreg.make_name(prefix='snes')
-        options_prefix = self.injectsolve.expr.rhs.options_prefix
+        options_prefix = self.inject_solve.expr.rhs.options_prefix
 
         base_dict = {
             'Jac': Mat(sreg.make_name(prefix='J')),
@@ -1085,7 +1085,7 @@ class BaseObjectBuilder:
         that will be updated at each time step.
         """
         sreg = self.sregistry
-        target = self.fielddata.target
+        target = self.field_data.target
         base_dict[f'{target.name}_ptr'] = StartPtr(
             sreg.make_name(prefix=f'{target.name}_ptr'), target.dtype
         )
@@ -1102,8 +1102,8 @@ class CoupledObjectBuilder(BaseObjectBuilder):
     def _extend_build(self, base_dict):
         sreg = self.sregistry
         objs = self.objs
-        targets = self.fielddata.targets
-        arrays = self.fielddata.arrays
+        targets = self.field_data.targets
+        arrays = self.field_data.arrays
 
         base_dict['fields'] = PointerIS(
             name=sreg.make_name(prefix='fields'), nindices=len(targets)
@@ -1113,14 +1113,14 @@ class CoupledObjectBuilder(BaseObjectBuilder):
         )
         base_dict['nfields'] = PetscInt(sreg.make_name(prefix='nfields'))
 
-        space_dims = len(self.fielddata.grid.dimensions)
+        space_dims = len(self.field_data.grid.dimensions)
 
         dim_labels = ["M", "N", "P"]
         base_dict.update({
             dim_labels[i]: PetscInt(dim_labels[i]) for i in range(space_dims)
         })
 
-        submatrices = self.fielddata.jacobian.nonzero_submatrices
+        submatrices = self.field_data.jacobian.nonzero_submatrices
 
         base_dict['jacctx'] = JacobianStruct(
             name=sreg.make_name(prefix=objs['ljacctx'].name),
@@ -1174,7 +1174,7 @@ class CoupledObjectBuilder(BaseObjectBuilder):
 
     def _target_dependent(self, base_dict):
         sreg = self.sregistry
-        targets = self.fielddata.targets
+        targets = self.field_data.targets
         for t in targets:
             name = t.name
             base_dict[f'{name}_ptr'] = StartPtr(
@@ -1208,11 +1208,11 @@ class CoupledObjectBuilder(BaseObjectBuilder):
 
 class BaseSetup:
     def __init__(self, **kwargs):
-        self.injectsolve = kwargs.get('injectsolve')
+        self.inject_solve = kwargs.get('inject_solve')
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
         self.cbbuilder = kwargs.get('cbbuilder')
-        self.fielddata = self.injectsolve.expr.rhs.fielddata
+        self.field_data = self.inject_solve.expr.rhs.field_data
         self.calls = self._setup()
 
     @property
@@ -1229,7 +1229,7 @@ class BaseSetup:
 
         dmda = sobjs['dmda']
 
-        solver_params = self.injectsolve.expr.rhs.solver_parameters
+        solver_params = self.inject_solve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
@@ -1252,7 +1252,7 @@ class BaseSetup:
         global_x = petsc_call('DMCreateGlobalVector',
                               [dmda, Byref(sobjs['xglobal'])])
 
-        target = self.fielddata.target
+        target = self.field_data.target
         field_from_ptr = FieldFromPointer(
             target.function._C_field_data, target.function._C_symbol
         )
@@ -1366,7 +1366,7 @@ class BaseSetup:
     def _create_dmda(self, dmda):
         objs = self.objs
         sobjs = self.solver_objs
-        grid = self.fielddata.grid
+        grid = self.field_data.grid
         nspace_dims = len(grid.dimensions)
 
         # MPI communicator
@@ -1389,8 +1389,8 @@ class BaseSetup:
         args.append(dmda.dofs)
         # "Stencil width" -> size of overlap
         # TODO: Instead, this probably should be
-        # extracted from fielddata.target._size_outhalo?
-        stencil_width = self.fielddata.space_order
+        # extracted from field_data.target._size_outhalo?
+        stencil_width = self.field_data.space_order
 
         args.append(stencil_width)
         args.extend([objs['Null']]*nspace_dims)
@@ -1411,7 +1411,7 @@ class CoupledSetup(BaseSetup):
         sobjs = self.solver_objs
 
         dmda = sobjs['dmda']
-        solver_params = self.injectsolve.expr.rhs.solver_parameters
+        solver_params = self.inject_solve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
@@ -1518,7 +1518,7 @@ class CoupledSetup(BaseSetup):
              Byref(FieldFromComposite(objs['Submats'].base, sobjs['jacctx']))]
         )
 
-        targets = self.fielddata.targets
+        targets = self.field_data.targets
 
         deref_dms = [
             DummyExpr(sobjs[f'da{t.name}'], sobjs['subdms'].indexed[i])
@@ -1563,13 +1563,12 @@ class CoupledSetup(BaseSetup):
 
 class Solver:
     def __init__(self, **kwargs):
-        self.injectsolve = kwargs.get('injectsolve')
+        self.inject_solve = kwargs.get('inject_solve')
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
         self.iters = kwargs.get('iters')
         self.cbbuilder = kwargs.get('cbbuilder')
-        self.timedep = kwargs.get('timedep')
-        # TODO: Should/could _execute_solve be a cached_property?
+        self.time_dependence = kwargs.get('time_dependence')
         self.calls = self._execute_solve()
 
     def _execute_solve(self):
@@ -1578,9 +1577,9 @@ class Solver:
         the necessary calls to execute the SNES solver.
         """
         sobjs = self.solver_objs
-        target = self.injectsolve.expr.rhs.fielddata.target
+        target = self.inject_solve.expr.rhs.field_data.target
 
-        struct_assignment = self.timedep.assign_time_iters(sobjs['userctx'])
+        struct_assignment = self.time_dependence.assign_time_iters(sobjs['userctx'])
 
         b_efunc = self.cbbuilder._b_efunc
 
@@ -1588,7 +1587,7 @@ class Solver:
 
         rhs_call = petsc_call(b_efunc.name, [sobjs['dmda'], sobjs['bglobal']])
 
-        vec_place_array = self.timedep.place_array(target)
+        vec_place_array = self.time_dependence.place_array(target)
 
         if self.cbbuilder.initial_guesses:
             initguess = self.cbbuilder.initial_guesses[0]
@@ -1609,7 +1608,7 @@ class Solver:
             dmda, sobjs['xglobal'], insert_vals, sobjs['xlocal']]
         )
 
-        vec_reset_array = self.timedep.reset_array(target)
+        vec_reset_array = self.time_dependence.reset_array(target)
 
         run_solver_calls = (struct_assignment,) + (
             rhs_call,
@@ -1631,7 +1630,7 @@ class Solver:
             root = filter_iterations(tree, key=lambda i: i.dim.is_Space)
             if root:
                 root = root[0]
-                if self.injectsolve in FindNodes(PetscMetaData).visit(root):
+                if self.inject_solve in FindNodes(PetscMetaData).visit(root):
                     spatial_body.append(root)
         spatial_body, = spatial_body
         return spatial_body
@@ -1647,8 +1646,8 @@ class CoupledSolver(Solver):
         sobjs = self.solver_objs
         xglob = sobjs['xglobal']
 
-        struct_assignment = self.timedep.assign_time_iters(sobjs['userctx'])
-        targets = self.injectsolve.expr.rhs.fielddata.targets
+        struct_assignment = self.time_dependence.assign_time_iters(sobjs['userctx'])
+        targets = self.inject_solve.expr.rhs.field_data.targets
 
         # TODO: optimise the ccode generated here
         pre_solve = ()
@@ -1667,7 +1666,7 @@ class CoupledSolver(Solver):
                 petsc_call('DMCreateLocalVector', [dm, Byref(target_xloc)]),
 
                 # TODO: Need to call reset array
-                self.timedep.place_array(t),
+                self.time_dependence.place_array(t),
                 petsc_call(
                     'DMLocalToGlobal',
                     [dm, target_xloc, insert_vals, target_xglob]
@@ -1709,12 +1708,12 @@ class CoupledSolver(Solver):
 
 class NonTimeDependent:
     def __init__(self, **kwargs):
-        self.injectsolve = kwargs.get('injectsolve')
+        self.inject_solve = kwargs.get('inject_solve')
         self.iters = kwargs.get('iters')
         self.sobjs = kwargs.get('solver_objs')
         self.kwargs = kwargs
         self.origin_to_moddim = self._origin_to_moddim_mapper(self.iters)
-        self.time_idx_to_symb = self.injectsolve.expr.rhs.time_mapper
+        self.time_idx_to_symb = self.inject_solve.expr.rhs.time_mapper
 
     def _origin_to_moddim_mapper(self, iters):
         return {}
@@ -1773,7 +1772,7 @@ class TimeDependent(NonTimeDependent):
     """
     @property
     def time_spacing(self):
-        return self.injectsolve.expr.rhs.grid.stepping_dim.spacing
+        return self.inject_solve.expr.rhs.grid.stepping_dim.spacing
 
     @cached_property
     def symb_to_moddim(self):

@@ -76,9 +76,7 @@ def _(expr, targets):
 @singledispatch
 def centre_stencil(expr, target, as_coeff=False):
     """
-    Extract the centre stencil from an expression. Its coefficient is what
-    would appear on the diagonal of the matrix system if the matrix were
-    formed explicitly.
+    Extract the centre stencil from an expression.
 
     Parameters
     ----------

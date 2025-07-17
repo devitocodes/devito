@@ -68,13 +68,13 @@ class InjectSolve:
         self.options_prefix = options_prefix
 
     def build_expr(self):
-        target, funcs, fielddata = self.linear_solve_args()
+        target, funcs, field_data = self.linear_solve_args()
 
         # Placeholder expression for inserting calls to the solver
         linear_solve = LinearSolveExpr(
             funcs,
             self.solver_params,
-            fielddata=fielddata,
+            field_data=field_data,
             time_mapper=self.time_mapper,
             localinfo=localinfo,
             options_prefix=self.options_prefix
@@ -93,13 +93,13 @@ class InjectSolve:
 
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
-        initialguess = InitialGuess(target, exprs, arrays)
+        initial_guess = InitialGuess(target, exprs, arrays)
 
         field_data = FieldData(
             target=target,
             jacobian=jacobian,
             residual=residual,
-            initialguess=initialguess,
+            initial_guess=initial_guess,
             arrays=arrays
         )
 

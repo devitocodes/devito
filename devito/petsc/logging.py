@@ -120,15 +120,15 @@ class PetscSummary(dict):
 class PetscInfo(CompositeObject):
 
     __rargs__ = ('name', 'pname', 'logobjs', 'sobjs', 'section_mapper',
-                 'injectsolve', 'function_list')
+                 'inject_solve', 'function_list')
 
     def __init__(self, name, pname, logobjs, sobjs, section_mapper,
-                 injectsolve, function_list):
+                 inject_solve, function_list):
 
         self.logobjs = logobjs
         self.sobjs = sobjs
         self.section_mapper = section_mapper
-        self.injectsolve = injectsolve
+        self.inject_solve = inject_solve
         self.function_list = function_list
 
         mapper = {v: k for k, v in petsc_type_mappings.items()}
@@ -138,7 +138,7 @@ class PetscInfo(CompositeObject):
     @property
     def section(self):
         section = self.section_mapper.items()
-        return next((k[0].name for k, v in section if self.injectsolve in v), None)
+        return next((k[0].name for k, v in section if self.inject_solve in v), None)
 
     @property
     def summary_key(self):

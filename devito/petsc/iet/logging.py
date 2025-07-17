@@ -16,7 +16,7 @@ class PetscLogger:
         self.sobjs = kwargs.get('solver_objs')
         self.sreg = kwargs.get('sregistry')
         self.section_mapper = kwargs.get('section_mapper', {})
-        self.injectsolve = kwargs.get('injectsolve', None)
+        self.inject_solve = kwargs.get('inject_solve', None)
 
         self.function_list = []
 
@@ -33,7 +33,7 @@ class PetscLogger:
 
         self.statstruct = PetscInfo(
             name, pname, self.logobjs, self.sobjs,
-            self.section_mapper, self.injectsolve,
+            self.section_mapper, self.inject_solve,
             self.function_list
         )
 
