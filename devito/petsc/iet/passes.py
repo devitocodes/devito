@@ -32,7 +32,7 @@ import devito.logger as dl
 def lower_petsc(iet, **kwargs):
     # Check if PETScSolve was used
     inject_solve_mapper = MapNodes(Iteration, PetscMetaData,
-                                  'groupby').visit(iet)
+                                   'groupby').visit(iet)
 
     if not inject_solve_mapper:
         return iet, {}
@@ -73,7 +73,7 @@ def lower_petsc(iet, **kwargs):
 
         builder = Builder(inject_solve, objs, iters, comm, section_mapper, **kwargs)
 
-        setup.extend(builder.solversetup.calls)
+        setup.extend(builder.solver_setup.calls)
 
         # Transform the spatial iteration loop with the calls to execute the solver
         subs.update({builder.solve.spatial_body: builder.calls})
@@ -147,13 +147,13 @@ class Builder:
             'section_mapper': self.section_mapper,
             **self.kwargs
         }
-        self.common_kwargs['solver_objs'] = self.objbuilder.solver_objs
+        self.common_kwargs['solver_objs'] = self.object_builder.solver_objs
         self.common_kwargs['time_dependence'] = self.time_dependence
         self.common_kwargs['cbbuilder'] = self.cbbuilder
         self.common_kwargs['logger'] = self.logger
 
     @cached_property
-    def objbuilder(self):
+    def object_builder(self):
         return (
             CoupledObjectBuilder(**self.common_kwargs)
             if self.coupled else
@@ -172,7 +172,7 @@ class Builder:
             if self.coupled else CBBuilder(**self.common_kwargs)
 
     @cached_property
-    def solversetup(self):
+    def solver_setup(self):
         return CoupledSetup(**self.common_kwargs) \
             if self.coupled else BaseSetup(**self.common_kwargs)
 
