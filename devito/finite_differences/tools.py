@@ -92,8 +92,8 @@ def generate_fd_shortcuts(dims, so, to=0):
         dims = as_tuple(dims)
         deriv_order = as_tuple(deriv_order)
         fd_order = as_tuple(fd_order)
-        for (d, do, fo) in zip(dims, deriv_order, fd_order):
-            expr = Derivative(expr, d, deriv_order=do, fd_order=fo, side=side, **kwargs)
+        expr = Derivative(expr, *dims, deriv_order=deriv_order, fd_order=fd_order,
+                          side=side, **kwargs)
         return expr
 
     all_combs = dim_with_order(dims, orders)
@@ -331,7 +331,11 @@ def process_weights(weights, expr, dim):
     elif isinstance(weights, Function):
         if len(weights.dimensions) == 1:
             return weights.shape[0], weights.dimensions[0], False
-        wdim = {d for d in weights.dimensions if d not in expr.dimensions}
+        try:
+            # Already a derivative
+            wdim = {d for d in weights.dimensions if d not in expr.base.dimensions}
+        except AttributeError:
+            wdim = {d for d in weights.dimensions if d not in expr.dimensions}
         assert len(wdim) == 1
         wdim = wdim.pop()
         shape = weights.shape

@@ -81,7 +81,7 @@ class TestSC:
 
         assert np.all(np.isclose(f0.data[:] - f1.data[:], 0.0, atol=1e-5, rtol=0))
 
-    def test_function_coefficients_xderiv(self):
+    def test_function_coefficients_xderiv_legacy(self):
         p = Dimension('p')
 
         nstc = 8
@@ -104,6 +104,21 @@ class TestSC:
 
         op = Operator(eqn)
         op()
+
+    @pytest.mark.parametrize('order', [2, 4, 6, 8])
+    def test_function_coefficients_xderiv(self, order):
+        p = Dimension('p')
+
+        grid = Grid(shape=(51, 51, 51))
+        x, y, z = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=order)
+        w = Function(name='w', space_order=0, shape=(*grid.shape, order + 1),
+                     dimensions=(x, y, z, p))
+
+        expr0 = f.dx(w=w).dy(w=w).evaluate
+        expr1 = f.dxdy(w=w).evaluate
+        assert sp.simplify(expr0 - expr1) == 0
 
     def test_coefficients_w_xreplace(self):
         """Test custom coefficients with an xreplace before they are applied"""

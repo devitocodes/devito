@@ -484,7 +484,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
                                    matvec=self.transpose, x0=x0_deriv, expand=expand,
-                                   side=self.side)
+                                   side=self.side, weights=self.weights)
         else:
             assert self.method == 'FD'
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
