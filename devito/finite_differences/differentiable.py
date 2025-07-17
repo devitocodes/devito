@@ -4,16 +4,19 @@ from functools import singledispatch, cached_property
 
 import numpy as np
 import sympy
-from sympy.core.symbol import Symbol
 from sympy.core.add import _addsort, _unevaluated_Add
 from sympy.core.mul import _keep_coeff, _mulsort, _unevaluated_Mul
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
+from sympy.core.symbol import Symbol
+from sympy.core.singleton import S
+from sympy.utilities.iterables import _sift_true_false
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
+from packaging.version import Version
 
 from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
@@ -486,7 +489,6 @@ def as_independent(self, *deps, as_Add, strict):
 
         return self.func(*indep), _unevaluated_Mul(*depend)
 
-from packaging.version import Version
 
 # Monkeypatch the method
 if Version(sympy.__version__) < Version('1.15.0.dev0'):
