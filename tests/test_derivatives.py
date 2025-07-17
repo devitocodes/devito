@@ -87,19 +87,19 @@ class TestFD:
 
     @pytest.mark.parametrize('SymbolType, derivative, dim, expected', [
         (Function, ['dx2'], 3, 'Derivative(u(x, y, z), (x, 2))'),
-        (Function, ['dx2dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
+        (Function, ['dx2dy'], 3, 'Derivative(u(x, y, z), (x, 2), y)'),
         (Function, ['dx2dydz'], 3,
-         'Derivative(Derivative(Derivative(u(x, y, z), (x, 2)), y), z)'),
+         'Derivative(u(x, y, z), (x, 2), y, z)'),
         (Function, ['dx2', 'dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
         (Function, ['dx2dy', 'dz2'], 3,
-         'Derivative(Derivative(Derivative(u(x, y, z), (x, 2)), y), (z, 2))'),
+         'Derivative(Derivative(u(x, y, z), (x, 2), y), (z, 2))'),
         (TimeFunction, ['dx2'], 3, 'Derivative(u(t, x, y, z), (x, 2))'),
-        (TimeFunction, ['dx2dy'], 3, 'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
+        (TimeFunction, ['dx2dy'], 3, 'Derivative(u(t, x, y, z), (x, 2), y)'),
         (TimeFunction, ['dx2', 'dy'], 3,
          'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
         (TimeFunction, ['dx', 'dy', 'dx2', 'dz', 'dydz'], 3,
-         'Derivative(Derivative(Derivative(Derivative(Derivative(Derivative(' +
-         'u(t, x, y, z), x), y), (x, 2)), z), y), z)')
+         'Derivative(Derivative(Derivative(Derivative(Derivative(' +
+         'u(t, x, y, z), x), y), (x, 2)), z), y, z)')
     ])
     def test_unevaluation(self, SymbolType, derivative, dim, expected):
         u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
@@ -112,13 +112,13 @@ class TestFD:
 
     @pytest.mark.parametrize('expr,expected', [
         ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
-        ('u.dxdy', 'Derivative(Derivative(u, x), y)'),
+        ('u.dxdy', 'Derivative(u, x, y)'),
         ('u.laplace',
          'Derivative(u, (x, 2)) + Derivative(u, (y, 2)) + Derivative(u, (z, 2))'),
         ('(u.dx + u.dy).dx', 'Derivative(Derivative(u, x) + Derivative(u, y), x)'),
         ('((u.dx + u.dy).dx + u.dxdy).dx',
          'Derivative(Derivative(Derivative(u, x) + Derivative(u, y), x) +' +
-         ' Derivative(Derivative(u, x), y), x)'),
+         ' Derivative(u, x, y), x)'),
         ('(u**4).dx', 'Derivative(u**4, x)'),
         ('(u/4).dx', 'Derivative(u/4, x)'),
         ('((u.dx + v.dy).dx * v.dx).dy.dz',
@@ -741,7 +741,7 @@ class TestFD:
         grid = Grid((11, 11))
         f = Function(name="f", grid=grid, space_order=2)
 
-        assert f.dxdy == f.dx.dy
+        assert simplify((f.dxdy - f.dx.dy).evaluate) == 0
 
     def test_nested_call(self):
         grid = Grid((11, 11))
