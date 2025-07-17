@@ -17,9 +17,11 @@ from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
-                              String, FLOAT)
+                              String, ListInitializer, SizeOf, FLOAT)
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import CustomDimension, Array, LocalObject, Symbol, Pointer
+from devito.types import (
+    CustomDimension, Array, LocalObject, Symbol, Pointer, FunctionMap
+)
 
 
 @pytest.fixture
@@ -295,6 +297,52 @@ static void foo()
   foo(stream);
 
   cudaStreamDestroy(stream);
+}"""
+
+
+def test_make_cuda_tensor_map():
+
+    class CUTensorMap(FunctionMap):
+
+        dtype = CustomDtype('CUtensorMap')
+
+        @property
+        def _C_init(self):
+            symsizes = list(reversed(self.tensor.symbolic_shape))
+            sizeof_dtype = SizeOf(self.tensor.dmap._C_typedata)
+
+            sizes = ListInitializer(symsizes)
+            strides = ListInitializer([
+                np.prod(symsizes[:i])*sizeof_dtype for i in range(1, len(symsizes))
+            ])
+
+            arguments = [
+                Byref(self),
+                Macro('CU_TENSOR_MAP_DATA_TYPE_FLOAT32'),
+                4, self.tensor.dmap, sizes, strides,
+                ]
+            call = Call('cuTensorMapEncodeTiled', arguments)
+
+            return call
+
+    grid = Grid(shape=(10, 10, 10))
+
+    u = TimeFunction(name='u', grid=grid)
+
+    tmap = CUTensorMap('tmap', u)
+
+    iet = Call('foo', tmap)
+    iet = ElementalFunction('foo', iet, parameters=())
+    dm = CDataManager(sregistry=None)
+    iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
+
+    assert str(iet) == """\
+static void foo()
+{
+  CUtensorMap tmap;
+  cuTensorMapEncodeTiled(&(tmap),CU_TENSOR_MAP_DATA_TYPE_FLOAT32,4,d_u,{u_vec->size[3], u_vec->size[2], u_vec->size[1], u_vec->size[0]},{sizeof(float)*u_vec->size[3], sizeof(float)*u_vec->size[2]*u_vec->size[3], sizeof(float)*u_vec->size[1]*u_vec->size[2]*u_vec->size[3]});
+
+  foo(tmap);
 }"""
 
 
