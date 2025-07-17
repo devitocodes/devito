@@ -2068,6 +2068,39 @@ class TestCodeGeneration:
         assert np.isclose(np.max(g.data), 4356.0)
         assert np.isclose(np.max(h.data), 4356.0)
 
+    @pytest.mark.parallel(mode=1)
+    def test_multi_allreduce_time_cond(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 20
+        ct = ConditionalDimension(name="ct", parent=tt, factor=2)
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+        h = TimeFunction(name="h", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+
+        op = Operator([Eq(g, 0), Eq(ux.forward, tt), Inc(g, ux), Inc(h, ux)], name="Op")
+        assert_structure(op, ['t', 't,x,y', 't,x,y'], 'txyxy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+
+        expected = [nx * ny * max(t-1, 0) for t in range(0, nt, 2)]
+        assert np.allclose(g.data, expected)
+        assert np.allclose(h.data, expected)
+
 
 class TestOperatorAdvanced:
 
