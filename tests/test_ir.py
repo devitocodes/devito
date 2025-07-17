@@ -1145,3 +1145,22 @@ class TestCacheInstances:
         hits, _, _, cursize = Object._instance_cache.cache_info()
         assert hits == 1  # obj5 hit the cache
         assert cursize == 2
+
+    def test_cleared_after_build(self):
+        """
+        Tests that instance caches are cleared after building an Operator.
+        """
+        class Object(CacheInstances):
+            def __init__(self, value: int):
+                self.value = value
+
+        obj1 = Object(1)
+        cache_size = Object._instance_cache.cache_info()[-1]
+        assert cache_size == 1
+
+        x = Symbol('x')
+        op = Operator(Eq(x, obj1.value))
+
+        # Cache should be cleared after Operator construction
+        cache_size = Object._instance_cache.cache_info()[-1]
+        assert cache_size == 0
