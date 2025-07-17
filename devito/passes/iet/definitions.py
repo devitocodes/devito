@@ -98,14 +98,25 @@ class DataManager:
         """
         decl = Definition(obj)
 
-        definition = (decl, obj._C_init) if obj._C_init else (decl)
+        init = obj._C_init
+        if not init:
+            definition = decl
+            efuncs = ()
+        elif init.is_Callable:
+            definition = Call(init.name, init.parameters,
+                              retobj=obj if init.retval else None)
+            efuncs = (init,)
+        else:
+            definition = (decl, init)
+            efuncs = ()
 
         frees = obj._C_free
 
         if obj.free_symbols - {obj}:
-            storage.update(obj, site, objs=definition, frees=frees)
+            storage.update(obj, site, objs=definition, efuncs=efuncs, frees=frees)
         else:
-            storage.update(obj, site, standalones=definition, frees=frees)
+            storage.update(obj, site, standalones=definition, efuncs=efuncs,
+                           frees=frees)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
