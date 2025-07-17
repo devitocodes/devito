@@ -1,10 +1,12 @@
+from sympy import Expr
+
 from functools import cached_property
-from ctypes import POINTER
+from ctypes import POINTER, Structure
 
 from devito.types.utils import DimensionTuple
-from devito.types.array import ArrayBasic
+from devito.types.array import ArrayBasic, Bundle, ComponentAccess
 from devito.finite_differences import Differentiable
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, IndexedData
 from devito.tools import dtype_to_ctype, as_tuple
 from devito.symbolics import FieldFromComposite
 
@@ -70,6 +72,10 @@ class PETScArray(ArrayBasic, Differentiable):
         return self._target
 
     @property
+    def grid(self):
+        return self.target.grid
+
+    @property
     def coefficients(self):
         """Form of the coefficients of the function."""
         return self._coefficients
@@ -116,3 +122,112 @@ class PETScArray(ArrayBasic, Differentiable):
             FieldFromComposite('g%sm' % d.name, self.localinfo) for d in self.dimensions]
         # Reverse it since DMDA is setup backwards to Devito dimensions.
         return DimensionTuple(*field_from_composites[::-1], getters=self.dimensions)
+
+
+class PetscBundle(Bundle):
+    """
+    Tensor symbol representing an unrolled vector of PETScArrays.
+
+    This class declares a struct in the generated ccode to represent the
+    fields defined at each node of the grid. For example:
+
+            typedef struct {
+                PetscScalar u,v,omega,temperature;
+            } Field;
+
+    Residual evaluations are then written using:
+
+    f[i][j].omega = ...
+
+    Reference - https://petsc.org/release/manual/vec/#sec-struct
+
+    Parameters
+    ----------
+    name : str
+        Name of the symbol.
+    components : tuple of PETScArray
+        The PETScArrays of the Bundle.
+    pname : str, optional
+        The name of the struct in the generated C code. Defaults to "Field".
+
+    Warnings
+    --------
+    PetscBundles are created and managed directly by Devito (IOW, they are not
+    expected to be used directly in user code).
+    """
+    is_Bundle = True
+    _data_alignment = False
+
+    __rkwargs__ = Bundle.__rkwargs__ + ('pname',)
+
+    def __init__(self, *args, pname="Field", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._pname = pname
+
+    @cached_property
+    def _C_ctype(self):
+        fields = [(i.target.name, dtype_to_ctype(i.dtype)) for i in self.components]
+        return POINTER(type(self.pname, (Structure,), {'_fields_': fields}))
+
+    @property
+    def symbolic_shape(self):
+        return self.c0.symbolic_shape
+
+    @cached_property
+    def indexed(self):
+        """The wrapped IndexedData object."""
+        return AoSIndexedData(self.name, shape=self._shape, function=self.function)
+
+    @cached_property
+    def vector(self):
+        return PETScArray(
+            name=self.name,
+            target=self.c0.target,
+            liveness=self.c0.liveness,
+            localinfo=self.c0.localinfo,
+        )
+
+    @property
+    def _C_name(self):
+        return self.vector._C_name
+
+    def __getitem__(self, index):
+        index = as_tuple(index)
+        if len(index) == self.ndim:
+            return super().__getitem__(index)
+        elif len(index) == self.ndim + 1:
+            component_index, indices = index[0], index[1:]
+            names = tuple(i.target.name for i in self.components)
+            return PetscComponentAccess(
+                self.indexed[indices],
+                component_index,
+                component_names=names
+            )
+        else:
+            raise ValueError(
+                f"Expected {self.ndim} or {self.ndim + 1} indices, "
+                f"got {len(index)} instead"
+            )
+
+    @property
+    def pname(self):
+        return self._pname
+
+
+class PetscComponentAccess(ComponentAccess):
+    def __new__(cls, arg, index=0, component_names=None, **kwargs):
+        if not arg.is_Indexed:
+            raise ValueError(f"Expected Indexed, got `{type(arg)}` instead")
+        names = component_names or cls._default_component_names
+
+        obj = Expr.__new__(cls, arg)
+        obj._index = index
+        obj._component_names = names
+
+        return obj
+
+
+class AoSIndexedData(IndexedData):
+    @property
+    def dtype(self):
+        return self.function._C_ctype

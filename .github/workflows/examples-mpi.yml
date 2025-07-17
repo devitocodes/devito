@@ -17,11 +17,11 @@ on:
   push:
     branches:
       - main
-      - master
+      - petsc
   pull_request:
     branches:
       - main
-      - master
+      - petsc
 
 jobs:
   build:

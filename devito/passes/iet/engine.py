@@ -4,6 +4,7 @@ from functools import partial, singledispatch, wraps
 import numpy as np
 from sympy import Mul
 
+from devito.finite_differences.differentiable import Differentiable
 from devito.ir.iet import (
     Call, ExprStmt, Expression, Iteration, SyncSpot, AsyncCallable, FindNodes,
     FindSymbols, MapNodes, MetaCall, Transformer, EntryFunction,
@@ -24,6 +25,7 @@ from devito.types import (
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
+from devito.types.array import ArrayBasic
 
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
@@ -492,7 +494,8 @@ def abstract_objects(objects0, sregistry=None):
 
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    keys = [Bundle, Array, Differentiable, DiscreteFunction,
+            AbstractIncrDimension, BlockDimension]
     priority = {k: i for i, k in enumerate(keys, start=1)}
     objects = sorted_priority(objects, priority)
 
@@ -527,7 +530,7 @@ def _(i, mapper, sregistry):
     })
 
 
-@abstract_object.register(Array)
+@abstract_object.register(ArrayBasic)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):
         name = sregistry.make_name(prefix='lock')
