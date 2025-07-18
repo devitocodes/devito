@@ -16,7 +16,7 @@ from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
 from devito.types import Symbol
 from devito.types.basic import Basic
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
+__all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'IntDiv', 'CallFromPointer',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
            'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
@@ -61,6 +61,15 @@ class CondNe(sympy.Ne):
     @property
     def negated(self):
         return CondEq(*self.args, evaluate=False)
+
+
+class BitwiseNot(sympy.Not):
+
+    """
+    Bitwise NOT operation.
+    """
+
+    pass
 
 
 class IntDiv(sympy.Expr):
