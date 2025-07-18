@@ -4,19 +4,15 @@ from functools import singledispatch, cached_property
 
 import numpy as np
 import sympy
-from sympy.core.add import _addsort, _unevaluated_Add
-from sympy.core.mul import _keep_coeff, _mulsort, _unevaluated_Mul
+from sympy.core.add import _addsort
+from sympy.core.mul import _keep_coeff, _mulsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
-from sympy.core.symbol import Symbol
-from sympy.core.singleton import S
-from sympy.utilities.iterables import _sift_true_false
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
-from packaging.version import Version
 
 from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
@@ -438,61 +434,6 @@ class Differentiable(sympy.Expr, Evaluable):
             return super().has_free(*patterns)
         except AttributeError:
             return all(i in self.free_symbols for i in patterns)
-
-
-def as_independent(self, *deps, as_Add, strict):
-    """
-    Copy of upstream sympy method, without docstrings, comments or typehints
-    Imports are moved to the top
-    """
-    if self is S.Zero:
-        return (self, self)
-
-    if as_Add is None:
-        as_Add = self.is_Add
-
-    syms, other = _sift_true_false(deps, lambda d: isinstance(d, Symbol))
-    syms_set = set(syms)
-
-    if other:
-        def has(e):
-            return e.has_xfree(syms_set) or e.has(*other)
-    else:
-        def has(e):
-            return e.has_xfree(syms_set)
-
-    if as_Add:
-        if not self.is_Add:
-            if has(self):
-                return (S.Zero, self)
-            else:
-                return (self, S.Zero)
-
-        depend, indep = _sift_true_false(self.args, has)
-        return (self.func(*indep), _unevaluated_Add(*depend))
-
-    else:
-        if not self.is_Mul:
-            if has(self):
-                return (S.One, self)
-            else:
-                return (self, S.One)
-
-        args, nc = self.args_cnc()
-        depend, indep = _sift_true_false(args, has)
-
-        for i, n in enumerate(nc):
-            if has(n):
-                depend.extend(nc[i:])
-                break
-            indep.append(n)
-
-        return self.func(*indep), _unevaluated_Mul(*depend)
-
-
-# Monkeypatch the method
-if Version(sympy.__version__) < Version('1.15.0.dev0'):
-    Differentiable.as_independent = as_independent
 
 
 def highest_priority(DiffOp):
