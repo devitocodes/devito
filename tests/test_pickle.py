@@ -573,7 +573,7 @@ class TestBasic:
         grid = Grid(shape=(3,))
         x = grid.dimensions[0]
         x0 = eval(x0)
-        f = Function(name='f', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid, space_order=4)
         dfdx = f.diff(x, order=deriv_order, fd_order=fd_order, side=side,
                       x0=x0, method=method, weights=weights)
 
