@@ -183,12 +183,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             fd_order = fcounter.values()
         else:
             # Default finite difference orders depending on input dimension (.dt or .dx)
-            fd_order = tuple([
+            fd_order = tuple(
                 expr.time_order
                 if getattr(d, 'is_Time', False)
                 else expr.space_order
                 for d in dcounter.keys()
-            ])
+            )
 
         # SymPy expects the list of variables w.r.t. which we differentiate to be a list
         # of 2-tuples: `(s, count)` where:
@@ -546,58 +546,58 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         Note that this is not always a valid expansion depending on the kwargs
         used to construct the derivative.
         '''
-        if isinstance(self.expr, self.__class__):
-            new_expr = self.expr.args[0]
-            new_dims = [
-                (d, ii)
-                for d, ii in zip(
-                    chain(self.dims, self.expr.dims),
-                    chain(self.deriv_order, self.expr.deriv_order)
-                )
-            ]
-            # This is necessary as tools.abc.Reconstructable._rebuild will copy
-            # all kwargs from the self object
-            # TODO: This dictionary merge needs to be a lot better
-            # EG: Don't actually expand if derivatives are incompatible
-            new_deriv_order = tuple(chain(self.deriv_order, self.expr.deriv_order))
-            # The `fd_order` may need to be reduced to construct the nested derivative
-            dcounter = defaultdict(int)
-            fcounter = defaultdict(int)
-            new_fd_order = tuple(chain(self.fd_order, self.expr.fd_order))
-            for d, do, fo in zip(new_dims, new_deriv_order, new_fd_order):
-                if isinstance(d, Iterable):
-                    dcounter[d[0]] += d[1]
-                    fcounter[d[0]] += fo
-                else:
-                    dcounter[d] += do
-                    fcounter[d] += fo
-            for (d, do), (_, fo) in zip(dcounter.items(), fcounter.items()):
-                if getattr(d, 'is_Time', False):
-                    dim_name = 'time'
-                    order = self.expr.time_order
-                else:
-                    dim_name = 'space'
-                    order = self.expr.space_order
-                if fo > order:
-                    if do > order:
-                        raise ValueError(
-                            f'Nested {do}-derivative constructed which is bigger '
-                            f'than the {dim_name}_order={order}'
-                        )
-                    else:
-                        warn(
-                            f'Nested derivative constructed with fd_order={fo}, '
-                            f'but {dim_name}_order={order}. Adjusting '
-                            f'fd_order={order} for the {d} dimension.'
-                        )
-                        fcounter[d] = order
-            new_kwargs = {
-                'deriv_order': tuple(dcounter.values()),
-                'fd_order': tuple(fcounter.values())
-            }
-            return self.func(new_expr, *dcounter.items(), **new_kwargs)
-        else:
+        if not isinstance(self.expr, self.__class__):
             return self
+
+        new_expr = self.expr.args[0]
+        new_dims = [
+            (d, ii)
+            for d, ii in zip(
+                chain(self.dims, self.expr.dims),
+                chain(self.deriv_order, self.expr.deriv_order)
+            )
+        ]
+        # This is necessary as tools.abc.Reconstructable._rebuild will copy
+        # all kwargs from the self object
+        # TODO: This dictionary merge needs to be a lot better
+        # EG: Don't actually expand if derivatives are incompatible
+        new_deriv_order = tuple(chain(self.deriv_order, self.expr.deriv_order))
+        # The `fd_order` may need to be reduced to construct the nested derivative
+        dcounter = defaultdict(int)
+        fcounter = defaultdict(int)
+        new_fd_order = tuple(chain(self.fd_order, self.expr.fd_order))
+        for d, do, fo in zip(new_dims, new_deriv_order, new_fd_order):
+            if isinstance(d, Iterable):
+                dcounter[d[0]] += d[1]
+                fcounter[d[0]] += fo
+            else:
+                dcounter[d] += do
+                fcounter[d] += fo
+        for (d, do), (_, fo) in zip(dcounter.items(), fcounter.items()):
+            if getattr(d, 'is_Time', False):
+                dim_name = 'time'
+                order = self.expr.time_order
+            else:
+                dim_name = 'space'
+                order = self.expr.space_order
+            if fo > order:
+                if do > order:
+                    raise ValueError(
+                        f'Nested {do}-derivative constructed which is bigger '
+                        f'than the {dim_name}_order={order}'
+                    )
+                else:
+                    warn(
+                        f'Nested derivative constructed with fd_order={fo}, '
+                        f'but {dim_name}_order={order}. Adjusting '
+                        f'fd_order={order} for the {d} dimension.'
+                    )
+                    fcounter[d] = order
+        new_kwargs = {
+            'deriv_order': tuple(dcounter.values()),
+            'fd_order': tuple(fcounter.values())
+        }
+        return self.func(new_expr, *dcounter.items(), **new_kwargs)
 
     def _eval_expand_mul(self, **hints):
         ''' Expands products, moving independent terms outside the derivative
