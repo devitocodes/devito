@@ -1420,7 +1420,6 @@ class ArgumentsMap(dict):
                       and not i.is_ArrayBasic and not i.alias]
 
         for i in op_symbols:
-            # Will overreport memory usage currently
             try:
                 # TODO: is _obj even needed?
                 v = get_nbytes(self[i.name]._obj)
@@ -1505,7 +1504,6 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_snapshots(self):
-
         # Symbols in the operator which may or may not carry data
         op_symbols = FindSymbols().visit(self.op)
 
@@ -1516,7 +1514,12 @@ class ArgumentsMap(dict):
         disk = 0
         for i in op_symbols:
             try:
-                disk += i.size_snapshot*i._time_size_ideal*np.dtype(i.dtype).itemsize
+                v = self[i.name]._obj
+            except AttributeError:
+                v = self.get(i.name, i)
+
+            try:
+                disk += v.size_snapshot*v._time_size_ideal*np.dtype(v.dtype).itemsize
             except AttributeError:
                 pass
 
