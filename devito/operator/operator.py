@@ -1328,7 +1328,10 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
+            try:
+                mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
+            except KeyError:  # Might not have this layer in the mapper
+                pass
 
         mapper = {k: int(v) for k, v in mapper.items()}
 
