@@ -7,6 +7,7 @@ import numpy as np
 import sympy
 from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
+from sympy.logic.boolalg import BooleanFunction
 
 from devito.finite_differences.elementary import Min, Max
 from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
@@ -16,13 +17,13 @@ from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
 from devito.types import Symbol
 from devito.types.basic import Basic
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
-           'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
-           'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
-           'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
-           'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace',
-           'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
-           'VectorAccess']
+__all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'IntDiv',  # noqa
+           'CallFromPointer', 'CallFromComposite', 'FieldFromPointer',
+           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
+           'Cast', 'DefFunction', 'MathFunction', 'InlineIf', 'ReservedWord',
+           'Keyword', 'String', 'Macro', 'Class', 'MacroArgument', 'Deref',
+           'Namespace', 'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin',
+           'ValueLimit', 'VectorAccess']
 
 
 class CondEq(sympy.Eq):
@@ -61,6 +62,17 @@ class CondNe(sympy.Ne):
     @property
     def negated(self):
         return CondEq(*self.args, evaluate=False)
+
+
+class BitwiseNot(BooleanFunction):
+    pass
+
+
+class BitwiseXor(BooleanFunction):
+
+    # Enforce two args
+    def __new__(cls, arg0, arg1, **kwargs):
+        return super().__new__(cls, arg0, arg1, **kwargs)
 
 
 class IntDiv(sympy.Expr):
