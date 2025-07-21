@@ -662,10 +662,16 @@ class frozendict(Mapping):
 
 class MemoryEstimate(frozendict):
     """
-    An immutable wrapper for a memory estimate, showing the
-    various values.
+    An immutable mapper for a memory estimate, providing the estimated memory
+    consumption across host, device, and so forth.
 
-    TODO: Finish this docstring
+    Properties
+    ----------
+    name: str
+        The name of the Operator for which this estimate was generated
+    human_readable: frozendict
+        The mapper, albeit with human-readable memory usage (MB, GB, etc)
+        rather than raw bytes.
     """
 
     def __init__(self, *args, **kwargs):

@@ -34,7 +34,7 @@ from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
                           split, timed_pass, timed_region, contains_val,
-                          CacheInstances, MemoryEstimate, humanbytes)
+                          CacheInstances, MemoryEstimate)
 from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
@@ -897,8 +897,6 @@ class Operator(Callable):
 
         Parameters
         ----------
-        human_readable: bool
-            Return human-readable values, rather than raw byte counts. Default is False.
         **kwargs: dict
             As per `Operator.apply()`.
 
@@ -1342,6 +1340,36 @@ class ArgumentsMap(dict):
         return mapper
 
     @cached_property
+    def _op_symbols(self):
+        """Symbols in the Operator which may or may not carry data"""
+        return FindSymbols().visit(self.op)
+
+    def _apply_override(self, i):
+        try:
+            return self.get(i.name, i)._obj
+        except AttributeError:
+            return self.get(i.name, i)
+
+    def _get_nbytes(self, i):
+        """
+        Extract the allocated size of a symbol, accounting for any
+        overrides.
+        """
+        obj = self._apply_override(i)
+        try:
+            # Non-regular AbstractFunction (compressed, etc)
+            nbytes = obj.nbytes_max
+        except AttributeError:
+            # Garden-variety AbstractFunction
+            nbytes = obj.nbytes
+
+        # Could nominally have symbolic nbytes at this point
+        if isinstance(nbytes, SympyBasic):
+            return subs_op_args(nbytes, self)
+
+        return nbytes
+
+    @cached_property
     def nbytes_avail_mapper(self):
         """
         The amount of memory available after accounting for the memory
@@ -1400,32 +1428,14 @@ class ArgumentsMap(dict):
         Memory consumed on both device and host by Functions in the
         corresponding Operator.
         """
-        def get_nbytes(obj):
-            if obj.is_regular:
-                nbytes = obj.nbytes
-            else:
-                nbytes = obj.nbytes_max
-
-            # Could nominally have symbolic nbytes at this point
-            if isinstance(nbytes, SympyBasic):
-                return subs_op_args(nbytes, self)
-            else:
-                return nbytes
-
         host = 0
         device = 0
-
         # Filter out arrays, aliases and non-AbstractFunction objects
         op_symbols = [i for i in self._op_symbols if i.is_AbstractFunction
                       and not i.is_ArrayBasic and not i.alias]
 
         for i in op_symbols:
-            try:
-                # TODO: is _obj even needed?
-                v = get_nbytes(self[i.name]._obj)
-            except AttributeError:
-                v = get_nbytes(self.get(i.name, i))
-
+            v = self._get_nbytes(i)
             if i._mem_host or i._mem_mapped:
                 # No need to add to device , as it will be counted
                 # by nbytes_consumed_memmapped
@@ -1446,7 +1456,6 @@ class ArgumentsMap(dict):
         """
         host = 0
         device = 0
-
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
         for i in self._op_symbols:
@@ -1492,11 +1501,7 @@ class ArgumentsMap(dict):
                     continue
                 try:
                     if i._mem_mapped:
-                        try:
-                            v = self[i.name]._obj.nbytes
-                        except AttributeError:
-                            v = i.nbytes
-                        device += v
+                        device += self._get_nbytes(i)
                 except AttributeError:
                     pass
 
@@ -1511,21 +1516,15 @@ class ArgumentsMap(dict):
         disk = 0
         for i in op_symbols:
             try:
-                v = self[i.name]._obj
-            except AttributeError:
-                v = self.get(i.name, i)
-
-            try:
-                disk += v.size_snapshot*v._time_size_ideal*np.dtype(v.dtype).itemsize
+                if i._child not in op_symbols:
+                    # Use only the "innermost" layer to avoid counting snapshots
+                    # twice
+                    v = self._apply_override(i)
+                    disk += v.size_snapshot*v._time_size_ideal*np.dtype(v.dtype).itemsize
             except AttributeError:
                 pass
 
         return {disk_layer: disk, host_layer: 0, device_layer: 0}
-
-    @cached_property
-    def _op_symbols(self):
-        """Symbols in the Operator which may or may not carry data"""
-        return FindSymbols().visit(self.op)
 
 
 def parse_kwargs(**kwargs):

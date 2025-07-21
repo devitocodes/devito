@@ -20,7 +20,8 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction,
                     div, grad, switchconfig, exp, Buffer)
-from devito import  Inc, Le, Lt, Ge, Gt  # noqa
+from devito import  Inc, Le, Lt, Ge, Gt, sin  # noqa
+from devito.arch.archinfo import Device
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
@@ -2066,11 +2067,16 @@ class TestInternals:
 class TestEstimateMemory:
     """Tests for the Operator.estimate_memory() utility"""
 
-    _array_temp = "r0L0(x, y)" if "CXX" in configuration['language'] else "r0[x][y]"
+    _array_temp = "r0L0(" if "CXX" in configuration['language'] else "r0["
 
-    def parse_output(self, summary, expected):
-        """Parse estimate_memory machine-readable output"""
+    def parse_output(self, summary, check, arrays=0):
+        device = isinstance(configuration['platform'], Device)
+        expected = ((check, check + arrays) if device else (check + arrays, 0))
         assert (summary['host'], summary['device']) == expected
+
+    def sum_sizes(self, funcs):
+        return sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+                   for func in funcs)
 
     @pytest.mark.parametrize('shape', [(11,), (101, 101), (101, 101, 101)])
     @pytest.mark.parametrize('dtype', [np.int8, np.int16, np.float32,
@@ -2088,8 +2094,7 @@ class TestEstimateMemory:
 
             # Check output of estimate_memory
             host = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
-            expected = (host, 0)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, host)
 
     def test_multiple_objects(self, caplog):
         grid = Grid(shape=(101, 101))
@@ -2101,10 +2106,8 @@ class TestEstimateMemory:
             summary = op.estimate_memory()
             assert "Allocating" not in caplog.text
 
-            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                        for func in (f, g))
-            expected = (check, 0)
-            self.parse_output(summary, expected)
+            check = self.sum_sizes((f, g))
+            self.parse_output(summary, check)
 
     @pytest.mark.parametrize('time', [True, False])
     def test_sparse(self, caplog, time):
@@ -2121,10 +2124,8 @@ class TestEstimateMemory:
             summary = op.estimate_memory()
             assert "Allocating" not in caplog.text
 
-            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                        for func in (f, src, src.coordinates))
-            expected = (check, 0)
-            self.parse_output(summary, expected)
+            check = self.sum_sizes((f, src, src.coordinates))
+            self.parse_output(summary, check)
 
     @pytest.mark.parametrize('save', [None, Buffer(3), 10])
     def test_timefunction(self, caplog, save):
@@ -2136,8 +2137,7 @@ class TestEstimateMemory:
             summary = op.estimate_memory()
             assert "Allocating" not in caplog.text
             check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
-            expected = (check, 0)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)
 
     def test_mashup(self, caplog):
         grid = Grid(shape=(101, 101))
@@ -2158,11 +2158,8 @@ class TestEstimateMemory:
             summary = op.estimate_memory()
             assert "Allocating" not in caplog.text
 
-            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                        for func in (f, g, src0, src0.coordinates,
-                                     src1, src1.coordinates))
-            expected = (check, 0)
-            self.parse_output(summary, expected)
+            check = self.sum_sizes((f, g, src0, src0.coordinates, src1, src1.coordinates))
+            self.parse_output(summary, check)
 
     @pytest.mark.parametrize('override', [True, False])
     def test_temp_array(self, caplog, override):
@@ -2188,8 +2185,8 @@ class TestEstimateMemory:
             b = Function(name='b', grid=grid, space_order=0)
 
         # Reuse an expensive function to encourage generation of an array temp
-        eq0 = Eq(f.forward, g + sympy.sin(a))
-        eq1 = Eq(g.forward, f + sympy.sin(a))
+        eq0 = Eq(f.forward, g + sin(a).dx)
+        eq1 = Eq(g.forward, f + sin(a).dx)
 
         with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
             op = Operator([eq0, eq1])
@@ -2201,37 +2198,32 @@ class TestEstimateMemory:
             summary = op.estimate_memory(**kwargs)
             assert "Allocating" not in caplog.text
 
-            check = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                        for func in funcs)
+            check = self.sum_sizes(funcs)
 
             # Factor in the temp array
-            check += reduce(mul, b.shape_allocated)*np.dtype(b.dtype).itemsize
-
-            expected = (check, 0)
-            self.parse_output(summary, expected)
+            # Note: temp array size is incremented by one in the x dimension
+            # due to derivative.
+            array_check = (b.shape_allocated[0]+1)*b.shape_allocated[1]
+            array_check *= np.dtype(b.dtype).itemsize
+            self.parse_output(summary, check, arrays=array_check)
 
     def test_overrides(self, caplog):
-        # TODO: Consolidate this boilerplate
-        grid0 = Grid(shape=(101, 101))
+        def setup(size, npoint, nt, counter):
+            grid = Grid(shape=(size, size))
+            # Original fields
+            f = Function(name=f'f{counter}', grid=grid, space_order=4)
+            tf = TimeFunction(name=f'tf{counter}', grid=grid, space_order=4)
+            s = SparseFunction(name=f's{counter}', grid=grid, npoint=npoint)
+            st = SparseTimeFunction(name=f'st{counter}', grid=grid, npoint=npoint, nt=nt)
+
+            return f, tf, s, st
+
         # Original fields
-        f0 = Function(name='f0', grid=grid0, space_order=4)
-        tf0 = TimeFunction(name='tf0', grid=grid0, space_order=4)
-        s0 = SparseFunction(name='s0', grid=grid0, npoint=100)
-        st0 = SparseTimeFunction(name='st0', grid=grid0, npoint=100, nt=10)
-
-        grid1 = Grid(shape=(201, 201))  # Bigger grid so overrides are distinct
-        # Replacement fields
-        f1 = Function(name='f1', grid=grid1, space_order=4)
-        tf1 = TimeFunction(name='tf1', grid=grid1, space_order=4)
-        s1 = SparseFunction(name='s1', grid=grid1, npoint=200)
-        st1 = SparseTimeFunction(name='st1', grid=grid1, npoint=200, nt=20)
-
-        grid2 = Grid(shape=(51, 51))  # Smaller grid so overrides are distinct
-        # Alternative replacement fields
-        f2 = Function(name='f2', grid=grid2, space_order=4)
-        tf2 = TimeFunction(name='tf2', grid=grid2, space_order=4)
-        s2 = SparseFunction(name='s2', grid=grid2, npoint=50)
-        st2 = SparseTimeFunction(name='st2', grid=grid2, npoint=50, nt=5)
+        f0, tf0, s0, st0 = setup(101, 100, 10, 0)
+        # Replacement fields with bigger grid, etc
+        f1, tf1, s1, st1 = setup(201, 200, 20, 1)
+        # Replacement fields with smaller grid, etc
+        f2, tf2, s2, st2 = setup(51, 50, 5, 2)
 
         eq0 = Eq(f0, 1)
         eq1 = Eq(tf0, 1)
@@ -2244,21 +2236,15 @@ class TestEstimateMemory:
             # Apply overrides for the check
             summary0 = op.estimate_memory(f0=f1, tf0=tf1, s0=s1, st0=st1)
 
-            check0 = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                         for func in (f1, tf1, s1, s1.coordinates, st1, st1.coordinates))
-
-            expected0 = (check0, 0)
-            self.parse_output(summary0, expected0)
+            check0 = self.sum_sizes((f1, tf1, s1, s1.coordinates, st1, st1.coordinates))
+            self.parse_output(summary0, check0)
 
             # Check with a second set of overrides
             summary1 = op.estimate_memory(f0=f2, tf0=tf2, s0=s2, st0=st2)
             assert "Allocating" not in caplog.text
 
-            check1 = sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
-                         for func in (f2, tf2, s2, s2.coordinates, st2, st2.coordinates))
-
-            expected1 = (check1, 0)
-            self.parse_output(summary1, expected1)
+            check1 = self.sum_sizes((f2, tf2, s2, s2.coordinates, st2, st2.coordinates))
+            self.parse_output(summary1, check1)
 
     def test_device(self, caplog):
         # Note: this uses switchconfig and runs on all backends to reflect expected
@@ -2269,7 +2255,7 @@ class TestEstimateMemory:
 
         f = Function(name='f', grid=grid, space_order=2)
 
-        # Compiler is never invoked, so this should be fine
+        # Compiler is never invoked, so this is fine
         config = {'log_level': 'DEBUG', 'language': 'openacc',
                   'platform': 'nvidiaX'}
         with switchconfig(**config), caplog.at_level(logging.DEBUG):
@@ -2281,5 +2267,4 @@ class TestEstimateMemory:
             check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
 
             # Matching memory allocated both on host and device for memmap
-            expected = (check, check)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)

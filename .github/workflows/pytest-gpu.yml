@@ -43,7 +43,7 @@ jobs:
         include:
           # -------------------- NVIDIA job --------------------
           - name: pytest-gpu-acc-nvidia
-            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
+            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/test_operator.py::TestEstimateMemory"
             base: "devitocodes/bases:nvidia-nvc"
             runner_label: nvidiagpu
             test_drive_cmd: "nvidia-smi"
@@ -56,7 +56,7 @@ jobs:
 
           # -------------------- AMD job -----------------------
           - name: pytest-gpu-omp-amd
-            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
+            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py tests/test_operator.py::TestEstimateMemory"
             runner_label: amdgpu
             base: "devitocodes/bases:amd"
             test_drive_cmd: "rocm-smi"
