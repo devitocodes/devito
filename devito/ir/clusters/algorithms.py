@@ -453,13 +453,18 @@ class HaloComms(Queue):
 def reduction_comms(clusters):
     processed = []
     fifo = []
+
+    def _update(reductions):
+        for _, reds in groupby(reductions, key=lambda r: r.ispace):
+            reds = list(reds)
+            exprs = flatten([dr.exprs for dr in reds])
+            processed.append(reds[0].rebuild(exprs=exprs))
+
     for c in clusters:
         # Schedule the global distributed reductions encountered before `c`,
         # if `c`'s IterationSpace is such that the reduction can be carried out
         found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))
-        for ispace, reds in groupby(found, key=lambda r: r.ispace):
-            exprs = flatten([dr.exprs for dr in reds])
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace))
+        _update(found)
 
         # Detect the global distributed reductions in `c`
         for e in c.exprs:
@@ -494,10 +499,7 @@ def reduction_comms(clusters):
         processed.append(c)
 
     # Leftover reductions are placed at the very end
-    for ispace, reds in groupby(fifo, key=lambda r: r.ispace):
-        reds = list(reds)
-        exprs = flatten([dr.exprs for dr in reds])
-        processed.append(reds[0].rebuild(exprs=exprs, ispace=ispace))
+    _update(fifo)
 
     return processed
 
