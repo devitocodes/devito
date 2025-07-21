@@ -2069,18 +2069,14 @@ class TestEstimateMemory:
     _array_temp = "r0L0(x, y)" if "CXX" in configuration['language'] else "r0[x][y]"
     _devicelangs = ('openacc',)
 
-    def parse_output(self, summary, expected):
-        """Parse estimate_memory machine-readable output"""
+    def parse_output(self, summary, check):
+        expected = ((check, check) if configuration['language']
+                    in self._devicelangs else (check, 0))
         assert (summary['host'], summary['device']) == expected
 
     def sum_sizes(self, funcs):
         return sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
                    for func in funcs)
-
-    def make_check(self, check):
-        if configuration['language'] in self._devicelangs:
-            return (check, check)
-        return (check, 0)
 
     @pytest.mark.parametrize('shape', [(11,), (101, 101), (101, 101, 101)])
     @pytest.mark.parametrize('dtype', [np.int8, np.int16, np.float32,
@@ -2098,8 +2094,7 @@ class TestEstimateMemory:
 
             # Check output of estimate_memory
             host = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
-            expected = self.make_check(host)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, host)
 
     def test_multiple_objects(self, caplog):
         grid = Grid(shape=(101, 101))
@@ -2112,8 +2107,7 @@ class TestEstimateMemory:
             assert "Allocating" not in caplog.text
 
             check = self.sum_sizes((f, g))
-            expected = self.make_check(check)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)
 
     @pytest.mark.parametrize('time', [True, False])
     def test_sparse(self, caplog, time):
@@ -2131,8 +2125,7 @@ class TestEstimateMemory:
             assert "Allocating" not in caplog.text
 
             check = self.sum_sizes((f, src, src.coordinates))
-            expected = self.make_check(check)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)
 
     @pytest.mark.parametrize('save', [None, Buffer(3), 10])
     def test_timefunction(self, caplog, save):
@@ -2144,8 +2137,7 @@ class TestEstimateMemory:
             summary = op.estimate_memory()
             assert "Allocating" not in caplog.text
             check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
-            expected = self.make_check(check)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)
 
     def test_mashup(self, caplog):
         grid = Grid(shape=(101, 101))
@@ -2167,8 +2159,7 @@ class TestEstimateMemory:
             assert "Allocating" not in caplog.text
 
             check = self.sum_sizes((f, g, src0, src0.coordinates, src1, src1.coordinates))
-            expected = self.make_check(check)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)
 
     @pytest.mark.parametrize('override', [True, False])
     def test_temp_array(self, caplog, override):
@@ -2211,8 +2202,7 @@ class TestEstimateMemory:
 
             # Factor in the temp array
             check += reduce(mul, b.shape_allocated)*np.dtype(b.dtype).itemsize
-            expected = self.make_check(check)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)
 
     def test_overrides(self, caplog):
         def setup(size, npoint, nt, counter):
@@ -2244,16 +2234,14 @@ class TestEstimateMemory:
             summary0 = op.estimate_memory(f0=f1, tf0=tf1, s0=s1, st0=st1)
 
             check0 = self.sum_sizes((f1, tf1, s1, s1.coordinates, st1, st1.coordinates))
-            expected0 = self.make_check(check0)
-            self.parse_output(summary0, expected0)
+            self.parse_output(summary0, check0)
 
             # Check with a second set of overrides
             summary1 = op.estimate_memory(f0=f2, tf0=tf2, s0=s2, st0=st2)
             assert "Allocating" not in caplog.text
 
             check1 = self.sum_sizes((f2, tf2, s2, s2.coordinates, st2, st2.coordinates))
-            expected1 = self.make_check(check1)
-            self.parse_output(summary1, expected1)
+            self.parse_output(summary1, check1)
 
     def test_device(self, caplog):
         # Note: this uses switchconfig and runs on all backends to reflect expected
@@ -2276,5 +2264,4 @@ class TestEstimateMemory:
             check = reduce(mul, f.shape_allocated)*np.dtype(f.dtype).itemsize
 
             # Matching memory allocated both on host and device for memmap
-            expected = (check, check)
-            self.parse_output(summary, expected)
+            self.parse_output(summary, check)
