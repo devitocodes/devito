@@ -724,3 +724,28 @@ def test_stencil_issue_1915_v2(subdomain):
     op1.apply(time_M=nt-2, u=u1)
 
     assert np.all(u.data == u1.data)
+
+
+def test_buffer_reuse():
+    nt = 10
+    grid = Grid(shape=(4, 4))
+
+    u = TimeFunction(name='u', grid=grid)
+    usave = TimeFunction(name='usave', grid=grid, save=nt)
+    vsave = TimeFunction(name='vsave', grid=grid, save=nt)
+
+    eqns = [Eq(u.forward, u + 1),
+            Eq(usave, u.forward),
+            Eq(vsave, u.forward + 1)]
+
+    op = Operator(eqns, opt=('buffering', {'buf-reuse': True}))
+
+    # Check generated code
+    assert len(retrieve_iteration_tree(op)) == 5
+    buffers = [i for i in FindSymbols().visit(op) if i.is_Array and i._mem_heap]
+    assert len(buffers) == 1
+
+    op.apply(time_M=nt-1)
+
+    assert all(np.all(usave.data[i-1] == i) for i in range(1, nt + 1))
+    assert all(np.all(vsave.data[i-1] == i + 1) for i in range(1, nt + 1))
