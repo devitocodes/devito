@@ -20,7 +20,8 @@ from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
                     NODE, CELL, dimensions, configuration, TensorFunction,
                     TensorTimeFunction, VectorFunction, VectorTimeFunction,
                     div, grad, switchconfig, exp, Buffer)
-from devito import  Inc, Le, Lt, Ge, Gt  # noqa
+from devito import  Inc, Le, Lt, Ge, Gt, sin  # noqa
+from devito.arch.archinfo import Device
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
@@ -2066,12 +2067,11 @@ class TestInternals:
 class TestEstimateMemory:
     """Tests for the Operator.estimate_memory() utility"""
 
-    _array_temp = "r0L0(x, y)" if "CXX" in configuration['language'] else "r0[x][y]"
-    _devicelangs = ('openacc',)
+    _array_temp = "r0L0(" if "CXX" in configuration['language'] else "r0["
 
     def parse_output(self, summary, check, arrays=0):
-        expected = ((check, check + arrays) if configuration['language']
-                    in self._devicelangs else (check + arrays, 0))
+        device = isinstance(configuration['platform'], Device)
+        expected = ((check, check + arrays) if device else (check + arrays, 0))
         assert (summary['host'], summary['device']) == expected
 
     def sum_sizes(self, funcs):
@@ -2185,8 +2185,8 @@ class TestEstimateMemory:
             b = Function(name='b', grid=grid, space_order=0)
 
         # Reuse an expensive function to encourage generation of an array temp
-        eq0 = Eq(f.forward, g + sympy.sin(a))
-        eq1 = Eq(g.forward, f + sympy.sin(a))
+        eq0 = Eq(f.forward, g + sin(a).dx)
+        eq1 = Eq(g.forward, f + sin(a).dx)
 
         with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
             op = Operator([eq0, eq1])
@@ -2201,7 +2201,9 @@ class TestEstimateMemory:
             check = self.sum_sizes(funcs)
 
             # Factor in the temp array
-            array_check = reduce(mul, b.shape_allocated)*np.dtype(b.dtype).itemsize
+            # Note: temp array size is incremented by one in the x dimension
+            # due to derivative.
+            array_check = (b.shape_allocated[0]+1)*b.shape_allocated[1]*np.dtype(b.dtype).itemsize
             self.parse_output(summary, check, arrays=array_check)
 
     def test_overrides(self, caplog):

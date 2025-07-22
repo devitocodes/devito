@@ -897,8 +897,6 @@ class Operator(Callable):
 
         Parameters
         ----------
-        human_readable: bool
-            Return human-readable values, rather than raw byte counts. Default is False.
         **kwargs: dict
             As per `Operator.apply()`.
 
@@ -913,8 +911,6 @@ class Operator(Callable):
         mem = args.nbytes_consumed
 
         memreport = {'host': mem[host_layer], 'device': mem[device_layer]}
-
-        # from IPython import embed; embed()
 
         # Extra information for enriched Operators
         extras = self._enrich_memreport(args)
