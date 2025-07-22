@@ -674,7 +674,7 @@ class HaloTouch(sympy.Function, Reconstructable):
     A SymPy object representing halo accesses through a HaloScheme.
     """
 
-    __rargs__ = ('args',)
+    __rargs__ = ('*args',)
     __rkwargs__ = ('halo_scheme',)
 
     def __new__(cls, *args, halo_scheme=None, **kwargs):
@@ -691,10 +691,12 @@ class HaloTouch(sympy.Function, Reconstructable):
         return str(self)
 
     def __hash__(self):
-        return hash(self.halo_scheme)
+        return hash((self.halo_scheme, *super()._hashable_content()))
 
     def __eq__(self, other):
-        return isinstance(other, HaloTouch) and self.halo_scheme == other.halo_scheme
+        return (isinstance(other, HaloTouch) and
+                self.args == other.args and
+                self.halo_scheme == other.halo_scheme)
 
     func = Reconstructable._rebuild
 
