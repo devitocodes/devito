@@ -718,4 +718,3 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 return self
         else:
             return self
-
