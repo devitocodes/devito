@@ -34,6 +34,7 @@ class Cpu64OperatorMixin:
 
         # Buffering
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
+        o['buf-reuse'] = oo.pop('buf-reuse', None)
 
         # Fusion
         o['fuse-tasks'] = oo.pop('fuse-tasks', False)

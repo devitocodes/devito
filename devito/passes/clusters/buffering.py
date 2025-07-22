@@ -44,12 +44,17 @@ def buffering(clusters, key, sregistry, options, **kwargs):
           ModuloDimensions. This might help relieving the synchronization
           overhead when asynchronous operations are used (these are however
           implemented by other passes).
+        * 'buf-reuse': If True, the pass will try to reuse existing Buffers for
+          different buffered Functions. By default, False.
     **kwargs
         Additional compilation options.
         Accepted: ['opt_init_onwrite', 'opt_buffer'].
         * 'opt_init_onwrite': By default, a written buffer does not trigger the
         generation of an initializing Cluster. With `opt_init_onwrite=True`,
         instead, the buffer gets initialized to zero.
+        * 'opt_reuse': A callback that takes a buffering candidate `bf` as input
+        and returns True if the pass can reuse pre-existing Buffers for
+        buffering `bf`, which would otherwise default to False.
         * 'opt_buffer': A callback that takes a buffering candidate as input
         and returns a buffer, which would otherwise default to an Array.
 
@@ -98,6 +103,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     options.update({
         'buf-init-onwrite': init_onwrite,
         'buf-callback': kwargs.get('opt_buffer'),
+        'buf-reuse': kwargs.get('opt_reuse', options['buf-reuse']),
     })
 
     # Escape hatch to selectively disable buffering
@@ -246,10 +252,13 @@ class InjectBuffers(Queue):
                 processed.append(Cluster(expr, ispace, guards, properties, syncs))
 
         # Lift {write,read}-only buffers into separate IterationSpaces
-        if self.options['fuse-tasks']:
-            return init + processed
-        else:
-            return init + self._optimize(processed, descriptors)
+        if not self.options['fuse-tasks']:
+            processed = self._optimize(processed, descriptors)
+
+        if self.options['buf-reuse']:
+            init, processed = self._reuse(init, processed, descriptors)
+
+        return init + processed
 
     def _optimize(self, clusters, descriptors):
         for b, v in descriptors.items():
@@ -284,6 +293,48 @@ class InjectBuffers(Queue):
             clusters = processed
 
         return clusters
+
+    def _reuse(self, init, clusters, descriptors):
+        """
+        Reuse existing Buffers for buffering candidates.
+        """
+        buf_reuse = self.options['buf-reuse']
+
+        if callable(buf_reuse):
+            cbk = lambda v: [i for i in v if buf_reuse(descriptors[i].f)]
+        else:
+            cbk = lambda v: v
+
+        mapper = as_mapper(descriptors, key=lambda b: b._signature)
+        mapper = {k: cbk(v) for k, v in mapper.items() if cbk(v)}
+
+        subs = {}
+        drop = set()
+        for reusable in mapper.values():
+            retain = reusable.pop(0)
+            drop.update(reusable)
+
+            name = self.sregistry.make_name(prefix='r')
+            b = retain.func(name=name)
+
+            for i in (retain, *reusable):
+                subs.update({i: b, i.indexed: b.indexed})
+
+        processed = []
+        for c in init:
+            if set(c.scope.writes) & drop:
+                continue
+
+            exprs = [uxreplace(e, subs) for e in c.exprs]
+            processed.append(c.rebuild(exprs=exprs))
+        init = processed
+
+        processed = []
+        for c in clusters:
+            exprs = [uxreplace(e, subs) for e in c.exprs]
+            processed.append(c.rebuild(exprs=exprs))
+
+        return init, processed
 
 
 Map = namedtuple('Map', 'b f')

@@ -25,9 +25,10 @@ from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.passes import (Graph, lower_index_derivatives, generate_implicit,
-                           generate_macros, minimize_symbols, unevaluate,
-                           error_mapper, is_on_device, lower_dtypes)
+from devito.passes import (
+    Graph, lower_index_derivatives, generate_implicit, generate_macros,
+    minimize_symbols, unevaluate, error_mapper, is_on_device, lower_dtypes
+)
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
@@ -1150,6 +1151,35 @@ class Operator(Callable):
         )
 
 
+# *** Recursive compilation ("rcompile") machinery
+
+
+class RCompiles(CacheInstances):
+
+    """
+    A cache for abstract Callables obtained from lowering expressions.
+    Here, "abstract Callable" means that any user-level symbolic object appearing
+    in the input expressions is replaced by a corresponding abstract object.
+    """
+
+    _instance_cache_size = None
+
+    def __init__(self, exprs, cls):
+        self.exprs = exprs
+        self.cls = cls
+
+        # NOTE: Constructed lazily at `__call__` time because `**kwargs` is
+        # unhashable for historical reasons (e.g., Compiler objects are mutable,
+        # though in practice they are unique per Operator, so only "locally"
+        # mutable)
+        self._output = None
+
+    def compile(self, **kwargs):
+        if self._output is None:
+            self._output = self.cls._lower(self.exprs, **kwargs)
+        return self._output
+
+
 # Default action (perform or bypass) for selected compilation passes upon
 # recursive compilation
 # NOTE: it may not only be pointless to apply the following passes recursively
@@ -1167,6 +1197,7 @@ def rcompile(expressions, kwargs, options, target=None):
     """
     Perform recursive compilation on an ordered sequence of symbolic expressions.
     """
+    expressions = as_tuple(expressions)
     options = {**options, **rcompile_registry}
 
     if target is None:
@@ -1181,10 +1212,14 @@ def rcompile(expressions, kwargs, options, target=None):
     # Recursive profiling not supported -- would be a complete mess
     kwargs.pop('profiler', None)
 
-    return cls._lower(expressions, **kwargs)
+    # Recursive compilation is expensive, so we cache the result because sometimes
+    # it is called multiple times for the same input
+    compiled = RCompiles(expressions, cls).compile(**kwargs)
+
+    return compiled
 
 
-# Misc helpers
+# *** Misc helpers
 
 
 IRs = namedtuple('IRs', 'expressions clusters stree uiet iet')
