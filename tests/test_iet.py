@@ -360,7 +360,7 @@ def test_cpp_local_object():
     lo0 = MyObject('obj0')
 
     # Globally-scoped objects must not be declared in the function body
-    lo1 = MyObject('obj1', is_global=True)
+    lo1 = MyObject('obj1', scope='global')
 
     # A LocalObject using both a template and a modifier
     class SpecialObject(LocalObject):
