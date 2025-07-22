@@ -176,10 +176,10 @@ class LocalObject(AbstractObject, LocalType):
     """
 
     __rargs__ = ('name',)
-    __rkwargs__ = ('cargs', 'initvalue', 'liveness', 'is_global')
+    __rkwargs__ = ('cargs', 'initvalue', 'liveness', 'scope')
 
     def __init__(self, name, cargs=None, initvalue=None, liveness='lazy',
-                 is_global=False, **kwargs):
+                 scope='stack', **kwargs):
         self.name = name
         self.cargs = as_tuple(cargs)
         self.initvalue = initvalue or self.default_initvalue
@@ -187,16 +187,17 @@ class LocalObject(AbstractObject, LocalType):
         assert liveness in ['eager', 'lazy']
         self._liveness = liveness
 
-        self._is_global = is_global
+        assert scope in ['stack', 'shared', 'global']
+        self._scope = scope
 
     def _hashable_content(self):
         return (super()._hashable_content() +
                 self.cargs +
-                (self.initvalue, self.liveness, self.is_global))
+                (self.initvalue, self.liveness, self.scope))
 
     @property
-    def is_global(self):
-        return self._is_global
+    def scope(self):
+        return self._scope
 
     @property
     def free_symbols(self):
@@ -233,5 +234,9 @@ class LocalObject(AbstractObject, LocalType):
         return None
 
     @property
+    def _mem_shared(self):
+        return self._scope == 'shared'
+
+    @property
     def _mem_global(self):
-        return self._is_global
+        return self._scope == 'global'
