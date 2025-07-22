@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+##############################################################
+# This Dockerfile builds a base image with a free-threaded
+# build of Python 3.13.
+#
+# This is EXPERIMENTAL and intended for development and
+# testing purposes only.
+##############################################################
+
+ARG FROM_IMAGE=ubuntu:22.04
+
+# Builder stage: build Python 3.13 from source with the GIL disabled
+FROM $FROM_IMAGE AS builder
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies for Python
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    libffi-dev \
+    libssl-dev \
+    zlib1g-dev
+
+# Clone CPython repository at the 3.13 branch
+RUN git clone --depth 1 --branch 3.13 https://github.com/python/cpython.git /usr/src/cpython
+
+WORKDIR /usr/src/cpython
+
+# Configure, compile, and install Python with the free-threaded build
+# --disable-gil: The key flag to enable the free-threaded build
+# --enable-optimizations: Apply profile-guided optimizations for better performance
+RUN ./configure --prefix=/opt/python3 --disable-gil --enable-optimizations
+RUN make -j$(nproc)
+RUN make install
+
+# Base runtime stage
+FROM $FROM_IMAGE
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Copy our Python build from the builder stage
+COPY --from=builder /opt/python3/ /opt/python3/
+
+# Set the PATH to include our custom Python build
+ENV PATH="/opt/python3/bin:${PATH}"
+
+# Install essential runtime dependencies.
+# Downstream images are responsible for installing Devito-specific
+# dependencies such as compilers/MPI.
+RUN apt-get update && apt-get install -y \
+    libnuma-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip cache purge
+
