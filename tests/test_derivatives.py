@@ -4,7 +4,7 @@ from sympy import sympify, simplify, diff, Float, Symbol
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
-from devito.finite_differences import Derivative, Differentiable
+from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative, Weights,
                                                       DiffDerivative)
@@ -1030,7 +1030,12 @@ class TestExpansion:
     def setup_class(cls):
         cls.grid = Grid(shape=(11,), extent=(1,))
         cls.x = cls.grid.dimensions[0]
-        cls.u = Function(name='u', grid=cls.grid, space_order=4)
+        cls.u = TimeFunction(name='u', grid=cls.grid, space_order=4)
+        cls.t = cls.u.time_dim
+
+        cls.v = Function(name='v', grid=cls.grid, space_order=4)
+        cls.w = Function(name='w', grid=cls.grid, space_order=4)
+        cls.f = Function(name='f', dimensions=(cls.t,), shape=(5,))
 
         # Note that using the `.dx` shortcut method specifies the fd_order kwarg
         a = cls.u.dx
@@ -1140,6 +1145,10 @@ class TestExpansion:
         expanded = Derivative(4*self.u - 5*Derivative(self.u, self.x) + 3, self.x)
         assert self.b.expand() == expanded
 
+        expr = self.u.dx.subs({self.u: 5*self.f*self.u*self.v*self.w})
+        expanded = 5*self.f*Derivative(self.u*self.v*self.w, self.x)
+        assert diffify(expr.expand()) == expanded
+
     def test_expand_add(self):
         """
         Check linearity
@@ -1194,3 +1203,19 @@ class TestExpansion:
         )
         with pytest.raises(ValueError):
             _ = du44.expand(nest=True)
+
+    def test_expand_product_rule(self):
+        """
+        Check the two implemented cases for product rule expansion
+        """
+        expr = self.u.dx.subs({self.u: 5*self.f*self.u*self.v*self.w}, postprocess=False)
+        expanded = 5*self.f*self.v*self.w*Derivative(self.u, self.x) \
+            + 5*self.f*self.v*self.u*Derivative(self.w, self.x) \
+            + 5*self.f*self.w*self.u*Derivative(self.v, self.x)
+        assert diffify(expr.expand(product_rule=True)) == expanded
+
+        expr = self.u.dx2.subs({self.u: 5*self.f*self.u*self.v}, postprocess=False)
+        expanded = 5*self.f*self.v*Derivative(self.u, (self.x, 2)) \
+            + 10*self.f*Derivative(self.v, self.x)*Derivative(self.u, self.x) \
+            + 5*self.f*self.u*Derivative(self.v, (self.x, 2))
+        assert diffify(expr.expand(product_rule=True)) == expanded
