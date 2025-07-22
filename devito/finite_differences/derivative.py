@@ -7,7 +7,7 @@ from warnings import warn
 import sympy
 
 from .finite_difference import generic_derivative, cross_derivative
-from .differentiable import Differentiable, diffify, interp_for_fd, Add
+from .differentiable import Differentiable, diffify, interp_for_fd, Add, Mul
 from .tools import direct, transpose
 from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, frozendict, is_integer,
@@ -695,4 +695,27 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         resultant expression for higher derivatives and mixed derivatives is much
         more difficult to implement.
         """
-        raise NotImplementedError('Product rule expansion has not been written')
+        if self.expr.is_Mul and len(self.dims) == 1:
+            if self.deriv_order == (1,):
+                return Add(*[
+                    Mul(*self.expr.args[:ii], self.func(m), *self.expr.args[ii + 1:])
+                    for ii, m in enumerate(self.expr.args)
+                ])
+            elif self.deriv_order == (2,) and len(self.expr.args) == 2:
+                return Add(
+                    Mul(self.func(self.expr.args[0]), self.expr.args[1]),
+                    Mul(
+                        2,
+                        self.func(self.expr.args[0], deriv_order=1),
+                        self.func(self.expr.args[1], deriv_order=1)
+                    ),
+                    Mul(self.expr.args[0], self.func(self.expr.args[1]))
+                )
+            else:
+                # Note: It _is_ possible to implement the product rule for many
+                # more cases, but the number of terms in the resultant expression
+                # will grow.
+                return self
+        else:
+            return self
+
