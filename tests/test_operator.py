@@ -2203,7 +2203,8 @@ class TestEstimateMemory:
             # Factor in the temp array
             # Note: temp array size is incremented by one in the x dimension
             # due to derivative.
-            array_check = (b.shape_allocated[0]+1)*b.shape_allocated[1]*np.dtype(b.dtype).itemsize
+            array_check = (b.shape_allocated[0]+1)*b.shape_allocated[1]
+            array_check *= np.dtype(b.dtype).itemsize
             self.parse_output(summary, check, arrays=array_check)
 
     def test_overrides(self, caplog):
