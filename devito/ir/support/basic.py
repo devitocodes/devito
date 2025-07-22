@@ -1,9 +1,7 @@
-from collections.abc import Iterable
 from itertools import chain, product
 from functools import cached_property
-from typing import Callable
 
-from sympy import S, Expr
+from sympy import S
 import sympy
 
 from devito.ir.support.space import Backward, null_ispace
@@ -14,7 +12,7 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
                           flatten, memoized_meth, memoized_generator, smart_gt,
-                          smart_lt, CacheInstances)
+                          smart_lt)
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -248,7 +246,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 self.ispace == other.ispace)
 
     def __hash__(self):
-        return hash((self.access, self.mode, self.timestamp, self.ispace))
+        return super().__hash__()
 
     @property
     def function(self):
@@ -626,7 +624,7 @@ class Relation:
         return S.ImaginaryUnit in self.distance
 
 
-class Dependence(Relation, CacheInstances):
+class Dependence(Relation):
 
     """
     A data dependence between two TimedAccess objects.
@@ -825,26 +823,17 @@ class DependenceGroup(set):
         return DependenceGroup(i for i in self if i.function is function)
 
 
-class Scope(CacheInstances):
+class Scope:
 
-    # Describes a rule for dependencies
-    Rule = Callable[[TimedAccess, TimedAccess], bool]
-
-    @classmethod
-    def _preprocess_args(cls, exprs: Expr | Iterable[Expr],
-                         **kwargs) -> tuple[tuple, dict]:
-        return (as_tuple(exprs),), kwargs
-
-    def __init__(self, exprs: tuple[Expr],
-                 rules: Rule | tuple[Rule] | None = None) -> None:
+    def __init__(self, exprs, rules=None):
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
         """
-        self.exprs = exprs
+        self.exprs = as_tuple(exprs)
 
         # A set of rules to drive the collection of dependencies
-        self.rules: tuple[Scope.Rule] = as_tuple(rules)  # type: ignore[assignment]
+        self.rules = as_tuple(rules)
         assert all(callable(i) for i in self.rules)
 
     @memoized_generator
@@ -1183,10 +1172,12 @@ class Scope(CacheInstances):
         Generate all flow, anti, and output dependences involving any of
         the given TimedAccess objects.
         """
-        accesses = set(as_tuple(accesses))
+        accesses = as_tuple(accesses)
         for d in self.d_all_gen():
-            if accesses & {d.source, d.sink}:
-                yield d
+            for i in accesses:
+                if d.source == i or d.sink == i:
+                    yield d
+                    break
 
     @memoized_meth
     def d_from_access(self, accesses):

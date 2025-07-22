@@ -1,39 +1,31 @@
-from devito.ir.clusters.cluster import Cluster
-from devito.ir.clusters.visitors import Queue
+from devito.ir.clusters.visitors import QueueStateful
 from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               SEQUENTIAL, Property, Scope)
-from devito.ir.support.space import IterationSpace
+                               SEQUENTIAL)
 from devito.tools import as_tuple, flatten, timed_pass
-from devito.types.dimension import Dimension
 
 __all__ = ['analyze']
 
 
-# Describes properties fetched by a `Detector`
-Properties = dict[Cluster, dict[Dimension, set[Property]]]
-
-
 @timed_pass()
 def analyze(clusters):
-    properties: Properties = {}
+    state = QueueStateful.State()
 
     # Collect properties
-    clusters = Parallelism().process(clusters, properties=properties)
-    clusters = Affiness().process(clusters, properties=properties)
+    clusters = Parallelism(state).process(clusters)
+    clusters = Affiness(state).process(clusters)
 
     # Reconstruct Clusters attaching the discovered properties
-    processed = [c.rebuild(properties=properties.get(c)) for c in clusters]
+    processed = [c.rebuild(properties=state.properties.get(c)) for c in clusters]
 
     return processed
 
 
-class Detector(Queue):
+class Detector(QueueStateful):
 
-    def process(self, clusters: list[Cluster], properties: Properties) -> list[Cluster]:
-        return self._process_fatd(clusters, 1, properties=properties)
+    def process(self, elements):
+        return self._process_fatd(elements, 1)
 
-    def callback(self, clusters: list[Cluster], prefix: IterationSpace | None,
-                 properties: Properties) -> list[Cluster]:
+    def callback(self, clusters, prefix):
         if not prefix:
             return clusters
 
@@ -49,18 +41,10 @@ class Detector(Queue):
         # Update `self.state`
         if retval:
             for c in clusters:
-                c_properties = properties.setdefault(c, {})
-                c_properties.setdefault(d, set()).update(retval)
+                properties = self.state.properties.setdefault(c, {})
+                properties.setdefault(d, set()).update(retval)
 
         return clusters
-
-    def _callback(self, clusters: list[Cluster], dim: Dimension,
-                  prefix: IterationSpace | None) -> set[Property]:
-        """
-        Callback to be implemented by subclasses. It should return a set of
-        properties for the given dimension.
-        """
-        raise NotImplementedError()
 
 
 class Parallelism(Detector):
@@ -88,10 +72,10 @@ class Parallelism(Detector):
             the 'write' is known to be an associative and commutative increment
     """
 
-    def _callback(self, clusters, dim, prefix):
+    def _callback(self, clusters, d, prefix):
         # Rule out if non-unitary increment Dimension (e.g., `t0=(time+1)%2`)
-        if any(c.sub_iterators[dim] for c in clusters):
-            return {SEQUENTIAL}
+        if any(c.sub_iterators[d] for c in clusters):
+            return SEQUENTIAL
 
         # All Dimensions up to and including `i-1`
         prev = flatten(i.dim._defines for i in prefix[:-1])
@@ -99,16 +83,16 @@ class Parallelism(Detector):
         is_parallel_indep = True
         is_parallel_atomic = False
 
-        scope = Scope(flatten(c.exprs for c in clusters))
+        scope = self._fetch_scope(clusters)
         for dep in scope.d_all_gen():
-            test00 = dep.is_indep(dim) and not dep.is_storage_related(dim)
+            test00 = dep.is_indep(d) and not dep.is_storage_related(d)
             test01 = all(dep.is_reduce_atmost(i) for i in prev)
             if test00 and test01:
                 continue
 
             test1 = len(prev) > 0 and any(dep.is_carried(i) for i in prev)
             if test1:
-                is_parallel_indep &= (dep.distance_mapper.get(dim.root) == 0)
+                is_parallel_indep &= (dep.distance_mapper.get(d.root) == 0)
                 continue
 
             if dep.function in scope.initialized:
@@ -119,14 +103,14 @@ class Parallelism(Detector):
                 is_parallel_atomic = True
                 continue
 
-            return {SEQUENTIAL}
+            return SEQUENTIAL
 
         if is_parallel_atomic:
-            return {PARALLEL_IF_ATOMIC}
+            return PARALLEL_IF_ATOMIC
         elif is_parallel_indep:
             return {PARALLEL, PARALLEL_INDEP}
         else:
-            return {PARALLEL}
+            return PARALLEL
 
 
 class Affiness(Detector):
@@ -135,11 +119,8 @@ class Affiness(Detector):
     Detect the AFFINE Dimensions.
     """
 
-    def _callback(self, clusters, dim, prefix):
-        scope = Scope(flatten(c.exprs for c in clusters))
+    def _callback(self, clusters, d, prefix):
+        scope = self._fetch_scope(clusters)
         accesses = [a for a in scope.accesses if not a.is_scalar]
-
-        if all(a.is_regular and a.affine_if_present(dim._defines) for a in accesses):
-            return {AFFINE}
-
-        return set()
+        if all(a.is_regular and a.affine_if_present(d._defines) for a in accesses):
+            return AFFINE

@@ -4,10 +4,8 @@ from sympy.abc import a, b, c, d, e
 
 import time
 
-from devito import Operator, Eq
 from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
-                          filter_ordered, transitive_closure, UnboundTuple,
-                          CacheInstances)
+                          filter_ordered, transitive_closure, UnboundTuple)
 from devito.types.basic import Symbol
 
 
@@ -147,65 +145,3 @@ def test_unbound_tuple():
     assert ub.next() == 2
     ub.iter()
     assert ub.next() == 1
-
-
-class TestCacheInstances:
-
-    def test_caching(self):
-        """
-        Tests basic functionality of cached instances.
-        """
-        class Object(CacheInstances):
-            def __init__(self, value: int):
-                self.value = value
-
-        obj1 = Object(1)
-        obj2 = Object(1)
-        obj3 = Object(2)
-
-        assert obj1 is obj2
-        assert obj1 is not obj3
-
-    def test_cache_size(self):
-        """
-        Tests specifying the size of the instance cache.
-        """
-        class Object(CacheInstances):
-            _instance_cache_size = 2
-
-            def __init__(self, value: int):
-                self.value = value
-
-        obj1 = Object(1)
-        obj2 = Object(2)
-        obj3 = Object(3)
-        obj4 = Object(1)
-        obj5 = Object(3)
-
-        # obj1 should have been evicted before obj4 was created
-        assert obj1 is not obj4
-        assert obj1 is not obj2
-        assert obj3 is obj5
-
-        hits, _, _, cursize = Object._instance_cache.cache_info()
-        assert hits == 1  # obj5 hit the cache
-        assert cursize == 2
-
-    def test_cleared_after_build(self):
-        """
-        Tests that instance caches are cleared after building an Operator.
-        """
-        class Object(CacheInstances):
-            def __init__(self, value: int):
-                self.value = value
-
-        obj1 = Object(1)
-        cache_size = Object._instance_cache.cache_info()[-1]
-        assert cache_size == 1
-
-        x = Symbol('x')
-        Operator(Eq(x, obj1.value))
-
-        # Cache should be cleared after Operator construction
-        cache_size = Object._instance_cache.cache_info()[-1]
-        assert cache_size == 0
