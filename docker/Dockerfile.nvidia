@@ -7,7 +7,8 @@ ARG arch="nvc"
 ########################################################################
 # Build base image with apt setup and common env
 ########################################################################
-FROM ubuntu:22.04 AS sdk-base
+ARG FROM_IMAGE=ubuntu:22.04
+FROM $FROM_IMAGE AS sdk-base
 
 SHELL ["/bin/bash", "-c"]
 
@@ -16,7 +17,12 @@ ENV DEBIAN_FRONTEND noninteractive
 # Install python
 RUN apt-get update && \
     apt-get install -y -q gpg apt-utils curl wget libnuma-dev cmake git \
-                          dh-autoreconf python3-venv python3-dev python3-pip
+                          dh-autoreconf && \
+    if [ ! -d "/opt/python3" ]; then \
+        apt-get install -y -q python3-venv python3-dev python3-pip; \
+    else \
+        echo "Using free-threaded Python build"; \
+    fi;
 
 # nodesource: nvdashboard requires nodejs>=10
 RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
@@ -97,8 +103,8 @@ RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/compilers/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_HOME/comm_libs/mpi/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     echo "$HPCSDK_CUPTI/lib64" >> /etc/ld.so.conf.d/nvidia.conf && \
-    echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf    
-    
+    echo "$HPCSDK_HOME/math_libs/lib64" >> /etc/ld.so.conf.d/nvidia.conf
+
 # Compiler, CUDA, and Library paths
 # CUDA_HOME has been deprecated but keep for now because of other dependencies (@mloubout).
 ENV CUDA_HOME $HPCSDK_HOME/cuda
