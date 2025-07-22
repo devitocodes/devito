@@ -4,16 +4,22 @@
 # architectures using GCC compilers and OpenMPI.
 ##############################################################
 
-# Base image 
-FROM ubuntu:22.04 AS base
-
+# Base image is either ubuntu or the nogil base
+ARG FROM_IMAGE=ubuntu:22.04
 ARG gcc=""
+
+FROM $FROM_IMAGE AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install python
+# Install python, if not already present
 RUN apt-get update && \
-    apt-get install -y software-properties-common dh-autoreconf python3-venv python3-dev python3-pip
+    apt-get install -y software-properties-common dh-autoreconf && \
+    if [ ! -d "/opt/python3" ]; then \
+        apt-get install -y -q python3-venv python3-dev python3-pip; \
+    else \
+        echo "Using free-threaded Python build"; \
+    fi;
 
 # Install for basic base not containing it
 RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake git \
