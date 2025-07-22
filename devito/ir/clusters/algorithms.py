@@ -12,8 +12,7 @@ from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
 from devito.ir.equations import OpMin, OpMax, identity_mapper
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.visitors import Queue, cluster_pass
-from devito.ir.support import Scope
+from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
@@ -78,7 +77,7 @@ def impose_total_ordering(clusters):
     return processed
 
 
-class Schedule(Queue):
+class Schedule(QueueStateful):
 
     """
     This special Queue produces a new sequence of "scheduled" Clusters, which
@@ -136,7 +135,7 @@ class Schedule(Queue):
         # `clusters` are supposed to share it
         candidates = prefix[-1].dim._defines
 
-        scope = Scope(flatten(c.exprs for c in clusters))
+        scope = self._fetch_scope(clusters)
 
         # Handle the nastiest case -- ambiguity due to the presence of both a
         # flow- and an anti-dependence.

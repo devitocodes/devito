@@ -17,7 +17,6 @@ from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
 from devito.ir.support.guards import GuardOverflow
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
-from devito.tools.data_structures import frozendict
 from devito.types import Array, Bundle, CriticalRegion, Jump, Scalar, Symbol
 
 
@@ -612,9 +611,9 @@ class TestDependenceAnalysis:
         """
         expr = LoweredEq(EVAL(expr, ti0.base, ti1.base, fa))
 
-        # Force unnatural flow, only to stress the compiler to see if it is
+        # Force innatural flow, only to stress the compiler to see if it was
         # capable of detecting anti-dependences
-        expr.ispace._directions = frozendict({i: Forward for i in expr.ispace.directions})
+        expr.ispace._directions = {i: Forward for i in expr.ispace.directions}
 
         scope = Scope(expr)
         deps = scope.d_all
@@ -710,10 +709,10 @@ class TestDependenceAnalysis:
         exprs = [LoweredEq(i) for i in EVAL(exprs, ti0.base, ti1.base, ti3.base, fa)]
         expected = [tuple(i.split(',')) for i in expected]
 
-        # Force unnatural flow, only to stress the compiler to see if it is
+        # Force innatural flow, only to stress the compiler to see if it was
         # capable of detecting anti-dependences
         for i in exprs:
-            i.ispace._directions = frozendict({i: Forward for i in i.ispace.directions})
+            i.ispace._directions = {i: Forward for i in i.ispace.directions}
 
         scope = Scope(exprs)
         assert len(scope.d_all) == len(expected)
