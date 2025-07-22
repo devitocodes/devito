@@ -2069,9 +2069,9 @@ class TestEstimateMemory:
     _array_temp = "r0L0(x, y)" if "CXX" in configuration['language'] else "r0[x][y]"
     _devicelangs = ('openacc',)
 
-    def parse_output(self, summary, check):
-        expected = ((check, check) if configuration['language']
-                    in self._devicelangs else (check, 0))
+    def parse_output(self, summary, check, arrays=0):
+        expected = ((check, check + arrays) if configuration['language']
+                    in self._devicelangs else (check + arrays, 0))
         assert (summary['host'], summary['device']) == expected
 
     def sum_sizes(self, funcs):
@@ -2201,8 +2201,8 @@ class TestEstimateMemory:
             check = self.sum_sizes(funcs)
 
             # Factor in the temp array
-            check += reduce(mul, b.shape_allocated)*np.dtype(b.dtype).itemsize
-            self.parse_output(summary, check)
+            array_check = reduce(mul, b.shape_allocated)*np.dtype(b.dtype).itemsize
+            self.parse_output(summary, check, arrays=array_check)
 
     def test_overrides(self, caplog):
         def setup(size, npoint, nt, counter):
