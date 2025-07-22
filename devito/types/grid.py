@@ -686,6 +686,7 @@ class SubDomain(AbstractSubDomain):
 
 
 class MultiSubDomain(AbstractSubDomain):
+    # FIXME: Should subclass ArgProvider
 
     """
     Abstract base class for types representing groups of SubDomains.

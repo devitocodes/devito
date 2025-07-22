@@ -726,6 +726,8 @@ class TestMultiSubDomain:
 
 
 class TestBorder:
+    # Note: This class is partially covered by doctests
+    # TODO: Will need to add MPI tests, including overrides
     def test_exceptions(self):
         """Test exceptions are raised for malformed specifications"""
         grid = Grid(shape=(5,))
@@ -741,7 +743,6 @@ class TestBorder:
         """Test border specifications which vary by dimension"""
         shape = (6, 8)
         grid = Grid(shape=shape)
-        x, y = grid.dimensions
 
         border = Border(grid, (1, (2, 1)), corners=corners)
 
@@ -774,7 +775,6 @@ class TestBorder:
         grid = Grid(shape=shape)
         x, y = grid.dimensions
 
-        # border = Border(grid, 2, dims={x: x, y: 'right'})
         border = Border(grid, 1, dims={x: 'left', y: 'right'}, corners=corners)
 
         f = Function(name='f', grid=grid, dtype=np.int32)
@@ -810,6 +810,27 @@ class TestBorder:
         check[1, 1, 1] = 0
 
         assert np.all(f.data == check)
+
+    def test_override(self):
+        """Test overriding one border with another"""
+        grid = Grid(shape=(6, 8))
+        x, y = grid.dimensions
+
+        border0 = Border(grid, 1)
+        border1 = Border(grid, 1, dims={x: 'left', y: 'right'}, corners='nocorners')
+
+        f0 = Function(name='f0', grid=grid, dtype=np.int32)
+        f1 = Function(name='f1', grid=grid, dtype=np.int32)
+
+        op0 = Operator(Eq(f0, f0+1, subdomain=border0))
+
+        # Replace the border with a different one at runtime
+        op0.apply(border0=border1)
+
+        # Compare to just running with the override border directly
+        Operator(Eq(f1, f1+1, subdomain=border1))()
+
+        assert np.all(f0 == f1)
 
 
 class TestSubDomain_w_condition:
