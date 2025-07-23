@@ -1,7 +1,12 @@
 # Runner information:
-# OpenACC on NVidia runs on `nvidiagpu`
-# OpenMP on NVidia runs on `nvidiagpu`
-# OpenMP on AMD runs on `amdgpu`
+#  - OpenACC/OpenMP on NVIDIA runs on runners labeled `nvidiagpu`
+#  - OpenMP on AMD runs on runners labeled `amdgpu`
+#
+# Changes vs original:
+#  * Respect CUDA_VISIBLE_DEVICES for NVIDIA jobs by passing it AND restricting Docker with --gpus "device=…"
+#  * Tag images and container names with ${{ runner.name }} to avoid cross-runner races and maximize cache reuse
+#  * Remove docker prune / global container deletes (we assume disk space is fine)
+#  * Add comments throughout
 
 name: CI-gpu
 
@@ -14,36 +19,33 @@ env:
   RESOURCE_GROUP: CI-gpu
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the main branch
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
-  # Push-button activation
+    branches: [ main ]
   workflow_dispatch:
     inputs:
       tags:
         description: 'Run GPU tests'
 
 jobs:
-
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.tags }}
 
+    # Job-level env (includes per-runner image/container tags)
     env:
       DEVITO_ARCH: ${{ matrix.arch }}
       DEVITO_PLATFORM: ${{ matrix.platform }}
       DEVITO_LANGUAGE: ${{ matrix.language }}
       OMPI_CC: ${{ matrix.arch }}
+      # Unique image tag per *runner*, so caches are reused on that runner but isolated across runners
+      DOCKER_IMAGE: ${{ matrix.name }}-${{ runner.name }}
+      # Base name for containers started in this job
+      CONTAINER_BASENAME: testrun-${{ matrix.name }}-${{ runner.name }}
 
     strategy:
-      # Prevent all builds from terminating if one fails
       fail-fast: false
-
       matrix:
         name: [
           pytest-gpu-acc-nvidia,
@@ -52,48 +54,66 @@ jobs:
         test_examples: ["examples/seismic/tti/tti_example.py examples/seismic/acoustic/acoustic_example.py examples/seismic/viscoacoustic/viscoacoustic_example.py examples/seismic/viscoelastic/viscoelastic_example.py examples/seismic/elastic/elastic_example.py"]
 
         include:
+        # -------------------- NVIDIA job --------------------
         - name: pytest-gpu-acc-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"
           tags: ["self-hosted", "nvidiagpu"]
           test_drive_cmd: "nvidia-smi"
-          flags: '--init --gpus all --rm -t --name testrun-nvc'
+          # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
+          # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
+          flags: >-
+            --init --rm -t
+            --name ${CONTAINER_BASENAME}
+            --env CUDA_VISIBLE_DEVICES
+            --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
 
+        # -------------------- AMD job -----------------------
         - name: pytest-gpu-omp-amd
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
           tags: ["self-hosted", "amdgpu"]
           base: "devitocodes/bases:amd"
           test_drive_cmd: "rocm-smi"
-          # Attach the AMD GPU devices `/dev` and add user to video and render (109 on wampa) group
-          # Options from https://rocmdocs.amd.com/en/latest/ROCm_Virtualization_Containers/ROCm-Virtualization-&-Containers.html
-          flags: "--init --network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --rm -t --name testrun-amd"
+          # Unchanged, still passes through required /dev nodes etc.
+          flags: >-
+            --init --network=host
+            --device=/dev/kfd --device=/dev/dri
+            --ipc=host
+            --group-add video --group-add $(getent group render | cut -d: -f3)
+            --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
+            --rm -t
+            --name ${CONTAINER_BASENAME}
 
     steps:
-    - name: Checkout devito
-      uses: actions/checkout@v4
+      - name: Checkout devito
+        uses: actions/checkout@v4
 
-    - name: Build docker image
-      run: |
-          docker build . --rm --pull --file docker/Dockerfile.devito --tag ${{ matrix.name }}-${{ github.ref }} --build-arg base=${{ matrix.base }}
+      - name: Build docker image
+        run: |
+          docker build . \
+            --rm --pull \
+            --file docker/Dockerfile.devito \
+            --tag "${DOCKER_IMAGE}" \
+            --build-arg base="${{ matrix.base }}"
 
-    - name: Remove dangling layers
-      run: |
-        docker system prune -f
-        echo "CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}" >> $GITHUB_ENV
+      - name: Export CODECOV token
+        run: echo "CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}" >> "$GITHUB_ENV"
 
-    - name: Test with pytest
-      run: |
-        # Remove all existing containers for safety
-        docker ps -aq | xargs -r docker rm -f
-        # Run tests
-        ci_env=`bash <(curl -s https://codecov.io/env)`
-        docker run ${{ matrix.flags }} ${{ matrix.name }}-${{ github.ref }} ${{ matrix.test_drive_cmd }}
-        docker run ${{ matrix.flags }} $ci_env -e CI=true ${{ matrix.name }}-${{ github.ref }} pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
+      - name: Test with pytest
+        run: |
+          # Run a simple driver cmd first (nvidia-smi / rocm-smi)
+          ci_env=$(bash <(curl -s https://codecov.io/env))
 
-    - name: Test examples
-      run: |
-        docker run ${{ matrix.flags }} ${{ matrix.name }}-${{ github.ref }} pytest ${{ matrix.test_examples }}
+          docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
 
-    - name: Test examples with MPI
-      run: |
-        docker run ${{ matrix.flags }} --env DEVITO_MPI=1 ${{ matrix.name }}-${{ github.ref }} mpiexec -n 2 pytest ${{ matrix.test_examples }}
+          docker run ${{ matrix.flags }} $ci_env -e CI=true "${DOCKER_IMAGE}" \
+            pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
+
+      - name: Test examples
+        run: |
+          docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" pytest ${{ matrix.test_examples }}
+
+      - name: Test examples with MPI
+        run: |
+          docker run ${{ matrix.flags }} --env DEVITO_MPI=1 "${DOCKER_IMAGE}" \
+            mpiexec -n 2 pytest ${{ matrix.test_examples }}
