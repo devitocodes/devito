@@ -31,7 +31,7 @@ on:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ${{ matrix.tags }}
+    runs-on: ${{ fromJSON('["' + join(matrix.tags, '","') + '"]') }}
 
     # Job-level env (includes per-runner image/container tags)
     env:
