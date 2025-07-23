@@ -11,6 +11,7 @@ on:
       - "/docker/Dockerfile.cpu"
       - "/docker/Dockerfile.amd"
       - "/docker/Dockerfile.intel"
+      - "/docker/Dockerfile.nogil"
   workflow_dispatch:
     inputs:
       cpu:
@@ -46,6 +47,7 @@ jobs:
     strategy:
       matrix:
         gcc: ["", "14"]
+        disable-gil: [false, true]
 
     steps:
       - name: Checkout devito
@@ -66,14 +68,28 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: Build free-threaded base image
+        uses: docker/build-push-action@v6
+        if: ${{ matrix.disable-gil }}
+        with:
+          context: .
+          file: "./docker/Dockerfile.nogil"
+          tags: "ubuntu-nogil"
+
       - name: GCC image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: "./docker/Dockerfile.cpu"
           push: true
-          build-args: "gcc=${{ matrix.gcc }}"
-          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}"
+          build-args: |
+            gcc=${{ matrix.gcc }}
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}${{ matrix.disable-gil && '-nogil' || '' }}"
+
 
   #######################################################
   ############## Intel OneApi CPU #######################
@@ -85,6 +101,10 @@ jobs:
     env:
       DOCKER_BUILDKIT: "1"
 
+    strategy:
+      matrix:
+        disable-gil: [false, true]
+
     steps:
       - name: Checkout devito
         uses: actions/checkout@v4
@@ -103,6 +123,18 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: Build free-threaded base image
+        uses: docker/build-push-action@v6
+        if: ${{ matrix.disable-gil }}
+        with:
+          context: .
+          file: "./docker/Dockerfile.nogil"
+          tags: "ubuntu-nogil"
+
       - name: ICX image
         uses: docker/build-push-action@v6
         with:
@@ -110,8 +142,10 @@ jobs:
           file: "./docker/Dockerfile.intel"
           push: true
           target: "icx"
-          build-args: "arch=icx"
-          tags: "devitocodes/bases:cpu-icx"
+          build-args: |
+            arch=icx
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+          tags: "devitocodes/bases:cpu-icx${{ matrix.disable-gil && '-nogil' || '' }}"
 
       - name: SYCL CPU image
         uses: docker/build-push-action@v6
@@ -120,8 +154,10 @@ jobs:
           file: "./docker/Dockerfile.intel"
           push: true
           target: "cpu-sycl"
-          build-args: "arch=cpu-sycl"
-          tags: "devitocodes/bases:cpu-sycl"
+          build-args: |
+            arch=cpu-sycl
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+          tags: "devitocodes/bases:cpu-sycl${{ matrix.disable-gil && '-nogil' || '' }}"
 
       - name: SYCL GPU image
         uses: docker/build-push-action@v6
@@ -130,8 +166,10 @@ jobs:
           file: "./docker/Dockerfile.intel"
           push: true
           target: "gpu-sycl"
-          build-args: "arch=gpu-sycl"
-          tags: "devitocodes/bases:gpu-sycl"
+          build-args: |
+            arch=gpu-sycl
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+          tags: "devitocodes/bases:gpu-sycl${{ matrix.disable-gil && '-nogil' || '' }}"
 
   #######################################################
   ################### Nvidia nvhpc ######################
@@ -143,6 +181,10 @@ jobs:
     env:
       DOCKER_BUILDKIT: "1"
 
+    strategy:
+      matrix:
+        disable-gil: [false, true]
+
     steps:
       - name: Checkout devito
         uses: actions/checkout@v4
@@ -162,6 +204,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: Build free-threaded base image
+        uses: docker/build-push-action@v6
+        if: ${{ matrix.disable-gil }}
+        with:
+          context: .
+          file: "./docker/Dockerfile.nogil"
+          tags: "ubuntu-nogil"
+
       - name: NVC image
         uses: docker/build-push-action@v6
         with:
@@ -169,10 +222,12 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvc"
-          build-args: "arch=nvc"
+          build-args: |
+            arch=nvc
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvc"
+          tags: "devitocodes/bases:nvidia-nvc${{ matrix.disable-gil && '-nogil' || '' }}"
 
       - name: NVCC image
         uses: docker/build-push-action@v6
@@ -181,9 +236,11 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvcc"
-          build-args: "arch=nvcc"
+          build-args: |
+            arch=nvcc
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvcc"
+          tags: "devitocodes/bases:nvidia-nvcc${{ matrix.disable-gil && '-nogil' || '' }}"
 
       - name: NVC host image
         uses: docker/build-push-action@v6
@@ -192,9 +249,11 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvc-host"
-          build-args: "arch=nvc-host"
+          build-args: |
+            arch=nvc-host
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:cpu-nvc"
+          tags: "devitocodes/bases:cpu-nvc${{ matrix.disable-gil && '-nogil' || '' }}"
 
   #######################################################
   ##################### AMD #############################
@@ -206,6 +265,10 @@ jobs:
     env:
       DOCKER_BUILDKIT: "1"
 
+    strategy:
+      matrix:
+        disable-gil: [false, true]
+
     steps:
       - name: Checkout devito
         uses: actions/checkout@v4
@@ -224,6 +287,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: cleanup
+        run: docker system prune -a -f
+
+      - name: Build free-threaded base image
+        uses: docker/build-push-action@v6
+        if: ${{ matrix.disable-gil }}
+        with:
+          context: .
+          file: "./docker/Dockerfile.nogil"
+          tags: "ubuntu-nogil"
 
       - name: AMD image
         uses: docker/build-push-action@v6
@@ -236,7 +310,8 @@ jobs:
             ROCM_VERSION=5.5.1
             UCX_BRANCH=v1.13.1
             OMPI_BRANCH=v4.1.4
-          tags: devitocodes/bases:amd
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+          tags: devitocodes/bases:amd${{ matrix.disable-gil && '-nogil' || '' }}
 
       - name: AMD HIP image
         uses: docker/build-push-action@v6
@@ -247,4 +322,5 @@ jobs:
           target: "hip"
           build-args: |
             ROCM_VERSION=6.3.4
-          tags: devitocodes/bases:amd-hip
+            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+          tags: devitocodes/bases:amd-hip${{ matrix.disable-gil && '-nogil' || '' }}
