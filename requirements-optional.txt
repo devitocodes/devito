@@ -1,6 +1,6 @@
 matplotlib<3.10.4
 pillow>11,<11.3.1
-pyrevolve==2.2.5
+pyrevolve==2.2.6
 scipy<1.15.4
 distributed<2025.7.1
 click<9.0
