@@ -31,7 +31,9 @@ on:
 jobs:
   build:
     name: ${{ matrix.name }}
-    runs-on: ${{ fromJSON('["' + join(matrix.tags, '","') + '"]') }}
+    runs-on:
+      - self-hosted
+      - ${{ matrix.runner_label }}
 
     # Job-level env (includes per-runner image/container tags)
     env:
@@ -39,10 +41,6 @@ jobs:
       DEVITO_PLATFORM: ${{ matrix.platform }}
       DEVITO_LANGUAGE: ${{ matrix.language }}
       OMPI_CC: ${{ matrix.arch }}
-      # Unique image tag per *runner*, so caches are reused on that runner but isolated across runners
-      DOCKER_IMAGE: ${{ matrix.name }}-${{ runner.name }}
-      # Base name for containers started in this job
-      CONTAINER_BASENAME: testrun-${{ matrix.name }}-${{ runner.name }}
 
     strategy:
       fail-fast: false
@@ -58,7 +56,7 @@ jobs:
         - name: pytest-gpu-acc-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
           base: "devitocodes/bases:nvidia-nvc"
-          tags: ["self-hosted", "nvidiagpu"]
+          runner_label: nvidiagpu
           test_drive_cmd: "nvidia-smi"
           # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
           # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
@@ -71,7 +69,7 @@ jobs:
         # -------------------- AMD job -----------------------
         - name: pytest-gpu-omp-amd
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
-          tags: ["self-hosted", "amdgpu"]
+          runner_label: amdgpu
           base: "devitocodes/bases:amd"
           test_drive_cmd: "rocm-smi"
           # Unchanged, still passes through required /dev nodes etc.
@@ -87,6 +85,12 @@ jobs:
     steps:
       - name: Checkout devito
         uses: actions/checkout@v4
+
+      - name: Set per-runner tags
+        run: |
+          echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE=${{ matrix.name }}-$RUNNER_NAME" >> $GITHUB_ENV
+          echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-$RUNNER_NAME" >> $GITHUB_ENV
 
       - name: Build docker image
         run: |
