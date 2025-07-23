@@ -559,6 +559,7 @@ class Operator(Callable):
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
         """
+        from IPython import embed; embed()
         # Sanity check -- all user-provided keywords must be known to the Operator
         if not configuration['ignore-unknowns']:
             for k, v in kwargs.items():

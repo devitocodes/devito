@@ -816,8 +816,9 @@ class TestBorder:
         grid = Grid(shape=(6, 8))
         x, y = grid.dimensions
 
-        border0 = Border(grid, 1)
-        border1 = Border(grid, 1, dims={x: 'left', y: 'right'}, corners='nocorners')
+        border0 = Border(grid, 1, name='border0')
+        border1 = Border(grid, 1, dims={x: 'left', y: 'right'},
+                         corners='nocorners', name='border1')
 
         f0 = Function(name='f0', grid=grid, dtype=np.int32)
         f1 = Function(name='f1', grid=grid, dtype=np.int32)

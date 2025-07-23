@@ -685,8 +685,7 @@ class SubDomain(AbstractSubDomain):
             self._distributor = SubDistributor(self)
 
 
-class MultiSubDomain(AbstractSubDomain):
-    # FIXME: Should subclass ArgProvider
+class MultiSubDomain(AbstractSubDomain, ArgProvider):
 
     """
     Abstract base class for types representing groups of SubDomains.
@@ -743,6 +742,26 @@ class MultiSubDomain(AbstractSubDomain):
                 bounds_M[j] = dec.index_glb_to_loc(M[j], RIGHT)
 
         return bounds_m, bounds_M
+
+
+class MultiSubDomainFunction(Function):
+    def _arg_values(self, **kwargs):
+        # TODO: Will want estimate-memory utility in due course
+        new = kwargs.get(self.name, self)
+
+        # We support `op.apply(..., msd=msd1, ...)`
+        if isinstance(new, MultiSubDomain):
+            # TODO: Homogenise this nomenclature throughout all MultiSubDomains
+            new = new._subfunction
+
+        return new._arg_defaults(alias=self, **kwargs).reduce_all()
+
+    def _arg_defaults(self, alias=None, **kwargs):
+        # Either apply the overide here, or apply the default values
+        # Will need to replace the function, but also adjust the implicit
+        # dimension bounds -> this bit is trickier, since they only get numbered
+        # during compilation
+        pass
 
 
 class SubDomainSet(MultiSubDomain):
@@ -875,9 +894,9 @@ class SubDomainSet(MultiSubDomain):
         # of replacements without risking overwriting.
         i_dim = Dimension(f'n_{str(id(self))}')
         d_dim = DefaultDimension(name='d', default_value=2*grid.dim)
-        sd_func = Function(name=self.name, grid=self._grid,
-                           shape=(self._n_domains, 2*grid.dim),
-                           dimensions=(i_dim, d_dim), dtype=np.int32)
+        sd_func = MultiSubDomainFunction(name=self.name, grid=self._grid,
+                                         shape=(self._n_domains, 2*grid.dim),
+                                         dimensions=(i_dim, d_dim), dtype=np.int32)
 
         dimensions = []
         for i, d in enumerate(grid.dimensions):
@@ -892,6 +911,7 @@ class SubDomainSet(MultiSubDomain):
             ))
 
         self._dimensions = tuple(dimensions)
+        self._subfunction = sd_func
 
     def __subdomain_finalize__(self):
         self.__subdomain_finalize_core__(self.grid)
