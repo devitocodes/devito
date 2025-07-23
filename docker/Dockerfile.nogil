@@ -1,10 +1,5 @@
-# syntax=docker/dockerfile:1
 ##############################################################
-# This Dockerfile builds a base image with a free-threaded
-# build of Python 3.13.
-#
-# This is EXPERIMENTAL and intended for development and
-# testing purposes only.
+# Builds a base image with free-threaded Python 3.13
 ##############################################################
 
 ARG FROM_IMAGE=ubuntu:22.04
@@ -27,9 +22,7 @@ RUN git clone --depth 1 --branch 3.13 https://github.com/python/cpython.git /usr
 
 WORKDIR /usr/src/cpython
 
-# Configure, compile, and install Python with the free-threaded build
-# --disable-gil: The key flag to enable the free-threaded build
-# --enable-optimizations: Apply profile-guided optimizations for better performance
+# Configure, build, and install Python 3.13 with the GIL disabled
 RUN ./configure --prefix=/opt/python3 --disable-gil --enable-optimizations
 RUN make -j$(nproc)
 RUN make install
@@ -39,19 +32,16 @@ FROM $FROM_IMAGE
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Copy our Python build from the builder stage
+# Copy Python build from the previous stage
 COPY --from=builder /opt/python3/ /opt/python3/
 
-# Set the PATH to include our custom Python build
+# Set the PATH to include custom Python build
 ENV PATH="/opt/python3/bin:${PATH}"
 
-# Install essential runtime dependencies.
-# Downstream images are responsible for installing Devito-specific
-# dependencies such as compilers/MPI.
+# Install some Python runtime dependencies
 RUN apt-get update && apt-get install -y \
     libnuma-dev && \
     rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip cache purge
-
