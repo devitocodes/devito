@@ -13,7 +13,7 @@ jobs:
     env:
       # Use buildkit https://docs.docker.com/develop/develop-images/build_enhancements/ for better build
       DOCKER_BUILDKIT: "1"
-      # Unique container name to avoid clashes across concurrent self‑hosted runners
+      # Unique container name to avoid clashes across concurrent self-hosted runners
       CONTAINER_NAME: testrun-${{ matrix.tag }}-${{ runner.name }}
 
 
