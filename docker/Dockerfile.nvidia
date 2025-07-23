@@ -7,8 +7,8 @@ ARG arch="nvc"
 ########################################################################
 # Build base image with apt setup and common env
 ########################################################################
-ARG FROM_IMAGE=ubuntu:22.04
-FROM $FROM_IMAGE AS sdk-base
+ARG base=ubuntu:22.04
+FROM $base AS sdk-base
 
 SHELL ["/bin/bash", "-c"]
 

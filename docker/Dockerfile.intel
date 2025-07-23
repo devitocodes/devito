@@ -4,8 +4,8 @@
 ##############################################################
 
 # Base image
-ARG FROM_IMAGE=ubuntu:22.04
-FROM $FROM_IMAGE as base
+ARG base=ubuntu:22.04
+FROM $base as base
 
 ENV DEBIAN_FRONTEND noninteractive
 

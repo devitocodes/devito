@@ -2,9 +2,9 @@
 # Builds a base image with free-threaded Python 3.13
 ##############################################################
 
-ARG FROM_IMAGE=ubuntu:22.04
+ARG base=ubuntu:22.04
 
-FROM $FROM_IMAGE AS builder
+FROM $base AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 

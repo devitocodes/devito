@@ -5,10 +5,10 @@
 ##############################################################
 
 # Base image is either ubuntu or the nogil base
-ARG FROM_IMAGE=ubuntu:22.04
-ARG gcc=""
+ARG base=ubuntu:22.04
 
-FROM $FROM_IMAGE AS base
+FROM $base AS base
+ARG gcc=""
 
 ENV DEBIAN_FRONTEND=noninteractive
 
