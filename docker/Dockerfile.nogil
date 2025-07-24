@@ -22,7 +22,12 @@ RUN git clone --depth 1 --branch 3.13 https://github.com/python/cpython.git /tmp
 WORKDIR /tmp/cpython
 
 # Configure, build, and install Python 3.13 with the GIL disabled
-RUN ./configure --prefix=/opt/python3 --disable-gil --enable-optimizations
+RUN ./configure \
+        --prefix=/opt/python3 \
+        --disable-gil \
+        --enable-optimizations \
+        --enable-shared \
+        --enable-multilib
 RUN make -j$(nproc)
 RUN make install
 
