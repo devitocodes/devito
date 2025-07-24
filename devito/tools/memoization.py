@@ -66,10 +66,6 @@ class memoized_meth(Generic[InstanceType, ParamsType, ReturnType]):
         """
         Invokes the memoized method, caching the result if it hasn't been evaluated yet.
         """
-        # If arguments are not hashable, just evaluate the method directly
-        if not isinstance(args, Hashable):
-            return self._meth(obj, *args, **kwargs)
-
         # Get the local cache for the object instance
         cache = self._get_cache(obj)
         key = (self._meth, args, frozenset(kwargs.items()))
@@ -199,10 +195,6 @@ class memoized_generator(Generic[InstanceType, ParamsType, YieldType]):
         """
         Invokes the memoized generator, caching a SafeTee if it hasn't been created yet.
         """
-        # If arguments are not hashable, just evaluate the method directly
-        if not isinstance(args, Hashable):
-            return self._meth(obj, *args, **kwargs)
-
         # Get the local cache for the object instance
         cache = self._get_cache(obj)
         key = (self._meth, args, frozenset(kwargs.items()))
