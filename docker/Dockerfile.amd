@@ -10,6 +10,8 @@ ARG FROM_IMAGE=ubuntu:22.04
 FROM $FROM_IMAGE AS ubuntu-base
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete AS sdk-base
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 COPY --from=ubuntu-base /opt /opt
 ENV PATH="/opt/python3/bin:${PATH}"
 
@@ -19,13 +21,13 @@ ARG OMPI_BRANCH="v5.0.x"
 # Update and Install basic Linux development tools
 RUN rm /etc/apt/sources.list.d/* \
   && apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+  && apt-get install -y --no-install-recommends \
     dh-autoreconf git \
     ca-certificates ssh make libtinfo* initramfs-tools libelf-dev \
     wget build-essential autoconf automake libtool \
     pkg-config libnuma* gfortran flex hwloc cmake && \
   if [ ! -d "/opt/python3" ]; then \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    apt-get install -y --no-install-recommends \
       python3-venv python3-dev python3-pip; \
   else \
     echo "Using free-threaded Python build"; \
