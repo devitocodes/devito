@@ -3,53 +3,14 @@ from functools import lru_cache, partial
 from itertools import tee
 from typing import TypeVar
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator', 'CacheInstances']
-
-
-class memoized_func:
-    """
-    Decorator. Caches a function's return value each time it is called.
-    If called later with the same arguments, the cached value is returned
-    (not reevaluated). This decorator may also be used on class methods,
-    but it will cache at the class level; to cache at the instance level,
-    use ``memoized_meth``.
-
-    Adapted from: ::
-
-        https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
-    """
-
-    def __init__(self, func):
-        self.func = func
-        self.cache = {}
-
-    def __call__(self, *args, **kw):
-        if not isinstance(args, Hashable):
-            # Uncacheable, a list, for instance.
-            # Better to not cache than blow up.
-            return self.func(*args, **kw)
-        key = (self.func, args, frozenset(kw.items()))
-        if key in self.cache:
-            return self.cache[key]
-        else:
-            value = self.func(*args, **kw)
-            self.cache[key] = value
-            return value
-
-    def __repr__(self):
-        """Return the function's docstring."""
-        return self.func.__doc__
-
-    def __get__(self, obj, objtype):
-        """Support instance methods."""
-        return partial(self.__call__, obj)
+__all__ = ['memoized_meth', 'memoized_generator', 'CacheInstances']
 
 
 class memoized_meth:
     """
     Decorator. Cache the return value of a class method.
 
-    Unlike ``memoized_func``, the return value of a given method invocation
+    Unlike ``functools.cache``, the return value of a given method invocation
     will be cached on the instance whose method was invoked. All arguments
     passed to a method decorated with memoize must be hashable.
 
