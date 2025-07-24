@@ -154,7 +154,7 @@ class Data(np.ndarray):
 
     def _global(self, glb_idx, decomposition):
         """A "global" view of ``self`` over a given Decomposition."""
-        if self._is_distributed:
+        if self._is_mpi_distributed:
             raise ValueError("Cannot derive a decomposed view from a decomposed Data")
         if len(decomposition) != self.ndim:
             raise ValueError("`decomposition` should have ndim=%d entries" % self.ndim)
@@ -197,7 +197,10 @@ class Data(np.ndarray):
 
     @property
     def _is_mpi_distributed(self):
-        return self._is_distributed and configuration['mpi']
+        is_mpi = self._is_distributed and configuration['mpi']
+        if is_mpi:
+            is_mpi = is_mpi and self._distributor.comm.size > 2
+        return is_mpi
 
     def __repr__(self):
         return super(Data, self._local).__repr__()
@@ -341,7 +344,7 @@ class Data(np.ndarray):
                 super().__setitem__(loc_idx, val)
             else:
                 super().__setitem__(glb_idx, val)
-        elif isinstance(val, Data) and val._is_distributed:
+        elif isinstance(val, Data) and val._is_mpi_distributed:
             if comm_type is index_by_index:
                 glb_idx, val = self._process_args(glb_idx, val)
                 val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
@@ -361,14 +364,14 @@ class Data(np.ndarray):
                         or data_global[j].size == 0
                     if not skip:
                         self.__setitem__(idx_global[j], data_global[j])
-            elif self._is_distributed:
+            elif self._is_mpi_distributed:
                 # `val` is decomposed, `self` is decomposed -> local set
                 super().__setitem__(glb_idx, val)
             else:
                 # `val` is decomposed, `self` is replicated -> gatherall-like
                 raise NotImplementedError
         elif isinstance(val, np.ndarray):
-            if self._is_distributed:
+            if self._is_mpi_distributed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
                 glb_idx = self._normalize_index(glb_idx)
                 glb_idx, val = self._process_args(glb_idx, val)

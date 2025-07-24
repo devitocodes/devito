@@ -318,6 +318,7 @@ class CustomOperator(BasicOperator):
 
         # Fetch passes to be called
         passes_mapper = cls._make_clusters_passes_mapper(**kwargs)
+        print(passes)
 
         # Call passes
         for i in passes:
