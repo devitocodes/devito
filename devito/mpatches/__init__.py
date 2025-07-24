@@ -1,2 +1,2 @@
 from .rationaltools import *  # noqa
-from .asindependent import *  # noqa
+from .as_independent import *  # noqa

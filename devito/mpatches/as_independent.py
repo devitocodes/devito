@@ -1,4 +1,4 @@
-"""Monkeypatch for as_independent required for Devito Derviative. """
+"""Monkeypatch for as_independent required for Devito Derivative. """
 
 from packaging.version import Version
 
