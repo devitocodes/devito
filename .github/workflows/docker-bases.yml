@@ -84,7 +84,7 @@ jobs:
           push: true
           build-args: |
             gcc=${{ matrix.gcc }}
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}${{ matrix.disable-gil && '-nogil' || '' }}"
 
 
@@ -138,7 +138,7 @@ jobs:
           target: "icx"
           build-args: |
             arch=icx
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           tags: "devitocodes/bases:cpu-icx${{ matrix.disable-gil && '-nogil' || '' }}"
 
       - name: SYCL CPU image
@@ -150,7 +150,7 @@ jobs:
           target: "cpu-sycl"
           build-args: |
             arch=cpu-sycl
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           tags: "devitocodes/bases:cpu-sycl${{ matrix.disable-gil && '-nogil' || '' }}"
 
       - name: SYCL GPU image
@@ -162,7 +162,7 @@ jobs:
           target: "gpu-sycl"
           build-args: |
             arch=gpu-sycl
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           tags: "devitocodes/bases:gpu-sycl${{ matrix.disable-gil && '-nogil' || '' }}"
 
   #######################################################
@@ -215,7 +215,7 @@ jobs:
           target: "nvc"
           build-args: |
             arch=nvc
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
           tags: "devitocodes/bases:nvidia-nvc${{ matrix.disable-gil && '-nogil' || '' }}"
@@ -229,7 +229,7 @@ jobs:
           target: "nvcc"
           build-args: |
             arch=nvcc
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           labels: builder-runner=${{ runner.name }}
           tags: "devitocodes/bases:nvidia-nvcc${{ matrix.disable-gil && '-nogil' || '' }}"
 
@@ -242,7 +242,7 @@ jobs:
           target: "nvc-host"
           build-args: |
             arch=nvc-host
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           labels: builder-runner=${{ runner.name }}
           tags: "devitocodes/bases:cpu-nvc${{ matrix.disable-gil && '-nogil' || '' }}"
 
@@ -298,7 +298,7 @@ jobs:
             ROCM_VERSION=5.5.1
             UCX_BRANCH=v1.13.1
             OMPI_BRANCH=v4.1.4
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           tags: devitocodes/bases:amd${{ matrix.disable-gil && '-nogil' || '' }}
 
       - name: AMD HIP image
@@ -310,5 +310,5 @@ jobs:
           target: "hip"
           build-args: |
             ROCM_VERSION=6.3.4
-            ${{ matrix.disable-gil && 'FROM_IMAGE=ubuntu-nogil' || '' }}
+            ${{ matrix.disable-gil && 'base=ubuntu-nogil' || '' }}
           tags: devitocodes/bases:amd-hip${{ matrix.disable-gil && '-nogil' || '' }}

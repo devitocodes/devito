@@ -4,10 +4,10 @@
 ##############################################################
 
 ARG ROCM_VERSION=6.3.2
-ARG FROM_IMAGE=ubuntu:22.04
+ARG base=ubuntu:22.04
 
-# FROM_IMAGE may be specified with the nogil base to provide a Python build
-FROM $FROM_IMAGE AS ubuntu-base
+# Base may be specified with the nogil base to provide a Python build
+FROM $base AS ubuntu-base
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete AS sdk-base
 
 ENV DEBIAN_FRONTEND=noninteractive
