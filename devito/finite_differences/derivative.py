@@ -705,9 +705,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 return args[1]*self.func(args[0]) + \
                     2*self.func(
                         args[0], deriv_order=1
-                    )*self.func(
+                )*self.func(
                         args[1], deriv_order=1
-                    ) + \
+                ) + \
                     args[0]*self.func(args[1])
             else:
                 # Note: It _is_ possible to implement the product rule for many
