@@ -198,8 +198,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         """
         if deriv_order is None:
             deriv_order = (1,)*len(dims)
-        if not isinstance(deriv_order, Iterable):
-            deriv_order = as_tuple(deriv_order)
+        deriv_order = as_tuple(deriv_order)
         if len(deriv_order) != len(dims):
             raise ValueError(
                 'Length of `deriv_order` does not match the length of dimensions'
@@ -599,7 +598,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         # actually expanded if derivatives are incompatible.
         # The nested derivative is evaluated by:
         # 1. Chaining together the variables with which to differentiate wrt
-        new_expr = self.expr.args[0]
+        new_expr = self.expr.expr
         new_dims = [
             (d, ii)
             for d, ii in zip(
@@ -696,21 +695,20 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         more difficult to implement.
         """
         if self.expr.is_Mul and len(self.dims) == 1:
+            args = self.expr.args
             if self.deriv_order == (1,):
                 return Add(*[
-                    Mul(*self.expr.args[:ii], self.func(m), *self.expr.args[ii + 1:])
-                    for ii, m in enumerate(self.expr.args)
+                    Mul(*args[:ii], self.func(m), *args[ii + 1:])
+                    for ii, m in enumerate(args)
                 ])
-            elif self.deriv_order == (2,) and len(self.expr.args) == 2:
-                return Add(
-                    Mul(self.func(self.expr.args[0]), self.expr.args[1]),
-                    Mul(
-                        2,
-                        self.func(self.expr.args[0], deriv_order=1),
-                        self.func(self.expr.args[1], deriv_order=1)
-                    ),
-                    Mul(self.expr.args[0], self.func(self.expr.args[1]))
-                )
+            elif self.deriv_order == (2,) and len(args) == 2:
+                return args[1]*self.func(args[0]) + \
+                    2*self.func(
+                        args[0], deriv_order=1
+                    )*self.func(
+                        args[1], deriv_order=1
+                    ) + \
+                    args[0]*self.func(args[1])
             else:
                 # Note: It _is_ possible to implement the product rule for many
                 # more cases, but the number of terms in the resultant expression
