@@ -6,13 +6,12 @@
 ARG ROCM_VERSION=6.3.2
 ARG base=ubuntu:22.04
 
-# Base may be specified with the nogil base to provide a Python build
-FROM $base AS ubuntu-base
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete AS sdk-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=ubuntu-base /opt /opt
+# Base may be specified with the nogil base image to provide Python
+COPY --from=$base /opt /opt
 ENV PATH="/opt/python3/bin:${PATH}"
 
 ARG UCX_BRANCH="v1.16.0"
