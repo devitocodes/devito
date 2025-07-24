@@ -113,6 +113,17 @@ class SimdForAligned(Pragma):
         return self.pragma % (joins(*items), n)
 
 
+class SimdForAlignedLinear(Pragma):
+
+    @cached_property
+    def _generate(self):
+        assert len(self.arguments) >= 3
+        n = self.arguments[0]
+        aligned_vars = self.arguments[1]
+        linear_vars = self.arguments[2]
+        return self.pragma % (aligned_vars, n, linear_vars)
+
+
 class AbstractOmpBB(LangBB):
 
     mapper = {
@@ -133,6 +144,11 @@ class AbstractOmpBB(LangBB):
             Pragma('omp simd'),
         'simd-for-aligned': lambda n, *a:
             SimdForAligned('omp simd aligned(%s:%d)', arguments=(n, *a)),
+        'simd-for-linear': lambda *linear_vars:
+            Pragma('omp simd linear(%s)' % ','.join(str(v) for v in linear_vars)),
+        'simd-for-aligned-linear': lambda n, aligned_vars, linear_vars:
+            SimdForAlignedLinear('omp simd aligned(%s:%d) linear(%s)', 
+                               arguments=(n, aligned_vars, linear_vars)),
         'atomic':
             Pragma('omp atomic update')
     }

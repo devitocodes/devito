@@ -10,7 +10,7 @@ from devito.ir import (Conditional, DummyEq, Dereference, Expression,
                        ExpressionBundle, FindSymbols, FindNodes, ParallelIteration,
                        ParallelTree, Pragma, Prodder, Transfer, List, Transformer,
                        IsPerfectIteration, OpInc, filter_iterations, ccode,
-                       retrieve_iteration_tree, IMask, VECTORIZED)
+                       retrieve_iteration_tree, IMask, VECTORIZED, Iteration)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
                                         ShmTransformer, make_sections_from_imask)
@@ -47,15 +47,106 @@ class PragmaSimdTransformer(PragmaTransformer):
         return self.platform.simd_reg_nbytes
 
     def _make_simd_pragma(self, iet):
+        """
+        Generate SIMD pragma with appropriate clauses.
+        
+        For GCC, when dealing with non-canonical loop forms (multiple index variables),
+        we need to add the 'linear' clause to avoid compilation errors.
+        This typically happens with loop blocking when blockinner=True.
+        """
         indexeds = FindSymbols('indexeds').visit(iet)
         aligned = {i.base for i in indexeds if i.function.is_DiscreteFunction}
-        if aligned:
+        
+        # Check if we need to add linear clause for GCC compatibility
+        needs_linear = self._needs_linear_clause(iet)
+        linear_vars = self._get_linear_variables(iet) if needs_linear else []
+        
+        if aligned and linear_vars:
+            # Both aligned and linear clauses needed
+            simd = self.langbb['simd-for-aligned-linear']
+            aligned_str = ','.join(str(v) for v in aligned)
+            linear_str = ','.join(str(v) for v in linear_vars)
+            simd = as_tuple(simd(self.simd_reg_nbytes, aligned_str, linear_str))
+        elif aligned:
+            # Only aligned clause needed
             simd = self.langbb['simd-for-aligned']
             simd = as_tuple(simd(self.simd_reg_nbytes, *aligned))
+        elif linear_vars:
+            # Only linear clause needed
+            simd = self.langbb['simd-for-linear']
+            simd = as_tuple(simd(*linear_vars))
         else:
+            # Basic SIMD pragma
             simd = as_tuple(self.langbb['simd-for'])
 
         return simd
+    
+    def _needs_linear_clause(self, iet):
+        """
+        Check if we need to add linear clause for GCC compatibility.
+        
+        This is needed when:
+        1. Using GCC compiler (not ICC)
+        2. We have nested loops with potential canonical form issues
+        3. GCC version supports OpenMP 4.0+ (>= 4.9)
+        """
+        from devito.arch.compiler import GNUCompiler
+        from packaging.version import Version
+        
+        # Only apply for GCC
+        if not isinstance(self.compiler, GNUCompiler):
+            return False
+            
+        # Only for GCC 4.9+ that supports OpenMP 4.0
+        try:
+            if self.compiler.version < Version("4.9.0"):
+                return False
+        except (TypeError, ValueError):
+            # If we can't determine version, assume it's recent enough
+            pass
+            
+        # Check if we have nested iterations that could cause canonical form issues
+        # This is a more conservative approach - we add linear clauses when we detect
+        # potential issues with loop structure
+        all_iterations = FindNodes(Iteration).visit(iet)
+        
+        # Look for patterns that suggest complex loop nesting from blocking
+        nested_levels = 0
+        has_block_vars = False
+        
+        for iteration in all_iterations:
+            nested_levels += 1
+            # Check for block-like dimension naming patterns
+            if hasattr(iteration, 'dim') and iteration.dim:
+                dim_name = str(iteration.dim)
+                if 'blk' in dim_name or hasattr(iteration.dim, 'is_Block'):
+                    has_block_vars = True
+        
+        # If we have deeply nested loops (3+) with potential blocking,
+        # we likely need linear clauses
+        return nested_levels >= 3 and has_block_vars
+    
+    def _get_linear_variables(self, iet):
+        """
+        Extract variables that should be declared linear in SIMD loops.
+        
+        For nested loops with blocking, we need to identify variables that
+        change linearly with the iteration count.
+        """
+        linear_vars = []
+        iterations = FindNodes(Iteration).visit(iet)
+        
+        for iteration in iterations:
+            if hasattr(iteration, 'dim') and iteration.dim:
+                dim_name = str(iteration.dim)
+                # Add variables that look like block dimensions or nested indices
+                if ('blk' in dim_name or 
+                    hasattr(iteration.dim, 'is_Block') or
+                    # Also add common index variable patterns that might cause issues
+                    dim_name in ['i', 'j', 'k', 'ii', 'jj', 'kk']):
+                    linear_vars.append(dim_name)
+                
+        return list(set(linear_vars))  # Remove duplicates
 
     def _make_simd(self, iet):
         """
