@@ -1346,7 +1346,6 @@ class ArgumentsMap(dict):
 
     def _apply_override(self, i):
         try:
-            # TODO: is _obj even needed?
             return self.get(i.name, i)._obj
         except AttributeError:
             return self.get(i.name, i)
@@ -1357,11 +1356,12 @@ class ArgumentsMap(dict):
         overrides.
         """
         obj = self._apply_override(i)
-
-        if obj.is_regular:
-            nbytes = obj.nbytes
-        else:
+        try:
+            # Non-regular AbstractFunction (compressed, etc)
             nbytes = obj.nbytes_max
+        except AttributeError:
+            # Garden-variety AbstractFunction
+            nbytes = obj.nbytes
 
         # Could nominally have symbolic nbytes at this point
         if isinstance(nbytes, SympyBasic):
