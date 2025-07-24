@@ -1088,7 +1088,7 @@ evalf_table[Pow] = evalf_table[sympy.Pow]
 # Interpolation for finite differences
 @singledispatch
 def interp_for_fd(expr, x0, **kwargs):
-    return expr._evaluate(expand=True)
+    return expr
 
 
 @interp_for_fd.register(sympy.Derivative)
