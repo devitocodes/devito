@@ -38,21 +38,28 @@ class memoized_meth(Generic[InstanceType, ParamsType, ReturnType]):
         it if necessary.
         """
         # Try-catch is theoretically faster on the happy path
+        _local: local
         try:
-            # Attempt to access the cache directly
-            return obj._memoized_meth__local.cache
+            # Attempt to access the thread-local data
+            _local = obj._memoized_meth__local
 
         # If the cache doesn't exist, initialize it
         except AttributeError:
             with self._lock:
                 # Check again in case another thread initialized outside the lock
-                if not hasattr(obj, '_memoized_cache'):
-                    # Initialize the cache if it doesn't exist
+                if not hasattr(obj, '_memoized_meth__local'):
+                    # Initialize the local data if it doesn't exist
                     obj._memoized_meth__local = local()
-                    obj._memoized_meth__local.cache = {}
 
-            # Return the cache
-            return obj._memoized_meth__local.cache
+            # Get the thread-local data
+            _local = obj._memoized_meth__local
+
+        # Local data is initialized; create or retrieve the cache
+        try:
+            return _local.cache
+        except AttributeError:
+            _local.cache = {}
+            return _local.cache
 
     def __call__(self, obj: InstanceType,
                  *args: ParamsType.args, **kwargs: ParamsType.kwargs) -> ReturnType:
@@ -179,7 +186,7 @@ class memoized_generator(Generic[InstanceType, ParamsType, YieldType]):
         except AttributeError:
             with self._lock:
                 # Check again in case another thread initialized outside the lock
-                if not hasattr(obj, '_memoized_cache'):
+                if not hasattr(obj, '_memoized_generator__cache'):
                     # Initialize the cache if it doesn't exist
                     obj._memoized_generator__cache = {}
 
