@@ -2,6 +2,10 @@
 
 # Clean your notebooks!
 
+# Setting this ensures numpy prints scalars rather than np.float() in cell
+# output
+export PYTEST_VERSION=1
+
 # Clear all the output from all cells
 jupyter-nbconvert --clear-output "$@"
 
