@@ -176,11 +176,10 @@ class Data(np.ndarray):
         @wraps(func)
         def wrapper(data, *args, **kwargs):
             glb_idx = args[0]
-            is_gather = isinstance(kwargs.get('gather_rank', None), int)
+            is_gather = isinstance(kwargs.get('gather_rank'), int)
             if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
                 comm_type = gather
-            elif len(args) > 1 and isinstance(args[1], Data) \
-                    and args[1]._is_decomposed:
+            elif len(args) > 1 and isinstance(args[1], Data) and args[1]._is_decomposed:
                 comm_type = index_by_index
             elif data._is_decomposed:
                 for i in as_tuple(glb_idx):
@@ -197,10 +196,8 @@ class Data(np.ndarray):
 
     @property
     def _is_decomposed(self):
-        is_mpi = self._is_distributed and configuration['mpi']
-        if is_mpi:
-            is_mpi = is_mpi and self._distributor.comm.size > 2
-        return is_mpi
+        return self._is_distributed and configuration['mpi'] and \
+            self._distributor.comm.size > 1
 
     def __repr__(self):
         return super(Data, self._local).__repr__()
