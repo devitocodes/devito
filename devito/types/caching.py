@@ -1,4 +1,5 @@
 import gc
+from threading import RLock
 import weakref
 
 import sympy
@@ -10,6 +11,7 @@ from devito.tools import safe_dict_copy
 __all__ = ['Cached', 'Uncached', '_SymbolCache', 'CacheManager']
 
 _SymbolCache = {}
+_cache_lock = RLock()
 """The symbol cache."""
 
 
@@ -76,8 +78,10 @@ class Cached:
             obj = obj_cached()
             if obj is None:
                 # Cleanup _SymbolCache (though practically unnecessary)
-                # does not fail if it's already gone
-                _SymbolCache.pop(key, None)
+                with _cache_lock:
+                    # Ensure another thread hasn't replaced the ref we're evicting
+                    if _SymbolCache.get(key) is obj_cached:
+                        _SymbolCache.pop(key, None)
                 return None
             else:
                 return obj
@@ -196,16 +200,21 @@ class CacheManager:
                 # We won't call gc.collect() this time
                 cls.ncalls_w_force_false += 1
 
-        for key in cache_copied:
-            obj = _SymbolCache.get(key)
-            if obj is None:
-                # deleted by another thread since we took the copy
-                continue
-            if obj() is None:
-                # (key could be removed in another thread since get() above)
-                _SymbolCache.pop(key, None)
+        for key, obj_cached in cache_copied.items():
+            if obj_cached() is None:
+                with _cache_lock:
+                    # Check if our snapshot of the cached object is still live
+                    if _SymbolCache.get(key) is obj_cached:
+                        _SymbolCache.pop(key, None)
 
         # Maybe trigger garbage collection
         if force:
             del cache_copied
             gc.collect()
+
+    @staticmethod
+    def lock():
+        """
+        Returns the global symbol cache lock for atomic construction.
+        """
+        return _cache_lock
