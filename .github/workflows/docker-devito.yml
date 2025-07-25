@@ -13,8 +13,6 @@ jobs:
     env:
       # Use buildkit https://docs.docker.com/develop/develop-images/build_enhancements/ for better build
       DOCKER_BUILDKIT: "1"
-      # Unique container name to avoid clashes across concurrent self-hosted runners
-      CONTAINER_NAME: testrun-${{ matrix.tag }}-${{ runner.name }}
 
 
     strategy:
@@ -54,6 +52,10 @@ jobs:
     steps:
       - name: Checkout devito
         uses: actions/checkout@v4
+
+      - name: Set per‑runner variables
+        run: |
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-$RUNNER_NAME" >> $GITHUB_ENV
 
       - name: Check event name
         run: echo ${{ github.event_name }}

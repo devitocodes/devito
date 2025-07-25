@@ -103,12 +103,15 @@ jobs:
       - name: Export CODECOV token
         run: echo "CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}" >> "$GITHUB_ENV"
 
+      - name: Probe gpu
+        run: |
+          # Run a simple driver cmd first (nvidia-smi / rocm-smi)
+          docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
+
       - name: Test with pytest
         run: |
           # Run a simple driver cmd first (nvidia-smi / rocm-smi)
           ci_env=$(bash <(curl -s https://codecov.io/env))
-
-          docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
 
           docker run ${{ matrix.flags }} $ci_env -e CI=true "${DOCKER_IMAGE}" \
             pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
