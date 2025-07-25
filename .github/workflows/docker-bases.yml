@@ -87,6 +87,7 @@ jobs:
     strategy:
       matrix:
         gcc: ["", "14"]
+        disable-gil: [false, true]
         include:
           - disable-gil: false
             build-args: ""
