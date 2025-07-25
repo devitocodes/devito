@@ -128,6 +128,6 @@ jobs:
       - name: Clean up test image
         if: always()
         run: |
-          docker rmi -f "${DOCKER_IMAGE}" || true     # drop the tag
+          docker rmi -f "${DOCKER_IMAGE}" || true     # remove the image
           docker system prune -f                      # free dangling layers
 
