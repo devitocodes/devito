@@ -35,13 +35,6 @@ jobs:
       - self-hosted
       - ${{ matrix.runner_label }}
 
-    # Job-level env (includes per-runner image/container tags)
-    env:
-      DEVITO_ARCH: ${{ matrix.arch }}
-      DEVITO_PLATFORM: ${{ matrix.platform }}
-      DEVITO_LANGUAGE: ${{ matrix.language }}
-      OMPI_CC: ${{ matrix.arch }}
-
     strategy:
       fail-fast: false
       matrix:
@@ -110,11 +103,11 @@ jobs:
 
       - name: Test with pytest
         run: |
-          # Run a simple driver cmd first (nvidia-smi / rocm-smi)
           ci_env=$(bash <(curl -s https://codecov.io/env))
 
           docker run ${{ matrix.flags }} $ci_env -e CI=true "${DOCKER_IMAGE}" \
-            pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
+            pytest -vv -ra -l -s --full-trace --maxfail=1 \
+            --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
       - name: Test examples
         run: |
@@ -124,3 +117,10 @@ jobs:
         run: |
           docker run ${{ matrix.flags }} --env DEVITO_MPI=1 "${DOCKER_IMAGE}" \
             mpiexec -n 2 pytest ${{ matrix.test_examples }}
+
+      - name: Clean up test image
+        if: always()
+        run: |
+          docker rmi -f "${DOCKER_IMAGE}" || true     # remove the image
+          docker system prune -f                      # free dangling layers
+

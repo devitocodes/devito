@@ -109,7 +109,6 @@ jobs:
           build-args: base=devitocodes/${{ matrix.base }}
 
       - name: Remove dangling layers
-        if: ${{ !contains(matrix.runner, 'nvidiagpu') }}
         run: docker system prune -f
 
       - name: Run tests
