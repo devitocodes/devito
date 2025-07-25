@@ -8,11 +8,12 @@ import sympy
 from devito.exceptions import CompilationError
 from devito.finite_differences.elementary import Max, Min
 from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
-                               pull_dims, null_ispace)
+                               pull_dims)
 from devito.ir.equations import OpMin, OpMax, identity_mapper
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
-from devito.ir.clusters.visitors import Queue, QueueStateful, cluster_pass
+from devito.ir.clusters.visitors import Queue, cluster_pass
+from devito.ir.support import Scope
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
@@ -77,7 +78,7 @@ def impose_total_ordering(clusters):
     return processed
 
 
-class Schedule(QueueStateful):
+class Schedule(Queue):
 
     """
     This special Queue produces a new sequence of "scheduled" Clusters, which
@@ -135,7 +136,7 @@ class Schedule(QueueStateful):
         # `clusters` are supposed to share it
         candidates = prefix[-1].dim._defines
 
-        scope = self._fetch_scope(clusters)
+        scope = Scope(flatten(c.exprs for c in clusters))
 
         # Handle the nastiest case -- ambiguity due to the presence of both a
         # flow- and an anti-dependence.
@@ -452,13 +453,18 @@ class HaloComms(Queue):
 def reduction_comms(clusters):
     processed = []
     fifo = []
+
+    def _update(reductions):
+        for _, reds in groupby(reductions, key=lambda r: r.ispace):
+            reds = list(reds)
+            exprs = flatten([dr.exprs for dr in reds])
+            processed.append(reds[0].rebuild(exprs=exprs))
+
     for c in clusters:
         # Schedule the global distributed reductions encountered before `c`,
         # if `c`'s IterationSpace is such that the reduction can be carried out
         found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))
-        if found:
-            exprs = [Eq(dr.var, dr) for dr in found]
-            processed.append(c.rebuild(exprs=exprs))
+        _update(found)
 
         # Detect the global distributed reductions in `c`
         for e in c.exprs:
@@ -487,15 +493,13 @@ def reduction_comms(clusters):
             # The IterationSpace within which the global distributed reduction
             # must be carried out
             ispace = c.ispace.prefix(lambda d: d in var.free_symbols)
-
-            fifo.append(DistReduce(var, op=op, grid=grid, ispace=ispace))
+            expr = [Eq(var, DistReduce(var, op=op, grid=grid, ispace=ispace))]
+            fifo.append(c.rebuild(exprs=expr, ispace=ispace))
 
         processed.append(c)
 
     # Leftover reductions are placed at the very end
-    if fifo:
-        exprs = [Eq(dr.var, dr) for dr in fifo]
-        processed.append(Cluster(exprs=exprs, ispace=null_ispace))
+    _update(fifo)
 
     return processed
 

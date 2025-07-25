@@ -170,7 +170,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
                 DummyExpr(i._C_symbol, FieldFromPointer(i._C_symbol, sbase))
             )
         else:
-            unpacks.append(DummyExpr(i, FieldFromPointer(i.base, sbase)))
+            unpacks.append(DummyExpr(i, FieldFromPointer(i.base, sbase), init=True))
 
     body = iet.body._rebuild(body=[wrap, Return(Null)], unpacks=unpacks)
     iet = ThreadCallable(iet.name, body, tparameter)

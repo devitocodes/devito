@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: ['3.9', '3.11']
+        python-version: ['3.10', '3.11']
 
     env:
       DEVITO_LANGUAGE: "openmp"
@@ -42,7 +42,7 @@ jobs:
       run: |
         sudo apt-get update && sudo apt install mpich -y
         pip3 install --upgrade pip
-        pip3 install -e .[extras,mpi,tests]
+        pip3 install -e ".[extras,mpi,tests]" --no-binary=mpi4py
 
     - name: Test with pytest
       run: |

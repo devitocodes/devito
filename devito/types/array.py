@@ -491,11 +491,17 @@ class Bundle(MappedArrayMixin, ArrayBasic):
 
     @cached_property
     def symbolic_shape(self):
-        from devito.symbolics import FieldFromPointer, IndexedPointer  # noqa
-        ffp = FieldFromPointer(self._C_field_shape, self._C_symbol)
-        ret = [s if is_integer(s) else IndexedPointer(ffp, i)
-               for i, s in enumerate(super().symbolic_shape)]
-        return DimensionTuple(*ret, getters=self.dimensions)
+        if self._mem_mapped:
+            # E.g., `(uv_vec->shape[0], uv_vec->shape[1], uv_vec->shape[2])`
+            from devito.symbolics import FieldFromPointer, IndexedPointer  # noqa
+            ffp = FieldFromPointer(self._C_field_shape, self._C_symbol)
+            ret = [s if is_integer(s) else IndexedPointer(ffp, i)
+                   for i, s in enumerate(super().symbolic_shape)]
+            return DimensionTuple(*ret, getters=self.dimensions)
+        else:
+            # There's no accompanying C struct, so we simply return `c0`'s symbolic
+            # shape, i.e. something along the lines of  `(x_size, y_size, z_size)`
+            return self.c0.symbolic_shape
 
     @property
     def _mem_heap(self):

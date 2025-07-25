@@ -1,3 +1,8 @@
+from collections.abc import Callable, Iterable, Iterator
+from itertools import chain
+from typing import Any, Literal
+
+import numpy as np
 import sympy
 
 from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
@@ -9,129 +14,108 @@ __all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers
            'retrieve_derivatives', 'search']
 
 
+Expression = sympy.Basic | np.number | int | float
+
+
+class List(list[Expression]):
+    """
+    A list that aliases `extend` to `update` to mirror the `set` interface.
+    """
+
+    def update(self, obj: Iterable[Expression]) -> None:
+        self.extend(obj)
+
+
+Mode = Literal['all', 'unique']
+modes: dict[Mode, type[List] | type[set[Expression]]] = {
+    'all': List,
+    'unique': set
+}
+
+
 class Search:
-
-    class Set(set):
-
-        @staticmethod
-        def wrap(obj):
-            return {obj}
-
-    class List(list):
-
-        @staticmethod
-        def wrap(obj):
-            return [obj]
-
-        def update(self, obj):
-            return self.extend(obj)
-
-    modes = {
-        'unique': Set,
-        'all': List
-    }
-
-    def __init__(self, query, mode, deep=False):
+    def __init__(self, query: Callable[[Expression], bool], deep: bool = False) -> None:
         """
-        Search objects in an expression. This is much quicker than the more
-        general SymPy's find.
+        Search objects in an expression. This is much quicker than the more general
+        SymPy's find.
 
         Parameters
         ----------
         query
             Any query from :mod:`queries`.
-        mode : str
-            Either 'unique' or 'all' (catch all instances).
         deep : bool, optional
             If True, propagate the search within an Indexed's indices. Defaults to False.
         """
         self.query = query
-        self.collection = self.modes[mode]
         self.deep = deep
 
-    def _next(self, expr):
+    def _next(self, expr: Expression) -> Iterable[Expression]:
         if self.deep and expr.is_Indexed:
             return expr.indices
         elif q_leaf(expr):
             return ()
-        else:
-            return expr.args
+        return expr.args
 
-    def dfs(self, expr):
+    def visit_postorder(self, expr: Expression) -> Iterator[Expression]:
         """
-        Perform a DFS search.
-
-        Parameters
-        ----------
-        expr : expr-like
-            The searched expression.
+        Visit the expression with a postorder traversal, yielding all hits.
         """
-        found = self.collection()
-        for a in self._next(expr):
-            found.update(self.dfs(a))
+        for i in self._next(expr):
+            yield from self.visit_postorder(i)
         if self.query(expr):
-            found.update(self.collection.wrap(expr))
-        return found
+            yield expr
 
-    def bfs(self, expr):
+    def visit_preorder(self, expr: Expression) -> Iterator[Expression]:
         """
-        Perform a BFS search.
-
-        Parameters
-        ----------
-        expr : expr-like
-            The searched expression.
+        Visit the expression with a preorder traversal, yielding all hits.
         """
-        found = self.collection()
         if self.query(expr):
-            found.update(self.collection.wrap(expr))
-        for a in self._next(expr):
-            found.update(self.bfs(a))
-        return found
+            yield expr
+        for i in self._next(expr):
+            yield from self.visit_preorder(i)
 
-    def bfs_first_hit(self, expr):
+    def visit_preorder_first_hit(self, expr: Expression) -> Iterator[Expression]:
         """
-        Perform a BFS search, returning immediately when a node matches the query.
-
-        Parameters
-        ----------
-        expr : expr-like
-            The searched expression.
+        Visit the expression in preorder and return a tuple containing the first hit,
+        if any. This can return more than a single result, as it looks for the first
+        hit from any branch but may find a hit in multiple branches.
         """
-        found = self.collection()
         if self.query(expr):
-            found.update(self.collection.wrap(expr))
-            return found
-        for a in self._next(expr):
-            found.update(self.bfs_first_hit(a))
-        return found
+            yield expr
+            return
+        for i in self._next(expr):
+            yield from self.visit_preorder_first_hit(i)
 
 
-def search(exprs, query, mode='unique', visit='dfs', deep=False):
+def search(exprs: Expression | Iterable[Expression],
+           query: type | Callable[[Any], bool],
+           mode: Mode = 'unique',
+           visit: Literal['dfs', 'bfs', 'bfs_first_hit'] = 'dfs',
+           deep: bool = False) -> List | set[Expression]:
     """Interface to Search."""
 
-    assert mode in Search.modes, "Unknown mode"
+    assert mode in ('all', 'unique'), "Unknown mode"
 
     if isinstance(query, type):
         Q = lambda obj: isinstance(obj, query)
     else:
         Q = query
 
-    searcher = Search(Q, mode, deep)
+    # Search doesn't actually use a BFS (rather, a preorder DFS), but the terminology
+    # is retained in this function's parameters for backwards compatibility
+    searcher = Search(Q, deep)
+    match visit:
+        case 'dfs':
+            _search = searcher.visit_postorder
+        case 'bfs':
+            _search = searcher.visit_preorder
+        case 'bfs_first_hit':
+            _search = searcher.visit_preorder_first_hit
+        case _:
+            raise ValueError(f"Unknown visit mode '{visit}'")
 
-    found = Search.modes[mode]()
-    for e in as_tuple(exprs):
-        if not isinstance(e, sympy.Basic):
-            continue
-
-        if visit == 'dfs':
-            found.update(searcher.dfs(e))
-        elif visit == 'bfs':
-            found.update(searcher.bfs(e))
-        elif visit == "bfs_first_hit":
-            found.update(searcher.bfs_first_hit(e))
-        else:
-            raise ValueError("Unknown visit type `%s`" % visit)
+    exprs = filter(lambda e: isinstance(e, sympy.Basic), as_tuple(exprs))
+    found = modes[mode](chain(*map(_search, exprs)))
 
     return found
 
@@ -155,7 +139,7 @@ def retrieve_functions(exprs, mode='all', deep=False):
 
 
 def retrieve_symbols(exprs, mode='all'):
-    """Shorthand to retrieve the Scalar in ``exprs``."""
+    """Shorthand to retrieve the Scalar in `exprs`."""
     return search(exprs, q_symbol, mode, 'dfs')
 
 

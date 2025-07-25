@@ -1,7 +1,9 @@
+from collections.abc import Iterable
 from itertools import chain, product
 from functools import cached_property
+from typing import Callable
 
-from sympy import S
+from sympy import S, Expr
 import sympy
 
 from devito.ir.support.space import Backward, null_ispace
@@ -11,7 +13,8 @@ from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
                               q_constant, q_comp_acc, q_affine, q_routine, search,
                               uxreplace)
 from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth, memoized_generator)
+                          flatten, memoized_meth, memoized_generator, smart_gt,
+                          smart_lt, CacheInstances)
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
@@ -245,7 +248,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 self.ispace == other.ispace)
 
     def __hash__(self):
-        return super().__hash__()
+        return hash((self.access, self.mode, self.timestamp, self.ispace))
 
     @property
     def function(self):
@@ -364,11 +367,12 @@ class TimedAccess(IterationInstance, AccessMode):
                 # trip count. E.g. it ranges from 0 to 3; `other` performs a
                 # constant access at 4
                 for v in (self[n], other[n]):
-                    try:
-                        if bool(v < sit.symbolic_min or v > sit.symbolic_max):
-                            return Vector(S.ImaginaryUnit)
-                    except TypeError:
-                        pass
+                    # Note: Uses smart_ comparisons avoid evaluating expensive
+                    # symbolic Lt or Gt operations,
+                    # Note: Boolean is split to make the conditional short
+                    # circuit more frequently for mild speedup.
+                    if smart_lt(v, sit.symbolic_min) or smart_gt(v, sit.symbolic_max):
+                        return Vector(S.ImaginaryUnit)
 
                 # Case 2: `sit` is an IterationInterval over a local SubDimension
                 # and `other` performs a constant access
@@ -382,32 +386,36 @@ class TimedAccess(IterationInstance, AccessMode):
                     if disjoint_test(self[n], other[n], sai, sit):
                         return Vector(S.ImaginaryUnit)
 
+            # Compute the distance along the current IterationInterval
             if self.function._mem_shared:
                 # Special case: the distance between two regular, thread-shared
-                # objects fallbacks to zero, as any other value would be nonsensical
+                # objects falls back to zero, as any other value would be
+                # nonsensical
                 ret.append(S.Zero)
-
+            elif degenerating_dimensions(sai, oai):
+                # Special case: `sai` and `oai` may be different symbolic objects
+                # but they can be proved to systematically generate the same value
+                ret.append(S.Zero)
             elif sai and oai and sai._defines & sit.dim._defines:
-                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`, `ai=t`
+                # E.g., `self=R<f,[t + 1, x]>`, `self.itintervals=(time, x)`,
+                # and `ai=t`
                 if sit.direction is Backward:
                     ret.append(other[n] - self[n])
                 else:
                     ret.append(self[n] - other[n])
-
             elif not sai and not oai:
                 # E.g., `self=R<a,[3]>` and `other=W<a,[4]>`
                 if self[n] - other[n] == 0:
                     ret.append(S.Zero)
                 else:
                     break
-
             elif sai in self.ispace and oai in other.ispace:
                 # E.g., `self=R<f,[x, y]>`, `sai=time`,
                 #       `self.itintervals=(time, x, y)`, `n=0`
                 continue
-
             else:
-                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`, `n=1`
+                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`,
+                # and `n=1`
                 return vinf(ret)
 
         n = len(ret)
@@ -618,7 +626,7 @@ class Relation:
         return S.ImaginaryUnit in self.distance
 
 
-class Dependence(Relation):
+class Dependence(Relation, CacheInstances):
 
     """
     A data dependence between two TimedAccess objects.
@@ -817,17 +825,26 @@ class DependenceGroup(set):
         return DependenceGroup(i for i in self if i.function is function)
 
 
-class Scope:
+class Scope(CacheInstances):
 
-    def __init__(self, exprs, rules=None):
+    # Describes a rule for dependencies
+    Rule = Callable[[TimedAccess, TimedAccess], bool]
+
+    @classmethod
+    def _preprocess_args(cls, exprs: Expr | Iterable[Expr],
+                         **kwargs) -> tuple[tuple, dict]:
+        return (as_tuple(exprs),), kwargs
+
+    def __init__(self, exprs: tuple[Expr],
+                 rules: Rule | tuple[Rule] | None = None) -> None:
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
         """
-        self.exprs = as_tuple(exprs)
+        self.exprs = exprs
 
         # A set of rules to drive the collection of dependencies
-        self.rules = as_tuple(rules)
+        self.rules: tuple[Scope.Rule] = as_tuple(rules)  # type: ignore[assignment]
         assert all(callable(i) for i in self.rules)
 
     @memoized_generator
@@ -1166,12 +1183,10 @@ class Scope:
         Generate all flow, anti, and output dependences involving any of
         the given TimedAccess objects.
         """
-        accesses = as_tuple(accesses)
+        accesses = set(as_tuple(accesses))
         for d in self.d_all_gen():
-            for i in accesses:
-                if d.source == i or d.sink == i:
-                    yield d
-                    break
+            if accesses & {d.source, d.sink}:
+                yield d
 
     @memoized_meth
     def d_from_access(self, accesses):
@@ -1408,3 +1423,19 @@ def disjoint_test(e0, e1, d, it):
     i1 = sympy.Interval(min(p10, p11), max(p10, p11))
 
     return not bool(i0.intersect(i1))
+
+
+def degenerating_dimensions(d0, d1):
+    """
+    True if `d0` and `d1` are Dimensions that are possibly symbolically
+    different, but they can be proved to systematically degenerate to the
+    same value, False otherwise.
+    """
+    # Case 1: ModuloDimensions of size 1
+    try:
+        if d0.is_Modulo and d1.is_Modulo and d0.modulo == d1.modulo == 1:
+            return True
+    except AttributeError:
+        pass
+
+    return False

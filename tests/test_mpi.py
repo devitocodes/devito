@@ -1051,6 +1051,16 @@ class TestOperatorSimple:
         assert np.all(f2.data == 1.)
 
 
+def check_halo_exchanges(op, exp0, exp1):
+    calls = FindNodes(HaloUpdateCall).visit(op)
+    assert len(calls) == exp0
+    tloop = get_time_loop(op)
+    calls = FindNodes(HaloUpdateCall).visit(tloop)
+    assert len(calls) == exp1
+
+    return calls, tloop
+
+
 class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
@@ -1104,6 +1114,8 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+        calls = FindNodes(Call).visit(get_time_loop(op))
+        assert len(calls) == 1
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_redundant_haloupdate_cond(self, mode):
@@ -1123,7 +1135,7 @@ class TestCodeGeneration:
                        # access `f` at `t`, not `t+1` through factor subdim!
                        Eq(g, f[t, j] + 1, implicit_dim=t_sub)])
 
-        calls = FindNodes(Call).visit(op)
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
         assert calls[0].functions[0] is f
 
@@ -1242,6 +1254,8 @@ class TestCodeGeneration:
                        Inc(g[i], f[t, h[i]] + 1.)])
 
         calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+        calls = FindNodes(Call).visit(get_time_loop(op))
         assert len(calls) == 1
 
         # Below, there is a flow-dependence along `x`, so a further halo update
@@ -1405,19 +1419,25 @@ class TestCodeGeneration:
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
+        calls = FindNodes(Call).visit(get_time_loop(op))
+        assert len(calls) == 1
 
         op.apply(time_M=1)
         glb_pos_map = f.grid.distributor.glb_pos_map
         R = 1e-07  # Can't use np.all due to rounding error at the tails
         if LEFT in glb_pos_map[x]:
-            assert np.allclose(f.data_ro_domain[0, :5], [5.6, 6.8, 5.8, 4.8, 4.8], rtol=R)
-            assert np.allclose(g.data_ro_domain[0, :5], [2., 5.8, 5.8, 4.8, 4.8], rtol=R)
+            assert np.allclose(f.data_ro_domain[0, :5], [5.6, 6.8, 5.8, 4.8, 4.8],
+                               rtol=R)
+            assert np.allclose(g.data_ro_domain[0, :5], [2., 5.8, 5.8, 4.8, 4.8],
+                               rtol=R)
         else:
-            assert np.allclose(f.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 3.6], rtol=R)
-            assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.], rtol=R)
+            assert np.allclose(f.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 3.6],
+                               rtol=R)
+            assert np.allclose(g.data_ro_domain[0, 5:], [4.8, 4.8, 4.8, 4.8, 2.],
+                               rtol=R)
 
     @pytest.mark.parallel(mode=2)
-    def test_unmerge_haloupdate_if_no_locindices(self, mode):
+    def test_avoid_merging_if_no_locindices(self, mode):
         grid = Grid(shape=(10,))
         x = grid.dimensions[0]
         t = grid.stepping_dim
@@ -1436,7 +1456,7 @@ class TestCodeGeneration:
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
 
-        titer = op.body.body[-1].body[0]
+        titer = get_time_loop(op)
         assert titer.dim is grid.time_dim
         assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
         assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
@@ -1456,6 +1476,25 @@ class TestCodeGeneration:
         else:
             assert np.allclose(f.data_ro_domain[5:], [8., 8., 8., 6., 5.], rtol=R)
             assert np.allclose(g.data_ro_domain[0, 5:], [16., 16., 14., 13., 6.], rtol=R)
+
+    @pytest.mark.parallel(mode=1)
+    def test_avoid_merging_if_diff_functions(self, mode):
+        grid = Grid(shape=(4, 4, 4))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name="u", grid=grid, space_order=2)
+        U = TimeFunction(name="U", grid=grid, space_order=2)
+        src = SparseTimeFunction(name="src", grid=grid, nt=3, npoint=1,
+                                 coordinates=np.array([(0.5, 0.5, 0.5)]))
+
+        eqns = [Eq(u.forward, u.dx)]
+        eqns += src.inject(field=u.forward, expr=src)
+        eqns += [Eq(U.forward, U.dx + u.forward)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        check_halo_exchanges(op, 2, 2)
 
     @pytest.mark.parallel(mode=1)
     def test_merge_haloupdate_if_diff_locindices(self, mode):
@@ -1483,8 +1522,8 @@ class TestCodeGeneration:
         """
         This test is a revisited, more complex version of
         `test_merge_haloupdate_if_diff_locindices`, also checking hoisting.
-        And in addition to checking the generated code,
-        it also checks the numerical output.
+        And in addition to checking the generated code, it also checks the
+        numerical output.
 
         In the Operator there are three Eqs:
 
@@ -1539,6 +1578,28 @@ class TestCodeGeneration:
         else:
             assert np.allclose(g.data_ro_domain[0, 5:], [6.4, 6.4, 6.4, 6.4, 4.4], rtol=R)
             assert np.allclose(h.data_ro_domain[0, 5:], [4.4, 4.4, 4.4, 3.4, 3.1], rtol=R)
+
+    @pytest.mark.parallel(mode=1)
+    def test_merge_haloupdate_if_diff_but_equivalent_locindices(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
+
+        eqns = [Eq(v1.forward, v2.laplace),
+                Eq(v2.forward, v1.forward.laplace + v2),
+                rec.interpolate(expr=v1)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 2, 2)
+        for i, v in enumerate([v2, v1]):
+            assert calls[i].arguments[0] is v
 
     @pytest.mark.parallel(mode=1)
     @switchconfig(autopadding=True)
@@ -1831,6 +1892,272 @@ class TestCodeGeneration:
         # Also ensure the compiler is doing its job removing unnecessary
         # ModuloDimensions
         assert len([i for i in FindSymbols('dimensions').visit(op) if i.is_Modulo]) == 0
+
+    @pytest.mark.parallel(mode=1)
+    @pytest.mark.parametrize('sz,fwd,expr,exp0,exp1,args', [
+        (1, True, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2')),
+        (1, True, 'Eq(v3.forward, v2.laplace + 1)', 1, 1, ('v2',)),
+        (1, True, 'Eq(v3.forward, v2.forward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+        (2, True, 'Eq(v3.forward, v2.forward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+        (1, False, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2')),
+        (1, False, 'Eq(v3.backward, v2.laplace + 1)', 1, 1, ('v2',)),
+        (1, False, 'Eq(v3.backward, v2.backward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+        (2, False, 'Eq(v3.backward, v2.backward.laplace + 1)', 3, 2, ('v1', 'v2',)),
+    ])
+    def test_haloupdate_buffer_cases(self, sz, fwd, expr, exp0, exp1, args, mode):
+        grid = Grid((65, 65, 65), topology=('*', 1, '*'))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v3 = TimeFunction(name='v3', grid=grid, space_order=2, time_order=1,  # noqa
+                          save=Buffer(1))
+
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
+
+        if fwd:
+            eqns = [Eq(v1.forward, v2.laplace + v1),
+                    Eq(v2.forward, v1.forward.dx2 + v2),
+                    eval(expr)]
+        else:
+            eqns = [Eq(v1.backward, v2.laplace + v1),
+                    Eq(v2.backward, v1.backward.dx2 + v2),
+                    eval(expr)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, exp0, exp1)
+        for i, v in enumerate(args):
+            assert calls[i].arguments[0] is eval(v)
+
+    @pytest.mark.parallel(mode=1)
+    def test_avoid_hoisting_if_antidep(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+        v3 = TimeFunction(name='v3', grid=grid, space_order=2, time_order=1,
+                          save=Buffer(1))
+
+        eqns = [Eq(v1, v2.laplace + v3),
+                Eq(v2, v1.dx2 + v2),
+                Eq(v3, v2.laplace + v1)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 3, 2)
+        # More specifically, we ensure HaloSpot(v2) is on the last loop nest
+        assert calls[0].arguments[0] is v1
+        assert calls[1].arguments[0] is v2
+
+    @pytest.mark.parallel(mode=1)
+    def test_hoist_haloupdate_if_in_the_middle(self, mode):
+        grid = Grid(shape=(65, 65, 65))
+
+        v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1)
+        v2 = TimeFunction(name='v2', grid=grid, space_order=2, time_order=1)
+
+        rec = SparseTimeFunction(name='rec', grid=grid, nt=500, npoint=65)  # noqa
+
+        eqns = [Eq(v1.forward, v2.laplace),
+                Eq(v2.forward, v1.laplace + v2),
+                rec.interpolate(expr=v1.forward)]
+
+        op = Operator(eqns)
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 3, 2)
+        assert calls[0].arguments[0] is v2
+        assert calls[1].arguments[0] is v1
+
+    @pytest.mark.parallel(mode=2)
+    def test_merge_smart_if_within_conditional(self, mode):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        t_sub = ConditionalDimension(name='t_sub', parent=time, factor=3)
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=100)
+
+        eq = Eq(f.forward, f.laplace + .002)
+
+        rec = s.interpolate(expr=f, implicit_dims=t_sub)
+
+        op = Operator(rec + [eq])
+
+        # Check generated code -- the halo exchange is expected at the top of
+        # the time loop, outside of any conditional
+        calls, tloop = check_halo_exchanges(op, 1, 1)
+        assert tloop.nodes[0].body[0].body[0] is calls[0]
+
+        op.apply(time_M=3)
+
+        assert np.isclose(norm(f), 254292.75, atol=1e-1, rtol=0)
+        assert np.isclose(norm(s), 191.44644, atol=1e-1, rtol=0)
+
+        # Analogous to above, but going backwards in time
+        eq1 = Eq(f.backward, f.laplace + .002)
+
+        op1 = Operator(rec + [eq1])
+        op1.cfunction
+
+        check_halo_exchanges(op1, 1, 1)
+
+        # Check that the halo update is still at the top of the time loop and
+        # so outside of any conditional
+        for n in FindNodes(Conditional).visit(op1):
+            assert len(FindNodes(HaloUpdateCall).visit(n)) == 0
+
+    @pytest.mark.parallel(mode=2)
+    def test_allreduce_time(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 10
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(tt, ), shape=(nt,))
+
+        op = Operator([Eq(ux.forward, ux + tt), Inc(g, ux)], name="Op")
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+
+        # Reduce should be in time loop but not in space loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 1  # one allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+        assert np.isclose(np.max(g.data), 4356.0)
+
+    @pytest.mark.parallel(mode=2)
+    def test_multi_allreduce_time(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 10
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(tt, ), shape=(nt,))
+        h = TimeFunction(name="h", grid=grid, dimensions=(tt, ), shape=(nt,))
+
+        op = Operator([Eq(ux.forward, ux + tt), Inc(g, ux), Inc(h, ux)], name="Op")
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+        assert np.isclose(np.max(g.data), 4356.0)
+        assert np.isclose(np.max(h.data), 4356.0)
+
+    @pytest.mark.parallel(mode=2)
+    def test_multi_allreduce_time_cond(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 20
+        ct = ConditionalDimension(name="ct", parent=tt, factor=2)
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+        h = TimeFunction(name="h", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+
+        op = Operator([Eq(g, 0), Eq(ux.forward, tt), Inc(g, ux), Inc(h, ux)], name="Op")
+        assert_structure(op, ['t', 't,x,y', 't,x,y'], 'txyxy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+
+        expected = [nx * ny * max(t-1, 0) for t in range(0, nt, 2)]
+        assert np.allclose(g.data, expected)
+        assert np.allclose(h.data, expected)
+
+    @pytest.mark.parallel(mode=2)
+    def test_allreduce_multicond(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 20
+        ct = ConditionalDimension(name="ct", parent=tt, factor=2)
+        ct2 = ConditionalDimension(name="ct2", parent=tt, factor=8)
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        uy = TimeFunction(name="uy", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+        h = TimeFunction(name="h", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+
+        op = Operator([Eq(g, 0), Eq(ux.forward, tt), Inc(g, ux), Inc(h, ux),
+                       Eq(uy, tt, implicit_dims=ct2)],
+                      name="Op")
+        assert_structure(op, ['t', 't,x,y', 't,x,y', 't,x,y'], 'txyxyxy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        # Check conditionals
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 3
+        # First one is just g initialization
+        sym0 = FindSymbols().visit(conds[0])
+        assert set(sym0) == {ct.symbolic_factor, tt, g}
+        assert grid.distributor._obj_comm not in sym0
+        # Second one is g and h and allreduce
+        sym1 = FindSymbols().visit(conds[1])
+        assert g in sym1
+        assert h in sym1
+        assert ux in sym1
+        # The allreduce
+        assert grid.distributor._obj_comm in sym1
+        # Last one is only uy
+        sym2 = FindSymbols().visit(conds[-1])
+        assert g not in sym2
+        assert h not in sym2
+        assert uy in sym2
+        assert grid.distributor._obj_comm not in sym2
+
+        op.apply(time_m=0, time_M=nt-1)
+
+        expected = [nx * ny * max(t-1, 0) for t in range(0, nt, 2)]
+        assert np.allclose(g.data, expected)
+        assert np.allclose(h.data, expected)
 
 
 class TestOperatorAdvanced:
@@ -2780,6 +3107,27 @@ class TestOperatorAdvanced:
         assert np.isclose(norm(u1), 12445251.87, rtol=1e-7)
         assert np.isclose(norm(v1), 147063.38, rtol=1e-7)
 
+    @pytest.mark.parallel(mode=1)
+    def test_interpolation_at_uforward(self, mode):
+        grid = Grid(shape=(10, 10, 10))
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2, time_order=2)
+
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=1, nt=10)
+
+        eqns = [Eq(u.forward, u.laplace + u.backward + 1),
+                rec.interpolate(expr=u.forward)]
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 2, 1)
+        args = calls[0].arguments
+        assert args[-2].name == 't2'
+        assert args[-2].origin == t + 1
+
 
 def gen_serial_norms(shape, so):
     """
@@ -2926,12 +3274,12 @@ class TestElasticLike:
         u_t = Eq(tau.forward, damp * solve(pde_tau, tau.forward))
 
         op = Operator([u_v] + [u_t] + rec_term)
+        op.cfunction
+
         assert len(op._func_table) == 11
 
         calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
-
         assert len(calls) == 5
-
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[0])) == 1
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[1])) == 4
         assert len(FindNodes(HaloUpdateCall).visit(op.body.body[1].body[1].body[2])) == 0
@@ -2979,6 +3327,7 @@ class TestElasticLike:
 
         op0 = Operator([u_v, u_tau, rec_term0])
 
+        check_halo_exchanges(op0, 3, 2)
         calls = [i for i in FindNodes(Call).visit(op0) if isinstance(i, HaloUpdateCall)]
 
         assert len(calls) == 3
@@ -2995,15 +3344,11 @@ class TestElasticLike:
         rec_term1 = rec.interpolate(expr=v.forward)
 
         op1 = Operator([u_v, u_tau, rec_term1])
+        op1.cfunction
 
-        calls = [i for i in FindNodes(Call).visit(op1) if isinstance(i, HaloUpdateCall)]
-
-        assert len(calls) == 3
-        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[0])) == 0
-        assert len(FindNodes(HaloUpdateCall).visit(op1.body.body[1].body[1])) == 3
+        calls, _ = check_halo_exchanges(op1, 2, 2)
         assert calls[0].arguments[0] is tau
         assert calls[1].arguments[0] is v
-        assert calls[2].arguments[0] is v
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_v2(self, mode, setup):
@@ -3060,25 +3405,25 @@ class TestElasticLike:
         rec_term3 = rec2.interpolate(expr=v2.forward)
 
         op3 = Operator([u_v, u_v2, u_tau, u_tau2, rec_term0, rec_term3])
+        op3.cfunction
 
         calls = [i for i in FindNodes(Call).visit(op3) if isinstance(i, HaloUpdateCall)]
 
-        assert len(calls) == 5
+        assert len(calls) == 4
         assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[0])) == 1
-        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 4
+        assert len(FindNodes(HaloUpdateCall).visit(op3.body.body[1].body[1].body[1])) == 3
         assert calls[0].arguments[0] is v
         assert calls[1].arguments[0] is tau
         assert calls[1].arguments[1] is tau2
         assert calls[2].arguments[0] is v
         assert calls[3].arguments[0] is v2
-        assert calls[4].arguments[0] is v2
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_backward(self, mode):
-        '''
+        """
         Similar to test_issue_2448, but with backward instead of forward
         so that the hoisted halo has different starting point
-        '''
+        """
         shape = (2,)
         so = 2
 
@@ -3135,6 +3480,14 @@ class TestTTIOp:
         assert len(calls) == 1
         assert calls[0].functions[0].name == 'u'
         assert calls[0].functions[1].name == 'v'
+
+
+def get_time_loop(op):
+    iters = FindNodes(Iteration).visit(op)
+    for i in iters:
+        if i.dim.is_Time:
+            return i
+    assert False
 
 
 if __name__ == "__main__":
