@@ -301,7 +301,7 @@ class InjectBuffers(Queue):
         buf_reuse = self.options['buf-reuse']
 
         if callable(buf_reuse):
-            cbk = lambda v: [i for i in v if buf_reuse(descriptors[i].f)]
+            cbk = lambda v: [i for i in v if buf_reuse(descriptors[i])]
         else:
             cbk = lambda v: v
 
