@@ -26,8 +26,9 @@ RUN ./configure \
         --prefix=/opt/python3 \
         --disable-gil \
         --enable-optimizations \
+        --enable-multilib \
         --enable-shared \
-        --enable-multilib
+        LDFLAGS="-Wl,-rpath /opt/python3/lib"
 RUN make -j$(nproc)
 RUN make install
 
