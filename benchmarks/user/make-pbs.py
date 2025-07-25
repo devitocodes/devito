@@ -4,7 +4,7 @@ import devito
 
 
 def generate(args):
-    join = lambda l: ' '.join('%d' % i for i in l)
+    join = lambda l: ' '.join(f'{i}' for i in l)
     args = vars(args)
     args['shape'] = join(args['shape'])
     args['space_order'] = join(args['space_order'])
