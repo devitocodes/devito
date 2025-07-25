@@ -7,7 +7,7 @@ from math import ceil
 from tempfile import gettempdir
 
 from sympy import sympify
-from sympy import Basic as SympyBasic
+import sympy
 import numpy as np
 
 from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
@@ -1344,6 +1344,11 @@ class ArgumentsMap(dict):
         """Symbols in the Operator which may or may not carry data"""
         return FindSymbols().visit(self.op)
 
+    @cached_property
+    def _op_functions(self):
+        """Function symbols in the Operator"""
+        return [i for i in self._op_symbols if i.is_DiscreteFunction and not i.alias]
+
     def _apply_override(self, i):
         try:
             return self.get(i.name, i)._obj
@@ -1364,7 +1369,7 @@ class ArgumentsMap(dict):
             nbytes = obj.nbytes
 
         # Could nominally have symbolic nbytes at this point
-        if isinstance(nbytes, SympyBasic):
+        if isinstance(nbytes, sympy.Basic):
             return subs_op_args(nbytes, self)
 
         return nbytes
@@ -1431,10 +1436,7 @@ class ArgumentsMap(dict):
         host = 0
         device = 0
         # Filter out arrays, aliases and non-AbstractFunction objects
-        op_symbols = [i for i in self._op_symbols if i.is_AbstractFunction
-                      and not i.is_ArrayBasic and not i.alias]
-
-        for i in op_symbols:
+        for i in self._op_functions:
             v = self._get_nbytes(i)
             if i._mem_host or i._mem_mapped:
                 # No need to add to device , as it will be counted
@@ -1510,13 +1512,10 @@ class ArgumentsMap(dict):
     @cached_property
     def nbytes_snapshots(self):
         # Filter to streamed functions
-        op_symbols = [i for i in self._op_symbols if i.is_AbstractFunction
-                      and not i.is_ArrayBasic and not i.alias]
-
         disk = 0
-        for i in op_symbols:
+        for i in self._op_functions:
             try:
-                if i._child not in op_symbols:
+                if i._child not in self._op_functions:
                     # Use only the "innermost" layer to avoid counting snapshots
                     # twice
                     v = self._apply_override(i)

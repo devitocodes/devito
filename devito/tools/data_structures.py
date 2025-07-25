@@ -1,6 +1,7 @@
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
 from functools import reduce, cached_property
+import json
 
 import numpy as np
 from multidict import MultiDict
@@ -672,6 +673,11 @@ class MemoryEstimate(frozendict):
     human_readable: frozendict
         The mapper, albeit with human-readable memory usage (MB, GB, etc)
         rather than raw bytes.
+
+    Methods
+    -------
+    to_json(path)
+        Write the memory estimate to a JSON for scheduler ingestion.
     """
 
     def __init__(self, *args, **kwargs):
@@ -689,6 +695,21 @@ class MemoryEstimate(frozendict):
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.name}): {self.human_readable._dict}'
+
+    def to_json(self, path):
+        """
+        Write the MemoryEstimate to JSON for ingestion by a scheduler.
+
+        Arguments
+        ---------
+        path: str
+            The path to which the memory estimate should be written.
+        """
+        summary = {'name': self.name, **self._dict}
+        json_object = json.dumps(summary, indent=4)
+
+        with open(path, "w") as outfile:
+            outfile.write(json_object)
 
 
 class UnboundTuple(tuple):
