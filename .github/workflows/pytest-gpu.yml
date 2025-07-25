@@ -105,7 +105,14 @@ jobs:
         run: |
           ci_env=$(bash <(curl -s https://codecov.io/env))
 
-          docker run ${{ matrix.flags }} $ci_env -e CI=true "${DOCKER_IMAGE}" \
+          # docker run ${{ matrix.flags }} $ci_env -e CI=true "${DOCKER_IMAGE}" \
+          docker run ${{ matrix.flags }} $ci_env -e CI=true  \
+            -e PYTHONFAULTHANDLER=1 \
+            -e CUDA_LAUNCH_BLOCKING=1 \
+            -e NV_ACC_NOTIFY=3 \
+            -e NV_ACC_DEBUG=1 \
+            -e DEVITO_LOGGING=DEBUG \
+            "${DOCKER_IMAGE}" \
             pytest -vv -ra -l -s --full-trace --maxfail=1 \
             --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
 
