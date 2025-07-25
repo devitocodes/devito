@@ -70,7 +70,7 @@ jobs:
             --init --network=host
             --device=/dev/kfd --device=/dev/dri
             --ipc=host
-            --group-add video --group-add $(getent group render | cut -d: -f3)
+            --group-add video --group-add "$(getent group render | cut -d: -f3)"
             --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
             --rm -t
             --name ${CONTAINER_BASENAME}
@@ -81,13 +81,15 @@ jobs:
 
       - name: Set per-runner tags
         run: |
-          echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_ENV
           echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
           echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
 
       - name: Build docker image
         run: |
+          docker buildx create --use --name $RUNNER_NAME || true
           docker build . \
+            --builder $RUNNER_NAME \
+            --label ci-run=$GITHUB_RUN_ID \
             --rm --pull \
             --file docker/Dockerfile.devito \
             --tag "${DOCKER_IMAGE}" \
@@ -98,16 +100,47 @@ jobs:
 
       - name: Probe gpu
         run: |
-          # Run a simple driver cmd first (nvidia-smi / rocm-smi)
+          # Make sure CUDA_VISIBLE_DEVICES is at least *something* on NVIDIA
+          # runners; fall back to "all" so the driver probe does not fail.
+          if [[ "${{ matrix.runner_label }}" == "nvidiagpu" && -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
+            echo "CUDA_VISIBLE_DEVICES=all" >> $GITHUB_ENV
+          fi
+
+          # Run a simple driver-probe command (nvidia-smi / rocm-smi)
           docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
 
       - name: Test with pytest
+        env:
+          # Exported earlier in the job; needed inside the container for codecov
+          CODECOV_TOKEN: ${{ env.CODECOV_TOKEN }}
         run: |
+          # 1.  Add Codecov’s environment variables (GITHUB_SHA, etc.)
           ci_env=$(bash <(curl -s https://codecov.io/env))
 
-          docker run ${{ matrix.flags }} $ci_env -e CI=true "${DOCKER_IMAGE}" \
+          # 2.  For NVIDIA, make sure the runner gave us a GPU mask
+          # Default to empty
+          NVIDIA_ENV_FLAGS=""
+          # For NVIDIA, check for device mask AND set specific env vars
+          if [[ "${{ matrix.runner_label }}" == "nvidiagpu" ]]; then
+            : "${CUDA_VISIBLE_DEVICES:?CUDA_VISIBLE_DEVICES not set on NVIDIA runner}"
+            NVIDIA_ENV_FLAGS=" \
+              -e CUDA_LAUNCH_BLOCKING=1 \
+              -e NV_ACC_NOTIFY=3 \
+              -e NV_ACC_DEBUG=1"
+          fi
+
+          # 3.  Run the test suite using the matrix-defined flags
+          docker run ${{ matrix.flags }} \
+            ${ci_env} \
+            -e CI=true \
+            -e PYTHONFAULTHANDLER=1 \
+            -e DEVITO_LOGGING=DEBUG \
+            -e CODECOV_TOKEN \
+            ${NVIDIA_ENV_FLAGS} \
+            "${DOCKER_IMAGE}" \
             pytest -vv -ra -l -s --full-trace --maxfail=1 \
-            --cov --cov-config=.coveragerc --cov-report=xml ${{ matrix.test_files }}
+                   --cov --cov-config=.coveragerc --cov-report=xml \
+                   ${{ matrix.test_files }}
 
       - name: Test examples
         run: |
@@ -121,6 +154,9 @@ jobs:
       - name: Clean up test image
         if: always()
         run: |
-          docker rmi -f "${DOCKER_IMAGE}" || true     # remove the image
-          docker system prune -f                      # free dangling layers
+          # Remove only the image we just built
+          docker rmi -f "${DOCKER_IMAGE}" || true
 
+          # Guard global prune the layers we created
+          # (label ci-run=$GITHUB_RUN_ID)
+          docker image prune -f --filter label=ci-run=$GITHUB_RUN_ID
