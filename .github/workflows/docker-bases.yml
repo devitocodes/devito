@@ -14,18 +14,21 @@ on:
       - "/docker/Dockerfile.nogil"
   workflow_dispatch:
     inputs:
+      nogil:
+        type: boolean
+        default: true
       cpu:
         type: boolean
-        default: false
+        default: true
       nvidia:
         type: boolean
-        default: false
+        default: true
       amd:
         type: boolean
-        default: false
+        default: true
       intel:
         type: boolean
-        default: false
+        default: true
 
       tags:
         description: "Build compiler bases"
@@ -40,6 +43,7 @@ jobs:
   deploy-nogil-base:
     name: "python-nogil-base"
     runs-on: ubuntu-latest
+    if: inputs.nogil
     env:
       DOCKER_BUILDKIT: "1"
 
@@ -64,7 +68,6 @@ jobs:
 
       - name: Build free-threaded Python base
         uses: docker/build-push-action@v6
-        if: ${{ matrix.disable-gil }}
         with:
           context: .
           file: "./docker/Dockerfile.nogil"
