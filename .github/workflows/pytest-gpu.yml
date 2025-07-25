@@ -124,3 +124,10 @@ jobs:
         run: |
           docker run ${{ matrix.flags }} --env DEVITO_MPI=1 "${DOCKER_IMAGE}" \
             mpiexec -n 2 pytest ${{ matrix.test_examples }}
+
+      - name: Clean up test image
+        if: always()
+        run: |
+          docker rmi -f "${DOCKER_IMAGE}" || true     # drop the tag
+          docker system prune -f                      # free dangling layers
+
