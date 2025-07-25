@@ -1,7 +1,9 @@
+import os
 from itertools import permutations
 from functools import reduce
 from operator import mul
 import logging
+import json
 
 import numpy as np
 import sympy
@@ -2268,3 +2270,21 @@ class TestEstimateMemory:
 
             # Matching memory allocated both on host and device for memmap
             self.parse_output(summary, check)
+
+    def test_to_json(self):
+        grid = Grid(shape=(101, 101))
+        f = Function(name='f', grid=grid, space_order=2)
+        op = Operator(Eq(f, 1))
+        summary = op.estimate_memory()
+
+        summary.to_json("memory_estimate_output.json")
+
+        with open("memory_estimate_output.json", "r") as infile:
+            json_object = json.load(infile)
+
+            assert json_object['name'] == summary.name
+            assert json_object['host'] == summary['host']
+            assert json_object['device'] == summary['device']
+
+        # Clean up
+        os.remove("memory_estimate_output.json")
