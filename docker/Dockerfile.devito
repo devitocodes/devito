@@ -11,14 +11,23 @@ FROM $base AS builder
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 
+
 ##################  Install devito ############################################
 
 ENV PIP_USE_PEP517=1
-# Install pip dependencies
+
+# Install pip dependencies
 RUN python3 -m venv /venv && \
-    /venv/bin/pip install --no-cache-dir --upgrade pip wheel setuptools && \
-    /venv/bin/pip install --no-cache-dir jupyter && \
-    ln -fs /app/nvtop/build/src/nvtop /venv/bin/nvtop
+    /venv/bin/pip install --no-cache-dir --upgrade pip wheel setuptools
+# Jupyter cannot yet be installed with a free-threaded Python build
+# See https://github.com/jupyterlab/jupyterlab/issues/16915
+ARG base
+RUN case "$base" in *nogil) \
+        echo "Skipping jupyter installation for free-threaded build";; \
+    *) \
+        /venv/bin/pip install --no-cache-dir jupyter;; \
+    esac;
+RUN ln -fs /app/nvtop/build/src/nvtop /venv/bin/nvtop
 
 # Copy Devito
 ADD . /app/devito
