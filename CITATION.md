@@ -36,15 +36,19 @@ If you publish results using Devito, we would be grateful if you would cite the 
 ```
 
 Additionally, if you use Devito for distributed runs, you may want to cite the following paper as well:
+
 ```bibtex
 @misc{bisbas2024automatedmpixcodegeneration,
-      title={Automated MPI-X code generation for scalable finite-difference solvers}, 
-      author={George Bisbas and Rhodri Nelson and Mathias Louboutin and Fabio Luporini and Paul H. J. Kelly and Gerard Gorman},
-      year={2024},
-      eprint={2312.13094},
-      archivePrefix={arXiv},
-      primaryClass={cs.DC},
-      url={https://arxiv.org/abs/2312.13094}, 
+  title={Automated MPI-X code generation for scalable finite-difference solvers},
+  author={Bisbas, George and Nelson, Rhodri and Louboutin, Mathias and Luporini, Fabio and Kelly, Paul H.J. and Gorman, Gerard},
+  booktitle={2025 IEEE International Parallel and Distributed Processing Symposium (IPDPS)}, 
+  title={Automated MPI-X Code Generation for Scalable Finite-Difference Solvers}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={689-701},
+  keywords={Codes;Source coding;Parallel processing;Throughput;Mathematical models;Hybrid power systems;DSL;Kernel;Tuning;Finite difference methods;DSLs;finite-difference method;symbolic computation;stencil computation;MPI;distributed-memory parallelism;compilation;high-performance computing;CPUs;GPUs},
+  doi={10.1109/IPDPS64566.2025.00067}
 }
 ```
 
