@@ -1891,8 +1891,17 @@ class LocalType(Basic):
         return self._liveness == 'lazy'
 
     """
-    A modifier added to the subclass C declaration when it appears
-    in a function signature. For example, a subclass might define `_C_modifier = '&'`
+    A modifier added to the declaration of the LocalType when it appears in a
+    function signature. For example, a subclass might define `_C_modifier = '&'`
     to impose pass-by-reference semantics.
     """
     _C_modifier = None
+
+    """
+    One or more optional keywords added to the declaration of the LocalType
+    in between the type and the variable name when it appears in a function
+    signature. For example, some languages support these to modify the way
+    the compiler generates code for passing the parameter and how the
+    runtime accesses it.
+    """
+    _C_tag = None
