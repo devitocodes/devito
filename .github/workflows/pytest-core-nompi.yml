@@ -16,7 +16,7 @@ on:
 
 jobs:
   pytest:
-    name: ${{ matrix.name }}-${{ matrix.set }}
+    name: ${{ matrix.name }}-${{ matrix.suffix || matrix.set }}
     runs-on: "${{ matrix.os }}"
 
     env:
@@ -50,6 +50,7 @@ jobs:
           arch: "gcc-11"
           language: "CXX"
           sympy: "1.14"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py312-gcc12-cxxomp
           python-version: '3.12'
@@ -57,6 +58,7 @@ jobs:
           arch: "gcc-12"
           language: "CXXopenmp"
           sympy: "1.13"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py310-gcc14-omp
           python-version: '3.10'
@@ -64,6 +66,7 @@ jobs:
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.12"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py311-gcc10-noomp
           python-version: '3.11'
@@ -71,6 +74,7 @@ jobs:
           arch: "gcc-10"
           language: "C"
           sympy: "1.14"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py312-gcc13-omp
           python-version: '3.12'
@@ -78,6 +82,7 @@ jobs:
           arch: "gcc-13"
           language: "openmp"
           sympy: "1.13"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py310-gcc9-omp
           python-version: '3.10'
@@ -85,6 +90,7 @@ jobs:
           arch: "custom"
           language: "openmp"
           sympy: "1.12"
+          test-path: 'tests/'
 
         - name: pytest-osx-py312-clang-omp
           python-version: '3.12'
@@ -92,6 +98,8 @@ jobs:
           arch: "clang"
           language: "openmp"
           sympy: "1.12"
+          set: base
+          test-path: 'tests/'
 
         - name: pytest-docker-py310-gcc-omp
           python-version: '3.10'
@@ -100,6 +108,7 @@ jobs:
           arch: "gcc"
           language: "openmp"
           sympy: "1.13"
+          test-path: 'tests/'
 
         - name: pytest-docker-py310-icx-omp
           python-version: '3.10'
@@ -108,6 +117,7 @@ jobs:
           arch: "icx"
           language: "openmp"
           sympy: "1.13"
+          test-path: 'tests/'
 
         - name: pytest-docker-py313-gcc-nogil
           python-version: '3.13'
@@ -116,6 +126,9 @@ jobs:
           arch: "gcc"
           language: "C"
           sympy: "1.14"
+          set: base
+          test-path: 'tests/test_operator.py'
+          suffix: 'operator'
 
         - name: pytest-ubuntu-py313-gcc14-omp
           python-version: '3.13'
@@ -123,23 +136,17 @@ jobs:
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.14"
-          set: operator
+          test-path: 'tests/'
 
         - set: base
           test-set: 'not adjoint'
-          test-path: 'tests/'
 
         - set: adjoint
           test-set: 'adjoint'
-          test-path: 'tests/'
 
         - set: operator
           test-set: ''
           test-path: 'tests/test_operator.py'
-
-        exclude:
-        - name: pytest-osx-py312-clang-omp
-          set: adjoint
 
     steps:
     - name: Checkout devito
