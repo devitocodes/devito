@@ -19,12 +19,11 @@ from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
 from devito.types.dimension import CustomDimension
 from devito.types.misc import Fence, VolatileInt
-from devito.types.object import LocalObject
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'ThreadArray', 'PThreadArray',
            'SharedData', 'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray',
-           'ThreadPoolSync', 'ThreadCommit', 'ThreadWait', 'FunctionMap']
+           'ThreadPoolSync', 'ThreadCommit', 'ThreadWait']
 
 
 class NThreadsAbstract(Scalar):
@@ -365,19 +364,3 @@ class TBArray(Array):
         kwargs['liveness'] = 'eager'
 
         super().__init_finalize__(*args, **kwargs)
-
-
-class FunctionMap(LocalObject):
-
-    """
-    Wrap a Function in a LocalObject.
-    """
-
-    __rargs__ = ('name', 'tensor')
-
-    def __init__(self, name, tensor, **kwargs):
-        super().__init__(name, **kwargs)
-        self.tensor = tensor
-
-    def _hashable_content(self):
-        return super()._hashable_content() + (self.tensor,)
