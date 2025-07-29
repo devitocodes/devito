@@ -16,6 +16,7 @@ from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
+from devito.symbolics.queries import q_leaf
 from devito.types.basic import AbstractFunction
 from devito.tools import ctypes_to_cstr, dtype_to_ctype, ctypes_vector_mapper
 
@@ -364,7 +365,7 @@ class BasePrinter(CodePrinter):
     def _print_UnaryOp(self, expr, op=None, parenthesize=False):
         op = op or expr._op
         base = self._print(expr.base)
-        if not expr.base.is_Symbol or parenthesize:
+        if not q_leaf(expr.base) or parenthesize:
             base = f'({base})'
         return f'{op}{base}'
 
