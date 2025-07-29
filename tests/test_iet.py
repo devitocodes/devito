@@ -20,8 +20,9 @@ from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
                               String, ListInitializer, SizeOf, FLOAT)
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
 from devito.types import (
-    CustomDimension, Array, LocalObject, Symbol, Pointer, FunctionMap
+    CustomDimension, Array, LocalObject, Symbol, Pointer
 )
+from devito.types.misc import FunctionMap
 
 
 @pytest.fixture
@@ -320,7 +321,7 @@ def test_make_cuda_tensor_map():
                 Byref(self),
                 Macro('CU_TENSOR_MAP_DATA_TYPE_FLOAT32'),
                 4, self.tensor.dmap, sizes, strides,
-                ]
+            ]
             call = Call('cuTensorMapEncodeTiled', arguments)
 
             return call
@@ -340,10 +341,10 @@ def test_make_cuda_tensor_map():
 static void foo()
 {
   CUtensorMap tmap;
-  cuTensorMapEncodeTiled(&(tmap),CU_TENSOR_MAP_DATA_TYPE_FLOAT32,4,d_u,{u_vec->size[3], u_vec->size[2], u_vec->size[1], u_vec->size[0]},{sizeof(float)*u_vec->size[3], sizeof(float)*u_vec->size[2]*u_vec->size[3], sizeof(float)*u_vec->size[1]*u_vec->size[2]*u_vec->size[3]});
+  cuTensorMapEncodeTiled(&tmap,CU_TENSOR_MAP_DATA_TYPE_FLOAT32,4,d_u,{u_vec->size[3], u_vec->size[2], u_vec->size[1], u_vec->size[0]},{sizeof(float)*u_vec->size[3], sizeof(float)*u_vec->size[2]*u_vec->size[3], sizeof(float)*u_vec->size[1]*u_vec->size[2]*u_vec->size[3]});
 
   foo(tmap);
-}"""
+}"""  # noqa
 
 
 def test_cpp_local_object():
