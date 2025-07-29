@@ -1140,7 +1140,7 @@ class NvidiaDevice(Device):
             warning(f"Couldn't establish if `query={query}` is supported on this "
                     "system. Assuming it is not.")
             return False
-        elif query == 'async-loads' and cc >= 80:
+        elif query == 'async-pipe' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
         elif query in ('tma', 'thread-block-cluster') and cc >= 90:
@@ -1157,7 +1157,7 @@ class Volta(NvidiaDevice):
 class Ampere(Volta):
 
     def supports(self, query, language=None):
-        if query == 'async-loads':
+        if query == 'async-pipe':
             return True
         else:
             return super().supports(query, language)
