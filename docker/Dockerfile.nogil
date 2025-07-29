@@ -8,13 +8,20 @@ FROM $base AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install build dependencies for Python
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    git \
-    libffi-dev \
-    libssl-dev \
-    zlib1g-dev
+# Add deb-src URI sources for Python build dependence discovery
+RUN echo "deb-src http://archive.ubuntu.com/ubuntu/ jammy main" >> /etc/apt/sources.list && \
+    apt-get update
+
+# Install required build dependencies for Python
+RUN apt-get build-dep -y python3
+
+# Install dependencies for all optional modules
+# See https://devguide.python.org/getting-started/setup-building/index.html#install-dependencies
+RUN apt-get install -y \
+        build-essential gdb lcov pkg-config \
+        libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev \
+        libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev \
+        lzma lzma-dev tk-dev uuid-dev zlib1g-dev libmpdec-dev libzstd-dev
 
 # Clone CPython repository at the 3.13 branch
 RUN git clone --depth 1 --branch 3.13 https://github.com/python/cpython.git /tmp/cpython
@@ -32,15 +39,17 @@ RUN ./configure \
 RUN make -j$(nproc)
 RUN make install
 
-# Clean up temp files
+
+# Reset the working directory and clean up
+WORKDIR /
 RUN rm -rf /tmp/cpython
 
 # Set the PATH to include custom Python build
 ENV PATH="/opt/python3/bin:${PATH}"
 
 # Install some Python runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libnuma-dev && \
+RUN apt-get install -y \
+        libnuma-dev && \
     rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m pip install --upgrade pip && \
