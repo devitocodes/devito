@@ -23,12 +23,13 @@ RUN apt-get install -y \
         libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev \
         lzma lzma-dev tk-dev uuid-dev zlib1g-dev libmpdec-dev libzstd-dev
 
+
 # Clone CPython repository at the 3.13 branch
 RUN git clone --depth 1 --branch 3.13 https://github.com/python/cpython.git /tmp/cpython
 
-WORKDIR /tmp/cpython
 
 # Configure, build, and install Python 3.13 with the GIL disabled
+WORKDIR /tmp/cpython
 RUN ./configure \
         --prefix=/opt/python3 \
         --disable-gil \
@@ -46,6 +47,7 @@ RUN rm -rf /tmp/cpython
 
 # Set the PATH to include custom Python build
 ENV PATH="/opt/python3/bin:${PATH}"
+
 
 # Install some Python runtime dependencies
 RUN apt-get install -y \
