@@ -17,7 +17,8 @@ from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
                               FLOAT, ListInitializer, SizeOf)
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import Array, LocalObject, Symbol, FunctionMap
+from devito.types import Array, LocalObject, Symbol
+from devito.types.misc import FunctionMap
 
 
 @pytest.fixture
