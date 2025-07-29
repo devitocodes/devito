@@ -52,7 +52,7 @@ jobs:
 
       - name: Set per‑runner variables
         run: |
-          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-$RUNNER_NAME" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
 
       - name: Check event name
         run: echo ${{ github.event_name }}
