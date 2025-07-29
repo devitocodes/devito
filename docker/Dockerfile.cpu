@@ -6,9 +6,9 @@
 
 # Base image is either ubuntu or the nogil base
 ARG base=ubuntu:22.04
-ARG gcc=""
 
 FROM $base AS base
+ARG gcc=""
 
 ENV DEBIAN_FRONTEND=noninteractive
 
