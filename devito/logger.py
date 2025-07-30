@@ -22,6 +22,10 @@ ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 
 logging.addLevelName(PERF, "PERF")
+# Note: Do not use
+# logging.captureWarnings(True)
+# here as it will swallow all warnings (not just Devito warnings)
+# Instead use the `devito.warnings` module to log warnings
 
 logger_registry = {
     'DEBUG': DEBUG,
