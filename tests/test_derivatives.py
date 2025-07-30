@@ -10,6 +10,7 @@ from devito.finite_differences.differentiable import (Add, EvalDerivative, Index
                                                       DiffDerivative)
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
+from devito.warnings import DevitoWarning
 
 _PRECISION = 9
 
@@ -1160,9 +1161,18 @@ class TestExpansion:
     def test_expand_nest(self):
         """
         Check valid nested derivative expands (combining x derivatives)
+        Note that it is important to specify `fd_order` to avoid raising a warning
         """
+        a = self.u.dx(fd_order=2)
+        b = a.subs({self.u: -5*self.u.dx(fd_order=2) + 4*self.u + 3}, postprocess=False)
+        expanded = 4*Derivative(self.u, self.x, fd_order=2) \
+            - 5*Derivative(self.u, (self.x, 2), fd_order=4)
+        assert b.expand(add=True, nest=True) == expanded
+
+        # Check that doing the naïve thing raises a warning, but asserts equal
         expanded = 4*Derivative(self.u, self.x) - 5*Derivative(self.u, (self.x, 2))
-        assert self.b.expand(add=True, nest=True) == expanded
+        with pytest.warns(DevitoWarning):
+            assert self.b.expand(add=True, nest=True) == expanded
 
     def test_nested_orders(self):
         """
@@ -1170,7 +1180,7 @@ class TestExpansion:
         """
         # Default fd_order
         du22 = Derivative(Derivative(self.u, (self.x, 2)), (self.x, 2))
-        with pytest.warns(UserWarning):
+        with pytest.warns(DevitoWarning):
             du22_expanded = du22.expand(nest=True)
         du4 = Derivative(self.u, (self.x, 4))
         assert du22_expanded == du4

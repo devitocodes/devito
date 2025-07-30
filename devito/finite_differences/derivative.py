@@ -2,7 +2,6 @@ from collections import defaultdict
 from collections.abc import Iterable
 from functools import cached_property
 from itertools import chain
-from warnings import warn
 
 import sympy
 
@@ -13,6 +12,7 @@ from .rsfd import d45
 from devito.tools import (as_mapper, as_tuple, frozendict, is_integer,
                           Pickable)
 from devito.types.utils import DimensionTuple
+from devito.warnings import warn
 
 __all__ = ['Derivative']
 
@@ -96,8 +96,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     def __new__(cls, expr, *dims, **kwargs):
         # TODO: Delete this
         if kwargs.get('preprocessed', False):
-            from warnings import warn
-            warn('I removed the `preprocessed` kwarg')
+            from warnings import warn as pywarn
+            pywarn('I removed the `preprocessed` kwarg')
 
         # Validate the input arguments `expr`, `dims` and `deriv_order`
         expr = cls._validate_expr(expr)
