@@ -158,7 +158,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     @staticmethod
     def _validate_expr(expr):
         """
-        Validate the provided `expr`. It must be of "differentiable" type or
+        Validate the provided `expr`. It must be of `Differentiable` type or
         convertible to "differentiable" type.
         """
         if type(expr) is sympy.Derivative:
@@ -201,12 +201,13 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         deriv_order = as_tuple(deriv_order)
         if len(deriv_order) != len(dims):
             raise ValueError(
-                'Length of `deriv_order` does not match the length of dimensions'
+                f'Length of `deriv_order`: {deriv_order !r}, '
+                f'does not match the length of dimensions: {dims !r}'
             )
-        if any([not is_integer(d) or d < 0 for d in deriv_order]):
+        if any(not is_integer(d) or d < 0 for d in deriv_order):
             raise TypeError(
-                'Invalid type in `deriv_order`, all elements must be non-negative'
-                'Python `int`s'
+                f'Invalid type in `deriv_order`: {deriv_order !r}, '
+                'all elements must be non-negative Python `int`s'
             )
         return deriv_order
 
@@ -220,8 +221,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             if isinstance(d, Iterable):
                 if not is_integer(d[1]) or d[1] < 0:
                     raise TypeError(
-                        'Invalid type for derivative order, it must be'
-                        'non-negative Python `int`'
+                        f'Invalid type for derivative order: {d !r},'
+                        'it must be non-negative Python `int`'
                     )
                 else:
                     dcounter[d[0]] += d[1]
@@ -232,12 +233,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     @staticmethod
     def _validate_fd_order(fd_order, expr, dims, dcounter):
         """
-        If provided `fd_order` must correspond to the provided dimensions.
-        Required `expr`, `dims` and the derivative counter to validate.
-        If not provided the maximum supported order will be used.
+        If provided, `fd_order` must correspond to the provided dimensions.
+        Required: `expr`, `dims`, and the derivative counter to validate.
+        If not provided, the maximum supported order will be used.
         """
         if fd_order is not None:
-            # If `fd_order` is specified validate
+            # If `fd_order` is specified, then validate
             fcounter = defaultdict(int)
             # First create a dictionary mapping variable wrt which to differentiate
             # to the `fd_order`
@@ -254,9 +255,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 else:
                     order = expr.space_order
                 if o > order > 1:
-                    # Only handle cases greater than 2 since mumble
+                    # Only handle cases greater than 2 since <mumble>
                     # interpolation and averaging
-                    # TODO: Check if this is sane
                     raise ValueError(
                         f'Function does not support {d}-derivative with `fd_order` {o}'
                     )
@@ -338,10 +338,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         return self._rebuild(**rkw)
 
-    def _rebuild(self, *args, **kwargs):
+    def func(self, *args, **kwargs):
         return super()._rebuild(*args, **kwargs)
-
-    func = _rebuild
 
     def _subs(self, old, new, **hints):
         # Basic case
@@ -611,8 +609,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         # 2. Count the number of derivatives to take wrt each variable as well as
         # the finite difference order to use by iterating over the chained lists of
         # variables.
-        new_deriv_order = tuple(chain(self.deriv_order, self.expr.deriv_order))
-        new_fd_order = tuple(chain(self.fd_order, self.expr.fd_order))
+        new_deriv_order = chain(self.deriv_order, self.expr.deriv_order)
+        new_fd_order = chain(self.fd_order, self.expr.fd_order)
         dcounter = defaultdict(int)
         fcounter = defaultdict(int)
         for d, do, fo in zip(new_dims, new_deriv_order, new_fd_order, strict=True):
