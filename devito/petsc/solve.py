@@ -1,317 +1,160 @@
-from functools import singledispatch
-
-import sympy
-
-from devito.finite_differences.differentiable import Mul
-from devito.finite_differences.derivative import Derivative
-from devito.types import Eq, Symbol, SteppingDimension, TimeFunction
+from devito.types import Symbol, SteppingDimension
 from devito.types.equation import PetscEq
 from devito.operations.solve import eval_time_derivatives
 from devito.symbolics import retrieve_functions
 from devito.tools import as_tuple, filter_ordered
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
-                                FieldData, MultipleFieldData, SubMatrices)
+                                FieldData, MultipleFieldData, Jacobian, Residual,
+                                MixedResidual, MixedJacobian, InitialGuess)
+from devito.petsc.types.equation import EssentialBC
 
 
-__all__ = ['PETScSolve', 'EssentialBC']
+__all__ = ['PETScSolve']
 
 
-def PETScSolve(target_eqns, target=None, solver_parameters=None, **kwargs):
+def PETScSolve(target_exprs, target=None, solver_parameters=None, options_prefix=None):
+    """
+    Returns a symbolic expression representing a linear PETSc solver,
+    enriched with all the necessary metadata for execution within an `Operator`.
+    When passed to an `Operator`, this symbolic equation triggers code generation
+    and lowering to the PETSc backend.
+
+    This function supports both single- and multi-target systems. In the multi-target
+    (mixed system) case, the solution vector spans all provided target fields.
+
+    Parameters
+    ----------
+    target_exprs : Eq or list of Eq, or dict of Function-like -> Eq or list of Eq
+        The targets and symbolic expressions defining the system to be solved.
+
+        - Single-field problem:
+            Pass a single Eq or list of Eq, and specify `target` separately:
+                PETScSolve(Eq1, target)
+                PETScSolve([Eq1, Eq2], target)
+
+        - Multi-field (mixed) problem:
+            Pass a dictionary mapping each target field to its Eq(s):
+                PETScSolve({u: Eq1, v: Eq2})
+                PETScSolve({u: [Eq1, Eq2], v: [Eq3, Eq4]})
+
+    target : Function-like
+        The function (e.g., `Function`, `TimeFunction`) into which the linear
+        system solves. This represents the solution vector updated by the solver.
+
+    solver_parameters : dict, optional
+        PETSc solver options.
+
+    Returns
+    -------
+    Eq:
+        A symbolic expression that wraps the linear solver.
+        This can be passed directly to a Devito Operator.
+    """
     if target is not None:
-        return InjectSolve(solver_parameters, {target: target_eqns}).build_eq()
+        return InjectSolve(
+            solver_parameters, {target: target_exprs}, options_prefix
+        ).build_expr()
     else:
-        return InjectSolveNested(solver_parameters, target_eqns).build_eq()
+        return InjectMixedSolve(
+            solver_parameters, target_exprs, options_prefix
+        ).build_expr()
 
 
 class InjectSolve:
-    def __init__(self, solver_parameters=None, target_eqns=None):
+    def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None):
         self.solver_params = solver_parameters
         self.time_mapper = None
-        self.target_eqns = target_eqns
+        self.target_exprs = target_exprs
+        self.options_prefix = options_prefix
 
-    def build_eq(self):
-        target, funcs, fielddata = self.linear_solve_args()
-        # Placeholder equation for inserting calls to the solver
+    def build_expr(self):
+        target, funcs, field_data = self.linear_solve_args()
+
+        # Placeholder expression for inserting calls to the solver
         linear_solve = LinearSolveExpr(
             funcs,
             self.solver_params,
-            fielddata=fielddata,
+            field_data=field_data,
             time_mapper=self.time_mapper,
-            localinfo=localinfo
+            localinfo=localinfo,
+            options_prefix=self.options_prefix
         )
-        return [PetscEq(target, linear_solve)]
+        return PetscEq(target, linear_solve)
 
     def linear_solve_args(self):
-        target, eqns = next(iter(self.target_eqns.items()))
-        eqns = as_tuple(eqns)
+        target, exprs = next(iter(self.target_exprs.items()))
+        exprs = as_tuple(exprs)
 
-        funcs = get_funcs(eqns)
+        funcs = get_funcs(exprs)
         self.time_mapper = generate_time_mapper(funcs)
         arrays = self.generate_arrays(target)
 
-        return target, tuple(funcs), self.generate_field_data(eqns, target, arrays)
+        exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
 
-    def generate_field_data(self, eqns, target, arrays):
-        formfuncs, formrhs = zip(
-            *[self.build_function_eqns(eq, target, arrays) for eq in eqns]
-        )
-        matvecs = [self.build_matvec_eqns(eq, target, arrays) for eq in eqns]
+        jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
+        residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
+        initial_guess = InitialGuess(target, exprs, arrays)
 
-        initialguess = [
-            eq for eq in
-            (self.make_initial_guess(e, target, arrays) for e in eqns)
-            if eq is not None
-        ]
-
-        return FieldData(
+        field_data = FieldData(
             target=target,
-            matvecs=matvecs,
-            formfuncs=formfuncs,
-            formrhs=formrhs,
-            initialguess=initialguess,
+            jacobian=jacobian,
+            residual=residual,
+            initial_guess=initial_guess,
             arrays=arrays
         )
 
-    def build_function_eqns(self, eq, target, arrays):
-        b, F_target, targets = separate_eqn(eq, target)
-        formfunc = self.make_formfunc(eq, F_target, arrays, targets)
-        formrhs = self.make_rhs(eq, b, arrays)
+        return target, tuple(funcs), field_data
 
-        return (formfunc, formrhs)
-
-    def build_matvec_eqns(self, eq, target, arrays):
-        b, F_target, targets = separate_eqn(eq, target)
-        if not F_target:
-            return None
-        matvec = self.make_matvec(eq, F_target, arrays, targets)
-        return matvec
-
-    def make_matvec(self, eq, F_target, arrays, targets):
-        if isinstance(eq, EssentialBC):
-            rhs = arrays['x']
-        else:
-            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
-            rhs = rhs.subs(self.time_mapper)
-        return Eq(arrays['y'], rhs, subdomain=eq.subdomain)
-
-    def make_formfunc(self, eq, F_target, arrays, targets):
-        if isinstance(eq, EssentialBC):
-            rhs = 0.
-        else:
-            rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
-            rhs = rhs.subs(self.time_mapper)
-        return Eq(arrays['f'], rhs, subdomain=eq.subdomain)
-
-    def make_rhs(self, eq, b, arrays):
-        rhs = 0. if isinstance(eq, EssentialBC) else b.subs(self.time_mapper)
-        return Eq(arrays['b'], rhs, subdomain=eq.subdomain)
-
-    def make_initial_guess(self, eq, target, arrays):
-        """
-        Enforce initial guess to satisfy essential BCs.
-        # TODO: For time-stepping, only enforce these once outside the time loop
-        and use the previous time-step solution as the initial guess for next time step.
-        # TODO: Extend this to "coupled".
-        """
-        if isinstance(eq, EssentialBC):
-            assert eq.lhs == target
-            return Eq(
-                arrays['x'], eq.rhs,
-                subdomain=eq.subdomain
-            )
-        else:
-            return None
-
-    def generate_arrays(self, target):
+    def generate_arrays(self, *targets):
         return {
-            p: PETScArray(name=f'{p}_{target.name}',
-                          target=target,
-                          liveness='eager',
-                          localinfo=localinfo)
-            for p in prefixes
+            t: {
+                p: PETScArray(
+                    name=f'{p}_{t.name}',
+                    target=t,
+                    liveness='eager',
+                    localinfo=localinfo
+                )
+                for p in prefixes
+            }
+            for t in targets
         }
 
 
-class InjectSolveNested(InjectSolve):
+class InjectMixedSolve(InjectSolve):
+
     def linear_solve_args(self):
-        combined_eqns = []
-        for eqns in self.target_eqns.values():
-            combined_eqns.extend(eqns)
-        funcs = get_funcs(combined_eqns)
+        exprs = []
+        for e in self.target_exprs.values():
+            exprs.extend(e)
+
+        funcs = get_funcs(exprs)
         self.time_mapper = generate_time_mapper(funcs)
 
-        targets = list(self.target_eqns.keys())
-        jacobian = SubMatrices(targets)
+        targets = list(self.target_exprs.keys())
+        arrays = self.generate_arrays(*targets)
 
-        all_data = MultipleFieldData(jacobian)
-
-        for target, eqns in self.target_eqns.items():
-            eqns = as_tuple(eqns)
-            arrays = self.generate_arrays(target)
-
-            self.update_jacobian(eqns, target, jacobian, arrays)
-
-            fielddata = self.generate_field_data(
-                eqns, target, arrays
-            )
-            all_data.add_field_data(fielddata)
-
-        return target, tuple(funcs), all_data
-
-    def update_jacobian(self, eqns, target, jacobian, arrays):
-        for submat, mtvs in jacobian.submatrices[target].items():
-            matvecs = [
-                self.build_matvec_eqns(eq, mtvs['derivative_wrt'], arrays)
-                for eq in eqns
-            ]
-            # Set submatrix only if there's at least one non-zero matvec
-            if any(m is not None for m in matvecs):
-                jacobian.set_submatrix(target, submat, matvecs)
-
-    def generate_field_data(self, eqns, target, arrays):
-        formfuncs, formrhs = zip(
-            *[self.build_function_eqns(eq, target, arrays) for eq in eqns]
+        jacobian = MixedJacobian(
+            self.target_exprs, arrays, self.time_mapper
         )
 
-        return FieldData(
-            target=target,
-            formfuncs=formfuncs,
-            formrhs=formrhs,
-            arrays=arrays
+        residual = MixedResidual(
+            self.target_exprs, arrays, self.time_mapper,
+            jacobian.target_scaler_mapper
         )
 
+        all_data = MultipleFieldData(
+            targets=targets,
+            arrays=arrays,
+            jacobian=jacobian,
+            residual=residual
+        )
 
-class EssentialBC(Eq):
-    pass
-
-
-def separate_eqn(eqn, target):
-    """
-    Separate the equation into two separate expressions,
-    where F(target) = b.
-    """
-    zeroed_eqn = Eq(eqn.lhs - eqn.rhs, 0)
-    zeroed_eqn = eval_time_derivatives(zeroed_eqn.lhs)
-    target_funcs = set(generate_targets(zeroed_eqn, target))
-    b, F_target = remove_targets(zeroed_eqn, target_funcs)
-    return -b, F_target, target_funcs
-
-
-def generate_targets(eq, target):
-    """
-    Extract all the functions that share the same time index as the target
-    but may have different spatial indices.
-    """
-    funcs = retrieve_functions(eq)
-    if isinstance(target, TimeFunction):
-        time_idx = target.indices[target.time_dim]
-        targets = [
-            f for f in funcs if f.function is target.function and time_idx
-            in f.indices
-        ]
-    else:
-        targets = [f for f in funcs if f.function is target.function]
-    return targets
-
-
-def targets_to_arrays(array, targets):
-    """
-    Map each target in `targets` to a corresponding array generated from `array`,
-    matching the spatial indices of the target.
-    Example:
-    --------
-    >>> array
-    vec_u(x, y)
-    >>> targets
-    {u(t + dt, x + h_x, y), u(t + dt, x - h_x, y), u(t + dt, x, y)}
-    >>> targets_to_arrays(array, targets)
-    {u(t + dt, x - h_x, y): vec_u(x - h_x, y),
-     u(t + dt, x + h_x, y): vec_u(x + h_x, y),
-     u(t + dt, x, y): vec_u(x, y)}
-    """
-    space_indices = [
-        tuple(f.indices[d] for d in f.space_dimensions) for f in targets
-    ]
-    array_targets = [
-        array.subs(dict(zip(array.indices, i))) for i in space_indices
-    ]
-    return dict(zip(targets, array_targets))
-
-
-@singledispatch
-def remove_targets(expr, targets):
-    return (0, expr) if expr in targets else (expr, 0)
-
-
-@remove_targets.register(sympy.Add)
-def _(expr, targets):
-    if not any(expr.has(t) for t in targets):
-        return (expr, 0)
-
-    args_b, args_F = zip(*(remove_targets(a, targets) for a in expr.args))
-    return (expr.func(*args_b, evaluate=False), expr.func(*args_F, evaluate=False))
-
-
-@remove_targets.register(Mul)
-def _(expr, targets):
-    if not any(expr.has(t) for t in targets):
-        return (expr, 0)
-
-    args_b, args_F = zip(*[remove_targets(a, targets) if any(a.has(t) for t in targets)
-                           else (a, a) for a in expr.args])
-    return (expr.func(*args_b, evaluate=False), expr.func(*args_F, evaluate=False))
-
-
-@remove_targets.register(Derivative)
-def _(expr, targets):
-    return (0, expr) if any(expr.has(t) for t in targets) else (expr, 0)
-
-
-@singledispatch
-def centre_stencil(expr, target):
-    """
-    Extract the centre stencil from an expression. Its coefficient is what
-    would appear on the diagonal of the matrix system if the matrix were
-    formed explicitly.
-    """
-    return expr if expr == target else 0
-
-
-@centre_stencil.register(sympy.Add)
-def _(expr, target):
-    if not expr.has(target):
-        return 0
-
-    args = [centre_stencil(a, target) for a in expr.args]
-    return expr.func(*args, evaluate=False)
-
-
-@centre_stencil.register(Mul)
-def _(expr, target):
-    if not expr.has(target):
-        return 0
-
-    args = []
-    for a in expr.args:
-        if not a.has(target):
-            args.append(a)
-        else:
-            args.append(centre_stencil(a, target))
-
-    return expr.func(*args, evaluate=False)
-
-
-@centre_stencil.register(Derivative)
-def _(expr, target):
-    if not expr.has(target):
-        return 0
-    args = [centre_stencil(a, target) for a in expr.evaluate.args]
-    return expr.evaluate.func(*args)
+        return targets[0], tuple(funcs), all_data
 
 
 def generate_time_mapper(funcs):
     """
-    Replace time indices with `Symbols` in equations used within
+    Replace time indices with `Symbols` in expressions used within
     PETSc callback functions. These symbols are Uxreplaced at the IET
     level to align with the `TimeDimension` and `ModuloDimension` objects
     present in the initial lowering.
@@ -341,11 +184,10 @@ def generate_time_mapper(funcs):
     return dict(zip(time_indices, tau_symbs))
 
 
-def get_funcs(eqns):
+def get_funcs(exprs):
     funcs = [
-        func
-        for eq in eqns
-        for func in retrieve_functions(eval_time_derivatives(eq.lhs - eq.rhs))
+        f for e in exprs
+        for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
     ]
     return filter_ordered(funcs)
 

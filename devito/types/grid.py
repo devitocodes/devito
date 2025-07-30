@@ -281,9 +281,14 @@ class Grid(CartesianDiscretization, ArgProvider):
         return self.subdomains['interior']
 
     @property
+    def symbolic_volume_cell(self):
+        """Symbolic volume of a single cell e.g. h_x*h_y*h_z in 3D."""
+        return prod(d.spacing for d in self.dimensions)
+
+    @property
     def volume_cell(self):
         """Volume of a single cell e.g  h_x*h_y*h_z in 3D."""
-        return prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
+        return self.symbolic_volume_cell.subs(self.spacing_map)
 
     @property
     def spacing(self):

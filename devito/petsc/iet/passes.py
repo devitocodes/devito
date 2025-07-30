@@ -5,7 +5,7 @@ from functools import cached_property
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
                            DummyExpr, CallableBody, List, Call, Callable,
-                           FindNodes)
+                           FindNodes, Section)
 from devito.symbolics import Byref, Macro, FieldFromPointer
 from devito.types import Symbol, Scalar
 from devito.types.basic import DataSymbol
@@ -22,16 +22,19 @@ from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
                                        CoupledObjectBuilder, BaseSetup, CoupledSetup,
                                        Solver, CoupledSolver, TimeDependent,
                                        NonTimeDependent)
+from devito.petsc.iet.logging import PetscLogger
 from devito.petsc.iet.utils import petsc_call, petsc_call_mpi
+
+import devito.logger as dl
 
 
 @iet_pass
 def lower_petsc(iet, **kwargs):
     # Check if PETScSolve was used
-    injectsolve_mapper = MapNodes(Iteration, PetscMetaData,
-                                  'groupby').visit(iet)
+    inject_solve_mapper = MapNodes(Iteration, PetscMetaData,
+                                   'groupby').visit(iet)
 
-    if not injectsolve_mapper:
+    if not inject_solve_mapper:
         return iet, {}
 
     if kwargs['language'] not in petsc_languages:
@@ -48,26 +51,32 @@ def lower_petsc(iet, **kwargs):
     if any(filter(lambda i: isinstance(i.expr.rhs, Finalize), data)):
         return finalize(iet), core_metadata()
 
-    unique_grids = {i.expr.rhs.grid for (i,) in injectsolve_mapper.values()}
+    unique_grids = {i.expr.rhs.grid for (i,) in inject_solve_mapper.values()}
     # Assumption is that all solves are on the same grid
     if len(unique_grids) > 1:
         raise ValueError("All PETScSolves must use the same Grid, but multiple found.")
+    grid = unique_grids.pop()
+    devito_mpi = kwargs['options'].get('mpi', False)
+    comm = grid.distributor._obj_comm if devito_mpi else 'PETSC_COMM_WORLD'
 
     # Create core PETSc calls (not specific to each PETScSolve)
-    core = make_core_petsc_calls(objs, **kwargs)
+    core = make_core_petsc_calls(objs, comm)
 
     setup = []
     subs = {}
     efuncs = {}
 
-    for iters, (injectsolve,) in injectsolve_mapper.items():
+    # Map PETScSolve to its Section (for logging)
+    section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
-        builder = Builder(injectsolve, objs, iters, **kwargs)
+    for iters, (inject_solve,) in inject_solve_mapper.items():
 
-        setup.extend(builder.solversetup.calls)
+        builder = Builder(inject_solve, objs, iters, comm, section_mapper, **kwargs)
+
+        setup.extend(builder.solver_setup.calls)
 
         # Transform the spatial iteration loop with the calls to execute the solver
-        subs.update({builder.solve.spatial_body: builder.solve.calls})
+        subs.update({builder.solve.spatial_body: builder.calls})
 
         efuncs.update(builder.cbbuilder.efuncs)
 
@@ -75,7 +84,7 @@ def lower_petsc(iet, **kwargs):
 
     iet = Transformer(subs).visit(iet)
 
-    body = core + tuple(setup) + (BlankLine,) + iet.body.body
+    body = core + tuple(setup) + iet.body.body
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
@@ -108,9 +117,8 @@ def finalize(iet):
     return iet._rebuild(body=finalize_body)
 
 
-def make_core_petsc_calls(objs, **kwargs):
-    call_mpi = petsc_call_mpi('MPI_Comm_size', [objs['comm'], Byref(objs['size'])])
-
+def make_core_petsc_calls(objs, comm):
+    call_mpi = petsc_call_mpi('MPI_Comm_size', [comm, Byref(objs['size'])])
     return call_mpi, BlankLine
 
 
@@ -121,49 +129,66 @@ class Builder:
     and other functionalities as needed.
     The class will be extended to accommodate different solver types by
     returning subclasses of the objects initialised in __init__,
-    depending on the properties of `injectsolve`.
+    depending on the properties of `inject_solve`.
     """
-    def __init__(self, injectsolve, objs, iters, **kwargs):
-        self.injectsolve = injectsolve
+    def __init__(self, inject_solve, objs, iters, comm, section_mapper, **kwargs):
+        self.inject_solve = inject_solve
         self.objs = objs
         self.iters = iters
+        self.comm = comm
+        self.section_mapper = section_mapper
         self.kwargs = kwargs
-        self.coupled = isinstance(injectsolve.expr.rhs.fielddata, MultipleFieldData)
-        self.args = {
-            'injectsolve': self.injectsolve,
+        self.coupled = isinstance(inject_solve.expr.rhs.field_data, MultipleFieldData)
+        self.common_kwargs = {
+            'inject_solve': self.inject_solve,
             'objs': self.objs,
             'iters': self.iters,
+            'comm': self.comm,
+            'section_mapper': self.section_mapper,
             **self.kwargs
         }
-        self.args['solver_objs'] = self.objbuilder.solver_objs
-        self.args['timedep'] = self.timedep
-        self.args['cbbuilder'] = self.cbbuilder
+        self.common_kwargs['solver_objs'] = self.object_builder.solver_objs
+        self.common_kwargs['time_dependence'] = self.time_dependence
+        self.common_kwargs['cbbuilder'] = self.cbbuilder
+        self.common_kwargs['logger'] = self.logger
 
     @cached_property
-    def objbuilder(self):
+    def object_builder(self):
         return (
-            CoupledObjectBuilder(**self.args)
+            CoupledObjectBuilder(**self.common_kwargs)
             if self.coupled else
-            BaseObjectBuilder(**self.args)
+            BaseObjectBuilder(**self.common_kwargs)
         )
 
     @cached_property
-    def timedep(self):
-        time_mapper = self.injectsolve.expr.rhs.time_mapper
-        timedep_class = TimeDependent if time_mapper else NonTimeDependent
-        return timedep_class(**self.args)
+    def time_dependence(self):
+        mapper = self.inject_solve.expr.rhs.time_mapper
+        time_class = TimeDependent if mapper else NonTimeDependent
+        return time_class(**self.common_kwargs)
 
     @cached_property
     def cbbuilder(self):
-        return CCBBuilder(**self.args) if self.coupled else CBBuilder(**self.args)
+        return CCBBuilder(**self.common_kwargs) \
+            if self.coupled else CBBuilder(**self.common_kwargs)
 
     @cached_property
-    def solversetup(self):
-        return CoupledSetup(**self.args) if self.coupled else BaseSetup(**self.args)
+    def solver_setup(self):
+        return CoupledSetup(**self.common_kwargs) \
+            if self.coupled else BaseSetup(**self.common_kwargs)
 
     @cached_property
     def solve(self):
-        return CoupledSolver(**self.args) if self.coupled else Solver(**self.args)
+        return CoupledSolver(**self.common_kwargs) \
+            if self.coupled else Solver(**self.common_kwargs)
+
+    @cached_property
+    def logger(self):
+        log_level = dl.logger.level
+        return PetscLogger(log_level, **self.common_kwargs)
+
+    @cached_property
+    def calls(self):
+        return List(body=self.solve.calls+self.logger.calls)
 
 
 def populate_matrix_context(efuncs, objs):
@@ -190,9 +215,6 @@ def populate_matrix_context(efuncs, objs):
     )
 
 
-# TODO: Devito MPI + PETSc testing
-# if kwargs['options']['mpi'] -> communicator = grid.distributor._obj_comm
-communicator = 'PETSC_COMM_WORLD'
 subdms = PointerDM(name='subdms')
 fields = PointerIS(name='fields')
 submats = PointerMat(name='submats')
@@ -208,7 +230,6 @@ cols = PointerIS(name='cols')
 # they are semantically identical.
 objs = frozendict({
     'size': PetscMPIInt(name='size'),
-    'comm': communicator,
     'err': PetscErrorCode(name='err'),
     'block': CallbackMat('block'),
     'submat_arr': PointerMat(name='submat_arr'),

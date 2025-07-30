@@ -17,6 +17,7 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.symbolics import subs_op_args
 from devito.tools import DefaultOrderedDict, flatten
+from devito.petsc.logging import PetscSummary
 
 __all__ = ['create_profile']
 
@@ -42,7 +43,7 @@ class Profiler:
 
     _attempted_init = False
 
-    def __init__(self, name):
+    def __init__(self, name, language):
         self.name = name
 
         # Operation reductions observed in sections
@@ -54,6 +55,9 @@ class Profiler:
 
         # Python-level timers
         self.py_timers = OrderedDict()
+
+        # For language specific summaries
+        self.language = language
 
         self._attempted_init = True
 
@@ -179,7 +183,7 @@ class Profiler:
     def all_sections(self):
         return list(self._sections) + flatten(self._subsections.values())
 
-    def summary(self, args, dtype, reduce_over=None):
+    def summary(self, args, dtype, params, reduce_over=None):
         """
         Return a PerformanceSummary of the profiled sections.
 
@@ -277,7 +281,7 @@ class AdvancedProfiler(Profiler):
         return list(zip(times, opss, pointss, traffics, sops, itershapess))
 
     # Override basic summary so that arguments other than runtime are computed.
-    def summary(self, args, dtype, reduce_over=None):
+    def summary(self, args, dtype, params, reduce_over=None):
         grid = args.grid
         comm = args.comm
 
@@ -338,6 +342,11 @@ class AdvancedProfiler(Profiler):
                     # data transfers)
                     summary.add_glb_fdlike('fdlike-nosetup', points, reduce_over_nosetup)
 
+        # Add the language specific summary if necessary
+        mapper_func = language_summary_mapper.get(self.language)
+        if mapper_func:
+            summary.add_language_summary(self.language, mapper_func(params))
+
         return summary
 
 
@@ -366,11 +375,11 @@ class AdvisorProfiler(AdvancedProfiler):
     _default_libs = ['ittnotify']
     _ext_calls = [_api_resume, _api_pause]
 
-    def __init__(self, name):
+    def __init__(self, name, language):
         if self._attempted_init:
             return
 
-        super().__init__(name)
+        super().__init__(name, language)
 
         path = get_advisor_path()
         if path:
@@ -478,6 +487,16 @@ class PerformanceSummary(OrderedDict):
 
         self.globals[key] = PerfEntry(time, None, gpointss, None, None, None)
 
+    def add_language_summary(self, lang, summary):
+        """
+        Register a language specific summary (e.g., PetscSummary)
+        and dynamically add a property to access it via perf_summary.<language_name>.
+        """
+        # TODO: Consider renaming `PerformanceSummary` to something more generic
+        # (e.g., `Summary`), or separating `PetscSummary` entirely from
+        # `PerformanceSummary`.
+        setattr(self, lang, summary)
+
     @property
     def globals_all(self):
         v0 = self.globals['vanilla']
@@ -503,7 +522,7 @@ class PerformanceSummary(OrderedDict):
         return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
-def create_profile(name):
+def create_profile(name, language):
     """Create a new Profiler."""
     if configuration['log-level'] in ['DEBUG', 'PERF'] and \
        configuration['profiling'] == 'basic':
@@ -511,13 +530,13 @@ def create_profile(name):
         level = 'advanced'
     else:
         level = configuration['profiling']
-    profiler = profiler_registry[level](name)
+    profiler = profiler_registry[level](name, language)
 
     if profiler._attempted_init:
         return profiler
     else:
         warning(f"Couldn't set up `{level}` profiler; reverting to 'advanced'")
-        profiler = profiler_registry['advanced'](name)
+        profiler = profiler_registry['advanced'](name, language)
         # We expect the `advanced` profiler to always initialize successfully
         assert profiler._attempted_init
         return profiler
@@ -533,3 +552,8 @@ profiler_registry = {
     'advisor': AdvisorProfiler
 }
 """Profiling levels."""
+
+
+language_summary_mapper = {
+    'petsc': PetscSummary
+}

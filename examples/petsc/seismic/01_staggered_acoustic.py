@@ -65,7 +65,7 @@ p_2 = Eq(p2.dt, l2m * (vx2.forward.dx + vz2.forward.dz))
 petsc_p_2 = PETScSolve(p_2, target=p2.forward, solver_parameters={'ksp_rtol': 1e-7})
 
 with switchconfig(language='petsc'):
-    op_2 = Operator(petsc_v_x_2 + petsc_v_z_2 + petsc_p_2 + src_p_2, opt='noop')
+    op_2 = Operator([petsc_v_x_2, petsc_v_z_2, petsc_p_2, src_p_2], opt='noop')
     op_2(time=src.time_range.num-1, dt=dt)
 
 norm_p2 = norm(p2)
@@ -90,7 +90,7 @@ p_4 = Eq(p4.dt, l2m * (vx4.forward.dx + vz4.forward.dz))
 petsc_p_4 = PETScSolve(p_4, target=p4.forward, solver_parameters={'ksp_rtol': 1e-7})
 
 with switchconfig(language='petsc'):
-    op_4 = Operator(petsc_v_x_4 + petsc_v_z_4 + petsc_p_4 + src_p_4, opt='noop')
+    op_4 = Operator([petsc_v_x_4, petsc_v_z_4, petsc_p_4, src_p_4], opt='noop')
     op_4(time=src.time_range.num-1, dt=dt)
 
 norm_p4 = norm(p4)
