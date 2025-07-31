@@ -16,7 +16,7 @@ on:
 
 jobs:
   pytest:
-    name: ${{ matrix.name }}-${{ matrix.set }}
+    name: ${{ matrix.name }}-${{ matrix.suffix || matrix.set }}
     runs-on: "${{ matrix.os }}"
 
     env:
@@ -39,6 +39,7 @@ jobs:
            pytest-osx-py312-clang-omp,
            pytest-docker-py310-gcc-omp,
            pytest-docker-py310-icx-omp,
+           pytest-docker-py313-gcc-nogil,
            pytest-ubuntu-py313-gcc14-omp
         ]
         set: [base, adjoint]
@@ -49,6 +50,7 @@ jobs:
           arch: "gcc-11"
           language: "CXX"
           sympy: "1.14"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py312-gcc12-cxxomp
           python-version: '3.12'
@@ -56,6 +58,7 @@ jobs:
           arch: "gcc-12"
           language: "CXXopenmp"
           sympy: "1.13"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py310-gcc14-omp
           python-version: '3.10'
@@ -63,6 +66,7 @@ jobs:
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.12"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py311-gcc10-noomp
           python-version: '3.11'
@@ -70,6 +74,7 @@ jobs:
           arch: "gcc-10"
           language: "C"
           sympy: "1.14"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py312-gcc13-omp
           python-version: '3.12'
@@ -77,6 +82,7 @@ jobs:
           arch: "gcc-13"
           language: "openmp"
           sympy: "1.13"
+          test-path: 'tests/'
 
         - name: pytest-ubuntu-py310-gcc9-omp
           python-version: '3.10'
@@ -84,6 +90,7 @@ jobs:
           arch: "custom"
           language: "openmp"
           sympy: "1.12"
+          test-path: 'tests/'
 
         - name: pytest-osx-py312-clang-omp
           python-version: '3.12'
@@ -91,20 +98,35 @@ jobs:
           arch: "clang"
           language: "openmp"
           sympy: "1.12"
+          test-path: 'tests/'
 
         - name: pytest-docker-py310-gcc-omp
           python-version: '3.10'
           os: ubuntu-latest
+          base-image: "cpu-gcc"
           arch: "gcc"
           language: "openmp"
           sympy: "1.13"
+          test-path: 'tests/'
 
         - name: pytest-docker-py310-icx-omp
           python-version: '3.10'
           os: ubuntu-latest
+          base-image: "cpu-icx"
           arch: "icx"
           language: "openmp"
           sympy: "1.13"
+          test-path: 'tests/'
+
+        - name: pytest-docker-py313-gcc-nogil
+          python-version: '3.13'
+          os: ubuntu-latest
+          base-image: "cpu-gcc-nogil"
+          arch: "gcc"
+          language: "C"
+          sympy: "1.14"
+          test-path: 'tests/test_operator.py'
+          suffix: 'operator'
 
         - name: pytest-ubuntu-py313-gcc14-omp
           python-version: '3.13'
@@ -112,6 +134,7 @@ jobs:
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.14"
+          test-path: 'tests/'
 
         - set: base
           test-set: 'not adjoint'
@@ -121,6 +144,9 @@ jobs:
 
         exclude:
         - name: pytest-osx-py312-clang-omp
+          set: adjoint
+
+        - name: pytest-docker-py313-gcc-nogil
           set: adjoint
 
     steps:
@@ -137,7 +163,7 @@ jobs:
     - name: Build docker image
       if: contains(matrix.name, 'docker')
       run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:${{ matrix.base-image }}
 
     - name: Set run prefix
       run: |
@@ -195,7 +221,7 @@ jobs:
 
     - name: Test with pytest
       run: |
-        ${{ env.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml tests/
+        ${{ env.RUN_CMD }} pytest -k "${{ matrix.test-set }}" -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml "${{ matrix.test-path }}"
 
     - name: Upload coverage to Codecov
       if: "!contains(matrix.name, 'docker')"
