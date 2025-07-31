@@ -15,18 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  OUTPUT_PATH: ${{ github.workspace }}
   RESOURCE_GROUP: CI-gpu
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
     inputs:
       tags:
-        description: 'Run GPU tests'
+        description: "Run GPU tests"
 
 jobs:
   build:
@@ -38,42 +37,38 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [
-          pytest-gpu-acc-nvidia,
-          pytest-gpu-omp-amd
-        ]
+        name: [pytest-gpu-acc-nvidia, pytest-gpu-omp-amd]
         test_examples: ["examples/seismic/tti/tti_example.py examples/seismic/acoustic/acoustic_example.py examples/seismic/viscoacoustic/viscoacoustic_example.py examples/seismic/viscoelastic/viscoelastic_example.py examples/seismic/elastic/elastic_example.py"]
 
         include:
-        # -------------------- NVIDIA job --------------------
-        - name: pytest-gpu-acc-nvidia
-          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
-          base: "devitocodes/bases:nvidia-nvc"
-          runner_label: nvidiagpu
-          test_drive_cmd: "nvidia-smi"
-          # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
-          # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
-          flags: >-
-            --init --rm -t
-            --name ${CONTAINER_BASENAME}
-            --env CUDA_VISIBLE_DEVICES
-            --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+          # -------------------- NVIDIA job --------------------
+          - name: pytest-gpu-acc-nvidia
+            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py"
+            base: "devitocodes/bases:nvidia-nvc"
+            runner_label: nvidiagpu
+            test_drive_cmd: "nvidia-smi"
+            # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
+            # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
+            flags: >-
+              --init --rm -t
+              --name ${CONTAINER_BASENAME}
+              --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
 
-        # -------------------- AMD job -----------------------
-        - name: pytest-gpu-omp-amd
-          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
-          runner_label: amdgpu
-          base: "devitocodes/bases:amd"
-          test_drive_cmd: "rocm-smi"
-          # Unchanged, still passes through required /dev nodes etc.
-          flags: >-
-            --init --network=host
-            --device=/dev/kfd --device=/dev/dri
-            --ipc=host
-            --group-add video --group-add "$(getent group render | cut -d: -f3)"
-            --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
-            --rm -t
-            --name ${CONTAINER_BASENAME}
+          # -------------------- AMD job -----------------------
+          - name: pytest-gpu-omp-amd
+            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py"
+            runner_label: amdgpu
+            base: "devitocodes/bases:amd"
+            test_drive_cmd: "rocm-smi"
+            # Unchanged, still passes through required /dev nodes etc.
+            flags: >-
+              --init --network=host
+              --device=/dev/kfd --device=/dev/dri
+              --ipc=host
+              --group-add video --group-add "$(getent group render | cut -d: -f3)"
+              --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
+              --rm -t
+              --name ${CONTAINER_BASENAME}
 
     steps:
       - name: Checkout devito
@@ -84,11 +79,17 @@ jobs:
           echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
           echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
 
+      - name: Ensure buildx builder
+        run: |
+          docker buildx inspect "$RUNNER_NAME" >/dev/null 2>&1 || \
+            docker buildx create --name "$RUNNER_NAME" --driver docker-container
+          docker buildx use "$RUNNER_NAME"
+
       - name: Build docker image
         run: |
-          docker buildx create --use --name $RUNNER_NAME || true
-          docker build . \
-            --builder $RUNNER_NAME \
+          docker buildx build . \
+            --builder "$RUNNER_NAME" \
+            --load \
             --label ci-run=$GITHUB_RUN_ID \
             --rm --pull \
             --file docker/Dockerfile.devito \
@@ -107,6 +108,7 @@ jobs:
           fi
 
           # Run a simple driver-probe command (nvidia-smi / rocm-smi)
+          docker rm -f "${CONTAINER_BASENAME}" 2>/dev/null || true
           docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
 
       - name: Test with pytest
@@ -114,31 +116,20 @@ jobs:
           # Exported earlier in the job; needed inside the container for codecov
           CODECOV_TOKEN: ${{ env.CODECOV_TOKEN }}
         run: |
-          # 1.  Add Codecov’s environment variables (GITHUB_SHA, etc.)
+          # Add Codecov’s environment variables (GITHUB_SHA, etc.)
           ci_env=$(bash <(curl -s https://codecov.io/env))
 
-          # 2.  For NVIDIA, make sure the runner gave us a GPU mask
-          # Default to empty
-          NVIDIA_ENV_FLAGS=""
-          # For NVIDIA, check for device mask AND set specific env vars
-          if [[ "${{ matrix.runner_label }}" == "nvidiagpu" ]]; then
-            : "${CUDA_VISIBLE_DEVICES:?CUDA_VISIBLE_DEVICES not set on NVIDIA runner}"
-            NVIDIA_ENV_FLAGS=" \
-              -e CUDA_LAUNCH_BLOCKING=1 \
-              -e NV_ACC_NOTIFY=3 \
-              -e NV_ACC_DEBUG=1"
-          fi
-
-          # 3.  Run the test suite using the matrix-defined flags
+          # Run the test suite using the matrix-defined flags
           docker run ${{ matrix.flags }} \
             ${ci_env} \
             -e CI=true \
             -e PYTHONFAULTHANDLER=1 \
             -e DEVITO_LOGGING=DEBUG \
             -e CODECOV_TOKEN \
-            ${NVIDIA_ENV_FLAGS} \
             "${DOCKER_IMAGE}" \
-            pytest -vv -ra -l -s --full-trace --maxfail=1 \
+            pytest -vvv --capture=no --showlocals \
+                   --log-cli-level=DEBUG -o log_cli=true \
+                   --full-trace --durations=10 \
                    --cov --cov-config=.coveragerc --cov-report=xml \
                    ${{ matrix.test_files }}
 
@@ -151,12 +142,16 @@ jobs:
           docker run ${{ matrix.flags }} --env DEVITO_MPI=1 "${DOCKER_IMAGE}" \
             mpiexec -n 2 pytest ${{ matrix.test_examples }}
 
-      - name: Clean up test image
+      - name: Builder & image cleanup (keep 3 days of cache)
         if: always()
         run: |
-          # Remove only the image we just built
+          # Remove only the test image we built
           docker rmi -f "${DOCKER_IMAGE}" || true
 
-          # Guard global prune the layers we created
-          # (label ci-run=$GITHUB_RUN_ID)
+          # Classic image layers created in this job
           docker image prune -f --filter label=ci-run=$GITHUB_RUN_ID
+
+          # BuildKit cache: target the per-runner builder explicitly
+          docker builder prune --builder "$RUNNER_NAME" \
+                              -f \
+                              --filter "until=72h"
