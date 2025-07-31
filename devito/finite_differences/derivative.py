@@ -1,16 +1,18 @@
-from collections import OrderedDict
+from collections import defaultdict
 from collections.abc import Iterable
 from functools import cached_property
+from itertools import chain
 
 import sympy
 
 from .finite_difference import generic_derivative, cross_derivative
-from .differentiable import Differentiable, interp_for_fd
+from .differentiable import Differentiable, diffify, interp_for_fd, Add, Mul
 from .tools import direct, transpose
 from .rsfd import d45
-from devito.tools import (as_mapper, as_tuple, filter_ordered, frozendict, is_integer,
+from devito.tools import (as_mapper, as_tuple, frozendict, is_integer,
                           Pickable)
 from devito.types.utils import DimensionTuple
+from devito.warnings import warn
 
 __all__ = ['Derivative']
 
@@ -28,7 +30,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         Expression for which the Derivative is produced.
     dims : Dimension or tuple of Dimension
         Dimensions w.r.t. which to differentiate.
-    fd_order : int or tuple of int, optional, default=1
+    fd_order : int, tuple of int or dict of {Dimension: int}, optional, default=1
         Coefficient discretization order. Note: this impacts the width of
         the resulting stencil.
     deriv_order: int or tuple of int, optional, default=1
@@ -92,19 +94,47 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                    'x0', 'method', 'weights')
 
     def __new__(cls, expr, *dims, **kwargs):
-        if type(expr) is sympy.Derivative:
-            raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
-        if not isinstance(expr, Differentiable):
-            raise ValueError("`expr` must be a Differentiable object")
+        # TODO: Delete this
+        if kwargs.get('preprocessed', False):
+            from warnings import warn as pywarn
+            pywarn('I removed the `preprocessed` kwarg')
 
-        new_dims, orders, fd_o, var_count = cls._process_kwargs(expr, *dims, **kwargs)
+        # Validate the input arguments `expr`, `dims` and `deriv_order`
+        expr = cls._validate_expr(expr)
+        dims = cls._validate_dims(dims)
+        deriv_order = cls._validate_deriv_order(kwargs.get('deriv_order'), dims)
+        # Count the derivatives w.r.t. each variable
+        dcounter = cls._count_derivatives(deriv_order, dims)
+
+        # It's possible that the expr is a `sympy.Number` at this point, which
+        # has derivative 0, unless we're taking a 0th derivative.
+        if isinstance(expr, sympy.Number):
+            if any(dcounter.values()):
+                return 0
+            else:
+                return expr
+
+        # Validate the finite difference order `fd_order`
+        fd_order = cls._validate_fd_order(kwargs.get('fd_order'), expr, dims, dcounter)
+
+        # SymPy expects the list of variables w.r.t. which we differentiate to be a list
+        # of 2-tuples: `(s, count)` where:
+        # - `s` is the entity to diff w.r.t. and
+        # - `count` is the order of the derivative
+        derivatives = [sympy.Tuple(d, o) for d, o in dcounter.items()]
 
         # Construct the actual Derivative object
-        obj = Differentiable.__new__(cls, expr, *var_count)
-        obj._dims = tuple(OrderedDict.fromkeys(new_dims))
+        obj = Differentiable.__new__(cls, expr, *derivatives)
+        obj._dims = tuple(dcounter.keys())
 
-        obj._fd_order = DimensionTuple(*as_tuple(fd_o), getters=obj._dims)
-        obj._deriv_order = DimensionTuple(*as_tuple(orders), getters=obj._dims)
+        obj._fd_order = DimensionTuple(
+            *as_tuple(fd_order),
+            getters=obj._dims
+        )
+        obj._deriv_order = DimensionTuple(
+            *as_tuple(dcounter.values()),
+            getters=obj._dims
+        )
         obj._side = kwargs.get("side")
         obj._transpose = kwargs.get("transpose", direct)
         obj._method = kwargs.get("method", 'FD')
@@ -125,73 +155,121 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         return obj
 
-    @classmethod
-    def _process_kwargs(cls, expr, *dims, **kwargs):
+    @staticmethod
+    def _validate_expr(expr):
         """
-        Process arguments for the construction of a Derivative
+        Validate the provided `expr`. It must be of `Differentiable` type or
+        convertible to "differentiable" type.
         """
-        # Skip costly processing if constructiong from preprocessed
-        if kwargs.get('preprocessed', False):
-            fd_orders = kwargs.get('fd_order')
-            deriv_orders = kwargs.get('deriv_order')
-            if len(dims) == 1:
-                dims = tuple([dims[0]]*max(1, deriv_orders[0]))
-            variable_count = [sympy.Tuple(s, dims.count(s))
-                              for s in filter_ordered(dims)]
-            return dims, deriv_orders, fd_orders, variable_count
+        if type(expr) is sympy.Derivative:
+            raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
+        if not isinstance(expr, Differentiable):
+            try:
+                expr = diffify(expr)
+            except Exception as e:
+                raise ValueError("`expr` must be a `Differentiable` type object") from e
+        return expr
 
-        # Check `dims`. It can be a single Dimension, an iterable of Dimensions, or even
-        # an iterable of 2-tuple (Dimension, deriv_order)
+    @staticmethod
+    def _validate_dims(dims):
+        """
+        Validate `dims`. It can be:
+        - a single Dimension ie: x
+        - an iterable of Dimensions ie: (x, y)
+        - a single tuple of Dimension and order ie: (x, 2)
+        - or an iterable of Dimension, order ie: ((x, 2), (y, 2))
+        - any combination of the above ie: ((x, 2), y, x, (z, 3))
+        """
         if len(dims) == 0:
-            raise ValueError("Expected Dimension w.r.t. which to differentiate")
-        elif len(dims) == 1:
-            if isinstance(dims[0], Iterable):
-                # Iterable of Dimensions
-                if len(dims[0]) != 2:
-                    raise ValueError("Expected `(dim, deriv_order)`, got %s" % dims[0])
-                orders = kwargs.get('deriv_order', dims[0][1])
-                if dims[0][1] != orders:
-                    raise ValueError("Two different values of `deriv_order`")
-                new_dims = tuple([dims[0][0]]*max(1, dims[0][1]))
-            else:
-                # Single Dimension
-                orders = kwargs.get('deriv_order', 1)
-                if isinstance(orders, Iterable):
-                    orders = orders[0]
-                new_dims = tuple([dims[0]]*max(1, orders))
+            raise ValueError('Expected Dimension w.r.t. which to differentiate')
+        elif len(dims) == 1 and isinstance(dims[0], Iterable) and len(dims[0]) != 2:
+            # Iterable of Dimensions
+            raise ValueError(f'Expected `(dim, deriv_order)`, got {dims[0]}')
         elif len(dims) == 2 and not isinstance(dims[1], Iterable) and is_integer(dims[1]):
             # special case of single dimension and order
-            orders = dims[1]
-            new_dims = tuple([dims[0]]*max(1, orders))
-        else:
-            # Iterable of 2-tuple, e.g. ((x, 2), (y, 3))
-            new_dims = []
-            orders = []
-            d_ord = kwargs.get('deriv_order', tuple([1]*len(dims)))
-            for d, o in zip(dims, d_ord):
-                if isinstance(d, Iterable):
-                    new_dims.extend([d[0]]*max(1, d[1]))
-                    orders.append(d[1])
+            dims = (dims, )
+        return dims
+
+    @staticmethod
+    def _validate_deriv_order(deriv_order, dims):
+        """
+        If provided `deriv_order` must correspond to the provided dimensions.
+        Requires dims to validate or construct the default.
+        """
+        if deriv_order is None:
+            deriv_order = (1,)*len(dims)
+        deriv_order = as_tuple(deriv_order)
+        if len(deriv_order) != len(dims):
+            raise ValueError(
+                f'Length of `deriv_order`: {deriv_order !r}, '
+                f'does not match the length of dimensions: {dims !r}'
+            )
+        if any(not is_integer(d) or d < 0 for d in deriv_order):
+            raise TypeError(
+                f'Invalid type in `deriv_order`: {deriv_order !r}, '
+                'all elements must be non-negative Python `int`s'
+            )
+        return deriv_order
+
+    @staticmethod
+    def _count_derivatives(deriv_order, dims):
+        """
+        Count the number of derivatives for each dimension.
+        """
+        dcounter = defaultdict(int)
+        for d, o in zip(dims, deriv_order, strict=True):
+            if isinstance(d, Iterable):
+                if not is_integer(d[1]) or d[1] < 0:
+                    raise TypeError(
+                        f'Invalid type for derivative order: {d !r},'
+                        'it must be non-negative Python `int`'
+                    )
                 else:
-                    new_dims.extend([d]*max(1, o))
-                    orders.append(o)
-            new_dims = as_tuple(new_dims)
-            orders = as_tuple(orders)
+                    dcounter[d[0]] += d[1]
+            else:
+                dcounter[d] += o
+        return dcounter
 
-        # Finite difference orders depending on input dimension (.dt or .dx)
-        odims = filter_ordered(new_dims)
-        fd_orders = kwargs.get('fd_order', tuple([expr.time_order if
-                                                  getattr(d, 'is_Time', False) else
-                                                  expr.space_order for d in odims]))
-        if len(odims) == 1 and isinstance(fd_orders, Iterable):
-            fd_orders = fd_orders[0]
-
-        # SymPy expects the list of variable w.r.t. which we differentiate to be a list
-        # of 2-tuple `(s, count)` where s is the entity to diff wrt and count is the order
-        # of the derivative
-        variable_count = [sympy.Tuple(s, new_dims.count(s))
-                          for s in odims]
-        return new_dims, orders, fd_orders, variable_count
+    @staticmethod
+    def _validate_fd_order(fd_order, expr, dims, dcounter):
+        """
+        If provided, `fd_order` must correspond to the provided dimensions.
+        Required: `expr`, `dims`, and the derivative counter to validate.
+        If not provided, the maximum supported order will be used.
+        """
+        if fd_order is not None:
+            # If `fd_order` is specified, then validate
+            fcounter = defaultdict(int)
+            # First create a dictionary mapping variable wrt which to differentiate
+            # to the `fd_order`
+            for d, o in zip(dims, as_tuple(fd_order), strict=True):
+                if isinstance(d, Iterable):
+                    fcounter[d[0]] += o
+                else:
+                    fcounter[d] += o
+            # Second validate that the `fd_order` is supported by the space or
+            # time order
+            for d, o in fcounter.items():
+                if getattr(d, 'is_Time', False):
+                    order = expr.time_order
+                else:
+                    order = expr.space_order
+                if o > order > 1:
+                    # Only handle cases greater than 2 since <mumble>
+                    # interpolation and averaging
+                    raise ValueError(
+                        f'Function does not support {d}-derivative with `fd_order` {o}'
+                    )
+            fd_order = fcounter.values()
+        else:
+            # Default finite difference orders depending on input dimension (.dt or .dx)
+            fd_order = tuple(
+                expr.time_order
+                if getattr(d, 'is_Time', False)
+                else expr.space_order
+                for d in dcounter.keys()
+            )
+        return fd_order
 
     @classmethod
     def _process_x0(cls, dims, **kwargs):
@@ -239,7 +317,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 assert self.ndims == 1
                 _fd_order = {self.dims[0]: fd_order}
             except AttributeError:
-                raise TypeError("fd_order incompatible with dimensions")
+                raise TypeError("fd_order incompatible with dimensions") from None
 
         if isinstance(self.expr, Derivative):
             # In case this was called on a perfect cross-derivative `u.dxdy`
@@ -260,11 +338,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         return self._rebuild(**rkw)
 
-    def _rebuild(self, *args, **kwargs):
-        kwargs['preprocessed'] = True
-        return super()._rebuild(*args, **kwargs)
-
-    func = _rebuild
+    func = Pickable._rebuild
 
     def _subs(self, old, new, **hints):
         # Basic case
@@ -280,6 +354,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 # e.g `f.dx.subs(f: 1) = 1.dx = 0`
                 # returning zero
                 return sympy.S.Zero
+        elif not hints.pop('postprocess', True):
+            # This allows a redundant substitution to be applied to an entire
+            # expression without un-consumed substitutions being added to the
+            # postprocessing substitution dict `self._ppsubs`.
+            return self
 
         # In case `x0` was passed as a substitution instead of `(x0=`
         if str(old) == 'x0':
@@ -317,7 +396,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         expr = self.expr.xreplace(dsubs)
 
         subs = self._ppsubs + (subs,)  # Postponed substitutions
-        return self._rebuild(subs=subs, expr=expr), True
+        return self._rebuild(expr, subs=subs), True
 
     @cached_property
     def _metadata(self):
@@ -424,7 +503,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # in most equation with div(a * u) for example. The expression is re-centered
             # at the highest priority index (see _gather_for_diff) to compute the
             # derivative at x0.
-            return self._rebuild(expr=self.expr._gather_for_diff, x0=x0)
+            return self._rebuild(self.expr._gather_for_diff, x0=x0)
         else:
             # For every other cases, that has more functions or more complexe arithmetic,
             # there is not actual way to decide what to do so it’s as safe to use
@@ -497,3 +576,140 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             res = res.xreplace(e)
 
         return res
+
+    def _eval_expand_nest(self, **hints):
+        """
+        Expands nested derivatives
+        `Derivative(Derivative(f(x), (x, b)), (x, a))
+            --> Derivative(f(x), (x, a+b))`
+        `Derivative(Derivative(f(x), (y, b)), (x, a))
+            --> Derivative(f(x), (x, a), (y, b))`
+        Note that this is not always a valid expansion depending on the kwargs
+        used to construct the derivative.
+        """
+        if not isinstance(self.expr, self.__class__):
+            return self
+
+        # This is necessary as tools.abc.Reconstructable._rebuild will copy
+        # all kwargs from the self object. Need to enssure that the nest is not
+        # actually expanded if derivatives are incompatible.
+        # The nested derivative is evaluated by:
+        # 1. Chaining together the variables with which to differentiate wrt
+        new_expr = self.expr.expr
+        new_dims = [
+            (d, ii)
+            for d, ii in zip(
+                chain(self.dims, self.expr.dims),
+                chain(self.deriv_order, self.expr.deriv_order),
+                strict=True
+            )
+        ]
+
+        # 2. Count the number of derivatives to take wrt each variable as well as
+        # the finite difference order to use by iterating over the chained lists of
+        # variables.
+        new_deriv_order = chain(self.deriv_order, self.expr.deriv_order)
+        new_fd_order = chain(self.fd_order, self.expr.fd_order)
+        dcounter = defaultdict(int)
+        fcounter = defaultdict(int)
+        for d, do, fo in zip(new_dims, new_deriv_order, new_fd_order, strict=True):
+            if isinstance(d, Iterable):
+                dcounter[d[0]] += d[1]
+                fcounter[d[0]] += fo
+            else:
+                dcounter[d] += do
+                fcounter[d] += fo
+
+        # 3. Validate that the number of derivatives taken and the `fd_order` are
+        # smaller than or equal to the corresponding space or time order that the
+        # function supports.
+        for (d, do), (_, fo) in zip(dcounter.items(), fcounter.items(), strict=True):
+            if getattr(d, 'is_Time', False):
+                dim_name = 'time'
+                order = self.expr.time_order
+            else:
+                dim_name = 'space'
+                order = self.expr.space_order
+            # The `fd_order` may need to be reduced to construct the nested derivative
+            # in this case we only emit a warning
+            if fo > order:
+                if do > order:
+                    raise ValueError(
+                        f'Nested {do}-derivative constructed which is bigger '
+                        f'than the {dim_name}_order={order}'
+                    )
+                else:
+                    warn(
+                        f'Nested derivative constructed with fd_order={fo}, '
+                        f'but {dim_name}_order={order}. Adjusting '
+                        f'fd_order={order} for the {d} dimension.'
+                    )
+                    fcounter[d] = order
+
+        # 4. Finally, construct the new derivative object with the updated counts
+        # and kwargs.
+        new_kwargs = {
+            'deriv_order': tuple(dcounter.values()),
+            'fd_order': tuple(fcounter.values())
+        }
+        return self.func(new_expr, *dcounter.items(), **new_kwargs)
+
+    def _eval_expand_mul(self, **hints):
+        """
+        Expands products, moving independent terms outside the derivative
+        `Derivative(C·f(x)·g(c, y), x)
+            --> C·g(y)·Derivative(f(x), x)`
+        """
+        if self.expr.is_Mul:
+            ind, dep = self.expr.as_independent(*self.dims, as_Add=False)
+            return ind*self.func(dep)
+        else:
+            return self
+
+    def _eval_expand_add(self, **hints):
+        """
+        Expands sums, using linearity of derivative
+        `Derivative(f(x) + g(x), x)
+            --> Derivative(f(x), x) + Derivative(g(x), x)`
+        """
+        if self.expr.is_Add:
+            ind, dep = self.expr.as_independent(*self.dims, as_Add=True)
+            if dep.is_Add:
+                return Add(*[self.func(s, *self.args[1:]) for s in dep.args])
+            else:
+                return self.func(dep)
+        else:
+            return self
+
+    def _eval_expand_product_rule(self, **hints):
+        """
+        Expands products, of functions of the dependent variable
+        `Derivative(f(x)·g(x), x)
+            --> Derivative(f(x), x)·g(x) + f(x)·Derivative(g(x), x)`
+        This is only implemented for first derivatives with an arbitrary number
+        of multiplicands and second derivatives with two multiplicands. The
+        resultant expression for higher derivatives and mixed derivatives is much
+        more difficult to implement.
+        """
+        if self.expr.is_Mul and len(self.dims) == 1:
+            args = self.expr.args
+            if self.deriv_order == (1,):
+                return Add(*[
+                    Mul(*args[:ii], self.func(m), *args[ii + 1:])
+                    for ii, m in enumerate(args)
+                ])
+            elif self.deriv_order == (2,) and len(args) == 2:
+                return args[1]*self.func(args[0]) + \
+                    2*self.func(
+                        args[0], deriv_order=1
+                )*self.func(
+                        args[1], deriv_order=1
+                ) + \
+                    args[0]*self.func(args[1])
+            else:
+                # Note: It _is_ possible to implement the product rule for many
+                # more cases, but the number of terms in the resultant expression
+                # will grow.
+                return self
+        else:
+            return self
