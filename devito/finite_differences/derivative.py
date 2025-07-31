@@ -338,8 +338,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         return self._rebuild(**rkw)
 
-    def func(self, *args, **kwargs):
-        return super()._rebuild(*args, **kwargs)
+    func = Pickable._rebuild
 
     def _subs(self, old, new, **hints):
         # Basic case
