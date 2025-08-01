@@ -6,7 +6,7 @@ from conftest import _R, assert_blocking, assert_structure
 from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
                     SparseTimeFunction, VectorTimeFunction, TensorTimeFunction,
                     Dimension, ConditionalDimension, div, solve, diag, grad,
-                    SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
+                    SubDimension, SubDomain, Eq, Ne, Gt, Inc, NODE, Operator, norm,
                     inner, configuration, switchconfig, generic_derivative,
                     PrecomputedSparseFunction, DefaultDimension, Buffer,
                     CustomDimension)
@@ -3127,6 +3127,25 @@ class TestOperatorAdvanced:
         args = calls[0].arguments
         assert args[-2].name == 't2'
         assert args[-2].origin == t + 1
+
+    @pytest.mark.parallel(mode=1)
+    def test_multiple_loc_indices_inside_conddim(self, mode):
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        t_sub = ConditionalDimension('t_sub', parent=time, condition=Gt(time % 4))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(f, u.dx + u.forward.dx + .2, implicit_dims=t_sub)]
+
+        op = Operator(eqns, opt=('advanced', {'openmp': False}))
+
+        calls, _ = check_halo_exchanges(op, 2, 2)
+        assert calls[0].arguments[-1].name == 't0'
+        assert calls[1].arguments[-1].name == 't1'
 
 
 def gen_serial_norms(shape, so):
