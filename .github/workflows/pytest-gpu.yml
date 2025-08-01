@@ -81,14 +81,14 @@ jobs:
 
       - name: Ensure buildx builder
         run: |
-          docker buildx inspect "$RUNNER_NAME" >/dev/null 2>&1 || \
-            docker buildx create --name "$RUNNER_NAME" --driver docker-container
-          docker buildx use "$RUNNER_NAME"
+          docker buildx inspect "${RUNNER_NAME// /_}" >/dev/null 2>&1 || \
+            docker buildx create --name "${RUNNER_NAME// /_}" --driver docker-container
+          docker buildx use "${RUNNER_NAME// /_}"
 
       - name: Build docker image
         run: |
           docker buildx build . \
-            --builder "$RUNNER_NAME" \
+            --builder "${RUNNER_NAME// /_}" \
             --load \
             --label ci-run=$GITHUB_RUN_ID \
             --rm --pull \
@@ -152,6 +152,6 @@ jobs:
           docker image prune -f --filter label=ci-run=$GITHUB_RUN_ID
 
           # BuildKit cache: target the per-runner builder explicitly
-          docker builder prune --builder "$RUNNER_NAME" \
+          docker builder prune --builder "${RUNNER_NAME// /_}" \
                               -f \
                               --filter "until=72h"
