@@ -9,7 +9,7 @@ __all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
-_PRECISION = 9
+_PRECISION = 18
 
 
 @check_input

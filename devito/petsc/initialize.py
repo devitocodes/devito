@@ -12,7 +12,7 @@ global _petsc_initialized
 _petsc_initialized = False
 
 
-def PetscInitialize():
+def PetscInitialize(clargs=sys.argv):
     global _petsc_initialized
     if not _petsc_initialized:
         dummy = Symbol(name='d')
@@ -33,11 +33,12 @@ def PetscInitialize():
         # `argv_bytes` must be a list so the memory address persists
         # `os.fsencode` should be preferred over `string().encode('utf-8')`
         # in case there is some system specific encoding in use
-        argv_bytes = list(map(os.fsencode, sys.argv))
-        argv_pointer = (POINTER(c_char)*len(sys.argv))(
+        argv_bytes = list(map(os.fsencode, clargs))
+        argv_pointer = (POINTER(c_char)*len(clargs))(
             *map(lambda s: cast(s, POINTER(c_char)), argv_bytes)
         )
-        op_init.apply(argc=len(sys.argv), argv=argv_pointer)
+        # from IPython import embed; embed()
+        op_init.apply(argc=len(clargs), argv=argv_pointer)
 
         atexit.register(op_finalize.apply)
         _petsc_initialized = True

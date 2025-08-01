@@ -49,3 +49,5 @@ import sys
 petsctools.options._commandline_options = sys.argv[1:]
 tmp = get_commandline_options()
 print("Command line options:", tmp)
+
+
