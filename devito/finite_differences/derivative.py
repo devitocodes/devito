@@ -94,11 +94,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                    'x0', 'method', 'weights')
 
     def __new__(cls, expr, *dims, **kwargs):
-        # TODO: Delete this
-        if kwargs.get('preprocessed', False):
-            from warnings import warn as pywarn
-            pywarn('I removed the `preprocessed` kwarg')
-
         # Validate the input arguments `expr`, `dims` and `deriv_order`
         expr = cls._validate_expr(expr)
         dims = cls._validate_dims(dims)
