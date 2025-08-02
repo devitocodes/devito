@@ -180,49 +180,35 @@ def inner(f, g):
     return f.dtype(n.data[0])
 
 
+mmin = lambda f: _reduce(f, np.amin)
+mmax = lambda f: _reduce(f, np.amax)
+
+
+def _reduce_op(expr, func):
+    """
+    Create an Operator that computes the reduction of `expr` using `func`.
+    """
+    n = make_retval(expr)
+    s = dv.types.Symbol(name='sum', dtype=n.dtype)
+    sp_mapper = {np.min: dv.types.equation.ReduceMin,
+                 np.max: dv.types.equation.ReduceMax,
+                 np.amin: dv.types.equation.ReduceMin,
+                 np.amax: dv.types.equation.ReduceMax}
+    sfunc = sp_mapper[func]
+    s0 = dv.ir.equations.equation.identity_mapper[expr.dtype][func]
+
+    op = dv.Operator([dv.Eq(s, s0), sfunc(s, expr), dv.Eq(n[0], s)],
+                     name='reduce_%s' % func.__name__)
+    op.apply()
+
+    return expr.dtype(n.data[0])
+
+
 @dv.switchconfig(log_level='ERROR')
 @check_builtins_args
-def mmin(f):
-    """
-    Retrieve the minimum.
-
-    Parameters
-    ----------
-    f : array_like or Function
-        Input operand.
-    """
-    if isinstance(f, dv.Constant):
-        return f.data
-    elif isinstance(f, dv.types.dense.DiscreteFunction):
-        v = np.min(f.data_ro_domain)
-        if f.grid is None or not dv.configuration['mpi']:
-            return v.item()
-        else:
-            comm = f.grid.distributor.comm
-            return comm.allreduce(v, dv.mpi.MPI.MIN).item()
-    else:
-        raise ValueError("Expected Function, got `%s`" % type(f))
-
-
-@dv.switchconfig(log_level='ERROR')
-@check_builtins_args
-def mmax(f):
-    """
-    Retrieve the maximum.
-
-    Parameters
-    ----------
-    f : array_like or Function
-        Input operand.
-    """
-    if isinstance(f, dv.Constant):
-        return f.data
-    elif isinstance(f, dv.types.dense.DiscreteFunction):
-        v = np.max(f.data_ro_domain)
-        if f.grid is None or not dv.configuration['mpi']:
-            return v.item()
-        else:
-            comm = f.grid.distributor.comm
-            return comm.allreduce(v, dv.mpi.MPI.MAX).item()
-    else:
-        raise ValueError("Expected Function, got `%s`" % type(f))
+def _reduce(f, func):
+    try:
+        if f.is_DiscreteFunction:
+            return func(f)
+    except AttributeError:
+        return _reduce_op(f, func)

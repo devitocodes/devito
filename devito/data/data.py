@@ -145,6 +145,27 @@ class Data(np.ndarray):
                 self._modulo = tuple(False for i in range(self.ndim))
                 self._decomposition = (None,)*self.ndim
 
+    def __array_function__(self, func, types, args, kwargs):
+        """
+        Support for NumPy's __array_function__ protocol.
+        This allows the Data to be used in NumPy operations, such as
+        `np.sum(data)` or `np.mean(data)`.
+        """
+        # Data are actual numpy array so we can directly call the function
+        args = [a.view(np.ndarray) if isinstance(a, Data) else a for a in args]
+        v = func(*args, **kwargs)
+        # Handle distributed case for allreduce funcs
+        if self._is_decomposed and not v.shape:
+            from devito.mpi.routines import np_mpi_mapper
+            try:
+                mpi_func = np_mpi_mapper[func]
+            except KeyError:
+                raise NotImplementedError(f"Function {func.__name__}"
+                                          "not supported for Data")
+            comm = self._distributor.comm
+            v = comm.allreduce(v, mpi_func).item()
+        return v
+
     @property
     def _local(self):
         """A view of ``self`` with global indexing disabled."""

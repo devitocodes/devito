@@ -121,20 +121,16 @@ OpMax = Operation('max')
 OpMin = Operation('min')
 
 
-identity_mapper = {
-    np.int32: {OpInc: sympy.S.Zero,
-               OpMax: limits_mapper[np.int32].min,
-               OpMin: limits_mapper[np.int32].max},
-    np.int64: {OpInc: sympy.S.Zero,
-               OpMax: limits_mapper[np.int64].min,
-               OpMin: limits_mapper[np.int64].max},
-    np.float32: {OpInc: sympy.S.Zero,
-                 OpMax: limits_mapper[np.float32].min,
-                 OpMin: limits_mapper[np.float32].max},
-    np.float64: {OpInc: sympy.S.Zero,
-                 OpMax: limits_mapper[np.float64].min,
-                 OpMin: limits_mapper[np.float64].max},
-}
+identity_mapper = {}
+for dtype in [np.int32, np.int64, np.float32, np.float64]:
+    for func, value in zip((OpInc, OpMax, OpMin),
+                           (sympy.S.Zero, limits_mapper[dtype].min,
+                            limits_mapper[dtype].max)):
+        identity_mapper.setdefault(dtype, {})[func] = value
+    for func in (np.min, np.amin):
+        identity_mapper[dtype][func] = identity_mapper[dtype][OpMin]
+    for func in (np.max, np.amax):
+        identity_mapper[dtype][func] = identity_mapper[dtype][OpMax]
 
 
 class LoweredEq(IREq):

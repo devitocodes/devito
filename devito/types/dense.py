@@ -113,6 +113,15 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     _subs = Differentiable._subs
 
+    def __array_function__(self, func, types, args, kwargs):
+        """
+        Support for NumPy's __array_function__ protocol.
+        This allows the Function to be used in NumPy operations, such as
+        `np.sum(function)` or `np.mean(function)`.
+        """
+        args = [a.data if isinstance(a, DiscreteFunction) else a for a in args]
+        return self.data.__array_function__(func, types, args, kwargs)
+
     def _allocate_memory(func):
         """Allocate memory as a Data."""
         @wraps(func)

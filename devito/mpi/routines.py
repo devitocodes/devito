@@ -6,6 +6,7 @@ from itertools import product
 from operator import mul
 
 from sympy import Integer
+import numpy as np
 
 from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
 from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
@@ -1425,3 +1426,9 @@ class ReductionBuilder(object):
         allreduce = AllreduceCall(arguments)
 
         return allreduce
+
+
+np_mpi_mapper = {np.max: MPI.MAX,
+                 np.min: MPI.MIN,
+                 np.amin: MPI.MIN,
+                 np.amax: MPI.MAX}
