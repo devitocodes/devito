@@ -196,8 +196,11 @@ class Data(np.ndarray):
 
     @property
     def _is_decomposed(self):
-        return self._is_distributed and configuration['mpi'] and \
-            self._distributor.comm.size > 1
+        try:
+            return self._is_distributed and configuration['mpi'] and \
+                self._distributor.comm.size > 1
+        except:
+            return False
 
     def __repr__(self):
         return super(Data, self._local).__repr__()

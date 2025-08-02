@@ -222,7 +222,10 @@ def mmax(f):
         if f.grid is None or not dv.configuration['mpi']:
             return v.item()
         else:
-            comm = f.grid.distributor.comm
-            return comm.allreduce(v, dv.mpi.MPI.MAX).item()
+            try:
+                comm = f.grid.distributor.comm
+                return comm.allreduce(v, dv.mpi.MPI.MAX).item()
+            except:
+                return v.item()
     else:
         raise ValueError("Expected Function, got `%s`" % type(f))
