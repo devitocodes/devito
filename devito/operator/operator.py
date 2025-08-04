@@ -7,6 +7,7 @@ from math import ceil
 from tempfile import gettempdir
 
 from sympy import sympify
+import sympy
 import numpy as np
 
 from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
@@ -33,13 +34,16 @@ from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
                           flatten, filter_sorted, frozendict, is_integer,
                           split, timed_pass, timed_region, contains_val,
-                          CacheInstances)
+                          CacheInstances, MemoryEstimate)
 from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
 
 
 __all__ = ['Operator']
+
+
+_layers = (disk_layer, host_layer, device_layer)
 
 
 class Operator(Callable):
@@ -554,7 +558,7 @@ class Operator(Callable):
         return frozendict({i: AccessMode(i in self.reads, i in self.writes)
                            for i in self.input})
 
-    def _prepare_arguments(self, autotune=None, **kwargs):
+    def _prepare_arguments(self, autotune=None, estimate_memory=False, **kwargs):
         """
         Process runtime arguments passed to ``.apply()` and derive
         default values for any remaining arguments.
@@ -602,6 +606,7 @@ class Operator(Callable):
 
         # Prepare to process data-carriers
         args = kwargs['args'] = ReducerMap()
+
         kwargs['metadata'] = {'language': self._language,
                               'platform': self._platform,
                               'transients': self.transients,
@@ -611,7 +616,7 @@ class Operator(Callable):
 
         # Process data-carrier overrides
         for p in overrides:
-            args.update(p._arg_values(**kwargs))
+            args.update(p._arg_values(estimate_memory=estimate_memory, **kwargs))
             try:
                 args.reduce_inplace()
             except ValueError:
@@ -625,7 +630,7 @@ class Operator(Callable):
             if p.name in args:
                 # E.g., SubFunctions
                 continue
-            for k, v in p._arg_values(**kwargs).items():
+            for k, v in p._arg_values(estimate_memory=estimate_memory, **kwargs).items():
                 if k not in args:
                     args[k] = v
                 elif k in futures:
@@ -652,6 +657,10 @@ class Operator(Callable):
         # An ArgumentsMap carries additional metadata that may be used by
         # the subsequent phases of the arguments processing
         args = kwargs['args'] = ArgumentsMap(args, grid, self)
+
+        if estimate_memory:
+            # No need to do anything more if only checking the memory
+            return args
 
         # Process Dimensions
         for d in reversed(toposort):
@@ -865,6 +874,53 @@ class Operator(Callable):
 
     def __call__(self, **kwargs):
         return self.apply(**kwargs)
+
+    def estimate_memory(self, **kwargs):
+        """
+        Estimate the memory consumed by the Operator without touching or allocating any
+        data. This interface is designed to mimic `Operator.apply(**kwargs)` and can be
+        called with the kwargs for a prospective Operator execution. With no arguments,
+        it will simply estimate memory for the default Operator parameters. However, if
+        desired, overrides can be supplied (as per `apply`) and these will be used for
+        the memory estimate.
+
+        If estimating memory for an Operator which is expected to allocate large arrays,
+        it is strongly recommended that one avoids touching the data in Python (thus
+        avoiding allocation). `AbstractFunction` types have their data allocated lazily -
+        the underlying array is only created at the point at which the `data`,
+        `data_with_halo`, etc, attributes are first accessed. Thus by avoiding accessing
+        such attributes in the memory estimation script, one can check the nominal memory
+        usage of proposed Operators far larger than will fit in system DRAM.
+
+        Note that this estimate will build the Operator in order to factor in memory
+        allocation for array temporaries and buffers generated during compilation.
+
+        Parameters
+        ----------
+        **kwargs: dict
+            As per `Operator.apply()`.
+
+        Returns
+        -------
+        summary: MemoryEstimate
+            An estimate of memory consumed in each of the specified locations.
+        """
+        # Build the arguments list for which to get the memory consumption
+        # This is so that the estimate will factor in overrides
+        args = self._prepare_arguments(estimate_memory=True, **kwargs)
+        mem = args.nbytes_consumed
+
+        memreport = {'host': mem[host_layer], 'device': mem[device_layer]}
+
+        # Extra information for enriched Operators
+        extras = self._enrich_memreport(args)
+        memreport.update(extras)
+
+        return MemoryEstimate(memreport, name=self.name)
+
+    def _enrich_memreport(self, args):
+        # Hook for enriching memory report with additional metadata
+        return {}
 
     def apply(self, **kwargs):
         """
@@ -1284,6 +1340,41 @@ class ArgumentsMap(dict):
         return mapper
 
     @cached_property
+    def _op_symbols(self):
+        """Symbols in the Operator which may or may not carry data"""
+        return FindSymbols().visit(self.op)
+
+    @cached_property
+    def _op_functions(self):
+        """Function symbols in the Operator"""
+        return [i for i in self._op_symbols if i.is_DiscreteFunction and not i.alias]
+
+    def _apply_override(self, i):
+        try:
+            return self.get(i.name, i)._obj
+        except AttributeError:
+            return self.get(i.name, i)
+
+    def _get_nbytes(self, i):
+        """
+        Extract the allocated size of a symbol, accounting for any
+        overrides.
+        """
+        obj = self._apply_override(i)
+        try:
+            # Non-regular AbstractFunction (compressed, etc)
+            nbytes = obj.nbytes_max
+        except AttributeError:
+            # Garden-variety AbstractFunction
+            nbytes = obj.nbytes
+
+        # Could nominally have symbolic nbytes at this point
+        if isinstance(nbytes, sympy.Basic):
+            return subs_op_args(nbytes, self)
+
+        return nbytes
+
+    @cached_property
     def nbytes_avail_mapper(self):
         """
         The amount of memory available after accounting for the memory
@@ -1307,9 +1398,69 @@ class ArgumentsMap(dict):
             nproc = 1
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
+        for layer in (host_layer, device_layer):
+            try:
+                mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
+            except KeyError:  # Might not have this layer in the mapper
+                pass
+
+        mapper = {k: int(v) for k, v in mapper.items()}
+
+        return mapper
+
+    @cached_property
+    def nbytes_consumed(self):
+        """Memory consumed by all objects in the Operator"""
+        mem_locations = (
+            self.nbytes_consumed_functions,
+            self.nbytes_consumed_arrays,
+            self.nbytes_consumed_memmapped
+        )
+        return {layer: sum(loc[layer] for loc in mem_locations) for layer in _layers}
+
+    @cached_property
+    def nbytes_consumed_operator(self):
+        """Memory consumed by objects allocated within the Operator"""
+        mem_locations = (
+            self.nbytes_consumed_arrays,
+            self.nbytes_consumed_memmapped
+        )
+        return {layer: sum(loc[layer] for loc in mem_locations) for layer in _layers}
+
+    @cached_property
+    def nbytes_consumed_functions(self):
+        """
+        Memory consumed on both device and host by Functions in the
+        corresponding Operator.
+        """
+        host = 0
+        device = 0
+        # Filter out arrays, aliases and non-AbstractFunction objects
+        for i in self._op_functions:
+            v = self._get_nbytes(i)
+            if i._mem_host or i._mem_mapped:
+                # No need to add to device , as it will be counted
+                # by nbytes_consumed_memmapped
+                host += v
+            elif i._mem_local:
+                if isinstance(self.platform, Device):
+                    device += v
+                else:
+                    host += v
+
+        return {disk_layer: 0, host_layer: host, device_layer: device}
+
+    @cached_property
+    def nbytes_consumed_arrays(self):
+        """
+        Memory consumed on both device and host by C-land Arrays
+        in the corresponding Operator.
+        """
+        host = 0
+        device = 0
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
-        for i in FindSymbols().visit(self.op):
+        for i in self._op_symbols:
             if not i.is_Array or not i._mem_heap or i.alias:
                 continue
 
@@ -1323,17 +1474,26 @@ class ArgumentsMap(dict):
                 continue
 
             if i._mem_host:
-                mapper[host_layer] -= v
+                host += v
             elif i._mem_local:
                 if isinstance(self.platform, Device):
-                    mapper[device_layer] -= v
+                    device += v
                 else:
-                    mapper[host_layer] -= v
+                    host += v
             elif i._mem_mapped:
                 if isinstance(self.platform, Device):
-                    mapper[device_layer] -= v
-                mapper[host_layer] -= v
+                    device += v
+                host += v
 
+        return {disk_layer: 0, host_layer: host, device_layer: device}
+
+    @cached_property
+    def nbytes_consumed_memmapped(self):
+        """
+        Memory also consumed on device by data which is to be memcpy-d
+        from host to device at the start of computation.
+        """
+        device = 0
         # All input Functions are yet to be memcpy-ed to the device
         # TODO: this may not be true depending on `devicerm`, which is however
         # virtually never used
@@ -1343,17 +1503,27 @@ class ArgumentsMap(dict):
                     continue
                 try:
                     if i._mem_mapped:
-                        try:
-                            v = self[i.name]._obj.nbytes
-                        except AttributeError:
-                            v = i.nbytes
-                        mapper[device_layer] -= v
+                        device += self._get_nbytes(i)
                 except AttributeError:
                     pass
 
-        mapper = {k: int(v) for k, v in mapper.items()}
+        return {disk_layer: 0, host_layer: 0, device_layer: device}
 
-        return mapper
+    @cached_property
+    def nbytes_snapshots(self):
+        # Filter to streamed functions
+        disk = 0
+        for i in self._op_symbols:
+            try:
+                if i._child not in self._op_symbols:
+                    # Use only the "innermost" layer to avoid counting snapshots
+                    # twice
+                    v = self._apply_override(i)
+                    disk += v.size_snapshot*v._time_size_ideal*np.dtype(v.dtype).itemsize
+            except AttributeError:
+                pass
+
+        return {disk_layer: disk, host_layer: 0, device_layer: 0}
 
 
 def parse_kwargs(**kwargs):
