@@ -1513,9 +1513,9 @@ class ArgumentsMap(dict):
     def nbytes_snapshots(self):
         # Filter to streamed functions
         disk = 0
-        for i in self._op_functions:
+        for i in self._op_symbols:
             try:
-                if i._child not in self._op_functions:
+                if i._child not in self._op_symbols:
                     # Use only the "innermost" layer to avoid counting snapshots
                     # twice
                     v = self._apply_override(i)

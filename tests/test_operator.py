@@ -2077,7 +2077,7 @@ class TestEstimateMemory:
         assert (summary['host'], summary['device']) == expected
 
     def sum_sizes(self, funcs):
-        return sum(reduce(mul, func.shape_allocated)*np.dtype(func.dtype).itemsize
+        return sum(func.size_allocated*np.dtype(func.dtype).itemsize
                    for func in funcs)
 
     @pytest.mark.parametrize('shape', [(11,), (101, 101), (101, 101, 101)])
