@@ -1511,13 +1511,13 @@ class ArgumentsMap(dict):
 
     @cached_property
     def nbytes_snapshots(self):
-        # Filter to streamed functions
         disk = 0
+        # Layers are sometimes aliases, so include aliases here
         for i in self._op_symbols:
             try:
-                if i._child not in self._op_symbols:
+                if i._child is None:
                     # Use only the "innermost" layer to avoid counting snapshots
-                    # twice
+                    # twice. This layer will have no child.
                     v = self._apply_override(i)
                     disk += v.size_snapshot*v._time_size_ideal*np.dtype(v.dtype).itemsize
             except AttributeError:
