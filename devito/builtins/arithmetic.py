@@ -180,33 +180,13 @@ def inner(f, g):
     return f.dtype(n.data[0])
 
 
-@dv.switchconfig(log_level='ERROR')
-@check_builtins_args
-def mmin(f):
-    """
-    Retrieve the minimum.
-
-    Parameters
-    ----------
-    f : array_like or Function
-        Input operand.
-    """
-    if isinstance(f, dv.Constant):
-        return f.data
-    elif isinstance(f, dv.types.dense.DiscreteFunction):
-        v = np.min(f.data_ro_domain)
-        if f.grid is None or not dv.configuration['mpi']:
-            return v.item()
-        else:
-            comm = f.grid.distributor.comm
-            return comm.allreduce(v, dv.mpi.MPI.MIN).item()
-    else:
-        raise ValueError("Expected Function, got `%s`" % type(f))
+mmin = lambda f: _reduce_func(f, np.min, dv.mpi.MPI.MIN)
+mmax = lambda f: _reduce_func(f, np.max, dv.mpi.MPI.MAX)
 
 
 @dv.switchconfig(log_level='ERROR')
 @check_builtins_args
-def mmax(f):
+def _reduce_func(f, func, mfunc):
     """
     Retrieve the maximum.
 
@@ -218,11 +198,11 @@ def mmax(f):
     if isinstance(f, dv.Constant):
         return f.data
     elif isinstance(f, dv.types.dense.DiscreteFunction):
-        v = np.max(f.data_ro_domain)
-        if f.grid is None or not dv.configuration['mpi']:
-            return v.item()
-        else:
+        v = func(f.data_ro_domain)
+        if f.data._is_decomposed:
             comm = f.grid.distributor.comm
-            return comm.allreduce(v, dv.mpi.MPI.MAX).item()
+            return comm.allreduce(v, mfunc).item()
+        else:
+            return v.item()
     else:
         raise ValueError("Expected Function, got `%s`" % type(f))
