@@ -77,7 +77,7 @@ jobs:
       - name: Set per-runner tags
         run: |
           echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
-          echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
+          echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}-${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Ensure buildx builder
         run: |
