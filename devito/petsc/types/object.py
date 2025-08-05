@@ -97,6 +97,12 @@ class PetscInt(PetscObject):
     dtype = CustomIntType('PetscInt')
 
 
+class PetscBool(PetscObject):
+    """
+    """
+    dtype = CustomDtype('PetscBool')
+
+
 class KSP(PetscObject):
     """
     PETSc KSP : Linear Systems Solvers.

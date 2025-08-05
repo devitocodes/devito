@@ -21,7 +21,7 @@ from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (PETScArray, PetscBundle, DM, Mat, CallbackVec, Vec,
                                 KSP, PC, SNES, PetscInt, StartPtr, PointerIS, PointerDM,
                                 VecScatter, DMCast, JacobianStruct, SubMatrixStruct,
-                                CallbackDM)
+                                CallbackDM, PetscBool)
 
 
 class CBBuilder:
@@ -37,10 +37,12 @@ class CBBuilder:
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
         self.inject_solve = kwargs.get('inject_solve')
+        self.solver_parameters = self.inject_solve.expr.rhs.solver_parameters
 
         self._efuncs = OrderedDict()
         self._struct_params = []
 
+        self._options_efunc = None
         self._main_matvec_callback = None
         self._user_struct_callback = None
         self._F_efunc = None
@@ -105,12 +107,43 @@ class CBBuilder:
         return self.field_data.target
 
     def _make_core(self):
+        self._petsc_options_callback()
         self._make_matvec(self.field_data.jacobian)
         self._make_formfunc()
         self._make_formrhs()
         if self.field_data.initial_guess.exprs:
             self._make_initial_guess()
         self._make_user_struct_callback()
+
+    def _petsc_options_callback(self):
+        objs = self.objs
+        params = self.solver_parameters
+        Null = objs['Null']
+
+        has_names = ()
+
+        # TODO: improve
+        for k, v in params.items():
+            is_set = PetscBool(self.sregistry.make_name(prefix='set'))
+            has_name = petsc_call('PetscOptionsHasName', [
+                Null, Null, String(k), Byref(is_set)])
+            has_names += (has_name,)
+
+        body = CallableBody(
+            List(body=has_names),
+            init=(objs['begin_user'],),
+            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+        )
+
+        objs = self.objs
+        cb = PETScCallable(
+            self.sregistry.make_name(prefix='SetPetscOptions'),
+            body,
+            retval=objs['err'],
+            parameters=()
+        )
+        self._options_efunc = cb
+        self._efuncs[cb.name] = cb
 
     def _make_matvec(self, jacobian, prefix='MatMult'):
         # Compile `matvecs` into an IET via recursive compilation
@@ -1237,6 +1270,10 @@ class BaseSetup:
             'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
         ) if sobjs['options_prefix'] else None
 
+        set_options = petsc_call(
+            self.cbbuilder._options_efunc.name, []
+        )
+
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
         create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
@@ -1281,9 +1318,9 @@ class BaseSetup:
                                  solver_params['ksp_max_it']]
         )
 
-        ksp_set_type = petsc_call(
-            'KSPSetType', [sobjs['ksp'], solver_mapper[solver_params['ksp_type']]]
-        )
+        # ksp_set_type = petsc_call(
+        #     'KSPSetType', [sobjs['ksp'], solver_mapper[solver_params['ksp_type']]]
+        # )
 
         ksp_get_pc = petsc_call(
             'KSPGetPC', [sobjs['ksp'], Byref(sobjs['pc'])]
@@ -1326,6 +1363,7 @@ class BaseSetup:
         base_setup = dmda_calls + (
             snes_create,
             snes_options_prefix,
+            set_options,
             snes_set_dm,
             create_matrix,
             snes_set_jac,
@@ -1336,7 +1374,6 @@ class BaseSetup:
             global_b,
             snes_get_ksp,
             ksp_set_tols,
-            ksp_set_type,
             ksp_get_pc,
             pc_set_type,
             ksp_set_from_ops,

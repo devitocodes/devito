@@ -2,14 +2,16 @@ import sympy
 
 from itertools import chain
 from functools import cached_property
+from petsctools import flatten_parameters
 
 from devito.tools import Reconstructable, sympy_mutex, as_tuple, frozendict
 from devito.tools.dtypes_lowering import dtype_mapper
-from devito.petsc.utils import petsc_variables
 from devito.symbolics.extraction import separate_eqn, generate_targets, centre_stencil
-from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 from devito.types.equation import Eq
 from devito.operations.solve import eval_time_derivatives
+
+from devito.petsc.utils import petsc_variables
+from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 
 
 class MetaData(sympy.Function, Reconstructable):
@@ -63,6 +65,7 @@ class LinearSolveExpr(MetaData):
     __rkwargs__ = ('solver_parameters', 'field_data', 'time_mapper',
                    'localinfo', 'options_prefix')
 
+    # TODO: Will be extended
     defaults = {
         'ksp_type': 'gmres',
         'pc_type': 'jacobi',
@@ -76,17 +79,19 @@ class LinearSolveExpr(MetaData):
                 field_data=None, time_mapper=None, localinfo=None,
                 options_prefix=None, **kwargs):
 
-        if solver_parameters is None:
-            solver_parameters = cls.defaults
-        else:
-            for key, val in cls.defaults.items():
-                solver_parameters[key] = solver_parameters.get(key, val)
+        # TODO: move into a function
+        flattened_params = flatten_parameters(solver_parameters or {})
+        processed = cls.defaults.copy()
+        processed.update(flattened_params)
+        processed = {k: str(v) for k, v in processed.items()}
+        # TODO: attach options_prefix to the parameters
+        # TODO: need to add the "-" to the beginning of each key -> use petsctools etc
 
         with sympy_mutex:
             obj = sympy.Function.__new__(cls, expr)
 
         obj._expr = expr
-        obj._solver_parameters = solver_parameters
+        obj._solver_parameters = processed
         obj._field_data = field_data if field_data else FieldData()
         obj._time_mapper = time_mapper
         obj._localinfo = localinfo

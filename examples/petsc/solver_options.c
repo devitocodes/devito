@@ -21,10 +21,12 @@ int main(int argc, char **argv)
   PetscCallMPI(MPI_Comm_size(PETSC_COMM_WORLD, &size));
 
   PetscCall(PetscOptionsSetValue(NULL, "-poisson_ksp_type", "cg"));
-  PetscCall(PetscOptionsInsert(NULL, &argc, &argv, NULL));
+  // PetscCall(PetscOptionsInsert(NULL, &argc, &argv, NULL));
   
   PetscCall(SNESCreate(PETSC_COMM_WORLD, &snes));
   PetscCall(SNESSetOptionsPrefix(snes, "poisson_"));
+  // PetscCall(SNESSetType(snes, SNESKSPONLY));
+  // PetscCall(PetscOptionsSetValue(NULL, "-poisson_snes_type", "snesksponly"));
   PetscCall(SNESSetFromOptions(snes));
 
   PetscCall(VecCreate(PETSC_COMM_WORLD, &x));
@@ -44,7 +46,7 @@ int main(int argc, char **argv)
   PetscCall(KSPGetPC(ksp, &pc));
   PetscCall(PCSetType(pc, PCNONE));
   PetscCall(KSPSetTolerances(ksp, 1.e-4, PETSC_CURRENT, PETSC_CURRENT, 20));
-
+  PetscCall(KSPSetFromOptions(ksp));
 
 //   PetscCall(VecSet(x, pfive));
   PetscCall(SNESSolve(snes, NULL, x));
