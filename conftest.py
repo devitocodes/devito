@@ -287,6 +287,21 @@ def pytest_runtest_makereport(item, call):
             result.outcome = 'passed'
 
 
+def pytest_make_parametrize_id(config, val, argname):
+    """
+    Prevents pytest to make obsucre parameter names (param0, param1, ...)
+    and default to str(val) instead for better log readability.
+    """
+    # First see if it has a name
+    if hasattr(val, '__name__'):
+        return val.__name__
+    # Then try str(val)
+    try:
+        return str(val)
+    except Exception:
+        return None  # Fall back to default behavior
+
+
 # A list of optimization options/pipelines to be used in testing
 # regarding spatial and/or temporal blocking.
 opts_tiling = ['advanced',
