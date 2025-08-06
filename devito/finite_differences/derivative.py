@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from functools import cached_property
 from itertools import chain
+import numbers
 
 import sympy
 
@@ -158,11 +159,14 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         """
         if type(expr) is sympy.Derivative:
             raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
+        elif isinstance(expr, numbers.Number):
+            return sympy.S.Zero
         if not isinstance(expr, Differentiable):
             try:
                 expr = diffify(expr)
             except Exception as e:
-                raise ValueError("`expr` must be a `Differentiable` type object") from e
+                d = type(expr)
+                raise ValueError(f"`expr` must be a `Differentiable` type object not {d}") from e
         return expr
 
     @staticmethod

@@ -223,6 +223,7 @@ def create_call_graph(root, efuncs):
     """
     dag = DAG(nodes=[root])
     queue = [root]
+    defuncs = {root}
 
     while queue:
         caller = queue.pop(0)
@@ -230,6 +231,7 @@ def create_call_graph(root, efuncs):
 
         for callee in filter_ordered([i.name for i in callees]):
             if callee in efuncs:  # Exclude foreign Calls, e.g., MPI calls
+                defuncs.add(callee)
                 try:
                     dag.add_node(callee)
                     queue.append(callee)
@@ -239,7 +241,7 @@ def create_call_graph(root, efuncs):
                 dag.add_edge(callee, caller)
 
     # Sanity check
-    assert dag.size == len(efuncs)
+    assert dag.size == len(defuncs)
 
     return dag
 
