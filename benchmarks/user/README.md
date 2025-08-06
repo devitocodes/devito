@@ -223,21 +223,6 @@ At this point, just follow the instructions on screen. The next time you run
 the benchmark, the modified C code will be re-compiled and executed. Thus,
 you will see the performance impact of your changes.
 
-## Running on HPC clusters
-
-`benchmark.py` can be used to evaluate MPI on multi-node systems:
-```bash
-mpiexec python benchmark.py ...
-```
-In `bench` mode, each MPI rank will produce a different `.json` file
-summarizing the achieved performance in a structured format.
-
-Further, we provide `make-pbs.py`, a simple program to generate PBS files
-to submit jobs on HPC clusters. Take a look at `python make-pbs.py --help`
-for more information, and in particular `python make-pbs.py generate --help`.
-`make-pbs.py` is especially indicated if interested in running strong scaling
-experiments.
-
 ## Benchmark output
 
 The GFlops/s and GPoints/s performance, Operational Intensity (OI) and
