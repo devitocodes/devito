@@ -1,10 +1,9 @@
 import os
 import ctypes
-
 from pathlib import Path
-from devito.tools import memoized_func
-
 from petsctools import get_petscvariables
+
+from devito.tools import memoized_func
 
 
 class PetscOSError(OSError):

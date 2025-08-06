@@ -78,6 +78,10 @@ class LinearSolveExpr(MetaData):
     def __new__(cls, expr, solver_parameters=None,
                 field_data=None, time_mapper=None, localinfo=None,
                 options_prefix=None, **kwargs):
+        
+        with sympy_mutex:
+            obj = sympy.Function.__new__(cls, expr)
+    
 
         # TODO: move into a function
         flattened_params = flatten_parameters(solver_parameters or {})
@@ -87,15 +91,21 @@ class LinearSolveExpr(MetaData):
         # TODO: attach options_prefix to the parameters
         # TODO: need to add the "-" to the beginning of each key -> use petsctools etc
 
-        with sympy_mutex:
-            obj = sympy.Function.__new__(cls, expr)
+        # TODO: Should we set a default options_prefix?
+        if options_prefix is None:
+            obj._options_prefix = ""
+        else:
+            # NOTE: Modified from the `OptionsManager` inside petsctools 
+            if len(options_prefix) and not options_prefix.endswith("_"):
+                options_prefix += "_"
+            obj._options_prefix = options_prefix
 
         obj._expr = expr
         obj._solver_parameters = processed
         obj._field_data = field_data if field_data else FieldData()
         obj._time_mapper = time_mapper
         obj._localinfo = localinfo
-        obj._options_prefix = options_prefix
+        # obj._options_prefix = options_prefix
         return obj
 
     def __repr__(self):

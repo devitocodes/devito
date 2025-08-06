@@ -22,6 +22,7 @@ from devito.petsc.types import (PETScArray, PetscBundle, DM, Mat, CallbackVec, V
                                 KSP, PC, SNES, PetscInt, StartPtr, PointerIS, PointerDM,
                                 VecScatter, DMCast, JacobianStruct, SubMatrixStruct,
                                 CallbackDM, PetscBool)
+from devito.petsc.types.macros import petsc_func_begin_user, Null
 
 
 class CBBuilder:
@@ -118,20 +119,18 @@ class CBBuilder:
     def _petsc_options_callback(self):
         objs = self.objs
         params = self.solver_parameters
-        Null = objs['Null']
+        options_prefix = self.inject_solve.expr.rhs.options_prefix
 
-        has_names = ()
+        body = []
 
+        # from IPython import embed; embed()
         # TODO: improve
         for k, v in params.items():
-            is_set = PetscBool(self.sregistry.make_name(prefix='set'))
-            has_name = petsc_call('PetscOptionsHasName', [
-                Null, Null, String(k), Byref(is_set)])
-            has_names += (has_name,)
+            body.append(petsc_call('SetPetscOption', [String("-"+options_prefix+k), String(v)]))
 
         body = CallableBody(
-            List(body=has_names),
-            init=(objs['begin_user'],),
+            List(body=body),
+            init=(petsc_func_begin_user,),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
@@ -281,7 +280,7 @@ class CBBuilder:
 
         body = CallableBody(
             List(body=body),
-            init=(objs['begin_user'],),
+            init=(petsc_func_begin_user,),
             stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
@@ -420,7 +419,7 @@ class CBBuilder:
 
         body = CallableBody(
             List(body=body),
-            init=(objs['begin_user'],),
+            init=(petsc_func_begin_user,),
             stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),))
 
@@ -530,7 +529,7 @@ class CBBuilder:
 
         body = CallableBody(
             List(body=[body]),
-            init=(objs['begin_user'],),
+            init=(petsc_func_begin_user,),
             stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
@@ -608,7 +607,7 @@ class CBBuilder:
 
         body = CallableBody(
             List(body=[body]),
-            init=(objs['begin_user'],),
+            init=(petsc_func_begin_user,),
             stacks=stacks+derefs,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
@@ -635,7 +634,7 @@ class CBBuilder:
             for i in mainctx.callback_fields
         ]
         struct_callback_body = CallableBody(
-            List(body=body), init=(self.objs['begin_user'],),
+            List(body=body), init=(petsc_func_begin_user,),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
         cb = Callable(
@@ -759,7 +758,7 @@ class CCBBuilder(CBBuilder):
             )
         return CallableBody(
             List(body=(ctx_main, zero_y_memory, BlankLine) + calls),
-            init=(objs['begin_user'],),
+            init=(petsc_func_begin_user,),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
@@ -894,7 +893,7 @@ class CCBBuilder(CBBuilder):
 
         formfunc_body = CallableBody(
             List(body=body),
-            init=(objs['begin_user'],),
+            init=(petsc_func_begin_user,),
             stacks=stacks+derefs,
             casts=(f_soa, x_soa),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
@@ -943,7 +942,6 @@ class CCBBuilder(CBBuilder):
 
         get_ctx = petsc_call('MatShellGetContext', [objs['J'], Byref(objs['ljacctx'])])
 
-        Null = objs['Null']
         dm_get_info = petsc_call(
             'DMDAGetInfo', [
                 sobjs['callbackdm'], Null, Byref(sobjs['M']), Byref(sobjs['N']),
@@ -1046,7 +1044,7 @@ class CCBBuilder(CBBuilder):
 
         return CallableBody(
             List(body=tuple(body)),
-            init=(objs['begin_user'],),
+            init=(petsc_func_begin_user,),
             stacks=(get_ctx, deref_subdm),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
@@ -1105,7 +1103,7 @@ class BaseObjectBuilder:
             'localsize': PetscInt(sreg.make_name(prefix='localsize')),
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
-            'snesprefix': String((options_prefix or '') + '_'),
+            'snesprefix': String(options_prefix or ''),
             'options_prefix': options_prefix,
         }
         base_dict['comm'] = self.comm
@@ -1262,7 +1260,7 @@ class BaseSetup:
 
         dmda = sobjs['dmda']
 
-        solver_params = self.inject_solve.expr.rhs.solver_parameters
+        # solver_params = self.inject_solve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
@@ -1283,7 +1281,7 @@ class BaseSetup:
 
         snes_set_jac = petsc_call(
             'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
-                                sobjs['Jac'], 'MatMFFDComputeJacobian', objs['Null']]
+                                sobjs['Jac'], 'MatMFFDComputeJacobian', Null]
         )
 
         global_x = petsc_call('DMCreateGlobalVector',
@@ -1312,16 +1310,17 @@ class BaseSetup:
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        ksp_set_tols = petsc_call(
-            'KSPSetTolerances', [sobjs['ksp'], solver_params['ksp_rtol'],
-                                 solver_params['ksp_atol'], solver_params['ksp_divtol'],
-                                 solver_params['ksp_max_it']]
-        )
+        # ksp_set_tols = petsc_call(
+        #     'KSPSetTolerances', [sobjs['ksp'], solver_params['ksp_rtol'],
+        #                          solver_params['ksp_atol'], solver_params['ksp_divtol'],
+        #                          solver_params['ksp_max_it']]
+        # )
 
         # ksp_set_type = petsc_call(
         #     'KSPSetType', [sobjs['ksp'], solver_mapper[solver_params['ksp_type']]]
         # )
 
+        # TODO: can drop this
         ksp_get_pc = petsc_call(
             'KSPGetPC', [sobjs['ksp'], Byref(sobjs['pc'])]
         )
@@ -1339,7 +1338,7 @@ class BaseSetup:
         formfunc = self.cbbuilder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
-            [sobjs['snes'], objs['Null'], FormFunctionCallback(formfunc.name, void, void),
+            [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
              self.snes_ctx]
         )
 
@@ -1373,7 +1372,7 @@ class BaseSetup:
             get_local_size,
             global_b,
             snes_get_ksp,
-            ksp_set_tols,
+            # ksp_set_tols,
             ksp_get_pc,
             pc_set_type,
             ksp_set_from_ops,
@@ -1430,7 +1429,7 @@ class BaseSetup:
         stencil_width = self.field_data.space_order
 
         args.append(stencil_width)
-        args.extend([objs['Null']]*nspace_dims)
+        args.extend([Null]*nspace_dims)
 
         # The distributed array object
         args.append(Byref(dmda))
@@ -1465,7 +1464,7 @@ class CoupledSetup(BaseSetup):
 
         snes_set_jac = petsc_call(
             'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
-                                sobjs['Jac'], 'MatMFFDComputeJacobian', objs['Null']]
+                                sobjs['Jac'], 'MatMFFDComputeJacobian', Null]
         )
 
         global_x = petsc_call('DMCreateGlobalVector',
@@ -1506,7 +1505,7 @@ class CoupledSetup(BaseSetup):
         formfunc = self.cbbuilder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
-            [sobjs['snes'], objs['Null'], FormFunctionCallback(formfunc.name, void, void),
+            [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
              self.snes_ctx]
         )
 
@@ -1529,7 +1528,7 @@ class CoupledSetup(BaseSetup):
 
         create_field_decomp = petsc_call(
             'DMCreateFieldDecomposition',
-            [dmda, Byref(sobjs['nfields']), objs['Null'], Byref(sobjs['fields']),
+            [dmda, Byref(sobjs['nfields']), Null, Byref(sobjs['fields']),
              Byref(sobjs['subdms'])]
         )
         submat_cb = self.cbbuilder.submatrices_callback
@@ -1710,7 +1709,7 @@ class CoupledSolver(Solver):
                 ),
                 petsc_call(
                     'VecScatterCreate',
-                    [xglob, field, target_xglob, self.objs['Null'], Byref(s)]
+                    [xglob, field, target_xglob, Null, Byref(s)]
                 ),
                 petsc_call(
                     'VecScatterBegin',
@@ -1738,7 +1737,7 @@ class CoupledSolver(Solver):
                 )
             )
 
-        snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], objs['Null'], xglob]),)
+        snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], Null, xglob]),)
 
         return (struct_assignment,) + pre_solve + snes_solve + post_solve + (BlankLine,)
 

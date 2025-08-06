@@ -37,7 +37,7 @@ def PetscInitialize(clargs=sys.argv):
         argv_pointer = (POINTER(c_char)*len(clargs))(
             *map(lambda s: cast(s, POINTER(c_char)), argv_bytes)
         )
-        # from IPython import embed; embed()
+
         op_init.apply(argc=len(clargs), argv=argv_pointer)
 
         atexit.register(op_finalize.apply)
