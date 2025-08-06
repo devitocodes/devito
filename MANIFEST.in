@@ -1,7 +1,16 @@
-include versioneer.py
-include devito/_version.py
+# Explicitly include the requirements files
 include requirements.txt
 include requirements-optional.txt
 include requirements-testing.txt
 include requirements-mpi.txt
 include requirements-nvidia.txt
+
+# Exclude the Github, Binder and Docker directories
+prune .github
+prune binder
+prune docker
+# Exclude hidden files and YAML files
+exclude .* *.yml
+
+# Exclude compiled and temporary files
+global-exclude *~ *.py[cod] *.so

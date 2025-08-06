@@ -64,8 +64,7 @@ extras = { file = ["requirements-optional.txt"] }
 
 [tool.setuptools.packages.find]
 where   = ["."]
-exclude = ["docs", "tests", "examples"]
-
+exclude = ["binder", "docker", "docs", "tests", "examples"]
 
 [tool.setuptools_scm]
 fallback_version = "0+untagged"
