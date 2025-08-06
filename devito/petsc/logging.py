@@ -142,7 +142,8 @@ class PetscInfo(CompositeObject):
 
     @property
     def summary_key(self):
-        return (self.section, self.sobjs['options_prefix'])
+        user_prefix = self.inject_solve.expr.rhs.user_prefix
+        return (self.section, user_prefix)
 
     def __getattr__(self, attr):
         if attr in self.logobjs.keys():

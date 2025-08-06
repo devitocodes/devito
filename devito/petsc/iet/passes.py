@@ -71,10 +71,8 @@ def lower_petsc(iet, **kwargs):
     # Map PETScSolve to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
-    # Utility callback for setting PETSc options.
-    # This generic function can be reused across all PETScSolves.
+    # Callback used to set a PetscOption - used by all PETScSolves
     set_solver_option(efuncs)
-    # from IPython import embed; embed()
 
     for iters, (inject_solve,) in inject_solve_mapper.items():
 
@@ -94,7 +92,6 @@ def lower_petsc(iet, **kwargs):
     body = core + tuple(setup) + iet.body.body
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
-    # from IPython import embed; embed()
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
     return iet, metadata
 
@@ -228,7 +225,7 @@ def set_solver_option(efuncs):
     option = ConstCharPtr(name='option', is_const=True)
     value = ConstCharPtr(name='value', is_const=True)
     set = PetscBool(name='set')
-    
+
     body = List(body=[
         petsc_call('PetscOptionsHasName', [Null, Null, option, Byref(set)]),
         Conditional(Not(set), petsc_call('PetscOptionsSetValue', [Null, option, value]))
@@ -246,7 +243,6 @@ def set_solver_option(efuncs):
         retval=objs['err'],
         parameters=(option, value)
     )
-    # from IPython import embed; embed()
     efuncs[cb.name] = cb
 
 

@@ -1,17 +1,18 @@
-from devito.types import Symbol, SteppingDimension
 from devito.types.equation import PetscEq
-from devito.operations.solve import eval_time_derivatives
-from devito.symbolics import retrieve_functions
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import as_tuple
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
                                 FieldData, MultipleFieldData, Jacobian, Residual,
                                 MixedResidual, MixedJacobian, InitialGuess)
 from devito.petsc.types.equation import EssentialBC
+from devito.petsc.solver_parameters import (linear_solver_parameters,
+                                            format_options_prefix)
+from devito.petsc.utils import get_funcs, generate_time_mapper
 
 
 __all__ = ['PETScSolve']
 
 
+# TODO: Rename this to petsc_solve, petscsolve?
 def PETScSolve(target_exprs, target=None, solver_parameters=None, options_prefix=None):
     """
     Returns a symbolic expression representing a linear PETSc solver,
@@ -62,22 +63,23 @@ def PETScSolve(target_exprs, target=None, solver_parameters=None, options_prefix
 
 class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None):
-        self.solver_params = solver_parameters
+        self.solver_parameters = linear_solver_parameters(solver_parameters)
         self.time_mapper = None
         self.target_exprs = target_exprs
-        self.options_prefix = options_prefix
+        self.user_prefix = options_prefix
+        self.formatted_prefix = format_options_prefix(options_prefix)
 
     def build_expr(self):
         target, funcs, field_data = self.linear_solve_args()
-
         # Placeholder expression for inserting calls to the solver
         linear_solve = LinearSolveExpr(
             funcs,
-            self.solver_params,
+            self.solver_parameters,
             field_data=field_data,
             time_mapper=self.time_mapper,
             localinfo=localinfo,
-            options_prefix=self.options_prefix
+            user_prefix=self.user_prefix,
+            formatted_prefix=self.formatted_prefix
         )
         return PetscEq(target, linear_solve)
 
@@ -150,46 +152,6 @@ class InjectMixedSolve(InjectSolve):
         )
 
         return targets[0], tuple(funcs), all_data
-
-
-def generate_time_mapper(funcs):
-    """
-    Replace time indices with `Symbols` in expressions used within
-    PETSc callback functions. These symbols are Uxreplaced at the IET
-    level to align with the `TimeDimension` and `ModuloDimension` objects
-    present in the initial lowering.
-    NOTE: All functions used in PETSc callback functions are attached to
-    the `LinearSolveExpr` object, which is passed through the initial lowering
-    (and subsequently dropped and replaced with calls to run the solver).
-    Therefore, the appropriate time loop will always be correctly generated inside
-    the main kernel.
-    Examples
-    --------
-    >>> funcs = [
-    >>>     f1(t + dt, x, y),
-    >>>     g1(t + dt, x, y),
-    >>>     g2(t, x, y),
-    >>>     f1(t, x, y)
-    >>> ]
-    >>> generate_time_mapper(funcs)
-    {t + dt: tau0, t: tau1}
-    """
-    time_indices = list({
-        i if isinstance(d, SteppingDimension) else d
-        for f in funcs
-        for i, d in zip(f.indices, f.dimensions)
-        if d.is_Time
-    })
-    tau_symbs = [Symbol('tau%d' % i) for i in range(len(time_indices))]
-    return dict(zip(time_indices, tau_symbs))
-
-
-def get_funcs(exprs):
-    funcs = [
-        f for e in exprs
-        for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
-    ]
-    return filter_ordered(funcs)
 
 
 localinfo = DMDALocalInfo(name='info', liveness='eager')

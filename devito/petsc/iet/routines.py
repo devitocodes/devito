@@ -17,11 +17,10 @@ from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
                                     MatShellSetOp, PetscMetaData)
 from devito.petsc.iet.utils import (petsc_call, petsc_struct, zero_vector,
                                     dereference_funcs, residual_bundle)
-from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (PETScArray, PetscBundle, DM, Mat, CallbackVec, Vec,
                                 KSP, PC, SNES, PetscInt, StartPtr, PointerIS, PointerDM,
                                 VecScatter, DMCast, JacobianStruct, SubMatrixStruct,
-                                CallbackDM, PetscBool)
+                                CallbackDM)
 from devito.petsc.types.macros import petsc_func_begin_user, Null
 
 
@@ -119,14 +118,14 @@ class CBBuilder:
     def _petsc_options_callback(self):
         objs = self.objs
         params = self.solver_parameters
-        options_prefix = self.inject_solve.expr.rhs.options_prefix
+        prefix = self.inject_solve.expr.rhs.formatted_prefix
 
-        body = []
-
-        # from IPython import embed; embed()
-        # TODO: improve
-        for k, v in params.items():
-            body.append(petsc_call('SetPetscOption', [String("-"+options_prefix+k), String(v)]))
+        body = [
+            petsc_call(
+                'SetPetscOption', [String(f"-{prefix}{k}"), String(str(v))]
+            )
+            for k, v in params.items()
+        ]
 
         body = CallableBody(
             List(body=body),
@@ -695,6 +694,7 @@ class CCBBuilder(CBBuilder):
         for sm in self.field_data.jacobian.nonzero_submatrices:
             self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
 
+        self._petsc_options_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc()
         self._make_user_struct_callback()
@@ -1089,7 +1089,7 @@ class BaseObjectBuilder:
         targets = self.field_data.targets
 
         snes_name = sreg.make_name(prefix='snes')
-        options_prefix = self.inject_solve.expr.rhs.options_prefix
+        formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
 
         base_dict = {
             'Jac': Mat(sreg.make_name(prefix='J')),
@@ -1103,9 +1103,9 @@ class BaseObjectBuilder:
             'localsize': PetscInt(sreg.make_name(prefix='localsize')),
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
-            'snesprefix': String(options_prefix or ''),
-            'options_prefix': options_prefix,
+            'snes_prefix': String(formatted_prefix),
         }
+
         base_dict['comm'] = self.comm
         self._target_dependent(base_dict)
         return self._extend_build(base_dict)
@@ -1244,6 +1244,7 @@ class BaseSetup:
         self.solver_objs = kwargs.get('solver_objs')
         self.cbbuilder = kwargs.get('cbbuilder')
         self.field_data = self.inject_solve.expr.rhs.field_data
+        self.formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
         self.calls = self._setup()
 
     @property
@@ -1255,18 +1256,14 @@ class BaseSetup:
         return VOID(self.solver_objs['dmda'], stars='*')
 
     def _setup(self):
-        objs = self.objs
         sobjs = self.solver_objs
-
         dmda = sobjs['dmda']
-
-        # solver_params = self.inject_solve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
         snes_options_prefix = petsc_call(
-            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
-        ) if sobjs['options_prefix'] else None
+            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snes_prefix']]
+        ) if self.formatted_prefix else None
 
         set_options = petsc_call(
             self.cbbuilder._options_efunc.name, []
@@ -1275,9 +1272,6 @@ class BaseSetup:
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
         create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
-
-        # NOTE: Assuming all solves are linear for now
-        snes_set_type = petsc_call('SNESSetType', [sobjs['snes'], 'SNESKSPONLY'])
 
         snes_set_jac = petsc_call(
             'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
@@ -1295,6 +1289,7 @@ class BaseSetup:
         local_size = math.prod(
             v for v, dim in zip(target.shape_allocated, target.dimensions) if dim.is_Space
         )
+        # TODO: Check, maybe this should be VecCreateSeqWithArray
         local_x = petsc_call('VecCreateMPIWithArray',
                              [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
                               field_from_ptr, Byref(sobjs['xlocal'])])
@@ -1309,26 +1304,6 @@ class BaseSetup:
 
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
-
-        # ksp_set_tols = petsc_call(
-        #     'KSPSetTolerances', [sobjs['ksp'], solver_params['ksp_rtol'],
-        #                          solver_params['ksp_atol'], solver_params['ksp_divtol'],
-        #                          solver_params['ksp_max_it']]
-        # )
-
-        # ksp_set_type = petsc_call(
-        #     'KSPSetType', [sobjs['ksp'], solver_mapper[solver_params['ksp_type']]]
-        # )
-
-        # TODO: can drop this
-        ksp_get_pc = petsc_call(
-            'KSPGetPC', [sobjs['ksp'], Byref(sobjs['pc'])]
-        )
-
-        # Even though the default will be jacobi, set to PCNONE for now
-        pc_set_type = petsc_call('PCSetType', [sobjs['pc'], 'PCNONE'])
-
-        ksp_set_from_ops = petsc_call('KSPSetFromOptions', [sobjs['ksp']])
 
         matvec = self.cbbuilder.main_matvec_callback
         matvec_operation = petsc_call(
@@ -1366,16 +1341,11 @@ class BaseSetup:
             snes_set_dm,
             create_matrix,
             snes_set_jac,
-            snes_set_type,
             global_x,
             local_x,
             get_local_size,
             global_b,
             snes_get_ksp,
-            # ksp_set_tols,
-            ksp_get_pc,
-            pc_set_type,
-            ksp_set_from_ops,
             matvec_operation,
             formfunc_operation,
             snes_set_options,
@@ -1400,7 +1370,6 @@ class BaseSetup:
         return dmda_create, dm_setup, dm_mat_type
 
     def _create_dmda(self, dmda):
-        objs = self.objs
         sobjs = self.solver_objs
         grid = self.field_data.grid
         nspace_dims = len(grid.dimensions)
@@ -1445,22 +1414,21 @@ class CoupledSetup(BaseSetup):
         # TODO: minimise code duplication with superclass
         objs = self.objs
         sobjs = self.solver_objs
-
         dmda = sobjs['dmda']
-        solver_params = self.inject_solve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
         snes_options_prefix = petsc_call(
-            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
-        ) if sobjs['options_prefix'] else None
+            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snes_prefix']]
+        ) if self.formatted_prefix else None
+
+        set_options = petsc_call(
+            self.cbbuilder._options_efunc.name, []
+        )
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
         create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
-
-        # NOTE: Assuming all solves are linear for now
-        snes_set_type = petsc_call('SNESSetType', [sobjs['snes'], 'SNESKSPONLY'])
 
         snes_set_jac = petsc_call(
             'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
@@ -1477,25 +1445,6 @@ class CoupledSetup(BaseSetup):
 
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
-
-        ksp_set_tols = petsc_call(
-            'KSPSetTolerances', [sobjs['ksp'], solver_params['ksp_rtol'],
-                                 solver_params['ksp_atol'], solver_params['ksp_divtol'],
-                                 solver_params['ksp_max_it']]
-        )
-
-        ksp_set_type = petsc_call(
-            'KSPSetType', [sobjs['ksp'], solver_mapper[solver_params['ksp_type']]]
-        )
-
-        ksp_get_pc = petsc_call(
-            'KSPGetPC', [sobjs['ksp'], Byref(sobjs['pc'])]
-        )
-
-        # Even though the default will be jacobi, set to PCNONE for now
-        pc_set_type = petsc_call('PCSetType', [sobjs['pc'], 'PCNONE'])
-
-        ksp_set_from_ops = petsc_call('KSPSetFromOptions', [sobjs['ksp']])
 
         matvec = self.cbbuilder.main_matvec_callback
         matvec_operation = petsc_call(
@@ -1569,19 +1518,14 @@ class CoupledSetup(BaseSetup):
         coupled_setup = dmda_calls + (
             snes_create,
             snes_options_prefix,
+            set_options,
             snes_set_dm,
             create_matrix,
             snes_set_jac,
-            snes_set_type,
             global_x,
             local_x,
             get_local_size,
             snes_get_ksp,
-            ksp_set_tols,
-            ksp_set_type,
-            ksp_get_pc,
-            pc_set_type,
-            ksp_set_from_ops,
             matvec_operation,
             formfunc_operation,
             snes_set_options,
@@ -1678,7 +1622,6 @@ class CoupledSolver(Solver):
         Assigns the required time iterators to the struct and executes
         the necessary calls to execute the SNES solver.
         """
-        objs = self.objs
         sobjs = self.solver_objs
         xglob = sobjs['xglobal']
 
@@ -1794,10 +1737,10 @@ class TimeDependent(NonTimeDependent):
       for each `SNESSolve` at every time step, don't require the time loop, but
       may still need access to data from other time steps.
     - All `Function` objects are passed through the initial lowering via the
-      `LinearSolveExpr` object, ensuring the correct time loop is generated
+      `SolveExpr` object, ensuring the correct time loop is generated
       in the main kernel.
     - Another mapper is created based on the modulo dimensions
-      generated by the `LinearSolveExpr` object in the main kernel
+      generated by the `SolveExpr` object in the main kernel
       (e.g., {time: time, t: t0, t + 1: t1}).
     - These two mappers are used to generate a final mapper `symb_to_moddim`
       (e.g. {tau0: t0, tau1: t1}) which is used at the IET level to

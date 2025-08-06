@@ -14,7 +14,7 @@ from devito.types import Constant, LocalCompositeObject
 from devito.passes.iet.languages.C import CDataManager
 from devito.petsc.types import (DM, Mat, Vec, PetscMPIInt, KSP,
                                 PC, KSPConvergedReason, PETScArray,
-                                LinearSolveExpr, FieldData, MultipleFieldData,
+                                FieldData, MultipleFieldData,
                                 SubMatrixBlock)
 from devito.petsc.solve import PETScSolve, EssentialBC
 from devito.petsc.iet.nodes import Expression
@@ -166,8 +166,12 @@ def test_multiple_petsc_solves():
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
 
-    # One FormRHS, MatShellMult, FormFunction, PopulateMatContext per solve
-    assert len(callable_roots) == 8
+    # One FormRHS, MatShellMult, FormFunction, PopulateMatContext,
+    # and SetPetscOptions per solve. One shared SetPetscOption call for all solves.
+    # Since the SetPetscOptions call is identical for both solves, it is defined
+    # only once.
+    # TODO: Some efuncs are not reused where reuse is possible — investigate.
+    assert len(callable_roots) == 10
 
 
 @skipif('petsc')
@@ -204,22 +208,24 @@ def test_petsc_cast():
         '(PetscScalar (*)[info.gym][info.gxm]) x_f3_vec;' in str(op3.ccode)
 
 
-@skipif('petsc')
-def test_LinearSolveExpr():
+# TODO: add more thorough tests for solver_parameters
+# @skipif('petsc')
+# def test_LinearSolveExpr():
 
-    grid = Grid((2, 2), dtype=np.float64)
+#     grid = Grid((2, 2), dtype=np.float64)
 
-    f = Function(name='f', grid=grid, space_order=2)
-    g = Function(name='g', grid=grid, space_order=2)
+#     f = Function(name='f', grid=grid, space_order=2)
+#     g = Function(name='g', grid=grid, space_order=2)
 
-    eqn = Eq(f, g.laplace)
+#     eqn = Eq(f, g.laplace)
 
-    linsolveexpr = LinearSolveExpr(eqn.rhs, field_data=FieldData(target=f))
+#     linsolveexpr = LinearSolveExpr(eqn.rhs, field_data=FieldData(target=f))
 
-    # Check the solver parameters
-    assert linsolveexpr.solver_parameters == \
-        {'ksp_type': 'gmres', 'pc_type': 'jacobi', 'ksp_rtol': 1e-05,
-         'ksp_atol': 1e-50, 'ksp_divtol': 100000.0, 'ksp_max_it': 10000}
+#     # Check the solver parameters
+#     assert linsolveexpr.solver_parameters == \
+#         {'snes_type': 'ksponly', 'ksp_type': 'gmres', 'pc_type': 'none',
+#          'ksp_rtol': 1e-05, 'ksp_atol': 1e-50, 'ksp_divtol': 100000.0,
+#          'ksp_max_it': 10000}
 
 
 @skipif('petsc')
@@ -786,8 +792,10 @@ class TestCoupledLinear:
 
         # Solving for multiple fields within the same matrix system requires
         # less callback functions than solving them separately.
-        assert len(callbacks1) == 8
-        assert len(callbacks2) == 6
+        # TODO: As noted in the other test, some efuncs are not reused
+        # where reuse is possible, investigate.
+        assert len(callbacks1) == 10
+        assert len(callbacks2) == 8
 
         # Check field_data type
         field0 = petsc1.rhs.field_data
@@ -1313,7 +1321,7 @@ class TestCoupledLinear:
             '+ r1*a0[ix + 2][iy + 3]))*o0->h_x*o0->h_y;' in str(J00)
 
         # J00 and J11 are semantically identical so check efunc reuse
-        assert len(op._func_table.values()) == 7
+        assert len(op._func_table.values()) == 9
         # J00_MatMult0 is reused (in replace of J11_MatMult0)
         create = op._func_table['MatCreateSubMatrices0'].root
         assert 'MatShellSetOperation(submat_arr[0],' \

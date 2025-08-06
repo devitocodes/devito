@@ -39,7 +39,7 @@ solver = PETScSolve([eq], u, solver_parameters={'ksp_rtol': 1e-8}, options_prefi
 with switchconfig(language='petsc'):
     op = Operator(solver)
     op.apply()
-    # print(op.ccode)
+    print(op.ccode)
 
 
 # import sys
