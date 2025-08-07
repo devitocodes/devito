@@ -180,20 +180,28 @@ def inner(f, g):
     return f.dtype(n.data[0])
 
 
-red_doc = lambda func: f"""
-    Retrieve the {func}imum.
+def mmin(f):
+    """
+    Retrieve the minimum.
 
     Parameters
     ----------
     f : array_like or Function
         Input operand.
     """
+    return _reduce_func(f, np.min, dv.mpi.MPI.MIN)
 
 
-mmin = lambda f: _reduce_func(f, np.min, dv.mpi.MPI.MIN)
-mmin.__doc__ = red_doc('min')
-mmax = lambda f: _reduce_func(f, np.max, dv.mpi.MPI.MAX)
-mmax.__doc__ = red_doc('max')
+def mmax(f):
+    """
+    Retrieve the maximum.
+
+    Parameters
+    ----------
+    f : array_like or Function
+        Input operand.
+    """
+    return _reduce_func(f, np.max, dv.mpi.MPI.MAX)
 
 
 @dv.switchconfig(log_level='ERROR')
