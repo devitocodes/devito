@@ -72,9 +72,13 @@ jobs:
       run: |
         ${{ env.RUN_CMD }} python3 -c "from devito import configuration; print(''.join(['%s: %s \n' % (k, v) for (k, v) in configuration.items()]))"
 
-    - name: Test with pytest
+    - name: Test with pytest - non parallel
       run: |
-        ${{ env.RUN_CMD }} mpiexec -n 1 pytest --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
+        ${{ env.RUN_CMD }} mpiexec -n 1 pytest -m "not parallel" --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
+
+    - name: Test with pytest - parallel
+      run: |
+        ${{ env.RUN_CMD }} mpiexec -n 1 pytest -m parallel --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
 
     - name: Test examples
       run: |

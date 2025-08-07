@@ -107,7 +107,7 @@ class CBBuilder:
         return self.field_data.target
 
     def _make_core(self):
-        self._petsc_options_callback()
+        self._make_options_callback()
         self._make_matvec(self.field_data.jacobian)
         self._make_formfunc()
         self._make_formrhs()
@@ -115,17 +115,16 @@ class CBBuilder:
             self._make_initial_guess()
         self._make_user_struct_callback()
 
-    def _petsc_options_callback(self):
+    def _make_options_callback(self):
         objs = self.objs
         params = self.solver_parameters
         prefix = self.inject_solve.expr.rhs.formatted_prefix
 
-        body = [
-            petsc_call(
-                'SetPetscOption', [String(f"-{prefix}{k}"), String(str(v))]
-            )
-            for k, v in params.items()
-        ]
+        body = []
+        for k, v in params.items():
+            option_key = String(f"-{prefix}{k}")
+            option_value = Null if v is None else String(str(v))
+            body.append(petsc_call('SetPetscOption', [option_key, option_value]))
 
         body = CallableBody(
             List(body=body),
@@ -133,7 +132,6 @@ class CBBuilder:
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
-        objs = self.objs
         cb = PETScCallable(
             self.sregistry.make_name(prefix='SetPetscOptions'),
             body,
@@ -694,7 +692,7 @@ class CCBBuilder(CBBuilder):
         for sm in self.field_data.jacobian.nonzero_submatrices:
             self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
 
-        self._petsc_options_callback()
+        self._make_options_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc()
         self._make_user_struct_callback()
@@ -1289,7 +1287,7 @@ class BaseSetup:
         local_size = math.prod(
             v for v, dim in zip(target.shape_allocated, target.dimensions) if dim.is_Space
         )
-        # TODO: Check, maybe this should be VecCreateSeqWithArray
+        # TODO: Check - VecCreateSeqWithArray
         local_x = petsc_call('VecCreateMPIWithArray',
                              [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
                               field_from_ptr, Byref(sobjs['xlocal'])])

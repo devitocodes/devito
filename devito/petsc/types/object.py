@@ -303,7 +303,7 @@ class ArgvSymbol(DataSymbol):
         return POINTER(POINTER(c_char))
 
 
-class ConstCharPtr(DataSymbol):
+class CharPtr(DataSymbol):
     @property
     def _C_ctype(self):
         return c_char_p

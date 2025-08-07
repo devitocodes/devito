@@ -1489,3 +1489,154 @@ class TestLogging:
         assert entry1['SNESGetIterationNumber'] == 1
         # Case insensitive key access
         assert entry1['kspgetiterationnumber'] == 16
+
+
+class TestSolverParameters:
+
+    @skipif('petsc')
+    def setup_method(self):
+        """Setup grid and functions shared across tests in this class"""
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        self.e, self.f, self.g, self.h = [
+            Function(name=n, grid=grid, space_order=2)
+            for n in ['e', 'f', 'g', 'h']
+        ]
+        self.eq1 = Eq(self.e.laplace, self.f)
+        self.eq2 = Eq(self.g.laplace, self.h)
+
+    @skipif('petsc')
+    def test_set_petsc_option_callback(self):
+        """
+        """
+        solver1 = PETScSolve(self.eq1, target=self.e)
+        solver2 = PETScSolve(self.eq2, target=self.g)
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+
+        set_option = op._func_table['SetPetscOption'].root
+
+        assert 'PetscErrorCode SetPetscOption(const char * option, const char * value)' \
+            in str(set_option)
+        assert 'if (!set)' in str(set_option)
+
+    @skipif('petsc')
+    def test_same_solver_params(self):
+        """
+        """
+        solver1 = PETScSolve(self.eq1, target=self.e)
+        solver2 = PETScSolve(self.eq2, target=self.g)
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+
+        # Check that there is only a single `SetPetscOptions` callback since
+        # both solvers do not specify solver parameters so they use the default
+        # ones and therefore the callback is the same and should be reused.
+        assert 'SetPetscOptions0' in op._func_table
+        assert 'SetPetscOptions1' not in op._func_table
+
+        assert 'PetscCall(SetPetscOption("-snes_type","ksponly"));' \
+            in str(op._func_table['SetPetscOptions0'].root)
+
+    @skipif('petsc')
+    def test_differing_solver_params(self):
+        """
+        """
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
+        )
+        solver2 = PETScSolve(self.eq2, target=self.g)
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+
+        # Check that there are two `SetPetscOptions` callbacks since the solver
+        # parameters are different for each solver.
+        assert 'SetPetscOptions0' in op._func_table
+        assert 'SetPetscOptions1' in op._func_table
+
+        assert 'PetscCall(SetPetscOption("-ksp_rtol","1e-10"));' \
+            in str(op._func_table['SetPetscOptions0'].root)
+
+        assert 'PetscCall(SetPetscOption("-ksp_rtol","1e-05"));' \
+            in str(op._func_table['SetPetscOptions1'].root)
+
+    @skipif('petsc')
+    def test_options_with_no_value(self, capfd):
+        """
+        Test solver parameters that do not require a value, such as
+        `snes_view`.
+        """
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, solver_parameters={'snes_view': None}
+        )
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver1)
+            op.apply()
+
+        assert 'PetscCall(SetPetscOption("-snes_view",NULL));' \
+            in str(op._func_table['SetPetscOptions0'].root)
+
+        # With snes_view set, check the default solver_parameters
+        # are set correctly
+        output = capfd.readouterr()
+
+        assert 'type: gmres' in output.out
+        # TODO: Add one for precondiitoner once default is established
+        assert 'tolerances: relative=1e-05, absolute=1e-50, divergence=100000' \
+            in output.out
+        assert 'maximum iterations=10000' in output.out
+        assert 'type: ksponly' in output.out
+
+    @skipif('petsc')
+    def test_options_prefix(self):
+        solver1 = PETScSolve(self.eq1, self.e,
+                             solver_parameters={'ksp_rtol': '1e-10'},
+                             options_prefix='poisson1')
+        solver2 = PETScSolve(self.eq2, self.g,
+                             solver_parameters={'ksp_rtol': '1e-12'},
+                             options_prefix='poisson2')
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+
+        # Check the options prefix has been correctly set on each snes solver
+        assert 'PetscCall(SNESSetOptionsPrefix(snes0,"poisson1_"));' in str(op)
+        assert 'PetscCall(SNESSetOptionsPrefix(snes1,"poisson2_"));' in str(op)
+
+        # Test the options prefix has be correctly applied to the solver options
+        assert 'PetscCall(SetPetscOption("-poisson1_ksp_rtol","1e-10"));' \
+            in str(op._func_table['SetPetscOptions0'].root)
+
+        assert 'PetscCall(SetPetscOption("-poisson2_ksp_rtol","1e-12"));' \
+            in str(op._func_table['SetPetscOptions1'].root)
+
+    # TODO: Add a test to check that the command line args override anything set
+    # in the solver_parameters dictionary
+
+
+    # @skipif('petsc')
+    # def test_command_line_priority(self, capfd):
+    #     """
+    #     Test solver parameters specifed via the command line
+    #     take precedence over those set in the solver_parameters
+    #     dictionary.
+    #     """
+    #     solver1 = PETScSolve(
+    #         self.eq1, target=self.e, solver_parameters={
+    #             'ksp_rtol': '1e-9',
+    #             'snes_view': None}
+    #     )
+    #     with switchconfig(language='petsc'):
+    #         op = Operator(solver1)
+    #         op.apply()
+
+    #     output = capfd.readouterr()
+
+    #     # Check that the command line option specifying the ksp_rtol took
+    #     # precendence over the solver
+    #     #
+    #     assert 'tolerances: relative=1e-12, absolute=1e-50, divergence=100000' \
+    #         in output.out

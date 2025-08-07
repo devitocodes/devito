@@ -18,7 +18,7 @@ from devito.petsc.types import (PetscMPIInt, PetscErrorCode, MultipleFieldData,
                                 DummyArg, PetscInt, PointerDM, PointerMat, MatReuse,
                                 CallbackPointerIS, CallbackPointerDM, JacobianStruct,
                                 SubMatrixStruct, Initialize, Finalize, ArgvSymbol,
-                                ConstCharPtr, PetscBool)
+                                CharPtr, PetscBool)
 from devito.petsc.types.macros import petsc_func_begin_user, Null
 from devito.petsc.iet.nodes import PetscMetaData, PETScCallable
 from devito.petsc.utils import core_metadata, petsc_languages
@@ -71,7 +71,8 @@ def lower_petsc(iet, **kwargs):
     # Map PETScSolve to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
-    # Callback used to set a PetscOption - used by all PETScSolves
+    # Generate a shared callback used by all PETScSolve instances to set
+    # individual PetscOptions
     set_solver_option(efuncs)
 
     for iters, (inject_solve,) in inject_solve_mapper.items():
@@ -222,8 +223,8 @@ def populate_matrix_context(efuncs):
 
 def set_solver_option(efuncs):
 
-    option = ConstCharPtr(name='option', is_const=True)
-    value = ConstCharPtr(name='value', is_const=True)
+    option = CharPtr(name='option', is_const=True)
+    value = CharPtr(name='value', is_const=True)
     set = PetscBool(name='set')
 
     body = List(body=[

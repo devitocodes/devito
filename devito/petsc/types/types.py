@@ -115,9 +115,8 @@ class SolveExpr(MetaData):
 
 class LinearSolveExpr(SolveExpr):
     """
-    Linear problems are handled with
-    `SNESSetType(snes, KSPONLY)`, enabling a unified interface for both
-    linear and nonlinear solvers.
+    Linear problems are handled by setting the SNESType to 'ksponly',
+    enabling a unified interface for both linear and nonlinear solvers.
     """
     pass
 
