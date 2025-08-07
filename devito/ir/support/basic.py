@@ -413,6 +413,9 @@ class TimedAccess(IterationInstance, AccessMode):
                 # E.g., `self=R<f,[x, y]>`, `sai=time`,
                 #       `self.itintervals=(time, x, y)`, `n=0`
                 continue
+            elif not sai or not oai:
+                # E.g sai=time, oai=None
+                ret.append(S.Zero)
             else:
                 # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`,
                 # and `n=1`

@@ -530,8 +530,11 @@ def _semantical_eq_loc_indices(hsf0, hsf1):
 
         # Special case: they might be syntactically different, but semantically
         # equivalent, e.g., `t0` and `t1` with same modulus
-        if v0.modulo == v1.modulo == 1:
-            continue
+        try:
+            if v0.modulo == v1.modulo == 1:
+                continue
+        except AttributeError:
+            return False
 
         return False
 
