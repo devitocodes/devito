@@ -16,7 +16,7 @@ from devito.parameters import configuration
 from devito.tools import (Pickable, as_tuple, dtype_to_ctype,
                           frozendict, memoized_meth, sympy_mutex, CustomDtype)
 from devito.types.args import ArgProvider
-from devito.types.caching import Cached, Uncached
+from devito.types.caching import CacheManager, Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
 
@@ -559,24 +559,31 @@ class Symbol(AbstractSymbol, Cached):
     def __new__(cls, *args, **kwargs):
         assumptions, kwargs = cls._filter_assumptions(**kwargs)
         key = cls._cache_key(*args, **{**assumptions, **kwargs})
-        obj = cls._cache_get(key)
 
+        # Initial cache lookup (not locked)
+        obj = cls._cache_get(key)
         if obj is not None:
             return obj
 
-        # Not in cache. Create a new Symbol via sympy.Symbol
-        args = list(args)
-        name = kwargs.pop('name', None) or args.pop(0)
-        newobj = cls.__xnew__(cls, name, **assumptions)
+        # Lock against the symbol cache and double-check the cache
+        with CacheManager.lock():
+            obj = cls._cache_get(key)
+            if obj is not None:
+                return obj
 
-        # Initialization
-        newobj._dtype = cls.__dtype_setup__(**kwargs)
-        newobj.__init_finalize__(name, *args, **kwargs)
+            # Not in cache. Create a new Symbol via sympy.Symbol
+            args = list(args)
+            name = kwargs.pop('name', None) or args.pop(0)
+            newobj = cls.__xnew__(cls, name, **assumptions)
 
-        # Store new instance in symbol cache
-        Cached.__init__(newobj, key)
+            # Initialization
+            newobj._dtype = cls.__dtype_setup__(**kwargs)
+            newobj.__init_finalize__(name, *args, **kwargs)
 
-        return newobj
+            # Store new instance in symbol cache
+            Cached.__init__(newobj, key)
+
+            return newobj
 
     __hash__ = Cached.__hash__
 
