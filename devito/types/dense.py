@@ -16,7 +16,7 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import FieldFromPointer, normalize_args
+from devito.symbolics import FieldFromPointer, normalize_args, IndexedPointer
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
 from devito.finite_differences.tools import fd_weights_registry
 from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten,
@@ -719,7 +719,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @memoized_meth
     def _C_get_field(self, region, dim, side=None):
         """Symbolic representation of a given data region."""
-        ffp = lambda f, i: FieldFromPointer("%s[%d]" % (f, i), self._C_symbol)
+        ffp = lambda f, i: IndexedPointer(FieldFromPointer(f"{f}", self._C_symbol), i)
         if region is DOMAIN:
             offset = ffp(self._C_field_owned_ofs, self._C_make_index(dim, LEFT))
             size = ffp(self._C_field_domain_size, self._C_make_index(dim))

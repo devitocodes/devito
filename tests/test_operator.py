@@ -35,7 +35,9 @@ from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
-from devito.types import Array, Barrier, CustomDimension, Indirection, Scalar, Symbol
+from devito.types import (
+    Array, Barrier, CustomDimension, Indirection, Scalar, Symbol, ConditionalDimension
+)
 
 
 def dimify(dimensions):
@@ -2033,6 +2035,23 @@ class TestLoopScheduling:
 
         op.apply()
         assert(np.all(u.data[:] == expected[:]))
+
+    def test_pseudo_time_dep(self):
+        """
+        Test that a data dependency through a field is correctly
+        ignored when not direction dependent
+        """
+        grid = Grid((11, 11))
+        ct = ConditionalDimension(name='ct', parent=grid.time_dim, factor=2)
+        f = TimeFunction(name='f', grid=grid, time_order=1)
+        g = Function(name='g', grid=grid)
+
+        eq = [Eq(f.backward, div(f) + 1),
+              Eq(g, g + f.symbolic_shape[1], implicit_dims=ct),
+              Eq(g, g + 1, implicit_dims=ct)]
+        op = Operator(eq)
+
+        assert_structure(op, ['t,x,y', 't', 't,x,y'], 't,x,y,x,y')
 
 
 class TestInternals:
