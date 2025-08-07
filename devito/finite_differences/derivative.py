@@ -162,7 +162,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             try:
                 expr = diffify(expr)
             except Exception as e:
-                raise ValueError("`expr` must be a `Differentiable` type object") from e
+                d = type(expr)
+                raise ValueError(f"`expr` must be a `Differentiable` not {d}") from e
         return expr
 
     @staticmethod
