@@ -777,7 +777,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         pass
 
     def __str__(self):
-        return "%s(%s)" % (self.name, ', '.join(str(i) for i in self.indices))
+        return f"{self.name}({', '.join(str(i) for i in self.indices)})"
 
     __repr__ = __str__
 
@@ -1107,7 +1107,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return None.
         """
         if self._mem_mapped:
-            return DeviceMap('d_%s' % self.name, shape=self._shape,
+            return DeviceMap(f'd_{self.name}', shape=self._shape,
                              function=self.function)
         elif self._mem_local:
             return self.indexed
@@ -1175,7 +1175,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     @property
     def _C_name(self):
-        return "%s_vec" % self.name
+        return f"{self.name}_vec"
 
     @cached_property
     def _C_symbol(self):

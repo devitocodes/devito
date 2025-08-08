@@ -48,16 +48,15 @@ class Parameters(OrderedDict, Signer):
             if accepted is not None:
                 tocheck = list(value) if isinstance(value, dict) else [value]
                 if any(i not in accepted for i in tocheck):
-                    raise ValueError("Illegal configuration parameter (%s, %s). "
-                                     "Accepted: %s" % (key, value, str(accepted)))
+                    raise ValueError(f"Illegal configuration parameter ({key}, {value}). "
+                                     f"Accepted: {str(accepted)}")
             return func(self, key, value)
         return wrapper
 
     def _check_key_deprecation(func):
         def wrapper(self, key, value=None):
             if key in self._deprecated:
-                warning("Trying to access deprecated config `%s`. Using `%s` instead"
-                        % (key, self._deprecated[key]))
+                warning(f"Trying to access deprecated config `{key}`. Using `{self._deprecated[key]}` instead")
                 key = self._deprecated[key]
             return func(self, key, value)
         return wrapper
@@ -182,11 +181,11 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
         mapper = dict(queue)
         for k, (v, msg) in env_vars_deprecated.items():
             if environ.get(k):
-                warning("`%s` is deprecated. %s" % (k, msg))
+                warning(f"`{k}` is deprecated. {msg}")
                 if environ.get(v):
-                    warning("Both `%s` and `%s` set. Ignoring `%s`" % (k, v, k))
+                    warning(f"Both `{k}` and `{v}` set. Ignoring `{k}`")
                 else:
-                    warning("Setting `%s=%s`" % (v, environ[k]))
+                    warning(f"Setting `{v}={environ[k]}`")
                     unprocessed[mapper[v]] = environ[k]
     else:
         # Attempt reading from the specified configuration file
@@ -264,11 +263,10 @@ def print_defaults():
     """Print the environment variables accepted by Devito, their default value,
     as well as all of the accepted values."""
     for k, v in env_vars_mapper.items():
-        info('%s: %s. Default: %s' % (k, configuration._accepted[v],
-                                      configuration._defaults[v]))
+        info(f'{k}: {configuration._accepted[v]}. Default: {configuration._defaults[v]}')
 
 
 def print_state():
     """Print the current configuration state."""
     for k, v in configuration.items():
-        info('%s: %s' % (k, v))
+        info(f'{k}: {v}')

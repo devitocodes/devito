@@ -181,15 +181,15 @@ class Dimension(ArgProvider):
 
     @cached_property
     def size_name(self):
-        return "%s_size" % self.name
+        return f"{self.name}_size"
 
     @cached_property
     def min_name(self):
-        return "%s_m" % self.name
+        return f"{self.name}_m"
 
     @cached_property
     def max_name(self):
-        return "%s_M" % self.name
+        return f"{self.name}_M"
 
     @property
     def indirect(self):
@@ -333,13 +333,12 @@ class Dimension(ArgProvider):
             will cause an out-of-bounds access.
         """
         if self.min_name not in args:
-            raise InvalidArgument("No runtime value for %s" % self.min_name)
+            raise InvalidArgument(f"No runtime value for {self.min_name}")
         if interval.is_Defined and args[self.min_name] + interval.lower < 0:
-            raise InvalidArgument("OOB detected due to %s=%d" % (self.min_name,
-                                                                 args[self.min_name]))
+            raise InvalidArgument(f"OOB detected due to {self.min_name}={args[self.min_name]}")
 
         if self.max_name not in args:
-            raise InvalidArgument("No runtime value for %s" % self.max_name)
+            raise InvalidArgument(f"No runtime value for {self.max_name}")
         if interval.is_Defined:
             if is_integer(interval.upper):
                 upper = interval.upper
@@ -348,8 +347,7 @@ class Dimension(ArgProvider):
                 from devito.symbolics import normalize_args
                 upper = interval.upper.subs(normalize_args(args))
             if args[self.max_name] + upper >= size:
-                raise InvalidArgument("OOB detected due to %s=%d" % (self.max_name,
-                                                                     args[self.max_name]))
+                raise InvalidArgument(f"OOB detected due to {self.max_name}={args[self.max_name]}")
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
@@ -378,7 +376,7 @@ class BasicDimension(Dimension, Symbol):
         return Symbol.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, name, spacing=None, **kwargs):
-        self._spacing = spacing or Spacing(name='h_%s' % name, is_const=True)
+        self._spacing = spacing or Spacing(name=f'h_{name}', is_const=True)
 
     def __eq__(self, other):
         # Being of type Cached, Dimensions are by construction unique. But unlike
@@ -421,7 +419,7 @@ class DefaultDimension(Dimension, DataSymbol):
         return DataSymbol.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, name, spacing=None, default_value=None, **kwargs):
-        self._spacing = spacing or Spacing(name='h_%s' % name, is_const=True)
+        self._spacing = spacing or Spacing(name=f'h_{name}', is_const=True)
         self._default_value = default_value or 0
 
     @cached_property

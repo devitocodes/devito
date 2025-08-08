@@ -157,7 +157,7 @@ class Data(np.ndarray):
         if self._is_decomposed:
             raise ValueError("Cannot derive a decomposed view from a decomposed Data")
         if len(decomposition) != self.ndim:
-            raise ValueError("`decomposition` should have ndim=%d entries" % self.ndim)
+            raise ValueError(f"`decomposition` should have ndim={self.ndim} entries")
         ret = self[glb_idx]
         ret._decomposition = decomposition
         ret._is_distributed = any(i is not None for i in decomposition)
@@ -407,7 +407,7 @@ class Data(np.ndarray):
                                           "other data ")
             super().__setitem__(glb_idx, val)
         else:
-            raise ValueError("Cannot insert obj of type `%s` into a Data" % type(val))
+            raise ValueError(f"Cannot insert obj of type `{type(val)}` into a Data")
 
     def _normalize_index(self, idx):
         if isinstance(idx, np.ndarray):

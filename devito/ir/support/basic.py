@@ -232,7 +232,7 @@ class TimedAccess(IterationInstance, AccessMode):
 
     def __repr__(self):
         mode = '\033[1;37;31mW\033[0m' if self.is_write else '\033[1;37;32mR\033[0m'
-        return "%s<%s,[%s]>" % (mode, self.name, ', '.join(str(i) for i in self))
+        return f"{mode}<{self.name},[{', '.join(str(i) for i in self)}]>"
 
     def __eq__(self, other):
         if not isinstance(other, TimedAccess):
@@ -295,7 +295,7 @@ class TimedAccess(IterationInstance, AccessMode):
 
     def __lt__(self, other):
         if not isinstance(other, TimedAccess):
-            raise TypeError("Cannot compare with object of type %s" % type(other))
+            raise TypeError(f"Cannot compare with object of type {type(other)}")
         if self.directions != other.directions:
             raise TypeError("Cannot compare due to mismatching `direction`")
         if self.intervals != other.intervals:
@@ -529,7 +529,7 @@ class Relation:
         self.sink = sink
 
     def __repr__(self):
-        return "%s -- %s" % (self.source, self.sink)
+        return f"{self.source} -- {self.sink}"
 
     def __eq__(self, other):
         # If the timestamps are equal in `self` (ie, an inplace dependence) then
@@ -639,7 +639,7 @@ class Dependence(Relation, CacheInstances):
     """
 
     def __repr__(self):
-        return "%s -> %s" % (self.source, self.sink)
+        return f"{self.source} -> {self.sink}"
 
     @cached_property
     def cause(self):
@@ -1042,26 +1042,26 @@ class Scope(CacheInstances):
         tracked = filter_sorted(set(self.reads) | set(self.writes),
                                 key=lambda i: i.name)
         maxlen = max(1, max([len(i.name) for i in tracked]))
-        out = "{:>%d} =>  W : {}\n{:>%d}     R : {}" % (maxlen, maxlen)
+        out = f"{{:>{maxlen}}} =>  W : {{}}\n{{:>{maxlen}}}     R : {{}}"
         pad = " "*(maxlen + 9)
         reads = [self.getreads(i) for i in tracked]
         for i, r in enumerate(list(reads)):
             if not r:
                 reads[i] = ''
                 continue
-            first = "%s" % tuple.__repr__(r[0])
-            shifted = "\n".join("%s%s" % (pad, tuple.__repr__(j)) for j in r[1:])
-            shifted = "%s%s" % ("\n" if shifted else "", shifted)
+            first = f"{tuple.__repr__(r[0])}"
+            shifted = "\n".join(f"{pad}{tuple.__repr__(j)}" for j in r[1:])
+            shifted = f"{'\n' if shifted else ''}{shifted}"
             reads[i] = first + shifted
         writes = [self.getwrites(i) for i in tracked]
         for i, w in enumerate(list(writes)):
             if not w:
                 writes[i] = ''
                 continue
-            first = "%s" % tuple.__repr__(w[0])
-            shifted = "\n".join("%s%s" % (pad, tuple.__repr__(j)) for j in w[1:])
-            shifted = "%s%s" % ("\n" if shifted else "", shifted)
-            writes[i] = '\033[1;37;31m%s\033[0m' % (first + shifted)
+            first = f"{tuple.__repr__(w[0])}"
+            shifted = "\n".join(f"{pad}{tuple.__repr__(j)}" for j in w[1:])
+            shifted = f"{'\n' if shifted else ''}{shifted}"
+            writes[i] = f'\033[1;37;31m{first + shifted}\033[0m'
         return "\n".join([out.format(i.name, w, '', r)
                           for i, r, w in zip(tracked, reads, writes)])
 
@@ -1264,7 +1264,7 @@ class ExprGeometry:
         self.offsets = offsets
 
     def __repr__(self):
-        return "ExprGeometry(expr=%s)" % self.expr
+        return f"ExprGeometry(expr={self.expr})"
 
     def translated(self, other, dims=None):
         """

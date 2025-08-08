@@ -682,7 +682,7 @@ class CudaCompiler(Compiler):
                 elif i.startswith('-Wl'):
                     # E.g., `-Wl,-rpath` -> `-Xcompiler "-Wl\,-rpath"`
                     proc_link_flags.extend([
-                        '-Xcompiler', '"%s"' % i.replace(',', r'\,')
+                        '-Xcompiler', f'"{i.replace(",", r"\\,")}"'
                     ])
                 else:
                     proc_link_flags.append(i)
