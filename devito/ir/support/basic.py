@@ -61,9 +61,9 @@ class IterationInstance(LabeledVector):
         x, y, z : findices
         w : a generic Dimension
 
-           | x+1 |           |  x  |          |  x  |          | w |          | x+y |
-    obj1 = | y+2 | ,  obj2 = |  4  | , obj3 = |  x  | , obj4 = | y | , obj5 = |  y  |
-           | z-3 |           | z+1 |          |  y  |          | z |          |  z  |
+         | x+1 |          |  x  |         |  x  |         | w |         | x+y |
+    obj1 | y+2 |,  obj2 = |  4  |, obj3 = |  x  |, obj4 = | y |, obj5 = |  y  |
+         | z-3 |          | z+1 |         |  y  |         | z |         |  z  |
 
     We have that:
 
@@ -371,7 +371,8 @@ class TimedAccess(IterationInstance, AccessMode):
                     # symbolic Lt or Gt operations,
                     # Note: Boolean is split to make the conditional short
                     # circuit more frequently for mild speedup.
-                    if smart_lt(v, sit.symbolic_min) or smart_gt(v, sit.symbolic_max):
+                    if smart_lt(v, sit.symbolic_min) or \
+                       smart_gt(v, sit.symbolic_max):
                         return Vector(S.ImaginaryUnit)
 
                 # Case 2: `sit` is an IterationInterval over a local SubDimension
@@ -403,22 +404,24 @@ class TimedAccess(IterationInstance, AccessMode):
                     ret.append(other[n] - self[n])
                 else:
                     ret.append(self[n] - other[n])
-            elif not sai and not oai:
-                # E.g., `self=R<a,[3]>` and `other=W<a,[4]>`
-                if self[n] - other[n] == 0:
-                    ret.append(S.Zero)
-                else:
-                    break
             elif sai in self.ispace and oai in other.ispace:
                 # E.g., `self=R<f,[x, y]>`, `sai=time`,
                 #       `self.itintervals=(time, x, y)`, `n=0`
                 continue
-            elif not sai or not oai:
-                # E.g sai=time, oai=None
+            elif not sai and not oai:
+                if self[n] - other[n] == 0:
+                    # E.g., `self=R<a,[4]>` and `other=W<a,[4]>`
+                    ret.append(S.Zero)
+                else:
+                    # E.g., `self=R<a,[3]>` and `other=W<a,[4]>`
+                    break
+            elif any(i is S.Infinity for i in (self[n], other[n])):
+                # E.g., `self=R<f,[oo, oo]>` (due to `self.access=f_vec->size[1]`)
+                # and `other=W<f,[t - 1, x + 1]>`
                 ret.append(S.Zero)
             else:
-                # E.g., `self=R<u,[t+1, ii_src_0+1, ii_src_1+2]>`, `fi=p_src`,
-                # and `n=1`
+                # E.g., `self=R<u,[t+1, ii_src_0+1]>`, `fi=p_src`, `n=1`
+                # E.g., `self=R<a,[time,x]>`, `other=W<a,[time,4]>`, `n=1`
                 return vinf(ret)
 
         n = len(ret)
