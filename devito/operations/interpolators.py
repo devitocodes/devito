@@ -28,7 +28,7 @@ def check_radius(func):
         funcs = set().union(*[retrieve_functions(a) for a in args])
         so = min({f.space_order for f in funcs if not f.is_SparseFunction} or {r})
         if so < r:
-            raise ValueError("Space order %d too small for interpolation r %d" % (so, r))
+            raise ValueError(f"Space order {so} too small for interpolation r {r}")
         return func(interp, *args, **kwargs)
     return wrapper
 
@@ -122,8 +122,8 @@ class Interpolation(UnevaluatedSparseOperation):
                                               implicit_dims=self.implicit_dims)
 
     def __repr__(self):
-        return "Interpolation(%s into %s)" % (repr(self.expr),
-                                              repr(self.interpolator.sfunction))
+        return (f"Interpolation({repr(self.expr)} into "
+                f"{repr(self.interpolator.sfunction)})")
 
 
 class Injection(UnevaluatedSparseOperation):
@@ -150,7 +150,7 @@ class Injection(UnevaluatedSparseOperation):
                                          implicit_dims=self.implicit_dims)
 
     def __repr__(self):
-        return "Injection(%s into %s)" % (repr(self.expr), repr(self.field))
+        return f"Injection({repr(self.expr)} into {repr(self.field)})"
 
 
 class GenericInterpolator(ABC):
@@ -210,7 +210,7 @@ class WeightedInterpolator(GenericInterpolator):
     def _cdim(self):
         """Base CustomDimensions used to construct _rdim"""
         parent = self.sfunction._sparse_dim
-        dims = [CustomDimension("r%s%s" % (self.sfunction.name, d.name),
+        dims = [CustomDimension(f"r{self.sfunction.name}{d.name}",
                                 -self.r+1, self.r, 2*self.r, parent)
                 for d in self._gdims]
         return dims
@@ -552,7 +552,7 @@ of the SincInterpolator that uses i0 (Bessel function).
         shape = (self.sfunction.npoint, 2 * self.r)
         for r in self._cdim:
             dimensions = (self.sfunction._sparse_dim, r)
-            sf = SubFunction(name="wsinc%s" % r.name, dtype=self.sfunction.dtype,
+            sf = SubFunction(name=f"wsinc{r.name}", dtype=self.sfunction.dtype,
                              shape=shape, dimensions=dimensions,
                              space_order=0, alias=self.sfunction.alias,
                              parent=None)

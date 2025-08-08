@@ -56,7 +56,7 @@ def _set_log_level(level):
     Set the level of the Devito logger.
     """
     if level not in logger_registry:
-        raise ValueError("Illegal logging level %s" % level)
+        raise ValueError(f"Illegal logging level {level}")
 
     logger.setLevel(level)
 
@@ -150,7 +150,7 @@ def perf(msg, *args, **kwargs):
 
 
 def hint(msg, *args, **kwargs):
-    log("Hint: %s" % msg, PERF, *args, **kwargs)
+    log(f"Hint: {msg}", PERF, *args, **kwargs)
 
 
 def warning(msg, *args, **kwargs):
