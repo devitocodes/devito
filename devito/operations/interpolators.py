@@ -122,7 +122,8 @@ class Interpolation(UnevaluatedSparseOperation):
                                               implicit_dims=self.implicit_dims)
 
     def __repr__(self):
-        return f"Interpolation({repr(self.expr)} into {repr(self.interpolator.sfunction)})"
+        return (f"Interpolation({repr(self.expr)} into "
+                f"{repr(self.interpolator.sfunction)})")
 
 
 class Injection(UnevaluatedSparseOperation):

@@ -122,7 +122,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     # Aliasing Functions must not allocate data
                     return
 
-                debug(f"Allocating host memory for {self.name}{self.shape_allocated} [{humanbytes(self.nbytes)}]")
+                debug(f"Allocating host memory for {self.name}{self.shape_allocated} "
+                      f"[{humanbytes(self.nbytes)}]")
 
                 # Clear up both SymPy and Devito caches to drop unreachable data
                 CacheManager.clear(force=False)
@@ -869,11 +870,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         data = args[self.name]
 
         if len(data.shape) != self.ndim:
-            raise InvalidArgument(f"Shape {data.shape} of runtime value `{self.name}` does not match "
-                                  f"dimensions {self.dimensions}")
+            raise InvalidArgument(f"Shape {data.shape} of runtime value `{self.name}` "
+                                  f"does not match dimensions {self.dimensions}")
         if data.dtype != self.dtype:
-            warning(f"Data type {data.dtype} of runtime value `{self.name}` does not match the "
-                    f"Function data type {self.dtype}")
+            warning(f"Data type {data.dtype} of runtime value `{self.name}` "
+                    f"does not match the Function data type {self.dtype}")
 
         # Check each Dimension for potential OOB accesses
         for i, s in zip(self.dimensions, data.shape):
@@ -883,8 +884,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
            args.options['linearize'] and \
            self.is_regular and \
            data.size - 1 >= np.iinfo(np.int32).max:
-            raise InvalidArgument(f"`{self.name}`, with its {data.size} elements, is too big for "
-                                  "int32 pointer arithmetic. Consider using the "
+            raise InvalidArgument(f"`{self.name}`, with its {data.size} elements, is too "
+                                  "big for int32 pointer arithmetic. Consider using the "
                                   "'index-mode=int64' option, the save=Buffer(..) "
                                   "API (TimeFunction only), or domain "
                                   "decomposition via MPI")
@@ -1700,7 +1701,8 @@ class TempFunction(DiscreteFunction):
                 shape.append(int(v))
             shape = tuple(shape)
         elif len(shape) != self.ndim:
-            raise ValueError(f"`shape` must contain {self.ndim} integers, not {len(shape)}")
+            raise ValueError(f"`shape` must contain {self.ndim} integers, "
+                             f"not {len(shape)}")
         elif not all(is_integer(i) for i in shape):
             raise ValueError(f"`shape` must contain integers (got `{str(shape)}`)")
 

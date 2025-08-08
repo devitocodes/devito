@@ -1051,7 +1051,8 @@ class Scope(CacheInstances):
                 continue
             first = f"{tuple.__repr__(r[0])}"
             shifted = "\n".join(f"{pad}{tuple.__repr__(j)}" for j in r[1:])
-            shifted = f"{'\n' if shifted else ''}{shifted}"
+            newline_prefix = '\n' if shifted else ''
+            shifted = f"{newline_prefix}{shifted}"
             reads[i] = first + shifted
         writes = [self.getwrites(i) for i in tracked]
         for i, w in enumerate(list(writes)):
@@ -1060,7 +1061,7 @@ class Scope(CacheInstances):
                 continue
             first = f"{tuple.__repr__(w[0])}"
             shifted = "\n".join(f"{pad}{tuple.__repr__(j)}" for j in w[1:])
-            shifted = f"{'\n' if shifted else ''}{shifted}"
+            shifted = f"{chr(10) if shifted else ''}{shifted}"
             writes[i] = f'\033[1;37;31m{first + shifted}\033[0m'
         return "\n".join([out.format(i.name, w, '', r)
                           for i, r, w in zip(tracked, reads, writes)])
