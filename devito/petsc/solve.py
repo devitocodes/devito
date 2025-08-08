@@ -2,7 +2,7 @@ from devito.types.equation import PetscEq
 from devito.tools import as_tuple
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
                                 FieldData, MultipleFieldData, Jacobian, Residual,
-                                MixedResidual, MixedJacobian, InitialGuess)
+                                MixedResidual, MixedJacobian, InitialGuess, SolveExpr)
 from devito.petsc.types.equation import EssentialBC
 from devito.petsc.solver_parameters import (linear_solver_parameters,
                                             format_options_prefix)
@@ -52,9 +52,10 @@ def PETScSolve(target_exprs, target=None, solver_parameters=None, options_prefix
         This can be passed directly to a Devito Operator.
     """
     if target is not None:
-        return InjectSolve(
+        tmp = InjectSolve(
             solver_parameters, {target: target_exprs}, options_prefix
-        ).build_expr()
+        )
+        return tmp.build_expr()
     else:
         return InjectMixedSolve(
             solver_parameters, target_exprs, options_prefix
@@ -72,15 +73,17 @@ class InjectSolve:
     def build_expr(self):
         target, funcs, field_data = self.linear_solve_args()
         # Placeholder expression for inserting calls to the solver
-        linear_solve = LinearSolveExpr(
+
+        linear_solve = SolveExpr(
             funcs,
-            self.solver_parameters,
+            solver_parameters=self.solver_parameters,
             field_data=field_data,
             time_mapper=self.time_mapper,
             localinfo=localinfo,
             user_prefix=self.user_prefix,
             formatted_prefix=self.formatted_prefix
         )
+
         return PetscEq(target, linear_solve)
 
     def linear_solve_args(self):

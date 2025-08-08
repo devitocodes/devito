@@ -1,4 +1,5 @@
 import sympy
+import copy
 
 from itertools import chain
 from functools import cached_property
@@ -16,7 +17,7 @@ from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 class MetaData(sympy.Function, Reconstructable):
     def __new__(cls, expr, **kwargs):
         with sympy_mutex:
-            obj = sympy.Function.__new__(cls, expr)
+            obj = sympy.Basic.__new__(cls, expr)
         obj._expr = expr
         return obj
 
@@ -56,7 +57,6 @@ class SolveExpr(MetaData):
         obj._localinfo = localinfo
         obj._user_prefix = user_prefix
         obj._formatted_prefix = formatted_prefix
-
         return obj
 
     def __repr__(self):
@@ -97,7 +97,7 @@ class SolveExpr(MetaData):
     @property
     def user_prefix(self):
         return self._user_prefix
-
+    
     @property
     def formatted_prefix(self):
         return self._formatted_prefix
@@ -112,6 +112,49 @@ class SolveExpr(MetaData):
 
     func = Reconstructable._rebuild
 
+
+
+
+
+# class SolveExpr(MetaData):
+
+#     # __rargs__ = ('expr',)
+#     # # __rkwargs__ = ('solver_parameters', 'field_data', 'time_mapper',
+#     # #                'localinfo', 'user_prefix', 'formatted_prefix')
+
+#     # __rkwargs__ = ('user_prefix',)
+
+#     def __new__(cls, expr, solver_parameters=None,
+#                 field_data=None, time_mapper=None, localinfo=None,
+#                 user_prefix=None, formatted_prefix=None, **kwargs):
+
+#     # def __new__(cls, expr,
+#     #             user_prefix=None, **kwargs):
+        
+#         obj = sympy.Basic.__new__(cls, expr)
+#         obj.solver_parameters = solver_parameters or {}
+#         obj.field_data = field_data if field_data else FieldData()
+#         obj.time_mapper = time_mapper
+#         obj.localinfo = localinfo
+#         obj.user_prefix = user_prefix
+#         obj.formatted_prefix = formatted_prefix
+#         return obj
+
+#     # def __hash__(self):
+#     #     return hash((self.expr, self.user_prefix, self.solver_parameters))
+#     def __hash__(self):
+#         return hash(self.expr)
+
+#     def __eq__(self, other):
+#         return (isinstance(other, LinearSolveExpr) and
+#                 self.expr == other.expr)
+
+#     @property
+#     def expr(self):
+#         return self.args[0]
+
+
+    
 
 class LinearSolveExpr(SolveExpr):
     """

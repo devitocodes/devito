@@ -1,3 +1,4 @@
+import sys
 from collections import OrderedDict
 from functools import cached_property
 import math
@@ -42,7 +43,8 @@ class CBBuilder:
         self._efuncs = OrderedDict()
         self._struct_params = []
 
-        self._options_efunc = None
+        self._set_options_efunc = None
+        self._clear_options_efunc = None
         self._main_matvec_callback = None
         self._user_struct_callback = None
         self._F_efunc = None
@@ -120,26 +122,48 @@ class CBBuilder:
         params = self.solver_parameters
         prefix = self.inject_solve.expr.rhs.formatted_prefix
 
-        body = []
-        for k, v in params.items():
-            option_key = String(f"-{prefix}{k}")
-            option_value = Null if v is None else String(str(v))
-            body.append(petsc_call('SetPetscOption', [option_key, option_value]))
+        set_body = []
+        clear_body = []
 
-        body = CallableBody(
-            List(body=body),
+        for k, v in params.items():
+            option = f'-{prefix}{k}'
+            if option in sys.argv:
+                # Ensures that the command line options take priority
+                continue
+            option_name = String(option)
+            option_value = Null if v is None else String(str(v))
+            set_body.append(petsc_call('PetscOptionsSetValue', [Null, option_name, option_value]))
+            clear_body.append(petsc_call('PetscOptionsClearValue', [Null, option_name]))
+
+        set_body = CallableBody(
+            List(body=set_body),
             init=(petsc_func_begin_user,),
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
 
-        cb = PETScCallable(
+        clear_body = CallableBody(
+            List(body=clear_body),
+            init=(petsc_func_begin_user,),
+            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+        )
+
+        set_callback = PETScCallable(
             self.sregistry.make_name(prefix='SetPetscOptions'),
-            body,
+            set_body,
             retval=objs['err'],
             parameters=()
         )
-        self._options_efunc = cb
-        self._efuncs[cb.name] = cb
+
+        clear_callback = PETScCallable(
+            self.sregistry.make_name(prefix='ClearPetscOptions'),
+            clear_body,
+            retval=objs['err'],
+            parameters=()
+        )
+        self._set_options_efunc = set_callback
+        self._efuncs[set_callback.name] = set_callback
+        self._clear_options_efunc = clear_callback
+        self._efuncs[clear_callback.name] = clear_callback
 
     def _make_matvec(self, jacobian, prefix='MatMult'):
         # Compile `matvecs` into an IET via recursive compilation
@@ -1264,7 +1288,7 @@ class BaseSetup:
         ) if self.formatted_prefix else None
 
         set_options = petsc_call(
-            self.cbbuilder._options_efunc.name, []
+            self.cbbuilder._set_options_efunc.name, []
         )
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
@@ -1421,7 +1445,7 @@ class CoupledSetup(BaseSetup):
         ) if self.formatted_prefix else None
 
         set_options = petsc_call(
-            self.cbbuilder._options_efunc.name, []
+            self.cbbuilder._set_options_efunc.name, []
         )
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])

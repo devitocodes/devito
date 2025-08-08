@@ -97,6 +97,12 @@ class PetscInt(PetscObject):
     dtype = CustomIntType('PetscInt')
 
 
+class PetscScalar(PetscObject):
+    """
+    """
+    dtype = CustomIntType('PetscScalar')
+
+
 class PetscBool(PetscObject):
     """
     """

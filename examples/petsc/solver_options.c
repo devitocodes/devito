@@ -5,6 +5,8 @@ static char help[] = "Modified snes tutorial 1\n\n";
 
 extern PetscErrorCode FormJacobian1(SNES, Vec, Mat, Mat, void *);
 extern PetscErrorCode FormFunction1(SNES, Vec, Vec, void *);
+extern PetscErrorCode SetPetscOption(const char *, const char *);
+extern PetscErrorCode SetPetscOptions0();
 
 int main(int argc, char **argv)
 {
@@ -20,11 +22,12 @@ int main(int argc, char **argv)
   PetscCall(PetscInitialize(&argc, &argv, NULL, help));
   PetscCallMPI(MPI_Comm_size(PETSC_COMM_WORLD, &size));
 
-  PetscCall(PetscOptionsSetValue(NULL, "-poisson_ksp_type", "cg"));
+  // PetscCall(PetscOptionsSetValue(NULL, "-poisson_ksp_type", "cg"));
   // PetscCall(PetscOptionsInsert(NULL, &argc, &argv, NULL));
   
   PetscCall(SNESCreate(PETSC_COMM_WORLD, &snes));
   PetscCall(SNESSetOptionsPrefix(snes, "poisson_"));
+  PetscCall(SetPetscOptions0());
   // PetscCall(SNESSetType(snes, SNESKSPONLY));
   // PetscCall(PetscOptionsSetValue(NULL, "-poisson_snes_type", "snesksponly"));
   PetscCall(SNESSetFromOptions(snes));
@@ -42,11 +45,11 @@ int main(int argc, char **argv)
   PetscCall(SNESSetFunction(snes, r, FormFunction1, NULL));
   PetscCall(SNESSetJacobian(snes, J, J, FormJacobian1, NULL));
 
-  PetscCall(SNESGetKSP(snes, &ksp));
-  PetscCall(KSPGetPC(ksp, &pc));
-  PetscCall(PCSetType(pc, PCNONE));
-  PetscCall(KSPSetTolerances(ksp, 1.e-4, PETSC_CURRENT, PETSC_CURRENT, 20));
-  PetscCall(KSPSetFromOptions(ksp));
+  // PetscCall(SNESGetKSP(snes, &ksp));
+  // PetscCall(KSPGetPC(ksp, &pc));
+  // PetscCall(PCSetType(pc, PCNONE));
+  // PetscCall(KSPSetTolerances(ksp, 1.e-4, PETSC_CURRENT, PETSC_CURRENT, 20));
+  // PetscCall(KSPSetFromOptions(ksp));
 
 //   PetscCall(VecSet(x, pfive));
   PetscCall(SNESSolve(snes, NULL, x));
@@ -104,4 +107,36 @@ PetscErrorCode FormJacobian1(SNES snes, Vec x, Mat jac, Mat B, void *dummy)
     PetscCall(MatAssemblyEnd(jac, MAT_FINAL_ASSEMBLY));
   }
   PetscFunctionReturn(PETSC_SUCCESS);
+}
+
+PetscErrorCode SetPetscOption(const char * option, const char * value)
+{
+  PetscFunctionBeginUser;
+
+  PetscBool set;
+
+  PetscCall(PetscOptionsHasName(NULL,NULL,option,&(set)));
+  if (!set)
+  {
+    PetscCall(PetscOptionsSetValue(NULL,option,value));
+  }
+
+  PetscFunctionReturn(0);
+}
+
+
+PetscErrorCode SetPetscOptions0()
+{
+  PetscFunctionBeginUser;
+
+  // PetscCall(SetPetscOption("-snes_type","ksponly"));
+  PetscCall(SetPetscOption("-poisson_ksp_type","cg"));
+  // PetscCall(SetPetscOption("-pc_type","none"));
+  // PetscCall(SetPetscOption("-ksp_rtol","1e-05"));
+  // PetscCall(SetPetscOption("-ksp_atol","1e-50"));
+  // PetscCall(SetPetscOption("-ksp_divtol","100000.0"));
+  // PetscCall(SetPetscOption("-ksp_max_it","10000"));
+  // PetscCall(SetPetscOption("-ksp_view",NULL));
+
+  PetscFunctionReturn(0);
 }

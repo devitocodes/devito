@@ -1,4 +1,5 @@
 from petsctools import flatten_parameters
+import itertools
 
 """
 Parameter descriptions:
@@ -44,12 +45,16 @@ def linear_solver_parameters(solver_parameters):
     return processed
 
 
+# _options_prefix_counter = itertools.count()
+
+# TODO: add a default options prefix if not provided
 def format_options_prefix(options_prefix):
+    # NOTE: Modified from the `OptionsManager` inside petsctools
     if options_prefix is None:
+        # options_prefix = f"devito_{next(_options_prefix_counter)}_"
         options_prefix = ""
     else:
-        # NOTE: Modified from the `OptionsManager` inside petsctools
         if len(options_prefix) and not options_prefix.endswith("_"):
             options_prefix += "_"
-        options_prefix = options_prefix
+        # options_prefix = options_prefix
     return options_prefix

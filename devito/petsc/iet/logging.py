@@ -23,32 +23,54 @@ class PetscLogger:
         if level <= PERF:
             self.function_list.extend([
                 'kspgetiterationnumber',
-                'snesgetiterationnumber'
+                'snesgetiterationnumber',
+                'kspgettolerances'
             ])
 
         # TODO: To be extended with if level <= DEBUG: ...
+
+        # from IPython import embed; embed()
+        # if str(self.inject_solve.expr.rhs.solver_parameters['ksp_rtol']) == '1e-15':
 
         name = self.sreg.make_name(prefix='petscinfo')
         pname = self.sreg.make_name(prefix='petscprofiler')
 
         self.statstruct = PetscInfo(
-            name, pname, self.logobjs, self.sobjs,
+            name, pname, self.petsc_option_mapper, self.sobjs,
             self.section_mapper, self.inject_solve,
             self.function_list
         )
+        # else:
+        #     name = self.sreg.make_name(prefix='petscinfooo')
+        #     pname = self.sreg.make_name(prefix='petscprofilerrrr')
+
+        #     self.statstruct = PetscInfo(
+        #         name, pname, self.petsc_option_mapper, self.sobjs,
+        #         self.section_mapper, self.inject_solve,
+        #         self.function_list
+        #     )
+
+        # from IPython import embed; embed()  # noqa: E402
+
+    # @property
+    # def statstruct(self):
+    #     return self._statstruct
 
     @cached_property
-    def logobjs(self):
+    def petsc_option_mapper(self):
         """
         Create PETSc objects specifically needed for logging solver statistics.
+
+        ADD EXTENDED DOCSTRING 
         """
-        return {
-            info.name: info.variable_type(
-                self.sreg.make_name(prefix=info.output_param)
-            )
-            for func_name in self.function_list
-            for info in [petsc_return_variable_dict[func_name]]
-        }
+        opts = {}
+        for func_name in self.function_list:
+            info = petsc_return_variable_dict[func_name]
+            opts[info.name] = {}
+            for vtype, out in zip(info.variable_type, info.output_param, strict=True):
+                opts[info.name][out] = vtype(self.sreg.make_name(prefix=out))
+        
+        return opts
 
     @cached_property
     def calls(self):
@@ -58,20 +80,21 @@ class PetscLogger:
         """
         struct = self.statstruct
         calls = []
-        for param in self.function_list:
-            param = petsc_return_variable_dict[param]
+        for func_name in self.function_list:
+            return_variable = petsc_return_variable_dict[func_name]
 
-            inputs = []
-            for i in param.input_params:
-                inputs.append(self.sobjs[i])
-
-            logobj = self.logobjs[param.name]
-
+            input = self.sobjs[return_variable.input_params]
+            output_params = self.petsc_option_mapper[return_variable.name].values()
+            outputs = [Byref(i) for i in output_params]
+            # from IPython import embed; embed()
             calls.append(
-                petsc_call(param.name, inputs + [Byref(logobj)])
+                petsc_call(return_variable.name, [input] + outputs)
             )
             # TODO: Perform a PetscCIntCast here?
-            expr = DummyExpr(FieldFromPointer(logobj._C_symbol, struct), logobj._C_symbol)
-            calls.append(expr)
+            exprs = [
+                DummyExpr(FieldFromPointer(i._C_symbol, struct), i._C_symbol)
+                for i in output_params
+            ]
+            calls.extend(exprs)
 
         return tuple(calls)

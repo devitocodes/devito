@@ -73,7 +73,13 @@ def lower_petsc(iet, **kwargs):
 
     # Generate a shared callback used by all PETScSolve instances to set
     # individual PetscOptions
-    set_solver_option(efuncs)
+    # set_solver_option(efuncs)
+    # List of all callbacks that clear PetscOptions
+    # from IPython import embed; embed()
+    # TODO: throw a warning/error if the user passes a solver in with the same options_prefix
+    # it's going to lead to weird solver option behaviour. Note, if you use the options_prefix across
+    # different Operator runs, it will not be an issue
+    clear_options = []
 
     for iters, (inject_solve,) in inject_solve_mapper.items():
 
@@ -86,11 +92,17 @@ def lower_petsc(iet, **kwargs):
 
         efuncs.update(builder.cbbuilder.efuncs)
 
+        # clear_options.append(builder.cbbuilder._clear_options_efunc)
+        # from IPython import embed; embed()  # noqa: E402
+        clear_options.extend((petsc_call(
+            builder.cbbuilder._clear_options_efunc.name, []
+        ),))
+
     populate_matrix_context(efuncs)
 
     iet = Transformer(subs).visit(iet)
-
-    body = core + tuple(setup) + iet.body.body
+    # from IPython import embed; embed()
+    body = core + tuple(setup) + iet.body.body + tuple(clear_options)
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}

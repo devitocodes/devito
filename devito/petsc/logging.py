@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from devito.types import CompositeObject
 
-from devito.petsc.types import PetscInt
+from devito.petsc.types import PetscInt, PetscScalar
 from devito.petsc.utils import petsc_type_mappings
 
 
@@ -63,7 +63,9 @@ class PetscSummary(dict):
         containing the values for each PETSc function call.
         """
         funcs = self._functions
+        # from IPython import embed; embed()
         values = tuple(getattr(petscinfo, c) for c in funcs)
+        # from IPython import embed; embed()
         return PetscEntry(**{k: v for k, v in zip(funcs, values)})
 
     def _add_properties(self):
@@ -119,20 +121,28 @@ class PetscSummary(dict):
 
 class PetscInfo(CompositeObject):
 
-    __rargs__ = ('name', 'pname', 'logobjs', 'sobjs', 'section_mapper',
+    __rargs__ = ('name', 'pname', 'petsc_option_mapper', 'sobjs', 'section_mapper',
                  'inject_solve', 'function_list')
 
-    def __init__(self, name, pname, logobjs, sobjs, section_mapper,
+    def __init__(self, name, pname, petsc_option_mapper, sobjs, section_mapper,
                  inject_solve, function_list):
 
-        self.logobjs = logobjs
+        # TODO: change name to match new name elsewehere
+        self.petsc_option_mapper = petsc_option_mapper
         self.sobjs = sobjs
         self.section_mapper = section_mapper
         self.inject_solve = inject_solve
         self.function_list = function_list
 
         mapper = {v: k for k, v in petsc_type_mappings.items()}
-        fields = [(str(i), mapper[str(i._C_ctype)]) for i in logobjs.values()]
+
+        self.formatted_prefix = inject_solve.expr.rhs.formatted_prefix
+
+        fields = [
+            (str(ptype), mapper[str(ptype._C_ctype)])
+            for option in petsc_option_mapper.values() for ptype in option.values()
+        ]
+
         super().__init__(name, pname, fields)
 
     @property
@@ -143,20 +153,53 @@ class PetscInfo(CompositeObject):
     @property
     def summary_key(self):
         user_prefix = self.inject_solve.expr.rhs.user_prefix
+        # TODO: this will be the case when using the default options prefix provided by Devito
+        # if user_prefix is None:
+        #     user_prefix = self.formatted_prefix
         return (self.section, user_prefix)
 
     def __getattr__(self, attr):
-        if attr in self.logobjs.keys():
-            return getattr(self.value._obj, self.logobjs[attr].name)
+        if attr in self.petsc_option_mapper.keys():
+            if len(self.petsc_option_mapper[attr].values()) > 1:
+                tmp = {}
+                for i, j in self.petsc_option_mapper[attr].items():
+                    tmp2 = getattr(self.value._obj, j.name)
+                    tmp[i] = tmp2
+                return tmp
+            else:
+                # TODO: CLEANNN
+                first_val = list(self.petsc_option_mapper[attr].values())[0]
+                return getattr(self.value._obj, first_val.name)
+        # from IPython import embed; embed()  # noqa: E402
         raise AttributeError(f"{attr} not found in PETSc return variables")
+    
+    # TODO: maybe just overrider _hashable_content??
+
+    # def _hashable_content(self):
+    #     """
+    #     Return a tuple of the formatted prefix and section for hashing.
+    #     This is used to ensure that two PetscInfo objects with the same
+    #     formatted prefix and section are considered equal.
+    #     """
+    #     return (self.name, self.dtype, self.inject_solve.expr.rhs)
+    
+    # def __eq__(self, other):
+    #     if not isinstance(other, PetscInfo):
+    #         return NotImplemented
+    #     # return self.formatted_prefix == other.formatted_prefix
+    #     return self.inject_solve.expr.rhs == other.inject_solve.expr.rhs
+
+    # def __hash__(self):
+    #     return hash(self.inject_solve.expr.rhs)
 
 
+# TODO: change the lists to tuples
 @dataclass
 class PetscReturnVariable:
     name: str
-    variable_type: None
-    input_params: list
-    output_param: str
+    variable_type: list
+    input_params: str
+    output_param: list[str]
 
 
 # NOTE:
@@ -168,14 +211,20 @@ class PetscReturnVariable:
 petsc_return_variable_dict = {
     'kspgetiterationnumber': PetscReturnVariable(
         name='KSPGetIterationNumber',
-        variable_type=PetscInt,
-        input_params=['ksp'],
-        output_param='kspiter'
+        variable_type=[PetscInt],
+        input_params='ksp',
+        output_param=['kspiter']
     ),
     'snesgetiterationnumber': PetscReturnVariable(
         name='SNESGetIterationNumber',
-        variable_type=PetscInt,
-        input_params=['snes'],
-        output_param='snesiter',
+        variable_type=[PetscInt],
+        input_params='snes',
+        output_param=['snesiter'],
+    ),
+    'kspgettolerances': PetscReturnVariable(
+        name='KSPGetTolerances',
+        variable_type=[PetscScalar, PetscScalar, PetscScalar, PetscInt],
+        input_params='ksp',
+        output_param=['rtol', 'abstol', 'dtol', 'maxits'],
     )
 }
