@@ -375,9 +375,11 @@ class DataReference(MemoryAllocator):
 
     def alloc(self, shape, dtype, padding=0):
         assert shape == self.numpy_array.shape, \
-            f"Provided array has shape {str(self.numpy_array.shape)}. Expected {str(shape)}"
+            (f"Provided array has shape {str(self.numpy_array.shape)}. "
+             f"Expected {str(shape)}")
         assert dtype == self.numpy_array.dtype, \
-            f"Provided array has dtype {str(self.numpy_array.dtype)}. Expected {str(dtype)}"
+            (f"Provided array has dtype {str(self.numpy_array.dtype)}. "
+             f"Expected {str(dtype)}")
 
         return (self.numpy_array, None)
 

@@ -335,7 +335,8 @@ class Dimension(ArgProvider):
         if self.min_name not in args:
             raise InvalidArgument(f"No runtime value for {self.min_name}")
         if interval.is_Defined and args[self.min_name] + interval.lower < 0:
-            raise InvalidArgument(f"OOB detected due to {self.min_name}={args[self.min_name]}")
+            raise InvalidArgument(f"OOB detected due to "
+                                  f"{self.min_name}={args[self.min_name]}")
 
         if self.max_name not in args:
             raise InvalidArgument(f"No runtime value for {self.max_name}")
@@ -347,7 +348,8 @@ class Dimension(ArgProvider):
                 from devito.symbolics import normalize_args
                 upper = interval.upper.subs(normalize_args(args))
             if args[self.max_name] + upper >= size:
-                raise InvalidArgument(f"OOB detected due to {self.max_name}={args[self.max_name]}")
+                raise InvalidArgument(f"OOB detected due to "
+                                      f"{self.max_name}={args[self.max_name]}")
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:

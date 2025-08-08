@@ -56,7 +56,8 @@ class Parameters(OrderedDict, Signer):
     def _check_key_deprecation(func):
         def wrapper(self, key, value=None):
             if key in self._deprecated:
-                warning(f"Trying to access deprecated config `{key}`. Using `{self._deprecated[key]}` instead")
+                warning(f"Trying to access deprecated config `{key}`. "
+                        f"Using `{self._deprecated[key]}` instead")
                 key = self._deprecated[key]
             return func(self, key, value)
         return wrapper

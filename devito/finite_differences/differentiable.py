@@ -353,7 +353,7 @@ class Differentiable(sympy.Expr, Evaluable):
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         return Add(*[getattr(self, f'd{d.name}')(x0=shift_x0(shift, d, None, i),
-                                                   fd_order=order, method=method, w=w)
+                                                 fd_order=order, method=method, w=w)
                      for i, d in enumerate(space_dims)])
 
     def grad(self, shift=None, order=None, method='FD', **kwargs):
@@ -381,7 +381,7 @@ class Differentiable(sympy.Expr, Evaluable):
         order = order or self.space_order
         w = kwargs.get('weights', kwargs.get('w'))
         comps = [getattr(self, f'd{d.name}')(x0=shift_x0(shift, d, None, i),
-                                               fd_order=order, method=method, w=w)
+                                             fd_order=order, method=method, w=w)
                  for i, d in enumerate(space_dims)]
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func(name=f'grad_{self.name}', time_order=self.time_order,
