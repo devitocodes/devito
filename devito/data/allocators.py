@@ -103,7 +103,7 @@ class MemoryAllocator(AbstractMemoryAllocator):
 
         padleft_pointer, memfree_args = self._alloc_C_libcall(size, ctype)
         if padleft_pointer is None:
-            raise RuntimeError("Unable to allocate %d elements in memory" % size)
+            raise RuntimeError(f"Unable to allocate {size} elements in memory")
 
         # Compute the pointer to the user data
         padleft_bytes = padleft * ctypes.sizeof(ctype)
@@ -375,11 +375,9 @@ class DataReference(MemoryAllocator):
 
     def alloc(self, shape, dtype, padding=0):
         assert shape == self.numpy_array.shape, \
-            "Provided array has shape %s. Expected %s" %\
-            (str(self.numpy_array.shape), str(shape))
+            f"Provided array has shape {str(self.numpy_array.shape)}. Expected {str(shape)}"
         assert dtype == self.numpy_array.dtype, \
-            "Provided array has dtype %s. Expected %s" %\
-            (str(self.numpy_array.dtype), str(dtype))
+            f"Provided array has dtype {str(self.numpy_array.dtype)}. Expected {str(dtype)}"
 
         return (self.numpy_array, None)
 
@@ -405,11 +403,11 @@ def register_allocator(name, allocator):
     Register a custom MemoryAllocator.
     """
     if not isinstance(name, str):
-        raise TypeError("name must be a str, not `%s`" % type(name))
+        raise TypeError(f"name must be a str, not `{type(name)}`)")
     if name in custom_allocators:
-        raise ValueError("A MemoryAllocator for `%s` already exists" % name)
+        raise ValueError(f"A MemoryAllocator for `{name}` already exists")
     if not isinstance(allocator, AbstractMemoryAllocator):
-        raise TypeError("Expected a MemoryAllocator, not `%s`" % type(allocator))
+        raise TypeError(f"Expected a MemoryAllocator, not `{type(allocator)}`")
 
     custom_allocators[name] = allocator
 
