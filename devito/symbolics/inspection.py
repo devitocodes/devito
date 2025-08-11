@@ -10,8 +10,9 @@ from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.logger import warning
 from devito.symbolics.extended_dtypes import INT
-from devito.symbolics.extended_sympy import (CallFromPointer, Cast,
-                                             DefFunction, ReservedWord)
+from devito.symbolics.extended_sympy import (
+    CallFromPointer, Cast, DefFunction, Reserved
+)
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, prod, is_integer
 from devito.tools.dtypes_lowering import infer_dtype
@@ -175,7 +176,7 @@ def _(expr, estimate, seen):
 
 @_estimate_cost.register(ImaginaryUnit)
 @_estimate_cost.register(Number)
-@_estimate_cost.register(ReservedWord)
+@_estimate_cost.register(Reserved)
 def _(expr, estimate, seen):
     return 0, False
 
