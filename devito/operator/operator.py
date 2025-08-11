@@ -1364,8 +1364,10 @@ class ArgumentsMap(dict):
         try:
             # Non-regular AbstractFunction (compressed, etc)
             nbytes = obj.nbytes_max
-        except AttributeError:
-            # Garden-variety AbstractFunction
+        except (AttributeError, ValueError):
+            # Either garden-variety AbstractFunction, or uninitialised
+            # function used in estimate. In the latter case, fall back
+            # to nbytes, as it is typically zero
             nbytes = obj.nbytes
 
         # Could nominally have symbolic nbytes at this point
@@ -1461,7 +1463,8 @@ class ArgumentsMap(dict):
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
         for i in self._op_symbols:
-            if not i.is_Array or not i._mem_heap or i.alias:
+            if not i.is_Array or not i._mem_heap or i.alias \
+               or not i.is_regular:
                 continue
 
             if i.is_regular:
