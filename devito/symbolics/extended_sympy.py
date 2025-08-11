@@ -19,12 +19,12 @@ from devito.types import Symbol
 from devito.types.basic import Basic
 
 __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
-           'LeftShift', 'RightShift', 'IntDiv', 'CallFromPointer',
+           'LeftShift', 'RightShift', 'IntDiv',  'CallFromPointer',
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
-           'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
-           'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace', 'Rvalue',
-           'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
+           'MathFunction', 'InlineIf', 'Reserved', 'ReservedWord', 'Keyword',
+           'String', 'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace',
+           'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
            'VectorAccess']
 
 
@@ -533,7 +533,21 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class ReservedWord(sympy.Atom, Pickable):
+class Reserved(Pickable):
+
+    """
+    A base class for all reserved words used throughout the lowering process,
+    including the final stage of code generation itself.
+
+    Reserved objects have the following properties:
+
+        * `estimate_cost(o) = 0`, where `o` is an instance of Reserved
+    """
+
+    pass
+
+
+class ReservedWord(sympy.Atom, Reserved):
 
     """
     A `ReservedWord` carries a value that has special meaning in the
