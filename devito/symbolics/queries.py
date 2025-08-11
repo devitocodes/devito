@@ -1,7 +1,6 @@
 from sympy import Eq, IndexedBase, Mod, S, diff, nan
 
-from devito.symbolics.extended_sympy import (FieldFromComposite, FieldFromPointer,
-                                             IndexedPointer, IntDiv)
+from devito.symbolics.extended_sympy import IntDiv, Terminal
 from devito.tools import as_tuple, is_integer
 from devito.types.basic import AbstractFunction
 from devito.types.constant import Constant
@@ -16,13 +15,9 @@ __all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine',
            'q_dimension', 'q_positive', 'q_negative']
 
 
-# The following SymPy objects are considered tree leaves:
-#
-# * Number
-# * Symbol
-# * Indexed
-extra_leaves = (FieldFromPointer, FieldFromComposite, IndexedBase, AbstractObject,
-                IndexedPointer)
+# The following SymPy objects are considered tree leaves in addition to the classic
+# SymPy atoms such as Number, Symbol, Indexed, etc
+extra_leaves = (IndexedBase, AbstractObject, Terminal)
 
 
 def q_symbol(expr):

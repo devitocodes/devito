@@ -18,7 +18,7 @@ from devito.types import Symbol
 from devito.types.basic import Basic
 
 __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
-           'LeftShift', 'RightShift', 'IntDiv',  'CallFromPointer',
+           'LeftShift', 'RightShift', 'IntDiv', 'Terminal', 'CallFromPointer',
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
            'MathFunction', 'InlineIf', 'Reserved', 'ReservedWord', 'Keyword',
@@ -147,6 +147,17 @@ class IntDiv(sympy.Expr):
         return super().__mul__(other)
 
 
+class Terminal:
+
+    """
+    Abstract base class for all terminal objects, that is, those objects
+    collected by `retrieve_terminals` in addition to all other SymPy atoms
+    such as `Symbol`, `Number`, etc.
+    """
+
+    pass
+
+
 class BasicWrapperMixin:
 
     """
@@ -188,7 +199,7 @@ class BasicWrapperMixin:
         return str(self)
 
 
-class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
+class CallFromPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
 
     """
     Symbolic representation of the C notation ``pointer->call(params)``.
@@ -256,7 +267,7 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class CallFromComposite(CallFromPointer, Pickable):
+class CallFromComposite(CallFromPointer):
 
     """
     Symbolic representation of the C notation ``composite.call(params)``.
@@ -269,7 +280,7 @@ class CallFromComposite(CallFromPointer, Pickable):
     __repr__ = __str__
 
 
-class FieldFromPointer(CallFromPointer, Pickable):
+class FieldFromPointer(CallFromPointer):
 
     """
     Symbolic representation of the C notation ``pointer->field``.
@@ -290,7 +301,7 @@ class FieldFromPointer(CallFromPointer, Pickable):
     __repr__ = __str__
 
 
-class FieldFromComposite(CallFromPointer, Pickable):
+class FieldFromComposite(CallFromPointer):
 
     """
     Symbolic representation of the C notation ``composite.field``,
@@ -352,7 +363,7 @@ class ListInitializer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
+class UnaryOp(Expr, Pickable, BasicWrapperMixin):
 
     """
     Symbolic representation of a unary C operator.
@@ -490,7 +501,7 @@ class Cast(UnaryOp):
         return f"{self._op}{self.base}"
 
 
-class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
+class IndexedPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
 
     """
     Symbolic representation of the C notation ``symbol[...]``
