@@ -335,6 +335,14 @@ class Compiler(GCCToolchain):
                                                f'Compile errors in {errfile}\n')
         debug(f"Make <{' '.join(args)}>")
 
+    def _cmdline(self, files, object=False):
+        """
+        Sanitize command line to remove all shell string escape such as
+        mpicc/mpicxx would add, e.g., `-Wl\\,-rpath,/path/to/lib`.
+        """
+        cc_line = super()._cmdline(files, object=object)
+        return [s.replace('\\', '') for s in cc_line]
+
     def jit_compile(self, soname, code):
         """
         JIT compile some source code given as a string.
