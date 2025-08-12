@@ -3,6 +3,7 @@ from itertools import takewhile
 from abc import ABC
 
 import cgen as c
+import numpy as np
 
 from devito.data import FULL
 from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
@@ -57,11 +58,15 @@ class LangBB(metaclass=LangMeta):
     """
 
     @classmethod
-    def _get_num_devices(cls):
+    def _get_num_devices(cls, platform):
         """
         Get the number of accessible devices.
+        Returns a tuple of (ngpus_symbol, call_to_get_num_devices).
         """
-        raise NotImplementedError
+        ngpus = Symbol(name='ngpus', dtype=np.int32)
+        devicetype = as_list(cls[platform])
+        call_ngpus = cls['num-devices'](devicetype, retobj=ngpus)
+        return ngpus, call_ngpus
 
     @classmethod
     def _map_to(cls, f, imask=None, qid=None):
