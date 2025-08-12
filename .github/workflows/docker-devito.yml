@@ -22,7 +22,7 @@ jobs:
           - base: 'bases:nvidia-nvc'
             tag: 'nvidia-nvc'
             # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
-            # (--env without value forwards host var; --gpus maps only that device)
+            # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
             flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
