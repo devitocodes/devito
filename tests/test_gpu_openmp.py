@@ -20,8 +20,13 @@ class TestCodeGeneration:
 
         op = Operator(Eq(u.forward, u.dx+1), language='openmp')
 
-        assert str(op.body.init[0].body[0]) ==\
-            'if (deviceid != -1)\n{\n  omp_set_default_device(deviceid);\n}'
+        # With device validation, the generated code now includes validation logic
+        init_code = str(op.body.init[0].body[0])
+        assert 'if (deviceid != -1)' in init_code
+        assert 'int ngpus = omp_get_num_devices()' in init_code
+        assert 'if (deviceid >= ngpus)' in init_code
+        assert 'does not exist' in init_code
+        assert 'omp_set_default_device(deviceid)' in init_code
 
     @pytest.mark.parallel(mode=1)
     def test_init_omp_env_w_mpi(self, mode):
@@ -31,14 +36,42 @@ class TestCodeGeneration:
 
         op = Operator(Eq(u.forward, u.dx+1), language='openmp')
 
-        assert str(op.body.init[0].body[0]) ==\
-            ('if (deviceid != -1)\n'
-             '{\n  omp_set_default_device(deviceid);\n}\n'
-             'else\n'
-             '{\n  int rank = 0;\n'
-             '  MPI_Comm_rank(comm,&rank);\n'
-             '  int ngpus = omp_get_num_devices();\n'
-             '  omp_set_default_device((rank)%(ngpus));\n}')
+        # With device validation, the MPI case also includes validation for explicit deviceid
+        init_code = str(op.body.init[0].body[0])
+        assert 'if (deviceid != -1)' in init_code
+        assert 'int ngpus = omp_get_num_devices()' in init_code
+        # For MPI case with explicit deviceid, should have validation
+        assert 'if (deviceid >= ngpus)' in init_code
+        assert 'does not exist' in init_code
+        # Should still have MPI rank-based assignment in else clause
+        assert 'int rank = 0' in init_code
+        assert 'MPI_Comm_rank(comm,&rank)' in init_code
+        assert '(rank)%(ngpus)' in init_code
+
+    def test_device_validation_error_message(self):
+        """Test that device validation includes helpful error messages."""
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u.dx+1), language='openmp')
+
+        # Check that the generated code contains device validation with informative error
+        code = str(op)
+        
+        # Should contain device count check
+        assert 'omp_get_num_devices()' in code, "Missing device count check"
+        
+        # Should contain validation condition
+        assert 'deviceid >= ngpus' in code, "Missing device ID validation condition"
+        
+        # Should contain helpful error message components
+        assert 'does not exist' in code, "Missing 'does not exist' error message"
+        assert 'CUDA_VISIBLE_DEVICES' in code, "Missing CUDA_VISIBLE_DEVICES guidance"
+        assert 'container GPU configuration' in code, "Missing container guidance"
+        
+        # Should contain exit call to prevent undefined behavior
+        assert 'exit(1)' in code, "Missing exit call on validation failure"
 
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))

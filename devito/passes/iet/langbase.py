@@ -11,7 +11,7 @@ from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
 from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import Byref, CondNe, SizeOf
+from devito.symbolics import Byref, CondNe, CondGe, SizeOf
 from devito.tools import as_list, is_integer, prod
 from devito.types import Symbol, QueueID, Wildcard
 
@@ -426,9 +426,30 @@ class DeviceAwareMixin:
             devicetype = as_list(self.langbb[self.platform])
             deviceid = self.deviceid
 
+            # Add device validation check
+            ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
+            
+            # Create validation: if deviceid >= num_devices, print error and exit
+            validation_check = Conditional(
+                CondGe(deviceid, ngpus),
+                List(body=[
+                    Call('printf', ['"%s: Error - Requested device ID %d does not exist. '
+                                  'Only %d device(s) available. Check CUDA_VISIBLE_DEVICES '
+                                  'and container GPU configuration.\\n"', 
+                                  self.langbb['name'], deviceid, ngpus]),
+                    Call('exit', [1])
+                ])
+            )
+
+            device_setup = List(body=[
+                call_ngpus,
+                validation_check,
+                self.langbb['set-device']([deviceid] + devicetype)
+            ])
+
             return list(nodes) + [Conditional(
                 CondNe(deviceid, -1),
-                self.langbb['set-device']([deviceid] + devicetype)
+                device_setup
             )]
 
         def _make_setdevice_mpi(iet, objcomm, nodes=()):
@@ -441,7 +462,23 @@ class DeviceAwareMixin:
 
             ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
 
-            osdd_then = self.langbb['set-device']([deviceid] + devicetype)
+            # Add device validation check for explicit device ID
+            validation_check = Conditional(
+                CondGe(deviceid, ngpus),
+                List(body=[
+                    Call('printf', ['"%s: Error - Requested device ID %d does not exist. '
+                                  'Only %d device(s) available. Check CUDA_VISIBLE_DEVICES '
+                                  'and container GPU configuration.\\n"', 
+                                  self.langbb['name'], deviceid, ngpus]),
+                    Call('exit', [1])
+                ])
+            )
+
+            osdd_then = List(body=[
+                call_ngpus,
+                validation_check,
+                self.langbb['set-device']([deviceid] + devicetype)
+            ])
             osdd_else = self.langbb['set-device']([rank % ngpus] + devicetype)
 
             return list(nodes) + [Conditional(

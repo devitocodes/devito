@@ -200,6 +200,31 @@ class TestOperator:
 
         assert np.all(np.array(u.data[0, :, :, :]) == time_steps)
 
+    def test_device_validation_error_message(self):
+        """Test that OpenACC device validation includes helpful error messages."""
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid, dtype=np.int32)
+
+        op = Operator(Eq(u.forward, u + 1), platform='nvidiaX', language='openacc')
+
+        # Check that the generated code contains device validation with informative error
+        code = str(op)
+        
+        # Should contain device count check
+        assert 'acc_get_num_devices' in code, "Missing OpenACC device count check"
+        
+        # Should contain validation condition
+        assert 'deviceid >= ngpus' in code, "Missing OpenACC device ID validation condition"
+        
+        # Should contain helpful error message components
+        assert 'does not exist' in code, "Missing 'does not exist' error message"
+        assert 'CUDA_VISIBLE_DEVICES' in code, "Missing CUDA_VISIBLE_DEVICES guidance"
+        assert 'container GPU configuration' in code, "Missing container guidance"
+        
+        # Should contain exit call to prevent undefined behavior
+        assert 'exit(1)' in code, "Missing exit call on validation failure"
+
     def iso_acoustic(self, opt):
         shape = (101, 101)
         extent = (1000, 1000)
