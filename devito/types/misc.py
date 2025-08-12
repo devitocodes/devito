@@ -19,6 +19,7 @@ __all__ = [
     'CriticalRegion',
     'FIndexed',
     'Fence',
+    'FunctionMap',
     'Global',
     'Hyperplane',
     'Indirection',
