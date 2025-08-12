@@ -102,6 +102,10 @@ class DataManager:
         if not init:
             definition = decl
             efuncs = ()
+        elif isinstance(init, (list, tuple)):
+            assert len(init) == 2, "Expected (efunc, call)"
+            init, definition = init
+            efuncs = (init,)
         elif init.is_Callable:
             definition = Call(init.name, init.parameters,
                               retobj=obj if init.retval else None)
