@@ -127,6 +127,8 @@ class Array(ArrayBasic):
 
     is_Array = True
 
+    _symbol_prefix = 'a'
+
     __rkwargs__ = (ArrayBasic.__rkwargs__ +
                    ('dimensions', 'scope', 'initvalue'))
 
