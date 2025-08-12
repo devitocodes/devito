@@ -20,14 +20,17 @@ Devito is a Python package for implementing optimized stencil computation (finit
 **System Dependencies (Ubuntu/Debian):**
 ```bash
 sudo apt update
-sudo apt install -y python3-numpy python3-sympy python3-psutil python3-pip
-sudo apt install -y gcc g++ flake8
+sudo apt install -y python3-dev python3-pip python3-venv build-essential
 ```
 
 **Development Installation (preferred method):**
 ```bash
+# Create and activate virtual environment
+python3 -m venv devito-env
+source devito-env/bin/activate
+
 # Install with all dependencies - requires network access
-pip install -e .[tests,extras] --break-system-packages
+pip install -e .[tests,extras]
 
 # Alternative: conda environment (recommended for full development)
 conda env create -f environment-dev.yml
@@ -178,7 +181,13 @@ python examples/seismic/acoustic/acoustic_example.py
 - **Naming**: CamelCase classes, snake_case methods/variables
 
 ### Commit Messages and PR Titles
-Use descriptive prefixes to categorize changes (based on recent repository patterns):
+Use descriptive prefixes to categorize changes (based on recent repository patterns).
+
+**Guidelines:**
+- Capitalize the title after the prefix (e.g., `misc: Patch` not `misc: patch`)
+- Follow the official guide: https://github.com/devitocodes/devito/wiki/Tags-for-commit-messages-and-PR-titles
+
+**Common prefixes:**
 - **compiler:** Changes to compilation system, IR passes, code generation
 - **mpi:** MPI-related functionality and parallel execution
 - **misc:** General improvements, cleanup, modernization
@@ -201,7 +210,7 @@ Use descriptive prefixes to categorize changes (based on recent repository patte
 - **installation**: Package installation and setup
 - **misc**: General improvements
 - **dependencies**: Dependency updates
-- **python**: Python code changes
+- **API**: Application Programming Interface changes
 
 ### Making Changes
 1. **Always run linting first**: `flake8 --builtins=ArgumentError .`
@@ -240,7 +249,7 @@ The project uses flake8 with specific ignore rules (configured in pyproject.toml
 3. Start with small test files when debugging (e.g., `pytest tests/test_operator.py::test_specific`)
 4. Check configuration output to verify environment setup
 5. Use `--maxfail=5` to stop test runs early on systematic failures
-6. Use conda environment for full development workflow when possible
+6. Use python venv for full development workflow when possible
 7. Run flake8 first before making commits to catch style issues early
 
 **File modification priorities:**
