@@ -3,7 +3,6 @@ from itertools import takewhile
 from abc import ABC
 
 import cgen as c
-import numpy as np
 
 from devito.data import FULL
 from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
@@ -13,7 +12,7 @@ from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe, SizeOf
-from devito.types.relational import Ge
+from sympy import Ge
 from devito.tools import as_list, is_integer, prod
 from devito.types import Symbol, QueueID, Wildcard
 
@@ -63,7 +62,8 @@ class LangBB(metaclass=LangMeta):
         Get the number of accessible devices.
         Returns a tuple of (ngpus_symbol, call_to_get_num_devices).
         """
-        ngpus = Symbol(name='ngpus', dtype=np.int32)
+        from devito.types import Symbol
+        ngpus = Symbol(name='ngpus', dtype='int32')
         devicetype = as_list(cls[platform])
         call_ngpus = cls['num-devices'](devicetype, retobj=ngpus)
         return ngpus, call_ngpus
@@ -434,22 +434,19 @@ class DeviceAwareMixin:
 
             # Add device validation check
             ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
-            
-            # Create validation: if deviceid >= num_devices, print error and exit
-            validation_check = Conditional(
+
+            validation = Conditional(
                 Ge(deviceid, ngpus),
                 List(body=[
-                    Call('printf', ['"%s: Error - Requested device ID %d does not exist. '
-                                  'Only %d device(s) available. Check CUDA_VISIBLE_DEVICES '
-                                  'and container GPU configuration.\\n"', 
-                                  self.langbb['name'], deviceid, ngpus]),
+                    Call('printf', ['"%s: Error - device %d >= %d devices\\n"',
+                                    self.langbb['name'], deviceid, ngpus]),
                     Call('exit', [1])
                 ])
             )
 
             device_setup = List(body=[
                 call_ngpus,
-                validation_check,
+                validation,
                 self.langbb['set-device']([deviceid] + devicetype)
             ])
 
@@ -468,21 +465,19 @@ class DeviceAwareMixin:
 
             ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
 
-            # Add device validation check for explicit device ID
-            validation_check = Conditional(
+            # Add device validation for explicit device ID
+            validation = Conditional(
                 Ge(deviceid, ngpus),
                 List(body=[
-                    Call('printf', ['"%s: Error - Requested device ID %d does not exist. '
-                                  'Only %d device(s) available. Check CUDA_VISIBLE_DEVICES '
-                                  'and container GPU configuration.\\n"', 
-                                  self.langbb['name'], deviceid, ngpus]),
+                    Call('printf', ['"%s: Error - device %d >= %d devices\\n"',
+                                    self.langbb['name'], deviceid, ngpus]),
                     Call('exit', [1])
                 ])
             )
 
             osdd_then = List(body=[
                 call_ngpus,
-                validation_check,
+                validation,
                 self.langbb['set-device']([deviceid] + devicetype)
             ])
             osdd_else = self.langbb['set-device']([rank % ngpus] + devicetype)

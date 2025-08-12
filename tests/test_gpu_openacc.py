@@ -208,20 +208,19 @@ class TestOperator:
 
         op = Operator(Eq(u.forward, u + 1), platform='nvidiaX', language='openacc')
 
-        # Check that the generated code contains device validation with informative error
+        # Check that the generated code contains device validation
         code = str(op)
-        
+
         # Should contain device count check
         assert 'acc_get_num_devices' in code, "Missing OpenACC device count check"
-        
+
         # Should contain validation condition
-        assert 'deviceid >= ngpus' in code, "Missing OpenACC device ID validation condition"
-        
-        # Should contain helpful error message components
-        assert 'does not exist' in code, "Missing 'does not exist' error message"
-        assert 'CUDA_VISIBLE_DEVICES' in code, "Missing CUDA_VISIBLE_DEVICES guidance"
-        assert 'container GPU configuration' in code, "Missing container guidance"
-        
+        assert 'deviceid >= ngpus' in code, "Missing OpenACC device ID " + \
+                                            "validation condition"
+
+        # Should contain error message
+        assert 'Error - device' in code, "Missing error message"
+
         # Should contain exit call to prevent undefined behavior
         assert 'exit(1)' in code, "Missing exit call on validation failure"
 

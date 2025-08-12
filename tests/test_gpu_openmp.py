@@ -25,7 +25,7 @@ class TestCodeGeneration:
         assert 'if (deviceid != -1)' in init_code
         assert 'int ngpus = omp_get_num_devices()' in init_code
         assert 'if (deviceid >= ngpus)' in init_code
-        assert 'does not exist' in init_code
+        assert 'Error - device' in init_code
         assert 'omp_set_default_device(deviceid)' in init_code
 
     @pytest.mark.parallel(mode=1)
@@ -36,13 +36,14 @@ class TestCodeGeneration:
 
         op = Operator(Eq(u.forward, u.dx+1), language='openmp')
 
-        # With device validation, the MPI case also includes validation for explicit deviceid
+        # With device validation, the MPI case also includes validation for explicit
+        # deviceid
         init_code = str(op.body.init[0].body[0])
         assert 'if (deviceid != -1)' in init_code
         assert 'int ngpus = omp_get_num_devices()' in init_code
         # For MPI case with explicit deviceid, should have validation
         assert 'if (deviceid >= ngpus)' in init_code
-        assert 'does not exist' in init_code
+        assert 'Error - device' in init_code
         # Should still have MPI rank-based assignment in else clause
         assert 'int rank = 0' in init_code
         assert 'MPI_Comm_rank(comm,&rank)' in init_code
@@ -56,20 +57,18 @@ class TestCodeGeneration:
 
         op = Operator(Eq(u.forward, u.dx+1), language='openmp')
 
-        # Check that the generated code contains device validation with informative error
+        # Check that the generated code contains device validation
         code = str(op)
-        
+
         # Should contain device count check
         assert 'omp_get_num_devices()' in code, "Missing device count check"
-        
+
         # Should contain validation condition
         assert 'deviceid >= ngpus' in code, "Missing device ID validation condition"
-        
-        # Should contain helpful error message components
-        assert 'does not exist' in code, "Missing 'does not exist' error message"
-        assert 'CUDA_VISIBLE_DEVICES' in code, "Missing CUDA_VISIBLE_DEVICES guidance"
-        assert 'container GPU configuration' in code, "Missing container guidance"
-        
+
+        # Should contain error message
+        assert 'Error - device' in code, "Missing error message"
+
         # Should contain exit call to prevent undefined behavior
         assert 'exit(1)' in code, "Missing exit call on validation failure"
 
