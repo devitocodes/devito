@@ -1,5 +1,6 @@
 from functools import cached_property
 from scipy import interpolate
+import sympy
 import numpy as np
 try:
     import matplotlib.pyplot as plt
@@ -243,6 +244,34 @@ class WaveletSource(PointSource):
         plt.ylabel('Amplitude')
         plt.tick_params()
         plt.show()
+
+
+# Gaussian and derivatives
+_t, b = sympy.symbols('t b')
+
+_gauss = sympy.exp(-(b*_t)**2)
+_dgauss = sympy.diff(_gauss, _t)
+_d2gauss = sympy.diff(_gauss, (_t, 2))
+
+# Define parameters
+_A, _f, _gamma, _phi = sympy.symbols('A f 𝛾 𝜙')
+
+# Define the Gaussian soliton and the wavelets
+## perhaps t0 should be a symbol that defaults to 1/f?
+
+gauss = _A*_gauss.subs({_t: _t - 1/_f, b: sympy.pi*_f})
+dgauss = (_A*_dgauss/b).subs({_t: _t - 1/_f, b: sympy.pi*_f})
+ricker = (-_A*_d2gauss/(2*b**2)).subs({_t: _t - 1/_f, b: sympy.pi*_f})
+gabor = _A*_gauss.subs({_t: _t - _gamma/_f, b: sympy.pi*_f/_gamma})
+gabor *= sympy.cos(2*b*_t + _phi).subs({b: sympy.pi*_f})
+
+wavelet = {
+    'gauss_soliton': lambda t, f, A=1: sympy.lambdify((_t, _f, _A), gauss)(t, f, A),
+    'dgauss': lambda t, f, A=1: sympy.lambdify((_t, _f, _A), dgauss)(t, f, A),
+    'ricker': lambda t, f, A=1: sympy.lambdify((_t, _f, _A), ricker)(t, f, A),
+    'gabor': lambda t, f, A=1, gamma=1, phi=0: \
+        sympy.lambdify((_t, _f, _A, _gamma, _phi), gabor)(t, f, A, gamma, phi)
+}
 
 
 class RickerSource(WaveletSource):
