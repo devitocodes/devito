@@ -11,7 +11,8 @@ from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
 from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import Byref, CondNe, CondGe, SizeOf
+from devito.symbolics import Byref, CondNe, SizeOf
+from devito.types.relational import Ge
 from devito.tools import as_list, is_integer, prod
 from devito.types import Symbol, QueueID, Wildcard
 
@@ -431,7 +432,7 @@ class DeviceAwareMixin:
             
             # Create validation: if deviceid >= num_devices, print error and exit
             validation_check = Conditional(
-                CondGe(deviceid, ngpus),
+                Ge(deviceid, ngpus),
                 List(body=[
                     Call('printf', ['"%s: Error - Requested device ID %d does not exist. '
                                   'Only %d device(s) available. Check CUDA_VISIBLE_DEVICES '
@@ -464,7 +465,7 @@ class DeviceAwareMixin:
 
             # Add device validation check for explicit device ID
             validation_check = Conditional(
-                CondGe(deviceid, ngpus),
+                Ge(deviceid, ngpus),
                 List(body=[
                     Call('printf', ['"%s: Error - Requested device ID %d does not exist. '
                                   'Only %d device(s) available. Check CUDA_VISIBLE_DEVICES '
