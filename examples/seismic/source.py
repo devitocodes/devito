@@ -247,30 +247,61 @@ class WaveletSource(PointSource):
 
 
 # Gaussian and derivatives
-_t, b = sympy.symbols('t b')
+_t, _t0, b, _n = sympy.symbols('t t_0 b n')
 
 _gauss = sympy.exp(-(b*_t)**2)
-_dgauss = sympy.diff(_gauss, _t)
 _d2gauss = sympy.diff(_gauss, (_t, 2))
 
 # Define parameters
 _A, _f, _gamma, _phi = sympy.symbols('A f 𝛾 𝜙')
 
 # Define the Gaussian soliton and the wavelets
-## perhaps t0 should be a symbol that defaults to 1/f?
 
-gauss = _A*_gauss.subs({_t: _t - 1/_f, b: sympy.pi*_f})
-dgauss = (_A*_dgauss/b).subs({_t: _t - 1/_f, b: sympy.pi*_f})
-ricker = (-_A*_d2gauss/(2*b**2)).subs({_t: _t - 1/_f, b: sympy.pi*_f})
-gabor = _A*_gauss.subs({_t: _t - _gamma/_f, b: sympy.pi*_f/_gamma})
-gabor *= sympy.cos(2*b*_t + _phi).subs({b: sympy.pi*_f})
+gauss = _A*_gauss.subs({_t: _t - _t0})
+
+def dgauss(t, f, A=1, t0=None, n=1):
+
+    # TODO: Implement approximate upperbound by Szego (1939) pg. 132 for offset
+    offset = 1/f if t0 is None else t0
+
+    dngauss = sympy.diff(_gauss, (_t, n))
+
+    if n == 0:
+        normalize = 1
+    elif n == 1:
+        normalize = sympy.sqrt(2)*b*sympy.exp(-1/2)
+    elif n == 2:
+        normalize = 2*b**2
+    else:
+        # Approximate the maximum
+        y = sympy.lambdify((_t, b), dngauss)
+        if n % 2 == 0:
+            normalize = y(0, np.pi*f*np.sqrt(2/n))
+        else:
+            xs = np.linspace(0, np.pi/(2*f), 101)
+            ys = y(xs, np.pi*f*np.sqrt(2/n))
+            # ~ plt.plot(xs, ys)
+            # ~ breakpoint()
+            normalize = np.max(np.abs(ys))
+    # ~ print(normalize)
+
+    dngauss /= normalize
+    expr = _A*dngauss.subs({_t: _t - _t0, b: sympy.pi*_f*sympy.sqrt(2/n)})
+    # TODO: Return sympy expression and generalise lambdification function
+    l = sympy.lambdify((_t, _t0, _f, _A), expr)
+    return l(t, offset, f, A)
+
+# ~ dgauss = lambda n: (_A*_dgauss(n)/b).subs({_t: _t - _t0, b: sympy.pi*_f})
+ricker = (-_A*_d2gauss/(2*b**2)).subs({_t: _t - _t0, b: sympy.pi*_f})
+gabor = _A*_gauss.subs({_t: _t - _t0, b: sympy.pi*_f/_gamma})
+gabor *= sympy.cos(2*b*_t + _phi).subs({_t: _t - _t0, b: sympy.pi*_f})
 
 wavelet = {
-    'gauss_soliton': lambda t, f, A=1: sympy.lambdify((_t, _f, _A), gauss)(t, f, A),
-    'dgauss': lambda t, f, A=1: sympy.lambdify((_t, _f, _A), dgauss)(t, f, A),
-    'ricker': lambda t, f, A=1: sympy.lambdify((_t, _f, _A), ricker)(t, f, A),
-    'gabor': lambda t, f, A=1, gamma=1, phi=0: \
-        sympy.lambdify((_t, _f, _A, _gamma, _phi), gabor)(t, f, A, gamma, phi)
+    'gauss_soliton': lambda t, f, A=1, t0=None: sympy.lambdify((_t, _t0, b, _A), gauss)(t, 1/f if t0 is None else t0, f*np.pi, A),
+    'dgauss': dgauss,
+    'ricker': lambda t, f, A=1, t0=None: sympy.lambdify((_t, _t0, _f, _A), ricker)(t, 1/f if t0 is None else t0, f, A),
+    'gabor': lambda t, f, A=1, t0=None, gamma=1, phi=0: \
+        sympy.lambdify((_t, _t0, _f, _A, _gamma, _phi), gabor)(t, gamma/f if t0 is None else t0, f, A, gamma, phi)
 }
 
 
