@@ -208,26 +208,6 @@ def test_petsc_cast():
         '(PetscScalar (*)[info.gym][info.gxm]) x_f3_vec;' in str(op3.ccode)
 
 
-# # TODO: add more thorough tests for solver_parameters
-# # @skipif('petsc')
-# # def test_LinearSolveExpr():
-
-# #     grid = Grid((2, 2), dtype=np.float64)
-
-# #     f = Function(name='f', grid=grid, space_order=2)
-# #     g = Function(name='g', grid=grid, space_order=2)
-
-# #     eqn = Eq(f, g.laplace)
-
-# #     linsolveexpr = LinearSolveExpr(eqn.rhs, field_data=FieldData(target=f))
-
-# #     # Check the solver parameters
-# #     assert linsolveexpr.solver_parameters == \
-# #         {'snes_type': 'ksponly', 'ksp_type': 'gmres', 'pc_type': 'none',
-# #          'ksp_rtol': 1e-05, 'ksp_atol': 1e-50, 'ksp_divtol': 100000.0,
-# #          'ksp_max_it': 10000}
-
-
 @skipif('petsc')
 def test_dmda_create():
 
@@ -794,7 +774,7 @@ class TestCoupledLinear:
         # less callback functions than solving them separately.
         # TODO: As noted in the other test, some efuncs are not reused
         # where reuse is possible, investigate.
-        assert len(callbacks1) == 10
+        assert len(callbacks1) == 12
         assert len(callbacks2) == 8
 
         # Check field_data type
@@ -1494,8 +1474,11 @@ class TestLogging:
 class TestSolverParameters:
 
     @skipif('petsc')
-    def setup_method(self):
-        """Setup grid and functions shared across tests in this class"""
+    def setup_class(self):
+        """
+        Setup grid, functions and equations shared across
+        tests in this class
+        """
         grid = Grid(shape=(11, 11), dtype=np.float64)
         self.e, self.f, self.g, self.h = [
             Function(name=n, grid=grid, space_order=2)
@@ -1506,43 +1489,26 @@ class TestSolverParameters:
 
     @skipif('petsc')
     def test_differing_solver_params(self):
-        """
-        """
+        # Explicitly set the solver parameters
         solver1 = PETScSolve(
             self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
         )
+        # This solver uses the defaults
         solver2 = PETScSolve(self.eq2, target=self.g)
 
         with switchconfig(language='petsc'):
             op = Operator([solver1, solver2])
 
         # Check that there are two `SetPetscOptions` callbacks since the solver
-        # parameters are different for each solver.
+        # parameters are different for each solver
         assert 'SetPetscOptions0' in op._func_table
         assert 'SetPetscOptions1' in op._func_table
 
-        assert 'PetscCall(PetscOptionsSetValue(NULL,"-ksp_rtol","1e-10"));' \
+        assert '_ksp_rtol","1e-10"' \
             in str(op._func_table['SetPetscOptions0'].root)
 
-        assert 'PetscCall(PetscOptionsSetValue(NULL,"-ksp_rtol","1e-05"));' \
+        assert '_ksp_rtol","1e-05"' \
             in str(op._func_table['SetPetscOptions1'].root)
-
-    @skipif('petsc')
-    def test_options_with_no_value(self):
-        """
-        Test solver parameters that do not require a value, such as
-        `snes_view`.
-        """
-        solver1 = PETScSolve(
-            self.eq1, target=self.e, solver_parameters={'snes_view': None}
-        )
-
-        with switchconfig(language='petsc'):
-            op = Operator(solver1)
-            op.apply()
-
-        assert 'PetscCall(PetscOptionsSetValue(NULL,"-snes_view",NULL));' \
-            in str(op._func_table['SetPetscOptions0'].root)
 
     @skipif('petsc')
     def test_options_prefix(self):
@@ -1556,7 +1522,7 @@ class TestSolverParameters:
         with switchconfig(language='petsc'):
             op = Operator([solver1, solver2])
 
-        # Check the options prefix has been correctly set on each snes solver
+        # Check the options prefix has been correctly set for each snes solver
         assert 'PetscCall(SNESSetOptionsPrefix(snes0,"poisson1_"));' in str(op)
         assert 'PetscCall(SNESSetOptionsPrefix(snes1,"poisson2_"));' in str(op)
 
@@ -1566,6 +1532,24 @@ class TestSolverParameters:
 
         assert 'PetscCall(PetscOptionsSetValue(NULL,"-poisson2_ksp_rtol","1e-12"));' \
             in str(op._func_table['SetPetscOptions1'].root)
+        
+
+    @skipif('petsc')
+    def test_options_with_no_value(self):
+        """
+        Test solver parameters that do not require a value, such as
+        `snes_view` and `ksp_view`
+        """
+        solver = PETScSolve(
+            self.eq1, target=self.e, solver_parameters={'snes_view': None},
+            options_prefix='solver1'
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+            op.apply()
+
+        assert 'PetscCall(PetscOptionsSetValue(NULL,"-solver1_snes_view",NULL));' \
+            in str(op._func_table['SetPetscOptions0'].root)
         
     @skipif('petsc')
     @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
@@ -1594,11 +1578,11 @@ class TestSolverParameters:
         assert tolerances['maxits'] == params['ksp_max_it']
 
 
-
     # TODO: ADD TEST TO CHECK FOR DEFAULT LINEAR SOLVER PARAMETERS
     # TODO: add test to check that the correct options are unset properly
     # TODO: Add a test to check that the command line args override anything set
     # in the solver_parameters dictionary
+    # TODO: add hashing tests to petscsolve
 
     # @skipif('petsc')
     # def test_command_line_priority(self):

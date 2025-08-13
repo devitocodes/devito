@@ -45,16 +45,14 @@ def linear_solver_parameters(solver_parameters):
     return processed
 
 
-# _options_prefix_counter = itertools.count()
+_options_prefix_counter = itertools.count()
 
 # TODO: add a default options prefix if not provided
 def format_options_prefix(options_prefix):
     # NOTE: Modified from the `OptionsManager` inside petsctools
     if options_prefix is None:
-        # options_prefix = f"devito_{next(_options_prefix_counter)}_"
-        options_prefix = ""
+        options_prefix = f"devito_{next(_options_prefix_counter)}_"
     else:
         if len(options_prefix) and not options_prefix.endswith("_"):
             options_prefix += "_"
-        # options_prefix = options_prefix
     return options_prefix

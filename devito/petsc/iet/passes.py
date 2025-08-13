@@ -75,7 +75,7 @@ def lower_petsc(iet, **kwargs):
     # individual PetscOptions
     # set_solver_option(efuncs)
     # List of all callbacks that clear PetscOptions
-    # from IPython import embed; embed()
+
     # TODO: throw a warning/error if the user passes a solver in with the same options_prefix
     # it's going to lead to weird solver option behaviour. Note, if you use the options_prefix across
     # different Operator runs, it will not be an issue
@@ -92,8 +92,6 @@ def lower_petsc(iet, **kwargs):
 
         efuncs.update(builder.cbbuilder.efuncs)
 
-        # clear_options.append(builder.cbbuilder._clear_options_efunc)
-        # from IPython import embed; embed()  # noqa: E402
         clear_options.extend((petsc_call(
             builder.cbbuilder._clear_options_efunc.name, []
         ),))

@@ -55,15 +55,17 @@ params2 = {'ksp_view': None, 'ksp_rtol': 1e-11}
 petsc1 = PETScSolve(eq, target=e, solver_parameters=params1, options_prefix='pde1')
 petsc2 = PETScSolve(eq, target=e, solver_parameters=params2, options_prefix='pde1')
 
-with switchconfig(language='petsc'):
+# from IPython import embed; embed()
 
-    op1 = Operator([petsc1])
-    op2 = Operator(petsc2)
-    summary1 = op1.apply()
-    summary2 = op2.apply()
+# with switchconfig(language='petsc'):
+
+#     op1 = Operator([petsc1, petsc2])
+#     # op2 = Operator(petsc2)
+#     # summary1 = op1.apply()
+#     # summary2 = op2.apply()
     
-    # print(op1.ccode)
-    # print(op2.ccode)
+#     print(op1.ccode)
+#     # print(op2.ccode)
 
 
 

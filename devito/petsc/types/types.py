@@ -17,13 +17,9 @@ from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 class MetaData(sympy.Function, Reconstructable):
     def __new__(cls, expr, **kwargs):
         with sympy_mutex:
-            obj = sympy.Basic.__new__(cls, expr)
-        obj._expr = expr
+            obj = sympy.Function.__new__(cls, expr)
+        obj.expr = expr
         return obj
-
-    @property
-    def expr(self):
-        return self._expr
 
 
 class Initialize(MetaData):
@@ -48,59 +44,36 @@ class SolveExpr(MetaData):
                 user_prefix=None, formatted_prefix=None, **kwargs):
 
         with sympy_mutex:
-            obj = sympy.Function.__new__(cls, expr)
+            if isinstance(expr, tuple):
+                expr = sympy.Tuple(*expr)
+            obj = sympy.Basic.__new__(cls, expr)
 
-        obj._expr = expr
-        obj._solver_parameters = solver_parameters
-        obj._field_data = field_data if field_data else FieldData()
-        obj._time_mapper = time_mapper
-        obj._localinfo = localinfo
-        obj._user_prefix = user_prefix
-        obj._formatted_prefix = formatted_prefix
+        obj.expr = expr
+        obj.solver_parameters = solver_parameters
+        obj.field_data = field_data if field_data else FieldData()
+        obj.time_mapper = time_mapper
+        obj.localinfo = localinfo
+        obj.user_prefix = user_prefix
+        obj.formatted_prefix = formatted_prefix
         return obj
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, self.expr)
+        return f"{self.__class__.__name__}{self.expr}"
 
     __str__ = __repr__
 
     def _sympystr(self, printer):
         return str(self)
 
-    def __hash__(self):
-        return hash(self.expr)
+    __hash__ = sympy.Basic.__hash__
+
+    def _hashable_content(self):
+            return (self.expr, self.formatted_prefix)
 
     def __eq__(self, other):
         return (isinstance(other, SolveExpr) and
-                self.expr == other.expr)
-
-    @property
-    def expr(self):
-        return self._expr
-
-    @property
-    def field_data(self):
-        return self._field_data
-
-    @property
-    def solver_parameters(self):
-        return self._solver_parameters
-
-    @property
-    def time_mapper(self):
-        return self._time_mapper
-
-    @property
-    def localinfo(self):
-        return self._localinfo
-
-    @property
-    def user_prefix(self):
-        return self._user_prefix
-    
-    @property
-    def formatted_prefix(self):
-        return self._formatted_prefix
+                self.expr == other.expr and
+                self.formatted_prefix == other.formatted_prefix)
 
     @property
     def grid(self):
@@ -113,48 +86,6 @@ class SolveExpr(MetaData):
     func = Reconstructable._rebuild
 
 
-
-
-
-# class SolveExpr(MetaData):
-
-#     # __rargs__ = ('expr',)
-#     # # __rkwargs__ = ('solver_parameters', 'field_data', 'time_mapper',
-#     # #                'localinfo', 'user_prefix', 'formatted_prefix')
-
-#     # __rkwargs__ = ('user_prefix',)
-
-#     def __new__(cls, expr, solver_parameters=None,
-#                 field_data=None, time_mapper=None, localinfo=None,
-#                 user_prefix=None, formatted_prefix=None, **kwargs):
-
-#     # def __new__(cls, expr,
-#     #             user_prefix=None, **kwargs):
-        
-#         obj = sympy.Basic.__new__(cls, expr)
-#         obj.solver_parameters = solver_parameters or {}
-#         obj.field_data = field_data if field_data else FieldData()
-#         obj.time_mapper = time_mapper
-#         obj.localinfo = localinfo
-#         obj.user_prefix = user_prefix
-#         obj.formatted_prefix = formatted_prefix
-#         return obj
-
-#     # def __hash__(self):
-#     #     return hash((self.expr, self.user_prefix, self.solver_parameters))
-#     def __hash__(self):
-#         return hash(self.expr)
-
-#     def __eq__(self, other):
-#         return (isinstance(other, LinearSolveExpr) and
-#                 self.expr == other.expr)
-
-#     @property
-#     def expr(self):
-#         return self.args[0]
-
-
-    
 
 class LinearSolveExpr(SolveExpr):
     """

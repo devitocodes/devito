@@ -83,7 +83,7 @@ class InjectSolve:
             user_prefix=self.user_prefix,
             formatted_prefix=self.formatted_prefix
         )
-
+        # from IPython import embed; embed()
         return PetscEq(target, linear_solve)
 
     def linear_solve_args(self):
