@@ -54,7 +54,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Set up Python ${{ matrix.pyver }}
       if: "!contains(matrix.name, 'docker')"
