@@ -1,6 +1,13 @@
 from devito import (Eq, Operator, Function, TimeFunction, NODE, Inc, solve,
-                    cos, sin, sqrt, div, grad)
+                    cos, sin, sqrt)
 from examples.seismic.acoustic.operators import freesurface
+
+
+def _subs(func, d, d0):
+    try:
+        return func._subs(d, d0)
+    except AttributeError:
+        return func
 
 
 def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
@@ -78,17 +85,17 @@ def Gzz_centered(model, field):
     x, y, z = field.grid.dimensions
     dx, dy, dz = x.spacing/2, y.spacing/2, z.spacing/2
 
-    Gz = (sintheta * cosphi * field.dx(fd_order=order1, x0=x+dx) +
-          sintheta * sinphi * field.dy(fd_order=order1, x0=y+dy) +
-          costheta * field.dz(fd_order=order1, x0=z+dz))
+    Gz = (_subs(b, x, x+dx) * sintheta * cosphi * field.dx(fd_order=order1, x0=x+dx) +
+          _subs(b, y, y+dy) * sintheta * sinphi * field.dy(fd_order=order1, x0=y+dy) +
+          _subs(b, z, z+dz) * costheta * field.dz(fd_order=order1, x0=z+dz))
 
-    Gzz = (b * Gz * costheta).dz(fd_order=order1, x0=z-dz)
+    Gzz = (Gz * costheta).dz(fd_order=order1, x0=z-dz)
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (b * Gz * sintheta * cosphi).dx(fd_order=order1, x0=x-dx)
+        Gzz += (Gz * sintheta * cosphi).dx(fd_order=order1, x0=x-dx)
     if sinphi != 0:
-        Gzz += (b * Gz * sintheta * sinphi).dy(fd_order=order1, x0=y-dy)
+        Gzz += (Gz * sintheta * sinphi).dy(fd_order=order1, x0=y-dy)
 
     return Gzz
 
@@ -115,14 +122,14 @@ def Gzz_centered_2d(model, field):
     x, y = field.grid.dimensions
     dx, dy = x.spacing/2, y.spacing/2
 
-    Gz = (sintheta * field.dx(fd_order=order1, x0=x+dx) +
-          costheta * field.dy(fd_order=order1, x0=y+dy))
-    Gzz = (b * Gz * costheta).dy(fd_order=order1, x0=y-dy)
+    Gz = (_subs(b, x, x+dx) * sintheta * field.dx(fd_order=order1, x0=x+dx) +
+          _subs(b, y, y+dy) * costheta * field.dy(fd_order=order1, x0=y+dy))
+    Gzz = (Gz * costheta).dy(fd_order=order1, x0=y-dy)
 
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (b * Gz * sintheta).dx(fd_order=order1, x0=x-dx)
+        Gzz += (Gz * sintheta).dx(fd_order=order1, x0=x-dx)
     return Gzz
 
 
@@ -151,8 +158,14 @@ def Gh_centered(model, field):
         Gzz = Gzz_centered_2d(model, field)
     b = getattr(model, 'b', None)
     if b is not None:
+        _diff = lambda f, d: getattr(f, f'd{d.name}')
         so = field.space_order // 2
-        lap = div(b * grad(field, shift=.5, order=so), shift=-.5, order=so)
+        lap = 0
+        for d in field.space_dimensions:
+            x0 = d + d.spacing / 2
+            x0m = d - d.spacing / 2
+            lap += _diff(_subs(b, d, x0) * _diff(field, d)(x0=x0, order=so),
+                         d)(x0=x0m, order=so)
     else:
         lap = field.laplace
     return lap - Gzz
