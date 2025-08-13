@@ -132,8 +132,12 @@ class CBBuilder:
                 continue
             option_name = String(option)
             option_value = Null if v is None else String(str(v))
-            set_body.append(petsc_call('PetscOptionsSetValue', [Null, option_name, option_value]))
-            clear_body.append(petsc_call('PetscOptionsClearValue', [Null, option_name]))
+            set_body.append(
+                petsc_call('PetscOptionsSetValue', [Null, option_name, option_value])
+            )
+            clear_body.append(
+                petsc_call('PetscOptionsClearValue', [Null, option_name])
+            )
 
         set_body = CallableBody(
             List(body=set_body),

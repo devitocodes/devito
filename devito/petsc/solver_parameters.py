@@ -47,7 +47,7 @@ def linear_solver_parameters(solver_parameters):
 
 _options_prefix_counter = itertools.count()
 
-# TODO: add a default options prefix if not provided
+
 def format_options_prefix(options_prefix):
     # NOTE: Modified from the `OptionsManager` inside petsctools
     if options_prefix is None:

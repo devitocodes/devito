@@ -52,10 +52,9 @@ def PETScSolve(target_exprs, target=None, solver_parameters=None, options_prefix
         This can be passed directly to a Devito Operator.
     """
     if target is not None:
-        tmp = InjectSolve(
+        return InjectSolve(
             solver_parameters, {target: target_exprs}, options_prefix
-        )
-        return tmp.build_expr()
+        ).build_expr()
     else:
         return InjectMixedSolve(
             solver_parameters, target_exprs, options_prefix
@@ -83,7 +82,6 @@ class InjectSolve:
             user_prefix=self.user_prefix,
             formatted_prefix=self.formatted_prefix
         )
-        # from IPython import embed; embed()
         return PetscEq(target, linear_solve)
 
     def linear_solve_args(self):

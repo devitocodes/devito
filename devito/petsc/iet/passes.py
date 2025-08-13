@@ -1,12 +1,11 @@
 import cgen as c
 import numpy as np
 from functools import cached_property
-from sympy import Not
 
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
                            DummyExpr, CallableBody, List, Call, Callable,
-                           FindNodes, Section, Conditional)
+                           FindNodes, Section)
 from devito.symbolics import Byref, FieldFromPointer, Macro
 from devito.types import Symbol, Scalar
 from devito.types.basic import DataSymbol
@@ -17,10 +16,9 @@ from devito.petsc.types import (PetscMPIInt, PetscErrorCode, MultipleFieldData,
                                 PointerIS, Mat, CallbackVec, Vec, CallbackMat, SNES,
                                 DummyArg, PetscInt, PointerDM, PointerMat, MatReuse,
                                 CallbackPointerIS, CallbackPointerDM, JacobianStruct,
-                                SubMatrixStruct, Initialize, Finalize, ArgvSymbol,
-                                CharPtr, PetscBool)
+                                SubMatrixStruct, Initialize, Finalize, ArgvSymbol)
 from devito.petsc.types.macros import petsc_func_begin_user, Null
-from devito.petsc.iet.nodes import PetscMetaData, PETScCallable
+from devito.petsc.iet.nodes import PetscMetaData
 from devito.petsc.utils import core_metadata, petsc_languages
 from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
                                        CoupledObjectBuilder, BaseSetup, CoupledSetup,
@@ -71,16 +69,19 @@ def lower_petsc(iet, **kwargs):
     # Map PETScSolve to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
-    # Generate a shared callback used by all PETScSolve instances to set
-    # individual PetscOptions
-    # set_solver_option(efuncs)
-    # List of all callbacks that clear PetscOptions
+    # prefixes within a single Operator should not be duplicated
+    prefixes = [d.expr.rhs.user_prefix for d in data if d.expr.rhs.user_prefix]
+    duplicates = {p for p in prefixes if prefixes.count(p) > 1}
 
-    # TODO: throw a warning/error if the user passes a solver in with the same options_prefix
-    # it's going to lead to weird solver option behaviour. Note, if you use the options_prefix across
-    # different Operator runs, it will not be an issue
+    # TODO: How to avoid the other exception raised given it is an iet_pass?
+    if duplicates:
+        dup_list = ", ".join(sorted(duplicates))
+        raise ValueError(
+            f"The following `options_prefix` values are duplicated "
+            f"among your PETScSolves. Ensure each one is unique: {dup_list}"
+        )
+
     clear_options = []
-
     for iters, (inject_solve,) in inject_solve_mapper.items():
 
         builder = Builder(inject_solve, iters, comm, section_mapper, **kwargs)
@@ -99,7 +100,6 @@ def lower_petsc(iet, **kwargs):
     populate_matrix_context(efuncs)
 
     iet = Transformer(subs).visit(iet)
-    # from IPython import embed; embed()
     body = core + tuple(setup) + iet.body.body + tuple(clear_options)
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
@@ -229,32 +229,6 @@ def populate_matrix_context(efuncs):
         name, body, objs['err'],
         parameters=[objs['ljacctx'], objs['Subdms'], objs['Fields']]
     )
-
-
-def set_solver_option(efuncs):
-
-    option = CharPtr(name='option', is_const=True)
-    value = CharPtr(name='value', is_const=True)
-    set = PetscBool(name='set')
-
-    body = List(body=[
-        petsc_call('PetscOptionsHasName', [Null, Null, option, Byref(set)]),
-        Conditional(Not(set), petsc_call('PetscOptionsSetValue', [Null, option, value]))
-    ])
-
-    body = CallableBody(
-        body,
-        init=(petsc_func_begin_user,),
-        retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-    )
-
-    cb = PETScCallable(
-        'SetPetscOption',
-        body,
-        retval=objs['err'],
-        parameters=(option, value)
-    )
-    efuncs[cb.name] = cb
 
 
 subdms = PointerDM(name='subdms')

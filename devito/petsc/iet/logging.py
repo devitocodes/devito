@@ -29,9 +29,6 @@ class PetscLogger:
 
         # TODO: To be extended with if level <= DEBUG: ...
 
-        # from IPython import embed; embed()
-        # if str(self.inject_solve.expr.rhs.solver_parameters['ksp_rtol']) == '1e-15':
-
         name = self.sreg.make_name(prefix='petscinfo')
         pname = self.sreg.make_name(prefix='petscprofiler')
 
@@ -40,28 +37,24 @@ class PetscLogger:
             self.section_mapper, self.inject_solve,
             self.function_list
         )
-        # else:
-        #     name = self.sreg.make_name(prefix='petscinfooo')
-        #     pname = self.sreg.make_name(prefix='petscprofilerrrr')
-
-        #     self.statstruct = PetscInfo(
-        #         name, pname, self.petsc_option_mapper, self.sobjs,
-        #         self.section_mapper, self.inject_solve,
-        #         self.function_list
-        #     )
-
-        # from IPython import embed; embed()  # noqa: E402
-
-    # @property
-    # def statstruct(self):
-    #     return self._statstruct
 
     @cached_property
     def petsc_option_mapper(self):
         """
-        Create PETSc objects specifically needed for logging solver statistics.
+        For each function in `self.function_list`, look up its metadata in
+        `petsc_return_variable_dict` and instantiate the corresponding PETSc logging
+        variables with names from the symbol registry.
 
-        ADD EXTENDED DOCSTRING 
+        Example:
+        --------
+        >>> self.function_list
+        ['kspgetiterationnumber', 'snesgetiterationnumber', 'kspgettolerances']
+
+        >>> self.petsc_option_mapper
+        {
+            'KSPGetIterationNumber': {'kspits': kspits0},
+            'KSPGetTolerances': {'rtol': rtol0, 'abstol': abstol0, ...}
+        }
         """
         opts = {}
         for func_name in self.function_list:
@@ -69,7 +62,6 @@ class PetscLogger:
             opts[info.name] = {}
             for vtype, out in zip(info.variable_type, info.output_param, strict=True):
                 opts[info.name][out] = vtype(self.sreg.make_name(prefix=out))
-        
         return opts
 
     @cached_property
@@ -86,7 +78,7 @@ class PetscLogger:
             input = self.sobjs[return_variable.input_params]
             output_params = self.petsc_option_mapper[return_variable.name].values()
             outputs = [Byref(i) for i in output_params]
-            # from IPython import embed; embed()
+
             calls.append(
                 petsc_call(return_variable.name, [input] + outputs)
             )

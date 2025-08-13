@@ -49,7 +49,7 @@ class SolveExpr(MetaData):
             obj = sympy.Basic.__new__(cls, expr)
 
         obj.expr = expr
-        obj.solver_parameters = solver_parameters
+        obj.solver_parameters = frozendict(solver_parameters)
         obj.field_data = field_data if field_data else FieldData()
         obj.time_mapper = time_mapper
         obj.localinfo = localinfo
@@ -68,12 +68,13 @@ class SolveExpr(MetaData):
     __hash__ = sympy.Basic.__hash__
 
     def _hashable_content(self):
-            return (self.expr, self.formatted_prefix)
+            return (self.expr, self.formatted_prefix, self.solver_parameters)
 
     def __eq__(self, other):
         return (isinstance(other, SolveExpr) and
                 self.expr == other.expr and
-                self.formatted_prefix == other.formatted_prefix)
+                self.formatted_prefix == other.formatted_prefix
+                and self.solver_parameters == other.solver_parameters)
 
     @property
     def grid(self):

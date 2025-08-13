@@ -3,6 +3,7 @@ import numpy as np
 
 from devito import (Grid, Function, Eq, Operator, configuration,
                     switchconfig, Constant)
+from devito.tools import frozendict
 from devito.petsc import PETScSolve
 from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
@@ -51,21 +52,29 @@ e, f = functions
 eq = Eq(e.laplace, f)
 
 params1 = {'ksp_view': None, 'ksp_rtol': 1e-15}
-params2 = {'ksp_view': None, 'ksp_rtol': 1e-11}
+params2 = {'ksp_rtol': 1e-12, 'ksp_view': None}
 petsc1 = PETScSolve(eq, target=e, solver_parameters=params1, options_prefix='pde1')
-petsc2 = PETScSolve(eq, target=e, solver_parameters=params2, options_prefix='pde1')
+petsc2 = PETScSolve(eq, target=e, solver_parameters=params2, options_prefix='pde2')
+
+
+# frozen1 = frozendict(params1)
+# frozen2 = frozendict(params2)
+
+# assert hash(frozen1) == hash(frozen2)
 
 # from IPython import embed; embed()
 
-# with switchconfig(language='petsc'):
+with switchconfig(language='petsc', log_level='DEBUG'):
 
-#     op1 = Operator([petsc1, petsc2])
-#     # op2 = Operator(petsc2)
-#     # summary1 = op1.apply()
-#     # summary2 = op2.apply()
+    op1 = Operator([petsc1])
+    # op2 = Operator(petsc2)
+    summary1 = op1.apply()
+    # summary2 = op2.apply()
     
-#     print(op1.ccode)
-#     # print(op2.ccode)
+    # print(op1.ccode)
+    # print(op2.ccode)
+
+petsc_summary = summary1.petsc
 
 
 
