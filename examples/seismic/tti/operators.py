@@ -161,7 +161,7 @@ def Gh_centered(model, field):
         _diff = lambda f, d: getattr(f, f'd{d.name}')
         so = field.space_order // 2
         lap = 0
-        for d in field.space_dimensions:
+        for d in model.space_dimensions:
             x0 = d + d.spacing / 2
             x0m = d - d.spacing / 2
             lap += _diff(_subs(b, d, x0) * _diff(field, d)(x0=x0, order=so),
