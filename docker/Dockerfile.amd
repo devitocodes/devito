@@ -4,8 +4,17 @@
 ##############################################################
 
 ARG ROCM_VERSION=6.3.2
+ARG base=ubuntu:22.04
 
+# Base may be specified with the nogil base to provide a Python build
+FROM $base AS ubuntu-base
 FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete AS sdk-base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Base may be specified with the nogil base image to provide Python
+COPY --from=ubuntu-base /opt /opt
+ENV PATH="/opt/python3/bin:${PATH}"
 
 ARG UCX_BRANCH="v1.16.0"
 ARG OMPI_BRANCH="v5.0.x"
@@ -13,11 +22,17 @@ ARG OMPI_BRANCH="v5.0.x"
 # Update and Install basic Linux development tools
 RUN rm /etc/apt/sources.list.d/* \
   && apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    dh-autoreconf python3-venv python3-dev python3-pip git \
+  && apt-get install -y --no-install-recommends \
+    dh-autoreconf git \
     ca-certificates ssh make libtinfo* initramfs-tools libelf-dev \
     wget build-essential autoconf automake libtool \
-    pkg-config libnuma* gfortran flex hwloc cmake
+    pkg-config libnuma* gfortran flex hwloc cmake && \
+  if [ ! -d "/opt/python3" ]; then \
+    apt-get install -y --no-install-recommends \
+      python3-venv python3-dev python3-pip; \
+  else \
+    echo "Using free-threaded Python build"; \
+  fi;
 
 ENV ROCM_HOME=/opt/rocm\
     UCX_HOME=/opt/ucx \
@@ -84,8 +99,8 @@ RUN rm -rf /tmp/ucx && rm -rf /tmp/ompi
 # Adding OpenMPI and UCX to Environment
 ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
     LD_LIBRARY_PATH=$OMPI_HOME/lib:$UCX_HOME/lib:$LD_LIBRARY_PATH \
-    C_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$C_INCLUDE_PATH \ 
-    CPLUS_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$CPLUS_INCLUDE_PATH \ 
+    C_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$C_INCLUDE_PATH \
+    CPLUS_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$CPLUS_INCLUDE_PATH \
     CPATH=$OMPI_HOME/include:$UCX_HOME/include:$CPATH \
     INCLUDE=$OMPI_HOME/include:$UCX_HOME/include:$INCLUDE \
     PKG_CONFIG_PATH=$OMPI_HOME/lib/pkgconfig:$UCX_HOME/lib/pkgconfig:$PKG_CONFIG_PATH

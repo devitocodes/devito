@@ -1,4 +1,3 @@
-cupy-cuda12x<13.5.2
 dask-cuda<25.8.1
 jupyterlab>=3,<4.4.2
 jupyterlab-nvdashboard<0.13.1

@@ -11,20 +11,24 @@ on:
       - "/docker/Dockerfile.cpu"
       - "/docker/Dockerfile.amd"
       - "/docker/Dockerfile.intel"
+      - "/docker/Dockerfile.nogil"
   workflow_dispatch:
     inputs:
+      nogil:
+        type: boolean
+        default: true
       cpu:
         type: boolean
-        default: false
+        default: true
       nvidia:
         type: boolean
-        default: false
+        default: true
       amd:
         type: boolean
-        default: false
+        default: true
       intel:
         type: boolean
-        default: false
+        default: true
 
       tags:
         description: "Build compiler bases"
@@ -33,6 +37,43 @@ on:
     - cron: "0 0 1 * *"
 
 jobs:
+  #######################################################
+  ########### Free-threaded Python meta-base ############
+  #######################################################
+  deploy-nogil-base:
+    name: "python-nogil-base"
+    runs-on: ubuntu-latest
+    if: inputs.nogil
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    steps:
+      - name: Checkout devito
+        uses: actions/checkout@v5
+
+      - name: Check event name
+        run: echo ${{ github.event_name }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build free-threaded Python base
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: "./docker/Dockerfile.nogil"
+          push: true
+          tags: "devitocodes/bases:python-nogil"
+
   #######################################################
   ############## Basic gcc CPU ##########################
   #######################################################
@@ -46,10 +87,18 @@ jobs:
     strategy:
       matrix:
         gcc: ["", "14"]
+        disable-gil: [false, true]
+        include:
+          - disable-gil: false
+            build-args: ""
+            suffix: ""
+          - disable-gil: true
+            build-args: "base=devitocodes/bases:python-nogil"
+            suffix: "-nogil"
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -72,8 +121,10 @@ jobs:
           context: .
           file: "./docker/Dockerfile.cpu"
           push: true
-          build-args: "gcc=${{ matrix.gcc }}"
-          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}"
+          build-args: |
+            gcc=${{ matrix.gcc }}
+            ${{ matrix.build-args }}
+          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}${{ matrix.suffix }}"
 
   #######################################################
   ############## Intel OneApi CPU #######################
@@ -84,6 +135,16 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        include:
+          - disable-gil: false
+            build-args: ""
+            suffix: ""
+          - disable-gil: true
+            build-args: "base=devitocodes/bases:python-nogil"
+            suffix: "-nogil"
 
     steps:
       - name: Checkout devito
@@ -103,6 +164,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
+
       - name: ICX image
         uses: docker/build-push-action@v6
         with:
@@ -110,8 +172,10 @@ jobs:
           file: "./docker/Dockerfile.intel"
           push: true
           target: "icx"
-          build-args: "arch=icx"
-          tags: "devitocodes/bases:cpu-icx"
+          build-args: |
+            arch=icx
+            ${{ matrix.build-args }}
+          tags: "devitocodes/bases:cpu-icx${{ matrix.suffix }}"
 
       - name: SYCL CPU image
         uses: docker/build-push-action@v6
@@ -120,8 +184,10 @@ jobs:
           file: "./docker/Dockerfile.intel"
           push: true
           target: "cpu-sycl"
-          build-args: "arch=cpu-sycl"
-          tags: "devitocodes/bases:cpu-sycl"
+          build-args: |
+            arch=cpu-sycl
+            ${{ matrix.build-args }}
+          tags: "devitocodes/bases:cpu-sycl${{ matrix.suffix }}"
 
       - name: SYCL GPU image
         uses: docker/build-push-action@v6
@@ -130,8 +196,10 @@ jobs:
           file: "./docker/Dockerfile.intel"
           push: true
           target: "gpu-sycl"
-          build-args: "arch=gpu-sycl"
-          tags: "devitocodes/bases:gpu-sycl"
+          build-args: |
+            arch=gpu-sycl
+            ${{ matrix.build-args }}
+          tags: "devitocodes/bases:gpu-sycl${{ matrix.suffix }}"
 
   #######################################################
   ################### Nvidia nvhpc ######################
@@ -142,6 +210,16 @@ jobs:
     runs-on: ["self-hosted", "nvidiagpu"]
     env:
       DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        include:
+          - disable-gil: false
+            build-args: ""
+            suffix: ""
+          - disable-gil: true
+            build-args: "base=devitocodes/bases:python-nogil"
+            suffix: "-nogil"
 
     steps:
       - name: Checkout devito
@@ -169,10 +247,12 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvc"
-          build-args: "arch=nvc"
+          build-args: |
+            arch=nvc
+            ${{ matrix.build-args }}
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvc"
+          tags: "devitocodes/bases:nvidia-nvc${{ matrix.suffix }}"
 
       - name: NVCC image
         uses: docker/build-push-action@v6
@@ -181,9 +261,11 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvcc"
-          build-args: "arch=nvcc"
+          build-args: |
+            arch=nvcc
+            ${{ matrix.build-args }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvcc"
+          tags: "devitocodes/bases:nvidia-nvcc${{ matrix.suffix }}"
 
       - name: NVC host image
         uses: docker/build-push-action@v6
@@ -192,9 +274,11 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvc-host"
-          build-args: "arch=nvc-host"
+          build-args: |
+            arch=nvc-host
+            ${{ matrix.build-args }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:cpu-nvc"
+          tags: "devitocodes/bases:cpu-nvc${{ matrix.suffix }}"
 
   #######################################################
   ##################### AMD #############################
@@ -205,6 +289,16 @@ jobs:
     runs-on: ["self-hosted", "amdgpu"]
     env:
       DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        include:
+          - disable-gil: false
+            build-args: ""
+            suffix: ""
+          - disable-gil: true
+            build-args: "base=devitocodes/bases:python-nogil"
+            suffix: "-nogil"
 
     steps:
       - name: Checkout devito
@@ -236,7 +330,8 @@ jobs:
             ROCM_VERSION=5.5.1
             UCX_BRANCH=v1.13.1
             OMPI_BRANCH=v4.1.4
-          tags: devitocodes/bases:amd
+            ${{ matrix.build-args }}
+          tags: devitocodes/bases:amd${{ matrix.suffix }}
 
       - name: AMD HIP image
         uses: docker/build-push-action@v6
@@ -247,4 +342,5 @@ jobs:
           target: "hip"
           build-args: |
             ROCM_VERSION=6.3.4
-          tags: devitocodes/bases:amd-hip
+            ${{ matrix.build-args }}
+          tags: devitocodes/bases:amd-hip${{ matrix.suffix }}

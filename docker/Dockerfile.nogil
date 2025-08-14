@@ -1,0 +1,58 @@
+##############################################################
+# Builds a base image with free-threaded Python 3.13
+##############################################################
+
+ARG base=ubuntu:22.04
+
+FROM $base AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Add deb-src URI sources for Python build dependence discovery
+RUN echo "deb-src http://archive.ubuntu.com/ubuntu/ jammy main" >> /etc/apt/sources.list && \
+    apt-get update
+
+# Install required build dependencies for Python
+RUN apt-get build-dep -y python3
+
+# Install dependencies for all optional modules
+# See https://devguide.python.org/getting-started/setup-building/index.html#install-dependencies
+RUN apt-get install -y \
+        git build-essential gdb lcov pkg-config \
+        libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev \
+        libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev \
+        lzma lzma-dev tk-dev uuid-dev zlib1g-dev libmpdec-dev libzstd-dev
+
+
+# Clone CPython repository at the 3.13 branch
+RUN git clone --depth 1 --branch 3.13 https://github.com/python/cpython.git /tmp/cpython
+
+
+# Configure, build, and install Python 3.13 with the GIL disabled
+WORKDIR /tmp/cpython
+RUN ./configure \
+        --prefix=/opt/python3 \
+        --disable-gil \
+        --enable-optimizations \
+        --enable-multilib \
+        --enable-shared \
+        LDFLAGS="-Wl,-rpath /opt/python3/lib"
+RUN make -j$(nproc)
+RUN make install
+
+
+# Reset the working directory and clean up
+WORKDIR /
+RUN rm -rf /tmp/cpython
+
+# Set the PATH to include custom Python build
+ENV PATH="/opt/python3/bin:${PATH}"
+
+
+# Install some Python runtime dependencies
+RUN apt-get install -y \
+        libnuma-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip cache purge
