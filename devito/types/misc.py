@@ -14,8 +14,8 @@ from devito.tools import CustomDtype, Pickable, frozendict
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'auto',
-           'size_t']
+           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'FunctionMap',
+           'auto', 'size_t']
 
 
 class Timer(CompositeObject):
@@ -343,6 +343,30 @@ nop = sympy.Function('NOP')
 A wildcard for use in the RHS of Eqs that encode some kind of semantics
 (e.g., a synchronization operation) but no computation.
 """
+
+
+class FunctionMap(LocalObject):
+
+    """
+    Wrap a Function in a LocalObject.
+    """
+
+    __rargs__ = ('name', 'tensor')
+
+    def __init__(self, name, tensor, **kwargs):
+        super().__init__(name, **kwargs)
+        self.tensor = tensor
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.tensor,)
+
+    @property
+    def free_symbols(self):
+        """
+        The free symbols of a FunctionMap are the free symbols of the
+        underlying Function.
+        """
+        return super().free_symbols | {self.tensor}
 
 
 # *** C/CXX support types

@@ -17,7 +17,7 @@ from devito.symbolics import (FieldFromComposite, FieldFromPointer, IndexedPoint
                               search)
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
 from devito.types import (
-    Array, Bundle, ComponentAccess, CompositeObject, Lock, IncrDimension,
+    Array, Bundle, ComponentAccess, CompositeObject, IncrDimension, FunctionMap,
     ModuloDimension, Indirection, Pointer, SharedData, ThreadArray, Symbol, Temp,
     NPThreads, NThreadsBase, Wildcard
 )
@@ -528,12 +528,19 @@ def _(i, mapper, sregistry):
 
 @abstract_object.register(Array)
 def _(i, mapper, sregistry):
-    if isinstance(i, Lock):
-        name = sregistry.make_name(prefix='lock')
-    else:
-        name = sregistry.make_name(prefix='a')
+    name = sregistry.make_name(prefix=i._symbol_prefix)
 
-    v = i._rebuild(name=name, alias=True)
+    if i.initvalue is not None:
+        initvalue = []
+        for v in i.initvalue:
+            try:
+                initvalue.append(v.xreplace(mapper))
+            except AttributeError:
+                initvalue.append(v)
+    else:
+        initvalue = None
+
+    v = i._rebuild(name=name, initvalue=initvalue, alias=True)
 
     mapper.update({
         i: v,
@@ -638,6 +645,16 @@ def _(i, mapper, sregistry):
 @abstract_object.register(Pointer)
 def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='ptr'))
+
+
+@abstract_object.register(FunctionMap)
+def _(i, mapper, sregistry):
+    name = sregistry.make_name(prefix=i._symbol_prefix)
+    tensor = mapper.get(i.tensor, i.tensor)
+
+    v = i._rebuild(name, tensor)
+
+    mapper[i] = v
 
 
 @abstract_object.register(NPThreads)
