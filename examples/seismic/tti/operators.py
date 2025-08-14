@@ -164,8 +164,8 @@ def Gh_centered(model, field):
         for d in model.space_dimensions:
             x0 = d + d.spacing / 2
             x0m = d - d.spacing / 2
-            lap += _diff(_subs(b, d, x0) * _diff(field, d)(x0=x0, order=so),
-                         d)(x0=x0m, order=so)
+            lap += _diff(_subs(b, d, x0) * _diff(field, d)(x0=x0, fd_order=so),
+                         d)(x0=x0m, fd_order=so)
     else:
         lap = field.laplace
     return lap - Gzz
