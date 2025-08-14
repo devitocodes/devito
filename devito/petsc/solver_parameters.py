@@ -39,6 +39,7 @@ linear_solve_defaults = {
 
 
 def linear_solver_parameters(solver_parameters):
+    # Flatten parameters to support nested dictionaries
     flattened = flatten_parameters(solver_parameters or {})
     processed = linear_solve_defaults.copy()
     processed.update(flattened)

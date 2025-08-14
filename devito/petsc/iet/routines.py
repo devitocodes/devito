@@ -136,7 +136,7 @@ class CBBuilder:
 
     def _make_options_callback(self):
         """
-        Create two callbacks: one to set PETSc options and one for
+        Create two callbacks: one to set PETSc options and one
         to clear them.
 
         Options are only set/cleared if they were not specifed via
@@ -153,6 +153,7 @@ class CBBuilder:
                 # Ensures that the command line args take priority
                 continue
             option_name = String(option)
+            # For options without a value e.g `ksp_view`, pass Null
             option_value = Null if v is None else String(str(v))
             set_body.append(
                 petsc_call('PetscOptionsSetValue', [Null, option_name, option_value])

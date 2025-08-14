@@ -134,10 +134,12 @@ class PetscInfo(CompositeObject):
 
         mapper = {v: k for k, v in petsc_type_mappings.items()}
 
-        fields = [
-            (str(ptype), mapper[str(ptype._C_ctype)])
-            for option in petsc_option_mapper.values() for ptype in option.values()
-        ]
+        fields = []
+        for obj_mapper in petsc_option_mapper.values():
+            for petsc_option in obj_mapper.values():
+                ctype = mapper[str(petsc_option._C_ctype)]
+                fields.append((petsc_option.name, ctype))
+
         super().__init__(name, pname, fields)
 
     @property
@@ -164,24 +166,22 @@ class PetscInfo(CompositeObject):
         # Helper to get the value from the profiling struct
         get_val = lambda v: getattr(self.value._obj, v.name)
 
-        # Return the value(s) for the given PETSc attribute:
-        # - If there's only one output (e.g., for KSPGetIterationNumber),
-        #   return it directly.
-        # - If there are multiple outputs (e.g., for KSPGetTolerances),
-        #   return a dictionary mapping each output name to
-        #   its value, e.g., {'rtol': val0, 'abstol': val1, ...}.
+        # - If the function returns a single value (e.g., KSPGetIterationNumber),
+        #   return that value directly.
+        # - If the function returns multiple values (e.g., KSPGetTolerances),
+        #   return a dictionary mapping each output name to its value,
+        #   e.g., {'rtol': val0, 'abstol': val1, ...}.
         if len(obj_mapper) == 1:
             return get_val(next(iter(obj_mapper.values())))
         return {k: get_val(v) for k, v in obj_mapper.items()}
 
 
-# TODO: change the lists to tuples
 @dataclass
 class PetscReturnVariable:
     name: str
-    variable_type: list
+    variable_type: tuple
     input_params: str
-    output_param: list[str]
+    output_param: tuple[str]
 
 
 # NOTE:
@@ -190,23 +190,32 @@ class PetscReturnVariable:
 # If any of the PETSc function signatures change (e.g., names, input/output parameters),
 # this dictionary must be updated accordingly.
 
+# TODO: To be extended
 petsc_return_variable_dict = {
+    # KSP specific
     'kspgetiterationnumber': PetscReturnVariable(
         name='KSPGetIterationNumber',
-        variable_type=[PetscInt],
+        variable_type=(PetscInt,),
         input_params='ksp',
-        output_param=['kspits']
-    ),
-    'snesgetiterationnumber': PetscReturnVariable(
-        name='SNESGetIterationNumber',
-        variable_type=[PetscInt],
-        input_params='snes',
-        output_param=['snesits'],
+        output_param=('kspits',)
     ),
     'kspgettolerances': PetscReturnVariable(
         name='KSPGetTolerances',
-        variable_type=[PetscScalar, PetscScalar, PetscScalar, PetscInt],
+        variable_type=(PetscScalar, PetscScalar, PetscScalar, PetscInt),
         input_params='ksp',
-        output_param=['rtol', 'abstol', 'dtol', 'maxits'],
-    )
+        output_param=('rtol', 'abstol', 'dtol', 'maxits'),
+    ),
+    'kspgetconvergedreason': PetscReturnVariable(
+        name='KSPGetConvergedReason',
+        variable_type=(PetscInt,),
+        input_params='ksp',
+        output_param=('reason',),
+    ),
+    # SNES specific
+    'snesgetiterationnumber': PetscReturnVariable(
+        name='SNESGetIterationNumber',
+        variable_type=(PetscInt,),
+        input_params='snes',
+        output_param=('snesits',),
+    ),
 }

@@ -22,9 +22,12 @@ class PetscLogger:
 
         if level <= PERF:
             self.function_list.extend([
+                # KSP specific
                 'kspgetiterationnumber',
+                'kspgettolerances',
+                'kspgetconvergedreason',
+                # SNES specific
                 'snesgetiterationnumber',
-                'kspgettolerances'
             ])
 
         # TODO: To be extended with if level <= DEBUG: ...
