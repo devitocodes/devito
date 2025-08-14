@@ -2,7 +2,7 @@ from devito.types.equation import PetscEq
 from devito.tools import as_tuple
 from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
                                 FieldData, MultipleFieldData, Jacobian, Residual,
-                                MixedResidual, MixedJacobian, InitialGuess, SolveExpr)
+                                MixedResidual, MixedJacobian, InitialGuess)
 from devito.petsc.types.equation import EssentialBC
 from devito.petsc.solver_parameters import (linear_solver_parameters,
                                             format_options_prefix)
@@ -73,7 +73,7 @@ class InjectSolve:
         target, funcs, field_data = self.linear_solve_args()
         # Placeholder expression for inserting calls to the solver
 
-        linear_solve = SolveExpr(
+        linear_solve = LinearSolveExpr(
             funcs,
             solver_parameters=self.solver_parameters,
             field_data=field_data,

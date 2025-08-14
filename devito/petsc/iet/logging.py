@@ -77,10 +77,10 @@ class PetscLogger:
 
             input = self.sobjs[return_variable.input_params]
             output_params = self.petsc_option_mapper[return_variable.name].values()
-            outputs = [Byref(i) for i in output_params]
+            by_ref_output = [Byref(i) for i in output_params]
 
             calls.append(
-                petsc_call(return_variable.name, [input] + outputs)
+                petsc_call(return_variable.name, [input] + by_ref_output)
             )
             # TODO: Perform a PetscCIntCast here?
             exprs = [

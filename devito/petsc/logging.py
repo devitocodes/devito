@@ -125,7 +125,6 @@ class PetscInfo(CompositeObject):
     def __init__(self, name, pname, petsc_option_mapper, sobjs, section_mapper,
                  inject_solve, function_list):
 
-        # TODO: change name to match new name elsewehere
         self.petsc_option_mapper = petsc_option_mapper
         self.sobjs = sobjs
         self.section_mapper = section_mapper
@@ -162,12 +161,15 @@ class PetscInfo(CompositeObject):
         # Maps the petsc_option to its generated variable name e.g {'its': its0}
         obj_mapper = self.petsc_option_mapper[attr]
 
-        # Helper to get the value from the petsc profiling struct
+        # Helper to get the value from the profiling struct
         get_val = lambda v: getattr(self.value._obj, v.name)
 
-        # If there's only one value to retrieve for the given attribute, for example, KSPGetIterationNumber
-        # we return it directly, otherwise we return a dictionary of all values e.g for KSPGetTolerances
-        # we return {'rtol': val0, 'abstol': val1, ...}
+        # Return the value(s) for the given PETSc attribute:
+        # - If there's only one output (e.g., for KSPGetIterationNumber),
+        #   return it directly.
+        # - If there are multiple outputs (e.g., for KSPGetTolerances),
+        #   return a dictionary mapping each output name to
+        #   its value, e.g., {'rtol': val0, 'abstol': val1, ...}.
         if len(obj_mapper) == 1:
             return get_val(next(iter(obj_mapper.values())))
         return {k: get_val(v) for k, v in obj_mapper.items()}

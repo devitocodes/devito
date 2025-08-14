@@ -1,6 +1,4 @@
 import sympy
-import copy
-
 from itertools import chain
 from functools import cached_property
 
@@ -68,7 +66,7 @@ class SolveExpr(MetaData):
     __hash__ = sympy.Basic.__hash__
 
     def _hashable_content(self):
-            return (self.expr, self.formatted_prefix, self.solver_parameters)
+        return (self.expr, self.formatted_prefix, self.solver_parameters)
 
     def __eq__(self, other):
         return (isinstance(other, SolveExpr) and
@@ -85,7 +83,6 @@ class SolveExpr(MetaData):
         return None
 
     func = Reconstructable._rebuild
-
 
 
 class LinearSolveExpr(SolveExpr):

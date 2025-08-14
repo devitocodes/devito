@@ -117,18 +117,40 @@ class CBBuilder:
             self._make_initial_guess()
         self._make_user_struct_callback()
 
+    def _make_petsc_callable(self, prefix, body, parameters=()):
+        return PETScCallable(
+            self.sregistry.make_name(prefix=prefix),
+            body,
+            retval=self.objs['err'],
+            parameters=parameters
+        )
+
+    def _make_callable_body(self, body, stacks=(), casts=()):
+        return CallableBody(
+            List(body=body),
+            init=(petsc_func_begin_user,),
+            stacks=stacks,
+            casts=casts,
+            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+        )
+
     def _make_options_callback(self):
-        objs = self.objs
+        """
+        Create two callbacks: one to set PETSc options and one for
+        to clear them.
+
+        Options are only set/cleared if they were not specifed via
+        command line arguments.
+        """
         params = self.solver_parameters
         prefix = self.inject_solve.expr.rhs.formatted_prefix
 
-        set_body = []
-        clear_body = []
+        set_body, clear_body = [], []
 
         for k, v in params.items():
             option = f'-{prefix}{k}'
             if option in sys.argv:
-                # Ensures that the command line options take priority
+                # Ensures that the command line args take priority
                 continue
             option_name = String(option)
             option_value = Null if v is None else String(str(v))
@@ -139,31 +161,12 @@ class CBBuilder:
                 petsc_call('PetscOptionsClearValue', [Null, option_name])
             )
 
-        set_body = CallableBody(
-            List(body=set_body),
-            init=(petsc_func_begin_user,),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        set_body = self._make_callable_body(set_body)
+        clear_body = self._make_callable_body(clear_body)
 
-        clear_body = CallableBody(
-            List(body=clear_body),
-            init=(petsc_func_begin_user,),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        set_callback = self._make_petsc_callable('SetPetscOptions', set_body)
+        clear_callback = self._make_petsc_callable('ClearPetscOptions', clear_body)
 
-        set_callback = PETScCallable(
-            self.sregistry.make_name(prefix='SetPetscOptions'),
-            set_body,
-            retval=objs['err'],
-            parameters=()
-        )
-
-        clear_callback = PETScCallable(
-            self.sregistry.make_name(prefix='ClearPetscOptions'),
-            clear_body,
-            retval=objs['err'],
-            parameters=()
-        )
         self._set_options_efunc = set_callback
         self._efuncs[set_callback.name] = set_callback
         self._clear_options_efunc = clear_callback
@@ -179,13 +182,9 @@ class CBBuilder:
         body = self._create_matvec_body(
             List(body=irs.uiet.body), jacobian
         )
-
         objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix=prefix),
-            body,
-            retval=objs['err'],
-            parameters=(objs['J'], objs['X'], objs['Y'])
+        cb = self._make_petsc_callable(
+            prefix, body, parameters=(objs['J'], objs['X'], objs['Y'])
         )
         self._J_efuncs.append(cb)
         self._efuncs[cb.name] = cb
@@ -303,12 +302,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = CallableBody(
-            List(body=body),
-            init=(petsc_func_begin_user,),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = self._make_callable_body(body, stacks=stacks+derefs)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
@@ -318,6 +312,7 @@ class CBBuilder:
         return body
 
     def _make_formfunc(self):
+        objs = self.objs
         F_exprs = self.field_data.residual.F_exprs
         # Compile `F_exprs` into an IET via recursive compilation
         irs, _ = self.rcompile(
@@ -327,13 +322,9 @@ class CBBuilder:
         body_formfunc = self._create_formfunc_body(
             List(body=irs.uiet.body)
         )
-        objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='FormFunction'),
-            body_formfunc,
-            retval=objs['err'],
-            parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
-        )
+        parameters = (objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
+        cb = self._make_petsc_callable('FormFunction', body_formfunc, parameters)
+
         self._F_efunc = cb
         self._efuncs[cb.name] = cb
 
@@ -442,12 +433,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = CallableBody(
-            List(body=body),
-            init=(petsc_func_begin_user,),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),))
-
+        body = self._make_callable_body(body, stacks=stacks+derefs)
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
@@ -466,11 +452,8 @@ class CBBuilder:
             List(body=irs.uiet.body)
         )
         objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='FormRHS'),
-            body,
-            retval=objs['err'],
-            parameters=(sobjs['callbackdm'], objs['B'])
+        cb = self._make_petsc_callable(
+            'FormRHS', body, parameters=(sobjs['callbackdm'], objs['B'])
         )
         self._b_efunc = cb
         self._efuncs[cb.name] = cb
@@ -552,12 +535,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = CallableBody(
-            List(body=[body]),
-            init=(petsc_func_begin_user,),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = self._make_callable_body([body], stacks=stacks+derefs)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
@@ -568,6 +546,7 @@ class CBBuilder:
     def _make_initial_guess(self):
         exprs = self.field_data.initial_guess.exprs
         sobjs = self.solver_objs
+        objs = self.objs
 
         # Compile initital guess `eqns` into an IET via recursive compilation
         irs, _ = self.rcompile(
@@ -577,12 +556,8 @@ class CBBuilder:
         body = self._create_initial_guess_body(
             List(body=irs.uiet.body)
         )
-        objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='FormInitialGuess'),
-            body,
-            retval=objs['err'],
-            parameters=(sobjs['callbackdm'], objs['xloc'])
+        cb = self._make_petsc_callable(
+            'FormInitialGuess', body, parameters=(sobjs['callbackdm'], objs['xloc'])
         )
         self._initial_guesses.append(cb)
         self._efuncs[cb.name] = cb
@@ -629,13 +604,7 @@ class CBBuilder:
 
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
-
-        body = CallableBody(
-            List(body=[body]),
-            init=(petsc_func_begin_user,),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = self._make_callable_body(body, stacks=stacks+derefs)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
@@ -658,10 +627,7 @@ class CBBuilder:
             DummyExpr(FieldFromPointer(i._C_symbol, mainctx), i._C_symbol)
             for i in mainctx.callback_fields
         ]
-        struct_callback_body = CallableBody(
-            List(body=body), init=(petsc_func_begin_user,),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        struct_callback_body = self._make_callable_body(body)
         cb = Callable(
             self.sregistry.make_name(prefix='PopulateUserContext'),
             struct_callback_body, self.objs['err'],
@@ -731,11 +697,9 @@ class CCBBuilder(CBBuilder):
         objs = self.objs
         body = self._whole_matvec_body()
 
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='WholeMatMult'),
-            List(body=body),
-            retval=objs['err'],
-            parameters=(objs['J'], objs['X'], objs['Y'])
+        parameters = (objs['J'], objs['X'], objs['Y'])
+        cb = self._make_petsc_callable(
+            'WholeMatMult', List(body=body), parameters=parameters
         )
         self._main_matvec_callback = cb
         self._efuncs[cb.name] = cb
@@ -782,13 +746,11 @@ class CCBBuilder(CBBuilder):
                     [objs['Y'], Deref(FieldFromPointer(rows, ctx)), Byref(Y)]
                 ),
             )
-        return CallableBody(
-            List(body=(ctx_main, zero_y_memory, BlankLine) + calls),
-            init=(petsc_func_begin_user,),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = (ctx_main, zero_y_memory, BlankLine) + calls
+        return self._make_callable_body(body)
 
     def _make_whole_formfunc(self):
+        objs = self.objs
         F_exprs = self.field_data.residual.F_exprs
         # Compile `F_exprs` into an IET via recursive compilation
         irs, _ = self.rcompile(
@@ -797,13 +759,11 @@ class CCBBuilder(CBBuilder):
         )
         body = self._whole_formfunc_body(List(body=irs.uiet.body))
 
-        objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='WholeFormFunc'),
-            body,
-            retval=objs['err'],
-            parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
+        parameters = (objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
+        cb = self._make_petsc_callable(
+            'WholeFormFunc', body, parameters=parameters
         )
+
         self._F_efunc = cb
         self._efuncs[cb.name] = cb
 
@@ -917,14 +877,10 @@ class CCBBuilder(CBBuilder):
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
 
-        formfunc_body = CallableBody(
-            List(body=body),
-            init=(petsc_func_begin_user,),
-            stacks=stacks+derefs,
+        formfunc_body = self._make_callable_body(
+            body, stacks=stacks+derefs,
             casts=(f_soa, x_soa),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
-
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
@@ -941,12 +897,9 @@ class CCBBuilder(CBBuilder):
             objs['matreuse'],
             objs['Submats'],
         )
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='MatCreateSubMatrices'),
-            body,
-            retval=objs['err'],
-            parameters=params
-        )
+        cb = self._make_petsc_callable(
+            'MatCreateSubMatrices', body, parameters=params)
+
         self._submatrices_callback = cb
         self._efuncs[cb.name] = cb
 
@@ -1068,12 +1021,7 @@ class CCBBuilder(CBBuilder):
             iteration,
         ] + matmult_op
 
-        return CallableBody(
-            List(body=tuple(body)),
-            init=(petsc_func_begin_user,),
-            stacks=(get_ctx, deref_subdm),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        return self._make_callable_body(tuple(body), stacks=(get_ctx, deref_subdm))
 
 
 class BaseObjectBuilder:

@@ -69,19 +69,22 @@ def lower_petsc(iet, **kwargs):
     # Map PETScSolve to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
-    # prefixes within a single Operator should not be duplicated
+    # Prefixes within a single Operator should not be duplicated
     prefixes = [d.expr.rhs.user_prefix for d in data if d.expr.rhs.user_prefix]
     duplicates = {p for p in prefixes if prefixes.count(p) > 1}
 
-    # TODO: How to avoid the other exception raised given it is an iet_pass?
+    # TODO: Avoid the other exception raised given it is an iet_pass?
     if duplicates:
-        dup_list = ", ".join(sorted(duplicates))
+        dup_list = ", ".join(repr(p) for p in sorted(duplicates))
         raise ValueError(
             f"The following `options_prefix` values are duplicated "
             f"among your PETScSolves. Ensure each one is unique: {dup_list}"
         )
 
+    # List of calls to clear options from the global PETSc options database.
+    # These are executed at the end of the Operator.
     clear_options = []
+
     for iters, (inject_solve,) in inject_solve_mapper.items():
 
         builder = Builder(inject_solve, iters, comm, section_mapper, **kwargs)
@@ -98,7 +101,6 @@ def lower_petsc(iet, **kwargs):
         ),))
 
     populate_matrix_context(efuncs)
-
     iet = Transformer(subs).visit(iet)
     body = core + tuple(setup) + iet.body.body + tuple(clear_options)
     body = iet.body._rebuild(body=body)

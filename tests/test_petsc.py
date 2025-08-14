@@ -1421,7 +1421,7 @@ class TestLogging:
         assert str(key) == "PetscKey(name='section0', options_prefix='poisson')"
         assert value == 1
 
-        # Test logging of KSPGetTolerances. Since no overrides have been applied,
+        # Test logging KSPGetTolerances. Since no overrides have been applied,
         # the tolerances should match the default linear values.
         tols = entry0.KSPGetTolerances
         assert tols['rtol'] == linear_solve_defaults['ksp_rtol']
@@ -1547,19 +1547,17 @@ class TestSolverParameters:
         self.eq2 = Eq(self.g.laplace, self.h)
 
     @skipif('petsc')
-    def test_differing_solver_params(self):
+    def test_different_solver_params(self):
         # Explicitly set the solver parameters
         solver1 = PETScSolve(
             self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
         )
-        # This solver uses the defaults
+        # Use solver parameter defaults
         solver2 = PETScSolve(self.eq2, target=self.g)
 
         with switchconfig(language='petsc'):
             op = Operator([solver1, solver2])
 
-        # Check that there are two `SetPetscOptions` callbacks since the solver
-        # parameters are different for each solver
         assert 'SetPetscOptions0' in op._func_table
         assert 'SetPetscOptions1' in op._func_table
 
@@ -1593,7 +1591,7 @@ class TestSolverParameters:
             in str(op._func_table['SetPetscOptions1'].root)
 
     @skipif('petsc')
-    def test_options_with_no_value(self):
+    def test_options_no_value(self):
         """
         Test solver parameters that do not require a value, such as
         `snes_view` and `ksp_view`
@@ -1629,8 +1627,8 @@ class TestSolverParameters:
 
         petsc_summary = tmp.petsc
         entry = petsc_summary.get_entry('section0', 'solver')
-
         tolerances = entry.KSPGetTolerances
+
         assert tolerances['rtol'] == params['ksp_rtol']
         assert tolerances['abstol'] == params['ksp_atol']
         assert tolerances['dtol'] == params['ksp_divtol']
@@ -1645,14 +1643,12 @@ class TestSolverParameters:
         solver1 = PETScSolve(
             self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
         )
-        # This solver uses the defaults
+        # Use the solver parameter defaults
         solver2 = PETScSolve(self.eq2, target=self.g)
 
         with switchconfig(language='petsc'):
             op = Operator([solver1, solver2])
 
-        # Check that there are two `ClearPetscOptions` callbacks since the solver
-        # parameters are different for each solver
         assert 'ClearPetscOptions0' in op._func_table
         assert 'ClearPetscOptions1' in op._func_table
 
@@ -1670,17 +1666,48 @@ class TestSolverParameters:
             self.eq2, target=self.g, options_prefix='poisson',
             solver_parameters={'ksp_rtol': '1e-12'}
         )
-        # with switchconfig(language='petsc'):
-        #     op = Operator([solver1, solver2])
+        with switchconfig(language='petsc'):
+            with pytest.raises(ValueError):
+                Operator([solver1, solver2])
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_multiple_operators(self):
+        """
+        Verify that solver parameters are set correctly when multiple Operators
+        are created with PETScSolve instances sharing the same options_prefix.
+
+        Note: Using the same options_prefix within a single Operator is not allowed
+        (see previous test), but the same prefix can be used across
+        different Operators (although not advised).
+        """
+        # Create two PETScSolve instances with the same options_prefix
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='poisson',
+            solver_parameters={'ksp_rtol': '1e-10'}
+        )
+        solver2 = PETScSolve(
+            self.eq2, target=self.g, options_prefix='poisson',
+            solver_parameters={'ksp_rtol': '1e-12'}
+        )
+        with switchconfig(language='petsc'):
+            op1 = Operator(solver1)
+            op2 = Operator(solver2)
+            summary1 = op1.apply()
+            summary2 = op2.apply()
+
+        petsc_summary1 = summary1.petsc
+        entry1 = petsc_summary1.get_entry('section0', 'poisson')
+
+        petsc_summary2 = summary2.petsc
+        entry2 = petsc_summary2.get_entry('section0', 'poisson')
+
+        assert entry1.KSPGetTolerances['rtol'] == 1e-10
+        assert entry2.KSPGetTolerances['rtol'] == 1e-12
 
     # TODO: Add test to check that the command line args override anything set
     # in the solver_parameters dictionary
 
-    # TODO ADD A TEST for a warning/error if same options prefix used in
-    # same operator
-    # TODO: add a test for checking the solver params are correctly set with
-    # repeated calls to .apply() with the same solvers (with same options prefix)
-    # but different solver parameters
     # TODO: update names of all of these tests
     # @skipif('petsc')
     # def test_command_line_priority(self):
@@ -1708,22 +1735,22 @@ class TestHashing:
 
     @skipif('petsc')
     def test_solveexpr(self):
-        """
-        """
         grid = Grid(shape=(11, 11), dtype=np.float64)
         functions = [Function(name=n, grid=grid, space_order=2)
                      for n in ['e', 'f']]
         e, f = functions
         eq = Eq(e.laplace, f)
 
+        # Two PETScSolve instances with different options_prefix values
+        # should hash differently.
         petsc1 = PETScSolve(eq, target=e, options_prefix='poisson1')
         petsc2 = PETScSolve(eq, target=e, options_prefix='poisson2')
 
         assert hash(petsc1.rhs) != hash(petsc2.rhs)
         assert petsc1.rhs != petsc2.rhs
 
-        # Same options prefix but different solver parameters, they should
-        # hash differently
+        # Two PETScSolve instances with the same options_prefix but
+        # different solver parameters should hash differently.
         petsc3 = PETScSolve(
             eq, target=e, solver_parameters={'ksp_type': 'cg'},
             options_prefix='poisson3'
