@@ -169,7 +169,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     ispace1 = IterationSpace.union(ispace, ispace0, relations=extra)
 
     # The Symbol that will hold the result of the IndexDerivative computation
-    # NOTE: created before recurring so that we ultimately get a sound ordering
+    # NOTE: created before recursing so that we ultimately get a sound ordering
     try:
         s = reusables.pop()
         assert np.can_cast(s.dtype, w.dtype)
