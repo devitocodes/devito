@@ -5,7 +5,6 @@ of symbols and data.
 
 from collections import OrderedDict
 from ctypes import c_uint64
-from functools import singledispatch
 from operator import itemgetter
 
 import numpy as np
