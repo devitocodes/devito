@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 import os
 import re
+import sys
 from collections import OrderedDict
 
 from conftest import skipif
@@ -23,15 +24,37 @@ from devito.petsc.initialize import PetscInitialize
 from devito.petsc.logging import PetscSummary
 from devito.petsc.solver_parameters import linear_solve_defaults
 
+@pytest.fixture(scope='session')
+def command_line():
+    # one prefix per test
+    prefix = ('d17weqroegn', 'riabfodkj')
+
+    petsc_option = (
+        ('ksp_rtol',),
+        ('ksp_rtol','ksp_atol')
+    )
+    value = (
+        ('1e-8',),
+        ('1e-11','1e-15'),
+    )
+    argv = []
+
+    expected = {}
+    for p, opt, val in zip(prefix, petsc_option, value, strict=True):
+        for o, v in zip(opt, val, strict=True):
+            argv.extend([f'-{p}_{o}', v])
+        expected[p] = zip(opt,val)
+    return argv, expected
+
 
 @pytest.fixture(scope='session', autouse=True)
-def petsc_initialization():
+def petsc_initialization(command_line):
+    argv, _ = command_line
     # TODO: Temporary workaround until PETSc is automatically
     # initialized
     configuration['compiler'] = 'custom'
     os.environ['CC'] = 'mpicc'
-    # PetscInitialize(argv)
-    PetscInitialize()
+    PetscInitialize(argv)
 
 
 @skipif('petsc')
@@ -1710,26 +1733,48 @@ class TestSolverParameters:
     # TODO: Add test to check that the command line args override anything set
     # in the solver_parameters dictionary
 
-    # @skipif('petsc')
-    # def test_command_line_priority(self):
-    #     """
-    #     Test solver parameters specifed via the command line
-    #     take precedence over those set in the solver_parameters
-    #     dictionary.
-    #     """
-    #     prefix = 'd17weqroegn'
+    @skipif('petsc')
+    def test_command_line_priority_1(self, command_line):
+        """
+        Test solver parameters specifed via the command line
+        take precedence over those set in the solver_parameters
+        dictionary.
+        """
+        prefix = 'd17weqroegn'
+        _, expected = command_line
 
-    #     solver1 = PETScSolve(
-    #         self.eq1, target=self.e, solver_parameters={
-    #             'ksp_rtol': '1e-9',
-    #             'snes_view': None}
-    #     )
-    #     with switchconfig(language='petsc'):
-    #         op = Operator(solver1)
-    #         op.apply()
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            op = Operator(solver1)
+            summary = op.apply()
 
-    #     # Check that the command line option specifying the ksp_rtol took
-    #     # priorty over the solver
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for opt, val in expected[prefix]:
+            assert str(entry.KSPGetTolerances[opt.removeprefix('ksp_')]) == val
+
+    @skipif('petsc')
+    def test_command_line_priority_2(self, command_line):
+        """
+        """
+        prefix = 'riabfodkj'
+        _, expected = command_line
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            op = Operator(solver1)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for opt, val in expected[prefix]:
+            assert str(entry.KSPGetTolerances[opt.removeprefix('ksp_')]) == val
 
 
 class TestHashing:

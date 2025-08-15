@@ -12,9 +12,17 @@ global _petsc_initialized
 _petsc_initialized = False
 
 
+global _petsc_clargs
+
 def PetscInitialize(clargs=sys.argv):
     global _petsc_initialized
+    global _petsc_clargs
+
     if not _petsc_initialized:
+        if clargs is not sys.argv:
+            clargs = [sys.argv[0], *clargs]
+        # TODO: drop this
+        _petsc_clargs = clargs
         dummy = Symbol(name='d')
         # TODO: Potentially just use cgen + the compiler machinery in Devito
         # to generate these "dummy_ops" instead of using the Operator class.
@@ -37,7 +45,6 @@ def PetscInitialize(clargs=sys.argv):
         argv_pointer = (POINTER(c_char)*len(clargs))(
             *map(lambda s: cast(s, POINTER(c_char)), argv_bytes)
         )
-
         op_init.apply(argc=len(clargs), argv=argv_pointer)
 
         atexit.register(op_finalize.apply)

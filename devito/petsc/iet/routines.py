@@ -149,7 +149,12 @@ class CBBuilder:
 
         for k, v in params.items():
             option = f'-{prefix}{k}'
-            if option in sys.argv:
+            # if option in sys.argv:
+            # TODO: Pre-build the KSPGetArgs operator and run it here
+            # to drop the global _petsc_clargs
+            # tmp = petsc_get_args_op.apply()
+            import devito.petsc.initialize
+            if option in devito.petsc.initialize._petsc_clargs:
                 # Ensures that the command line args take priority
                 continue
             option_name = String(option)

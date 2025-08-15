@@ -203,7 +203,8 @@ petsc_return_variable_dict = {
         name='KSPGetTolerances',
         variable_type=(PetscScalar, PetscScalar, PetscScalar, PetscInt),
         input_params='ksp',
-        output_param=('rtol', 'abstol', 'dtol', 'maxits'),
+        # TODO: check if maxits is max_its in command line
+        output_param=('rtol', 'atol', 'dtol', 'maxits'),
     ),
     'kspgetconvergedreason': PetscReturnVariable(
         name='KSPGetConvergedReason',
