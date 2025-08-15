@@ -1518,7 +1518,7 @@ class ArgumentsMap(dict):
         # Layers are sometimes aliases, so include aliases here
         for i in self._op_symbols:
             try:
-                if i._child is None:
+                if i._child is None and i.alias is not True:
                     # Use only the "innermost" layer to avoid counting snapshots
                     # twice. This layer will have no child.
                     v = self._apply_override(i)
