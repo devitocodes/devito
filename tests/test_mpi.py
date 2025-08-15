@@ -1580,7 +1580,7 @@ class TestCodeGeneration:
             assert np.allclose(h.data_ro_domain[0, 5:], [4.4, 4.4, 4.4, 3.4, 3.1], rtol=R)
 
     @pytest.mark.parallel(mode=1)
-    def test_merge_and_hoist_haloupdate_if_diff_locindices_v2(self, mode):
+    def test_merge_haloupdate_if_diff_but_equivalent_locindices(self, mode):
         grid = Grid(shape=(65, 65, 65))
 
         v1 = TimeFunction(name='v1', grid=grid, space_order=2, time_order=1,
@@ -1597,7 +1597,7 @@ class TestCodeGeneration:
         op = Operator(eqns)
         op.cfunction
 
-        calls, _ = check_halo_exchanges(op, 3, 2)
+        calls, _ = check_halo_exchanges(op, 2, 2)
         for i, v in enumerate([v2, v1]):
             assert calls[i].arguments[0] is v
 
@@ -2013,6 +2013,151 @@ class TestCodeGeneration:
         # so outside of any conditional
         for n in FindNodes(Conditional).visit(op1):
             assert len(FindNodes(HaloUpdateCall).visit(n)) == 0
+
+    @pytest.mark.parallel(mode=2)
+    def test_allreduce_time(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 10
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(tt, ), shape=(nt,))
+
+        op = Operator([Eq(ux.forward, ux + tt), Inc(g, ux)], name="Op")
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+
+        # Reduce should be in time loop but not in space loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 1  # one allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+        assert np.isclose(np.max(g.data), 4356.0)
+
+    @pytest.mark.parallel(mode=2)
+    def test_multi_allreduce_time(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 10
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(tt, ), shape=(nt,))
+        h = TimeFunction(name="h", grid=grid, dimensions=(tt, ), shape=(nt,))
+
+        op = Operator([Eq(ux.forward, ux + tt), Inc(g, ux), Inc(h, ux)], name="Op")
+        assert_structure(op, ['t,x,y', 't'], 'txy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+        assert np.isclose(np.max(g.data), 4356.0)
+        assert np.isclose(np.max(h.data), 4356.0)
+
+    @pytest.mark.parallel(mode=2)
+    def test_multi_allreduce_time_cond(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 20
+        ct = ConditionalDimension(name="ct", parent=tt, factor=2)
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+        h = TimeFunction(name="h", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+
+        op = Operator([Eq(g, 0), Eq(ux.forward, tt), Inc(g, ux), Inc(h, ux)], name="Op")
+        assert_structure(op, ['t', 't,x,y', 't,x,y'], 'txyxy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        op.apply(time_m=0, time_M=nt-1)
+
+        expected = [nx * ny * max(t-1, 0) for t in range(0, nt, 2)]
+        assert np.allclose(g.data, expected)
+        assert np.allclose(h.data, expected)
+
+    @pytest.mark.parallel(mode=2)
+    def test_allreduce_multicond(self, mode):
+        space_order = 8
+        nx, ny = 11, 11
+
+        grid = Grid(shape=(nx, ny))
+        tt = grid.time_dim
+        nt = 20
+        ct = ConditionalDimension(name="ct", parent=tt, factor=2)
+        ct2 = ConditionalDimension(name="ct2", parent=tt, factor=8)
+
+        ux = TimeFunction(name="ux", grid=grid, time_order=1, space_order=space_order)
+        uy = TimeFunction(name="uy", grid=grid, time_order=1, space_order=space_order)
+        g = TimeFunction(name="g", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+        h = TimeFunction(name="h", grid=grid, dimensions=(ct, ), shape=(int(nt/2),),
+                         time_dim=ct)
+
+        op = Operator([Eq(g, 0), Eq(ux.forward, tt), Inc(g, ux), Inc(h, ux),
+                       Eq(uy, tt, implicit_dims=ct2)],
+                      name="Op")
+        assert_structure(op, ['t', 't,x,y', 't,x,y', 't,x,y'], 'txyxyxy')
+
+        # Make sure the two allreduce calls are in the time the loop
+        iters = FindNodes(Iteration).visit(op)
+        for i in iters:
+            if i.dim.is_Time:
+                assert len(FindNodes(Call).visit(i)) == 2  # Two allreduce
+            else:
+                assert len(FindNodes(Call).visit(i)) == 0
+
+        # Check conditionals
+        conds = FindNodes(Conditional).visit(op)
+        assert len(conds) == 3
+        # First one is just g initialization
+        sym0 = FindSymbols().visit(conds[0])
+        assert set(sym0) == {ct.symbolic_factor, tt, g}
+        assert grid.distributor._obj_comm not in sym0
+        # Second one is g and h and allreduce
+        sym1 = FindSymbols().visit(conds[1])
+        assert g in sym1
+        assert h in sym1
+        assert ux in sym1
+        # The allreduce
+        assert grid.distributor._obj_comm in sym1
+        # Last one is only uy
+        sym2 = FindSymbols().visit(conds[-1])
+        assert g not in sym2
+        assert h not in sym2
+        assert uy in sym2
+        assert grid.distributor._obj_comm not in sym2
+
+        op.apply(time_m=0, time_M=nt-1)
+
+        expected = [nx * ny * max(t-1, 0) for t in range(0, nt, 2)]
+        assert np.allclose(g.data, expected)
+        assert np.allclose(h.data, expected)
 
 
 class TestOperatorAdvanced:
@@ -2961,6 +3106,27 @@ class TestOperatorAdvanced:
 
         assert np.isclose(norm(u1), 12445251.87, rtol=1e-7)
         assert np.isclose(norm(v1), 147063.38, rtol=1e-7)
+
+    @pytest.mark.parallel(mode=1)
+    def test_interpolation_at_uforward(self, mode):
+        grid = Grid(shape=(10, 10, 10))
+        t = grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2, time_order=2)
+
+        rec = SparseTimeFunction(name="rec", grid=grid, npoint=1, nt=10)
+
+        eqns = [Eq(u.forward, u.laplace + u.backward + 1),
+                rec.interpolate(expr=u.forward)]
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        calls, _ = check_halo_exchanges(op, 2, 1)
+        args = calls[0].arguments
+        assert args[-2].name == 't2'
+        assert args[-2].origin == t + 1
 
 
 def gen_serial_norms(shape, so):

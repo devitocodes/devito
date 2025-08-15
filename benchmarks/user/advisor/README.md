@@ -57,7 +57,7 @@ advixe-cl --snapshot --project-dir=<advisor-project-name> pack -- /<new-snapshot
 * Running the `tripcounts` analysis is time-consuming, despite starting in paused
   mode. This analysis, together with the `survey` analysis, is necessary to
   generate a roofline. Both are run by `run_advisor.py`.
-* Requires Python 3.9 or later, untested in conda environments
+* Requires Python 3.10 or later, untested in conda environments
 * Currently requires download of repository and running `pip install .`, the scripts
   are currently not included as a package with the user installation of Devito
 

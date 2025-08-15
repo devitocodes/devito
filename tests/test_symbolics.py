@@ -10,11 +10,13 @@ from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq
                     Min, Max, Real, Imag, Conj, SubDomain, configuration)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
-from devito.symbolics import (retrieve_functions, retrieve_indexed, evalrel,  # noqa
-                              CallFromPointer, Cast, DefFunction, FieldFromPointer,
-                              INT, FieldFromComposite, IntDiv, Namespace, Rvalue,
-                              ReservedWord, ListInitializer, uxreplace, pow_to_mul,
-                              retrieve_derivatives, BaseCast, SizeOf, VectorAccess)
+from devito.mpi.halo_scheme import HaloTouch
+from devito.symbolics import (
+    retrieve_functions, retrieve_indexed, evalrel, CallFromPointer, Cast, # noqa
+    DefFunction, FieldFromPointer, INT, FieldFromComposite, IntDiv, Namespace,
+    Rvalue, ReservedWord, ListInitializer, uxreplace, pow_to_mul,
+    retrieve_derivatives, BaseCast, SizeOf, VectorAccess
+)
 from devito.tools import as_tuple, CustomDtype
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
                           ComponentAccess, StencilDimension, Symbol as dSymbol)
@@ -520,6 +522,27 @@ def test_vector_access():
     assert ccode(v1) == 'VL<g[x, y, z]>'
 
 
+def test_halo_touch():
+    grid = Grid(shape=(3, 3))
+    x, y = grid.dimensions
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    # Hashing and equality
+    ht0 = HaloTouch(f[x, y], g[x, y])
+    ht1 = HaloTouch(f[x, y], g[x, y])
+    ht2 = HaloTouch(f[x, y], g[x + 1, y + 1])
+    assert hash(ht0) == hash(ht1)
+    assert ht0 == ht1
+    assert ht0 != ht2
+    assert hash(ht0) != hash(ht2)
+
+    # Reconstruction
+    assert ht0 == ht0._rebuild()
+    assert hash(ht0) == hash(ht0._rebuild())
+
+
 def test_canonical_ordering_of_weights():
     grid = Grid(shape=(3, 3, 3))
     x, y, z = grid.dimensions
@@ -669,6 +692,18 @@ class TestUxreplace:
         assert np.isclose(w_sub, -0.003935689)
         assert not w_sub.is_Mul
         assert w_sub.is_Number
+
+    def test_halo_touch(self):
+        grid = Grid(shape=(3, 3))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        ht0 = HaloTouch(f[x, y])
+        ht1 = uxreplace(ht0, {f.indexed: g.indexed})
+
+        assert ht1.args == (g[x, y],)
 
 
 def test_minmax():

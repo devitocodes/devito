@@ -7,7 +7,7 @@ import sympy
 from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
 from devito.logger import warning
-from devito.ir import (Any, Forward, DummyExpr, Iteration, List, Prodder,
+from devito.ir import (Any, Forward, DummyExpr, Iteration, EmptyList, Prodder,
                        FindApplications, FindNodes, FindSymbols, Transformer,
                        Uxreplace, filter_iterations, retrieve_iteration_tree,
                        pull_dims)
@@ -47,7 +47,7 @@ def avoid_denormals(iet, platform=None, **kwargs):
               cgen.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'),
               cgen.Line())
 
-    body = iet.body._rebuild(body=(List(header=header),) + iet.body.body)
+    body = iet.body._rebuild(body=(EmptyList(header=header),) + iet.body.body)
     iet = iet._rebuild(body=body)
 
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}

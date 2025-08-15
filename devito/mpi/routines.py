@@ -1202,10 +1202,10 @@ class MPIMsg(CompositeObject):
             assert args is not None
             return int(subs_op_args(v, args))
 
-    def _arg_defaults(self, allocator, alias, args=None):
-        # Lazy initialization if `allocator` is necessary as the `allocator`
-        # type isn't really known until an Operator is constructed
-        self._allocator = allocator
+    def _arg_defaults(self, alias, args=None):
+        # `allocator` is lazily initialized as it is not known until an Operator
+        # is constructed
+        self._allocator = allocator = args.allocator
 
         f = alias or self.target.c0
         for i, halo in enumerate(self.halos):
@@ -1252,7 +1252,7 @@ class MPIMsg(CompositeObject):
         else:
             alias = f
 
-        return self._arg_defaults(args.allocator, alias=alias, args=args)
+        return self._arg_defaults(alias=alias, args=args)
 
     def _arg_apply(self, *args, **kwargs):
         self._C_memfree()
@@ -1274,11 +1274,11 @@ class MPIMsgEnriched(MPIMsg):
         (_C_field_components, POINTER(c_int)),
     ]
 
-    def _arg_defaults(self, allocator, alias=None, args=None):
-        super()._arg_defaults(allocator, alias, args=args)
+    def _arg_defaults(self, alias=None, args=None):
+        super()._arg_defaults(alias, args=args)
 
         f = alias or self.target.c0
-        neighborhood = f.grid.distributor.neighborhood
+        neighborhood = args.grid.distributor.neighborhood
 
         for i, halo in enumerate(self.halos):
             entry = self.value[i]

@@ -407,6 +407,49 @@ class DeviceAwareMixin:
         is sufficient reuse to implement the logic as a single method.
         """
 
+        def _extract_objcomm(iet):
+            for i in iet.parameters:
+                if isinstance(i, MPICommObject):
+                    return i
+
+            # Fallback -- might end up here because the Operator has no
+            # halo exchanges, but we now need it nonetheless to perform
+            # the rank-GPU assignment
+            if options['mpi']:
+                for i in iet.parameters:
+                    try:
+                        return i.grid.distributor._obj_comm
+                    except AttributeError:
+                        pass
+
+        def _make_setdevice_seq(iet, nodes=()):
+            devicetype = as_list(self.langbb[self.platform])
+            deviceid = self.deviceid
+
+            return list(nodes) + [Conditional(
+                CondNe(deviceid, -1),
+                self.langbb['set-device']([deviceid] + devicetype)
+            )]
+
+        def _make_setdevice_mpi(iet, objcomm, nodes=()):
+            devicetype = as_list(self.langbb[self.platform])
+            deviceid = self.deviceid
+
+            rank = Symbol(name='rank')
+            rank_decl = DummyExpr(rank, 0)
+            rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
+
+            ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
+
+            osdd_then = self.langbb['set-device']([deviceid] + devicetype)
+            osdd_else = self.langbb['set-device']([rank % ngpus] + devicetype)
+
+            return list(nodes) + [Conditional(
+                CondNe(deviceid, -1),
+                osdd_then,
+                List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
+            )]
+
         @singledispatch
         def _initialize(iet):
             return iet, {}
@@ -415,29 +458,7 @@ class DeviceAwareMixin:
         def _(iet):
             assert iet.body.is_CallableBody
 
-            # TODO: we need to pick the rank from `comm_shm`, not `comm`,
-            # so that we have nranks == ngpus (as long as the user has launched
-            # the right number of MPI processes per node given the available
-            # number of GPUs per node)
-
-            objcomm = None
-            for i in iet.parameters:
-                if isinstance(i, MPICommObject):
-                    objcomm = i
-                    break
-            if objcomm is None and options['mpi']:
-                # Time to inject `objcomm`. If it's not here, it simply means
-                # there's no halo exchanges in the Operator, but we now need it
-                # nonetheless to perform the rank-GPU assignment
-                for i in iet.parameters:
-                    try:
-                        objcomm = i.grid.distributor._obj_comm
-                        break
-                    except AttributeError:
-                        pass
-
             devicetype = as_list(self.langbb[self.platform])
-            deviceid = self.deviceid
 
             try:
                 lang_init = [self.langbb['init'](devicetype)]
@@ -445,29 +466,15 @@ class DeviceAwareMixin:
                 # Not all target languages need to be explicitly initialized
                 lang_init = []
 
+            objcomm = _extract_objcomm(iet)
+
             if objcomm is not None:
-                rank = Symbol(name='rank')
-                rank_decl = DummyExpr(rank, 0)
-                rank_init = Call('MPI_Comm_rank', [objcomm, Byref(rank)])
-
-                ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
-
-                osdd_then = self.langbb['set-device']([deviceid] + devicetype)
-                osdd_else = self.langbb['set-device']([rank % ngpus] + devicetype)
-
-                body = lang_init + [Conditional(
-                    CondNe(deviceid, -1),
-                    osdd_then,
-                    List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
-                )]
+                body = _make_setdevice_mpi(iet, objcomm, nodes=lang_init)
 
                 header = c.Comment('Beginning of %s+MPI setup' % self.langbb['name'])
                 footer = c.Comment('End of %s+MPI setup' % self.langbb['name'])
             else:
-                body = lang_init + [Conditional(
-                    CondNe(deviceid, -1),
-                    self.langbb['set-device']([deviceid] + devicetype)
-                )]
+                body = _make_setdevice_seq(iet, nodes=lang_init)
 
                 header = c.Comment('Beginning of %s setup' % self.langbb['name'])
                 footer = c.Comment('End of %s setup' % self.langbb['name'])
@@ -479,13 +486,12 @@ class DeviceAwareMixin:
 
         @_initialize.register(AsyncCallable)
         def _(iet):
-            devicetype = as_list(self.langbb[self.platform])
-            deviceid = self.deviceid
+            objcomm = _extract_objcomm(iet)
+            if objcomm is not None:
+                init = _make_setdevice_mpi(iet, objcomm)
+            else:
+                init = _make_setdevice_seq(iet)
 
-            init = Conditional(
-                CondNe(deviceid, -1),
-                self.langbb['set-device']([deviceid] + devicetype)
-            )
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
 
             return iet, {}

@@ -1,15 +1,16 @@
 import numpy as np
 import pytest
-from sympy import simplify, diff, Float
+from sympy import sympify, simplify, diff, Float, Symbol
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
                     ConditionalDimension, left, right, centered, div, grad)
-from devito.finite_differences import Derivative, Differentiable
+from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative, Weights,
                                                       DiffDerivative)
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
+from devito.warnings import DevitoWarning
 
 _PRECISION = 9
 
@@ -87,19 +88,19 @@ class TestFD:
 
     @pytest.mark.parametrize('SymbolType, derivative, dim, expected', [
         (Function, ['dx2'], 3, 'Derivative(u(x, y, z), (x, 2))'),
-        (Function, ['dx2dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
+        (Function, ['dx2dy'], 3, 'Derivative(u(x, y, z), (x, 2), y)'),
         (Function, ['dx2dydz'], 3,
-         'Derivative(Derivative(Derivative(u(x, y, z), (x, 2)), y), z)'),
+         'Derivative(u(x, y, z), (x, 2), y, z)'),
         (Function, ['dx2', 'dy'], 3, 'Derivative(Derivative(u(x, y, z), (x, 2)), y)'),
         (Function, ['dx2dy', 'dz2'], 3,
-         'Derivative(Derivative(Derivative(u(x, y, z), (x, 2)), y), (z, 2))'),
+         'Derivative(Derivative(u(x, y, z), (x, 2), y), (z, 2))'),
         (TimeFunction, ['dx2'], 3, 'Derivative(u(t, x, y, z), (x, 2))'),
-        (TimeFunction, ['dx2dy'], 3, 'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
+        (TimeFunction, ['dx2dy'], 3, 'Derivative(u(t, x, y, z), (x, 2), y)'),
         (TimeFunction, ['dx2', 'dy'], 3,
          'Derivative(Derivative(u(t, x, y, z), (x, 2)), y)'),
         (TimeFunction, ['dx', 'dy', 'dx2', 'dz', 'dydz'], 3,
-         'Derivative(Derivative(Derivative(Derivative(Derivative(Derivative(' +
-         'u(t, x, y, z), x), y), (x, 2)), z), y), z)')
+         'Derivative(Derivative(Derivative(Derivative(Derivative(' +
+         'u(t, x, y, z), x), y), (x, 2)), z), y, z)')
     ])
     def test_unevaluation(self, SymbolType, derivative, dim, expected):
         u = SymbolType(name='u', grid=self.grid, time_order=2, space_order=2)
@@ -112,13 +113,13 @@ class TestFD:
 
     @pytest.mark.parametrize('expr,expected', [
         ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
-        ('u.dxdy', 'Derivative(Derivative(u, x), y)'),
+        ('u.dxdy', 'Derivative(u, x, y)'),
         ('u.laplace',
          'Derivative(u, (x, 2)) + Derivative(u, (y, 2)) + Derivative(u, (z, 2))'),
         ('(u.dx + u.dy).dx', 'Derivative(Derivative(u, x) + Derivative(u, y), x)'),
         ('((u.dx + u.dy).dx + u.dxdy).dx',
          'Derivative(Derivative(Derivative(u, x) + Derivative(u, y), x) +' +
-         ' Derivative(Derivative(u, x), y), x)'),
+         ' Derivative(u, x, y), x)'),
         ('(u**4).dx', 'Derivative(u**4, x)'),
         ('(u/4).dx', 'Derivative(u/4, x)'),
         ('((u.dx + v.dy).dx * v.dx).dy.dz',
@@ -378,9 +379,9 @@ class TestFD:
         grid = Grid((10,))
         u = Function(name="u", grid=grid, space_order=so)
         u1 = Function(name="u", grid=grid, space_order=so//2)
-        u2 = Function(name="u", grid=grid, space_order=2*so)
+        u2 = Function(name="u", grid=grid, space_order=so//2 + 1)
         assert str(u.dx(fd_order=so//2).evaluate) == str(u1.dx.evaluate)
-        assert str(u.dx(fd_order=2*so).evaluate) == str(u2.dx.evaluate)
+        assert str(u.dx(fd_order=so//2 + 1).evaluate) == str(u2.dx.evaluate)
 
     def test_xderiv_order(self):
         grid = Grid(shape=(11, 11), extent=(10., 10.))
@@ -741,7 +742,7 @@ class TestFD:
         grid = Grid((11, 11))
         f = Function(name="f", grid=grid, space_order=2)
 
-        assert f.dxdy == f.dx.dy
+        assert simplify((f.dxdy - f.dx.dy).evaluate) == 0
 
     def test_nested_call(self):
         grid = Grid((11, 11))
@@ -1023,3 +1024,208 @@ def bypass_uneval(expr):
     unevals = expr.find(EvalDerivative)
     mapper = {i: Add(*i.args) for i in unevals}
     return expr.xreplace(mapper)
+
+
+class TestExpansion:
+    @classmethod
+    def setup_class(cls):
+        cls.grid = Grid(shape=(11,), extent=(1,))
+        cls.x = cls.grid.dimensions[0]
+        cls.u = TimeFunction(name='u', grid=cls.grid, space_order=4)
+        cls.t = cls.u.time_dim
+
+        cls.v = Function(name='v', grid=cls.grid, space_order=4)
+        cls.w = Function(name='w', grid=cls.grid, space_order=4)
+        cls.f = Function(name='f', dimensions=(cls.t,), shape=(5,))
+
+        # Note that using the `.dx` shortcut method specifies the fd_order kwarg
+        a = cls.u.dx
+        cls.b = a.subs({cls.u: -5*cls.u.dx + 4*cls.u + 3}, postprocess=False)
+
+    def test_reconstructible(self):
+        """
+        Check that devito.Derivatives are reconstructible from func and args
+        (as per sympy docs)
+        """
+        du = self.u.dx
+        assert du.func(*du.args) == du
+        assert du.func(*du.args).args == (self.u, (self.x, 1))
+
+    def test_deriv_order(self):
+        """
+        Check default simplification causes the same result
+        """
+        du11 = Derivative(self.u, self.x, self.x)
+        du2 = Derivative(self.u, (self.x, 2))
+        assert du11 == du2
+        assert du11.deriv_order == du2.deriv_order
+
+    def test_wrong_deriv_order(self):
+        """
+        Check an exception is raises with incompatible arguments
+        """
+        with pytest.raises(ValueError):
+            _ = Derivative(self.u, self.x, deriv_order=(2, 4))
+
+    def test_no_derivative(self):
+        with pytest.raises(ValueError):
+            _ = Derivative(sympify(-1))
+
+    def test_no_dimension(self):
+        with pytest.raises(ValueError):
+            _ = Derivative(sympify(-1), deriv_order=0)
+
+    def test_constant(self):
+        """
+        Check constant derivative is zero for non-0th order derivatives
+        """
+        assert Derivative(sympify(-1), (self.x, 1)) == 0
+        assert Derivative(sympify(-1), (self.x, 2)) == 0
+        assert Derivative(sympify(-1), (self.x, 0)) == -1
+
+    def test_dims_validation(self):
+        """
+        Validate `dims` kwarg
+        """
+        grid = Grid(shape=(11, 11, 11), extent=(1, 1, 1))
+        x, y, z = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=4)
+
+        d = Derivative(u, x)
+        assert d.dims == (x,)
+        assert d.deriv_order == (1,)
+
+        d = Derivative(u, x, y)
+        assert d.dims == (x, y)
+        assert d.deriv_order == (1, 1)
+
+        d = Derivative(u, (x, 2))
+        assert d.dims == (x, )
+        assert d.deriv_order == (2, )
+
+        d = Derivative(u, (x, 2), (y, 2))
+        assert d.dims == (x, y)
+        assert d.deriv_order == (2, 2)
+
+        d = Derivative(u, (x, 2), y, x, (z, 3))
+        assert d.dims == (x, y, z)
+        assert d.deriv_order == (3, 1, 3)
+
+    def test_dims_exceptions(self):
+        """
+        Check invalid dimensions and orders raise exceptions
+        """
+        grid = Grid(shape=(11, 11, 11), extent=(1, 1, 1))
+        x, y, z = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=4)
+
+        # Don't allow negative derivatives
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, -1))
+
+        # Don't allow fractional derivatives
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, 0.5))
+
+        # Don't allow common mistake
+        # NB: Derivative(u, x, y) is probably what was intended
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, y))
+
+        # Don't allow derivative order to be symbolic
+        a = Symbol('a', integer=True)
+        with pytest.raises(TypeError):
+            _ = Derivative(u, (x, a))
+
+    def test_expand_mul(self):
+        """
+        Check independent terms can be extracted from the derivative.
+        The multiply expansion is the only hint executed by default when
+        `.expand()` is called.
+        """
+        expanded = Derivative(4*self.u - 5*Derivative(self.u, self.x) + 3, self.x)
+        assert self.b.expand() == expanded
+
+        expr = self.u.dx.subs({self.u: 5*self.f*self.u*self.v*self.w})
+        expanded = 5*self.f*Derivative(self.u*self.v*self.w, self.x)
+        assert diffify(expr.expand()) == expanded
+
+    def test_expand_add(self):
+        """
+        Check linearity
+        """
+        expanded = 4*Derivative(self.u, self.x)
+        expanded -= 5*Derivative(Derivative(self.u, self.x), self.x)
+        assert self.b.expand(add=True) == expanded
+
+    def test_expand_nest(self):
+        """
+        Check valid nested derivative expands (combining x derivatives)
+        Note that it is important to specify `fd_order` to avoid raising a warning
+        """
+        a = self.u.dx(fd_order=2)
+        b = a.subs({self.u: -5*self.u.dx(fd_order=2) + 4*self.u + 3}, postprocess=False)
+        expanded = 4*Derivative(self.u, self.x, fd_order=2) \
+            - 5*Derivative(self.u, (self.x, 2), fd_order=4)
+        assert b.expand(add=True, nest=True) == expanded
+
+        # Check that doing the naïve thing raises a warning, but asserts equal
+        expanded = 4*Derivative(self.u, self.x) - 5*Derivative(self.u, (self.x, 2))
+        with pytest.warns(DevitoWarning):
+            assert self.b.expand(add=True, nest=True) == expanded
+
+    def test_nested_orders(self):
+        """
+        Check nested expansion results in correct derivative and fd order
+        """
+        # Default fd_order
+        du22 = Derivative(Derivative(self.u, (self.x, 2)), (self.x, 2))
+        with pytest.warns(DevitoWarning):
+            du22_expanded = du22.expand(nest=True)
+        du4 = Derivative(self.u, (self.x, 4))
+        assert du22_expanded == du4
+        assert du22_expanded.deriv_order == du4.deriv_order
+        assert du22_expanded.fd_order == du4.fd_order
+
+        # Specified fd_order
+        du22 = Derivative(
+            Derivative(self.u, (self.x, 2), fd_order=2),
+            (self.x, 2),
+            fd_order=2
+        )
+        du22_expanded = du22.expand(nest=True)
+        du4 = Derivative(self.u, (self.x, 4), fd_order=4)
+        assert du22_expanded == du4
+        assert du22_expanded.deriv_order == du4.deriv_order
+        assert du22_expanded.fd_order == du4.fd_order
+
+        # Specified fd_order greater than the space order
+        # > When no order specified
+        du44 = Derivative(Derivative(self.u, (self.x, 4)), (self.x, 4))
+        with pytest.raises(ValueError):
+            _ = du44.expand(nest=True)
+
+        # > When order specified is too large
+        du44 = Derivative(
+            Derivative(self.u, (self.x, 4), fd_order=4),
+            (self.x, 4),
+            fd_order=4
+        )
+        with pytest.raises(ValueError):
+            _ = du44.expand(nest=True)
+
+    def test_expand_product_rule(self):
+        """
+        Check the two implemented cases for product rule expansion
+        """
+        expr = self.u.dx.subs({self.u: 5*self.f*self.u*self.v*self.w}, postprocess=False)
+        expanded = 5*self.f*self.v*self.w*Derivative(self.u, self.x) \
+            + 5*self.f*self.v*self.u*Derivative(self.w, self.x) \
+            + 5*self.f*self.w*self.u*Derivative(self.v, self.x)
+        assert diffify(expr.expand(product_rule=True)) == expanded
+
+        expr = self.u.dx2.subs({self.u: 5*self.f*self.u*self.v}, postprocess=False)
+        expanded = 5*self.f*self.v*Derivative(self.u, (self.x, 2)) \
+            + 10*self.f*Derivative(self.v, self.x)*Derivative(self.u, self.x) \
+            + 5*self.f*self.u*Derivative(self.v, (self.x, 2))
+        assert diffify(expr.expand(product_rule=True)) == expanded
