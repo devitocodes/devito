@@ -1,4 +1,4 @@
-from ctypes import POINTER, c_char
+from ctypes import POINTER, c_char, c_char_p
 
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
@@ -95,6 +95,14 @@ class PetscInt(PetscObject):
     to PETSc functions.
     """
     dtype = CustomIntType('PetscInt')
+
+
+class PetscScalar(PetscObject):
+    dtype = CustomIntType('PetscScalar')
+
+
+class PetscBool(PetscObject):
+    dtype = CustomDtype('PetscBool')
 
 
 class KSP(PetscObject):
@@ -295,6 +303,12 @@ class ArgvSymbol(DataSymbol):
     @property
     def _C_ctype(self):
         return POINTER(POINTER(c_char))
+
+
+class CharPtr(DataSymbol):
+    @property
+    def _C_ctype(self):
+        return c_char_p
 
 
 FREE_PRIORITY = {

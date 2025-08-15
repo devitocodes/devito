@@ -6,16 +6,18 @@ from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
                            DummyExpr, CallableBody, List, Call, Callable,
                            FindNodes, Section)
-from devito.symbolics import Byref, Macro, FieldFromPointer
+from devito.symbolics import Byref, FieldFromPointer, Macro
 from devito.types import Symbol, Scalar
 from devito.types.basic import DataSymbol
 from devito.tools import frozendict
+import devito.logger as dl
+
 from devito.petsc.types import (PetscMPIInt, PetscErrorCode, MultipleFieldData,
                                 PointerIS, Mat, CallbackVec, Vec, CallbackMat, SNES,
                                 DummyArg, PetscInt, PointerDM, PointerMat, MatReuse,
                                 CallbackPointerIS, CallbackPointerDM, JacobianStruct,
                                 SubMatrixStruct, Initialize, Finalize, ArgvSymbol)
-from devito.petsc.types.macros import petsc_func_begin_user
+from devito.petsc.types.macros import petsc_func_begin_user, Null
 from devito.petsc.iet.nodes import PetscMetaData
 from devito.petsc.utils import core_metadata, petsc_languages
 from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
@@ -24,8 +26,6 @@ from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
                                        NonTimeDependent)
 from devito.petsc.iet.logging import PetscLogger
 from devito.petsc.iet.utils import petsc_call, petsc_call_mpi
-
-import devito.logger as dl
 
 
 @iet_pass
@@ -69,9 +69,26 @@ def lower_petsc(iet, **kwargs):
     # Map PETScSolve to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
+    # Prefixes within the same Operator should not be duplicated
+    prefixes = [d.expr.rhs.user_prefix for d in data if d.expr.rhs.user_prefix]
+    duplicates = {p for p in prefixes if prefixes.count(p) > 1}
+
+    # TODO: Avoid the other exception raised - think due to exception being
+    # raised inside the @iet_pass?
+    if duplicates:
+        dup_list = ", ".join(repr(p) for p in sorted(duplicates))
+        raise ValueError(
+            f"The following `options_prefix` values are duplicated "
+            f"among your PETScSolves. Ensure each one is unique: {dup_list}"
+        )
+
+    # List of `Call`s to clear options from the global PETSc options database,
+    # executed at the end of the Operator.
+    clear_options = []
+
     for iters, (inject_solve,) in inject_solve_mapper.items():
 
-        builder = Builder(inject_solve, objs, iters, comm, section_mapper, **kwargs)
+        builder = Builder(inject_solve, iters, comm, section_mapper, **kwargs)
 
         setup.extend(builder.solver_setup.calls)
 
@@ -80,11 +97,13 @@ def lower_petsc(iet, **kwargs):
 
         efuncs.update(builder.cbbuilder.efuncs)
 
-    populate_matrix_context(efuncs, objs)
+        clear_options.extend((petsc_call(
+            builder.cbbuilder._clear_options_efunc.name, []
+        ),))
 
+    populate_matrix_context(efuncs)
     iet = Transformer(subs).visit(iet)
-
-    body = core + tuple(setup) + iet.body.body
+    body = core + tuple(setup) + iet.body.body + tuple(clear_options)
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
@@ -131,7 +150,7 @@ class Builder:
     returning subclasses of the objects initialised in __init__,
     depending on the properties of `inject_solve`.
     """
-    def __init__(self, inject_solve, objs, iters, comm, section_mapper, **kwargs):
+    def __init__(self, inject_solve, iters, comm, section_mapper, **kwargs):
         self.inject_solve = inject_solve
         self.objs = objs
         self.iters = iters
@@ -191,7 +210,7 @@ class Builder:
         return List(body=self.solve.calls+self.logger.calls)
 
 
-def populate_matrix_context(efuncs, objs):
+def populate_matrix_context(efuncs):
     if not objs['dummyefunc'] in efuncs.values():
         return
 
@@ -205,7 +224,7 @@ def populate_matrix_context(efuncs, objs):
     )
     body = CallableBody(
         List(body=[subdms_expr, fields_expr]),
-        init=(objs['begin_user'],),
+        init=(petsc_func_begin_user,),
         retstmt=tuple([Call('PetscFunctionReturn', arguments=[0])])
     )
     name = 'PopulateMatContext'
@@ -262,13 +281,8 @@ objs = frozendict({
         fields=[subdms, fields, submats], modifier=' *'
     ),
     'subctx': SubMatrixStruct(fields=[rows, cols]),
-    'Null': Macro('NULL'),
     'dummyctx': Symbol('lctx'),
     'dummyptr': DummyArg('dummy'),
     'dummyefunc': Symbol('dummyefunc'),
     'dof': PetscInt('dof'),
-    'begin_user': c.Line('PetscFunctionBeginUser;'),
 })
-
-# Move to macros file?
-Null = Macro('NULL')
