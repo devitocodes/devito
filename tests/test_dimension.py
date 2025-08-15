@@ -1087,7 +1087,7 @@ class TestConditionalDimension:
         assert np.all(u2.data[1, 1:4, 1:4] == 0.)
 
     # This test generates an openmp loop form which makes older gccs upset
-    @switchconfig(openmp=False)
+    @switchconfig(language='C')
     def test_nothing_in_negative(self):
         """Test the case where when the condition is false, there is nothing to do."""
         nt = 4

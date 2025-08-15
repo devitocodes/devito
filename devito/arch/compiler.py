@@ -180,6 +180,7 @@ class Compiler(GCCToolchain):
     """
 
     fields = {'cc', 'ld'}
+    linker_opt = '-Wl,'
     _default_cpp = False
     _cxxstd = 'c++14'
     _cstd = 'c99'
@@ -425,7 +426,7 @@ class Compiler(GCCToolchain):
         if rpath:
             # Add rpath flag to embed library dir
             for d in as_list(dirs):
-                self.ldflags.append(f'-Wl,-rpath,{d}')
+                self.ldflags.append(f'{self.linker_opt}-rpath,{d}')
 
     def add_libraries(self, libs):
         self.libraries = filter_ordered(self.libraries + as_list(libs))
@@ -662,6 +663,7 @@ class NvidiaCompiler(PGICompiler):
 class CudaCompiler(Compiler):
 
     _default_cpp = True
+    linker_opt = "--linker-options="
 
     def __init_finalize__(self, **kwargs):
 
