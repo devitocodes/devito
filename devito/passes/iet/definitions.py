@@ -86,10 +86,12 @@ class DataManager:
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, rcompile=None, sregistry=None, platform=None, **kwargs):
+    def __init__(self, rcompile=None, sregistry=None, platform=None,
+                 options=None, **kwargs):
         self.rcompile = rcompile
         self.sregistry = sregistry
         self.platform = platform
+        self.alloc_mapped = (options or {}).get('alloc_mapped', True)
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
@@ -176,6 +178,10 @@ class DataManager:
         """
         Allocate a mapped Array in the host high bandwidth memory.
         """
+        if not self.alloc_mapped:
+            # Mapped array assumed to be preallocated, likely from rcompile
+            return
+
         decl = Definition(obj)
 
         sizeof_dtypeN = SizeOf(obj.indexed._C_typedata)
