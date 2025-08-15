@@ -181,7 +181,7 @@ Shot = PointSource
 class WaveletSource(PointSource):
 
     """
-    Abstract base class for symbolic objects that encapsulates a set of
+    Base class for symbolic objects that encapsulates a set of
     sources with a pre-defined source signal wavelet.
 
     Parameters
@@ -214,6 +214,15 @@ class WaveletSource(PointSource):
         self.f0 = kwargs.get('f0')
         self.a = kwargs.get('a')
         self.t0 = kwargs.get('t0')
+        self.wavelet_type = kwargs.get('wavelet')
+        self.wavelet_kwargs = {}
+
+        if self.wavelet_type == 'dgauss':
+            self.wavelet_kwargs['n'] = kwargs.get('n', 1)
+
+        if self.wavelet_type == 'gabor':
+            self.wavelet_kwargs['gamma'] = kwargs.get('gamma', 1)
+            self.wavelet_kwargs['phi'] = kwargs.get('phi', 0)
 
         if not self.alias:
             for p in range(kwargs['npoint']):
@@ -224,9 +233,18 @@ class WaveletSource(PointSource):
         """
         Return a wavelet with a peak frequency ``f0`` at time ``t0``.
         """
-        raise NotImplementedError('Wavelet not defined')
+        if self.wavelet_type:
+            return wavelet[self.wavelet_type](
+                self.time_values,
+                self.f0,
+                1 if self.a is None else self.a,
+                self.t0,
+                **self.wavelet_kwargs
+            )
+        else:
+            raise NotImplementedError('Wavelet not defined')
 
-    def show(self, idx=0, wavelet=None):
+    def show(self, idx=0, wavelet=None, ax=plt):
         """
         Plot the wavelet of the specified source.
 
@@ -238,174 +256,132 @@ class WaveletSource(PointSource):
             Prescribed wavelet instead of one from this symbol.
         """
         wavelet = wavelet or self.data[:, idx]
-        plt.figure()
-        plt.plot(self.time_values, wavelet)
-        plt.xlabel('Time (ms)')
-        plt.ylabel('Amplitude')
-        plt.tick_params()
-        plt.show()
+        if ax == plt:
+            ax.figure()
+        lines = ax.plot(self.time_values, wavelet)
+        if ax == plt:
+            ax.xlabel('Time (ms)')
+            ax.ylabel('Amplitude')
+        else:
+            ax.set_xlabel('Time (ms)')
+            ax.set_ylabel('Amplitude')
+        ax.tick_params()
+        if ax == plt:
+            ax.show()
+        return lines
 
-
-# Gaussian and derivatives
-_t, _t0, b, _n = sympy.symbols('t t_0 b n')
-
-_gauss = sympy.exp(-(b*_t)**2)
-_d2gauss = sympy.diff(_gauss, (_t, 2))
 
 # Define parameters
+_t, _t0, b, _n, _C = sympy.symbols('t t_0 b n C')
 _A, _f, _gamma, _phi = sympy.symbols('A f 𝛾 𝜙')
+_gauss = sympy.exp(-(b*_t)**2)
 
-# Define the Gaussian soliton and the wavelets
 
-gauss = _A*_gauss.subs({_t: _t - _t0})
-
-def dgauss(t, f, A=1, t0=None, n=1):
-
-    # TODO: Implement approximate upperbound by Szego (1939) pg. 132 for offset
-    offset = 1/f if t0 is None else t0
-
+def dgauss(n=1):
+    """
+    Return a symbolic expression for the n-th derivative of a Gaussian
+    """
     dngauss = sympy.diff(_gauss, (_t, n))
+    two = sympy.Integer(2)
+    half = sympy.Integer(1)/sympy.Integer(2)
 
     if n == 0:
-        normalize = 1
+        scale = 1
     elif n == 1:
-        normalize = sympy.sqrt(2)*b*sympy.exp(-1/2)
+        scale = sympy.sqrt(two)*b*sympy.exp(-half)
     elif n == 2:
-        normalize = 2*b**2
+        scale = 2*b**2
     else:
-        # Approximate the maximum
-        y = sympy.lambdify((_t, b), dngauss)
-        if n % 2 == 0:
-            normalize = y(0, np.pi*f*np.sqrt(2/n))
-        else:
-            xs = np.linspace(0, np.pi/(2*f), 101)
-            ys = y(xs, np.pi*f*np.sqrt(2/n))
-            # ~ plt.plot(xs, ys)
-            # ~ breakpoint()
-            normalize = np.max(np.abs(ys))
-    # ~ print(normalize)
+        scale = _C
 
-    dngauss /= normalize
-    expr = _A*dngauss.subs({_t: _t - _t0, b: sympy.pi*_f*sympy.sqrt(2/n)})
-    # TODO: Return sympy expression and generalise lambdification function
-    l = sympy.lambdify((_t, _t0, _f, _A), expr)
-    return l(t, offset, f, A)
+    dngauss /= scale
+    return _A*dngauss.subs(
+        {_t: _t - _t0, b: sympy.pi*_f*sympy.sqrt(two/sympy.Integer(n))}
+    )
 
-# ~ dgauss = lambda n: (_A*_dgauss(n)/b).subs({_t: _t - _t0, b: sympy.pi*_f})
-ricker = (-_A*_d2gauss/(2*b**2)).subs({_t: _t - _t0, b: sympy.pi*_f})
+
+def _scale_dgauss(f, n):
+    """
+    Return the scaling of n-th derivative of Gaussian at frequency f, for n =>3.
+    For n<3 the expression returned by `dgauss` is already scaled symbolically.
+    In all but the smallest cases the scaling factors are too cumbersome to
+    derive symbolically so they are calculated numerically.
+    """
+    dngauss = sympy.diff(_gauss, (_t, n))
+    y = sympy.lambdify((_t, b), dngauss)
+    if n < 3:
+        # These cases are handled analytically
+        scale = 1
+    if n % 2 == 0:
+        # Even derivatives attain their min/max at 0
+        scale = np.abs(y(0, np.pi*f*np.sqrt(2/n)))
+    else:
+        # Odd derivatives we have to sample to approximate the maximum
+        # o/w we need to do very hard maths to work out where it is
+        xs = np.linspace(0, np.pi/(2*f), 101)
+        ys = y(xs, np.pi*f*np.sqrt(2/n))
+        scale = np.max(np.abs(ys))
+    return scale
+
+
+# Define the Gaussian soliton
+gauss = _A*_gauss.subs({_t: _t - _t0})
+# Define the various wavelets
+# Ricker
+#  As defined in: https://wiki.seg.org/wiki/Dictionary:Ricker_wavelet
+ricker = -dgauss(n=2)
+# Gabor
+#  As defined in: https://wiki.seg.org/wiki/Dictionary:Gabor_wavelet
 gabor = _A*_gauss.subs({_t: _t - _t0, b: sympy.pi*_f/_gamma})
 gabor *= sympy.cos(2*b*_t + _phi).subs({_t: _t - _t0, b: sympy.pi*_f})
 
+# Dictionary of wavelet functions
 wavelet = {
-    'gauss_soliton': lambda t, f, A=1, t0=None: sympy.lambdify((_t, _t0, b, _A), gauss)(t, 1/f if t0 is None else t0, f*np.pi, A),
-    'dgauss': dgauss,
-    'ricker': lambda t, f, A=1, t0=None: sympy.lambdify((_t, _t0, _f, _A), ricker)(t, 1/f if t0 is None else t0, f, A),
-    'gabor': lambda t, f, A=1, t0=None, gamma=1, phi=0: \
-        sympy.lambdify((_t, _t0, _f, _A, _gamma, _phi), gabor)(t, gamma/f if t0 is None else t0, f, A, gamma, phi)
+    'gauss_soliton': lambda t, f, A=1, t0=None:
+        sympy.lambdify((_t, b, _A, _t0), gauss)(
+            t, f, A, 3/(f*np.sqrt(2)) if t0 is None else t0
+        ),
+    # Note: The offset grows with O(n^1/2) just like the upperbound [Szego (1939) pg. 132]
+    # for the largest root of the n-th Hermite polynomial
+    'dgauss': lambda t, f, A=1, t0=None, n=1:
+        sympy.lambdify((_t, _f, _A, _t0, _C), dgauss(n))(
+            t, f, A, np.sqrt(n/2)/f if t0 is None else t0, _scale_dgauss(f, n)
+        ),
+    'ricker': lambda t, f, A=1, t0=None:
+        sympy.lambdify((_t, _f, _A, _t0), ricker)(
+            t, f, A, 1/f if t0 is None else t0
+        ),
+    'gabor': lambda t, f, A=1, t0=None, gamma=1, phi=0:
+        sympy.lambdify((_t, _f, _A, _t0, _gamma, _phi), gabor)(
+            t, f, A, (3*gamma)/(f*np.pi*np.sqrt(2)) if t0 is None else t0, gamma, phi
+        )
 }
 
 
-class RickerSource(WaveletSource):
-
+# Legacy classes for backwards compatibility
+def RickerSource(**kwargs):
     """
-    Symbolic object that encapsulates a set of sources with a
-    pre-defined Ricker wavelet:
-
-    http://subsurfwiki.org/wiki/Ricker_wavelet
-
-    Parameters
-    ----------
-    name : str
-        Name for the resulting symbol.
-    grid : Grid
-        The computational domain.
-    f0 : float
-        Peak frequency for Ricker wavelet in kHz.
-    time : TimeAxis
-        Discretized values of time in ms.
-
-    Returns
-    ----------
-    A Ricker wavelet.
+    Legacy constructor do not use
     """
-
-    @property
-    def wavelet(self):
-        t0 = self.t0 or 1 / self.f0
-        a = self.a or 1
-        r = (np.pi * self.f0 * (self.time_values - t0))
-        return a * (1-2.*r**2)*np.exp(-r**2)
+    return WaveletSource(**kwargs, wavelet='ricker')
 
 
-class GaborSource(WaveletSource):
-
+def DGaussSource(**kwargs):
     """
-    Symbolic object that encapsulates a set of sources with a
-    pre-defined Gabor wavelet:
-
-    https://en.wikipedia.org/wiki/Gabor_wavelet
-
-    Parameters
-    ----------
-    name : str
-        Name for the resulting symbol.
-    grid : Grid
-        defining the computational domain.
-    f0 : float
-        Peak frequency for Ricker wavelet in kHz.
-    time : TimeAxis
-        Discretized values of time in ms.
-
-    Returns
-    -------
-    A Gabor wavelet.
+    Legacy constructor do not use
     """
-
-    @property
-    def wavelet(self):
-        agauss = 0.5 * self.f0
-        tcut = self.t0 or 1.5 / agauss
-        s = (self.time_values - tcut) * agauss
-        a = self.a or 1
-        return a * np.exp(-2*s**2) * np.cos(2 * np.pi * s)
+    f0 = np.sqrt(kwargs.pop('a', 1)/(2*np.pi**2))
+    t0_fallback = 1/kwargs.pop('f0')
+    t0 = kwargs.pop('t0', t0_fallback)
+    a = 2*np.pi*f0*np.exp(-1/2)
+    return WaveletSource(f0=f0, a=a, t0=t0, wavelet='dgauss', **kwargs)
 
 
-class DGaussSource(WaveletSource):
-
+def GaborSource(**kwargs):
     """
-    Symbolic object that encapsulates a set of sources with a
-    pre-defined 1st derivative wavelet of a Gaussian Source.
-
-    Notes
-    -----
-    For visualizing the second or third order derivative
-    of Gaussian wavelets, the convention is to use the
-    negative of the normalized derivative. In the case
-    of the second derivative, scaling by -1 produces a
-    wavelet with its main lobe in the positive y direction.
-    This scaling also makes the Gaussian wavelet resemble
-    the Mexican hat, or Ricker, wavelet. The validity of
-    the wavelet is not affected by the -1 scaling factor.
-
-    Parameters
-    ----------
-    name : str
-        Name for the resulting symbol.
-    grid : Grid
-        The computational domain.
-    f0 : float
-        Peak frequency for wavelet in kHz.
-    time : TimeAxis
-        Discretized values of time in ms.
-
-    Returns
-    -------
-    The 1st order derivative of the Gaussian wavelet.
+    Legacy constructor do not use
     """
-
-    @property
-    def wavelet(self):
-        t0 = self.t0 or 1 / self.f0
-        a = self.a or 1
-        time = (self.time_values - t0)
-        return -2 * a * time * np.exp(- a * time**2)
+    f0 = kwargs.pop('f0')/2
+    gamma = np.pi/np.sqrt(2)
+    t0 = kwargs.pop('t0', 1.5/f0)
+    return WaveletSource(f0=f0, gamma=gamma, t0=t0, wavelet='gabor', **kwargs)
