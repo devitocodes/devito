@@ -402,9 +402,9 @@ class AdvisorProfiler(AdvancedProfiler):
             if i.dim.is_Time:
                 # The calls to Advisor's Collection Control API are only for Operators
                 # with a time loop
-                mapper[i] = List(header=c.Statement('%s()' % self._api_resume),
+                mapper[i] = List(header=c.Statement(f'{self._api_resume}()'),
                                  body=i,
-                                 footer=c.Statement('%s()' % self._api_pause))
+                                 footer=c.Statement(f'{self._api_pause}()'))
                 return Transformer(mapper).visit(iet)
 
         # Return the IET intact if no time loop is found

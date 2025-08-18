@@ -34,13 +34,14 @@ jobs:
         name: [
            pytest-ubuntu-py311-gcc11-cxxnoomp,
            pytest-ubuntu-py312-gcc12-cxxomp,
-           pytest-ubuntu-py39-gcc14-omp,
-           pytest-ubuntu-py310-gcc10-noomp,
+           pytest-ubuntu-py310-gcc14-omp,
+           pytest-ubuntu-py311-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
-           pytest-ubuntu-py39-gcc9-omp,
+           pytest-ubuntu-py310-gcc9-omp,
            pytest-osx-py312-clang-omp,
-           pytest-docker-py39-gcc-omp,
-           pytest-docker-py39-icx-omp
+           pytest-docker-py310-gcc-omp,
+           pytest-docker-py310-icx-omp,
+           pytest-ubuntu-py313-gcc14-omp
         ]
         set: [base, adjoint]
         include:
@@ -58,15 +59,15 @@ jobs:
           language: "CXXopenmp"
           sympy: "1.13"
 
-        - name: pytest-ubuntu-py39-gcc14-omp
-          python-version: '3.9'
+        - name: pytest-ubuntu-py310-gcc14-omp
+          python-version: '3.10'
           os: ubuntu-24.04
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.12"
 
-        - name: pytest-ubuntu-py310-gcc10-noomp
-          python-version: '3.10'
+        - name: pytest-ubuntu-py311-gcc10-noomp
+          python-version: '3.11'
           os: ubuntu-22.04
           arch: "gcc-10"
           language: "C"
@@ -79,8 +80,8 @@ jobs:
           language: "openmp"
           sympy: "1.13"
 
-        - name: pytest-ubuntu-py39-gcc9-omp
-          python-version: '3.9'
+        - name: pytest-ubuntu-py310-gcc9-omp
+          python-version: '3.10'
           os: ubuntu-22.04
           arch: "custom"
           language: "openmp"
@@ -93,19 +94,26 @@ jobs:
           language: "openmp"
           sympy: "1.12"
 
-        - name: pytest-docker-py39-gcc-omp
-          python-version: '3.9'
+        - name: pytest-docker-py310-gcc-omp
+          python-version: '3.10'
           os: ubuntu-latest
           arch: "gcc"
           language: "openmp"
           sympy: "1.13"
 
-        - name: pytest-docker-py39-icx-omp
-          python-version: '3.9'
+        - name: pytest-docker-py310-icx-omp
+          python-version: '3.10'
           os: ubuntu-latest
           arch: "icx"
           language: "openmp"
           sympy: "1.13"
+
+        - name: pytest-ubuntu-py313-gcc14-omp
+          python-version: '3.13'
+          os: ubuntu-24.04
+          arch: "gcc-14"
+          language: "openmp"
+          sympy: "1.14"
 
         - set: base
           test-set: 'not adjoint'
@@ -119,7 +127,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Set up Python ${{ matrix.python-version }}
       if: "!contains(matrix.name, 'docker')"
@@ -157,8 +165,11 @@ jobs:
 
     - name: Set pip flags for latest python (3.12)
       run: |
-          if [ "${{ matrix.python-version }}" == '3.12' ]; then
-              echo "PIPFLAGS='--break-system-packages'" >> $GITHUB_ENV
+          ver="${{ matrix.python-version }}"
+          major=${ver%%.*}
+          minor=${ver#*.}; minor=${minor%%.*}
+          if [ "$major" -eq 3 ] && [ "$minor" -ge 12 ]; then
+            echo "PIPFLAGS='--break-system-packages'" >> $GITHUB_ENV
           fi
 
     - name: Install dependencies
@@ -167,6 +178,18 @@ jobs:
         python3 -m pip install ${{ env.PIPFLAGS }} --upgrade pip
         python3 -m pip install ${{ env.PIPFLAGS }} -e .[tests,extras]
         python3 -m pip install ${{ env.PIPFLAGS }} sympy==${{matrix.sympy}}
+
+    - name: Check Docker image Python version
+      if: "contains(matrix.name, 'docker')"
+      run: |
+        declared_pyver="${{ matrix.python-version }}"
+        actual_pyver=$(${{ env.RUN_CMD }} python3 --version | grep "Python " | cut -d' ' -f2 | cut -d'.' -f1,2)
+        echo "Declared Python version: $declared_pyver"
+        echo "Actual Python version: $actual_pyver"
+        if [ "$declared_pyver" != "$actual_pyver" ]; then
+          echo "Python version mismatch: declared $declared_pyver, image has $actual_pyver"
+          exit 1
+        fi
 
     - name: Check configuration
       run: |

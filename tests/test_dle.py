@@ -169,9 +169,10 @@ def test_cache_blocking_structure_distributed(mode):
     eqns += [Eq(U.forward, U.dx + u.forward)]
 
     op = Operator(eqns)
+    op.cfunction
 
     bns0, _ = assert_blocking(op._func_table['compute0'].root, {'x0_blk0'})
-    bns1, _ = assert_blocking(op, {'x1_blk0'})
+    bns1, _ = assert_blocking(op._func_table['compute2'].root, {'x1_blk0'})
 
     for i in [bns0['x0_blk0'], bns1['x1_blk0']]:
         iters = FindNodes(Iteration).visit(i)

@@ -256,15 +256,15 @@ def test_dmda_create():
         op3 = Operator(petsc3, opt='noop')
 
     assert 'PetscCall(DMDACreate1d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-        '2,1,2,NULL,&(da0)));' in str(op1)
+        '2,1,2,NULL,&da0));' in str(op1)
 
     assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-        'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,2,2,1,1,1,4,NULL,NULL,&(da0)));' \
+        'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,2,2,1,1,1,4,NULL,NULL,&da0));' \
         in str(op2)
 
     assert 'PetscCall(DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
         'DM_BOUNDARY_GHOSTED,DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,6,5,4' + \
-        ',1,1,1,1,6,NULL,NULL,NULL,&(da0)));' in str(op3)
+        ',1,1,1,1,6,NULL,NULL,NULL,&da0));' in str(op3)
 
 
 @skipif('petsc')
@@ -399,12 +399,12 @@ def test_petsc_frees():
     frees = op.body.frees
 
     # Check the frees appear in the following order
-    assert str(frees[0]) == 'PetscCall(VecDestroy(&(bglobal0)));'
-    assert str(frees[1]) == 'PetscCall(VecDestroy(&(xglobal0)));'
-    assert str(frees[2]) == 'PetscCall(VecDestroy(&(xlocal0)));'
-    assert str(frees[3]) == 'PetscCall(MatDestroy(&(J0)));'
-    assert str(frees[4]) == 'PetscCall(SNESDestroy(&(snes0)));'
-    assert str(frees[5]) == 'PetscCall(DMDestroy(&(da0)));'
+    assert str(frees[0]) == 'PetscCall(VecDestroy(&bglobal0));'
+    assert str(frees[1]) == 'PetscCall(VecDestroy(&xglobal0));'
+    assert str(frees[2]) == 'PetscCall(VecDestroy(&xlocal0));'
+    assert str(frees[3]) == 'PetscCall(MatDestroy(&J0));'
+    assert str(frees[4]) == 'PetscCall(SNESDestroy(&snes0));'
+    assert str(frees[5]) == 'PetscCall(DMDestroy(&da0));'
 
 
 @skipif('petsc')
@@ -874,13 +874,13 @@ class TestCoupledLinear:
 
         # IS Destroy calls
         for i in range(n_fields):
-            assert str(frees[i]) == f'PetscCall(ISDestroy(&(fields0[{i}])));'
+            assert str(frees[i]) == f'PetscCall(ISDestroy(&fields0[{i}]));'
         assert str(frees[n_fields]) == 'PetscCall(PetscFree(fields0));'
 
         # DM Destroy calls
         for i in range(n_fields):
             assert str(frees[n_fields + 1 + i]) == \
-                f'PetscCall(DMDestroy(&(subdms0[{i}])));'
+                f'PetscCall(DMDestroy(&subdms0[{i}]));'
         assert str(frees[n_fields*2 + 1]) == 'PetscCall(PetscFree(subdms0));'
 
     @skipif('petsc')
@@ -906,15 +906,15 @@ class TestCoupledLinear:
 
         # Check the number of dofs in the DMDA for each field
         assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,1,2,NULL,NULL,&(da0)));' \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,1,2,NULL,NULL,&da0));' \
             in str(op1)
 
         assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,2,2,NULL,NULL,&(da0)));' \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,2,2,NULL,NULL,&da0));' \
             in str(op2)
 
         assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,3,2,NULL,NULL,&(da0)));' \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,3,2,NULL,NULL,&da0));' \
             in str(op3)
 
     @skipif('petsc')

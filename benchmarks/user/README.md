@@ -25,9 +25,7 @@ pinned to specific CPU cores, to get reliable and deterministic results. There
 are several ways to achieve this:
 
 * Through environment variables. All MPI/OpenMP distributions provide a set of
-  environment variables to control process/thread pinning.  Devito also
-  supplies the `set_omp_pinning.sh` program (under `/scripts`), which helps
-  with thread pinning (though, currently, only limited to Intel architectures).
+  environment variables to control process/thread pinning.
 * Through a program such as `numactl` or `taskset`.
 
 If running on a NUMA system, where multiple nodes of CPU cores ("sockets") and
@@ -46,7 +44,7 @@ working set). There are multiple scenarios that are worth considering:
   logical cores are created. This can be changed by setting the OpenMP-standard
   `OMP_NUM_THREADS` environment variable to a different value. When might we
   want to do this?
-  - Unless on a hyperthreads-centerd system, such as an Intel Knights Landing,
+  - Unless on a hyperthreads-centered system, such as an Intel Knights Landing,
     spawning only as many threads as *physical* cores usually results in
     slightly better performance due to less contention for hardware resources.
   - Since, here, we are merely interested in benchmarking, when running on a
@@ -224,21 +222,6 @@ save the file, and re-run this benchmark.
 At this point, just follow the instructions on screen. The next time you run
 the benchmark, the modified C code will be re-compiled and executed. Thus,
 you will see the performance impact of your changes.
-
-## Running on HPC clusters
-
-`benchmark.py` can be used to evaluate MPI on multi-node systems:
-```bash
-mpiexec python benchmark.py ...
-```
-In `bench` mode, each MPI rank will produce a different `.json` file
-summarizing the achieved performance in a structured format.
-
-Further, we provide `make-pbs.py`, a simple program to generate PBS files
-to submit jobs on HPC clusters. Take a look at `python make-pbs.py --help`
-for more information, and in particular `python make-pbs.py generate --help`.
-`make-pbs.py` is especially indicated if interested in running strong scaling
-experiments.
 
 ## Benchmark output
 

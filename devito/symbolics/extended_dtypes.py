@@ -7,7 +7,8 @@ from devito.tools import (Bunch, float2, float3, float4, double2, double3, doubl
 from devito.tools.dtypes_lowering import dtype_mapper
 
 __all__ = ['cast', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
-           'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex']
+           'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex',
+           'LONG']
 
 
 limits_mapper = {
@@ -72,6 +73,7 @@ def cast(casttype, stars=None):
 
 ULONG = cast(np.uint64)
 UINTP = cast(np.uint32, '*')
+LONG = cast(np.int64)
 
 
 # Standard ones, needed as class for e.g. single dispatch

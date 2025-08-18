@@ -95,7 +95,7 @@ def convert_index(idx, decomposition, mode='glb_to_loc'):
     elif isinstance(idx, (tuple, list)):
         return [decomposition(i, mode=mode) for i in idx]
     elif isinstance(idx, np.ndarray):
-        return np.vectorize(lambda i: decomposition(i, mode=mode))(idx)
+        return np.vectorize(lambda i: decomposition(i, mode=mode))(idx).astype(idx.dtype)
     else:
         raise ValueError("Cannot convert index of type `%s` " % type(idx))
 

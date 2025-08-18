@@ -37,9 +37,12 @@ def q_comp_acc(expr):
 
 
 def q_leaf(expr):
-    return (expr.is_Atom or
-            expr.is_Indexed or
-            isinstance(expr, extra_leaves))
+    try:
+        return (expr.is_Atom or
+                expr.is_Indexed or
+                isinstance(expr, extra_leaves))
+    except AttributeError:
+        return False
 
 
 def q_indexed(expr):

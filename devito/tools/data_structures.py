@@ -1,17 +1,18 @@
 from collections import OrderedDict, deque
 from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
-from functools import reduce
+from functools import reduce, cached_property
+import json
 
 import numpy as np
 from multidict import MultiDict
 
 from devito.tools import Pickable
-from devito.tools.utils import as_tuple, filter_ordered
+from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 from devito.tools.algorithms import toposort
 
 __all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
            'OrderedSet', 'Ordering', 'DAG', 'frozendict',
-           'UnboundTuple', 'UnboundedMultiTuple']
+           'UnboundTuple', 'UnboundedMultiTuple', 'MemoryEstimate']
 
 
 class Bunch:
@@ -658,6 +659,57 @@ class frozendict(Mapping):
                 h ^= hash((key, value))
             self._hash = h
         return self._hash
+
+
+class MemoryEstimate(frozendict):
+    """
+    An immutable mapper for a memory estimate, providing the estimated memory
+    consumption across host, device, and so forth.
+
+    Properties
+    ----------
+    name: str
+        The name of the Operator for which this estimate was generated
+    human_readable: frozendict
+        The mapper, albeit with human-readable memory usage (MB, GB, etc)
+        rather than raw bytes.
+
+    Methods
+    -------
+    to_json(path)
+        Write the memory estimate to a JSON for scheduler ingestion.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self._name = kwargs.pop('name', 'memory_estimate')
+        super().__init__(*args, **kwargs)
+
+    @property
+    def name(self):
+        return self._name
+
+    @cached_property
+    def human_readable(self):
+        """The memory estimate in human-readable format"""
+        return frozendict({k: humanbytes(v) for k, v in self.items()})
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.name}): {self.human_readable._dict}'
+
+    def to_json(self, path):
+        """
+        Write the MemoryEstimate to JSON for ingestion by a scheduler.
+
+        Arguments
+        ---------
+        path: str
+            The path to which the memory estimate should be written.
+        """
+        summary = {'name': self.name, **self._dict}
+        json_object = json.dumps(summary, indent=4)
+
+        with open(path, "w") as outfile:
+            outfile.write(json_object)
 
 
 class UnboundTuple(tuple):
