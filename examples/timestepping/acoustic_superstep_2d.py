@@ -10,6 +10,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import interpn
+
 from devito import (
     ConditionalDimension,
     Eq,
@@ -21,7 +23,6 @@ from devito import (
     solve,
 )
 from devito.timestepping.superstep import superstep_generator
-from scipy.interpolate import interpn
 
 
 @dataclass
@@ -99,24 +100,24 @@ def acoustic_model(model, step=1, snapshots=1):
     pde = (1/velocity**2)*u.dt2 - u.laplace
     stencil = Eq(u.forward, solve(pde, u.forward))
 
-    tn1 = int(np.ceil((t1 - t0)/model.critical_dt))
-    dt = (t1 - t0)/tn1
+    nt1 = int(np.ceil((t1 - t0)/model.critical_dt))
+    dt = (t1 - t0)/nt1
 
     # Source
-    t = np.linspace(t0, t1, tn1)
+    t = np.linspace(t0, t1, nt1)
     rick = ricker(t)
     source = SparseTimeFunction(
-        name="ricker", npoint=1, coordinates=[model.source], nt=tn1, grid=grid,
+        name="ricker", npoint=1, coordinates=[model.source], nt=nt1, grid=grid,
         time_order=2, space_order=4
     )
     source.data[:, 0] = rick
     src_term = source.inject(field=u.forward, expr=source*velocity*velocity*dt*dt)
 
     op1 = Operator([stencil] + src_term)
-    op1(time=tn1 - 1, dt=dt)
+    op1(time=nt1 - 1, dt=dt)
 
     # Stencil and operator
-    idx = tn1 % 3
+    idx = nt1 % 3
     if step == 1:
         # Non-superstep case
         new_u = TimeFunction(name="new_u", grid=grid, time_order=2, space_order=2)
@@ -127,13 +128,13 @@ def acoustic_model(model, step=1, snapshots=1):
         new_u.data[1, :] = u.data[idx - 1]
         new_u.data[2, :] = u.data[idx]
     else:
-        new_u, new_u_p, *stencil = superstep_generator(u, stencil.rhs, step, tn=tn1)
+        new_u, new_u_p, *stencil = superstep_generator(u, stencil.rhs, step, nt=nt1)
 
-    tn2 = int(np.ceil((t2 - t1)/model.critical_dt))
-    dt = (t2 - t1)/tn2
+    nt2 = int(np.ceil((t2 - t1)/model.critical_dt))
+    dt = (t2 - t1)/nt2
 
     # Snapshot the solution
-    factor = int(np.ceil(tn2/(snapshots + 1)))
+    factor = int(np.ceil(nt2/(snapshots + 1)))
     t_sub = ConditionalDimension('t_sub', parent=grid.time_dim, factor=factor)
     u_save = TimeFunction(
         name='usave', grid=grid,

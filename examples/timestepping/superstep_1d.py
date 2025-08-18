@@ -3,6 +3,7 @@
 '''
 import matplotlib.pyplot as plt
 import numpy as np
+
 from devito import Eq, Function, Grid, Operator, TimeFunction, solve
 from devito.timestepping.superstep import superstep_generator
 
@@ -64,12 +65,12 @@ def wave_on_string(step=1):
             stencil2,
         ], opt='noop')
 
-    tn = int(np.ceil(t1/critical_dt))
-    dt = t1/tn
+    nt = int(np.ceil(t1/critical_dt))
+    dt = t1/nt
 
-    op(time=tn, dt=dt)
+    op(time=nt, dt=dt)
 
-    idx = tn % 3
+    idx = nt % 3
     return newu.data[idx]
 
 
