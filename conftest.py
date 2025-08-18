@@ -290,8 +290,8 @@ def pytest_runtest_makereport(item, call):
 
 def pytest_make_parametrize_id(config, val, argname):
     """
-    Prevents pytest to make obsucre parameter names (param0, param1, ...)
-    and default to str(val) instead for better log readability.
+    Prevents pytest from making obscure parameter names (param0, param1, ...)
+    and default to sympy.sstr(val) instead for better log readability.
     """
     # First see if it has a name
     if hasattr(val, '__name__'):
