@@ -7,6 +7,7 @@ from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
+from devito.petsc.utils import petsc_type_mappings
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
@@ -75,3 +76,9 @@ class CPrinter(BasePrinter, C99CodePrinter):
     def _print_Conj(self, expr):
         # In C, conj is not preceeded by the func_prefix
         return (f'conj{self.func_literal(expr)}({self._print(expr.args[0])})')
+
+
+class PetscCPrinter(CPrinter):
+    _restrict_keyword = ''
+
+    type_mappings = {**CPrinter.type_mappings, **petsc_type_mappings}

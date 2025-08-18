@@ -10,7 +10,8 @@ from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # no
 from devito.ir.iet import (Call, Callable, Conditional, DeviceCall, DummyExpr,
                            Iteration, List, KernelLaunch, Lambda, ElementalFunction,
                            CGen, FindSymbols, filter_iterations, make_efunc,
-                           retrieve_iteration_tree, Transformer)
+                           retrieve_iteration_tree, Transformer, Callback,
+                           Definition, FindNodes)
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
@@ -126,6 +127,33 @@ def test_find_symbols_nested(mode, expected):
     found = FindSymbols(mode).visit(call)
 
     assert [f.name for f in found] == eval(expected)
+
+
+def test_callback_cgen():
+
+    class FunctionPtr(Callback):
+        @property
+        def callback_form(self):
+            param_types = ', '.join([str(t) for t in
+                                     self.param_types])
+            return "(%s (*)(%s))%s" % (self.retval, param_types, self.name)
+
+    a = Symbol('a')
+    b = Symbol('b')
+    foo0 = Callable('foo0', Definition(a), 'void', parameters=[b])
+    foo0_arg = FunctionPtr(foo0.name, foo0.retval, 'int')
+    code0 = CGen().visit(foo0_arg)
+    assert str(code0) == '(void (*)(int))foo0'
+
+    # Test nested calls with a Callback as an argument.
+    call = Call('foo2', [
+        Call('foo1', [foo0_arg])
+    ])
+    code1 = CGen().visit(call)
+    assert str(code1) == 'foo2(foo1((void (*)(int))foo0));'
+
+    callees = FindNodes(Call).visit(call)
+    assert len(callees) == 3
 
 
 def test_list_denesting():

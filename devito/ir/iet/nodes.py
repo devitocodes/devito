@@ -21,7 +21,7 @@ from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatt
                           ctypes_to_cstr)
 from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed,
                                 Symbol)
-from devito.types.object import AbstractObject, LocalObject
+from devito.types.object import AbstractObject, LocalObject, LocalCompositeObject
 
 __all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
            'Call', 'ExprStmt', 'Conditional', 'Iteration', 'List', 'Section',
@@ -30,7 +30,8 @@ __all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
            'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
            'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
            'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
-           'Using', 'CallableBody', 'Transfer', 'EmptyList']
+           'Using', 'CallableBody', 'Transfer', 'Callback', 'FixedArgsCallable',
+           'EmptyList']
 
 # First-class IET nodes
 
@@ -770,6 +771,15 @@ class Callable(Node):
         return self.all_parameters
 
 
+class FixedArgsCallable(Callable):
+
+    """
+    A Callable class that enforces a fixed function signature.
+    """
+
+    pass
+
+
 class CallableBody(MultiTraversable):
 
     """
@@ -1048,8 +1058,8 @@ class Dereference(ExprStmt, Node):
     The following cases are supported:
 
         * `pointer` is a PointerArray or TempFunction, and `pointee` is an Array.
-        * `pointer` is an ArrayObject representing a pointer to a C struct, and
-          `pointee` is a field in `pointer`.
+        * `pointer` is an ArrayObject or LocalCompositeObject representing a pointer
+           to a C struct, and `pointee` is a field in `pointer`.
         * `pointer` is a Symbol with its _C_ctype deriving from ct._Pointer, and
           `pointee` is a Symbol representing the dereferenced value.
     """
@@ -1081,7 +1091,9 @@ class Dereference(ExprStmt, Node):
                                for i in self.pointee.symbolic_shape[1:]))
             ret.extend(self.pointer.free_symbols)
         else:
-            ret.extend([self.pointer.indexed, self.pointee._C_symbol])
+            assert (isinstance(self.pointer, LocalCompositeObject) or
+                    issubclass(self.pointer._C_ctype, ctypes._Pointer))
+            ret.extend([self.pointer._C_symbol, self.pointee._C_symbol])
         return tuple(filter_ordered(ret))
 
     @property
@@ -1145,6 +1157,45 @@ class Lambda(Node):
     @property
     def defines(self):
         return tuple(self.parameters)
+
+
+class Callback(Call):
+    """
+    Base class for special callback types.
+
+    Parameters
+    ----------
+    name : str
+        The name of the callback.
+    retval : str
+        The return type of the callback.
+    param_types : str or list of str
+        The return type for each argument of the callback.
+
+    Notes
+    -----
+    - The reason Callback is an IET type rather than a SymPy type is
+    due to the fact that, when represented at the SymPy level, the IET
+    engine fails to bind the callback to a specific Call. Consequently,
+    errors occur during the creation of the call graph.
+    """
+    # TODO: Create a common base class for Call and Callback to avoid
+    # having arguments=None here
+    def __init__(self, name, retval=None, param_types=None, arguments=None):
+        super().__init__(name=name)
+        self.retval = retval
+        self.param_types = as_tuple(param_types)
+
+    @property
+    def callback_form(self):
+        """
+        A string representation of the callback form.
+
+        Notes
+        -----
+        To be overridden by subclasses.
+        """
+        return
 
 
 class Section(List):
