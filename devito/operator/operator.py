@@ -1577,6 +1577,11 @@ def parse_kwargs(**kwargs):
     else:
         raise InvalidOperator(f"Illegal `opt={str(opt)}`")
 
+    # `openmp` in mode e.g `opt=('openmp', 'simd', {})`
+    if mode and 'openmp' in mode:
+        options['openmp'] = True
+        mode = tuple(i for i in as_tuple(mode) if i != 'openmp')
+
     # `opt`, deprecated kwargs
     kwopenmp = kwargs.get('openmp', options.get('openmp'))
     if kwopenmp is None:
