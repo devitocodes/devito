@@ -49,9 +49,10 @@ def superstep_generator(field, stencil, k, nt=0):
     """
     # New fields, for vector formulation both current and previous timestep are needed
     name = field.name
+    grid = field.grid
     # time_order of `field` needs to be 2
-    u = field._rebuild(name=f'{name}_ss', time_order=1, space_order=2*k)
-    u_prev = field._rebuild(name=f'{name}_ss', time_order=1, space_order=2*k)
+    u = TimeFunction(name=f'{name}_ss', grid=grid, time_order=2, space_order=2*k)
+    u_prev = TimeFunction(name=f'{name}_ss_p', grid=grid, time_order=2, space_order=2*k)
 
     superstep_solution_transfer(field, u, u_prev, nt)
 
