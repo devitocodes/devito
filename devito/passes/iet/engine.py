@@ -1,4 +1,4 @@
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from functools import partial, singledispatch, wraps
 
 import numpy as np
@@ -6,8 +6,8 @@ from sympy import Mul
 
 from devito.ir.iet import (
     Call, ExprStmt, Expression, Iteration, SyncSpot, AsyncCallable, FindNodes,
-    FindSymbols, MapNodes, MetaCall, Transformer, EntryFunction,
-    ThreadCallable, Uxreplace, derive_parameters
+    FindSymbols, MapNodes, MetaCall, Transformer, EntryFunction, ThreadCallable,
+    Uxreplace, derive_parameters
 )
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
@@ -28,7 +28,31 @@ from devito.types.dimension import AbstractIncrDimension, BlockDimension
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
 
-class Graph:
+class Byproduct:
+
+    """
+    A Byproduct is a mutable collection of metadata produced by one or more
+    compiler passes.
+
+    This metadata may be used internally or by the caller itself, typically
+    for code generation purposes.
+    """
+
+    def __init__(self, efuncs=None, includes=None, headers=None, namespaces=None,
+                 globs=None):
+        self.efuncs = efuncs or {}
+        self.includes = includes or []
+        self.headers = headers or []
+        self.namespaces = namespaces or []
+        self.globals = globs or []
+
+    @property
+    def funcs(self):
+        return tuple(MetaCall(v, True) for v in self.efuncs.values()
+                     if not isinstance(v, EntryFunction))
+
+
+class Graph(Byproduct):
 
     """
     DAG representation of a call graph.
@@ -49,16 +73,9 @@ class Graph:
     """
 
     def __init__(self, iet, options=None, sregistry=None, **kwargs):
-        self.efuncs = OrderedDict([(iet.name, iet)])
-
         self.sregistry = sregistry
 
-        self.includes = []
-        self.headers = []
-        self.namespaces = []
-        self.globals = []
-
-        # Stash immutable information useful for one or more compiler passes
+        super().__init__({iet.name: iet})
 
         # All written user-level objects
         writes = FindSymbols('writes').visit(iet)
@@ -78,10 +95,6 @@ class Graph:
     @property
     def root(self):
         return self.efuncs[list(self.efuncs).pop(0)]
-
-    @property
-    def funcs(self):
-        return tuple(MetaCall(v, True) for v in self.efuncs.values())[1:]
 
     @property
     def sync_mapper(self):
@@ -146,7 +159,7 @@ class Graph:
             new_efuncs = metadata.get('efuncs', [])
 
             efuncs[i] = efunc
-            efuncs.update(OrderedDict([(i.name, i) for i in new_efuncs]))
+            efuncs.update(dict([(i.name, i) for i in new_efuncs]))
 
             # Update the parameters / arguments lists since `func` may have
             # introduced or removed objects
@@ -176,9 +189,23 @@ class Graph:
         dag = create_call_graph(self.root.name, self.efuncs)
         toposort = dag.topological_sort()
 
-        mapper = OrderedDict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
+        mapper = dict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
 
         return mapper
+
+    def filter(self, key):
+        """
+        Return a Byproduct containing only the Callables in the Graph
+        for which `key` evaluates to True. The resulting object cannot be
+        further modified by an IET pass.
+        """
+        return Byproduct(
+            efuncs={i: v for i, v in self.efuncs.items() if key(v)},
+            includes=as_tuple(self.includes),
+            headers=as_tuple(self.headers),
+            namespaces=as_tuple(self.namespaces),
+            globs=as_tuple(self.globals)
+        )
 
 
 def iet_pass(func):
@@ -732,7 +759,7 @@ def update_args(root, efuncs, dag):
 
         return processed
 
-    efuncs = OrderedDict(efuncs)
+    efuncs = dict(efuncs)
     efuncs[root.name] = root._rebuild(parameters=_filter(root.parameters, root))
 
     # Update all call sites to use the new signature
