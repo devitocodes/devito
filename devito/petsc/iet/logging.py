@@ -12,23 +12,27 @@ class PetscLogger:
     """
     Class for PETSc loggers that collect solver related statistics.
     """
-    def __init__(self, level, **kwargs):
+    def __init__(self, level, get_info=None, **kwargs):
+        self.function_list = get_info or []
+
         self.sobjs = kwargs.get('solver_objs')
         self.sreg = kwargs.get('sregistry')
+
         self.section_mapper = kwargs.get('section_mapper', {})
         self.inject_solve = kwargs.get('inject_solve', None)
 
-        self.function_list = []
-
         if level <= PERF:
-            self.function_list.extend([
+            funcs = [
                 # KSP specific
                 'kspgetiterationnumber',
                 'kspgettolerances',
                 'kspgetconvergedreason',
                 # SNES specific
                 'snesgetiterationnumber',
-            ])
+            ]
+            for f in funcs:
+                if f not in self.function_list:
+                    self.function_list.append(f)
 
         # TODO: To be extended with if level <= DEBUG: ...
 
@@ -56,7 +60,7 @@ class PetscLogger:
         >>> self.petsc_option_mapper
         {
             'KSPGetIterationNumber': {'kspits': kspits0},
-            'KSPGetTolerances': {'rtol': rtol0, 'abstol': abstol0, ...}
+            'KSPGetTolerances': {'rtol': rtol0, 'atol': atol0, ...}
         }
         """
         opts = {}

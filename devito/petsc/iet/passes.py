@@ -170,6 +170,7 @@ class Builder:
         self.iters = iters
         self.comm = comm
         self.section_mapper = section_mapper
+        self.get_info = inject_solve.expr.rhs.get_info
         self.kwargs = kwargs
         self.coupled = isinstance(inject_solve.expr.rhs.field_data, MultipleFieldData)
         self.common_kwargs = {
@@ -217,7 +218,9 @@ class Builder:
     @cached_property
     def logger(self):
         log_level = dl.logger.level
-        return PetscLogger(log_level, **self.common_kwargs)
+        return PetscLogger(
+            log_level, self.get_info, **self.common_kwargs
+        )
 
     @cached_property
     def calls(self):

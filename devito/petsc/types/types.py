@@ -39,11 +39,13 @@ class SolveExpr(MetaData):
     """
     __rargs__ = ('expr',)
     __rkwargs__ = ('solver_parameters', 'field_data', 'time_mapper',
-                   'localinfo', 'user_prefix', 'formatted_prefix')
+                   'localinfo', 'user_prefix', 'formatted_prefix',
+                   'get_info')
 
     def __new__(cls, expr, solver_parameters=None,
                 field_data=None, time_mapper=None, localinfo=None,
-                user_prefix=None, formatted_prefix=None, **kwargs):
+                user_prefix=None, formatted_prefix=None,
+                get_info=None, **kwargs):
 
         with sympy_mutex:
             if isinstance(expr, tuple):
@@ -57,6 +59,7 @@ class SolveExpr(MetaData):
         obj.localinfo = localinfo
         obj.user_prefix = user_prefix
         obj.formatted_prefix = formatted_prefix
+        obj.get_info = get_info
         return obj
 
     def __repr__(self):

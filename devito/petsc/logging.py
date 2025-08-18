@@ -17,6 +17,9 @@ class PetscEntry:
     def __getitem__(self, key):
         return self._properties[key.lower()]
 
+    def __len__(self):
+        return len(self._properties)
+
     def __repr__(self):
         return f"PetscEntry({', '.join(f'{k}={v}' for k, v in self.kwargs.items())})"
 
@@ -63,7 +66,9 @@ class PetscSummary(dict):
         Create a named tuple entry for the given PetscInfo object,
         containing the values for each PETSc function call.
         """
-        funcs = self._functions
+        funcs = [
+            petsc_return_variable_dict[f].name for f in petscinfo.function_list
+        ]
         values = tuple(getattr(petscinfo, c) for c in funcs)
         return PetscEntry(**{k: v for k, v in zip(funcs, values)})
 
@@ -171,7 +176,7 @@ class PetscInfo(CompositeObject):
         #   return that value directly.
         # - If the function returns multiple values (e.g., KSPGetTolerances),
         #   return a dictionary mapping each output name to its value,
-        #   e.g., {'rtol': val0, 'abstol': val1, ...}.
+        #   e.g., {'rtol': val0, 'atol': val1, ...}.
         if len(obj_mapper) == 1:
             return get_val(next(iter(obj_mapper.values())))
         return {k: get_val(v) for k, v in obj_mapper.items()}
@@ -204,8 +209,7 @@ petsc_return_variable_dict = {
         name='KSPGetTolerances',
         variable_type=(PetscScalar, PetscScalar, PetscScalar, PetscInt),
         input_params='ksp',
-        # TODO: check if maxits is max_its in command line
-        output_param=('rtol', 'atol', 'dtol', 'maxits'),
+        output_param=('rtol', 'atol', 'divtol', 'max_it'),
     ),
     'kspgetconvergedreason': PetscReturnVariable(
         name='KSPGetConvergedReason',

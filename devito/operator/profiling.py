@@ -213,6 +213,11 @@ class Profiler:
             else:
                 summary.add(name, None, time)
 
+        # Add the language specific summary if necessary
+        mapper_func = language_summary_mapper.get(self.language)
+        if mapper_func:
+            summary.add_language_summary(self.language, mapper_func(params))
+
         return summary
 
 

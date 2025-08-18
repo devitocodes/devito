@@ -1448,8 +1448,8 @@ class TestLogging:
         tols = entry0.KSPGetTolerances
         assert tols['rtol'] == linear_solve_defaults['ksp_rtol']
         assert tols['atol'] == linear_solve_defaults['ksp_atol']
-        assert tols['dtol'] == linear_solve_defaults['ksp_divtol']
-        assert tols['maxits'] == linear_solve_defaults['ksp_max_it']
+        assert tols['divtol'] == linear_solve_defaults['ksp_divtol']
+        assert tols['max_it'] == linear_solve_defaults['ksp_max_it']
 
     @skipif('petsc')
     @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
@@ -1655,8 +1655,8 @@ class TestSolverParameters:
         # appear as expected in the `PetscSummary`.
         assert tolerances['rtol'] == params['ksp_rtol']
         assert tolerances['atol'] == params['ksp_atol']
-        assert tolerances['dtol'] == params['ksp_divtol']
-        assert tolerances['maxits'] == params['ksp_max_it']
+        assert tolerances['divtol'] == params['ksp_divtol']
+        assert tolerances['max_it'] == params['ksp_max_it']
 
     @skipif('petsc')
     def test_clearing_options(self):
@@ -1805,3 +1805,117 @@ class TestHashing:
             options_prefix='poisson3'
         )
         assert hash(petsc3.rhs) != hash(petsc4.rhs)
+
+
+class TestGetInfo:
+    """
+    Test the `get_info` optional argument to `PETScSolve`.
+
+    This argument can be used independently of the `log_level` to retrieve
+    specific information about the solve, such as the number of KSP
+    iterations to converge.
+    """
+    @skipif('petsc')
+    def test_get_info(self):
+
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f']]
+        e, f = functions
+        eq = Eq(e.laplace, f)
+
+        get_info = ['kspgetiterationnumber', 'snesgetiterationnumber']
+
+        petsc = PETScSolve(
+            eq, target=e, options_prefix='pde1', get_info=get_info
+        )
+
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', 'pde1')
+
+        # Verify that the entry contains only the requested info
+        # (since logging is not set)
+        assert len(entry) == 2
+        assert hasattr(entry, "KSPGetIterationNumber")
+        assert hasattr(entry, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_get_info_with_logging(self, log_level):
+        """
+        Test that `get_info` works correctly when logging is enabled.
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f']]
+        e, f = functions
+        eq = Eq(e.laplace, f)
+
+        get_info = ['kspgetiterationnumber']
+
+        petsc = PETScSolve(
+            eq, target=e, options_prefix='pde1', get_info=get_info
+        )
+
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', 'pde1')
+
+        # With logging enabled, the entry should include both the
+        # requested KSP iteration number and additional PETSc info
+        # (e.g., SNES iteration count logged at PERF/DEBUG).
+        assert len(entry) > 1
+        assert hasattr(entry, "KSPGetIterationNumber")
+        assert hasattr(entry, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    def test_different_solvers(self):
+        """
+        Test that `get_info` works correctly when multiple solvers are used
+        within the same Operator.
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        eq1 = Eq(e.laplace, f)
+        eq2 = Eq(g.laplace, h)
+
+        # Create two PETScSolve instances with different get_info arguments
+
+        get_info_1 = ['kspgetiterationnumber']
+        get_info_2 = ['snesgetiterationnumber']
+
+        solver1 = PETScSolve(
+            eq1, target=e, options_prefix='pde1', get_info=get_info_1
+        )
+        solver2 = PETScSolve(
+            eq2, target=g, options_prefix='pde2', get_info=get_info_2
+        )
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+
+        assert len(petsc_summary) == 2
+        assert len(petsc_summary.KSPGetIterationNumber) == 1
+        assert len(petsc_summary.SNESGetIterationNumber) == 1
+
+        entry1 = petsc_summary.get_entry('section0', 'pde1')
+        entry2 = petsc_summary.get_entry('section1', 'pde2')
+
+        assert hasattr(entry1, "KSPGetIterationNumber")
+        assert not hasattr(entry1, "SNESGetIterationNumber")
+
+        assert not hasattr(entry2, "KSPGetIterationNumber")
+        assert hasattr(entry2, "SNESGetIterationNumber")
