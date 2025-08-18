@@ -55,14 +55,12 @@ def PetscInitialize(clargs=sys.argv):
         _petsc_initialized = True
 
 
-with switchconfig(language='petsc'):
-    op_get_args = Operator(
-        [PetscEq(dummy, GetArgs(dummy))],
-        name='kernel_get_args', opt='noop'
-    )
-
-
 def PetscGetArgs():
+    with switchconfig(language='petsc'):
+        op_get_args = Operator(
+            [PetscEq(dummy, GetArgs(dummy))],
+            name='kernel_get_args', opt='noop'
+        )
     argc_ptr = c_int()
     argv_ptr = (POINTER(c_char_p))()
     op_get_args.apply(argc=byref(argc_ptr), argv=byref(argv_ptr))
