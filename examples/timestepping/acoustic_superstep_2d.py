@@ -1,6 +1,6 @@
-''' Script that demonstrates the functionality of the superstep in 2D
+""" Script that demonstrates the functionality of the superstep in 2D
 Acoustic wave equation with source injection
-'''
+"""
 import shutil
 import urllib.request
 from argparse import ArgumentParser
@@ -79,10 +79,11 @@ def marmousi(grid, step=0):
 
 
 def ricker(t, f=10, A=1):
-    '''The Ricker wavelet
+    """
+    The Ricker wavelet
     f - freq in Hz
     A - amplitude
-    '''
+    """
     trm = (np.pi * f * (t - 1 / f)) ** 2
     return A * (1 - 2 * trm) * np.exp(-trm)
 
