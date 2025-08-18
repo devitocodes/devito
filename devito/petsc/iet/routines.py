@@ -1,4 +1,3 @@
-import sys
 from collections import OrderedDict
 from functools import cached_property
 import math
@@ -23,6 +22,7 @@ from devito.petsc.types import (PETScArray, PetscBundle, DM, Mat, CallbackVec, V
                                 VecScatter, DMCast, JacobianStruct, SubMatrixStruct,
                                 CallbackDM)
 from devito.petsc.types.macros import petsc_func_begin_user, Null
+# from devito.petsc.initialize import PetscGetArgs
 
 
 class CBBuilder:
@@ -149,14 +149,16 @@ class CBBuilder:
 
         for k, v in params.items():
             option = f'-{prefix}{k}'
-            # if option in sys.argv:
-            # TODO: Pre-build the KSPGetArgs operator and run it here
-            # to drop the global _petsc_clargs
-            # tmp = petsc_get_args_op.apply()
+
+            # TODO: drop the global variable _petsc_clargs..
+            # from devito.petsc.initialize import PetscGetArgs
+            # PetscGetArgs()
+
             import devito.petsc.initialize
             if option in devito.petsc.initialize._petsc_clargs:
                 # Ensures that the command line args take priority
                 continue
+
             option_name = String(option)
             # For options without a value e.g `ksp_view`, pass Null
             option_value = Null if v is None else String(str(v))

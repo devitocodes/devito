@@ -28,6 +28,10 @@ class Finalize(MetaData):
     pass
 
 
+class GetArgs(MetaData):
+    pass
+
+
 class SolveExpr(MetaData):
     """
     A symbolic expression passed through the Operator, containing the metadata

@@ -1,18 +1,22 @@
 import os
 import sys
-from ctypes import POINTER, cast, c_char
+from ctypes import POINTER, cast, c_char, c_int, c_char_p, byref
 import atexit
 
 from devito import Operator, switchconfig
 from devito.types import Symbol
 from devito.types.equation import PetscEq
-from devito.petsc.types import Initialize, Finalize
+from devito.petsc.types import Initialize, Finalize, GetArgs
 
 global _petsc_initialized
 _petsc_initialized = False
 
 
 global _petsc_clargs
+
+
+dummy = Symbol(name='d')
+
 
 def PetscInitialize(clargs=sys.argv):
     global _petsc_initialized
@@ -21,9 +25,10 @@ def PetscInitialize(clargs=sys.argv):
     if not _petsc_initialized:
         if clargs is not sys.argv:
             clargs = [sys.argv[0], *clargs]
-        # TODO: drop this
+
+        # TODO: Drop this global variable
         _petsc_clargs = clargs
-        dummy = Symbol(name='d')
+
         # TODO: Potentially just use cgen + the compiler machinery in Devito
         # to generate these "dummy_ops" instead of using the Operator class.
         # This would prevent circular imports when initializing during import
@@ -46,6 +51,18 @@ def PetscInitialize(clargs=sys.argv):
             *map(lambda s: cast(s, POINTER(c_char)), argv_bytes)
         )
         op_init.apply(argc=len(clargs), argv=argv_pointer)
-
         atexit.register(op_finalize.apply)
         _petsc_initialized = True
+
+
+with switchconfig(language='petsc'):
+    op_get_args = Operator(
+        [PetscEq(dummy, GetArgs(dummy))],
+        name='kernel_get_args', opt='noop'
+    )
+
+
+def PetscGetArgs():
+    argc_ptr = c_int()
+    argv_ptr = (POINTER(c_char_p))()
+    op_get_args.apply(argc=byref(argc_ptr), argv=byref(argv_ptr))

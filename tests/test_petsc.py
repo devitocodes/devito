@@ -3,7 +3,6 @@ import pytest
 import numpy as np
 import os
 import re
-import sys
 from collections import OrderedDict
 
 from conftest import skipif
@@ -24,26 +23,26 @@ from devito.petsc.initialize import PetscInitialize
 from devito.petsc.logging import PetscSummary
 from devito.petsc.solver_parameters import linear_solve_defaults
 
+
 @pytest.fixture(scope='session')
 def command_line():
-    # one prefix per test
+    # One random prefix to use per test that "tests" the command line args
     prefix = ('d17weqroegn', 'riabfodkj')
 
     petsc_option = (
         ('ksp_rtol',),
-        ('ksp_rtol','ksp_atol')
+        ('ksp_rtol', 'ksp_atol')
     )
     value = (
-        ('1e-8',),
-        ('1e-11','1e-15'),
+        (1e-8,),
+        (1e-11, 1e-15),
     )
     argv = []
-
     expected = {}
     for p, opt, val in zip(prefix, petsc_option, value, strict=True):
         for o, v in zip(opt, val, strict=True):
-            argv.extend([f'-{p}_{o}', v])
-        expected[p] = zip(opt,val)
+            argv.extend([f'-{p}_{o}', str(v)])
+        expected[p] = zip(opt, val)
     return argv, expected
 
 
@@ -1448,7 +1447,7 @@ class TestLogging:
         # the tolerances should match the default linear values.
         tols = entry0.KSPGetTolerances
         assert tols['rtol'] == linear_solve_defaults['ksp_rtol']
-        assert tols['abstol'] == linear_solve_defaults['ksp_atol']
+        assert tols['atol'] == linear_solve_defaults['ksp_atol']
         assert tols['dtol'] == linear_solve_defaults['ksp_divtol']
         assert tols['maxits'] == linear_solve_defaults['ksp_max_it']
 
@@ -1655,7 +1654,7 @@ class TestSolverParameters:
         # Test that the tolerances have been set correctly and therefore
         # appear as expected in the `PetscSummary`.
         assert tolerances['rtol'] == params['ksp_rtol']
-        assert tolerances['abstol'] == params['ksp_atol']
+        assert tolerances['atol'] == params['ksp_atol']
         assert tolerances['dtol'] == params['ksp_divtol']
         assert tolerances['maxits'] == params['ksp_max_it']
 
@@ -1754,7 +1753,7 @@ class TestSolverParameters:
         petsc_summary = summary.petsc
         entry = petsc_summary.get_entry('section0', prefix)
         for opt, val in expected[prefix]:
-            assert str(entry.KSPGetTolerances[opt.removeprefix('ksp_')]) == val
+            assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
 
     @skipif('petsc')
     def test_command_line_priority_2(self, command_line):
@@ -1774,7 +1773,7 @@ class TestSolverParameters:
         petsc_summary = summary.petsc
         entry = petsc_summary.get_entry('section0', prefix)
         for opt, val in expected[prefix]:
-            assert str(entry.KSPGetTolerances[opt.removeprefix('ksp_')]) == val
+            assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
 
 
 class TestHashing:
