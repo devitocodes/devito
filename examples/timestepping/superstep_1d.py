@@ -1,6 +1,6 @@
-''' Script that demonstrates the functionality of the superstep in 1D
+""" Script that demonstrates the functionality of the superstep in 1D
 "Wave on a string"
-'''
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -25,8 +25,9 @@ xlim = (0, 1)
 
 
 def gaussian(x, mu=0, sigma_sq=1):
-    ''' Generate a Gaussian initial condition
-    '''
+    """
+    Generate a Gaussian initial condition
+    """
     return np.exp(-((x - mu)**2)/(2*sigma_sq))/(np.sqrt(2*np.pi*sigma_sq))
 
 
