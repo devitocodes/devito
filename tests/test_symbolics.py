@@ -16,7 +16,7 @@ from devito.symbolics import (
     DefFunction, FieldFromPointer, INT, FieldFromComposite, IntDiv, Namespace,
     Rvalue, ReservedWord, ListInitializer, uxreplace, pow_to_mul,
     retrieve_derivatives, BaseCast, SizeOf, VectorAccess, separate_eqn,
-    centre_stencil
+    centre_stencil, sympy_dtype
 )
 from devito.tools import as_tuple, CustomDtype
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
