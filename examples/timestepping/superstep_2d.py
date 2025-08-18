@@ -3,6 +3,7 @@
 '''
 import matplotlib.pyplot as plt
 import numpy as np
+
 from devito import ConditionalDimension, Eq, Function, Grid, Operator, TimeFunction, solve
 from devito.timestepping.superstep import superstep_generator
 
@@ -60,11 +61,11 @@ def ripple_on_pond(step=1, snapshots=1):
         new_u_p.data[0, :] = ic
         new_u_p.data[1, :] = ic
 
-    tn = int(np.ceil((t1 - t0)/critical_dt))
-    dt = t1/tn
+    nt = int(np.ceil((t1 - t0)/critical_dt))
+    dt = t1/nt
 
     # Snapshot the solution
-    factor = int(np.ceil(tn/(snapshots + 1)))
+    factor = int(np.ceil(nt/(snapshots + 1)))
     t_sub = ConditionalDimension('t_sub', parent=grid.time_dim, factor=factor)
     u_save = TimeFunction(
         name='usave', grid=grid,
@@ -103,7 +104,7 @@ if __name__ == '__main__':
                 )
                 idx += 1
                 if step == 1:
-                    ax.set_title(f't = {(ii*t1)/(m - 1) :0.3f}')
+                    ax.set_title(f't = {(ii*t1)/(m - 1):0.3f}')
                     if ii != 0:
                         ax.set_yticklabels([])
                     if ii % 2 == 1:
