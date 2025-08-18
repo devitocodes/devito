@@ -16,6 +16,7 @@ updates:
       prefix: "pip prod"
       prefix-development: "pip dev"
       include: "scope"
+
   - package-ecosystem: "github-actions"
     directory: "/" # Location of package manifests
     schedule:

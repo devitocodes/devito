@@ -128,12 +128,12 @@ class TestWavesolver:
         ns = 2 * size + 1
         if len(shape) == 2:
             nx2, nz2 = shape[0]//2, shape[1]//2
-            dm.data[nx2-size:nx2+size, nz2-size:nz2+size] = \
+            dm.data[nx2-size:nx2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns)
         else:
             nx2, ny2, nz2 = shape[0]//2, shape[1]//2, shape[2]//2
             nx, ny, nz = shape
-            dm.data[nx2-size:nx2+size, ny2-size:ny2+size, nz2-size:nz2+size] = \
+            dm.data[nx2-size:nx2+size+1, ny2-size:ny2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         # Compute F(m + dm)
@@ -194,12 +194,12 @@ class TestWavesolver:
         ns = 2 * size + 1
         if len(shape) == 2:
             nx2, nz2 = shape[0]//2, shape[1]//2
-            m1.data[nx2-size:nx2+size, nz2-size:nz2+size] = \
+            m1.data[nx2-size:nx2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns)
         else:
             nx2, ny2, nz2 = shape[0]//2, shape[1]//2, shape[2]//2
             nx, ny, nz = shape
-            m1.data[nx2-size:nx2+size, ny2-size:ny2+size, nz2-size:nz2+size] = \
+            m1.data[nx2-size:nx2+size+1, ny2-size:ny2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         a = np.random.rand()
@@ -242,12 +242,12 @@ class TestWavesolver:
         ns = 2 * size + 1
         if len(shape) == 2:
             nx2, nz2 = shape[0]//2, shape[1]//2
-            m1.data[nx2-size:nx2+size, nz2-size:nz2+size] = \
+            m1.data[nx2-size:nx2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns)
         else:
             nx2, ny2, nz2 = shape[0]//2, shape[1]//2, shape[2]//2
             nx, ny, nz = shape
-            m1.data[nx2-size:nx2+size, ny2-size:ny2+size, nz2-size:nz2+size] = \
+            m1.data[nx2-size:nx2+size+1, ny2-size:ny2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         a = np.random.rand()
@@ -289,12 +289,12 @@ class TestWavesolver:
         ns = 2 * size + 1
         if len(shape) == 2:
             nx2, nz2 = shape[0]//2, shape[1]//2
-            dm1.data[nx2-size:nx2+size, nz2-size:nz2+size] = \
+            dm1.data[nx2-size:nx2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns)
         else:
             nx2, ny2, nz2 = shape[0]//2, shape[1]//2, shape[2]//2
             nx, ny, nz = shape
-            dm1.data[nx2-size:nx2+size, ny2-size:ny2+size, nz2-size:nz2+size] = \
+            dm1.data[nx2-size:nx2+size+1, ny2-size:ny2+size+1, nz2-size:nz2+size+1] = \
                 -1 + 2 * np.random.rand(ns, ns, ns)
 
         # Data perturbation

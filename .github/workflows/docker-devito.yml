@@ -14,13 +14,16 @@ jobs:
       # Use buildkit https://docs.docker.com/develop/develop-images/build_enhancements/ for better build
       DOCKER_BUILDKIT: "1"
 
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - base: 'bases:nvidia-nvc'
             tag: 'nvidia-nvc'
-            flag: '--init --gpus all'
+            # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
+            # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
+            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 
@@ -45,7 +48,11 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+
+      - name: Set per‑runner variables
+        run: |
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -106,4 +113,6 @@ jobs:
 
       - name: Run tests
         run: |
-         docker run ${{ matrix.flag }} --rm -t --name testrun 'devitocodes/devito:${{ matrix.tag }}-dev' pytest ${{ matrix.test }}
+         docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
+           devitocodes/devito:${{ matrix.tag }}-dev \
+           pytest ${{ matrix.test }}

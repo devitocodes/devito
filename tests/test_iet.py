@@ -316,7 +316,7 @@ def test_make_cuda_stream():
 static void foo()
 {
   cudaStream_t stream;
-  cudaStreamCreate(&(stream));
+  cudaStreamCreate(&stream);
 
   foo(stream);
 

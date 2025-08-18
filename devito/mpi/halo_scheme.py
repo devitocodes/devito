@@ -43,17 +43,22 @@ class HaloSchemeEntry(EnrichedTuple):
         return hash((self.loc_indices, self.loc_dirs, self.halos, self.dims,
                      self.bundle))
 
-    def union(self, other):
+    @cached_property
+    def loc_values(self):
+        return frozenset(self.loc_indices.values())
+
+    def merge(self, other):
         """
-        Return a new HaloSchemeEntry that is the union of this and `other`.
-        The `loc_indices` and `loc_dirs` must be the same, otherwise an
-        exception is raised.
+        Return a new HaloSchemeEntry that is the result of merging `other`
+        into `self`, irrespective of whether the `loc_indices` and `loc_dirs`
+        are the same or not. Thus, the returned HaloSchemeEntry will have
+        in general more halo exchanges than `self`, or exactly the same halo
+        exchanges in the worst case).
         """
-        if self.loc_indices != other.loc_indices or \
-           self.loc_dirs != other.loc_dirs or \
+        if self.loc_dirs != other.loc_dirs or \
            self.bundle is not other.bundle:
             raise HaloSchemeException(
-                "Inconsistency found while building a HaloScheme"
+                "Inconsistency found while merging HaloSchemeEntries"
             )
 
         halos = self.halos | other.halos
@@ -61,6 +66,22 @@ class HaloSchemeEntry(EnrichedTuple):
 
         return HaloSchemeEntry(self.loc_indices, self.loc_dirs, halos, dims,
                                bundle=self.bundle, getters=self.getters)
+
+    def union(self, other):
+        """
+        Return a new HaloSchemeEntry that is the union of this and `other`.
+        The `loc_indices` and `loc_dirs` must be the same, otherwise an
+        exception is raised. This is a more restrictive version of `merge`,
+        which is used when we want to ensure that the halo exchanges are
+        performed at the same time index, i.e., the same `loc_indices` are
+        are expected.
+        """
+        if self.loc_indices != other.loc_indices:
+            raise HaloSchemeException(
+                "Inconsistency found while taking the union of HaloSchemeEntries"
+            )
+
+        return self.merge(other)
 
 
 Halo = namedtuple('Halo', 'dim side')
@@ -385,6 +406,10 @@ class HaloScheme:
         return mapper
 
     @cached_property
+    def functions(self):
+        return frozenset(self.fmapper)
+
+    @cached_property
     def dimensions(self):
         retval = set()
         for i in set().union(*self.halos.values()):
@@ -413,6 +438,38 @@ class HaloScheme:
     def arguments(self):
         return self.dimensions | set(flatten(self.honored.values()))
 
+    def issubset(self, other):
+        """
+        Check if `self` is a subset of `other`.
+        """
+        if not isinstance(other, HaloScheme):
+            return False
+
+        if not all(f in other.fmapper for f in self.fmapper):
+            return False
+
+        for f, hse0 in self.fmapper.items():
+            hse1 = other.fmapper[f]
+
+            # Clearly, `hse0`'s halos must be a subset of `hse1`'s halos...
+            if not hse0.halos.issubset(hse1.halos) or \
+               hse0.bundle is not hse1.bundle:
+                return False
+
+            # But now, to be a subset, `hse0`'s must be expecting such halos
+            # at a time index that is less than or equal to that of `hse1`
+            if hse0.loc_dirs != hse1.loc_dirs:
+                return False
+
+            loc_dirs = hse0.loc_dirs
+            raw_loc_indices = {d: (hse0.loc_indices[d], hse1.loc_indices[d])
+                               for d in hse0.loc_indices}
+            projected_loc_indices, _ = process_loc_indices(raw_loc_indices, loc_dirs)
+            if projected_loc_indices != hse1.loc_indices:
+                return False
+
+        return True
+
     def project(self, functions):
         """
         Create a new HaloScheme that only retains the HaloSchemeEntries corresponding
@@ -439,6 +496,15 @@ class HaloScheme:
         if f in fmapper:
             hse = fmapper[f].union(hse)
         fmapper[f] = hse
+        return HaloScheme.build(fmapper, self.honored)
+
+    def merge(self, hs):
+        """
+        Create a new HaloScheme that is the result of merging `hs` into `self`.
+        """
+        fmapper = dict(self.fmapper)
+        for f, hse in hs.fmapper.items():
+            fmapper[f] = fmapper.get(f, hse).merge(hse)
         return HaloScheme.build(fmapper, self.honored)
 
 
@@ -608,7 +674,7 @@ class HaloTouch(sympy.Function, Reconstructable):
     A SymPy object representing halo accesses through a HaloScheme.
     """
 
-    __rargs__ = ('args',)
+    __rargs__ = ('*args',)
     __rkwargs__ = ('halo_scheme',)
 
     def __new__(cls, *args, halo_scheme=None, **kwargs):
@@ -625,10 +691,12 @@ class HaloTouch(sympy.Function, Reconstructable):
         return str(self)
 
     def __hash__(self):
-        return hash(self.halo_scheme)
+        return hash((self.halo_scheme, *super()._hashable_content()))
 
     def __eq__(self, other):
-        return isinstance(other, HaloTouch) and self.halo_scheme == other.halo_scheme
+        return (isinstance(other, HaloTouch) and
+                self.args == other.args and
+                self.halo_scheme == other.halo_scheme)
 
     func = Reconstructable._rebuild
 
