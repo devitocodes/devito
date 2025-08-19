@@ -727,7 +727,6 @@ class TestMultiSubDomain:
 
 class TestBorder:
     # Note: This class is partially covered by doctests
-    # TODO: Will need to add MPI tests, including overrides
     def test_exceptions(self):
         """Test exceptions are raised for malformed specifications"""
         grid = Grid(shape=(5,))
@@ -918,6 +917,22 @@ class TestBorder:
                 check[2:-2, 2:-2, 2:-2] = 0
 
         assert np.all(f.data == check)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_mpi(self, mode):
+        shape = (7, 7)
+        grid = Grid(shape=shape)
+
+        border = Border(grid, 2)
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        Operator(Eq(f, f+1, subdomain=border))()
+
+        check = np.full(shape, 1, dtype=np.int32)
+        check[2:-2, 2:-2] = 0
+
+        data = f.data_gather()
+        if grid.distributor.myrank == 0:
+            assert np.all(data == check)
 
 
 class TestSubDomain_w_condition:
