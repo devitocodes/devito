@@ -6,7 +6,8 @@ from devito.core.cpu import (
     Cpu64CustomOperator, Cpu64CustomCXXOperator,
     Cpu64CXXNoopCOperator, Cpu64CXXNoopOmpOperator,
     Cpu64AdvCXXOperator, Cpu64AdvCXXOmpOperator,
-    Cpu64FsgCXXOperator, Cpu64FsgCXXOmpOperator
+    Cpu64FsgCXXOperator, Cpu64FsgCXXOmpOperator,
+    Cpu64CustomCXXOmpOperator, Cpu64CustomCOperator
 )
 from devito.core.intel import (
     Intel64AdvCOperator, Intel64AdvOmpOperator,
@@ -33,11 +34,11 @@ from devito.core.gpu import (
 from devito.operator.registry import operator_registry
 
 # Register CPU Operators
-operator_registry.add(Cpu64CustomOperator, Cpu64, 'custom', 'C')
+operator_registry.add(Cpu64CustomCOperator, Cpu64, 'custom', 'C')
 operator_registry.add(Cpu64CustomOperator, Cpu64, 'custom', 'openmp')
 operator_registry.add(Cpu64CustomOperator, Cpu64, 'custom', 'Copenmp')
 operator_registry.add(Cpu64CustomCXXOperator, Cpu64, 'custom', 'CXX')
-operator_registry.add(Cpu64CustomCXXOperator, Cpu64, 'custom', 'CXXopenmp')
+operator_registry.add(Cpu64CustomCXXOmpOperator, Cpu64, 'custom', 'CXXopenmp')
 
 operator_registry.add(Cpu64NoopCOperator, Cpu64, 'noop', 'C')
 operator_registry.add(Cpu64NoopOmpOperator, Cpu64, 'noop', 'openmp')

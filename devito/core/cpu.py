@@ -321,10 +321,23 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     assert not (set(_known_passes) & set(_known_passes_disabled))
 
 
-class Cpu64CustomCXXOperator(Cpu64CustomOperator):
+class Cpu64CustomCXXOmpOperator(Cpu64CustomOperator):
 
     _Target = CXXOmpTarget
     LINEARIZE = True
+
+
+class Cpu64CustomCOperator(Cpu64CustomOperator):
+
+    _Target = CTarget
+    LINEARIZE = False
+
+
+class Cpu64CustomCXXOperator(Cpu64CustomOperator):
+
+    _Target = CXXTarget
+    LINEARIZE = True
+
 
 # Language level
 

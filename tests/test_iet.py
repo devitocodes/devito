@@ -52,7 +52,7 @@ else
     (('Eq(v[t,x,y], v[t,x-1,y] + 1)', 'Eq(v[t,x,y], v[t,x+1,y] + u[x,y])'),
      (1, 2), (1, 1), ('xy', 'xy'))
 ])
-@switchconfig(openmp=False)
+@switchconfig(language='C')
 def test_make_efuncs(exprs, nfuncs, ntimeiters, nests):
     """Test construction of ElementalFunctions."""
     exprs = list(as_tuple(exprs))
