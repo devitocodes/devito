@@ -1,3 +1,10 @@
+""" This module implements superstepping.
+This is a timestepping scheme for advancing a solution multiple timesteps
+at once.
+
+The method employed here takes inspiration from the following paper:
+ - Nemeth, T et al. (2025): Superstep wavefield propagation
+"""
 from devito.types import Eq, Function, TimeFunction
 
 
