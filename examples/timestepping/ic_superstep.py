@@ -1,8 +1,8 @@
-''' Script that demonstrates the functionality of the superstep in 1D and 2D
+""" Script that demonstrates the functionality of the superstep in 1D and 2D
 with an initial condition
 In 1D: "Wave on a string"
 In 2d: "Ripple on a pond"
-'''
+"""
 from argparse import ArgumentParser
 from dataclasses import dataclass
 from functools import reduce
@@ -38,13 +38,6 @@ def gaussian_1d(x, mu=0, sigma_sq=1):
     return np.exp(-((x - mu)**2)/(2*sigma_sq))/(np.sqrt(2*np.pi*sigma_sq))
 
 
-def gaussian_2d(xx, yy, mu=0, sigma_sq=1):
-    """
-    Generate a 2D Gaussian initial condition
-    """
-    return np.exp(-((xx - mu)**2 + (yy - mu)**2)/(2*sigma_sq))/(2*np.pi*sigma_sq)
-
-
 def gaussian(dims, mu=0, sigma_sq=1):
     """
     Generate an N-dimensional Gaussian initial condition
@@ -73,7 +66,6 @@ def simulate_ic(parameters, step=1, snapshots=-1):
         in zip(p.origin, p.extent, p.shape)
     ])
     ic = gaussian(msh, mu=p.mu, sigma_sq=p.sigma_sq)
-    ic = gaussian_2d(*msh, mu=p.mu, sigma_sq=p.sigma_sq)
 
     # Stencil and operator
     if step == 1:
