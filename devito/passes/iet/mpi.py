@@ -141,7 +141,7 @@ def _merge_halospots(iet):
     mapper = HaloSpotMapper()
     for it, halo_spots in iter_mapper.items():
         for hs0, hs1 in combinations(halo_spots, r=2):
-            if _check_control_flow(hs0, hs1, cond_mapper):
+            if cond_mapper.get(hs0) != cond_mapper.get(hs1):
                 continue
 
             scope = _derive_scope(it, hs0, hs1)
@@ -191,7 +191,7 @@ def _hoist_invariant(iet):
     mapper = HaloSpotMapper()
     for it, halo_spots in iter_mapper.items():
         for hs0, hs1 in combinations(halo_spots, r=2):
-            if _check_control_flow(hs0, hs1, cond_mapper):
+            if cond_mapper.get(hs0) or cond_mapper.get(hs1):
                 continue
 
             scope = _derive_scope(it, hs0, hs1)
@@ -463,17 +463,6 @@ def _derive_scope(it, hs0, hs1):
     """
     expressions = FindWithin(Expression, hs0, stop=hs1).visit(it)
     return Scope(e.expr for e in expressions)
-
-
-def _check_control_flow(hs0, hs1, cond_mapper):
-    """
-    If there are Conditionals involved, both `hs0` and `hs1` must be
-    within the same Conditional, otherwise we would break control flow
-    """
-    cond0 = cond_mapper.get(hs0)
-    cond1 = cond_mapper.get(hs1)
-
-    return cond0 != cond1
 
 
 def _is_iter_carried(hsf, scope):
