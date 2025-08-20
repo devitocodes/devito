@@ -66,6 +66,12 @@ def acoustic_model(model, t0, t1, t2, critical_dt, source, step=1, snapshots=1):
     idx = nt1 % 3
     if step == 1:
         # Non-superstep case
+        # In this case we need to create a new `TimeFunction` and copy
+        # the previous soluton into that new function. This is necessary
+        # when a rotating buffer is used in the `TimeFunction` and the
+        # order of the timesteps is not necessarily the right order for
+        # resuming the simulation. We also create a new stencil that
+        # writes to the new `TimeFunction`.
         new_u = TimeFunction(
             name="new_u",
             grid=model.grid,
@@ -120,14 +126,14 @@ if __name__ == '__main__':
     if args.model == 'layered':
         source = (500, 20)
         t2 = 0.65
-        critical_dt=0.002357
+        critical_dt = 0.002357
         zlim = 30
     else:  # Marmousi
         # This requires the `devitocodes/data` repository, which we
         # assume to be checked out at `$VIRTUAL_ENV/src/data`.
         source = (1500, 1500)
         t2 = 0.5
-        critical_dt=0.0013728
+        critical_dt = 0.0013728
         zlim = 20
         tmp_model = demo_model(
             'marmousi-isotropic',
