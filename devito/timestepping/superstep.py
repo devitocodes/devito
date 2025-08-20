@@ -83,7 +83,7 @@ def superstep_solution_transfer(old, new, new_p, nt):
     # This method is completely generic for future development, but currently
     # only time_order == 2 is implemented!
     idx = nt % (old.time_order + 1) if old.save is None else -1
-    for ii in range(old.time_order + 1):
+    for ii in range(old.time_order):
         new.data[ii, :] = old.data[idx - ii - 1]
         new_p.data[ii, :] = old.data[idx - ii - 2]
 
