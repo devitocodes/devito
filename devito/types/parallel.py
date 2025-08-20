@@ -226,6 +226,8 @@ class Lock(Array):
 
     is_volatile = True
 
+    _symbol_prefix = 'lock'
+
     # Not a performance-sensitive object
     _data_alignment = False
 

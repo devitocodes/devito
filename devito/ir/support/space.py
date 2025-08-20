@@ -775,17 +775,19 @@ class IterationSpace(Space):
         super().__init__(intervals)
 
         # Normalize sub-iterators
-        sub_iterators = dict([(k, tuple(filter_ordered(as_tuple(v))))
-                              for k, v in (sub_iterators or {}).items()])
+        sub_iterators = sub_iterators or {}
+        sub_iterators = {d: tuple(filter_ordered(as_tuple(v)))
+                         for d, v in sub_iterators.items() if d in self.intervals}
         sub_iterators.update({i.dim: () for i in self.intervals
                               if i.dim not in sub_iterators})
         self._sub_iterators = frozendict(sub_iterators)
 
         # Normalize directions
-        if directions is None:
-            self._directions = frozendict([(i.dim, Any) for i in self.intervals])
-        else:
-            self._directions = frozendict(directions)
+        directions = directions or {}
+        directions = {d: v for d, v in directions.items() if d in self.intervals}
+        directions.update({i.dim: Any for i in self.intervals
+                           if i.dim not in directions})
+        self._directions = frozendict(directions)
 
     def __repr__(self):
         ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
@@ -807,8 +809,7 @@ class IterationSpace(Space):
         return len(self.itintervals) < len(other.itintervals)
 
     def __hash__(self):
-        return hash((super().__hash__(), self.sub_iterators,
-                     self.directions))
+        return hash((super().__hash__(), self.sub_iterators, self.directions))
 
     def __contains__(self, d):
         try:
