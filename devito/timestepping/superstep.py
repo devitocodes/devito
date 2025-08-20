@@ -51,8 +51,22 @@ def superstep_generator(field, stencil, k, nt=0):
     name = field.name
     grid = field.grid
     # time_order of `field` needs to be 2
-    u = TimeFunction(name=f'{name}_ss', grid=grid, time_order=2, space_order=2*k)
-    u_prev = TimeFunction(name=f'{name}_ss_p', grid=grid, time_order=2, space_order=2*k)
+    if field.time_order != 2:
+        raise ValueError(
+            'Superstepping is currently only supports `time_order=2`'
+        )
+    u = TimeFunction(
+        name=f'{name}_ss',
+        grid=grid,
+        time_order=field.time_order,
+        space_order=2*k
+    )
+    u_prev = TimeFunction(
+        name=f'{name}_ss_p',
+        grid=grid,
+        time_order=field.time_order,
+        space_order=2*k
+    )
 
     superstep_solution_transfer(field, u, u_prev, nt)
 
