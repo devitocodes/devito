@@ -5,6 +5,8 @@ In 2d: "Ripple on a pond"
 '''
 from argparse import ArgumentParser
 from dataclasses import dataclass
+from functools import reduce
+from operator import mul
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -40,7 +42,14 @@ def gaussian_2d(xx, yy, mu=0, sigma_sq=1):
     """
     Generate a 2D Gaussian initial condition
     """
-    return np.exp(-((xx - mu)**2 + (yy - mu)**2)/(2*sigma_sq))/(np.sqrt(2*np.pi*sigma_sq))
+    return np.exp(-((xx - mu)**2 + (yy - mu)**2)/(2*sigma_sq))/(2*np.pi*sigma_sq)
+
+
+def gaussian(dims, mu=0, sigma_sq=1):
+    """
+    Generate an N-dimensional Gaussian initial condition
+    """
+    return reduce(mul, [gaussian_1d(d, mu=mu, sigma_sq=sigma_sq) for d in dims])
 
 
 def simulate_ic(parameters, step=1, snapshots=-1):
@@ -59,13 +68,12 @@ def simulate_ic(parameters, step=1, snapshots=-1):
     stencil = Eq(u.forward, solve(pde, u.forward))
 
     # Initial condition
-    x = np.linspace(p.origin[0], p.extent[0], p.shape[0])
-    if d == 1:
-        ic = gaussian_1d(x, mu=p.mu, sigma_sq=p.sigma_sq)
-    elif d == 2:
-        y = np.linspace(p.origin[1], p.extent[1], p.shape[1])
-        xx, yy = np.meshgrid(x, y)
-        ic = gaussian_2d(xx, yy, mu=p.mu, sigma_sq=p.sigma_sq)
+    msh = np.meshgrid(*[
+        np.linspace(o, e, s) for o, e, s
+        in zip(p.origin, p.extent, p.shape)
+    ])
+    ic = gaussian(msh, mu=p.mu, sigma_sq=p.sigma_sq)
+    ic = gaussian_2d(*msh, mu=p.mu, sigma_sq=p.sigma_sq)
 
     # Stencil and operator
     if step == 1:
@@ -88,25 +96,22 @@ def simulate_ic(parameters, step=1, snapshots=-1):
     # Snapshot the solution
     if snapshots > 0:
         factor = int(np.ceil(nt/(snapshots + 1)))
-        t_sub = ConditionalDimension('t_sub', parent=grid.time_dim, factor=factor)
-        u_save = TimeFunction(
-            name='usave', grid=grid,
-            time_order=0, space_order=2,
-            save=snapshots//step + 1, time_dim=t_sub
-        )
+        time_dim = ConditionalDimension('t_sub', parent=grid.time_dim, factor=factor)
+        save = snapshots//step + 1
     else:
-        u_save = TimeFunction(
-            name='usave', grid=grid,
-            time_order=0, space_order=2,
-            save=1, time_dim=new_u.time_dim
-        )
+        time_dim = new_u.time_dim
+        save = 1
+
+    u_save = TimeFunction(
+        name='usave', grid=grid,
+        time_order=0, space_order=2,
+        save=save, time_dim=time_dim
+    )
     save = Eq(u_save, new_u)
 
     op = Operator([*stencil, save], opt='noop')
-    if d == 1:
-        op(time=nt - 2, dt=dt)
-    elif d == 2:
-        op(dt=dt)
+    kwargs = {'time': nt - 2} if d == 1 else {}
+    op(dt=dt, **kwargs)
 
     if d == 2 and step == 1:
         u_save.data[0, :] = ic
@@ -200,7 +205,7 @@ if __name__ == '__main__':
         # Initial Condition
         mu=500,
         sigma_sq=5000,
-        lim=1/(2*np.sqrt(2*np.pi*5000))
+        lim=1/(4*np.pi*5000)
     )
 
     # Supersteps
