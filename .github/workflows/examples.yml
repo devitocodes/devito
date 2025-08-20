@@ -81,6 +81,13 @@ jobs:
       run: |
         python examples/cfd/example_diffusion.py
 
+    - name: Timestepping examples
+      run: |
+        python examples/timestepping/ic_superstep.py -d 1
+        python examples/timestepping/ic_superstep.py -d 2
+        python examples/timestepping/acoustic_superstep.py --model layered
+        python examples/timestepping/acoustic_superstep.py --model marmousi
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
