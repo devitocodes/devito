@@ -117,6 +117,10 @@ class KSPType(PetscObject):
     dtype = CustomDtype('KSPType')
 
 
+class KSPNormType(PetscObject):
+    dtype = CustomDtype('KSPNormType')
+
+
 class CallbackSNES(PetscObject):
     """
     PETSc SNES : Non-Linear Systems Solvers.

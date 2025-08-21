@@ -14,7 +14,7 @@ __all__ = ['PETScSolve']
 
 # TODO: Rename this to petsc_solve, petscsolve?
 def PETScSolve(target_exprs, target=None, solver_parameters=None,
-               options_prefix=None, get_info=None):
+               options_prefix=None, get_info=[]):
     """
     Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
@@ -68,13 +68,13 @@ def PETScSolve(target_exprs, target=None, solver_parameters=None,
 
     get_info : list[str], optional
         A list of PETSc API functions to collect statistics from the solver.
-        For example, `['kspgetiterationnumber', 'kspgettolerances']`. 
+        For example, `['kspgetiterationnumber', 'kspgettolerances']`.
         Capitalisation does not matter; e.g. `'KSPGetIterationNumber'` and
         `'kspgetiterationnumber'` are treated the same.
 
         List of available functions:
         - ['kspgetiterationnumber', 'kspgettolerances', 'kspgetconvergedreason',
-           'snesgetiterationnumber']
+           'kspgettype', 'kspgetnormtype', 'snesgetiterationnumber']
 
     Returns
     -------
@@ -92,7 +92,7 @@ def PETScSolve(target_exprs, target=None, solver_parameters=None,
 
 class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
-                 get_info=None):
+                 get_info=[]):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
         self.time_mapper = None
         self.target_exprs = target_exprs

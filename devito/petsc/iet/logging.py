@@ -12,8 +12,8 @@ class PetscLogger:
     """
     Class for PETSc loggers that collect solver related statistics.
     """
-    def __init__(self, level, get_info=None, **kwargs):
-        self.function_list = get_info or []
+    def __init__(self, level, get_info=[], **kwargs):
+        self.function_list = get_info
 
         self.sobjs = kwargs.get('solver_objs')
         self.sreg = kwargs.get('sregistry')
@@ -28,6 +28,8 @@ class PetscLogger:
                 'kspgettolerances',
                 'kspgetconvergedreason',
                 'kspgettype',
+                'kspgettype',
+                'kspgetnormtype',
                 # SNES specific
                 'snesgetiterationnumber',
             ]

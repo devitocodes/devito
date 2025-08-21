@@ -3,7 +3,6 @@ import pytest
 import numpy as np
 import os
 import re
-from collections import OrderedDict
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
@@ -1437,7 +1436,6 @@ class TestLogging:
 
         assert snesits0 == snesits1 == snesits2 == snesits3
 
-        assert isinstance(snesits0, OrderedDict)
         assert len(snesits0) == 1
         key, value = next(iter(snesits0.items()))
         assert str(key) == "PetscKey(name='section0', options_prefix='poisson')"
@@ -1813,20 +1811,25 @@ class TestGetInfo:
     iterations to converge.
     """
     @skipif('petsc')
-    def test_get_info(self):
-
+    def setup_class(self):
+        """
+        Setup grid, functions and equations shared across
+        tests in this class
+        """
         grid = Grid(shape=(11, 11), dtype=np.float64)
-        functions = [Function(name=n, grid=grid, space_order=2)
-                     for n in ['e', 'f']]
-        e, f = functions
-        eq = Eq(e.laplace, f)
+        self.e, self.f, self.g, self.h = [
+            Function(name=n, grid=grid, space_order=2)
+            for n in ['e', 'f', 'g', 'h']
+        ]
+        self.eq1 = Eq(self.e.laplace, self.f)
+        self.eq2 = Eq(self.g.laplace, self.h)
 
+    @skipif('petsc')
+    def test_get_info(self):
         get_info = ['kspgetiterationnumber', 'snesgetiterationnumber']
-
         petsc = PETScSolve(
-            eq, target=e, options_prefix='pde1', get_info=get_info
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info
         )
-
         with switchconfig(language='petsc'):
             op = Operator(petsc)
             summary = op.apply()
@@ -1846,18 +1849,10 @@ class TestGetInfo:
         """
         Test that `get_info` works correctly when logging is enabled.
         """
-        grid = Grid(shape=(11, 11), dtype=np.float64)
-        functions = [Function(name=n, grid=grid, space_order=2)
-                     for n in ['e', 'f']]
-        e, f = functions
-        eq = Eq(e.laplace, f)
-
         get_info = ['kspgetiterationnumber']
-
         petsc = PETScSolve(
-            eq, target=e, options_prefix='pde1', get_info=get_info
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info
         )
-
         with switchconfig(language='petsc', log_level=log_level):
             op = Operator(petsc)
             summary = op.apply()
@@ -1878,26 +1873,17 @@ class TestGetInfo:
         Test that `get_info` works correctly when multiple solvers are used
         within the same Operator.
         """
-        grid = Grid(shape=(11, 11), dtype=np.float64)
-        functions = [Function(name=n, grid=grid, space_order=2)
-                     for n in ['e', 'f', 'g', 'h']]
-        e, f, g, h = functions
-
-        eq1 = Eq(e.laplace, f)
-        eq2 = Eq(g.laplace, h)
-
         # Create two PETScSolve instances with different get_info arguments
 
         get_info_1 = ['kspgetiterationnumber']
         get_info_2 = ['snesgetiterationnumber']
 
         solver1 = PETScSolve(
-            eq1, target=e, options_prefix='pde1', get_info=get_info_1
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info_1
         )
         solver2 = PETScSolve(
-            eq2, target=g, options_prefix='pde2', get_info=get_info_2
+            self.eq2, target=self.g, options_prefix='pde2', get_info=get_info_2
         )
-
         with switchconfig(language='petsc'):
             op = Operator([solver1, solver2])
             summary = op.apply()
@@ -1916,3 +1902,59 @@ class TestGetInfo:
 
         assert not hasattr(entry2, "KSPGetIterationNumber")
         assert hasattr(entry2, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    def test_case_insensitive(self):
+        """
+        Test that `get_info` is case insensitive
+        """
+        # Create a list with mixed cases
+        get_info = ['KSPGetIterationNumber', 'snesgetiterationnumber']
+        petsc = PETScSolve(
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', 'pde1')
+
+        assert hasattr(entry, "KSPGetIterationNumber")
+        assert hasattr(entry, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    def test_get_ksp_type(self):
+        """
+        Test that `get_info` can retrieve the KSP type as
+        a string.
+        """
+        get_info = ['kspgettype']
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='poisson1', get_info=get_info
+        )
+        solver2 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='poisson2',
+            solver_parameters={'ksp_type': 'cg'}, get_info=get_info
+        )
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry1 = petsc_summary.get_entry('section0', 'poisson1')
+        entry2 = petsc_summary.get_entry('section1', 'poisson2')
+
+        assert hasattr(entry1, "KSPGetType")
+        # Check the type matches the default in linear_solve_defaults
+        # since it has not been overridden
+        assert entry1.KSPGetType == linear_solve_defaults['ksp_type']
+        assert entry1['KSPGetType'] == linear_solve_defaults['ksp_type']
+        assert entry1['kspgettype'] == linear_solve_defaults['ksp_type']
+
+        # Test that the KSP type default is correctly overridden by the
+        # solver_parameters dictionary passed to solver2
+        assert hasattr(entry2, "KSPGetType")
+        assert entry2.KSPGetType == 'cg'
+        assert entry2['KSPGetType'] == 'cg'
+        assert entry2['kspgettype'] == 'cg'

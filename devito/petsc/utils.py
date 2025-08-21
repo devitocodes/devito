@@ -95,8 +95,13 @@ def get_petsc_type_mappings():
 petsc_type_mappings = get_petsc_type_mappings()
 
 
+# NOTE: These mappings are only used when constructing ctypes.Structures
+# that wrap PETSc objects. In the generated C code, the fields will still
+# appear as the actual PETSc types.
 fixed_petsc_type_mappings = {
     'KSPType': ctypes.c_char_p,
+    'KSPConvergedReason': ctypes.c_int,
+    'KSPNormType': ctypes.c_int,
 }
 
 
