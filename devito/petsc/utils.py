@@ -78,32 +78,30 @@ def get_petsc_type_mappings():
     try:
         petsc_precision = petsc_variables['PETSC_PRECISION']
     except KeyError:
-        mapper = {}
+        printer_mapper = {}
     else:
         petsc_scalar = 'PetscScalar'
         # TODO: Check to see whether Petsc is compiled with
         # 32-bit or 64-bit integers
-        mapper = {ctypes.c_int: 'PetscInt'}
+        printer_mapper = {ctypes.c_int: 'PetscInt'}
 
         if petsc_precision == 'single':
-            mapper[ctypes.c_float] = petsc_scalar
+            printer_mapper[ctypes.c_float] = petsc_scalar
         elif petsc_precision == 'double':
-            mapper[ctypes.c_double] = petsc_scalar
-    return mapper
+            printer_mapper[ctypes.c_double] = petsc_scalar
+
+        # Used to construct ctypes.Structures that wrap PETSc objects
+        petsc_type_to_ctype = {v: k for k, v in printer_mapper.items()}
+        # Add other PETSc types
+        petsc_type_to_ctype.update({
+            'KSPType': ctypes.c_char_p,
+            'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
+            'KSPNormType': petsc_type_to_ctype['PetscInt'],
+        })
+    return printer_mapper, petsc_type_to_ctype
 
 
-# This mapping is used by the printer to always convert
-# int, float/double to `PetscInt` and `PetscScalar`
-petsc_type_mappings = get_petsc_type_mappings()
-
-
-# Used to construct ctypes.Structures that wrap PETSc objects
-petsc_type_to_ctype = {v: k for k, v in petsc_type_mappings.items()}
-petsc_type_to_ctype.update({
-    'KSPType': ctypes.c_char_p,
-    'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
-    'KSPNormType': petsc_type_to_ctype['PetscInt'],
-})
+petsc_type_mappings, petsc_type_to_ctype = get_petsc_type_mappings()
 
 
 petsc_languages = ['petsc']
