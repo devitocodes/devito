@@ -26,15 +26,20 @@ from devito.petsc.solver_parameters import linear_solve_defaults
 @pytest.fixture(scope='session')
 def command_line():
     # One random prefix to use per test that "tests" the command line args
-    prefix = ('d17weqroegn', 'riabfodkj')
+    prefix = ('d17weqroeg', 'riabfodkj5', 'fir8o3lsak', 'zwejklqn25')
 
     petsc_option = (
         ('ksp_rtol',),
-        ('ksp_rtol', 'ksp_atol')
+        ('ksp_rtol', 'ksp_atol'),
+        ('ksp_rtol', 'ksp_atol', 'ksp_divtol', 'ksp_max_it'),
+        ('ksp_type',)
+
     )
     value = (
         (1e-8,),
         (1e-11, 1e-15),
+        (1e-3, 1e-10, 50000, 2000),
+        ('cg',)
     )
     argv = []
     expected = {}
@@ -1728,20 +1733,20 @@ class TestSolverParameters:
         assert entry2.KSPGetTolerances['rtol'] == 1e-12
 
     @skipif('petsc')
-    def test_command_line_priority_1(self, command_line):
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_tols_1(self, command_line, log_level):
         """
-        Test solver parameters specifed via the command line
-        take precedence over those set in the solver_parameters
-        dictionary.
+        Test solver tolerances specifed via the command line
+        take precedence over those set by the defaults.
         """
-        prefix = 'd17weqroegn'
+        prefix = 'd17weqroeg'
         _, expected = command_line
 
         solver1 = PETScSolve(
             self.eq1, target=self.e,
             options_prefix=prefix
         )
-        with switchconfig(language='petsc', log_level='DEBUG'):
+        with switchconfig(language='petsc', log_level=log_level):
             op = Operator(solver1)
             summary = op.apply()
 
@@ -1751,17 +1756,16 @@ class TestSolverParameters:
             assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
 
     @skipif('petsc')
-    def test_command_line_priority_2(self, command_line):
-        """
-        """
-        prefix = 'riabfodkj'
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_tols_2(self, command_line, log_level):
+        prefix = 'riabfodkj5'
         _, expected = command_line
 
         solver1 = PETScSolve(
             self.eq1, target=self.e,
             options_prefix=prefix
         )
-        with switchconfig(language='petsc', log_level='DEBUG'):
+        with switchconfig(language='petsc', log_level=log_level):
             op = Operator(solver1)
             summary = op.apply()
 
@@ -1769,6 +1773,70 @@ class TestSolverParameters:
         entry = petsc_summary.get_entry('section0', prefix)
         for opt, val in expected[prefix]:
             assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_tols3(self, command_line, log_level):
+        """
+        Test solver tolerances specifed via the command line
+        take precedence over those specified by the `solver_parameters` dict.
+        """
+        prefix = 'fir8o3lsak'
+        _, expected = command_line
+
+        # Set solver parameters that differ both from the defaults and from the
+        # values provided on the command line for this prefix (see the `command_line`
+        # fixture).
+        params = {
+            'ksp_rtol': 1e-13,
+            'ksp_atol': 1e-35,
+            'ksp_divtol': 300000,
+            'ksp_max_it': 500
+        }
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            solver_parameters=params,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver1)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for opt, val in expected[prefix]:
+            assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_ksp_type(self, command_line, log_level):
+        """
+        Test the solver parameter 'ksp_type' specified via the command line
+        take precedence over the one specified in the `solver_parameters` dict.
+        """
+        prefix = 'zwejklqn25'
+        _, expected = command_line
+
+        # Set `ksp_type`` in the solver parameters, which should be overridden
+        # by the command line value (which is set to `cg` -
+        # see the `command_line` fixture).
+        params = {'ksp_type': 'richardson'}
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            solver_parameters=params,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver1)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for _, val in expected[prefix]:
+            assert entry.KSPGetType == val
+            assert not entry.KSPGetType == params['ksp_type']
 
 
 class TestHashing:

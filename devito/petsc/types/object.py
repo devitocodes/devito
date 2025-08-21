@@ -1,4 +1,4 @@
-from ctypes import POINTER, c_char, c_char_p
+from ctypes import POINTER, c_char
 
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
@@ -311,12 +311,6 @@ class ArgvSymbol(DataSymbol):
     @property
     def _C_ctype(self):
         return POINTER(POINTER(c_char))
-
-
-# class CharPtr(DataSymbol):
-#     @property
-#     def _C_ctype(self):
-#         return c_char_p
 
 
 FREE_PRIORITY = {
