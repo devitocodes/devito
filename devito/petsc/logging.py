@@ -29,7 +29,6 @@ class PetscEntry:
 
 class PetscSummary(dict):
     """
-    # TODO: Actually print to screen when DEBUG of PERF is enabled
     A summary of PETSc statistics collected for all solver runs
     associated with a single operator during execution.
     """
@@ -69,6 +68,8 @@ class PetscSummary(dict):
         Create a named tuple entry for the given PetscInfo object,
         containing the values for each PETSc function call.
         """
+        # Collect the function names associated with this PetscInfo
+        # instance (i.e., for a single PETScSolve).
         funcs = [
             petsc_return_variable_dict[f].name for f in petscinfo.function_list
         ]

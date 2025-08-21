@@ -25,21 +25,25 @@ from devito.petsc.solver_parameters import linear_solve_defaults
 
 @pytest.fixture(scope='session')
 def command_line():
-    # One random prefix to use per test that "tests" the command line args
-    prefix = ('d17weqroeg', 'riabfodkj5', 'fir8o3lsak', 'zwejklqn25')
+
+    # Random prefixes to validate command line argument parsing
+    prefix = (
+        'd17weqroeg', 'riabfodkj5', 'fir8o3lsak',
+        'zwejklqn25', 'qtr2vfvwiu')
 
     petsc_option = (
         ('ksp_rtol',),
         ('ksp_rtol', 'ksp_atol'),
         ('ksp_rtol', 'ksp_atol', 'ksp_divtol', 'ksp_max_it'),
-        ('ksp_type',)
-
+        ('ksp_type',),
+        ('ksp_divtol', 'ksp_type')
     )
     value = (
         (1e-8,),
         (1e-11, 1e-15),
         (1e-3, 1e-10, 50000, 2000),
-        ('cg',)
+        ('cg',),
+        (22000, 'richardson'),
     )
     argv = []
     expected = {}
@@ -1663,9 +1667,6 @@ class TestSolverParameters:
 
     @skipif('petsc')
     def test_clearing_options(self):
-        # TODO: Extend this test to check that options are only cleared
-        # if they have NOT ben set via the command line
-
         # Explicitly set the solver parameters
         solver1 = PETScSolve(
             self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
@@ -1737,7 +1738,7 @@ class TestSolverParameters:
     def test_command_line_priority_tols_1(self, command_line, log_level):
         """
         Test solver tolerances specifed via the command line
-        take precedence over those set by the defaults.
+        take precedence over those specified in the defaults.
         """
         prefix = 'd17weqroeg'
         _, expected = command_line
@@ -1837,6 +1838,55 @@ class TestSolverParameters:
         for _, val in expected[prefix]:
             assert entry.KSPGetType == val
             assert not entry.KSPGetType == params['ksp_type']
+
+    @skipif('petsc')
+    def test_not_set_or_clear_command_line_opts(self, command_line):
+        """
+        Verify that if an option is set via the command line,
+        the corresponding entry in `linear_solve_defaults` or in the user
+        specified `solver_parameters` is not set or cleared in the
+        generated code. (The command line option will have already been set in
+        the global PetscOptions database during PetscInitialize().)
+        """
+        prefix = 'qtr2vfvwiu'
+
+        solver = PETScSolve(
+            self.eq1, target=self.e,
+            # Specify a solver parameter that is not set via the
+            # command line (see the `command_line` fixture for this prefix).
+            solver_parameters={'ksp_rtol': '1e-10'},
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+
+        set_options_callback = str(op._func_table['SetPetscOptions0'].root)
+        clear_options_callback = str(op._func_table['ClearPetscOptions0'].root)
+
+        # Check that the `ksp_rtol` option IS set and cleared explicitly
+        # since it is NOT set via the command line.
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_rtol","1e-10")' \
+            in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_rtol")' \
+            in clear_options_callback
+
+        # Check that the `ksp_divtol` and `ksp_type` options are NOT set
+        # or cleared explicitly since they ARE set via the command line.
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_div_tol",' \
+            not in set_options_callback
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_type",' \
+            not in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_div_tol"));' \
+            not in clear_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_type"));' \
+            not in clear_options_callback
+
+        # Check that options specifed by the `linear_solver_defaults`
+        # are still set and cleared
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_atol",' \
+            in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_atol"));' \
+            in clear_options_callback
 
 
 class TestHashing:

@@ -69,7 +69,7 @@ def lower_petsc(iet, **kwargs):
     # Map PETScSolve to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
-    # Prefixes within the same Operator should not be duplicated
+    # Prefixes within the same `Operator` should not be duplicated
     prefixes = [d.expr.rhs.user_prefix for d in data if d.expr.rhs.user_prefix]
     duplicates = {p for p in prefixes if prefixes.count(p) > 1}
 
