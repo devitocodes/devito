@@ -7,7 +7,7 @@ from devito.types import CompositeObject
 from devito.petsc.types import (
     PetscInt, PetscScalar, KSPType, KSPConvergedReason, KSPNormType
 )
-from devito.petsc.utils import petsc_type_mappings, fixed_petsc_type_mappings
+from devito.petsc.utils import petsc_type_to_ctype
 
 
 class PetscEntry:
@@ -142,7 +142,6 @@ class PetscInfo(CompositeObject):
         self.function_list = function_list
         self.formatted_prefix = inject_solve.expr.rhs.formatted_prefix
 
-        mapper = {v: k for k, v in petsc_type_mappings.items()}
         pfields = []
 
         # All petsc options needed to form the PetscInfo struct
@@ -152,11 +151,9 @@ class PetscInfo(CompositeObject):
         for petsc_option in self._fields:
             # petsc_type is e.g. 'PetscInt', 'PetscScalar', 'KSPType'
             petsc_type = str(petsc_option.dtype)
-            if petsc_type in mapper:
-                ctype = mapper[petsc_type]
-            else:
-                ctype = fixed_petsc_type_mappings[petsc_type]
+            ctype = petsc_type_to_ctype[petsc_type]
             pfields.append((petsc_option.name, ctype))
+
         super().__init__(name, pname, pfields)
 
     @property

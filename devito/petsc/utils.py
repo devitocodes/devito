@@ -92,17 +92,18 @@ def get_petsc_type_mappings():
     return mapper
 
 
+# This mapping is used by the printer to always convert
+# int, float/double to `PetscInt` and `PetscScalar`
 petsc_type_mappings = get_petsc_type_mappings()
 
 
-# NOTE: These mappings are only used when constructing ctypes.Structures
-# that wrap PETSc objects. In the generated C code, the fields will still
-# appear as the actual PETSc types.
-fixed_petsc_type_mappings = {
+# Used to construct ctypes.Structures that wrap PETSc objects
+petsc_type_to_ctype = {v: k for k, v in petsc_type_mappings.items()}
+petsc_type_to_ctype.update({
     'KSPType': ctypes.c_char_p,
-    'KSPConvergedReason': ctypes.c_int,
-    'KSPNormType': ctypes.c_int,
-}
+    'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
+    'KSPNormType': petsc_type_to_ctype['PetscInt'],
+})
 
 
 petsc_languages = ['petsc']
