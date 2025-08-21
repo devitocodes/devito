@@ -28,7 +28,6 @@ class PetscLogger:
                 'kspgettolerances',
                 'kspgetconvergedreason',
                 'kspgettype',
-                'kspgettype',
                 'kspgetnormtype',
                 # SNES specific
                 'snesgetiterationnumber',
