@@ -79,6 +79,7 @@ def get_petsc_type_mappings():
         petsc_precision = petsc_variables['PETSC_PRECISION']
     except KeyError:
         printer_mapper = {}
+        petsc_type_to_ctype = {}
     else:
         petsc_scalar = 'PetscScalar'
         # TODO: Check to see whether Petsc is compiled with
