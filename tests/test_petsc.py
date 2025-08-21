@@ -1840,13 +1840,13 @@ class TestSolverParameters:
             assert not entry.KSPGetType == params['ksp_type']
 
     @skipif('petsc')
-    def test_not_set_or_clear_command_line_opts(self, command_line):
+    def test_command_line_priority_ccode(self, command_line):
         """
         Verify that if an option is set via the command line,
-        the corresponding entry in `linear_solve_defaults` or in the user
-        specified `solver_parameters` is not set or cleared in the
-        generated code. (The command line option will have already been set in
-        the global PetscOptions database during PetscInitialize().)
+        the corresponding entry in `linear_solve_defaults` or `solver_parameters`
+        is not set or cleared in the generated code. (The command line option
+        will have already been set in the global PetscOptions database
+        during PetscInitialize().)
         """
         prefix = 'qtr2vfvwiu'
 
