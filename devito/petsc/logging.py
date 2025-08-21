@@ -1,12 +1,13 @@
-from collections import namedtuple, OrderedDict
+import os
+from collections import namedtuple
 from dataclasses import dataclass
-from functools import cached_property
-from cgen import Struct, Value
 
 from devito.types import CompositeObject
 
-from devito.petsc.types import PetscInt, PetscScalar, KSPType
-from devito.petsc.utils import petsc_type_mappings, fixed_petsc_type_mappings
+from devito.petsc.types import (
+    PetscInt, PetscScalar, KSPType, KSPConvergedReason, KSPNormType
+)
+from devito.petsc.utils import petsc_type_to_ctype
 
 
 class PetscEntry:
@@ -28,7 +29,6 @@ class PetscEntry:
 
 class PetscSummary(dict):
     """
-    # TODO: Actually print to screen when DEBUG of PERF is enabled
     A summary of PETSc statistics collected for all solver runs
     associated with a single operator during execution.
     """
@@ -68,6 +68,8 @@ class PetscSummary(dict):
         Create a named tuple entry for the given PetscInfo object,
         containing the values for each PETSc function call.
         """
+        # Collect the function names associated with this PetscInfo
+        # instance (i.e., for a single PETScSolve).
         funcs = [
             petsc_return_variable_dict[f].name for f in petscinfo.function_list
         ]
@@ -79,18 +81,18 @@ class PetscSummary(dict):
         For each function name in `self._functions` (e.g., 'KSPGetIterationNumber'),
         dynamically add a property to the class with the same name.
 
-        Each property returns an OrderedDict that maps each PetscKey to the
+        Each property returns a dict mapping each PetscKey to the
         result of looking up that function on the corresponding PetscEntry,
         if the function exists on that entry.
         """
         def make_property(function):
             def getter(self):
-                return OrderedDict(
-                    (k, getattr(v, function))
+                return {
+                    k: getattr(v, function)
                     for k, v in self.items()
                     # Only include entries that have the function
                     if hasattr(v, function)
-                )
+                }
             return property(getter)
 
         for f in self._functions:
@@ -140,28 +142,23 @@ class PetscInfo(CompositeObject):
         self.function_list = function_list
         self.formatted_prefix = inject_solve.expr.rhs.formatted_prefix
 
-        mapper = {v: k for k, v in petsc_type_mappings.items()}
-
         pfields = []
-        self._tmp_fields = []
 
-        # obj_mapper is e.g {'kspits': kspits0}
-        # TODO: think this can just be for (x,y) in ....
-        for obj_mapper in petsc_option_mapper.values():
-            for petsc_option in obj_mapper.values():
-                self._tmp_fields.append(petsc_option)
-                # petsc_type is e.g. 'PetscInt', 'PetscScalar', 'KSPType'
-                petsc_type = str(petsc_option.dtype)
-                if petsc_type in mapper:
-                    ctype = mapper[petsc_type]
-                else:
-                    ctype = fixed_petsc_type_mappings[petsc_type] 
-                pfields.append((petsc_option.name, ctype))
+        # All petsc options needed to form the PetscInfo struct
+        # e.g (kspits0, rtol0, atol0, ...)
+        self._fields = [i for j in petsc_option_mapper.values() for i in j.values()]
+
+        for petsc_option in self._fields:
+            # petsc_type is e.g. 'PetscInt', 'PetscScalar', 'KSPType'
+            petsc_type = str(petsc_option.dtype)
+            ctype = petsc_type_to_ctype[petsc_type]
+            pfields.append((petsc_option.name, ctype))
+
         super().__init__(name, pname, pfields)
 
     @property
     def fields(self):
-        return self._tmp_fields
+        return self._fields
 
     @property
     def section(self):
@@ -184,8 +181,10 @@ class PetscInfo(CompositeObject):
         # Maps the petsc_option to its generated variable name e.g {'its': its0}
         obj_mapper = self.petsc_option_mapper[attr]
 
-        # Helper to get the value from the profiling struct
-        get_val = lambda v: getattr(self.value._obj, v.name)
+        # Decode the value if it is a bytes object
+        def decode_if_bytes(val):
+            return str(os.fsdecode(val)) if isinstance(val, bytes) else val
+        get_val = lambda v: decode_if_bytes(getattr(self.value._obj, v.name))
 
         # - If the function returns a single value (e.g., KSPGetIterationNumber),
         #   return that value directly.
@@ -228,7 +227,7 @@ petsc_return_variable_dict = {
     ),
     'kspgetconvergedreason': PetscReturnVariable(
         name='KSPGetConvergedReason',
-        variable_type=(PetscInt,),
+        variable_type=(KSPConvergedReason,),
         input_params='ksp',
         output_param=('reason',),
     ),
@@ -238,7 +237,13 @@ petsc_return_variable_dict = {
         input_params='ksp',
         output_param=('ksptype',),
     ),
-    # SNES specific
+    'kspgetnormtype': PetscReturnVariable(
+        name='KSPGetNormType',
+        variable_type=(KSPNormType,),
+        input_params='ksp',
+        output_param=('kspnormtype',),
+    ),
+    # SNES specific -> will be extended when non-linear solvers are supported
     'snesgetiterationnumber': PetscReturnVariable(
         name='SNESGetIterationNumber',
         variable_type=(PetscInt,),

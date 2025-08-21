@@ -15,14 +15,13 @@ _petsc_initialized = False
 global _petsc_clargs
 
 
-dummy = Symbol(name='d')
-
-
 def PetscInitialize(clargs=sys.argv):
     global _petsc_initialized
     global _petsc_clargs
 
     if not _petsc_initialized:
+        dummy = Symbol(name='d')
+
         if clargs is not sys.argv:
             clargs = [sys.argv[0], *clargs]
 

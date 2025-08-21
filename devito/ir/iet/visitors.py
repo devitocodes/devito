@@ -292,7 +292,6 @@ class CGen(Visitor):
         for i, (n, ct) in zip(fields, ctype._fields_):
             try:
                 entries.append(self._gen_value(i, 0, masked=('const',)))
-                
             except AttributeError:
                 cstr = self.ccode(ct)
                 if ct is c_restrict_void_p:
@@ -1069,7 +1068,7 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         Drive the search. Accepted:
         - `symbolics`: Collect all AbstractFunction objects, default
         - `basics`: Collect all Basic objects
-        - `abstractsymbols`: Collect all AbstractSymbol objects
+        - `symbols`: Collect all AbstractSymbol objects
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects

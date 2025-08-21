@@ -2,10 +2,10 @@ import os
 import ctypes
 from pathlib import Path
 
-from devito.tools import memoized_func, filter_ordered
-from devito.types import Symbol, SteppingDimension
+from devito.tools import memoized_func, filter_ordered, as_tuple
+from devito.types import Symbol, SteppingDimension, TimeDimension
 from devito.operations.solve import eval_time_derivatives
-from devito.symbolics import retrieve_functions
+from devito.symbolics import retrieve_functions, retrieve_dimensions
 
 
 class PetscOSError(OSError):
@@ -78,26 +78,31 @@ def get_petsc_type_mappings():
     try:
         petsc_precision = petsc_variables['PETSC_PRECISION']
     except KeyError:
-        mapper = {}
+        printer_mapper = {}
+        petsc_type_to_ctype = {}
     else:
         petsc_scalar = 'PetscScalar'
         # TODO: Check to see whether Petsc is compiled with
         # 32-bit or 64-bit integers
-        mapper = {ctypes.c_int: 'PetscInt'}
+        printer_mapper = {ctypes.c_int: 'PetscInt'}
 
         if petsc_precision == 'single':
-            mapper[ctypes.c_float] = petsc_scalar
+            printer_mapper[ctypes.c_float] = petsc_scalar
         elif petsc_precision == 'double':
-            mapper[ctypes.c_double] = petsc_scalar
-    return mapper
+            printer_mapper[ctypes.c_double] = petsc_scalar
+
+        # Used to construct ctypes.Structures that wrap PETSc objects
+        petsc_type_to_ctype = {v: k for k, v in printer_mapper.items()}
+        # Add other PETSc types
+        petsc_type_to_ctype.update({
+            'KSPType': ctypes.c_char_p,
+            'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
+            'KSPNormType': petsc_type_to_ctype['PetscInt'],
+        })
+    return printer_mapper, petsc_type_to_ctype
 
 
-petsc_type_mappings = get_petsc_type_mappings()
-
-
-fixed_petsc_type_mappings = {
-    'KSPType': ctypes.c_char_p,
-}
+petsc_type_mappings, petsc_type_to_ctype = get_petsc_type_mappings()
 
 
 petsc_languages = ['petsc']
@@ -108,10 +113,10 @@ def get_funcs(exprs):
         f for e in exprs
         for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
     ]
-    return filter_ordered(funcs)
+    return as_tuple(filter_ordered(funcs))
 
 
-def generate_time_mapper(funcs):
+def generate_time_mapper(exprs):
     """
     Replace time indices with `Symbols` in expressions used within
     PETSc callback functions. These symbols are Uxreplaced at the IET
@@ -124,20 +129,21 @@ def generate_time_mapper(funcs):
     the main kernel.
     Examples
     --------
-    >>> funcs = [
-    >>>     f1(t + dt, x, y),
-    >>>     g1(t + dt, x, y),
-    >>>     g2(t, x, y),
-    >>>     f1(t, x, y)
-    >>> ]
+    >>> exprs = (Eq(f1(t + dt, x, y), g1(t + dt, x, y) + g2(t, x, y)*f1(t, x, y)),)
     >>> generate_time_mapper(funcs)
     {t + dt: tau0, t: tau1}
     """
-    time_indices = list({
+    # First, map any actual TimeDimensions
+    time_indices = [d for d in retrieve_dimensions(exprs) if isinstance(d, TimeDimension)]
+
+    funcs = get_funcs(exprs)
+
+    time_indices.extend(list({
         i if isinstance(d, SteppingDimension) else d
         for f in funcs
         for i, d in zip(f.indices, f.dimensions)
         if d.is_Time
-    })
+    }))
     tau_symbs = [Symbol('tau%d' % i) for i in range(len(time_indices))]
+
     return dict(zip(time_indices, tau_symbs))

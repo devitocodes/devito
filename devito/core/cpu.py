@@ -14,6 +14,8 @@ from devito.passes.iet import (CTarget, CXXTarget, COmpTarget, CXXOmpTarget,
                                check_stability, PetscTarget)
 from devito.tools import timed_pass
 
+from devito.petsc.iet.passes import lower_petsc_symbols
+
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
            'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
            'Cpu64CustomOperator', 'Cpu64CustomCXXOperator', 'Cpu64AdvCXXOperator',
@@ -143,6 +145,9 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
 
+        # Lower PETSc symbols
+        lower_petsc_symbols(graph, **kwargs)
+
         return graph
 
 
@@ -221,6 +226,9 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
+
+        # Lower PETSc symbols
+        lower_petsc_symbols(graph, **kwargs)
 
         # Linearize n-dimensional Indexeds
         linearize(graph, **kwargs)
