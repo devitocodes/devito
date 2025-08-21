@@ -12,19 +12,28 @@ class PetscLogger:
     """
     Class for PETSc loggers that collect solver related statistics.
     """
-    def __init__(self, level, **kwargs):
+    def __init__(self, level, get_info=[], **kwargs):
+
+        self.function_list = get_info
         self.sobjs = kwargs.get('solver_objs')
         self.sreg = kwargs.get('sregistry')
         self.section_mapper = kwargs.get('section_mapper', {})
         self.inject_solve = kwargs.get('inject_solve', None)
 
-        self.function_list = []
-
         if level <= PERF:
-            self.function_list.extend([
+            funcs = [
+                # KSP specific
                 'kspgetiterationnumber',
-                'snesgetiterationnumber'
-            ])
+                'kspgettolerances',
+                'kspgetconvergedreason',
+                'kspgettype',
+                'kspgetnormtype',
+                # SNES specific
+                'snesgetiterationnumber',
+            ]
+            for f in funcs:
+                if f not in self.function_list:
+                    self.function_list.append(f)
 
         # TODO: To be extended with if level <= DEBUG: ...
 
@@ -32,23 +41,36 @@ class PetscLogger:
         pname = self.sreg.make_name(prefix='petscprofiler')
 
         self.statstruct = PetscInfo(
-            name, pname, self.logobjs, self.sobjs,
+            name, pname, self.petsc_option_mapper, self.sobjs,
             self.section_mapper, self.inject_solve,
             self.function_list
         )
 
     @cached_property
-    def logobjs(self):
+    def petsc_option_mapper(self):
         """
-        Create PETSc objects specifically needed for logging solver statistics.
-        """
-        return {
-            info.name: info.variable_type(
-                self.sreg.make_name(prefix=info.output_param)
-            )
-            for func_name in self.function_list
-            for info in [petsc_return_variable_dict[func_name]]
+        For each function in `self.function_list`, look up its metadata in
+        `petsc_return_variable_dict` and instantiate the corresponding PETSc logging
+        variables with names from the symbol registry.
+
+        Example:
+        --------
+        >>> self.function_list
+        ['kspgetiterationnumber', 'snesgetiterationnumber', 'kspgettolerances']
+
+        >>> self.petsc_option_mapper
+        {
+            'KSPGetIterationNumber': {'kspits': kspits0},
+            'KSPGetTolerances': {'rtol': rtol0, 'atol': atol0, ...}
         }
+        """
+        opts = {}
+        for func_name in self.function_list:
+            info = petsc_return_variable_dict[func_name]
+            opts[info.name] = {}
+            for vtype, out in zip(info.variable_type, info.output_param, strict=True):
+                opts[info.name][out] = vtype(self.sreg.make_name(prefix=out))
+        return opts
 
     @cached_property
     def calls(self):
@@ -58,20 +80,21 @@ class PetscLogger:
         """
         struct = self.statstruct
         calls = []
-        for param in self.function_list:
-            param = petsc_return_variable_dict[param]
+        for func_name in self.function_list:
+            return_variable = petsc_return_variable_dict[func_name]
 
-            inputs = []
-            for i in param.input_params:
-                inputs.append(self.sobjs[i])
-
-            logobj = self.logobjs[param.name]
+            input = self.sobjs[return_variable.input_params]
+            output_params = self.petsc_option_mapper[return_variable.name].values()
+            by_ref_output = [Byref(i) for i in output_params]
 
             calls.append(
-                petsc_call(param.name, inputs + [Byref(logobj)])
+                petsc_call(return_variable.name, [input] + by_ref_output)
             )
             # TODO: Perform a PetscCIntCast here?
-            expr = DummyExpr(FieldFromPointer(logobj._C_symbol, struct), logobj._C_symbol)
-            calls.append(expr)
+            exprs = [
+                DummyExpr(FieldFromPointer(i._C_symbol, struct), i._C_symbol)
+                for i in output_params
+            ]
+            calls.extend(exprs)
 
         return tuple(calls)
