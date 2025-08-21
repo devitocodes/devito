@@ -71,8 +71,7 @@ def get_petsc_variables():
 
 
 petsc_variables = get_petsc_variables()
-# TODO: use petsctools get_petscvariables() instead?
-# petsc_variables = get_petscvariables()
+# TODO: Use petsctools get_petscvariables() instead?
 
 
 def get_petsc_type_mappings():
@@ -94,6 +93,11 @@ def get_petsc_type_mappings():
 
 
 petsc_type_mappings = get_petsc_type_mappings()
+
+
+fixed_petsc_type_mappings = {
+    'KSPType': ctypes.c_char_p,
+}
 
 
 petsc_languages = ['petsc']

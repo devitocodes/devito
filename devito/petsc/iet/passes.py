@@ -6,7 +6,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
                            DummyExpr, CallableBody, List, Call, Callable,
                            FindNodes, Section)
-from devito.symbolics import Byref, FieldFromPointer, Macro
+from devito.symbolics import Byref, FieldFromPointer, Macro, Null
 from devito.types import Symbol, Scalar
 from devito.types.basic import DataSymbol
 from devito.tools import frozendict
@@ -16,9 +16,8 @@ from devito.petsc.types import (PetscMPIInt, PetscErrorCode, MultipleFieldData,
                                 PointerIS, Mat, CallbackVec, Vec, CallbackMat, SNES,
                                 DummyArg, PetscInt, PointerDM, PointerMat, MatReuse,
                                 CallbackPointerIS, CallbackPointerDM, JacobianStruct,
-                                SubMatrixStruct, Initialize, Finalize, ArgvSymbol,
-                                GetArgs, ArgvSymbolPtr, ArgcPtr)
-from devito.petsc.types.macros import petsc_func_begin_user, Null
+                                SubMatrixStruct, Initialize, Finalize, ArgvSymbol)
+from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.iet.nodes import PetscMetaData
 from devito.petsc.utils import core_metadata, petsc_languages
 from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
@@ -51,9 +50,6 @@ def lower_petsc(iet, **kwargs):
 
     if any(filter(lambda i: isinstance(i.expr.rhs, Finalize), data)):
         return finalize(iet), core_metadata()
-
-    if any(filter(lambda i: isinstance(i.expr.rhs, GetArgs), data)):
-        return get_args(iet), core_metadata()
 
     unique_grids = {i.expr.rhs.grid for (i,) in inject_solve_mapper.values()}
     # Assumption is that all solves are on the same grid
@@ -136,18 +132,6 @@ def finalize(iet):
         retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
     )
     return iet._rebuild(body=finalize_body)
-
-
-def get_args(iet):
-    argc = ArgcPtr(name='argc', dtype=np.int32)
-    argv = ArgvSymbolPtr(name='argv')
-
-    body = petsc_call('PetscGetArgs', [argc, argv])
-    body = CallableBody(
-        body=(petsc_func_begin_user, body),
-        retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-    )
-    return iet._rebuild(body=body)
 
 
 def make_core_petsc_calls(objs, comm):

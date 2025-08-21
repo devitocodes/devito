@@ -292,6 +292,7 @@ class CGen(Visitor):
         for i, (n, ct) in zip(fields, ctype._fields_):
             try:
                 entries.append(self._gen_value(i, 0, masked=('const',)))
+                
             except AttributeError:
                 cstr = self.ccode(ct)
                 if ct is c_restrict_void_p:

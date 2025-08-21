@@ -1,10 +1,12 @@
 from collections import namedtuple, OrderedDict
 from dataclasses import dataclass
+from functools import cached_property
+from cgen import Struct, Value
 
 from devito.types import CompositeObject
 
-from devito.petsc.types import PetscInt, PetscScalar
-from devito.petsc.utils import petsc_type_mappings
+from devito.petsc.types import PetscInt, PetscScalar, KSPType
+from devito.petsc.utils import petsc_type_mappings, fixed_petsc_type_mappings
 
 
 class PetscEntry:
@@ -140,13 +142,26 @@ class PetscInfo(CompositeObject):
 
         mapper = {v: k for k, v in petsc_type_mappings.items()}
 
-        fields = []
+        pfields = []
+        self._tmp_fields = []
+
+        # obj_mapper is e.g {'kspits': kspits0}
+        # TODO: think this can just be for (x,y) in ....
         for obj_mapper in petsc_option_mapper.values():
             for petsc_option in obj_mapper.values():
-                ctype = mapper[str(petsc_option._C_ctype)]
-                fields.append((petsc_option.name, ctype))
+                self._tmp_fields.append(petsc_option)
+                # petsc_type is e.g. 'PetscInt', 'PetscScalar', 'KSPType'
+                petsc_type = str(petsc_option.dtype)
+                if petsc_type in mapper:
+                    ctype = mapper[petsc_type]
+                else:
+                    ctype = fixed_petsc_type_mappings[petsc_type] 
+                pfields.append((petsc_option.name, ctype))
+        super().__init__(name, pname, pfields)
 
-        super().__init__(name, pname, fields)
+    @property
+    def fields(self):
+        return self._tmp_fields
 
     @property
     def section(self):
@@ -177,9 +192,9 @@ class PetscInfo(CompositeObject):
         # - If the function returns multiple values (e.g., KSPGetTolerances),
         #   return a dictionary mapping each output name to its value,
         #   e.g., {'rtol': val0, 'atol': val1, ...}.
-        if len(obj_mapper) == 1:
-            return get_val(next(iter(obj_mapper.values())))
-        return {k: get_val(v) for k, v in obj_mapper.items()}
+        if len(obj_mapper) > 1:
+            return {k: get_val(v) for k, v in obj_mapper.items()}
+        return get_val(next(iter(obj_mapper.values())))
 
 
 @dataclass
@@ -216,6 +231,12 @@ petsc_return_variable_dict = {
         variable_type=(PetscInt,),
         input_params='ksp',
         output_param=('reason',),
+    ),
+    'kspgettype': PetscReturnVariable(
+        name='KSPGetType',
+        variable_type=(KSPType,),
+        input_params='ksp',
+        output_param=('ksptype',),
     ),
     # SNES specific
     'snesgetiterationnumber': PetscReturnVariable(

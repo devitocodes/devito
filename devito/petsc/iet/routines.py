@@ -7,7 +7,7 @@ from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
                            retrieve_iteration_tree, filter_iterations, Iteration,
                            PointerCast)
 from devito.symbolics import (Byref, FieldFromPointer, cast, VOID,
-                              FieldFromComposite, IntDiv, Deref, Mod, String)
+                              FieldFromComposite, IntDiv, Deref, Mod, String, Null)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types import Temp, Dimension
@@ -21,8 +21,7 @@ from devito.petsc.types import (PETScArray, PetscBundle, DM, Mat, CallbackVec, V
                                 KSP, PC, SNES, PetscInt, StartPtr, PointerIS, PointerDM,
                                 VecScatter, DMCast, JacobianStruct, SubMatrixStruct,
                                 CallbackDM)
-from devito.petsc.types.macros import petsc_func_begin_user, Null
-# from devito.petsc.initialize import PetscGetArgs
+from devito.petsc.types.macros import petsc_func_begin_user
 
 
 class CBBuilder:
@@ -150,10 +149,10 @@ class CBBuilder:
         for k, v in params.items():
             option = f'-{prefix}{k}'
 
-            # TODO: drop the global variable _petsc_clargs..
-            # from devito.petsc.initialize import PetscGetArgs
-            # PetscGetArgs()
-
+            # TODO: Revisit use of a global variable here.
+            # Consider replacing this with a call to `PetscGetArgs`, though
+            # initial attempts failed, possibly because the argv pointer is
+            # created in Python?..
             import devito.petsc.initialize
             if option in devito.petsc.initialize._petsc_clargs:
                 # Ensures that the command line args take priority

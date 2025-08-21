@@ -1729,9 +1729,6 @@ class TestSolverParameters:
         assert entry1.KSPGetTolerances['rtol'] == 1e-10
         assert entry2.KSPGetTolerances['rtol'] == 1e-12
 
-    # TODO: Add test to check that the command line args override anything set
-    # in the solver_parameters dictionary
-
     @skipif('petsc')
     def test_command_line_priority_1(self, command_line):
         """
