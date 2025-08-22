@@ -1229,3 +1229,38 @@ class TestExpansion:
             + 10*self.f*Derivative(self.v, self.x)*Derivative(self.u, self.x) \
             + 5*self.f*self.u*Derivative(self.v, (self.x, 2))
         assert diffify(expr.expand(product_rule=True)) == expanded
+
+
+class TestDimension:
+    """
+    Check the few cases where differentiating a dimension is allowed work correctly
+    and errors are raised otherwise.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.grid = Grid(shape=(11, 11), extent=(1, 1))
+        cls.x, cls.y = cls.grid.dimensions
+        u = TimeFunction(name='u', grid=cls.grid, space_order=1)
+        cls.t = u.time_dim
+
+    def test_constant(self):
+        assert Derivative(self.x, self.x) == 1
+
+    def test_null(self):
+        assert Derivative(self.x, (self.x, 2)) == 0
+        assert Derivative(self.x, self.x, self.y) == 0
+        assert Derivative(self.x, self.x, self.y) == 0
+        assert Derivative(self.x, self.x, self.y, self.t) == 0
+        assert Derivative(self.x, self.y, self.t, self.x) == 0
+        assert Derivative(self.x, self.y, self.t, (self.x, 2)) == 0
+
+    def test_error(self):
+        with pytest.raises(ValueError):
+            Derivative(self.x, self.t)
+
+        with pytest.raises(ValueError):
+            Derivative(self.x, self.y, self.t)
+
+        with pytest.raises(ValueError):
+            Derivative(self.x, (self.x, 0))
