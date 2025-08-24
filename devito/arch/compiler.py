@@ -1,4 +1,4 @@
-from functools import partial
+from functools import cache, partial
 from hashlib import sha1
 from os import environ, path, makedirs
 from packaging.version import Version
@@ -19,13 +19,12 @@ from devito.arch import (AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9,
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.tools import (as_list, change_directory, filter_ordered,
-                          memoized_func, make_tempdir)
+from devito.tools import as_list, change_directory, filter_ordered, make_tempdir
 
 __all__ = ['sniff_mpi_distro', 'compiler_registry']
 
 
-@memoized_func
+@cache
 def sniff_compiler_version(cc, allow_fail=False):
     """
     Detect the compiler version.
@@ -99,7 +98,7 @@ def sniff_compiler_version(cc, allow_fail=False):
     return ver
 
 
-@memoized_func
+@cache
 def sniff_mpi_distro(mpiexec):
     """
     Detect the MPI version.
@@ -117,7 +116,7 @@ def sniff_mpi_distro(mpiexec):
     return 'unknown'
 
 
-@memoized_func
+@cache
 def sniff_mpi_flags(mpicc='mpicc'):
     mpi_distro = sniff_mpi_distro('mpiexec')
     if mpi_distro != 'OpenMPI':
@@ -131,7 +130,7 @@ def sniff_mpi_flags(mpicc='mpicc'):
     return compile_flags.split(), link_flags.split()
 
 
-@memoized_func
+@cache
 def call_capture_output(cmd):
     """
     Memoize calls to codepy's `call_capture_output` to avoid leaking memory due
