@@ -120,7 +120,8 @@ class InjectSolve:
         exprs = as_tuple(exprs)
 
         funcs = get_funcs(exprs)
-        self.time_mapper = generate_time_mapper(funcs)
+        self.time_mapper = generate_time_mapper(exprs)
+
         arrays = self.generate_arrays(target)
 
         exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
@@ -137,7 +138,7 @@ class InjectSolve:
             arrays=arrays
         )
 
-        return target, tuple(funcs), field_data
+        return target, funcs, field_data
 
     def generate_arrays(self, *targets):
         return {
@@ -162,7 +163,7 @@ class InjectMixedSolve(InjectSolve):
             exprs.extend(e)
 
         funcs = get_funcs(exprs)
-        self.time_mapper = generate_time_mapper(funcs)
+        self.time_mapper = generate_time_mapper(exprs)
 
         targets = list(self.target_exprs.keys())
         arrays = self.generate_arrays(*targets)
@@ -183,7 +184,7 @@ class InjectMixedSolve(InjectSolve):
             residual=residual
         )
 
-        return targets[0], tuple(funcs), all_data
+        return targets[0], funcs, all_data
 
 
 localinfo = DMDALocalInfo(name='info', liveness='eager')
