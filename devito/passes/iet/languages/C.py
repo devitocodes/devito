@@ -82,3 +82,6 @@ class PetscCPrinter(CPrinter):
     _restrict_keyword = ''
 
     type_mappings = {**CPrinter.type_mappings, **petsc_type_mappings}
+
+    def _print_Pi(self, expr):
+        return 'PETSC_PI'
