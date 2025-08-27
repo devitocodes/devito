@@ -496,7 +496,7 @@ class Operator(Callable):
         graph = Graph(iet, **kwargs)
 
         lower_petsc(graph, **kwargs)
-
+        # from IPython import embed; embed()
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling

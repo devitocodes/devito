@@ -10,7 +10,7 @@ from devito.symbolics import (Byref, FieldFromPointer, cast, VOID,
                               FieldFromComposite, IntDiv, Deref, Mod, String, Null)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
-from devito.types import Temp, Dimension
+from devito.types import Temp, Dimension, TempArray
 from devito.tools import filter_ordered
 
 from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
@@ -31,6 +31,7 @@ class CBBuilder:
     def __init__(self, **kwargs):
 
         self.rcompile = kwargs.get('rcompile', None)
+        # from IPython import embed; embed()
         self.sregistry = kwargs.get('sregistry', None)
         self.concretize_mapper = kwargs.get('concretize_mapper', {})
         self.time_dependence = kwargs.get('time_dependence')
@@ -53,7 +54,7 @@ class CBBuilder:
         self._initial_guesses = []
 
         self._make_core()
-        self._efuncs = self._uxreplace_efuncs()
+        # self._efuncs = self._uxreplace_efuncs()
 
     @property
     def efuncs(self):
@@ -108,13 +109,14 @@ class CBBuilder:
         return self.field_data.target
 
     def _make_core(self):
+        self._make_user_struct_callback()
         self._make_options_callback()
         self._make_matvec(self.field_data.jacobian)
         self._make_formfunc()
         self._make_formrhs()
         if self.field_data.initial_guess.exprs:
             self._make_initial_guess()
-        self._make_user_struct_callback()
+        # self._make_user_struct_callback()
 
     def _make_petsc_callable(self, prefix, body, parameters=()):
         return PETScCallable(
@@ -202,7 +204,7 @@ class CBBuilder:
         sobjs = self.solver_objs
 
         dmda = sobjs['callbackdm']
-        ctx = objs['dummyctx']
+        ctx = sobjs['userctx']
         xlocal = objs['xloc']
         ylocal = objs['yloc']
         y_matvec = self.arrays[jacobian.row_target]['y']
@@ -309,11 +311,12 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = self._make_callable_body(body, stacks=stacks+derefs)
+        # body = self._make_callable_body(body, stacks=stacks+derefs)
+        body = self._make_callable_body(body, stacks=stacks)
 
         # Replace non-function data with pointer to data in struct
-        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
-        body = Uxreplace(subs).visit(body)
+        # subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
+        # body = Uxreplace(subs).visit(body)
 
         self._struct_params.extend(fields)
         return body
@@ -343,7 +346,7 @@ class CBBuilder:
         target = self.target
 
         dmda = sobjs['callbackdm']
-        ctx = objs['dummyctx']
+        ctx = sobjs['userctx']
 
         body = self.time_dependence.uxreplace_time(body)
 
@@ -444,7 +447,8 @@ class CBBuilder:
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
-        return Uxreplace(subs).visit(body)
+        # return Uxreplace(subs).visit(body)
+        return body
 
     def _make_formrhs(self):
         b_exprs = self.field_data.residual.b_exprs
@@ -472,7 +476,7 @@ class CBBuilder:
         target = self.target
 
         dmda = sobjs['callbackdm']
-        ctx = objs['dummyctx']
+        ctx = sobjs['userctx']
 
         dm_get_local = petsc_call(
             'DMGetLocalVector', [dmda, Byref(sobjs['blocal'])]
@@ -542,13 +546,15 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = self._make_callable_body([body], stacks=stacks+derefs)
+        # body = self._make_callable_body([body], stacks=stacks+derefs)
+        body = self._make_callable_body([body], stacks=stacks)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
-        return Uxreplace(subs).visit(body)
+        # return Uxreplace(subs).visit(body)
+        return body
 
     def _make_initial_guess(self):
         exprs = self.field_data.initial_guess.exprs
@@ -576,7 +582,7 @@ class CBBuilder:
         target = self.target
 
         dmda = sobjs['callbackdm']
-        ctx = objs['dummyctx']
+        ctx = sobjs['userctx']
 
         x_arr = self.field_data.arrays[target]['x']
 
@@ -611,29 +617,36 @@ class CBBuilder:
 
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
-        body = self._make_callable_body(body, stacks=stacks+derefs)
+        # body = self._make_callable_body(body, stacks=stacks+derefs)
+        body = self._make_callable_body(body, stacks=stacks)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
-        return Uxreplace(subs).visit(body)
+        # return Uxreplace(subs).visit(body)
+        return body
 
     def _make_user_struct_callback(self):
         """
         This is the struct initialised inside the main kernel and
         attached to the DM via DMSetApplicationContext.
-        # TODO: this could be common between all PETScSolves instead?
         """
+
+        # This is rebuilt during _specialize_iet once all symbols etc
+        # are known
         mainctx = self.solver_objs['userctx'] = petsc_struct(
             self.sregistry.make_name(prefix='ctx'),
-            self.filtered_struct_params,
+            # self.filtered_struct_params,
+            [],
             self.sregistry.make_name(prefix='UserCtx'),
         )
-        body = [
-            DummyExpr(FieldFromPointer(i._C_symbol, mainctx), i._C_symbol)
-            for i in mainctx.callback_fields
-        ]
+
+        # body = [
+        #     DummyExpr(FieldFromPointer(i._C_symbol, mainctx), i._C_symbol)
+        #     for i in mainctx.callback_fields
+        # ]
+        body = []
         struct_callback_body = self._make_callable_body(body)
         cb = Callable(
             self.sregistry.make_name(prefix='PopulateUserContext'),
@@ -646,25 +659,26 @@ class CBBuilder:
     def _dummy_fields(self, iet):
         # Place all context data required by the shell routines into a struct
         fields = [f.function for f in FindSymbols('basics').visit(iet)]
-        fields = [f for f in fields if not isinstance(f.function, (PETScArray, Temp))]
+        avoid = (PETScArray, Temp, TempArray)
+        fields = [f for f in fields if not isinstance(f.function, avoid)]
         fields = [
             f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
         ]
         return fields
 
     def _uxreplace_efuncs(self):
-        sobjs = self.solver_objs
-        luserctx = petsc_struct(
-            sobjs['userctx'].name,
-            self.filtered_struct_params,
-            sobjs['userctx'].pname,
-            modifier=' *'
-        )
-        mapper = {}
-        visitor = Uxreplace({self.objs['dummyctx']: luserctx})
-        for k, v in self._efuncs.items():
-            mapper.update({k: visitor.visit(v)})
-        return mapper
+        # sobjs = self.solver_objs
+        # luserctx = petsc_struct(
+        #     sobjs['userctx'].name,
+        #     self.filtered_struct_params,
+        #     sobjs['userctx'].pname,
+        #     modifier=' *'
+        # )
+        # mapper = {}
+        # visitor = Uxreplace({self.objs['dummyctx']: luserctx})
+        # for k, v in self._efuncs.items():
+        #     mapper.update({k: visitor.visit(v)})
+        return {}
 
 
 class CCBBuilder(CBBuilder):
@@ -690,13 +704,14 @@ class CCBBuilder(CBBuilder):
         return self._main_matvec_callback
 
     def _make_core(self):
+        self._make_user_struct_callback()
         for sm in self.field_data.jacobian.nonzero_submatrices:
             self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
 
         self._make_options_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc()
-        self._make_user_struct_callback()
+        # self._make_user_struct_callback()
         self._create_submatrices()
         self._efuncs['PopulateMatContext'] = self.objs['dummyefunc']
 
@@ -780,7 +795,7 @@ class CCBBuilder(CBBuilder):
         sobjs = self.solver_objs
 
         dmda = sobjs['callbackdm']
-        ctx = objs['dummyctx']
+        # ctx = objs['dummyctx']
 
         body = self.time_dependence.uxreplace_time(body)
 
@@ -879,19 +894,25 @@ class CCBBuilder(CBBuilder):
         )
 
         # Dereference function data in struct
-        derefs = dereference_funcs(ctx, fields)
+        # derefs = dereference_funcs(ctx, fields)
 
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
 
+        # formfunc_body = self._make_callable_body(
+        #     body, stacks=stacks+derefs,
+        #     casts=(f_soa, x_soa),
+        # )
+
         formfunc_body = self._make_callable_body(
-            body, stacks=stacks+derefs,
+            body, stacks=stacks,
             casts=(f_soa, x_soa),
         )
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
-        return Uxreplace(subs).visit(formfunc_body)
+        # return Uxreplace(subs).visit(formfunc_body)
+        return body
 
     def _create_submatrices(self):
         body = self._submat_callback_body()
@@ -923,7 +944,7 @@ class CCBBuilder(CBBuilder):
         mat_get_dm = petsc_call('MatGetDM', [objs['J'], Byref(sobjs['callbackdm'])])
 
         dm_get_app = petsc_call(
-            'DMGetApplicationContext', [sobjs['callbackdm'], Byref(objs['dummyctx'])]
+            'DMGetApplicationContext', [sobjs['callbackdm'], Byref(sobjs['userctx'])]
         )
 
         get_ctx = petsc_call('MatShellGetContext', [objs['J'], Byref(objs['ljacctx'])])
@@ -968,7 +989,7 @@ class CCBBuilder(CBBuilder):
         )
         dm_set_ctx = petsc_call(
             'DMSetApplicationContext', [
-                objs['Subdms'].indexed[objs['rowidx']], objs['dummyctx']
+                objs['Subdms'].indexed[objs['rowidx']], sobjs['userctx']
             ]
         )
         matset_dm = petsc_call('MatSetDM', [

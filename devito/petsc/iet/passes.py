@@ -282,7 +282,7 @@ objs = frozendict({
         fields=[subdms, fields, submats], modifier=' *'
     ),
     'subctx': SubMatrixStruct(fields=[rows, cols]),
-    'dummyctx': Symbol('lctx'),
+    # 'dummyctx': Symbol('lctx'),
     'dummyptr': DummyArg('dummy'),
     'dummyefunc': Symbol('dummyefunc'),
     'dof': PetscInt('dof'),

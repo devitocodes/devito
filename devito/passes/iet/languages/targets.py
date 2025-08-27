@@ -1,5 +1,5 @@
 from devito.passes.iet.languages.C import (CDataManager, COrchestrator, CPrinter,
-                                           PetscCPrinter)
+                                           PetscCPrinter, PetscCDataManager)
 from devito.passes.iet.languages.CXX import CXXDataManager, CXXOrchestrator, CXXPrinter
 from devito.passes.iet.languages.openmp import (SimdOmpizer, Ompizer, DeviceOmpizer,
                                                 OmpDataManager, DeviceOmpDataManager,
@@ -52,6 +52,7 @@ class COmpTarget(Target):
 
 class PetscTarget(CTarget):
     Printer = PetscCPrinter
+    DataManager = PetscCDataManager
 
 
 OmpTarget = COmpTarget
