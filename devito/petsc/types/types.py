@@ -571,9 +571,13 @@ class Residual:
             # The initial guess satisfies the essential BCs, so this term is zero.
             # Still included to support Jacobian testing via finite differences.
             rhs = arrays['x'] - eq.rhs
-            zero_row = ZeroRow(arrays['f'], rhs, subdomain=eq.subdomain)
+            zero_row = ZeroRow(
+                arrays['f'], rhs.subs(self.time_mapper), subdomain=eq.subdomain
+            )
             # Move essential boundary condition to the right-hand side
-            zero_col = ZeroColumn(arrays['x'], eq.rhs, subdomain=eq.subdomain)
+            zero_col = ZeroColumn(
+                arrays['x'], eq.rhs.subs(self.time_mapper), subdomain=eq.subdomain
+            )
             return (zero_row, zero_col)
 
         else:
@@ -670,9 +674,10 @@ class InitialGuess:
     symbolic expressions, enforcing the initial guess to satisfy essential
     boundary conditions.
     """
-    def __init__(self, target, exprs, arrays):
+    def __init__(self, target, exprs, arrays, time_mapper):
         self.target = target
         self.arrays = arrays
+        self.time_mapper = time_mapper
         self._build_exprs(as_tuple(exprs))
 
     @property
@@ -694,7 +699,7 @@ class InitialGuess:
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
             return Eq(
-                self.arrays[self.target]['x'], expr.rhs,
+                self.arrays[self.target]['x'], expr.rhs.subs(self.time_mapper),
                 subdomain=expr.subdomain
             )
         else:

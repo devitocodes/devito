@@ -128,7 +128,7 @@ class InjectSolve:
 
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
-        initial_guess = InitialGuess(target, exprs, arrays)
+        initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
 
         field_data = FieldData(
             target=target,
