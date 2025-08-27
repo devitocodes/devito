@@ -3,6 +3,7 @@ import pytest
 import numpy as np
 import os
 import re
+import sympy as sp
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
@@ -2146,3 +2147,24 @@ class TestGetInfo:
         assert entry2.KSPGetType == 'cg'
         assert entry2['KSPGetType'] == 'cg'
         assert entry2['kspgettype'] == 'cg'
+
+
+class TestPrinter:
+
+    @skipif('petsc')
+    def test_petsc_pi(self):
+        """
+        Test that sympy.pi is correctly translated to PETSC_PI in the
+        generated code.
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        e = Function(name='e', grid=grid)
+        eq = Eq(e, sp.pi)
+
+        petsc = PETScSolve(eq, target=e)
+
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+    
+        assert 'PETSC_PI' in str(op.ccode)
+        assert 'M_PI' not in str(op.ccode)
