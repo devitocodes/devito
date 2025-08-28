@@ -240,7 +240,6 @@ class PetscCDataManager(CDataManager):
             )
 
         self.replace_user_context(graph, mapper=main_struct_mapper)
-        # from IPython import embed; embed()
 
 
     @iet_pass
@@ -304,13 +303,16 @@ class PetscCDataManager(CDataManager):
         old_user_ctx = [i for i in iet.parameters if isinstance(i, MainUserStruct)].pop()
         new_user_ctx = mapper[old_user_ctx]
 
+        # fields = [
+        #     f for f in new_user_ctx.fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
+        # ]
+        # from IPython import embed; embed()
         new_body = [
             DummyExpr(FieldFromPointer(i._C_symbol, new_user_ctx), i._C_symbol)
-            for i in new_user_ctx.fields
+            for i in new_user_ctx.callback_fields
         ]
 
         new_body = iet.body._rebuild(body=new_body)
-
 
         # from IPython import embed; embed()
         iet = iet._rebuild(body=new_body, parameters=(new_user_ctx,))
