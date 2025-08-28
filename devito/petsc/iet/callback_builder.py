@@ -649,11 +649,13 @@ class BaseCallback:
         )
         self._efuncs[cb.name] = cb
         self._user_struct_callback = cb
-
+    
+    # TODO: refactor this, move it to utils and merge/ use get_user_struct_fields
     def _dummy_fields(self, iet):
         # Place all context data required by the shell routines into a struct
         fields = [f.function for f in FindSymbols('basics').visit(iet)]
-        avoid = (PETScArray, Temp, TempArray)
+        from devito.petsc.types import PetscObject, PETScStruct
+        avoid = (PETScArray, Temp, TempArray, PetscObject, PETScStruct)
         fields = [f for f in fields if not isinstance(f.function, avoid)]
         fields = [
             f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
