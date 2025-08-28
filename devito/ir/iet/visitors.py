@@ -789,16 +789,18 @@ class CGen(Visitor):
 
         candidates = o.parameters + tuple(o._dspace.parts)
         typedecls = [self._gen_struct_decl(i) for i in candidates if xfilter(i)]
+        # from IPython import embed; embed()
         for i in o._func_table.values():
             if not i.local:
                 continue
+            # from IPython import embed; embed()
             typedecls.extend([
                 self._gen_struct_decl(j)
                 for j in FindSymbols().visit(i.root)
                 if xfilter(j)
             ])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
-
+        # from IPython import embed; embed()
         return typedecls
 
     def _operator_globals(self, o, mode='all'):

@@ -213,6 +213,22 @@ class PETScStruct(LocalCompositeObject):
     _C_modifier = ' *'
 
 
+class MainUserStruct(PETScStruct):
+    pass
+
+
+class CallbackUserStruct(PETScStruct):
+    __rkwargs__ = PETScStruct.__rkwargs__ + ('parent',)
+
+    def __init__(self, *args, parent=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._parent = parent
+
+    @property
+    def parent(self):
+        return self._parent
+
+
 class JacobianStruct(PETScStruct):
     def __init__(self, name='jctx', pname='JacobianCtx', fields=None,
                  modifier='', liveness='lazy'):

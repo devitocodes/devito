@@ -6,7 +6,7 @@ from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
 from devito.symbolics import (Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
-from devito.types import Temp, Dimension
+from devito.types import Temp, Dimension, TempArray
 from devito.tools import filter_ordered
 
 from devito.petsc.iet.nodes import (PETScCallable,
@@ -14,7 +14,7 @@ from devito.petsc.iet.nodes import (PETScCallable,
 from devito.petsc.iet.utils import (petsc_call, petsc_struct, zero_vector,
                                     dereference_funcs, void,
                                     insert_vals, add_vals)
-from devito.petsc.types import PETScArray, DMCast
+from devito.petsc.types import PETScArray, DMCast, MainUserStruct, CallbackUserStruct
 from devito.petsc.iet.object_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 
@@ -119,10 +119,11 @@ class BaseCallback:
             parameters=parameters
         )
 
-    def _make_callable_body(self, body, stacks=(), casts=()):
+    def _make_callable_body(self, body, standalones=(), stacks=(), casts=()):
         return CallableBody(
             List(body=body),
             init=(petsc_func_begin_user,),
+            standalones=standalones,
             stacks=stacks,
             casts=casts,
             retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
@@ -530,14 +531,19 @@ class BaseCallback:
             dm_global_to_local_begin,
             dm_global_to_local_end,
             vec_get_array,
-            dm_get_app_context,
             dm_get_local_info
         )
 
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = self._make_callable_body([body], stacks=stacks+derefs)
+        # from IPython import embed; embed()
+        from devito.ir.iet.nodes import Definition
+        # need the force the struct definition to appear at the very start, since
+        # some of the stacks, allocs etc may depend on it
+        def_struct = [Definition(ctx), dm_get_app_context]
+
+        body = self._make_callable_body([body], standalones=def_struct, stacks=stacks+derefs)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
@@ -619,10 +625,17 @@ class BaseCallback:
         This is the struct initialised inside the main kernel and
         attached to the DM via DMSetApplicationContext.
         """
-        mainctx = self.solver_objs['userctx'] = petsc_struct(
-            self.sregistry.make_name(prefix='ctx'),
-            self.filtered_struct_params,
-            self.sregistry.make_name(prefix='UserCtx'),
+        # mainctx = self.solver_objs['userctx'] = petsc_struct(
+        #     self.sregistry.make_name(prefix='ctx'),
+        #     self.filtered_struct_params,
+        #     self.sregistry.make_name(prefix='UserCtx'),
+        # )
+        mainctx = self.solver_objs['userctx'] = MainUserStruct(
+            name=self.sregistry.make_name(prefix='ctx'),
+            pname=self.sregistry.make_name(prefix='UserCtx'),
+            fields=self.filtered_struct_params,
+            liveness='lazy',
+            modifier=None
         )
         body = [
             DummyExpr(FieldFromPointer(i._C_symbol, mainctx), i._C_symbol)
@@ -640,7 +653,8 @@ class BaseCallback:
     def _dummy_fields(self, iet):
         # Place all context data required by the shell routines into a struct
         fields = [f.function for f in FindSymbols('basics').visit(iet)]
-        fields = [f for f in fields if not isinstance(f.function, (PETScArray, Temp))]
+        avoid = (PETScArray, Temp, TempArray)
+        fields = [f for f in fields if not isinstance(f.function, avoid)]
         fields = [
             f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
         ]
@@ -648,14 +662,22 @@ class BaseCallback:
 
     def _uxreplace_efuncs(self):
         sobjs = self.solver_objs
-        luserctx = petsc_struct(
-            sobjs['userctx'].name,
-            self.filtered_struct_params,
-            sobjs['userctx'].pname,
-            modifier=' *'
+        # luserctx = petsc_struct(
+        #     sobjs['userctx'].name,
+        #     self.filtered_struct_params,
+        #     sobjs['userctx'].pname,
+        #     modifier=' *'
+        # )
+        callback_user_struct =  CallbackUserStruct(
+            name=sobjs['userctx'].name,
+            pname=sobjs['userctx'].pname,
+            fields=self.filtered_struct_params,
+            liveness='lazy',
+            modifier=' *',
+            parent=sobjs['userctx']
         )
         mapper = {}
-        visitor = Uxreplace({self.objs['dummyctx']: luserctx})
+        visitor = Uxreplace({self.objs['dummyctx']: callback_user_struct})
         for k, v in self._efuncs.items():
             mapper.update({k: visitor.visit(v)})
         return mapper

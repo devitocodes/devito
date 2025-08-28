@@ -1,8 +1,10 @@
 from devito.ir.equations import OpPetsc
 from devito.ir.iet import Dereference, FindSymbols, Uxreplace
 from devito.types.basic import AbstractFunction
+from devito.types import Temp, TempArray
 
 from devito.petsc.iet.nodes import PetscMetaData, PETScCall
+from devito.petsc.types.array import PETScArray
 
 
 def petsc_call(specific_call, call_args):
@@ -29,6 +31,7 @@ def zero_vector(vec):
 
 
 def dereference_funcs(struct, fields):
+    # TODO: should this be more general and dereference anything that is a Scalar?
     """
     Dereference AbstractFunctions from a struct.
     """
@@ -36,6 +39,19 @@ def dereference_funcs(struct, fields):
         [Dereference(i, struct) for i in
          fields if isinstance(i.function, AbstractFunction)]
     )
+
+
+def get_user_struct_fields(iet):
+
+    fields = set([f.function for f in FindSymbols('basics').visit(iet)])
+    from devito.petsc.types.object import PetscObject, PETScStruct
+    avoid = (PETScArray, Temp, TempArray, PetscObject, PETScStruct)
+    fields = [f for f in fields if not isinstance(f.function, avoid)]
+    # todo: i think this maybe should incliude the time dependendent ones?
+    fields = [
+        f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
+    ]
+    return fields
 
 
 # Mapping special Eq operations to their corresponding IET Expression subclass types.

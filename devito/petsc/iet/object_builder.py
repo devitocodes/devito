@@ -199,8 +199,6 @@ class CoupledObjectBuilder(BaseObjectBuilder):
             )
 
 
-
-
 subdms = PointerDM(name='subdms')
 fields = PointerIS(name='fields')
 submats = PointerMat(name='submats')
