@@ -88,10 +88,12 @@ class PetscCPrinter(CPrinter):
         return 'PETSC_PI'
     
 
+# TODO: move all petsc stuff to petsc module
 class PetscCDataManager(CDataManager):
     def process(self, graph):
         """
         Apply the `place_definitions` and `place_casts` passes.
+        Also, ....
         """
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
@@ -102,78 +104,98 @@ class PetscCDataManager(CDataManager):
         # then map them using a FieldFromPointer
         # from IPython import embed; embed()
 
-        from collections import defaultdict
+        # from collections import defaultdict
 
-        symbol_map = defaultdict(set)
+        # symbol_map = defaultdict(set)
 
-        # step 1: find all user contexts
-        for name, efunc in graph.efuncs.items():
-            if name.startswith("PopulateUserContext"):
-                # step 2: extract the struct symbol (assume always 1 element)
-                ctx_symbol = FindSymbols().visit(efunc)[0]
+        # # step 1: find all user contexts
+        # for name, efunc in graph.efuncs.items():
+        #     if name.startswith("PopulateUserContext"):
+        #         # step 2: extract the struct symbol (assume always 1 element)
+        #         ctx_symbol = FindSymbols().visit(efunc)[0]
 
-                # step 3: loop over other PETScCallables
-                for other_name, other_efunc in graph.efuncs.items():
-                    if other_name == name:
-                        continue
-                    if "PETScCallable" in str(type(other_efunc)):  # adjust if you have a better type check
-                        symbols = FindSymbols().visit(other_efunc)
-                        if ctx_symbol in symbols:
-                            # step 4: collect all symbols into the set
-                            from devito.types import Temp, TempArray
-                            from devito.petsc.types.array import PETScArray
-                            from devito.petsc.types.object import PetscObject
-                            fields = [f.function for f in FindSymbols('basics').visit(other_efunc)]
-                            avoid = (PETScArray, Temp, TempArray, PetscObject)
-                            fields = [f for f in fields if not isinstance(f.function, avoid)]
-                            fields = [
-                                f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
-                            ]
-                            # fields_of_struct = 
-                            symbol_map[ctx_symbol].update(fields)
+        #         # step 3: loop over other PETScCallables
+        #         for other_name, other_efunc in graph.efuncs.items():
+        #             if other_name == name:
+        #                 continue
+        #             if "PETScCallable" in str(type(other_efunc)):  # adjust if you have a better type check
+        #                 symbols = FindSymbols().visit(other_efunc)
+        #                 if ctx_symbol in symbols:
+        #                     # step 4: collect all symbols into the set
+        #                     from devito.types import Temp, TempArray
+        #                     from devito.petsc.types.array import PETScArray
+        #                     from devito.petsc.types.object import PetscObject
+        #                     fields = [f.function for f in FindSymbols('basics').visit(other_efunc)]
+        #                     avoid = (PETScArray, Temp, TempArray, PetscObject)
+        #                     fields = [f for f in fields if not isinstance(f.function, avoid)]
+        #                     fields = [
+        #                         f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
+        #                     ]
 
-        # from IPython import embed; embed()
+        #                     symbol_map[ctx_symbol].update(fields)
 
-        old_ctx_to_new_ctx_mapper = {}
-        for ctx_symbol, fields in symbol_map.items():
-            new_struct = ctx_symbol._rebuild(fields=tuple(fields))
-            old_ctx_to_new_ctx_mapper[ctx_symbol] = new_struct
+        # old_ctx_to_new_ctx_mapper = {}
+        # for ctx_symbol, fields in symbol_map.items():
+        #     new_struct = ctx_symbol._rebuild(fields=tuple(fields))
+        #     old_ctx_to_new_ctx_mapper[ctx_symbol] = new_struct
 
-        # now rebuild each struct with all required fields
-        # from IPython import embed; embed()
-            old_ctx_to_new_ctx_mapper[ctx_symbol] = new_struct
+        #     old_ctx_to_new_ctx_mapper[ctx_symbol] = new_struct
         
-        # self.symbol_map = symbol_map
-        # from IPython import embed; embed()
-        self.old_ctx_to_new_ctx_mapper = old_ctx_to_new_ctx_mapper
-        self.update_struct_context(graph)
+        # self.old_ctx_to_new_ctx_mapper = old_ctx_to_new_ctx_mapper
+
+        # # update all efuncs with the new struct
+        # self.replace_user_context(graph)
+
+        # self.update_user_context_callback(graph)
+
+
 
     @iet_pass
-    def update_struct_context(self, iet, **kwargs):
+    def replace_user_context(self, iet, **kwargs):
 
         # if not iet.name.startswith("PopulateUserContext"):
         #     return iet, {}
 
         # from IPython import embed; embed()
         # new_body = Uxreplace()
-        from devito.ir.iet import Uxreplace
+        from devito.ir.iet import Uxreplace, CallableBody
         new_body = Uxreplace(self.old_ctx_to_new_ctx_mapper).visit(iet.body)
         new_parameters = tuple(self.old_ctx_to_new_ctx_mapper.get(p, p) for p in iet.parameters)
         iet = iet._rebuild(body=new_body, parameters=new_parameters)
         # from IPython import embed; embed()
 
-        all_symbs = FindSymbols().visit(iet)
-        from devito.petsc.iet.passes import objs
+        # all_symbs = FindSymbols().visit(iet)
+        # from devito.petsc.iet.passes import objs
+
+
+        return iet, {}
+
+
+    @iet_pass
+    def update_user_context_callback(self, iet, **kwargs):
 
         if not iet.name.startswith("PopulateUserContext"):
             return iet, {}
         
+        # Grab the context struct
+        ctx = iet.parameters[0]
+        from devito.symbolics import FieldFromPointer
+        from devito.ir.iet import DummyExpr, Callable, List, CallableBody
+        from devito.petsc.types.macros import petsc_func_begin_user
 
-        # if it is a PopulateUserContext function, we need update the actual body of the efunc
+        body = [
+            DummyExpr(FieldFromPointer(i._C_symbol, ctx), i._C_symbol)
+            for i in ctx.callback_fields
+        ]
 
-        
-
-        # lctx = objs['dummyctx']
-
+        body = CallableBody(
+            List(body=body),
+            init=(petsc_func_begin_user,),
+            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+        )
+        iet = iet._rebuild(body=body)
         # from IPython import embed; embed()
         return iet, {}
+
+
+        

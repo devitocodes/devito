@@ -38,36 +38,13 @@ def dereference_funcs(struct, fields):
     )
 
 
-def residual_bundle(body, bundles):
-    """
-    Replaces PetscArrays in `body` with PetscBundle struct field accesses
-    (e.g., f_v[ix][iy] -> f_bundle[ix][iy].v).
-
-    Example:
-        f_v[ix][iy] = x_v[ix][iy];
-        f_u[ix][iy] = x_u[ix][iy];
-    becomes:
-        f_bundle[ix][iy].v = x_bundle[ix][iy].v;
-        f_bundle[ix][iy].u = x_bundle[ix][iy].u;
-
-    NOTE: This is used because the data is interleaved for
-    multi-component DMDAs in PETSc.
-    """
-    mapper = bundles['bundle_mapper']
-    indexeds = FindSymbols('indexeds').visit(body)
-    subs = {}
-
-    for i in indexeds:
-        if i.base in mapper:
-            bundle = mapper[i.base]
-            index = bundles['target_indices'][i.function.target]
-            index = (index,) + i.indices
-            subs[i] = bundle.__getitem__(index)
-
-    body = Uxreplace(subs).visit(body)
-    return body
-
-
 # Mapping special Eq operations to their corresponding IET Expression subclass types.
 # These operations correspond to subclasses of Eq utilised within PETScSolve.
 petsc_iet_mapper = {OpPetsc: PetscMetaData}
+
+
+void = 'void'
+insert_vals = 'INSERT_VALUES'
+add_vals = 'ADD_VALUES'
+sreverse = 'SCATTER_REVERSE'
+sforward = 'SCATTER_FORWARD'

@@ -197,7 +197,7 @@ class PETScStruct(LocalCompositeObject):
     def time_dim_fields(self):
         """
         Fields within the struct that are updated during the time loop.
-        These are not set in the `PopulateMatContext` callback.
+        These are not set in the `PopulateUserContext` callback.
         """
         return [f for f in self.fields
                 if isinstance(f, (ModuloDimension, TimeDimension))]
@@ -205,7 +205,7 @@ class PETScStruct(LocalCompositeObject):
     @property
     def callback_fields(self):
         """
-        Fields within the struct that are initialized in the `PopulateMatContext`
+        Fields within the struct that are initialized in the `PopulateUserContext`
         callback. These fields are not updated in the time loop.
         """
         return [f for f in self.fields if f not in self.time_dim_fields]
