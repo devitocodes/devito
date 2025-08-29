@@ -43,7 +43,7 @@ def dereference_funcs(struct, fields):
 
 def get_user_struct_fields(iet):
 
-    fields = set([f.function for f in FindSymbols().visit(iet)])
+    fields = set([f.function for f in FindSymbols('abstractsymbols').visit(iet)])
     from devito.types.basic import LocalType
     # can probs reduce a lot of these and just use LocalType?
     avoid = (Temp, TempArray, LocalType)

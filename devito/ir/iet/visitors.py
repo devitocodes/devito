@@ -1095,7 +1095,7 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
     rules: RulesDict = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: (i for i in n.expr_symbols if isinstance(i, Basic)),
-        'symbols': lambda n: (i for i in n.expr_symbols
+        'abstractsymbols': lambda n: (i for i in n.expr_symbols
                               if isinstance(i, AbstractSymbol)),
         'dimensions': lambda n: (i for i in n.expr_symbols if isinstance(i, Dimension)),
         'indexeds': lambda n: (i for i in n.expr_symbols if i.is_Indexed),

@@ -164,7 +164,7 @@ class PetscCDataManager(CDataManager):
         new_body = new_body._rebuild(standalones=new_body.standalones + derefs)
         
         iet = iet._rebuild(body=new_body)
-        # from IPython import embed; embed()
+
         return iet, {}
 
 
@@ -192,5 +192,5 @@ class PetscCDataManager(CDataManager):
         new_body = iet.body._rebuild(body=new_body)
 
         iet = iet._rebuild(body=new_body, parameters=(new_user_ctx,))
-        # from IPython import embed; embed()
+
         return iet, {}
