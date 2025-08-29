@@ -43,14 +43,17 @@ def dereference_funcs(struct, fields):
 
 def get_user_struct_fields(iet):
 
-    fields = set([f.function for f in FindSymbols('basics').visit(iet)])
-    from devito.petsc.types.object import PetscObject, PETScStruct
-    avoid = (PETScArray, Temp, TempArray, PetscObject, PETScStruct)
+    fields = set([f.function for f in FindSymbols().visit(iet)])
+    from devito.types.basic import LocalType
+    # can probs reduce a lot of these and just use LocalType?
+    avoid = (Temp, TempArray, LocalType)
+    # fields = [f for f in fields if not isinstance(f.function, avoid)]
     fields = [f for f in fields if not isinstance(f.function, avoid)]
     # todo: i think this maybe should incliude the time dependendent ones?
     fields = [
         f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
     ]
+    # from IPython import embed; embed()
     return fields
 
 

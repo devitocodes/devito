@@ -118,7 +118,7 @@ class PetscCDataManager(CDataManager):
                 ctx.fields
             )
 
-        self.replace_user_context(graph, mapper=main_struct_mapper)
+        # self.replace_user_context(graph, mapper=main_struct_mapper)
 
         # from IPython import embed; embed()
 
@@ -164,6 +164,7 @@ class PetscCDataManager(CDataManager):
         new_body = new_body._rebuild(standalones=new_body.standalones + derefs)
         
         iet = iet._rebuild(body=new_body)
+        # from IPython import embed; embed()
         return iet, {}
 
 

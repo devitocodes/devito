@@ -1045,8 +1045,9 @@ class CoupledCallback(BaseCallback):
             BlankLine,
             iteration,
         ] + matmult_op
-
-        return self._make_callable_body(tuple(body), stacks=(get_ctx, deref_subdm))
+        tmp = self._make_callable_body(tuple(body), stacks=(get_ctx, deref_subdm))
+        # from IPython import embed; embed()
+        return tmp
     
     def residual_bundle(self, body, bundles):
         """

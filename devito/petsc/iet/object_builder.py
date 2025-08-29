@@ -1,7 +1,7 @@
 import numpy as np
 
 from devito.symbolics import String
-from devito.types import Symbol, Scalar
+from devito.types import Symbol
 from devito.tools import frozendict
 
 from devito.petsc.types import (PetscBundle, DM, Mat, CallbackVec, Vec,
@@ -9,7 +9,7 @@ from devito.petsc.types import (PetscBundle, DM, Mat, CallbackVec, Vec,
                                 VecScatter, JacobianStruct, SubMatrixStruct,
                                 CallbackDM, PetscMPIInt, PetscErrorCode, PointerMat,
                                 MatReuse, CallbackPointerDM, CallbackPointerIS, CallbackMat,
-                                DummyArg)
+                                DummyArg, NofSubMats)
 
 
 class BaseObjectBuilder:
@@ -230,7 +230,8 @@ objs = frozendict({
     'nfields': PetscInt('nfields'),
     'irow': PointerIS(name='irow'),
     'icol': PointerIS(name='icol'),
-    'nsubmats': Scalar('nsubmats', dtype=np.int32),
+    'nsubmats': NofSubMats('nsubmats', dtype=np.int32),
+    # 'nsubmats': PetscInt('nsubmats'),
     'matreuse': MatReuse('scall'),
     'snes': SNES('snes'),
     'rows': rows,

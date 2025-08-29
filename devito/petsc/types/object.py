@@ -2,9 +2,9 @@ from ctypes import POINTER, c_char
 
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
-                          TimeDimension, ArrayObject, CustomDimension)
+                          TimeDimension, ArrayObject, CustomDimension, Scalar)
 from devito.symbolics import Byref, cast
-from devito.types.basic import DataSymbol
+from devito.types.basic import DataSymbol, LocalType
 
 from devito.petsc.iet.utils import petsc_call
 
@@ -243,7 +243,7 @@ class SubMatrixStruct(PETScStruct):
     _C_modifier = None
 
 
-class PETScArrayObject(PetscMixin, ArrayObject):
+class PETScArrayObject(PetscMixin, ArrayObject, LocalType):
     _data_alignment = False
 
     def __init_finalize__(self, *args, **kwargs):
@@ -327,6 +327,10 @@ class ArgvSymbol(DataSymbol):
     @property
     def _C_ctype(self):
         return POINTER(POINTER(c_char))
+
+
+class NofSubMats(Scalar, LocalType):
+    pass
 
 
 FREE_PRIORITY = {
