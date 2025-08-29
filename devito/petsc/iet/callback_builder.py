@@ -206,8 +206,7 @@ class BaseCallback:
 
         body = self.time_dependence.uxreplace_time(body)
 
-        fields = self._dummy_fields(body)
-        # fields = get_user_struct_fields(body)
+        fields = get_user_struct_fields(body)
 
         mat_get_dm = petsc_call('MatGetDM', [objs['J'], Byref(dmda)])
 
@@ -344,8 +343,7 @@ class BaseCallback:
 
         body = self.time_dependence.uxreplace_time(body)
 
-        fields = self._dummy_fields(body)
-        # fields = get_user_struct_fields(body)
+        fields = get_user_struct_fields(body)
         self._struct_params.extend(fields)
 
         f_formfunc = arrays[target]['f']
@@ -498,8 +496,7 @@ class BaseCallback:
 
         body = self.time_dependence.uxreplace_time(body)
 
-        fields = self._dummy_fields(body)
-        # fields = get_user_struct_fields(body)
+        fields = get_user_struct_fields(body)
         self._struct_params.extend(fields)
 
         dm_get_app_context = petsc_call(
@@ -540,7 +537,6 @@ class BaseCallback:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        # from IPython import embed; embed()
         from devito.ir.iet.nodes import Definition
         # need the force the struct definition to appear at the very start, since
         # some of the stacks, allocs etc may depend on it
@@ -594,8 +590,7 @@ class BaseCallback:
 
         body = self.time_dependence.uxreplace_time(body)
 
-        fields = self._dummy_fields(body)
-        # fields = get_user_struct_fields(body)
+        fields = get_user_struct_fields(body)
         self._struct_params.extend(fields)
 
         dm_get_app_context = petsc_call(
@@ -648,29 +643,9 @@ class BaseCallback:
         )
         self._efuncs[cb.name] = cb
         self._user_struct_callback = cb
-    
-    # TODO: refactor this, move it to utils and merge/ use get_user_struct_fields
-    def _dummy_fields(self, iet):
-        # Place all context data required by the shell routines into a struct
-        fields = [f.function for f in FindSymbols('abstractsymbols').visit(iet)]
-        # from IPython import embed; embed()
-        from devito.petsc.types import PetscObject, PETScStruct
-        from devito.types.basic import LocalType
-        avoid = (Temp, TempArray, LocalType)
-        fields = [f for f in fields if not isinstance(f.function, avoid)]
-        fields = [
-            f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))
-        ]
-        return fields
 
     def _uxreplace_efuncs(self):
         sobjs = self.solver_objs
-        # luserctx = petsc_struct(
-        #     sobjs['userctx'].name,
-        #     self.filtered_struct_params,
-        #     sobjs['userctx'].pname,
-        #     modifier=' *'
-        # )
         callback_user_struct =  CallbackUserStruct(
             name=sobjs['userctx'].name,
             pname=sobjs['userctx'].pname,
@@ -803,8 +778,7 @@ class CoupledCallback(BaseCallback):
 
         body = self.time_dependence.uxreplace_time(body)
 
-        fields = self._dummy_fields(body)
-        # fields = get_user_struct_fields(body)
+        fields = get_user_struct_fields(body)
         self._struct_params.extend(fields)
 
         # Process body with bundles for residual callback
@@ -938,7 +912,7 @@ class CoupledCallback(BaseCallback):
             objs['nsubmats'], Mul(objs['nfields'], objs['nfields'])
         )
 
-        malloc_submats = petsc_call('PetscCalloc1', [objs['nsubmats'], objs['Submats']])
+        malloc_submats = petsc_call('PetscCalloc1', [objs['nsubmats'], objs['Submats']._C_symbol])
 
         mat_get_dm = petsc_call('MatGetDM', [objs['J'], Byref(sobjs['callbackdm'])])
 
@@ -957,7 +931,7 @@ class CoupledCallback(BaseCallback):
         subblock_rows = DummyExpr(objs['subblockrows'], Mul(sobjs['M'], sobjs['N']))
         subblock_cols = DummyExpr(objs['subblockcols'], Mul(sobjs['M'], sobjs['N']))
 
-        ptr = DummyExpr(objs['submat_arr']._C_symbol, Deref(objs['Submats']), init=True)
+        ptr = DummyExpr(objs['submat_arr']._C_symbol, Deref(objs['Submats']._C_symbol), init=True)
 
         mat_create = petsc_call('MatCreate', [sobjs['comm'], Byref(objs['block'])])
 
@@ -1047,9 +1021,7 @@ class CoupledCallback(BaseCallback):
             BlankLine,
             iteration,
         ] + matmult_op
-        tmp = self._make_callable_body(tuple(body), stacks=(get_ctx, deref_subdm))
-        # from IPython import embed; embed()
-        return tmp
+        return self._make_callable_body(tuple(body), stacks=(get_ctx, deref_subdm))
     
     def residual_bundle(self, body, bundles):
         """
