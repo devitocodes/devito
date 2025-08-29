@@ -11,7 +11,9 @@ from devito.symbolics import Byref, Macro, Null, FieldFromPointer
 from devito.types.basic import DataSymbol
 import devito.logger as dl
 
-from devito.petsc.types import MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct
+from devito.petsc.types import (
+    MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct, CallbackUserStruct
+)
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.iet.nodes import PetscMetaData
 from devito.petsc.utils import core_metadata, petsc_languages
@@ -108,7 +110,7 @@ def lower_petsc(iet, **kwargs):
 def rebuild_callback_struct(iet, mapper, **kwargs):
     """
     """
-    from devito.petsc.types.object import CallbackUserStruct
+    # TODO: add the time dependent test to test_petsc
     # check to see if there are any `CallbackUserStruct` in iet
 
     old_child_struct = set([i for i in FindSymbols().visit(iet) if isinstance(i, CallbackUserStruct)])

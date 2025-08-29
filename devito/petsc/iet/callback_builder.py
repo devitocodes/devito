@@ -6,15 +6,15 @@ from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
 from devito.symbolics import (Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
-from devito.types import Temp, Dimension, TempArray
+from devito.types import Temp, Dimension
 from devito.tools import filter_ordered
 
 from devito.petsc.iet.nodes import (PETScCallable,
                                     MatShellSetOp)
-from devito.petsc.iet.utils import (petsc_call, petsc_struct, zero_vector,
+from devito.petsc.iet.utils import (petsc_call, zero_vector,
                                     dereference_funcs, void,
                                     insert_vals, add_vals, get_user_struct_fields)
-from devito.petsc.types import PETScArray, DMCast, MainUserStruct, CallbackUserStruct
+from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
 from devito.petsc.iet.object_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 
