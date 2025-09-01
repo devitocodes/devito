@@ -1,11 +1,10 @@
 import numpy as np
 from sympy.printing.c import C99CodePrinter
 
-from devito.ir import Call, BasePrinter, FindSymbols
+from devito.ir import Call, BasePrinter
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.passes.iet.engine import iet_pass
 from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
 
@@ -89,15 +88,20 @@ class PetscCPrinter(CPrinter):
 
     def _print_Pi(self, expr):
         return 'PETSC_PI'
-    
+
 
 class PetscCDataManager(CDataManager):
     def process(self, graph):
         """
         Apply the `place_definitions` and `place_casts` passes.
-        These passes may introduce new symbols, which need to be
-        added to the relevant structures, which are used to access
-        information in the PETSc callback functions.
+
+        These passes may introduce new symbols, which must be incorporated into 
+        the relevant PETSc structures. These structures are subsequently used by PETSc 
+        callback functions to access necessary information.
+
+        After applying the passes, the method:
+        1. Rebuilds the callback structures to include any new symbols.
+        2. Updates the `PopulateUserContext` callback to populate the new fields.
         """
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)

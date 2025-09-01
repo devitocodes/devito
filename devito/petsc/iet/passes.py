@@ -12,12 +12,15 @@ from devito.types.basic import DataSymbol
 import devito.logger as dl
 
 from devito.petsc.types import (
-    MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct, CallbackUserStruct
+    MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct,
+    CallbackUserStruct
 )
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.iet.nodes import PetscMetaData
 from devito.petsc.utils import core_metadata, petsc_languages
-from devito.petsc.iet.callback_builder import BaseCallback, CoupledCallback, populate_matrix_context
+from devito.petsc.iet.callback_builder import (
+    BaseCallback, CoupledCallback, populate_matrix_context
+)
 from devito.petsc.iet.object_builder import BaseObjectBuilder, CoupledObjectBuilder, objs
 from devito.petsc.iet.setup import BaseSetup, CoupledSetup, make_core_petsc_calls
 from devito.petsc.iet.solver import Solver, CoupledSolver
@@ -110,11 +113,11 @@ def lower_petsc(iet, **kwargs):
 def rebuild_callback_struct(iet, mapper, **kwargs):
     """
     Rebuild the `CallbackUserStruct` (the child) and it's parent to include any
-    new fields introduced by the `place_definitions` and `place_casts` passes. 
+    new fields introduced by the `place_definitions` and `place_casts` passes.
 
-    - The parent struct is the one registered in the main kernel via 
+    - The parent struct is the one registered in the main kernel via
     `DMSetApplicationContext`.
-    - The child struct (`CallbackUserStruct`) is used to access the parent 
+    - The child struct (`CallbackUserStruct`) is used to access the parent
     through `DMGetApplicationContext`.
     """
     # Get the old `CallbackUserStruct`
@@ -124,17 +127,20 @@ def rebuild_callback_struct(iet, mapper, **kwargs):
 
     if not old_child_struct:
         return iet, {}
-    
+
     # There is only a single `CallbackUserStruct` in each iet
     assert len(old_child_struct) == 1
     old_child_struct = old_child_struct.pop()
 
-    # Collect any new fields that have been introduced since the struct was previously built
-    new_fields = [f for f in get_user_struct_fields(iet) if f not in old_child_struct.fields]
+    # Collect any new fields that have been introduced since the struct was
+    # previously built
+    new_fields = [
+        f for f in get_user_struct_fields(iet) if f not in old_child_struct.fields
+    ]
     all_fields = old_child_struct.fields + new_fields
 
-    # Rebuild the parent struct as well, since it is the one registered in the 
-    # main kernel via `DMSetApplicationContext`. The child struct 
+    # Rebuild the parent struct as well, since it is the one registered in the
+    # main kernel via `DMSetApplicationContext`. The child struct
     # (`CallbackUserStruct`) then accesses it via `DMGetApplicationContext`.
     parent_struct = old_child_struct.parent
     new_user_struct = old_child_struct._rebuild(fields=all_fields)
@@ -145,9 +151,9 @@ def rebuild_callback_struct(iet, mapper, **kwargs):
     # Uxreplace old structs with new ones
     new_body = Uxreplace(mapper).visit(iet.body)
 
-    # Dereference the new fields and insert them as `standalones` at the top of the body.
-    # This ensures they are defined before any casts/allocs etc introcued by the `place_definitions`
-    # and `place_casts` passes. 
+    # Dereference the new fields and insert them as `standalones` at the top of
+    # the body. This ensures they are defined before any casts/allocs etc introcued
+    # by the `place_definitions` and `place_casts` passes.
     derefs = tuple([Dereference(i, new_user_struct) for i in new_fields])
     new_body = new_body._rebuild(standalones=new_body.standalones + derefs)
     iet = iet._rebuild(body=new_body)
@@ -161,9 +167,9 @@ def update_user_context_callback(iet, mapper, **kwargs):
     """
     if not iet.name.startswith("PopulateUserContext"):
         return iet, {}
-    
-    # Update the body of the `PopulateUserContext` callback to initialize any 
-    # new fields in the struct `ctx`. For example, if the symbol `x_size` was 
+
+    # Update the body of the `PopulateUserContext` callback to initialize any
+    # new fields in the struct `ctx`. For example, if the symbol `x_size` was
     # added, the body must now include an assignment like `ctx->x_size = x_size;`.
     old_user_ctx = [i for i in iet.parameters if isinstance(i, MainUserStruct)].pop()
     new_user_ctx = mapper[old_user_ctx]

@@ -1,5 +1,3 @@
-from collections import OrderedDict
-from functools import cached_property
 import math
 
 from devito.ir.iet import DummyExpr, BlankLine
@@ -8,7 +6,6 @@ from devito.symbolics import (Byref, FieldFromPointer, VOID,
 
 from devito.petsc.iet.nodes import FormFunctionCallback, MatShellSetOp
 from devito.petsc.iet.utils import petsc_call, void, petsc_call_mpi
-
 
 
 def make_core_petsc_calls(objs, comm):

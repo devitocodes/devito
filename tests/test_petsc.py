@@ -276,7 +276,6 @@ def test_dmda_create():
         ',1,1,1,1,6,NULL,NULL,NULL,&da0));' in str(op3)
 
 
-
 class TestStruct:
     @skipif('petsc')
     def test_cinterface_petsc_struct(self):
@@ -322,15 +321,11 @@ class TestStruct:
             # Check that it runs
             op.apply(time_M=3)
 
-        # populate_user_context = str(op._func_table['PopulateUserContext0'].root.ccode)
-        # form_rhs = str(op._func_table['FormRHS0'].root.ccode)
-
         assert 'ctx0->x_size = x_size;' in str(op.ccode)
         assert 'ctx0->y_size = y_size;' in str(op.ccode)
 
         assert 'const PetscInt y_size = ctx0->y_size;' in str(op.ccode)
         assert 'const PetscInt x_size = ctx0->x_size;' in str(op.ccode)
-
 
 
 @skipif('petsc')
@@ -602,7 +597,7 @@ class TestTimeLoop:
     @pytest.mark.parametrize('dim', [1, 2, 3])
     def test_time_dim(self, dim):
         """
-        Verify the time loop abstraction 
+        Verify the time loop abstraction
         when a mixture of TimeDimensions and time dependent
         SteppingDimensions are used
         """
@@ -616,7 +611,7 @@ class TestTimeLoop:
         with switchconfig():
             op = Operator(petsc, language='petsc')
             op.apply(time_M=1)
-    
+
         body = str(op.body)
         rhs = str(op._func_table['FormRHS0'].root.ccode)
 
@@ -627,14 +622,12 @@ class TestTimeLoop:
         assert 'ctx0->t0' in rhs
         assert 'ctx0->time' in rhs
 
-        # Check the ouput is as expected given two time steps have been executed (time_M=1)
+        # Check the ouput is as expected given two time steps have been
+        # executed (time_M=1)
         assert np.all(u.data[1] == 1.)
         assert np.all(u.data[0] == 3.)
 
-
-
     # def test_no_time_loop_callbacks
-
 
 
 @skipif('petsc')
@@ -2190,6 +2183,6 @@ class TestPrinter:
 
         with switchconfig(language='petsc'):
             op = Operator(petsc)
-    
+
         assert 'PETSC_PI' in str(op.ccode)
         assert 'M_PI' not in str(op.ccode)

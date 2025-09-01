@@ -1090,7 +1090,7 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         'symbolics': lambda n: n.functions,
         'basics': lambda n: (i for i in n.expr_symbols if isinstance(i, Basic)),
         'abstractsymbols': lambda n: (i for i in n.expr_symbols
-                              if isinstance(i, AbstractSymbol)),
+                                      if isinstance(i, AbstractSymbol)),
         'dimensions': lambda n: (i for i in n.expr_symbols if isinstance(i, Dimension)),
         'indexeds': lambda n: (i for i in n.expr_symbols if i.is_Indexed),
         'indexedbases': lambda n: (i for i in n.expr_symbols

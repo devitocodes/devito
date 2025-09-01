@@ -129,13 +129,7 @@ def generate_time_mapper(exprs):
     the main kernel.
     Examples
     --------
-    # TODO: Update these docs, since it now accepts exprs not funcs
-    >>> funcs = [
-    >>>     f1(t + dt, x, y),
-    >>>     g1(t + dt, x, y),
-    >>>     g2(t, x, y),
-    >>>     f1(t, x, y)
-    >>> ]
+    >>> exprs = (Eq(f1(t + dt, x, y), g1(t + dt, x, y) + g2(t, x, y)*f1(t, x, y)),)
     >>> generate_time_mapper(funcs)
     {t + dt: tau0, t: tau1}
     """
@@ -148,7 +142,7 @@ def generate_time_mapper(exprs):
         i if isinstance(d, SteppingDimension) else d
         for f in funcs
         for i, d in zip(f.indices, f.dimensions)
-        if d.is_Time    
+        if d.is_Time
     }))
     tau_symbs = [Symbol('tau%d' % i) for i in range(len(time_indices))]
 

@@ -1,10 +1,9 @@
 from devito.ir.equations import OpPetsc
-from devito.ir.iet import Dereference, FindSymbols, Uxreplace
+from devito.ir.iet import Dereference, FindSymbols
 from devito.types.basic import AbstractFunction
 from devito.types import Temp, TempArray
 
 from devito.petsc.iet.nodes import PetscMetaData, PETScCall
-from devito.petsc.types.array import PETScArray
 
 
 def petsc_call(specific_call, call_args):

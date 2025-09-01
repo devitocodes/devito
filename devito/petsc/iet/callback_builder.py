@@ -6,7 +6,7 @@ from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
 from devito.symbolics import (Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
-from devito.types import Temp, Dimension
+from devito.types import Dimension
 from devito.tools import filter_ordered
 
 from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp
@@ -662,7 +662,7 @@ class BaseCallback:
 
     def _uxreplace_efuncs(self):
         sobjs = self.solver_objs
-        callback_user_struct =  CallbackUserStruct(
+        callback_user_struct = CallbackUserStruct(
             name=sobjs['userctx'].name,
             pname=sobjs['userctx'].pname,
             fields=self.filtered_struct_params,
@@ -932,7 +932,9 @@ class CoupledCallback(BaseCallback):
             objs['nsubmats'], Mul(objs['nfields'], objs['nfields'])
         )
 
-        malloc_submats = petsc_call('PetscCalloc1', [objs['nsubmats'], objs['Submats']._C_symbol])
+        malloc_submats = petsc_call(
+            'PetscCalloc1', [objs['nsubmats'], objs['Submats']._C_symbol]
+        )
 
         mat_get_dm = petsc_call('MatGetDM', [objs['J'], Byref(sobjs['callbackdm'])])
 
@@ -951,7 +953,9 @@ class CoupledCallback(BaseCallback):
         subblock_rows = DummyExpr(objs['subblockrows'], Mul(sobjs['M'], sobjs['N']))
         subblock_cols = DummyExpr(objs['subblockcols'], Mul(sobjs['M'], sobjs['N']))
 
-        ptr = DummyExpr(objs['submat_arr']._C_symbol, Deref(objs['Submats']._C_symbol), init=True)
+        ptr = DummyExpr(
+            objs['submat_arr']._C_symbol, Deref(objs['Submats']._C_symbol), init=True
+        )
 
         mat_create = petsc_call('MatCreate', [sobjs['comm'], Byref(objs['block'])])
 
@@ -1042,7 +1046,7 @@ class CoupledCallback(BaseCallback):
             iteration,
         ] + matmult_op
         return self._make_callable_body(tuple(body), stacks=(get_ctx, deref_subdm))
-    
+
     def residual_bundle(self, body, bundles):
         """
         Replaces PetscArrays in `body` with PetscBundle struct field accesses
@@ -1071,7 +1075,7 @@ class CoupledCallback(BaseCallback):
 
         body = Uxreplace(subs).visit(body)
         return body
-    
+
 
 def populate_matrix_context(efuncs):
     if not objs['dummyefunc'] in efuncs.values():
