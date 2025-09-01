@@ -327,6 +327,62 @@ class TestStruct:
         assert 'const PetscInt y_size = ctx0->y_size;' in str(op.ccode)
         assert 'const PetscInt x_size = ctx0->x_size;' in str(op.ccode)
 
+    @skipif('petsc')
+    def test_parameters(self):
+
+        grid = Grid((2, 2), dtype=np.float64)
+
+        f1 = Function(name='f1', grid=grid, space_order=2)
+        g1 = Function(name='g1', grid=grid, space_order=2)
+
+        mu1 = Constant(name='mu1', value=2.0)
+        mu2 = Constant(name='mu2', value=2.0)
+
+        eqn1 = Eq(f1.laplace, g1*mu1)
+        petsc1 = PETScSolve(eqn1, f1)
+
+        eqn2 = Eq(f1, g1*mu2)
+
+        with switchconfig(language='petsc'):
+            op = Operator([eqn2, petsc1])
+
+        arguments = op.arguments()
+
+        # Check mu1 and mu2 in arguments
+        assert 'mu1' in arguments
+        assert 'mu2' in arguments
+
+        # Check mu1 and mu2 in op.parameters
+        assert mu1 in op.parameters
+        assert mu2 in op.parameters
+
+        # Check PETSc struct not in op.parameters
+        assert all(not isinstance(i, LocalCompositeObject) for i in op.parameters)
+
+    @skipif('petsc')
+    def test_field_order(self):
+        """Verify that the order of fields in the user struct is fixed for
+        `identical` Operator instances.
+        """
+        grid = Grid(shape=(11, 11, 11), dtype=np.float64)
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        x, y, _ = grid.dimensions
+        t = grid.time_dim
+        eq = Eq(f.dt, f.laplace + t*0.005 + sin(sp.pi*(x+y)/3.), subdomain=grid.interior)
+        petsc = PETScSolve(eq, f.forward)
+
+        with switchconfig(language='petsc'):
+            op1 = Operator(petsc, name="foo1")
+            op2 = Operator(petsc, name="foo2")
+
+        op1_user_struct = op1._func_table['PopulateUserContext0'].root.parameters[0]
+        op2_user_struct = op2._func_table['PopulateUserContext0'].root.parameters[0]
+
+        assert len(op1_user_struct.fields) == len(op2_user_struct.fields)
+        assert len(op1_user_struct.callback_fields) == \
+            len(op1_user_struct.callback_fields)
+        assert str(op1_user_struct.fields) == str(op2_user_struct.fields)
+
 
 @skipif('petsc')
 def test_callback_arguments():
@@ -353,39 +409,6 @@ def test_callback_arguments():
 
     assert str(mv.parameters) == '(J, X, Y)'
     assert str(ff.parameters) == '(snes, X, F, dummy)'
-
-
-@skipif('petsc')
-def test_petsc_struct():
-
-    grid = Grid((2, 2), dtype=np.float64)
-
-    f1 = Function(name='f1', grid=grid, space_order=2)
-    g1 = Function(name='g1', grid=grid, space_order=2)
-
-    mu1 = Constant(name='mu1', value=2.0)
-    mu2 = Constant(name='mu2', value=2.0)
-
-    eqn1 = Eq(f1.laplace, g1*mu1)
-    petsc1 = PETScSolve(eqn1, f1)
-
-    eqn2 = Eq(f1, g1*mu2)
-
-    with switchconfig(language='petsc'):
-        op = Operator([eqn2, petsc1])
-
-    arguments = op.arguments()
-
-    # Check mu1 and mu2 in arguments
-    assert 'mu1' in arguments
-    assert 'mu2' in arguments
-
-    # Check mu1 and mu2 in op.parameters
-    assert mu1 in op.parameters
-    assert mu2 in op.parameters
-
-    # Check PETSc struct not in op.parameters
-    assert all(not isinstance(i, LocalCompositeObject) for i in op.parameters)
 
 
 @skipif('petsc')

@@ -138,6 +138,8 @@ def rebuild_callback_struct(iet, mapper, **kwargs):
         f for f in get_user_struct_fields(iet) if f not in old_child_struct.fields
     ]
     all_fields = old_child_struct.fields + new_fields
+    # all_fields = filter_ordered(all_fields)
+    # from IPython import embed; embed()
 
     # Rebuild the parent struct as well, since it is the one registered in the
     # main kernel via `DMSetApplicationContext`. The child struct

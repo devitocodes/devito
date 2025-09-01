@@ -32,7 +32,7 @@ def dereference_funcs(struct, fields):
 
 
 def get_user_struct_fields(iet):
-    fields = set([f.function for f in FindSymbols('basics').visit(iet)])
+    fields = [f.function for f in FindSymbols('basics').visit(iet)]
     from devito.types.basic import LocalType
     avoid = (Temp, TempArray, LocalType)
     fields = [f for f in fields if not isinstance(f.function, avoid)]

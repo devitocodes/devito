@@ -95,8 +95,8 @@ class PetscCDataManager(CDataManager):
         """
         Apply the `place_definitions` and `place_casts` passes.
 
-        These passes may introduce new symbols, which must be incorporated into 
-        the relevant PETSc structures. These structures are subsequently used by PETSc 
+        These passes may introduce new symbols, which must be incorporated into
+        the relevant PETSc structures. These structures are subsequently used by PETSc
         callback functions to access necessary information.
 
         After applying the passes, the method:
