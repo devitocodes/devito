@@ -313,6 +313,7 @@ class CGen(Visitor):
         """
         qualifiers = [v for k, v in self._qualifiers_mapper.items()
                       if getattr(obj.function, k, False) and v not in masked]
+
         if (obj._mem_stack or obj._mem_constant) and mode == 1:
             strtype = self.ccode(obj._C_typedata)
             strshape = ''.join(f'[{self.ccode(i)}]' for i in obj.symbolic_shape)

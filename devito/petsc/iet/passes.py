@@ -117,11 +117,10 @@ def rebuild_callback_struct(iet, mapper, **kwargs):
     - The child struct (`CallbackUserStruct`) is used to access the parent 
     through `DMGetApplicationContext`.
     """
-    # TODO: add the time dependent test to test_petsc
-    # check to see if there are any `CallbackUserStruct` in iet
-
     # Get the old `CallbackUserStruct`
-    old_child_struct = set([i for i in FindSymbols().visit(iet) if isinstance(i, CallbackUserStruct)])
+    old_child_struct = set([
+        i for i in FindSymbols().visit(iet) if isinstance(i, CallbackUserStruct)
+    ])
 
     if not old_child_struct:
         return iet, {}
@@ -163,12 +162,11 @@ def update_user_context_callback(iet, mapper, **kwargs):
     if not iet.name.startswith("PopulateUserContext"):
         return iet, {}
     
-    # If it is the `PopulateUserContext` callback, then we need to
-    # also update the body to populate the new fields in the struct
-    # and also update the parameters
+    # Update the body of the `PopulateUserContext` callback to initialize any 
+    # new fields in the struct `ctx`. For example, if the symbol `x_size` was 
+    # added, the body must now include an assignment like `ctx->x_size = x_size;`.
     old_user_ctx = [i for i in iet.parameters if isinstance(i, MainUserStruct)].pop()
     new_user_ctx = mapper[old_user_ctx]
-
     new_body = [
         DummyExpr(FieldFromPointer(i._C_symbol, new_user_ctx), i._C_symbol)
         for i in new_user_ctx.callback_fields

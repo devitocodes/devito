@@ -288,8 +288,6 @@ class BaseCallback:
         )
 
         stacks = (
-            mat_get_dm,
-            dm_get_app_context,
             zero_y_memory,
             dm_get_local_xvec,
             global_to_local_begin,
@@ -304,7 +302,15 @@ class BaseCallback:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = self._make_callable_body(body, stacks=stacks+derefs)
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [
+            Definition(ctx), Definition(dmda), mat_get_dm, dm_get_app_context
+        ]
+
+        body = self._make_callable_body(
+            body, standalones=struct_definition, stacks=stacks+derefs
+        )
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
@@ -420,8 +426,6 @@ class BaseCallback:
         )
 
         stacks = (
-            dm_cast,
-            dm_get_app_context,
             zero_f_memory,
             dm_get_local_xvec,
             global_to_local_begin,
@@ -435,7 +439,13 @@ class BaseCallback:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = self._make_callable_body(body, stacks=stacks+derefs)
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [Definition(ctx), dm_cast, dm_get_app_context]
+
+        body = self._make_callable_body(
+            body, standalones=struct_definition, stacks=stacks+derefs
+        )
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
@@ -605,13 +615,19 @@ class BaseCallback:
 
         stacks = (
             vec_get_array,
-            dm_get_app_context,
             dm_get_local_info
         )
 
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
-        body = self._make_callable_body(body, stacks=stacks+derefs)
+
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [Definition(ctx), dm_get_app_context]
+
+        body = self._make_callable_body(
+            body, standalones=struct_definition, stacks=stacks+derefs
+        )
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
@@ -860,8 +876,6 @@ class CoupledCallback(BaseCallback):
         )
 
         stacks = (
-            dm_cast,
-            dm_get_app_context,
             zero_f_memory,
             dm_get_local_xvec,
             global_to_local_begin,
@@ -875,11 +889,17 @@ class CoupledCallback(BaseCallback):
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [Definition(ctx), dm_cast, dm_get_app_context]
+
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
 
         formfunc_body = self._make_callable_body(
-            body, stacks=stacks+derefs,
+            body,
+            standalones=struct_definition,
+            stacks=stacks+derefs,
             casts=(f_soa, x_soa),
         )
         # Replace non-function data with pointer to data in struct

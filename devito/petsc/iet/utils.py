@@ -23,7 +23,6 @@ def zero_vector(vec):
 
 
 def dereference_funcs(struct, fields):
-    # TODO: should this be more general and dereference anything that is a Scalar?
     """
     Dereference AbstractFunctions from a struct.
     """

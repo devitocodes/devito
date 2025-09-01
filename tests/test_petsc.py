@@ -7,7 +7,7 @@ import sympy as sp
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
-                    configuration, norm, switchconfig, SubDomain)
+                    configuration, norm, switchconfig, SubDomain, sin)
 from devito.operator.profiling import PerformanceSummary
 from devito.ir.iet import (Call, ElementalFunction,
                            FindNodes, retrieve_iteration_tree)
@@ -276,34 +276,61 @@ def test_dmda_create():
         ',1,1,1,1,6,NULL,NULL,NULL,&da0));' in str(op3)
 
 
-@skipif('petsc')
-def test_cinterface_petsc_struct():
 
-    grid = Grid(shape=(11, 11), dtype=np.float64)
-    f = Function(name='f', grid=grid, space_order=2)
-    eq = Eq(f.laplace, 10)
-    petsc = PETScSolve(eq, f)
+class TestStruct:
+    @skipif('petsc')
+    def test_cinterface_petsc_struct(self):
 
-    name = "foo"
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        f = Function(name='f', grid=grid, space_order=2)
+        eq = Eq(f.laplace, 10)
+        petsc = PETScSolve(eq, f)
 
-    with switchconfig(language='petsc'):
-        op = Operator(petsc, name=name)
+        name = "foo"
 
-    # Trigger the generation of a .c and a .h files
-    ccode, hcode = op.cinterface(force=True)
+        with switchconfig(language='petsc'):
+            op = Operator(petsc, name=name)
 
-    dirname = op._compiler.get_jit_dir()
-    assert os.path.isfile(os.path.join(dirname, "%s.c" % name))
-    assert os.path.isfile(os.path.join(dirname, "%s.h" % name))
+        # Trigger the generation of a .c and a .h files
+        ccode, hcode = op.cinterface(force=True)
 
-    ccode = str(ccode)
-    hcode = str(hcode)
+        dirname = op._compiler.get_jit_dir()
+        assert os.path.isfile(os.path.join(dirname, "%s.c" % name))
+        assert os.path.isfile(os.path.join(dirname, "%s.h" % name))
 
-    assert 'include "%s.h"' % name in ccode
+        ccode = str(ccode)
+        hcode = str(hcode)
 
-    # The public `struct UserCtx` only appears in the header file
-    assert 'struct UserCtx0\n{' not in ccode
-    assert 'struct UserCtx0\n{' in hcode
+        assert 'include "%s.h"' % name in ccode
+
+        # The public `struct UserCtx` only appears in the header file
+        assert 'struct UserCtx0\n{' not in ccode
+        assert 'struct UserCtx0\n{' in hcode
+
+    def test_temp_arrays_in_struct(self):
+
+        grid = Grid(shape=(11, 11, 11), dtype=np.float64)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        x, y, _ = grid.dimensions
+
+        eqn = Eq(u.forward, sin(sp.pi*(x+y)/3.), subdomain=grid.interior)
+        petsc = PETScSolve(eqn, target=u.forward)
+
+        with switchconfig(log_level='DEBUG', language='petsc'):
+            op = Operator(petsc)
+            # Check that it runs
+            op.apply(time_M=3)
+
+        # populate_user_context = str(op._func_table['PopulateUserContext0'].root.ccode)
+        # form_rhs = str(op._func_table['FormRHS0'].root.ccode)
+
+        assert 'ctx0->x_size = x_size;' in str(op.ccode)
+        assert 'ctx0->y_size = y_size;' in str(op.ccode)
+
+        assert 'const PetscInt y_size = ctx0->y_size;' in str(op.ccode)
+        assert 'const PetscInt x_size = ctx0->x_size;' in str(op.ccode)
+
 
 
 @skipif('petsc')
@@ -704,8 +731,6 @@ class TestEssentialBCs:
         assert np.allclose(u.data[1:-1, 0], 2.0)  # bottom
         assert np.allclose(u.data[0, 1:-1], 3.0)  # left
         assert np.allclose(u.data[-1, 1:-1], 4.0)  # right
-
-    # def test_time_dependent_solve(self):
 
 
 @skipif('petsc')
