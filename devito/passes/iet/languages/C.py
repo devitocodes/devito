@@ -100,7 +100,7 @@ class PetscCDataManager(CDataManager):
         callback functions to access necessary information.
 
         After applying the passes, the method:
-        1. Rebuilds the callback structures to include any new symbols.
+        1. Rebuilds the PETSc structures to include any new symbols.
         2. Updates the `PopulateUserContext` callback to populate the new fields.
         """
         self.place_definitions(graph, globs=set())
