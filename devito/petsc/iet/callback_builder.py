@@ -2,15 +2,14 @@ from collections import OrderedDict
 
 from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
                            Dereference, DummyExpr, BlankLine, Callable, Iteration,
-                           PointerCast)
+                           PointerCast, Definition)
 from devito.symbolics import (Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types import Temp, Dimension
 from devito.tools import filter_ordered
 
-from devito.petsc.iet.nodes import (PETScCallable,
-                                    MatShellSetOp)
+from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp
 from devito.petsc.iet.utils import (petsc_call, zero_vector,
                                     dereference_funcs, void,
                                     insert_vals, add_vals, get_user_struct_fields)
@@ -537,12 +536,13 @@ class BaseCallback:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        from devito.ir.iet.nodes import Definition
-        # need the force the struct definition to appear at the very start, since
-        # some of the stacks, allocs etc may depend on it
-        def_struct = [Definition(ctx), dm_get_app_context]
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [Definition(ctx), dm_get_app_context]
 
-        body = self._make_callable_body([body], standalones=def_struct, stacks=stacks+derefs)
+        body = self._make_callable_body(
+            [body], standalones=struct_definition, stacks=stacks+derefs
+        )
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for

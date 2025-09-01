@@ -95,20 +95,15 @@ class PetscCDataManager(CDataManager):
     def process(self, graph):
         """
         Apply the `place_definitions` and `place_casts` passes.
-        Also, ....
+        These passes may introduce new symbols, which need to be
+        added to the relevant structures, which are used to access
+        information in the PETSc callback functions.
         """
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
 
-        # Apply mapper if necessary to any symbols etc..
-        # some new symbols may now appear in the efuncs (e.g., from casts)
-        # so we need to update the callback that populates the struct and
-        # then map them using a FieldFromPointer
-
-
-        # first of all, rebuild any `CallbackUserStruct` to include any new fields
-        # that may have appeared from `place_definitions` and `place_casts`.
         callback_struct_mapper = {}
-
+        # Rebuild the structures
         rebuild_callback_struct(graph, mapper=callback_struct_mapper)
+        # Update the `PopulateUserContext` callback to populate the new fields
         update_user_context_callback(graph, mapper=callback_struct_mapper)

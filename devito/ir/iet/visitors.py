@@ -313,11 +313,6 @@ class CGen(Visitor):
         """
         qualifiers = [v for k, v in self._qualifiers_mapper.items()
                       if getattr(obj.function, k, False) and v not in masked]
-        # from IPython import embed; embed()
-        from devito.symbolics import FieldFromPointer, FieldFromComposite
-        if isinstance(obj, FieldFromPointer):
-            # from IPython import embed; embed()
-            tmp = "hello"
         if (obj._mem_stack or obj._mem_constant) and mode == 1:
             strtype = self.ccode(obj._C_typedata)
             strshape = ''.join(f'[{self.ccode(i)}]' for i in obj.symbolic_shape)
@@ -793,18 +788,16 @@ class CGen(Visitor):
 
         candidates = o.parameters + tuple(o._dspace.parts)
         typedecls = [self._gen_struct_decl(i) for i in candidates if xfilter(i)]
-        # from IPython import embed; embed()
         for i in o._func_table.values():
             if not i.local:
                 continue
-            # from IPython import embed; embed()
             typedecls.extend([
                 self._gen_struct_decl(j)
                 for j in FindSymbols().visit(i.root)
                 if xfilter(j)
             ])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
-        # from IPython import embed; embed()
+
         return typedecls
 
     def _operator_globals(self, o, mode='all'):
