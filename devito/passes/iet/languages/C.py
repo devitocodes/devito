@@ -93,25 +93,30 @@ class PetscCPrinter(CPrinter):
 class PetscCDataManager(CDataManager):
     def process(self, graph):
         """
-        Apply the `place_definitions` and `place_casts` passes.
+        Applies the `place_definitions` and `place_casts` passes.
 
         These passes may introduce new symbols, which must be incorporated into
-        the relevant PETSc structures. These structures are subsequently used by PETSc
-        callback functions to access necessary information (via DMGetApplicationContext).
+        the relevant PETSc structs. These structs are used in PETSc
+        callback functions to access information via `DMGetApplicationContext`.
 
-        After applying the passes, the method:
-        1. Rebuilds the PETSc structures to include any new symbols.
-        2. Updates the `PopulateUserContext` callback to populate the new fields.
+        To update the structs, this method then applies two additional passes:
+
+        1. `rebuild_child_user_struct`
+        Rebuilds each `CallbackUserStruct` to include any new symbols and updates
+        the IET accordingly (e.g., dereferencing the new symbols).
+
+        2. `rebuild_parent_user_struct`
+        Rebuilds each `MainUserStruct` to reflect the changes in the child structs.
+        Updates any IET that references a parent struct - either the
+        `PopulateUserContext` callback or the main Kernel, where the parent struct
+        is registered via `DMSetApplicationContext`.
         """
+
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
 
         callback_struct_mapper = {}
-        # Rebuild the child user struct (`CallbackUserStruct`) - these structs are used
-        # to access information in PETSc callback functions through
-        # `DMGetApplicationContext`
+        # Rebuild `CallbackUserStruct` and update iet accordingly
         rebuild_child_user_struct(graph, mapper=callback_struct_mapper)
-        # Update the parent user struct - these structs are registered in the main
-        # kernel via `DMSetApplicationContext` and populated in the `PopulateUserContext`
-        # callback
+        # Rebuild `MainUserStruct` and update iet accordingly
         rebuild_parent_user_struct(graph, mapper=callback_struct_mapper)

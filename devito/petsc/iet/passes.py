@@ -114,6 +114,7 @@ def rebuild_child_user_struct(iet, mapper, **kwargs):
     """
     Rebuild any `CallbackUserStruct` instances to include any
     new fields introduced by the `place_definitions` and `place_casts` passes.
+    Also, update the iet accordingly (e.g., dereference the new fields).
 
     - `CallbackUserStruct` is used to access information
     in PETSc callback functions through `DMGetApplicationContext`.
