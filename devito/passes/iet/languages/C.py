@@ -96,20 +96,9 @@ class PetscCDataManager(CDataManager):
         Applies the `place_definitions` and `place_casts` passes.
 
         These passes may introduce new symbols, which must be incorporated into
-        the relevant PETSc structs. These structs are used in PETSc
-        callback functions to access information via `DMGetApplicationContext`.
-
-        To update the structs, this method then applies two additional passes:
-
-        1. `rebuild_child_user_struct`
-        Updates each `CallbackUserStruct` (the child struct). New symbols are added
-        here, and the IET is updated accordingly (e.g., dereferencing the new symbols).
-
-        2. `rebuild_parent_user_struct`
-        Updates each `MainUserStruct` (the parent struct) so it stays in sync with
-        the `CallbackUserStruct`s. Any IET that references a parent struct is
-        also updated — either the `PopulateUserContext` callback or the main Kernel,
-        where the parent struct is registered via `DMSetApplicationContext`.
+        the relevant PETSc structs. To update the structs, this method then
+        applies two additional passes: `rebuild_child_user_struct` and
+        `rebuild_parent_user_struct`.
         """
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
