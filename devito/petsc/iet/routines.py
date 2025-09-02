@@ -37,7 +37,7 @@ class CBBuilder:
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
         self.inject_solve = kwargs.get('inject_solve')
-        self.solver_parameters = self.inject_solve.expr.rhs.solver_parameters
+        self.solve_expr = self.inject_solve.expr.rhs
 
         self._efuncs = OrderedDict()
         self._struct_params = []
@@ -96,8 +96,16 @@ class CBBuilder:
         return self._user_struct_callback
 
     @property
+    def solver_parameters(self):
+        return self.solve_expr.solver_parameters
+
+    @property
     def field_data(self):
-        return self.inject_solve.expr.rhs.field_data
+        return self.solve_expr.field_data
+
+    @property
+    def formatted_prefix(self):
+        return self.solve_expr.formatted_prefix
 
     @property
     def arrays(self):
@@ -142,7 +150,7 @@ class CBBuilder:
         command line arguments.
         """
         params = self.solver_parameters
-        prefix = self.inject_solve.expr.rhs.formatted_prefix
+        prefix = self.formatted_prefix
 
         set_body, clear_body = [], []
 

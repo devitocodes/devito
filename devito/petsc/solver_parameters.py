@@ -34,8 +34,8 @@ _options_prefix_counter = itertools.count()
 def format_options_prefix(options_prefix):
     # NOTE: Modified from the `OptionsManager` inside petsctools
     if not options_prefix:
-        options_prefix = f"devito_{next(_options_prefix_counter)}_"
-    else:
-        if not options_prefix.endswith("_"):
-            options_prefix += "_"
-    return options_prefix
+        return f"devito_{next(_options_prefix_counter)}_"
+
+    if options_prefix.endswith("_"):
+        return options_prefix
+    return options_prefix + "_"

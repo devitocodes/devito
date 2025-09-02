@@ -23,7 +23,7 @@ def PetscInitialize(clargs=sys.argv):
         dummy = Symbol(name='d')
 
         if clargs is not sys.argv:
-            clargs = [sys.argv[0], *clargs]
+            clargs = (sys.argv[0], *clargs)
 
         _petsc_clargs = clargs
 

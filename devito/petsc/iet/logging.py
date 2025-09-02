@@ -3,6 +3,7 @@ from functools import cached_property
 from devito.symbolics import Byref, FieldFromPointer
 from devito.ir.iet import DummyExpr
 from devito.logger import PERF
+from devito.tools import frozendict
 
 from devito.petsc.iet.utils import petsc_call
 from devito.petsc.logging import petsc_return_variable_dict, PetscInfo
@@ -31,9 +32,9 @@ class PetscLogger:
                 # SNES specific
                 'snesgetiterationnumber',
             ]
-            for f in funcs:
-                if f not in self.function_list:
-                    self.function_list.append(f)
+            self.function_list.extend(
+                [f for f in funcs if f not in self.function_list]
+            )
 
         # TODO: To be extended with if level <= DEBUG: ...
 
@@ -70,7 +71,7 @@ class PetscLogger:
             opts[info.name] = {}
             for vtype, out in zip(info.variable_type, info.output_param, strict=True):
                 opts[info.name][out] = vtype(self.sreg.make_name(prefix=out))
-        return opts
+        return frozendict(opts)
 
     @cached_property
     def calls(self):
