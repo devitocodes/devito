@@ -1068,7 +1068,7 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         Drive the search. Accepted:
         - `symbolics`: Collect all AbstractFunction objects, default
         - `basics`: Collect all Basic objects
-        - `abstractsymbols`: Collect all AbstractSymbol objects
+        - `symbols`: Collect all AbstractSymbol objects
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
@@ -1089,8 +1089,8 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
     rules: RulesDict = {
         'symbolics': lambda n: n.functions,
         'basics': lambda n: (i for i in n.expr_symbols if isinstance(i, Basic)),
-        'abstractsymbols': lambda n: (i for i in n.expr_symbols
-                                      if isinstance(i, AbstractSymbol)),
+        'symbols': lambda n: (i for i in n.expr_symbols
+                              if isinstance(i, AbstractSymbol)),
         'dimensions': lambda n: (i for i in n.expr_symbols if isinstance(i, Dimension)),
         'indexeds': lambda n: (i for i in n.expr_symbols if i.is_Indexed),
         'indexedbases': lambda n: (i for i in n.expr_symbols
