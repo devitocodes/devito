@@ -97,7 +97,7 @@ class PetscCDataManager(CDataManager):
 
         These passes may introduce new symbols, which must be incorporated into
         the relevant PETSc structures. These structures are subsequently used by PETSc
-        callback functions to access necessary information.
+        callback functions to access necessary information (via DMGetApplicationContext).
 
         After applying the passes, the method:
         1. Rebuilds the PETSc structures to include any new symbols.
