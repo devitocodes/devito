@@ -9,7 +9,7 @@ from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
 
 from devito.petsc.utils import petsc_type_mappings
-from devito.petsc.iet.passes import rebuild_callback_struct, update_user_context_callback
+from devito.petsc.iet.passes import rebuild_petsc_struct, update_user_context_callback
 
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
@@ -108,6 +108,6 @@ class PetscCDataManager(CDataManager):
 
         callback_struct_mapper = {}
         # Rebuild the structures
-        rebuild_callback_struct(graph, mapper=callback_struct_mapper)
+        rebuild_petsc_struct(graph, mapper=callback_struct_mapper)
         # Update the `PopulateUserContext` callback to populate the new fields
         update_user_context_callback(graph, mapper=callback_struct_mapper)

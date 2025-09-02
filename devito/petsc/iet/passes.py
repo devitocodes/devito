@@ -110,7 +110,7 @@ def lower_petsc(iet, **kwargs):
 
 
 @iet_pass
-def rebuild_callback_struct(iet, mapper, **kwargs):
+def rebuild_petsc_struct(iet, mapper, **kwargs):
     """
     Rebuild the `CallbackUserStruct` (the child) and it's parent to include any
     new fields introduced by the `place_definitions` and `place_casts` passes.
@@ -130,7 +130,9 @@ def rebuild_callback_struct(iet, mapper, **kwargs):
 
     # There is only a single `CallbackUserStruct` in each iet
     assert len(old_child_struct) == 1
+
     old_child_struct = old_child_struct.pop()
+    old_parent_struct = old_child_struct.parent
 
     # Collect any new fields that have been introduced since the struct was
     # previously built
@@ -138,29 +140,25 @@ def rebuild_callback_struct(iet, mapper, **kwargs):
         f for f in get_user_struct_fields(iet) if f not in old_child_struct.fields
     ]
     all_fields = old_child_struct.fields + new_fields
-    # all_fields = filter_ordered(all_fields)
-    # from IPython import embed; embed()
 
-    # Rebuild the parent struct as well, since it is the one registered in the
-    # main kernel via `DMSetApplicationContext`. The child struct
-    # (`CallbackUserStruct`) then accesses it via `DMGetApplicationContext`.
-    parent_struct = old_child_struct.parent
-    new_user_struct = old_child_struct._rebuild(fields=all_fields)
+    # Rebuild the child struct
+    new_child_struct = old_child_struct._rebuild(fields=all_fields)
+    mapper[old_child_struct] = new_child_struct
 
-    mapper[parent_struct] = parent_struct._rebuild(fields=all_fields)
-    mapper[old_child_struct] = new_user_struct
+    # Rebuild the parent struct
+    new_parent_struct = old_parent_struct._rebuild(fields=all_fields)
+    mapper[old_parent_struct] = new_parent_struct
 
     # Uxreplace old structs with new ones
     new_body = Uxreplace(mapper).visit(iet.body)
 
     # Dereference the new fields and insert them as `standalones` at the top of
-    # the body. This ensures they are defined before any casts/allocs etc introcued
+    # the body. This ensures they are defined before any casts/allocs etc introduced
     # by the `place_definitions` and `place_casts` passes.
-    derefs = tuple([Dereference(i, new_user_struct) for i in new_fields])
+    derefs = tuple([Dereference(i, new_child_struct) for i in new_fields])
     new_body = new_body._rebuild(standalones=new_body.standalones + derefs)
-    iet = iet._rebuild(body=new_body)
 
-    return iet, {}
+    return iet._rebuild(body=new_body), {}
 
 
 @iet_pass
