@@ -9,7 +9,7 @@ from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
 
 from devito.petsc.utils import petsc_type_mappings
-from devito.petsc.iet.passes import rebuild_petsc_struct, update_user_context_callback
+from devito.petsc.iet.passes import rebuild_child_user_struct, rebuild_parent_user_struct
 
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
@@ -107,7 +107,11 @@ class PetscCDataManager(CDataManager):
         self.place_casts(graph)
 
         callback_struct_mapper = {}
-        # Rebuild the structures
-        rebuild_petsc_struct(graph, mapper=callback_struct_mapper)
-        # Update the `PopulateUserContext` callback to populate the new fields
-        update_user_context_callback(graph, mapper=callback_struct_mapper)
+        # Rebuild the child user struct (`CallbackUserStruct`) - these structs are used
+        # to access information in PETSc callback functions through
+        # `DMGetApplicationContext`
+        rebuild_child_user_struct(graph, mapper=callback_struct_mapper)
+        # Update the parent user struct - these structs are registered in the main
+        # kernel via `DMSetApplicationContext` and populated in the `PopulateUserContext`
+        # callback
+        rebuild_parent_user_struct(graph, mapper=callback_struct_mapper)

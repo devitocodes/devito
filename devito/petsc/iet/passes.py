@@ -110,77 +110,79 @@ def lower_petsc(iet, **kwargs):
 
 
 @iet_pass
-def rebuild_petsc_struct(iet, mapper, **kwargs):
+def rebuild_child_user_struct(iet, mapper, **kwargs):
     """
-    Rebuild the `CallbackUserStruct` (the child) and it's parent to include any
+    Rebuild any `CallbackUserStruct` instances to include any
     new fields introduced by the `place_definitions` and `place_casts` passes.
 
-    - The parent struct is the one registered in the main kernel via
-    `DMSetApplicationContext`.
-    - The child struct (`CallbackUserStruct`) is used to access the parent
-    through `DMGetApplicationContext`.
+    - `CallbackUserStruct` is used to access information
+    in PETSc callback functions through `DMGetApplicationContext`.
     """
-    # Get the old `CallbackUserStruct`
-    old_child_struct = set([
+    old_struct = set([
         i for i in FindSymbols().visit(iet) if isinstance(i, CallbackUserStruct)
     ])
 
-    if not old_child_struct:
+    if not old_struct:
         return iet, {}
 
-    # There is only a single `CallbackUserStruct` in each iet
-    assert len(old_child_struct) == 1
-
-    old_child_struct = old_child_struct.pop()
-    old_parent_struct = old_child_struct.parent
+    # There is a unique `CallbackUserStruct` in each callback
+    assert len(old_struct) == 1
+    old_struct = old_struct.pop()
 
     # Collect any new fields that have been introduced since the struct was
     # previously built
     new_fields = [
-        f for f in get_user_struct_fields(iet) if f not in old_child_struct.fields
+        f for f in get_user_struct_fields(iet) if f not in old_struct.fields
     ]
-    all_fields = old_child_struct.fields + new_fields
+    all_fields = old_struct.fields + new_fields
 
-    # Rebuild the child struct
-    new_child_struct = old_child_struct._rebuild(fields=all_fields)
-    mapper[old_child_struct] = new_child_struct
+    # Rebuild the struct
+    new_struct = old_struct._rebuild(fields=all_fields)
+    mapper[old_struct] = new_struct
 
-    # Rebuild the parent struct
-    new_parent_struct = old_parent_struct._rebuild(fields=all_fields)
-    mapper[old_parent_struct] = new_parent_struct
-
-    # Uxreplace old structs with new ones
+    # Replace old struct with the new one
     new_body = Uxreplace(mapper).visit(iet.body)
 
     # Dereference the new fields and insert them as `standalones` at the top of
     # the body. This ensures they are defined before any casts/allocs etc introduced
     # by the `place_definitions` and `place_casts` passes.
-    derefs = tuple([Dereference(i, new_child_struct) for i in new_fields])
+    derefs = tuple([Dereference(i, new_struct) for i in new_fields])
     new_body = new_body._rebuild(standalones=new_body.standalones + derefs)
 
     return iet._rebuild(body=new_body), {}
 
 
 @iet_pass
-def update_user_context_callback(iet, mapper, **kwargs):
+def rebuild_parent_user_struct(iet, mapper, **kwargs):
     """
+    Rebuild parent user structs (`MainUserStruct`) and update the iet accordingly.
+
+    The affected iets are either:
+    - the `PopulateUserContext` callback, which populates the parent
+       struct with values, or
+    - the main kernel, where the parent struct is registered via
+      `DMSetApplicationContext`.
     """
-    if not iet.name.startswith("PopulateUserContext"):
+    if not mapper:
         return iet, {}
 
-    # Update the body of the `PopulateUserContext` callback to initialize any
-    # new fields in the struct `ctx`. For example, if the symbol `x_size` was
-    # added, the body must now include an assignment like `ctx->x_size = x_size;`.
-    old_user_ctx = [i for i in iet.parameters if isinstance(i, MainUserStruct)].pop()
-    new_user_ctx = mapper[old_user_ctx]
+    parent_struct_mapper = {
+        v.parent: v.parent._rebuild(fields=v.fields) for v in mapper.values()
+    }
+
+    if not iet.name.startswith("PopulateUserContext"):
+        new_body = Uxreplace(parent_struct_mapper).visit(iet.body)
+        return iet._rebuild(body=new_body), {}
+
+    parent_struct = [i for i in iet.parameters if isinstance(i, MainUserStruct)].pop()
+    new_parent_struct = parent_struct_mapper[parent_struct]
+
     new_body = [
-        DummyExpr(FieldFromPointer(i._C_symbol, new_user_ctx), i._C_symbol)
-        for i in new_user_ctx.callback_fields
+        DummyExpr(FieldFromPointer(i._C_symbol, new_parent_struct), i._C_symbol)
+        for i in new_parent_struct.callback_fields
     ]
     new_body = iet.body._rebuild(body=new_body)
-    iet = iet._rebuild(body=new_body, parameters=(new_user_ctx,))
-
-    return iet, {}
+    return iet._rebuild(body=new_body, parameters=(new_parent_struct,)), {}
 
 
 def initialize(iet):

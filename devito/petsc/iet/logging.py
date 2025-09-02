@@ -26,8 +26,8 @@ class PetscLogger:
                 'kspgetiterationnumber',
                 'kspgettolerances',
                 'kspgetconvergedreason',
-                # TODO: fix me.. this gives a segfault for 3d_heat_explicit.py example?
-                # 'kspgettype',
+                # FIXME: kspgettype gives a segfault with time loop
+                'kspgettype',
                 'kspgetnormtype',
                 # SNES specific
                 'snesgetiterationnumber',
