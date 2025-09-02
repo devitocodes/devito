@@ -442,6 +442,21 @@ def test_custom_coeffs_tensor():
             assert list(drv.weights) == c
 
 
+@pytest.mark.parametrize('func', [TensorFunction, TensorTimeFunction,
+                                  VectorFunction, VectorTimeFunction])
+def test_custom_coeffs_tensor_basic(func):
+    grid = Grid(tuple([5]*3))
+    f = func(name="t", grid=grid, space_order=2)
+
+    # Custom coefficients
+    c = [10, 10, 10]
+
+    df = f.dx(w=c)
+    for (fi, dfi) in zip(f.values(), df.values()):
+        assert dfi == fi.dx(w=c)
+        assert list(dfi.weights) == c
+
+
 @pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
                                    VectorFunction, VectorTimeFunction])
 def test_rebuild(func1):

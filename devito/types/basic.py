@@ -1574,6 +1574,16 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         # Real valued adjoint is transpose
         return self.transpose(inner=inner)
 
+    def __call__(self, **kwargs):
+        """
+        Derivative custom inputs (weights/x0/...) is done through call
+        and needs to be applied to each component through applyfunc
+        """
+        try:
+            return self.applyfunc(lambda x: x(**kwargs))
+        except TypeError as e:
+            raise f"{self.name} not callable with {kwargs}" from e
+
     @call_highest_priority('__radd__')
     def __add__(self, other):
         try:
