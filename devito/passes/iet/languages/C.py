@@ -102,16 +102,15 @@ class PetscCDataManager(CDataManager):
         To update the structs, this method then applies two additional passes:
 
         1. `rebuild_child_user_struct`
-        Rebuilds each `CallbackUserStruct` to include any new symbols and updates
-        the IET accordingly (e.g., dereferencing the new symbols).
+        Updates each `CallbackUserStruct` (the child struct). New symbols are added
+        here, and the IET is updated accordingly (e.g., dereferencing the new symbols).
 
         2. `rebuild_parent_user_struct`
-        Rebuilds each `MainUserStruct` to reflect the changes in the child structs.
-        Updates any IET that references a parent struct - either the
-        `PopulateUserContext` callback or the main Kernel, where the parent struct
-        is registered via `DMSetApplicationContext`.
+        Updates each `MainUserStruct` (the parent struct) so it stays in sync with
+        the `CallbackUserStruct`s. Any IET that references a parent struct is
+        also updated — either the `PopulateUserContext` callback or the main Kernel,
+        where the parent struct is registered via `DMSetApplicationContext`.
         """
-
         self.place_definitions(graph, globs=set())
         self.place_casts(graph)
 
