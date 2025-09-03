@@ -109,6 +109,22 @@ def lower_petsc(iet, **kwargs):
     return iet, metadata
 
 
+def lower_petsc_symbols(iet, **kwargs):
+    """
+    Applies the `place_definitions` and `place_casts` passes.
+
+    These passes may introduce new symbols, which must be incorporated into
+    the relevant PETSc structs. To update the structs, this method then
+    applies two additional passes: `rebuild_child_user_struct` and
+    `rebuild_parent_user_struct`.
+    """
+    callback_struct_mapper = {}
+    # Rebuild `CallbackUserStruct` and update iet accordingly
+    rebuild_child_user_struct(iet, mapper=callback_struct_mapper)
+    # Rebuild `MainUserStruct` and update iet accordingly
+    rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
+
+
 @iet_pass
 def rebuild_child_user_struct(iet, mapper, **kwargs):
     """

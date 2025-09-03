@@ -169,7 +169,7 @@ class TimeDependent(NonTimeDependent):
             return (
                 petsc_call('VecResetArray', [xlocal])
             )
-        return super().reset_array(target)    
+        return super().reset_array(target)
 
     def assign_time_iters(self, struct):
         """

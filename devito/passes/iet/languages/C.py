@@ -9,7 +9,6 @@ from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
 
 from devito.petsc.utils import petsc_type_mappings
-from devito.petsc.iet.passes import rebuild_child_user_struct, rebuild_parent_user_struct
 
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
@@ -88,23 +87,3 @@ class PetscCPrinter(CPrinter):
 
     def _print_Pi(self, expr):
         return 'PETSC_PI'
-
-
-class PetscCDataManager(CDataManager):
-    def process(self, graph):
-        """
-        Applies the `place_definitions` and `place_casts` passes.
-
-        These passes may introduce new symbols, which must be incorporated into
-        the relevant PETSc structs. To update the structs, this method then
-        applies two additional passes: `rebuild_child_user_struct` and
-        `rebuild_parent_user_struct`.
-        """
-        self.place_definitions(graph, globs=set())
-        self.place_casts(graph)
-
-        callback_struct_mapper = {}
-        # Rebuild `CallbackUserStruct` and update iet accordingly
-        rebuild_child_user_struct(graph, mapper=callback_struct_mapper)
-        # Rebuild `MainUserStruct` and update iet accordingly
-        rebuild_parent_user_struct(graph, mapper=callback_struct_mapper)
