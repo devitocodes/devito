@@ -26,7 +26,6 @@ class PetscLogger:
                 'kspgetiterationnumber',
                 'kspgettolerances',
                 'kspgetconvergedreason',
-                # FIXME: kspgettype gives a segfault with time loop
                 'kspgettype',
                 'kspgetnormtype',
                 # SNES specific
