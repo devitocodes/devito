@@ -112,7 +112,8 @@ class AbstractSparseFunction(DiscreteFunction):
             loc_shape = []
             assert len(dimensions) == len(shape)
             for i, (d, s) in enumerate(zip(dimensions, shape)):
-                if i == cls._sparse_position:
+                if i == cls._sparse_position or \
+                   (cls._sparse_position == -1 and i == len(dimensions)-1):
                     loc_shape.append(glb_npoint[grid.distributor.myrank])
                 elif d in grid.dimensions:
                     loc_shape.append(grid.size_map[d].loc)
@@ -741,7 +742,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        shape = list(AbstractSparseFunction.__shape_setup__(**kwargs))
+        shape = list(super().__shape_setup__(**kwargs))
         dimensions = as_tuple(kwargs.get('dimensions'))
         if dimensions is None or len(shape) == len(dimensions):
             # Shape has already been setup, for example via rebuild
