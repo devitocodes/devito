@@ -10,7 +10,6 @@ from devito.tools import dtype_to_cstr
 
 from devito.petsc.utils import petsc_type_mappings
 
-
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 
 
