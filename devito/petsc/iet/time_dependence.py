@@ -22,22 +22,10 @@ class NonTimeDependent:
         return body
 
     def place_array(self, target):
-        sobjs = self.sobjs
-
-        field_from_ptr = FieldFromPointer(
-            target.function._C_field_data, target.function._C_symbol
-        )
-        xlocal = sobjs.get(f'xlocal{target.name}', sobjs['xlocal'])
-        return (petsc_call('VecPlaceArray', [xlocal, field_from_ptr]),)
+        return ()
 
     def reset_array(self, target):
-        """
-        """
-        sobjs = self.sobjs
-        xlocal = sobjs.get(f'xlocal{target.name}', sobjs['xlocal'])
-        return (
-            petsc_call('VecResetArray', [xlocal])
-        )
+        return ()
 
     def assign_time_iters(self, struct):
         return []
@@ -173,6 +161,15 @@ class TimeDependent(NonTimeDependent):
                 petsc_call('VecPlaceArray', [xlocal, start_ptr])
             )
         return super().place_array(target)
+
+    def reset_array(self, target):
+        if self.is_target_time(target):
+            sobjs = self.sobjs
+            xlocal = sobjs.get(f'xlocal{target.name}', sobjs['xlocal'])
+            return (
+                petsc_call('VecResetArray', [xlocal])
+            )
+        return super().reset_array(target)    
 
     def assign_time_iters(self, struct):
         """

@@ -291,6 +291,22 @@ class CoupledSetup(BaseSetup):
             [sobjs[f'da{t.name}'], Byref(sobjs[f'xglobal{t.name}'])]
         ) for t in targets]
 
+        xlocals = []
+        for t in targets:
+            target_xloc = sobjs[f'xlocal{t.name}']
+            local_size = math.prod(
+                v for v, dim in zip(t.shape_allocated, t.dimensions) if dim.is_Space
+            )
+            field_from_ptr = FieldFromPointer(
+                t.function._C_field_data, t.function._C_symbol
+            )
+            # TODO: Check - VecCreateSeqWithArray?
+            xlocals.append(petsc_call(
+                'VecCreateMPIWithArray',
+                [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
+                 field_from_ptr, Byref(target_xloc)]
+            ))
+
         coupled_setup = dmda_calls + (
             snes_create,
             snes_options_prefix,
@@ -313,5 +329,5 @@ class CoupledSetup(BaseSetup):
             call_coupled_struct_callback,
             shell_set_ctx,
             create_submats) + \
-            tuple(deref_dms) + tuple(xglobals)
+            tuple(deref_dms) + tuple(xglobals) + tuple(xlocals) + (BlankLine,)
         return coupled_setup

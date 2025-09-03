@@ -109,9 +109,6 @@ class CoupledSolver(Solver):
             s = sobjs[f'scatter{name}']
 
             pre_solve += (
-                # TODO: Switch to createwitharray and move to setup
-                petsc_call('DMCreateLocalVector', [dm, Byref(target_xloc)]),
-
                 # TODO: Need to call reset array
                 self.time_dependence.place_array(t),
                 petsc_call(
