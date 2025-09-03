@@ -95,12 +95,19 @@ class AbstractSparseFunction(DiscreteFunction):
         # A Grid must have been provided
         if grid is None:
             raise TypeError('Need `grid` argument')
-        shape = kwargs.get('shape')
+        shape = kwargs.get('shape', kwargs.get('shape_global'))
         dimensions = kwargs.get('dimensions')
         npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
         glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
+        # Plain SparseFunction construction with npoint.
         if shape is None:
             loc_shape = (glb_npoint[grid.distributor.myrank],)
+        # No dimensions is only possible through rebuild, the shape is from
+        # the existing function
+        elif dimensions is None:
+            loc_shape = list(shape)
+            # For safety, ensure the distributed sparse dimension is correct
+            loc_shape[cls._sparse_position] = glb_npoint[grid.distributor.myrank]
         else:
             loc_shape = []
             assert len(dimensions) == len(shape)
@@ -111,6 +118,7 @@ class AbstractSparseFunction(DiscreteFunction):
                     loc_shape.append(grid.size_map[d].loc)
                 else:
                     loc_shape.append(s)
+
         return tuple(loc_shape)
 
     def __fd_setup__(self):
@@ -733,16 +741,19 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
-        shape = kwargs.get('shape')
-        if shape is None:
-            nt = kwargs.get('nt')
-            if not isinstance(nt, int):
-                raise TypeError('Need `nt` int argument')
-            if nt <= 0:
-                raise ValueError('`nt` must be > 0')
+        shape = list(AbstractSparseFunction.__shape_setup__(**kwargs))
+        dimensions = as_tuple(kwargs.get('dimensions'))
+        if dimensions is None or len(shape) == len(dimensions):
+            # Shape has already been setup, for example via rebuild
+            return tuple(shape)
 
-            shape = list(AbstractSparseFunction.__shape_setup__(**kwargs))
-            shape.insert(cls._time_position, nt)
+        nt = kwargs.get('nt')
+        if not isinstance(nt, int):
+            raise TypeError('Need `nt` int argument')
+        if nt <= 0:
+            raise ValueError('`nt` must be > 0')
+
+        shape.insert(cls._time_position, nt)
 
         return tuple(shape)
 

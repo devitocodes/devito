@@ -63,7 +63,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     The type of the underlying data object.
     """
 
-    __rkwargs__ = AbstractFunction.__rkwargs__ + ('staggered', 'coefficients')
+    __rkwargs__ = AbstractFunction.__rkwargs__ + \
+        ('shape_global', 'staggered', 'coefficients')
 
     def __init_finalize__(self, *args, function=None, **kwargs):
         # Now that *all* __X_setup__ hooks have been called, we can let the
@@ -1009,7 +1010,7 @@ class Function(DiscreteFunction):
     is_autopaddable = True
 
     __rkwargs__ = (DiscreteFunction.__rkwargs__ +
-                   ('space_order', 'shape_global', 'dimensions'))
+                   ('space_order', 'dimensions'))
 
     def _cache_meta(self):
         # Attach additional metadata to self's cache entry

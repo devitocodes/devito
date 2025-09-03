@@ -19,7 +19,7 @@ from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObje
 from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
                           PointerArray, Lock, PThreadArray, SharedData, Timer,
                           DeviceID, NPThreads, ThreadID, TempFunction, Indirection,
-                          FIndexed, ComponentAccess)
+                          FIndexed, ComponentAccess, DefaultDimension)
 from devito.types.basic import BoundSymbol, AbstractSymbol
 from devito.tools import EnrichedTuple
 from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
@@ -27,6 +27,11 @@ from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
                               pow_to_mul)
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
+
+
+class SparseFirst(SparseFunction):
+
+    _sparse_position = 0
 
 
 class SD(SubDomain):
@@ -180,6 +185,32 @@ class TestBasic:
         assert sf.time_order == new_sf.time_order
         assert sf.dtype == new_sf.dtype
         assert sf.npoint == new_sf.npoint == 3
+
+    def test_sparse_first(self, pickle):
+
+        dr = Dimension("cd")
+        ds = DefaultDimension("ps", default_value=3)
+        grid = Grid((11, 11))
+        sf = SparseFirst(name="s", grid=grid, npoint=2,
+                         dimensions=(dr, ds), shape=(2, 3),
+                         coordinates=[[.5, .5], [.2, .2]])
+        sf.data[0] = 1.
+
+        pkl_sf = pickle.dumps(sf)
+        new_sf = pickle.loads(pkl_sf)
+
+        # .data is initialized, so it should have been pickled too
+        assert np.all(sf.data[0] == 1.)
+        assert np.all(new_sf.data[0] == 1.)
+        assert new_sf.interpolation == sf.interpolation
+
+        # coordinates should also have been pickled
+        assert np.all(sf.coordinates.data == new_sf.coordinates.data)
+
+        assert sf.space_order == new_sf.space_order
+        assert sf.dtype == new_sf.dtype
+        assert sf.npoint == new_sf.npoint
+        assert sf.shape == new_sf.shape
 
     def test_alias_sparse_function(self, pickle):
         grid = Grid(shape=(3,))
