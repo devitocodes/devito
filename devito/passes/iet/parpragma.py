@@ -419,7 +419,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 
         return iet, {'includes': [self.langbb['header']]}
 
-    def make_parallel(self, graph):
+    def make_parallel(self, graph, **kwargs):
         return self._make_parallel(graph, sync_mapper=graph.sync_mapper)
 
 

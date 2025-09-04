@@ -7,8 +7,8 @@ from devito.tools import (Bunch, float2, float3, float4, double2, double3, doubl
 from devito.tools.dtypes_lowering import dtype_mapper
 
 __all__ = ['cast', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
-           'DOUBLE', 'VOID', 'NoDeclStruct', 'c_complex', 'c_double_complex',
-           'LONG']
+           'DOUBLE', 'VOID', 'LONG', 'ULONG', 'NoDeclStruct', 'c_complex',
+           'c_double_complex']
 
 
 limits_mapper = {
