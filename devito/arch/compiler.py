@@ -291,6 +291,22 @@ class Compiler(GCCToolchain):
         """
         return npct.load_library(str(self.get_jit_dir().joinpath(soname)), '.')
 
+    def save_header(self, filename, code):
+        """
+        Store some source code into a header file within the same temporary directory
+        used for JIT compilation.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the header file (w/o the suffix).
+        code : str
+            The source code to be stored.
+        """
+        hfile = self.get_jit_dir().joinpath(filename).with_suffix('.h')
+        with open(str(hfile), 'w') as f:
+            f.write(code)
+
     def save(self, soname, binary):
         """
         Store a binary into a file within a temporary directory.
