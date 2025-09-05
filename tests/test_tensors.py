@@ -449,7 +449,7 @@ def test_custom_coeffs_tensor_basic(func):
     f = func(name="t", grid=grid, space_order=2)
 
     # Custom coefficients
-    c = [10, 10, 10]
+    c = [10, 20, 30]
 
     df = f.dx(w=c)
     for (fi, dfi) in zip(f.values(), df.values()):
