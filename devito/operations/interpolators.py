@@ -125,6 +125,8 @@ class Interpolation(UnevaluatedSparseOperation):
         return (f"Interpolation({repr(self.expr)} into "
                 f"{repr(self.interpolator.sfunction)})")
 
+    __str__ = __repr__
+
 
 class Injection(UnevaluatedSparseOperation):
 
@@ -151,6 +153,8 @@ class Injection(UnevaluatedSparseOperation):
 
     def __repr__(self):
         return f"Injection({repr(self.expr)} into {repr(self.field)})"
+
+    __str__ = __repr__
 
 
 class GenericInterpolator(ABC):
