@@ -504,6 +504,10 @@ class Bundle(MappedArrayMixin, ArrayBasic):
             return self.c0.symbolic_shape
 
     @property
+    def nbytes(self):
+        return self.size*self.dtype.itemsize
+
+    @property
     def _mem_heap(self):
         return not any([self._mem_stack, self._mem_shared, self._mem_shared_remote])
 
