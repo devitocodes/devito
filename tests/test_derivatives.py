@@ -1229,3 +1229,24 @@ class TestExpansion:
             + 10*self.f*Derivative(self.v, self.x)*Derivative(self.u, self.x) \
             + 5*self.f*self.u*Derivative(self.v, (self.x, 2))
         assert diffify(expr.expand(product_rule=True)) == expanded
+
+    def test_fallback_wrong_custom_size(self):
+        """
+        Check an exception is raised when a custom size is not compatible
+        with the derivative order
+        """
+        grid = Grid((10,))
+        x, = grid.dimensions
+        u = Function(name="u", grid=grid, space_order=2, staggered=x)
+        v = Function(name="v", grid=grid, space_order=2, staggered=NODE)
+
+        w = [-2, 2]  # Should 2 coeff since this is staggered
+
+        eq0 = Eq(u, v.dx(w=w)).evaluate
+        exp0 = -2 * v / x.spacing + 2 * v._subs(x, x + x.spacing)/x.spacing
+        # This one should fallback to taylor coeffs since w is too short
+        # for a centered derivative
+        eq1 = Eq(v, v.dx(w=w)).evaluate
+        exp1 = - .5 * (v._subs(x, x - x.spacing) - v._subs(x, x + x.spacing))/x.spacing
+        assert simplify(eq0.rhs - exp0) == 0
+        assert simplify(eq1.rhs - exp1) == 0
