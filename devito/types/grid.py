@@ -873,7 +873,7 @@ class SubDomainSet(MultiSubDomain):
         # SubDomainSet ID to make them unique so they can be used to key a dictionary
         # of replacements without risking overwriting.
         i_dim = Dimension(f'n_{str(id(self))}')
-        d_dim = DefaultDimension(name='d', default_value=2*grid.dim)
+        d_dim = DefaultDimension(name='sds_dim', default_value=2*grid.dim)
         sd_func = Function(name=self.name, grid=self._grid,
                            shape=(self._n_domains, 2*grid.dim),
                            dimensions=(i_dim, d_dim), dtype=np.int32)
