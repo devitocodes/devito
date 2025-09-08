@@ -538,7 +538,11 @@ class CGen(Visitor):
 
     def visit_List(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
-        return c.Module(o.header + (c.Collection(body),) + o.footer)
+        if o.inline:
+            body = c.Line(' '.join(str(i) for i in body))
+        else:
+            body = c.Collection(body)
+        return c.Module(o.header + (body,) + o.footer)
 
     def visit_Section(self, o):
         body = flatten(self._visit(i) for i in o.children)

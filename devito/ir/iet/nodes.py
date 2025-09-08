@@ -195,7 +195,7 @@ class List(Node):
 
     _traversable = ['body']
 
-    def __init__(self, header=None, body=None, footer=None):
+    def __init__(self, header=None, body=None, footer=None, inline=False):
         body = as_tuple(body)
         if len(body) == 1 and all(type(i) is List for i in [self, body[0]]):
             # De-nest Lists
@@ -212,6 +212,8 @@ class List(Node):
             self.header = as_tuple(header)
             self.body = as_tuple(body)
             self.footer = as_tuple(footer)
+
+        self.inline = inline
 
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),

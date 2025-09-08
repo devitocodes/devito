@@ -488,3 +488,11 @@ def test_special_array_definition():
     a = MyArray(name='a', dimensions=dim, scope='shared', dtype=np.uint8)
 
     assert str(Definition(a)) == "extern  unsigned char a[];"
+
+
+def test_list_inline():
+    expr0 = DummyExpr(Symbol(name='a'), 1)
+    expr1 = DummyExpr(Symbol(name='b'), 2)
+
+    lst = List(body=[expr0, expr1], inline=True)
+    assert str(lst) == """a = 1; b = 2;"""
