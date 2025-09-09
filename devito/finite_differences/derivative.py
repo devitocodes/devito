@@ -5,15 +5,15 @@ from itertools import chain
 
 import sympy
 
-from .finite_difference import generic_derivative, cross_derivative
-from .differentiable import Differentiable, diffify, interp_for_fd, Add, Mul
-from .tools import direct, transpose
-from .rsfd import d45
-from devito.tools import (as_mapper, as_tuple, frozendict, is_integer,
-                          Pickable)
+from devito.tools import Pickable, as_mapper, as_tuple, frozendict, is_integer
 from devito.types.dimension import Dimension
 from devito.types.utils import DimensionTuple
 from devito.warnings import warn
+
+from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
+from .finite_difference import cross_derivative, generic_derivative
+from .rsfd import d45
+from .tools import direct, transpose
 
 __all__ = ['Derivative']
 
@@ -112,27 +112,19 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         # It is also possible that the expression itself is just a
         # `devito.Dimension` type which is:
-        #   - derivative 1 if the dimension coincides and the number of derivatives
+        #   - derivative 1 if the Dimension coincides and the number of derivatives
         #     is 1 ie: `Derivative(x, (x, 1)) == 1`.
-        #   - derivative 0 if the dimension coincides and the total number of
+        #   - derivative 0 if the Dimension coincides and the total number of
         #     derivatives is greater than 1 ie: `Derivative(x, (x, 2)) == 0` and
         #     `Derivative(x, x, y) == 0`.
-        #   - An error otherwise.
-        if isinstance(expr, Dimension):
-            if expr in dcounter.keys():
-                if dcounter[expr] == 0:
-                    raise ValueError(
-                        f'Cannot interpolate a dimension `{expr}` onto itself'
-                    )
-                elif dcounter.pop(expr) == 1 and not dcounter:
-                    return 1
-                else:
-                    return 0
+        #   - An unevaluated expression otherwise.
+        if isinstance(expr, Dimension) and expr in dcounter:
+            if dcounter[expr] == 0:
+                pass
+            elif dcounter.pop(expr) == 1 and not dcounter:
+                return 1
             else:
-                raise ValueError(
-                    f'Cannot differentiate one dimension `{expr}` with respect to'
-                    f' another {tuple(dcounter.keys())}'
-                )
+                return 0
 
         # Validate the finite difference order `fd_order`
         fd_order = cls._validate_fd_order(kwargs.get('fd_order'), expr, dims, dcounter)
@@ -182,12 +174,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         convertible to "differentiable" type.
         """
         if type(expr) is sympy.Derivative:
-            raise ValueError('Cannot nest sympy.Derivative with devito.Derivative')
+            raise ValueError("Cannot nest sympy.Derivative with devito.Derivative")
         if not isinstance(expr, Differentiable):
             try:
                 expr = diffify(expr)
             except Exception as e:
-                raise ValueError('`expr` must be a `Differentiable` type object') from e
+                raise ValueError("`expr` must be a `Differentiable` type object") from e
         return expr
 
     @staticmethod
@@ -257,7 +249,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         Required: `expr`, `dims`, and the derivative counter to validate.
         If not provided, the maximum supported order will be used.
         """
-        if fd_order is not None:
+        if isinstance(expr, Dimension):
+            # If the expression is just a dimension `expr.time_order` and
+            # `expr.space_order` are not defined
+            fd_order = (99,)*len(dcounter)
+        elif fd_order is not None:
             # If `fd_order` is specified, then validate
             fcounter = defaultdict(int)
             # First create a dictionary mapping variable wrt which to differentiate

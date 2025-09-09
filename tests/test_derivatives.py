@@ -1276,12 +1276,11 @@ class TestDimension:
         assert Derivative(self.x, self.y, self.t, self.x) == 0
         assert Derivative(self.x, self.y, self.t, (self.x, 2)) == 0
 
-    def test_error(self):
-        with pytest.raises(ValueError):
-            Derivative(self.x, self.t)
-
-        with pytest.raises(ValueError):
-            Derivative(self.x, self.y, self.t)
-
-        with pytest.raises(ValueError):
-            Derivative(self.x, (self.x, 0))
+    def test_unevaluated(self):
+        """
+        The following should all be instantiatible without raising an
+        exception, but should not simplify.
+        """
+        assert Derivative(self.x, self.t)
+        assert Derivative(self.x, self.y, self.t)
+        assert Derivative(self.x, (self.x, 0))
