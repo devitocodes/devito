@@ -7,17 +7,18 @@ import sympy
 
 from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
                     switchconfig)
-from devito.ir.iet import (Call, Callable, Conditional, DeviceCall, DummyExpr,
-                           Iteration, List, KernelLaunch, Lambda, ElementalFunction,
-                           CGen, FindSymbols, filter_iterations, make_efunc,
-                           retrieve_iteration_tree, Transformer)
+from devito.ir.iet import (
+    Call, Callable, Conditional, Definition, DeviceCall, DummyExpr, Iteration, List,
+    KernelLaunch, Lambda, ElementalFunction, CGen, FindSymbols, filter_iterations,
+    make_efunc, retrieve_iteration_tree, Transformer
+)
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
-                              FLOAT)
+                              String, FLOAT)
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import Array, LocalObject, Symbol
+from devito.types import CustomDimension, Array, LocalObject, Symbol
 
 
 @pytest.fixture
@@ -475,3 +476,23 @@ def test_codegen_quality0():
     assert len(foo.parameters) == 3
     assert len(foo1.parameters) == 1
     assert foo1.parameters[0] is a
+
+
+def test_special_array_definition():
+
+    class MyArray(Array):
+        is_extern = True
+        _data_alignment = False
+
+    dim = CustomDimension(name='d', symbolic_size=String(''))
+    a = MyArray(name='a', dimensions=dim, scope='shared', dtype=np.uint8)
+
+    assert str(Definition(a)) == "extern  unsigned char a[];"
+
+
+def test_list_inline():
+    expr0 = DummyExpr(Symbol(name='a'), 1)
+    expr1 = DummyExpr(Symbol(name='b'), 2)
+
+    lst = List(body=[expr0, expr1], inline=True)
+    assert str(lst) == """a = 1; b = 2;"""
