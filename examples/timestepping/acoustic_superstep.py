@@ -135,10 +135,14 @@ if __name__ == '__main__':
         t2 = 0.5
         critical_dt = 0.0013728
         zlim = 20
+        try:
+            path = f'{os.environ["VIRTUAL_ENV"]}/src'
+        except KeyError:
+            path = str(os.environ['GITHUB_WORKSPACE'])
         tmp_model = demo_model(
             'marmousi-isotropic',
             space_order=2,
-            data_path=f'{os.environ["VIRTUAL_ENV"]}/src/data',
+            data_path=f'{path}/data',
             nbl=0
         )
         cropped = tmp_model.vp.data[400:701, -321:-20]

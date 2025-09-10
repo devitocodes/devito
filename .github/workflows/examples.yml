@@ -36,6 +36,12 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v5
 
+    - name: Checkout data
+      uses: actions/checkout@v5
+      with:
+       repository: 'devitocodes/data'
+       path: 'data'
+
     - name: Setup conda
       uses: conda-incubator/setup-miniconda@v3
       with:
