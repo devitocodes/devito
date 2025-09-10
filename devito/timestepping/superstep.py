@@ -8,46 +8,6 @@ The method employed here takes inspiration from the following paper:
 from devito.types import Eq, Function, TimeFunction
 
 
-def superstep_generator_iterative(field, stencil, k, nt=0):
-    """
-    Generate superstep iteratively:
-    Aʲ⁺¹ = A·Aʲ
-    """
-    # New fields, for vector formulation both current and previous timestep are needed
-    name = field.name
-    grid = field.grid
-    u = TimeFunction(name=f'{name}_ss', grid=grid, time_order=2, space_order=2*k)
-    u_prev = TimeFunction(name=f'{name}_ss_p', grid=grid, time_order=2, space_order=2*k)
-
-    superstep_solution_transfer(field, u, u_prev, nt)
-
-    # Substitute new fields into stencil
-    ss_stencil = stencil.subs({field: u, field.backward: u_prev}, postprocess=False)
-    ss_stencil = ss_stencil.expand().expand(add=True, nest=True)
-    current = ss_stencil
-
-    # Placeholder fields for forming the superstep
-    a_tmp = Function(name="a_tmp", grid=grid, space_order=2*k)
-    b_tmp = Function(name="b_tmp", grid=grid, space_order=2*k)
-
-    if k >= 2:
-        for _ in range(k - 2):
-            current = current.subs(
-                {u: a_tmp, u_prev: b_tmp}, postprocess=False).subs(
-                {a_tmp: ss_stencil, b_tmp: u}, postprocess=False
-            )
-            current = current.expand().expand(add=True, nest=True)
-    else:
-        current = u
-
-    stencil_next = current.subs(
-        {u: a_tmp, u_prev: b_tmp}, postprocess=False).subs(
-        {a_tmp: ss_stencil, b_tmp: u}, postprocess=False
-    )
-    stencil_next = stencil_next.expand().expand(add=True, nest=True)
-    return u, u_prev, Eq(u.forward, stencil_next), Eq(u_prev.forward, current)
-
-
 def superstep_generator(field, stencil, k, nt=0):
     """
     Generate superstep using a binary decomposition:
