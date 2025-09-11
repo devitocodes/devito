@@ -198,6 +198,9 @@ class WaveletSource(PointSource):
         Amplitude of the wavelet (defaults to 1).
     t0 : float, optional
         Firing time (defaults to 1 / f0)
+    wavelet: str, optional
+        The type of wavelet to generate one of
+        {'gauss_soliton', 'dgauss', 'ricker', 'gabor'}
     """
 
     __rkwargs__ = PointSource.__rkwargs__ + ['f0', 'a', 't0']
@@ -217,12 +220,13 @@ class WaveletSource(PointSource):
         self.wavelet_type = kwargs.get('wavelet')
         self.wavelet_kwargs = {}
 
-        if self.wavelet_type == 'dgauss':
-            self.wavelet_kwargs['n'] = kwargs.get('n', 1)
+        if isinstance(self.wavelet_type, str):
+            if self.wavelet_type == 'dgauss':
+                self.wavelet_kwargs['n'] = kwargs.get('n', 1)
 
-        if self.wavelet_type == 'gabor':
-            self.wavelet_kwargs['gamma'] = kwargs.get('gamma', 1)
-            self.wavelet_kwargs['phi'] = kwargs.get('phi', 0)
+            if self.wavelet_type == 'gabor':
+                self.wavelet_kwargs['gamma'] = kwargs.get('gamma', 1)
+                self.wavelet_kwargs['phi'] = kwargs.get('phi', 0)
 
         if not self.alias:
             for p in range(kwargs['npoint']):
@@ -233,7 +237,7 @@ class WaveletSource(PointSource):
         """
         Return a wavelet with a peak frequency ``f0`` at time ``t0``.
         """
-        if self.wavelet_type:
+        if isinstance(self.wavelet_type, str):
             return wavelet[self.wavelet_type](
                 self.time_values,
                 self.f0,
@@ -241,6 +245,8 @@ class WaveletSource(PointSource):
                 self.t0,
                 **self.wavelet_kwargs
             )
+        elif any(self.wavelet_type):
+            return self.wavelet_type
         else:
             raise NotImplementedError('Wavelet not defined')
 
