@@ -2,17 +2,26 @@ import numpy as np
 import pytest
 import sympy
 
+try:
+    from ..conftest import skipif
+except ImportError:
+    from conftest import skipif
+
 from devito import (
     Constant, Eq, Function, Grid, Operator, exp, log, sin, configuration
 )
+from devito.arch.compiler import GNUCompiler, CustomCompiler
+from devito.exceptions import InvalidOperator
 from devito.ir.cgen.printer import BasePrinter
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import CBB, CPrinter
 from devito.passes.iet.languages.openacc import AccBB, AccPrinter
 from devito.passes.iet.languages.openmp import OmpBB
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
+from devito.tools import dtype_to_cstr
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
+from devito.types.sparse import SparseTimeFunction
 
 # Mappers for language-specific types and headers
 _languages: dict[str, type[LangBB]] = {
@@ -274,3 +283,56 @@ def test_complex_space_deriv(dtype: np.dtype[np.complexfloating]) -> None:
     dfdy = h.data.T[1:-1, 1:-1]
     assert np.allclose(dfdx, np.ones((5, 5), dtype=dtype))
     assert np.allclose(dfdy, np.ones((5, 5), dtype=dtype))
+
+
+@skipif(['noomp', 'device'])
+@pytest.mark.parametrize('dtypeu', [np.float32, np.complex64, np.complex128])
+def test_complex_reduction(dtypeu: np.dtype[np.complexfloating]) -> None:
+    """
+    Tests reductions over complex-valued functions.
+    """
+    grid = Grid((11, 11))
+
+    u = TimeFunction(name="u", grid=grid, space_order=2, time_order=1, dtype=dtypeu)
+    for dtypes in [dtypeu, dtypeu(0).real.__class__]:
+        u.data.fill(0)
+        s = SparseTimeFunction(name="s", grid=grid, npoint=1, nt=10, dtype=dtypes)
+        if np.issubdtype(dtypes, np.complexfloating):
+            s.data[:] = 1 + 2j
+            expected = 8. + 16.j
+        else:
+            s.data[:] = 1
+            expected = 8.
+        s.coordinates.data[:] = [.5, .5]
+
+        # s complex and u real should error
+        if np.issubdtype(dtypeu, np.floating) and \
+           np.issubdtype(dtypes, np.complexfloating):
+            with pytest.raises(InvalidOperator):
+                op = Operator([Eq(u.forward, u)] + s.inject(u.forward, expr=s))
+            continue
+        else:
+            op = Operator([Eq(u.forward, u)] + s.inject(u.forward, expr=s))
+        op()
+
+        if op._options['linearize']:
+            ustr = 'uL0(t1, rsx + posx + 2, rsy + posy + 2)'
+        else:
+            ustr = 'u[t1][rsx + posx + 2][rsy + posy + 2]'
+
+        compiler = configuration['compiler']
+        gnu = isinstance(compiler, GNUCompiler) or \
+            (isinstance(compiler, CustomCompiler) and compiler._base is GNUCompiler)
+        if gnu and np.issubdtype(dtypeu, np.complexfloating):
+            if 'CXX' in op._language:
+                rd = dtype_to_cstr(dtypeu(0).real.__class__)
+                assert f'{rd} * p{u.name} = reinterpret_cast<{rd}*>(&uL0' in str(op)
+                assert f'p{u.name}[0] += std::real(r0)' in str(op)
+                assert f'p{u.name}[1] += std::imag(r0)' in str(op)
+            else:
+                assert f'__real__ {ustr} += __real__ r0' in str(op)
+                assert f'__imag__ {ustr} += __imag__ r0' in str(op)
+        else:
+            assert f'{ustr} += r0' in str(op)
+
+        assert np.isclose(u.data[0, 5, 5], expected)

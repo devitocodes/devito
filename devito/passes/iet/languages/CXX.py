@@ -1,12 +1,17 @@
+from ctypes import POINTER
+
 import numpy as np
 from sympy.printing.cxx import CXX11CodePrinter
 
-from devito.ir import Call, UsingNamespace, BasePrinter
+from devito import Real, Imag
+from devito.exceptions import InvalidOperator
+from devito.ir import Call, UsingNamespace, BasePrinter, DummyExpr, List
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics import c_complex, c_double_complex
-from devito.tools import dtype_to_cstr
+from devito.symbolics import c_complex, c_double_complex, IndexedPointer, cast, Byref
+from devito.tools import dtype_to_cstr, dtype_to_ctype
+from devito.types import Pointer
 
 __all__ = ['CXXBB', 'CXXDataManager', 'CXXOrchestrator']
 
@@ -65,6 +70,51 @@ template<typename _Tp, typename _Ti>
 """
 
 
+def atomic_add(i, pragmas, split=False):
+    # Base case, real reduction
+    if not split:
+        return i._rebuild(pragmas=pragmas)
+    # Complex reduction, split using a temp pointer
+    # Transforns lhs += rhs into
+    # {
+    #   float * lhs = reinterpret_cast<float*>(&lhs);
+    #   pragmas
+    #   lhs[0] += std::real(rhs);
+    #   pragmas
+    #   lhs[1] += std::imag(rhs);
+    # }
+    # Make a temp pointer
+    lhs, rhs = i.expr.lhs, i.expr.rhs
+    rdtype = lhs.dtype(0).real.__class__
+    plhs = Pointer(name=f'p{lhs.name}', dtype=POINTER(dtype_to_ctype(rdtype)))
+    peq = DummyExpr(plhs, cast(rdtype, stars='*')(Byref(lhs), reinterpret=True))
+
+    if (np.issubdtype(lhs.dtype, np.complexfloating)
+       and np.issubdtype(rhs.dtype, np.complexfloating)):
+        # Complex i, complex j
+        # Atomic add real and imaginary parts separately
+        lhsr, rhsr = IndexedPointer(plhs, 0), Real(rhs)
+        lhsi, rhsi = IndexedPointer(plhs, 1), Imag(rhs)
+        real = i._rebuild(expr=i.expr._rebuild(lhs=lhsr, rhs=rhsr),
+                          pragmas=pragmas)
+        imag = i._rebuild(expr=i.expr._rebuild(lhs=lhsi, rhs=rhsi),
+                          pragmas=pragmas)
+        return List(body=[peq, real, imag])
+
+    elif (np.issubdtype(lhs.dtype, np.complexfloating)
+          and not np.issubdtype(rhs.dtype, np.complexfloating)):
+        # Complex i, real j
+        # Atomic add j to real part of i
+        lhsr, rhsr = IndexedPointer(plhs, 0), rhs
+        real = i._rebuild(expr=i.expr._rebuild(lhs=lhsr, rhs=rhsr),
+                          pragmas=pragmas)
+        return List(body=[peq, real])
+    else:
+        # Real i, complex j
+        raise InvalidOperator("Atomic add not implemented for real "
+                              "Functions with complex increments")
+
+
 class CXXBB(LangBB):
 
     mapper = {
@@ -86,7 +136,7 @@ class CXXBB(LangBB):
         'host-free-pin': lambda i:
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
-            Call('memcpy', (i, j, k)),
+            Call('memcpy', (i, j, k))
     }
 
 
