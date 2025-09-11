@@ -74,7 +74,7 @@ class AccBB(PragmaLangBB):
             Call('acc_set_device_num', args),
         # Pragmas
         'atomic':
-            Pragma('acc atomic update'),
+            lambda i, s: i._rebuild(pragmas=Pragma('acc atomic update')),
         'map-enter-to': lambda f, imask:
             PragmaTransfer('acc enter data copyin(%s%s)', f, imask=imask),
         'map-enter-to-async': lambda f, imask, a:
