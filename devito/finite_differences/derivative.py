@@ -5,14 +5,15 @@ from itertools import chain
 
 import sympy
 
-from .finite_difference import generic_derivative, cross_derivative
-from .differentiable import Differentiable, diffify, interp_for_fd, Add, Mul
-from .tools import direct, transpose
-from .rsfd import d45
-from devito.tools import (as_mapper, as_tuple, frozendict, is_integer,
-                          Pickable)
+from devito.tools import Pickable, as_mapper, as_tuple, frozendict, is_integer
+from devito.types.dimension import Dimension
 from devito.types.utils import DimensionTuple
 from devito.warnings import warn
+
+from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
+from .finite_difference import cross_derivative, generic_derivative
+from .rsfd import d45
+from .tools import direct, transpose
 
 __all__ = ['Derivative']
 
@@ -101,13 +102,29 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         # Count the derivatives w.r.t. each variable
         dcounter = cls._count_derivatives(deriv_order, dims)
 
-        # It's possible that the expr is a `sympy.Number` at this point, which
+        # It is possible that the expr is a `sympy.Number` at this point, which
         # has derivative 0, unless we're taking a 0th derivative.
         if isinstance(expr, sympy.Number):
             if any(dcounter.values()):
                 return 0
             else:
                 return expr
+
+        # It is also possible that the expression itself is just a
+        # `devito.Dimension` type which is:
+        #   - derivative 1 if the Dimension coincides and the number of derivatives
+        #     is 1 ie: `Derivative(x, (x, 1)) == 1`.
+        #   - derivative 0 if the Dimension coincides and the total number of
+        #     derivatives is greater than 1 ie: `Derivative(x, (x, 2)) == 0` and
+        #     `Derivative(x, x, y) == 0`.
+        #   - An unevaluated expression otherwise.
+        if isinstance(expr, Dimension) and expr in dcounter:
+            if dcounter[expr] == 0:
+                pass
+            elif dcounter.pop(expr) == 1 and not dcounter:
+                return 1
+            else:
+                return 0
 
         # Validate the finite difference order `fd_order`
         fd_order = cls._validate_fd_order(kwargs.get('fd_order'), expr, dims, dcounter)
@@ -232,7 +249,11 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         Required: `expr`, `dims`, and the derivative counter to validate.
         If not provided, the maximum supported order will be used.
         """
-        if fd_order is not None:
+        if isinstance(expr, Dimension):
+            # If the expression is just a dimension `expr.time_order` and
+            # `expr.space_order` are not defined
+            fd_order = (99,)*len(dcounter)
+        elif fd_order is not None:
             # If `fd_order` is specified, then validate
             fcounter = defaultdict(int)
             # First create a dictionary mapping variable wrt which to differentiate
