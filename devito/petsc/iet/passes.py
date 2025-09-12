@@ -10,7 +10,7 @@ from devito.symbolics import Byref, FieldFromPointer, Macro, Null
 from devito.types import Symbol, Scalar
 from devito.types.basic import DataSymbol
 from devito.tools import frozendict
-import devito.logger as dl
+import devito.logger
 
 from devito.petsc.types import (PetscMPIInt, PetscErrorCode, MultipleFieldData,
                                 PointerIS, Mat, CallbackVec, Vec, CallbackMat, SNES,
@@ -201,7 +201,7 @@ class Builder:
 
     @cached_property
     def logger(self):
-        log_level = dl.logger.level
+        log_level = devito.logger.logger.level
         return PetscLogger(
             log_level, self.get_info, **self.common_kwargs
         )

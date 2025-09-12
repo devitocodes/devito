@@ -192,9 +192,11 @@ class PetscInfo(CompositeObject):
         # - If the function returns multiple values (e.g., KSPGetTolerances),
         #   return a dictionary mapping each output name to its value,
         #   e.g., {'rtol': val0, 'atol': val1, ...}.
-        if len(obj_mapper) > 1:
-            return {k: get_val(v) for k, v in obj_mapper.items()}
-        return get_val(next(iter(obj_mapper.values())))
+        info = {k: get_val(v) for k, v in obj_mapper.items()}
+        if len(info) == 1:
+            return info.popitem()[1]
+        else:
+            return info
 
 
 @dataclass

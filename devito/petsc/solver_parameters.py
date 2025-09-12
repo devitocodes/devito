@@ -38,4 +38,4 @@ def format_options_prefix(options_prefix):
 
     if options_prefix.endswith("_"):
         return options_prefix
-    return options_prefix + "_"
+    return f"{options_prefix}_"
