@@ -15,7 +15,7 @@ class PetscLogger:
     """
     def __init__(self, level, get_info=[], **kwargs):
 
-        self.function_list = get_info
+        self.query_functions = get_info
         self.sobjs = kwargs.get('solver_objs')
         self.sreg = kwargs.get('sregistry')
         self.section_mapper = kwargs.get('section_mapper', {})
@@ -32,8 +32,8 @@ class PetscLogger:
                 # SNES specific
                 'snesgetiterationnumber',
             ]
-            self.function_list.extend(
-                [f for f in funcs if f not in self.function_list]
+            self.query_functions.extend(
+                [f for f in funcs if f not in self.query_functions]
             )
 
         # TODO: To be extended with if level <= DEBUG: ...
@@ -44,19 +44,19 @@ class PetscLogger:
         self.statstruct = PetscInfo(
             name, pname, self.petsc_option_mapper, self.sobjs,
             self.section_mapper, self.inject_solve,
-            self.function_list
+            self.query_functions
         )
 
     @cached_property
     def petsc_option_mapper(self):
         """
-        For each function in `self.function_list`, look up its metadata in
+        For each function in `self.query_functions`, look up its metadata in
         `petsc_return_variable_dict` and instantiate the corresponding PETSc logging
         variables with names from the symbol registry.
 
         Example:
         --------
-        >>> self.function_list
+        >>> self.query_functions
         ['kspgetiterationnumber', 'snesgetiterationnumber', 'kspgettolerances']
 
         >>> self.petsc_option_mapper
@@ -66,7 +66,7 @@ class PetscLogger:
         }
         """
         opts = {}
-        for func_name in self.function_list:
+        for func_name in self.query_functions:
             info = petsc_return_variable_dict[func_name]
             opts[info.name] = {}
             for vtype, out in zip(info.variable_type, info.output_param, strict=True):
@@ -81,7 +81,7 @@ class PetscLogger:
         """
         struct = self.statstruct
         calls = []
-        for func_name in self.function_list:
+        for func_name in self.query_functions:
             return_variable = petsc_return_variable_dict[func_name]
 
             input = self.sobjs[return_variable.input_params]

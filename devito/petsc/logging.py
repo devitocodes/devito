@@ -43,7 +43,7 @@ class PetscSummary(dict):
         self._functions = list(dict.fromkeys(
             petsc_return_variable_dict[key].name
             for struct in self.petscinfos
-            for key in struct.function_list
+            for key in struct.query_functions
         ))
         self._property_name_map = {}
         # Dynamically create a property on this class for each PETSc function
@@ -71,7 +71,7 @@ class PetscSummary(dict):
         # Collect the function names associated with this PetscInfo
         # instance (i.e., for a single PETScSolve).
         funcs = [
-            petsc_return_variable_dict[f].name for f in petscinfo.function_list
+            petsc_return_variable_dict[f].name for f in petscinfo.query_functions
         ]
         values = [getattr(petscinfo, c) for c in funcs]
         return PetscEntry(**{k: v for k, v in zip(funcs, values)})
@@ -130,16 +130,16 @@ class PetscSummary(dict):
 class PetscInfo(CompositeObject):
 
     __rargs__ = ('name', 'pname', 'petsc_option_mapper', 'sobjs', 'section_mapper',
-                 'inject_solve', 'function_list')
+                 'inject_solve', 'query_functions')
 
     def __init__(self, name, pname, petsc_option_mapper, sobjs, section_mapper,
-                 inject_solve, function_list):
+                 inject_solve, query_functions):
 
         self.petsc_option_mapper = petsc_option_mapper
         self.sobjs = sobjs
         self.section_mapper = section_mapper
         self.inject_solve = inject_solve
-        self.function_list = function_list
+        self.query_functions = query_functions
         self.solve_expr = inject_solve.expr.rhs
 
         pfields = []
