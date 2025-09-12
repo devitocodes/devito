@@ -203,7 +203,7 @@ class Builder:
     def logger(self):
         log_level = devito.logger.logger.level
         return PetscLogger(
-            log_level, self.get_info, **self.common_kwargs
+            log_level, get_info=self.get_info, **self.common_kwargs
         )
 
     @cached_property

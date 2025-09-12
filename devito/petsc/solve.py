@@ -1,6 +1,6 @@
 from devito.types.equation import PetscEq
 from devito.tools import as_tuple
-from devito.petsc.types import (LinearSolveExpr, PETScArray, DMDALocalInfo,
+from devito.petsc.types import (LinearSolverMetaData, PETScArray, DMDALocalInfo,
                                 FieldData, MultipleFieldData, Jacobian, Residual,
                                 MixedResidual, MixedJacobian, InitialGuess)
 from devito.petsc.types.equation import EssentialBC
@@ -103,7 +103,7 @@ class InjectSolve:
         target, funcs, field_data = self.linear_solve_args()
         # Placeholder expression for inserting calls to the solver
 
-        linear_solve = LinearSolveExpr(
+        linear_solve = LinearSolverMetaData(
             funcs,
             solver_parameters=self.solver_parameters,
             field_data=field_data,

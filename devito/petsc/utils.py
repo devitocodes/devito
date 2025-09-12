@@ -123,7 +123,7 @@ def generate_time_mapper(funcs):
     level to align with the `TimeDimension` and `ModuloDimension` objects
     present in the initial lowering.
     NOTE: All functions used in PETSc callback functions are attached to
-    the `SolveExpr` object, which is passed through the initial lowering
+    the `SolverMetaData` object, which is passed through the initial lowering
     (and subsequently dropped and replaced with calls to run the solver).
     Therefore, the appropriate time loop will always be correctly generated inside
     the main kernel.

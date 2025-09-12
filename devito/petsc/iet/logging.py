@@ -13,9 +13,10 @@ class PetscLogger:
     """
     Class for PETSc loggers that collect solver related statistics.
     """
-    def __init__(self, level, get_info=[], **kwargs):
+    # TODO: Update docstring with kwargs
+    def __init__(self, level, **kwargs):
 
-        self.query_functions = get_info
+        self.query_functions = kwargs.get('get_info', [])
         self.sobjs = kwargs.get('solver_objs')
         self.sreg = kwargs.get('sregistry')
         self.section_mapper = kwargs.get('section_mapper', {})
@@ -32,9 +33,9 @@ class PetscLogger:
                 # SNES specific
                 'snesgetiterationnumber',
             ]
-            self.query_functions.extend(
-                [f for f in funcs if f not in self.query_functions]
-            )
+            self.query_functions = set(self.query_functions)
+            self.query_functions.update(funcs)
+            self.query_functions = sorted(list(self.query_functions))
 
         # TODO: To be extended with if level <= DEBUG: ...
 

@@ -1,5 +1,5 @@
 from devito.tools import timed_pass
-from devito.petsc.types import SolveExpr
+from devito.petsc.types import SolverMetaData
 
 
 @timed_pass()
@@ -19,7 +19,7 @@ def petsc_lift(clusters):
     """
     processed = []
     for c in clusters:
-        if isinstance(c.exprs[0].rhs, SolveExpr):
+        if isinstance(c.exprs[0].rhs, SolverMetaData):
             ispace = c.ispace.lift(c.exprs[0].rhs.field_data.space_dimensions)
             processed.append(c.rebuild(ispace=ispace))
         else:
