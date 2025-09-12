@@ -7,7 +7,7 @@ from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
                            retrieve_iteration_tree, filter_iterations, Iteration,
                            PointerCast)
 from devito.symbolics import (Byref, FieldFromPointer, cast, VOID,
-                              FieldFromComposite, IntDiv, Deref, Mod, String)
+                              FieldFromComposite, IntDiv, Deref, Mod, String, Null)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types import Temp, Dimension
@@ -17,11 +17,11 @@ from devito.petsc.iet.nodes import (PETScCallable, FormFunctionCallback,
                                     MatShellSetOp, PetscMetaData)
 from devito.petsc.iet.utils import (petsc_call, petsc_struct, zero_vector,
                                     dereference_funcs, residual_bundle)
-from devito.petsc.utils import solver_mapper
 from devito.petsc.types import (PETScArray, PetscBundle, DM, Mat, CallbackVec, Vec,
                                 KSP, PC, SNES, PetscInt, StartPtr, PointerIS, PointerDM,
                                 VecScatter, DMCast, JacobianStruct, SubMatrixStruct,
                                 CallbackDM)
+from devito.petsc.types.macros import petsc_func_begin_user
 
 
 class CBBuilder:
@@ -37,10 +37,13 @@ class CBBuilder:
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
         self.inject_solve = kwargs.get('inject_solve')
+        self.solve_expr = self.inject_solve.expr.rhs
 
         self._efuncs = OrderedDict()
         self._struct_params = []
 
+        self._set_options_efunc = None
+        self._clear_options_efunc = None
         self._main_matvec_callback = None
         self._user_struct_callback = None
         self._F_efunc = None
@@ -93,8 +96,16 @@ class CBBuilder:
         return self._user_struct_callback
 
     @property
+    def solver_parameters(self):
+        return self.solve_expr.solver_parameters
+
+    @property
     def field_data(self):
-        return self.inject_solve.expr.rhs.field_data
+        return self.solve_expr.field_data
+
+    @property
+    def formatted_prefix(self):
+        return self.solve_expr.formatted_prefix
 
     @property
     def arrays(self):
@@ -105,12 +116,76 @@ class CBBuilder:
         return self.field_data.target
 
     def _make_core(self):
+        self._make_options_callback()
         self._make_matvec(self.field_data.jacobian)
         self._make_formfunc()
         self._make_formrhs()
         if self.field_data.initial_guess.exprs:
             self._make_initial_guess()
         self._make_user_struct_callback()
+
+    def _make_petsc_callable(self, prefix, body, parameters=()):
+        return PETScCallable(
+            self.sregistry.make_name(prefix=prefix),
+            body,
+            retval=self.objs['err'],
+            parameters=parameters
+        )
+
+    def _make_callable_body(self, body, stacks=(), casts=()):
+        return CallableBody(
+            List(body=body),
+            init=(petsc_func_begin_user,),
+            stacks=stacks,
+            casts=casts,
+            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
+        )
+
+    def _make_options_callback(self):
+        """
+        Create two callbacks: one to set PETSc options and one
+        to clear them.
+
+        Options are only set/cleared if they were not specifed via
+        command line arguments.
+        """
+        params = self.solver_parameters
+        prefix = self.formatted_prefix
+
+        set_body, clear_body = [], []
+
+        for k, v in params.items():
+            option = f'-{prefix}{k}'
+
+            # TODO: Revisit use of a global variable here.
+            # Consider replacing this with a call to `PetscGetArgs`, though
+            # initial attempts failed, possibly because the argv pointer is
+            # created in Python?..
+            import devito.petsc.initialize
+            if option in devito.petsc.initialize._petsc_clargs:
+                # Ensures that the command line args take priority
+                continue
+
+            option_name = String(option)
+            # For options without a value e.g `ksp_view`, pass Null
+            option_value = Null if v is None else String(str(v))
+            set_body.append(
+                petsc_call('PetscOptionsSetValue', [Null, option_name, option_value])
+            )
+            clear_body.append(
+                petsc_call('PetscOptionsClearValue', [Null, option_name])
+            )
+
+        set_body = self._make_callable_body(set_body)
+        clear_body = self._make_callable_body(clear_body)
+
+        set_callback = self._make_petsc_callable('SetPetscOptions', set_body)
+        clear_callback = self._make_petsc_callable('ClearPetscOptions', clear_body)
+
+        self._set_options_efunc = set_callback
+        self._efuncs[set_callback.name] = set_callback
+        self._clear_options_efunc = clear_callback
+        self._efuncs[clear_callback.name] = clear_callback
 
     def _make_matvec(self, jacobian, prefix='MatMult'):
         # Compile `matvecs` into an IET via recursive compilation
@@ -122,13 +197,9 @@ class CBBuilder:
         body = self._create_matvec_body(
             List(body=irs.uiet.body), jacobian
         )
-
         objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix=prefix),
-            body,
-            retval=objs['err'],
-            parameters=(objs['J'], objs['X'], objs['Y'])
+        cb = self._make_petsc_callable(
+            prefix, body, parameters=(objs['J'], objs['X'], objs['Y'])
         )
         self._J_efuncs.append(cb)
         self._efuncs[cb.name] = cb
@@ -246,12 +317,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = CallableBody(
-            List(body=body),
-            init=(objs['begin_user'],),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = self._make_callable_body(body, stacks=stacks+derefs)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
@@ -261,6 +327,7 @@ class CBBuilder:
         return body
 
     def _make_formfunc(self):
+        objs = self.objs
         F_exprs = self.field_data.residual.F_exprs
         # Compile `F_exprs` into an IET via recursive compilation
         irs, _ = self.rcompile(
@@ -270,13 +337,9 @@ class CBBuilder:
         body_formfunc = self._create_formfunc_body(
             List(body=irs.uiet.body)
         )
-        objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='FormFunction'),
-            body_formfunc,
-            retval=objs['err'],
-            parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
-        )
+        parameters = (objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
+        cb = self._make_petsc_callable('FormFunction', body_formfunc, parameters)
+
         self._F_efunc = cb
         self._efuncs[cb.name] = cb
 
@@ -385,12 +448,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = CallableBody(
-            List(body=body),
-            init=(objs['begin_user'],),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),))
-
+        body = self._make_callable_body(body, stacks=stacks+derefs)
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
@@ -409,11 +467,8 @@ class CBBuilder:
             List(body=irs.uiet.body)
         )
         objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='FormRHS'),
-            body,
-            retval=objs['err'],
-            parameters=(sobjs['callbackdm'], objs['B'])
+        cb = self._make_petsc_callable(
+            'FormRHS', body, parameters=(sobjs['callbackdm'], objs['B'])
         )
         self._b_efunc = cb
         self._efuncs[cb.name] = cb
@@ -495,12 +550,7 @@ class CBBuilder:
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
 
-        body = CallableBody(
-            List(body=[body]),
-            init=(objs['begin_user'],),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = self._make_callable_body([body], stacks=stacks+derefs)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
@@ -511,6 +561,7 @@ class CBBuilder:
     def _make_initial_guess(self):
         exprs = self.field_data.initial_guess.exprs
         sobjs = self.solver_objs
+        objs = self.objs
 
         # Compile initital guess `eqns` into an IET via recursive compilation
         irs, _ = self.rcompile(
@@ -520,12 +571,8 @@ class CBBuilder:
         body = self._create_initial_guess_body(
             List(body=irs.uiet.body)
         )
-        objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='FormInitialGuess'),
-            body,
-            retval=objs['err'],
-            parameters=(sobjs['callbackdm'], objs['xloc'])
+        cb = self._make_petsc_callable(
+            'FormInitialGuess', body, parameters=(sobjs['callbackdm'], objs['xloc'])
         )
         self._initial_guesses.append(cb)
         self._efuncs[cb.name] = cb
@@ -572,13 +619,7 @@ class CBBuilder:
 
         # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
-
-        body = CallableBody(
-            List(body=[body]),
-            init=(objs['begin_user'],),
-            stacks=stacks+derefs,
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = self._make_callable_body(body, stacks=stacks+derefs)
 
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
@@ -601,10 +642,7 @@ class CBBuilder:
             DummyExpr(FieldFromPointer(i._C_symbol, mainctx), i._C_symbol)
             for i in mainctx.callback_fields
         ]
-        struct_callback_body = CallableBody(
-            List(body=body), init=(self.objs['begin_user'],),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        struct_callback_body = self._make_callable_body(body)
         cb = Callable(
             self.sregistry.make_name(prefix='PopulateUserContext'),
             struct_callback_body, self.objs['err'],
@@ -663,6 +701,7 @@ class CCBBuilder(CBBuilder):
         for sm in self.field_data.jacobian.nonzero_submatrices:
             self._make_matvec(sm, prefix=f'{sm.name}_MatMult')
 
+        self._make_options_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc()
         self._make_user_struct_callback()
@@ -673,11 +712,9 @@ class CCBBuilder(CBBuilder):
         objs = self.objs
         body = self._whole_matvec_body()
 
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='WholeMatMult'),
-            List(body=body),
-            retval=objs['err'],
-            parameters=(objs['J'], objs['X'], objs['Y'])
+        parameters = (objs['J'], objs['X'], objs['Y'])
+        cb = self._make_petsc_callable(
+            'WholeMatMult', List(body=body), parameters=parameters
         )
         self._main_matvec_callback = cb
         self._efuncs[cb.name] = cb
@@ -724,13 +761,11 @@ class CCBBuilder(CBBuilder):
                     [objs['Y'], Deref(FieldFromPointer(rows, ctx)), Byref(Y)]
                 ),
             )
-        return CallableBody(
-            List(body=(ctx_main, zero_y_memory, BlankLine) + calls),
-            init=(objs['begin_user'],),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        body = (ctx_main, zero_y_memory, BlankLine) + calls
+        return self._make_callable_body(body)
 
     def _make_whole_formfunc(self):
+        objs = self.objs
         F_exprs = self.field_data.residual.F_exprs
         # Compile `F_exprs` into an IET via recursive compilation
         irs, _ = self.rcompile(
@@ -739,13 +774,11 @@ class CCBBuilder(CBBuilder):
         )
         body = self._whole_formfunc_body(List(body=irs.uiet.body))
 
-        objs = self.objs
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='WholeFormFunc'),
-            body,
-            retval=objs['err'],
-            parameters=(objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
+        parameters = (objs['snes'], objs['X'], objs['F'], objs['dummyptr'])
+        cb = self._make_petsc_callable(
+            'WholeFormFunc', body, parameters=parameters
         )
+
         self._F_efunc = cb
         self._efuncs[cb.name] = cb
 
@@ -859,14 +892,10 @@ class CCBBuilder(CBBuilder):
         f_soa = PointerCast(fbundle)
         x_soa = PointerCast(xbundle)
 
-        formfunc_body = CallableBody(
-            List(body=body),
-            init=(objs['begin_user'],),
-            stacks=stacks+derefs,
+        formfunc_body = self._make_callable_body(
+            body, stacks=stacks+derefs,
             casts=(f_soa, x_soa),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
         )
-
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
@@ -883,12 +912,9 @@ class CCBBuilder(CBBuilder):
             objs['matreuse'],
             objs['Submats'],
         )
-        cb = PETScCallable(
-            self.sregistry.make_name(prefix='MatCreateSubMatrices'),
-            body,
-            retval=objs['err'],
-            parameters=params
-        )
+        cb = self._make_petsc_callable(
+            'MatCreateSubMatrices', body, parameters=params)
+
         self._submatrices_callback = cb
         self._efuncs[cb.name] = cb
 
@@ -910,7 +936,6 @@ class CCBBuilder(CBBuilder):
 
         get_ctx = petsc_call('MatShellGetContext', [objs['J'], Byref(objs['ljacctx'])])
 
-        Null = objs['Null']
         dm_get_info = petsc_call(
             'DMDAGetInfo', [
                 sobjs['callbackdm'], Null, Byref(sobjs['M']), Byref(sobjs['N']),
@@ -1011,12 +1036,7 @@ class CCBBuilder(CBBuilder):
             iteration,
         ] + matmult_op
 
-        return CallableBody(
-            List(body=tuple(body)),
-            init=(objs['begin_user'],),
-            stacks=(get_ctx, deref_subdm),
-            retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
-        )
+        return self._make_callable_body(tuple(body), stacks=(get_ctx, deref_subdm))
 
 
 class BaseObjectBuilder:
@@ -1058,7 +1078,7 @@ class BaseObjectBuilder:
         targets = self.field_data.targets
 
         snes_name = sreg.make_name(prefix='snes')
-        options_prefix = self.inject_solve.expr.rhs.options_prefix
+        formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
 
         base_dict = {
             'Jac': Mat(sreg.make_name(prefix='J')),
@@ -1072,9 +1092,9 @@ class BaseObjectBuilder:
             'localsize': PetscInt(sreg.make_name(prefix='localsize')),
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
             'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
-            'snesprefix': String((options_prefix or '') + '_'),
-            'options_prefix': options_prefix,
+            'snes_prefix': String(formatted_prefix),
         }
+
         base_dict['comm'] = self.comm
         self._target_dependent(base_dict)
         return self._extend_build(base_dict)
@@ -1213,6 +1233,7 @@ class BaseSetup:
         self.solver_objs = kwargs.get('solver_objs')
         self.cbbuilder = kwargs.get('cbbuilder')
         self.field_data = self.inject_solve.expr.rhs.field_data
+        self.formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
         self.calls = self._setup()
 
     @property
@@ -1224,29 +1245,26 @@ class BaseSetup:
         return VOID(self.solver_objs['dmda'], stars='*')
 
     def _setup(self):
-        objs = self.objs
         sobjs = self.solver_objs
-
         dmda = sobjs['dmda']
-
-        solver_params = self.inject_solve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
         snes_options_prefix = petsc_call(
-            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
-        ) if sobjs['options_prefix'] else None
+            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snes_prefix']]
+        ) if self.formatted_prefix else None
+
+        set_options = petsc_call(
+            self.cbbuilder._set_options_efunc.name, []
+        )
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
         create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
 
-        # NOTE: Assuming all solves are linear for now
-        snes_set_type = petsc_call('SNESSetType', [sobjs['snes'], 'SNESKSPONLY'])
-
         snes_set_jac = petsc_call(
             'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
-                                sobjs['Jac'], 'MatMFFDComputeJacobian', objs['Null']]
+                                sobjs['Jac'], 'MatMFFDComputeJacobian', Null]
         )
 
         global_x = petsc_call('DMCreateGlobalVector',
@@ -1260,6 +1278,7 @@ class BaseSetup:
         local_size = math.prod(
             v for v, dim in zip(target.shape_allocated, target.dimensions) if dim.is_Space
         )
+        # TODO: Check - VecCreateSeqWithArray
         local_x = petsc_call('VecCreateMPIWithArray',
                              [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
                               field_from_ptr, Byref(sobjs['xlocal'])])
@@ -1275,25 +1294,6 @@ class BaseSetup:
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        ksp_set_tols = petsc_call(
-            'KSPSetTolerances', [sobjs['ksp'], solver_params['ksp_rtol'],
-                                 solver_params['ksp_atol'], solver_params['ksp_divtol'],
-                                 solver_params['ksp_max_it']]
-        )
-
-        ksp_set_type = petsc_call(
-            'KSPSetType', [sobjs['ksp'], solver_mapper[solver_params['ksp_type']]]
-        )
-
-        ksp_get_pc = petsc_call(
-            'KSPGetPC', [sobjs['ksp'], Byref(sobjs['pc'])]
-        )
-
-        # Even though the default will be jacobi, set to PCNONE for now
-        pc_set_type = petsc_call('PCSetType', [sobjs['pc'], 'PCNONE'])
-
-        ksp_set_from_ops = petsc_call('KSPSetFromOptions', [sobjs['ksp']])
-
         matvec = self.cbbuilder.main_matvec_callback
         matvec_operation = petsc_call(
             'MatShellSetOperation',
@@ -1302,7 +1302,7 @@ class BaseSetup:
         formfunc = self.cbbuilder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
-            [sobjs['snes'], objs['Null'], FormFunctionCallback(formfunc.name, void, void),
+            [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
              self.snes_ctx]
         )
 
@@ -1326,20 +1326,15 @@ class BaseSetup:
         base_setup = dmda_calls + (
             snes_create,
             snes_options_prefix,
+            set_options,
             snes_set_dm,
             create_matrix,
             snes_set_jac,
-            snes_set_type,
             global_x,
             local_x,
             get_local_size,
             global_b,
             snes_get_ksp,
-            ksp_set_tols,
-            ksp_set_type,
-            ksp_get_pc,
-            pc_set_type,
-            ksp_set_from_ops,
             matvec_operation,
             formfunc_operation,
             snes_set_options,
@@ -1364,7 +1359,6 @@ class BaseSetup:
         return dmda_create, dm_setup, dm_mat_type
 
     def _create_dmda(self, dmda):
-        objs = self.objs
         sobjs = self.solver_objs
         grid = self.field_data.grid
         nspace_dims = len(grid.dimensions)
@@ -1393,7 +1387,7 @@ class BaseSetup:
         stencil_width = self.field_data.space_order
 
         args.append(stencil_width)
-        args.extend([objs['Null']]*nspace_dims)
+        args.extend([Null]*nspace_dims)
 
         # The distributed array object
         args.append(Byref(dmda))
@@ -1409,26 +1403,25 @@ class CoupledSetup(BaseSetup):
         # TODO: minimise code duplication with superclass
         objs = self.objs
         sobjs = self.solver_objs
-
         dmda = sobjs['dmda']
-        solver_params = self.inject_solve.expr.rhs.solver_parameters
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
         snes_options_prefix = petsc_call(
-            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snesprefix']]
-        ) if sobjs['options_prefix'] else None
+            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snes_prefix']]
+        ) if self.formatted_prefix else None
+
+        set_options = petsc_call(
+            self.cbbuilder._set_options_efunc.name, []
+        )
 
         snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
 
         create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
 
-        # NOTE: Assuming all solves are linear for now
-        snes_set_type = petsc_call('SNESSetType', [sobjs['snes'], 'SNESKSPONLY'])
-
         snes_set_jac = petsc_call(
             'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
-                                sobjs['Jac'], 'MatMFFDComputeJacobian', objs['Null']]
+                                sobjs['Jac'], 'MatMFFDComputeJacobian', Null]
         )
 
         global_x = petsc_call('DMCreateGlobalVector',
@@ -1442,25 +1435,6 @@ class CoupledSetup(BaseSetup):
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        ksp_set_tols = petsc_call(
-            'KSPSetTolerances', [sobjs['ksp'], solver_params['ksp_rtol'],
-                                 solver_params['ksp_atol'], solver_params['ksp_divtol'],
-                                 solver_params['ksp_max_it']]
-        )
-
-        ksp_set_type = petsc_call(
-            'KSPSetType', [sobjs['ksp'], solver_mapper[solver_params['ksp_type']]]
-        )
-
-        ksp_get_pc = petsc_call(
-            'KSPGetPC', [sobjs['ksp'], Byref(sobjs['pc'])]
-        )
-
-        # Even though the default will be jacobi, set to PCNONE for now
-        pc_set_type = petsc_call('PCSetType', [sobjs['pc'], 'PCNONE'])
-
-        ksp_set_from_ops = petsc_call('KSPSetFromOptions', [sobjs['ksp']])
-
         matvec = self.cbbuilder.main_matvec_callback
         matvec_operation = petsc_call(
             'MatShellSetOperation',
@@ -1469,7 +1443,7 @@ class CoupledSetup(BaseSetup):
         formfunc = self.cbbuilder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
-            [sobjs['snes'], objs['Null'], FormFunctionCallback(formfunc.name, void, void),
+            [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
              self.snes_ctx]
         )
 
@@ -1492,7 +1466,7 @@ class CoupledSetup(BaseSetup):
 
         create_field_decomp = petsc_call(
             'DMCreateFieldDecomposition',
-            [dmda, Byref(sobjs['nfields']), objs['Null'], Byref(sobjs['fields']),
+            [dmda, Byref(sobjs['nfields']), Null, Byref(sobjs['fields']),
              Byref(sobjs['subdms'])]
         )
         submat_cb = self.cbbuilder.submatrices_callback
@@ -1533,19 +1507,14 @@ class CoupledSetup(BaseSetup):
         coupled_setup = dmda_calls + (
             snes_create,
             snes_options_prefix,
+            set_options,
             snes_set_dm,
             create_matrix,
             snes_set_jac,
-            snes_set_type,
             global_x,
             local_x,
             get_local_size,
             snes_get_ksp,
-            ksp_set_tols,
-            ksp_set_type,
-            ksp_get_pc,
-            pc_set_type,
-            ksp_set_from_ops,
             matvec_operation,
             formfunc_operation,
             snes_set_options,
@@ -1642,7 +1611,6 @@ class CoupledSolver(Solver):
         Assigns the required time iterators to the struct and executes
         the necessary calls to execute the SNES solver.
         """
-        objs = self.objs
         sobjs = self.solver_objs
         xglob = sobjs['xglobal']
 
@@ -1673,7 +1641,7 @@ class CoupledSolver(Solver):
                 ),
                 petsc_call(
                     'VecScatterCreate',
-                    [xglob, field, target_xglob, self.objs['Null'], Byref(s)]
+                    [xglob, field, target_xglob, Null, Byref(s)]
                 ),
                 petsc_call(
                     'VecScatterBegin',
@@ -1701,7 +1669,7 @@ class CoupledSolver(Solver):
                 )
             )
 
-        snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], objs['Null'], xglob]),)
+        snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], Null, xglob]),)
 
         return (struct_assignment,) + pre_solve + snes_solve + post_solve + (BlankLine,)
 
@@ -1758,10 +1726,10 @@ class TimeDependent(NonTimeDependent):
       for each `SNESSolve` at every time step, don't require the time loop, but
       may still need access to data from other time steps.
     - All `Function` objects are passed through the initial lowering via the
-      `LinearSolveExpr` object, ensuring the correct time loop is generated
+      `SolverMetaData` object, ensuring the correct time loop is generated
       in the main kernel.
     - Another mapper is created based on the modulo dimensions
-      generated by the `LinearSolveExpr` object in the main kernel
+      generated by the `SolverMetaData` object in the main kernel
       (e.g., {time: time, t: t0, t + 1: t1}).
     - These two mappers are used to generate a final mapper `symb_to_moddim`
       (e.g. {tau0: t0, tau1: t1}) which is used at the IET level to

@@ -9,3 +9,4 @@ multidict<6.3
 anytree>=2.4.3,<=2.13.0
 cloudpickle<3.1.2
 packaging<25.1
+petsctools<=2025.1

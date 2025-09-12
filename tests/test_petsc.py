@@ -2,7 +2,7 @@ import pytest
 
 import numpy as np
 import os
-from collections import OrderedDict
+import re
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
@@ -14,21 +14,54 @@ from devito.types import Constant, LocalCompositeObject
 from devito.passes.iet.languages.C import CDataManager
 from devito.petsc.types import (DM, Mat, Vec, PetscMPIInt, KSP,
                                 PC, KSPConvergedReason, PETScArray,
-                                LinearSolveExpr, FieldData, MultipleFieldData,
+                                FieldData, MultipleFieldData,
                                 SubMatrixBlock)
 from devito.petsc.solve import PETScSolve, EssentialBC
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.initialize import PetscInitialize
 from devito.petsc.logging import PetscSummary
+from devito.petsc.solver_parameters import linear_solve_defaults
+
+
+@pytest.fixture(scope='session')
+def command_line():
+
+    # Random prefixes to validate command line argument parsing
+    prefix = (
+        'd17weqroeg', 'riabfodkj5', 'fir8o3lsak',
+        'zwejklqn25', 'qtr2vfvwiu')
+
+    petsc_option = (
+        ('ksp_rtol',),
+        ('ksp_rtol', 'ksp_atol'),
+        ('ksp_rtol', 'ksp_atol', 'ksp_divtol', 'ksp_max_it'),
+        ('ksp_type',),
+        ('ksp_divtol', 'ksp_type')
+    )
+    value = (
+        (1e-8,),
+        (1e-11, 1e-15),
+        (1e-3, 1e-10, 50000, 2000),
+        ('cg',),
+        (22000, 'richardson'),
+    )
+    argv = []
+    expected = {}
+    for p, opt, val in zip(prefix, petsc_option, value, strict=True):
+        for o, v in zip(opt, val, strict=True):
+            argv.extend([f'-{p}_{o}', str(v)])
+        expected[p] = zip(opt, val)
+    return argv, expected
 
 
 @pytest.fixture(scope='session', autouse=True)
-def petsc_initialization():
+def petsc_initialization(command_line):
+    argv, _ = command_line
     # TODO: Temporary workaround until PETSc is automatically
     # initialized
     configuration['compiler'] = 'custom'
     os.environ['CC'] = 'mpicc'
-    PetscInitialize()
+    PetscInitialize(argv)
 
 
 @skipif('petsc')
@@ -158,16 +191,18 @@ def test_multiple_petsc_solves():
     eqn1 = Eq(f1.laplace, g1)
     eqn2 = Eq(f2.laplace, g2)
 
-    petsc1 = PETScSolve(eqn1, f1)
-    petsc2 = PETScSolve(eqn2, f2)
+    petsc1 = PETScSolve(eqn1, f1, options_prefix='pde1')
+    petsc2 = PETScSolve(eqn2, f2, options_prefix='pde2')
 
     with switchconfig(language='petsc'):
         op = Operator([petsc1, petsc2], opt='noop')
 
     callable_roots = [meta_call.root for meta_call in op._func_table.values()]
 
-    # One FormRHS, MatShellMult, FormFunction, PopulateMatContext per solve
-    assert len(callable_roots) == 8
+    # One FormRHS, MatShellMult, FormFunction, PopulateMatContext, SetPetscOptions
+    # and ClearPetscOptions per solve.
+    # TODO: Some efuncs are not reused where reuse is possible — investigate.
+    assert len(callable_roots) == 12
 
 
 @skipif('petsc')
@@ -202,24 +237,6 @@ def test_petsc_cast():
         '(PetscScalar (*)[info.gxm]) x_f2_vec;' in str(op2.ccode)
     assert 'PetscScalar (* x_f3)[info.gym][info.gxm] = ' + \
         '(PetscScalar (*)[info.gym][info.gxm]) x_f3_vec;' in str(op3.ccode)
-
-
-@skipif('petsc')
-def test_LinearSolveExpr():
-
-    grid = Grid((2, 2), dtype=np.float64)
-
-    f = Function(name='f', grid=grid, space_order=2)
-    g = Function(name='g', grid=grid, space_order=2)
-
-    eqn = Eq(f, g.laplace)
-
-    linsolveexpr = LinearSolveExpr(eqn.rhs, field_data=FieldData(target=f))
-
-    # Check the solver parameters
-    assert linsolveexpr.solver_parameters == \
-        {'ksp_type': 'gmres', 'pc_type': 'jacobi', 'ksp_rtol': 1e-05,
-         'ksp_atol': 1e-50, 'ksp_divtol': 100000.0, 'ksp_max_it': 10000}
 
 
 @skipif('petsc')
@@ -786,8 +803,10 @@ class TestCoupledLinear:
 
         # Solving for multiple fields within the same matrix system requires
         # less callback functions than solving them separately.
-        assert len(callbacks1) == 8
-        assert len(callbacks2) == 6
+        # TODO: As noted in the other test, some efuncs are not reused
+        # where reuse is possible, investigate.
+        assert len(callbacks1) == 12
+        assert len(callbacks2) == 8
 
         # Check field_data type
         field0 = petsc1.rhs.field_data
@@ -1313,7 +1332,7 @@ class TestCoupledLinear:
             '+ r1*a0[ix + 2][iy + 3]))*o0->h_x*o0->h_y;' in str(J00)
 
         # J00 and J11 are semantically identical so check efunc reuse
-        assert len(op._func_table.values()) == 7
+        assert len(op._func_table.values()) == 9
         # J00_MatMult0 is reused (in replace of J11_MatMult0)
         create = op._func_table['MatCreateSubMatrices0'].root
         assert 'MatShellSetOperation(submat_arr[0],' \
@@ -1416,27 +1435,32 @@ class TestLogging:
         entry0 = petsc_summary.get_entry('section0', 'poisson')
         entry1 = petsc_summary[('section0', 'poisson')]
         assert entry0 == entry1
-        assert str(entry0) == \
-            'PetscEntry(KSPGetIterationNumber=16, SNESGetIterationNumber=1)'
-
         assert entry0.SNESGetIterationNumber == 1
 
-        snesiters0 = petsc_summary.SNESGetIterationNumber
-        snesiters1 = petsc_summary['SNESGetIterationNumber']
+        snesits0 = petsc_summary.SNESGetIterationNumber
+        snesits1 = petsc_summary['SNESGetIterationNumber']
         # Check case insensitive key access
-        snesiters2 = petsc_summary['snesgetiterationnumber']
-        snesiters3 = petsc_summary['SNESgetiterationNumber']
+        snesits2 = petsc_summary['snesgetiterationnumber']
+        snesits3 = petsc_summary['SNESgetiterationNumber']
 
-        assert snesiters0 == snesiters1 == snesiters2 == snesiters3
+        assert snesits0 == snesits1 == snesits2 == snesits3
 
-        assert isinstance(snesiters0, OrderedDict)
-        assert len(snesiters0) == 1
-        key, value = next(iter(snesiters0.items()))
+        assert len(snesits0) == 1
+        key, value = next(iter(snesits0.items()))
         assert str(key) == "PetscKey(name='section0', options_prefix='poisson')"
         assert value == 1
 
+        # Test logging KSPGetTolerances. Since no overrides have been applied,
+        # the tolerances should match the default linear values.
+        tols = entry0.KSPGetTolerances
+        assert tols['rtol'] == linear_solve_defaults['ksp_rtol']
+        assert tols['atol'] == linear_solve_defaults['ksp_atol']
+        assert tols['divtol'] == linear_solve_defaults['ksp_divtol']
+        assert tols['max_it'] == linear_solve_defaults['ksp_max_it']
+
     @skipif('petsc')
-    def test_logging_multiple_solves(self):
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_logging_multiple_solves(self, log_level):
         grid = Grid(shape=(11, 11), dtype=np.float64)
 
         functions = [Function(name=n, grid=grid, space_order=2)
@@ -1452,7 +1476,7 @@ class TestLogging:
         solver1 = PETScSolve(eq1, target=g, options_prefix='poisson1')
         solver2 = PETScSolve(eq2, target=h, options_prefix='poisson2')
 
-        with switchconfig(language='petsc', log_level='DEBUG'):
+        with switchconfig(language='petsc', log_level=log_level):
             op = Operator([solver1, solver2])
             summary = op.apply()
 
@@ -1462,11 +1486,6 @@ class TestLogging:
 
         entry1 = petsc_summary.get_entry('section0', 'poisson1')
         entry2 = petsc_summary.get_entry('section1', 'poisson2')
-
-        assert str(entry1) == \
-            'PetscEntry(KSPGetIterationNumber=16, SNESGetIterationNumber=1)'
-        assert str(entry2) == \
-            'PetscEntry(KSPGetIterationNumber=1, SNESGetIterationNumber=1)'
 
         assert len(petsc_summary.KSPGetIterationNumber) == 2
         assert len(petsc_summary.SNESGetIterationNumber) == 2
@@ -1481,3 +1500,579 @@ class TestLogging:
         assert entry1['SNESGetIterationNumber'] == 1
         # Case insensitive key access
         assert entry1['kspgetiterationnumber'] == 16
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_logging_user_prefixes(self, log_level):
+        """
+        Verify that `PetscSummary` uses the user provided `options_prefix` when given.
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        pde1 = Eq(e.laplace, f)
+        pde2 = Eq(g.laplace, h)
+
+        petsc1 = PETScSolve(pde1, target=e, options_prefix='pde1')
+        petsc2 = PETScSolve(pde2, target=g, options_prefix='pde2')
+
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator([petsc1, petsc2])
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+
+        # Check that the prefix is correctly set in the PetscSummary
+        key_strings = [f"{key.name}:{key.options_prefix}" for key in petsc_summary.keys()]
+        assert set(key_strings) == {"section0:pde1", "section1:pde2"}
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_logging_default_prefixes(self, log_level):
+        """
+        Verify that `PetscSummary` uses the default options prefix
+        provided by Devito if no user `options_prefix` is specified.
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f', 'g', 'h']]
+        e, f, g, h = functions
+
+        pde1 = Eq(e.laplace, f)
+        pde2 = Eq(g.laplace, h)
+
+        petsc1 = PETScSolve(pde1, target=e)
+        petsc2 = PETScSolve(pde2, target=g)
+
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator([petsc1, petsc2])
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+
+        # Users should set a custom options_prefix if they want logging; otherwise,
+        # the default automatically generated prefix is used in the `PetscSummary`.
+        assert all(re.fullmatch(r"devito_\d+_", k.options_prefix) for k in petsc_summary)
+
+
+class TestSolverParameters:
+
+    @skipif('petsc')
+    def setup_class(self):
+        """
+        Setup grid, functions and equations shared across
+        tests in this class
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        self.e, self.f, self.g, self.h = [
+            Function(name=n, grid=grid, space_order=2)
+            for n in ['e', 'f', 'g', 'h']
+        ]
+        self.eq1 = Eq(self.e.laplace, self.f)
+        self.eq2 = Eq(self.g.laplace, self.h)
+
+    @skipif('petsc')
+    def test_different_solver_params(self):
+        # Explicitly set the solver parameters
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
+        )
+        # Use solver parameter defaults
+        solver2 = PETScSolve(self.eq2, target=self.g)
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+
+        assert 'SetPetscOptions0' in op._func_table
+        assert 'SetPetscOptions1' in op._func_table
+
+        assert '_ksp_rtol","1e-10"' \
+            in str(op._func_table['SetPetscOptions0'].root)
+
+        assert '_ksp_rtol","1e-05"' \
+            in str(op._func_table['SetPetscOptions1'].root)
+
+    @skipif('petsc')
+    def test_options_prefix(self):
+        solver1 = PETScSolve(self.eq1, self.e,
+                             solver_parameters={'ksp_rtol': '1e-10'},
+                             options_prefix='poisson1')
+        solver2 = PETScSolve(self.eq2, self.g,
+                             solver_parameters={'ksp_rtol': '1e-12'},
+                             options_prefix='poisson2')
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+
+        # Check the options prefix has been correctly set for each snes solver
+        assert 'PetscCall(SNESSetOptionsPrefix(snes0,"poisson1_"));' in str(op)
+        assert 'PetscCall(SNESSetOptionsPrefix(snes1,"poisson2_"));' in str(op)
+
+        # Test the options prefix has be correctly applied to the solver options
+        assert 'PetscCall(PetscOptionsSetValue(NULL,"-poisson1_ksp_rtol","1e-10"));' \
+            in str(op._func_table['SetPetscOptions0'].root)
+
+        assert 'PetscCall(PetscOptionsSetValue(NULL,"-poisson2_ksp_rtol","1e-12"));' \
+            in str(op._func_table['SetPetscOptions1'].root)
+
+    @skipif('petsc')
+    def test_options_no_value(self):
+        """
+        Test solver parameters that do not require a value, such as
+        `snes_view` and `ksp_view`.
+        """
+        solver = PETScSolve(
+            self.eq1, target=self.e, solver_parameters={'snes_view': None},
+            options_prefix='solver1'
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+            op.apply()
+
+        assert 'PetscCall(PetscOptionsSetValue(NULL,"-solver1_snes_view",NULL));' \
+            in str(op._func_table['SetPetscOptions0'].root)
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_tolerances(self, log_level):
+        params = {
+            'ksp_rtol': 1e-12,
+            'ksp_atol': 1e-20,
+            'ksp_divtol': 1e3,
+            'ksp_max_it': 100
+        }
+        solver = PETScSolve(
+            self.eq1, target=self.e, solver_parameters=params,
+            options_prefix='solver'
+        )
+
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver)
+            tmp = op.apply()
+
+        petsc_summary = tmp.petsc
+        entry = petsc_summary.get_entry('section0', 'solver')
+        tolerances = entry.KSPGetTolerances
+
+        # Test that the tolerances have been set correctly and therefore
+        # appear as expected in the `PetscSummary`.
+        assert tolerances['rtol'] == params['ksp_rtol']
+        assert tolerances['atol'] == params['ksp_atol']
+        assert tolerances['divtol'] == params['ksp_divtol']
+        assert tolerances['max_it'] == params['ksp_max_it']
+
+    @skipif('petsc')
+    def test_clearing_options(self):
+        # Explicitly set the solver parameters
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
+        )
+        # Use the solver parameter defaults
+        solver2 = PETScSolve(self.eq2, target=self.g)
+
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+
+        assert 'ClearPetscOptions0' in op._func_table
+        assert 'ClearPetscOptions1' in op._func_table
+
+    @skipif('petsc')
+    def test_error_if_same_prefix(self):
+        """
+        Test an error is raised if the same options prefix is used
+        for two different solvers within the same Operator.
+        """
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='poisson',
+            solver_parameters={'ksp_rtol': '1e-10'}
+        )
+        solver2 = PETScSolve(
+            self.eq2, target=self.g, options_prefix='poisson',
+            solver_parameters={'ksp_rtol': '1e-12'}
+        )
+        with switchconfig(language='petsc'):
+            with pytest.raises(ValueError):
+                Operator([solver1, solver2])
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_multiple_operators(self, log_level):
+        """
+        Verify that solver parameters are set correctly when multiple Operators
+        are created with PETScSolve instances sharing the same options_prefix.
+
+        Note: Using the same options_prefix within a single Operator is not allowed
+        (see previous test), but the same prefix can be used across
+        different Operators (although not advised).
+        """
+        # Create two PETScSolve instances with the same options_prefix
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='poisson',
+            solver_parameters={'ksp_rtol': '1e-10'}
+        )
+        solver2 = PETScSolve(
+            self.eq2, target=self.g, options_prefix='poisson',
+            solver_parameters={'ksp_rtol': '1e-12'}
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op1 = Operator(solver1)
+            op2 = Operator(solver2)
+            summary1 = op1.apply()
+            summary2 = op2.apply()
+
+        petsc_summary1 = summary1.petsc
+        entry1 = petsc_summary1.get_entry('section0', 'poisson')
+
+        petsc_summary2 = summary2.petsc
+        entry2 = petsc_summary2.get_entry('section0', 'poisson')
+
+        assert entry1.KSPGetTolerances['rtol'] == 1e-10
+        assert entry2.KSPGetTolerances['rtol'] == 1e-12
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_tols_1(self, command_line, log_level):
+        """
+        Test solver tolerances specifed via the command line
+        take precedence over those specified in the defaults.
+        """
+        prefix = 'd17weqroeg'
+        _, expected = command_line
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver1)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for opt, val in expected[prefix]:
+            assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_tols_2(self, command_line, log_level):
+        prefix = 'riabfodkj5'
+        _, expected = command_line
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver1)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for opt, val in expected[prefix]:
+            assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_tols3(self, command_line, log_level):
+        """
+        Test solver tolerances specifed via the command line
+        take precedence over those specified by the `solver_parameters` dict.
+        """
+        prefix = 'fir8o3lsak'
+        _, expected = command_line
+
+        # Set solver parameters that differ both from the defaults and from the
+        # values provided on the command line for this prefix (see the `command_line`
+        # fixture).
+        params = {
+            'ksp_rtol': 1e-13,
+            'ksp_atol': 1e-35,
+            'ksp_divtol': 300000,
+            'ksp_max_it': 500
+        }
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            solver_parameters=params,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver1)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for opt, val in expected[prefix]:
+            assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_ksp_type(self, command_line, log_level):
+        """
+        Test the solver parameter 'ksp_type' specified via the command line
+        take precedence over the one specified in the `solver_parameters` dict.
+        """
+        prefix = 'zwejklqn25'
+        _, expected = command_line
+
+        # Set `ksp_type`` in the solver parameters, which should be overridden
+        # by the command line value (which is set to `cg` -
+        # see the `command_line` fixture).
+        params = {'ksp_type': 'richardson'}
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e,
+            solver_parameters=params,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver1)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for _, val in expected[prefix]:
+            assert entry.KSPGetType == val
+            assert not entry.KSPGetType == params['ksp_type']
+
+    @skipif('petsc')
+    def test_command_line_priority_ccode(self, command_line):
+        """
+        Verify that if an option is set via the command line,
+        the corresponding entry in `linear_solve_defaults` or `solver_parameters`
+        is not set or cleared in the generated code. (The command line option
+        will have already been set in the global PetscOptions database
+        during PetscInitialize().)
+        """
+        prefix = 'qtr2vfvwiu'
+
+        solver = PETScSolve(
+            self.eq1, target=self.e,
+            # Specify a solver parameter that is not set via the
+            # command line (see the `command_line` fixture for this prefix).
+            solver_parameters={'ksp_rtol': '1e-10'},
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+
+        set_options_callback = str(op._func_table['SetPetscOptions0'].root)
+        clear_options_callback = str(op._func_table['ClearPetscOptions0'].root)
+
+        # Check that the `ksp_rtol` option IS set and cleared explicitly
+        # since it is NOT set via the command line.
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_rtol","1e-10")' \
+            in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_rtol")' \
+            in clear_options_callback
+
+        # Check that the `ksp_divtol` and `ksp_type` options are NOT set
+        # or cleared explicitly since they ARE set via the command line.
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_div_tol",' \
+            not in set_options_callback
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_type",' \
+            not in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_div_tol"));' \
+            not in clear_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_type"));' \
+            not in clear_options_callback
+
+        # Check that options specifed by the `linear_solver_defaults`
+        # are still set and cleared
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_atol",' \
+            in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_atol"));' \
+            in clear_options_callback
+
+
+class TestHashing:
+
+    @skipif('petsc')
+    def test_solveexpr(self):
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        functions = [Function(name=n, grid=grid, space_order=2)
+                     for n in ['e', 'f']]
+        e, f = functions
+        eq = Eq(e.laplace, f)
+
+        # Two PETScSolve instances with different options_prefix values
+        # should hash differently.
+        petsc1 = PETScSolve(eq, target=e, options_prefix='poisson1')
+        petsc2 = PETScSolve(eq, target=e, options_prefix='poisson2')
+
+        assert hash(petsc1.rhs) != hash(petsc2.rhs)
+        assert petsc1.rhs != petsc2.rhs
+
+        # Two PETScSolve instances with the same options_prefix but
+        # different solver parameters should hash differently.
+        petsc3 = PETScSolve(
+            eq, target=e, solver_parameters={'ksp_type': 'cg'},
+            options_prefix='poisson3'
+        )
+        petsc4 = PETScSolve(
+            eq, target=e, solver_parameters={'ksp_type': 'richardson'},
+            options_prefix='poisson3'
+        )
+        assert hash(petsc3.rhs) != hash(petsc4.rhs)
+
+
+class TestGetInfo:
+    """
+    Test the `get_info` optional argument to `PETScSolve`.
+
+    This argument can be used independently of the `log_level` to retrieve
+    specific information about the solve, such as the number of KSP
+    iterations to converge.
+    """
+    @skipif('petsc')
+    def setup_class(self):
+        """
+        Setup grid, functions and equations shared across
+        tests in this class
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        self.e, self.f, self.g, self.h = [
+            Function(name=n, grid=grid, space_order=2)
+            for n in ['e', 'f', 'g', 'h']
+        ]
+        self.eq1 = Eq(self.e.laplace, self.f)
+        self.eq2 = Eq(self.g.laplace, self.h)
+
+    @skipif('petsc')
+    def test_get_info(self):
+        get_info = ['kspgetiterationnumber', 'snesgetiterationnumber']
+        petsc = PETScSolve(
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', 'pde1')
+
+        # Verify that the entry contains only the requested info
+        # (since logging is not set)
+        assert len(entry) == 2
+        assert hasattr(entry, "KSPGetIterationNumber")
+        assert hasattr(entry, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_get_info_with_logging(self, log_level):
+        """
+        Test that `get_info` works correctly when logging is enabled.
+        """
+        get_info = ['kspgetiterationnumber']
+        petsc = PETScSolve(
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', 'pde1')
+
+        # With logging enabled, the entry should include both the
+        # requested KSP iteration number and additional PETSc info
+        # (e.g., SNES iteration count logged at PERF/DEBUG).
+        assert len(entry) > 1
+        assert hasattr(entry, "KSPGetIterationNumber")
+        assert hasattr(entry, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    def test_different_solvers(self):
+        """
+        Test that `get_info` works correctly when multiple solvers are used
+        within the same Operator.
+        """
+        # Create two PETScSolve instances with different get_info arguments
+
+        get_info_1 = ['kspgetiterationnumber']
+        get_info_2 = ['snesgetiterationnumber']
+
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info_1
+        )
+        solver2 = PETScSolve(
+            self.eq2, target=self.g, options_prefix='pde2', get_info=get_info_2
+        )
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+
+        assert len(petsc_summary) == 2
+        assert len(petsc_summary.KSPGetIterationNumber) == 1
+        assert len(petsc_summary.SNESGetIterationNumber) == 1
+
+        entry1 = petsc_summary.get_entry('section0', 'pde1')
+        entry2 = petsc_summary.get_entry('section1', 'pde2')
+
+        assert hasattr(entry1, "KSPGetIterationNumber")
+        assert not hasattr(entry1, "SNESGetIterationNumber")
+
+        assert not hasattr(entry2, "KSPGetIterationNumber")
+        assert hasattr(entry2, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    def test_case_insensitive(self):
+        """
+        Test that `get_info` is case insensitive
+        """
+        # Create a list with mixed cases
+        get_info = ['KSPGetIterationNumber', 'snesgetiterationnumber']
+        petsc = PETScSolve(
+            self.eq1, target=self.e, options_prefix='pde1', get_info=get_info
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', 'pde1')
+
+        assert hasattr(entry, "KSPGetIterationNumber")
+        assert hasattr(entry, "SNESGetIterationNumber")
+
+    @skipif('petsc')
+    def test_get_ksp_type(self):
+        """
+        Test that `get_info` can retrieve the KSP type as
+        a string.
+        """
+        get_info = ['kspgettype']
+        solver1 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='poisson1', get_info=get_info
+        )
+        solver2 = PETScSolve(
+            self.eq1, target=self.e, options_prefix='poisson2',
+            solver_parameters={'ksp_type': 'cg'}, get_info=get_info
+        )
+        with switchconfig(language='petsc'):
+            op = Operator([solver1, solver2])
+            summary = op.apply()
+
+        petsc_summary = summary.petsc
+        entry1 = petsc_summary.get_entry('section0', 'poisson1')
+        entry2 = petsc_summary.get_entry('section1', 'poisson2')
+
+        assert hasattr(entry1, "KSPGetType")
+        # Check the type matches the default in linear_solve_defaults
+        # since it has not been overridden
+        assert entry1.KSPGetType == linear_solve_defaults['ksp_type']
+        assert entry1['KSPGetType'] == linear_solve_defaults['ksp_type']
+        assert entry1['kspgettype'] == linear_solve_defaults['ksp_type']
+
+        # Test that the KSP type default is correctly overridden by the
+        # solver_parameters dictionary passed to solver2
+        assert hasattr(entry2, "KSPGetType")
+        assert entry2.KSPGetType == 'cg'
+        assert entry2['KSPGetType'] == 'cg'
+        assert entry2['kspgettype'] == 'cg'

@@ -97,12 +97,28 @@ class PetscInt(PetscObject):
     dtype = CustomIntType('PetscInt')
 
 
+class PetscScalar(PetscObject):
+    dtype = CustomIntType('PetscScalar')
+
+
+class PetscBool(PetscObject):
+    dtype = CustomDtype('PetscBool')
+
+
 class KSP(PetscObject):
     """
     PETSc KSP : Linear Systems Solvers.
     Manages Krylov Methods.
     """
     dtype = CustomDtype('KSP')
+
+
+class KSPType(PetscObject):
+    dtype = CustomDtype('KSPType')
+
+
+class KSPNormType(PetscObject):
+    dtype = CustomDtype('KSPNormType')
 
 
 class CallbackSNES(PetscObject):
