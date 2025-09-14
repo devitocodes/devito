@@ -5,14 +5,16 @@ of the compiler to express the conditions under which a certain object
 """
 
 from sympy import And, Ge, Gt, Le, Lt, Mul, true
+from sympy.logic.boolalg import BooleanFunction
+import numpy as np
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe
 from devito.tools import Pickable, as_tuple, frozendict, split
-from devito.types import Dimension
+from devito.types import Dimension, LocalObject
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow', 'Guards']
+           'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr']
 
 
 class Guard:
@@ -273,6 +275,14 @@ class Guards(frozendict):
         return Guards(m)
 
 
+class GuardExpr(LocalObject, BooleanFunction):
+
+    dtype = np.bool
+
+    def __init__(self, name, liveness='eager', **kwargs):
+        super().__init__(name, liveness=liveness, **kwargs)
+
+
 # *** Utils
 
 def simplify_and(relation, v):
@@ -294,21 +304,23 @@ def simplify_and(relation, v):
     covered = False
     new_args = []
     for a in candidates:
-        if a.lhs is v.lhs:
-            covered = True
-            try:
-                if type(a) in (Gt, Ge) and v.rhs > a.rhs:
-                    new_args.append(v)
-                elif type(a) in (Lt, Le) and v.rhs < a.rhs:
-                    new_args.append(v)
-                else:
-                    new_args.append(a)
-            except TypeError:
-                # E.g., `v.rhs = const + z_M` and `a.rhs = z_M`, so the inequalities
-                # above are not evaluable to True/False
-                new_args.append(a)
-        else:
+        if isinstance(a, GuardExpr) or a.lhs is not v.lhs:
             new_args.append(a)
+            continue
+
+        covered = True
+        try:
+            if type(a) in (Gt, Ge) and v.rhs > a.rhs:
+                new_args.append(v)
+            elif type(a) in (Lt, Le) and v.rhs < a.rhs:
+                new_args.append(v)
+            else:
+                new_args.append(a)
+        except TypeError:
+            # E.g., `v.rhs = const + z_M` and `a.rhs = z_M`, so the inequalities
+            # above are not evaluable to True/False
+            new_args.append(a)
+
     if not covered:
         new_args.append(v)
 
