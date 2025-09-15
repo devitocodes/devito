@@ -32,7 +32,7 @@ class GetArgs(MetaData):
     pass
 
 
-class SolveExpr(MetaData):
+class SolverMetaData(MetaData):
     """
     A symbolic expression passed through the Operator, containing the metadata
     needed to execute the PETSc solver.
@@ -59,7 +59,7 @@ class SolveExpr(MetaData):
         obj.localinfo = localinfo
         obj.user_prefix = user_prefix
         obj.formatted_prefix = formatted_prefix
-        obj.get_info = get_info
+        obj.get_info = get_info if get_info is not None else []
         return obj
 
     def __repr__(self):
@@ -76,7 +76,7 @@ class SolveExpr(MetaData):
         return (self.expr, self.formatted_prefix, self.solver_parameters)
 
     def __eq__(self, other):
-        return (isinstance(other, SolveExpr) and
+        return (isinstance(other, SolverMetaData) and
                 self.expr == other.expr and
                 self.formatted_prefix == other.formatted_prefix
                 and self.solver_parameters == other.solver_parameters)
@@ -92,7 +92,7 @@ class SolveExpr(MetaData):
     func = Reconstructable._rebuild
 
 
-class LinearSolveExpr(SolveExpr):
+class LinearSolverMetaData(SolverMetaData):
     """
     Linear problems are handled by setting the SNESType to 'ksponly',
     enabling a unified interface for both linear and nonlinear solvers.
@@ -100,7 +100,7 @@ class LinearSolveExpr(SolveExpr):
     pass
 
 
-class NonLinearSolveExpr(SolveExpr):
+class NonLinearSolverMetaData(SolverMetaData):
     """
     TODO: Non linear solvers are not yet supported.
     """
@@ -109,7 +109,7 @@ class NonLinearSolveExpr(SolveExpr):
 
 class FieldData:
     """
-    Metadata for a single `target` field passed to `SolveExpr`.
+    Metadata for a single `target` field passed to `SolverMetaData`.
     Used to interface with PETSc SNES solvers at the IET level.
 
     Parameters
@@ -134,8 +134,8 @@ class FieldData:
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
         if self._target.dtype != petsc_precision:
             raise TypeError(
-                f"Your target dtype must match the precision of your "
-                f"PETSc configuration. "
+                "Your target dtype must match the precision of your "
+                "PETSc configuration. "
                 f"Expected {petsc_precision}, but got {self._target.dtype}."
             )
         self._jacobian = jacobian
@@ -182,7 +182,7 @@ class FieldData:
 
 class MultipleFieldData(FieldData):
     """
-    Metadata class passed to `SolveExpr`, for mixed-field problems,
+    Metadata class passed to `SolverMetaData`, for mixed-field problems,
     where the solution vector spans multiple `targets`. Used to interface
     with PETSc SNES solvers at the IET level.
 

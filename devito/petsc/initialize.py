@@ -1,12 +1,12 @@
 import os
 import sys
-from ctypes import POINTER, cast, c_char, c_int, c_char_p, byref
+from ctypes import POINTER, cast, c_char
 import atexit
 
 from devito import Operator, switchconfig
 from devito.types import Symbol
 from devito.types.equation import PetscEq
-from devito.petsc.types import Initialize, Finalize, GetArgs
+from devito.petsc.types import Initialize, Finalize
 
 global _petsc_initialized
 _petsc_initialized = False
@@ -15,18 +15,16 @@ _petsc_initialized = False
 global _petsc_clargs
 
 
-dummy = Symbol(name='d')
-
-
 def PetscInitialize(clargs=sys.argv):
     global _petsc_initialized
     global _petsc_clargs
 
     if not _petsc_initialized:
-        if clargs is not sys.argv:
-            clargs = [sys.argv[0], *clargs]
+        dummy = Symbol(name='d')
 
-        # TODO: Drop this global variable
+        if clargs is not sys.argv:
+            clargs = (sys.argv[0], *clargs)
+
         _petsc_clargs = clargs
 
         # TODO: Potentially just use cgen + the compiler machinery in Devito
@@ -43,24 +41,19 @@ def PetscInitialize(clargs=sys.argv):
                 name='kernel_finalize', opt='noop'
             )
 
+        # Convert each string to a bytes object (e.g: '-ksp_type' -> b'-ksp_type')
         # `argv_bytes` must be a list so the memory address persists
         # `os.fsencode` should be preferred over `string().encode('utf-8')`
         # in case there is some system specific encoding in use
         argv_bytes = list(map(os.fsencode, clargs))
+
+        # POINTER(c_char) is equivalent to char * in C
+        # (POINTER(c_char) * len(clargs)) creates a C array type: char *[len(clargs)]
+        # Instantiating it with (*map(...)) casts each bytes object to a char * and
+        # fills the array. The result is a char *argv[]
         argv_pointer = (POINTER(c_char)*len(clargs))(
             *map(lambda s: cast(s, POINTER(c_char)), argv_bytes)
         )
         op_init.apply(argc=len(clargs), argv=argv_pointer)
         atexit.register(op_finalize.apply)
         _petsc_initialized = True
-
-
-def PetscGetArgs():
-    with switchconfig(language='petsc'):
-        op_get_args = Operator(
-            [PetscEq(dummy, GetArgs(dummy))],
-            name='kernel_get_args', opt='noop'
-        )
-    argc_ptr = c_int()
-    argv_ptr = (POINTER(c_char_p))()
-    op_get_args.apply(argc=byref(argc_ptr), argv=byref(argv_ptr))

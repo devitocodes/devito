@@ -1,4 +1,4 @@
-from ctypes import POINTER, c_char, c_char_p, c_int
+from ctypes import POINTER, c_char
 
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
@@ -111,6 +111,14 @@ class KSP(PetscObject):
     Manages Krylov Methods.
     """
     dtype = CustomDtype('KSP')
+
+
+class KSPType(PetscObject):
+    dtype = CustomDtype('KSPType')
+
+
+class KSPNormType(PetscObject):
+    dtype = CustomDtype('KSPNormType')
 
 
 class CallbackSNES(PetscObject):
@@ -303,24 +311,6 @@ class ArgvSymbol(DataSymbol):
     @property
     def _C_ctype(self):
         return POINTER(POINTER(c_char))
-
-
-class ArgvSymbolPtr(DataSymbol):
-    @property
-    def _C_ctype(self):
-        return POINTER(POINTER(c_char_p))
-
-
-class ArgcPtr(DataSymbol):
-    @property
-    def _C_ctype(self):
-        return POINTER(c_int)
-
-
-class CharPtr(DataSymbol):
-    @property
-    def _C_ctype(self):
-        return c_char_p
 
 
 FREE_PRIORITY = {

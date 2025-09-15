@@ -71,29 +71,38 @@ def get_petsc_variables():
 
 
 petsc_variables = get_petsc_variables()
-# TODO: use petsctools get_petscvariables() instead?
-# petsc_variables = get_petscvariables()
+# TODO: Use petsctools get_petscvariables() instead?
 
 
 def get_petsc_type_mappings():
     try:
         petsc_precision = petsc_variables['PETSC_PRECISION']
     except KeyError:
-        mapper = {}
+        printer_mapper = {}
+        petsc_type_to_ctype = {}
     else:
         petsc_scalar = 'PetscScalar'
         # TODO: Check to see whether Petsc is compiled with
         # 32-bit or 64-bit integers
-        mapper = {ctypes.c_int: 'PetscInt'}
+        printer_mapper = {ctypes.c_int: 'PetscInt'}
 
         if petsc_precision == 'single':
-            mapper[ctypes.c_float] = petsc_scalar
+            printer_mapper[ctypes.c_float] = petsc_scalar
         elif petsc_precision == 'double':
-            mapper[ctypes.c_double] = petsc_scalar
-    return mapper
+            printer_mapper[ctypes.c_double] = petsc_scalar
+
+        # Used to construct ctypes.Structures that wrap PETSc objects
+        petsc_type_to_ctype = {v: k for k, v in printer_mapper.items()}
+        # Add other PETSc types
+        petsc_type_to_ctype.update({
+            'KSPType': ctypes.c_char_p,
+            'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
+            'KSPNormType': petsc_type_to_ctype['PetscInt'],
+        })
+    return printer_mapper, petsc_type_to_ctype
 
 
-petsc_type_mappings = get_petsc_type_mappings()
+petsc_type_mappings, petsc_type_to_ctype = get_petsc_type_mappings()
 
 
 petsc_languages = ['petsc']
@@ -114,7 +123,7 @@ def generate_time_mapper(funcs):
     level to align with the `TimeDimension` and `ModuloDimension` objects
     present in the initial lowering.
     NOTE: All functions used in PETSc callback functions are attached to
-    the `SolveExpr` object, which is passed through the initial lowering
+    the `SolverMetaData` object, which is passed through the initial lowering
     (and subsequently dropped and replaced with calls to run the solver).
     Therefore, the appropriate time loop will always be correctly generated inside
     the main kernel.
