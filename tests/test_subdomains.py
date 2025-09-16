@@ -6,8 +6,8 @@ from sympy import sin, tan
 
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
-                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseTimeFunction,
-                    VectorFunction, TensorFunction, Border)
+                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseFunction,
+                    SparseTimeFunction, VectorFunction, TensorFunction, Border)
 from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegistry
 from devito.tools import timed_region
 
@@ -723,6 +723,23 @@ class TestMultiSubDomain:
         assert x.is_Parallel
         assert y.is_Parallel
         assert z.is_Parallel
+
+    def test_subdomainset_w_sparse(self):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid)
+        s = SparseFunction(name='s', grid=grid, npoint=1)
+
+        border = SubDomainSet(N=1, bounds=(2, 2, 2, 2), grid=grid)
+        op = Operator([Eq(f, 0, subdomain=border)] + s.inject(f, expr=1))
+
+        # There was an issue where a clash between auxiliary dimension
+        # names used for SparseFunction and SubDomainSet resulted in
+        # cryptic errors when applying the operator
+        op()
+
+        check = np.zeros((11, 11))
+        check[0, 0] = 1
+        assert np.all(np.isclose(f.data, check))
 
 
 class TestBorder:
