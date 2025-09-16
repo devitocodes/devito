@@ -3,7 +3,7 @@ from functools import singledispatch
 
 import sympy
 
-__all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne', 'relational_min']
+__all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne', 'relational_min', 'relational_max']
 
 
 class AbstractRel:
@@ -250,3 +250,44 @@ def _(expr, s):
         return expr.lts
     else:
         return 0
+
+
+def relational_max(expr, s):
+    """
+    Infer the maximum valid value for symbol `s` in the expression `expr`.
+    For example
+        - if `expr` is `s < 10`, then the maximum valid value for `s` is 9
+        - if `expr` is `s >= 10`, then the maximum valid value for `s` is Inf
+    """
+    if not expr.has(s):
+        return sympy.S.Infinity
+
+    return _relational_max(expr, s)
+
+
+@singledispatch
+def _relational_max(s, expr):
+    return sympy.S.Infinity
+
+
+@_relational_max.register(sympy.And)
+def _(expr, s):
+    return min([_relational_max(e, s) for e in expr.args])
+
+
+@_relational_max.register(Gt)
+@_relational_max.register(Lt)
+def _(expr, s):
+    if s == expr.lts:
+        return expr.gts - 1
+    else:
+        return sympy.S.Infinity
+
+
+@_relational_max.register(Ge)
+@_relational_max.register(Le)
+def _(expr, s):
+    if s == expr.lts:
+        return expr.gts
+    else:
+        return sympy.S.Infinity
