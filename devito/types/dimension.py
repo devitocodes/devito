@@ -1025,7 +1025,7 @@ class ConditionalDimension(DerivedDimension):
             if d1 < sympy.S.Infinity:
                 # We make sure the condition size matches the input size
                 size0 = (d1 - d0 + factor) // factor
-                if size < size0:
+                if size and size < size0:
                     raise ValueError(f"Incompatible size for ConditionalDimension "
                                      f"{self.name}: {size} < {size0}")
             else:
