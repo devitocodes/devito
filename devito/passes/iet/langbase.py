@@ -12,6 +12,7 @@ from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe, SizeOf
+from sympy import Ge
 from devito.tools import as_list, is_integer, prod
 from devito.types import Symbol, QueueID, Wildcard
 
@@ -56,11 +57,16 @@ class LangBB(metaclass=LangMeta):
     """
 
     @classmethod
-    def _get_num_devices(cls):
+    def _get_num_devices(cls, platform):
         """
         Get the number of accessible devices.
+        Returns a tuple of (ngpus_symbol, call_to_get_num_devices).
         """
-        raise NotImplementedError
+        from devito.types import Symbol
+        ngpus = Symbol(name='ngpus', dtype='int32')
+        devicetype = as_list(cls[platform])
+        call_ngpus = cls['num-devices'](devicetype, retobj=ngpus)
+        return ngpus, call_ngpus
 
     @classmethod
     def _map_to(cls, f, imask=None, qid=None):
@@ -426,9 +432,27 @@ class DeviceAwareMixin:
             devicetype = as_list(self.langbb[self.platform])
             deviceid = self.deviceid
 
+            # Add device validation check
+            ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
+
+            validation = Conditional(
+                Ge(deviceid, ngpus),
+                List(body=[
+                    Call('printf', ['"%s: Error - device %d >= %d devices\\n"',
+                                    self.langbb['name'], deviceid, ngpus]),
+                    Call('exit', [1])
+                ])
+            )
+
+            device_setup = List(body=[
+                call_ngpus,
+                validation,
+                self.langbb['set-device']([deviceid] + devicetype)
+            ])
+
             return list(nodes) + [Conditional(
                 CondNe(deviceid, -1),
-                self.langbb['set-device']([deviceid] + devicetype)
+                device_setup
             )]
 
         def _make_setdevice_mpi(iet, objcomm, nodes=()):
@@ -441,7 +465,21 @@ class DeviceAwareMixin:
 
             ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
 
-            osdd_then = self.langbb['set-device']([deviceid] + devicetype)
+            # Add device validation for explicit device ID
+            validation = Conditional(
+                Ge(deviceid, ngpus),
+                List(body=[
+                    Call('printf', ['"%s: Error - device %d >= %d devices\\n"',
+                                    self.langbb['name'], deviceid, ngpus]),
+                    Call('exit', [1])
+                ])
+            )
+
+            osdd_then = List(body=[
+                call_ngpus,
+                validation,
+                self.langbb['set-device']([deviceid] + devicetype)
+            ])
             osdd_else = self.langbb['set-device']([rank % ngpus] + devicetype)
 
             return list(nodes) + [Conditional(
