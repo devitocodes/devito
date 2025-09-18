@@ -396,9 +396,6 @@ class Data(np.ndarray):
                         processed.append(j)
                 val_idx = as_tuple(processed)
                 val = val[val_idx]
-            else:
-                # `val` is replicated`, `self` is replicated -> plain ndarray.__setitem__
-                pass
             super().__setitem__(glb_idx, val)
         elif isinstance(val, Iterable):
             if self._is_decomposed:
