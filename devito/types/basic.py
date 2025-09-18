@@ -1663,7 +1663,13 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
 
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
-        return Indexed(self, *as_tuple(indices))
+        # Is there a specific Indexed class to use?
+        try:
+            cls = self.function._indexed_cls
+        except AttributeError:
+            cls = Indexed
+
+        return cls(self, *as_tuple(indices))
 
     def _hashable_content(self):
         return super()._hashable_content() + (self.function,)
