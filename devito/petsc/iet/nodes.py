@@ -29,3 +29,8 @@ class FormFunctionCallback(Callback):
 
 class PETScCall(Call):
     pass
+
+
+# Mapping special Eq operations to their corresponding IET Expression subclass types.
+# These operations correspond to subclasses of Eq utilised within PETScSolve.
+petsc_iet_mapper = {OpPetsc: PetscMetaData}

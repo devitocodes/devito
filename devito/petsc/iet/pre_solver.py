@@ -4,8 +4,8 @@ from devito.ir.iet import DummyExpr, BlankLine
 from devito.symbolics import (Byref, FieldFromPointer, VOID,
                               FieldFromComposite, Null)
 
-from devito.petsc.iet.nodes import FormFunctionCallback, MatShellSetOp
-from devito.petsc.iet.utils import petsc_call, void, petsc_call_mpi
+from devito.petsc.iet.nodes import FormFunctionCallback, MatShellSetOp, PETScCall
+from devito.petsc.iet.utils import petsc_call
 
 
 def make_core_petsc_calls(objs, comm):
@@ -331,3 +331,10 @@ class CoupledSetup(BaseSetup):
             create_submats) + \
             tuple(deref_dms) + tuple(xglobals) + tuple(xlocals) + (BlankLine,)
         return coupled_setup
+
+
+def petsc_call_mpi(specific_call, call_args):
+    return PETScCall('PetscCallMPI', [PETScCall(specific_call, arguments=call_args)])
+
+
+void = 'void'

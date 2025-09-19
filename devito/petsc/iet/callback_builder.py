@@ -10,12 +10,11 @@ from devito.types import Dimension
 from devito.tools import filter_ordered
 
 from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp
-from devito.petsc.iet.utils import (petsc_call, zero_vector,
-                                    dereference_funcs, void,
-                                    insert_vals, add_vals, get_user_struct_fields)
+from devito.petsc.iet.utils import (petsc_call, void, get_user_struct_fields)
 from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
 from devito.petsc.iet.object_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
+from devito.petsc.types.strings import InsertMode
 
 
 class BaseCallback:
@@ -228,11 +227,11 @@ class BaseCallback:
 
         global_to_local_begin = petsc_call(
             'DMGlobalToLocalBegin', [dmda, objs['X'],
-                                     insert_vals, xlocal]
+                                     InsertMode.insert_values, xlocal]
         )
 
         global_to_local_end = petsc_call('DMGlobalToLocalEnd', [
-            dmda, objs['X'], insert_vals, xlocal
+            dmda, objs['X'], InsertMode.insert_values, xlocal
         ])
 
         dm_get_local_yvec = petsc_call(
@@ -262,11 +261,11 @@ class BaseCallback:
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, ylocal, add_vals, objs['Y']
+            dmda, ylocal, InsertMode.add_values, objs['Y']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, ylocal, add_vals, objs['Y']
+            dmda, ylocal, InsertMode.add_values, objs['Y']
         ])
 
         dm_restore_local_xvec = petsc_call(
@@ -375,11 +374,11 @@ class BaseCallback:
 
         global_to_local_begin = petsc_call(
             'DMGlobalToLocalBegin', [dmda, objs['X'],
-                                     insert_vals, objs['xloc']]
+                                     InsertMode.insert_values, objs['xloc']]
         )
 
         global_to_local_end = petsc_call('DMGlobalToLocalEnd', [
-            dmda, objs['X'], insert_vals, objs['xloc']
+            dmda, objs['X'], InsertMode.insert_values, objs['xloc']
         ])
 
         dm_get_local_yvec = petsc_call(
@@ -407,11 +406,11 @@ class BaseCallback:
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, objs['floc'], add_vals, objs['F']
+            dmda, objs['floc'], InsertMode.add_values, objs['F']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, objs['floc'], add_vals, objs['F']
+            dmda, objs['floc'], InsertMode.add_values, objs['F']
         ])
 
         dm_restore_local_xvec = petsc_call(
@@ -492,11 +491,11 @@ class BaseCallback:
 
         dm_global_to_local_begin = petsc_call(
             'DMGlobalToLocalBegin', [dmda, objs['B'],
-                                     insert_vals, sobjs['blocal']]
+                                     InsertMode.insert_values, sobjs['blocal']]
         )
 
         dm_global_to_local_end = petsc_call('DMGlobalToLocalEnd', [
-            dmda, objs['B'], insert_vals,
+            dmda, objs['B'], InsertMode.insert_values,
             sobjs['blocal']
         ])
 
@@ -520,12 +519,12 @@ class BaseCallback:
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, sobjs['blocal'], insert_vals,
+            dmda, sobjs['blocal'], InsertMode.insert_values,
             objs['B']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, sobjs['blocal'], insert_vals,
+            dmda, sobjs['blocal'], InsertMode.insert_values,
             objs['B']
         ])
 
@@ -825,11 +824,11 @@ class CoupledCallback(BaseCallback):
 
         global_to_local_begin = petsc_call(
             'DMGlobalToLocalBegin', [dmda, objs['X'],
-                                     insert_vals, objs['xloc']]
+                                     InsertMode.insert_values, objs['xloc']]
         )
 
         global_to_local_end = petsc_call('DMGlobalToLocalEnd', [
-            dmda, objs['X'], insert_vals, objs['xloc']
+            dmda, objs['X'], InsertMode.insert_values, objs['xloc']
         ])
 
         dm_get_local_yvec = petsc_call(
@@ -857,11 +856,11 @@ class CoupledCallback(BaseCallback):
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, objs['floc'], add_vals, objs['F']
+            dmda, objs['floc'], InsertMode.add_values, objs['F']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, objs['floc'], add_vals, objs['F']
+            dmda, objs['floc'], InsertMode.add_values, objs['F']
         ])
 
         dm_restore_local_xvec = petsc_call(
@@ -1104,3 +1103,20 @@ def populate_matrix_context(efuncs):
         name, body, objs['err'],
         parameters=[objs['ljacctx'], objs['Subdms'], objs['Fields']]
     )
+
+
+def dereference_funcs(struct, fields):
+    """
+    Dereference AbstractFunctions from a struct.
+    """
+    return tuple(
+        [Dereference(i, struct) for i in
+         fields if isinstance(i.function, AbstractFunction)]
+    )
+
+
+def zero_vector(vec):
+    """
+    Set all entries of a PETSc vector to zero.
+    """
+    return petsc_call('VecSet', [vec, 0.0])
