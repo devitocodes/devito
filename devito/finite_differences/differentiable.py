@@ -19,7 +19,7 @@ from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
                           infer_dtype, extract_dtype, is_integer, split, is_number)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, Indexed
 
 __all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
            'Weights', 'Real', 'Imag', 'Conj']
@@ -769,11 +769,21 @@ class IndexSum(sympy.Expr, Evaluable):
     func = DifferentiableOp._rebuild
 
 
+class WeightsIndexed(Indexed):
+    pass
+
+
 class Weights(Array):
 
     """
     The weights (or coefficients) of a finite-difference expansion.
     """
+
+    # Use IndexedWeights for the underlying Indexed objects because they
+    # are guaranteed to appear at the end on an expression's .args.
+    # This makes it dramatically easier to implement substutions. It also makes
+    # it easier to visually parse IndexDerivatives when looking at them
+    _indexed_cls = WeightsIndexed
 
     def __init_finalize__(self, *args, **kwargs):
         dimensions = as_tuple(kwargs.get('dimensions'))
