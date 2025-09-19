@@ -7,7 +7,7 @@ from devito.symbolics.unevaluation import Mul
 from devito.petsc.iet.nodes import petsc_call
 
 
-class TimeIndependent:
+class TimeBase:
     def __init__(self, **kwargs):
         self.inject_solve = kwargs.get('inject_solve')
         self.iters = kwargs.get('iters')
@@ -32,7 +32,11 @@ class TimeIndependent:
         return []
 
 
-class TimeDependent(TimeIndependent):
+class TimeIndependent(TimeBase):
+    pass
+
+
+class TimeDependent(TimeBase):
     """
     A class for managing time-dependent solvers.
     This includes scenarios where the target is not directly a `TimeFunction`,
