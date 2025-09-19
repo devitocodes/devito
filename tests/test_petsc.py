@@ -278,7 +278,7 @@ def test_dmda_create():
 
 class TestStruct:
     @skipif('petsc')
-    def test_cinterface_petsc_struct():
+    def test_cinterface_petsc_struct(self):
 
         grid = Grid(shape=(11, 11), dtype=np.float64)
         f = Function(name='f', grid=grid, space_order=2)
@@ -329,7 +329,7 @@ class TestStruct:
         assert 'const PetscInt x_size = ctx0->x_size;' in str(op.ccode)
 
     @skipif('petsc')
-    def test_parameters():
+    def test_parameters(self):
 
         grid = Grid((2, 2), dtype=np.float64)
 
@@ -677,7 +677,7 @@ def test_solve_output():
 
 class TestEssentialBCs:
     @skipif('petsc')
-    def test_essential_bcs():
+    def test_essential_bcs(self):
         """
         Verify that PETScSolve returns the correct output with
         essential boundary conditions.

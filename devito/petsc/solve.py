@@ -120,7 +120,7 @@ class InjectSolve:
         exprs = as_tuple(exprs)
 
         funcs = get_funcs(exprs)
-        self.time_mapper = generate_time_mapper(funcs)
+        self.time_mapper = generate_time_mapper(exprs)
         arrays = self.generate_arrays(target)
 
         exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))

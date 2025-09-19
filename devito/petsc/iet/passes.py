@@ -9,7 +9,6 @@ from devito.ir.iet import (
 )
 from devito.symbolics import Byref, Macro, Null, FieldFromPointer
 from devito.types.basic import DataSymbol
-from devito.tools import frozendict
 import devito.logger
 
 from devito.petsc.types import (

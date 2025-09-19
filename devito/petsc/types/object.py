@@ -327,7 +327,7 @@ class ArgvSymbol(DataSymbol):
     @property
     def _C_ctype(self):
         return POINTER(POINTER(c_char))
-    
+
 
 class NofSubMats(Scalar, LocalType):
     pass

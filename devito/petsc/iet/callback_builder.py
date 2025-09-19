@@ -88,7 +88,7 @@ class BaseCallback:
     @property
     def user_struct_callback(self):
         return self._user_struct_callback
-    
+
     @property
     def solver_parameters(self):
         return self.solve_expr.solver_parameters
@@ -96,7 +96,7 @@ class BaseCallback:
     @property
     def field_data(self):
         return self.solve_expr.field_data
-    
+
     @property
     def formatted_prefix(self):
         return self.solve_expr.formatted_prefix
