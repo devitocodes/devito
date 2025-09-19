@@ -19,7 +19,7 @@ from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
 
 
-class BaseCallback:
+class BaseCallbackBuilder:
     """
     Build IET routines to generate PETSc callback functions.
     """
@@ -679,7 +679,7 @@ class BaseCallback:
         return mapper
 
 
-class CoupledCallback(BaseCallback):
+class CoupledCallbackBuilder(BaseCallbackBuilder):
     def __init__(self, **kwargs):
         self._submatrices_callback = None
         super().__init__(**kwargs)

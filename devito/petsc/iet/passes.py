@@ -19,7 +19,7 @@ from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.iet.nodes import PetscMetaData, petsc_call
 from devito.petsc.config import core_metadata, petsc_languages
 from devito.petsc.iet.callbacks import (
-    BaseCallback, CoupledCallback, populate_matrix_context, get_user_struct_fields
+    BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context, get_user_struct_fields
 )
 from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
 from devito.petsc.iet.builder import Builder, CoupledBuilder, make_core_petsc_calls
@@ -273,8 +273,8 @@ class BuildSolver:
 
     @cached_property
     def callback_builder(self):
-        return CoupledCallback(**self.common_kwargs) \
-            if self.coupled else BaseCallback(**self.common_kwargs)
+        return CoupledCallbackBuilder(**self.common_kwargs) \
+            if self.coupled else BaseCallbackBuilder(**self.common_kwargs)
 
     @cached_property
     def builder(self):
