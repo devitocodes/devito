@@ -127,7 +127,7 @@ class InjectSolve:
 
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
-        initial_guess = InitialGuess(target, exprs, arrays)
+        initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
 
         field_data = FieldData(
             target=target,
@@ -137,7 +137,7 @@ class InjectSolve:
             arrays=arrays
         )
 
-        return target, tuple(funcs), field_data
+        return target, funcs, field_data
 
     def generate_arrays(self, *targets):
         return {
@@ -162,7 +162,7 @@ class InjectMixedSolve(InjectSolve):
             exprs.extend(e)
 
         funcs = get_funcs(exprs)
-        self.time_mapper = generate_time_mapper(funcs)
+        self.time_mapper = generate_time_mapper(exprs)
 
         targets = list(self.target_exprs.keys())
         arrays = self.generate_arrays(*targets)
@@ -183,7 +183,7 @@ class InjectMixedSolve(InjectSolve):
             residual=residual
         )
 
-        return targets[0], tuple(funcs), all_data
+        return targets[0], funcs, all_data
 
 
 localinfo = DMDALocalInfo(name='info', liveness='eager')

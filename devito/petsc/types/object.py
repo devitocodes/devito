@@ -2,9 +2,9 @@ from ctypes import POINTER, c_char
 
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
-                          TimeDimension, ArrayObject, CustomDimension)
+                          TimeDimension, ArrayObject, CustomDimension, Scalar)
 from devito.symbolics import Byref, cast
-from devito.types.basic import DataSymbol
+from devito.types.basic import DataSymbol, LocalType
 
 from devito.petsc.iet.utils import petsc_call
 
@@ -197,7 +197,7 @@ class PETScStruct(LocalCompositeObject):
     def time_dim_fields(self):
         """
         Fields within the struct that are updated during the time loop.
-        These are not set in the `PopulateMatContext` callback.
+        These are not set in the `PopulateUserContext` callback.
         """
         return [f for f in self.fields
                 if isinstance(f, (ModuloDimension, TimeDimension))]
@@ -205,12 +205,28 @@ class PETScStruct(LocalCompositeObject):
     @property
     def callback_fields(self):
         """
-        Fields within the struct that are initialized in the `PopulateMatContext`
+        Fields within the struct that are initialized in the `PopulateUserContext`
         callback. These fields are not updated in the time loop.
         """
         return [f for f in self.fields if f not in self.time_dim_fields]
 
     _C_modifier = ' *'
+
+
+class MainUserStruct(PETScStruct):
+    pass
+
+
+class CallbackUserStruct(PETScStruct):
+    __rkwargs__ = PETScStruct.__rkwargs__ + ('parent',)
+
+    def __init__(self, *args, parent=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._parent = parent
+
+    @property
+    def parent(self):
+        return self._parent
 
 
 class JacobianStruct(PETScStruct):
@@ -227,7 +243,7 @@ class SubMatrixStruct(PETScStruct):
     _C_modifier = None
 
 
-class PETScArrayObject(PetscMixin, ArrayObject):
+class PETScArrayObject(PetscMixin, ArrayObject, LocalType):
     _data_alignment = False
 
     def __init_finalize__(self, *args, **kwargs):
@@ -311,6 +327,10 @@ class ArgvSymbol(DataSymbol):
     @property
     def _C_ctype(self):
         return POINTER(POINTER(c_char))
+    
+
+class NofSubMats(Scalar, LocalType):
+    pass
 
 
 FREE_PRIORITY = {

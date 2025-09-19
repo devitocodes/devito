@@ -29,6 +29,7 @@ class PetscEntry:
 
 class PetscSummary(dict):
     """
+    # TODO: Actually print to screen when DEBUG of PERF is enabled
     A summary of PETSc statistics collected for all solver runs
     associated with a single operator during execution.
     """

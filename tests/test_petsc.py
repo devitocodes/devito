@@ -3,10 +3,11 @@ import pytest
 import numpy as np
 import os
 import re
+import sympy as sp
 
 from conftest import skipif
 from devito import (Grid, Function, TimeFunction, Eq, Operator,
-                    configuration, norm, switchconfig, SubDomain)
+                    configuration, norm, switchconfig, SubDomain, sin)
 from devito.operator.profiling import PerformanceSummary
 from devito.ir.iet import (Call, ElementalFunction,
                            FindNodes, retrieve_iteration_tree)
@@ -275,34 +276,113 @@ def test_dmda_create():
         ',1,1,1,1,6,NULL,NULL,NULL,&da0));' in str(op3)
 
 
-@skipif('petsc')
-def test_cinterface_petsc_struct():
+class TestStruct:
+    @skipif('petsc')
+    def test_cinterface_petsc_struct():
 
-    grid = Grid(shape=(11, 11), dtype=np.float64)
-    f = Function(name='f', grid=grid, space_order=2)
-    eq = Eq(f.laplace, 10)
-    petsc = PETScSolve(eq, f)
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        f = Function(name='f', grid=grid, space_order=2)
+        eq = Eq(f.laplace, 10)
+        petsc = PETScSolve(eq, f)
 
-    name = "foo"
+        name = "foo"
 
-    with switchconfig(language='petsc'):
-        op = Operator(petsc, name=name)
+        with switchconfig(language='petsc'):
+            op = Operator(petsc, name=name)
 
-    # Trigger the generation of a .c and a .h files
-    ccode, hcode = op.cinterface(force=True)
+        # Trigger the generation of a .c and a .h files
+        ccode, hcode = op.cinterface(force=True)
 
-    dirname = op._compiler.get_jit_dir()
-    assert os.path.isfile(os.path.join(dirname, "%s.c" % name))
-    assert os.path.isfile(os.path.join(dirname, "%s.h" % name))
+        dirname = op._compiler.get_jit_dir()
+        assert os.path.isfile(os.path.join(dirname, "%s.c" % name))
+        assert os.path.isfile(os.path.join(dirname, "%s.h" % name))
 
-    ccode = str(ccode)
-    hcode = str(hcode)
+        ccode = str(ccode)
+        hcode = str(hcode)
 
-    assert 'include "%s.h"' % name in ccode
+        assert 'include "%s.h"' % name in ccode
 
-    # The public `struct UserCtx` only appears in the header file
-    assert 'struct UserCtx0\n{' not in ccode
-    assert 'struct UserCtx0\n{' in hcode
+        # The public `struct UserCtx` only appears in the header file
+        assert 'struct UserCtx0\n{' not in ccode
+        assert 'struct UserCtx0\n{' in hcode
+
+    @skipif('petsc')
+    def test_temp_arrays_in_struct(self):
+
+        grid = Grid(shape=(11, 11, 11), dtype=np.float64)
+
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        x, y, _ = grid.dimensions
+
+        eqn = Eq(u.forward, sin(sp.pi*(x+y)/3.), subdomain=grid.interior)
+        petsc = PETScSolve(eqn, target=u.forward)
+
+        with switchconfig(log_level='DEBUG', language='petsc'):
+            op = Operator(petsc)
+            # Check that it runs
+            op.apply(time_M=3)
+
+        assert 'ctx0->x_size = x_size;' in str(op.ccode)
+        assert 'ctx0->y_size = y_size;' in str(op.ccode)
+
+        assert 'const PetscInt y_size = ctx0->y_size;' in str(op.ccode)
+        assert 'const PetscInt x_size = ctx0->x_size;' in str(op.ccode)
+
+    @skipif('petsc')
+    def test_parameters():
+
+        grid = Grid((2, 2), dtype=np.float64)
+
+        f1 = Function(name='f1', grid=grid, space_order=2)
+        g1 = Function(name='g1', grid=grid, space_order=2)
+
+        mu1 = Constant(name='mu1', value=2.0)
+        mu2 = Constant(name='mu2', value=2.0)
+
+        eqn1 = Eq(f1.laplace, g1*mu1)
+        petsc1 = PETScSolve(eqn1, f1)
+
+        eqn2 = Eq(f1, g1*mu2)
+
+        with switchconfig(language='petsc'):
+            op = Operator([eqn2, petsc1])
+
+        arguments = op.arguments()
+
+        # Check mu1 and mu2 in arguments
+        assert 'mu1' in arguments
+        assert 'mu2' in arguments
+
+        # Check mu1 and mu2 in op.parameters
+        assert mu1 in op.parameters
+        assert mu2 in op.parameters
+
+        # Check PETSc struct not in op.parameters
+        assert all(not isinstance(i, LocalCompositeObject) for i in op.parameters)
+
+    @skipif('petsc')
+    def test_field_order(self):
+        """Verify that the order of fields in the user struct is fixed for
+        `identical` Operator instances.
+        """
+        grid = Grid(shape=(11, 11, 11), dtype=np.float64)
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        x, y, _ = grid.dimensions
+        t = grid.time_dim
+        eq = Eq(f.dt, f.laplace + t*0.005 + sin(sp.pi*(x+y)/3.), subdomain=grid.interior)
+        petsc = PETScSolve(eq, f.forward)
+
+        with switchconfig(language='petsc'):
+            op1 = Operator(petsc, name="foo1")
+            op2 = Operator(petsc, name="foo2")
+
+        op1_user_struct = op1._func_table['PopulateUserContext0'].root.parameters[0]
+        op2_user_struct = op2._func_table['PopulateUserContext0'].root.parameters[0]
+
+        assert len(op1_user_struct.fields) == len(op2_user_struct.fields)
+        assert len(op1_user_struct.callback_fields) == \
+            len(op1_user_struct.callback_fields)
+        assert str(op1_user_struct.fields) == str(op2_user_struct.fields)
 
 
 @skipif('petsc')
@@ -330,39 +410,6 @@ def test_callback_arguments():
 
     assert str(mv.parameters) == '(J, X, Y)'
     assert str(ff.parameters) == '(snes, X, F, dummy)'
-
-
-@skipif('petsc')
-def test_petsc_struct():
-
-    grid = Grid((2, 2), dtype=np.float64)
-
-    f1 = Function(name='f1', grid=grid, space_order=2)
-    g1 = Function(name='g1', grid=grid, space_order=2)
-
-    mu1 = Constant(name='mu1', value=2.0)
-    mu2 = Constant(name='mu2', value=2.0)
-
-    eqn1 = Eq(f1.laplace, g1*mu1)
-    petsc1 = PETScSolve(eqn1, f1)
-
-    eqn2 = Eq(f1, g1*mu2)
-
-    with switchconfig(language='petsc'):
-        op = Operator([eqn2, petsc1])
-
-    arguments = op.arguments()
-
-    # Check mu1 and mu2 in arguments
-    assert 'mu1' in arguments
-    assert 'mu2' in arguments
-
-    # Check mu1 and mu2 in op.parameters
-    assert mu1 in op.parameters
-    assert mu2 in op.parameters
-
-    # Check PETSc struct not in op.parameters
-    assert all(not isinstance(i, LocalCompositeObject) for i in op.parameters)
 
 
 @skipif('petsc')
@@ -469,79 +516,139 @@ def test_start_ptr():
             '(PetscScalar*)(u2_vec->data);') in str(op2)
 
 
-@skipif('petsc')
-def test_time_loop():
-    """
-    Verify the following:
-    - Modulo dimensions are correctly assigned and updated in the PETSc struct
-    at each time step.
-    - Only assign/update the modulo dimensions required by any of the
-    PETSc callback functions.
-    """
-    grid = Grid((11, 11), dtype=np.float64)
+class TestTimeLoop:
+    @skipif('petsc')
+    @pytest.mark.parametrize('dim', [1, 2, 3])
+    def test_time_dimensions(self, dim):
+        """
+        Verify the following:
+        - Modulo dimensions are correctly assigned and updated in the PETSc struct
+        at each time step.
+        - Only assign/update the modulo dimensions required by any of the
+        PETSc callback functions.
+        """
+        shape = tuple(11 for _ in range(dim))
+        grid = Grid(shape=shape, dtype=np.float64)
 
-    # Modulo time stepping
-    u1 = TimeFunction(name='u1', grid=grid, space_order=2)
-    v1 = Function(name='v1', grid=grid, space_order=2)
-    eq1 = Eq(v1.laplace, u1)
-    petsc1 = PETScSolve(eq1, v1)
+        # Modulo time stepping
+        u1 = TimeFunction(name='u1', grid=grid, space_order=2)
+        v1 = Function(name='v1', grid=grid, space_order=2)
+        eq1 = Eq(v1.laplace, u1)
+        petsc1 = PETScSolve(eq1, v1)
 
-    with switchconfig(language='petsc'):
-        op1 = Operator(petsc1)
-        op1.apply(time_M=3)
-    body1 = str(op1.body)
-    rhs1 = str(op1._func_table['FormRHS0'].root.ccode)
+        with switchconfig(language='petsc'):
+            op1 = Operator(petsc1)
+            op1.apply(time_M=3)
+        body1 = str(op1.body)
+        rhs1 = str(op1._func_table['FormRHS0'].root.ccode)
 
-    assert 'ctx0.t0 = t0' in body1
-    assert 'ctx0.t1 = t1' not in body1
-    assert 'ctx0->t0' in rhs1
-    assert 'ctx0->t1' not in rhs1
+        assert 'ctx0.t0 = t0' in body1
+        assert 'ctx0.t1 = t1' not in body1
+        assert 'ctx0->t0' in rhs1
+        assert 'ctx0->t1' not in rhs1
 
-    # Non-modulo time stepping
-    u2 = TimeFunction(name='u2', grid=grid, space_order=2, save=5)
-    v2 = Function(name='v2', grid=grid, space_order=2, save=5)
-    eq2 = Eq(v2.laplace, u2)
-    petsc2 = PETScSolve(eq2, v2)
+        # Non-modulo time stepping
+        u2 = TimeFunction(name='u2', grid=grid, space_order=2, save=5)
+        v2 = Function(name='v2', grid=grid, space_order=2, save=5)
+        eq2 = Eq(v2.laplace, u2)
+        petsc2 = PETScSolve(eq2, v2)
 
-    with switchconfig(language='petsc'):
-        op2 = Operator(petsc2)
-        op2.apply(time_M=3)
-    body2 = str(op2.body)
-    rhs2 = str(op2._func_table['FormRHS0'].root.ccode)
+        with switchconfig(language='petsc'):
+            op2 = Operator(petsc2)
+            op2.apply(time_M=3)
+        body2 = str(op2.body)
+        rhs2 = str(op2._func_table['FormRHS0'].root.ccode)
 
-    assert 'ctx0.time = time' in body2
-    assert 'ctx0->time' in rhs2
+        assert 'ctx0.time = time' in body2
+        assert 'ctx0->time' in rhs2
 
-    # Modulo time stepping with more than one time step
-    # used in one of the callback functions
-    eq3 = Eq(v1.laplace, u1 + u1.forward)
-    petsc3 = PETScSolve(eq3, v1)
+        # Modulo time stepping with more than one time step
+        # used in one of the callback functions
+        eq3 = Eq(v1.laplace, u1 + u1.forward)
+        petsc3 = PETScSolve(eq3, v1)
 
-    with switchconfig(language='petsc'):
-        op3 = Operator(petsc3)
-        op3.apply(time_M=3)
-    body3 = str(op3.body)
-    rhs3 = str(op3._func_table['FormRHS0'].root.ccode)
+        with switchconfig(language='petsc'):
+            op3 = Operator(petsc3)
+            op3.apply(time_M=3)
+        body3 = str(op3.body)
+        rhs3 = str(op3._func_table['FormRHS0'].root.ccode)
 
-    assert 'ctx0.t0 = t0' in body3
-    assert 'ctx0.t1 = t1' in body3
-    assert 'ctx0->t0' in rhs3
-    assert 'ctx0->t1' in rhs3
+        assert 'ctx0.t0 = t0' in body3
+        assert 'ctx0.t1 = t1' in body3
+        assert 'ctx0->t0' in rhs3
+        assert 'ctx0->t1' in rhs3
 
-    # Multiple petsc solves within the same time loop
-    v2 = Function(name='v2', grid=grid, space_order=2)
-    eq4 = Eq(v1.laplace, u1)
-    petsc4 = PETScSolve(eq4, v1)
-    eq5 = Eq(v2.laplace, u1)
-    petsc5 = PETScSolve(eq5, v2)
+        # Multiple petsc solves within the same time loop
+        v2 = Function(name='v2', grid=grid, space_order=2)
+        eq4 = Eq(v1.laplace, u1)
+        petsc4 = PETScSolve(eq4, v1)
+        eq5 = Eq(v2.laplace, u1)
+        petsc5 = PETScSolve(eq5, v2)
 
-    with switchconfig(language='petsc'):
-        op4 = Operator([petsc4, petsc5])
-        op4.apply(time_M=3)
-    body4 = str(op4.body)
+        with switchconfig(language='petsc'):
+            op4 = Operator([petsc4, petsc5])
+            op4.apply(time_M=3)
+        body4 = str(op4.body)
 
-    assert 'ctx0.t0 = t0' in body4
-    assert body4.count('ctx0.t0 = t0') == 1
+        assert 'ctx0.t0 = t0' in body4
+        assert body4.count('ctx0.t0 = t0') == 1
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('dim', [1, 2, 3])
+    def test_trivial_operator(self, dim):
+        """
+        Test trivial time-dependent `Operator`s with PETScSolve.
+        """
+        # create shape based on dimension
+        shape = tuple(4 for _ in range(dim))
+        grid = Grid(shape=shape, dtype=np.float64)
+        u = TimeFunction(name='u', grid=grid, save=3)
+
+        eqn = Eq(u.forward, u + 1)
+
+        petsc = PETScSolve(eqn, target=u.forward)
+
+        with switchconfig(log_level='DEBUG'):
+            op = Operator(petsc, language='petsc')
+            op.apply()
+
+        assert np.all(u.data[0] == 0.)
+        assert np.all(u.data[1] == 1.)
+        assert np.all(u.data[2] == 2.)
+
+    @skipif('petsc')
+    @pytest.mark.parametrize('dim', [1, 2, 3])
+    def test_time_dim(self, dim):
+        """
+        Verify the time loop abstraction
+        when a mixture of TimeDimensions and time dependent
+        SteppingDimensions are used
+        """
+        shape = tuple(4 for _ in range(dim))
+        grid = Grid(shape=shape, dtype=np.float64)
+        # Use modoulo time stepping, i.e don't pass the save argument
+        u = TimeFunction(name='u', grid=grid)
+        # Use grid.time_dim in the equation, as well as the TimeFunction itself
+        petsc = PETScSolve(Eq(u.forward, u + 1 + grid.time_dim), target=u.forward)
+
+        with switchconfig():
+            op = Operator(petsc, language='petsc')
+            op.apply(time_M=1)
+
+        body = str(op.body)
+        rhs = str(op._func_table['FormRHS0'].root.ccode)
+
+        # Check both ctx0.t0 and ctx0.time are assigned since they are both used
+        # in the callback functions, specifically in FormRHS0
+        assert 'ctx0.t0 = t0' in body
+        assert 'ctx0.time = time' in body
+        assert 'ctx0->t0' in rhs
+        assert 'ctx0->time' in rhs
+
+        # Check the ouput is as expected given two time steps have been
+        # executed (time_M=1)
+        assert np.all(u.data[1] == 1.)
+        assert np.all(u.data[0] == 3.)
 
 
 @skipif('petsc')
@@ -568,74 +675,75 @@ def test_solve_output():
     assert np.allclose(u.data, v.data)
 
 
-@skipif('petsc')
-def test_essential_bcs():
-    """
-    Verify that PETScSolve returns the correct output with
-    essential boundary conditions.
-    """
-    # SubDomains used for essential boundary conditions
-    # should not overlap.
-    class SubTop(SubDomain):
-        name = 'subtop'
+class TestEssentialBCs:
+    @skipif('petsc')
+    def test_essential_bcs():
+        """
+        Verify that PETScSolve returns the correct output with
+        essential boundary conditions.
+        """
+        # SubDomains used for essential boundary conditions
+        # should not overlap.
+        class SubTop(SubDomain):
+            name = 'subtop'
 
-        def define(self, dimensions):
-            x, y = dimensions
-            return {x: x, y: ('right', 1)}
-    sub1 = SubTop()
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('right', 1)}
+        sub1 = SubTop()
 
-    class SubBottom(SubDomain):
-        name = 'subbottom'
+        class SubBottom(SubDomain):
+            name = 'subbottom'
 
-        def define(self, dimensions):
-            x, y = dimensions
-            return {x: x, y: ('left', 1)}
-    sub2 = SubBottom()
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('left', 1)}
+        sub2 = SubBottom()
 
-    class SubLeft(SubDomain):
-        name = 'subleft'
+        class SubLeft(SubDomain):
+            name = 'subleft'
 
-        def define(self, dimensions):
-            x, y = dimensions
-            return {x: ('left', 1), y: ('middle', 1, 1)}
-    sub3 = SubLeft()
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 1), y: ('middle', 1, 1)}
+        sub3 = SubLeft()
 
-    class SubRight(SubDomain):
-        name = 'subright'
+        class SubRight(SubDomain):
+            name = 'subright'
 
-        def define(self, dimensions):
-            x, y = dimensions
-            return {x: ('right', 1), y: ('middle', 1, 1)}
-    sub4 = SubRight()
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('right', 1), y: ('middle', 1, 1)}
+        sub4 = SubRight()
 
-    subdomains = (sub1, sub2, sub3, sub4)
-    grid = Grid(shape=(11, 11), subdomains=subdomains, dtype=np.float64)
+        subdomains = (sub1, sub2, sub3, sub4)
+        grid = Grid(shape=(11, 11), subdomains=subdomains, dtype=np.float64)
 
-    u = Function(name='u', grid=grid, space_order=2)
-    v = Function(name='v', grid=grid, space_order=2)
+        u = Function(name='u', grid=grid, space_order=2)
+        v = Function(name='v', grid=grid, space_order=2)
 
-    # Solving Ax=b where A is the identity matrix
-    v.data[:] = 5.0
-    eqn = Eq(u, v, subdomain=grid.interior)
+        # Solving Ax=b where A is the identity matrix
+        v.data[:] = 5.0
+        eqn = Eq(u, v, subdomain=grid.interior)
 
-    bcs = [EssentialBC(u, 1., subdomain=sub1)]  # top
-    bcs += [EssentialBC(u, 2., subdomain=sub2)]  # bottom
-    bcs += [EssentialBC(u, 3., subdomain=sub3)]  # left
-    bcs += [EssentialBC(u, 4., subdomain=sub4)]  # right
+        bcs = [EssentialBC(u, 1., subdomain=sub1)]  # top
+        bcs += [EssentialBC(u, 2., subdomain=sub2)]  # bottom
+        bcs += [EssentialBC(u, 3., subdomain=sub3)]  # left
+        bcs += [EssentialBC(u, 4., subdomain=sub4)]  # right
 
-    petsc = PETScSolve([eqn]+bcs, target=u)
+        petsc = PETScSolve([eqn]+bcs, target=u)
 
-    with switchconfig(language='petsc'):
-        op = Operator(petsc)
-        op.apply()
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+            op.apply()
 
-    # Check u is equal to v on the interior
-    assert np.allclose(u.data[1:-1, 1:-1], v.data[1:-1, 1:-1])
-    # Check u satisfies the boundary conditions
-    assert np.allclose(u.data[1:-1, -1], 1.0)  # top
-    assert np.allclose(u.data[1:-1, 0], 2.0)  # bottom
-    assert np.allclose(u.data[0, 1:-1], 3.0)  # left
-    assert np.allclose(u.data[-1, 1:-1], 4.0)  # right
+        # Check u is equal to v on the interior
+        assert np.allclose(u.data[1:-1, 1:-1], v.data[1:-1, 1:-1])
+        # Check u satisfies the boundary conditions
+        assert np.allclose(u.data[1:-1, -1], 1.0)  # top
+        assert np.allclose(u.data[1:-1, 0], 2.0)  # bottom
+        assert np.allclose(u.data[0, 1:-1], 3.0)  # left
+        assert np.allclose(u.data[-1, 1:-1], 4.0)  # right
 
 
 @skipif('petsc')
@@ -2076,3 +2184,24 @@ class TestGetInfo:
         assert entry2.KSPGetType == 'cg'
         assert entry2['KSPGetType'] == 'cg'
         assert entry2['kspgettype'] == 'cg'
+
+
+class TestPrinter:
+
+    @skipif('petsc')
+    def test_petsc_pi(self):
+        """
+        Test that sympy.pi is correctly translated to PETSC_PI in the
+        generated code.
+        """
+        grid = Grid(shape=(11, 11), dtype=np.float64)
+        e = Function(name='e', grid=grid)
+        eq = Eq(e, sp.pi)
+
+        petsc = PETScSolve(eq, target=e)
+
+        with switchconfig(language='petsc'):
+            op = Operator(petsc)
+
+        assert 'PETSC_PI' in str(op.ccode)
+        assert 'M_PI' not in str(op.ccode)

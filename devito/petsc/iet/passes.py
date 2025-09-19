@@ -3,29 +3,31 @@ import numpy as np
 from functools import cached_property
 
 from devito.passes.iet.engine import iet_pass
-from devito.ir.iet import (Transformer, MapNodes, Iteration, BlankLine,
-                           DummyExpr, CallableBody, List, Call, Callable,
-                           FindNodes, Section)
-from devito.symbolics import Byref, FieldFromPointer, Macro, Null
-from devito.types import Symbol, Scalar
+from devito.ir.iet import (
+    Transformer, MapNodes, Iteration, CallableBody, List, Call, FindNodes, Section,
+    FindSymbols, DummyExpr, Uxreplace, Dereference
+)
+from devito.symbolics import Byref, Macro, Null, FieldFromPointer
 from devito.types.basic import DataSymbol
 from devito.tools import frozendict
 import devito.logger
 
-from devito.petsc.types import (PetscMPIInt, PetscErrorCode, MultipleFieldData,
-                                PointerIS, Mat, CallbackVec, Vec, CallbackMat, SNES,
-                                DummyArg, PetscInt, PointerDM, PointerMat, MatReuse,
-                                CallbackPointerIS, CallbackPointerDM, JacobianStruct,
-                                SubMatrixStruct, Initialize, Finalize, ArgvSymbol)
+from devito.petsc.types import (
+    MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct,
+    CallbackUserStruct
+)
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.iet.nodes import PetscMetaData
 from devito.petsc.utils import core_metadata, petsc_languages
-from devito.petsc.iet.routines import (CBBuilder, CCBBuilder, BaseObjectBuilder,
-                                       CoupledObjectBuilder, BaseSetup, CoupledSetup,
-                                       Solver, CoupledSolver, TimeDependent,
-                                       NonTimeDependent)
+from devito.petsc.iet.callback_builder import (
+    BaseCallback, CoupledCallback, populate_matrix_context
+)
+from devito.petsc.iet.object_builder import BaseObjectBuilder, CoupledObjectBuilder, objs
+from devito.petsc.iet.pre_solver import BaseSetup, CoupledSetup, make_core_petsc_calls
+from devito.petsc.iet.run_solver import Solver, CoupledSolver
+from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
-from devito.petsc.iet.utils import petsc_call, petsc_call_mpi
+from devito.petsc.iet.utils import petsc_call, get_user_struct_fields
 
 
 @iet_pass
@@ -108,6 +110,98 @@ def lower_petsc(iet, **kwargs):
     return iet, metadata
 
 
+def lower_petsc_symbols(iet, **kwargs):
+    """
+    The `place_definitions` and `place_casts` passes may introduce new
+    symbols, which must be incorporated into
+    the relevant PETSc structs. To update the structs, this method then
+    applies two additional passes: `rebuild_child_user_struct` and
+    `rebuild_parent_user_struct`.
+    """
+    callback_struct_mapper = {}
+    # Rebuild `CallbackUserStruct` and update iet accordingly
+    rebuild_child_user_struct(iet, mapper=callback_struct_mapper)
+    # Rebuild `MainUserStruct` and update iet accordingly
+    rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
+
+
+@iet_pass
+def rebuild_child_user_struct(iet, mapper, **kwargs):
+    """
+    Rebuild each `CallbackUserStruct` (the child struct) to include any
+    new fields introduced by the `place_definitions` and `place_casts` passes.
+    Also, update the iet accordingly (e.g., dereference the new fields).
+    - `CallbackUserStruct` is used to access information
+    in PETSc callback functions via `DMGetApplicationContext`.
+    """
+    old_struct = set([
+        i for i in FindSymbols().visit(iet) if isinstance(i, CallbackUserStruct)
+    ])
+
+    if not old_struct:
+        return iet, {}
+
+    # There is a unique `CallbackUserStruct` in each callback
+    assert len(old_struct) == 1
+    old_struct = old_struct.pop()
+
+    # Collect any new fields that have been introduced since the struct was
+    # previously built
+    new_fields = [
+        f for f in get_user_struct_fields(iet) if f not in old_struct.fields
+    ]
+    all_fields = old_struct.fields + new_fields
+
+    # Rebuild the struct
+    new_struct = old_struct._rebuild(fields=all_fields)
+    mapper[old_struct] = new_struct
+
+    # Replace old struct with the new one
+    new_body = Uxreplace(mapper).visit(iet.body)
+
+    # Dereference the new fields and insert them as `standalones` at the top of
+    # the body. This ensures they are defined before any casts/allocs etc introduced
+    # by the `place_definitions` and `place_casts` passes.
+    derefs = tuple([Dereference(i, new_struct) for i in new_fields])
+    new_body = new_body._rebuild(standalones=new_body.standalones + derefs)
+
+    return iet._rebuild(body=new_body), {}
+
+
+@iet_pass
+def rebuild_parent_user_struct(iet, mapper, **kwargs):
+    """
+    Rebuild each `MainUserStruct` (the parent struct) so that it stays in sync
+    with its corresponding `CallbackUserStruct` (the child struct). Any IET that
+    references a parent struct is also updated — either the `PopulateUserContext`
+    callback or the main Kernel, where the parent struct is registered
+    via `DMSetApplicationContext`.
+    """
+    if not mapper:
+        return iet, {}
+
+    parent_struct_mapper = {
+        v.parent: v.parent._rebuild(fields=v.fields) for v in mapper.values()
+    }
+
+    if not iet.name.startswith("PopulateUserContext"):
+        new_body = Uxreplace(parent_struct_mapper).visit(iet.body)
+        return iet._rebuild(body=new_body), {}
+
+    old_struct = [i for i in iet.parameters if isinstance(i, MainUserStruct)]
+    assert len(old_struct) == 1
+    old_struct = old_struct.pop()
+
+    new_struct = parent_struct_mapper[old_struct]
+
+    new_body = [
+        DummyExpr(FieldFromPointer(i._C_symbol, new_struct), i._C_symbol)
+        for i in new_struct.callback_fields
+    ]
+    new_body = iet.body._rebuild(body=new_body)
+    return iet._rebuild(body=new_body, parameters=(new_struct,)), {}
+
+
 def initialize(iet):
     # should be int because the correct type for argc is a C int
     # and not a int32
@@ -132,11 +226,6 @@ def finalize(iet):
         retstmt=(Call('PetscFunctionReturn', arguments=[0]),)
     )
     return iet._rebuild(body=finalize_body)
-
-
-def make_core_petsc_calls(objs, comm):
-    call_mpi = petsc_call_mpi('MPI_Comm_size', [comm, Byref(objs['size'])])
-    return call_mpi, BlankLine
 
 
 class Builder:
@@ -181,13 +270,13 @@ class Builder:
     @cached_property
     def time_dependence(self):
         mapper = self.inject_solve.expr.rhs.time_mapper
-        time_class = TimeDependent if mapper else NonTimeDependent
+        time_class = TimeDependent if mapper else TimeIndependent
         return time_class(**self.common_kwargs)
 
     @cached_property
     def cbbuilder(self):
-        return CCBBuilder(**self.common_kwargs) \
-            if self.coupled else CBBuilder(**self.common_kwargs)
+        return CoupledCallback(**self.common_kwargs) \
+            if self.coupled else BaseCallback(**self.common_kwargs)
 
     @cached_property
     def solver_setup(self):
@@ -209,81 +298,3 @@ class Builder:
     @cached_property
     def calls(self):
         return List(body=self.solve.calls+self.logger.calls)
-
-
-def populate_matrix_context(efuncs):
-    if not objs['dummyefunc'] in efuncs.values():
-        return
-
-    subdms_expr = DummyExpr(
-        FieldFromPointer(objs['Subdms']._C_symbol, objs['ljacctx']),
-        objs['Subdms']._C_symbol
-    )
-    fields_expr = DummyExpr(
-        FieldFromPointer(objs['Fields']._C_symbol, objs['ljacctx']),
-        objs['Fields']._C_symbol
-    )
-    body = CallableBody(
-        List(body=[subdms_expr, fields_expr]),
-        init=(petsc_func_begin_user,),
-        retstmt=tuple([Call('PetscFunctionReturn', arguments=[0])])
-    )
-    name = 'PopulateMatContext'
-    efuncs[name] = Callable(
-        name, body, objs['err'],
-        parameters=[objs['ljacctx'], objs['Subdms'], objs['Fields']]
-    )
-
-
-subdms = PointerDM(name='subdms')
-fields = PointerIS(name='fields')
-submats = PointerMat(name='submats')
-rows = PointerIS(name='rows')
-cols = PointerIS(name='cols')
-
-
-# A static dict containing shared symbols and objects that are not
-# unique to each PETScSolve.
-# Many of these objects are used as arguments in callback functions to make
-# the C code cleaner and more modular. This is also a step toward leveraging
-# Devito's `reuse_efuncs` functionality, allowing reuse of efuncs when
-# they are semantically identical.
-objs = frozendict({
-    'size': PetscMPIInt(name='size'),
-    'err': PetscErrorCode(name='err'),
-    'block': CallbackMat('block'),
-    'submat_arr': PointerMat(name='submat_arr'),
-    'subblockrows': PetscInt('subblockrows'),
-    'subblockcols': PetscInt('subblockcols'),
-    'rowidx': PetscInt('rowidx'),
-    'colidx': PetscInt('colidx'),
-    'J': Mat('J'),
-    'X': Vec('X'),
-    'xloc': CallbackVec('xloc'),
-    'Y': Vec('Y'),
-    'yloc': CallbackVec('yloc'),
-    'F': Vec('F'),
-    'floc': CallbackVec('floc'),
-    'B': Vec('B'),
-    'nfields': PetscInt('nfields'),
-    'irow': PointerIS(name='irow'),
-    'icol': PointerIS(name='icol'),
-    'nsubmats': Scalar('nsubmats', dtype=np.int32),
-    'matreuse': MatReuse('scall'),
-    'snes': SNES('snes'),
-    'rows': rows,
-    'cols': cols,
-    'Subdms': subdms,
-    'LocalSubdms': CallbackPointerDM(name='subdms'),
-    'Fields': fields,
-    'LocalFields': CallbackPointerIS(name='fields'),
-    'Submats': submats,
-    'ljacctx': JacobianStruct(
-        fields=[subdms, fields, submats], modifier=' *'
-    ),
-    'subctx': SubMatrixStruct(fields=[rows, cols]),
-    'dummyctx': Symbol('lctx'),
-    'dummyptr': DummyArg('dummy'),
-    'dummyefunc': Symbol('dummyefunc'),
-    'dof': PetscInt('dof'),
-})

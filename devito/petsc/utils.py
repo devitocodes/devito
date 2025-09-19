@@ -2,10 +2,10 @@ import os
 import ctypes
 from pathlib import Path
 
-from devito.tools import memoized_func, filter_ordered
-from devito.types import Symbol, SteppingDimension
+from devito.tools import memoized_func, filter_ordered, as_tuple
+from devito.types import Symbol, SteppingDimension, TimeDimension
 from devito.operations.solve import eval_time_derivatives
-from devito.symbolics import retrieve_functions
+from devito.symbolics import retrieve_functions, retrieve_dimensions
 
 
 class PetscOSError(OSError):
@@ -113,10 +113,10 @@ def get_funcs(exprs):
         f for e in exprs
         for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
     ]
-    return filter_ordered(funcs)
+    return as_tuple(filter_ordered(funcs))
 
 
-def generate_time_mapper(funcs):
+def generate_time_mapper(exprs):
     """
     Replace time indices with `Symbols` in expressions used within
     PETSc callback functions. These symbols are Uxreplaced at the IET
@@ -129,20 +129,20 @@ def generate_time_mapper(funcs):
     the main kernel.
     Examples
     --------
-    >>> funcs = [
-    >>>     f1(t + dt, x, y),
-    >>>     g1(t + dt, x, y),
-    >>>     g2(t, x, y),
-    >>>     f1(t, x, y)
-    >>> ]
-    >>> generate_time_mapper(funcs)
+    >>> exprs = (Eq(f1(t + dt, x, y), g1(t + dt, x, y) + g2(t, x, y)*f1(t, x, y)),)
+    >>> generate_time_mapper(exprs)
     {t + dt: tau0, t: tau1}
     """
-    time_indices = list({
+    # First, map any actual TimeDimensions
+    time_indices = [d for d in retrieve_dimensions(exprs) if isinstance(d, TimeDimension)]
+
+    funcs = get_funcs(exprs)
+
+    time_indices.extend(list({
         i if isinstance(d, SteppingDimension) else d
         for f in funcs
         for i, d in zip(f.indices, f.dimensions)
         if d.is_Time
-    })
+    }))
     tau_symbs = [Symbol('tau%d' % i) for i in range(len(time_indices))]
     return dict(zip(time_indices, tau_symbs))
