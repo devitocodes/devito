@@ -98,7 +98,8 @@ class AbstractSparseFunction(DiscreteFunction):
         shape = kwargs.get('shape', kwargs.get('shape_global'))
         dimensions = kwargs.get('dimensions')
         npoint = kwargs.get('npoint', kwargs.get('npoint_global'))
-        glb_npoint = SparseDistributor.decompose(npoint, grid.distributor)
+        distributor = kwargs.get('distributor', SparseDistributor)
+        glb_npoint = distributor.decompose(npoint, grid.distributor)
         # Plain SparseFunction construction with npoint.
         if shape is None:
             loc_shape = (glb_npoint[grid.distributor.myrank],)
@@ -184,7 +185,6 @@ class AbstractSparseFunction(DiscreteFunction):
 
         # Given an array or nothing, create dimension and SubFunction
         if key is not None:
-            dimensions = (self._sparse_dim, Dimension(name='d'))
             if key.ndim > 2:
                 dimensions = (self._sparse_dim, Dimension(name='d'),
                               *mkdims("i", n=key.ndim-2))
@@ -211,14 +211,21 @@ class AbstractSparseFunction(DiscreteFunction):
             else:
                 dtype = dtype or self.dtype
 
+        # Wether to initialize the subfunction with the provided data
+        # Useful when rebuilding with a placeholder array only used to
+        # infer shape and dtype and set the actual data later
+        if kwargs.get('init_subfunc', True):
+            init = {'initializer': key}
+        else:
+            init = {}
+
         # Complex coordinates are not valid, so fall back to corresponding
         # real floating point type if dtype is complex.
         dtype = dtype(0).real.__class__
-
         sf = SparseSubFunction(
             name=name, dtype=dtype, dimensions=dimensions,
-            shape=shape, space_order=0, initializer=key, alias=self.alias,
-            distributor=self._distributor, parent=self
+            shape=shape, space_order=0, alias=self.alias,
+            distributor=self._distributor, parent=self, **init
         )
 
         if self.npoint == 0:
@@ -229,6 +236,10 @@ class AbstractSparseFunction(DiscreteFunction):
             sf.data
 
         return sf
+
+    @property
+    def is_local(self):
+        return self._distributor._is_local
 
     @property
     def sparse_position(self):
@@ -534,7 +545,7 @@ class AbstractSparseFunction(DiscreteFunction):
         data = data if data is not None else self.data._local
 
         # If not using MPI, don't waste time
-        if self._distributor.nprocs == 1:
+        if self._distributor.nprocs == 1 or self.is_local:
             return data
 
         # Compute dist map only once
@@ -556,8 +567,13 @@ class AbstractSparseFunction(DiscreteFunction):
 
     def _dist_subfunc_scatter(self, subfunc):
         # If not using MPI, don't waste time
-        if self._distributor.nprocs == 1:
-            return {subfunc: subfunc.data}
+        if self._distributor.nprocs == 1 or self.is_local:
+            if self.is_local and self.dist_origin[subfunc] is not None:
+                shift = np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
+                subfuncd = subfunc.data._local - shift
+            else:
+                subfuncd = subfunc.data
+            return {subfunc: subfuncd}
 
         # Compute dist map only once
         dmap = self._dist_datamap
@@ -581,7 +597,7 @@ class AbstractSparseFunction(DiscreteFunction):
 
     def _dist_data_gather(self, data):
         # If not using MPI, don't waste time
-        if self._distributor.nprocs == 1:
+        if self._distributor.nprocs == 1 or self.is_local:
             return
 
         # Compute dist map only once
@@ -612,7 +628,7 @@ class AbstractSparseFunction(DiscreteFunction):
         except AttributeError:
             pass
         # If not using MPI, don't waste time
-        if self._distributor.nprocs == 1:
+        if self._distributor.nprocs == 1 or self.is_local:
             return
 
         # Compute dist map only once

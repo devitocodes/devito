@@ -99,6 +99,6 @@ class TestSparseFunction:
 
         assert s.coordinates is not None
 
-        # Explicity set coordinates to None
+        # Explicitly set coordinates to None
         sr = s._rebuild(function=None, initializer=None, coordinates=None)
         assert sr.coordinates is None

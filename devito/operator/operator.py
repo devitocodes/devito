@@ -989,8 +989,10 @@ class Operator(Callable):
         cfunction = self.cfunction
 
         # Build the arguments list to invoke the kernel function
-        with self._profiler.timer_on('arguments'):
+        with self._profiler.timer_on('arguments-preprocess'):
             args = self.arguments(**kwargs)
+        with switch_log_level(comm=args.comm):
+            self._emit_args_profiling('arguments-preprocess')
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
@@ -1008,17 +1010,24 @@ class Operator(Callable):
             else:
                 raise
 
-        # Perform error checking
-        self._postprocess_errors(retval)
-
-        # Post-process runtime arguments
-        self._postprocess_arguments(args, **kwargs)
+        with self._profiler.timer_on('arguments-postprocess'):
+            # Perform error checking
+            self._postprocess_errors(retval)
+            # Post-process runtime arguments
+            self._postprocess_arguments(args, **kwargs)
 
         # In case MPI is used restrict result logging to one rank only
         with switch_log_level(comm=args.comm):
+            self._emit_args_profiling('arguments-postprocess')
             return self._emit_apply_profiling(args)
 
     # Performance profiling
+
+    def _emit_args_profiling(self, tag=''):
+        fround = lambda i, n=100: ceil(i * n) / n
+        elapsed = fround(self._profiler.py_timers[tag])
+        tagstr = ' '.join(tag.split('-'))
+        debug(f"Operator `{self.name}` {tagstr}: {elapsed:.2f} s")
 
     def _emit_build_profiling(self):
         if not is_log_enabled_for('PERF'):
