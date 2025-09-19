@@ -31,7 +31,7 @@ class BuilderBase:
         https://petsc.org/main/manualpages/SNES/SNESSetFunction/
         """
         return VOID(self.solver_objs['dmda'], stars='*')
-    
+
     def _setup(self):
         return ()
 
@@ -85,7 +85,7 @@ class BuilderBase:
         dmda = petsc_call(f'DMDACreate{nspace_dims}d', args)
 
         return dmda
-    
+
 
 class Builder(BuilderBase):
     def _setup(self):
