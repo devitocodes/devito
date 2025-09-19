@@ -14,7 +14,7 @@ from devito.arch.compiler import (compiler_registry, IntelCompiler, OneapiCompil
 from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
                            retrieve_iteration_tree)
 from devito.tools import as_tuple
-from devito.petsc.utils import PetscOSError, get_petsc_dir
+from devito.petsc.internals import PetscOSError, get_petsc_dir
 
 try:
     from mpi4py import MPI  # noqa

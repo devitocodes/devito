@@ -83,11 +83,13 @@ class BaseSetup:
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
         matvec = self.cbbuilder.main_matvec_callback
-        matvec_operation = petsc_call('MatShellSetOperation',
+        matvec_operation = petsc_call(
+            'MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
         )
         formfunc = self.cbbuilder._F_efunc
-        formfunc_operation = petsc_call('SNESSetFunction',
+        formfunc_operation = petsc_call(
+            'SNESSetFunction',
             [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
              self.snes_ctx]
         )

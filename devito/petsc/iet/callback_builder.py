@@ -3,7 +3,9 @@ from collections import OrderedDict
 from devito.ir.iet import (Call, FindSymbols, List, Uxreplace, CallableBody,
                            Dereference, DummyExpr, BlankLine, Callable, Iteration,
                            PointerCast, Definition)
-from devito.symbolics import (Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null, VOID)
+from devito.symbolics import (
+    Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null, VOID
+)
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types import Dimension, Temp, TempArray
