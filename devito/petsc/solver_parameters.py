@@ -1,5 +1,6 @@
-from petsctools import flatten_parameters
 import itertools
+
+from petsctools import flatten_parameters
 
 
 # NOTE: Will be extended, the default preconditioner is not going to be 'none'

@@ -7,7 +7,7 @@ from devito.types import CompositeObject
 from devito.petsc.types import (
     PetscInt, PetscScalar, KSPType, KSPConvergedReason, KSPNormType
 )
-from devito.petsc.utils import petsc_type_to_ctype
+from devito.petsc.config import petsc_type_to_ctype
 
 
 class PetscEntry:
@@ -29,6 +29,7 @@ class PetscEntry:
 
 class PetscSummary(dict):
     """
+    # TODO: Actually print to screen when DEBUG of PERF is enabled
     A summary of PETSc statistics collected for all solver runs
     associated with a single operator during execution.
     """

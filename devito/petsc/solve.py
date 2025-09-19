@@ -1,12 +1,17 @@
 from devito.types.equation import PetscEq
-from devito.tools import as_tuple
-from devito.petsc.types import (LinearSolverMetaData, PETScArray, DMDALocalInfo,
-                                FieldData, MultipleFieldData, Jacobian, Residual,
-                                MixedResidual, MixedJacobian, InitialGuess)
+from devito.tools import filter_ordered, as_tuple
+from devito.types import Symbol, SteppingDimension, TimeDimension
+from devito.operations.solve import eval_time_derivatives
+from devito.symbolics import retrieve_functions, retrieve_dimensions
+
+from devito.petsc.types import (
+    LinearSolverMetaData, PETScArray, DMDALocalInfo, FieldData, MultipleFieldData,
+    Jacobian, Residual, MixedResidual, MixedJacobian, InitialGuess
+)
 from devito.petsc.types.equation import EssentialBC
-from devito.petsc.solver_parameters import (linear_solver_parameters,
-                                            format_options_prefix)
-from devito.petsc.utils import get_funcs, generate_time_mapper
+from devito.petsc.solver_parameters import (
+    linear_solver_parameters, format_options_prefix
+)
 
 
 __all__ = ['PETScSolve']
@@ -120,14 +125,14 @@ class InjectSolve:
         exprs = as_tuple(exprs)
 
         funcs = get_funcs(exprs)
-        self.time_mapper = generate_time_mapper(funcs)
+        self.time_mapper = generate_time_mapper(exprs)
         arrays = self.generate_arrays(target)
 
         exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
 
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
-        initial_guess = InitialGuess(target, exprs, arrays)
+        initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
 
         field_data = FieldData(
             target=target,
@@ -137,7 +142,7 @@ class InjectSolve:
             arrays=arrays
         )
 
-        return target, tuple(funcs), field_data
+        return target, funcs, field_data
 
     def generate_arrays(self, *targets):
         return {
@@ -162,7 +167,7 @@ class InjectMixedSolve(InjectSolve):
             exprs.extend(e)
 
         funcs = get_funcs(exprs)
-        self.time_mapper = generate_time_mapper(funcs)
+        self.time_mapper = generate_time_mapper(exprs)
 
         targets = list(self.target_exprs.keys())
         arrays = self.generate_arrays(*targets)
@@ -183,7 +188,47 @@ class InjectMixedSolve(InjectSolve):
             residual=residual
         )
 
-        return targets[0], tuple(funcs), all_data
+        return targets[0], funcs, all_data
+
+
+def get_funcs(exprs):
+    funcs = [
+        f for e in exprs
+        for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
+    ]
+    return as_tuple(filter_ordered(funcs))
+
+
+def generate_time_mapper(exprs):
+    """
+    Replace time indices with `Symbols` in expressions used within
+    PETSc callback functions. These symbols are Uxreplaced at the IET
+    level to align with the `TimeDimension` and `ModuloDimension` objects
+    present in the initial lowering.
+    NOTE: All functions used in PETSc callback functions are attached to
+    the `SolverMetaData` object, which is passed through the initial lowering
+    (and subsequently dropped and replaced with calls to run the solver).
+    Therefore, the appropriate time loop will always be correctly generated inside
+    the main kernel.
+    Examples
+    --------
+    >>> exprs = (Eq(f1(t + dt, x, y), g1(t + dt, x, y) + g2(t, x, y)*f1(t, x, y)),)
+    >>> generate_time_mapper(exprs)
+    {t + dt: tau0, t: tau1}
+    """
+    # First, map any actual TimeDimensions
+    time_indices = [d for d in retrieve_dimensions(exprs) if isinstance(d, TimeDimension)]
+
+    funcs = get_funcs(exprs)
+
+    time_indices.extend(list({
+        i if isinstance(d, SteppingDimension) else d
+        for f in funcs
+        for i, d in zip(f.indices, f.dimensions)
+        if d.is_Time
+    }))
+    tau_symbs = [Symbol('tau%d' % i) for i in range(len(time_indices))]
+    return dict(zip(time_indices, tau_symbs))
 
 
 localinfo = DMDALocalInfo(name='info', liveness='eager')
