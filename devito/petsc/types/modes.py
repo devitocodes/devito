@@ -1,4 +1,3 @@
-
 class InsertMode:
     """
     How the entries are combined with the current values in the vectors or matrices.

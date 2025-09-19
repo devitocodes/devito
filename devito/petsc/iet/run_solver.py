@@ -3,7 +3,7 @@ from functools import cached_property
 from devito.ir.iet import (
     BlankLine, FindNodes, retrieve_iteration_tree, filter_iterations
 )
-from devito.symbolics import (Byref, Null)
+from devito.symbolics import Byref, Null
 
 from devito.petsc.iet.nodes import PetscMetaData, petsc_call
 from devito.petsc.types.modes import InsertMode, ScatterMode

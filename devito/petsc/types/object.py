@@ -1,8 +1,10 @@
 from ctypes import POINTER, c_char
 
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
-from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
-                          TimeDimension, ArrayObject, CustomDimension, Scalar)
+from devito.types import (
+    LocalObject, LocalCompositeObject, ModuloDimension, TimeDimension, ArrayObject,
+    CustomDimension, Scalar
+)
 from devito.symbolics import Byref, cast
 from devito.types.basic import DataSymbol, LocalType
 

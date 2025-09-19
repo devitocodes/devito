@@ -4,12 +4,14 @@ from devito.types import Symbol, SteppingDimension, TimeDimension
 from devito.operations.solve import eval_time_derivatives
 from devito.symbolics import retrieve_functions, retrieve_dimensions
 
-from devito.petsc.types import (LinearSolverMetaData, PETScArray, DMDALocalInfo,
-                                FieldData, MultipleFieldData, Jacobian, Residual,
-                                MixedResidual, MixedJacobian, InitialGuess)
+from devito.petsc.types import (
+    LinearSolverMetaData, PETScArray, DMDALocalInfo, FieldData, MultipleFieldData,
+    Jacobian, Residual, MixedResidual, MixedJacobian, InitialGuess
+)
 from devito.petsc.types.equation import EssentialBC
-from devito.petsc.solver_parameters import (linear_solver_parameters,
-                                            format_options_prefix)
+from devito.petsc.solver_parameters import (
+    linear_solver_parameters, format_options_prefix
+)
 
 
 __all__ = ['PETScSolve']

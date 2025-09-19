@@ -4,12 +4,12 @@ from devito.symbolics import String
 from devito.types import Symbol
 from devito.tools import frozendict
 
-from devito.petsc.types import (PetscBundle, DM, Mat, CallbackVec, Vec,
-                                KSP, PC, SNES, PetscInt, StartPtr, PointerIS, PointerDM,
-                                VecScatter, JacobianStruct, SubMatrixStruct,
-                                CallbackDM, PetscMPIInt, PetscErrorCode, PointerMat,
-                                MatReuse, CallbackPointerDM, CallbackPointerIS,
-                                CallbackMat, DummyArg, NofSubMats)
+from devito.petsc.types import (
+    PetscBundle, DM, Mat, CallbackVec, Vec, KSP, PC, SNES, PetscInt, StartPtr,
+    PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct, CallbackDM,
+    PetscMPIInt, PetscErrorCode, PointerMat, MatReuse, CallbackPointerDM,
+    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats
+)
 
 
 class BaseObjectBuilder:
