@@ -89,7 +89,7 @@ class BaseTypeBuilder:
         base dictionary of solver objects.
         """
         return base_dict
-    
+
 
 class CoupledTypeBuilder(BaseTypeBuilder):
     def _extend_build(self, base_dict):
