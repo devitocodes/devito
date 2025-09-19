@@ -12,7 +12,7 @@ from devito.petsc.types import (
 )
 
 
-class BaseObjectBuilder:
+class BaseTypeBuilder:
     """
     A base class for constructing objects needed for a PETSc solver.
     Designed to be extended by subclasses, which can override the `_extend_build`
@@ -89,9 +89,9 @@ class BaseObjectBuilder:
         base dictionary of solver objects.
         """
         return base_dict
+    
 
-
-class CoupledObjectBuilder(BaseObjectBuilder):
+class CoupledTypeBuilder(BaseTypeBuilder):
     def _extend_build(self, base_dict):
         sreg = self.sregistry
         objs = self.objs

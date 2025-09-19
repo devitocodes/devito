@@ -14,7 +14,7 @@ from devito.tools import filter_ordered
 
 from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp, petsc_call
 from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
-from devito.petsc.iet.objects import objs
+from devito.petsc.iet.type_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
 

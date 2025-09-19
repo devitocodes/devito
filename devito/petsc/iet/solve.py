@@ -9,13 +9,13 @@ from devito.petsc.iet.nodes import PetscMetaData, petsc_call
 from devito.petsc.types.modes import InsertMode, ScatterMode
 
 
-class Solver:
+class Solve:
     def __init__(self, **kwargs):
         self.inject_solve = kwargs.get('inject_solve')
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
         self.iters = kwargs.get('iters')
-        self.cbbuilder = kwargs.get('cbbuilder')
+        self.callback_builder = kwargs.get('callback_builder')
         self.time_dependence = kwargs.get('time_dependence')
         self.calls = self._execute_solve()
 
@@ -29,7 +29,7 @@ class Solver:
 
         struct_assignment = self.time_dependence.assign_time_iters(sobjs['userctx'])
 
-        b_efunc = self.cbbuilder._b_efunc
+        b_efunc = self.callback_builder._b_efunc
 
         dmda = sobjs['dmda']
 
@@ -37,8 +37,8 @@ class Solver:
 
         vec_place_array = self.time_dependence.place_array(target)
 
-        if self.cbbuilder.initial_guesses:
-            initguess = self.cbbuilder.initial_guesses[0]
+        if self.callback_builder.initial_guesses:
+            initguess = self.callback_builder.initial_guesses[0]
             initguess_call = petsc_call(initguess.name, [dmda, sobjs['xlocal']])
         else:
             initguess_call = None
@@ -84,7 +84,7 @@ class Solver:
         return spatial_body
 
 
-class CoupledSolver(Solver):
+class CoupledSolve(Solve):
     def _execute_solve(self):
         """
         Assigns the required time iterators to the struct and executes

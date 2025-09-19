@@ -21,9 +21,9 @@ from devito.petsc.internals import core_metadata, petsc_languages
 from devito.petsc.iet.callbacks import (
     BaseCallback, CoupledCallback, populate_matrix_context, get_user_struct_fields
 )
-from devito.petsc.iet.objects import BaseObjectBuilder, CoupledObjectBuilder, objs
-from devito.petsc.iet.builder import BaseSetup, CoupledSetup, make_core_petsc_calls
-from devito.petsc.iet.solver import Solver, CoupledSolver
+from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
+from devito.petsc.iet.builder import Builder, CoupledBuilder, make_core_petsc_calls
+from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
 
@@ -86,17 +86,17 @@ def lower_petsc(iet, **kwargs):
 
     for iters, (inject_solve,) in inject_solve_mapper.items():
 
-        builder = Builder(inject_solve, iters, comm, section_mapper, **kwargs)
+        solver = BuildSolver(inject_solve, iters, comm, section_mapper, **kwargs)
 
-        setup.extend(builder.solver_setup.calls)
+        setup.extend(solver.builder.calls)
 
         # Transform the spatial iteration loop with the calls to execute the solver
-        subs.update({builder.solve.spatial_body: builder.calls})
+        subs.update({solver.solve.spatial_body: solver.calls})
 
-        efuncs.update(builder.cbbuilder.efuncs)
+        efuncs.update(solver.callback_builder.efuncs)
 
         clear_options.extend((petsc_call(
-            builder.cbbuilder._clear_options_efunc.name, []
+            solver.callback_builder._clear_options_efunc.name, []
         ),))
 
     populate_matrix_context(efuncs)
@@ -226,7 +226,7 @@ def finalize(iet):
     return iet._rebuild(body=finalize_body)
 
 
-class Builder:
+class BuildSolver:
     """
     This class is designed to support future extensions, enabling
     different combinations of solver types, preconditioning methods,
@@ -252,17 +252,17 @@ class Builder:
             'section_mapper': self.section_mapper,
             **self.kwargs
         }
-        self.common_kwargs['solver_objs'] = self.object_builder.solver_objs
+        self.common_kwargs['solver_objs'] = self.type_builder.solver_objs
         self.common_kwargs['time_dependence'] = self.time_dependence
-        self.common_kwargs['cbbuilder'] = self.cbbuilder
+        self.common_kwargs['callback_builder'] = self.callback_builder
         self.common_kwargs['logger'] = self.logger
 
     @cached_property
-    def object_builder(self):
+    def type_builder(self):
         return (
-            CoupledObjectBuilder(**self.common_kwargs)
+            CoupledTypeBuilder(**self.common_kwargs)
             if self.coupled else
-            BaseObjectBuilder(**self.common_kwargs)
+            BaseTypeBuilder(**self.common_kwargs)
         )
 
     @cached_property
@@ -272,19 +272,19 @@ class Builder:
         return time_class(**self.common_kwargs)
 
     @cached_property
-    def cbbuilder(self):
+    def callback_builder(self):
         return CoupledCallback(**self.common_kwargs) \
             if self.coupled else BaseCallback(**self.common_kwargs)
 
     @cached_property
-    def solver_setup(self):
-        return CoupledSetup(**self.common_kwargs) \
-            if self.coupled else BaseSetup(**self.common_kwargs)
+    def builder(self):
+        return CoupledBuilder(**self.common_kwargs) \
+            if self.coupled else Builder(**self.common_kwargs)
 
     @cached_property
     def solve(self):
-        return CoupledSolver(**self.common_kwargs) \
-            if self.coupled else Solver(**self.common_kwargs)
+        return CoupledSolve(**self.common_kwargs) \
+            if self.coupled else Solve(**self.common_kwargs)
 
     @cached_property
     def logger(self):
