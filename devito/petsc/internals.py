@@ -2,7 +2,7 @@ import os
 import ctypes
 from pathlib import Path
 
-from petsctools import get_petscvariables
+from petsctools import get_petscvariables, MissingPetscException
 
 from devito.tools import memoized_func
 
@@ -46,32 +46,10 @@ def core_metadata():
     }
 
 
-@memoized_func
-def get_petsc_variables():
-    """
-    Taken from https://www.firedrakeproject.org/_modules/firedrake/petsc.html
-    Get a dict of PETSc environment variables from the file:
-    $PETSC_DIR/$PETSC_ARCH/lib/petsc/conf/petscvariables
-    """
-    try:
-        petsc_dir = get_petsc_dir()
-    except PetscOSError:
-        petsc_variables = {}
-    else:
-        path = [petsc_dir[-1], 'lib', 'petsc', 'conf', 'petscvariables']
-        variables_path = Path(*path)
-
-        with open(variables_path) as fh:
-            # Split lines on first '=' (assignment)
-            splitlines = (line.split("=", maxsplit=1) for line in fh.readlines())
-        petsc_variables = {k.strip(): v.strip() for k, v in splitlines}
-
-    return petsc_variables
-
-
-# petsc_variables = get_petsc_variables()
-petsc_variables = get_petscvariables()
-# TODO: Use petsctools get_petscvariables() instead?
+try:
+    petsc_variables = get_petscvariables()
+except MissingPetscException:
+    petsc_variables = {}
 
 
 def get_petsc_type_mappings():
