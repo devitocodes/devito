@@ -19,7 +19,8 @@ from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.iet.nodes import PetscMetaData, petsc_call
 from devito.petsc.config import core_metadata, petsc_languages
 from devito.petsc.iet.callbacks import (
-    BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context, get_user_struct_fields
+    BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context,
+    get_user_struct_fields
 )
 from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
 from devito.petsc.iet.builder import Builder, CoupledBuilder, make_core_petsc_calls
