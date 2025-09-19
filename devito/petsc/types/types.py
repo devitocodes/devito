@@ -1,27 +1,23 @@
 import sympy
-
 from itertools import chain
 from functools import cached_property
 
 from devito.tools import Reconstructable, sympy_mutex, as_tuple, frozendict
 from devito.tools.dtypes_lowering import dtype_mapper
-from devito.petsc.utils import petsc_variables
 from devito.symbolics.extraction import separate_eqn, generate_targets, centre_stencil
-from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 from devito.types.equation import Eq
 from devito.operations.solve import eval_time_derivatives
+
+from devito.petsc.utils import petsc_variables
+from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 
 
 class MetaData(sympy.Function, Reconstructable):
     def __new__(cls, expr, **kwargs):
         with sympy_mutex:
             obj = sympy.Function.__new__(cls, expr)
-        obj._expr = expr
+        obj.expr = expr
         return obj
-
-    @property
-    def expr(self):
-        return self._expr
 
 
 class Initialize(MetaData):
@@ -32,105 +28,58 @@ class Finalize(MetaData):
     pass
 
 
-class LinearSolveExpr(MetaData):
+class GetArgs(MetaData):
+    pass
+
+
+class SolverMetaData(MetaData):
     """
     A symbolic expression passed through the Operator, containing the metadata
-    needed to execute a linear solver. Linear problems are handled with
-    `SNESSetType(snes, KSPONLY)`, enabling a unified interface for both
-    linear and nonlinear solvers.
-    # TODO: extend this
-    defaults:
-        - 'ksp_type': String with the name of the PETSc Krylov method.
-           Default is 'gmres' (Generalized Minimal Residual Method).
-           https://petsc.org/main/manualpages/KSP/KSPType/
-        - 'pc_type': String with the name of the PETSc preconditioner.
-           Default is 'jacobi' (i.e diagonal scaling preconditioning).
-           https://petsc.org/main/manualpages/PC/PCType/
-        KSP tolerances:
-        https://petsc.org/release/manualpages/KSP/KSPSetTolerances/
-        - 'ksp_rtol': Relative convergence tolerance. Default
-                      is 1e-5.
-        - 'ksp_atol': Absolute convergence for tolerance. Default
-                      is 1e-50.
-        - 'ksp_divtol': Divergence tolerance, amount residual norm can
-                        increase before `KSPConvergedDefault()` concludes
-                        that the method is diverging. Default is 1e5.
-        - 'ksp_max_it': Maximum number of iterations to use. Default
-                        is 1e4.
+    needed to execute the PETSc solver.
     """
-
     __rargs__ = ('expr',)
     __rkwargs__ = ('solver_parameters', 'field_data', 'time_mapper',
-                   'localinfo', 'options_prefix')
-
-    defaults = {
-        'ksp_type': 'gmres',
-        'pc_type': 'jacobi',
-        'ksp_rtol': 1e-5,  # Relative tolerance
-        'ksp_atol': 1e-50,  # Absolute tolerance
-        'ksp_divtol': 1e5,  # Divergence tolerance
-        'ksp_max_it': 1e4  # Maximum iterations
-    }
+                   'localinfo', 'user_prefix', 'formatted_prefix',
+                   'get_info')
 
     def __new__(cls, expr, solver_parameters=None,
                 field_data=None, time_mapper=None, localinfo=None,
-                options_prefix=None, **kwargs):
-
-        if solver_parameters is None:
-            solver_parameters = cls.defaults
-        else:
-            for key, val in cls.defaults.items():
-                solver_parameters[key] = solver_parameters.get(key, val)
+                user_prefix=None, formatted_prefix=None,
+                get_info=None, **kwargs):
 
         with sympy_mutex:
-            obj = sympy.Function.__new__(cls, expr)
+            if isinstance(expr, tuple):
+                expr = sympy.Tuple(*expr)
+            obj = sympy.Basic.__new__(cls, expr)
 
-        obj._expr = expr
-        obj._solver_parameters = solver_parameters
-        obj._field_data = field_data if field_data else FieldData()
-        obj._time_mapper = time_mapper
-        obj._localinfo = localinfo
-        obj._options_prefix = options_prefix
+        obj.expr = expr
+        obj.solver_parameters = frozendict(solver_parameters)
+        obj.field_data = field_data if field_data else FieldData()
+        obj.time_mapper = time_mapper
+        obj.localinfo = localinfo
+        obj.user_prefix = user_prefix
+        obj.formatted_prefix = formatted_prefix
+        obj.get_info = get_info if get_info is not None else []
         return obj
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, self.expr)
+        return f"{self.__class__.__name__}{self.expr}"
 
     __str__ = __repr__
 
     def _sympystr(self, printer):
         return str(self)
 
-    def __hash__(self):
-        return hash(self.expr)
+    __hash__ = sympy.Basic.__hash__
+
+    def _hashable_content(self):
+        return (self.expr, self.formatted_prefix, self.solver_parameters)
 
     def __eq__(self, other):
-        return (isinstance(other, LinearSolveExpr) and
-                self.expr == other.expr)
-
-    @property
-    def expr(self):
-        return self._expr
-
-    @property
-    def field_data(self):
-        return self._field_data
-
-    @property
-    def solver_parameters(self):
-        return self._solver_parameters
-
-    @property
-    def time_mapper(self):
-        return self._time_mapper
-
-    @property
-    def localinfo(self):
-        return self._localinfo
-
-    @property
-    def options_prefix(self):
-        return self._options_prefix
+        return (isinstance(other, SolverMetaData) and
+                self.expr == other.expr and
+                self.formatted_prefix == other.formatted_prefix
+                and self.solver_parameters == other.solver_parameters)
 
     @property
     def grid(self):
@@ -143,9 +92,24 @@ class LinearSolveExpr(MetaData):
     func = Reconstructable._rebuild
 
 
+class LinearSolverMetaData(SolverMetaData):
+    """
+    Linear problems are handled by setting the SNESType to 'ksponly',
+    enabling a unified interface for both linear and nonlinear solvers.
+    """
+    pass
+
+
+class NonLinearSolverMetaData(SolverMetaData):
+    """
+    TODO: Non linear solvers are not yet supported.
+    """
+    pass
+
+
 class FieldData:
     """
-    Metadata for a single `target` field passed to `LinearSolveExpr`.
+    Metadata for a single `target` field passed to `SolverMetaData`.
     Used to interface with PETSc SNES solvers at the IET level.
 
     Parameters
@@ -170,8 +134,8 @@ class FieldData:
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
         if self._target.dtype != petsc_precision:
             raise TypeError(
-                f"Your target dtype must match the precision of your "
-                f"PETSc configuration. "
+                "Your target dtype must match the precision of your "
+                "PETSc configuration. "
                 f"Expected {petsc_precision}, but got {self._target.dtype}."
             )
         self._jacobian = jacobian
@@ -218,7 +182,7 @@ class FieldData:
 
 class MultipleFieldData(FieldData):
     """
-    Metadata class passed to `LinearSolveExpr`, for mixed-field problems,
+    Metadata class passed to `SolverMetaData`, for mixed-field problems,
     where the solution vector spans multiple `targets`. Used to interface
     with PETSc SNES solvers at the IET level.
 
@@ -702,7 +666,7 @@ class MixedResidual(Residual):
 
 class InitialGuess:
     """
-    Metadata passed to `LinearSolveExpr` to define the initial guess
+    Metadata passed to `SolverExpr` to define the initial guess
     symbolic expressions, enforcing the initial guess to satisfy essential
     boundary conditions.
     """

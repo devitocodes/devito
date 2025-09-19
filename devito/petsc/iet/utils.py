@@ -1,7 +1,8 @@
-from devito.petsc.iet.nodes import PetscMetaData, PETScCall
 from devito.ir.equations import OpPetsc
 from devito.ir.iet import Dereference, FindSymbols, Uxreplace
 from devito.types.basic import AbstractFunction
+
+from devito.petsc.iet.nodes import PetscMetaData, PETScCall
 
 
 def petsc_call(specific_call, call_args):
