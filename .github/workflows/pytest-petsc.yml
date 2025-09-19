@@ -11,12 +11,10 @@ on:
     branches:
       - main
       - petsc
-      - biharmonic
   pull_request:
     branches:
       - main
       - petsc
-      - biharmonic
 
 jobs:
   pytest:
@@ -78,7 +76,7 @@ jobs:
 
     - name: Test with pytest - parallel
       run: |
-        ${{ env.RUN_CMD }} python3 -m pytest --cov --cov-config=.coveragerc --cov-report=xml -m parallel ${{ env.TESTS }}
+        ${{ env.RUN_CMD }} mpiexec -n 1 pytest -m parallel --cov --cov-config=.coveragerc --cov-report=xml ${{ env.TESTS }}
 
     - name: Test examples
       run: |
