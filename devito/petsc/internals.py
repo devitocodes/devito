@@ -2,6 +2,8 @@ import os
 import ctypes
 from pathlib import Path
 
+from petsctools import get_petscvariables
+
 from devito.tools import memoized_func
 
 
@@ -67,7 +69,8 @@ def get_petsc_variables():
     return petsc_variables
 
 
-petsc_variables = get_petsc_variables()
+# petsc_variables = get_petsc_variables()
+petsc_variables = get_petscvariables()
 # TODO: Use petsctools get_petscvariables() instead?
 
 
