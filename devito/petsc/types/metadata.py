@@ -8,7 +8,7 @@ from devito.symbolics.extraction import separate_eqn, generate_targets, centre_s
 from devito.types.equation import Eq
 from devito.operations.solve import eval_time_derivatives
 
-from devito.petsc.internals import petsc_variables
+from devito.petsc.config import petsc_variables
 from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
 
 

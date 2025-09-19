@@ -8,7 +8,7 @@ from devito.passes.iet.langbase import LangBB
 from devito.symbolics import c_complex, c_double_complex
 from devito.tools import dtype_to_cstr
 
-from devito.petsc.internals import petsc_type_mappings
+from devito.petsc.config import petsc_type_mappings
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
 

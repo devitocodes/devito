@@ -7,7 +7,7 @@ from devito.types import CompositeObject
 from devito.petsc.types import (
     PetscInt, PetscScalar, KSPType, KSPConvergedReason, KSPNormType
 )
-from devito.petsc.internals import petsc_type_to_ctype
+from devito.petsc.config import petsc_type_to_ctype
 
 
 class PetscEntry:
