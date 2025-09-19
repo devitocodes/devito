@@ -33,62 +33,6 @@ class BuilderBase:
         return VOID(self.solver_objs['dmda'], stars='*')
 
     def _setup(self):
-        return ()
-
-    def _extend_setup(self):
-        """
-        Hook for subclasses to add additional setup calls.
-        """
-        return ()
-
-    def _create_dmda_calls(self, dmda):
-        dmda_create = self._create_dmda(dmda)
-        dm_setup = petsc_call('DMSetUp', [dmda])
-        dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
-        return dmda_create, dm_setup, dm_mat_type
-
-    def _create_dmda(self, dmda):
-        sobjs = self.solver_objs
-        grid = self.field_data.grid
-        nspace_dims = len(grid.dimensions)
-
-        # MPI communicator
-        args = [sobjs['comm']]
-
-        # Type of ghost nodes
-        args.extend(['DM_BOUNDARY_GHOSTED' for _ in range(nspace_dims)])
-
-        # Stencil type
-        if nspace_dims > 1:
-            args.append('DMDA_STENCIL_BOX')
-
-        # Global dimensions
-        args.extend(list(grid.shape)[::-1])
-        # No.of processors in each dimension
-        if nspace_dims > 1:
-            args.extend(list(grid.distributor.topology)[::-1])
-
-        # Number of degrees of freedom per node
-        args.append(dmda.dofs)
-        # "Stencil width" -> size of overlap
-        # TODO: Instead, this probably should be
-        # extracted from field_data.target._size_outhalo?
-        stencil_width = self.field_data.space_order
-
-        args.append(stencil_width)
-        args.extend([Null]*nspace_dims)
-
-        # The distributed array object
-        args.append(Byref(dmda))
-
-        # The PETSc call used to create the DMDA
-        dmda = petsc_call(f'DMDACreate{nspace_dims}d', args)
-
-        return dmda
-
-
-class Builder(BuilderBase):
-    def _setup(self):
         sobjs = self.solver_objs
         dmda = sobjs['dmda']
 
@@ -189,6 +133,57 @@ class Builder(BuilderBase):
         )
         extended_setup = self._extend_setup()
         return base_setup + extended_setup
+
+    def _extend_setup(self):
+        """
+        Hook for subclasses to add additional setup calls.
+        """
+        return ()
+
+    def _create_dmda_calls(self, dmda):
+        dmda_create = self._create_dmda(dmda)
+        dm_setup = petsc_call('DMSetUp', [dmda])
+        dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
+        return dmda_create, dm_setup, dm_mat_type
+
+    def _create_dmda(self, dmda):
+        sobjs = self.solver_objs
+        grid = self.field_data.grid
+        nspace_dims = len(grid.dimensions)
+
+        # MPI communicator
+        args = [sobjs['comm']]
+
+        # Type of ghost nodes
+        args.extend(['DM_BOUNDARY_GHOSTED' for _ in range(nspace_dims)])
+
+        # Stencil type
+        if nspace_dims > 1:
+            args.append('DMDA_STENCIL_BOX')
+
+        # Global dimensions
+        args.extend(list(grid.shape)[::-1])
+        # No.of processors in each dimension
+        if nspace_dims > 1:
+            args.extend(list(grid.distributor.topology)[::-1])
+
+        # Number of degrees of freedom per node
+        args.append(dmda.dofs)
+        # "Stencil width" -> size of overlap
+        # TODO: Instead, this probably should be
+        # extracted from field_data.target._size_outhalo?
+        stencil_width = self.field_data.space_order
+
+        args.append(stencil_width)
+        args.extend([Null]*nspace_dims)
+
+        # The distributed array object
+        args.append(Byref(dmda))
+
+        # The PETSc call used to create the DMDA
+        dmda = petsc_call(f'DMDACreate{nspace_dims}d', args)
+
+        return dmda
 
 
 class CoupledBuilder(BuilderBase):

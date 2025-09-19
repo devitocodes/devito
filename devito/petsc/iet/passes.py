@@ -23,7 +23,7 @@ from devito.petsc.iet.callbacks import (
     get_user_struct_fields
 )
 from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
-from devito.petsc.iet.builder import Builder, CoupledBuilder, make_core_petsc_calls
+from devito.petsc.iet.builder import BuilderBase, CoupledBuilder, make_core_petsc_calls
 from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
@@ -280,7 +280,7 @@ class BuildSolver:
     @cached_property
     def builder(self):
         return CoupledBuilder(**self.common_kwargs) \
-            if self.coupled else Builder(**self.common_kwargs)
+            if self.coupled else BuilderBase(**self.common_kwargs)
 
     @cached_property
     def solve(self):
