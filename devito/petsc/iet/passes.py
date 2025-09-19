@@ -16,17 +16,16 @@ from devito.petsc.types import (
     CallbackUserStruct
 )
 from devito.petsc.types.macros import petsc_func_begin_user
-from devito.petsc.iet.nodes import PetscMetaData
+from devito.petsc.iet.nodes import PetscMetaData, petsc_call
 from devito.petsc.utils import core_metadata, petsc_languages
 from devito.petsc.iet.callback_builder import (
-    BaseCallback, CoupledCallback, populate_matrix_context
+    BaseCallback, CoupledCallback, populate_matrix_context, get_user_struct_fields
 )
 from devito.petsc.iet.object_builder import BaseObjectBuilder, CoupledObjectBuilder, objs
 from devito.petsc.iet.pre_solver import BaseSetup, CoupledSetup, make_core_petsc_calls
 from devito.petsc.iet.run_solver import Solver, CoupledSolver
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
-from devito.petsc.iet.utils import petsc_call, get_user_struct_fields
 
 
 @iet_pass

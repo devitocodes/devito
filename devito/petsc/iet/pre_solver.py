@@ -4,8 +4,9 @@ from devito.ir.iet import DummyExpr, BlankLine
 from devito.symbolics import (Byref, FieldFromPointer, VOID,
                               FieldFromComposite, Null)
 
-from devito.petsc.iet.nodes import FormFunctionCallback, MatShellSetOp, PETScCall
-from devito.petsc.iet.utils import petsc_call
+from devito.petsc.iet.nodes import (
+    FormFunctionCallback, MatShellSetOp, PETScCall, petsc_call
+)
 
 
 def make_core_petsc_calls(objs, comm):
@@ -82,13 +83,11 @@ class BaseSetup:
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
         matvec = self.cbbuilder.main_matvec_callback
-        matvec_operation = petsc_call(
-            'MatShellSetOperation',
+        matvec_operation = petsc_call('MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
         )
         formfunc = self.cbbuilder._F_efunc
-        formfunc_operation = petsc_call(
-            'SNESSetFunction',
+        formfunc_operation = petsc_call('SNESSetFunction',
             [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
              self.snes_ctx]
         )
@@ -337,4 +336,4 @@ def petsc_call_mpi(specific_call, call_args):
     return PETScCall('PetscCallMPI', [PETScCall(specific_call, arguments=call_args)])
 
 
-void = 'void'
+void = VOID._dtype

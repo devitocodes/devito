@@ -6,7 +6,7 @@ from devito.types import (LocalObject, LocalCompositeObject, ModuloDimension,
 from devito.symbolics import Byref, cast
 from devito.types.basic import DataSymbol, LocalType
 
-from devito.petsc.iet.utils import petsc_call
+from devito.petsc.iet.nodes import petsc_call
 
 
 class PetscMixin:

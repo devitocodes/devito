@@ -5,9 +5,8 @@ from devito.ir.iet import (
 )
 from devito.symbolics import (Byref, Null)
 
-from devito.petsc.iet.nodes import PetscMetaData
-from devito.petsc.types.strings import InsertMode, ScatterMode
-from devito.petsc.iet.utils import petsc_call
+from devito.petsc.iet.nodes import PetscMetaData, petsc_call
+from devito.petsc.types.modes import InsertMode, ScatterMode
 
 
 class Solver:
@@ -45,7 +44,7 @@ class Solver:
             initguess_call = None
 
         dm_local_to_global_x = petsc_call(
-            'DMLocalToGlobal', [dmda, sobjs['xlocal'], InsertMode.insert_values,
+            'DMLocalToGlobal', [dmda, sobjs['xlocal'], insert_values,
                                 sobjs['xglobal']]
         )
 
@@ -54,7 +53,7 @@ class Solver:
         )
 
         dm_global_to_local_x = petsc_call('DMGlobalToLocal', [
-            dmda, sobjs['xglobal'], InsertMode.insert_values, sobjs['xlocal']]
+            dmda, sobjs['xglobal'], insert_values, sobjs['xlocal']]
         )
 
         vec_reset_array = self.time_dependence.reset_array(target)
@@ -114,7 +113,7 @@ class CoupledSolver(Solver):
                 self.time_dependence.place_array(t),
                 petsc_call(
                     'DMLocalToGlobal',
-                    [dm, target_xloc, InsertMode.insert_values, target_xglob]
+                    [dm, target_xloc, insert_values, target_xglob]
                 ),
                 petsc_call(
                     'VecScatterCreate',
@@ -122,11 +121,11 @@ class CoupledSolver(Solver):
                 ),
                 petsc_call(
                     'VecScatterBegin',
-                    [s, target_xglob, xglob, InsertMode.insert_values, ScatterMode.scatter_reverse]
+                    [s, target_xglob, xglob, insert_values, scatter_reverse]
                 ),
                 petsc_call(
                     'VecScatterEnd',
-                    [s, target_xglob, xglob, InsertMode.insert_values, ScatterMode.scatter_reverse]
+                    [s, target_xglob, xglob, insert_values, scatter_reverse]
                 ),
                 BlankLine,
             )
@@ -134,18 +133,24 @@ class CoupledSolver(Solver):
             post_solve += (
                 petsc_call(
                     'VecScatterBegin',
-                    [s, xglob, target_xglob, InsertMode.insert_values, ScatterMode.scatter_forward]
+                    [s, xglob, target_xglob, insert_values, scatter_forward]
                 ),
                 petsc_call(
                     'VecScatterEnd',
-                    [s, xglob, target_xglob, InsertMode.insert_values, ScatterMode.scatter_forward]
+                    [s, xglob, target_xglob, insert_values, scatter_forward]
                 ),
                 petsc_call(
                     'DMGlobalToLocal',
-                    [dm, target_xglob, InsertMode.insert_values, target_xloc]
+                    [dm, target_xglob, insert_values, target_xloc]
                 )
             )
 
         snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], Null, xglob]),)
 
         return (struct_assignment,) + pre_solve + snes_solve + post_solve + (BlankLine,)
+
+
+insert_values = InsertMode.insert_values
+add_values = InsertMode.add_values
+scatter_reverse = ScatterMode.scatter_reverse
+scatter_forward = ScatterMode.scatter_forward

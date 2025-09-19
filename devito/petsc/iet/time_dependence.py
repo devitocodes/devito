@@ -3,7 +3,8 @@ from functools import cached_property
 from devito.ir.iet import Uxreplace, DummyExpr
 from devito.symbolics import FieldFromPointer, cast, FieldFromComposite
 from devito.symbolics.unevaluation import Mul
-from devito.petsc.iet.utils import petsc_call
+
+from devito.petsc.iet.nodes import petsc_call
 
 
 class TimeIndependent:
