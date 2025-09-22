@@ -18,8 +18,8 @@ from devito.logger import (debug, info, perf, warning, is_log_enabled_for,
                            switch_log_level)
 from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import (Callable, CInterface, EntryFunction, FindSymbols,
-                           MetaCall, derive_parameters, iet_build)
+from devito.ir.iet import (Callable, CInterface, EntryFunction, DeviceFunction,
+                           FindSymbols, MetaCall, derive_parameters, iet_build)
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
@@ -999,8 +999,10 @@ class Operator(Callable):
         cfunction = self.cfunction
 
         # Build the arguments list to invoke the kernel function
-        with self._profiler.timer_on('arguments'):
+        with self._profiler.timer_on('arguments-preprocess'):
             args = self.arguments(**kwargs)
+        with switch_log_level(comm=args.comm):
+            self._emit_args_profiling('arguments-preprocess')
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
@@ -1018,17 +1020,24 @@ class Operator(Callable):
             else:
                 raise
 
-        # Perform error checking
-        self._postprocess_errors(retval)
-
-        # Post-process runtime arguments
-        self._postprocess_arguments(args, **kwargs)
+        with self._profiler.timer_on('arguments-postprocess'):
+            # Perform error checking
+            self._postprocess_errors(retval)
+            # Post-process runtime arguments
+            self._postprocess_arguments(args, **kwargs)
 
         # In case MPI is used restrict result logging to one rank only
         with switch_log_level(comm=args.comm):
+            self._emit_args_profiling('arguments-postprocess')
             return self._emit_apply_profiling(args)
 
     # Performance profiling
+
+    def _emit_args_profiling(self, tag=''):
+        fround = lambda i, n=100: ceil(i * n) / n
+        elapsed = fround(self._profiler.py_timers[tag])
+        tagstr = ' '.join(tag.split('-'))
+        debug(f"Operator `{self.name}` {tagstr}: {elapsed:.2f} s")
 
     def _emit_build_profiling(self):
         if not is_log_enabled_for('PERF'):
@@ -1282,9 +1291,12 @@ def rcompile(expressions, kwargs, options, target=None):
 
     # Recursive compilation is expensive, so we cache the result because sometimes
     # it is called multiple times for the same input
-    compiled = RCompiles(expressions, cls).compile(**kwargs)
+    irs, byproduct0 = RCompiles(expressions, cls).compile(**kwargs)
 
-    return compiled
+    key = lambda i: isinstance(i, (EntryFunction, DeviceFunction))
+    byproduct = byproduct0.filter(key)
+
+    return irs, byproduct
 
 
 # *** Misc helpers
@@ -1530,7 +1542,7 @@ class ArgumentsMap(dict):
         # Layers are sometimes aliases, so include aliases here
         for i in self._op_symbols:
             try:
-                if i._child is None:
+                if i._child is None and i.alias is not True:
                     # Use only the "innermost" layer to avoid counting snapshots
                     # twice. This layer will have no child.
                     v = self._apply_override(i)
@@ -1585,6 +1597,11 @@ def parse_kwargs(**kwargs):
             mode, options = tuple(flatten(i.split(',') for i in opt)), {}
     else:
         raise InvalidOperator(f"Illegal `opt={str(opt)}`")
+
+    # `openmp` in mode e.g `opt=('openmp', 'simd', {})`
+    if mode and 'openmp' in mode:
+        options['openmp'] = True
+        mode = tuple(i for i in as_tuple(mode) if i != 'openmp')
 
     # `opt`, deprecated kwargs
     kwopenmp = kwargs.get('openmp', options.get('openmp'))

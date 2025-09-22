@@ -574,8 +574,8 @@ def test_canonical_ordering_of_weights():
 
     assert (ccode(1.0*f[x, y, z] + 2.0*f[x, y + 1, z] + 3.0*f[x, y + 2, z]) ==
             '1.0F*f[x][y][z] + 2.0F*f[x][y + 1][z] + 3.0F*f[x][y + 2][z]')
-    assert ccode(fi*wi) == 'w0[i0]*f[x][y + i0][z]'
-    assert ccode(cf*wi) == 'w0[i0]*f[x][y + i0][z].x'
+    assert ccode(fi*wi) == 'f[x][y + i0][z]*w0[i0]'
+    assert ccode(cf*wi) == 'f[x][y + i0][z].x*w0[i0]'
 
 
 def test_symbolic_printing():

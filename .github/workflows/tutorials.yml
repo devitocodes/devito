@@ -60,7 +60,7 @@ jobs:
 
     - name: Set up Python ${{ matrix.pyver }}
       if: "!contains(matrix.name, 'docker')"
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.pyver }}
 
@@ -144,3 +144,7 @@ jobs:
     - name: ABC Notebooks
       run: |
         ${{ env.RUN_CMD }} py.test --nbval examples/seismic/abc_methods
+
+    - name: Timestepping Notebooks
+      run: |
+        ${{ env.RUN_CMD }} py.test --nbval examples/timestepping

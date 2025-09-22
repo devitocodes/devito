@@ -4,6 +4,7 @@ from subprocess import check_call
 
 import pytest
 from sympy import Add
+from sympy.printing import sstr
 
 from devito import Eq, configuration, Revolver  # noqa
 from devito.checkpointing import NoopRevolver
@@ -292,6 +293,20 @@ def pytest_runtest_makereport(item, call):
        item.get_closest_marker("decoupler"):
         if call.when == 'call' and result.outcome == 'skipped':
             result.outcome = 'passed'
+
+
+def pytest_make_parametrize_id(config, val, argname):
+    """
+    Prevents pytest from making obscure parameter names (param0, param1, ...)
+    and default to sympy.sstr(val) instead for better log readability.
+    """
+    # First see if it has a name
+    if hasattr(val, '__name__'):
+        return val.__name__
+    try:
+        return sstr(val)
+    except Exception:
+        return None  # Fall back to default behavior
 
 
 # A list of optimization options/pipelines to be used in testing

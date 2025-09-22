@@ -1087,7 +1087,7 @@ class TestConditionalDimension:
         assert np.all(u2.data[1, 1:4, 1:4] == 0.)
 
     # This test generates an openmp loop form which makes older gccs upset
-    @switchconfig(openmp=False)
+    @switchconfig(language='C')
     def test_nothing_in_negative(self):
         """Test the case where when the condition is false, there is nothing to do."""
         nt = 4
@@ -1981,6 +1981,31 @@ class TestConditionalDimension:
         op.apply(time_M=31, **{cd.symbolic_factor.name: 8})
 
         assert all(np.all(usave.data[i] == 16 + i*8) for i in range(4))
+
+    def test_factor_and_condition(self):
+        grid = Grid(shape=(10, 10))
+        time = grid.time_dim
+
+        nt = 200
+        bounds = (10, 100)
+        factor = 5
+
+        condition = And(Ge(time, bounds[0]), Le(time, bounds[1]))
+        time_under = ConditionalDimension(name='timeu', parent=time,
+                                          factor=factor, condition=condition)
+        buffer_size = (bounds[1] - bounds[0] + factor) // factor
+
+        rec = SparseTimeFunction(name='rec', grid=grid, npoint=1, nt=nt)
+        u = TimeFunction(name='u', grid=grid, space_order=2)
+        usaved = TimeFunction(name='usaved', grid=grid, space_order=2,
+                              time_dim=time_under, save=buffer_size)
+
+        eq = [Eq(u.forward, u+1), Eq(usaved, u)] + rec.interpolate(u)
+
+        op = Operator(eq)
+        op(time_m=1, time_M=nt-1, usaved=usaved, rec=rec)
+        for t in range(buffer_size):
+            assert np.all(usaved.data[t] == t*factor + bounds[0] - 1)
 
 
 class TestCustomDimension:

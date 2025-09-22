@@ -183,7 +183,11 @@ class LocalObject(AbstractObject, LocalType):
                  is_global=False, **kwargs):
         self.name = name
         self.cargs = as_tuple(cargs)
-        self.initvalue = initvalue or self.default_initvalue
+
+        if initvalue is None:
+            self.initvalue = self.default_initvalue
+        else:
+            self.initvalue = initvalue
 
         assert liveness in ['eager', 'lazy']
         self._liveness = liveness

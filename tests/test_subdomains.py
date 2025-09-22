@@ -6,8 +6,8 @@ from sympy import sin, tan
 
 from conftest import opts_tiling, assert_structure
 from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
-                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseTimeFunction,
-                    VectorFunction, TensorFunction)
+                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseFunction,
+                    SparseTimeFunction, VectorFunction, TensorFunction, Border)
 from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegistry
 from devito.tools import timed_region
 
@@ -723,6 +723,233 @@ class TestMultiSubDomain:
         assert x.is_Parallel
         assert y.is_Parallel
         assert z.is_Parallel
+
+    def test_subdomainset_w_sparse(self):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid)
+        s = SparseFunction(name='s', grid=grid, npoint=1)
+
+        border = SubDomainSet(N=1, bounds=(2, 2, 2, 2), grid=grid)
+        op = Operator([Eq(f, 0, subdomain=border)] + s.inject(f, expr=1))
+
+        # There was an issue where a clash between auxiliary dimension
+        # names used for SparseFunction and SubDomainSet resulted in
+        # cryptic errors when applying the operator
+        op()
+
+        check = np.zeros((11, 11))
+        check[0, 0] = 1
+        assert np.all(np.isclose(f.data, check))
+
+
+class TestBorder:
+    # Note: This class is partially covered by doctests
+    def test_exceptions(self):
+        """Test exceptions are raised for malformed specifications"""
+        grid = Grid(shape=(5,))
+
+        with pytest.raises(ValueError):
+            _ = Border(grid, (1, 1))
+
+        with pytest.raises(ValueError):
+            _ = Border(grid, ((1, 1, 1),))
+
+    @pytest.mark.parametrize('corners', ['nooverlap', 'overlap', 'nocorners'])
+    def test_uneven_border(self, corners):
+        """Test border specifications which vary by dimension"""
+        shape = (6, 8)
+        grid = Grid(shape=shape)
+
+        border = Border(grid, (1, (2, 1)), corners=corners)
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        eq = Eq(f, f+1, subdomain=border)
+
+        Operator(eq)()
+
+        check = np.ones(shape)
+        check[1:-1, 2:-1] = 0
+
+        if corners == 'nocorners':
+            check[0, :2] = 0
+            check[-1, :2] = 0
+            check[0, -1] = 0
+            check[-1, -1] = 0
+        elif corners == 'overlap':
+            check[0, :2] = 2
+            check[-1, :2] = 2
+            check[0, -1] = 2
+            check[-1, -1] = 2
+
+        assert np.all(f.data == check)
+
+    @pytest.mark.parametrize('corners', ['nooverlap', 'overlap', 'nocorners'])
+    def test_one_sided_border(self, corners):
+        """Test borders where a particular side is specified"""
+        shape = (6, 8)
+        grid = Grid(shape=shape)
+        x, y = grid.dimensions
+
+        border = Border(grid, 1, dims={x: 'left', y: 'right'}, corners=corners)
+
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        eq = Eq(f, f+1, subdomain=border)
+
+        Operator(eq)()
+
+        check = np.zeros(shape)
+        check[0, :] = 1
+        check[:, -1] = 1
+
+        if corners == 'overlap':
+            check[0, -1] = 2
+        elif corners == 'nocorners':
+            check[0, 0] = 0
+            check[0, -1] = 0
+            check[-1, -1] = 0
+
+        assert np.all(f.data == check)
+
+    @pytest.mark.parametrize('corners', ['nooverlap', 'overlap', 'nocorners'])
+    def test_inset(self, corners):
+        shape = (6, 8)
+        grid = Grid(shape=shape)
+        x, y = grid.dimensions
+
+        border0 = Border(grid, 1, inset=1, name='border0', corners=corners)
+        border1 = Border(grid, 1, inset=(1, 2), name='border1', corners=corners)
+        border2 = Border(grid, 1, inset=((1, 2), (3, 0)), name='border2', corners=corners)
+        border3 = Border(grid, 1, dims={x: 'left', y: 'right'}, inset=1, name='border3',
+                         corners=corners)
+
+        f0 = Function(name='f0', grid=grid, dtype=np.int32)
+        f1 = Function(name='f1', grid=grid, dtype=np.int32)
+        f2 = Function(name='f2', grid=grid, dtype=np.int32)
+        f3 = Function(name='f3', grid=grid, dtype=np.int32)
+
+        eq0 = Eq(f0, f0+1, subdomain=border0)
+        eq1 = Eq(f1, f1+1, subdomain=border1)
+        eq2 = Eq(f2, f2+1, subdomain=border2)
+        eq3 = Eq(f3, f3+1, subdomain=border3)
+
+        Operator([eq0, eq1, eq2, eq3])()
+
+        chk0, chk1, chk2, chk3 = [np.zeros(shape, dtype=np.int32) for _ in range(4)]
+
+        if corners == 'nooverlap':
+            chk0[1, 1:-1] = 1
+            chk0[-2, 1:-1] = 1
+            chk0[1:-1, 1] = 1
+            chk0[1:-1, -2] = 1
+
+            chk1[1, 2:-2] = 1
+            chk1[-2, 2:-2] = 1
+            chk1[1:-1, 2] = 1
+            chk1[1:-1, -3] = 1
+
+            chk2[1, 3:] = 1
+            chk2[-3, 3:] = 1
+            chk2[1:-2, 3] = 1
+            chk2[1:-2, -1] = 1
+
+            chk3[1, 1:-1] = 1
+            chk3[1:-1, -2] = 1
+        elif corners == 'overlap':
+            chk0[1, 1:-1] += 1
+            chk0[-2, 1:-1] += 1
+            chk0[1:-1, 1] += 1
+            chk0[1:-1, -2] += 1
+
+            chk1[1, 2:-2] += 1
+            chk1[-2, 2:-2] += 1
+            chk1[1:-1, 2] += 1
+            chk1[1:-1, -3] += 1
+
+            chk2[1, 3:] += 1
+            chk2[-3, 3:] += 1
+            chk2[1:-2, 3] += 1
+            chk2[1:-2, -1] += 1
+
+            chk3[1, 1:-1] += 1
+            chk3[1:-1, -2] += 1
+        else:
+            chk0[1, 2:-2] = 1
+            chk0[-2, 2:-2] = 1
+            chk0[2:-2, 1] = 1
+            chk0[2:-2, -2] = 1
+
+            chk1[1, 3:-3] = 1
+            chk1[-2, 3:-3] = 1
+            chk1[2:-2, 2] = 1
+            chk1[2:-2, -3] = 1
+
+            chk2[1, 4:-1] = 1
+            chk2[-3, 4:-1] = 1
+            chk2[2:-3, 3] = 1
+            chk2[2:-3, -1] = 1
+
+            chk3[1, 2:-2] = 1
+            chk3[2:-2, -2] = 1
+
+        assert np.all(f0.data == chk0)
+        assert np.all(f1.data == chk1)
+        assert np.all(f2.data == chk2)
+        assert np.all(f3.data == chk3)
+
+    @pytest.mark.parametrize('inset', [0, 1])
+    @pytest.mark.parametrize('corners', ['nooverlap', 'overlap'])
+    def test_border_3d(self, inset, corners):
+        """Test the functionality of the Border class in higher dimensions"""
+        grid = Grid(shape=(5, 5, 5))
+        border = Border(grid, 1, inset=inset, corners=corners)
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        Operator(Eq(f, f+1, subdomain=border))()
+
+        if inset == 0:
+            if corners == 'overlap':
+                check = np.zeros((5, 5, 5))
+                check[0, :, :] += 1
+                check[:, 0, :] += 1
+                check[:, :, 0] += 1
+                check[-1, :, :] += 1
+                check[:, -1, :] += 1
+                check[:, :, -1] += 1
+            else:
+                check = np.ones((5, 5, 5))
+                check[1:-1, 1:-1, 1:-1] = 0
+
+        elif inset == 1:
+            check = np.zeros((5, 5, 5))
+            if corners == 'overlap':
+                check[1, 1:-1, 1:-1] += 1
+                check[1:-1, 1, 1:-1] += 1
+                check[1:-1, 1:-1, 1] += 1
+                check[-2, 1:-1, 1:-1] += 1
+                check[1:-1, -2, 1:-1] += 1
+                check[1:-1, 1:-1, -2] += 1
+            else:
+                check[1:-1, 1:-1, 1:-1] = 1
+                check[2:-2, 2:-2, 2:-2] = 0
+
+        assert np.all(f.data == check)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_mpi(self, mode):
+        shape = (7, 7)
+        grid = Grid(shape=shape)
+
+        border = Border(grid, 2)
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        Operator(Eq(f, f+1, subdomain=border))()
+
+        check = np.full(shape, 1, dtype=np.int32)
+        check[2:-2, 2:-2] = 0
+
+        data = f.data_gather()
+        if grid.distributor.myrank == 0:
+            assert np.all(data == check)
 
 
 class TestSubDomain_w_condition:

@@ -5,14 +5,16 @@ of the compiler to express the conditions under which a certain object
 """
 
 from sympy import And, Ge, Gt, Le, Lt, Mul, true
+from sympy.logic.boolalg import BooleanFunction
+import numpy as np
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe
 from devito.tools import Pickable, as_tuple, frozendict, split
-from devito.types import Dimension
+from devito.types import Dimension, LocalObject
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow', 'Guards']
+           'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr']
 
 
 class Guard:
@@ -273,6 +275,40 @@ class Guards(frozendict):
         return Guards(m)
 
 
+class GuardExpr(LocalObject, BooleanFunction):
+
+    """
+    A boolean symbol that can be used as a guard. As such, it can be chained
+    with other relations using the standard boolean operators (&, |, ...).
+
+    Being a LocalObject, a GuardExpr may carry an `initvalue`, which is
+    the value that the guard assumes at the beginning of the scope where
+    it is defined.
+
+    Through the `supersets` argument, a GuardExpr may also carry a set of
+    GuardExprs that are known to be more restrictive than itself. This is
+    usesful, e.g., to avoid redundant checks when chaining multiple guards
+    together (see `simplify_and`).
+    """
+
+    dtype = np.bool
+
+    def __init__(self, name, liveness='eager', supersets=None, **kwargs):
+        super().__init__(name, liveness=liveness, **kwargs)
+
+        self.supersets = frozenset(as_tuple(supersets))
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.supersets,)
+
+    __hash__ = LocalObject.__hash__
+
+    def __eq__(self, other):
+        return (isinstance(other, GuardExpr) and
+                super().__eq__(other) and
+                self.supersets == other.supersets)
+
+
 # *** Utils
 
 def simplify_and(relation, v):
@@ -291,10 +327,18 @@ def simplify_and(relation, v):
     else:
         candidates, other = [], [relation, v]
 
+    # Quick check based on GuardExpr.supersets to avoid adding `v` to `relation`
+    # if `relation` already includes a more restrictive guard than `v`
+    if isinstance(v, GuardExpr):
+        if any(a in v.supersets for a in candidates):
+            return relation
+
     covered = False
     new_args = []
     for a in candidates:
-        if a.lhs is v.lhs:
+        if isinstance(a, GuardExpr) or a.lhs is not v.lhs:
+            new_args.append(a)
+        else:
             covered = True
             try:
                 if type(a) in (Gt, Ge) and v.rhs > a.rhs:
@@ -307,8 +351,7 @@ def simplify_and(relation, v):
                 # E.g., `v.rhs = const + z_M` and `a.rhs = z_M`, so the inequalities
                 # above are not evaluable to True/False
                 new_args.append(a)
-        else:
-            new_args.append(a)
+
     if not covered:
         new_args.append(v)
 

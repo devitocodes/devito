@@ -86,7 +86,8 @@ class DataManager:
     The language used to express data allocations, deletions, and host-device transfers.
     """
 
-    def __init__(self, rcompile=None, sregistry=None, platform=None, **kwargs):
+    def __init__(self, rcompile=None, sregistry=None, platform=None,
+                 options=None, **kwargs):
         self.rcompile = rcompile
         self.sregistry = sregistry
         self.platform = platform
