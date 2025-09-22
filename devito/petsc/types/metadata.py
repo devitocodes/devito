@@ -212,7 +212,8 @@ class MultipleFieldData(FieldData):
         if len(space_dims) > 1:
             # TODO: This may not actually have to be the case, but enforcing it for now
             raise ValueError(
-                "All targets within a `petscsolve` call have to have the same space dimensions."
+                "All targets within a `petscsolve` call must have the"
+                " same space dimensions."
             )
         return space_dims.pop()
 
@@ -222,7 +223,8 @@ class MultipleFieldData(FieldData):
         grids = [t.grid for t in self.targets]
         if len(set(grids)) > 1:
             raise ValueError(
-                "Multiple grids detected in `petscsolve`; all targets must share one grid."
+                "Multiple `Grid`s detected in `petscsolve`;"
+                " all targets must share one `Grid`."
             )
         return grids.pop()
 

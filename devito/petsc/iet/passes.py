@@ -53,9 +53,12 @@ def lower_petsc(iet, **kwargs):
         return finalize(iet), core_metadata()
 
     unique_grids = {i.expr.rhs.grid for (i,) in inject_solve_mapper.values()}
-    # Assumption is that all solves are on the same grid
+    # Assumption is that all solves are on the same `Grid`
     if len(unique_grids) > 1:
-        raise ValueError("All `petscsolve` calls must use the same grid, but multiple grids were found.")
+        raise ValueError(
+            "All `petscsolve` calls must use the same `Grid`, "
+            "but multiple `Grid`s were found."
+        )
     grid = unique_grids.pop()
     devito_mpi = kwargs['options'].get('mpi', False)
     comm = grid.distributor._obj_comm if devito_mpi else 'PETSC_COMM_WORLD'
@@ -77,7 +80,7 @@ def lower_petsc(iet, **kwargs):
     if duplicates:
         dup_list = ", ".join(repr(p) for p in sorted(duplicates))
         raise ValueError(
-            f"The following `options_prefix` values are duplicated "
+            "The following `options_prefix` values are duplicated "
             f"among your `petscsolve` calls. Ensure each one is unique: {dup_list}"
         )
 
