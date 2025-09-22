@@ -42,7 +42,7 @@ class TimeDependent(TimeBase):
     This includes scenarios where the target is not directly a `TimeFunction`,
     but depends on other functions that are.
     Outline of time loop abstraction with PETSc:
-    - At PETScSolve, time indices are replaced with temporary `Symbol` objects
+    - At `petscsolve`, time indices are replaced with temporary `Symbol` objects
       via a mapper (e.g., {t: tau0, t + dt: tau1}) to prevent the time loop
       from being generated in the callback functions. These callbacks, needed
       for each `SNESSolve` at every time step, don't require the time loop, but
@@ -67,7 +67,7 @@ class TimeDependent(TimeBase):
     @cached_property
     def symb_to_moddim(self):
         """
-        Maps temporary `Symbol` objects created during `PETScSolve` to their
+        Maps temporary `Symbol` objects created during `petscsolve` to their
         corresponding modulo dimensions (e.g. creates {tau0: t0, tau1: t1}).
         """
         mapper = {

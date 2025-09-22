@@ -14,11 +14,10 @@ from devito.petsc.solver_parameters import (
 )
 
 
-__all__ = ['PETScSolve']
+__all__ = ['petscsolve']
 
 
-# TODO: Rename this to petsc_solve, petscsolve?
-def PETScSolve(target_exprs, target=None, solver_parameters=None,
+def petscsolve(target_exprs, target=None, solver_parameters=None,
                options_prefix=None, get_info=[]):
     """
     Returns a symbolic expression representing a linear PETSc solver,
@@ -36,13 +35,13 @@ def PETScSolve(target_exprs, target=None, solver_parameters=None,
 
         - Single-field problem:
             Pass a single Eq or list of Eq, and specify `target` separately:
-                PETScSolve(Eq1, target)
-                PETScSolve([Eq1, Eq2], target)
+                petscsolve(Eq1, target)
+                petscsolve([Eq1, Eq2], target)
 
         - Multi-field (mixed) problem:
             Pass a dictionary mapping each target field to its Eq(s):
-                PETScSolve({u: Eq1, v: Eq2})
-                PETScSolve({u: [Eq1, Eq2], v: [Eq3, Eq4]})
+                petscsolve({u: Eq1, v: Eq2})
+                petscsolve({u: [Eq1, Eq2], v: [Eq3, Eq4]})
 
     target : Function-like
         The function (e.g., `Function`, `TimeFunction`) into which the linear

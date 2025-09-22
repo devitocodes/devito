@@ -20,7 +20,7 @@ class PETScArray(ArrayBasic, Differentiable):
 
     PETScArray objects represent vector objects within PETSc.
     They correspond to the spatial domain of a Function-like object
-    provided by the user, which is passed to PETScSolve as the target.
+    provided by the user, which is passed to `petscsolve` as the target.
 
     TODO: Potentially re-evaluate and separate into PETScFunction(Differentiable)
     and then PETScArray(ArrayBasic).

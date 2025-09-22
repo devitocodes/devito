@@ -31,7 +31,7 @@ from devito.petsc.iet.logging import PetscLogger
 
 @iet_pass
 def lower_petsc(iet, **kwargs):
-    # Check if PETScSolve was used
+    # Check if `petscsolve` was used
     inject_solve_mapper = MapNodes(Iteration, PetscMetaData,
                                    'groupby').visit(iet)
 
@@ -55,19 +55,19 @@ def lower_petsc(iet, **kwargs):
     unique_grids = {i.expr.rhs.grid for (i,) in inject_solve_mapper.values()}
     # Assumption is that all solves are on the same grid
     if len(unique_grids) > 1:
-        raise ValueError("All PETScSolves must use the same Grid, but multiple found.")
+        raise ValueError("All `petscsolve` calls must use the same grid, but multiple grids were found.")
     grid = unique_grids.pop()
     devito_mpi = kwargs['options'].get('mpi', False)
     comm = grid.distributor._obj_comm if devito_mpi else 'PETSC_COMM_WORLD'
 
-    # Create core PETSc calls (not specific to each PETScSolve)
+    # Create core PETSc calls (not specific to each `petscsolve`)
     core = make_core_petsc_calls(objs, comm)
 
     setup = []
     subs = {}
     efuncs = {}
 
-    # Map PETScSolve to its Section (for logging)
+    # Map each `PetscMetaData`` to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
     # Prefixes within the same `Operator` should not be duplicated
@@ -78,7 +78,7 @@ def lower_petsc(iet, **kwargs):
         dup_list = ", ".join(repr(p) for p in sorted(duplicates))
         raise ValueError(
             f"The following `options_prefix` values are duplicated "
-            f"among your PETScSolves. Ensure each one is unique: {dup_list}"
+            f"among your `petscsolve` calls. Ensure each one is unique: {dup_list}"
         )
 
     # List of `Call`s to clear options from the global PETSc options database,

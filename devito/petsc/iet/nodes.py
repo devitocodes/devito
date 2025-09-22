@@ -36,5 +36,5 @@ def petsc_call(specific_call, call_args):
 
 
 # Mapping special Eq operations to their corresponding IET Expression subclass types.
-# These operations correspond to subclasses of Eq utilised within PETScSolve.
+# These operations correspond to subclasses of `Eq`` utilised within `petscsolve``.
 petsc_iet_mapper = {OpPetsc: PetscMetaData}

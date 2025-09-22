@@ -3,7 +3,7 @@ import numpy as np
 
 from devito import (Grid, Function, Eq, Operator, configuration,
                     switchconfig)
-from devito.petsc import PETScSolve
+from devito.petsc import petscsolve
 from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
@@ -22,7 +22,7 @@ v.data[:] = 5.0
 
 eq = Eq(v, u.laplace, subdomain=grid.interior)
 
-petsc = PETScSolve([eq], u)
+petsc = petscsolve([eq], u)
 
 with switchconfig(language='petsc'):
     op = Operator(petsc)

@@ -50,8 +50,8 @@ class PetscSummary(dict):
         # Dynamically create a property on this class for each PETSc function
         self._add_properties()
 
-        # Initialize the summary by adding PETSc information from each PetscInfo
-        # object (each corresponding to an individual PETScSolve)
+        # Initialize the summary with PETSc information from each `PetscInfo`
+        # object (each corresponding to a `petscsolve` call)
         for i in self.petscinfos:
             self.add_info(i)
 
@@ -69,8 +69,8 @@ class PetscSummary(dict):
         Create a named tuple entry for the given PetscInfo object,
         containing the values for each PETSc function call.
         """
-        # Collect the function names associated with this PetscInfo
-        # instance (i.e., for a single PETScSolve).
+        # Collect the function names from this `PetscInfo`
+        # instance (specific to its `petscsolve` call).
         funcs = [
             petsc_return_variable_dict[f].name for f in petscinfo.query_functions
         ]

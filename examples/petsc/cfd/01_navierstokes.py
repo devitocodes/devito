@@ -5,7 +5,7 @@ from devito import (Grid, TimeFunction, Constant, Eq,
                     Operator, SubDomain, switchconfig, configuration)
 from devito.symbolics import retrieve_functions, INT
 
-from devito.petsc import PETScSolve, EssentialBC
+from devito.petsc import petscsolve, EssentialBC
 from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
@@ -248,7 +248,7 @@ bc_pn1 += [neumann_left(neumann_top(eq_pn1, sub7), sub7)]
 bc_pn1 += [neumann_right(neumann_top(eq_pn1, sub8), sub8)]
 
 
-eqn_p = PETScSolve([eq_pn1]+bc_pn1, pn1.forward)
+eqn_p = petscsolve([eq_pn1]+bc_pn1, pn1.forward)
 
 eq_u1 = Eq(u1.dt + u1*u1.dxc + v1*u1.dyc, nu*u1.laplace, subdomain=grid.interior)
 eq_v1 = Eq(v1.dt + u1*v1.dxc + v1*v1.dyc, nu*v1.laplace, subdomain=grid.interior)
@@ -285,8 +285,8 @@ bc_petsc_v1 += [EssentialBC(v1.forward, 0., subdomain=sub4)]  # right
 bc_petsc_v1 += [EssentialBC(v1.forward, 0., subdomain=sub1)]  # top
 bc_petsc_v1 += [EssentialBC(v1.forward, 0., subdomain=sub2)]  # bottom
 
-tentu = PETScSolve([eq_u1]+bc_petsc_u1, u1.forward)
-tentv = PETScSolve([eq_v1]+bc_petsc_v1, v1.forward)
+tentu = petscsolve([eq_u1]+bc_petsc_u1, u1.forward)
+tentv = petscsolve([eq_v1]+bc_petsc_v1, v1.forward)
 
 exprs = [tentu, tentv, eqn_p, update_u, update_v] + bc_u1 + bc_v1
 

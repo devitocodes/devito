@@ -6,7 +6,7 @@ __all__ = ['EssentialBC']
 
 class EssentialBC(Eq):
     """
-    Represents an essential boundary condition for use with PETScSolve.
+    Represents an essential boundary condition for use with `petscsolve`.
 
     Due to ongoing work on PetscSection and DMDA integration (WIP),
     these conditions are imposed as trivial equations. The compiler
@@ -16,8 +16,8 @@ class EssentialBC(Eq):
     Note:
         - To define an essential boundary condition, use:
             Eq(target, boundary_value, subdomain=...),
-          where `target` is the Function-like object passed to PETScSolve.
-        - SubDomains used for multiple EssentialBCs must not overlap.
+          where `target` is the Function-like object passed to `petscsolve`.
+        - SubDomains used for multiple `EssentialBC`s must not overlap.
     """
     pass
 

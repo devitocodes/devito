@@ -207,7 +207,7 @@ cols = PointerIS(name='cols')
 
 
 # A static dict containing shared symbols and objects that are not
-# unique to each PETScSolve.
+# unique to each `petscsolve` call.
 # Many of these objects are used as arguments in callback functions to make
 # the C code cleaner and more modular.
 objs = frozendict({

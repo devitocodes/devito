@@ -7,7 +7,7 @@ import numpy as np
 from devito import (Grid, Function, Eq, Operator, switchconfig,
                     configuration, SubDomain)
 
-from devito.petsc import PETScSolve, EssentialBC
+from devito.petsc import petscsolve, EssentialBC
 from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
@@ -124,7 +124,7 @@ for n in n_values:
 
     # T (see ref) is nonsymmetric so need to set default KSP type to GMRES
     params = {'ksp_rtol': 1e-10}
-    petsc = PETScSolve({v: [eqn1]+bc_v, u: [eqn2]+bc_u}, solver_parameters=params)
+    petsc = petscsolve({v: [eqn1]+bc_v, u: [eqn2]+bc_u}, solver_parameters=params)
 
     with switchconfig(language='petsc'):
         op = Operator(petsc)
