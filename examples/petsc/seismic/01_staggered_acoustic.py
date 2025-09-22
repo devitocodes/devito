@@ -2,7 +2,7 @@ from devito import *
 import os
 import numpy as np
 from examples.seismic.source import DGaussSource, TimeAxis
-from devito.petsc import PETScSolve
+from devito.petsc import petscsolve
 from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
@@ -57,12 +57,12 @@ src_p_2 = src.inject(field=p2.forward, expr=src)
 v_x_2 = Eq(vx2.dt, ro * p2.dx)
 v_z_2 = Eq(vz2.dt, ro * p2.dz)
 
-petsc_v_x_2 = PETScSolve(v_x_2, target=vx2.forward)
-petsc_v_z_2 = PETScSolve(v_z_2, target=vz2.forward)
+petsc_v_x_2 = petscsolve(v_x_2, target=vx2.forward)
+petsc_v_z_2 = petscsolve(v_z_2, target=vz2.forward)
 
 p_2 = Eq(p2.dt, l2m * (vx2.forward.dx + vz2.forward.dz))
 
-petsc_p_2 = PETScSolve(p_2, target=p2.forward, solver_parameters={'ksp_rtol': 1e-7})
+petsc_p_2 = petscsolve(p_2, target=p2.forward, solver_parameters={'ksp_rtol': 1e-7})
 
 with switchconfig(language='petsc'):
     op_2 = Operator([petsc_v_x_2, petsc_v_z_2, petsc_p_2, src_p_2], opt='noop')
@@ -82,12 +82,12 @@ src_p_4 = src.inject(field=p4.forward, expr=src)
 v_x_4 = Eq(vx4.dt, ro * p4.dx)
 v_z_4 = Eq(vz4.dt, ro * p4.dz)
 
-petsc_v_x_4 = PETScSolve(v_x_4, target=vx4.forward)
-petsc_v_z_4 = PETScSolve(v_z_4, target=vz4.forward)
+petsc_v_x_4 = petscsolve(v_x_4, target=vx4.forward)
+petsc_v_z_4 = petscsolve(v_z_4, target=vz4.forward)
 
 p_4 = Eq(p4.dt, l2m * (vx4.forward.dx + vz4.forward.dz))
 
-petsc_p_4 = PETScSolve(p_4, target=p4.forward, solver_parameters={'ksp_rtol': 1e-7})
+petsc_p_4 = petscsolve(p_4, target=p4.forward, solver_parameters={'ksp_rtol': 1e-7})
 
 with switchconfig(language='petsc'):
     op_4 = Operator([petsc_v_x_4, petsc_v_z_4, petsc_p_4, src_p_4], opt='noop')

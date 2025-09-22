@@ -4,7 +4,7 @@ import numpy as np
 from devito.symbolics import retrieve_functions, INT
 from devito import (configuration, Operator, Eq, Grid, Function,
                     SubDomain, switchconfig)
-from devito.petsc import PETScSolve
+from devito.petsc import petscsolve
 from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
@@ -241,7 +241,7 @@ for n in n_values:
     bcs += [neumann_left(neumann_top(eqn, sub7), sub7)]
     bcs += [neumann_right(neumann_top(eqn, sub8), sub8)]
 
-    solver = PETScSolve([eqn]+bcs, target=u, solver_parameters={'rtol': 1e-8})
+    solver = petscsolve([eqn]+bcs, target=u, solver_parameters={'rtol': 1e-8})
 
     with switchconfig(openmp=False, language='petsc'):
         op = Operator(solver)

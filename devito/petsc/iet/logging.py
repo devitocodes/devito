@@ -5,7 +5,7 @@ from devito.ir.iet import DummyExpr
 from devito.logger import PERF
 from devito.tools import frozendict
 
-from devito.petsc.iet.utils import petsc_call
+from devito.petsc.iet.nodes import petsc_call
 from devito.petsc.logging import petsc_return_variable_dict, PetscInfo
 
 

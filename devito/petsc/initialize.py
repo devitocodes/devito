@@ -6,6 +6,7 @@ import atexit
 from devito import Operator, switchconfig
 from devito.types import Symbol
 from devito.types.equation import PetscEq
+
 from devito.petsc.types import Initialize, Finalize
 
 global _petsc_initialized
