@@ -4,6 +4,9 @@ of the compiler to express the conditions under which a certain object
 (e.g., Eq, Cluster, ...) should be evaluated at runtime.
 """
 
+from operator import ge, gt, le, lt
+
+from functools import singledispatch
 from sympy import And, Ge, Gt, Le, Lt, Mul, true
 from sympy.logic.boolalg import BooleanFunction
 import numpy as np
@@ -284,32 +287,53 @@ class GuardExpr(LocalObject, BooleanFunction):
     Being a LocalObject, a GuardExpr may carry an `initvalue`, which is
     the value that the guard assumes at the beginning of the scope where
     it is defined.
-
-    Through the `supersets` argument, a GuardExpr may also carry a set of
-    GuardExprs that are known to be more restrictive than itself. This is
-    usesful, e.g., to avoid redundant checks when chaining multiple guards
-    together (see `simplify_and`).
     """
 
     dtype = np.bool
 
-    def __init__(self, name, liveness='eager', supersets=None, **kwargs):
+    def __init__(self, name, liveness='eager', **kwargs):
         super().__init__(name, liveness=liveness, **kwargs)
 
-        self.supersets = frozenset(as_tuple(supersets))
+    @singledispatch
+    def _handle_boolean(obj, mapper):
+        raise NotImplementedError(f"Cannot handle boolean of type {type(obj)}")
 
-    def _hashable_content(self):
-        return super()._hashable_content() + (self.supersets,)
+    @_handle_boolean.register(And)
+    def _(obj, mapper):
+        for a in obj.args:
+            GuardExpr._handle_boolean(a, mapper)
 
-    __hash__ = LocalObject.__hash__
+    @_handle_boolean.register(Le)
+    @_handle_boolean.register(Ge)
+    @_handle_boolean.register(Lt)
+    @_handle_boolean.register(Gt)
+    def _(obj, mapper):
+        d, v = obj.args
+        k = obj.__class__
+        mapper.setdefault(k, {})[d] = v
 
-    def __eq__(self, other):
-        return (isinstance(other, GuardExpr) and
-                super().__eq__(other) and
-                self.supersets == other.supersets)
+    @property
+    def as_mapper(self):
+        mapper = {}
+        GuardExpr._handle_boolean(self.initvalue, mapper)
+        return frozendict(mapper)
+
+    def sort_key(self, order=None):
+        # Use the overarching LocalObject name for arguments ordering
+        class_key, args, exp, coeff = super().sort_key(order=order)
+        args = (len(args[1]) + 1, (self.name,) + args[1])
+        return class_key, args, exp, coeff
 
 
 # *** Utils
+
+op_mapper = {
+    Le: le,
+    Lt: lt,
+    Ge: ge,
+    Gt: gt
+}
+
 
 def simplify_and(relation, v):
     """
@@ -327,19 +351,44 @@ def simplify_and(relation, v):
     else:
         candidates, other = [], [relation, v]
 
-    # Quick check based on GuardExpr.supersets to avoid adding `v` to `relation`
-    # if `relation` already includes a more restrictive guard than `v`
-    if isinstance(v, GuardExpr):
-        if any(a in v.supersets for a in candidates):
-            return relation
-
     covered = False
     new_args = []
     for a in candidates:
-        if isinstance(a, GuardExpr) or a.lhs is not v.lhs:
-            new_args.append(a)
-        else:
+        if isinstance(v, GuardExpr) and isinstance(a, GuardExpr):
+            # Attempt optimizing guards in GuardExpr form
             covered = True
+
+            m0 = v.as_mapper
+            m1 = a.as_mapper
+
+            for cls, op in op_mapper.items():
+                if cls in m0 and cls in m1:
+                    try:
+                        if set(m0[cls]) != set(m1[cls]):
+                            new_args.extend([a, v])
+                        elif all(op(m0[cls][d], m1[cls][d]) for d in m0[cls]):
+                            new_args.append(v)
+                        elif all(op(m1[cls][d], m0[cls][d]) for d in m1[cls]):
+                            new_args.append(a)
+                        else:
+                            new_args.extend([a, v])
+                    except TypeError:
+                        # E.g., `cls = Le`, then `z <= 2` and `z <= z_M + 1`
+                        new_args.extend([a, v])
+
+                elif cls in m0:
+                    new_args.append(v)
+
+                elif cls in m1:
+                    new_args.append(a)
+
+        elif a.lhs is not v.lhs:
+            new_args.append(a)
+
+        else:
+            # Attempt optimizing guards in relational form
+            covered = True
+
             try:
                 if type(a) in (Gt, Ge) and v.rhs > a.rhs:
                     new_args.append(v)
