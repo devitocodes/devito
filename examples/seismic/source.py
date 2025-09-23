@@ -274,7 +274,8 @@ class RickerSource(WaveletSource):
         t0 = self.t0 or 1 / self.f0
         a = self.a or 1
         r = (np.pi * self.f0 * (self.time_values - t0))
-        return a * (1-2.*r**2)*np.exp(-r**2)
+        w = a * (1-2.*r**2)*np.exp(-r**2)
+        return w - w.mean() # Remove DC component
 
 
 class GaborSource(WaveletSource):
