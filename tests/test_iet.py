@@ -16,9 +16,9 @@ from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
-                              String, FLOAT)
+                              FLOAT)
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import CustomDimension, Array, LocalObject, Symbol
+from devito.types import CustomDimension, Array, LocalObject, Symbol, Constant
 
 
 @pytest.fixture
@@ -505,16 +505,16 @@ def test_codegen_quality0():
     assert foo1.parameters[0] is a
 
 
-# def test_special_array_definition():
+def test_special_array_definition():
 
-#     class MyArray(Array):
-#         is_extern = True
-#         _data_alignment = False
+    class MyArray(Array):
+        is_extern = True
+        _data_alignment = False
 
-#     dim = CustomDimension(name='d', symbolic_size=String(''))
-#     a = MyArray(name='a', dimensions=dim, scope='shared', dtype=np.uint8)
+    dim = CustomDimension(name='d', symbolic_size=Constant(name='size', value=3.0))
+    a = MyArray(name='a', dimensions=dim, scope='shared', dtype=np.uint8)
 
-#     assert str(Definition(a)) == "extern  unsigned char a[];"
+    assert str(Definition(a)) == "extern  unsigned char a[size];"
 
 
 def test_list_inline():
