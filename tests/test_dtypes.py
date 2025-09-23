@@ -330,8 +330,9 @@ def test_complex_reduction(dtypeu: np.dtype[np.complexfloating]) -> None:
                 assert f'p{u.name}[0] += std::real(r0)' in str(op)
                 assert f'p{u.name}[1] += std::imag(r0)' in str(op)
             else:
-                assert f'__real__ {ustr} += __real__ r0' in str(op)
-                assert f'__imag__ {ustr} += __imag__ r0' in str(op)
+                ext = '' if dtypeu == np.complex128 else 'f'
+                assert f'__real__ {ustr} += creal{ext}(r0)' in str(op)
+                assert f'__imag__ {ustr} += cimag{ext}(r0)' in str(op)
         else:
             assert f'{ustr} += r0' in str(op)
 
