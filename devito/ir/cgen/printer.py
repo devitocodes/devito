@@ -349,7 +349,8 @@ class BasePrinter(CodePrinter):
         return f"{{{', '.join(self._print(i) for i in expr.params)}}}"
 
     def _print_IndexedPointer(self, expr):
-        return f"{expr.base}{''.join(f'[{self._print(i)}]' for i in expr.index)}"
+        base = self._print(expr.base)
+        return f"{base}{''.join(f'[{self._print(i)}]' for i in expr.index)}"
 
     def _print_IntDiv(self, expr):
         lhs = self._print(expr.lhs)
