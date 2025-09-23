@@ -515,7 +515,18 @@ class CGen(Visitor):
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
-        if a0.is_AbstractFunction:
+        # TODO: Temporary fix or fine? — ensures that all objects dereferenced from
+        # a PETSc struct (e.g., `ctx0`) are handled correctly.
+        # **Example**
+        # Need this: struct dataobj *rhs_vec = ctx0->rhs_vec;
+        # Not this: PetscScalar (* rhs)[rhs_vec->size[1]] =
+        # (PetscScalar (*)[rhs_vec->size[1]]) ctx0;
+        # This is the case when a1 is a LocalCompositeObject (i.e a1.is_AbstractObject)
+
+        if a1.is_AbstractObject:
+            rvalue = f'{a1.name}->{a0._C_name}'
+            lvalue = self._gen_value(a0, 0)
+        elif a0.is_AbstractFunction:
             cstr = self.ccode(a0.indexed._C_typedata)
 
             try:

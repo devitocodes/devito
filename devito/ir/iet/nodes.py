@@ -1060,7 +1060,9 @@ class Dereference(ExprStmt, Node):
     The following cases are supported:
 
         * `pointer` is an AbstractFunction, and `pointee` is an Array.
-        * `pointer` is an AbstractObject, and `pointee` is an Array.
+        * `pointer` is an AbstractObject, and `pointee` is an Array
+           - if the `pointer` is a `LocalCompositeObject`, then `pointee` is a
+           Symbol representing the derefrerenced value.
         * `pointer` is a Symbol with its _C_ctype deriving from ct._Pointer, and
           `pointee` is a Symbol representing the dereferenced value.
     """
@@ -1092,16 +1094,14 @@ class Dereference(ExprStmt, Node):
                                for i in self.pointee.symbolic_shape[1:]))
             ret.extend(self.pointer.free_symbols)
         elif self.pointer.is_AbstractObject:
-            ret.extend([self.pointer, self.pointee.indexed])
+            if isinstance(self.pointer, LocalCompositeObject):
+                ret.extend([self.pointer._C_symbol, self.pointee._C_symbol])
+            else:
+                ret.extend([self.pointer, self.pointee.indexed])
             ret.extend(flatten(i.free_symbols
                                for i in self.pointee.symbolic_shape[1:]))
         else:
-            # TODO: Might be uneccessary now
-            if isinstance(self.pointer, LocalCompositeObject) or \
-                issubclass(self.pointer._C_ctype, ctypes._Pointer):
-                ret.extend([self.pointer._C_symbol, self.pointee._C_symbol])
-            else:
-                assert False, f"Unexpected pointer type {type(self.pointer)}"
+            assert False, f"Unexpected pointer type {type(self.pointer)}"
 
         return tuple(filter_ordered(ret))
 
