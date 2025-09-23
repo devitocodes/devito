@@ -1,11 +1,11 @@
 import numpy as np
 from sympy.printing.c import C99CodePrinter
 
-from devito.exceptions import InvalidOperator
-from devito.ir import Call, BasePrinter, List
+from devito.ir import Call, BasePrinter
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
+from devito.passes.iet.languages.utils import _atomic_add_split
 from devito.symbolics import c_complex, c_double_complex
 from devito.symbolics.extended_sympy import UnaryOp
 from devito.tools import dtype_to_cstr
@@ -28,38 +28,14 @@ def atomic_add(i, pragmas, split=False):
     if not split:
         return i._rebuild(pragmas=pragmas)
     # Complex reduction, split using a temp pointer
-    # Transforns lhs += rhs into
+    # Transforms lhs += rhs into
     # {
     #   pragmas
     #   __real__ lhs += __real__ rhs;
     #   pragmas
     #   __imag__ lhs += __imag__ rhs;
     # }
-    lhs, rhs = i.expr.lhs, i.expr.rhs
-    if (np.issubdtype(lhs.dtype, np.complexfloating)
-       and np.issubdtype(rhs.dtype, np.complexfloating)):
-        # Complex i, complex j
-        # Atomic add real and imaginary parts separately
-        lhsr, rhsr = RealExt(lhs), RealExt(rhs)
-        lhsi, rhsi = ImagExt(lhs), ImagExt(rhs)
-        real = i._rebuild(expr=i.expr._rebuild(lhs=lhsr, rhs=rhsr),
-                          pragmas=pragmas)
-        imag = i._rebuild(expr=i.expr._rebuild(lhs=lhsi, rhs=rhsi),
-                          pragmas=pragmas)
-        return List(body=[real, imag])
-
-    elif (np.issubdtype(lhs.dtype, np.complexfloating)
-          and not np.issubdtype(rhs.dtype, np.complexfloating)):
-        # Complex i, real j
-        # Atomic add j to real part of i
-        lhsr, rhsr = RealExt(lhs), rhs
-        real = i._rebuild(expr=i.expr._rebuild(lhs=lhsr, rhs=rhsr),
-                          pragmas=pragmas)
-        return real
-    else:
-        # Real i, complex j
-        raise InvalidOperator("Atomic add not implemented for real "
-                              "Functions with complex increments")
+    return _atomic_add_split(i, pragmas, RealExt, ImagExt)
 
 
 class CBB(LangBB):
