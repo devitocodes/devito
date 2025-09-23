@@ -326,12 +326,14 @@ def test_complex_reduction(dtypeu: np.dtype[np.complexfloating]) -> None:
         if gnu and np.issubdtype(dtypeu, np.complexfloating):
             if 'CXX' in op._language:
                 rd = dtype_to_cstr(dtypeu(0).real.__class__)
-                assert f'{rd} * p{u.name} = reinterpret_cast<{rd}*>(&uL0' in str(op)
-                assert f'p{u.name}[0] += std::real(r0)' in str(op)
-                assert f'p{u.name}[1] += std::imag(r0)' in str(op)
+                as_float = f'reinterpret_cast<{rd}*>(&{ustr})'
+                assert as_float in str(op)
+                assert f'{as_float}[0] += std::real(r0)' in str(op)
+                assert f'{as_float}[1] += std::imag(r0)' in str(op)
             else:
-                assert f'__real__ {ustr} += __real__ r0' in str(op)
-                assert f'__imag__ {ustr} += __imag__ r0' in str(op)
+                ext = '' if dtypeu == np.complex128 else 'f'
+                assert f'__real__ {ustr} += creal{ext}(r0)' in str(op)
+                assert f'__imag__ {ustr} += cimag{ext}(r0)' in str(op)
         else:
             assert f'{ustr} += r0' in str(op)
 
