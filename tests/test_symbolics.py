@@ -4,12 +4,13 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import Expr, Number, Symbol
+from sympy import And, Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max, Real, Imag, Conj, SubDomain, configuration)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
+from devito.ir.support.guards import GuardExpr, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (
     retrieve_functions, retrieve_indexed, evalrel, CallFromPointer, Cast, # noqa
@@ -541,6 +542,133 @@ def test_halo_touch():
     # Reconstruction
     assert ht0 == ht0._rebuild()
     assert hash(ht0) == hash(ht0._rebuild())
+
+
+def test_guard_expr_Le():
+    grid = Grid(shape=(3, 3, 3))
+    _, y, z = grid.dimensions
+
+    y_M = y.symbolic_max
+    z_M = z.symbolic_max
+
+    g0 = GuardExpr('g0', initvalue=And(y <= y_M + 3, z <= z_M + 3))
+    g1 = GuardExpr('g1', initvalue=And(y <= y_M + 3, z <= z_M + 4))
+
+    v0 = simplify_and(g0, g1)
+    v1 = simplify_and(g1, g0)
+    assert v0 is g0
+    assert v0 is v1
+
+    v2 = simplify_and(And(g0, g1), g0)
+    assert v2 is g0
+
+    g3 = GuardExpr('g3', initvalue=And(y <= y_M + 2, z <= z_M + 3))
+    v3 = simplify_and(g0, g3)
+    v4 = simplify_and(g3, g0)
+    assert v3 is g3
+    assert v4 is v3
+
+    g4 = GuardExpr('g4', initvalue=And(y <= y_M + 4, z <= z_M + 2))
+    v5 = simplify_and(g0, g4)
+    assert v5 == And(g0, g4)
+
+    g5 = GuardExpr('g5', initvalue=And(y <= y_M))
+    g6 = GuardExpr('g6', initvalue=And(z <= z_M))
+    v6 = simplify_and(g0, g5)
+    v7 = simplify_and(g0, g6)
+    v8 = simplify_and(g5, g6)
+    assert v6 == And(g0, g5)
+    assert v7 == And(g0, g6)
+    assert v8 == And(g5, g6)
+
+
+def test_guard_expr_Ge():
+    grid = Grid(shape=(3, 3, 3))
+    _, y, z = grid.dimensions
+
+    y_m = y.symbolic_min
+    z_m = z.symbolic_min
+
+    g0 = GuardExpr('g0', initvalue=And(y >= y_m - 3, z >= z_m - 3))
+    g1 = GuardExpr('g1', initvalue=And(y >= y_m - 3, z >= z_m - 4))
+    v0 = simplify_and(g0, g1)
+    v1 = simplify_and(g1, g0)
+    assert v0 is g0
+    assert v0 is v1
+
+    v2 = simplify_and(And(g0, g1), g0)
+    assert v2 is g0
+
+    g3 = GuardExpr('g3', initvalue=And(y >= y_m - 2, z >= z_m - 3))
+    v3 = simplify_and(g0, g3)
+    v4 = simplify_and(g3, g0)
+    assert v3 is g3
+    assert v4 is v3
+
+    g4 = GuardExpr('g4', initvalue=And(y >= y_m - 4, z >= z_m - 2))
+    v5 = simplify_and(g0, g4)
+    assert v5 == And(g0, g4)
+    g5 = GuardExpr('g5', initvalue=And(y >= y_m))
+    g6 = GuardExpr('g6', initvalue=And(z >= z_m))
+    v6 = simplify_and(g0, g5)
+    v7 = simplify_and(g0, g6)
+    v8 = simplify_and(g5, g6)
+    assert v6 == And(g0, g5)
+    assert v7 == And(g0, g6)
+    assert v8 == And(g5, g6)
+
+    g7 = GuardExpr('g7', initvalue=And(y >= -2, z >= -2))
+    v9 = simplify_and(g0, g7)
+    assert v9 == And(g0, g7)
+
+
+def test_guard_expr_Le_Ge_mixed():
+    grid = Grid(shape=(3, 3, 3))
+    _, y, z = grid.dimensions
+
+    y_m = y.symbolic_min
+    y_M = y.symbolic_max
+    z_m = z.symbolic_min
+    z_M = z.symbolic_max
+
+    g0 = GuardExpr('g0', initvalue=And(y <= y_M + 3, z <= z_M + 3))
+    g1 = GuardExpr('g1', initvalue=And(y >= y_m - 3, z >= z_m - 3))
+    v0 = simplify_and(g0, g1)
+    v1 = simplify_and(g1, g0)
+    assert v0 == And(g0, g1)
+    assert v1 == And(g0, g1)
+
+    g2 = GuardExpr('g2', initvalue=And(y <= y_M + 2, z >= z_m - 2))
+    v2 = simplify_and(g0, g2)
+    v3 = simplify_and(g2, g0)
+    assert v2 == And(g0, g2)
+    assert v3 == And(g0, g2)
+
+    g3 = GuardExpr('g3', initvalue=And(y >= y_m - 2, z <= z_M + 2))
+    v4 = simplify_and(g0, g3)
+    v5 = simplify_and(g3, g0)
+    assert v4 == And(g0, g3)
+    assert v5 == And(g0, g3)
+
+    g4 = GuardExpr('g4', initvalue=And(y <= y_M + 2, z >= z_m, z <= z_M + 2))
+    v6 = simplify_and(g0, g4)
+    v7 = simplify_and(g4, g0)
+    assert v6 is g4
+    assert v7 is g4
+
+    g5 = GuardExpr('g5', initvalue=And(y >= y_m - 2, y <= y_M + 2,
+                                       z >= z_m - 2, z <= z_M + 2))
+    v8 = simplify_and(g0, g5)
+    v9 = simplify_and(g5, g0)
+    assert v8 is g5
+    assert v9 is g5
+
+    g6 = GuardExpr('g6', initvalue=And(y >= y_m, y <= y_M,
+                                       z >= z_m - 3, z <= z_M))
+    v10 = simplify_and(g5, g6)
+    v11 = simplify_and(g6, g5)
+    assert v10 is And(g5, g6)
+    assert v11 is And(g5, g6)
 
 
 def test_canonical_ordering_of_weights():
