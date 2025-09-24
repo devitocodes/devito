@@ -114,6 +114,17 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     _subs = Differentiable._subs
 
+    def _create_data(self):
+        if self._data is None:
+            debug(f"Allocating host memory for {self.name}{self.shape_allocated} "
+                  f"[{humanbytes(self.nbytes)}]")
+
+            self._data = self._DataType(self.shape_allocated, self.dtype,
+                                        modulo=self._mask_modulo,
+                                        allocator=self._allocator,
+                                        distributor=self._distributor,
+                                        padding=self._size_ghost)
+
     def _allocate_memory(func):
         """Allocate memory as a Data."""
         @wraps(func)
@@ -123,18 +134,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     # Aliasing Functions must not allocate data
                     return
 
-                debug(f"Allocating host memory for {self.name}{self.shape_allocated} "
-                      f"[{humanbytes(self.nbytes)}]")
-
                 # Clear up both SymPy and Devito caches to drop unreachable data
                 CacheManager.clear(force=False)
 
                 # Allocate the actual data object
-                self._data = self._DataType(self.shape_allocated, self.dtype,
-                                            modulo=self._mask_modulo,
-                                            allocator=self._allocator,
-                                            distributor=self._distributor,
-                                            padding=self._size_ghost)
+                self._create_data()
 
                 # Initialize data
                 if self._first_touch:
@@ -149,7 +153,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                         # Perhaps user only wants to initialise the physical domain
                         self._initializer(self.data)
                 else:
-                    self.data_with_halo.fill(0)
+                    self.data_with_halo[:] = 0
 
             return func(self)
         return wrapper
