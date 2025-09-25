@@ -204,9 +204,15 @@ def preprocess(clusters, options=None, **kwargs):
                 processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
             if all(c1.ispace.is_subset(c.ispace) for c1 in found):
-                # 99% of the cases we end up here
-                hs = HaloScheme.union([c1.halo_scheme for c1 in found])
-                processed.append(c.rebuild(halo_scheme=hs))
+                if not any(c1.guards for c1 in found):
+                    # 99% of the cases we end up here
+                    hs = HaloScheme.union([c1.halo_scheme for c1 in found])
+                    processed.append(c.rebuild(halo_scheme=hs))
+                else:
+                    # We have to keep all HaloSchemes explicitly in separate
+                    # Clusters or we might generate broken code by erroneously
+                    # dropping halo exchanges on the floor
+                    processed.extend((*found, c))
             elif options['mpi']:
                 # We end up here with e.g. `t,x,y,z,f` where `f` is a sequential
                 # dimension requiring a loc-index in the HaloScheme. The compiler
