@@ -8,7 +8,7 @@ from devito.logger import info, warning
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'switchconfig']
+           'switchconfig', 'switchenv']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -224,7 +224,22 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
     configuration.initialize()
 
 
-class switchconfig:
+class abstractswitch:
+
+    """
+    Abstract class for switch(whatever) decorators.
+    """
+
+    def __call__(self, func, *args, **kwargs):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with self:
+                result = func(*args, **kwargs)
+            return result
+        return wrapper
+
+
+class switchconfig(abstractswitch):
 
     """
     Decorator or context manager to temporarily change `configuration` parameters.
@@ -250,14 +265,29 @@ class switchconfig:
             except ValueError:
                 # E.g., `platform` and `compiler` will end up here
                 super(Parameters, configuration).__setitem__(k, self.previous[k])
+    
 
-    def __call__(self, func, *args, **kwargs):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            with self:
-                result = func(*args, **kwargs)
-            return result
-        return wrapper
+class switchenv(abstractswitch):
+    """
+    Decorator to temporarily change environment variables.
+    Adapted from https://stackoverflow.com/questions/2059482/
+    """
+
+    def __init__(self, condition=True, **params):
+        self.previous = dict(environ)
+
+        if condition:
+            # Environment variables are essentially always uppercase
+            self.params = {k.upper(): v for k, v in params.items()}
+        else:   
+            self.params = params
+
+    def __enter__(self, condition=True, **params):
+        environ.update(self.params)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        environ.clear()
+        environ.update(self.previous)
 
 
 def print_defaults():
