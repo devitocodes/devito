@@ -275,7 +275,7 @@ class DeviceID(DeviceSymbol):
 
     name = 'deviceid'
 
-    @cached_property
+    @property
     def default_value(self):
         return -1
 
@@ -286,9 +286,6 @@ class DeviceID(DeviceSymbol):
             return {self.name: configuration['deviceid']}
         else:
             return {self.name: self.default_value}
-        # FIXME: This should first check if CUDA_VISIBLE_DEVICES before the final else
-        # What should this use for multi-GPU runs?
-        # Possibly in the default_value
 
 
 class DeviceRM(DeviceSymbol):
