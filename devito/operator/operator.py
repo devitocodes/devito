@@ -1,3 +1,4 @@
+import os
 from collections import OrderedDict, namedtuple
 from functools import cached_property
 import ctypes
@@ -1389,6 +1390,23 @@ class ArgumentsMap(dict):
         return nbytes
 
     @cached_property
+    def visible_devices(self):
+        device_vars = (
+            'CUDA_VISIBLE_DEVICES',
+            'ROCR_VISIBLE_DEVICES',
+            'HIP_VISIBLE_DEVICES'
+        )
+        for v in device_vars:
+            if v in os.environ:
+                try:
+                    return tuple(int(i) for i in os.environ[v].split(','))
+                except ValueError:
+                    # Visible devices set via UUIDs or other non-integer identifiers
+                    continue
+
+        return None
+
+    @cached_property
     def nbytes_avail_mapper(self):
         """
         The amount of memory available after accounting for the memory
@@ -1402,11 +1420,16 @@ class ArgumentsMap(dict):
 
         # The amount of space available on the device
         if isinstance(self.platform, Device):
-            deviceid = max(self.get('deviceid', 0), 0)
-            # FIXME: I think this perhaps picks the wrong device when CUDA_VISIBLE_DEVICES set?
-            # Looks like it uses the physical device ID, not the logical one due to dependence
-            # on Nvidia SMI -> remote into Timewarp and check this
-            mapper[device_layer] = self.platform.memavail(deviceid=deviceid)
+            # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
+            rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
+
+            logical_deviceid = max(self.get('deviceid', 0), 0) + rank
+            if self.visible_devices is not None:
+                physical_deviceid = self.visible_devices[logical_deviceid]
+            else:
+                physical_deviceid = logical_deviceid
+
+            mapper[device_layer] = self.platform.memavail(deviceid=physical_deviceid)
 
         # The amount of space available on the host
         try:

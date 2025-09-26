@@ -279,23 +279,6 @@ class DeviceID(DeviceSymbol):
     def default_value(self):
         return -1
 
-    @cached_property
-    def visible_devices(self):
-        device_vars = (
-            'CUDA_VISIBLE_DEVICES',
-            'ROCR_VISIBLE_DEVICES',
-            'HIP_VISIBLE_DEVICES'
-        )
-        for v in device_vars:
-            if v in os.environ:
-                try:
-                    return tuple(int(i) for i in os.environ[v].split(','))
-                except ValueError:
-                    # Visible devices set via UUIDs or other non-integer identifiers
-                    continue
-
-        return None
-
     def _arg_values(self, **kwargs):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
