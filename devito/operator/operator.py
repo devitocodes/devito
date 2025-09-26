@@ -1403,6 +1403,9 @@ class ArgumentsMap(dict):
         # The amount of space available on the device
         if isinstance(self.platform, Device):
             deviceid = max(self.get('deviceid', 0), 0)
+            # FIXME: I think this perhaps picks the wrong device when CUDA_VISIBLE_DEVICES set?
+            # Looks like it uses the physical device ID, not the logical one due to dependence
+            # on Nvidia SMI -> remote into Timewarp and check this
             mapper[device_layer] = self.platform.memavail(deviceid=deviceid)
 
         # The amount of space available on the host
