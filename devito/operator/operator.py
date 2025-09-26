@@ -1,3 +1,4 @@
+import os
 from collections import OrderedDict, namedtuple
 from functools import cached_property
 import ctypes
@@ -1389,6 +1390,38 @@ class ArgumentsMap(dict):
         return nbytes
 
     @cached_property
+    def _visible_devices(self):
+        device_vars = (
+            'CUDA_VISIBLE_DEVICES',
+            'ROCR_VISIBLE_DEVICES',
+            'HIP_VISIBLE_DEVICES'
+        )
+        for v in device_vars:
+            try:
+                return tuple(int(i) for i in os.environ[v].split(','))
+            except (ValueError, KeyError):
+                # Environment variable not set or visible devices set via UUIDs
+                # or other non-integer identifiers.
+                continue
+
+        return None
+    
+    @cached_property
+    def _physical_deviceid(self):
+        if isinstance(self.platform, Device):
+            # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
+            rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
+
+            logical_deviceid = max(self.get('deviceid', 0), 0) + rank
+            if self._visible_devices is not None:
+                return self._visible_devices[logical_deviceid]
+            else:
+                return logical_deviceid
+
+        else:
+            return None
+
+    @cached_property
     def nbytes_avail_mapper(self):
         """
         The amount of memory available after accounting for the memory
@@ -1402,8 +1435,7 @@ class ArgumentsMap(dict):
 
         # The amount of space available on the device
         if isinstance(self.platform, Device):
-            deviceid = max(self.get('deviceid', 0), 0)
-            mapper[device_layer] = self.platform.memavail(deviceid=deviceid)
+            mapper[device_layer] = self.platform.memavail(deviceid=self._physical_deviceid)
 
         # The amount of space available on the host
         try:
