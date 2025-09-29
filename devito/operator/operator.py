@@ -1399,12 +1399,16 @@ class ArgumentsMap(dict):
         for v in device_vars:
             try:
                 return tuple(int(i) for i in os.environ[v].split(','))
-            except (ValueError, KeyError):
-                # Environment variable not set or visible devices set via UUIDs
-                # or other non-integer identifiers.
+            except ValueError:
+                # Visible devices set via UUIDs or other non-integer identifiers.
+                warning("Setting visible devices via UUIDs or other non-integer"
+                        " identifiers is currently unsupported: environment variable"
+                        f" {v}={os.environ[v]} ignored.")
+            except KeyError:
+                # Environment variable not set
                 continue
 
-        return None
+        return {}
     
     @cached_property
     def _physical_deviceid(self):
@@ -1413,11 +1417,7 @@ class ArgumentsMap(dict):
             rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
 
             logical_deviceid = max(self.get('deviceid', 0), 0) + rank
-            if self._visible_devices is not None:
-                return self._visible_devices[logical_deviceid]
-            else:
-                return logical_deviceid
-
+            return self._visible_devices.get(logical_deviceid, logical_deviceid)
         else:
             return None
 
