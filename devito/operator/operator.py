@@ -1409,7 +1409,7 @@ class ArgumentsMap(dict):
                 continue
 
         return None
-    
+
     @cached_property
     def _physical_deviceid(self):
         if isinstance(self.platform, Device):
