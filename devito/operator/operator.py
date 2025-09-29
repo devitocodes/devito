@@ -1408,8 +1408,8 @@ class ArgumentsMap(dict):
                 # Environment variable not set
                 continue
 
-        return {}
-
+        return None
+    
     @cached_property
     def _physical_deviceid(self):
         if isinstance(self.platform, Device):
@@ -1417,7 +1417,10 @@ class ArgumentsMap(dict):
             rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
 
             logical_deviceid = max(self.get('deviceid', 0), 0) + rank
-            return self._visible_devices.get(logical_deviceid, logical_deviceid)
+            if self._visible_devices is None:
+                return logical_deviceid
+            else:
+                return self._visible_devices[logical_deviceid]
         else:
             return None
 
