@@ -108,7 +108,7 @@ class TestEnvironmentVariables:
         # Make sure the switchenv doesn't somehow persist
         assert dict(os.environ) == previous_environ
 
-        # Check that physical deviceid is 0 when no environment variables set 
+        # Check that physical deviceid is 0 when no environment variables set
         op2 = Operator(eq)
 
         argmap2 = op2.arguments()
