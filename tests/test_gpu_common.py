@@ -95,6 +95,9 @@ class TestEnvironmentVariables:
 
         eq = Eq(u, u+1)
 
+        # Save previous environment to verify switchenv works as intended
+        previous_environ = dict(os.environ)
+
         with switchenv(**env_variables):
             op1 = Operator(eq)
 
@@ -103,8 +106,7 @@ class TestEnvironmentVariables:
             assert argmap1._physical_deviceid == 1
 
         # Make sure the switchenv doesn't somehow persist
-        for i in ("CUDA", "ROCR", "HIP"):
-            assert f"{i}_VISIBLE_DEVICES" not in os.environ
+        assert dict(os.environ) == previous_environ
 
         # Check that physical deviceid is 0 when no environment variables set 
         op2 = Operator(eq)
@@ -112,7 +114,6 @@ class TestEnvironmentVariables:
         argmap2 = op2.arguments()
         # Default physical deviceid expected to be 0
         assert argmap2._physical_deviceid == 0
-
 
     @pytest.mark.parallel(mode=2)
     @pytest.mark.parametrize('visible_devices', ["1,2", "1,0", "0,2,3"])

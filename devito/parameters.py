@@ -265,7 +265,7 @@ class switchconfig(abstractswitch):
             except ValueError:
                 # E.g., `platform` and `compiler` will end up here
                 super(Parameters, configuration).__setitem__(k, self.previous[k])
-    
+
 
 class switchenv(abstractswitch):
     """
@@ -279,7 +279,7 @@ class switchenv(abstractswitch):
         if condition:
             # Environment variables are essentially always uppercase
             self.params = {k.upper(): v for k, v in params.items()}
-        else:   
+        else:
             self.params = params
 
     def __enter__(self, condition=True, **params):

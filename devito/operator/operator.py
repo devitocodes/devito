@@ -1435,7 +1435,8 @@ class ArgumentsMap(dict):
 
         # The amount of space available on the device
         if isinstance(self.platform, Device):
-            mapper[device_layer] = self.platform.memavail(deviceid=self._physical_deviceid)
+            mapper[device_layer] = \
+                self.platform.memavail(deviceid=self._physical_deviceid)
 
         # The amount of space available on the host
         try:
