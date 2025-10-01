@@ -45,7 +45,7 @@ RUN cd /tmp && mkdir openmpi && \
     ../configure --prefix=/opt/openmpi/ \
                  --disable-mpi-fortran \
                  --enable-mca-no-build=btl-uct --enable-mpi1-compatibility && \
-    make -j ${nproc} && \
+    make -j $(nproc) && \
     make install && \
     cd /tmp && rm -rf /tmp/openmpi
 

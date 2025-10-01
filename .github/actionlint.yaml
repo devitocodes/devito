@@ -1,0 +1,8 @@
+# actionlint configuration file
+# https://github.com/rhysd/actionlint/blob/main/docs/config.md
+
+self-hosted-runner:
+  # Custom labels for self-hosted runners
+  labels:
+    - nvidiagpu  # Self-hosted runner for NVIDIA GPU builds
+    - amdgpu     # Self-hosted runner for AMD GPU builds
