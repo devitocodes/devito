@@ -1144,26 +1144,31 @@ class TestSubDomainInterpolation:
 
         op.apply()
 
-        if grid.distributor.myrank == 0:
-            assert np.all(np.isclose(sr0.data, [3.75, 0.]))
-            assert np.all(np.isclose(sr1.data, [0., 0.]))
-            assert np.all(np.isclose(sr2.data, [0., 0.]))
-            assert np.all(np.isclose(sr3.data, [0., 0.]))
-        elif grid.distributor.myrank == 1:
-            assert np.all(np.isclose(sr0.data, [0., 3.]))
-            assert np.all(np.isclose(sr1.data, [0., 0.]))
-            assert np.all(np.isclose(sr2.data, [0., 3.]))
-            assert np.all(np.isclose(sr3.data, [34., 0.]))
-        elif grid.distributor.myrank == 2:
-            assert np.all(np.isclose(sr0.data, [0., 0.]))
-            assert np.all(np.isclose(sr1.data, [0., 0.]))
-            assert np.all(np.isclose(sr2.data, [0., 16.5]))
-            assert np.all(np.isclose(sr3.data, [30., 0.]))
-        elif grid.distributor.myrank == 3:
-            assert np.all(np.isclose(sr0.data, [6.75, 0.]))
-            assert np.all(np.isclose(sr1.data, [0., 48.75]))
-            assert np.all(np.isclose(sr2.data, [0., 112.5]))
-            assert np.all(np.isclose(sr3.data, [0., 0.]))
+        # Expected values for all 8 sparse points (computed in serial or from serial test)
+        # These are the ground truth values independent of MPI decomposition
+        expected_sr0 = np.array([3.75, 9., 0., 3., 0., 13.75, 6.75, 0.])
+        expected_sr1 = np.array([0., 0., 0., 0., 0., 30.25, 2.5, 63.75])
+        expected_sr2 = np.array([0., 0., 34., 3., 30., 60.5, 9.25, 127.5])
+        expected_sr3 = np.array([0., 0., 34., 0., 30., 0., 0., 0.])
+
+        # Get the sparse points owned by this rank
+        # _dist_datamap maps rank -> list of owned point indices
+        owned_points = sr0._dist_datamap.get(grid.distributor.myrank, [])
+
+        # Check that computed values match expected values for owned points
+        for i, point_idx in enumerate(owned_points):
+            assert np.isclose(sr0.data[i], expected_sr0[point_idx]), \
+                f"Rank {grid.distributor.myrank}: sr0.data[{i}] = {sr0.data[i]}, " \
+                f"expected {expected_sr0[point_idx]} for global point {point_idx}"
+            assert np.isclose(sr1.data[i], expected_sr1[point_idx]), \
+                f"Rank {grid.distributor.myrank}: sr1.data[{i}] = {sr1.data[i]}, " \
+                f"expected {expected_sr1[point_idx]} for global point {point_idx}"
+            assert np.isclose(sr2.data[i], expected_sr2[point_idx]), \
+                f"Rank {grid.distributor.myrank}: sr2.data[{i}] = {sr2.data[i]}, " \
+                f"expected {expected_sr2[point_idx]} for global point {point_idx}"
+            assert np.isclose(sr3.data[i], expected_sr3[point_idx]), \
+                f"Rank {grid.distributor.myrank}: sr3.data[{i}] = {sr3.data[i]}, " \
+                f"expected {expected_sr3[point_idx]} for global point {point_idx}"
 
     @pytest.mark.parallel(mode=4)
     def test_inject_subdomain_mpi(self, mode):
