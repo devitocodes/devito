@@ -1,6 +1,6 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
-from functools import cached_property
+from functools import cache, cached_property
 from subprocess import PIPE, Popen, DEVNULL, run
 from pathlib import Path
 import ctypes
@@ -14,7 +14,7 @@ import numpy as np
 import psutil
 
 from devito.logger import warning
-from devito.tools import as_tuple, all_equal, memoized_func
+from devito.tools import as_tuple, all_equal
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
@@ -41,7 +41,7 @@ __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
            'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550']
 
 
-@memoized_func
+@cache
 def get_cpu_info():
     """Attempt CPU info autodetection."""
 
@@ -163,7 +163,7 @@ def get_cpu_info():
     return cpu_info
 
 
-@memoized_func
+@cache
 def get_gpu_info():
     """Attempt GPU info autodetection."""
 
@@ -488,7 +488,7 @@ def get_gpu_info():
     return None
 
 
-@memoized_func
+@cache
 def get_nvidia_cc():
     libnames = ('libcuda.so', 'libcuda.dylib', 'cuda.dll')
     for libname in libnames:
@@ -511,7 +511,7 @@ def get_nvidia_cc():
         return 10*cc_major.value + cc_minor.value
 
 
-@memoized_func
+@cache
 def get_cuda_path():
     # *** First try: via commonly used environment variables
     for i in ['CUDA_HOME', 'CUDA_ROOT']:
@@ -531,7 +531,7 @@ def get_cuda_path():
     return None
 
 
-@memoized_func
+@cache
 def get_advisor_path():
     """
     Detect if Intel Advisor is installed on the machine and return
@@ -552,7 +552,7 @@ def get_advisor_path():
     return path
 
 
-@memoized_func
+@cache
 def get_hip_path():
     # *** First try: via commonly used environment variables
     for i in ['HIP_HOME']:
@@ -563,7 +563,7 @@ def get_hip_path():
     return None
 
 
-@memoized_func
+@cache
 def get_m1_llvm_path(language):
     # Check if Apple's llvm is installed (installable via Homebrew), which supports
     # OpenMP.
@@ -595,7 +595,7 @@ def get_m1_llvm_path(language):
     return None
 
 
-@memoized_func
+@cache
 def check_cuda_runtime():
     libnames = ('libcudart.so', 'libcudart.dylib', 'cudart.dll')
     for libname in libnames:
@@ -623,7 +623,7 @@ def check_cuda_runtime():
         warning("Unable to check compatibility of NVidia driver and runtime")
 
 
-@memoized_func
+@cache
 def lscpu():
     try:
         p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
@@ -645,7 +645,7 @@ def lscpu():
         return {}
 
 
-@memoized_func
+@cache
 def get_platform():
     """Attempt Platform autodetection."""
 
@@ -1111,7 +1111,7 @@ class AmdDevice(Device):
             return fallback
 
 
-@memoized_func
+@cache
 def node_max_mem_trans_nbytes(platform):
     """
     Return the maximum memory transaction size in bytes for the underlying
