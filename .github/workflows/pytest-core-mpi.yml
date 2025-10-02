@@ -66,17 +66,24 @@ jobs:
       runs-on: ${{ matrix.os }}
       strategy:
         matrix:
-          name: [gcc, icx]
+          name: [gcc, icx, gcc-arm64]
           include:
             - name: gcc
               arch: gcc
-              os: ubuntu-latest
+              base_prefix: cpu
+              os: ubuntu-22.04
               mpiflag: ""
             - name: icx
               arch: icx
-              os: ubuntu-latest
+              base_prefix: cpu
+              os: ubuntu-22.04
               # Need safe math for icx due to inaccuracy with mpi+sinc interpolation
               mpiflag: "-e DEVITO_SAFE_MATH=1"
+            - name: gcc-arm64
+              arch: gcc
+              base_prefix: arm64
+              os: ubuntu-24.04-arm
+              mpiflag: ""
 
       steps:
       - name: Checkout devito
@@ -84,7 +91,7 @@ jobs:
 
       - name: Build docker image
         run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
+          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:${{ matrix.base_prefix }}-${{ matrix.arch }}
 
       - name: Test with pytest
         run: |
