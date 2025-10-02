@@ -10,9 +10,11 @@ on:
    push:
      branches:
        - main
+       - petsc
    pull_request:
      branches:
        - main
+       - petsc
 
 jobs:
   flake8:
