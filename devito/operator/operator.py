@@ -1,4 +1,3 @@
-import os
 from collections import OrderedDict, namedtuple
 from functools import cached_property
 import ctypes
@@ -11,7 +10,8 @@ from sympy import sympify
 import sympy
 import numpy as np
 
-from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
+from devito.arch import (ANYCPU, Device, compiler_registry, platform_registry,
+                         get_visible_devices)
 from devito.data import default_allocator
 from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument,
                                InvalidOperator)
@@ -1390,27 +1390,6 @@ class ArgumentsMap(dict):
         return nbytes
 
     @cached_property
-    def _visible_devices(self):
-        device_vars = (
-            'CUDA_VISIBLE_DEVICES',
-            'ROCR_VISIBLE_DEVICES',
-            'HIP_VISIBLE_DEVICES'
-        )
-        for v in device_vars:
-            try:
-                return tuple(int(i) for i in os.environ[v].split(','))
-            except ValueError:
-                # Visible devices set via UUIDs or other non-integer identifiers.
-                warning("Setting visible devices via UUIDs or other non-integer"
-                        " identifiers is currently unsupported: environment variable"
-                        f" {v}={os.environ[v]} ignored.")
-            except KeyError:
-                # Environment variable not set
-                continue
-
-        return None
-
-    @cached_property
     def _physical_deviceid(self):
         if isinstance(self.platform, Device):
             # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
@@ -1420,7 +1399,7 @@ class ArgumentsMap(dict):
             if self._visible_devices is None:
                 return logical_deviceid
             else:
-                return self._visible_devices[logical_deviceid]
+                return get_visible_devices()[logical_deviceid]
         else:
             return None
 
