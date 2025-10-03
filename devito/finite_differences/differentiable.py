@@ -750,7 +750,12 @@ class IndexSum(sympy.Expr, Evaluable):
         return self._dimensions
 
     def _evaluate(self, **kwargs):
-        expr = self.expr._evaluate(**kwargs)
+        try:
+            expr = self.expr._evaluate(**kwargs)
+        except AttributeError:
+            # There are rare circumstances in which `self.expr` is a plain
+            # SymPy object rather than an Evaluable
+            expr = Evaluable._evaluate_maybe_nested(self.expr, **kwargs)
 
         if not kwargs.get('expand', True):
             return self._rebuild(expr)
@@ -770,7 +775,10 @@ class IndexSum(sympy.Expr, Evaluable):
 
 
 class WeightsIndexed(Indexed):
-    pass
+
+    @property
+    def dimension(self):
+        return self.function.dimension
 
 
 class Weights(Array):
