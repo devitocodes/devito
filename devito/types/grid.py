@@ -402,6 +402,10 @@ class Grid(CartesianDiscretization, ArgProvider):
         for k, v in state.items():
             setattr(self, k, v)
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
+        # Restore grid references in subdomains (needed for legacy API)
+        for sd in self._subdomains:
+            if hasattr(sd, '_grid'):
+                sd._grid = self
 
 
 class AbstractSubDomain(CartesianDiscretization):
@@ -510,7 +514,22 @@ class AbstractSubDomain(CartesianDiscretization):
 
     @property
     def distributor(self):
-        """The Distributor used for MPI-decomposing the CartesianDiscretization."""
+        """
+        The Distributor used for MPI-decomposing the SubDomain.
+
+        Lazy-initialized to handle circular reference pickling issues.
+        """
+        if self._distributor is None and self._grid is not None:
+            # Lazy initialization after unpickling or late binding
+            # Check Grid is fully initialized before creating SubDistributor
+            if (hasattr(self._grid, '_dimensions') and
+                    hasattr(self._grid, 'distributor') and
+                    self._grid.distributor is not None):
+                try:
+                    self._distributor = SubDistributor(self)
+                except AttributeError:
+                    # Grid still not ready, return None for now
+                    pass
         return self._distributor
 
     def is_distributed(self, dim):
@@ -681,8 +700,9 @@ class SubDomain(AbstractSubDomain):
     def __setstate__(self, state):
         for k, v in state.items():
             setattr(self, k, v)
-        if self.grid:
-            self._distributor = SubDistributor(self)
+        # Don't create distributor here - will be lazy-initialized on first access
+        # to avoid race condition when Grid hasn't been fully unpickled yet
+        self._distributor = None
 
 
 class MultiSubDomain(AbstractSubDomain):

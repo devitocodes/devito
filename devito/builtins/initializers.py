@@ -138,9 +138,9 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
         name = 'objective_domain'
 
-        def __init__(self, lw):
-            super().__init__()
+        def __init__(self, lw, **kwargs):
             self.lw = lw
+            super().__init__(**kwargs)
 
         def define(self, dimensions):
             return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw)}
@@ -181,11 +181,12 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
                          " `f.ndim`.")
 
     # Create the padded grid:
-    objective_domain = ObjectiveDomain(lw)
     shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw)])
     extent_padded = tuple([s-1 for s in shape_padded])
-    grid = dv.Grid(shape=shape_padded, subdomains=objective_domain,
-                   extent=extent_padded)
+    grid = dv.Grid(shape=shape_padded, extent=extent_padded)
+    objective_domain = ObjectiveDomain(lw, grid=grid)
+    # Manually register subdomain with grid
+    grid._subdomains = grid._subdomains + (objective_domain,)
 
     f_c = dv.Function(name='f_c', grid=grid, space_order=2*max(lw), dtype=dtype)
     f_o = dv.Function(name='f_o', grid=grid, dtype=dtype)
