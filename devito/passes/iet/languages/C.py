@@ -5,10 +5,38 @@ from devito.ir import Call, BasePrinter
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
+from devito.passes.iet.languages.utils import _atomic_add_split
 from devito.symbolics import c_complex, c_double_complex
+from devito.symbolics.extended_sympy import UnaryOp
 from devito.tools import dtype_to_cstr
 
 __all__ = ['CBB', 'CDataManager', 'COrchestrator']
+
+
+class RealExt(UnaryOp):
+
+    _op = '__real__ '
+
+
+class ImagExt(UnaryOp):
+
+    _op = '__imag__ '
+
+
+def atomic_add(i, pragmas, split=False):
+    # Base case, real reduction
+    if not split:
+        return i._rebuild(pragmas=pragmas)
+
+    # Complex reduction, split using a temp pointer
+    # Transforms lhs += rhs into
+    # {
+    #   pragmas
+    #   __real__ lhs += __real__ rhs;
+    #   pragmas
+    #   __imag__ lhs += __imag__ rhs;
+    # }
+    return _atomic_add_split(i, pragmas, RealExt, ImagExt)
 
 
 class CBB(LangBB):
@@ -29,7 +57,7 @@ class CBB(LangBB):
         'host-free-pin': lambda i:
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
-            Call('memcpy', (i, j, k)),
+            Call('memcpy', (i, j, k))
     }
 
 

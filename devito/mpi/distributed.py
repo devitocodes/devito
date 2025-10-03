@@ -40,7 +40,7 @@ try:
     def cleanup():
         devito_mpi_finalize()
     atexit.register(cleanup)
-except ImportError as e:
+except (RuntimeError, ImportError) as e:
     # Dummy fallback in case mpi4py/MPI aren't available
     class NoneMetaclass(type):
         def __getattr__(self, name):

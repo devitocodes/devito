@@ -301,7 +301,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     def symbolic_shape(self):
-        return tuple(self._C_get_field(FULL, d).size for d in self.dimensions)
+        return DimensionTuple(*[self._C_get_field(FULL, d).size for d in self.dimensions],
+                              getters=self.dimensions)
 
     @property
     def size_global(self):
