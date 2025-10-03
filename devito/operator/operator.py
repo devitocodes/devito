@@ -1393,13 +1393,16 @@ class ArgumentsMap(dict):
     def _physical_deviceid(self):
         if isinstance(self.platform, Device):
             # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
-            rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
+            logical_deviceid = self.get('deviceid', -1)
+            if logical_deviceid < 0:
+                rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
+                logical_deviceid = rank
 
-            logical_deviceid = max(self.get('deviceid', 0), 0) + rank
-            if self._visible_devices is None:
+            visible_devices = get_visible_devices()
+            if visible_devices is None:
                 return logical_deviceid
             else:
-                return get_visible_devices()[logical_deviceid]
+                return visible_devices[logical_deviceid]
         else:
             return None
 

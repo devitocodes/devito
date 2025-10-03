@@ -75,9 +75,10 @@ class TestGPUInfo:
             assert f.shape_allocated[1] == 64
 
 
-class TestEnvironmentVariables:
+class TestDeviceID:
     """
-    Test that environment variables are correctly handled.
+    Test that device IDs and associated environment variables such as
+    CUDA_VISIBLE_DEVICES are correctly handled.
     """
 
     @pytest.mark.parametrize('env_variables', [{"cuda_visible_devices": "1"},
@@ -157,6 +158,26 @@ class TestEnvironmentVariables:
             # deviceid should see the world from within CUDA_VISIBLE_DEVICES
             # So should be the second of the two visible devices specified (3)
             assert argmap._physical_deviceid == 3
+
+    @pytest.mark.parallel(mode=2)
+    def test_deviceid_per_rank(self, mode):
+        """
+        Test that Device IDs set by the user on a per-rank basis do not
+        get modifed.
+        """
+        # Reversed order to ensure it is different to default
+        user_set_deviceids = (1, 0)
+
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        rank = grid.distributor.myrank
+        deviceid = user_set_deviceids[rank]
+
+        op = Operator(Eq(u, u+1))
+
+        argmap = op.arguments(deviceid=deviceid)
+        assert argmap._physical_deviceid == deviceid
 
 
 class TestCodeGeneration:
