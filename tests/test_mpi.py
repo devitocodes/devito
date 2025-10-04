@@ -3022,9 +3022,10 @@ class TestOperatorAdvanced:
                 x, y = dimensions
                 return {x: ('left', 2), y: y}
 
-        mydomain = mydomain()
-
-        grid = Grid(shape=(8, 8), subdomains=mydomain)
+        grid = Grid(shape=(8, 8))
+        mydomain = mydomain(grid=grid)
+        # Manually register subdomain with grid
+        grid._subdomains = grid._subdomains + (mydomain,)
 
         x, y = grid.dimensions
         t = grid.stepping_dim

@@ -66,8 +66,10 @@ class TestAssign:
             def define(self, dimensions):
                 return {d: ('middle', 1, 1) for d in dimensions}
 
-        comp_domain = CompDomain()
-        grid = Grid(shape=(4, 4), subdomains=comp_domain)
+        grid = Grid(shape=(4, 4))
+        comp_domain = CompDomain(grid=grid)
+        # Manually register subdomain with grid
+        grid._subdomains = grid._subdomains + (comp_domain,)
 
         f = Function(name='f', grid=grid)
         g = Function(name='g', grid=grid)
