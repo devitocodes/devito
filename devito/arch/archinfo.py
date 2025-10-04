@@ -16,10 +16,11 @@ import psutil
 from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
 
-__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_nvidia_cc',
-           'get_cuda_path', 'get_hip_path', 'check_cuda_runtime', 'get_m1_llvm_path',
-           'get_advisor_path', 'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd',
-           'Arm', 'Power', 'Device', 'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
+           'get_nvidia_cc', 'get_cuda_path', 'get_hip_path', 'check_cuda_runtime',
+           'get_m1_llvm_path', 'get_advisor_path', 'Platform', 'Cpu64', 'Intel64',
+           'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device', 'NvidiaDevice',
+           'AmdDevice', 'IntelDevice',
            # Brand-agnostic
            'ANYCPU', 'ANYGPU',
            # Intel CPUs
@@ -484,6 +485,27 @@ def get_gpu_info():
 
     except OSError:
         pass
+
+    return None
+
+
+def get_visible_devices():
+    device_vars = (
+        'CUDA_VISIBLE_DEVICES',
+        'ROCR_VISIBLE_DEVICES',
+        'HIP_VISIBLE_DEVICES'
+    )
+    for v in device_vars:
+        try:
+            return tuple(int(i) for i in os.environ[v].split(','))
+        except ValueError:
+            # Visible devices set via UUIDs or other non-integer identifiers.
+            warning("Setting visible devices via UUIDs or other non-integer"
+                    " identifiers is currently unsupported: environment variable"
+                    f" {v}={os.environ[v]} ignored.")
+        except KeyError:
+            # Environment variable not set
+            continue
 
     return None
 
