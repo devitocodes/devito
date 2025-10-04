@@ -941,6 +941,10 @@ class Function(DiscreteFunction):
             discretization order (`o`) as well as the number of points on
             the left/right sides of a generic point of interest for each
             SpaceDimension.
+    interp_order: int, optional, default=2
+        Order of the interpolation scheme used to evaluate the Function at
+        non-grid points (e.g., when using a Function as a parameter to be
+        evaluated at a staggered location).
     shape : tuple of ints, optional
         Shape of the domain region in grid points. Only necessary if `grid`
         isn't given.
@@ -1014,7 +1018,7 @@ class Function(DiscreteFunction):
     is_autopaddable = True
 
     __rkwargs__ = (DiscreteFunction.__rkwargs__ +
-                   ('space_order', 'dimensions'))
+                   ('space_order', 'interp_order', 'dimensions'))
 
     def _cache_meta(self):
         # Attach additional metadata to self's cache entry
@@ -1035,6 +1039,16 @@ class Function(DiscreteFunction):
             self._space_order = space_order[0]
         else:
             raise TypeError("Invalid `space_order`")
+
+        # Interpolation order
+        interp_order = kwargs.get('interp_order', 2)
+        if not is_integer(interp_order):
+            raise TypeError("`interp_order` must be an integer")
+        elif interp_order < 1:
+            raise ValueError("`interp_order` must be >= 2")
+        elif interp_order > self._space_order and self._space_order > 1:
+            raise ValueError("`interp_order` must be <= `space_order`")
+        self._interp_order = interp_order
 
         # Acquire derivative shortcuts
         if self is self.function:
@@ -1232,6 +1246,11 @@ class Function(DiscreteFunction):
     def space_order(self):
         """The space order."""
         return self._space_order
+
+    @property
+    def interp_order(self):
+        """The interpolation order."""
+        return self._interp_order
 
     def sum(self, p=None, dims=None):
         """

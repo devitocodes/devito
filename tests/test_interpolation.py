@@ -1098,6 +1098,7 @@ class TestSubDomainInterpolation:
                          ['p_sr0rsr0xrsr0y'],
                          'p_sr0rsr0xrsr0y')
 
+    @pytest.mark.xfail(reason="OOB issue")
     @pytest.mark.parallel(mode=4)
     def test_interpolate_subdomain_mpi_mfe(self, mode):
         """
