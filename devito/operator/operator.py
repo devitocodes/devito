@@ -10,7 +10,8 @@ from sympy import sympify
 import sympy
 import numpy as np
 
-from devito.arch import ANYCPU, Device, compiler_registry, platform_registry
+from devito.arch import (ANYCPU, Device, compiler_registry, platform_registry,
+                         get_visible_devices)
 from devito.data import default_allocator
 from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument,
                                InvalidOperator)
@@ -1389,6 +1390,23 @@ class ArgumentsMap(dict):
         return nbytes
 
     @cached_property
+    def _physical_deviceid(self):
+        if isinstance(self.platform, Device):
+            # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
+            logical_deviceid = self.get('deviceid', -1)
+            if logical_deviceid < 0:
+                rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
+                logical_deviceid = rank
+
+            visible_devices = get_visible_devices()
+            if visible_devices is None:
+                return logical_deviceid
+            else:
+                return visible_devices[logical_deviceid]
+        else:
+            return None
+
+    @cached_property
     def nbytes_avail_mapper(self):
         """
         The amount of memory available after accounting for the memory
@@ -1402,8 +1420,8 @@ class ArgumentsMap(dict):
 
         # The amount of space available on the device
         if isinstance(self.platform, Device):
-            deviceid = max(self.get('deviceid', 0), 0)
-            mapper[device_layer] = self.platform.memavail(deviceid=deviceid)
+            mapper[device_layer] = \
+                self.platform.memavail(deviceid=self._physical_deviceid)
 
         # The amount of space available on the host
         try:
