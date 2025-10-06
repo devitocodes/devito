@@ -1567,9 +1567,9 @@ class StencilDimension(BasicDimension):
         if not is_integer(step):
             raise ValueError("Expected integer `step` (got %s)" % step)
 
-        self._min = _min
-        self._max = _max
-        self._step = step
+        self._min = int(_min)
+        self._max = int(_max)
+        self._step = int(step)
 
         self._size = _max - _min + 1
 
