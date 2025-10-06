@@ -46,6 +46,12 @@ jobs:
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
+          - base: 'bases:arm64-gcc'
+            tag: 'arm64-gcc'
+            flag: '--init -t'
+            test: 'tests/test_operator.py'
+            runner: ubuntu-24.04-arm  # GitHub's free ARM64 runner
+
     steps:
       - name: Checkout devito
         uses: actions/checkout@v5
