@@ -59,10 +59,10 @@ class PhysicalDomain(SubDomain):
 
     name = 'physdomain'
 
-    def __init__(self, so, fs=False):
-        super().__init__()
+    def __init__(self, so, fs=False, grid=None):
         self.so = so
         self.fs = fs
+        super().__init__(grid=grid)
 
     def define(self, dimensions):
         map_d = {d: d for d in dimensions}
@@ -75,9 +75,9 @@ class FSDomain(SubDomain):
 
     name = 'fsdomain'
 
-    def __init__(self, so):
-        super().__init__()
+    def __init__(self, so, grid=None):
         self.size = so
+        super().__init__(grid=grid)
 
     def define(self, dimensions):
         """
@@ -104,12 +104,8 @@ class GenericModel:
         origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing)]
         shape_pml = np.array(shape) + 2 * self.nbl
 
-        # Model size depending on freesurface
-        physdomain = PhysicalDomain(space_order, fs=fs)
-        subdomains = subdomains + (physdomain,)
+        # Free surface adjustments
         if fs:
-            fsdomain = FSDomain(space_order)
-            subdomains = subdomains + (fsdomain,)
             origin_pml[-1] = origin[-1]
             shape_pml[-1] -= self.nbl
 
@@ -118,10 +114,25 @@ class GenericModel:
         if grid is None:
             # Physical extent is calculated per cell, so shape - 1
             extent = tuple(np.array(spacing) * (shape_pml - 1))
+            # Create grid first (new API - no subdomains parameter)
             self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
-                             dtype=dtype, subdomains=subdomains, topology=topology)
+                             dtype=dtype, topology=topology)
         else:
             self.grid = grid
+
+        # Create subdomains with grid parameter (new pattern)
+        physdomain = PhysicalDomain(space_order, fs=fs, grid=self.grid)
+        new_subdomains = [physdomain]
+        for sd in subdomains:
+            # Update grid for any user-provided subdomains
+            sd.grid = self.grid
+            new_subdomains.append(sd)
+        if fs:
+            fsdomain = FSDomain(space_order, grid=self.grid)
+            new_subdomains.append(fsdomain)
+
+        # Manually update grid's _subdomains to include new subdomains
+        self.grid._subdomains = self.grid._subdomains + tuple(new_subdomains)
 
         self._physical_parameters = set()
         self.damp = None

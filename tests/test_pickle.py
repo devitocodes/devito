@@ -127,6 +127,54 @@ class TestBasic:
         assert f.dtype == new_f.dtype
         assert f.shape == new_f.shape
 
+    @pytest.mark.parametrize('use_new_api', [False, True])
+    def test_grid_with_subdomain(self, pickle, use_new_api):
+        """
+        Test pickling Grid with SubDomains (both old and new API).
+
+        Regression test for circular reference pickling bug where Grid
+        contains SubDomains that reference back to the Grid.
+        """
+        if use_new_api:
+            # New API: create SubDomain with grid parameter
+            grid = Grid(shape=(10, 10, 10))
+            sd = SD(grid=grid)
+            grid._subdomains = grid._subdomains + (sd,)
+        else:
+            # Old API: pass subdomains to Grid constructor
+            sd = SD()
+            grid = Grid(shape=(10, 10, 10), subdomains=(sd,))
+
+        # Pickle the grid
+        pkl_grid = pickle.dumps(grid)
+        new_grid = pickle.loads(pkl_grid)
+
+        # Verify subdomains were pickled correctly
+        assert len(new_grid._subdomains) == len(grid._subdomains)
+
+        # Verify subdomain distributor is accessible (lazy-initialized)
+        new_sd = [s for s in new_grid._subdomains if s.name == 'sd'][0]
+        assert new_sd.distributor is not None
+        assert new_sd.grid is new_grid
+
+    def test_subdomain_with_grid_circular_ref(self, pickle):
+        """
+        Test pickling SubDomain with grid reference (circular reference).
+
+        This tests the lazy distributor initialization fix for unpickling
+        SubDomains that have circular references to their Grid.
+        """
+        grid = Grid(shape=(10, 10, 10))
+        sd = SD(grid=grid)
+
+        # Pickle the subdomain (which references the grid)
+        pkl_sd = pickle.dumps(sd)
+        new_sd = pickle.loads(pkl_sd)
+
+        # Verify grid reference and distributor
+        assert new_sd.grid is not None
+        assert new_sd.distributor is not None
+
     @pytest.mark.parametrize('interp', ['linear', 'sinc'])
     def test_sparse_function(self, pickle, interp):
         grid = Grid(shape=(3,))

@@ -2512,16 +2512,16 @@ class TestAliases:
         grid = Grid(shape=(10, 10))
         time_dim = grid.time_dim
 
-        factor = Constant(name='factor', value=2, dtype=np.int32)
+        factor = 2
         time_sub = ConditionalDimension(name="time_sub", parent=time_dim, factor=factor)
         save_shift = Constant(name='save_shift', dtype=np.int32)
 
         u = TimeFunction(name='u', grid=grid, space_order=4)
         v = TimeFunction(name='v', grid=grid, space_order=4)
         usave = TimeFunction(name='usave', grid=grid, time_order=0,
-                             save=int(nt//factor.data), time_dim=time_sub)
+                             save=int(nt//factor), time_dim=time_sub)
         vsave = TimeFunction(name='vsave', grid=grid, time_order=0,
-                             save=int(nt//factor.data), time_dim=time_sub)
+                             save=int(nt//factor), time_dim=time_sub)
 
         uss = usave.subs(time_sub, time_sub - save_shift)
         vss = vsave.subs(time_sub, time_sub - save_shift)
