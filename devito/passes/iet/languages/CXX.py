@@ -80,8 +80,9 @@ def atomic_add(i, pragmas, split=False):
     # Base case, real reduction
     if not split:
         return i._rebuild(pragmas=pragmas)
+
     # Complex reduction, split using a temp pointer
-    # Transforns lhs += rhs into
+    # Transforms lhs += rhs into
     # {
     #   pragmas
     #   reinterpret_cast<float*>(&lhs)[0] += std::real(rhs);

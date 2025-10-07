@@ -27,6 +27,7 @@ def atomic_add(i, pragmas, split=False):
     # Base case, real reduction
     if not split:
         return i._rebuild(pragmas=pragmas)
+
     # Complex reduction, split using a temp pointer
     # Transforms lhs += rhs into
     # {
