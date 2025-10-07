@@ -403,8 +403,11 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         # Finally create the actual buffer
         cls = callback or Array
         name = sregistry.make_name(prefix='%sb' % f.name)
+        # We specify the padding to match the input Function's one, so that
+        # the array can be used in place of the Function with valid strides
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                        grid=f.grid, halo=f.halo, space='mapped', mapped=f, f=f)
+                        padding=f.padding, grid=f.grid, halo=f.halo,
+                        space='mapped', mapped=f, f=f)
 
     return mapper
 
@@ -440,7 +443,19 @@ class BufferDescriptor:
         # NOTE: The `key` is to avoid Clusters including `f` but not directly
         # using it in an expression, such as HaloTouch Clusters
         key = lambda c: any(i in c.ispace.dimensions for i in self.bdims)
-        ispaces = {c.ispace for c in clusters if key(c)}
+        ispaces = set()
+        for c in clusters:
+            if not key(c):
+                continue
+
+            # Iterations space and buffering dims
+            ispace = c.ispace
+            edims = [d for d in self.bdims if d not in ispace.dimensions]
+            if not edims:
+                ispaces.add(ispace)
+            else:
+                # Add all missing buffering dimensions
+                ispaces.add(ispace.insert(self.dim, edims).reorder())
 
         if len(ispaces) > 1:
             # Best effort to make buffering work in the presence of multiple
@@ -451,6 +466,12 @@ class BufferDescriptor:
             if len(ispaces) > 1:
                 raise CompilationError("Unsupported `buffering` over different "
                                        "IterationSpaces")
+        elif not ispaces:
+            ispaces = {c.ispace for c in clusters}
+            if len(ispaces) > 1:
+                raise CompilationError("Unsupported `buffering` over different "
+                                       "IterationSpaces")
+            ispaces = {i.insert(self.dim, self.bdims).reorder() for i in ispaces}
 
         assert len(ispaces) == 1, "Unexpected form of `buffering`"
         self.ispace = ispaces.pop()

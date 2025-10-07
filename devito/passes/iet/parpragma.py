@@ -242,9 +242,9 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
         elif all(i is OpInc for _, _, i in reductions):
-            test2 = not self._support_complex_reduction(self.compiler) and \
-                any(np.iscomplexobj(i.dtype(0)) for i, _, _ in reductions)
-            mapper = {i: self.langbb['atomic'](i, test2) for i in exprs}
+            flag = (not self._support_complex_reduction(self.compiler) and
+                    any(np.iscomplexobj(i.dtype(0)) for i, _, _ in reductions))
+            mapper = {i: self.langbb['atomic'](i, flag) for i in exprs}
         else:
             raise NotImplementedError
 
