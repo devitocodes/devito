@@ -2,6 +2,7 @@ from itertools import product
 
 import sympy
 import pytest
+import numpy as np
 
 from devito import Function, Grid, Differentiable, NODE
 from devito.finite_differences.differentiable import (Add, Mul, Pow, diffify,
@@ -96,28 +97,51 @@ def test_interp():
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
-def test_avg_mode(ndim):
+@pytest.mark.parametrize('io', [None, 2, 4])
+def test_avg_mode(ndim, io):
     grid = Grid([11]*ndim)
-    v = Function(name='v', grid=grid, staggered=grid.dimensions)
-    a0 = Function(name="a0", grid=grid)
-    a = Function(name="a", grid=grid, parameter=True)
-    b = Function(name="b", grid=grid, parameter=True, avg_mode='harmonic')
+    v = Function(name='v', grid=grid, staggered=grid.dimensions, space_order=4)
+    kw = {'space_order': 4}
+    if io is not None:
+        kw['interp_order'] = io
+    else:
+        io = 2  # Default value
+
+    with pytest.raises(ValueError):
+        # interp_order > space_order
+        Function(name="a", grid=grid, parameter=True, interp_order=8, space_order=4)
+    with pytest.raises(ValueError):
+        # interp_order < 1
+        Function(name="a", grid=grid, parameter=True, interp_order=0, space_order=4)
+    with pytest.raises(TypeError):
+        # interp_order not int
+        Function(name="a", grid=grid, parameter=True, interp_order=2.5, space_order=4)
+
+    a0 = Function(name="a0", grid=grid, **kw)
+    a = Function(name="a", grid=grid, parameter=True, **kw)
+    b = Function(name="b", grid=grid, parameter=True, avg_mode='harmonic', **kw)
 
     a0_avg = a0._eval_at(v)
-    a_avg = a._eval_at(v).evaluate
-    b_avg = b._eval_at(v).evaluate
+    a_avg = a._eval_at(v).evaluate.simplify()
+    b_avg = b._eval_at(v).evaluate.simplify()
 
     assert a0_avg == a0
 
     # Indices around the point at the center of a cell
-    all_shift = tuple(product(*[[0, 1] for _ in range(ndim)]))
+    idx = list(range(-io//2 + 1, io//2 + 1))
+    all_shift = tuple(product(*[idx for _ in range(ndim)]))
+    coeffs = {2: [0.5, 0.5], 4: [-1/16, 9/16, 9/16, -1/16]}[io]
+    vars = ['i', 'j', 'k'][:ndim]
+    rule = ','.join(vars) + '->' + ''.join(vars)
+    ndcoeffs = np.einsum(rule, *([coeffs]*ndim))
     args = [{d: d + i * d.spacing for d, i in zip(grid.dimensions, s)} for s in all_shift]
 
     # Default is arithmetic average
-    assert sympy.simplify(a_avg - 0.5**ndim * sum(a.subs(arg) for arg in args)) == 0
+    expected = sum(c * a.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args))
+    assert sympy.simplify(a_avg - expected) == 0
 
     # Harmonic average, h(a[.5]) = 1/(.5/a[0] + .5/a[1])
-    expected = 1/(0.5**ndim * sum(1/b.subs(arg) for arg in args))
-    assert sympy.simplify(1/b_avg.args[0] - expected) == 0
+    expected = (sum(c / b.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args)))
+    assert sympy.simplify(b_avg.args[0] - expected) == 0
     assert isinstance(b_avg, SafeInv)
     assert b_avg.base == b

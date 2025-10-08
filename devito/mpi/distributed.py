@@ -705,6 +705,7 @@ class SparseDistributor(AbstractDistributor):
     distributor : Distributor
         The domain decomposition the SparseDistributor depends on.
     """
+    _is_local = False
 
     def __init__(self, npoint, dimension, distributor):
         super().__init__(npoint, dimension)

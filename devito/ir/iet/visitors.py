@@ -506,24 +506,30 @@ class CGen(Visitor):
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
-        if a1.is_PointerArray or a1.is_TempFunction:
-            i = a1.indexed
-            cstr = self.ccode(i._C_typedata)
+        if a0.is_AbstractFunction:
+            cstr = self.ccode(a0.indexed._C_typedata)
+
+            try:
+                # Special AbstractFunctions such as PointerArray or TempFunction
+                cdim = f'[{a1.dim.name}]'
+            except AttributeError:
+                cdim = ''
+
             if o.flat is None:
                 shape = ''.join(f"[{self.ccode(i)}]" for i in a0.symbolic_shape[1:])
-                rvalue = f'({cstr} (*){shape}) {a1.name}[{a1.dim.name}]'
+                rvalue = f'({cstr} (*){shape}) {a1.name}{cdim}'
                 lvalue = c.Value(cstr, f'(*{self._restrict_keyword} {a0.name}){shape}')
             else:
-                rvalue = f'({cstr} *) {a1.name}[{a1.dim.name}]'
+                rvalue = f'({cstr} *) {a1.name}{cdim}'
                 lvalue = c.Value(cstr, f'*{self._restrict_keyword} {a0.name}')
-            if a0._data_alignment:
-                lvalue = c.AlignedAttribute(a0._data_alignment, lvalue)
+
         else:
             if a1.is_Symbol:
                 rvalue = f'*{a1.name}'
             else:
                 rvalue = f'{a1.name}->{a0._C_name}'
             lvalue = self._gen_value(a0, 0)
+
         return c.Initializer(lvalue, rvalue)
 
     def visit_Block(self, o):
@@ -532,7 +538,11 @@ class CGen(Visitor):
 
     def visit_List(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
-        return c.Module(o.header + (c.Collection(body),) + o.footer)
+        if o.inline:
+            body = c.Line(' '.join(str(i) for i in body))
+        else:
+            body = c.Collection(body)
+        return c.Module(o.header + (body,) + o.footer)
 
     def visit_Section(self, o):
         body = flatten(self._visit(i) for i in o.children)

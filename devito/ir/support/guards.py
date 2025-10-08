@@ -4,15 +4,20 @@ of the compiler to express the conditions under which a certain object
 (e.g., Eq, Cluster, ...) should be evaluated at runtime.
 """
 
+from operator import ge, gt, le, lt
+
+from functools import singledispatch
 from sympy import And, Ge, Gt, Le, Lt, Mul, true
+from sympy.logic.boolalg import BooleanFunction
+import numpy as np
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe
 from devito.tools import Pickable, as_tuple, frozendict, split
-from devito.types import Dimension
+from devito.types import Dimension, LocalObject
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow', 'Guards']
+           'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr']
 
 
 class Guard:
@@ -273,7 +278,62 @@ class Guards(frozendict):
         return Guards(m)
 
 
+class GuardExpr(LocalObject, BooleanFunction):
+
+    """
+    A boolean symbol that can be used as a guard. As such, it can be chained
+    with other relations using the standard boolean operators (&, |, ...).
+
+    Being a LocalObject, a GuardExpr may carry an `initvalue`, which is
+    the value that the guard assumes at the beginning of the scope where
+    it is defined.
+    """
+
+    dtype = np.bool
+
+    def __init__(self, name, liveness='eager', **kwargs):
+        super().__init__(name, liveness=liveness, **kwargs)
+
+    @singledispatch
+    def _handle_boolean(obj, mapper):
+        raise NotImplementedError(f"Cannot handle boolean of type {type(obj)}")
+
+    @_handle_boolean.register(And)
+    def _(obj, mapper):
+        for a in obj.args:
+            GuardExpr._handle_boolean(a, mapper)
+
+    @_handle_boolean.register(Le)
+    @_handle_boolean.register(Ge)
+    @_handle_boolean.register(Lt)
+    @_handle_boolean.register(Gt)
+    def _(obj, mapper):
+        d, v = obj.args
+        k = obj.__class__
+        mapper.setdefault(k, {})[d] = v
+
+    @property
+    def as_mapper(self):
+        mapper = {}
+        GuardExpr._handle_boolean(self.initvalue, mapper)
+        return frozendict(mapper)
+
+    def sort_key(self, order=None):
+        # Use the overarching LocalObject name for arguments ordering
+        class_key, args, exp, coeff = super().sort_key(order=order)
+        args = (len(args[1]) + 1, (self.name,) + args[1])
+        return class_key, args, exp, coeff
+
+
 # *** Utils
+
+op_mapper = {
+    Le: le,
+    Lt: lt,
+    Ge: ge,
+    Gt: gt
+}
+
 
 def simplify_and(relation, v):
     """
@@ -294,8 +354,41 @@ def simplify_and(relation, v):
     covered = False
     new_args = []
     for a in candidates:
-        if a.lhs is v.lhs:
+        if isinstance(v, GuardExpr) and isinstance(a, GuardExpr):
+            # Attempt optimizing guards in GuardExpr form
             covered = True
+
+            m0 = v.as_mapper
+            m1 = a.as_mapper
+
+            for cls, op in op_mapper.items():
+                if cls in m0 and cls in m1:
+                    try:
+                        if set(m0[cls]) != set(m1[cls]):
+                            new_args.extend([a, v])
+                        elif all(op(m0[cls][d], m1[cls][d]) for d in m0[cls]):
+                            new_args.append(v)
+                        elif all(op(m1[cls][d], m0[cls][d]) for d in m1[cls]):
+                            new_args.append(a)
+                        else:
+                            new_args.extend([a, v])
+                    except TypeError:
+                        # E.g., `cls = Le`, then `z <= 2` and `z <= z_M + 1`
+                        new_args.extend([a, v])
+
+                elif cls in m0:
+                    new_args.append(v)
+
+                elif cls in m1:
+                    new_args.append(a)
+
+        elif a.lhs is not v.lhs:
+            new_args.append(a)
+
+        else:
+            # Attempt optimizing guards in relational form
+            covered = True
+
             try:
                 if type(a) in (Gt, Ge) and v.rhs > a.rhs:
                     new_args.append(v)
@@ -307,8 +400,7 @@ def simplify_and(relation, v):
                 # E.g., `v.rhs = const + z_M` and `a.rhs = z_M`, so the inequalities
                 # above are not evaluable to True/False
                 new_args.append(a)
-        else:
-            new_args.append(a)
+
     if not covered:
         new_args.append(v)
 

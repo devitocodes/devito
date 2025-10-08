@@ -195,7 +195,7 @@ class List(Node):
 
     _traversable = ['body']
 
-    def __init__(self, header=None, body=None, footer=None):
+    def __init__(self, header=None, body=None, footer=None, inline=False):
         body = as_tuple(body)
         if len(body) == 1 and all(type(i) is List for i in [self, body[0]]):
             # De-nest Lists
@@ -212,6 +212,8 @@ class List(Node):
             self.header = as_tuple(header)
             self.body = as_tuple(body)
             self.footer = as_tuple(footer)
+
+        self.inline = inline
 
     def __repr__(self):
         return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
@@ -1047,9 +1049,8 @@ class Dereference(ExprStmt, Node):
     A node encapsulating a dereference from a `pointer` to a `pointee`.
     The following cases are supported:
 
-        * `pointer` is a PointerArray or TempFunction, and `pointee` is an Array.
-        * `pointer` is an ArrayObject representing a pointer to a C struct, and
-          `pointee` is a field in `pointer`.
+        * `pointer` is an AbstractFunction, and `pointee` is an Array.
+        * `pointer` is an AbstractObject, and `pointee` is an Array.
         * `pointer` is a Symbol with its _C_ctype deriving from ct._Pointer, and
           `pointee` is a Symbol representing the dereferenced value.
     """
@@ -1075,20 +1076,23 @@ class Dereference(ExprStmt, Node):
             assert issubclass(self.pointer._C_ctype, ctypes._Pointer), \
                    "Scalar dereference must have a pointer ctype"
             ret.extend([self.pointer._C_symbol, self.pointee._C_symbol])
-        elif self.pointer.is_PointerArray or self.pointer.is_TempFunction:
+        elif self.pointer.is_AbstractFunction:
             ret.extend([self.pointer.indexed, self.pointee.indexed])
             ret.extend(flatten(i.free_symbols
                                for i in self.pointee.symbolic_shape[1:]))
             ret.extend(self.pointer.free_symbols)
+        elif self.pointer.is_AbstractObject:
+            ret.extend([self.pointer, self.pointee.indexed])
+            ret.extend(flatten(i.free_symbols
+                               for i in self.pointee.symbolic_shape[1:]))
         else:
-            ret.extend([self.pointer.indexed, self.pointee._C_symbol])
+            assert False, f"Unexpected pointer type {type(self.pointer)}"
+
         return tuple(filter_ordered(ret))
 
     @property
     def defines(self):
-        if self.pointer.is_PointerArray or \
-           self.pointer.is_TempFunction or \
-           self.pointee._mem_stack:
+        if self.pointer.is_AbstractFunction or self.pointee._mem_stack:
             return (self.pointee.indexed, self.pointee)
         else:
             return (self.pointee,)

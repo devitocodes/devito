@@ -14,6 +14,7 @@ from devito.tools import Pickable, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import Symbol, DataSymbol, Scalar
 from devito.types.constant import Constant
+from devito.types.relational import relational_min, relational_max
 
 
 __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
@@ -1015,7 +1016,20 @@ class ConditionalDimension(DerivedDimension):
         dim = alias or self
         if dim.uses_symbolic_factor:
             factor = defaults[dim.symbolic_factor.name] = self.factor_data
-            defaults[dim.parent.max_name] = range(0, factor*size - 1)
+            if dim.condition is None:
+                d0 = 0
+                d1 = sympy.S.Infinity
+            else:
+                d0 = relational_min(dim.condition, dim.parent)
+                d1 = relational_max(dim.condition, dim.parent)
+            if d1 < sympy.S.Infinity:
+                # We make sure the condition size matches the input size
+                size0 = (d1 - d0 + factor) // factor
+                if size and size < size0:
+                    raise ValueError(f"Incompatible size for ConditionalDimension "
+                                     f"{self.name}: {size} < {size0}")
+            else:
+                defaults[dim.parent.max_name] = range(d0, d0 + factor*size - 1)
 
         return defaults
 
@@ -1482,7 +1496,7 @@ class CustomDimension(BasicDimension):
     def _arg_values(self, *args, **kwargs):
         return {}
 
-    def _arg_check(self, *args):
+    def _arg_check(self, *args, **kwargs):
         """A CustomDimension performs no runtime checks."""
         return
 
@@ -1553,9 +1567,9 @@ class StencilDimension(BasicDimension):
         if not is_integer(step):
             raise ValueError("Expected integer `step` (got %s)" % step)
 
-        self._min = _min
-        self._max = _max
-        self._step = step
+        self._min = int(_min)
+        self._max = int(_max)
+        self._step = int(step)
 
         self._size = _max - _min + 1
 

@@ -367,6 +367,11 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     if any(isinstance(f, dv.TimeFunction) for f in functions):
         raise NotImplementedError("TimeFunctions are not currently supported.")
 
+    # Allocate data and avoid pre-filling with zeros since we immediately overwrite
+    # the data with the provided `data`
+    for f in functions:
+        f._create_data()
+
     if nbl == 0:
         for f, data in zip(functions, datas):
             if isinstance(data, dv.Function):
@@ -376,6 +381,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     else:
         lhss, rhss, optionss = [], [], []
         for f, data in zip(functions, datas):
+
             lhs, rhs, options = _initialize_function(f, data, nbl, mapper, mode)
 
             lhss.extend(lhs)

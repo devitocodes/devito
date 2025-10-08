@@ -1229,3 +1229,58 @@ class TestExpansion:
             + 10*self.f*Derivative(self.v, self.x)*Derivative(self.u, self.x) \
             + 5*self.f*self.u*Derivative(self.v, (self.x, 2))
         assert diffify(expr.expand(product_rule=True)) == expanded
+
+    def test_fallback_wrong_custom_size(self):
+        """
+        Check an exception is raised when a custom size is not compatible
+        with the derivative order
+        """
+        grid = Grid((10,))
+        x, = grid.dimensions
+        u = Function(name="u", grid=grid, space_order=2, staggered=x)
+        v = Function(name="v", grid=grid, space_order=2, staggered=NODE)
+
+        w = [-2, 2]  # Should 2 coeff since this is staggered
+
+        eq0 = Eq(u, v.dx(w=w)).evaluate
+        exp0 = -2 * v / x.spacing + 2 * v._subs(x, x + x.spacing)/x.spacing
+        # This one should fallback to taylor coeffs since w is too short
+        # for a centered derivative
+        eq1 = Eq(v, v.dx(w=w)).evaluate
+        exp1 = - .5 * (v._subs(x, x - x.spacing) - v._subs(x, x + x.spacing))/x.spacing
+        assert simplify(eq0.rhs - exp0) == 0
+        assert simplify(eq1.rhs - exp1) == 0
+
+
+class TestDimension:
+    """
+    Check the few cases where differentiating a dimension is allowed work correctly
+    and errors are raised otherwise.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.grid = Grid(shape=(11, 11), extent=(1, 1))
+        cls.x, cls.y = cls.grid.dimensions
+        u = TimeFunction(name='u', grid=cls.grid, space_order=1)
+        cls.t = u.time_dim
+
+    def test_constant(self):
+        assert Derivative(self.x, self.x) == 1
+
+    def test_null(self):
+        assert Derivative(self.x, (self.x, 2)) == 0
+        assert Derivative(self.x, self.x, self.y) == 0
+        assert Derivative(self.x, self.x, self.y) == 0
+        assert Derivative(self.x, self.x, self.y, self.t) == 0
+        assert Derivative(self.x, self.y, self.t, self.x) == 0
+        assert Derivative(self.x, self.y, self.t, (self.x, 2)) == 0
+
+    def test_unevaluated(self):
+        """
+        The following should all be instantiatible without raising an
+        exception, but should not simplify.
+        """
+        assert Derivative(self.x, self.t)
+        assert Derivative(self.x, self.y, self.t)
+        assert Derivative(self.x, (self.x, 0))

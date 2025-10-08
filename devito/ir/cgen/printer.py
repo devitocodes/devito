@@ -41,6 +41,7 @@ class BasePrinter(CodePrinter):
     _prec_literals = {np.float32: 'F', np.complex64: 'F'}
 
     _qualifiers_mapper = {
+        'is_extern': 'extern',
         'is_const': 'const',
         'is_volatile': 'volatile',
         '_mem_constant': 'static',

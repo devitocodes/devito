@@ -176,7 +176,7 @@ class Hyperplane(tuple):
         return frozenset().union(*[i._defines for i in self])
 
 
-class Pointer(LocalObject):
+class Pointer(LocalObject, sympy.Expr):
 
     __rkwargs__ = LocalObject.__rkwargs__ + ('dtype',)
 

@@ -627,7 +627,7 @@ def test_cache_blocking_reuse_blk_dims():
             Eq(Symbol('dummy2'), DummyBarrier(time)),
             Eq(r.forward, r.dy + 1)]
 
-    op = Operator(eqns, openmp=False)
+    op = Operator(eqns, language='C')
 
     unique = 't,x0_blk0,y0_blk0,x,y,z'
     reused = 't,x1_blk0,y1_blk0,x,y,z'

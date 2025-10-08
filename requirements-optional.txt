@@ -1,6 +1,7 @@
-matplotlib<3.10.6
+matplotlib<3.10.7
 pillow>11,<11.3.1
 pyrevolve==2.2.6
 scipy<1.15.4
-distributed<2025.7.1
+distributed<2025.9.2
 click<9.0
+cloudpickle<3.1.2
