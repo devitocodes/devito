@@ -276,13 +276,8 @@ class Test_RK:
 
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u_multi_stage', 'v_multi_stage']
-        u_multi_stage = [
-            TimeFunction(
-                name=name,
-                grid=grid,
-                space_order=2,
-                time_order=1,
-                dtype=np.float64) for name in fun_labels]
+        u_multi_stage = [TimeFunction(name=name, grid=grid, space_order=2, time_order=1,
+                                      dtype=np.float64) for name in fun_labels]
 
         # Source definition
         src_spatial = Function(name="src_spat", grid=grid,
@@ -328,14 +323,8 @@ class Test_RK:
         # Time integrator solution
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u', 'v']
-        u_multi_stage = [
-            TimeFunction(
-                name=name
-                + '_multi_stage',
-                grid=grid,
-                space_order=2,
-                time_order=1,
-                dtype=np.float64) for name in fun_labels]
+        u_multi_stage = [TimeFunction(name=name + '_multi_stage', grid=grid, space_order=2, time_order=1,
+                                      dtype=np.float64) for name in fun_labels]
 
         # PDE (2D acoustic)
         eq_rhs = [
@@ -383,12 +372,8 @@ class Test_RK:
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u', 'v']
         u_multi_stage = [
-            TimeFunction(
-                name=f"{name}_multi_stage_{time_int}",
-                grid=grid,
-                space_order=2,
-                time_order=1,
-                dtype=np.float64) for name in fun_labels]
+            TimeFunction(name=f"{name}_multi_stage_{time_int}", grid=grid, space_order=2, time_order=1,
+                         dtype=np.float64) for name in fun_labels]
 
         # PDE (2D acoustic)
         eq_rhs = [u_multi_stage[1], (Derivative(u_multi_stage[0], (x, 2), fd_order=2)
@@ -405,11 +390,8 @@ class Test_RK:
                           time_order=1, dtype=np.float64) for name in fun_labels]
 
         # PDE (2D acoustic)
-        eq_rhs = [u[1], (Derivative(u[0], (x, 2), fd_order=2)
-                         + Derivative(u[0], (y, 2), fd_order=2)
-                         + src_spatial
-                         * src_temporal)
-                  * vel**2]
+        eq_rhs = [u[1], (Derivative(u[0], (x, 2), fd_order=2) + Derivative(u[0], (y, 2), fd_order=2)
+                         + src_spatial * src_temporal) * vel**2]
 
         # Time integration scheme
         pdes = [Eq(u[i].forward, solve(Eq(u[i].dt - eq_rhs[i]), u[i].forward))
@@ -430,13 +412,8 @@ class Test_HORK:
 
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u_multi_stage', 'v_multi_stage']
-        u_multi_stage = [
-            TimeFunction(
-                name=name,
-                grid=grid,
-                space_order=2,
-                time_order=1,
-                dtype=np.float64) for name in fun_labels]
+        u_multi_stage = [TimeFunction(name=name, grid=grid, space_order=2, time_order=1,
+                                      dtype=np.float64) for name in fun_labels]
 
         # PDE system
         system_eqs_rhs = [u_multi_stage[1],
@@ -455,17 +432,11 @@ class Test_HORK:
 
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u_multi_stage', 'v_multi_stage']
-        u_multi_stage = [
-            TimeFunction(
-                name=name,
-                grid=grid,
-                space_order=2,
-                time_order=1,
-                dtype=np.float64) for name in fun_labels]
+        u_multi_stage = [TimeFunction(name=name, grid=grid, space_order=2, time_order=1,
+                                      dtype=np.float64) for name in fun_labels]
 
         # Source definition
-        src_spatial = Function(name="src_spat", grid=grid,
-                               space_order=2, dtype=np.float64)
+        src_spatial = Function(name="src_spat", grid=grid, space_order=2, dtype=np.float64)
         src_spatial.data[100, 100] = 1
         src_temporal = sym.exp(- 100 * (t - 0.01) ** 2)
         # import matplotlib.pyplot as plt
@@ -517,29 +488,12 @@ class Test_HORK:
         # Time integrator solution
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u', 'v']
-        u_multi_stage = [
-            TimeFunction(
-                name=name
-                + '_multi_stage',
-                grid=grid,
-                space_order=2,
-                time_order=1,
+        u_multi_stage = [TimeFunction(name=name + '_multi_stage', grid=grid, space_order=2, time_order=1,
                 dtype=np.float64) for name in fun_labels]
 
         # PDE (2D acoustic)
-        eq_rhs = [
-            u_multi_stage[1],
-            (Derivative(
-                u_multi_stage[0],
-                (x,
-                 2),
-                fd_order=2)
-                + Derivative(
-                u_multi_stage[0],
-                (y,
-                 2),
-                fd_order=2))
-            * vel**2]
+        eq_rhs = [u_multi_stage[1], (Derivative(u_multi_stage[0],(x,2), fd_order=2) + Derivative(
+            u_multi_stage[0], (y,2), fd_order=2)) * vel**2]
 
         src = [[src_spatial * vel**2, src_temporal, u_multi_stage[1]]]
 
