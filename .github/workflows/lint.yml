@@ -38,3 +38,35 @@ jobs:
     - name: Lint codebase with ruff
       run: |
         ruff check --preview --output-format github
+
+  actionlint:
+    name: "Lint Github actions YAML files"
+    # There's a way to add error formatting so GH actions adds messages to code,
+    # but I can't work out the right number of quotes to get it to work
+    # https://github.com/rhysd/actionlint/blob/main/docs/usage.md
+    # #example-error-annotation-on-github-actions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check workflow files
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
+
+  dockerlint:
+    name: "Lint dockerfiles"
+    runs-on: ubuntu-latest
+    container:
+      image: hadolint/hadolint:latest-alpine
+      env:
+        HADOLINT_IGNORE: "DL3005,DL3007,DL3008,DL3015,DL3059"
+    steps:
+      - uses: actions/checkout@v3
+      - name: Lint dockerfiles inside hadolint container
+        run: |
+          for DOCKERFILE in docker/Dockerfile.*; \
+            do \
+            echo "    Linting $DOCKERFILE"; \
+            hadolint "$DOCKERFILE" \
+            || exit 1; \
+          done
