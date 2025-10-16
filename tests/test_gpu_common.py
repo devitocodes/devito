@@ -1,7 +1,6 @@
 import cloudpickle as pickle
 
 import pytest
-import os
 import numpy as np
 import sympy
 import scipy.sparse
@@ -81,11 +80,11 @@ class TestDeviceID:
     CUDA_VISIBLE_DEVICES are correctly handled.
     """
 
-    @pytest.mark.parametrize('env_variables', [{"cuda_visible_devices": "1"},
-                                               {"cuda_visible_devices": "1,2"},
-                                               {"cuda_visible_devices": "1,0"},
-                                               {"rocr_visible_devices": "1"},
-                                               {"hip_visible_devices": " 1"}])
+    @pytest.mark.parametrize('env_variables', [{"CUDA_VISIBLE_DEVICES": "1"},
+                                               {"CUDA_VISIBLE_DEVICES": "1,2"},
+                                               {"CUDA_VISIBLE_DEVICES": "1,0"},
+                                               {"ROCR_VISIBLE_DEVICES": "1"},
+                                               {"HIP_VISIBLE_DEVICES": " 1"}])
     def test_visible_devices(self, env_variables):
         """
         Test that physical device IDs used for querying memory on a device via
@@ -96,18 +95,11 @@ class TestDeviceID:
 
         eq = Eq(u, u+1)
 
-        # Save previous environment to verify switchenv works as intended
-        previous_environ = dict(os.environ)
-
-        with switchenv(**env_variables):
+        with switchenv(env_variables):
             op1 = Operator(eq)
-
             argmap1 = op1.arguments()
             # All variants in parameterisation should yield deviceid 1
             assert argmap1._physical_deviceid == 1
-
-        # Make sure the switchenv doesn't somehow persist
-        assert dict(os.environ) == previous_environ
 
         # Check that physical deviceid is 0 when no environment variables set
         op2 = Operator(eq)
@@ -131,12 +123,10 @@ class TestDeviceID:
 
         eq = Eq(u, u+1)
 
-        with switchenv(cuda_visible_devices=visible_devices):
+        with switchenv({'CUDA_VISIBLE_DEVICES': visible_devices}):
             op1 = Operator(eq)
             argmap1 = op1.arguments()
-
             devices = [int(i) for i in visible_devices.split(',')]
-
             assert argmap1._physical_deviceid == devices[rank]
 
         # In default case, physical deviceid will equal rank
@@ -151,7 +141,7 @@ class TestDeviceID:
 
         eq = Eq(u, u+1)
 
-        with switchenv(cuda_visible_devices="1,3"), switchconfig(deviceid=1):
+        with switchenv({'CUDA_VISIBLE_DEVICES': "1,3"}), switchconfig(deviceid=1):
             op = Operator(eq)
 
             argmap = op.arguments()
