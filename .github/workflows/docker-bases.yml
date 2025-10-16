@@ -246,5 +246,5 @@ jobs:
           push: true
           target: "hip"
           build-args: |
-            ROCM_VERSION=6.3.4
+            ROCM_VERSION=7.0.2
           tags: devitocodes/bases:amd-hip
