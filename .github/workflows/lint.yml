@@ -19,6 +19,7 @@ on:
 
 jobs:
   codelint:
+    name: "Lint the codebase"
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
