@@ -92,6 +92,9 @@ class BasePrinter(CodePrinter):
     def func_literal(self, expr):
         return self._func_literals.get(self._prec(expr), '')
 
+    def ns(self, expr):
+        return self._ns
+
     def func_prefix(self, expr, mfunc=False):
         prefix = self._func_prefix.get(self._prec(expr), '')
         if mfunc:
@@ -193,7 +196,7 @@ class BasePrinter(CodePrinter):
         else:
             args = ', '.join([self._print(arg) for arg in expr.args])
 
-        return f'{self._ns}{cname}({args})'
+        return f'{self.ns(expr)}{cname}({args})'
 
     def _print_Pow(self, expr):
         # Completely reimplement `_print_Pow` from sympy, since it doesn't
@@ -207,11 +210,11 @@ class BasePrinter(CodePrinter):
             return self._print_Float(Float(1.0)) + '/' + \
                 self.parenthesize(expr.base, PREC)
         elif equal_valued(expr.exp, 0.5):
-            return f'{self._ns}sqrt{suffix}({base})'
+            return f'{self.ns(expr)}sqrt{suffix}({base})'
         elif expr.exp == S.One/3 and self.standard != 'C89':
-            return f'{self._ns}cbrt{suffix}({base})'
+            return f'{self.ns(expr)}cbrt{suffix}({base})'
         else:
-            return f'{self._ns}pow{suffix}({base}, {self._print(expr.exp)})'
+            return f'{self.ns(expr)}pow{suffix}({base}, {self._print(expr.exp)})'
 
     def _print_SafeInv(self, expr):
         """Print a SafeInv as a C-like division with a check for zero."""
@@ -241,7 +244,7 @@ class BasePrinter(CodePrinter):
     def _print_fmath_func(self, name, expr):
         args = ",".join([self._print(i) for i in expr.args])
         func = f'{self.func_prefix(expr, mfunc=True)}{name}{self.func_literal(expr)}'
-        return f"{self._ns}{func}({args})"
+        return f"{self.ns(expr)}{func}({args})"
 
     def _print_Min(self, expr):
         if len(expr.args) > 2:
@@ -391,7 +394,7 @@ class BasePrinter(CodePrinter):
         return f'sizeof({self._print(expr.intype)}{self._print(expr.stars)})'
 
     def _print_MathFunction(self, expr):
-        return f"{self._ns}{self._print_DefFunction(expr)}"
+        return f"{self.ns(expr)}{self._print_DefFunction(expr)}"
 
     def _print_Fallback(self, expr):
         return expr.__str__()
