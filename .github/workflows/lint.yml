@@ -58,7 +58,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install typos
 
-    - name: Lint codebase with flake8
+    - name: Spellcheck the codebase with typos
       run: |
         typos --format json | python scripts/typos_json_to_gha.py
 
