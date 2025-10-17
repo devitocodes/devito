@@ -44,6 +44,15 @@ jobs:
       run: |
         ruff check --preview --output-format github
 
+  spellcheck:
+    name: "Spellcheck everything"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Actions Repository
+      uses: actions/checkout@v4
+    - name: Spell Check Repo
+      uses: crate-ci/typos@v1.38.1
+
   actionlint:
     name: "Lint Github actions YAML files"
     # There's a way to add error formatting so GH actions adds messages to code,
