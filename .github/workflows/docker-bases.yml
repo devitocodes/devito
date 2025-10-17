@@ -16,6 +16,9 @@ on:
       cpu:
         type: boolean
         default: false
+      arm64:
+        type: boolean
+        default: false
       nvidia:
         type: boolean
         default: false
@@ -34,46 +37,79 @@ on:
 
 jobs:
   #######################################################
-  ############## Basic gcc CPU ##########################
+  ############## GCC Multi-Architecture Base ############
   #######################################################
-  deploy-cpu-bases:
-    if: inputs.cpu
-    name: "cpu-base"
-    runs-on: ubuntu-latest
+  deploy-gcc-bases:
+    if: inputs.cpu || inputs.arm64
+    name: "gcc-${{ matrix.arch }}-${{ matrix.gcc || 'default' }}"
+    runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
 
     strategy:
       matrix:
-        gcc: ["", "14"]
+        include:
+          # x86_64 builds - both default and GCC 14
+          - arch: amd64
+            runner: ubuntu-22.04
+            platform: linux/amd64
+            tag_prefix: cpu
+            gcc: ""
+            input_flag: cpu
+          - arch: amd64
+            runner: ubuntu-22.04
+            platform: linux/amd64
+            tag_prefix: cpu
+            gcc: "14"
+            input_flag: cpu
+          # ARM64 build - only default GCC (building from source too slow)
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            tag_prefix: arm64
+            gcc: ""
+            input_flag: arm64
 
     steps:
+      - name: Check if should build
+        id: check
+        run: |
+          if [[ "${{ matrix.input_flag }}" == "cpu" && "${{ inputs.cpu }}" == "true" ]] || \
+             [[ "${{ matrix.input_flag }}" == "arm64" && "${{ inputs.arm64 }}" == "true" ]]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+          else
+            echo "skip=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout devito
+        if: steps.check.outputs.skip != 'true'
         uses: actions/checkout@v5
 
       - name: Check event name
+        if: steps.check.outputs.skip != 'true'
         run: echo ${{ github.event_name }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
+        if: steps.check.outputs.skip != 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Login to DockerHub
+        if: steps.check.outputs.skip != 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: GCC image
+      - name: Build and push GCC image
+        if: steps.check.outputs.skip != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: "./docker/Dockerfile.cpu"
           push: true
+          platforms: ${{ matrix.platform }}
           build-args: "gcc=${{ matrix.gcc }}"
-          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}"
+          tags: "devitocodes/bases:${{ matrix.tag_prefix }}-gcc${{ matrix.gcc }}"
 
   #######################################################
   ############## Intel OneApi CPU #######################

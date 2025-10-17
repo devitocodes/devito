@@ -39,7 +39,9 @@ jobs:
            pytest-osx-py312-clang-omp,
            pytest-docker-py310-gcc-omp,
            pytest-docker-py310-icx-omp,
-           pytest-ubuntu-py313-gcc14-omp
+           pytest-ubuntu-py313-gcc14-omp,
+           pytest-ubuntu-py312-gcc14-omp-arm64,
+           pytest-ubuntu-py311-gcc13-omp-arm64
         ]
         set: [base, adjoint]
         include:
@@ -112,6 +114,20 @@ jobs:
           arch: "gcc-14"
           language: "openmp"
           sympy: "1.14"
+
+        - name: pytest-ubuntu-py312-gcc14-omp-arm64
+          python-version: '3.12'
+          os: ubuntu-24.04-arm
+          arch: "gcc-14"
+          language: "openmp"
+          sympy: "1.14"
+
+        - name: pytest-ubuntu-py311-gcc13-omp-arm64
+          python-version: '3.11'
+          os: ubuntu-24.04-arm
+          arch: "gcc-13"
+          language: "openmp"
+          sympy: "1.13"
 
         - set: base
           test-set: 'not adjoint'

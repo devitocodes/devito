@@ -8,11 +8,12 @@ Devito provides several images that target different architectures and compilers
 
 ### [Devito] on CPU
 
-We provide two CPU images:
-- `devito:gcc-*` with the standard GNU gcc compiler.
-- `devito:icx-*` with the Intel C compiler for Intel architectures.
+We provide CPU images for different architectures and compilers:
+- `devito:gcc-*` with the standard GNU gcc compiler (x86_64).
+- `devito:icx-*` with the Intel C compiler for Intel architectures (x86_64).
+- `devito:arm64-gcc-*` with the standard GNU gcc compiler for ARM64 architectures (AWS Graviton, Apple Silicon, etc.).
 
-These images provide a working environment for any CPU architecture and come with [Devito], `gcc/icx` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
+These images provide a working environment for their respective CPU architectures and come with [Devito], `gcc/icx` and `mpi` preinstalled, and utilities such as `jupyter` for usability and exploration of the package.
 
 To run this image locally, you will first need to install `docker`. Then, the following commands will get you started:
 
@@ -36,6 +37,38 @@ docker run --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devitocodes/dev
 In addition, the following legacy tags are available:
 
 - `devito:cpu-*` that corresponds to `devito:gcc-*`
+
+
+### [Devito] on ARM64
+
+We provide ARM64-specific images optimized for ARM64 processors:
+- `devito:arm64-gcc-*` with the standard GNU gcc compiler for ARM64 architectures.
+
+These images support various ARM64 platforms including:
+- AWS Graviton2/3/4 instances
+- Apple Silicon (M1/M2/M3) via Docker Desktop
+- ARM-based cloud instances
+
+Devito automatically detects the specific ARM64 variant at runtime and applies appropriate optimizations through its JIT compiler.
+
+To run on ARM64 systems:
+
+```bash
+# Pull image and start a bash shell
+docker run --rm -it -p 8888:8888 devitocodes/devito:arm64-gcc-latest /bin/bash
+
+# or start a Jupyter notebook server on port 8888
+docker run --rm -it -p 8888:8888 devitocodes/devito:arm64-gcc-latest
+
+# Run an example
+docker run --rm -it devitocodes/devito:arm64-gcc-latest python examples/seismic/acoustic/acoustic_example.py
+```
+
+On AWS Graviton instances with user context:
+
+```bash
+docker run --rm -it -v `pwd`:`pwd` -w `pwd` -u $(id -u):$(id -g) devitocodes/devito:arm64-gcc-latest python examples/seismic/acoustic/acoustic_example.py
+```
 
 
 ### [Devito] on GPU
