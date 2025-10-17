@@ -1,10 +1,11 @@
+import os
 import numpy as np
 import pytest
 from sympy.abc import a, b, c, d, e
 
 import time
 
-from devito import Operator, Eq
+from devito import Operator, Eq, switchenv
 from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
                           filter_ordered, transitive_closure, UnboundTuple,
                           CacheInstances)
@@ -209,3 +210,18 @@ class TestCacheInstances:
         # Cache should be cleared after Operator construction
         cache_size = Object._instance_cache.cache_info()[-1]
         assert cache_size == 0
+
+
+def test_switchenv():
+    # Save previous environment
+    previous_environ = dict(os.environ)
+
+    # Check a temporary variable is set inside the context manager
+    with switchenv({'TEST_VAR': 'foo'}):
+        assert os.environ['TEST_VAR'] == 'foo'
+
+    # Check a temporary variable is unset inside the context manager
+    assert os.environ.get('TEST_VAR') is None
+
+    # Make sure the switchenv does not persist to verify switchenv works as intended
+    assert dict(os.environ) == previous_environ
