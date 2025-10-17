@@ -14,14 +14,25 @@ def main():
         # Grab the JSON data coming from typos from stdin
         data = json.loads(line.rstrip())
 
-        # Calculate the end column and format the correction
-        end_col = data['byte_offset'] + len(data['typo'])
-        suggestions = ', '.join(data['corrections'])
+        if data['type'] == 'binary_file':
+            continue
 
-        # Print the templated message to stdout
-        print(message_template.safe_substitute(
-            data, end_col=end_col, suggestions=suggestions
-        ))
+        try:
+            # Calculate the end column and format the correction
+            suggestions = ', '.join(data['corrections'])
+            end_col = data['byte_offset'] + len(data['typo'])
+
+            # Print the templated message to stdout
+            print(message_template.safe_substitute(
+                data, end_col=end_col, suggestions=suggestions
+            ))
+        except KeyError:
+            print('KeyError')
+            print(f'{data}')
+        except Exception as e:
+            print('Caught unhandled exception')
+            print(f'{data}')
+            print(f'{e}')
 
 
 if __name__ == '__main__':
