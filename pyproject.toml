@@ -84,6 +84,24 @@ known_first_party = ["devito", "examples"]
 multi_line_output = "VERTICAL_GRID_GROUPED"
 force_alphabetical_sort_within_sections = true
 
+[tool.typos]
+# For identifiers (variables, functions, classes and the like):
+# Ignore words 2 characters or fewer followed by zero or more digits
+# Also ignore collections of 20 or more "word character"s
+default.extend-ignore-identifiers-re = ["\\b[[:alpha:]]{1,2}\\d*\\b", "\\b\\w{20,}\\b"]
+# For words:
+# Ignore words 2 characters or fewer followed by one or more digits
+# Also ignore collections of 20 or more "word character"s
+default.extend-ignore-words-re = ["\\b[[:alpha:]]{1,2}\\d?\\b", "\\b\\w{20,}\\b"]
+
+# Only for known words common abbreviations
+# IMPORTANT: Add a comment with the meaning!
+[tool.typos.default.extend-identifiers]
+# arange - numpy.arange
+arange = "arange"
+# dorder - derivative order
+dorder = "dorder"
+
 [tool.flake8]
 max-line-length = 90
 ignore = [
