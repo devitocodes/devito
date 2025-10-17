@@ -8,7 +8,7 @@ def main():
 
     # Standard Github message template for CI annotations
     message_template = Template(
-        '::error file=$path,line=$line_num,col=$byte_offset,endcol=$end_col,'
+        '::error file=$path,line=$line_num,col=$byte_offset,endColumn=$end_col,'
         'title=$type::`$typo` should be $suggestions'
     )
 
