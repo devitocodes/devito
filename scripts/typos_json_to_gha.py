@@ -8,7 +8,7 @@ def main():
 
     # Standard Github message template for CI annotations
     message_template = Template(
-        '::error file=$path,line=$line_num,col=$byte_offset,endColumn=$end_col,'
+        '::error file=$xpath,line=$line_num,col=$byte_offset,endColumn=$end_col,'
         'title=$type::`$typo` should be $suggestions'
     )
 
@@ -24,10 +24,12 @@ def main():
             # Calculate the end column and format the correction
             suggestions = ', '.join(data['corrections'])
             end_col = data['byte_offset'] + len(data['typo'])
+            # Remove './' from the start of the path
+            xpath = data['path'].removeprefix('./')
 
             # Print the templated message to stdout
             print(message_template.safe_substitute(
-                data, end_col=end_col, suggestions=suggestions
+                data, xpath=xpath, end_col=end_col, suggestions=suggestions
             ))
         except KeyError:
             print('KeyError')
