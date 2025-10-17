@@ -4,6 +4,8 @@ from string import Template
 
 
 def main():
+    error_code = 0
+
     # Standard Github message template for CI annotations
     message_template = Template(
         '::error file=$path,line=$line_num,col=$byte_offset,endcol=$end_col,'
@@ -11,6 +13,7 @@ def main():
     )
 
     for line in sys.stdin:
+        error_code = 1
         # Grab the JSON data coming from typos from stdin
         data = json.loads(line.rstrip())
 
@@ -33,6 +36,8 @@ def main():
             print('Caught unhandled exception')
             print(f'{data}')
             print(f'{e}')
+
+    return error_code
 
 
 if __name__ == '__main__':
