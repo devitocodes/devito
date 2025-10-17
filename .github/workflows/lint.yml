@@ -60,7 +60,7 @@ jobs:
 
     - name: Lint codebase with flake8
       run: |
-        typos --format sarif
+        typos --format json | python scripts/typos_json_to_gha.py
 
   actionlint:
     name: "Lint Github actions YAML files"
