@@ -762,6 +762,24 @@ class TestFD:
         # Should be commutative
         assert simplify(deriv.evaluate - derivc.evaluate) == 0
 
+    def test_param_stagg_inner(self):
+        space_order = 2
+        nx, ny = 5, 5
+
+        grid = Grid((nx, ny))
+
+        x, y = grid.dimensions
+        yp = y + y.spacing / 2
+        xp = x + x.spacing / 2
+
+        f = TimeFunction(name="f", grid=grid, space_order=space_order, staggered=y)
+        p = Function(name="p", grid=grid, space_order=space_order, parameter=True)
+        g = TimeFunction(name="g", grid=grid, space_order=space_order, staggered=(x, y))
+
+        eqn = Eq(g, (p * f).dx)
+        eqne = eqn.evaluate.rhs
+        assert simplify(eqne - (p._subs(y, yp).evaluate * f).dx(x0=xp).evaluate) == 0
+
 
 class TestTwoStageEvaluation:
 

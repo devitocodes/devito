@@ -301,7 +301,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     def symbolic_shape(self):
-        return tuple(self._C_get_field(FULL, d).size for d in self.dimensions)
+        return DimensionTuple(*[self._C_get_field(FULL, d).size for d in self.dimensions],
+                              getters=self.dimensions)
 
     @property
     def size_global(self):
@@ -1018,7 +1019,7 @@ class Function(DiscreteFunction):
     is_autopaddable = True
 
     __rkwargs__ = (DiscreteFunction.__rkwargs__ +
-                   ('space_order', 'interp_order', 'dimensions'))
+                   ('space_order', 'interp_order', 'dimensions', 'is_parameter'))
 
     def _cache_meta(self):
         # Attach additional metadata to self's cache entry
@@ -1063,7 +1064,7 @@ class Function(DiscreteFunction):
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
         # parameter has to be computed at x + hx/2)
-        self._is_parameter = kwargs.get('parameter', False)
+        self._is_parameter = kwargs.get('parameter', kwargs.get('is_parameter', False))
 
     def __fd_setup__(self):
         """
