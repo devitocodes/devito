@@ -7,7 +7,7 @@ import numpy as np
 from sympy import And, Expr, Number, Symbol
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, Real, Imag, Conj, SubDomain, configuration)
+                    Piecewise, Min, Max, Real, Imag, Conj, SubDomain, configuration)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
 from devito.ir.support.guards import GuardExpr, simplify_and
@@ -1103,6 +1103,15 @@ def test_print_div():
     cstr = ccode(a / b)
     assert cstr == 'sizeof(int)/sizeof(long)'
 
+
+def test_piecewise():
+    grid = Grid(shape=(11,))
+    u = Function(name='u', grid=grid, space_order=2)
+    v = Function(name='v', grid=grid, space_order=2)
+    eq_u = Eq(u, Piecewise((1, v < 10), (2, True)))
+    op = Operator(eq_u)
+    # check that the code generated a condition
+    assert "v[x + 2] < 10" in str(op.ccode)
 
 def test_customdtype_complex():
     """

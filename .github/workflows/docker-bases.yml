@@ -15,16 +15,16 @@ on:
     inputs:
       cpu:
         type: boolean
-        default: false
+        default: true
       nvidia:
         type: boolean
-        default: false
+        default: true
       amd:
         type: boolean
-        default: false
+        default: true
       intel:
         type: boolean
-        default: false
+        default: true
 
       tags:
         description: "Build compiler bases"
