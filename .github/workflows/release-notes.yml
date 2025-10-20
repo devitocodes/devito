@@ -1,5 +1,8 @@
 name: Release Drafter
 
+permissions:
+  contents: read
+
 on:
   push:
     # branches to consider in the event; optional, defaults to all
@@ -9,6 +12,12 @@ on:
 jobs:
   update_release_draft:
     runs-on: ubuntu-latest
+    permissions:
+      # write permission is required to create a github release
+      contents: write
+      # write permission is required for autolabeler
+      # otherwise, read permission is required at least
+      pull-requests: write
     steps:
       # Drafts your next Release notes as Pull Requests are merged into "main"
       - uses: release-drafter/release-drafter@v6

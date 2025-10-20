@@ -1,5 +1,8 @@
 name: CI-core
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -100,7 +103,7 @@ jobs:
           language: "openmp"
           sympy: "1.13"
 
-        - name: pytest-docker-py310-gcc-omp
+        - name: pytest-docker-py310-gcc-omp-arm64
           python-version: '3.10'
           os: ubuntu-24.04-arm
           arch: "gcc"

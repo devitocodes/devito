@@ -1,5 +1,8 @@
 name: main triggers
 
+permissions:
+  contents: write
+
 on:
   push:
     branches:

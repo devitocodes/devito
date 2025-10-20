@@ -2,6 +2,8 @@
 # CPU: Intel(R) Xeon(R) CPU E5-2640 0 @ 2.50GHz (24 cores)
 
 name: Examples-mpi
+permissions:
+  contents: read
 
 env:
   OUTPUT_PATH: ${{ github.workspace }}
