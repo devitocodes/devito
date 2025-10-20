@@ -6,6 +6,7 @@ import numpy as np
 from sympy import Pow, Add, Mul, Min, Max, S, SympifyError, Tuple, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
+from sympy.functions.elementary.piecewise import ExprCondPair
 
 from devito.finite_differences.differentiable import (
     EvalDerivative, IndexDerivative
@@ -356,6 +357,8 @@ def pow_to_mul(expr):
         else:
             # Default. We should not end up here as all cases are handled
             return expr
+    elif expr.func is ExprCondPair:
+        return expr.func(*[pow_to_mul(i) for i in expr.args])
     else:
         args = [pow_to_mul(i) for i in expr.args]
 
