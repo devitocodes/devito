@@ -75,6 +75,16 @@ In addition, the following legacy tags are available:
 - `devito:gpu-*` that corresponds to `devito:nvidia-nvc-*`
 
 
+### [Devito] on ARM64
+
+We provide arm64 compatible images for both gcc and nvidia compilers. These images have the same tag as their x86_64 images and will automatically pull the correct architecture based on your system. Namely the base images supporting arm64 are
+
+- `devitocodes/bases:cpu-gcc14` for the gcc 14 base image.
+- `devitocodes/bases:cpu-gcc` for the ubuntu 22.04 default gcc base image.
+- `devitocodes/bases:nvidia-nvc` for the nvidia openacc base image.
+- `devitocodes/bases:nvidia-nvcc` for the nvidia cuda base image.
+
+
 ## Build a [Devito] image
 
 To build the images yourself, you only need to run the standard build command using the provided Dockerfile. The main difference between the CPU and GPU images will be the base image used.
