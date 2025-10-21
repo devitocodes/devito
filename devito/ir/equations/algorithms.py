@@ -139,13 +139,20 @@ def _lower_exprs(expressions, subs):
 
             # Handle Array
             if isinstance(f, Array) and f.initvalue is not None:
-                # FIXME: I think this inadvertently converts the initvalue
-                # from array to list
-                initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
 
-                # FIXME: Horrible hack
                 if isinstance(f.initvalue, np.ndarray):
-                    initvalue = np.array(initvalue)
+                    # Initvalue provided as N-dimensional array
+                    # FIXME: Displeases the eyeballs
+                    initvalue = np.empty(f.initvalue.shape,
+                                         dtype=f.initvalue.dtype)
+                    it = np.nditer(f.initvalue, flags=['multi_index', 'refs_ok'])
+                    for _ in it:
+                        initvalue[it.multi_index] = \
+                            _lower_exprs(f.initvalue[it.multi_index], subs)
+                else:
+                    # Have a simple lit or tuple
+                    initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
+
                 # TODO: fix rebuild to avoid new name
                 f = f._rebuild(name='%si' % f.name, initvalue=initvalue)
 
