@@ -141,7 +141,7 @@ def _lower_exprs(expressions, subs):
             if isinstance(f, Array) and f.initvalue is not None:
 
                 if isinstance(f.initvalue, np.ndarray):
-                    # Initvalue provided as N-dimensional array
+                    # Initvalue provided as N-dimensional numpy array
                     # FIXME: Displeases the eyeballs
                     initvalue = np.empty(f.initvalue.shape,
                                          dtype=f.initvalue.dtype)
@@ -150,7 +150,7 @@ def _lower_exprs(expressions, subs):
                         initvalue[it.multi_index] = \
                             _lower_exprs(f.initvalue[it.multi_index], subs)
                 else:
-                    # Have a simple lit or tuple
+                    # Have a simple list or tuple
                     initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
 
                 # TODO: fix rebuild to avoid new name
