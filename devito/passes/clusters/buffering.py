@@ -439,45 +439,6 @@ class BufferDescriptor:
 
         self.indices = extract_indices(f, self.dim, clusters)
 
-        # The IterationSpace within which the buffer will be accessed
-        # NOTE: The `key` is to avoid Clusters including `f` but not directly
-        # using it in an expression, such as HaloTouch Clusters
-        def key(c):
-            bufferdim = any(i in c.ispace.dimensions for i in self.bdims)
-            timeonly = all(d.is_Time for d in c.ispace.dimensions)
-            return bufferdim or timeonly
-
-        ispaces = set()
-        for c in clusters:
-            if not key(c):
-                continue
-
-            # Skip wild clusters (e.g. HaloTouch Clusters)
-            if c.is_wild:
-                continue
-            # Iterations space and buffering dims
-            ispace = c.ispace
-            edims = [d for d in self.bdims if d not in ispace.dimensions]
-            if not edims:
-                ispaces.add(ispace)
-            else:
-                # Add all missing buffering dimensions
-                ispaces.add(ispace.insert(self.dim, edims).reorder())
-
-        if len(ispaces) > 1:
-            # Best effort to make buffering work in the presence of multiple
-            # IterationSpaces
-            stamp = Stamp()
-            ispaces = {i.lift(self.bdims, v=stamp) for i in ispaces}
-
-            if len(ispaces) > 1:
-                print(ispaces)
-                raise CompilationError("Unsupported `buffering` over different "
-                                       "IterationSpaces")
-
-        assert len(ispaces) == 1, "Unexpected form of `buffering`"
-        self.ispace = ispaces.pop()
-
     def __repr__(self):
         return "Descriptor[%s -> %s]" % (self.f, self.b)
 
@@ -496,6 +457,47 @@ class BufferDescriptor:
         may be accessed.
         """
         return (self.xd, self.dim.root)
+
+    @cached_property
+    def ispace(self):
+        # The IterationSpace within which the buffer will be accessed
+        # NOTE: The `key` is to avoid Clusters including `f` but not directly
+        # using it in an expression, such as HaloTouch Clusters
+        def key(c):
+            bufferdim = any(i in c.ispace.dimensions for i in self.bdims)
+            timeonly = all(d.is_Time for d in c.ispace.dimensions)
+            return bufferdim or timeonly
+
+        ispaces = set()
+        for c in self.clusters:
+            if not key(c):
+                continue
+
+            # Skip wild clusters (e.g. HaloTouch Clusters)
+            if c.is_wild:
+                continue
+
+            # Iterations space and buffering dims
+            ispace = c.ispace
+            edims = [d for d in self.bdims if d not in ispace.dimensions]
+            if not edims:
+                ispaces.add(ispace)
+            else:
+                # Add all missing buffering dimensions and reorder to
+                # avoid duplicates with different ordering
+                ispaces.add(ispace.insert(self.dim, edims).reorder())
+
+        if len(ispaces) > 1:
+            # Best effort to make buffering work in the presence of multiple
+            # IterationSpaces
+            stamp = Stamp()
+            ispaces = {i.lift(self.bdims, v=stamp) for i in ispaces}
+
+            if len(ispaces) > 1:
+                raise CompilationError("Unsupported `buffering` over different "
+                                       "IterationSpaces")
+
+        return ispaces.pop()
 
     @cached_property
     def subdims_mapper(self):
