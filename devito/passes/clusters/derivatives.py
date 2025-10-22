@@ -123,7 +123,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     dtype = infer_dtype([w0.dtype, c.dtype])  # At least np.float32
     # from IPython import embed; embed()
 
-    # FIXME: Another horrible hack
+    # FIXME: Another horrible hack -> Strictly leads to non-uniqueness. Needs changing/enriching.
     if isinstance(w0.weights, np.ndarray):
         k = tuple(w0.weights.flatten())
     else:
@@ -132,10 +132,16 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     try:
         w = weights[k]
     except KeyError:
-        initvalue = tuple(i.subs(subs_user) for i in k)
-        # FIXME: More horrible hack
+        # FIXME: This is really quite ugly
         if isinstance(w0.weights, np.ndarray):
-            initvalue = np.reshape(np.array(initvalue), w0.weights.shape)
+            initvalue = np.empty(w0.weights.shape,
+                                 dtype=w0.weights.dtype)
+            it = np.nditer(w0.weights, flags=['multi_index', 'refs_ok'])
+            for _ in it:
+                initvalue[it.multi_index] = w0.weights[it.multi_index].subs(subs_user)
+        else:
+            initvalue = tuple(i.subs(subs_user) for i in k)
+
         w = weights[k] = w0._rebuild(name=name, dtype=dtype, initvalue=initvalue)
 
     # Replace the abstract Weights array with the concrete one

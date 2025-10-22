@@ -17,7 +17,8 @@ except ImportError:
 from devito.finite_differences.tools import make_shift_x0, coeff_priority
 from devito.logger import warning
 from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
-                          infer_dtype, extract_dtype, is_integer, split, is_number)
+                          infer_dtype, extract_dtype, is_integer, split, is_number,
+                          OrderedSet)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
 
@@ -882,7 +883,8 @@ class IndexDerivative(IndexSum):
     __rargs__ = ('expr', 'mapper')
 
     def __new__(cls, expr, mapper, **kwargs):
-        dimensions = as_tuple(set(mapper.values()))
+        # FIXME: Somewhat ugly
+        dimensions = as_tuple(OrderedSet(*mapper.values()))
 
         # Detect the Weights among the arguments
         weightss = []
