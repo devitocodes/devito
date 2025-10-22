@@ -1,5 +1,6 @@
 import ctypes
 import pickle as pickle0
+import shutil
 
 import cloudpickle as pickle1
 import pytest
@@ -9,10 +10,11 @@ from sympy import Symbol
 from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
                     Dimension, SubDimension, ConditionalDimension, IncrDimension,
                     TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
-                    PrecomputedSparseTimeFunction, SubDomain)
+                    PrecomputedSparseTimeFunction, SubDomain, switchconfig)
 from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
 from devito.data import LEFT, OWNED
 from devito.finite_differences.tools import direct, transpose, left, right, centered
+from devito.operator.operator import autopickler
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
                                  MPIRegion)
@@ -1074,3 +1076,27 @@ class TestOperator:
         op_new = pickle.load(open(tmp_pickle_op_fn, "rb"))
 
         assert str(op_fwd) == str(op_new)
+
+
+@pytest.fixture
+def purged_autopickling_dir():
+    # Erase the content of the autopickling dir before and after the test
+    shutil.rmtree(autopickler._directory, ignore_errors=True)
+    yield
+    shutil.rmtree(autopickler._directory, ignore_errors=True)
+
+
+class TestAutopickling:
+
+    @switchconfig(autopickling=True)
+    def test_basic(self, purged_autopickling_dir):
+        grid = Grid(shape=(3, 3, 3))
+        f = TimeFunction(name='f', grid=grid)
+        eqn = Eq(f.forward, f + 1)
+        op0 = Operator(eqn, name='TestOp')
+
+        # Expected to be unpickled from the autopickling dir
+        op1 = Operator(eqn, name='TestOp')
+
+        assert not getattr(op0, '_unpickled', False)
+        assert op1._unpickled is True
