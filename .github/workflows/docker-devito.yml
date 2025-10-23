@@ -215,7 +215,7 @@ jobs:
             echo "No tags generated, skipping"
             exit 0
           fi
-          for tag in $TAGS; do
+          echo "$TAGS" | while read -r tag; do
             refs=""
             for arch in $ARCHES; do
               refs="$refs devitocodes/devito:${tag}-${arch}"
