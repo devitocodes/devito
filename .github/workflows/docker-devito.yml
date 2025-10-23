@@ -1,5 +1,8 @@
 name: Publish devito docker images from compiler bases
 
+permissions:
+  contents: read
+
 on:
   release:
     types: [published]
@@ -21,27 +24,63 @@ jobs:
         include:
           - base: 'bases:nvidia-nvc'
             tag: 'nvidia-nvc'
+            arch: amd64
+            platform: linux/amd64
+            run_tests: false
+            tag_suffix: '-amd64'
             # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
             # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
             flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]
 
+          - base: 'bases:nvidia-nvc'
+            tag: 'nvidia-nvc'
+            arch: arm64
+            platform: linux/arm64
+            run_tests: false
+            tag_suffix: '-arm64'
+            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            test: ''
+            runner: ubuntu-24.04-arm
+
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
           - base: 'bases:amd'
             tag: 'amd'
+            arch: amd64
+            platform: linux/amd64
+            run_tests: true
+            tag_suffix: ''
             flag: '--init --network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
             test: 'tests/test_gpu_openmp.py'
             runner: ["self-hosted", "amdgpu"]
 
           - base: 'bases:cpu-gcc'
             tag: "gcc"
+            arch: amd64
+            platform: linux/amd64
+            run_tests: false
+            tag_suffix: '-amd64'
             flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
+          - base: 'bases:cpu-gcc'
+            tag: "gcc"
+            arch: arm64
+            platform: linux/arm64
+            run_tests: false
+            tag_suffix: '-arm64'
+            flag: '--init -t'
+            test: 'tests/test_operator.py'
+            runner: ubuntu-24.04-arm
+
           - base: 'bases:cpu-icx'
             tag: "icx"
+            arch: amd64
+            platform: linux/amd64
+            run_tests: true
+            tag_suffix: ''
             flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
@@ -83,6 +122,77 @@ jobs:
           # `enable` is a "if" filter fir that tag
           # `type` is the type of tag
           tags: |
+            type=raw,value=${{ matrix.tag }}-dev,suffix=${{ matrix.tag_suffix }}
+            type=raw,value=${{ matrix.tag }}-latest,enable=${{ github.event_name == 'release' }},suffix=${{ matrix.tag_suffix }}
+            type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }},suffix=${{ matrix.tag_suffix }}
+            # Legacy "gpu" tag
+            type=raw,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
+            # Legacy "cpu" tag
+            type=raw,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},value=cpu-latest,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
+
+      - name: Check tags
+        run: echo "${{ steps.meta.outputs.tags }}"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/Dockerfile.devito
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: base=devitocodes/${{ matrix.base }}
+          platforms: ${{ matrix.platform }}
+
+      - name: Remove dangling layers
+        run: docker system prune -f
+
+      - name: Run tests
+        if: ${{ matrix.run_tests }}
+        run: |
+         docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
+           devitocodes/devito:${{ matrix.tag }}-dev \
+           pytest ${{ matrix.test }}
+
+  deploy-devito-manifest:
+    needs: deploy-devito
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        include:
+          - tag: 'nvidia-nvc'
+            base: 'bases:nvidia-nvc'
+            arches: "amd64 arm64"
+          - tag: 'gcc'
+            base: 'bases:cpu-gcc'
+            arches: "amd64 arm64"
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker meta
+        id: manifest-meta
+        uses: docker/metadata-action@v5
+        with:
+          flavor: |
+            latest=false
+          images: |
+            devitocodes/devito
+          tags: |
             type=raw,value=${{ matrix.tag }}-dev
             type=raw,value=${{ matrix.tag }}-latest,enable=${{ github.event_name == 'release' }}
             type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }}
@@ -96,22 +206,60 @@ jobs:
             type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }}
             type=semver,pattern={{raw}},value=cpu-latest,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }}
 
-      - name: Check tags
-        run: echo "${{ steps.meta.outputs.tags }}"
+      - name: Create multi-arch manifests
+        env:
+          ARCHES: ${{ matrix.arches }}
+          TAGS: ${{ steps.manifest-meta.outputs.tags }}
+        run: |
+          if [ -z "$TAGS" ]; then
+            echo "No tags generated, skipping"
+            exit 0
+          fi
+          for tag in $TAGS; do
+            refs=""
+            for arch in $ARCHES; do
+              refs="$refs devitocodes/devito:${tag}-${arch}"
+            done
+            echo "Creating manifest for devitocodes/devito:${tag} using:${refs}"
+            docker buildx imagetools create --tag devitocodes/devito:${tag} $refs
+            docker buildx imagetools inspect devitocodes/devito:${tag}
+          done
 
-      - name: Build and push image
-        uses: docker/build-push-action@v6
+  test-devito:
+    needs: deploy-devito-manifest
+    runs-on: ${{ matrix.runner }}
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: 'nvidia-nvc'
+            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
+            runner: ["self-hosted", "nvidiagpu"]
+          - tag: 'gcc'
+            flag: '--init -t'
+            test: 'tests/test_operator.py'
+            runner: ubuntu-latest
+          - tag: 'gcc'
+            flag: '--init -t'
+            test: 'tests/test_operator.py'
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
         with:
-          context: .
-          file: ./docker/Dockerfile.devito
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          build-args: base=devitocodes/${{ matrix.base }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Remove dangling layers
-        run: docker system prune -f
+      - name: Set per‑runner variables
+        run: |
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
 
-      - name: Run tests
+      - name: Run tests against multi-arch image
         run: |
          docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
