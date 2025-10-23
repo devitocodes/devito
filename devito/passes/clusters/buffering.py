@@ -405,8 +405,10 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         name = sregistry.make_name(prefix='%sb' % f.name)
         # We specify the padding to match the input Function's one, so that
         # the array can be used in place of the Function with valid strides
+        # Plain Array do not track mapped so we default to no padding
+        padding = 0 if cls is Array else f.padding
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                        padding=f.padding, grid=f.grid, halo=f.halo,
+                        padding=padding, grid=f.grid, halo=f.halo,
                         space='mapped', mapped=f, f=f)
 
     return mapper
@@ -461,12 +463,13 @@ class BufferDescriptor:
     @cached_property
     def ispace(self):
         # The IterationSpace within which the buffer will be accessed
+
         # NOTE: The `key` is to avoid Clusters including `f` but not directly
         # using it in an expression, such as HaloTouch Clusters
         def key(c):
             bufferdim = any(i in c.ispace.dimensions for i in self.bdims)
-            timeonly = all(d.is_Time for d in c.ispace.dimensions)
-            return bufferdim or timeonly
+            xd_only = all(d._defines & self.xd._defines for d in c.ispace.dimensions)
+            return bufferdim or xd_only
 
         ispaces = set()
         for c in self.clusters:
@@ -478,14 +481,13 @@ class BufferDescriptor:
                 continue
 
             # Iterations space and buffering dims
-            ispace = c.ispace
-            edims = [d for d in self.bdims if d not in ispace.dimensions]
+            edims = [d for d in self.bdims if d not in c.ispace.dimensions]
             if not edims:
-                ispaces.add(ispace)
+                ispaces.add(c.ispace)
             else:
                 # Add all missing buffering dimensions and reorder to
                 # avoid duplicates with different ordering
-                ispaces.add(ispace.insert(self.dim, edims).reorder())
+                ispaces.add(c.ispace.insert(self.dim, edims).reorder())
 
         if len(ispaces) > 1:
             # Best effort to make buffering work in the presence of multiple

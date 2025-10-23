@@ -67,6 +67,10 @@ template<typename _Tp, typename _Ti>
 
 
 def split_pointer(i, idx):
+    """
+    Splits complex pointer std::complex<T> *a as
+    (float *)(&a)[idx] for real/imag parts.
+    """
     dtype = i.dtype(0).real.__class__
     ptr = cast(dtype, stars='*')(Byref(i), reinterpret=True)
     return IndexedPointer(ptr, idx)
