@@ -237,3 +237,7 @@ class ReduceMax(Reduction):
 
 class ReduceMin(Reduction):
     pass
+
+
+class PetscEq(Eq):
+    pass
