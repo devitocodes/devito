@@ -296,6 +296,7 @@ class Basic(CodeSymbol):
     is_ObjectArray = False
     is_Bundle = False
     is_Object = False
+    is_CompositeObject = False
     is_LocalObject = False
     is_LocalType = False
 

@@ -132,6 +132,7 @@ class CompositeObject(Object):
     """
     Object with composite type (e.g., a C struct) defined in Python.
     """
+    is_CompositeObject = True
 
     __rargs__ = ('name', 'pname', 'pfields')
 
