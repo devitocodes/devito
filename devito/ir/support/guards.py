@@ -4,6 +4,7 @@ of the compiler to express the conditions under which a certain object
 (e.g., Eq, Cluster, ...) should be evaluated at runtime.
 """
 
+from collections import Counter, defaultdict
 from operator import ge, gt, le, lt
 
 from functools import singledispatch
@@ -254,6 +255,20 @@ class Guards(frozendict):
 
         return Guards(m)
 
+    def pairwise_or(self, d, *guards):
+        m = dict(self)
+
+        if d in m:
+            guards.append(m[d])
+
+        g = pairwise_or(*guards)
+        if g is true:
+            m.pop(d, None)
+        else:
+            m[d] = g
+
+        return Guards(m)
+
     def impose(self, d, guard):
         m = dict(self)
 
@@ -405,3 +420,72 @@ def simplify_and(relation, v):
         new_args.append(v)
 
     return And(*(new_args + other))
+
+
+def pairwise_or(*guards):
+    """
+    Given a series of guards, create a new guard that combines them by taking
+    the OR of each subset of homogeneous components. Here, "homogeneous" means
+    that they apply to the same variable with the same operator (e.g., given
+    `y >= 2`, `y >= 3` is homogeneous, while `z >= 3` and `y <= 4` are not).
+
+    Examples
+    --------
+    Given:
+
+        g0 = {flag0 and z >= 2 and z <= 10 and y >= 3}
+        g1 = {z >= 4 and z <= 8}
+        g2 = {y >= 2 and y <= 5}
+
+    Where `flag0` is of type GuardExpr, then:
+
+    Return:
+
+        {z >= 2 and z <= 10 and y >= 2}
+    """
+    errmsg = lambda g: f"Cannot handle guard component of type {type(g)}"
+
+    flags = Counter()
+    mapper = defaultdict(list)
+
+    # Analysis
+    for guard in guards:
+        if guard is true or guard is None:
+            continue
+        elif isinstance(guard, And):
+            components = guard.args
+        elif isinstance(guard, GuardExpr) or guard.is_Relational:
+            components = [guard]
+        else:
+            raise NotImplementedError(errmsg(guard))
+
+        for g in components:
+            if isinstance(g, GuardExpr):
+                flags[g] += 1
+            elif g.is_Relational and g.lhs.is_Symbol and g.rhs.is_Number:
+                mapper[(g.lhs, type(g))].append(g.rhs)
+            else:
+                raise NotImplementedError(errmsg(g))
+
+    # Synthesis
+    guard = true
+    for (s, op), v in mapper.items():
+        if len(v) < len(guards):
+            # Not all guards contributed to this component; cannot simplify
+            pass
+        elif op in (Ge, Gt):
+            guard = And(guard, op(s, min(v)))
+        else:
+            guard = And(guard, op(s, max(v)))
+
+    for flag, v in flags.items():
+        if v == len(guards):
+            guard = And(guard, flag)
+        elif flag.initvalue.free_symbols & guard.free_symbols:
+            # We still lack the logic to properly handle this case
+            raise NotImplementedError(errmsg(flag))
+        else:
+            # Safe to ignore
+            pass
+
+    return guard
