@@ -1,0 +1,47 @@
+name: Publish devito-petsc docker image
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - petsc         # Push events on petsc branch
+
+jobs:
+  build-and-push:
+    name: Build and push devito-petsc image
+    runs-on: ubuntu-latest
+    env:
+      # Use buildkit
+      DOCKER_BUILDKIT: "1"
+
+    steps:
+      - name: Checkout devito
+        uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & push petsc image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.petsc
+          push: true
+          tags: |
+            devitocodes/devito-petsc:latest
+          build-args: base=devitocodes/devito:gcc-dev-amd64
+          platforms: linux/amd64
+
+      - name: Remove dangling layers
+        run: docker system prune -f

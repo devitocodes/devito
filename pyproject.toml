@@ -61,6 +61,7 @@ mpi    = { file = ["requirements-mpi.txt"] }
 nvidia = { file = ["requirements-nvidia.txt"] }
 tests  = { file = ["requirements-testing.txt"] }
 extras = { file = ["requirements-optional.txt"] }
+petsc  = { file = ["requirements-petsc.txt"] }
 
 [tool.setuptools.packages.find]
 where   = ["."]
