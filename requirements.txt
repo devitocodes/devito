@@ -8,4 +8,3 @@ codepy>=2019.1,<2025
 multidict<6.3
 anytree>=2.4.3,<=2.13.0
 packaging<25.1
-petsctools<=2025.1
