@@ -10,7 +10,7 @@ from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
                     Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
                     SubDimension, SubDomain, SubDomainSet, TimeFunction, exp,
                     Operator, configuration, switchconfig, TensorTimeFunction,
-                    Buffer, assign)
+                    Buffer, assign, switchenv)
 from devito.arch import get_gpu_info, get_cpu_info, Device, Cpu64
 from devito.exceptions import InvalidArgument
 from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
@@ -72,6 +72,102 @@ class TestGPUInfo:
             assert f.shape_allocated[1] == 32
         elif info['vendor'] == 'AMD':
             assert f.shape_allocated[1] == 64
+
+
+class TestDeviceID:
+    """
+    Test that device IDs and associated environment variables such as
+    CUDA_VISIBLE_DEVICES are correctly handled.
+    """
+
+    @pytest.mark.parametrize('env_variables', [{"CUDA_VISIBLE_DEVICES": "1"},
+                                               {"CUDA_VISIBLE_DEVICES": "1,2"},
+                                               {"CUDA_VISIBLE_DEVICES": "1,0"},
+                                               {"ROCR_VISIBLE_DEVICES": "1"},
+                                               {"HIP_VISIBLE_DEVICES": " 1"}])
+    def test_visible_devices(self, env_variables):
+        """
+        Test that physical device IDs used for querying memory on a device via
+        nvidia-smi correctly account for visible-device environment variables.
+        """
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        eq = Eq(u, u+1)
+
+        with switchenv(env_variables):
+            op1 = Operator(eq)
+            argmap1 = op1.arguments()
+            # All variants in parameterisation should yield deviceid 1
+            assert argmap1._physical_deviceid == 1
+
+        # Check that physical deviceid is 0 when no environment variables set
+        op2 = Operator(eq)
+
+        argmap2 = op2.arguments()
+        # Default physical deviceid expected to be 0
+        assert argmap2._physical_deviceid == 0
+
+    @pytest.mark.parallel(mode=2)
+    @pytest.mark.parametrize('visible_devices', ["1,2", "1,0", "0,2,3"])
+    def test_visible_devices_mpi(self, visible_devices, mode):
+        """
+        Test that physical device IDs used for querying memory on a device via
+        nvidia-smi correctly account for visible-device environment variables
+        when using MPI.
+        """
+
+        grid = Grid(shape=(10, 10))
+        rank = grid.distributor.myrank
+        u = Function(name='u', grid=grid)
+
+        eq = Eq(u, u+1)
+
+        with switchenv({'CUDA_VISIBLE_DEVICES': visible_devices}):
+            op1 = Operator(eq)
+            argmap1 = op1.arguments()
+            devices = [int(i) for i in visible_devices.split(',')]
+            assert argmap1._physical_deviceid == devices[rank]
+
+        # In default case, physical deviceid will equal rank
+        op2 = Operator(eq)
+        argmap2 = op2.arguments()
+        assert argmap2._physical_deviceid == rank
+
+    def test_visible_devices_with_devito_deviceid(self):
+        """Test interaction between CUDA_VISIBLE_DEVICES and DEVITO_DEVICEID"""
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        eq = Eq(u, u+1)
+
+        with switchenv({'CUDA_VISIBLE_DEVICES': "1,3"}), switchconfig(deviceid=1):
+            op = Operator(eq)
+
+            argmap = op.arguments()
+            # deviceid should see the world from within CUDA_VISIBLE_DEVICES
+            # So should be the second of the two visible devices specified (3)
+            assert argmap._physical_deviceid == 3
+
+    @pytest.mark.parallel(mode=2)
+    def test_deviceid_per_rank(self, mode):
+        """
+        Test that Device IDs set by the user on a per-rank basis do not
+        get modifed.
+        """
+        # Reversed order to ensure it is different to default
+        user_set_deviceids = (1, 0)
+
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        rank = grid.distributor.myrank
+        deviceid = user_set_deviceids[rank]
+
+        op = Operator(Eq(u, u+1))
+
+        argmap = op.arguments(deviceid=deviceid)
+        assert argmap._physical_deviceid == deviceid
 
 
 class TestCodeGeneration:

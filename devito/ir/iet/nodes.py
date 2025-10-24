@@ -1069,10 +1069,11 @@ class Dereference(ExprStmt, Node):
 
     is_Dereference = True
 
-    def __init__(self, pointee, pointer, flat=None):
+    def __init__(self, pointee, pointer, flat=None, offset=None):
         self.pointee = pointee
         self.pointer = pointer
         self.flat = flat
+        self.offset = offset
 
     def __repr__(self):
         return "<Dereference(%s,%s)>" % (self.pointee, self.pointer)
@@ -1102,6 +1103,9 @@ class Dereference(ExprStmt, Node):
                                for i in self.pointee.symbolic_shape[1:]))
         else:
             assert False, f"Unexpected pointer type {type(self.pointer)}"
+
+        if self.offset is not None:
+            ret.append(self.offset)
 
         return tuple(filter_ordered(ret))
 

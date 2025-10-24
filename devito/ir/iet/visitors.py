@@ -523,6 +523,11 @@ class CGen(Visitor):
         # (PetscScalar (*)[rhs_vec->size[1]]) ctx0;
         # This is the case when a1 is a LocalCompositeObject (i.e a1.is_AbstractObject)
 
+        if o.offset:
+            ptr = f'({a1.name} + {o.offset})'
+        else:
+            ptr = a1.name
+
         if a1.is_AbstractObject:
             rvalue = f'{a1.name}->{a0._C_name}'
             lvalue = self._gen_value(a0, 0)
@@ -537,17 +542,17 @@ class CGen(Visitor):
 
             if o.flat is None:
                 shape = ''.join(f"[{self.ccode(i)}]" for i in a0.symbolic_shape[1:])
-                rvalue = f'({cstr} (*){shape}) {a1.name}{cdim}'
+                rvalue = f'({cstr} (*){shape}) {ptr}{cdim}'
                 lvalue = c.Value(cstr, f'(*{self._restrict_keyword} {a0.name}){shape}')
             else:
-                rvalue = f'({cstr} *) {a1.name}{cdim}'
+                rvalue = f'({cstr} *) {ptr}{cdim}'
                 lvalue = c.Value(cstr, f'*{self._restrict_keyword} {a0.name}')
 
         else:
             if a1.is_Symbol:
-                rvalue = f'*{a1.name}'
+                rvalue = f'*{ptr}'
             else:
-                rvalue = f'{a1.name}->{a0._C_name}'
+                rvalue = f'{ptr}->{a0._C_name}'
             lvalue = self._gen_value(a0, 0)
 
         return c.Initializer(lvalue, rvalue)

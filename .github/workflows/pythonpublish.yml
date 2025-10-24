@@ -1,5 +1,8 @@
 name: Upload to PyPI
 
+permissions:
+  contents: read
+
 on:
   release:
     types: [published]

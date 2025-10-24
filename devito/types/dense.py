@@ -114,6 +114,17 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     _subs = Differentiable._subs
 
+    def _create_data(self):
+        if self._data is None:
+            debug(f"Allocating host memory for {self.name}{self.shape_allocated} "
+                  f"[{humanbytes(self.nbytes)}]")
+
+            self._data = self._DataType(self.shape_allocated, self.dtype,
+                                        modulo=self._mask_modulo,
+                                        allocator=self._allocator,
+                                        distributor=self._distributor,
+                                        padding=self._size_ghost)
+
     def _allocate_memory(func):
         """Allocate memory as a Data."""
         @wraps(func)
@@ -123,18 +134,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     # Aliasing Functions must not allocate data
                     return
 
-                debug(f"Allocating host memory for {self.name}{self.shape_allocated} "
-                      f"[{humanbytes(self.nbytes)}]")
-
                 # Clear up both SymPy and Devito caches to drop unreachable data
                 CacheManager.clear(force=False)
 
                 # Allocate the actual data object
-                self._data = self._DataType(self.shape_allocated, self.dtype,
-                                            modulo=self._mask_modulo,
-                                            allocator=self._allocator,
-                                            distributor=self._distributor,
-                                            padding=self._size_ghost)
+                self._create_data()
 
                 # Initialize data
                 if self._first_touch:
@@ -149,7 +153,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                         # Perhaps user only wants to initialise the physical domain
                         self._initializer(self.data)
                 else:
-                    self.data_with_halo.fill(0)
+                    self.data_with_halo[:] = 0
 
             return func(self)
         return wrapper
@@ -297,7 +301,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     def symbolic_shape(self):
-        return tuple(self._C_get_field(FULL, d).size for d in self.dimensions)
+        return DimensionTuple(*[self._C_get_field(FULL, d).size for d in self.dimensions],
+                              getters=self.dimensions)
 
     @property
     def size_global(self):
@@ -937,6 +942,10 @@ class Function(DiscreteFunction):
             discretization order (`o`) as well as the number of points on
             the left/right sides of a generic point of interest for each
             SpaceDimension.
+    interp_order: int, optional, default=2
+        Order of the interpolation scheme used to evaluate the Function at
+        non-grid points (e.g., when using a Function as a parameter to be
+        evaluated at a staggered location).
     shape : tuple of ints, optional
         Shape of the domain region in grid points. Only necessary if `grid`
         isn't given.
@@ -1010,7 +1019,7 @@ class Function(DiscreteFunction):
     is_autopaddable = True
 
     __rkwargs__ = (DiscreteFunction.__rkwargs__ +
-                   ('space_order', 'dimensions'))
+                   ('space_order', 'interp_order', 'dimensions', 'is_parameter'))
 
     def _cache_meta(self):
         # Attach additional metadata to self's cache entry
@@ -1032,6 +1041,16 @@ class Function(DiscreteFunction):
         else:
             raise TypeError("Invalid `space_order`")
 
+        # Interpolation order
+        interp_order = kwargs.get('interp_order', 2)
+        if not is_integer(interp_order):
+            raise TypeError("`interp_order` must be an integer")
+        elif interp_order < 1:
+            raise ValueError("`interp_order` must be >= 2")
+        elif interp_order > self._space_order and self._space_order > 1:
+            raise ValueError("`interp_order` must be <= `space_order`")
+        self._interp_order = interp_order
+
         # Acquire derivative shortcuts
         if self is self.function:
             self._fd = self.__fd_setup__()
@@ -1045,7 +1064,7 @@ class Function(DiscreteFunction):
         # Used at operator evaluation to evaluate the Function at the
         # variable location (i.e. if the variable is staggered in x the
         # parameter has to be computed at x + hx/2)
-        self._is_parameter = kwargs.get('parameter', False)
+        self._is_parameter = kwargs.get('parameter', kwargs.get('is_parameter', False))
 
     def __fd_setup__(self):
         """
@@ -1228,6 +1247,11 @@ class Function(DiscreteFunction):
     def space_order(self):
         """The space order."""
         return self._space_order
+
+    @property
+    def interp_order(self):
+        """The interpolation order."""
+        return self._interp_order
 
     def sum(self, p=None, dims=None):
         """

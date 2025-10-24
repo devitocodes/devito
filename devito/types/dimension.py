@@ -613,7 +613,7 @@ class AbstractSubDimension(DerivedDimension):
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
     __rkwargs__ = ()
 
-    _thickness_type = Symbol
+    _thickness_type = Thickness
 
     def __init_finalize__(self, name, parent, thickness, **kwargs):
         super().__init_finalize__(name, parent)
@@ -634,7 +634,7 @@ class AbstractSubDimension(DerivedDimension):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True}
 
         names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
-        return SubDimensionThickness(*[Symbol(name=n, **kwargs) for n in names])
+        return SubDimensionThickness(*[Thickness(name=n, **kwargs) for n in names])
 
     @cached_property
     def symbolic_min(self):
@@ -1567,9 +1567,9 @@ class StencilDimension(BasicDimension):
         if not is_integer(step):
             raise ValueError("Expected integer `step` (got %s)" % step)
 
-        self._min = _min
-        self._max = _max
-        self._step = step
+        self._min = int(_min)
+        self._max = int(_max)
+        self._step = int(step)
 
         self._size = _max - _min + 1
 

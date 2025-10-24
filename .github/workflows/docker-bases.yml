@@ -1,5 +1,8 @@
 name: Build base compilers docker images
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -38,14 +41,22 @@ jobs:
   #######################################################
   deploy-cpu-bases:
     if: inputs.cpu
-    name: "cpu-base"
-    runs-on: ubuntu-latest
+    name: "cpu-base-${{ matrix.arch }}-gcc${{ matrix.gcc }}"
+    runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
 
     strategy:
       matrix:
         gcc: ["", "14"]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout devito
@@ -72,8 +83,41 @@ jobs:
           context: .
           file: "./docker/Dockerfile.cpu"
           push: true
+          platforms: ${{ matrix.platform }}
           build-args: "gcc=${{ matrix.gcc }}"
-          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}"
+          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}-${{ matrix.arch }}"
+
+  deploy-cpu-bases-manifest:
+    if: inputs.cpu
+    name: "cpu-base-manifest"
+    runs-on: ubuntu-latest
+    needs: deploy-cpu-bases
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        gcc: ["", "14"]
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Create multi-arch manifest
+        env:
+          TAG_BASE: ${{ format('cpu-gcc{0}', matrix.gcc) }}
+        run: |
+          docker buildx imagetools create \
+            --tag devitocodes/bases:${TAG_BASE} \
+            devitocodes/bases:${TAG_BASE}-amd64 \
+            devitocodes/bases:${TAG_BASE}-arm64
+          docker buildx imagetools inspect devitocodes/bases:${TAG_BASE}
 
   #######################################################
   ############## Intel OneApi CPU #######################
@@ -138,10 +182,23 @@ jobs:
   #######################################################
   deploy-nvidia-bases:
     if: inputs.nvidia
-    name: "nvidia-bases"
-    runs-on: ["self-hosted", "nvidiagpu"]
+    name: "nvidia-bases-${{ matrix.arch }}"
+    runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner:
+              - self-hosted
+              - nvidiagpu
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
 
     steps:
       - name: Checkout devito
@@ -169,10 +226,11 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvc"
+          platforms: ${{ matrix.platform }}
           build-args: "arch=nvc"
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvc"
+          tags: "devitocodes/bases:nvidia-nvc-${{ matrix.arch }}"
 
       - name: NVCC image
         uses: docker/build-push-action@v6
@@ -181,9 +239,10 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvcc"
+          platforms: ${{ matrix.platform }}
           build-args: "arch=nvcc"
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvcc"
+          tags: "devitocodes/bases:nvidia-nvcc-${{ matrix.arch }}"
 
       - name: NVC host image
         uses: docker/build-push-action@v6
@@ -192,9 +251,42 @@ jobs:
           file: "./docker/Dockerfile.nvidia"
           push: true
           target: "nvc-host"
+          platforms: ${{ matrix.platform }}
           build-args: "arch=nvc-host"
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:cpu-nvc"
+          tags: "devitocodes/bases:cpu-nvc-${{ matrix.arch }}"
+
+  deploy-nvidia-bases-manifest:
+    if: inputs.nvidia
+    name: "nvidia-base-manifest"
+    runs-on: ubuntu-latest
+    needs: deploy-nvidia-bases
+    env:
+      DOCKER_BUILDKIT: "1"
+
+    strategy:
+      matrix:
+        final_tag: [nvidia-nvc, nvidia-nvcc, cpu-nvc]
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Create multi-arch manifest
+        env:
+          FINAL_TAG: ${{ matrix.final_tag }}
+        run: |
+          docker buildx imagetools create \
+            --tag devitocodes/bases:${FINAL_TAG} \
+            devitocodes/bases:${FINAL_TAG}-amd64 \
+            devitocodes/bases:${FINAL_TAG}-arm64
+          docker buildx imagetools inspect devitocodes/bases:${FINAL_TAG}
 
   #######################################################
   ##################### AMD #############################
@@ -246,5 +338,5 @@ jobs:
           push: true
           target: "hip"
           build-args: |
-            ROCM_VERSION=6.3.4
+            ROCM_VERSION=7.0.2
           tags: devitocodes/bases:amd-hip

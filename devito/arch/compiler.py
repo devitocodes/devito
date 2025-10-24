@@ -760,6 +760,7 @@ class HipCompiler(Compiler):
     _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
+        self.cflags.append('-Wno-unused-result')
 
         if configuration['mpi']:
             # We rather use `hipcc` to compile MPI, but for this we have to
@@ -772,6 +773,23 @@ class HipCompiler(Compiler):
                 self.cflags.append('-DHIP_FAST_MATH')
 
         self.src_ext = 'cpp'
+
+    @property
+    def version(self):
+        try:
+            res = run(['hipconfig', "--version"], stdout=PIPE, stderr=DEVNULL)
+            ver = res.stdout.decode("utf-8").split('-')[0]
+            ver = Version(ver)
+        except (UnicodeDecodeError, OSError):
+            ver = Version("0")
+        return ver
+
+    @property
+    def _cxxstd(self):
+        if self.version >= Version("7.0.0"):
+            return 'c++17'
+        else:
+            return 'c++14'
 
     def __lookup_cmds__(self):
         self.CC = 'hipcc'

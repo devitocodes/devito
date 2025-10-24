@@ -1,14 +1,14 @@
 """The parameters dictionary contains global parameter settings."""
-
+from abc import ABC, abstractmethod
 from collections import OrderedDict
-from os import environ
+import os
 from functools import wraps
 
 from devito.logger import info, warning
 from devito.tools import Signer, filter_ordered
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state',
-           'switchconfig']
+           'switchconfig', 'switchenv']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -170,24 +170,24 @@ configuration = Parameters("Devito-Configuration")
 def init_configuration(configuration=configuration, env_vars_mapper=env_vars_mapper,
                        env_vars_deprecated=env_vars_deprecated):
     # Populate `configuration` with user-provided options
-    if environ.get('DEVITO_CONFIG') is None:
+    if os.environ.get('DEVITO_CONFIG') is None:
         # It is important to configure `platform`, `compiler`, and the rest, in this order
         process_order = filter_ordered(['platform', 'compiler'] +
                                        list(env_vars_mapper.values()))
         queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
-        unprocessed = OrderedDict([(v, environ.get(k, configuration._defaults[v]))
+        unprocessed = OrderedDict([(v, os.environ.get(k, configuration._defaults[v]))
                                    for k, v in queue])
 
         # Handle deprecated env vars
         mapper = dict(queue)
         for k, (v, msg) in env_vars_deprecated.items():
-            if environ.get(k):
+            if os.environ.get(k):
                 warning(f"`{k}` is deprecated. {msg}")
-                if environ.get(v):
+                if os.environ.get(v):
                     warning(f"Both `{k}` and `{v}` set. Ignoring `{k}`")
                 else:
-                    warning(f"Setting `{v}={environ[k]}`")
-                    unprocessed[mapper[v]] = environ[k]
+                    warning(f"Setting `{v}={os.environ[k]}`")
+                    unprocessed[mapper[v]] = os.environ[k]
     else:
         # Attempt reading from the specified configuration file
         raise NotImplementedError("Devito doesn't support configuration via file yet.")
@@ -224,12 +224,37 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
     configuration.initialize()
 
 
-class switchconfig:
+class SwitchDecorator(ABC):
+    """
+    Abstract base class that turns a context manager class into a decorator.
+    """
+    @abstractmethod
+    def __init__(self, *args, **kwargs):
+        pass
 
+    @abstractmethod
+    def __enter__(self):
+        pass
+
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, traceback):
+        pass
+
+    def __call__(self, func, *args, **kwargs):
+        """ The call method turns the context manager class into a decorator
+        """
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            with self:
+                result = func(*args, **kwargs)
+            return result
+        return wrapper
+
+
+class switchconfig(SwitchDecorator):
     """
     Decorator or context manager to temporarily change `configuration` parameters.
     """
-
     def __init__(self, condition=True, **params):
         if condition:
             self.params = {k.replace('_', '-'): v for k, v in params.items()}
@@ -237,13 +262,13 @@ class switchconfig:
             self.params = {}
         self.previous = {}
 
-    def __enter__(self, condition=True, **params):
+    def __enter__(self):
         self.previous = {}
         for k, v in self.params.items():
             self.previous[k] = configuration[k]
             configuration[k] = v
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, traceback):
         for k, v in self.params.items():
             try:
                 configuration[k] = self.previous[k]
@@ -251,13 +276,24 @@ class switchconfig:
                 # E.g., `platform` and `compiler` will end up here
                 super(Parameters, configuration).__setitem__(k, self.previous[k])
 
-    def __call__(self, func, *args, **kwargs):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            with self:
-                result = func(*args, **kwargs)
-            return result
-        return wrapper
+
+class switchenv(SwitchDecorator):
+    """
+    Temporarily set environment variables from a dictionary
+
+    Note: This does not propagate any environment variables that change inside
+    the context manager, so should be used cautiously.
+    """
+    def __init__(self, params):
+        self.previous = dict(os.environ)
+        self.params = params
+
+    def __enter__(self):
+        os.environ.update(self.params)
+
+    def __exit__(self, exc_type, exc_val, traceback):
+        os.environ.clear()
+        os.environ.update(self.previous)
 
 
 def print_defaults():

@@ -9,8 +9,9 @@ from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # no
                     switchconfig)
 from devito.ir.iet import (
     Call, Callable, Conditional, Definition, DeviceCall, DummyExpr, Iteration, List,
-    KernelLaunch, Lambda, ElementalFunction, CGen, FindSymbols, filter_iterations,
-    make_efunc, retrieve_iteration_tree, Transformer, Callback, FindNodes
+    KernelLaunch, Dereference, Lambda, ElementalFunction, CGen, FindSymbols,
+    filter_iterations, make_efunc, retrieve_iteration_tree, Transformer,
+    Callback, FindNodes
 )
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
@@ -18,7 +19,8 @@ from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
                               FLOAT)
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import CustomDimension, Array, LocalObject, Symbol, Constant
+from devito.types import (CustomDimension, Array, LocalObject, Symbol, Constant,
+                          Pointer)
 
 
 @pytest.fixture
@@ -523,3 +525,16 @@ def test_list_inline():
 
     lst = List(body=[expr0, expr1], inline=True)
     assert str(lst) == """a = 1; b = 2;"""
+
+
+def test_dereference_base_plus_off():
+    ptr = Pointer(name='p', dtype=np.float32)
+    off = Symbol(name='offs', dtype=np.int32)
+
+    dim0 = CustomDimension(name='d0', symbolic_size=2)
+    dim1 = CustomDimension(name='d1', symbolic_size=3)
+    x = Array(name='x', dimensions=(dim0, dim1), dtype=np.float32)
+
+    deref = Dereference(x, ptr, offset=off)
+
+    assert str(deref) == "float (*restrict x)[3] = (float (*)[3]) (p + offs);"

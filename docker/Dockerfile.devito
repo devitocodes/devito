@@ -94,7 +94,15 @@ COPY --from=builder --chown=app:app /opt /opt
 
 # Install codecov
 WORKDIR /app/devito
-RUN curl -Os https://uploader.codecov.io/latest/linux/codecov && chmod +x codecov && chown app:app codecov
+RUN arch="$(uname -m)" && \
+    case "$arch" in \
+        x86_64) codecov_os=linux ;; \
+        aarch64|arm64) codecov_os=aarch64 ;; \
+        *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac && \
+    curl -fL -o codecov "https://uploader.codecov.io/latest/${codecov_os}/codecov" && \
+    chmod +x codecov && \
+    chown app:app codecov
 
 # Change to the app user.
 USER app

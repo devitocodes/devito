@@ -1778,3 +1778,24 @@ class TestSubDomainFunctionsParallel:
         if grid.distributor.myrank == 0:
             assert np.all(np.isclose(fdata[:], gdata[:, 2:-2, 2:-2]))
             assert np.isclose(np.linalg.norm(fdata[:]), norm)
+
+    def test_mixed_domain_fd_staggered(self):
+        grid = Grid(shape=(20, 20, 20))
+        x = grid.dimensions[0]
+
+        class SD1(SubDomain):
+            name = 'sd1'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('left', 2), y: y, z: z}
+
+        sd1 = SD1(grid=grid)
+        f = TimeFunction(name='f', grid=grid, time_order=1, space_order=2,
+                         staggered=(x,))
+        g = TimeFunction(name='g', grid=sd1, time_order=1, space_order=2,
+                         staggered=(x,))
+
+        eq = Eq(g, g + f.dx)
+        eqe = eq.evaluate
+        assert eqe.rhs == g + f.dx(x0=x).evaluate._subs(x, g.dimensions[1])

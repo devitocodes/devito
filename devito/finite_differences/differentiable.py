@@ -36,7 +36,7 @@ class Differentiable(sympy.Expr, Evaluable):
     # operators to be used
     _op_priority = sympy.Expr._op_priority + 1.
 
-    __rkwargs__ = ('space_order', 'time_order', 'indices')
+    __rkwargs__ = ('space_order', 'interp_order', 'time_order', 'indices')
 
     @cached_property
     def _functions(self):
@@ -53,6 +53,12 @@ class Differentiable(sympy.Expr, Evaluable):
         # Default 100 is for "infinitely" differentiable
         return min([getattr(i, 'space_order', 100) or 100 for i in self._args_diff],
                    default=100)
+
+    @cached_property
+    def interp_order(self):
+        # Default 2 is a reasonable default for interpolation
+        return min([getattr(i, 'interp_order', 2) or 2 for i in self._args_diff],
+                   default=2)
 
     @cached_property
     def time_order(self):
@@ -750,7 +756,12 @@ class IndexSum(sympy.Expr, Evaluable):
         return self._dimensions
 
     def _evaluate(self, **kwargs):
-        expr = self.expr._evaluate(**kwargs)
+        try:
+            expr = self.expr._evaluate(**kwargs)
+        except AttributeError:
+            # There are rare circumstances in which `self.expr` is a plain
+            # SymPy object rather than an Evaluable
+            expr = Evaluable._evaluate_maybe_nested(self.expr, **kwargs)
 
         if not kwargs.get('expand', True):
             return self._rebuild(expr)
@@ -770,7 +781,10 @@ class IndexSum(sympy.Expr, Evaluable):
 
 
 class WeightsIndexed(Indexed):
-    pass
+
+    @property
+    def dimension(self):
+        return self.function.dimension
 
 
 class Weights(Array):
@@ -1119,9 +1133,11 @@ def _(expr, x0, **kwargs):
 def _(expr, x0, **kwargs):
     from devito.finite_differences.derivative import Derivative
     x0_expr = {d: v for d, v in x0.items() if v is not expr.indices_ref[d]}
-    if x0_expr:
+    if expr.is_parameter:
+        return expr
+    elif x0_expr:
         dims = tuple((d, 0) for d in x0_expr)
-        fd_o = tuple([2]*len(dims))
+        fd_o = tuple([expr.interp_order]*len(dims))
         return Derivative(expr, *dims, fd_order=fd_o, x0=x0_expr)
     else:
         return expr
