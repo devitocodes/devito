@@ -3,58 +3,77 @@
 # This Dockerfile contains the Intel OneAPI toolkit for Devito
 ##############################################################
 
-# Base image
-FROM ubuntu:22.04 as base
+ARG base=ubuntu:22.04
 
-ENV DEBIAN_FRONTEND noninteractive
+FROM ${base} as oneapi
 
-# Install python
-RUN apt-get update && \
-    apt-get install -y dh-autoreconf python3-venv python3-dev python3-pip
+SHELL ["/bin/bash", "-c"]
 
-# Install for basic base not containing it
-RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake \
-        autoconf libtool build-essential procps git
+COPY requirements-mpi.txt /tmp/requirements-mpi.txt
 
-EXPOSE 8888
-CMD ["/bin/bash"]
+# Install base dependencies
+RUN if command -v apt-get >/dev/null; then \
+        export DEBIAN_FRONTEND=noninteractive && \
+        apt-get update && \
+        apt-get install -y \
+            dh-autoreconf python3-venv python3-dev python3-pip \
+            wget flex libnuma-dev hwloc curl cmake \
+            autoconf libtool build-essential procps git gpg \
+            libncurses5-dev libncursesw5-dev libdrm-dev libsystemd-dev \
+            python3-dbg gdb numactl tmux vim libgl1-mesa-glx libfftw3-dev; \
+    else \
+        dnf update -y && \
+        dnf install -y \
+            python3 python3-devel python3-pip \
+            wget flex numactl-devel hwloc hwloc-devel curl cmake \
+            git autoconf libtool make which procps-ng gcc gcc-c++ gcc-gfortran \
+            gpgme ncurses-devel libdrm-devel systemd-devel gdb numactl tmux vim mesa-libGL fftw-devel && \
+        (dnf install -y python3-debug || true) && \
+        dnf clean all && rm -rf /var/cache/dnf; \
+    fi
 
-##############################################################
-# Intel OneAPI standard image
-##############################################################
-FROM base AS oneapi
-
-# Download the key to system keyring
-# https://www.intel.com/content/www/us/en/develop/documentation/installation-guide-for-intel-oneapi-toolkits-linux/top/installation/install-using-package-managers/apt.html#apt
-RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor > /usr/share/keyrings/oneapi-archive-keyring.gpg
-RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/oneAPI.list
-
-# Intel advisor and drivers
-RUN apt-get update -y && \
-    # advisor
-    apt-get install -y intel-oneapi-advisor
-
-# Drivers mandatory for intel gpu
-# https://dgpu-docs.intel.com/driver/installation.html#ubuntu-install-steps
-RUN wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor > /usr/share/keyrings/intel-graphics.gpg
-RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy unified" >  /etc/apt/sources.list.d/intel-gpu-jammy.list
-
-RUN apt-get update -y && apt-get dist-upgrade -y && \
-    # Compute and media runtime
-    apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero \
+# Configure Intel repositories and install toolkits
+RUN if command -v apt-get >/dev/null; then \
+        wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor > /usr/share/keyrings/oneapi-archive-keyring.gpg && \
+        echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/oneAPI.list && \
+        wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor > /usr/share/keyrings/intel-graphics.gpg && \
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy unified" > /etc/apt/sources.list.d/intel-gpu-jammy.list && \
+        apt-get update -y && apt-get dist-upgrade -y && \
+        apt-get install -y intel-oneapi-advisor && \
+        apt-get install -y intel-oneapi-mpi-devel && \
+        apt-get install -y intel-opencl-icd intel-level-zero-gpu level-zero \
             intel-media-va-driver-non-free libmfx1 libmfxgen1 libvpl2 \
             libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri \
             libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers \
             mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all vainfo hwinfo clinfo \
-            # XPU-SMI
             pciutils libkmod-dev intel-fw-gpu xpu-smi \
-            # Development packages
-            libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev level-zero-dev
+            libigc-dev intel-igc-cm libigdfcl-dev libigfxcmrt-dev level-zero-dev; \
+    else \
+        dnf install -y dnf-plugins-core && \
+        dnf config-manager --add-repo https://yum.repos.intel.com/oneapi && \
+        rpm --import https://yum.repos.intel.com/oneapi/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
+        dnf update -y && \
+        dnf install -y intel-oneapi-advisor && \
+        dnf install -y intel-oneapi-mpi-devel intel-oneapi-runtime-compilers intel-oneapi-runtime-dpcpp-cpp \
+            intel-oneapi-runtime-opencl intel-oneapi-runtime-level-zero && \
+        dnf clean all && rm -rf /var/cache/dnf; \
+    fi
 
-ENV MPI4PY_FLAGS='. /opt/intel/oneapi/setvars.sh intel64 && '
+# Python virtual environment with mpi4py pre-installed
+RUN python3 -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip wheel setuptools && \
+    source /opt/intel/oneapi/setvars.sh intel64 && \
+    MPICC=mpiicc /venv/bin/pip install --no-cache-dir -r /tmp/requirements-mpi.txt
+
 ENV MPI4PY_RC_RECV_MPROBE=0
 
-RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+# Cleanup package caches on apt-based systems
+RUN if command -v apt-get >/dev/null; then \
+        apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+EXPOSE 8888
+CMD ["/bin/bash"]
 
 ##############################################################
 # ICC image
@@ -62,9 +81,14 @@ RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/l
 ##############################################################
 FROM oneapi AS icc
 
-RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi-devel && \
-    apt-get clean && apt-get autoclean && apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+RUN if command -v apt-get >/dev/null; then \
+        apt-get update -y && \
+        apt-get install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi-devel && \
+        apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*; \
+    else \
+        dnf install -y intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic intel-oneapi-mpi-devel && \
+        dnf clean all && rm -rf /var/cache/dnf; \
+    fi
 
 # Devito config
 ENV I_MPI_CC="icc"
@@ -80,9 +104,14 @@ ENV MPICC=mpiicc
 ##############################################################
 FROM oneapi AS icx
 
-RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mpi-devel && \
-    apt-get clean && apt-get autoclean && apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+RUN if command -v apt-get >/dev/null; then \
+        apt-get update -y && \
+        apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mpi-devel && \
+        apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*; \
+    else \
+        dnf install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mpi-devel && \
+        dnf clean all && rm -rf /var/cache/dnf; \
+    fi
 
 # Devito config
 ENV I_MPI_CC="icx"

@@ -3,21 +3,57 @@
 # Based on  https://github.com/amd/InfinityHub-CI/tree/main/base-gpu-mpi-rocm-docker
 ##############################################################
 
+ARG base=rocm/dev-ubuntu-22.04
 ARG ROCM_VERSION=7.0.2
-
-FROM rocm/dev-ubuntu-22.04:${ROCM_VERSION}-complete AS sdk-base
-
 ARG UCX_BRANCH="v1.17.x"
 ARG OMPI_BRANCH="v5.0.x"
 
-# Update and Install basic Linux development tools
-RUN rm /etc/apt/sources.list.d/* \
-  && apt-get update \
-  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    dh-autoreconf python3-venv python3-dev python3-pip git \
-    ca-certificates ssh make libtinfo* initramfs-tools libelf-dev \
-    wget build-essential autoconf automake libtool \
-    pkg-config libnuma* gfortran flex hwloc cmake
+FROM rocm/dev-fedora-24:${ROCM_VERSION}-complete AS rocm-fedora
+
+FROM ${base}:${ROCM_VERSION}-complete AS sdk-base
+
+SHELL ["/bin/bash", "-c"]
+
+ARG ROCM_VERSION
+ARG UCX_BRANCH
+ARG OMPI_BRANCH
+
+COPY requirements-mpi.txt /tmp/requirements-mpi.txt
+COPY --from=rocm-fedora /opt/rocm /opt/rocm-fedora
+
+# Install development dependencies
+RUN if command -v apt-get >/dev/null; then \
+        export DEBIAN_FRONTEND=noninteractive && \
+        rm /etc/apt/sources.list.d/* && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends \
+            dh-autoreconf python3-venv python3-dev python3-pip git \
+            ca-certificates ssh make libtinfo* initramfs-tools libelf-dev \
+            wget build-essential autoconf automake libtool \
+            pkg-config libnuma* gfortran flex hwloc cmake \
+            libncurses5-dev libncursesw5-dev libdrm-dev libsystemd-dev \
+            python3-dbg gdb numactl tmux vim libgl1-mesa-glx libfftw3-dev; \
+    else \
+        dnf update -y && \
+        dnf install -y \
+            python3 python3-devel python3-pip git ca-certificates \
+            make automake autoconf libtool cmake \
+            numactl numactl-devel hwloc hwloc-devel flex wget \
+            gcc gcc-c++ gcc-gfortran pkgconfig \
+            ncurses-devel libdrm-devel systemd-devel gdb numactl tmux vim mesa-libGL fftw-devel && \
+        (dnf install -y python3-debug || true) && \
+        dnf clean all && rm -rf /var/cache/dnf; \
+    fi
+
+# Provide ROCm on RPM bases using Fedora artifacts
+RUN if command -v apt-get >/dev/null; then \
+        rm -rf /opt/rocm-fedora; \
+    else \
+        rm -rf /opt/rocm && \
+        mkdir -p /opt/rocm && \
+        cp -a /opt/rocm-fedora/. /opt/rocm/ && \
+        rm -rf /opt/rocm-fedora; \
+    fi
 
 ENV ROCM_HOME=/opt/rocm\
     UCX_HOME=/opt/ucx \
@@ -79,13 +115,27 @@ ENV UCX_WARN_UNUSED_ENV_VARS=n
 ENV UCX_TLS=sm,self,rocm,rocm_copy,rocm_ipc
 
 # Cleanup
-RUN rm -rf /tmp/ucx && rm -rf /tmp/ompi
+RUN rm -rf /tmp/ucx /tmp/ompi
+
+# Python virtual environment with mpi4py
+RUN python3 -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir --upgrade pip wheel setuptools && \
+    MPICC=$OMPI_HOME/bin/mpicc /venv/bin/pip install --no-cache-dir -r /tmp/requirements-mpi.txt && \
+    /venv/bin/pip install --no-cache-dir jupyter && \
+    rm -rf ~/.cache/pip
+
+# Cleanup package caches
+RUN if command -v apt-get >/dev/null; then \
+        apt-get clean && apt-get autoclean && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*; \
+    else \
+        true; \
+    fi
 
 # Adding OpenMPI and UCX to Environment
 ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
     LD_LIBRARY_PATH=$OMPI_HOME/lib:$UCX_HOME/lib:$LD_LIBRARY_PATH \
-    C_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$C_INCLUDE_PATH \ 
-    CPLUS_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$CPLUS_INCLUDE_PATH \ 
+    C_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$C_INCLUDE_PATH \
+    CPLUS_INCLUDE_PATH=$OMPI_HOME/include:$UCX_HOME/include:$CPLUS_INCLUDE_PATH \
     CPATH=$OMPI_HOME/include:$UCX_HOME/include:$CPATH \
     INCLUDE=$OMPI_HOME/include:$UCX_HOME/include:$INCLUDE \
     PKG_CONFIG_PATH=$OMPI_HOME/lib/pkgconfig:$UCX_HOME/lib/pkgconfig:$PKG_CONFIG_PATH
@@ -93,9 +143,6 @@ ENV PATH=$OMPI_HOME/bin:$UCX_HOME/bin:$PATH \
 # Adding environment variable for Running as ROOT
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
-
-RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8888
 CMD ["/bin/bash"]

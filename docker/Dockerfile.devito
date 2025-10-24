@@ -14,8 +14,8 @@ ARG GROUP_ID=1000
 ##################  Install devito ############################################
 
 ENV PIP_USE_PEP517=1
-# Install pip dependencies
-RUN python3 -m venv /venv && \
+# Install pip dependencies into pre-existing virtualenv
+RUN test -d /venv && \
     /venv/bin/pip install --no-cache-dir --upgrade pip wheel setuptools && \
     /venv/bin/pip install --no-cache-dir jupyter && \
     ln -fs /app/nvtop/build/src/nvtop /venv/bin/nvtop
@@ -26,9 +26,6 @@ ADD . /app/devito
 # Remove git files
 RUN rm -rf /app/devito/.git
 
-# Mpi4py
-RUN eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir --verbose -r /app/devito/requirements-mpi.txt"
-
 # Devito
 RUN /venv/bin/pip install --no-cache-dir -e /app/devito[extras,tests] && rm -rf ~/.cache/pip
 
@@ -37,24 +34,12 @@ FROM $base AS utilities
 # tmpi
 RUN curl https://raw.githubusercontent.com/Azrael3000/tmpi/master/tmpi -o /usr/local/bin/tmpi
 
-# Update if outdated and install extras
-RUN apt-get update && apt-get install -y \
-    libncurses5-dev libncursesw5-dev libdrm-dev libsystemd-dev \
-    python3-dbg gdb numactl tmux vim
-
-# Install OpenGL library, necessary for the installation of GemPy
-RUN apt-get install -y libgl1-mesa-glx
-
 # Nvtop
-RUN export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH && \
+RUN export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-/usr/lib/x86_64-linux-gnu/} && \
     git clone https://github.com/Syllo/nvtop.git /app/nvtop && \
     mkdir -p /app/nvtop/build && cd /app/nvtop/build && \
     cmake .. -DNVIDIA_SUPPORT=ON -DAMDGPU_SUPPORT=ON -DINTEL_SUPPORT=ON && \
     make && make install
-
-# cleanup
-RUN apt-get clean && apt-get autoclean && apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
 
 FROM utilities AS user
 # COPY is much faster than RUN chown by order of magnitude so we have a final step that

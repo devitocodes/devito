@@ -18,16 +18,16 @@ on:
     inputs:
       cpu:
         type: boolean
-        default: false
+        default: true
       nvidia:
         type: boolean
-        default: false
+        default: true
       amd:
         type: boolean
-        default: false
+        default: true
       intel:
         type: boolean
-        default: false
+        default: true
 
       tags:
         description: "Build compiler bases"
@@ -41,7 +41,7 @@ jobs:
   #######################################################
   deploy-cpu-bases:
     if: inputs.cpu
-    name: "cpu-base-${{ matrix.arch }}-gcc${{ matrix.gcc }}"
+    name: "cpu-base-${{ matrix.variant }}-${{ matrix.arch }}-gcc${{ matrix.gcc }}"
     runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
@@ -50,6 +50,7 @@ jobs:
       matrix:
         gcc: ["", "14"]
         arch: [amd64, arm64]
+        variant: [default, aws]
         include:
           - arch: amd64
             platform: linux/amd64
@@ -57,6 +58,12 @@ jobs:
           - arch: arm64
             platform: linux/arm64
             runner: ubuntu-24.04-arm
+          - variant: default
+            base_image: ubuntu:22.04
+            tag_suffix: ""
+          - variant: aws
+            base_image: amazonlinux:2023
+            tag_suffix: "-aws"
 
     steps:
       - name: Checkout devito
@@ -84,8 +91,10 @@ jobs:
           file: "./docker/Dockerfile.cpu"
           push: true
           platforms: ${{ matrix.platform }}
-          build-args: "gcc=${{ matrix.gcc }}"
-          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}-${{ matrix.arch }}"
+          build-args: |
+            base=${{ matrix.base_image }}
+            gcc=${{ matrix.gcc }}
+          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}${{ matrix.tag_suffix }}-${{ matrix.arch }}"
 
   deploy-cpu-bases-manifest:
     if: inputs.cpu
@@ -98,6 +107,12 @@ jobs:
     strategy:
       matrix:
         gcc: ["", "14"]
+        variant: [default, aws]
+        include:
+          - variant: default
+            suffix: ""
+          - variant: aws
+            suffix: "-aws"
 
     steps:
       - name: Set up Docker Buildx
@@ -111,7 +126,7 @@ jobs:
 
       - name: Create multi-arch manifest
         env:
-          TAG_BASE: ${{ format('cpu-gcc{0}', matrix.gcc) }}
+          TAG_BASE: ${{ format('cpu-gcc{0}{1}', matrix.gcc, matrix.suffix) }}
         run: |
           docker buildx imagetools create \
             --tag devitocodes/bases:${TAG_BASE} \
@@ -182,7 +197,7 @@ jobs:
   #######################################################
   deploy-nvidia-bases:
     if: inputs.nvidia
-    name: "nvidia-bases-${{ matrix.arch }}"
+    name: "nvidia-bases-${{ matrix.variant }}-${{ matrix.arch }}"
     runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
@@ -190,6 +205,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
+        variant: [default, aws]
         include:
           - arch: amd64
             platform: linux/amd64
@@ -199,6 +215,12 @@ jobs:
           - arch: arm64
             platform: linux/arm64
             runner: ubuntu-24.04-arm
+          - variant: default
+            base_image: ubuntu:22.04
+            tag_suffix: ""
+          - variant: aws
+            base_image: amazonlinux:2023
+            tag_suffix: "-aws"
 
     steps:
       - name: Checkout devito
@@ -227,10 +249,12 @@ jobs:
           push: true
           target: "nvc"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvc"
+          build-args: |
+            base=${{ matrix.base_image }}
+            arch=nvc
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:nvidia-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
 
       - name: NVCC image
         uses: docker/build-push-action@v6
@@ -240,9 +264,11 @@ jobs:
           push: true
           target: "nvcc"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvcc"
+          build-args: |
+            base=${{ matrix.base_image }}
+            arch=nvcc
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvcc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:nvidia-nvcc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
 
       - name: NVC host image
         uses: docker/build-push-action@v6
@@ -252,9 +278,11 @@ jobs:
           push: true
           target: "nvc-host"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvc-host"
+          build-args: |
+            base=${{ matrix.base_image }}
+            arch=nvc-host
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:cpu-nvc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:cpu-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
 
   deploy-nvidia-bases-manifest:
     if: inputs.nvidia
@@ -266,7 +294,19 @@ jobs:
 
     strategy:
       matrix:
-        final_tag: [nvidia-nvc, nvidia-nvcc, cpu-nvc]
+        include:
+          - final_tag: nvidia-nvc
+            suffix: ""
+          - final_tag: nvidia-nvcc
+            suffix: ""
+          - final_tag: cpu-nvc
+            suffix: ""
+          - final_tag: nvidia-nvc
+            suffix: "-aws"
+          - final_tag: nvidia-nvcc
+            suffix: "-aws"
+          - final_tag: cpu-nvc
+            suffix: "-aws"
 
     steps:
       - name: Set up Docker Buildx
@@ -280,13 +320,13 @@ jobs:
 
       - name: Create multi-arch manifest
         env:
-          FINAL_TAG: ${{ matrix.final_tag }}
+          FINAL_TAG_FULL: ${{ format('{0}{1}', matrix.final_tag, matrix.suffix) }}
         run: |
           docker buildx imagetools create \
-            --tag devitocodes/bases:${FINAL_TAG} \
-            devitocodes/bases:${FINAL_TAG}-amd64 \
-            devitocodes/bases:${FINAL_TAG}-arm64
-          docker buildx imagetools inspect devitocodes/bases:${FINAL_TAG}
+            --tag devitocodes/bases:${FINAL_TAG_FULL} \
+            devitocodes/bases:${FINAL_TAG_FULL}-amd64 \
+            devitocodes/bases:${FINAL_TAG_FULL}-arm64
+          docker buildx imagetools inspect devitocodes/bases:${FINAL_TAG_FULL}
 
   #######################################################
   ##################### AMD #############################
