@@ -45,6 +45,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
+      AWS_ECR_REGISTRY: ${{ secrets.AWS_DEVITO_ECR }}
+      AWS_REGION: us-east-1
 
     strategy:
       matrix:
@@ -84,6 +86,34 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Configure AWS credentials
+        if: matrix.variant == 'aws'
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: matrix.variant == 'aws'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Prepare image tags
+        run: |
+          base_tag="devitocodes/bases:cpu-gcc${{ matrix.gcc }}${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          {
+            echo "IMAGE_TAGS<<'EOF'"
+            echo "$base_tag"
+            if [ "${{ matrix.variant }}" = "aws" ]; then
+              if [ -z "${{ env.AWS_ECR_REGISTRY }}" ]; then
+                echo "AWS_ECR_REGISTRY secret not set" >&2
+                exit 1
+              fi
+              echo "${{ env.AWS_ECR_REGISTRY }}/bases:cpu-gcc${{ matrix.gcc }}${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - name: GCC image
         uses: docker/build-push-action@v6
         with:
@@ -94,7 +124,7 @@ jobs:
           build-args: |
             base=${{ matrix.base_image }}
             gcc=${{ matrix.gcc }}
-          tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          tags: ${{ env.IMAGE_TAGS }}
 
   deploy-cpu-bases-manifest:
     if: inputs.cpu
@@ -133,6 +163,29 @@ jobs:
             devitocodes/bases:${TAG_BASE}-amd64 \
             devitocodes/bases:${TAG_BASE}-arm64
           docker buildx imagetools inspect devitocodes/bases:${TAG_BASE}
+
+      - name: Configure AWS credentials
+        if: matrix.suffix == '-aws'
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: matrix.suffix == '-aws'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create AWS multi-arch manifest
+        if: matrix.suffix == '-aws'
+        env:
+          TAG_BASE: ${{ format('cpu-gcc{0}{1}', matrix.gcc, matrix.suffix) }}
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.AWS_ECR_REGISTRY }}/bases:${TAG_BASE} \
+            ${{ env.AWS_ECR_REGISTRY }}/bases:${TAG_BASE}-amd64 \
+            ${{ env.AWS_ECR_REGISTRY }}/bases:${TAG_BASE}-arm64
+          docker buildx imagetools inspect ${{ env.AWS_ECR_REGISTRY }}/bases:${TAG_BASE}
 
   #######################################################
   ############## Intel OneApi CPU #######################
@@ -201,6 +254,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     env:
       DOCKER_BUILDKIT: "1"
+      AWS_ECR_REGISTRY: ${{ secrets.AWS_DEVITO_ECR }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
 
     strategy:
       matrix:
@@ -241,6 +296,58 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Configure AWS credentials
+        if: matrix.variant == 'aws'
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: matrix.variant == 'aws'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Prepare image tags (nvc)
+        run: |
+          base_tag="devitocodes/bases:nvidia-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          {
+            echo "NVC_TAGS<<'EOF'"
+            echo "$base_tag"
+            if [ "${{ matrix.variant }}" = "aws" ]; then
+              if [ -z "${{ env.AWS_ECR_REGISTRY }}" ]; then
+                echo "AWS_ECR_REGISTRY secret not set" >&2
+                exit 1
+              fi
+              echo "${{ env.AWS_ECR_REGISTRY }}/bases:nvidia-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare image tags (nvcc)
+        run: |
+          base_tag="devitocodes/bases:nvidia-nvcc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          {
+            echo "NVCC_TAGS<<'EOF'"
+            echo "$base_tag"
+            if [ "${{ matrix.variant }}" = "aws" ]; then
+              echo "${{ env.AWS_ECR_REGISTRY }}/bases:nvidia-nvcc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Prepare image tags (nvc-host)
+        run: |
+          base_tag="devitocodes/bases:cpu-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          {
+            echo "NVC_HOST_TAGS<<'EOF'"
+            echo "$base_tag"
+            if [ "${{ matrix.variant }}" = "aws" ]; then
+              echo "${{ env.AWS_ECR_REGISTRY }}/bases:cpu-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - name: NVC image
         uses: docker/build-push-action@v6
         with:
@@ -254,7 +361,7 @@ jobs:
             arch=nvc
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          tags: ${{ env.NVC_TAGS }}
 
       - name: NVCC image
         uses: docker/build-push-action@v6
@@ -268,7 +375,7 @@ jobs:
             base=${{ matrix.base_image }}
             arch=nvcc
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvcc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          tags: ${{ env.NVCC_TAGS }}
 
       - name: NVC host image
         uses: docker/build-push-action@v6
@@ -282,7 +389,7 @@ jobs:
             base=${{ matrix.base_image }}
             arch=nvc-host
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:cpu-nvc${{ matrix.tag_suffix }}-${{ matrix.arch }}"
+          tags: ${{ env.NVC_HOST_TAGS }}
 
   deploy-nvidia-bases-manifest:
     if: inputs.nvidia
@@ -291,6 +398,8 @@ jobs:
     needs: deploy-nvidia-bases
     env:
       DOCKER_BUILDKIT: "1"
+      AWS_ECR_REGISTRY: ${{ secrets.AWS_DEVITO_ECR }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
 
     strategy:
       matrix:
@@ -327,6 +436,29 @@ jobs:
             devitocodes/bases:${FINAL_TAG_FULL}-amd64 \
             devitocodes/bases:${FINAL_TAG_FULL}-arm64
           docker buildx imagetools inspect devitocodes/bases:${FINAL_TAG_FULL}
+
+      - name: Configure AWS credentials
+        if: matrix.suffix == '-aws'
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: matrix.suffix == '-aws'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create AWS multi-arch manifest
+        if: matrix.suffix == '-aws'
+        env:
+          FINAL_TAG_FULL: ${{ format('{0}{1}', matrix.final_tag, matrix.suffix) }}
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.AWS_ECR_REGISTRY }}/bases:${FINAL_TAG_FULL} \
+            ${{ env.AWS_ECR_REGISTRY }}/bases:${FINAL_TAG_FULL}-amd64 \
+            ${{ env.AWS_ECR_REGISTRY }}/bases:${FINAL_TAG_FULL}-arm64
+          docker buildx imagetools inspect ${{ env.AWS_ECR_REGISTRY }}/bases:${FINAL_TAG_FULL}
 
   #######################################################
   ##################### AMD #############################
