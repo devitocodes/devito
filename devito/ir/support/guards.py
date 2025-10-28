@@ -292,6 +292,12 @@ class Guards(frozendict):
 
         return Guards(m)
 
+    def as_map(self, d, cls):
+        if cls not in (Le, Lt, Ge, Gt):
+            raise ValueError(f"Unsupported class {cls}")
+
+        return dict(i.args for i in search(self.get(d), cls))
+
 
 class GuardExpr(LocalObject, BooleanFunction):
 
