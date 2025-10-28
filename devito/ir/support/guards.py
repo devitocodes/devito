@@ -230,7 +230,7 @@ class GuardSwitch(AbstractGuard, Expr):
     """
 
     def __new__(cls, arg, **kwargs):
-        return Expr.__new__(cls, arg, **kwargs)
+        return Expr.__new__(cls, arg)
 
     @property
     def arg(self):
@@ -244,7 +244,7 @@ class GuardCaseSwitch(GuardSwitch):
     """
 
     def __new__(cls, arg, case, **kwargs):
-        return Expr.__new__(cls, arg, case, **kwargs)
+        return Expr.__new__(cls, arg, case)
 
     @property
     def case(self):

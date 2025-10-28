@@ -406,6 +406,11 @@ class Expression(ExprStmt, Node):
         """The Symbol/Indexed this Expression writes to."""
         return self.expr.lhs
 
+    @property
+    def rhs(self):
+        """The right-hand side of the underlying expression."""
+        return self.expr.rhs
+
     @cached_property
     def reads(self):
         """The Functions read by the Expression."""
