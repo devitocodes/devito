@@ -222,10 +222,11 @@ negations = {
 }
 
 
-class SwitchBase(AbstractGuard, Expr):
+class GuardSwitch(AbstractGuard, Expr):
 
     """
-    A symbolic keyword for a switch-case construct.
+    A switch guard (akin to C's switch-case) that can be used to select
+    between multiple cases at runtime.
     """
 
     def __new__(cls, arg, **kwargs):
@@ -236,12 +237,18 @@ class SwitchBase(AbstractGuard, Expr):
         return self.args[0]
 
 
-class GuardSwitch(SwitchBase):
-    pass
+class GuardCaseSwitch(GuardSwitch):
 
+    """
+    A case within a GuardSwitch.
+    """
 
-class GuardCaseSwitch(SwitchBase):
-    pass
+    def __new__(cls, arg, case, **kwargs):
+        return Expr.__new__(cls, arg, case, **kwargs)
+
+    @property
+    def case(self):
+        return self.args[1]
 
 
 class Guards(frozendict):
