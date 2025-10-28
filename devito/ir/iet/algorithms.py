@@ -35,7 +35,7 @@ def iet_build(stree):
             if isinstance(i.guard, GuardSwitch):
                 bundle, = queues.pop(i)
                 cases, nodes = _unpack_switch_case(bundle)
-                body = Switch(i.guard, cases, nodes)
+                body = Switch(i.guard.arg, cases, nodes)
             else:
                 body = Conditional(i.guard, queues.pop(i))
 
