@@ -8,20 +8,25 @@ from collections import Counter, defaultdict
 from operator import ge, gt, le, lt
 
 from functools import singledispatch
-from sympy import And, Ge, Gt, Le, Lt, Mul, true
+from sympy import And, Expr, Ge, Gt, Le, Lt, Mul, true
 from sympy.logic.boolalg import BooleanFunction
 import numpy as np
 
 from devito.ir.support.space import Forward, IterationDirection
-from devito.symbolics import CondEq, CondNe
+from devito.symbolics import CondEq, CondNe, search
 from devito.tools import Pickable, as_tuple, frozendict, split
 from devito.types import Dimension, LocalObject
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr']
+           'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr',
+           'GuardSwitch', 'GuardCaseSwitch']
 
 
-class Guard:
+class AbstractGuard:
+    pass
+
+
+class Guard(AbstractGuard):
 
     @property
     def _args_rebuild(self):
@@ -215,6 +220,35 @@ negations = {
     GuardOverflowGe: GuardOverflowLt,
     GuardOverflowLt: GuardOverflowGe
 }
+
+
+class GuardSwitch(AbstractGuard, Expr):
+
+    """
+    A switch guard (akin to C's switch-case) that can be used to select
+    between multiple cases at runtime.
+    """
+
+    def __new__(cls, arg, **kwargs):
+        return Expr.__new__(cls, arg)
+
+    @property
+    def arg(self):
+        return self.args[0]
+
+
+class GuardCaseSwitch(GuardSwitch):
+
+    """
+    A case within a GuardSwitch.
+    """
+
+    def __new__(cls, arg, case, **kwargs):
+        return Expr.__new__(cls, arg, case)
+
+    @property
+    def case(self):
+        return self.args[1]
 
 
 class Guards(frozendict):
