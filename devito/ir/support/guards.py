@@ -18,7 +18,8 @@ from devito.tools import Pickable, as_tuple, frozendict, split
 from devito.types import Dimension, LocalObject
 
 __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
-           'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr']
+           'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr',
+           'GuardSwitch', 'GuardCaseSwitch']
 
 
 class AbstractGuard:
@@ -221,31 +222,26 @@ negations = {
 }
 
 
-class Switch(AbstractGuard, Expr):
+class SwitchBase(AbstractGuard, Expr):
 
     """
-    A symbolic object representing a switch-case guard.
+    A symbolic keyword for a switch-case construct.
     """
 
-    def __new__(cls, value, **kwargs):
-        return Expr.__new__(cls, value, **kwargs)
+    def __new__(cls, arg, **kwargs):
+        return Expr.__new__(cls, arg, **kwargs)
 
     @property
-    def value(self):
+    def arg(self):
         return self.args[0]
 
 
-class CaseSwitch(Switch):
+class GuardSwitch(SwitchBase):
+    pass
 
-    """
-    A symbolic object representing a case in a switch-case guard.
-    """
 
-    def __new__(cls, switch, case, **kwargs):
-        obj = super().__new__(cls, switch, case, **kwargs)
-        obj.switch = switch
-        obj.case = case
-        return obj
+class GuardCaseSwitch(SwitchBase):
+    pass
 
 
 class Guards(frozendict):
