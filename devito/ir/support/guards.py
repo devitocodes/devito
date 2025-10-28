@@ -8,12 +8,12 @@ from collections import Counter, defaultdict
 from operator import ge, gt, le, lt
 
 from functools import singledispatch
-from sympy import And, Ge, Gt, Le, Lt, Mul, true
+from sympy import And, Expr, Ge, Gt, Le, Lt, Mul, true
 from sympy.logic.boolalg import BooleanFunction
 import numpy as np
 
 from devito.ir.support.space import Forward, IterationDirection
-from devito.symbolics import CondEq, CondNe
+from devito.symbolics import CondEq, CondNe, search
 from devito.tools import Pickable, as_tuple, frozendict, split
 from devito.types import Dimension, LocalObject
 
@@ -21,7 +21,11 @@ __all__ = ['GuardFactor', 'GuardBound', 'GuardBoundNext', 'BaseGuardBound',
            'BaseGuardBoundNext', 'GuardOverflow', 'Guards', 'GuardExpr']
 
 
-class Guard:
+class AbstractGuard:
+    pass
+
+
+class Guard(AbstractGuard):
 
     @property
     def _args_rebuild(self):
@@ -215,6 +219,33 @@ negations = {
     GuardOverflowGe: GuardOverflowLt,
     GuardOverflowLt: GuardOverflowGe
 }
+
+
+class Switch(AbstractGuard, Expr):
+
+    """
+    A symbolic object representing a switch-case guard.
+    """
+
+    def __new__(cls, value, **kwargs):
+        return Expr.__new__(cls, value, **kwargs)
+
+    @property
+    def value(self):
+        return self.args[0]
+
+
+class CaseSwitch(Switch):
+
+    """
+    A symbolic object representing a case in a switch-case guard.
+    """
+
+    def __new__(cls, switch, case, **kwargs):
+        obj = super().__new__(cls, switch, case, **kwargs)
+        obj.switch = switch
+        obj.case = case
+        return obj
 
 
 class Guards(frozendict):
