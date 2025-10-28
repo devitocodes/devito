@@ -281,10 +281,9 @@ class BasePrinter(CodePrinter):
         arg = expr.args[0]
         return f'~{self._print(arg)}'
 
-    def _print_BitwiseXor(self, expr):
-        # Binary function
+    def _print_BitwiseBinaryOp(self, expr):
         arg0, arg1 = expr.args
-        return f'{self._print(arg0)} ^ {self._print(arg1)}'
+        return f'{self._print(arg0)} {expr.op} {self._print(arg1)}'
 
     def _print_Add(self, expr, order=None):
         """"
