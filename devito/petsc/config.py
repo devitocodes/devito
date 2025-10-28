@@ -2,7 +2,13 @@ import os
 import ctypes
 from pathlib import Path
 
-from petsctools import get_petscvariables, MissingPetscException
+try:
+    from petsctools import get_petscvariables, MissingPetscException
+    petsc_variables = get_petscvariables()
+except ImportError:
+    petsc_variables = {}
+except MissingPetscException:
+    petsc_variables = {}
 
 from devito.tools import memoized_func
 
@@ -44,12 +50,6 @@ def core_metadata():
         'lib_dirs': petsc_lib,
         'ldflags': tuple([f"-Wl,-rpath,{lib}" for lib in petsc_lib])
     }
-
-
-try:
-    petsc_variables = get_petscvariables()
-except MissingPetscException:
-    petsc_variables = {}
 
 
 def get_petsc_type_mappings():
