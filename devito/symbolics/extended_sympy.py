@@ -17,13 +17,14 @@ from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
 from devito.types import Symbol
 from devito.types.basic import Basic
 
-__all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'IntDiv',  # noqa
-           'CallFromPointer', 'CallFromComposite', 'FieldFromPointer',
-           'FieldFromComposite', 'ListInitializer', 'Byref', 'IndexedPointer',
-           'Cast', 'DefFunction', 'MathFunction', 'InlineIf', 'ReservedWord',
-           'Keyword', 'String', 'Macro', 'Class', 'MacroArgument', 'Deref',
-           'Namespace', 'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin',
-           'ValueLimit', 'VectorAccess']
+__all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
+           'LeftShift', 'RightShift', 'IntDiv', 'CallFromPointer',
+           'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
+           'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
+           'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
+           'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace', 'Rvalue',
+           'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
+           'VectorAccess']
 
 
 class CondEq(sympy.Eq):
@@ -65,14 +66,31 @@ class CondNe(sympy.Ne):
 
 
 class BitwiseNot(BooleanFunction):
-    pass
+    op = '~'
 
 
-class BitwiseXor(BooleanFunction):
+class BitwiseBinaryOp(BooleanFunction):
+    op = ''
 
     # Enforce two args
     def __new__(cls, arg0, arg1, **kwargs):
         return super().__new__(cls, arg0, arg1, **kwargs)
+
+
+class BitwiseXor(BitwiseBinaryOp):
+    op = '^'
+
+
+class BitwiseAnd(BitwiseBinaryOp):
+    op = '&'
+
+
+class LeftShift(BitwiseBinaryOp):
+    op = '<<'
+
+
+class RightShift(BitwiseBinaryOp):
+    op = '>>'
 
 
 class IntDiv(sympy.Expr):
