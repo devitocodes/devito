@@ -1,5 +1,5 @@
 from devito.types.equation import Eq
-from devito.types.dense import Function
+from devito.types.dense import Function, TimeFunction
 from devito.symbolics import uxreplace
 import numpy as np
 from devito.types.array import Array
@@ -453,14 +453,11 @@ class HighOrderRungeKuttaExponential(MultiStage):
                 if e_p[i] != 0:
                     for j, idx in enumerate(src_index):
                         # Add weighted source derivative contribution
-                        source_contribution = (self.src[j][0]
-                                               * src_deriv[i][j].subs({self.t: self.t * self.dt})
-                                               * e_p[i])
+                        source_contribution = (self.src[j][0] * src_deriv[i][j].subs({self.t: self.t * self.dt}) * e_p[i])
                         src_lhs[idx] += source_contribution
 
             # Update expansion coefficients for next stage
-            e_p = [e_p[i] + mu*self.dt*e_p[i + 1]
-                   for i in range(p - 1)] + [e_p[-1]]
+            e_p = [e_p[i] + mu*self.dt*e_p[i + 1] for i in range(p - 1)] + [e_p[-1]]
 
         return src_lhs, e_p
 
@@ -483,9 +480,9 @@ class HighOrderRungeKuttaExponential(MultiStage):
         sregistry = kwargs.get('sregistry')
         # Create a temporary Array for each variable to save the time stages
         # k = [Array(name=f'{sregistry.make_name(prefix='k')}', dimensions=u[i].grid.dimensions, grid=u[i].grid, dtype=u[i].dtype) for i in range(n_eq)]
-        k = [Function(name=f'{sregistry.make_name(prefix='k')}', grid=self.lhs[i].grid,
+        k = [TimeFunction(name=f'{sregistry.make_name(prefix='k')}', grid=self.lhs[i].grid,
                       space_order=2, time_order=1, dtype=self.lhs[i].dtype) for i in range(self.n_eq)]
-        k_old = [Function(name=f'{sregistry.make_name(prefix='k')}', grid=self.lhs[i].grid,
+        k_old = [TimeFunction(name=f'{sregistry.make_name(prefix='k')}', grid=self.lhs[i].grid,
                           space_order=2, time_order=1, dtype=self.lhs[i].dtype) for i in range(self.n_eq)]
 
         # Compute SSPRK coefficients
@@ -500,6 +497,8 @@ class HighOrderRungeKuttaExponential(MultiStage):
         else:
             src_index = None
             src_deriv = None
+        print('src_index:', src_index)
+        print('src_deriv:', src_deriv)
 
         # Expansion coefficients for stability control
         e_p = [0] * self.deg
@@ -515,27 +514,26 @@ class HighOrderRungeKuttaExponential(MultiStage):
 
         # Build each stage
         for i in range(1, self.deg - 1):
+            print('e_p:', e_p)
             stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
             src_lhs, e_p = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
-            stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) 
-                              for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
-            stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[i]) 
-                              for lhs_j, k_j in zip(self.lhs, k)])
-
+            stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
+            stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[i]) for lhs_j, k_j in zip(self.lhs, k)])
+        print('e_p:', e_p)
         # Final Runge-Kutta updates
         stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
         src_lhs, e_p = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
-        stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j)
-                         for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
-
+        stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
+        print('e_p:', e_p)
         stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
         src_lhs, _ = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
-        stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j)
-                         for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
+        stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
 
         # Compute final approximation
-        stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[self.deg-1])
-                         for lhs_j, k_j in zip(self.lhs, k)])
+        stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[self.deg-1]) for lhs_j, k_j in zip(self.lhs, k)])
+        
+        for i in stage_eqs:
+            print(i)
 
         return stage_eqs
 
