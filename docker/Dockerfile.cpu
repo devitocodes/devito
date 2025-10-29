@@ -20,7 +20,6 @@ RUN apt-get install -y wget flex libnuma-dev hwloc curl cmake git \
         autoconf libtool build-essential procps software-properties-common \
         pkgconf gfortran libopenblas-serial-dev
 
-
 # Install gcc
 RUN if [ -n "$gcc" ]; then \
         apt-get install libgmp-dev libmpc-dev libmpfr-dev libisl-dev binutils texinfo -y && \
