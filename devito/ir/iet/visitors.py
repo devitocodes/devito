@@ -1430,7 +1430,10 @@ class Uxreplace(Transformer):
                           else_body=else_body)
 
     def visit_Switch(self, o):
-        from IPython import embed; embed()
+        condition = uxreplace(o.condition, self.mapper)
+        nodes = self._visit(o.nodes)
+        default = self._visit(o.default)
+        return o._rebuild(condition=condition, nodes=nodes, default=default)
 
     def visit_PointerCast(self, o):
         function = self.mapper.get(o.function, o.function)
