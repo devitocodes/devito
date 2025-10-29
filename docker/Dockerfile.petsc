@@ -2,7 +2,7 @@
 # Dockerfile.petsc: Installs PETSc
 ##############################################################
 
-ARG base=devitocodes/devito:cpu-dev
+ARG base=devitocodes/devito:gcc-dev-amd64
 
 FROM $base
 

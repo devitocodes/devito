@@ -40,6 +40,7 @@ jobs:
           push: true
           tags: |
             devitocodes/devito-petsc:latest
+          build-args: base=devitocodes/devito:gcc-dev-amd64
           platforms: linux/amd64
 
       - name: Remove dangling layers
