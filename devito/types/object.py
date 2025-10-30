@@ -1,14 +1,14 @@
 from ctypes import byref
-
 import sympy
 
-from devito.tools import Pickable, as_tuple, sympy_mutex
+from devito.tools import Pickable, as_tuple, sympy_mutex, CustomDtype
 from devito.types.args import ArgProvider
 from devito.types.caching import Uncached
 from devito.types.basic import Basic, LocalType
 from devito.types.utils import CtypesFactory
 
-__all__ = ['Object', 'LocalObject', 'CompositeObject']
+
+__all__ = ['Object', 'LocalObject', 'CompositeObject', 'LocalCompositeObject']
 
 
 class AbstractObject(Basic, sympy.Basic, Pickable):
@@ -132,6 +132,7 @@ class CompositeObject(Object):
     """
     Object with composite type (e.g., a C struct) defined in Python.
     """
+    is_CompositeObject = True
 
     __rargs__ = ('name', 'pname', 'pfields')
 
@@ -139,6 +140,7 @@ class CompositeObject(Object):
         dtype = CtypesFactory.generate(pname, pfields)
         value = self.__value_setup__(dtype, value)
         super().__init__(name, dtype, value)
+        self._pname = pname
 
     def __value_setup__(self, dtype, value):
         return value or byref(dtype._type_())
@@ -149,7 +151,7 @@ class CompositeObject(Object):
 
     @property
     def pname(self):
-        return self.dtype._type_.__name__
+        return self._pname
 
     @property
     def fields(self):
@@ -237,5 +239,40 @@ class LocalObject(AbstractObject, LocalType):
         return None
 
     @property
+    def _C_free_priority(self):
+        return float('inf')
+
+    @property
     def _mem_global(self):
         return self._is_global
+
+
+class LocalCompositeObject(CompositeObject, LocalType):
+
+    """
+    Object with composite type (e.g., a C struct) defined in C.
+    """
+
+    __rargs__ = ('name', 'pname', 'fields')
+    __rkwargs__ = ('modifier', 'liveness')
+
+    def __init__(self, name, pname, fields, modifier=None, liveness='lazy'):
+        dtype = CustomDtype(f"struct {pname}", modifier=modifier)
+        Object.__init__(self, name, dtype, None)
+        self._pname = pname
+        self.modifier = modifier
+        assert liveness in ['eager', 'lazy']
+        self._liveness = liveness
+        self._fields = fields
+
+    @property
+    def fields(self):
+        return self._fields
+
+    @property
+    def _fields_(self):
+        return [(i._C_name, i._C_ctype) for i in self.fields]
+
+    @property
+    def __name__(self):
+        return self.pname
