@@ -8,4 +8,9 @@ class CIRPrinter(CPrinter):
     """
 
     def _print_ComponentAccess(self, expr):
-        return f"{self._print(expr.base)}.<{expr.sindex},{expr.function.ncomp}>"
+        try:
+            ncomp = expr.function.ncomp
+        except AttributeError:
+            # E.g., the argument is a plain Symbol
+            ncomp = 'N'
+        return f"{self._print(expr.base)}.<{expr.sindex},{ncomp}>"
