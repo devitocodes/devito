@@ -7,6 +7,10 @@ on:
   push:
     branches:
       - petsc         # Push events on petsc branch
+  # TODO: drop this
+  pull_request:
+    branches:
+      - petsc
 
 jobs:
   build-and-push:
