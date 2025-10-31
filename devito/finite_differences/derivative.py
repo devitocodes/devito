@@ -530,9 +530,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # it into `u(x + h_x/2).dx` and `v(x).dx`, since they require
             # different FD indices
             mapper = as_mapper(self.expr._args_diff, lambda i: i.staggered)
+            if len(mapper) == 1:
+                # All terms have the same staggering, we can use expr as is
+                return self._rebuild(self.expr, **rkw)
             args = [self.expr.func(*v) for v in mapper.values()]
             args.extend([a for a in self.expr.args if a not in self.expr._args_diff])
-            args = [self._rebuild(a, **rkw) for a in args]
+            args = [self._rebuild(a)._eval_at(func) for a in args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
             # For Mul, We treat the basic case `u(x + h_x/2) * v(x) which is what appear

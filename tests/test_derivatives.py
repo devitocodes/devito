@@ -780,6 +780,44 @@ class TestFD:
         eqne = eqn.evaluate.rhs
         assert simplify(eqne - (p._subs(y, yp).evaluate * f).dx(x0=xp).evaluate) == 0
 
+    def test_param_stagg_add(self):
+        space_order = 2
+        nx, ny = 5, 5
+        extent = (nx-1, ny-1)
+
+        grid = Grid(shape=(nx, ny), extent=extent)
+        x, y = grid.dimensions
+        yp = y + y.spacing / 2
+        xp = x + x.spacing / 2
+
+        x, y = grid.dimensions
+
+        vx = TimeFunction(name="vx", grid=grid, space_order=space_order,
+                          time_order1=1, staggered=x)
+        txx = TimeFunction(name="txx", grid=grid, space_order=space_order,
+                           time_order=1, staggered=NODE)
+        txy = TimeFunction(name="txy", grid=grid, space_order=space_order,
+                           time_order=1, staggered=(x, y))
+        c11 = Function(name="c11", grid=grid, space_order=space_order, parameter=True)
+        c66 = Function(name="c66", grid=grid, space_order=space_order, parameter=True)
+
+        eq0 = Eq(vx, (c66 * txy).dy)
+        eq1 = Eq(vx, (c11 * txx).dy)
+        eq2 = Eq(vx, (c11 * txx + c66 * txy).dy)
+
+        # C66 is a paramater. Expects to evaluate c66 at xp then the derivative at yp
+        # and the derivative will interpolate txy at xp
+        expect0 = (c66.subs({x: xp, y: yp}).evaluate * txy).dy.evaluate
+        assert simplify(eq0.evaluate.rhs - expect0) == 0
+
+        # C11 is a paramater and txy is staggered in x.
+        # Expects to evaluate c11 and txy xp then the derivative at yp
+        expect1 = (c11._subs(x, xp).evaluate * txx._subs(x, xp).evaluate).dy.evaluate
+        assert simplify(eq1.evaluate.rhs - expect1) == 0
+
+        # Addition should apply the same logic as above for each term
+        assert simplify(eq2.evaluate.rhs - (expect1 + expect0)) == 0
+
 
 class TestTwoStageEvaluation:
 
