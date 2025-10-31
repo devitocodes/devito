@@ -773,7 +773,7 @@ class TestFD:
         xp = x + x.spacing / 2
 
         f = TimeFunction(name="f", grid=grid, space_order=space_order, staggered=y)
-        p = Function(name="p", grid=grid, space_order=space_order, parameter=True)
+        p = Function(name="p", grid=grid, space_order=space_order)
         g = TimeFunction(name="g", grid=grid, space_order=space_order, staggered=(x, y))
 
         eqn = Eq(g, (p * f).dx)
@@ -798,8 +798,8 @@ class TestFD:
                            time_order=1, staggered=NODE)
         txy = TimeFunction(name="txy", grid=grid, space_order=space_order,
                            time_order=1, staggered=(x, y))
-        c11 = Function(name="c11", grid=grid, space_order=space_order, parameter=True)
-        c66 = Function(name="c66", grid=grid, space_order=space_order, parameter=True)
+        c11 = Function(name="c11", grid=grid, space_order=space_order)
+        c66 = Function(name="c66", grid=grid, space_order=space_order)
 
         eq0 = Eq(vx, (c66 * txy).dy)
         eq1 = Eq(vx, (c11 * txx).dy)
