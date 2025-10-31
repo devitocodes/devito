@@ -1145,20 +1145,8 @@ def _(expr, x0, **kwargs):
 
 @interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
-    from devito.finite_differences.derivative import Derivative
-    x0_expr = {d: v for d, v in x0.items() if v is not expr.indices_ref[d]}
-    if expr.is_parameter:
-        # Parameter might not have been evaluated at x0 yet
-        # E.g., in expressions such as u[x]*f[x] evaluated at x+dx/2
-        # `f` will not be evaluated at it since gather_for_diff will pick `u` as
-        # higher priority function.
-        for d, v in x0.items():
-            if expr.indices[d] is d:
-                expr = expr._subs(d, v)
-        return expr
-    elif x0_expr:
-        dims = tuple((d, 0) for d in x0_expr)
-        fd_o = tuple([expr.interp_order]*len(dims))
-        return Derivative(expr, *dims, fd_order=fd_o, x0=x0_expr)
+    x0_expr = {d: v for d, v in x0.items() if v.has(d)}
+    if x0_expr:
+        return expr.subs({expr.indices[d]: v for d, v in x0_expr.items()})
     else:
         return expr

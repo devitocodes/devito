@@ -109,23 +109,23 @@ def test_avg_mode(ndim, io):
 
     with pytest.raises(ValueError):
         # interp_order > space_order
-        Function(name="a", grid=grid, parameter=True, interp_order=8, space_order=4)
+        Function(name="a", grid=grid, interp_order=8, space_order=4)
     with pytest.raises(ValueError):
         # interp_order < 1
-        Function(name="a", grid=grid, parameter=True, interp_order=0, space_order=4)
+        Function(name="a", grid=grid, interp_order=0, space_order=4)
     with pytest.raises(TypeError):
         # interp_order not int
-        Function(name="a", grid=grid, parameter=True, interp_order=2.5, space_order=4)
+        Function(name="a", grid=grid, interp_order=2.5, space_order=4)
 
     a0 = Function(name="a0", grid=grid, **kw)
-    a = Function(name="a", grid=grid, parameter=True, **kw)
-    b = Function(name="b", grid=grid, parameter=True, avg_mode='harmonic', **kw)
+    a = Function(name="a", grid=grid, **kw)
+    b = Function(name="b", grid=grid, avg_mode='harmonic', **kw)
 
     a0_avg = a0._eval_at(v)
     a_avg = a._eval_at(v).evaluate.simplify()
     b_avg = b._eval_at(v).evaluate.simplify()
 
-    assert a0_avg == a0
+    assert a0_avg == a0.subs(v.indices_ref.getters)
 
     # Indices around the point at the center of a cell
     idx = list(range(-io//2 + 1, io//2 + 1))
