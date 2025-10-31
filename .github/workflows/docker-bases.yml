@@ -18,16 +18,16 @@ on:
     inputs:
       cpu:
         type: boolean
-        default: false
+        default: true
       nvidia:
         type: boolean
-        default: false
+        default: true
       amd:
         type: boolean
-        default: false
+        default: true
       intel:
         type: boolean
-        default: false
+        default: true
 
       tags:
         description: "Build compiler bases"
@@ -227,7 +227,9 @@ jobs:
           push: true
           target: "nvc"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvc"
+          build-args: |
+            arch=nvc
+            ver=nvhpc-25-7
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
           tags: "devitocodes/bases:nvidia-nvc-${{ matrix.arch }}"
@@ -240,7 +242,9 @@ jobs:
           push: true
           target: "nvcc"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvcc"
+          build-args: |
+            arch=nvcc
+            ver=nvhpc-25-7
           labels: builder-runner=${{ runner.name }}
           tags: "devitocodes/bases:nvidia-nvcc-${{ matrix.arch }}"
 
@@ -252,7 +256,9 @@ jobs:
           push: true
           target: "nvc-host"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvc-host"
+          build-args: |
+            arch=nvc-host
+            ver=nvhpc-25-7
           labels: builder-runner=${{ runner.name }}
           tags: "devitocodes/bases:cpu-nvc-${{ matrix.arch }}"
 

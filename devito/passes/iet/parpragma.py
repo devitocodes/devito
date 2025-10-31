@@ -42,6 +42,10 @@ class PragmaSimdTransformer(PragmaTransformer):
     def _support_array_reduction(cls, compiler):
         return True
 
+    @classmethod
+    def _support_complex_reduction(cls, compiler):
+        return False
+
     @property
     def simd_reg_nbytes(self):
         return self.platform.simd_reg_nbytes
@@ -238,8 +242,9 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             # Implement reduction
             mapper = {partree.root: partree.root._rebuild(reduction=reductions)}
         elif all(i is OpInc for _, _, i in reductions):
-            # Use atomic increments
-            mapper = {i: i._rebuild(pragmas=self.langbb['atomic']) for i in exprs}
+            flag = (not self._support_complex_reduction(self.compiler) and
+                    any(np.iscomplexobj(i.dtype(0)) for i, _, _ in reductions))
+            mapper = {i: self.langbb['atomic'](i, flag) for i in exprs}
         else:
             raise NotImplementedError
 

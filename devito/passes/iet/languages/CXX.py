@@ -5,7 +5,8 @@ from devito.ir import Call, UsingNamespace, BasePrinter
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
-from devito.symbolics import c_complex, c_double_complex
+from devito.passes.iet.languages.utils import _atomic_add_split
+from devito.symbolics import c_complex, c_double_complex, IndexedPointer, cast, Byref
 from devito.tools import dtype_to_cstr
 
 __all__ = ['CXXBB', 'CXXDataManager', 'CXXOrchestrator']
@@ -65,6 +66,37 @@ template<typename _Tp, typename _Ti>
 """
 
 
+def split_pointer(i, idx):
+    """
+    Splits complex pointer std::complex<T> *a as
+    (float *)(&a)[idx] for real/imag parts.
+    """
+    dtype = i.dtype(0).real.__class__
+    ptr = cast(dtype, stars='*')(Byref(i), reinterpret=True)
+    return IndexedPointer(ptr, idx)
+
+
+cxx_imag = lambda i: split_pointer(i, 1)
+cxx_real = lambda i: split_pointer(i, 0)
+
+
+def atomic_add(i, pragmas, split=False):
+    # Base case, real reduction
+    if not split:
+        return i._rebuild(pragmas=pragmas)
+
+    # Complex reduction, split using a temp pointer
+    # Transforms lhs += rhs into
+    # {
+    #   pragmas
+    #   reinterpret_cast<float*>(&lhs)[0] += std::real(rhs);
+    #   pragmas
+    #   reinterpret_cast<float*>(&lhs)[1] += std::imag(rhs);
+    # }
+    # Make a temp pointer
+    return _atomic_add_split(i, pragmas, cxx_real, cxx_imag)
+
+
 class CXXBB(LangBB):
 
     mapper = {
@@ -86,7 +118,7 @@ class CXXBB(LangBB):
         'host-free-pin': lambda i:
             Call('free', (i,)),
         'alloc-global-symbol': lambda i, j, k:
-            Call('memcpy', (i, j, k)),
+            Call('memcpy', (i, j, k))
     }
 
 
