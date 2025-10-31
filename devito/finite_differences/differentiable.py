@@ -1148,6 +1148,13 @@ def _(expr, x0, **kwargs):
     from devito.finite_differences.derivative import Derivative
     x0_expr = {d: v for d, v in x0.items() if v is not expr.indices_ref[d]}
     if expr.is_parameter:
+        # Parameter might not have been evaluated at x0 yet
+        # E.g., in expressions such as u[x]*f[x] evaluated at x+dx/2
+        # `f` will not be evaluated at it since gather_for_diff will pick `u` as
+        # higher priority function.
+        for d, v in x0.items():
+            if expr.indices[d] is d:
+                expr = expr._subs(d, v)
         return expr
     elif x0_expr:
         dims = tuple((d, 0) for d in x0_expr)
