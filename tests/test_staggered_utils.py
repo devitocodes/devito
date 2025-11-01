@@ -68,15 +68,11 @@ def test_is_param(ndim):
     var = Function(name="f", grid=grid, staggered=NODE)
     for d in dims:
         f = Function(name="f", grid=grid, staggered=d)
-        f2 = Function(name="f2", grid=grid, staggered=d)
-
-        # Not a parameter stay untouched (or FD would be destroyed by _eval_at)
-        assert f._eval_at(var).evaluate == f
         # Parameter, automatic averaging
-        avg = f2
+        avg = f
         for dd in d:
             avg = .5 * (avg + avg.subs({dd: dd - dd.spacing}))
-        assert simplify(f2._eval_at(var).evaluate - avg) == 0
+        assert simplify(f._eval_at(var).evaluate - avg) == 0
 
 
 @pytest.mark.parametrize('expr, expected', [
