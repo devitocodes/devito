@@ -957,6 +957,23 @@ class Power(Cpu64):
 
 class Device(Platform):
 
+    """
+    A generic Device is based on the SIMT (Single Instruction, Multiple Threads)
+    programming model. In this execution model, threads are batched together and
+    execute the same instruction at the same time, though each thread operates on
+    its own data. Intel, AMD, and Nvidia GPUs are all based on this model.
+    Unfortunately they use different terminology to refer to the same or at least
+    very similar concepts. Throughout Devito, whenever possible, we attempt to
+    adopt a neutral terminology -- the docstrings below provide some examples.
+    """
+
+    thread_group_size = None
+    """
+    A collection of threads that execute the same instruction in lockstep.
+    The group size is a hardware-specific property. For example, this is a
+    "warp" in NVidia GPUs and a "wavefront" in AMD GPUs.
+    """
+
     def __init__(self, name, cores_logical=None, cores_physical=None, isa='cpp',
                  max_threads_per_block=1024, max_threads_dimx=1024,
                  max_threads_dimy=1024, max_threads_dimz=64,
@@ -1039,6 +1056,8 @@ class IntelDevice(Device):
 
 class NvidiaDevice(Device):
 
+    thread_group_size = 32
+
     max_mem_trans_nbytes = 128
 
     @cached_property
@@ -1101,6 +1120,8 @@ class Blackwell(Hopper):
 
 
 class AmdDevice(Device):
+
+    thread_group_size = 64
 
     max_mem_trans_nbytes = 256
 
