@@ -68,15 +68,11 @@ def test_is_param(ndim):
     var = Function(name="f", grid=grid, staggered=NODE)
     for d in dims:
         f = Function(name="f", grid=grid, staggered=d)
-        f2 = Function(name="f2", grid=grid, staggered=d, parameter=True)
-
-        # Not a parameter stay untouched (or FD would be destroyed by _eval_at)
-        assert f._eval_at(var).evaluate == f
         # Parameter, automatic averaging
-        avg = f2
+        avg = f
         for dd in d:
             avg = .5 * (avg + avg.subs({dd: dd - dd.spacing}))
-        assert simplify(f2._eval_at(var).evaluate - avg) == 0
+        assert simplify(f._eval_at(var).evaluate - avg) == 0
 
 
 @pytest.mark.parametrize('expr, expected', [
@@ -91,7 +87,7 @@ def test_gather_for_diff(expr, expected):
     y0 = y + y.spacing/2  # noqa
     a = Function(name="a", grid=grid, staggered=NODE)  # noqa
     b = Function(name="b", grid=grid, staggered=x)  # noqa
-    c = Function(name="c", grid=grid, staggered=y, parameter=True)  # noqa
+    c = Function(name="c", grid=grid, staggered=y)  # noqa
     d = Function(name="d", grid=grid)  # noqa
 
     assert eval(expr) == eval(expected)
@@ -99,7 +95,7 @@ def test_gather_for_diff(expr, expected):
 
 @pytest.mark.parametrize('expr, expected', [
     ('((a + b).dx._eval_at(a)).is_Add', 'True'),
-    ('(a + b).dx._eval_at(a)', 'a.dx(x0=a.indices_ref.getters) + b.dx._eval_at(a)'),
+    ('(a + b).dx._eval_at(a)', 'a.dx + b.dx._eval_at(a)'),
     ('(a*b).dx._eval_at(a).expr', 'a.subs({x: x0}) * b'),
     ('(a * b.dx).dx._eval_at(b).expr._eval_deriv ',
      'a.subs({x: x0}) * b.dx.evaluate')])
@@ -143,7 +139,7 @@ def test_staggered_div():
     v[0].data[:] = 5.
     v[1].data[:] = 5.
 
-    A = Function(name="A", grid=grid, space_order=4, staggred=NODE, parameter=True)
+    A = Function(name="A", grid=grid, space_order=4, staggred=NODE)
     A._data_with_outhalo[:] = .5
 
     av = VectorTimeFunction(name="av", grid=grid, time_order=1, space_order=4)
