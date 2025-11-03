@@ -805,13 +805,11 @@ class TestFD:
         eq1 = Eq(vx, (c11 * txx).dy)
         eq2 = Eq(vx, (c11 * txx + c66 * txy).dy)
 
-        # C66 is a paramater. Expects to evaluate c66 at xp then the derivative at yp
-        # and the derivative will interpolate txy at xp
+        # Expects to evaluate c66 at xp then the derivative at yp
         expect0 = (c66.subs({x: xp, y: yp}).evaluate * txy).dy.evaluate
         assert simplify(eq0.evaluate.rhs - expect0) == 0
 
-        # C11 is a paramater and txy is staggered in x.
-        # Expects to evaluate c11 and txy xp then the derivative at yp
+        # Expects to evaluate c11 and txy at xp then the derivative at yp
         expect1 = (c11._subs(x, xp).evaluate * txx._subs(x, xp).evaluate).dy.evaluate
         assert simplify(eq1.evaluate.rhs - expect1) == 0
 

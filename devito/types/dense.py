@@ -1075,12 +1075,16 @@ class Function(DiscreteFunction):
     def _eval_at(self, func):
         if self.staggered == func.staggered:
             return self
-        mapper = {self.indices_ref[d]: func.indices_ref[d]
-                  for d in self.dimensions
-                  if self.indices_ref[d] is not func.indices_ref[d]}
-        if mapper:
-            return self.subs(mapper)
-        return self
+
+        mapper = {}
+        for d in self.dimensions:
+            try:
+                if self.indices_ref[d] is not func.indices_ref[d]:
+                    mapper[self.indices_ref[d]] = func.indices_ref[d]
+            except KeyError:
+                pass
+
+        return self.subs(mapper)
 
     @classmethod
     def __staggered_setup__(cls, dimensions, staggered=None, **kwargs):

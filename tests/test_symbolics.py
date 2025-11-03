@@ -762,7 +762,7 @@ def test_is_on_grid():
     u = Function(name="u", grid=grid, space_order=2)
 
     assert u._grid_map == {}
-    assert u.subs({x: x0})._grid_map == {x: x0}
+    assert u.subs({x: x0})._grid_map == {x: x0, 'subs': {}}
     assert all(uu._grid_map == {} for uu in retrieve_functions(u.subs({x: x0}).evaluate))
 
 

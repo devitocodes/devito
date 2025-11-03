@@ -964,7 +964,11 @@ class IndexDerivative(IndexSum):
 
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
-    pass
+
+    def _eval_at(self, func):
+        # Like EvalDerivative, a DiffDerivative must have already been evaluated
+        # at a valid x0 and should not be re-evaluated at a different location
+        return self
 
 
 # SymPy args ordering is the same for Derivatives and IndexDerivatives
@@ -1011,6 +1015,11 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
     def _new_rawargs(self, *args, **kwargs):
         kwargs.pop('is_commutative', None)
         return self.func(*args, **kwargs)
+
+    def _eval_at(self, func):
+        # An EvalDerivative must have already been evaluated at a valid x0
+        # and should not be re-evaluated at a different location
+        return self
 
 
 class diffify:
