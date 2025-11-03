@@ -335,20 +335,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             except AttributeError:
                 raise TypeError("fd_order incompatible with dimensions") from None
 
-        if isinstance(self.expr, Derivative):
-            # In case this was called on a perfect cross-derivative `u.dxdy`
-            # we need to propagate the call to the nested derivative
-            rkwe = dict(rkw)
-            rkwe.pop('weights', None)
-            if 'x0' in rkwe:
-                rkwe['x0'] = self._filter_dims(self.expr._filter_dims(rkw['x0']),
-                                               neg=True)
-            if fd_order is not None:
-                fdo = self.expr._filter_dims(_fd_order)
-                if fdo:
-                    rkwe['fd_order'] = fdo
-            rkw['expr'] = self.expr(**rkwe)
-
         if fd_order is not None:
             rkw['fd_order'] = self._filter_dims(_fd_order, as_tuple=True)
 
