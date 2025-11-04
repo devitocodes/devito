@@ -69,12 +69,22 @@ class Cluster:
         """
         assert len(clusters) > 0
         root = clusters[0]
+
+        if len(clusters) == 1:
+            return root
+
         if not all(root.ispace.is_compatible(c.ispace) for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "incompatible IterationSpace")
         if not all(root.guards == c.guards for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "non-homogeneous guards")
+
+        writes = set().union(*[c.scope.writes for c in clusters])
+        reads = set().union(*[c.scope.reads for c in clusters])
+        if any(f._mem_shared for f in writes & reads):
+            raise ValueError("Cannot build a Cluster from Clusters with "
+                             "read-write conflicts on shared-memory Functions")
 
         exprs = chain(*[c.exprs for c in clusters])
         ispace = IterationSpace.union(*[c.ispace for c in clusters])

@@ -146,16 +146,13 @@ class Fusion(Queue):
             g = list(group)
 
             for maybe_fusible in self._apply_heuristics(g):
-                if len(maybe_fusible) == 1:
+                try:
+                    # Perform fusion
+                    processed.append(Cluster.from_clusters(*maybe_fusible))
+                except ValueError:
+                    # We end up here if, for example, some Clusters have same
+                    # iteration Dimensions but different (partial) orderings
                     processed.extend(maybe_fusible)
-                else:
-                    try:
-                        # Perform fusion
-                        processed.append(Cluster.from_clusters(*maybe_fusible))
-                    except ValueError:
-                        # We end up here if, for example, some Clusters have same
-                        # iteration Dimensions but different (partial) orderings
-                        processed.extend(maybe_fusible)
 
         # Maximize effectiveness of topo-sorting at next stage by only
         # grouping together Clusters characterized by data dependencies
