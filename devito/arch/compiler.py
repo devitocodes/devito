@@ -1,5 +1,6 @@
 from functools import partial
 from hashlib import sha1
+from itertools import repeat, filterfalse
 from os import environ, path, makedirs
 from packaging.version import Version
 from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
@@ -665,6 +666,30 @@ class PGICompiler(Compiler):
         self.CXX = 'pgc++'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
+
+    def add_libraries(self, libs):
+        # Urgh...
+        # PGIComiler inherits from Compiler inherits from GCCToolchain in codepy
+        # GCC supports linking versioned shared objects with the syntax
+        # `gcc -L/path/to/versioned/lib -l:libfoo.so.2.0 ...`
+        # But this syntax is not supported by the Portland (or Nvidia) compiler.
+        # Nor does codepy.GCCToolchain understand that linking to versioned objects
+        # is a thing that someone might want to do
+        #
+        # Since this is just linking information, we can just tell the linker
+        # (which we invoke using the compiler and the `-Wl,-options` syntax) to
+        # go and look in all of the directories we have provided thus far and
+        # the linker supports the syntax:
+        # `ld -L/path/to/versioned/lib -l:libfoo.so.2.0 ...`
+        # Note: It would be nicer to just look in the one _relevant_ lib dir!
+        new = as_list(libs)
+        versioned = filter(lambda s: s.startswith(':'), new)
+        versioned = map(lambda s: s.removeprefix(':'), versioned)
+        self.add_ldflags([
+            f'-Wl,-L{",-L".join(map(str, self.library_dirs))},-l:{soname}'
+            for soname in versioned
+        ])
+        super().add_libraries(filterfalse(lambda s: s.startswith(':'), new))
 
 
 class NvidiaCompiler(PGICompiler):
