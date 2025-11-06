@@ -1,6 +1,6 @@
 from functools import partial
 from hashlib import sha1
-from itertools import repeat, filterfalse
+from itertools import filterfalse
 from os import environ, path, makedirs
 from packaging.version import Version
 from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
@@ -64,7 +64,7 @@ def sniff_compiler_version(cc, allow_fail=False):
     elif ver.startswith("icx"):
         compiler = "icx"
     elif ver.startswith("pgcc"):
-        compiler = "pgcc"
+        raise CompilationError('Portland compiler no longer supported')
     elif ver.startswith("nvc++"):
         compiler = "nvc"
     elif ver.startswith("cray"):
@@ -627,7 +627,7 @@ class DPCPPCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
-class PGICompiler(Compiler):
+class NvidiaCompiler(Compiler):
 
     _default_cpp = True
 
@@ -657,30 +657,30 @@ class PGICompiler(Compiler):
 
         if not configuration['safe-math']:
             self.cflags.append('-fast')
-        # Default PGI compile for a target is GPU and single threaded host.
+        # Default compile for a target is GPU and single threaded host.
         # self.cflags += ['-ta=tesla,host']
 
     def __lookup_cmds__(self):
-        # NOTE: using `pgc++` instead of `pgcc` because of issue #1219
-        self.CC = 'pgc++'
-        self.CXX = 'pgc++'
+        self.CC = 'nvc++'
+        self.CXX = 'nvc++'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
 
     def add_libraries(self, libs):
         # Urgh...
-        # PGIComiler inherits from Compiler inherits from GCCToolchain in codepy
-        # GCC supports linking versioned shared objects with the syntax
+        # NvidiaComiler inherits from Compiler inherits from GCCToolchain in codepy
+        # And _GCC_ supports linking versioned shared objects with the syntax:
         # `gcc -L/path/to/versioned/lib -l:libfoo.so.2.0 ...`
-        # But this syntax is not supported by the Portland (or Nvidia) compiler.
-        # Nor does codepy.GCCToolchain understand that linking to versioned objects
-        # is a thing that someone might want to do
+        # But this syntax is not supported by the Nvidia compiler.
+        # Nor does `codepy.GCCToolchain` understand that linking to versioned objects
+        # is a thing that someone might want to do.
         #
         # Since this is just linking information, we can just tell the linker
         # (which we invoke using the compiler and the `-Wl,-options` syntax) to
         # go and look in all of the directories we have provided thus far and
         # the linker supports the syntax:
         # `ld -L/path/to/versioned/lib -l:libfoo.so.2.0 ...`
+        #
         # Note: It would be nicer to just look in the one _relevant_ lib dir!
         new = as_list(libs)
         versioned = filter(lambda s: s.startswith(':'), new)
@@ -690,15 +690,6 @@ class PGICompiler(Compiler):
             for soname in versioned
         ])
         super().add_libraries(filterfalse(lambda s: s.startswith(':'), new))
-
-
-class NvidiaCompiler(PGICompiler):
-
-    def __lookup_cmds__(self):
-        self.CC = 'nvc++'
-        self.CXX = 'nvc++'
-        self.MPICC = 'mpic++'
-        self.MPICXX = 'mpicxx'
 
 
 class CudaCompiler(Compiler):
@@ -1090,8 +1081,6 @@ _compiler_registry = {
     'aomp': AOMPCompiler,
     'amdclang': AOMPCompiler,
     'hip': HipCompiler,
-    'pgcc': PGICompiler,
-    'pgi': PGICompiler,
     'nvc': NvidiaCompiler,
     'nvc++': NvidiaCompiler,
     'nvidia': NvidiaCompiler,
