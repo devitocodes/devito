@@ -558,6 +558,10 @@ class Relation:
     def findices(self):
         return self.source.findices
 
+    @property
+    def timestamp(self):
+        return max(self.source.timestamp, self.sink.timestamp)
+
     @cached_property
     def distance(self):
         return self.source.distance(self.sink)

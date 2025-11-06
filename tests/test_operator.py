@@ -1485,7 +1485,7 @@ class TestLoopScheduling:
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
+         '++++', ['xyz', 'xyz'], 'xyzz'),
         # 1) WAR 1->2, 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
@@ -1533,7 +1533,7 @@ class TestLoopScheduling:
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzyzyz'),
+         '+++++++', ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
         # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
@@ -1593,6 +1593,15 @@ class TestLoopScheduling:
           'Eq(tu[t+1,xi,yi,zi], tv[t+1,xi,yi,zi] + tv[t+1,xi+1,yi,zi])',
           'Eq(tw[t+1,x,y,z], tv[t+1,x,y,z] + tv[t+1,x+1,y,z])'),
          '++++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzxyz'),
+        # 20) RAW 1->3, WAR 2->3; expected=2
+        # It's important the split occurs after the second equation, since the
+        # first two can safely be fused together (previously, instead,
+        # due to an issue in `break_for_parallelism`, the eqns were split over
+        # three loop nests)
+        (('Eq(tu[t+1,x,y,z], tu[t,x,y,z] + tu[t,x+1,y,z])',
+          'Eq(tv[t+1,x,y,z], tv[t,x,y,z] + 1)',
+          'Eq(tw[t+1,x,y,z], tu[t+1,x+1,y,z] + tw[t,x+1,y,z] + tv[t+1,x+1,y,z])'),
+         '+++++++', ['txyz', 'txyz'], 'txyzxyz'),
     ])
     def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """

@@ -189,19 +189,27 @@ class Schedule(Queue):
 
         return processed + self.callback(backlog, prefix)
 
-    def _break_for_parallelism(self, scope, candidates, i):
+    def _break_for_parallelism(self, scope, candidates, timestamp):
         # `test` will be True if there's at least one data-dependence that would
         # break parallelism
         test = False
-        for d in scope.d_from_access_gen(scope.a_query(i)):
-            if d.is_local or d.is_storage_related(candidates):
+        for dep in scope.d_all_gen():
+            if dep.timestamp > timestamp:
+                continue
+
+            if dep.is_local or dep.is_storage_related(candidates):
                 # Would break a dependence on storage
                 return False
-            if any(d.is_carried(i) for i in candidates):  # noqa: SIM102
-                if (d.is_flow and d.is_lex_negative) or (d.is_anti and d.is_lex_positive):
+
+            if any(dep.is_carried(i) for i in candidates):
+                test0 = dep.is_flow and dep.is_lex_negative
+                test1 = dep.is_anti and dep.is_lex_positive
+                if test0 or test1:
                     # Would break a data dependence
                     return False
-            test = test or (bool(d.cause & candidates) and not d.is_lex_equal)
+
+            test = test or (bool(dep.cause & candidates) and not dep.is_lex_equal)
+
         return test
 
 
