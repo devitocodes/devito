@@ -1,7 +1,8 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
+from contextlib import suppress
 from functools import cached_property
-from subprocess import PIPE, Popen, DEVNULL, run
+from subprocess import PIPE, Popen, DEVNULL, run, CalledProcessError
 from pathlib import Path
 import ctypes
 import re
@@ -11,6 +12,7 @@ import json
 
 import cpuinfo
 import numpy as np
+from packaging.version import parse, InvalidVersion
 import psutil
 
 from devito.logger import warning
@@ -551,6 +553,30 @@ def get_cuda_path():
                 return cuda_home
 
     return None
+
+
+@memoized_func
+def get_cuda_version():
+    cuda_home = get_cuda_path()
+    if cuda_home is None:
+        nvc_version_command = ['nvcc', '--version']
+    else:
+        nvc_version_command = [f'{cuda_home}/bin/nvcc', '--version']
+
+    cuda_version = None
+    try:
+        out = run(nvc_version_command, capture_output=True, text=True)
+    except (FileNotFoundError, CalledProcessError):
+        pass
+    finally:
+        if out.returncode == 0:
+            start = out.stdout.find('release')
+            start = out.stdout.find(',', start)
+            stop = out.stdout.find('\n', start)
+            with suppress(InvalidVersion):
+                cuda_version = parse(out.stdout[start:stop])
+
+    return cuda_version
 
 
 @memoized_func

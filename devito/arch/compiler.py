@@ -661,6 +661,7 @@ class NvidiaCompiler(Compiler):
         # self.cflags += ['-ta=tesla,host']
 
     def __lookup_cmds__(self):
+        # Note: Using `nvc++` instead of `nvcc` because of issue #1219
         self.CC = 'nvc++'
         self.CXX = 'nvc++'
         self.MPICC = 'mpic++'
@@ -668,7 +669,7 @@ class NvidiaCompiler(Compiler):
 
     def add_libraries(self, libs):
         # Urgh...
-        # NvidiaComiler inherits from Compiler inherits from GCCToolchain in codepy
+        # NvidiaCompiler inherits from Compiler inherits from GCCToolchain in codepy
         # And _GCC_ supports linking versioned shared objects with the syntax:
         # `gcc -L/path/to/versioned/lib -l:libfoo.so.2.0 ...`
         # But this syntax is not supported by the Nvidia compiler.
