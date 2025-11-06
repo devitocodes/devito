@@ -156,9 +156,10 @@ class Schedule(Queue):
 
         # Schedule Clusters over different IterationSpaces if this increases
         # parallelism
-        for i in range(1, len(clusters)):
+        for i in reversed(range(len(clusters) - 1)):
             if self._break_for_parallelism(scope, candidates, i):
-                return self.callback(clusters[:i], prefix, clusters[i:] + backlog,
+                return self.callback(clusters[:i+1], prefix,
+                                     clusters[i+1:] + backlog,
                                      candidates | known_break)
 
         # Compute iteration direction
