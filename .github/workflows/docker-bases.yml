@@ -190,6 +190,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
+        cuda: ['12', '13']
         include:
           - arch: amd64
             platform: linux/amd64
@@ -199,6 +200,12 @@ jobs:
           - arch: arm64
             platform: linux/arm64
             runner: ubuntu-24.04-arm
+          - cuda: '12'
+            nvhpc_version: 'nvhpc-25-7'
+            extra_tag: '12'
+          - cuda: '13'
+            nvhpc_version: 'nvhpc'
+            extra_tag: ''
 
     steps:
       - name: Checkout devito
@@ -229,10 +236,10 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             arch=nvc
-            ver=nvhpc-25-7
+            ver=${{ matrix.nvhpc_version }}
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:nvidia-nvc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
       - name: NVCC image
         uses: docker/build-push-action@v6
@@ -244,9 +251,9 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             arch=nvcc
-            ver=nvhpc-25-7
+            ver=${{ matrix.nvhpc_version }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvcc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:nvidia-nvcc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
       - name: NVC host image
         uses: docker/build-push-action@v6
@@ -258,9 +265,9 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             arch=nvc-host
-            ver=nvhpc-25-7
+            ver=${{ matrix.nvhpc_version }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:cpu-nvc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:cpu-nvc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
   deploy-nvidia-bases-manifest:
     if: inputs.nvidia
@@ -272,7 +279,7 @@ jobs:
 
     strategy:
       matrix:
-        final_tag: [nvidia-nvc, nvidia-nvcc, cpu-nvc]
+        final_tag: [nvidia-nvc, nvidia-nvcc, cpu-nvc, nvidia-nvc12, nvidia-nvcc12, cpu-nvc12]
 
     steps:
       - name: Set up Docker Buildx
