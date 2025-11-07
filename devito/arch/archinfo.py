@@ -18,30 +18,32 @@ import psutil
 from devito.logger import warning
 from devito.tools import as_tuple, all_equal, memoized_func
 
-__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
-           'get_nvidia_cc', 'get_cuda_path', 'get_hip_path', 'check_cuda_runtime',
-           'get_m1_llvm_path', 'get_advisor_path', 'Platform', 'Cpu64', 'Intel64',
-           'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device', 'NvidiaDevice',
-           'AmdDevice', 'IntelDevice',
-           # Brand-agnostic
-           'ANYCPU', 'ANYGPU',
-           # Intel CPUs
-           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
-           'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
-           # AMD CPUs
-           'AMD',
-           # ARM CPUs
-           'ARM', 'AppleArm', 'M1', 'M2', 'M3',
-           'Graviton', 'GRAVITON2', 'GRAVITON3', 'GRAVITON4',
-           'Cortex', 'NvidiaArm', 'GRACE',
-           # Other legacy CPUs
-           'POWER8', 'POWER9',
-           # Generic GPUs
-           'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
-           # Nvidia GPUs
-           'VOLTA', 'AMPERE', 'HOPPER', 'BLACKWELL',
-           # Intel GPUs
-           'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550']
+__all__ = [
+    'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
+    'get_nvidia_cc', 'get_cuda_path', 'get_cuda_version', 'get_hip_path',
+    'check_cuda_runtime', 'get_m1_llvm_path', 'get_advisor_path', 'Platform',
+    'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device',
+    'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+    # Brand-agnostic
+    'ANYCPU', 'ANYGPU',
+    # Intel CPUs
+    'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
+    'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
+    # AMD CPUs
+    'AMD',
+    # ARM CPUs
+    'ARM', 'AppleArm', 'M1', 'M2', 'M3',
+    'Graviton', 'GRAVITON2', 'GRAVITON3', 'GRAVITON4',
+    'Cortex', 'NvidiaArm', 'GRACE',
+    # Other legacy CPUs
+    'POWER8', 'POWER9',
+    # Generic GPUs
+    'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
+    # Nvidia GPUs
+    'VOLTA', 'AMPERE', 'HOPPER', 'BLACKWELL',
+    # Intel GPUs
+    'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550'
+]
 
 
 @memoized_func
