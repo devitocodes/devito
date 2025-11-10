@@ -4,13 +4,13 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import And, Expr, Number, Symbol
+from sympy import And, Expr, Number, Symbol, true
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max, Real, Imag, Conj, SubDomain, configuration)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
-from devito.ir.support.guards import GuardExpr, simplify_and
+from devito.ir.support.guards import GuardExpr, simplify_and, pairwise_or
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (
     retrieve_functions, retrieve_indexed, evalrel, CallFromPointer, Cast, # noqa
@@ -669,6 +669,33 @@ def test_guard_expr_Le_Ge_mixed():
     v11 = simplify_and(g6, g5)
     assert v10 is And(g5, g6)
     assert v11 is And(g5, g6)
+
+
+def test_guard_pairwise_or():
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions
+
+    flag = GuardExpr('flag', initvalue=And(x >= 4, x <= 14))
+
+    g0 = And(flag, z >= 8, z <= 39)
+    g1 = And(z >= 8, z <= 40)
+    g2 = y >= 9
+    v0 = pairwise_or(g0, g1, g2)
+    assert v0 is true
+
+    g3 = And(z >= 7, z <= 40)
+    g4 = And(z >= 8, z <= 42, y >= 9)
+    v1 = pairwise_or(g0, g3, g4)
+    assert v1 == And(z >= 7, z <= 42)
+
+    # Some unsupported cases
+    g5 = And(flag, z >= 9, x >= 5)
+    g6 = x >= 3
+    with pytest.raises(NotImplementedError):
+        pairwise_or(g5, g6)
+    g7 = And(z <= y)
+    with pytest.raises(NotImplementedError):
+        pairwise_or(g0, g7)
 
 
 def test_canonical_ordering_of_weights():

@@ -276,6 +276,15 @@ class BasePrinter(CodePrinter):
             return f"fabs({self._print(arg)})"
         return self._print_fmath_func('abs', expr)
 
+    def _print_BitwiseNot(self, expr):
+        # Unary function, single argument
+        arg = expr.args[0]
+        return f'~{self._print(arg)}'
+
+    def _print_BitwiseBinaryOp(self, expr):
+        arg0, arg1 = expr.args
+        return f'{self._print(arg0)} {expr.op} {self._print(arg1)}'
+
     def _print_Add(self, expr, order=None):
         """"
         Print an addition.
