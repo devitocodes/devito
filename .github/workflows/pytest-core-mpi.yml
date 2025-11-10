@@ -27,10 +27,8 @@ jobs:
 
     env:
       DEVITO_LANGUAGE: "openmp"
-      DEVITO_ARCH: "gcc-9"
+      DEVITO_ARCH: "gcc"
       OMP_NUM_THREADS: "1"
-      CC: "gcc-9"
-      CXX: "g++-9"
       RDMAV_FORK_SAFE: 1
 
     steps:
