@@ -1068,7 +1068,7 @@ class Function(DiscreteFunction):
 
     @cached_property
     def _fd_priority(self):
-        return 1 if self.staggered.on_node else 2
+        return 2.1 if self.staggered.on_node else 2
 
     def _eval_at(self, func):
         if self.staggered == func.staggered:
@@ -1489,7 +1489,7 @@ class TimeFunction(Function):
 
     @cached_property
     def _fd_priority(self):
-        return 2.1 if self.staggered.on_node else 2.2
+        return 2.3 if self.staggered.on_node else 2.2
 
     @property
     def time_order(self):
