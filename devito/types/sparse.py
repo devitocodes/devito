@@ -662,7 +662,7 @@ class AbstractSparseFunction(DiscreteFunction):
                 mapper.update(self._dist_subfunc_scatter(sf))
         return mapper
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         return self
 
     def _halo_exchange(self):

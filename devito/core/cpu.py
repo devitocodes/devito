@@ -76,6 +76,7 @@ class Cpu64OperatorMixin:
 
         # Code generation options for derivatives
         o['expand'] = oo.pop('expand', cls.EXPAND)
+        o['eval-mul-first'] = oo.pop('eval-mul-first', cls.MUL_FIRST)
         o['deriv-collect'] = oo.pop('deriv-collect', cls.DERIV_COLLECT)
         o['deriv-schedule'] = oo.pop('deriv-schedule', cls.DERIV_SCHEDULE)
         o['deriv-unroll'] = oo.pop('deriv-unroll', False)
