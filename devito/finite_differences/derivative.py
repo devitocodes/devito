@@ -597,7 +597,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if self.method == 'RSFD':
             assert len(self.dims) == 1
             assert self.deriv_order[0] == 1
-            res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
+            res = d45(expr, self.dims[0], x0=x0_deriv, expand=expand)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
@@ -608,7 +608,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
                                      self.deriv_order[0], weights=self.weights,
                                      side=self.side, matvec=self.transpose,
-                                     x0=self.x0, expand=expand)
+                                     x0=x0_deriv, expand=expand)
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:

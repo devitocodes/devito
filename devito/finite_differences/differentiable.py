@@ -623,6 +623,51 @@ class Mul(DifferentiableOp, sympy.Mul):
 
         return self.func(*new_args, evaluate=False)
 
+    def _eval_at(self, func):
+        # No a basic a*b*c... expression, just defer to superclass
+        if any(isinstance(f, DifferentiableOp) for f in self.args):
+            return super()._eval_at(func)
+
+        # Split Derivative and Differentiable args
+        derivs, other = split(self.args, lambda e: isinstance(e, sympy.Derivative))
+
+        if derivs:
+            derivs = Differentiable._eval_at(self.func(*derivs), func)
+        else:
+            derivs = 1
+
+        if not other:
+            return derivs
+        elif len(other) > 1:
+            expr = self.func(*other)._gather_for_diff
+        else:
+            expr = other[0]
+
+        # Non differentiable expr (e.g., number)
+        if not isinstance(expr, Differentiable):
+            return self.func(derivs, expr)
+
+        # Build mapper for dimensions that need to be interpolated
+        mapper = {}
+        for d in self.dimensions:
+            try:
+                if self.indices_ref[d] is not func.indices_ref[d]:
+                    mapper[d] = func.indices_ref[d]
+            except KeyError:
+                pass
+
+        # Nothing to interpolate
+        if not mapper:
+            return super()._eval_at(func)
+
+        # Interpolate expr at the required indices
+        interp = expr.diff(*mapper.keys(), deriv_order=[0 for _ in mapper],
+                           fd_order=[self.interp_order for _ in mapper],
+                           x0=mapper)
+
+        # Return the full expression with Derivatives
+        return self.func(derivs, interp)
+
 
 class Pow(DifferentiableOp, sympy.Pow):
     _fd_priority = 0
