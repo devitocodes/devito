@@ -184,13 +184,18 @@ class Differentiable(sympy.Expr, Evaluable):
         key = lambda x: coeff_priority.get(x, -1)
         return sorted(coefficients, key=key, reverse=True)[0]
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         if not func.is_Staggered:
             # Cartesian grid, do no waste time
             return self
+<<<<<<< HEAD
         return self.func(*[
             getattr(a, '_eval_at', lambda x: a)(func) for a in self.args  # noqa: B023
         ])  # false positive
+=======
+        return self.func(*[getattr(a, '_eval_at', lambda x, **kw: a)(func, **kwargs)
+                           for a in self.args])
+>>>>>>> 198aedce4 (api: add mul interp mode)
 
     def _subs(self, old, new, **hints):
         if old == self:
@@ -501,12 +506,20 @@ def highest_priority(diff_op):
     # set of dimensions is used when multiple ones with the same
     # priority appear
     prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
+<<<<<<< HEAD
     prio_func = sorted(diff_op._args_diff, key=prio, reverse=True)[0]
 
     # The highest priority must be a Function
     if not isinstance(prio_func, AbstractFunction):
         return highest_priority(prio_func)
     return prio_func
+=======
+    args = DiffOp._args_diff
+    if not args:
+        return DiffOp
+    else:
+        return sorted(DiffOp._args_diff, key=prio, reverse=True)[0]
+>>>>>>> 198aedce4 (api: add mul interp mode)
 
 
 class DifferentiableOp(Differentiable):
@@ -574,11 +587,16 @@ class DifferentiableFunction(DifferentiableOp):
     def __new__(cls, *args, **kwargs):
         return cls.__sympy_class__.__new__(cls, *args, **kwargs)
 
+<<<<<<< HEAD
     @property
     def _fd_priority(self):
         if highest_priority(self) is self:
             return super()._fd_priority
         return highest_priority(self)._fd_priority
+=======
+    def _eval_at(self, func, **kwargs):
+        return self
+>>>>>>> 198aedce4 (api: add mul interp mode)
 
 
 class Add(DifferentiableOp, sympy.Add):
@@ -668,6 +686,56 @@ class Mul(DifferentiableOp, sympy.Mul):
         else:
             other = self.func(*other)._eval_at(highest_priority(self))
             return self.func(other, *derivs)
+
+    def _eval_at(self, func, mul_first=False, **kwargs):
+        # Dont evaluate mul first
+        if not mul_first:
+            return super()._eval_at(func, mul_first=mul_first)
+
+        # Not a basic a*b*c... expression, just defer to superclass
+        if any(isinstance(f, DifferentiableOp) for f in self.args):
+            return super()._eval_at(func, mul_first=mul_first)
+
+        # Split Derivative and Differentiable args
+        derivs, other = split(self.args, lambda e: isinstance(e, sympy.Derivative))
+
+        if derivs:
+            derivs = Differentiable._eval_at(self.func(*derivs), func,
+                                             mul_first=mul_first)
+        else:
+            derivs = 1
+
+        if not other:
+            return derivs
+        elif len(other) > 1:
+            expr = self.func(*other)._gather_for_diff
+        else:
+            expr = other[0]
+
+        # Non differentiable expr (e.g., number)
+        if not isinstance(expr, Differentiable):
+            return self.func(derivs, expr)
+
+        # Build mapper for dimensions that need to be interpolated
+        mapper = {}
+        for d in self.dimensions:
+            try:
+                if self.indices_ref[d] is not func.indices_ref[d]:
+                    mapper[d] = func.indices_ref[d]
+            except KeyError:
+                pass
+
+        # Nothing to interpolate
+        if not mapper:
+            return super()._eval_at(func, mul_first=mul_first)
+
+        # Interpolate expr at the required indices
+        interp = expr.diff(*mapper.keys(), deriv_order=[0 for _ in mapper],
+                           fd_order=[self.interp_order for _ in mapper],
+                           x0=mapper)
+
+        # Return the full expression with Derivatives
+        return self.func(derivs, interp)
 
 
 class Pow(DifferentiableOp, sympy.Pow):
@@ -1020,7 +1088,7 @@ class IndexDerivative(IndexSum):
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         # Like EvalDerivative, a DiffDerivative must have already been evaluated
         # at a valid x0 and should not be re-evaluated at a different location
         return self
@@ -1074,7 +1142,7 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         kwargs.pop('is_commutative', None)
         return self.func(*args, **kwargs)
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         # An EvalDerivative must have already been evaluated at a valid x0
         # and should not be re-evaluated at a different location
         return self
