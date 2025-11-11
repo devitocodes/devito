@@ -259,7 +259,11 @@ def reduce(m0, m1, edims, prefix):
     else:
         func = min
 
-    key = lambda i: i.indices[d]
+    def key(i):
+        try:
+            return i.indices[d]
+        except AttributeError:
+            return i
 
     mapper = {}
     for k, e in m1.items():

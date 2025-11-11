@@ -308,7 +308,7 @@ class SeismicModel(GenericModel):
             vs = kwargs.pop('vs')
             self.lam = self._gen_phys_param((vp**2 - 2. * vs**2)/b, 'lam', space_order)
             self.mu = self._gen_phys_param(vs**2 / b, 'mu', space_order,
-                                           avg_mode='harmonic')
+                                           avg_mode='safe_harmonic')
         else:
             # All other seismic models have at least a velocity
             self.vp = self._gen_phys_param(vp, 'vp', space_order)
