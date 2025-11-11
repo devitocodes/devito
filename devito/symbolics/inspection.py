@@ -4,6 +4,7 @@ import numpy as np
 from sympy import (Function, Indexed, Integer, Mul, Number,
                    Pow, S, Symbol, Tuple)
 from sympy.core.numbers import ImaginaryUnit
+from sympy.core.function import Application
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
@@ -116,7 +117,7 @@ def estimate_cost(exprs, estimate=False):
 estimate_values = {
     'elementary': 100,
     'pow': 50,
-    'SafeInv': 10,
+    'SafeInv': 50,
     'div': 5,
     'Abs': 5,
     'floor': 1,
@@ -211,6 +212,7 @@ def _(expr, estimate, seen):
 
 
 @_estimate_cost.register(Function)
+@_estimate_cost.register(Application)
 def _(expr, estimate, seen):
     if q_routine(expr):
         flops, _ = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
@@ -227,6 +229,7 @@ def _(expr, estimate, seen):
             flops += 1
     else:
         flops = 0
+
     return flops, False
 
 

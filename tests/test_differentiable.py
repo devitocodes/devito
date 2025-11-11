@@ -119,7 +119,7 @@ def test_avg_mode(ndim, io):
 
     a0 = Function(name="a0", grid=grid, **kw)
     a = Function(name="a", grid=grid, **kw)
-    b = Function(name="b", grid=grid, avg_mode='harmonic', **kw)
+    b = Function(name="b", grid=grid, avg_mode='safe_harmonic', **kw)
 
     a0_avg = a0._eval_at(v)
     a_avg = a._eval_at(v).evaluate.simplify()
@@ -141,7 +141,8 @@ def test_avg_mode(ndim, io):
     assert sympy.simplify(a_avg - expected) == 0
 
     # Harmonic average, h(a[.5]) = 1/(.5/a[0] + .5/a[1])
-    expected = (sum(c / b.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args)))
+    expected = (sum(c * SafeInv(b.subs(arg), b.subs(arg))
+                    for c, arg in zip(ndcoeffs.flatten(), args)))
     assert sympy.simplify(b_avg.args[0] - expected) == 0
     assert isinstance(b_avg, SafeInv)
     assert b_avg.base == b

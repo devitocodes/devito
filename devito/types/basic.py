@@ -844,7 +844,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Averaging mode for off the grid evaluation
         self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
-        if self._avg_mode not in ['arithmetic', 'harmonic']:
+        if self._avg_mode not in ['arithmetic', 'harmonic', 'safe_harmonic']:
             raise ValueError("Invalid averaging mode_mode %s, accepted values are"
                              " arithmetic or harmonic" % self._avg_mode)
 
@@ -878,8 +878,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         halo = tuple(kwargs.get('halo', ((0, 0),)*self.ndim))
         return DimensionTuple(*halo, getters=self.dimensions)
 
-    def __padding_setup__(self, **kwargs):
-        padding = tuple(kwargs.get('padding', ((0, 0),)*self.ndim))
+    def __padding_setup__(self, padding=None, **kwargs):
+        padding = tuple(padding or ((0, 0),)*self.ndim)
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @cached_property
@@ -984,7 +984,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def _eval_deriv(self):
         return self
 
-    @cached_property
+    @property
     def _grid_map(self):
         """
         Mapper of off-grid interpolation points indices for each dimension.
@@ -1044,14 +1044,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return self
 
         io = self.interp_order
-        if self._avg_mode == 'harmonic':
-            retval = 1 / self
-        else:
-            retval = self
+        retval = self.subs({i.subs(subs): self.indices_ref[d]
+                            for d, i in mapper.items()})
+        if 'harmonic' in self._avg_mode:
+            retval = retval.safe_inv(retval, safe='safe' in self._avg_mode)
 
         # Apply interpolation from inner most dim
         for d, i in mapper.items():
-            retval = retval._subs(i.subs(subs), self.indices_ref[d])
             retval = retval.diff(d, deriv_order=0, fd_order=io, x0={d: i})
 
         # Evaluate. Since we used `self.function` it will be on the grid when
@@ -1060,9 +1059,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         retval = retval.subs(subs)
 
         # If harmonic averaging, invert at the end
-        if self._avg_mode == 'harmonic':
-            from devito.finite_differences.differentiable import SafeInv
-            retval = SafeInv(retval, self.function.subs(subs))
+        if 'harmonic' in self._avg_mode:
+            retval = retval.safe_inv(self.function.subs(subs),
+                                     safe='safe' in self._avg_mode)
 
         return retval
 

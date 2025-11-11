@@ -1537,6 +1537,15 @@ class TimeFunction(Function):
     def _time_buffering_default(self):
         return self._time_buffering and not isinstance(self.save, Buffer)
 
+    def _evaluate(self, **kwargs):
+        retval = super()._evaluate(**kwargs)
+        if not self._time_buffering and not retval.is_Function:
+            # Saved TimeFunction might need streaming, expand interpolations
+            # for easier processing.
+            return retval.evaluate
+        else:
+            return retval
+
     def _arg_check(self, args, intervals, **kwargs):
         super()._arg_check(args, intervals, **kwargs)
 
