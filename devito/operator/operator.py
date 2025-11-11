@@ -1,14 +1,18 @@
 from collections import OrderedDict, namedtuple
 from functools import cached_property
-import ctypes
-import shutil
 from operator import attrgetter
 from math import ceil
 from tempfile import gettempdir
+from time import time
+import ctypes
+import glob
+import os
+import shutil
 
 from sympy import sympify
 import sympy
 import numpy as np
+import cloudpickle as pickle
 
 from devito.arch import (ANYCPU, Device, compiler_registry, platform_registry,
                          get_visible_devices)
@@ -32,10 +36,11 @@ from devito.passes import (
     minimize_symbols, unevaluate, error_mapper, is_on_device, lower_dtypes
 )
 from devito.symbolics import estimate_cost, subs_op_args
-from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
-                          flatten, filter_sorted, frozendict, is_integer,
-                          split, timed_pass, timed_region, contains_val,
-                          CacheInstances, MemoryEstimate)
+from devito.tools import (
+    DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple, flatten,
+    filter_sorted, frozendict, is_integer, split, timed_pass, timed_region,
+    contains_val, CacheInstances, MemoryEstimate, make_tempdir
+)
 from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
@@ -157,6 +162,12 @@ class Operator(Callable):
             # can't do anything useful with it
             return super().__new__(cls, **kwargs)
 
+        # Maybe lookup an existing Operator from disk
+        name = kwargs.get('name', default_op_name)
+        op = autopickler.maybe_load(name)
+        if op is not None:
+            return op
+
         # Parse input arguments
         kwargs = parse_kwargs(**kwargs)
 
@@ -175,6 +186,9 @@ class Operator(Callable):
 
         # Emit info about how long it took to perform the lowering
         op._emit_build_profiling()
+
+        # Maybe save the Operator to disk
+        autopickler.maybe_save(op)
 
         return op
 
@@ -479,7 +493,7 @@ class Operator(Callable):
             * Introduce optimizations for data locality;
             * Finalize (e.g., symbol definitions, array casts)
         """
-        name = kwargs.get("name", "Kernel")
+        name = kwargs.get("name", default_op_name)
 
         # Wrap the IET with an EntryFunction (a special Callable representing
         # the entry point of the generated library)
@@ -1216,6 +1230,10 @@ class Operator(Callable):
             f'{type(self._compiler).__name__}.{self._language}.{self._platform}'
         )
 
+        # Tag this Operator as unpickled -- might come in handy at the call site
+        # for sanity checks
+        self._unpickled = True
+
 
 # *** Recursive compilation ("rcompile") machinery
 
@@ -1701,3 +1719,79 @@ def parse_kwargs(**kwargs):
     kwargs['subs'] = {k: sympify(v) for k, v in kwargs.get('subs', {}).items()}
 
     return kwargs
+
+
+# The name assigned to an Operator when the user does not provide one
+default_op_name = "Kernel"
+
+
+class Autopickler:
+
+    def __init__(self):
+        self._initialized = False
+        self.registry = {}
+
+    @property
+    def _directory(self):
+        return make_tempdir('autopickling')
+
+    def _initialize(self):
+        # Search the `autopickling` temporary directory for pickled Operators
+        # and maintain a registry of them. Each pickled Operator is uniquely
+        # identified by a name; this might not be enough to avoid name clashes,
+        # but for now it is what we have. Thus, a generic filename is
+        # `<operator_name>.pkl`.
+        pkl_files = glob.glob(os.path.join(self._directory, '*.pkl'))
+
+        self.registry.update({
+            os.path.basename(pkl_file)[:-4]: pkl_file for pkl_file in pkl_files
+        })
+
+        self._initialized = True
+
+    def maybe_load(self, name):
+        if not configuration['autopickling']:
+            return None
+
+        tic = time()
+
+        if not self._initialized:
+            self._initialize()
+
+        if name is None or name == default_op_name:
+            return None
+
+        pkl_file = self.registry.get(name)
+        if pkl_file is None:
+            return None
+
+        with open(pkl_file, 'rb') as f:
+            op = pickle.load(f)
+
+        toc = time()
+
+        perf(f"Operator `{name}` unpickled from disk in {toc - tic:.2f} s")
+
+        return op
+
+    def maybe_save(self, op):
+        if not configuration['autopickling']:
+            return
+
+        if op.name == default_op_name:
+            return
+
+        assert self._initialized is not None
+
+        pkl_file = os.path.join(self._directory, f"{op.name}.pkl")
+        with open(pkl_file, 'wb') as f:
+            pickle.dump(op, f)
+
+        # Update the registry, in most cases this is unnecessary since
+        # autopickling is about saving time on subsequent runs, but just in case
+        self.registry[op.name] = pkl_file
+
+        debug(f"Operator `{op.name}` pickled to disk at `{pkl_file}`")
+
+
+autopickler = Autopickler()
