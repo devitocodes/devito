@@ -317,6 +317,9 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             i = n.write
             if not (i.is_Array or i.is_TempFunction):
                 continue
+            elif partree.dim in i.dimensions:
+                # Non-local Array (full iteration space): no need to vector-expand
+                continue
             elif i in parrays:
                 pi = parrays[i]
             else:

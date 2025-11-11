@@ -989,7 +989,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def _eval_deriv(self):
         return self
 
-    @cached_property
+    @property
     def _grid_map(self):
         """
         Mapper of off-grid interpolation points indices for each dimension.
