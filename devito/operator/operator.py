@@ -1402,7 +1402,14 @@ class ArgumentsMap(dict):
             if visible_devices is None:
                 return logical_deviceid
             else:
-                return visible_devices[logical_deviceid]
+                try:
+                    return visible_devices[logical_deviceid]
+                except IndexError:
+                    errmsg = (f"A deviceid value of {logical_deviceid} is not valid "
+                              f"with VISIBLE_DEVICES={visible_devices}. Note that "
+                              "deviceid corresponds to the logical index within the "
+                              "visible devices, not the physical device index.")
+                    raise ValueError(errmsg)
         else:
             return None
 
