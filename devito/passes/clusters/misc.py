@@ -135,8 +135,6 @@ class Fusion(Queue):
         # Toposort to maximize fusion
         if self.toposort:
             clusters = self._toposort(cgroups, prefix)
-            if self.toposort == 'nofuse':
-                return [clusters]
         else:
             clusters = ClusterGroup(cgroups)
 
@@ -146,6 +144,13 @@ class Fusion(Queue):
             g = list(group)
 
             for maybe_fusible in self._apply_heuristics(g):
+                if self.toposort == 'nofuse':
+                    # Special case: we retain the ClusterGroup to maximize the
+                    # effectiveness of the toposort at the next stage, but we
+                    # do not actually fuse anything
+                    processed.append(ClusterGroup(maybe_fusible, prefix))
+                    continue
+
                 try:
                     # Perform fusion
                     processed.append(Cluster.from_clusters(*maybe_fusible))
