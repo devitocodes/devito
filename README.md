@@ -95,7 +95,7 @@ provided with Devito or create your own notebooks.
 instructions and other options. If you encounter a problem during installation, please
 see the
 [installation issues](https://github.com/devitocodes/devito/wiki/Installation-Issues) we
-have seen in the past. 
+have seen in the past.
 
 ## Resources
 
@@ -126,4 +126,4 @@ are facing issues or just trying it out, join the
 [conversation](https://join.slack.com/t/devitocodes/shared_invite/zt-2hgp6891e-jQDcepOWPQwxL5JJegYKSA).
 
 ## Interactive jupyter notebooks
-The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/main) jupyterhub. 
+The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/main) jupyterhub.
