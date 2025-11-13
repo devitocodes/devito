@@ -3,13 +3,14 @@ from functools import singledispatch
 import numpy as np
 
 from devito.data import FULL
-from devito.ir import (BlankLine, Call, DummyExpr, Dereference, List, PointerCast,
-                       Transfer, FindNodes, FindSymbols, Transformer, Uxreplace,
-                       IMask)
+from devito.ir import (
+    BlankLine, Call, Dereference, DummyExpr, FindNodes, FindSymbols, IMask, List,
+    PointerCast, Transfer, Transformer, Uxreplace
+)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.parpragma import PragmaIteration
 from devito.tools import filter_ordered, flatten, prod
-from devito.types import Array, Bundle, Symbol, FIndexed, Wildcard
+from devito.types import Array, Bundle, FIndexed, Symbol, Wildcard
 from devito.types.dense import DiscreteFunction
 
 __all__ = ['linearize']

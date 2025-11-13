@@ -1,12 +1,11 @@
 import numpy as np
-import sympy
-from sympy import Rational, Matrix
-
 import pytest
+import sympy
+from sympy import Matrix, Rational
 
-from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
 from devito import (
-    Grid, Function, TimeFunction, Dimension, Eq, div, grad, curl, laplace, diag
+    Dimension, Eq, Function, Grid, TensorFunction, TensorTimeFunction, TimeFunction,
+    VectorFunction, VectorTimeFunction, curl, diag, div, grad, laplace
 )
 from devito.symbolics import retrieve_derivatives
 from devito.types import NODE

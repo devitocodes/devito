@@ -1,7 +1,7 @@
 """The parameters dictionary contains global parameter settings."""
+import os
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-import os
 from functools import wraps
 
 from devito.logger import info, warning

@@ -1,19 +1,21 @@
+from abc import ABC
 from functools import singledispatch
 from itertools import takewhile
-from abc import ABC
 
 import cgen as c
 
 from devito.data import FULL
-from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
-                       ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
-                       AsyncCallable, FindNodes, FindSymbols, IsPerfectIteration)
+from devito.ir import (
+    AsyncCallable, Call, Conditional, DummyExpr, EntryFunction, Expression, FindNodes,
+    FindSymbols, IsPerfectIteration, List, ParallelBlock, ParallelIteration, PointerCast,
+    Prodder
+)
 from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe, SizeOf
 from devito.tools import as_list, is_integer, prod
-from devito.types import Symbol, QueueID, Wildcard
+from devito.types import QueueID, Symbol, Wildcard
 
 __all__ = ['LangBB', 'LangTransformer']
 

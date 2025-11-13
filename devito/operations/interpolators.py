@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from functools import wraps, cached_property
+from functools import cached_property, wraps
 
-import sympy
 import numpy as np
+import sympy
 
 try:
     from scipy.special import i0
@@ -12,10 +12,11 @@ except ImportError:
 from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
-from devito.symbolics import retrieve_function_carriers, retrieve_functions, INT
-from devito.tools import as_tuple, flatten, filter_ordered, Pickable, memoized_meth
-from devito.types import (ConditionalDimension, Eq, Inc, Evaluable, Symbol,
-                          CustomDimension, SubFunction)
+from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
+from devito.tools import Pickable, as_tuple, filter_ordered, flatten, memoized_meth
+from devito.types import (
+    ConditionalDimension, CustomDimension, Eq, Evaluable, Inc, SubFunction, Symbol
+)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']

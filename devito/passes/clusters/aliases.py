@@ -1,5 +1,5 @@
 from collections import Counter, OrderedDict, defaultdict, namedtuple
-from functools import singledispatch, cached_property
+from functools import cached_property, singledispatch
 from itertools import groupby
 
 import numpy as np
@@ -7,19 +7,23 @@ import sympy
 
 from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward,
-                       IterationSpace, Interval, Cluster, ExprGeometry, Queue,
-                       IntervalGroup, LabeledVector, Vector, normalize_properties,
-                       relax_properties, unbounded, minimum, maximum, extrema,
-                       vmax, vmin)
+from devito.ir import (
+    PARALLEL_IF_PVT, SEPARABLE, SEQUENTIAL, Cluster, ExprGeometry, Forward, Interval,
+    IntervalGroup, IterationSpace, LabeledVector, Queue, Vector, extrema, maximum,
+    minimum, normalize_properties, relax_properties, unbounded, vmax, vmin
+)
 from devito.passes.clusters.cse import _cse
-from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
-                              uxreplace, sympy_dtype)
-from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
-                          is_integer, generator, split, timed_pass)
-from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
-                          ModuloDimension, CustomDimension, IncrDimension,
-                          StencilDimension, Indexed, Hyperplane)
+from devito.symbolics import (
+    Uxmapper, estimate_cost, reuse_if_untouched, search, sympy_dtype, uxreplace
+)
+from devito.tools import (
+    Stamp, as_mapper, as_tuple, flatten, frozendict, generator, is_integer, split,
+    timed_pass
+)
+from devito.types import (
+    CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension,
+    StencilDimension, Symbol, Temp, TempArray, TempFunction
+)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']

@@ -1,14 +1,16 @@
-import pytest
-import numpy as np
 from math import floor
 
+import numpy as np
+import pytest
 from sympy import sin, tan
 
-from conftest import opts_tiling, assert_structure
-from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
-                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseFunction,
-                    SparseTimeFunction, VectorFunction, TensorFunction, Border)
-from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegistry
+from conftest import assert_structure, opts_tiling
+from devito import (
+    Border, ConditionalDimension, Constant, Eq, Function, Grid, Lt, Operator,
+    SparseFunction, SparseTimeFunction, SubDomain, SubDomainSet, TensorFunction,
+    TimeFunction, VectorFunction, solve
+)
+from devito.ir import Expression, FindNodes, FindSymbols, Iteration, SymbolRegistry
 from devito.tools import timed_region
 
 

@@ -1,20 +1,20 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
-from functools import cached_property
-from subprocess import PIPE, Popen, DEVNULL, run
-from pathlib import Path
 import ctypes
-import re
-import os
-import sys
 import json
+import os
+import re
+import sys
+from functools import cached_property
+from pathlib import Path
+from subprocess import DEVNULL, PIPE, Popen, run
 
 import cpuinfo
 import numpy as np
 import psutil
 
 from devito.logger import warning
-from devito.tools import as_tuple, all_equal, memoized_func
+from devito.tools import all_equal, as_tuple, memoized_func
 
 __all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
            'get_nvidia_cc', 'get_cuda_path', 'get_hip_path', 'check_cuda_runtime',

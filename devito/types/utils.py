@@ -2,6 +2,7 @@ from ctypes import POINTER, Structure
 from functools import cached_property
 
 from devito.tools import EnrichedTuple, Tag
+
 # Additional Function-related APIs
 
 __all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'IgnoreDimSort',

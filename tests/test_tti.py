@@ -4,8 +4,8 @@ from numpy import linalg
 
 from devito import TimeFunction
 from devito.logger import log
-from examples.seismic.model import SeismicModel
 from examples.seismic.acoustic import acoustic_setup
+from examples.seismic.model import SeismicModel
 from examples.seismic.tti import tti_setup
 
 

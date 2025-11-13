@@ -3,10 +3,12 @@ from functools import cached_property
 import numpy as np
 import sympy
 
-from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
-                               Stencil, detect_io, detect_accesses)
+from devito.ir.equations.algorithms import dimension_sort, lower_exprs
+from devito.ir.support import (
+    GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses,
+    detect_io
+)
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min

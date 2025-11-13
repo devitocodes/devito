@@ -2,13 +2,16 @@ from sympy import sympify
 
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
-from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC,
-                               PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
-                               IntervalGroup, IterationSpace, Scope)
+from devito.ir.support import (
+    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
+    IntervalGroup, IterationSpace, Scope
+)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
-from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple,
-                          filter_ordered, flatten, is_integer)
+from devito.tools import (
+    UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple, filter_ordered, flatten,
+    is_integer
+)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']

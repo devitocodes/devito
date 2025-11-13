@@ -1,24 +1,23 @@
 import cloudpickle as pickle
-
-import pytest
 import numpy as np
-import sympy
+import pytest
 import scipy.sparse
+import sympy
 
-from conftest import assert_structure
-from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
-                    SubDimension, SubDomain, SubDomainSet, TimeFunction, exp,
-                    Operator, configuration, switchconfig, TensorTimeFunction,
-                    Buffer, assign, switchenv)
-from devito.arch import get_gpu_info, get_cpu_info, Device, Cpu64
+from conftest import assert_structure, skipif
+from devito import (
+    Buffer, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, Inc,
+    MatrixSparseTimeFunction, Operator, SparseTimeFunction, SubDimension, SubDomain,
+    SubDomainSet, TensorTimeFunction, TimeFunction, assign, configuration, exp,
+    switchconfig, switchenv
+)
+from devito.arch import Cpu64, Device, get_cpu_info, get_gpu_info
 from devito.exceptions import InvalidArgument
-from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
-                       retrieve_iteration_tree)
+from devito.ir import (
+    Conditional, Expression, FindNodes, FindSymbols, Section, retrieve_iteration_tree
+)
 from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol
-
-from conftest import skipif
 
 pytestmark = skipif(['nodevice'], whole_module=True)
 

@@ -4,11 +4,13 @@ from functools import singledispatch
 from sympy import Or
 
 from devito.exceptions import CompilationError
-from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes, Transformer,
-                           BlankLine, BusyWait, DummyExpr, AsyncCall, AsyncCallable,
-                           make_callable, derive_parameters)
-from devito.ir.support import (WaitLock, WithLock, ReleaseLock, InitArray,
-                               SyncArray, PrefetchUpdate, SnapOut, SnapIn)
+from devito.ir.iet import (
+    AsyncCall, AsyncCallable, BlankLine, BusyWait, Call, Callable, DummyExpr, FindNodes,
+    List, SyncSpot, Transformer, derive_parameters, make_callable
+)
+from devito.ir.support import (
+    InitArray, PrefetchUpdate, ReleaseLock, SnapIn, SnapOut, SyncArray, WaitLock, WithLock
+)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe

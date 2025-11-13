@@ -1,19 +1,21 @@
 from collections import defaultdict
 from functools import cached_property
 
-import numpy as np
 import cgen as c
+import numpy as np
 from sympy import And, Max, true
 
 from devito.data import FULL
-from devito.ir import (Conditional, DummyEq, Dereference, Expression,
-                       ExpressionBundle, FindSymbols, FindNodes, ParallelIteration,
-                       ParallelTree, Pragma, Prodder, Transfer, List, Transformer,
-                       IsPerfectIteration, OpInc, filter_iterations, ccode,
-                       retrieve_iteration_tree, IMask, VECTORIZED)
+from devito.ir import (
+    VECTORIZED, Conditional, Dereference, DummyEq, Expression, ExpressionBundle,
+    FindNodes, FindSymbols, IMask, IsPerfectIteration, List, OpInc, ParallelIteration,
+    ParallelTree, Pragma, Prodder, Transfer, Transformer, ccode, filter_iterations,
+    retrieve_iteration_tree
+)
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.langbase import (LangBB, LangTransformer, DeviceAwareMixin,
-                                        ShmTransformer, make_sections_from_imask)
+from devito.passes.iet.langbase import (
+    DeviceAwareMixin, LangBB, LangTransformer, ShmTransformer, make_sections_from_imask
+)
 from devito.symbolics import INT
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol

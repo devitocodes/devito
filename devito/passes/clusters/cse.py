@@ -1,9 +1,10 @@
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from functools import cached_property, singledispatch
 
 import numpy as np
 import sympy
 from sympy import Add, Function, Indexed, Mul, Pow
+
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
@@ -13,9 +14,9 @@ except ImportError:
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import estimate_cost, q_leaf, q_terminal
-from devito.symbolics.search import search
 from devito.symbolics.manipulation import _uxreplace
-from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
+from devito.symbolics.search import search
+from devito.tools import DAG, as_list, as_tuple, extract_dtype, frozendict
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']

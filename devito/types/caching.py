@@ -6,7 +6,6 @@ from sympy.core import cache
 
 from devito.tools import safe_dict_copy
 
-
 __all__ = ['Cached', 'Uncached', '_SymbolCache', 'CacheManager']
 
 _SymbolCache = {}

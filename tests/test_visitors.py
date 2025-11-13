@@ -1,14 +1,15 @@
 import cgen as c
-from sympy import Mod
 import pytest
+from sympy import Mod
 
-from devito import Grid, Eq, Function, TimeFunction, Operator, Min, sin
+from devito import Eq, Function, Grid, Min, Operator, TimeFunction, sin
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Expression, Callable, FindNodes, FindSections,
-                           FindSymbols, IsPerfectIteration, Transformer,
-                           Conditional, printAST, Iteration, MapNodes, Call,
-                           FindApplications)
-from devito.types import SpaceDimension, Array, Symbol
+from devito.ir.iet import (
+    Block, Call, Callable, Conditional, Expression, FindApplications, FindNodes,
+    FindSections, FindSymbols, IsPerfectIteration, Iteration, MapNodes, Transformer,
+    printAST
+)
+from devito.types import Array, SpaceDimension, Symbol
 
 
 @pytest.fixture(scope="module")
