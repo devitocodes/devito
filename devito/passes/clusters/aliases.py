@@ -14,7 +14,7 @@ from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward,
                        vmax, vmin)
 from devito.passes.clusters.cse import _cse
 from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
-                              uxreplace, sympy_dtype)
+                              retrieve_functions, uxreplace, sympy_dtype)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
                           is_integer, generator, split, timed_pass)
 from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
@@ -113,6 +113,7 @@ class CireTransformer:
         self.opt_rotate = options['cire-rotate']
         self.opt_ftemps = options['cire-ftemps']
         self.opt_mingain = options['cire-mingain']
+        self.opt_minmem = options['cire-minmem']
         self.opt_min_dtype = options['scalar-min-type']
         self.opt_multisubdomain = True
 
@@ -143,7 +144,8 @@ class CireTransformer:
 
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry,
-                                         self.opt_ftemps, self.opt_min_dtype)
+                                         self.opt_ftemps, self.opt_min_dtype,
+                                         self.opt_minmem)
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
@@ -831,11 +833,12 @@ def optimize_schedule_rotations(schedule, sregistry):
     return schedule.rebuild(*processed, rmapper=rmapper)
 
 
-def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
+def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
+                   opt_minmem):
     """
     Turn a Schedule into a sequence of Clusters.
     """
-    if ftemps:
+    if opt_ftemps:
         make = TempFunction
     else:
         # Typical case -- the user does *not* "see" the CIRE-created temporaries
@@ -865,8 +868,26 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
             dimensions = [d.parent if d.is_AbstractSub else d
                           for d in writeto.itdims]
 
-            # The halo must be set according to the size of `writeto`
-            halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
+            # The minimum halo required along each Dimension depends on `writeto`.
+            # The user might suggest to go more relaxed about this via `opt_minmem`,
+            # in which case we extend the halo based on the surrounding
+            # Functions to minimize support variables such as strides etc
+            halo = {i.dim: Size(abs(i.lower), abs(i.upper)) for i in writeto}
+
+            if opt_minmem:
+                functions = []
+            else:
+                functions = retrieve_functions(pivot)
+
+            for f in functions:
+                for d, h0 in list(halo.items()):
+                    try:
+                        h1 = f._size_halo[d]
+                    except KeyError:
+                        continue
+                    halo[d] = Size(max(h0.left, h1.left), max(h0.right, h1.right))
+
+            halo = tuple(halo.values())
 
             # The indices used to write into the Array
             indices = []
@@ -889,7 +910,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
             # Degenerate case: scalar expression
             assert writeto.size == 0
 
-            dtype = sympy_dtype(pivot, base=meta.dtype, smin=min_dtype)
+            dtype = sympy_dtype(pivot, base=meta.dtype, smin=opt_min_dtype)
             obj = Temp(name=name, dtype=dtype)
             expression = Eq(obj, uxreplace(pivot, subs))
 
@@ -1035,6 +1056,9 @@ def pick_best(variants):
 
 
 # Utilities
+
+
+Size = namedtuple('Size', 'left right')
 
 
 class Group(tuple):

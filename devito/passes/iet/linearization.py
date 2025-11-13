@@ -67,7 +67,7 @@ def key1(f, d):
 
         * False if not statically linearizable, that is not linearizable via
           constant symbolic sizes and strides;
-        * A 3-tuple `(Dimension, halo size, grid)` otherwise.
+        * A 3-tuple `(Dimension, halo size, pad dtype)` otherwise.
     """
     if f.is_regular:
         # For paddable objects the following holds:

@@ -69,6 +69,14 @@ class BasicOperator(Operator):
     intensity of the generated kernel.
     """
 
+    CIRE_MINMEM = True
+    """
+    Minimize memory consumption when allocating temporaries for CIRE-optimized
+    expressions. This may come at the cost of slighly worse performance due to
+    the potential need for extra registers to hold a greater number of support
+    variables (e.g., strides).
+    """
+
     SCALAR_MIN_TYPE = np.float16
     """
     Minimum datatype for a scalar arising from a common sub-expression or CIRE temp.

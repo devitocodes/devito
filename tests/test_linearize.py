@@ -659,3 +659,29 @@ def test_int64_array(order):
     else:
         long = '(long)'
         assert f'({2*order} + {long}y_size)*({2*order} + {long}x_size))' in str(op)
+
+
+def test_cire_n_strides():
+    grid = Grid(shape=(4, 4, 4))
+
+    u = TimeFunction(name='u', grid=grid, space_order=8)
+    u1 = TimeFunction(name='u', grid=grid, space_order=8)
+
+    eqn = Eq(u.forward, u.dy.dx + u.dy.dy + u.dy.dz + 1.)
+
+    op0 = Operator(eqn, opt=('advanced', {'linearize': False, 'cire-mingain': 0}))
+    op1 = Operator(eqn, opt=('advanced', {'linearize': True, 'cire-mingain': 0}))
+    op2 = Operator(eqn, opt=('advanced', {'linearize': True,
+                                          'cire-mingain': 0,
+                                          'cire-minmem': False}))
+
+    # Check generated code
+    assert 'uL0' in str(op1)
+    assert len(op1.body.strides) == 11
+    assert 'uL0' in str(op2)
+    assert len(op2.body.strides) == 9  # Fewer size/stride vars thx to cire-minmem
+
+    op0.apply(time_M=10)
+    op2.apply(time_M=10, u=u1)
+
+    assert np.all(u.data == u1.data)
