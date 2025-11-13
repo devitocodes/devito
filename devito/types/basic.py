@@ -20,6 +20,7 @@ from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
+import contextlib
 
 __all__ = [
     'DeviceMap',
@@ -857,8 +858,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Averaging mode for off the grid evaluation
         self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
         if self._avg_mode not in ['arithmetic', 'harmonic']:
-            raise ValueError("Invalid averaging mode_mode %s, accepted values are"
-                             " arithmetic or harmonic" % self._avg_mode)
+            raise ValueError(f"Invalid averaging mode_mode {self._avg_mode}, accepted values are"
+                             " arithmetic or harmonic")
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -1029,10 +1030,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         io = self.interp_order
         # Base function
-        if self._avg_mode == 'harmonic':
-            retval = 1 / self.function
-        else:
-            retval = self.function
+        retval = 1 / self.function if self._avg_mode == 'harmonic' else self.function
 
         # Apply interpolation from inner most dim
         for d, i in self._grid_map.items():
@@ -1709,10 +1707,8 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
     def free_symbols(self):
         ret = {self}
         for i in self.indices:
-            try:
+            with contextlib.suppress(AttributeError):
                 ret.update(i.free_symbols)
-            except AttributeError:
-                pass
         return ret
 
     # Pickling support

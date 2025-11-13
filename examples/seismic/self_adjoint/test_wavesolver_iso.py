@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.special import hankel2
+import contextlib
+import builtins
 
-try:
+with contextlib.suppress(builtins.BaseException):
     import pytest
-except:
-    pass
 from devito import Eq, Function, Grid, Operator, info
 from examples.seismic import AcquisitionGeometry, Model, RickerSource, TimeAxis
 from examples.seismic.self_adjoint import (
@@ -459,8 +459,7 @@ class TestWavesolver:
         arms = np.max(np.abs(uAna))
         drms = np.max(np.abs(diff))
 
-        info("Maximum absolute numerical,analytic,diff; %+12.6e %+12.6e %+12.6e" %
-             (nrms, arms, drms))
+        info(f"Maximum absolute numerical,analytic,diff; {nrms:+12.6e} {arms:+12.6e} {drms:+12.6e}")
 
         # This isnt a very strict tolerance ...
         tol = 0.1

@@ -14,6 +14,7 @@ from devito.tools import (
     EnrichedTuple, Reconstructable, Tag, as_tuple, filter_ordered, filter_sorted, flatten,
     frozendict, is_integer
 )
+import contextlib
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
 
@@ -151,7 +152,7 @@ class HaloScheme:
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
-        return "HaloScheme<%s>" % fnames
+        return f"HaloScheme<{fnames}>"
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
@@ -597,16 +598,13 @@ def classify(exprs, ispace):
         # Separate halo-exchange Dimensions from `loc_indices`
         raw_loc_indices, halos = defaultdict(list), []
         for (d, s), hl in halo_labels.items():
-            try:
+            with contextlib.suppress(KeyError):
                 hl.remove(IDENTITY)
-            except KeyError:
-                pass
             if not hl:
                 continue
             elif len(hl) > 1:
                 raise HaloSchemeException("Inconsistency found while building a halo "
-                                          "scheme for `%s` along Dimension `%s`"
-                                          % (f, d))
+                                          f"scheme for `{f}` along Dimension `{d}`")
             elif hl.pop() is STENCIL:
                 halos.append(Halo(d, s))
             else:
@@ -683,7 +681,7 @@ class HaloTouch(sympy.Function, Reconstructable):
         return obj
 
     def __repr__(self):
-        return "HaloTouch(%s)" % ",".join(f.name for f in self.halo_scheme.fmapper)
+        return "HaloTouch({})".format(",".join(f.name for f in self.halo_scheme.fmapper))
 
     __str__ = __repr__
 

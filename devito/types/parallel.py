@@ -251,7 +251,7 @@ class Lock(Array):
             raise ValueError("Expected exactly one Dimension, got `%d`" % len(dimensions))
         d, = dimensions
         if not is_integer(d.symbolic_size):
-            raise ValueError("`%s` must have fixed size" % d)
+            raise ValueError(f"`{d}` must have fixed size")
         kwargs.setdefault('initvalue', np.full(d.symbolic_size, 2, dtype=np.int32))
 
         super().__init_finalize__(*args, **kwargs)

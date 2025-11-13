@@ -30,7 +30,7 @@ class LangMeta(type):
 
     def __getitem__(self, k):
         if k not in self.mapper:
-            raise NotImplementedError("Missing required mapping for `%s`" % k)
+            raise NotImplementedError(f"Missing required mapping for `{k}`")
         return self.mapper[k]
 
     def get(self, k, v=None):
@@ -473,13 +473,13 @@ class DeviceAwareMixin:
             if objcomm is not None:
                 body = _make_setdevice_mpi(iet, objcomm, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s+MPI setup' % self.langbb['name'])
-                footer = c.Comment('End of %s+MPI setup' % self.langbb['name'])
+                header = c.Comment('Beginning of {}+MPI setup'.format(self.langbb['name']))
+                footer = c.Comment('End of {}+MPI setup'.format(self.langbb['name']))
             else:
                 body = _make_setdevice_seq(iet, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s setup' % self.langbb['name'])
-                footer = c.Comment('End of %s setup' % self.langbb['name'])
+                header = c.Comment('Beginning of {} setup'.format(self.langbb['name']))
+                footer = c.Comment('End of {} setup'.format(self.langbb['name']))
 
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))

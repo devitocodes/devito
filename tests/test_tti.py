@@ -73,5 +73,5 @@ def test_tti(shape, so, rot):
 
     res = linalg.norm((normal_u - normal_utti - normal_vtti).reshape(-1))**2
     res /= np.linalg.norm(normal_u.reshape(-1))**2
-    log("Difference between acoustic and TTI with all coefficients to 0 %2.4e" % res)
+    log(f"Difference between acoustic and TTI with all coefficients to 0 {res:2.4e}")
     assert np.isclose(res, 0.0, atol=1e-4)

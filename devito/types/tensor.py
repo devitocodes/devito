@@ -155,7 +155,7 @@ class TensorFunction(AbstractTensor):
         try:
             return self.applyfunc(lambda x: x if x == 0 else getattr(x, name))
         except:
-            raise AttributeError("%r object has no attribute %r" % (self.__class__, name))
+            raise AttributeError(f"{self.__class__!r} object has no attribute {name!r}")
 
     def _eval_at(self, func):
         """
@@ -247,7 +247,7 @@ class TensorFunction(AbstractTensor):
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         order = order or self.space_order
         for i in range(len(self.space_dimensions)):
-            comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
+            comps.append(sum([getattr(self[j, i], f'd{d.name}')
                               (x0=shift_x0(shift, d, i, j), fd_order=order,
                                method=method, w=w)
                               for j, d in enumerate(space_dims)]))
@@ -290,7 +290,7 @@ class TensorFunction(AbstractTensor):
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         for j in range(ndim):
-            comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
+            comps.append(sum([getattr(self[j, i], f'd{d.name}2')
                               (x0=shift_x0(shift, d, j, i), fd_order=order,
                                method=method, w=w)
                               for i, d in enumerate(space_dims)]))
@@ -356,7 +356,7 @@ class VectorFunction(TensorFunction):
     # Custom repr and str
     def __str__(self):
         st = ''.join([' %-2s,' % c for c in self])[1:-1]
-        return "Vector(%s)" % st
+        return f"Vector({st})"
 
     __repr__ = __str__
 
@@ -381,7 +381,7 @@ class VectorFunction(TensorFunction):
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
         space_dims = self.root_dimensions
-        return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
+        return sum([getattr(self[i], f'd{d.name}')(x0=shift_x0(shift, d, None, i),
                                                      fd_order=order, method=method, w=w)
                     for i, d in enumerate(space_dims)])
 
@@ -414,7 +414,7 @@ class VectorFunction(TensorFunction):
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
         space_dims = self.root_dimensions
-        comps = [sum([getattr(s, 'd%s2' % d.name)(x0=shift_x0(shift, d, None, i),
+        comps = [sum([getattr(s, f'd{d.name}2')(x0=shift_x0(shift, d, None, i),
                                                   fd_order=order, w=w, method=method)
                       for i, d in enumerate(space_dims)])
                  for s in self]
@@ -442,7 +442,7 @@ class VectorFunction(TensorFunction):
         # The curl of a VectorFunction is a VectorFunction
         w = kwargs.get('weights', kwargs.get('w'))
         dims = self.root_dimensions
-        derivs = ['d%s' % d.name for d in dims]
+        derivs = [f'd{d.name}' for d in dims]
         shift_x0 = make_shift_x0(shift, (len(dims), len(dims)))
         order = order or self.space_order
         comp1 = (getattr(self[2], derivs[1])(x0=shift_x0(shift, dims[1], 2, 1),
@@ -483,7 +483,7 @@ class VectorFunction(TensorFunction):
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         order = order or self.space_order
         space_dims = self.root_dimensions
-        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j), w=w,
+        comps = [[getattr(f, f'd{d.name}')(x0=shift_x0(shift, d, i, j), w=w,
                                              fd_order=order, method=method)
                   for j, d in enumerate(space_dims)]
                  for i, f in enumerate(self)]

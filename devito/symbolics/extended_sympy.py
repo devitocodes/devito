@@ -16,6 +16,7 @@ from devito.tools import (  # noqa
 )
 from devito.types import Symbol
 from devito.types.basic import Basic
+import contextlib
 
 __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
            'LeftShift', 'RightShift', 'IntDiv', 'CallFromPointer',
@@ -202,7 +203,7 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             pointer = Symbol(pointer)
         if isinstance(call, str):
             call = Symbol(call)
-        elif not isinstance(call, (BasicWrapperMixin, Basic)):
+        elif not isinstance(call, BasicWrapperMixin | Basic):
             raise ValueError(f"`call` {call} must be a `devito.Basic` or a type "
                              f"with compatible interface, not {type(call)}")
         _params = []
@@ -476,10 +477,8 @@ class Cast(UnaryOp):
     @property
     def _C_ctype(self):
         ctype = ctypes_vector_mapper.get(self.dtype, self.dtype)
-        try:
+        with contextlib.suppress(TypeError):
             ctype = dtype_to_ctype(ctype)
-        except TypeError:
-            pass
         return ctype
 
     @property
@@ -674,10 +673,7 @@ class DefFunction(Function, Pickable):
         return self._template
 
     def __str__(self):
-        if self.template:
-            template = f"<{','.join(str(i) for i in self.template)}>"
-        else:
-            template = ''
+        template = f"<{','.join(str(i) for i in self.template)}>" if self.template else ''
         arguments = ', '.join(str(i) for i in self.arguments)
         return f"{self.name}{template}({arguments})"
 
@@ -865,7 +861,7 @@ class SizeOf(DefFunction):
 
     def __new__(cls, intype, stars=None, **kwargs):
         stars = stars or ''
-        if not isinstance(intype, (str, ReservedWord)):
+        if not isinstance(intype, str | ReservedWord):
             ctype = dtype_to_ctype(intype)
             for k, v in ctypes_vector_mapper.items():
                 if ctype is v:

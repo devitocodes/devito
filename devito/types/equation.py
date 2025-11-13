@@ -183,7 +183,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules))
 
     def __str__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+        return f"{self.__class__.__name__}({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 
@@ -198,7 +198,7 @@ class Reduction(Eq):
     is_Reduction = True
 
     def __str__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+        return f"{self.__class__.__name__}({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 

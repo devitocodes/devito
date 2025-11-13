@@ -17,6 +17,7 @@ from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
 from devito.tools import ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype
 from devito.types.basic import AbstractFunction
+import contextlib
 
 __all__ = ['BasePrinter', 'ccode']
 
@@ -115,10 +116,8 @@ class BasePrinter(CodePrinter):
             return f'{ctype} *'
 
     def _print_type(self, expr):
-        try:
+        with contextlib.suppress(TypeError):
             expr = dtype_to_ctype(expr)
-        except TypeError:
-            pass
         try:
             return self.type_mappings[expr]
         except KeyError:
@@ -308,10 +307,7 @@ class BasePrinter(CodePrinter):
         """Print a Float in C-like scientific notation."""
         prec = expr._prec
 
-        if prec < 5:
-            dps = 0
-        else:
-            dps = prec_to_dps(expr._prec)
+        dps = 0 if prec < 5 else prec_to_dps(expr._prec)
 
         if self._settings["full_prec"] is True:
             strip = False

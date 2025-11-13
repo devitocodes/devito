@@ -39,10 +39,7 @@ class Tag(abc.ABC):
         return hash((self.name, self.val))
 
     def __str__(self):
-        if self.val is None:
-            ret = self.name
-        else:
-            ret = "%s[%s]" % (self.name, str(self.val))
+        ret = self.name if self.val is None else f"{self.name}[{str(self.val)}]"
         return ret
 
     __repr__ = __str__
@@ -277,6 +274,6 @@ class Stamp:
     """
 
     def __repr__(self):
-        return "<%s>" % str(id(self))[-3:]
+        return f"<{str(id(self))[-3:]}>"
 
     __str__ = __repr__

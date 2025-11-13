@@ -32,7 +32,7 @@ class IterationTree(tuple):
         return [i.dim for i in self]
 
     def __repr__(self):
-        return "IterationTree%s" % super().__repr__()
+        return f"IterationTree{super().__repr__()}"
 
     def __getitem__(self, key):
         ret = super().__getitem__(key)
@@ -122,7 +122,7 @@ def derive_parameters(iet, drop_locals=False, ordering='default'):
 
     # Drop globally-visible objects
     parameters = [p for p in parameters
-                  if not isinstance(p, (Global, Keyword, Macro))]
+                  if not isinstance(p, Global | Keyword | Macro)]
     # Drop (to be) locally declared objects as well as global objects
     parameters = [p for p in parameters
                   if not (p._mem_internal_eager or p._mem_constant)]

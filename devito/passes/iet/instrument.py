@@ -81,7 +81,7 @@ def track_subsections(iet, **kwargs):
             candidates = []
             for i in g:
                 functions = FindSymbols().visit(i)
-                if any(isinstance(f, (TempArray, TempFunction)) for f in functions):
+                if any(isinstance(f, TempArray | TempFunction) for f in functions):
                     candidates.append(i)
                 else:
                     # They must be consecutive Sections

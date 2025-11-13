@@ -104,10 +104,7 @@ def search(exprs: Expression | Iterable[Expression],
 
     assert mode in ('all', 'unique'), "Unknown mode"
 
-    if isinstance(query, type):
-        Q = lambda obj: isinstance(obj, query)
-    else:
-        Q = query
+    Q = (lambda obj: isinstance(obj, query)) if isinstance(query, type) else query
 
     # Search doesn't actually use a BFS (rather, a preorder DFS), but the terminology
     # is retained in this function's parameters for backwards compatibility

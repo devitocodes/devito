@@ -62,7 +62,7 @@ def iet_build(stree):
 
         queues.setdefault(i.parent, []).append(body)
 
-    assert False
+    raise AssertionError()
 
 
 def _unpack_switch_case(bundle):

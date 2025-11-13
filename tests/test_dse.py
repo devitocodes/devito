@@ -704,7 +704,7 @@ class TestAliases:
         except InvalidOperator:
             assert True
         except:
-            assert False
+            raise AssertionError()
 
         # Check that `cire-rotate=True` has no effect in this code has there's
         # no blocking
@@ -2326,10 +2326,7 @@ class TestAliases:
                                              'cire-rotate': rotate, 'min-storage': True}))
 
         # Check code generation
-        if 'openmp' in configuration['language']:
-            prefix = ['t']
-        else:
-            prefix = []
+        prefix = ['t'] if 'openmp' in configuration['language'] else []
         if rotate:
             assert_structure(
                 op1,

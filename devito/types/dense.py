@@ -97,7 +97,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         elif initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
-        elif isinstance(initializer, (np.ndarray, list, tuple)):
+        elif isinstance(initializer, np.ndarray | list | tuple):
             # Allocate memory and initialize it. Note that we do *not* hold
             # a reference to the user-provided buffer
             self._initializer = None
@@ -110,8 +110,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # case `self._data is None`
                 self.data
         else:
-            raise ValueError("`initializer` must be callable or buffer, not %s"
-                             % type(initializer))
+            raise ValueError(f"`initializer` must be callable or buffer, not {type(initializer)}")
 
     _subs = Differentiable._subs
 
@@ -373,7 +372,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @cached_property
     def _mask_modulo(self):
         """Boolean mask telling which Dimensions support modulo-indexing."""
-        return tuple(True if i.is_Stepping else False for i in self.dimensions)
+        return tuple(bool(i.is_Stepping) for i in self.dimensions)
 
     @cached_property
     def _mask_domain(self):

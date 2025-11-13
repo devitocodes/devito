@@ -39,12 +39,11 @@ class AnisotropicWaveSolver:
             raise ValueError("Free surface only supported for centered TTI kernel")
 
         if space_order % 2 != 0:
-            raise ValueError("space_order must be even but got %s"
-                             % space_order)
+            raise ValueError(f"space_order must be even but got {space_order}")
 
         if space_order % 4 != 0:
             warning("It is recommended for space_order to be a multiple of 4" +
-                    "but got %s" % space_order)
+                    f"but got {space_order}")
 
         self.space_order = space_order
 

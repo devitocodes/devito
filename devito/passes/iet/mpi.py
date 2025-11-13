@@ -243,10 +243,7 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
     which would call the generated library directly.
     """
     drop_unwritten = options['dist-drop-unwritten']
-    if not callable(drop_unwritten):
-        key = lambda f: drop_unwritten
-    else:
-        key = drop_unwritten
+    key = (lambda f: drop_unwritten) if not callable(drop_unwritten) else drop_unwritten
 
     # Analysis
     writes = {i.write for i in FindNodes(Expression).visit(iet)}

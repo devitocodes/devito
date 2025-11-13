@@ -132,7 +132,7 @@ class TestDataBasic:
         except ValueError:
             assert True
         except:
-            assert False
+            raise AssertionError()
 
         # Assign from array having shape with some 1-valued entries
         v = np.zeros(shape=(4, 1, 4), dtype=u.dtype)
@@ -175,12 +175,12 @@ class TestDataBasic:
 
         try:
             u.data[5]
-            assert False
+            raise AssertionError()
         except IndexError:
             pass
         try:
             v.data[nt]
-            assert False
+            raise AssertionError()
         except IndexError:
             pass
 
@@ -1203,7 +1203,7 @@ class TestDataDistributed:
         except ValueError:
             assert True
         except:
-            assert False
+            raise AssertionError()
 
     @pytest.mark.parallel(mode=4)
     def test_misc_setup(self, mode):
@@ -1225,7 +1225,7 @@ class TestDataDistributed:
         # The following should all raise an exception as illegal
         try:
             Function(name='c3', grid=grid, dimensions=(y, dy))
-            assert False
+            raise AssertionError()
         except TypeError:
             # Missing `shape`
             assert True
@@ -1233,7 +1233,7 @@ class TestDataDistributed:
         # The following should all raise an exception as illegal
         try:
             Function(name='c4', grid=grid, dimensions=(y, dy), shape=(3, 5))
-            assert False
+            raise AssertionError()
         except ValueError:
             # The provided y-size, 3, doesn't match the y-size in grid (4)
             assert True
@@ -1241,7 +1241,7 @@ class TestDataDistributed:
         # The following should all raise an exception as illegal
         try:
             Function(name='c4', grid=grid, dimensions=(y, dy), shape=(4,))
-            assert False
+            raise AssertionError()
         except ValueError:
             # Too few entries for `shape` (two expected, for `y` and `dy`)
             assert True

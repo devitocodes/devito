@@ -315,7 +315,7 @@ class WeightedInterpolator(GenericInterpolator):
         return idx_subs, temps
 
     @check_radius
-    def interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None):
+    def interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -330,6 +330,8 @@ class WeightedInterpolator(GenericInterpolator):
             interpolation expression, but that should be honored when constructing
             the operator.
         """
+        if self_subs is None:
+            self_subs = {}
         return Interpolation(expr, increment, implicit_dims, self_subs, self)
 
     @check_radius
@@ -350,7 +352,7 @@ class WeightedInterpolator(GenericInterpolator):
         """
         return Injection(field, expr, implicit_dims, self)
 
-    def _interpolate(self, expr, increment=False, self_subs={}, implicit_dims=None):
+    def _interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
 
@@ -366,6 +368,8 @@ class WeightedInterpolator(GenericInterpolator):
             the operator.
         """
         # Derivatives must be evaluated before the introduction of indirect accesses
+        if self_subs is None:
+            self_subs = {}
         try:
             _expr = expr.evaluate
         except AttributeError:

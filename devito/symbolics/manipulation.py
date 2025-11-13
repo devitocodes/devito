@@ -274,7 +274,7 @@ def subs_if_composite(expr, subs):
     Indexed"). Instead, if `subs` consists of just "primitive" expressions, then
     resort to the much faster `uxreplace`.
     """
-    if all(isinstance(i, (Indexed, IndexDerivative)) for i in subs):
+    if all(isinstance(i, Indexed | IndexDerivative) for i in subs):
         return uxreplace(expr, subs)
     else:
         return expr.subs(subs)
@@ -312,10 +312,7 @@ def _eval_numbers(expr, args):
     """
     numbers, others = split(args, lambda i: i.is_Number)
     if len(numbers) > 1:
-        if isinstance(expr, UnevaluableMixin):
-            cls = expr.func.__base__
-        else:
-            cls = expr.func
+        cls = expr.func.__base__ if isinstance(expr, UnevaluableMixin) else expr.func
         args[:] = [cls(*numbers)] + others
 
 
@@ -472,7 +469,7 @@ def evalrel(func=min, input=None, assumptions=None):
     # Break-down relations if possible
     processed = []
     for a in as_list(assumptions):
-        if isinstance(a, (Ge, Gt)) and a.rhs.is_Add and a.lhs.is_positive:
+        if isinstance(a, Ge | Gt) and a.rhs.is_Add and a.lhs.is_positive:
             if all(i.is_positive for i in a.rhs.args):
                 # If `c >= a + b, {a, b, c} >= 0` then add 'c>=a, c>=b'
                 processed.extend(Ge(a.lhs, i) for i in a.rhs.args)
@@ -495,11 +492,11 @@ def evalrel(func=min, input=None, assumptions=None):
             # if a.args=(a, d) and input=(a, b, c), condition is False
             assert len(a.args) == 2
             a0, a1 = a.args
-            if ((isinstance(a, (Ge, Gt)) and func is max) or
-               (isinstance(a, (Le, Lt)) and func is min)):
+            if ((isinstance(a, Ge | Gt) and func is max) or
+               (isinstance(a, Le | Lt) and func is min)):
                 mapper[a1] = a0
-            elif ((isinstance(a, (Le, Lt)) and func is max) or
-                  (isinstance(a, (Ge, Gt)) and func is min)):
+            elif ((isinstance(a, Le | Lt) and func is max) or
+                  (isinstance(a, Ge | Gt) and func is min)):
                 mapper[a0] = a1
 
     # Collapse graph paths

@@ -6,6 +6,7 @@ from devito.finite_differences.derivative import Derivative
 from devito.finite_differences.differentiable import Add, EvalDerivative, Mul
 from devito.logger import warning
 from devito.tools import as_tuple
+import contextlib
 
 __all__ = ['linsolve', 'solve']
 
@@ -32,10 +33,8 @@ def solve(eq, target, **kwargs):
         Symbolic optimizations applied while rearranging the equation. For more
         information. refer to ``sympy.solve.__doc__``.
     """
-    try:
+    with contextlib.suppress(AttributeError):
         eq = eq.lhs - eq.rhs if eq.rhs != 0 else eq.lhs
-    except AttributeError:
-        pass
 
     eqs, targets = as_tuple(eq), as_tuple(target)
     if len(eqs) == 0:

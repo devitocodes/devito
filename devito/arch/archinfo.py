@@ -15,31 +15,79 @@ import psutil
 
 from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
+import contextlib
 
-__all__ = ['platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
-           'get_nvidia_cc', 'get_cuda_path', 'get_hip_path', 'check_cuda_runtime',
-           'get_m1_llvm_path', 'get_advisor_path', 'Platform', 'Cpu64', 'Intel64',
-           'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device', 'NvidiaDevice',
-           'AmdDevice', 'IntelDevice',
-           # Brand-agnostic
-           'ANYCPU', 'ANYGPU',
-           # Intel CPUs
-           'INTEL64', 'SNB', 'IVB', 'HSW', 'BDW', 'KNL', 'KNL7210',
-           'SKX', 'KLX', 'CLX', 'CLK', 'SPR',
-           # AMD CPUs
-           'AMD',
-           # ARM CPUs
-           'ARM', 'AppleArm', 'M1', 'M2', 'M3',
-           'Graviton', 'GRAVITON2', 'GRAVITON3', 'GRAVITON4',
-           'Cortex', 'NvidiaArm', 'GRACE',
-           # Other legacy CPUs
-           'POWER8', 'POWER9',
-           # Generic GPUs
-           'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
-           # Nvidia GPUs
-           'VOLTA', 'AMPERE', 'HOPPER', 'BLACKWELL',
-           # Intel GPUs
-           'PVC', 'INTELGPUMAX', 'MAX1100', 'MAX1550']
+__all__ = [
+    # AMD CPUs
+    'AMD',
+    # Generic GPUs
+    'AMDGPUX',
+    'AMPERE',
+    # Brand-agnostic
+    'ANYCPU',
+    'ANYGPU',
+    # ARM CPUs
+    'ARM',
+    'BDW',
+    'BLACKWELL',
+    'CLK',
+    'CLX',
+    'GRACE',
+    'GRAVITON2',
+    'GRAVITON3',
+    'GRAVITON4',
+    'HOPPER',
+    'HSW',
+    # Intel CPUs
+    'INTEL64',
+    'INTELGPUMAX',
+    'INTELGPUX',
+    'IVB',
+    'KLX',
+    'KNL',
+    'KNL7210',
+    'M1',
+    'M2',
+    'M3',
+    'MAX1100',
+    'MAX1550',
+    'NVIDIAX',
+    # Other legacy CPUs
+    'POWER8',
+    'POWER9',
+    # Intel GPUs
+    'PVC',
+    'SKX',
+    'SNB',
+    'SPR',
+    # Nvidia GPUs
+    'VOLTA',
+    'Amd',
+    'AmdDevice',
+    'AppleArm',
+    'Arm',
+    'Cortex',
+    'Cpu64',
+    'Device',
+    'Graviton',
+    'Intel64',
+    'IntelDevice',
+    'IntelSkylake',
+    'NvidiaArm',
+    'NvidiaDevice',
+    'Platform',
+    'Power',
+    'check_cuda_runtime',
+    'get_advisor_path',
+    'get_cpu_info',
+    'get_cuda_path',
+    'get_gpu_info',
+    'get_hip_path',
+    'get_m1_llvm_path',
+    'get_nvidia_cc',
+    'get_visible_devices',
+    'platform_registry',
+]
 
 
 @memoized_func
@@ -387,7 +435,7 @@ def get_gpu_info():
                     return None
                 return cbk
 
-            gpu_info['mem.%s' % i] = make_cbk(i)
+            gpu_info[f'mem.{i}'] = make_cbk(i)
 
         gpu_info['architecture'] = 'unspecified'
         gpu_info['vendor'] = 'INTEL'
@@ -745,7 +793,7 @@ class Platform:
         return self.name
 
     def __repr__(self):
-        return "TargetPlatform[%s]" % self.name
+        return f"TargetPlatform[{self.name}]"
 
     def _detect_isa(self):
         return 'unknown'
@@ -1139,10 +1187,8 @@ class AmdDevice(Device):
         try:
             p1 = Popen(['offload-arch'], stdout=PIPE, stderr=PIPE)
         except OSError:
-            try:
+            with contextlib.suppress(OSError):
                 p1 = Popen(['mygpu', '-d', fallback], stdout=PIPE, stderr=PIPE)
-            except OSError:
-                pass
             return fallback
 
         output, _ = p1.communicate()
@@ -1185,7 +1231,7 @@ def node_max_mem_trans_nbytes(platform):
     elif isinstance(platform, Device):
         return max(Cpu64.max_mem_trans_nbytes, mmtb0)
     else:
-        assert False, f"Unknown platform type: {type(platform)}"
+        raise AssertionError(f"Unknown platform type: {type(platform)}")
 
 
 # CPUs

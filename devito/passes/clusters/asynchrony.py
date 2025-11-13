@@ -249,10 +249,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     else:
         assert tindex0.is_Modulo
         mapper = {(i.offset % i.modulo): i for i in c.sub_iterators[pd]}
-        if direction is Forward:
-            toffset = tindex0.offset + 1
-        else:
-            toffset = tindex0.offset - 1
+        toffset = tindex0.offset + 1 if direction is Forward else tindex0.offset - 1
         try:
             tindex = mapper[toffset % tindex0.modulo]
         except KeyError:
@@ -271,10 +268,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     # Turn `c` into a prefetch Cluster `pc`
     expr = uxreplace(e, {tindex0: tindex, fetch: findex})
 
-    if tindex is not tindex0:
-        ispace = c.ispace.augment({pd: tindex})
-    else:
-        ispace = c.ispace
+    ispace = c.ispace.augment({pd: tindex}) if tindex is not tindex0 else c.ispace
 
     guard0 = c.guards.get(d, true)._subs(fetch, findex)
     guard1 = GuardBoundNext(function.indices[d], direction)

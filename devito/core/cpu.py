@@ -104,8 +104,7 @@ class Cpu64OperatorMixin:
         oo.pop('gpu-create', None)
 
         if oo:
-            raise InvalidOperator("Unrecognized optimization options: [%s]"
-                                  % ", ".join(list(oo)))
+            raise InvalidOperator("Unrecognized optimization options: [{}]".format(", ".join(list(oo))))
 
         kwargs['options'].update(o)
 

@@ -21,6 +21,7 @@ from devito.types import (
     ComponentAccess, CriticalRegion, Dimension, DimensionTuple, Fence, Function, Symbol,
     TBArray, Temp, TempArray
 )
+import contextlib
 
 __all__ = ['ExprGeometry', 'IterationInstance', 'Scope', 'TimedAccess']
 
@@ -131,7 +132,7 @@ class IterationInstance(LabeledVector):
     @cached_property
     def aindices(self):
         retval = []
-        for i, fi in zip(self, self.findices, strict=False):
+        for i, _fi in zip(self, self.findices, strict=False):
             dims = set(d.root if d.indirect else d for d in i.atoms(Dimension))
             sdims = {d for d in dims if d.is_Stencil}
             candidates = dims - sdims
@@ -870,10 +871,7 @@ class Scope(CacheInstances):
                     # E.g., foreign routines, such as `cos` or `sin`
                     pass
             for j in terminals:
-                if e.is_Reduction:
-                    mode = 'WR'
-                else:
-                    mode = 'W'
+                mode = 'WR' if e.is_Reduction else 'W'
                 yield TimedAccess(j, mode, i, e.ispace)
 
         # Objects altering the control flow (e.g., synchronization barriers,
@@ -911,15 +909,10 @@ class Scope(CacheInstances):
         for i, e in enumerate(self.exprs):
             # Reads
             terminals = retrieve_accesses(e.rhs, deep=True)
-            try:
+            with contextlib.suppress(AttributeError):
                 terminals.update(retrieve_accesses(e.lhs.indices))
-            except AttributeError:
-                pass
             for j in terminals:
-                if j.function is e.lhs.function and e.is_Reduction:
-                    mode = 'RR'
-                else:
-                    mode = 'R'
+                mode = 'RR' if j.function is e.lhs.function and e.is_Reduction else 'R'
                 yield TimedAccess(j, mode, i, e.ispace)
 
             # If a reduction, we got one implicit read
@@ -1002,7 +995,7 @@ class Scope(CacheInstances):
         be found. For example, a DiscreteFunction would never appear among
         the iteration symbols.
         """
-        if isinstance(f, (Function, Temp, TempArray, TBArray)):
+        if isinstance(f, Function | Temp | TempArray | TBArray):
             for i in chain(self.reads_explicit_gen(), self.reads_synchro_gen()):
                 if f is i.function:
                     for j in extrema(i.access):
@@ -1325,9 +1318,8 @@ class ExprGeometry:
                     return {}
                 v = distance.pop()
 
-                if not d._defines & dims:
-                    if v != 0:
-                        return {}
+                if not d._defines & dims and v != 0:
+                    return {}
 
                 distances[d] = v
 
