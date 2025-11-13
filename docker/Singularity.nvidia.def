@@ -3,14 +3,14 @@ From: python:3.8
 
 %help
 ##############################################################
-# This Dockerfile contains the additional NVIDIA compilers, 
-# libraries, and plugins to enable OpenACC and NVIDIA GPU 
+# This Dockerfile contains the additional NVIDIA compilers,
+# libraries, and plugins to enable OpenACC and NVIDIA GPU
 # acceleration of Devito codes.
 #
-# BUILD: 
+# BUILD:
 #   singularity build --fakeroot devito.nvidia.sif docker/Singularity.nvidia.def
 #
-# RUN: 
+# RUN:
 #   singularity run --nv --writable-tmpfs devito.nvidia.sif
 ##############################################################
 
@@ -75,11 +75,11 @@ export DEVITO_LANGUAGE="openacc"
 export DEVITO_PLATFORM=nvidiaX
 
 # Options: [unset, 1] For PGI openacc; Should only be set after a first execution of the benchmark
-# export  DEVITO_JIT_BACKDOOR=1 
+# export  DEVITO_JIT_BACKDOOR=1
 
 # Enable logging, Options: [unset, PERF, DEBUG]
 export DEVITO_LOGGING=DEBUG
-#export  PGI_ACC_TIME=1 
+#export  PGI_ACC_TIME=1
 
 # Set the home directory to our app user's home.
 export HOME=/app
@@ -89,7 +89,7 @@ export APP_HOME=/app
 
 export DEBIAN_FRONTEND=noninteractive
 
-# nodesource: nvdashboard requires nodejs>=10  
+# nodesource: nvdashboard requires nodejs>=10
 echo 'deb [trusted=yes] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' > /etc/apt/sources.list.d/nvhpc.list && \
 apt-get update -y && \
 apt-get install -y -q \
@@ -113,7 +113,7 @@ rm -rf /var/lib/apt/lists/*
 
 export HPCSDK_HOME=/opt/nvidia/hpc_sdk/Linux_x86_64/2022
 export HPCSDK_CUPTI=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.6/extras/CUPTI
-  
+
 # Compiler, CUDA, and Library paths
 export CUDA_HOME=$HPCSDK_HOME/cuda
 export NVHPC_CUDA_HOME=$HPCSDK_HOME/cuda
@@ -128,7 +128,7 @@ python3 -m venv /venv && \
 	/venv/bin/pip install --no-cache-dir -r /app/requirements-optional.txt && \
 	/venv/bin/pip install --no-cache-dir -r /app/requirements-nvidia.txt && \
 	rm -rf ~/.cache/pip
- 
+
 # MPI ROOT USER DEFAULTS
 export CPATH=$HPCSDK_HOME/comm_libs/mpi/include:${CPATH}
 export CFLAGS=-noswitcherror
@@ -137,10 +137,10 @@ export CFLAGS=-noswitcherror
 # Do Nothing
 #MPI 4
 #rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-#ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 $HPCSDK_HOME/comm_libs/mpi ; 
+#ln -sf $HPCSDK_HOME/comm_libs/openmpi4/openmpi-4.0.5 $HPCSDK_HOME/comm_libs/mpi ;
 #HPCX
 rm -f  $HPCSDK_HOME/comm_libs/mpi && \
-ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi $HPCSDK_HOME/comm_libs/mpi ; 
+ln -sf $HPCSDK_HOME/comm_libs/hpcx/latest/ompi $HPCSDK_HOME/comm_libs/mpi ;
 
 /venv/bin/pip install --no-cache-dir -r /app/requirements-mpi.txt && \
 rm -rf ~/.cache/pip
@@ -149,7 +149,7 @@ export CFLAGS=
 chmod -R 755 /app
 chmod 777 /app
 chmod 777 /print-defaults /jupyter /tests /entrypoint.sh && \
-	/venv/bin/jupyter serverextension enable dask_labextension 
+	/venv/bin/jupyter serverextension enable dask_labextension
 #	/venv/bin/jupyter lab workspaces import /app/nvdashboard.json
 
 %runscript
