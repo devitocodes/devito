@@ -38,7 +38,7 @@ A set of more advanced examples are available in `seismic`:
   equations.
 * `seismic/self-adjoint`: Self-adjoint energy conserving pseudo-acoustic
   operators, including notebooks for implementation of the nonlinear forward,
-  the forward and adjoint linearized Jacobian, and tests proving accuracy and 
+  the forward and adjoint linearized Jacobian, and tests proving accuracy and
   correctness.
 
 Further:
