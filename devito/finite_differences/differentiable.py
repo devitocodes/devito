@@ -24,8 +24,16 @@ from devito.tools import (
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
 
-__all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
-           'Weights', 'Real', 'Imag', 'Conj']
+__all__ = [
+    'Conj',
+    'DiffDerivative',
+    'Differentiable',
+    'EvalDerivative',
+    'Imag',
+    'IndexDerivative',
+    'Real',
+    'Weights',
+]
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -610,9 +618,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         ref_inds = func_args.indices_ref.getters
 
         for f in self.args:
-            if f not in self._args_diff:
-                new_args.append(f)
-            elif f is func_args or isinstance(f, DifferentiableFunction):
+            if f not in self._args_diff or f is func_args or isinstance(f, DifferentiableFunction):
                 new_args.append(f)
             else:
                 ind_f = f.indices_ref.getters
@@ -772,7 +778,7 @@ class IndexSum(sympy.Expr, Evaluable):
         values = product(*[list(d.range) for d in self.dimensions])
         terms = []
         for i in values:
-            mapper = dict(zip(self.dimensions, i))
+            mapper = dict(zip(self.dimensions, i, strict=False))
             terms.append(expr.xreplace(mapper))
         return sum(terms)
 
@@ -851,7 +857,7 @@ class Weights(Array):
             return self, False
         else:
             try:
-                weights, flags = zip(*[i._xreplace(rule) for i in self.weights])
+                weights, flags = zip(*[i._xreplace(rule) for i in self.weights], strict=False)
                 if any(flags):
                     return self.func(initvalue=weights, function=None), True
             except AttributeError:

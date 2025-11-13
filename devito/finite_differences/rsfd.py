@@ -5,7 +5,7 @@ from devito.types.dimension import StencilDimension
 from .differentiable import DiffDerivative, Weights
 from .tools import fd_weights_registry, generate_indices
 
-__all__ = ['drot', 'd45']
+__all__ = ['d45', 'drot']
 
 smapper = {1: (1, 1, 1), 2: (1, 1, -1), 3: (1, -1, 1), 4: (1, -1, -1)}
 

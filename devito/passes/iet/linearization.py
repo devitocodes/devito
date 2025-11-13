@@ -192,7 +192,7 @@ class Tracker:
             sizes = self.get_sizes(f)
             return {d: self.strides[sizes[n:]] for n, d in enumerate(dims)}
         elif f in self.strides_dynamic:
-            return {d: i for d, i in zip(dims, self.strides_dynamic[f])}
+            return {d: i for d, i in zip(dims, self.strides_dynamic[f], strict=False)}
         else:
             return {}
 

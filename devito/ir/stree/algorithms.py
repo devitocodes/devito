@@ -46,7 +46,7 @@ def stree_build(clusters, profiler=None, **kwargs):
             maybe_reusable = []
 
         index = 0
-        for it0, it1 in zip(c.itintervals, maybe_reusable):
+        for it0, it1 in zip(c.itintervals, maybe_reusable, strict=False):
             if it0 != it1:
                 break
 
@@ -121,7 +121,7 @@ def stree_build(clusters, profiler=None, **kwargs):
         candidates = tuple(reversed(tip.ancestors[1:] + (tip,)))
 
         if not any(i.is_Iteration and i.dim.is_Time for i in candidates) and \
-           not candidates[-1] is stree:
+           candidates[-1] is not stree:
             attach_section(candidates[-1])
             continue
 
@@ -290,7 +290,7 @@ def reuse_section(candidate, section):
     # * Same set of iteration Dimensions
     key = lambda i: i.interval.promote(lambda d: d.is_Block).dim
     test00 = len(iters0) == len(iters1)
-    test01 = all(key(i) is key(j) for i, j in zip(iters0, iters1))
+    test01 = all(key(i) is key(j) for i, j in zip(iters0, iters1, strict=False))
 
     # * All subtrees use at least one local SubDimension (i.e., BCs)
     key = lambda iters: any(i.dim.is_Sub and i.dim.local for i in iters)

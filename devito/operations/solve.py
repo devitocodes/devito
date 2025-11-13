@@ -7,7 +7,7 @@ from devito.finite_differences.differentiable import Add, EvalDerivative, Mul
 from devito.logger import warning
 from devito.tools import as_tuple
 
-__all__ = ['solve', 'linsolve']
+__all__ = ['linsolve', 'solve']
 
 
 class SolveError(Exception):
@@ -43,7 +43,7 @@ def solve(eq, target, **kwargs):
         return None
 
     sols = []
-    for e, t in zip(eqs, targets):
+    for e, t in zip(eqs, targets, strict=False):
         # Try first linear solver
         try:
             sols.append(linsolve(eval_time_derivatives(e), t))

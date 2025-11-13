@@ -580,7 +580,7 @@ def collect(extracted, ispace, minstorage):
             offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
                        for v in c.offsets]
             subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
-                    for i, b, v in zip(c.indexeds, c.bases, offsets)}
+                    for i, b, v in zip(c.indexeds, c.bases, offsets, strict=False)}
             pivot = uxreplace(c.expr, subs)
 
             # Distance of each aliased expression from the basis alias
@@ -589,7 +589,7 @@ def collect(extracted, ispace, minstorage):
             for i in g._items:
                 aliaseds.append(extracted[i.expr])
 
-                distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
+                distance = [o.distance(v) for o, v in zip(i.offsets, offsets, strict=False)]
                 distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
                 distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
@@ -722,7 +722,7 @@ def lower_aliases(aliases, meta, maxpar):
                 d = i.dim
 
             # Given the iteration `interval`, lower distances to indices
-            for distance, indices in zip(a.distances, indicess):
+            for distance, indices in zip(a.distances, indicess, strict=False):
                 v = distance[interval.dim] or 0
                 try:
                     indices.append(d - interval.lower + v)
@@ -806,7 +806,7 @@ def optimize_schedule_rotations(schedule, sregistry):
                     md = mapper.setdefault(v, ModuloDimension(name, ds, v, n))
                 mds.append(md)
             indicess = [indices[:ridx] + [md] + indices[ridx + 1:]
-                        for md, indices in zip(mds, i.indicess)]
+                        for md, indices in zip(mds, i.indicess, strict=False)]
 
             # Update `writeto` by switching `d` to `dsi`
             intervals = k.intervals.switch(d, dsi).zero(dsi)
@@ -901,7 +901,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
 
         # Create the substitution rules for the aliasing expressions
         subs.update({aliased: callback(indices)
-                     for aliased, indices in zip(aliaseds, indicess)})
+                     for aliased, indices in zip(aliaseds, indicess, strict=False)})
 
         properties = dict(meta.properties)
 
@@ -1099,7 +1099,7 @@ class Group(tuple):
 
     @cached_property
     def Toffsets(self):
-        return [LabeledVector.transpose(*i) for i in zip(*[i.offsets for i in self])]
+        return [LabeledVector.transpose(*i) for i in zip(*[i.offsets for i in self], strict=False)]
 
     @cached_property
     def diameter(self):
@@ -1175,7 +1175,7 @@ class Group(tuple):
                 assert distance == mini - rotation.upper
                 distances.append(distance)
 
-            ret[d] = list(zip(m, distances))
+            ret[d] = list(zip(m, distances, strict=False))
 
         return ret
 
@@ -1189,7 +1189,7 @@ class Group(tuple):
 
         ret = defaultdict(lambda: [np.inf, -np.inf])
         for i in self:
-            distance = [o.distance(v) for o, v in zip(i.offsets, c.offsets)]
+            distance = [o.distance(v) for o, v in zip(i.offsets, c.offsets, strict=False)]
             distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
 
             for d, v in distance:
@@ -1214,7 +1214,7 @@ class Group(tuple):
         c = self.pivot
 
         ret = defaultdict(lambda: (-np.inf, np.inf))
-        for i, ofs in zip(c.indexeds, c.offsets):
+        for i, ofs in zip(c.indexeds, c.offsets, strict=False):
             f = i.function
 
             for l in ofs.labels:
@@ -1389,7 +1389,7 @@ def cit(ispace0, ispace1):
     The Common IterationIntervals of two IterationSpaces.
     """
     found = []
-    for it0, it1 in zip(ispace0.itintervals, ispace1.itintervals):
+    for it0, it1 in zip(ispace0.itintervals, ispace1.itintervals, strict=False):
         if it0 == it1:
             found.append(it0)
         else:

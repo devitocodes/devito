@@ -20,8 +20,13 @@ from devito.symbolics import INT
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
-__all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
-           'PragmaDeviceAwareTransformer', 'PragmaLangBB', 'PragmaTransfer']
+__all__ = [
+    'PragmaDeviceAwareTransformer',
+    'PragmaLangBB',
+    'PragmaShmTransformer',
+    'PragmaSimdTransformer',
+    'PragmaTransfer',
+]
 
 
 class PragmaTransformer(LangTransformer):
@@ -185,7 +190,7 @@ class PragmaIteration(ParallelIteration):
             if i.is_Indexed:
                 f = i.function
                 bounds = []
-                for k, d in zip(imask, f.dimensions):
+                for k, d in zip(imask, f.dimensions, strict=False):
                     if is_integer(k):
                         bounds.append('[%s]' % k)
                     elif k is FULL:

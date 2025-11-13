@@ -11,8 +11,16 @@ from devito.tools import (
 from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
 
-__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess', 'Bag', 'BundleView']
+__all__ = [
+    'Array',
+    'ArrayMapped',
+    'ArrayObject',
+    'Bag',
+    'Bundle',
+    'BundleView',
+    'ComponentAccess',
+    'PointerArray',
+]
 
 
 class ArrayBasic(AbstractFunction, LocalType):

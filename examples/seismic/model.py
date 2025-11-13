@@ -13,8 +13,13 @@ from devito import (
 from devito.builtins import gaussian_smooth, initialize_function, mmax, mmin
 from devito.tools import as_tuple
 
-__all__ = ['SeismicModel', 'Model', 'ModelElastic',
-           'ModelViscoelastic', 'ModelViscoacoustic']
+__all__ = [
+    'Model',
+    'ModelElastic',
+    'ModelViscoacoustic',
+    'ModelViscoelastic',
+    'SeismicModel',
+]
 
 
 def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):
@@ -36,7 +41,7 @@ def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):
     """
 
     eqs = [Eq(damp, 1.0 if abc_type == "mask" else 0.0)]
-    for (nbl, nbr), d in zip(padsizes, damp.dimensions):
+    for (nbl, nbr), d in zip(padsizes, damp.dimensions, strict=False):
         if not fs or d is not damp.dimensions[-1]:
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
             # left
@@ -104,7 +109,7 @@ class GenericModel:
         self.origin = tuple([dtype(o) for o in origin])
         self.fs = fs
         # Default setup
-        origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing)]
+        origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing, strict=False)]
         shape_pml = np.array(shape) + 2 * self.nbl
 
         # Model size depending on freesurface
@@ -229,7 +234,7 @@ class GenericModel:
         """
         Physical size of the domain as determined by shape and spacing
         """
-        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
+        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing, strict=False))
 
 
 class SeismicModel(GenericModel):

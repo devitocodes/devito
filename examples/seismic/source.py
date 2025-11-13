@@ -10,8 +10,16 @@ except:
 
 from devito.types import SparseTimeFunction
 
-__all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
-           'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
+__all__ = [
+    'DGaussSource',
+    'GaborSource',
+    'PointSource',
+    'Receiver',
+    'RickerSource',
+    'Shot',
+    'TimeAxis',
+    'WaveletSource',
+]
 
 
 class TimeAxis:

@@ -1,4 +1,3 @@
-# coding: utf-8
 from devito import (
     NODE, CheckpointOperator, DevitoCheckpoint, Function, Revolver, TimeFunction, warning
 )

@@ -10,8 +10,16 @@ from .tools import (
     process_weights, right, transpose
 )
 
-__all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
-           'left', 'right', 'centered', 'transpose', 'generate_indices']
+__all__ = [
+    'centered',
+    'cross_derivative',
+    'first_derivative',
+    'generate_indices',
+    'generic_derivative',
+    'left',
+    'right',
+    'transpose',
+]
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation
@@ -84,7 +92,7 @@ f(x + 2*h_x, y + h_y)*g(x + 2*h_x, y + h_y)/h_x) + \
 f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     """
     x0 = x0 or {}
-    for d, fd, dim in zip(deriv_order, fd_order, dims):
+    for d, fd, dim in zip(deriv_order, fd_order, dims, strict=False):
         expr = generic_derivative(expr, dim=dim, fd_order=fd, deriv_order=d, x0=x0,
                                   side=side, **kwargs)
 
@@ -211,7 +219,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         deriv = DiffDerivative(expr*weights, {dim: indices.free_dim})
     else:
         terms = []
-        for i, c in zip(indices, weights):
+        for i, c in zip(indices, weights, strict=False):
             # The FD term
             term = expr._subs(dim, i) * c
 

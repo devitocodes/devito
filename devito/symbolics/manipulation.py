@@ -22,10 +22,21 @@ from devito.types.basic import Basic, Indexed
 from devito.types.equation import Eq
 from devito.types.relational import Ge, Gt, Le, Lt
 
-__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
-           'normalize_args', 'uxreplace', 'Uxmapper', 'subs_if_composite',
-           'reuse_if_untouched', 'evalrel', 'flatten_args', 'unevaluate',
-           'as_long']
+__all__ = [
+    'Uxmapper',
+    'as_long',
+    'evalrel',
+    'flatten_args',
+    'indexify',
+    'normalize_args',
+    'pow_to_mul',
+    'reuse_if_untouched',
+    'subs_if_composite',
+    'subs_op_args',
+    'unevaluate',
+    'uxreplace',
+    'xreplace_indices',
+]
 
 
 def uxreplace(expr, rule):
@@ -290,7 +301,7 @@ def xreplace_indices(exprs, mapper, key=None):
         handle = [i for i in handle if i.base.label in key]
     elif callable(key):
         handle = [i for i in handle if key(i)]
-    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
+    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle], strict=False))
     replaced = [uxreplace(i, mapper) for i in as_tuple(exprs)]
     return replaced if isinstance(exprs, Iterable) else replaced[0]
 
@@ -416,7 +427,7 @@ def reuse_if_untouched(expr, args, evaluate=False):
     Reconstruct `expr` iff any of the provided `args` is different than
     the corresponding arg in `expr.args`.
     """
-    if all(a is b for a, b in zip(expr.args, args)):
+    if all(a is b for a, b in zip(expr.args, args, strict=False)):
         return expr
     else:
         return expr.func(*args, evaluate=evaluate)

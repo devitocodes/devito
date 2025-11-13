@@ -167,7 +167,7 @@ class TestDistributor:
                 (0, 1, PN, 2, 3, PN, PN, PN, PN)]
         }
 
-        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank], strict=False))
         obj = distributor._obj_neighborhood
         value = obj._arg_defaults()[obj.name]
         assert all(getattr(value._obj, k) == v for k, v in mapper.items())
@@ -358,7 +358,7 @@ class TestSubDistributor:
         d = md.distributor
 
         for dec, pdec, sdi, sh in zip(d.decomposition, d.parent.decomposition,
-                                      d.subdomain_interval, grid.shape):
+                                      d.subdomain_interval, grid.shape, strict=False):
             # Get the global min and max
             lower_bounds = [np.amin(i) for i in dec if i.size != 0]
             upper_bounds = [np.amax(i) for i in dec if i.size != 0]
@@ -579,7 +579,7 @@ class TestFunction:
         f = Function(name='f', grid=grid)
 
         assert all(i == slice(*j)
-                   for i, j in zip(f.local_indices, expected[grid.distributor.myrank]))
+                   for i, j in zip(f.local_indices, expected[grid.distributor.myrank], strict=False))
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('shape', [(1,), (2, 3), (4, 5, 6)])

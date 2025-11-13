@@ -19,8 +19,13 @@ from devito.symbolics import Cast, ValueLimit, evalrel, has_integer_args, limits
 from devito.tools import Bunch, as_mapper, as_tuple, filter_ordered, split
 from devito.types import FIndexed
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
-           'generate_macros', 'minimize_symbols']
+__all__ = [
+    'avoid_denormals',
+    'generate_macros',
+    'hoist_prodders',
+    'minimize_symbols',
+    'relax_incr_dimensions',
+]
 
 
 @iet_pass

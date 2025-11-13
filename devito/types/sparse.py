@@ -23,8 +23,13 @@ from devito.types.dimension import dimensions as mkdims
 from devito.types.equation import Eq, Inc
 from devito.types.utils import IgnoreDimSort
 
-__all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
-           'PrecomputedSparseTimeFunction', 'MatrixSparseTimeFunction']
+__all__ = [
+    'MatrixSparseTimeFunction',
+    'PrecomputedSparseFunction',
+    'PrecomputedSparseTimeFunction',
+    'SparseFunction',
+    'SparseTimeFunction',
+]
 
 
 _interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator}
@@ -114,7 +119,7 @@ class AbstractSparseFunction(DiscreteFunction):
         else:
             loc_shape = []
             assert len(dimensions) == len(shape)
-            for i, (d, s) in enumerate(zip(dimensions, shape)):
+            for i, (d, s) in enumerate(zip(dimensions, shape, strict=False)):
                 if i == cls._sparse_position or \
                    (cls._sparse_position == -1 and i == len(dimensions)-1):
                     loc_shape.append(glb_npoint[grid.distributor.myrank])
@@ -370,7 +375,7 @@ class AbstractSparseFunction(DiscreteFunction):
                             for p, c, d, o in zip(self._pos_symbols,
                                                   self._coordinate_symbols,
                                                   self.grid.dimensions,
-                                                  self.grid.origin_symbols)])
+                                                  self.grid.origin_symbols, strict=False)])
 
     @cached_property
     def dist_origin(self):
@@ -410,7 +415,7 @@ class AbstractSparseFunction(DiscreteFunction):
         temps = self.interpolator._positions(self.dimensions)
 
         # Create positions and indices temporaries/indirections
-        for ((di, d), pos) in zip(enumerate(self.grid.dimensions), pmap.values()):
+        for ((di, d), pos) in zip(enumerate(self.grid.dimensions), pmap.values(), strict=False):
             # Add conditional to avoid OOB
             lb = sympy.And(pos >= d.symbolic_min, evaluate=False)
             ub = sympy.And(pos <= d.symbolic_max, evaluate=False)
@@ -477,7 +482,7 @@ class AbstractSparseFunction(DiscreteFunction):
         # Per-rank shape of send/recv data
         sshape = []
         rshape = []
-        for s, r in zip(ssparse, rsparse):
+        for s, r in zip(ssparse, rsparse, strict=False):
             handle = list(self.shape)
             handle[self._sparse_position] = s
             sshape.append(tuple(handle))
@@ -690,7 +695,7 @@ class AbstractSparseFunction(DiscreteFunction):
         # self's local domain only
         for k, v in self._dist_scatter(alias=alias).items():
             args[mapper[k].name] = v
-            for i, s in zip(mapper[k].indices, v.shape):
+            for i, s in zip(mapper[k].indices, v.shape, strict=False):
                 args.update(i._arg_defaults(_min=0, size=s))
         return args
 
@@ -708,7 +713,7 @@ class AbstractSparseFunction(DiscreteFunction):
                 values = {}
                 for k, v in self._dist_scatter(data=new).items():
                     values[k.name] = v
-                    for i, s in zip(k.indices, v.shape):
+                    for i, s in zip(k.indices, v.shape, strict=False):
                         size = s - sum(k._size_nodomain[i])
                         values.update(i._arg_defaults(size=size))
         else:
@@ -1224,7 +1229,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             d_dim = self.gridpoints.dimensions[1]
             return tuple([self.gridpoints._subs(d_dim, di) * d.spacing + o
                           for ((di, d), o) in zip(enumerate(self.grid.dimensions),
-                                                  self.grid.origin)])
+                                                  self.grid.origin, strict=False)])
         else:
             d_dim = self.coordinates.dimensions[1]
             return tuple([self.coordinates._subs(d_dim, i)
@@ -1249,7 +1254,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             ddim = self.gridpoints.dimensions[-1]
             return OrderedDict((self.gridpoints._subs(ddim, di), p)
                                for (di, p) in zip(range(self.grid.dim),
-                                                  self._pos_symbols))
+                                                  self._pos_symbols, strict=False))
         else:
             return super()._position_map
 
@@ -1933,7 +1938,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         inverse_argsort = np.argsort(inverse).astype(np.int32)
         cumulative_counts = np.cumsum(counts)
         gp_map = {tuple(bi): inverse_argsort[cci-ci:cci]
-                  for bi, cci, ci in zip(bins, cumulative_counts, counts)
+                  for bi, cci, ci in zip(bins, cumulative_counts, counts, strict=False)
                   }
 
         # the result is now going to be a concatenation of these lists
@@ -1953,7 +1958,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         for bi in bins:
             # This is a list of sets for the Dimension-specific rank
             dim_rank_sets = [dgdr[bii]
-                             for dgdr, bii in zip(dim_group_dim_rank, bi)]
+                             for dgdr, bii in zip(dim_group_dim_rank, bi, strict=False)]
 
             # Convert these to an absolute rank
             # This is where we will throw a KeyError if there are points OOB
@@ -2079,7 +2084,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # handle None radius
         r_tuple_no_none = tuple(
             ri if ri is not None else self.grid.size_map[d].glb
-            for ri, d in zip(r_tuple, self.grid.dimensions)
+            for ri, d in zip(r_tuple, self.grid.dimensions, strict=False)
         )
 
         # now all ranks can allocate the buffers to receive into
@@ -2129,7 +2134,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         # first, build a reduced matrix excluding any points outside our domain
         for idim, (dim, mycoord) in enumerate(zip(
-                self.grid.dimensions, distributor.mycoords)):
+                self.grid.dimensions, distributor.mycoords, strict=False)):
             _left = distributor.decomposition[idim][mycoord][0]
             _right = distributor.decomposition[idim][mycoord][-1] + 1
 
@@ -2153,7 +2158,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # domain.  Do this on all the gridpoints for now, since this is a hack
         # anyway
         for idim, (dim, mycoord) in enumerate(zip(
-                self.grid.dimensions, distributor.mycoords)):
+                self.grid.dimensions, distributor.mycoords, strict=False)):
             _left = distributor.decomposition[idim][mycoord][0]
             _right = distributor.decomposition[idim][mycoord][-1] + 1
 

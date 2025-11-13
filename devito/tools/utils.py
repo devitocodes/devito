@@ -8,12 +8,36 @@ from operator import attrgetter, mul
 import numpy as np
 import sympy
 
-__all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
-           'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
-           'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
-           'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number',
-           'smart_lt', 'smart_gt']
+__all__ = [
+    'all_equal',
+    'as_list',
+    'as_mapper',
+    'as_set',
+    'as_tuple',
+    'contains_val',
+    'filter_ordered',
+    'filter_sorted',
+    'flatten',
+    'generator',
+    'grouper',
+    'humanbytes',
+    'indices_to_sections',
+    'indices_to_slices',
+    'invert',
+    'is_integer',
+    'is_number',
+    'powerset',
+    'pprint',
+    'prod',
+    'roundm',
+    'single_or',
+    'smart_gt',
+    'smart_lt',
+    'sorted_priority',
+    'split',
+    'sweep',
+    'transitive_closure',
+]
 
 
 def prod(iterable, initial=1):
@@ -189,7 +213,7 @@ def filter_ordered(elements, key=None):
     if key is None:
         return list(dict.fromkeys(elements))
     else:
-        return list(dict(zip([key(i) for i in elements], elements)).values())
+        return list(dict(zip([key(i) for i in elements], elements, strict=False)).values())
 
 
 def filter_sorted(elements, key=None):
@@ -221,7 +245,7 @@ def sweep(parameters, keys=None):
     sweep_values = [[v] if isinstance(v, str) or not isinstance(v, Iterable) else v
                     for v in sweep_values]
     for vals in product(*sweep_values):
-        yield dict(zip(keys, vals))
+        yield dict(zip(keys, vals, strict=False))
 
 
 def indices_to_slices(inputlist):
@@ -239,7 +263,7 @@ def indices_to_slices(inputlist):
     """
     inputlist.sort()
     pointers = np.where(np.diff(inputlist) > 1)[0]
-    pointers = zip(np.r_[0, pointers+1], np.r_[pointers, len(inputlist)-1])
+    pointers = zip(np.r_[0, pointers+1], np.r_[pointers, len(inputlist)-1], strict=False)
     slices = [(inputlist[i], inputlist[j]+1) for i, j in pointers]
     return slices
 

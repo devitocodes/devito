@@ -25,10 +25,20 @@ from devito.passes.iet.parpragma import (
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
-__all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
-           'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
-           'OmpDataManager', 'OmpOrchestrator', 'DeviceOmpOrchestrator',
-           'CXXOmpDataManager', 'CXXOmpOrchestrator']
+__all__ = [
+    'CXXOmpDataManager',
+    'CXXOmpOrchestrator',
+    'DeviceOmpDataManager',
+    'DeviceOmpIteration',
+    'DeviceOmpOrchestrator',
+    'DeviceOmpizer',
+    'OmpDataManager',
+    'OmpIteration',
+    'OmpOrchestrator',
+    'OmpRegion',
+    'Ompizer',
+    'SimdOmpizer',
+]
 
 
 class OmpRegion(ParallelBlock):

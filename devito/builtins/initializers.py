@@ -4,7 +4,7 @@ import devito as dv
 from devito.builtins.utils import check_builtins_args, nbl_to_padsize, pad_outhalo
 from devito.tools import as_list, as_tuple
 
-__all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
+__all__ = ['assign', 'gaussian_smooth', 'initialize_function', 'smooth']
 
 
 @dv.switchconfig(log_level='ERROR')
@@ -59,18 +59,18 @@ def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
 
     eqs = []
     if options:
-        for i, j, k in zip(as_list(f), rhs, options):
+        for i, j, k in zip(as_list(f), rhs, options, strict=False):
             if k is not None:
                 eqs.append(dv.Eq(i, j, **k))
             else:
                 eqs.append(dv.Eq(i, j))
     else:
-        for i, j in zip(as_list(f), rhs):
+        for i, j in zip(as_list(f), rhs, strict=False):
             eqs.append(dv.Eq(i, j))
 
     if assign_halo:
         subs = {}
-        for d, h in zip(f.dimensions, f._size_halo):
+        for d, h in zip(f.dimensions, f._size_halo, strict=False):
             if sum(h) == 0:
                 continue
             subs[d] = dv.CustomDimension(name=d.name, parent=d,
@@ -143,15 +143,15 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
             self.lw = lw
 
         def define(self, dimensions):
-            return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw)}
+            return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw, strict=False)}
 
     def create_gaussian_weights(sigma, lw):
         weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
-                   for s, l in zip(sigma, lw))]
+                   for s, l in zip(sigma, lw, strict=False))]
         return as_tuple(np.array(w) for w in weights)
 
     def fset(f, g):
-        indices = [slice(l, -l, 1) for _, l in zip(g.dimensions, lw)]
+        indices = [slice(l, -l, 1) for _, l in zip(g.dimensions, lw, strict=False)]
         slices = (slice(None, None, 1), )*g.ndim
         if isinstance(f, np.ndarray):
             f[slices] = g.data[tuple(indices)]
@@ -182,7 +182,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
-    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw)])
+    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw, strict=False)])
     extent_padded = tuple([s-1 for s in shape_padded])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain,
                    extent=extent_padded)
@@ -193,7 +193,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     weights = create_gaussian_weights(sigma, lw)
 
     mapper = {}
-    for d, l, w in zip(f_c.dimensions, lw, weights):
+    for d, l, w in zip(f_c.dimensions, lw, weights, strict=False):
         lhs = []
         rhs = []
         options = []
@@ -238,11 +238,11 @@ def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
         def buff(i, j):
             return [(i + k - 2*max(max(nbl))) for k in j]
 
-        b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo)))]
+        b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo, strict=False)))]
         if any(np.array(b) < 0):
             raise ValueError("Function `%s` halo is not sufficiently thick." % function)
 
-    for d, (nl, nr) in zip(function.space_dimensions, as_tuple(nbl)):
+    for d, (nl, nr) in zip(function.space_dimensions, as_tuple(nbl), strict=False):
         dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=nl)
         dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=nr)
         if mode == 'constant':
@@ -373,14 +373,14 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         f._create_data()
 
     if nbl == 0:
-        for f, data in zip(functions, datas):
+        for f, data in zip(functions, datas, strict=False):
             if isinstance(data, dv.Function):
                 f.data[:] = data.data[:]
             else:
                 f.data[:] = data[:]
     else:
         lhss, rhss, optionss = [], [], []
-        for f, data in zip(functions, datas):
+        for f, data in zip(functions, datas, strict=False):
 
             lhs, rhs, options = _initialize_function(f, data, nbl, mapper, mode)
 

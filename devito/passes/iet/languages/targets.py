@@ -10,8 +10,16 @@ from devito.passes.iet.languages.openmp import (
     OmpOrchestrator, SimdOmpizer
 )
 
-__all__ = ['CTarget', 'OmpTarget', 'COmpTarget', 'DeviceOmpTarget', 'DeviceAccTarget',
-           'CXXTarget', 'CXXOmpTarget', 'DeviceCXXOmpTarget']
+__all__ = [
+    'COmpTarget',
+    'CTarget',
+    'CXXOmpTarget',
+    'CXXTarget',
+    'DeviceAccTarget',
+    'DeviceCXXOmpTarget',
+    'DeviceOmpTarget',
+    'OmpTarget',
+]
 
 
 class Target:

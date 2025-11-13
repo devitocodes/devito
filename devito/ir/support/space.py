@@ -13,9 +13,18 @@ from devito.tools import (
 )
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
-           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any',
-           'null_ispace']
+__all__ = [
+    'Any',
+    'Backward',
+    'DataSpace',
+    'Forward',
+    'Interval',
+    'IntervalGroup',
+    'IterationInterval',
+    'IterationSpace',
+    'NullInterval',
+    'null_ispace',
+]
 
 
 # The default Stamp, used by all new Intervals
@@ -323,7 +332,7 @@ class IntervalGroup(Ordering):
             return super().simplify_relations(relations, items, mode)
 
     def __eq__(self, o):
-        return len(self) == len(o) and all(i == j for i, j in zip(self, o))
+        return len(self) == len(o) and all(i == j for i, j in zip(self, o, strict=False))
 
     def __contains__(self, d):
         return any(i.dim is d for i in self)
@@ -417,7 +426,7 @@ class IntervalGroup(Ordering):
         """
         if set(self) != set(o):
             return False
-        if all(i == j for i, j in zip(self, o)):
+        if all(i == j for i, j in zip(self, o, strict=False)):
             # Same input ordering, definitely compatible
             return True
         try:

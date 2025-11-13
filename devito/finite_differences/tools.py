@@ -73,7 +73,7 @@ def dim_with_order(dims, orders):
 
 def deriv_name(dims, orders):
     name = []
-    for d, o in zip(dims, orders):
+    for d, o in zip(dims, orders, strict=False):
         name_dim = 't' if d.is_Time else d.root.name
         name.append('d%s%s' % (name_dim, o) if o > 1 else 'd%s' % name_dim)
 
@@ -102,8 +102,8 @@ def generate_fd_shortcuts(dims, so, to=0):
 
     # All conventional FD shortcuts
     for o in all_combs:
-        fd_dims = tuple(d for d, o_d in zip(dims, o) if o_d > 0)
-        d_orders = tuple(o_d for d, o_d in zip(dims, o) if o_d > 0)
+        fd_dims = tuple(d for d, o_d in zip(dims, o, strict=False) if o_d > 0)
+        d_orders = tuple(o_d for d, o_d in zip(dims, o, strict=False) if o_d > 0)
         fd_orders = tuple(to if d.is_Time else so for d in fd_dims)
         deriv = partial(diff_f, deriv_order=d_orders, dims=fd_dims, fd_order=fd_orders)
         name_fd = deriv_name(fd_dims, d_orders)
@@ -112,7 +112,7 @@ def generate_fd_shortcuts(dims, so, to=0):
         derivatives[name_fd] = (deriv, desciption)
 
     # Add non-conventional, non-centered first-order FDs
-    for d, o in zip(dims, orders):
+    for d, o in zip(dims, orders, strict=False):
         name = 't' if d.is_Time else d.root.name
         # Add centered first derivatives
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=centered)
@@ -131,7 +131,7 @@ def generate_fd_shortcuts(dims, so, to=0):
         derivatives[name_fd] = (deriv, desciption)
 
     # Add RSFD for first order derivatives
-    for d, o in zip(dims, orders):
+    for d, o in zip(dims, orders, strict=False):
         if not d.is_Time:
             name = d.root.name
             deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, method='RSFD')
@@ -273,7 +273,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
                     f"({order + 1}) for order {order} scheme."
                     f" Reducing order to {order}")
     # Evaluation point
-    x0 = sympify(((x0 or {}).get(dim) or expr.indices_ref[dim]))
+    x0 = sympify((x0 or {}).get(dim) or expr.indices_ref[dim])
 
     # If provided a pure number, assume it's a valid index
     if x0.is_Number:

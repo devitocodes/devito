@@ -274,7 +274,7 @@ def run(problem, **kwargs):
     # Note: the following piece of code is horribly *hacky*, but it works for now
     for i, block_shape in enumerate(block_shapes):
         for n, level in enumerate(block_shape):
-            for d, s in zip(['x', 'y', 'z'], level):
+            for d, s in zip(['x', 'y', 'z'], level, strict=False):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)

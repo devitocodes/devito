@@ -858,7 +858,7 @@ class TestConditionalDimension:
         op.apply(u=u, usave1=u1, usave2=u2, time_M=nt-2)
 
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
-        for (uk, fk) in zip((u1, u2), (f1, f2)):
+        for (uk, fk) in zip((u1, u2), (f1, f2), strict=False):
             assert np.all([np.allclose(uk.data[i], i*fk)
                            for i in range((nt+fk-1)//fk)])
 
@@ -886,7 +886,7 @@ class TestConditionalDimension:
         op.apply(u=u, usave1=u2, time_M=nt-2)
 
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
-        for (uk, fk) in zip((u1, u2), (f1, f2)):
+        for (uk, fk) in zip((u1, u2), (f1, f2), strict=False):
             assert np.all([np.allclose(uk.data[i], i*fk)
                            for i in range((nt+fk-1)//fk)])
 
@@ -1259,7 +1259,7 @@ class TestConditionalDimension:
         eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]
         for e, i in enumerate(product(*indices)):
             args = [j > 0 for j in i]
-            args.extend([j < k for j, k in zip(i, bounds)])
+            args.extend([j < k for j, k in zip(i, bounds, strict=False)])
             condition = And(*args, evaluate=False)
             cd = ConditionalDimension('sfc%d' % e, parent=sd, condition=condition)
             index = [time] + list(i)
@@ -1689,7 +1689,7 @@ class TestConditionalDimension:
         shape = (21, 21, 21)
         origin = (0., 0., 0.)
         spacing = (1., 1., 1.)
-        extent = tuple([d * (s - 1) for s, d in zip(shape, spacing)])
+        extent = tuple([d * (s - 1) for s, d in zip(shape, spacing, strict=False)])
         grid = Grid(shape=shape, extent=extent, origin=origin)
         time = grid.time_dim
         x, y, z = grid.dimensions
@@ -1698,7 +1698,7 @@ class TestConditionalDimension:
 
         # Place source in the middle of the grid
         src_coords = np.empty((1, len(shape)), dtype=np.float32)
-        src_coords[0, :] = [o + d * (s-1)//2 for o, d, s in zip(origin, spacing, shape)]
+        src_coords[0, :] = [o + d * (s-1)//2 for o, d, s in zip(origin, spacing, shape, strict=False)]
         src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt)
         src.data[:] = 1.
         src.coordinates.data[:] = src_coords[:]
@@ -2026,7 +2026,7 @@ class TestCustomDimension:
                    for d in grid.dimensions]
 
         eqn = Eq(v, u)
-        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims)))
+        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims, strict=False)))
 
         op = Operator(eqn)
 

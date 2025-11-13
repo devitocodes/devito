@@ -543,7 +543,7 @@ def make_sections_from_imask(f, imask=None):
     datashape = infer_transfer_datashape(f, imask)
 
     sections = []
-    for i, j in zip(imask, datashape):
+    for i, j in zip(imask, datashape, strict=False):
         if i is FULL:
             start, size = 0, j
         else:

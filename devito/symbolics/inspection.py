@@ -57,7 +57,7 @@ def compare_ops(e1, e2):
         elif e1.is_Indexed and e2.is_Indexed:
             return True if e1.base == e2.base else False
         else:
-            for a1, a2 in zip(e1.args, e2.args):
+            for a1, a2 in zip(e1.args, e2.args, strict=False):
                 if not compare_ops(a1, a2):
                     return False
             return True
@@ -146,7 +146,7 @@ def _estimate_cost(expr, estimate, seen):
     # The flag tells wether it's an integer expression (implying flops==0) or not
     if not expr.args:
         return 0, False
-    flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
+    flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args], strict=False)
     flops = sum(flops)
     if all(flags):
         # `expr` is an operation involving integer operands only
@@ -161,7 +161,7 @@ def _estimate_cost(expr, estimate, seen):
 @_estimate_cost.register(CallFromPointer)
 def _(expr, estimate, seen):
     try:
-        flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
+        flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args], strict=False)
     except ValueError:
         flops, flags = [], []
     return sum(flops), all(flags)
@@ -213,7 +213,7 @@ def _(expr, estimate, seen):
 @_estimate_cost.register(Function)
 def _(expr, estimate, seen):
     if q_routine(expr):
-        flops, _ = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
+        flops, _ = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args], strict=False)
         flops = sum(flops)
         if isinstance(expr, DefFunction):
             # Bypass user-defined or language-specific functions
@@ -232,7 +232,7 @@ def _(expr, estimate, seen):
 
 @_estimate_cost.register(Pow)
 def _(expr, estimate, seen):
-    flops, _ = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
+    flops, _ = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args], strict=False)
     flops = sum(flops)
     if estimate:
         if expr.exp.is_Number:

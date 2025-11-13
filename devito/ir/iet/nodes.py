@@ -24,14 +24,48 @@ from devito.tools import (
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic, Indexed, Symbol
 from devito.types.object import AbstractObject, LocalObject
 
-__all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
-           'Call', 'ExprStmt', 'Conditional', 'Iteration', 'List', 'Section',
-           'TimedList', 'Prodder', 'MetaCall', 'PointerCast', 'HaloSpot',
-           'Definition', 'ExpressionBundle', 'AugmentedExpression', 'Break',
-           'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
-           'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
-           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
-           'Using', 'CallableBody', 'Transfer', 'EmptyList', 'Switch']
+__all__ = [
+    'AugmentedExpression',
+    'BlankLine',
+    'Block',
+    'Break',
+    'BusyWait',
+    'Call',
+    'Callable',
+    'CallableBody',
+    'Conditional',
+    'Definition',
+    'Dereference',
+    'DummyExpr',
+    'EmptyList',
+    'ExprStmt',
+    'Expression',
+    'ExpressionBundle',
+    'HaloSpot',
+    'Increment',
+    'Iteration',
+    'Lambda',
+    'List',
+    'ListMajor',
+    'MetaCall',
+    'MultiTraversable',
+    'Node',
+    'ParallelBlock',
+    'ParallelIteration',
+    'ParallelTree',
+    'PointerCast',
+    'Pragma',
+    'Prodder',
+    'Return',
+    'Section',
+    'Switch',
+    'SyncSpot',
+    'TimedList',
+    'Transfer',
+    'Using',
+    'UsingNamespace',
+    'While',
+]
 
 # First-class IET nodes
 
@@ -69,11 +103,11 @@ class Node(Signer):
         obj = super().__new__(cls)
         argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
         try:
-            defaults = dict(zip(argnames[-len(defaultvalues):], defaultvalues))
+            defaults = dict(zip(argnames[-len(defaultvalues):], defaultvalues, strict=False))
         except TypeError:
             # No default kwarg values
             defaults = {}
-        obj._args = {k: v for k, v in zip(argnames[1:], args)}
+        obj._args = {k: v for k, v in zip(argnames[1:], args, strict=False)}
         obj._args.update(kwargs.items())
         obj._args.update({k: defaults.get(k) for k in argnames[1:] if k not in obj._args})
         return obj
@@ -82,7 +116,7 @@ class Node(Signer):
         """Reconstruct ``self``."""
         handle = self._args.copy()  # Original constructor arguments
         argnames = [i for i in self._traversable if i not in kwargs]
-        handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args)]))
+        handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args, strict=False)]))
         handle.update(kwargs)
         return type(self)(**handle)
 
@@ -293,7 +327,7 @@ class Call(ExprStmt, Node):
             # have nested Calls/Lambdas among its `arguments`, and these might
             # change, and we are in such a case *if and only if* we have `args`
             assert len(args) == len(self.children)
-            mapper = dict(zip(self.children, args))
+            mapper = dict(zip(self.children, args, strict=False))
             kwargs['arguments'] = [mapper.get(i, i) for i in self.arguments]
         return super()._rebuild(**kwargs)
 
@@ -447,8 +481,8 @@ class Expression(ExprStmt, Node):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return (((self.is_scalar and not self.is_reduction) or
-                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer))))
+        return ((self.is_scalar and not self.is_reduction) or
+                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
     def defines(self):
@@ -936,7 +970,7 @@ class Switch(DoIf):
 
     @property
     def as_mapper(self):
-        retval = dict(zip(self.cases, self.nodes))
+        retval = dict(zip(self.cases, self.nodes, strict=False))
         if self.default:
             retval['default'] = self.default
         return retval

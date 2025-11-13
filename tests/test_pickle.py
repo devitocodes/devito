@@ -953,7 +953,7 @@ class TestOperator:
         assert obj.key == new_obj.key
         assert obj.name == new_obj.name
         assert len(new_obj.arguments) == 2
-        assert all(d0.name == d1.name for d0, d1 in zip(obj.arguments, new_obj.arguments))
+        assert all(d0.name == d1.name for d0, d1 in zip(obj.arguments, new_obj.arguments, strict=False))
         assert all(new_obj.arguments[i] is new_obj.owned[i][0][0][0]  # `x` and `y`
                    for i in range(2))
         assert new_obj.owned[0][0][0][1] is new_obj.owned[1][0][0][1]  # `OWNED`
@@ -1017,7 +1017,7 @@ class TestOperator:
         pkl_origin = pickle.dumps(model.grid.origin_symbols)
         new_origin = pickle.loads(pkl_origin)
 
-        for a, b in zip(model.grid.origin_symbols, new_origin):
+        for a, b in zip(model.grid.origin_symbols, new_origin, strict=False):
             assert a.compare(b) == 0
 
         # Test Class TimeDimension pickling
@@ -1040,7 +1040,7 @@ class TestOperator:
 
         assert model.grid.extent == new_grid.extent
         assert model.grid.shape == new_grid.shape
-        for a, b in zip(model.grid.dimensions, new_grid.dimensions):
+        for a, b in zip(model.grid.dimensions, new_grid.dimensions, strict=False):
             assert a.compare(b) == 0
 
         ricker = RickerSource(name='src', grid=model.grid, f0=f0, time_range=time_range)

@@ -23,7 +23,7 @@ from devito.tools import (
     as_list, change_directory, filter_ordered, make_tempdir, memoized_func
 )
 
-__all__ = ['sniff_mpi_distro', 'compiler_registry']
+__all__ = ['compiler_registry', 'sniff_mpi_distro']
 
 
 @memoized_func
@@ -51,11 +51,7 @@ def sniff_compiler_version(cc, allow_fail=False):
     ver = ver.strip()
     if ver.startswith("gcc"):
         compiler = "gcc"
-    elif ver.startswith("clang"):
-        compiler = "clang"
-    elif ver.startswith("Apple LLVM"):
-        compiler = "clang"
-    elif ver.startswith("Homebrew clang"):
+    elif ver.startswith("clang") or ver.startswith("Apple LLVM") or ver.startswith("Homebrew clang"):
         compiler = "clang"
     elif ver.startswith("Intel"):
         compiler = "icx"
@@ -388,7 +384,7 @@ class Compiler(GCCToolchain):
             # Warning: dropping `code` on the floor in favor to whatever is written
             # within `src_file`
             try:
-                with open(src_file, 'r') as f:
+                with open(src_file) as f:
                     code = f.read()
                     code = f'{code}/* Backdoor edit at {time.ctime()}*/ \n'
                 # Bypass the devito JIT cache

@@ -109,7 +109,7 @@ class Decomposition(tuple):
         if not isinstance(o, Decomposition):
             return False
         return self.local == o.local and len(self) == len(o) and\
-            all(np.all(i == j) for i, j in zip(self, o))
+            all(np.all(i == j) for i, j in zip(self, o, strict=False))
 
     def __repr__(self):
         ret = []

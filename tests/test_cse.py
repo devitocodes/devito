@@ -113,7 +113,7 @@ def test_default_algo(exprs, expected, min_cost):
     processed = _cse(exprs, make, min_cost)
 
     assert len(processed) == len(expected)
-    assert all(str(i.rhs) == j for i, j in zip(processed, expected))
+    assert all(str(i.rhs) == j for i, j in zip(processed, expected, strict=False))
 
 
 def test_temp_order():
@@ -245,7 +245,7 @@ def test_advanced_algo(exprs, expected):
     processed = _cse(exprs, make, mode='advanced')
 
     assert len(processed) == len(expected)
-    assert all(str(i.rhs) == j for i, j in zip(processed, expected))
+    assert all(str(i.rhs) == j for i, j in zip(processed, expected, strict=False))
 
 
 def test_advanced_algo_order():

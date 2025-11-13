@@ -197,7 +197,7 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
         try:
             items = v.split(';')
             # Env variable format: 'var=k1:v1;k2:v2:k3:v3:...'
-            keys, values = zip(*[i.split(':') for i in items])
+            keys, values = zip(*[i.split(':') for i in items], strict=False)
             # Casting
             values = [eval(i) for i in values]
         except AttributeError:
@@ -215,7 +215,7 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
                 except (TypeError, ValueError):
                     keys[i] = j
         if len(keys) == len(values):
-            configuration.update(k, dict(zip(keys, values)))
+            configuration.update(k, dict(zip(keys, values, strict=False)))
         elif len(keys) == 1:
             configuration.update(k, keys[0])
         else:

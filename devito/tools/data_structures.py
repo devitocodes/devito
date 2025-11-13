@@ -10,9 +10,19 @@ from devito.tools import Pickable
 from devito.tools.algorithms import toposort
 from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 
-__all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'Ordering', 'DAG', 'frozendict',
-           'UnboundTuple', 'UnboundedMultiTuple', 'MemoryEstimate']
+__all__ = [
+    'DAG',
+    'Bunch',
+    'DefaultOrderedDict',
+    'EnrichedTuple',
+    'MemoryEstimate',
+    'OrderedSet',
+    'Ordering',
+    'ReducerMap',
+    'UnboundTuple',
+    'UnboundedMultiTuple',
+    'frozendict',
+]
 
 
 class Bunch:
@@ -51,7 +61,7 @@ class EnrichedTuple(tuple, Pickable):
         obj = super().__new__(cls, items)
         obj.__dict__.update(kwargs)
         # Convert to list if we're getting an OrderedDict from rebuild
-        obj.getters = OrderedDict(zip(list(getters or []), items))
+        obj.getters = OrderedDict(zip(list(getters or []), items, strict=False))
         return obj
 
     def _rebuild(self, *args, **kwargs):

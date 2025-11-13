@@ -81,7 +81,7 @@ def test_make_efuncs(exprs, nfuncs, ntimeiters, nests):
 
     assert len(efuncs) == len(nfuncs) == len(ntimeiters) == len(nests)
 
-    for efunc, nf, nt, nest in zip(efuncs, nfuncs, ntimeiters, nests):
+    for efunc, nf, nt, nest in zip(efuncs, nfuncs, ntimeiters, nests, strict=False):
         # Check the `efunc` parameters
         assert all(i in efunc.parameters for i in (x.symbolic_min, x.symbolic_max))
         assert all(i in efunc.parameters for i in (y.symbolic_min, y.symbolic_max))
@@ -98,7 +98,7 @@ def test_make_efuncs(exprs, nfuncs, ntimeiters, nests):
         trees = retrieve_iteration_tree(efunc)
         assert len(trees) == 1
         tree = trees[0]
-        assert all(i.dim.name == j for i, j in zip(tree, nest))
+        assert all(i.dim.name == j for i, j in zip(tree, nest, strict=False))
 
         assert efunc.make_call()
 

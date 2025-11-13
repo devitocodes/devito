@@ -358,7 +358,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         bshape = [Symbol(name='b%s' % d.symbolic_size) for d in dims]
         bdims = [CustomDimension(name=d.name, parent=d, symbolic_size=s)
-                 for d, s in zip(dims, bshape)]
+                 for d, s in zip(dims, bshape, strict=False)]
 
         eqns = []
         eqns.extend([Eq(d.symbolic_min, 0) for d in bdims])
@@ -368,9 +368,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype,
                     padding=0)
 
-        mapper = dict(zip(dims, bdims))
+        mapper = dict(zip(dims, bdims, strict=False))
         findices = [o - h + mapper.get(d.root, 0)
-                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left)]
+                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left, strict=False)]
 
         if swap is False:
             swap = lambda i, j: (i, j)
@@ -574,7 +574,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
         body = []
         for dims, tosides in halos:
-            mapper = OrderedDict(zip(dims, tosides))
+            mapper = OrderedDict(zip(dims, tosides, strict=False))
 
             sizes = [f._C_get_field(OWNED, d, s).size for d, s in mapper.items()]
 
@@ -582,7 +582,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
             ofsg = [fixed.get(d, f._C_get_field(OWNED, d, mapper.get(d)).offset)
                     for d in f.dimensions]
 
-            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides]))
+            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides], strict=False))
             fromrank = FieldFromPointer(''.join(i.name[0] for i in mapper.values()), nb)
             ofss = [fixed.get(d, f._C_get_field(HALO, d, mapper.get(d)).offset)
                     for d in f.dimensions]
@@ -732,7 +732,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         body = []
         for dims, tosides in halos:
-            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides]))
+            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides], strict=False))
             fromrank = FieldFromPointer(''.join(i.name[0] for i in mapper.values()), nb)
             ofss = [fixed.get(d, f._C_get_field(HALO, d, mapper.get(d)).offset)
                     for d in f.dimensions]
@@ -1219,7 +1219,7 @@ class MPIMsg(CompositeObject):
 
             # Buffer shape for this peer
             shape = []
-            for dim, side in zip(*halo):
+            for dim, side in zip(*halo, strict=False):
                 try:
                     shape.append(getattr(f._size_owned[dim], side.name))
                 except AttributeError:
@@ -1292,7 +1292,7 @@ class MPIMsgEnriched(MPIMsg):
             # `torank` peer + gather offsets
             entry.torank = neighborhood[halo.side]
             ofsg = []
-            for dim, side in zip(*halo):
+            for dim, side in zip(*halo, strict=False):
                 try:
                     v = getattr(f._offset_owned[dim], side.name)
                     ofsg.append(self._as_number(v, args))
@@ -1304,7 +1304,7 @@ class MPIMsgEnriched(MPIMsg):
             # `fromrank` peer + scatter offsets
             entry.fromrank = neighborhood[tuple(i.flip() for i in halo.side)]
             ofss = []
-            for dim, side in zip(*halo):
+            for dim, side in zip(*halo, strict=False):
                 try:
                     v = getattr(f._offset_halo[dim], side.flip().name)
                     ofss.append(self._as_number(v, args))
@@ -1404,7 +1404,7 @@ class AllreduceCall(Call):
         super().__init__('MPI_Allreduce', arguments, **kwargs)
 
 
-class ReductionBuilder(object):
+class ReductionBuilder:
 
     """
     Build IET routines performing MPI reductions.

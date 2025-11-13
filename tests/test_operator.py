@@ -1633,7 +1633,7 @@ class TestLoopScheduling:
         assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
         # mapper just makes it quicker to write out the test parametrization
         mapper = {'+': Forward, '-': Backward, '*': Any}
-        assert all(i.direction == mapper[j] for i, j in zip(iters, directions))
+        assert all(i.direction == mapper[j] for i, j in zip(iters, directions, strict=False))
 
     def test_expressions_imperfect_loops(self):
         """
@@ -1750,7 +1750,7 @@ class TestLoopScheduling:
                     Eq(b, time*b*a + b)]
             eqns2 = [Eq(a.forward, a.laplace + 1.),
                      Eq(b2, time*b2*a + b2)]
-            subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim])}
+            subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim], strict=False)}
 
             op = Operator(eqns, subs=subs, opt='noop')
             trees = retrieve_iteration_tree(op)
@@ -2298,7 +2298,7 @@ class TestEstimateMemory:
 
         summary.to_json("memory_estimate_output.json")
 
-        with open("memory_estimate_output.json", "r") as infile:
+        with open("memory_estimate_output.json") as infile:
             json_object = json.load(infile)
 
             assert json_object['name'] == summary.name

@@ -8,9 +8,20 @@ from devito.types import (
     Dimension, DimensionTuple, Indirection, ModuloDimension, StencilDimension
 )
 
-__all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
-           'pull_dims', 'unbounded', 'minimum', 'maximum', 'minmax_index',
-           'extrema', 'erange']
+__all__ = [
+    'AccessMode',
+    'IMask',
+    'Stencil',
+    'detect_accesses',
+    'detect_io',
+    'erange',
+    'extrema',
+    'maximum',
+    'minimum',
+    'minmax_index',
+    'pull_dims',
+    'unbounded',
+]
 
 
 class AccessMode:
@@ -128,7 +139,7 @@ def detect_accesses(exprs):
     for e in retrieve_indexed(exprs, deep=True):
         f = e.function
 
-        for a, d0 in zip(e.indices, f.dimensions):
+        for a, d0 in zip(e.indices, f.dimensions, strict=False):
             if isinstance(a, Indirection):
                 a = a.mapped
 
@@ -377,6 +388,6 @@ def erange(expr):
 
     sdims = [d for d in udims if d.is_Stencil]
     ranges = [i.range for i in sdims]
-    mappers = [dict(zip(sdims, i)) for i in product(*ranges)]
+    mappers = [dict(zip(sdims, i, strict=False)) for i in product(*ranges)]
 
     return tuple(expr.subs(m) for m in mappers)

@@ -38,7 +38,7 @@ class HaloSchemeEntry(EnrichedTuple):
         getters = cls.__rargs__ + cls.__rkwargs__
         items = [frozendict(loc_indices), frozendict(loc_dirs),
                  frozenset(halos), frozenset(dims), bundle]
-        kwargs = dict(zip(getters, items))
+        kwargs = dict(zip(getters, items, strict=False))
         return super().__new__(cls, *items, getters=getters, **kwargs)
 
     def __hash__(self):
@@ -401,7 +401,7 @@ class HaloScheme:
         mapper = {}
         for f, v in self.halos.items():
             dimensions = filter_ordered(flatten(i.dim for i in v))
-            for d, s in zip(f.dimensions, f._size_owned):
+            for d, s in zip(f.dimensions, f._size_owned, strict=False):
                 if d in dimensions:
                     maxl, maxr = mapper.get(d, (0, 0))
                     mapper[d] = (max(maxl, s.left), max(maxr, s.right))
@@ -525,16 +525,14 @@ def classify(exprs, ispace):
 
     mapper = {}
     for f, r in scope.reads.items():
-        if not f.is_DiscreteFunction:
-            continue
-        elif f.grid is None:
+        if not f.is_DiscreteFunction or f.grid is None:
             continue
 
         # In the case of custom topologies, we ignore the Dimensions that aren't
         # practically subjected to domain decomposition
         dist = f.grid.distributor
         try:
-            ignored = [d for i, d in zip(dist.topology_logical, dist.dimensions)
+            ignored = [d for i, d in zip(dist.topology_logical, dist.dimensions, strict=False)
                        if i == 1]
         except TypeError:
             ignored = []
@@ -571,7 +569,7 @@ def classify(exprs, ispace):
             combs.remove((CENTER,)*len(f._dist_dimensions))
             for c in combs:
                 key = (f._dist_dimensions, c)
-                if all(v.get((d, s)) is STENCIL or s is CENTER for d, s in zip(*key)):
+                if all(v.get((d, s)) is STENCIL or s is CENTER for d, s in zip(*key, strict=False)):
                     v[key] = STENCIL
 
             # Finally update the `halo_labels`

@@ -3,7 +3,7 @@ from functools import lru_cache, partial
 from itertools import tee
 from typing import TypeVar
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator', 'CacheInstances']
+__all__ = ['CacheInstances', 'memoized_func', 'memoized_generator', 'memoized_meth']
 
 
 class memoized_func:

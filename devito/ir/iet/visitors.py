@@ -33,10 +33,22 @@ from devito.types import (
 )
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 
-__all__ = ['FindApplications', 'FindNodes', 'FindWithin', 'FindSections',
-           'FindSymbols', 'MapExprStmts', 'MapHaloSpots', 'MapNodes',
-           'IsPerfectIteration', 'printAST', 'CGen', 'CInterface', 'Transformer',
-           'Uxreplace']
+__all__ = [
+    'CGen',
+    'CInterface',
+    'FindApplications',
+    'FindNodes',
+    'FindSections',
+    'FindSymbols',
+    'FindWithin',
+    'IsPerfectIteration',
+    'MapExprStmts',
+    'MapHaloSpots',
+    'MapNodes',
+    'Transformer',
+    'Uxreplace',
+    'printAST',
+]
 
 
 class Visitor(GenericVisitor):
@@ -52,7 +64,7 @@ class Visitor(GenericVisitor):
         """A visit method that rebuilds nodes if their children have changed."""
         ops, okwargs = o.operands()
         new_ops = [self._visit(op, *args, **kwargs) for op in ops]
-        if all(a is b for a, b in zip(ops, new_ops)):
+        if all(a is b for a, b in zip(ops, new_ops, strict=False)):
             return o
         return o._rebuild(*new_ops, **okwargs)
 
@@ -284,7 +296,7 @@ class CGen(Visitor):
             fields = (None,)*len(ctype._fields_)
 
         entries = []
-        for i, (n, ct) in zip(fields, ctype._fields_):
+        for i, (n, ct) in zip(fields, ctype._fields_, strict=False):
             try:
                 entries.append(self._gen_value(i, 0, masked=('const',)))
             except AttributeError:

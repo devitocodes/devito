@@ -316,7 +316,7 @@ def reuse_compounds(efuncs, sregistry=None):
 
         mapper.update({i0: i1, b0: b1})
 
-        for f0, f1 in zip(i0.fields, i1.fields):
+        for f0, f1 in zip(i0.fields, i1.fields, strict=False):
             for cls in (FieldFromComposite, FieldFromPointer):
                 if f0.is_AbstractFunction:
                     mapper[cls(f0._C_symbol, b0)] = cls(f1._C_symbol, b1)
@@ -395,7 +395,7 @@ def abstract_component_accesses(efuncs):
         f_flatten = f.func(name='flat_data', components=f.c0)
 
         subs = {}
-        for ca, o in zip(compaccs, compoff_params):
+        for ca, o in zip(compaccs, compoff_params, strict=False):
             indices = [Mul(arity_param, i, evaluate=False) for i in ca.indices]
             indices[-1] += o
             subs[ca] = f_flatten.indexed[indices]

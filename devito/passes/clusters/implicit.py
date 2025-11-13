@@ -222,7 +222,7 @@ def _lower_msd(dim, cluster):
 def _(dim, cluster):
     i_dim = dim.implicit_dimension
     mapper = {tkn: dim.functions[i_dim, mM]
-              for tkn, mM in zip(dim.tkns, dim.bounds_indices)}
+              for tkn, mM in zip(dim.tkns, dim.bounds_indices, strict=False)}
     return mapper, i_dim
 
 

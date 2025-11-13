@@ -22,7 +22,7 @@ from devito.types import Barrier, Scalar, Symbol
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):
     blocksizes = {'%s0_blk%d_size' % (d, level): v
-                  for d, v in zip(grid.dimensions, blockshape)}
+                  for d, v in zip(grid.dimensions, blockshape, strict=False)}
     blocksizes = {k: v for k, v in blocksizes.items() if k in op._known_arguments}
     # Sanity check
     if grid.dim == 1 or len(blockshape) == 0:
@@ -340,11 +340,11 @@ class TestBlockingParTile:
 
         bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
         assert len(bns) == len(expected)
-        for root, v in zip(bns.values(), expected):
+        for root, v in zip(bns.values(), expected, strict=False):
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
             assert len(iters) == len(v)
-            assert all(i.step == j for i, j in zip(iters, v))
+            assert all(i.step == j for i, j in zip(iters, v, strict=False))
 
     def test_structure_2p5D(self):
         grid = Grid(shape=(80, 80, 80))
@@ -396,7 +396,7 @@ class TestBlockingParTile:
         iters = FindNodes(Iteration).visit(root)
         iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
         assert len(iters) == 3
-        assert all(i.step == j for i, j in zip(iters, par_tile))
+        assert all(i.step == j for i, j in zip(iters, par_tile, strict=False))
 
     def test_custom_rule1(self):
         grid = Grid(shape=(8, 8, 8))
@@ -426,7 +426,7 @@ class TestBlockingParTile:
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
             assert len(iters) == 3
-            assert all(i.step == j for i, j in zip(iters, par_tile))
+            assert all(i.step == j for i, j in zip(iters, par_tile, strict=False))
 
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
@@ -533,7 +533,7 @@ def test_cache_blocking_imperfect_nest(blockinner):
     trees = retrieve_iteration_tree(bns['x0_blk0'])
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
-    assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4]))
+    assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4], strict=False))
     assert trees[0][4] is not trees[1][4]
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
@@ -581,7 +581,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     trees = retrieve_iteration_tree(bns['x0_blk0'])
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
-    assert all(i is j for i, j in zip(trees[0][:2], trees[1][:2]))
+    assert all(i is j for i, j in zip(trees[0][:2], trees[1][:2], strict=False))
     assert trees[0][2] is not trees[1][2]
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
@@ -710,7 +710,7 @@ class TestNodeParallelism:
         assert len(iterations) == len(expected)
 
         # Check for presence of pragma omp
-        for i, j in zip(iterations, expected):
+        for i, j in zip(iterations, expected, strict=False):
             pragmas = i.pragmas
             if j is True:
                 assert len(pragmas) == 1
@@ -776,7 +776,7 @@ class TestNodeParallelism:
         assert len(iterations) == len(expected)
 
         # Check for presence of pragma omp + collapse clause
-        for i, j in zip(iterations, expected):
+        for i, j in zip(iterations, expected, strict=False):
             if j > 0:
                 assert len(i.pragmas) == 1
                 pragma = i.pragmas[0]

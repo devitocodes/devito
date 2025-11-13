@@ -271,9 +271,9 @@ def calculate_nblocks(tree, blockable):
     collapsed = tree[index:index + (ncollapsed or index+1)]
     blocked = [i.dim for i in collapsed if i.dim in blockable]
     remainders = [(d.root.symbolic_max-d.root.symbolic_min+1) % d.step for d in blocked]
-    niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders)]
+    niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders, strict=False)]
     nblocks = prod((i - d.root.symbolic_min + 1) / d.step
-                   for d, i in zip(blocked, niters))
+                   for d, i in zip(blocked, niters, strict=False))
     return nblocks
 
 
@@ -324,7 +324,7 @@ def generate_block_shapes(blockable, args, level):
     level_1 = [d for d, v in mapper.items() if v == 1]
     if level_1:
         assert len(level_1) == len(level_0)
-        assert all(d1.parent is d0 for d0, d1 in zip(level_0, level_1))
+        assert all(d1.parent is d0 for d0, d1 in zip(level_0, level_1, strict=False))
         for bs in list(ret):
             handle = []
             for v in options['blocksize-l1']:

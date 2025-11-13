@@ -127,7 +127,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         if self.lhs.is_Matrix:
             # Maps the Equations to retrieve the rhs from relevant lhs
             try:
-                eqs = dict(zip(self.lhs, self.rhs))
+                eqs = dict(zip(self.lhs, self.rhs, strict=False))
             except TypeError:
                 # Same rhs for all lhs
                 assert not self.rhs.is_Matrix

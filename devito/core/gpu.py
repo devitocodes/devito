@@ -17,12 +17,23 @@ from devito.passes.iet import (
 )
 from devito.tools import as_tuple, timed_pass
 
-__all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
-           'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceFsgOmpOperator',
-           'DeviceCustomOmpOperator', 'DeviceNoopAccOperator', 'DeviceAdvAccOperator',
-           'DeviceFsgAccOperator', 'DeviceCustomAccOperator', 'DeviceNoopCXXOmpOperator',
-           'DeviceAdvCXXOmpOperator', 'DeviceFsgCXXOmpOperator',
-           'DeviceCustomCXXOmpOperator']
+__all__ = [
+    'DeviceAdvAccOperator',
+    'DeviceAdvCXXOmpOperator',
+    'DeviceAdvOmpOperator',
+    'DeviceAdvOperator',
+    'DeviceCustomAccOperator',
+    'DeviceCustomCXXOmpOperator',
+    'DeviceCustomOmpOperator',
+    'DeviceCustomOperator',
+    'DeviceFsgAccOperator',
+    'DeviceFsgCXXOmpOperator',
+    'DeviceFsgOmpOperator',
+    'DeviceNoopAccOperator',
+    'DeviceNoopCXXOmpOperator',
+    'DeviceNoopOmpOperator',
+    'DeviceNoopOperator',
+]
 
 
 class DeviceOperatorMixin:

@@ -2,9 +2,19 @@ import numpy as np
 
 from devito.tools import Tag, as_list, as_tuple, is_integer
 
-__all__ = ['Index', 'NONLOCAL', 'PROJECTED', 'index_is_basic', 'index_apply_modulo',
-           'index_dist_to_repl', 'convert_index', 'index_handle_oob',
-           'loc_data_idx', 'mpi_index_maps', 'flip_idx']
+__all__ = [
+    'NONLOCAL',
+    'PROJECTED',
+    'Index',
+    'convert_index',
+    'flip_idx',
+    'index_apply_modulo',
+    'index_dist_to_repl',
+    'index_handle_oob',
+    'index_is_basic',
+    'loc_data_idx',
+    'mpi_index_maps',
+]
 
 
 class Index(Tag):
@@ -331,7 +341,7 @@ def mpi_index_maps(loc_idx, shape, topology, coords, comm):
         owner = owners[index]
         my_slice = n_rank_slice[owner]
         rnorm_index = []
-        for j, k in zip(my_slice, index):
+        for j, k in zip(my_slice, index, strict=False):
             rnorm_index.append(k-j.start)
         local_si[index] = as_tuple(rnorm_index)
         it.iternext()
@@ -377,7 +387,7 @@ def flip_idx(idx, decomposition):
     (slice(8, 11, 1),)
     """
     processed = []
-    for i, j in zip(as_tuple(idx), decomposition):
+    for i, j in zip(as_tuple(idx), decomposition, strict=False):
         if isinstance(i, slice) and i.step is not None and i.step < 0:
             if i.start is None:
                 stop = None

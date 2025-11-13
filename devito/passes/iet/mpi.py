@@ -525,7 +525,7 @@ def _semantical_eq_loc_indices(hsf0, hsf1):
     if hsf0.loc_indices != hsf1.loc_indices:
         return False
 
-    for v0, v1 in zip(hsf0.loc_values, hsf1.loc_values):
+    for v0, v1 in zip(hsf0.loc_values, hsf1.loc_values, strict=False):
         if v0 is v1:
             continue
 

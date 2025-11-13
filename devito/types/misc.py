@@ -13,10 +13,27 @@ from devito.tools import CustomDtype, Pickable, frozendict
 from devito.types import Array, CompositeObject, Indexed, LocalObject, Symbol
 from devito.types.basic import IndexedData
 
-__all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
-           'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'auto',
-           'size_t']
+__all__ = [
+    'Auto',
+    'AutoRef',
+    'CriticalRegion',
+    'FIndexed',
+    'Fence',
+    'Global',
+    'Hyperplane',
+    'Indirection',
+    'Jump',
+    'Pointer',
+    'Temp',
+    'TempArray',
+    'Timer',
+    'VolatileInt',
+    'WeakFence',
+    'Wildcard',
+    'auto',
+    'nop',
+    'size_t',
+]
 
 
 class Timer(CompositeObject):
@@ -139,7 +156,7 @@ class FIndexed(Indexed, Pickable):
         macroargnames = [d.name for d in f.dimensions]
         macroargs = [MacroArgument(i) for i in macroargnames]
 
-        items = [m*strides_map[d] for m, d in zip(macroargs, f.dimensions[1:])]
+        items = [m*strides_map[d] for m, d in zip(macroargs, f.dimensions[1:], strict=False)]
         items.append(MacroArgument(f.dimensions[-1].name))
 
         define = DefFunction(pname, macroargnames)

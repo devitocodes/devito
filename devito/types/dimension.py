@@ -16,11 +16,24 @@ from devito.types.basic import DataSymbol, Scalar, Symbol
 from devito.types.constant import Constant
 from devito.types.relational import relational_max, relational_min
 
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'CustomDimension', 'SteppingDimension', 'SubDimension',
-           'MultiSubDimension', 'ConditionalDimension', 'ModuloDimension',
-           'IncrDimension', 'BlockDimension', 'StencilDimension',
-           'VirtualDimension', 'Spacing', 'dimensions']
+__all__ = [
+    'BlockDimension',
+    'ConditionalDimension',
+    'CustomDimension',
+    'DefaultDimension',
+    'Dimension',
+    'IncrDimension',
+    'ModuloDimension',
+    'MultiSubDimension',
+    'SpaceDimension',
+    'Spacing',
+    'StencilDimension',
+    'SteppingDimension',
+    'SubDimension',
+    'TimeDimension',
+    'VirtualDimension',
+    'dimensions',
+]
 
 
 SubDimensionThickness = namedtuple('SubDimensionThickness', 'left right')
@@ -747,7 +760,7 @@ class SubDimension(AbstractSubDimension):
         names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
         return SubDimensionThickness(*[Thickness(name=n, side=s, value=t, **kwargs)
-                                       for n, s, t in zip(names, sides, thickness)])
+                                       for n, s, t in zip(names, sides, thickness, strict=False)])
 
     @cached_property
     def _interval(self):

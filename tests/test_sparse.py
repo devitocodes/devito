@@ -193,7 +193,7 @@ class TestMatrixSparseTimeFunction:
 
         m_coo = mstf.matrix.tocoo()
 
-        for row, col, val in zip(m_coo.row, m_coo.col, m_coo.data):
+        for row, col, val in zip(m_coo.row, m_coo.col, m_coo.data, strict=False):
             base_gridpoint = mstf.gridpoints.data[row, :]
 
             # construct the stencil and the slices to which it will be applied

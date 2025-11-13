@@ -2,8 +2,15 @@ from anytree import ContStyle, NodeMixin, PostOrderIter, RenderTree
 
 from devito.ir.support import PrefetchUpdate, WithLock
 
-__all__ = ["ScheduleTree", "NodeSection", "NodeIteration", "NodeConditional",
-           "NodeSync", "NodeExprs", "NodeHalo"]
+__all__ = [
+    "NodeConditional",
+    "NodeExprs",
+    "NodeHalo",
+    "NodeIteration",
+    "NodeSection",
+    "NodeSync",
+    "ScheduleTree",
+]
 
 
 class ScheduleTree(NodeMixin):

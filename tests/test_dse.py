@@ -50,7 +50,7 @@ def test_scheduling_after_rewrite():
     trees = retrieve_iteration_tree(op)
 
     # Check loop nest structure
-    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions, strict=False))  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
 

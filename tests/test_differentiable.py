@@ -135,14 +135,14 @@ def test_avg_mode(ndim, io):
     vars = ['i', 'j', 'k'][:ndim]
     rule = ','.join(vars) + '->' + ''.join(vars)
     ndcoeffs = np.einsum(rule, *([coeffs]*ndim))
-    args = [{d: d + i * d.spacing for d, i in zip(grid.dimensions, s)} for s in all_shift]
+    args = [{d: d + i * d.spacing for d, i in zip(grid.dimensions, s, strict=False)} for s in all_shift]
 
     # Default is arithmetic average
-    expected = sum(c * a.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args))
+    expected = sum(c * a.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args, strict=False))
     assert sympy.simplify(a_avg - expected) == 0
 
     # Harmonic average, h(a[.5]) = 1/(.5/a[0] + .5/a[1])
-    expected = (sum(c / b.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args)))
+    expected = (sum(c / b.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args, strict=False)))
     assert sympy.simplify(b_avg.args[0] - expected) == 0
     assert isinstance(b_avg, SafeInv)
     assert b_avg.base == b

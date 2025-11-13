@@ -233,7 +233,7 @@ class WeightedInterpolator(GenericInterpolator):
         rdims = []
         pos = self.sfunction._position_map.values()
 
-        for (d, rd, p) in zip(gdims, self._cdim, pos):
+        for (d, rd, p) in zip(gdims, self._cdim, pos, strict=False):
             # Add conditional to avoid OOB
             lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
             ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
@@ -302,14 +302,14 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Index substitution to make in variables
         subs = {ki: c + p for ((k, c), p)
-                in zip(mapper.items(), pos) for ki in {k, k.root}}
+                in zip(mapper.items(), pos, strict=False) for ki in {k, k.root}}
 
         idx_subs = {v: v.subs(subs) for v in variables}
 
         # Position only replacement, not radius dependent.
         # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
         # not vp[posx + rx]
-        idx_subs.update({v: v.subs({k: p for (k, p) in zip(mapper, pos)})
+        idx_subs.update({v: v.subs({k: p for (k, p) in zip(mapper, pos, strict=False)})
                          for v in pos_only})
 
         return idx_subs, temps
@@ -450,7 +450,7 @@ class WeightedInterpolator(GenericInterpolator):
         eqns = [Inc(_field.xreplace(idx_subs),
                     (self._weights(subdomain=subdomain) * _expr).xreplace(idx_subs),
                     implicit_dims=implicit_dims)
-                for (_field, _expr) in zip(fields, _exprs)]
+                for (_field, _expr) in zip(fields, _exprs, strict=False)]
 
         return temps + eqns
 
@@ -471,7 +471,7 @@ class LinearInterpolator(WeightedInterpolator):
     def _weights(self, subdomain=None):
         rdim = self._rdim(subdomain=subdomain)
         c = [(1 - p) * (1 - r) + p * r
-             for (p, d, r) in zip(self._point_symbols, self._gdims, rdim)]
+             for (p, d, r) in zip(self._point_symbols, self._gdims, rdim, strict=False)]
         return Mul(*c)
 
     @cached_property
@@ -487,7 +487,7 @@ class LinearInterpolator(WeightedInterpolator):
         pmap = self.sfunction._position_map
         poseq = [Eq(self._point_symbols[d], pos - floor(pos),
                     implicit_dims=implicit_dims)
-                 for (d, pos) in zip(self._gdims, pmap.keys())]
+                 for (d, pos) in zip(self._gdims, pmap.keys(), strict=False)]
         return poseq
 
 
@@ -568,7 +568,7 @@ of the SincInterpolator that uses i0 (Bessel function).
     def _weights(self, subdomain=None):
         rdims = self._rdim(subdomain=subdomain)
         return Mul(*[w._subs(rd, rd-rd.parent.symbolic_min)
-                     for (rd, w) in zip(rdims, self.interpolation_coeffs)])
+                     for (rd, w) in zip(rdims, self.interpolation_coeffs, strict=False)])
 
     def _arg_defaults(self, coords=None, sfunc=None):
         args = {}
