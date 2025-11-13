@@ -7,19 +7,19 @@ import sympy
 
 from devito.exceptions import CompilationError
 from devito.finite_differences.elementary import Max, Min
-from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
-                               pull_dims)
-from devito.ir.equations import OpMin, OpMax, identity_mapper
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, cluster_pass
-from devito.ir.support import Scope
+from devito.ir.equations import OpMax, OpMin, identity_mapper
+from devito.ir.support import (
+    Any, Backward, Forward, IterationSpace, Scope, erange, pull_dims
+)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
-from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
-                              xreplace_indices)
-from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
-                          is_integer, split, timed_pass, toposort)
+from devito.symbolics import limits_mapper, retrieve_indexed, uxreplace, xreplace_indices
+from devito.tools import (
+    DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer, split, timed_pass, toposort
+)
 from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
@@ -229,10 +229,7 @@ def guard(clusters):
             for cd in cds:
                 # `BOTTOM` parent implies a guard that lives outside of
                 # any iteration space, which corresponds to the placeholder None
-                if cd.parent is BOTTOM:
-                    d = None
-                else:
-                    d = cd.parent
+                d = None if cd.parent is BOTTOM else cd.parent
 
                 # If `cd` uses, as condition, an arbitrary SymPy expression, then
                 # we must ensure to nest it inside the last of the Dimensions

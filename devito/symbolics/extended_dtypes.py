@@ -1,9 +1,12 @@
 import ctypes
+
 import numpy as np
 
-from devito.symbolics.extended_sympy import ReservedWord, Cast, ValueLimit
-from devito.tools import (Bunch, float2, float3, float4, double2, double3, double4,  # noqa
-                          int2, int3, int4, ctypes_vector_mapper)
+from devito.symbolics.extended_sympy import Cast, ReservedWord, ValueLimit
+from devito.tools import (  # noqa
+    Bunch, ctypes_vector_mapper, double2, double3, double4, float2, float3, float4, int2,
+    int3, int4
+)
 from devito.tools.dtypes_lowering import dtype_mapper
 
 __all__ = ['cast', 'CustomType', 'limits_mapper', 'INT', 'FLOAT', 'BaseCast',  # noqa
@@ -94,6 +97,6 @@ for (base_name, dtype) in dtype_mapper.items():
     name = base_name.upper()
     globals()[name] = type(name, (BaseCast,), {'_dtype': dtype})
     for i in ['2', '3', '4']:
-        v = '%s%s' % (base_name, i)
+        v = f'{base_name}{i}'
         globals()[v.upper()] = cast(v)
         globals()[f'{v.upper()}P'] = cast(v, '*')

@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import (Grid, TimeFunction, Function, Operator, Eq, solve,
-                    DefaultDimension)
+from devito import DefaultDimension, Eq, Function, Grid, Operator, TimeFunction, solve
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import LoweredEq

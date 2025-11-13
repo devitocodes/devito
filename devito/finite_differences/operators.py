@@ -64,7 +64,7 @@ def grad(func, shift=None, order=None, method='FD', **kwargs):
     try:
         return func.grad(shift=shift, order=order, method=method, w=w)
     except AttributeError:
-        raise AttributeError("Gradient not supported for class %s" % func.__class__)
+        raise AttributeError(f"Gradient not supported for class {func.__class__}")
 
 
 def grad45(func, shift=None, order=None):

@@ -1,8 +1,9 @@
 import numpy as np
 
 from conftest import assert_structure
-from devito import (Eq, Inc, Grid, Function, TimeFunction, SubDimension, SubDomain,
-                    Operator, solve)
+from devito import (
+    Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, TimeFunction, solve
+)
 
 
 def test_issue_1725():

@@ -2,31 +2,34 @@ from functools import cached_property
 
 import numpy as np
 import pytest
-
 from sympy import Mul  # noqa
 
-from conftest import (skipif, EVAL, _R, assert_structure, assert_blocking,  # noqa
-                      get_params, get_arrays, check_array)
-from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
-                    SparseTimeFunction, Dimension, SubDimension,
-                    ConditionalDimension, DefaultDimension, Grid, Operator,
-                    norm, grad, div, dimensions, switchconfig, configuration,
-                    first_derivative, solve, transpose, Abs, cos, exp,
-                    sin, sqrt, floor, Ge, Lt, Derivative)
+from conftest import (  # noqa
+    _R, EVAL, assert_blocking, assert_structure, check_array, get_arrays, get_params,
+    skipif
+)
+from devito import (  # noqa
+    NODE, Abs, ConditionalDimension, Constant, DefaultDimension, Derivative, Dimension,
+    Eq, Function, Ge, Grid, Inc, Lt, Operator, SparseTimeFunction, SubDimension,
+    TimeFunction, configuration, cos, dimensions, div, exp, first_derivative, floor, grad,
+    norm, sin, solve, sqrt, switchconfig, transpose
+)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
-                       FindSymbols, ParallelIteration, retrieve_iteration_tree)
+from devito.ir import (
+    Conditional, DummyEq, Expression, FindNodes, FindSymbols, Iteration,
+    ParallelIteration, retrieve_iteration_tree
+)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.factorization import collect_nested
 from devito.passes.iet.parpragma import VExpanded
-from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
-                              IndexedPointer, Keyword, SizeOf, estimate_cost,
-                              pow_to_mul, indexify)
+from devito.symbolics import (  # noqa
+    FLOAT, INT, DefFunction, FieldFromPointer, IndexedPointer, Keyword, SizeOf,
+    estimate_cost, indexify, pow_to_mul
+)
 from devito.tools import as_tuple
-from devito.types import Scalar, Symbol, PrecomputedSparseTimeFunction
-
+from devito.types import PrecomputedSparseTimeFunction, Scalar, Symbol
+from examples.seismic import AcquisitionGeometry, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
@@ -47,7 +50,7 @@ def test_scheduling_after_rewrite():
     trees = retrieve_iteration_tree(op)
 
     # Check loop nest structure
-    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions, strict=False))  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
 
@@ -701,7 +704,7 @@ class TestAliases:
         except InvalidOperator:
             assert True
         except:
-            assert False
+            raise AssertionError()
 
         # Check that `cire-rotate=True` has no effect in this code has there's
         # no blocking
@@ -2323,10 +2326,7 @@ class TestAliases:
                                              'cire-rotate': rotate, 'min-storage': True}))
 
         # Check code generation
-        if 'openmp' in configuration['language']:
-            prefix = ['t']
-        else:
-            prefix = []
+        prefix = ['t'] if 'openmp' in configuration['language'] else []
         if rotate:
             assert_structure(
                 op1,

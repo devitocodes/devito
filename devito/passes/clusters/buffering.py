@@ -2,18 +2,21 @@ from collections import defaultdict, namedtuple
 from functools import cached_property
 from itertools import chain
 
-from sympy import S
 import numpy as np
+from sympy import S
 
-from devito.ir import (Cluster, Backward, Forward, GuardBound, Interval,
-                       IntervalGroup, IterationSpace, Properties, Queue, Vector,
-                       InitArray, lower_exprs, vmax, vmin)
 from devito.exceptions import CompilationError
+from devito.ir import (
+    Backward, Cluster, Forward, GuardBound, InitArray, Interval, IntervalGroup,
+    IterationSpace, Properties, Queue, Vector, lower_exprs, vmax, vmin
+)
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
 from devito.symbolics import IntDiv, retrieve_functions, uxreplace
-from devito.tools import (Stamp, as_mapper, as_tuple, filter_ordered, frozendict,
-                          flatten, is_integer, timed_pass)
+from devito.tools import (
+    Stamp, as_mapper, as_tuple, filter_ordered, flatten, frozendict, is_integer,
+    timed_pass
+)
 from devito.types import Array, CustomDimension, Eq, ModuloDimension
 
 __all__ = ['buffering']
@@ -94,10 +97,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     assert callable(key)
 
     v1 = kwargs.get('opt_init_onwrite', False)
-    if callable(v1):
-        init_onwrite = v1
-    else:
-        init_onwrite = lambda f: v1
+    init_onwrite = v1 if callable(v1) else lambda f: v1
 
     options = dict(options)
     options.update({
@@ -402,7 +402,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
         # Finally create the actual buffer
         cls = callback or Array
-        name = sregistry.make_name(prefix='%sb' % f.name)
+        name = sregistry.make_name(prefix=f'{f.name}b')
         # We specify the padding to match the input Function's one, so that
         # the array can be used in place of the Function with valid strides
         # Plain Array do not track mapped so we default to no padding
@@ -442,7 +442,7 @@ class BufferDescriptor:
         self.indices = extract_indices(f, self.dim, clusters)
 
     def __repr__(self):
-        return "Descriptor[%s -> %s]" % (self.f, self.b)
+        return f"Descriptor[{self.f} -> {self.b}]"
 
     @property
     def size(self):
@@ -561,7 +561,7 @@ class BufferDescriptor:
         # Analogous to the above, we need to include the halo region as well
         ihalo = IntervalGroup([
             Interval(i.dim, -h.left, h.right, i.stamp)
-            for i, h in zip(ispace, self.b._size_halo)
+            for i, h in zip(ispace, self.b._size_halo, strict=False)
         ])
 
         ispace = IterationSpace.union(ispace, IterationSpace(ihalo))
@@ -577,10 +577,7 @@ class BufferDescriptor:
         # May be `db0` (e.g., for double buffering) or `time`
         dim = self.ispace[self.dim].dim
 
-        if self.is_forward_buffering:
-            direction = Forward
-        else:
-            direction = Backward
+        direction = Forward if self.is_forward_buffering else Backward
 
         return self.write_to.switch(self.xd, dim, direction)
 
@@ -802,7 +799,7 @@ def offset_from_centre(d, indices):
                     raise ValueError
             except (IndexError, ValueError):
                 raise NotImplementedError("Cannot apply buffering with nonlinear "
-                                          "index functions (found `%s`)" % v)
+                                          f"index functions (found `{v}`)")
 
         try:
             # Start assuming e.g. `indices = [time - 1, time + 2]`

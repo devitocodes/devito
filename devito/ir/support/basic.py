@@ -1,25 +1,29 @@
 from collections.abc import Iterable
-from itertools import chain, product
 from functools import cached_property
-from typing import Callable
+from itertools import chain, product
+from collections.abc import Callable
 
-from sympy import S, Expr
 import sympy
+from sympy import Expr, S
 
 from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
-                              q_constant, q_comp_acc, q_affine, q_routine, search,
-                              uxreplace)
-from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth, memoized_generator, smart_gt,
-                          smart_lt, CacheInstances)
-from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
-                          CriticalRegion, Function, Symbol, Temp, TempArray,
-                          TBArray)
+from devito.symbolics import (
+    compare_ops, q_affine, q_comp_acc, q_constant, q_routine, retrieve_indexed,
+    retrieve_terminals, search, uxreplace
+)
+from devito.tools import (
+    CacheInstances, Tag, as_mapper, as_tuple, filter_sorted, flatten, is_integer,
+    memoized_generator, memoized_meth, smart_gt, smart_lt
+)
+from devito.types import (
+    ComponentAccess, CriticalRegion, Dimension, DimensionTuple, Fence, Function, Symbol,
+    TBArray, Temp, TempArray
+)
+import contextlib
 
-__all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
+__all__ = ['ExprGeometry', 'IterationInstance', 'Scope', 'TimedAccess']
 
 
 class IndexMode(Tag):
@@ -88,7 +92,7 @@ class IterationInstance(LabeledVector):
         except AttributeError:
             # E.g., `access` is a FieldFromComposite rather than an Indexed
             indices = (S.Infinity,)*len(findices)
-        return super().__new__(cls, list(zip(findices, indices)))
+        return super().__new__(cls, list(zip(findices, indices, strict=False)))
 
     def __hash__(self):
         return super().__hash__()
@@ -96,7 +100,7 @@ class IterationInstance(LabeledVector):
     @cached_property
     def index_mode(self):
         retval = []
-        for i, fi in zip(self, self.findices):
+        for i, fi in zip(self, self.findices, strict=False):
             dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 0 and q_constant(i):
                 retval.append(AFFINE)
@@ -128,7 +132,7 @@ class IterationInstance(LabeledVector):
     @cached_property
     def aindices(self):
         retval = []
-        for i, fi in zip(self, self.findices):
+        for i, _fi in zip(self, self.findices, strict=False):
             dims = set(d.root if d.indirect else d for d in i.atoms(Dimension))
             sdims = {d for d in dims if d.is_Stencil}
             candidates = dims - sdims
@@ -147,12 +151,12 @@ class IterationInstance(LabeledVector):
 
     @cached_property
     def index_map(self):
-        return dict(zip(self.aindices, self.findices))
+        return dict(zip(self.aindices, self.findices, strict=False))
 
     @cached_property
     def defined_findices_affine(self):
         ret = set()
-        for fi, im in zip(self.findices, self.index_mode):
+        for fi, im in zip(self.findices, self.index_mode, strict=False):
             if im is AFFINE:
                 ret.update(fi._defines)
         return ret
@@ -160,7 +164,7 @@ class IterationInstance(LabeledVector):
     @cached_property
     def defined_findices_irregular(self):
         ret = set()
-        for fi, im in zip(self.findices, self.index_mode):
+        for fi, im in zip(self.findices, self.index_mode, strict=False):
             if im is IRREGULAR:
                 ret.update(fi._defines)
         return ret
@@ -336,7 +340,7 @@ class TimedAccess(IterationInstance, AccessMode):
             return Vector(S.ImaginaryUnit)
 
         ret = []
-        for sit, oit in zip(self.itintervals, other.itintervals):
+        for sit, oit in zip(self.itintervals, other.itintervals, strict=False):
             n = len(ret)
 
             try:
@@ -439,7 +443,7 @@ class TimedAccess(IterationInstance, AccessMode):
 
         # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
         # nasty, `a[i+1, 3] -> a[i, 4]`
-        for i, j in zip(self[n:], other[n:]):
+        for i, j in zip(self[n:], other[n:], strict=False):
             if i == j:
                 ret.append(S.Zero)
             else:
@@ -570,7 +574,7 @@ class Relation:
     @cached_property
     def distance_mapper(self):
         retval = {}
-        for i, j in zip(self.findices, self.distance):
+        for i, j in zip(self.findices, self.distance, strict=False):
             for d in i._defines:
                 retval[d] = j
         return retval
@@ -644,7 +648,7 @@ class Dependence(Relation, CacheInstances):
     @cached_property
     def cause(self):
         """Return the findex causing the dependence."""
-        for i, j in zip(self.findices, self.distance):
+        for i, j in zip(self.findices, self.distance, strict=False):
             try:
                 if j > 0:
                     return i._defines
@@ -867,10 +871,7 @@ class Scope(CacheInstances):
                     # E.g., foreign routines, such as `cos` or `sin`
                     pass
             for j in terminals:
-                if e.is_Reduction:
-                    mode = 'WR'
-                else:
-                    mode = 'W'
+                mode = 'WR' if e.is_Reduction else 'W'
                 yield TimedAccess(j, mode, i, e.ispace)
 
         # Objects altering the control flow (e.g., synchronization barriers,
@@ -908,15 +909,10 @@ class Scope(CacheInstances):
         for i, e in enumerate(self.exprs):
             # Reads
             terminals = retrieve_accesses(e.rhs, deep=True)
-            try:
+            with contextlib.suppress(AttributeError):
                 terminals.update(retrieve_accesses(e.lhs.indices))
-            except AttributeError:
-                pass
             for j in terminals:
-                if j.function is e.lhs.function and e.is_Reduction:
-                    mode = 'RR'
-                else:
-                    mode = 'R'
+                mode = 'RR' if j.function is e.lhs.function and e.is_Reduction else 'R'
                 yield TimedAccess(j, mode, i, e.ispace)
 
             # If a reduction, we got one implicit read
@@ -999,7 +995,7 @@ class Scope(CacheInstances):
         be found. For example, a DiscreteFunction would never appear among
         the iteration symbols.
         """
-        if isinstance(f, (Function, Temp, TempArray, TBArray)):
+        if isinstance(f, Function | Temp | TempArray | TBArray):
             for i in chain(self.reads_explicit_gen(), self.reads_synchro_gen()):
                 if f is i.function:
                     for j in extrema(i.access):
@@ -1064,7 +1060,7 @@ class Scope(CacheInstances):
             shifted = f"{chr(10) if shifted else ''}{shifted}"
             writes[i] = f'\033[1;37;31m{first + shifted}\033[0m'
         return "\n".join([out.format(i.name, w, '', r)
-                          for i, r, w in zip(tracked, reads, writes)])
+                          for i, r, w in zip(tracked, reads, writes, strict=False)])
 
     @cached_property
     def accesses(self):
@@ -1252,7 +1248,7 @@ class ExprGeometry:
         for ii in self.iinstances:
             base = []
             offset = []
-            for e, fi, ai in zip(ii, ii.findices, ii.aindices):
+            for e, fi, ai in zip(ii, ii.findices, ii.aindices, strict=False):
                 if ai is None:
                     base.append((fi, e))
                 else:
@@ -1322,9 +1318,8 @@ class ExprGeometry:
                     return {}
                 v = distance.pop()
 
-                if not d._defines & dims:
-                    if v != 0:
-                        return {}
+                if not d._defines & dims and v != 0:
+                    return {}
 
                 distances[d] = v
 
@@ -1349,7 +1344,7 @@ class ExprGeometry:
     @cached_property
     def aindices(self):
         try:
-            return tuple(zip(*self.Toffsets))[0]
+            return tuple(zip(*self.Toffsets, strict=False))[0]
         except IndexError:
             return ()
 

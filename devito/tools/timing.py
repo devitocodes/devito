@@ -36,7 +36,7 @@ class timed_pass:
                 assert name is None
                 func, name = args
             else:
-                assert False
+                raise AssertionError()
             obj = object.__new__(cls)
             obj.__init__(func, name)
             return obj
@@ -64,10 +64,7 @@ class timed_pass:
         if not isinstance(timings, dict):
             raise ValueError("Attempting to use `timed_pass` outside a `timed_region`")
 
-        if self.name is not None:
-            frame = self.name
-        else:
-            frame = self.func.__name__
+        frame = self.name if self.name is not None else self.func.__name__
 
         stack = timed_pass.stack[tid]
         stack.append(frame)

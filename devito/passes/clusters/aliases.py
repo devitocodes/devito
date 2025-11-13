@@ -1,5 +1,5 @@
 from collections import Counter, OrderedDict, defaultdict, namedtuple
-from functools import singledispatch, cached_property
+from functools import cached_property, singledispatch
 from itertools import groupby
 
 import numpy as np
@@ -7,19 +7,23 @@ import sympy
 
 from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward,
-                       IterationSpace, Interval, Cluster, ExprGeometry, Queue,
-                       IntervalGroup, LabeledVector, Vector, normalize_properties,
-                       relax_properties, unbounded, minimum, maximum, extrema,
-                       vmax, vmin)
+from devito.ir import (
+    PARALLEL_IF_PVT, SEPARABLE, SEQUENTIAL, Cluster, ExprGeometry, Forward, Interval,
+    IntervalGroup, IterationSpace, LabeledVector, Queue, Vector, extrema, maximum,
+    minimum, normalize_properties, relax_properties, unbounded, vmax, vmin
+)
 from devito.passes.clusters.cse import _cse
-from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
-                              uxreplace, sympy_dtype)
-from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
-                          is_integer, generator, split, timed_pass)
-from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
-                          ModuloDimension, CustomDimension, IncrDimension,
-                          StencilDimension, Indexed, Hyperplane)
+from devito.symbolics import (
+    Uxmapper, estimate_cost, reuse_if_untouched, search, sympy_dtype, uxreplace
+)
+from devito.tools import (
+    Stamp, as_mapper, as_tuple, flatten, frozendict, generator, is_integer, split,
+    timed_pass
+)
+from devito.types import (
+    CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension,
+    StencilDimension, Symbol, Temp, TempArray, TempFunction
+)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -87,10 +91,7 @@ def cire(clusters, mode, sregistry, options, platform):
     # NOTE: Handle prematurely expanded derivatives -- current default on
     # several backends, but soon to become legacy
     if mode == 'sops':
-        if options['expand']:
-            mode = 'eval-derivs'
-        else:
-            mode = 'index-derivs'
+        mode = 'eval-derivs' if options['expand'] else 'index-derivs'
 
     for cls in modes[mode]:
         transformer = cls(sregistry, options, platform)
@@ -512,10 +513,7 @@ def collect(extracted, ispace, minstorage):
             unseen.remove(u)
         group = Group(group, ispace=ispace)
 
-        if minstorage:
-            k = group.dimensions_translated
-        else:
-            k = group.dimensions
+        k = group.dimensions_translated if minstorage else group.dimensions
         mapper.setdefault(k, []).append(group)
 
     aliases = AliasList()
@@ -576,7 +574,7 @@ def collect(extracted, ispace, minstorage):
             offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
                        for v in c.offsets]
             subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
-                    for i, b, v in zip(c.indexeds, c.bases, offsets)}
+                    for i, b, v in zip(c.indexeds, c.bases, offsets, strict=False)}
             pivot = uxreplace(c.expr, subs)
 
             # Distance of each aliased expression from the basis alias
@@ -585,7 +583,7 @@ def collect(extracted, ispace, minstorage):
             for i in g._items:
                 aliaseds.append(extracted[i.expr])
 
-                distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
+                distance = [o.distance(v) for o, v in zip(i.offsets, offsets, strict=False)]
                 distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
                 distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
@@ -711,14 +709,14 @@ def lower_aliases(aliases, meta, maxpar):
                         m = i.dim.symbolic_min - i.dim.parent.symbolic_min
                     else:
                         m = 0
-                    d = dmapper[i.dim] = IncrDimension("%ss" % i.dim.name, i.dim, m,
+                    d = dmapper[i.dim] = IncrDimension(f"{i.dim.name}s", i.dim, m,
                                                        dd.symbolic_size, 1, dd.step)
                 sub_iterators[i.dim] = d
             else:
                 d = i.dim
 
             # Given the iteration `interval`, lower distances to indices
-            for distance, indices in zip(a.distances, indicess):
+            for distance, indices in zip(a.distances, indicess, strict=False):
                 v = distance[interval.dim] or 0
                 try:
                     indices.append(d - interval.lower + v)
@@ -782,12 +780,12 @@ def optimize_schedule_rotations(schedule, sregistry):
         iis = candidate.lower
         iib = candidate.upper
 
-        name = sregistry.make_name(prefix='%sii' % d.root.name)
+        name = sregistry.make_name(prefix=f'{d.root.name}ii')
         ii = ModuloDimension(name, ds, iis, incr=iib)
 
-        cd = CustomDimension(name='%sc' % d.root.name, symbolic_min=ii,
+        cd = CustomDimension(name=f'{d.root.name}c', symbolic_min=ii,
                              symbolic_max=iib, symbolic_size=n)
-        dsi = ModuloDimension('%si' % ds.root.name, cd, cd + ds - iis, n)
+        dsi = ModuloDimension(f'{ds.root.name}i', cd, cd + ds - iis, n)
 
         mapper = OrderedDict()
         for i in g:
@@ -798,11 +796,11 @@ def optimize_schedule_rotations(schedule, sregistry):
                 try:
                     md = mapper[v]
                 except KeyError:
-                    name = sregistry.make_name(prefix='%sr' % d.root.name)
+                    name = sregistry.make_name(prefix=f'{d.root.name}r')
                     md = mapper.setdefault(v, ModuloDimension(name, ds, v, n))
                 mds.append(md)
             indicess = [indices[:ridx] + [md] + indices[ridx + 1:]
-                        for md, indices in zip(mds, i.indicess)]
+                        for md, indices in zip(mds, i.indicess, strict=False)]
 
             # Update `writeto` by switching `d` to `dsi`
             intervals = k.intervals.switch(d, dsi).zero(dsi)
@@ -897,7 +895,7 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
 
         # Create the substitution rules for the aliasing expressions
         subs.update({aliased: callback(indices)
-                     for aliased, indices in zip(aliaseds, indicess)})
+                     for aliased, indices in zip(aliaseds, indicess, strict=False)})
 
         properties = dict(meta.properties)
 
@@ -1070,7 +1068,7 @@ class Group(tuple):
         return obj
 
     def __repr__(self):
-        return "Group(%s)" % ", ".join([str(i) for i in self])
+        return "Group({})".format(", ".join([str(i) for i in self]))
 
     def find_rotation_distance(self, d, interval):
         """
@@ -1095,7 +1093,7 @@ class Group(tuple):
 
     @cached_property
     def Toffsets(self):
-        return [LabeledVector.transpose(*i) for i in zip(*[i.offsets for i in self])]
+        return [LabeledVector.transpose(*i) for i in zip(*[i.offsets for i in self], strict=False)]
 
     @cached_property
     def diameter(self):
@@ -1171,7 +1169,7 @@ class Group(tuple):
                 assert distance == mini - rotation.upper
                 distances.append(distance)
 
-            ret[d] = list(zip(m, distances))
+            ret[d] = list(zip(m, distances, strict=False))
 
         return ret
 
@@ -1185,7 +1183,7 @@ class Group(tuple):
 
         ret = defaultdict(lambda: [np.inf, -np.inf])
         for i in self:
-            distance = [o.distance(v) for o, v in zip(i.offsets, c.offsets)]
+            distance = [o.distance(v) for o, v in zip(i.offsets, c.offsets, strict=False)]
             distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
 
             for d, v in distance:
@@ -1210,7 +1208,7 @@ class Group(tuple):
         c = self.pivot
 
         ret = defaultdict(lambda: (-np.inf, np.inf))
-        for i, ofs in zip(c.indexeds, c.offsets):
+        for i, ofs in zip(c.indexeds, c.offsets, strict=False):
             f = i.function
 
             for l in ofs.labels:
@@ -1252,7 +1250,7 @@ class Alias:
         self.score = score
 
     def __repr__(self):
-        return "Alias<<%s>>" % self.pivot
+        return f"Alias<<{self.pivot}>>"
 
     @property
     def free_symbols(self):
@@ -1293,7 +1291,7 @@ class AliasList:
 
     def __repr__(self):
         if self._list:
-            return "AliasList<\n  %s\n>" % ",\n  ".join(str(i) for i in self._list)
+            return "AliasList<\n  {}\n>".format(",\n  ".join(str(i) for i in self._list))
         else:
             return "<>"
 
@@ -1301,8 +1299,7 @@ class AliasList:
         return self._list.__len__()
 
     def __iter__(self):
-        for i in self._list:
-            yield i
+        yield from self._list
 
     def add(self, pivot, aliaseds, intervals, distances, score):
         assert len(aliaseds) == len(distances)
@@ -1385,7 +1382,7 @@ def cit(ispace0, ispace1):
     The Common IterationIntervals of two IterationSpaces.
     """
     found = []
-    for it0, it1 in zip(ispace0.itintervals, ispace1.itintervals):
+    for it0, it1 in zip(ispace0.itintervals, ispace1.itintervals, strict=False):
         if it0 == it1:
             found.append(it0)
         else:

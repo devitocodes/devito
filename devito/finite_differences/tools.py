@@ -1,8 +1,8 @@
-from functools import wraps, partial
+from functools import partial, wraps
 from itertools import product
 
 import numpy as np
-from sympy import S, finite_diff_weights, cacheit, sympify, Rational, Expr
+from sympy import Expr, Rational, S, cacheit, finite_diff_weights, sympify
 
 from devito.logger import warning
 from devito.tools import Tag, as_tuple
@@ -51,8 +51,7 @@ def check_input(func):
         try:
             return S.Zero if expr.is_Number else func(expr, *args, **kwargs)
         except AttributeError:
-            raise ValueError("'%s' must be of type Differentiable, not %s"
-                             % (expr, type(expr)))
+            raise ValueError(f"'{expr}' must be of type Differentiable, not {type(expr)}")
     return wrapper
 
 
@@ -73,9 +72,9 @@ def dim_with_order(dims, orders):
 
 def deriv_name(dims, orders):
     name = []
-    for d, o in zip(dims, orders):
+    for d, o in zip(dims, orders, strict=False):
         name_dim = 't' if d.is_Time else d.root.name
-        name.append('d%s%s' % (name_dim, o) if o > 1 else 'd%s' % name_dim)
+        name.append(f'd{name_dim}{o}' if o > 1 else f'd{name_dim}')
 
     return ''.join(name)
 
@@ -102,41 +101,41 @@ def generate_fd_shortcuts(dims, so, to=0):
 
     # All conventional FD shortcuts
     for o in all_combs:
-        fd_dims = tuple(d for d, o_d in zip(dims, o) if o_d > 0)
-        d_orders = tuple(o_d for d, o_d in zip(dims, o) if o_d > 0)
+        fd_dims = tuple(d for d, o_d in zip(dims, o, strict=False) if o_d > 0)
+        d_orders = tuple(o_d for d, o_d in zip(dims, o, strict=False) if o_d > 0)
         fd_orders = tuple(to if d.is_Time else so for d in fd_dims)
         deriv = partial(diff_f, deriv_order=d_orders, dims=fd_dims, fd_order=fd_orders)
         name_fd = deriv_name(fd_dims, d_orders)
         dname = (d.root.name for d in fd_dims)
-        desciption = 'derivative of order %s w.r.t dimension %s' % (d_orders, dname)
+        desciption = f'derivative of order {d_orders} w.r.t dimension {dname}'
         derivatives[name_fd] = (deriv, desciption)
 
     # Add non-conventional, non-centered first-order FDs
-    for d, o in zip(dims, orders):
+    for d, o in zip(dims, orders, strict=False):
         name = 't' if d.is_Time else d.root.name
         # Add centered first derivatives
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=centered)
-        name_fd = 'd%sc' % name
-        desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
+        name_fd = f'd{name}c'
+        desciption = f'centered derivative staggered w.r.t dimension {d.name}'
         derivatives[name_fd] = (deriv, desciption)
         # Left
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=left)
-        name_fd = 'd%sl' % name
-        desciption = 'left first order derivative w.r.t dimension %s' % d.name
+        name_fd = f'd{name}l'
+        desciption = f'left first order derivative w.r.t dimension {d.name}'
         derivatives[name_fd] = (deriv, desciption)
         # Right
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=right)
-        name_fd = 'd%sr' % name
-        desciption = 'right first order derivative w.r.t dimension %s' % d.name
+        name_fd = f'd{name}r'
+        desciption = f'right first order derivative w.r.t dimension {d.name}'
         derivatives[name_fd] = (deriv, desciption)
 
     # Add RSFD for first order derivatives
-    for d, o in zip(dims, orders):
+    for d, o in zip(dims, orders, strict=False):
         if not d.is_Time:
             name = d.root.name
             deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, method='RSFD')
-            name_fd = 'd%s45' % name
-            desciption = 'Derivative w.r.t %s with rotated 45 degree FD' % d.name
+            name_fd = f'd{name}45'
+            desciption = f'Derivative w.r.t {d.name} with rotated 45 degree FD'
             derivatives[name_fd] = (deriv, desciption)
 
     return derivatives
@@ -171,7 +170,7 @@ class IndexSet(tuple):
         return obj
 
     def __repr__(self):
-        return "IndexSet(%s)" % ", ".join(str(i) for i in self)
+        return "IndexSet({})".format(", ".join(str(i) for i in self))
 
     @property
     def spacing(self):
@@ -273,7 +272,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
                     f"({order + 1}) for order {order} scheme."
                     f" Reducing order to {order}")
     # Evaluation point
-    x0 = sympify(((x0 or {}).get(dim) or expr.indices_ref[dim]))
+    x0 = sympify((x0 or {}).get(dim) or expr.indices_ref[dim])
 
     # If provided a pure number, assume it's a valid index
     if x0.is_Number:
@@ -322,7 +321,7 @@ def make_shift_x0(shift, ndim):
         else:
             raise ValueError("ndim length must be equal to 1 or 2")
     raise ValueError("shift parameter must be one of the following options: "
-                     "None, float or tuple with shape equal to %s" % (ndim,))
+                     f"None, float or tuple with shape equal to {ndim}")
 
 
 def process_weights(weights, expr, dim):

@@ -1,10 +1,10 @@
 """User API to specify equations."""
-import sympy
-
 from functools import cached_property
 
+import sympy
+
 from devito.deprecations import deprecations
-from devito.tools import as_tuple, frozendict, Pickable
+from devito.tools import Pickable, as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
 __all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']
@@ -127,7 +127,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         if self.lhs.is_Matrix:
             # Maps the Equations to retrieve the rhs from relevant lhs
             try:
-                eqs = dict(zip(self.lhs, self.rhs))
+                eqs = dict(zip(self.lhs, self.rhs, strict=False))
             except TypeError:
                 # Same rhs for all lhs
                 assert not self.rhs.is_Matrix
@@ -183,7 +183,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules))
 
     def __str__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+        return f"{self.__class__.__name__}({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 
@@ -198,7 +198,7 @@ class Reduction(Eq):
     is_Reduction = True
 
     def __str__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+        return f"{self.__class__.__name__}({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 

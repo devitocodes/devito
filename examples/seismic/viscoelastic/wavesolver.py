@@ -1,4 +1,4 @@
-from devito import VectorTimeFunction, TensorTimeFunction
+from devito import TensorTimeFunction, VectorTimeFunction
 from devito.tools import memoized_meth
 from examples.seismic.viscoelastic.operators import ForwardOperator
 

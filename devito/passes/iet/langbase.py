@@ -1,19 +1,21 @@
+from abc import ABC
 from functools import singledispatch
 from itertools import takewhile
-from abc import ABC
 
 import cgen as c
 
 from devito.data import FULL
-from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
-                       ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
-                       AsyncCallable, FindNodes, FindSymbols, IsPerfectIteration)
+from devito.ir import (
+    AsyncCallable, Call, Conditional, DummyExpr, EntryFunction, Expression, FindNodes,
+    FindSymbols, IsPerfectIteration, List, ParallelBlock, ParallelIteration, PointerCast,
+    Prodder
+)
 from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe, SizeOf
 from devito.tools import as_list, is_integer, prod
-from devito.types import Symbol, QueueID, Wildcard
+from devito.types import QueueID, Symbol, Wildcard
 
 __all__ = ['LangBB', 'LangTransformer']
 
@@ -28,7 +30,7 @@ class LangMeta(type):
 
     def __getitem__(self, k):
         if k not in self.mapper:
-            raise NotImplementedError("Missing required mapping for `%s`" % k)
+            raise NotImplementedError(f"Missing required mapping for `{k}`")
         return self.mapper[k]
 
     def get(self, k, v=None):
@@ -471,13 +473,13 @@ class DeviceAwareMixin:
             if objcomm is not None:
                 body = _make_setdevice_mpi(iet, objcomm, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s+MPI setup' % self.langbb['name'])
-                footer = c.Comment('End of %s+MPI setup' % self.langbb['name'])
+                header = c.Comment('Beginning of {}+MPI setup'.format(self.langbb['name']))
+                footer = c.Comment('End of {}+MPI setup'.format(self.langbb['name']))
             else:
                 body = _make_setdevice_seq(iet, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s setup' % self.langbb['name'])
-                footer = c.Comment('End of %s setup' % self.langbb['name'])
+                header = c.Comment('Beginning of {} setup'.format(self.langbb['name']))
+                footer = c.Comment('End of {} setup'.format(self.langbb['name']))
 
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
@@ -541,7 +543,7 @@ def make_sections_from_imask(f, imask=None):
     datashape = infer_transfer_datashape(f, imask)
 
     sections = []
-    for i, j in zip(imask, datashape):
+    for i, j in zip(imask, datashape, strict=False):
         if i is FULL:
             start, size = 0, j
         else:

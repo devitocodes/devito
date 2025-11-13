@@ -1,34 +1,35 @@
 from collections import namedtuple
-from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
-from functools import wraps, reduce
+from ctypes import POINTER, Structure, byref, c_int, c_ulong, c_void_p, cast
+from functools import cached_property, reduce, wraps
 from operator import mul
 
 import numpy as np
 import sympy
-from functools import cached_property
 
 from devito.builtins import assign
-from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
-                         Data, default_allocator)
+from devito.data import (
+    CENTER, DOMAIN, FULL, HALO, LEFT, NOPAD, OWNED, RIGHT, Data, default_allocator
+)
 from devito.data.allocators import DataReference
 from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
+from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import FieldFromPointer, normalize_args, IndexedPointer
-from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.finite_differences.tools import fd_weights_registry
-from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten,
-                          is_integer, memoized_meth, dtype_to_ctype, humanbytes,
-                          mpi4py_mapper)
-from devito.types.dimension import Dimension
+from devito.symbolics import FieldFromPointer, IndexedPointer, normalize_args
+from devito.tools import (
+    ReducerMap, as_tuple, c_restrict_void_p, dtype_to_ctype, flatten, humanbytes,
+    is_integer, memoized_meth, mpi4py_mapper
+)
 from devito.types.args import ArgProvider
-from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction, Size
-from devito.types.utils import Buffer, DimensionTuple, NODE, CELL, host_layer, Staggering
+from devito.types.caching import CacheManager
+from devito.types.dimension import Dimension
+from devito.types.utils import CELL, NODE, Buffer, DimensionTuple, Staggering, host_layer
 
-__all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
+__all__ = ['Function', 'SubFunction', 'TempFunction', 'TimeFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
@@ -96,7 +97,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         elif initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
             self._initializer = initializer
-        elif isinstance(initializer, (np.ndarray, list, tuple)):
+        elif isinstance(initializer, np.ndarray | list | tuple):
             # Allocate memory and initialize it. Note that we do *not* hold
             # a reference to the user-provided buffer
             self._initializer = None
@@ -109,8 +110,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # case `self._data is None`
                 self.data
         else:
-            raise ValueError("`initializer` must be callable or buffer, not %s"
-                             % type(initializer))
+            raise ValueError(f"`initializer` must be callable or buffer, not {type(initializer)}")
 
     _subs = Differentiable._subs
 
@@ -245,7 +245,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         the outhalo of boundary ranks contains a number of elements depending
         on the rank position in the decomposed grid (corner, side, ...).
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo))
+        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo, strict=False))
 
     @cached_property
     def _shape_with_inhalo(self):
@@ -260,7 +260,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         Typically, this property won't be used in user code, but it may come
         in handy for testing or debugging
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._halo))
+        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._halo, strict=False))
 
     @cached_property
     def shape_allocated(self):
@@ -273,7 +273,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         In an MPI context, this is the *local* with_halo region shape.
         """
         return DimensionTuple(*[j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
-                                                               self._padding)],
+                                                               self._padding, strict=False)],
                               getters=self.dimensions)
 
     @cached_property
@@ -294,7 +294,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self.grid is None:
             return self.shape
         retval = []
-        for d, s in zip(self.dimensions, self.shape):
+        for d, s in zip(self.dimensions, self.shape, strict=False):
             size = self.grid.size_map.get(d)
             retval.append(size.glb if size is not None else s)
         return tuple(retval)
@@ -331,30 +331,27 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return self._size_inhalo
 
         left = [abs(min(i.loc_abs_min-i.glb_min-j, 0)) if i and not i.loc_empty else 0
-                for i, j in zip(self._decomposition, self._size_inhalo.left)]
+                for i, j in zip(self._decomposition, self._size_inhalo.left, strict=False)]
         right = [max(i.loc_abs_max+j-i.glb_max, 0) if i and not i.loc_empty else 0
-                 for i, j in zip(self._decomposition, self._size_inhalo.right)]
+                 for i, j in zip(self._decomposition, self._size_inhalo.right, strict=False)]
 
-        sizes = tuple(Size(i, j) for i, j in zip(left, right))
+        sizes = tuple(Size(i, j) for i, j in zip(left, right, strict=False))
 
         if self._distributor.is_parallel and (any(left) or any(right)):
             try:
-                warning_msg = """A space order of {0} and a halo size of {1} has been
-                                 set but the current rank ({2}) has a domain size of
-                                 only {3}""".format(self._space_order,
-                                                    max(self._size_inhalo),
-                                                    self._distributor.myrank,
-                                                    min(self.grid.shape_local))
+                warning_msg = f"""A space order of {self._space_order} and a halo size of {max(self._size_inhalo)} has been
+                                 set but the current rank ({self._distributor.myrank}) has a domain size of
+                                 only {min(self.grid.shape_local)}"""
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:
-                    left_dist = [i for i, d in zip(left, self.dimensions) if d
+                    left_dist = [i for i, d in zip(left, self.dimensions, strict=False) if d
                                  in self._distributor.dimensions]
-                    right_dist = [i for i, d in zip(right, self.dimensions) if d
+                    right_dist = [i for i, d in zip(right, self.dimensions, strict=False) if d
                                   in self._distributor.dimensions]
                     for i, j, k, l in zip(left_dist, right_dist,
                                           self._distributor.mycoords,
-                                          self._distributor.topology):
+                                          self._distributor.topology, strict=False):
                         if l > 1 and ((j > 0 and k == 0) or (i > 0 and k == l-1)):
                             warning(warning_msg)
                             break
@@ -375,25 +372,25 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @cached_property
     def _mask_modulo(self):
         """Boolean mask telling which Dimensions support modulo-indexing."""
-        return tuple(True if i.is_Stepping else False for i in self.dimensions)
+        return tuple(bool(i.is_Stepping) for i in self.dimensions)
 
     @cached_property
     def _mask_domain(self):
         """Slice-based mask to access the domain region of the allocated data."""
         return tuple(slice(i, j) for i, j in
-                     zip(self._offset_domain, self._offset_halo.right))
+                     zip(self._offset_domain, self._offset_halo.right, strict=False))
 
     @cached_property
     def _mask_inhalo(self):
         """Slice-based mask to access the domain+inhalo region of the allocated data."""
         return tuple(slice(i.left, i.right + j.right) for i, j in
-                     zip(self._offset_inhalo, self._size_inhalo))
+                     zip(self._offset_inhalo, self._size_inhalo, strict=False))
 
     @cached_property
     def _mask_outhalo(self):
         """Slice-based mask to access the domain+outhalo region of the allocated data."""
         return tuple(slice(i.start - j.left, i.stop and i.stop + j.right or None)
-                     for i, j in zip(self._mask_domain, self._size_outhalo))
+                     for i, j in zip(self._mask_domain, self._size_outhalo, strict=False))
 
     @cached_property
     def _decomposition(self):
@@ -415,7 +412,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         if self._distributor is None:
             return (None,)*self.ndim
         return tuple(v.reshape(*self._size_inhalo[d]) if v is not None else v
-                     for d, v in zip(self.dimensions, self._decomposition))
+                     for d, v in zip(self.dimensions, self._decomposition, strict=False))
 
     @property
     def data(self):
@@ -579,7 +576,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         index_array = [
             slice(offset, offset+size) if d is dim else slice(pl, s - pr)
             for d, s, (pl, pr)
-            in zip(self.dimensions, self.shape_allocated, self._padding)
+            in zip(self.dimensions, self.shape_allocated, self._padding, strict=False)
         ]
         return np.asarray(self._data[index_array])
 
@@ -646,7 +643,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             return tuple(slice(0, s) for s in self.shape)
         else:
             return tuple(self._distributor.glb_slices.get(d, slice(0, s))
-                         for s, d in zip(self.shape, self.dimensions))
+                         for s, d in zip(self.shape, self.dimensions, strict=False))
 
     @property
     def initializer(self):
@@ -692,7 +689,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         # MPI-related fields
         dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in
-                                                    zip(data.shape, self._size_padding)])
+                                                    zip(data.shape, self._size_padding, strict=False)])
         dataobj._obj.dsize = (c_ulong*self.ndim)(*self._size_domain)
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))
@@ -823,7 +820,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             args = ReducerMap({key.name: self._data_buffer(metadata=metadata)})
 
         # Collect default dimension arguments from all indices
-        for a, i, s in zip(key.dimensions, self.dimensions, self.shape):
+        for a, i, s in zip(key.dimensions, self.dimensions, self.shape, strict=False):
             args.update(i._arg_defaults(_min=0, size=s, alias=a))
 
         return args
@@ -851,7 +848,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # We've been provided a pure-data replacement (array)
                 values = {self.name: new}
                 # Add value overrides for all associated dimensions
-                for i, s in zip(self.dimensions, new.shape):
+                for i, s in zip(self.dimensions, new.shape, strict=False):
                     size = s - sum(self._size_nodomain[i])
                     values.update(i._arg_defaults(size=size))
         else:
@@ -883,7 +880,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                     f"does not match the Function data type {self.dtype}")
 
         # Check each Dimension for potential OOB accesses
-        for i, s in zip(self.dimensions, data.shape):
+        for i, s in zip(self.dimensions, data.shape, strict=False):
             i._arg_check(args, s, intervals[i])
 
         if args.options['index-mode'] == 'int32' and \
@@ -1140,7 +1137,7 @@ class Function(DiscreteFunction):
                 staggered_indices = dimensions
             else:
                 staggered_indices = (d + i * d.spacing / 2
-                                     for d, i in zip(dimensions, staggered))
+                                     for d, i in zip(dimensions, staggered, strict=False))
         return tuple(dimensions), tuple(staggered_indices)
 
     @property
@@ -1175,7 +1172,7 @@ class Function(DiscreteFunction):
                 raise ValueError("`shape` and `dimensions` must have the "
                                  "same number of entries")
             loc_shape = []
-            for d, s in zip(dimensions, shape):
+            for d, s in zip(dimensions, shape, strict=False):
                 if d in grid.dimensions:
                     size = grid.size_map[d]
                     if size.glb != s and s is not None:
@@ -1687,7 +1684,7 @@ class TempFunction(DiscreteFunction):
     def shape_with_halo(self):
         domain = self.shape
         halo = [sympy.Add(*i, evaluate=False) for i in self._size_halo]
-        ret = tuple(sum(i) for i in zip(domain, halo))
+        ret = tuple(sum(i) for i in zip(domain, halo, strict=False))
         return DimensionTuple(*ret, getters=self.dimensions)
 
     shape_allocated = AbstractFunction.symbolic_shape

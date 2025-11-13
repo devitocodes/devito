@@ -3,8 +3,9 @@ from collections import defaultdict
 from sympy import Add, Mul, S, collect
 
 from devito.ir import cluster_pass
-from devito.symbolics import (BasicWrapperMixin, estimate_cost, reuse_if_untouched,
-                              retrieve_symbols, q_routine)
+from devito.symbolics import (
+    BasicWrapperMixin, estimate_cost, q_routine, retrieve_symbols, reuse_if_untouched
+)
 from devito.tools import ReducerMap
 from devito.types.object import AbstractObject
 
@@ -55,7 +56,7 @@ def collect_special(expr, strategy):
     Factorize elemental functions, pows, and other special symbolic objects,
     prioritizing the most expensive entities.
     """
-    args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
+    args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args], strict=False)
     candidates = ReducerMap.fromdicts(*candidates)
 
     funcs = candidates.getall('funcs', [])
@@ -199,19 +200,19 @@ def _collect_nested(expr, strategy):
         return expr, {'coeffs': expr}
     elif q_routine(expr):
         # E.g., a DefFunction
-        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args], strict=False)
         return expr.func(*args, evaluate=False), {}
     elif expr.is_Function:
         return expr, {'funcs': expr}
     elif expr.is_Pow:
         return expr, {'pows': expr}
     elif (expr.is_Symbol or expr.is_Indexed or not expr.args or
-          isinstance(expr, (BasicWrapperMixin, AbstractObject))):
+          isinstance(expr, BasicWrapperMixin | AbstractObject)):
         return expr, {}
     elif expr.is_Add:
         return strategies[strategy](expr, strategy), {}
     elif expr.is_Mul:
-        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args], strict=False)
         expr = reuse_if_untouched(expr, args, evaluate=True)
         return expr, ReducerMap.fromdicts(*candidates)
     elif expr.is_Equality:
@@ -219,7 +220,7 @@ def _collect_nested(expr, strategy):
         expr = reuse_if_untouched(expr, (expr.lhs, rhs))
         return expr, {}
     else:
-        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args])
+        args, candidates = zip(*[_collect_nested(a, strategy) for a in expr.args], strict=False)
         return expr.func(*args), ReducerMap.fromdicts(*candidates)
 
 

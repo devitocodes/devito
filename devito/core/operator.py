@@ -8,11 +8,13 @@ from devito.exceptions import InvalidOperator
 from devito.ir import FindSymbols
 from devito.logger import warning
 from devito.mpi.routines import mpi_registry
-from devito.parameters import configuration
 from devito.operator import Operator
-from devito.tools import (as_tuple, is_integer, timed_pass,
-                          UnboundTuple, UnboundedMultiTuple)
+from devito.parameters import configuration
+from devito.tools import (
+    UnboundedMultiTuple, UnboundTuple, as_tuple, is_integer, timed_pass
+)
 from devito.types import NThreads, PThreadArray
+import contextlib
 
 __all__ = ['CoreOperator', 'CustomOperator',
            # Optimization options
@@ -167,8 +169,7 @@ class BasicOperator(Operator):
         o['parallel'] = False
 
         if oo:
-            raise InvalidOperator("Unrecognized optimization options: [%s]"
-                                  % ", ".join(list(oo)))
+            raise InvalidOperator("Unrecognized optimization options: [{}]".format(", ".join(list(oo))))
 
         kwargs['options'].update(o)
 
@@ -179,7 +180,7 @@ class BasicOperator(Operator):
         oo = kwargs['options']
 
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
-            raise InvalidOperator("Unsupported MPI mode `%s`" % oo['mpi'])
+            raise InvalidOperator("Unsupported MPI mode `{}`".format(oo['mpi']))
 
         if oo['cse-algo'] not in ('basic', 'smartsort', 'advanced'):
             raise InvalidOperator("Illegal `cse-algo` value")
@@ -209,8 +210,7 @@ class BasicOperator(Operator):
             else:
                 args, summary = autotune(self, args, level, mode)
         else:
-            raise ValueError("Expected bool, str, or 2-tuple, got `%s` instead"
-                             % type(setup))
+            raise ValueError(f"Expected bool, str, or 2-tuple, got `{type(setup)}` instead")
 
         # Record the tuned values
         self._state.setdefault('autotuning', []).append(summary)
@@ -270,10 +270,10 @@ class CustomOperator(BasicOperator):
         for i in passes:
             if i not in cls._known_passes:
                 if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
+                    warning(f"Got explicit pass `{i}`, but it's unsupported on an "
+                            f"Operator of type `{str(cls)}`")
                 else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
+                    raise InvalidOperator(f"Unknown pass `{i}`")
 
         return super()._build(expressions, **kwargs)
 
@@ -287,10 +287,8 @@ class CustomOperator(BasicOperator):
 
         # Call passes
         for i in passes:
-            try:
+            with contextlib.suppress(KeyError):
                 expressions = passes_mapper[i](expressions)
-            except KeyError:
-                pass
 
         return expressions
 
@@ -304,10 +302,8 @@ class CustomOperator(BasicOperator):
 
         # Call passes
         for i in passes:
-            try:
+            with contextlib.suppress(KeyError):
                 expressions = passes_mapper[i](expressions)
-            except KeyError:
-                pass
 
         return expressions
 
@@ -321,10 +317,8 @@ class CustomOperator(BasicOperator):
 
         # Call passes
         for i in passes:
-            try:
+            with contextlib.suppress(KeyError):
                 clusters = passes_mapper[i](clusters)
-            except KeyError:
-                pass
 
         return clusters
 
@@ -402,7 +396,7 @@ class ParTile(UnboundedMultiTuple, OptOption):
             if not default:
                 raise ValueError("Expected `default` value, got None")
             items = (ParTileArg(as_tuple(default)),)
-        elif isinstance(items, (list, tuple)):
+        elif isinstance(items, list | tuple):
             if not items:
                 raise ValueError("Expected at least one value")
 
@@ -445,9 +439,9 @@ class ParTile(UnboundedMultiTuple, OptOption):
                     # E.g., ((32, 4, 8),)
                     items = (ParTileArg(x),)
             else:
-                raise ValueError("Expected int or tuple, got %s instead" % type(x))
+                raise ValueError(f"Expected int or tuple, got {type(x)} instead")
         else:
-            raise ValueError("Expected bool or iterable, got %s instead" % type(items))
+            raise ValueError(f"Expected bool or iterable, got {type(items)} instead")
 
         obj = super().__new__(cls, *items)
         obj.default = as_tuple(default)

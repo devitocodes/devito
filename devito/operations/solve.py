@@ -2,12 +2,13 @@ from functools import singledispatch
 
 import sympy
 
-from devito.logger import warning
-from devito.finite_differences.differentiable import Add, Mul, EvalDerivative
 from devito.finite_differences.derivative import Derivative
+from devito.finite_differences.differentiable import Add, EvalDerivative, Mul
+from devito.logger import warning
 from devito.tools import as_tuple
+import contextlib
 
-__all__ = ['solve', 'linsolve']
+__all__ = ['linsolve', 'solve']
 
 
 class SolveError(Exception):
@@ -32,10 +33,8 @@ def solve(eq, target, **kwargs):
         Symbolic optimizations applied while rearranging the equation. For more
         information. refer to ``sympy.solve.__doc__``.
     """
-    try:
+    with contextlib.suppress(AttributeError):
         eq = eq.lhs - eq.rhs if eq.rhs != 0 else eq.lhs
-    except AttributeError:
-        pass
 
     eqs, targets = as_tuple(eq), as_tuple(target)
     if len(eqs) == 0:
@@ -43,7 +42,7 @@ def solve(eq, target, **kwargs):
         return None
 
     sols = []
-    for e, t in zip(eqs, targets):
+    for e, t in zip(eqs, targets, strict=False):
         # Try first linear solver
         try:
             sols.append(linsolve(eval_time_derivatives(e), t))

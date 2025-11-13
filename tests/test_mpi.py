@@ -1,27 +1,27 @@
-import numpy as np
-import pytest
 from functools import cached_property
 
+import numpy as np
+import pytest
+from test_dse import TestTTI
+
 from conftest import _R, assert_blocking, assert_structure
-from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, VectorTimeFunction, TensorTimeFunction,
-                    Dimension, ConditionalDimension, div, solve, diag, grad,
-                    SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
-                    inner, configuration, switchconfig, generic_derivative,
-                    PrecomputedSparseFunction, DefaultDimension, Buffer,
-                    CustomDimension)
+from devito import (
+    NODE, Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
+    Dimension, Eq, Function, Grid, Inc, Ne, Operator, PrecomputedSparseFunction,
+    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, TensorTimeFunction,
+    TimeFunction, VectorTimeFunction, configuration, diag, div, generic_derivative, grad,
+    inner, norm, solve, switchconfig
+)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
-from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (
+    Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+)
 from devito.mpi import MPI
-from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
-                                 ComputeCall)
 from devito.mpi.distributed import CustomTopology
+from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
-
 from examples.seismic.acoustic import acoustic_setup
-from test_dse import TestTTI
 
 
 # Main body in Operator IET, depending on ISA
@@ -167,7 +167,7 @@ class TestDistributor:
                 (0, 1, PN, 2, 3, PN, PN, PN, PN)]
         }
 
-        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank], strict=False))
         obj = distributor._obj_neighborhood
         value = obj._arg_defaults()[obj.name]
         assert all(getattr(value._obj, k) == v for k, v in mapper.items())
@@ -358,7 +358,7 @@ class TestSubDistributor:
         d = md.distributor
 
         for dec, pdec, sdi, sh in zip(d.decomposition, d.parent.decomposition,
-                                      d.subdomain_interval, grid.shape):
+                                      d.subdomain_interval, grid.shape, strict=False):
             # Get the global min and max
             lower_bounds = [np.amin(i) for i in dec if i.size != 0]
             upper_bounds = [np.amax(i) for i in dec if i.size != 0]
@@ -579,7 +579,7 @@ class TestFunction:
         f = Function(name='f', grid=grid)
 
         assert all(i == slice(*j)
-                   for i, j in zip(f.local_indices, expected[grid.distributor.myrank]))
+                   for i, j in zip(f.local_indices, expected[grid.distributor.myrank], strict=False))
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('shape', [(1,), (2, 3), (4, 5, 6)])
@@ -2541,9 +2541,9 @@ class TestOperatorAdvanced:
         t = grid.stepping_dim
 
         # SubDimensions to implement BCs
-        xl, yl = [SubDimension.left('%sl' % d.name, d, tkn) for d in [x, y]]
-        xi, yi = [SubDimension.middle('%si' % d.name, d, tkn, tkn) for d in [x, y]]
-        xr, yr = [SubDimension.right('%sr' % d.name, d, tkn) for d in [x, y]]
+        xl, yl = [SubDimension.left(f'{d.name}l', d, tkn) for d in [x, y]]
+        xi, yi = [SubDimension.middle(f'{d.name}i', d, tkn, tkn) for d in [x, y]]
+        xr, yr = [SubDimension.right(f'{d.name}r', d, tkn) for d in [x, y]]
 
         # Functions
         u = TimeFunction(name='f', grid=grid)
@@ -3141,7 +3141,7 @@ def gen_serial_norms(shape, so):
     """
     day = np.datetime64('today')
     try:
-        l = np.load("norms%s.npy" % len(shape), allow_pickle=True)
+        l = np.load(f"norms{len(shape)}.npy", allow_pickle=True)
         assert l[-1] == day
     except:
         tn = 500.  # Final time
@@ -3161,7 +3161,7 @@ def gen_serial_norms(shape, so):
         Ev = norm(v)
         Esrca = norm(srca)
 
-        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
+        np.save(f"norms{len(shape)}.npy", (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
 
 
 class TestIsotropicAcoustic:
@@ -3493,7 +3493,7 @@ def get_time_loop(op):
     for i in iters:
         if i.dim.is_Time:
             return i
-    assert False
+    raise AssertionError()
 
 
 if __name__ == "__main__":

@@ -1,27 +1,35 @@
 import abc
 import inspect
 from collections import namedtuple
-from ctypes import POINTER, _Pointer, c_char_p, c_char, Structure
-from functools import reduce, cached_property
+from ctypes import POINTER, Structure, _Pointer, c_char, c_char_p
+from functools import cached_property, reduce
 from operator import mul
 
 import numpy as np
 import sympy
-
 from sympy.core.assumptions import _assume_rules
 from sympy.core.decorators import call_highest_priority
 
 from devito.data import default_allocator
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_tuple, dtype_to_ctype,
-                          frozendict, memoized_meth, sympy_mutex, CustomDtype)
+from devito.tools import (
+    CustomDtype, Pickable, as_tuple, dtype_to_ctype, frozendict, memoized_meth,
+    sympy_mutex
+)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple
+import contextlib
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap',
-           'IrregularFunctionInterface']
+__all__ = [
+    'DeviceMap',
+    'Indexed',
+    'IndexedData',
+    'IrregularFunctionInterface',
+    'Scalar',
+    'Symbol',
+]
 
 
 Size = namedtuple('Size', 'left right')
@@ -850,8 +858,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Averaging mode for off the grid evaluation
         self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
         if self._avg_mode not in ['arithmetic', 'harmonic']:
-            raise ValueError("Invalid averaging mode_mode %s, accepted values are"
-                             " arithmetic or harmonic" % self._avg_mode)
+            raise ValueError(f"Invalid averaging mode_mode {self._avg_mode}, accepted values are"
+                             " arithmetic or harmonic")
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -956,7 +964,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         """
         return DimensionTuple(*(r - d + o for d, r, o
                                 in zip(self.dimensions, self.indices_ref,
-                                       self._offset_subdomain)),
+                                       self._offset_subdomain, strict=False)),
                               getters=self.dimensions)
 
     @property
@@ -995,14 +1003,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         Mapper of off-grid interpolation points indices for each dimension.
         """
         mapper = {}
-        for i, j, d in zip(self.indices, self.indices_ref, self.dimensions):
+        for i, j, d in zip(self.indices, self.indices_ref, self.dimensions, strict=False):
             # Two indices are aligned if they differ by an Integer*spacing.
             v = (i - j)/d.spacing
             try:
-                if not isinstance(v, sympy.Number) or int(v) == v:
-                    continue
-                # Skip if index is just a Symbol or integer
-                elif (i.is_Symbol and not i.has(d)) or i.is_Integer:
+                if not isinstance(v, sympy.Number) or int(v) == v or (i.is_Symbol and not i.has(d)) or i.is_Integer:
                     continue
                 else:
                     mapper.update({d: i})
@@ -1025,10 +1030,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         io = self.interp_order
         # Base function
-        if self._avg_mode == 'harmonic':
-            retval = 1 / self.function
-        else:
-            retval = self.function
+        retval = 1 / self.function if self._avg_mode == 'harmonic' else self.function
 
         # Apply interpolation from inner most dim
         for d, i in self._grid_map.items():
@@ -1080,7 +1082,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         padding = [sympy.Add(*i, evaluate=False) for i in self._size_padding]
         domain = [i.symbolic_size for i in self.dimensions]
         ret = tuple(sympy.Add(i, j, k)
-                    for i, j, k in zip(domain, halo, padding))
+                    for i, j, k in zip(domain, halo, padding, strict=False))
         return DimensionTuple(*ret, getters=self.dimensions)
 
     @property
@@ -1229,8 +1231,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def _size_halo(self):
         """Number of points in the halo region."""
-        left = tuple(zip(*self._halo))[0]
-        right = tuple(zip(*self._halo))[1]
+        left = tuple(zip(*self._halo, strict=False))[0]
+        right = tuple(zip(*self._halo, strict=False))[1]
 
         sizes = tuple(Size(i, j) for i, j in self._halo)
 
@@ -1249,8 +1251,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def _size_padding(self):
         """Number of points in the padding region."""
-        left = tuple(zip(*self._padding))[0]
-        right = tuple(zip(*self._padding))[1]
+        left = tuple(zip(*self._padding, strict=False))[0]
+        right = tuple(zip(*self._padding, strict=False))[1]
 
         sizes = tuple(Size(i, j) for i, j in self._padding)
 
@@ -1259,7 +1261,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def _size_nopad(self):
         """Number of points in the domain+halo region."""
-        sizes = tuple(i+sum(j) for i, j in zip(self._size_domain, self._size_halo))
+        sizes = tuple(i+sum(j) for i, j in zip(self._size_domain, self._size_halo, strict=False))
         return DimensionTuple(*sizes, getters=self.dimensions)
 
     @cached_property
@@ -1292,7 +1294,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         left = tuple(self._size_padding.left)
         right = tuple(np.add(np.add(left, self._size_halo.left), self._size_domain))
 
-        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
+        offsets = tuple(Offset(i, j) for i, j in zip(left, right, strict=False))
 
         return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
@@ -1302,7 +1304,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         left = tuple(self._offset_domain)
         right = tuple(np.add(self._offset_halo.left, self._size_domain))
 
-        offsets = tuple(Offset(i, j) for i, j in zip(left, right))
+        offsets = tuple(Offset(i, j) for i, j in zip(left, right, strict=False))
 
         return DimensionTuple(*offsets, getters=self.dimensions, left=left, right=right)
 
@@ -1349,7 +1351,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Indices after substitutions
         indices = []
-        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs):
+        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs, strict=False):
             if a.is_Function and len(a.args) == 1:
                 # E.g. Abs(expr)
                 arg = a.args[0]
@@ -1560,7 +1562,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             return self._mat
 
     def __init_finalize__(self, *args, **kwargs):
-        self._name = kwargs.get('name', None)
+        self._name = kwargs.get('name')
 
     __hash__ = sympy.ImmutableDenseMatrix.__hash__
 
@@ -1625,7 +1627,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 row, col = i // other.cols, i % other.cols
                 row_indices = range(self_cols*row, self_cols*(row+1))
                 col_indices = range(col, other_len, other.cols)
-                vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices)]
+                vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices, strict=False)]
                 new_mat[i] = sum(vec)
 
         # Get new class and return product
@@ -1705,10 +1707,8 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
     def free_symbols(self):
         ret = {self}
         for i in self.indices:
-            try:
+            with contextlib.suppress(AttributeError):
                 ret.update(i.free_symbols)
-            except AttributeError:
-                pass
         return ret
 
     # Pickling support
@@ -1831,7 +1831,7 @@ class Indexed(sympy.Indexed):
         """
         if (self.__class__ != other.__class__) or (self.function is not other.function):
             return super().compare(other)
-        for l, r in zip(self.indices, other.indices):
+        for l, r in zip(self.indices, other.indices, strict=False):
             try:
                 c = int(sympy.sign(l - r))
             except TypeError:

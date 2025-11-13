@@ -85,4 +85,3 @@ advixe-cl --snapshot --project-dir=<advisor-project-name> pack -- /<new-snapshot
 * [ A. Ilic, F. Pratas and L. Sousa [2014]. Cache-aware Roofline model: Upgrading the loft ](https://ieeexplore.ieee.org/document/6506838 " Cache-aware Roofline model: Upgrading the loft ")
 
 * [ Understanding the Roofline Model by Durganshu Mishra ](https://hackernoon.com/understanding-the-roofline-model " Understanding the Roofline Model ")
-

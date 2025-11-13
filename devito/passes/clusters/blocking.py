@@ -2,13 +2,16 @@ from sympy import sympify
 
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
-from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC,
-                               PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
-                               IntervalGroup, IterationSpace, Scope)
+from devito.ir.support import (
+    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
+    IntervalGroup, IterationSpace, Scope
+)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
-from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple,
-                          filter_ordered, flatten, is_integer)
+from devito.tools import (
+    UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple, filter_ordered, flatten,
+    is_integer
+)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -112,10 +115,7 @@ class AnayzeBlockingBase(Queue):
 
         # If we are going to skew, then we might exploit reuse along an
         # otherwise SEQUENTIAL Dimension
-        if self.skewing:
-            return True
-
-        return False
+        return bool(self.skewing)
 
     def _has_short_trip_count(self, d):
         # Iteration spaces of statically known size are always small, at
@@ -332,10 +332,7 @@ class SynthesizeBlocking(Queue):
 
     def process(self, clusters):
         # A tool to unroll the explicit integer block shapes, should there be any
-        if self.par_tile:
-            blk_size_gen = BlockSizeGenerator(self.par_tile)
-        else:
-            blk_size_gen = None
+        blk_size_gen = BlockSizeGenerator(self.par_tile) if self.par_tile else None
 
         return self._process_fdta(clusters, 1, blk_size_gen=blk_size_gen)
 

@@ -1,19 +1,35 @@
 from sympy import Eq, IndexedBase, Mod, S, diff, nan
 
-from devito.symbolics.extended_sympy import (FieldFromComposite, FieldFromPointer,
-                                             IndexedPointer, IntDiv)
+from devito.symbolics.extended_sympy import (
+    FieldFromComposite, FieldFromPointer, IndexedPointer, IntDiv
+)
 from devito.tools import as_tuple, is_integer
+from devito.types.array import ComponentAccess
 from devito.types.basic import AbstractFunction
 from devito.types.constant import Constant
 from devito.types.dimension import Dimension
-from devito.types.array import ComponentAccess
 from devito.types.object import AbstractObject
 
-
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine',
-           'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
-           'q_identity', 'q_symbol', 'q_comp_acc', 'q_multivar', 'q_monoaffine',
-           'q_dimension', 'q_positive', 'q_negative']
+__all__ = [
+    'q_affine',
+    'q_comp_acc',
+    'q_constant',
+    'q_dimension',
+    'q_function',
+    'q_identity',
+    'q_indexed',
+    'q_indirect',
+    'q_leaf',
+    'q_linear',
+    'q_monoaffine',
+    'q_multivar',
+    'q_negative',
+    'q_positive',
+    'q_routine',
+    'q_symbol',
+    'q_terminal',
+    'q_terminalop',
+]
 
 
 # The following SymPy objects are considered tree leaves:
@@ -79,10 +95,7 @@ def q_terminalop(expr, depth=0):
         return True
     elif expr.is_Add or expr.is_Mul:
         for a in expr.args:
-            if a.is_Pow:
-                elems = a.args
-            else:
-                elems = [a]
+            elems = a.args if a.is_Pow else [a]
             if any(not q_leaf(i) for i in elems):
                 return False
         return True

@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-
 from itertools import groupby
 
 from devito.ir.support import IterationSpace, null_ispace
@@ -142,7 +141,7 @@ class cluster_pass:
             elif len(args) == 2:
                 func, mode = args
             else:
-                assert False
+                raise AssertionError()
             obj = object.__new__(cls)
             obj.__init__(func, mode)
             return obj

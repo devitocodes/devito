@@ -1,21 +1,21 @@
-from itertools import chain
 from functools import cached_property
+from itertools import chain
 
 import numpy as np
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (
-    PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward, Interval, IntervalGroup,
-    IterationSpace, DataSpace, Guards, Properties, Scope, WaitLock, WithLock,
-    PrefetchUpdate, detect_accesses, detect_io, normalize_properties,
-    tailor_properties, update_properties, normalize_syncs, minimum, maximum,
-    null_ispace
+    PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, DataSpace, Forward, Guards, Interval,
+    IntervalGroup, IterationSpace, PrefetchUpdate, Properties, Scope, WaitLock, WithLock,
+    detect_accesses, detect_io, maximum, minimum, normalize_properties, normalize_syncs,
+    null_ispace, tailor_properties, update_properties
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
-from devito.types import Fence, WeakFence, CriticalRegion
+from devito.types import CriticalRegion, Fence, WeakFence
+import contextlib
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -59,7 +59,7 @@ class Cluster:
         self._halo_scheme = halo_scheme
 
     def __repr__(self):
-        return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
+        return "Cluster([{}])".format(('\n' + ' '*9).join(f'{i}' for i in self.exprs))
 
     @classmethod
     def from_clusters(cls, *clusters):
@@ -185,10 +185,8 @@ class Cluster:
         """
         ret = set()
         for f in self.functions:
-            try:
+            with contextlib.suppress(AttributeError):
                 ret.update(f._dist_dimensions)
-            except AttributeError:
-                pass
         return frozenset(ret)
 
     @cached_property
@@ -288,7 +286,7 @@ class Cluster:
         """
         True if an asynchronous Cluster, False otherwise.
         """
-        return any(isinstance(s, (WithLock, PrefetchUpdate))
+        return any(isinstance(s, WithLock | PrefetchUpdate)
                    for s in flatten(self.syncs.values()))
 
     @cached_property
@@ -381,10 +379,7 @@ class Cluster:
         oobs = set()
         for f, v in parts.items():
             for i in v:
-                if i.dim.is_Sub:
-                    d = i.dim.parent
-                else:
-                    d = i.dim
+                d = i.dim.parent if i.dim.is_Sub else i.dim
                 try:
                     if i.lower < 0 or \
                        i.upper > f._size_nodomain[d].left + f._size_halo[d].right:

@@ -1,6 +1,5 @@
+from devito import TensorTimeFunction, VectorTimeFunction
 from devito.tools import memoized_meth
-from devito import VectorTimeFunction, TensorTimeFunction
-
 from examples.seismic.elastic.operators import ForwardOperator
 
 

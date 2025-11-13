@@ -6,20 +6,26 @@ import sympy
 
 from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
+from devito.ir import (
+    Any, DummyExpr, EmptyList, FindApplications, FindNodes, FindSymbols, Forward,
+    Iteration, Prodder, Transformer, Uxreplace, filter_iterations, pull_dims,
+    retrieve_iteration_tree
+)
+from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.logger import warning
-from devito.ir import (Any, Forward, DummyExpr, Iteration, EmptyList, Prodder,
-                       FindApplications, FindNodes, FindSymbols, Transformer,
-                       Uxreplace, filter_iterations, retrieve_iteration_tree,
-                       pull_dims)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.C import CPrinter
-from devito.ir.iet.efunc import DeviceFunction, EntryFunction
-from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper, Cast)
-from devito.tools import Bunch, as_mapper, filter_ordered, split, as_tuple
+from devito.symbolics import Cast, ValueLimit, evalrel, has_integer_args, limits_mapper
+from devito.tools import Bunch, as_mapper, as_tuple, filter_ordered, split
 from devito.types import FIndexed
 
-__all__ = ['avoid_denormals', 'hoist_prodders', 'relax_incr_dimensions',
-           'generate_macros', 'minimize_symbols']
+__all__ = [
+    'avoid_denormals',
+    'generate_macros',
+    'hoist_prodders',
+    'minimize_symbols',
+    'relax_incr_dimensions',
+]
 
 
 @iet_pass
@@ -114,7 +120,7 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
         # Process inner iterations and adjust their bounds
-        for n, i in enumerate(inner):
+        for _n, i in enumerate(inner):
             # If definitely in-bounds, as ensured by a prior compiler pass, then
             # we can skip this step
             if i.is_Inbound:
@@ -188,7 +194,7 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
         except KeyError:
             pass
 
-        pname = sregistry.make_name(prefix='%sL' % i.name)
+        pname = sregistry.make_name(prefix=f'{i.name}L')
         header, v = i.bind(pname)
 
         subs[i] = v
@@ -274,7 +280,7 @@ def remove_redundant_moddims(iet):
     subs = {d: sympy.S.Zero for d in degenerates}
 
     redundants = as_mapper(others, key=lambda d: d.offset % d.modulo)
-    for k, v in redundants.items():
+    for _k, v in redundants.items():
         chosen = v.pop(0)
         subs.update({d: chosen for d in v})
 

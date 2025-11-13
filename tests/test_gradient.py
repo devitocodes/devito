@@ -3,11 +3,11 @@ import pytest
 from numpy import linalg
 
 from conftest import skipif
-from devito import Function, info, TimeFunction, Operator, Eq, smooth
+from devito import Eq, Function, Operator, TimeFunction, info, smooth
 from devito.parameters import switchconfig
+from examples.seismic import Receiver, demo_model, setup_geometry
 from examples.seismic.acoustic import acoustic_setup as iso_setup
 from examples.seismic.acoustic.operators import iso_stencil
-from examples.seismic import Receiver, demo_model, setup_geometry
 from examples.seismic.tti import tti_setup
 from examples.seismic.viscoacoustic import viscoacoustic_setup as vsc_setup
 
@@ -234,8 +234,8 @@ class TestGradient:
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-        info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
-        info(r'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
+        info(f'1st order error, Phi(m0+dm)-Phi(m0): {p1}')
+        info(rf'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: {p2}')
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
@@ -295,9 +295,9 @@ class TestGradient:
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-        info('1st order error, Phi(m0+dm)-Phi(m0) with slope: %s compared to 1' % (p1[0]))
+        info(f'1st order error, Phi(m0+dm)-Phi(m0) with slope: {p1[0]} compared to 1')
         info(r'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>with slope:'
-             ' %s compared to 2' % (p2[0]))
+             f' {p2[0]} compared to 2')
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 

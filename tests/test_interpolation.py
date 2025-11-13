@@ -1,18 +1,20 @@
 import numpy as np
-from numpy import sin, floor
 import pytest
+import scipy.sparse
+from numpy import floor, sin
 from sympy import Float
 
 from conftest import assert_structure
-from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
-                    Function, TimeFunction, DefaultDimension, Eq, switchconfig,
-                    PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
-                    MatrixSparseTimeFunction, SubDomain)
+from devito import (
+    DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction, Operator,
+    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
+    SparseTimeFunction, SubDomain, TimeFunction, switchconfig
+)
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
-from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
-                              AcquisitionGeometry)
+from examples.seismic import (
+    AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
+)
 from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
-import scipy.sparse
 
 
 def unit_box(name='a', shape=(11, 11), grid=None, space_order=1):
@@ -464,7 +466,7 @@ def test_multi_inject(shape, coords, nexpr, result, npoints=19):
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
     result = (result, result) if nexpr == 1 else (result, 2 * result)
-    for r, a in zip(result, (a1, a2)):
+    for r, a in zip(result, (a1, a2), strict=False):
         assert np.allclose(a.data[indices], r, rtol=1.e-5)
 
 
@@ -626,7 +628,7 @@ def test_edge_sparse():
     sf1.coordinates.data[0, :] = (25.0, 35.0)
 
     expr = sf1.interpolate(u)
-    subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing)}
+    subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing, strict=False)}
     op = Operator(expr, subs=subs)
 
     op()
@@ -764,7 +766,7 @@ def test_interpolation_radius(r, interp):
                              r=r, interpolation=interp)
     try:
         src.interpolate(u)
-        assert False
+        raise AssertionError()
     except ValueError:
         assert True
 

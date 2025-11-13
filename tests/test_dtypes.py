@@ -7,10 +7,8 @@ try:
 except ImportError:
     from conftest import skipif
 
-from devito import (
-    Constant, Eq, Function, Grid, Operator, exp, log, sin, configuration
-)
-from devito.arch.compiler import GNUCompiler, CustomCompiler
+from devito import Constant, Eq, Function, Grid, Operator, configuration, exp, log, sin
+from devito.arch.compiler import CustomCompiler, GNUCompiler
 from devito.exceptions import InvalidOperator
 from devito.ir.cgen.printer import BasePrinter
 from devito.passes.iet.langbase import LangBB
@@ -162,10 +160,7 @@ def test_imag_unit(dtype: np.complexfloating, kwargs: dict[str, str]) -> None:
         unit_str = '_Complex_I'
     else:
         # C++ provides imaginary literals
-        if dtype == np.complex64:
-            unit_str = '1if'
-        else:
-            unit_str = '1i'
+        unit_str = '1if' if dtype == np.complex64 else '1i'
 
     # Set up an operator
     s = Symbol(name='s', dtype=dtype)
@@ -193,10 +188,10 @@ def test_math_functions(dtype: np.dtype[np.inexact],
     if 'CXX' not in configuration['language']:
         if np.issubdtype(dtype, np.complexfloating):
             # Complex functions have a 'c' prefix
-            call_str = 'c%s' % call_str
+            call_str = f'c{call_str}'
         if dtype(0).real.itemsize <= 4:
             # Single precision have an 'f' suffix (half is promoted to single)
-            call_str = '%sf' % call_str
+            call_str = f'{call_str}f'
 
     # Operator setup
     a = Symbol(name='a', dtype=dtype)

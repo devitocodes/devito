@@ -69,6 +69,40 @@ exclude = ["binder", "docker", "docs", "tests", "examples"]
 [tool.setuptools_scm]
 fallback_version = "0+untagged"
 
+[tool.ruff]
+line-length = 90
+
+[tool.ruff.lint]
+# Add the following rule sets
+select = ["E", "W", "F", "B", "UP", "SIM", "RUF022"]
+# But ignore these inconvenient rules
+ignore = ["F403", "E226", "E731", "E275", "F405", "E722", "E741", "W605"]
+
+[tool.isort]
+line_length = 90
+known_first_party = ["devito", "examples"]
+multi_line_output = "VERTICAL_GRID_GROUPED"
+# We should really do some work to eliminate this (circular imports):
+skip = ["__init__.py"]
+
+[tool.typos]
+# For identifiers (variables, functions, classes and the like):
+# Ignore words 2 characters or fewer followed by zero or more digits
+# Also ignore collections of 20 or more "word character"s
+default.extend-ignore-identifiers-re = ["\\b[[:alpha:]]{1,2}\\d*\\b", "\\b\\w{20,}\\b"]
+# For words:
+# Ignore words 2 characters or fewer followed by one or more digits
+# Also ignore collections of 20 or more "word character"s
+default.extend-ignore-words-re = ["\\b[[:alpha:]]{1,2}\\d?\\b", "\\b\\w{20,}\\b"]
+
+# Only for known words common abbreviations
+# IMPORTANT: Add a comment with the meaning!
+[tool.typos.default.extend-identifiers]
+# arange - numpy.arange
+arange = "arange"
+# dorder - derivative order
+dorder = "dorder"
+
 [tool.flake8]
 max-line-length = 90
 ignore = [

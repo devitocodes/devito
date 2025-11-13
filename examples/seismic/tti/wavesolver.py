@@ -1,10 +1,11 @@
-# coding: utf-8
-from devito import (Function, TimeFunction, warning, NODE,
-                    DevitoCheckpoint, CheckpointOperator, Revolver)
+from devito import (
+    NODE, CheckpointOperator, DevitoCheckpoint, Function, Revolver, TimeFunction, warning
+)
 from devito.tools import memoized_meth
-from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
-from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
-from examples.seismic.tti.operators import particle_velocity_fields
+from examples.seismic.tti.operators import (
+    AdjointOperator, ForwardOperator, JacobianAdjOperator, JacobianOperator,
+    particle_velocity_fields
+)
 
 
 class AnisotropicWaveSolver:
@@ -38,12 +39,11 @@ class AnisotropicWaveSolver:
             raise ValueError("Free surface only supported for centered TTI kernel")
 
         if space_order % 2 != 0:
-            raise ValueError("space_order must be even but got %s"
-                             % space_order)
+            raise ValueError(f"space_order must be even but got {space_order}")
 
         if space_order % 4 != 0:
             warning("It is recommended for space_order to be a multiple of 4" +
-                    "but got %s" % space_order)
+                    f"but got {space_order}")
 
         self.space_order = space_order
 

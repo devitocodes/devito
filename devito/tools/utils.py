@@ -1,19 +1,43 @@
+import types
 from collections import OrderedDict
 from collections.abc import Iterable
 from functools import reduce, wraps
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
-import types
 
 import numpy as np
 import sympy
 
-__all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
-           'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
-           'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
-           'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number',
-           'smart_lt', 'smart_gt']
+__all__ = [
+    'all_equal',
+    'as_list',
+    'as_mapper',
+    'as_set',
+    'as_tuple',
+    'contains_val',
+    'filter_ordered',
+    'filter_sorted',
+    'flatten',
+    'generator',
+    'grouper',
+    'humanbytes',
+    'indices_to_sections',
+    'indices_to_slices',
+    'invert',
+    'is_integer',
+    'is_number',
+    'powerset',
+    'pprint',
+    'prod',
+    'roundm',
+    'single_or',
+    'smart_gt',
+    'smart_lt',
+    'sorted_priority',
+    'split',
+    'sweep',
+    'transitive_closure',
+]
 
 
 def prod(iterable, initial=1):
@@ -43,7 +67,7 @@ def as_tuple(item, type=None, length=None):
     # Empty list if we get passed None
     if item is None:
         t = ()
-    elif isinstance(item, (str, sympy.Function, sympy.IndexedBase)):
+    elif isinstance(item, str | sympy.Function | sympy.IndexedBase):
         t = (item,)
     elif isinstance(item, tuple):
         # this makes tuple subclasses pass through
@@ -59,7 +83,7 @@ def as_tuple(item, type=None, length=None):
     if length and not len(t) == length:
         raise ValueError("Tuple needs to be of length %d" % length)
     if type and not all(isinstance(i, type) for i in t):
-        raise TypeError("Items need to be of type %s" % type)
+        raise TypeError(f"Items need to be of type {type}")
     return t
 
 
@@ -80,14 +104,14 @@ def is_integer(value):
     """
     A thorough instance comparison for all integer types.
     """
-    return isinstance(value, (int, np.integer, sympy.Integer))
+    return isinstance(value, int | np.integer | sympy.Integer)
 
 
 def is_number(value):
     """
     A thorough instance comparison for all number types.
     """
-    return isinstance(value, (int, float, np.number, sympy.Number))
+    return isinstance(value, int | float | np.number | sympy.Number)
 
 
 def contains_val(val, items):
@@ -155,7 +179,7 @@ def flatten(l):
     """Flatten a hierarchy of nested lists into a plain list."""
     newlist = []
     for el in l:
-        if isinstance(el, Iterable) and not isinstance(el, (str, bytes, np.ndarray)):
+        if isinstance(el, Iterable) and not isinstance(el, str | bytes | np.ndarray):
             for sub in flatten(el):
                 newlist.append(sub)
         else:
@@ -189,7 +213,7 @@ def filter_ordered(elements, key=None):
     if key is None:
         return list(dict.fromkeys(elements))
     else:
-        return list(dict(zip([key(i) for i in elements], elements)).values())
+        return list(dict(zip([key(i) for i in elements], elements, strict=False)).values())
 
 
 def filter_sorted(elements, key=None):
@@ -221,7 +245,7 @@ def sweep(parameters, keys=None):
     sweep_values = [[v] if isinstance(v, str) or not isinstance(v, Iterable) else v
                     for v in sweep_values]
     for vals in product(*sweep_values):
-        yield dict(zip(keys, vals))
+        yield dict(zip(keys, vals, strict=False))
 
 
 def indices_to_slices(inputlist):
@@ -239,7 +263,7 @@ def indices_to_slices(inputlist):
     """
     inputlist.sort()
     pointers = np.where(np.diff(inputlist) > 1)[0]
-    pointers = zip(np.r_[0, pointers+1], np.r_[pointers, len(inputlist)-1])
+    pointers = zip(np.r_[0, pointers+1], np.r_[pointers, len(inputlist)-1], strict=False)
     slices = [(inputlist[i], inputlist[j]+1) for i, j in pointers]
     return slices
 
@@ -286,7 +310,7 @@ def transitive_closure(R):
     {a:d, b:d, c:d}
     '''
     ans = dict()
-    for k in R.keys():
+    for k in R:
         visited = []
         ans[k] = reachable_items(R, k, visited)
     return ans
@@ -313,9 +337,9 @@ def humanbytes(B):
     elif MB <= B < GB:
         return '%d MB' % round(B / MB)
     elif GB <= B < TB:
-        return '%.1f GB' % round(B / GB, 1)
+        return f'{round(B / GB, 1):.1f} GB'
     elif TB <= B:
-        return '%.2f TB' % round(B / TB, 1)
+        return f'{round(B / TB, 1):.2f} TB'
 
 
 def sorted_priority(items, priority):

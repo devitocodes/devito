@@ -4,7 +4,7 @@ from functools import cached_property
 import numpy as np
 
 from devito.data.meta import LEFT
-from devito.tools import is_integer, as_tuple
+from devito.tools import as_tuple, is_integer
 
 __all__ = ['Decomposition']
 
@@ -109,7 +109,7 @@ class Decomposition(tuple):
         if not isinstance(o, Decomposition):
             return False
         return self.local == o.local and len(self) == len(o) and\
-            all(np.all(i == j) for i, j in zip(self, o))
+            all(np.all(i == j) for i, j in zip(self, o, strict=False))
 
     def __repr__(self):
         ret = []
@@ -117,9 +117,9 @@ class Decomposition(tuple):
             bounds = (min(v, default=None), max(v, default=None))
             item = '[]' if bounds == (None, None) else '[%d,%d]' % bounds
             if self.local == i:
-                item = "<<%s>>" % item
+                item = f"<<{item}>>"
             ret.append(item)
-        return 'Decomposition(%s)' % ', '.join(ret)
+        return 'Decomposition({})'.format(', '.join(ret))
 
     def __call__(self, *args, mode='glb_to_loc', rel=True):
         """
@@ -248,7 +248,7 @@ class Decomposition(tuple):
                 # index_glb_to_loc(slice(...))
                 if isinstance(glb_idx, tuple):
                     if len(glb_idx) != 2:
-                        raise TypeError("Cannot convert index from `%s`" % type(glb_idx))
+                        raise TypeError(f"Cannot convert index from `{type(glb_idx)}`")
                     if self.loc_empty:
                         return (-1, -3)
                     glb_idx_min, glb_idx_max = glb_idx
@@ -275,7 +275,7 @@ class Decomposition(tuple):
                             else glb_idx.start
                         retfunc = lambda a, b: slice(b, a - 1, glb_idx.step)
                 else:
-                    raise TypeError("Cannot convert index from `%s`" % type(glb_idx))
+                    raise TypeError(f"Cannot convert index from `{type(glb_idx)}`")
                 # -> Handle negative min/max
                 if glb_idx_min is not None and glb_idx_min < 0:
                     glb_idx_min = glb_max + glb_idx_min + 1
@@ -415,7 +415,7 @@ class Decomposition(tuple):
                 # index_loc_to_glb((min, max))
                 if isinstance(loc_idx, tuple):
                     if len(loc_idx) != 2:
-                        raise TypeError("Cannot convert index from `%s`" % type(loc_idx))
+                        raise TypeError(f"Cannot convert index from `{type(loc_idx)}`")
                     shifted = [slice(-1, -2, 1) if (i < 0 or i > rank_length) else
                                i + self.loc_abs_min for i in loc_idx]
                     return as_tuple(shifted)

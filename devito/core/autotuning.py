@@ -1,10 +1,11 @@
 from collections import OrderedDict
-from itertools import combinations, product
 from functools import total_ordering
+from itertools import combinations, product
 
 from devito.arch import KNL, KNL7210
 from devito.ir import Backward, retrieve_iteration_tree
-from devito.logger import perf, warning as _warning
+from devito.logger import perf
+from devito.logger import warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration
@@ -37,8 +38,8 @@ def autotune(operator, args, level, mode):
     key = [level, mode]
     accepted = configuration._accepted['autotuning']
     if key not in accepted:
-        raise ValueError("The accepted `(level, mode)` combinations are `%s`; "
-                         "provided `%s` instead" % (accepted, key))
+        raise ValueError(f"The accepted `(level, mode)` combinations are `{accepted}`; "
+                         f"provided `{key}` instead")
 
     # We get passed all the arguments, but the cfunction only requires a subset
     at_args = OrderedDict([(p.name, args[p.name]) for p in operator.parameters])
@@ -134,7 +135,7 @@ def autotune(operator, args, level, mode):
             elapsed = timer.total
             timings.setdefault(nt, OrderedDict()).setdefault(n, {})[bs] = elapsed
             log("run <%s> took %f (s) in %d timesteps" %
-                (','.join('%s=%s' % i for i in run), elapsed, timesteps))
+                (','.join('{}={}'.format(*i) for i in run), elapsed, timesteps))
 
             # Prepare for the next autotuning run
             update_time_bounds(stepper, at_args, timesteps, mode)
@@ -153,7 +154,7 @@ def autotune(operator, args, level, mode):
         best = min(mapper, key=mapper.get)
         best = OrderedDict(best + tuple(mapper[best].args))
         best.pop(None, None)
-        log("selected <%s>" % (','.join('%s=%s' % i for i in best.items())))
+        log("selected <{}>".format(','.join('{}={}'.format(*i) for i in best.items())))
     except ValueError:
         warning("could not perform any runs")
         return args, {}
@@ -209,10 +210,9 @@ def init_time_bounds(stepper, at_args, args):
             return False
     else:
         at_args[dim.max_name] = at_args[dim.min_name] + options['squeezer']
-        if dim.size_name in args:
-            if not isinstance(args[dim.size_name], range):
-                # May need to shrink to avoid OOB accesses
-                at_args[dim.max_name] = min(at_args[dim.max_name], args[dim.max_name])
+        if dim.size_name in args and not isinstance(args[dim.size_name], range):
+            # May need to shrink to avoid OOB accesses
+            at_args[dim.max_name] = min(at_args[dim.max_name], args[dim.max_name])
         if at_args[dim.min_name] > at_args[dim.max_name]:
             warning("too few time iterations; skipping")
             return False
@@ -270,9 +270,9 @@ def calculate_nblocks(tree, blockable):
     collapsed = tree[index:index + (ncollapsed or index+1)]
     blocked = [i.dim for i in collapsed if i.dim in blockable]
     remainders = [(d.root.symbolic_max-d.root.symbolic_min+1) % d.step for d in blocked]
-    niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders)]
+    niters = [d.root.symbolic_max - i for d, i in zip(blocked, remainders, strict=False)]
     nblocks = prod((i - d.root.symbolic_min + 1) / d.step
-                   for d, i in zip(blocked, niters))
+                   for d, i in zip(blocked, niters, strict=False))
     return nblocks
 
 
@@ -323,7 +323,7 @@ def generate_block_shapes(blockable, args, level):
     level_1 = [d for d, v in mapper.items() if v == 1]
     if level_1:
         assert len(level_1) == len(level_0)
-        assert all(d1.parent is d0 for d0, d1 in zip(level_0, level_1))
+        assert all(d1.parent is d0 for d0, d1 in zip(level_0, level_1, strict=False))
         for bs in list(ret):
             handle = []
             for v in options['blocksize-l1']:
@@ -368,9 +368,9 @@ def generate_nthreads(nthreads, args, level):
         ret.extend([((name, nthread),) for nthread in cases])
 
         if basic not in ret:
-            warning("skipping `%s`; perhaps you've set OMP_NUM_THREADS to a "
+            warning(f"skipping `{dict(basic)}`; perhaps you've set OMP_NUM_THREADS to a "
                     "non-standard value while attempting autotuning in "
-                    "`max` mode?" % dict(basic))
+                    "`max` mode?")
 
     return ret
 
@@ -384,8 +384,8 @@ options = {
 
 
 def log(msg):
-    perf("AutoTuner: %s" % msg)
+    perf(f"AutoTuner: {msg}")
 
 
 def warning(msg):
-    _warning("AutoTuner: %s" % msg)
+    _warning(f"AutoTuner: {msg}")

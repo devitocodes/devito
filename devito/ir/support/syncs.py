@@ -7,10 +7,21 @@ from functools import cached_property
 
 from devito.data import FULL
 from devito.tools import Pickable, as_tuple, filter_ordered, frozendict
+
 from .utils import IMask
 
-__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'InitArray', 'SyncArray',
-           'PrefetchUpdate', 'SnapOut', 'SnapIn', 'Ops', 'normalize_syncs']
+__all__ = [
+    'InitArray',
+    'Ops',
+    'PrefetchUpdate',
+    'ReleaseLock',
+    'SnapIn',
+    'SnapOut',
+    'SyncArray',
+    'WaitLock',
+    'WithLock',
+    'normalize_syncs',
+]
 
 
 class SyncOp(Pickable):
@@ -46,7 +57,7 @@ class SyncOp(Pickable):
                      self.function, self.findex, self.dim, self.size, self.origin))
 
     def __repr__(self):
-        return "%s<%s>" % (self.__class__.__name__, self.handle.name)
+        return f"{self.__class__.__name__}<{self.handle.name}>"
 
     __str__ = __repr__
 
@@ -64,7 +75,7 @@ class SyncOp(Pickable):
 class SyncCopyOut(SyncOp):
 
     def __repr__(self):
-        return "%s<%s->%s>" % (self.__class__.__name__, self.target, self.function)
+        return f"{self.__class__.__name__}<{self.target}->{self.function}>"
 
     __str__ = __repr__
 
@@ -87,7 +98,7 @@ class SyncCopyOut(SyncOp):
 class SyncCopyIn(SyncOp):
 
     def __repr__(self):
-        return "%s<%s->%s>" % (self.__class__.__name__, self.function, self.target)
+        return f"{self.__class__.__name__}<{self.function}->{self.target}>"
 
     __str__ = __repr__
 

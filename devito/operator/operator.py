@@ -1,45 +1,48 @@
-from collections import OrderedDict, namedtuple
-from functools import cached_property
 import ctypes
 import shutil
-from operator import attrgetter
+from collections import OrderedDict, namedtuple
+from functools import cached_property
 from math import ceil
+from operator import attrgetter
 from tempfile import gettempdir
 
-from sympy import sympify
-import sympy
 import numpy as np
+import sympy
+from sympy import sympify
 
-from devito.arch import (ANYCPU, Device, compiler_registry, platform_registry,
-                         get_visible_devices)
+from devito.arch import (
+    ANYCPU, Device, compiler_registry, get_visible_devices, platform_registry
+)
 from devito.data import default_allocator
-from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument,
-                               InvalidOperator)
-from devito.logger import (debug, info, perf, warning, is_log_enabled_for,
-                           switch_log_level)
-from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
+from devito.exceptions import (
+    CompilationError, ExecutionError, InvalidArgument, InvalidOperator
+)
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import (Callable, CInterface, EntryFunction, DeviceFunction,
-                           FindSymbols, MetaCall, derive_parameters, iet_build)
-from devito.ir.support import AccessMode, SymbolRegistry
+from devito.ir.equations import LoweredEq, concretize_subdims, lower_exprs
+from devito.ir.iet import (
+    Callable, CInterface, DeviceFunction, EntryFunction, FindSymbols, MetaCall,
+    derive_parameters, iet_build
+)
 from devito.ir.stree import stree_build
+from devito.ir.support import AccessMode, SymbolRegistry
+from devito.logger import debug, info, is_log_enabled_for, perf, switch_log_level, warning
+from devito.mpi import MPI
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
-from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (
-    Graph, lower_index_derivatives, generate_implicit, generate_macros,
-    minimize_symbols, unevaluate, error_mapper, is_on_device, lower_dtypes
+    Graph, error_mapper, generate_implicit, generate_macros, is_on_device, lower_dtypes,
+    lower_index_derivatives, minimize_symbols, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
-from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
-                          flatten, filter_sorted, frozendict, is_integer,
-                          split, timed_pass, timed_region, contains_val,
-                          CacheInstances, MemoryEstimate)
-from devito.types import (Buffer, Evaluable, host_layer, device_layer,
-                          disk_layer)
+from devito.tools import (
+    DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
+    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, split,
+    timed_pass, timed_region
+)
+from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness
-
+import contextlib
 
 __all__ = ['Operator']
 
@@ -398,10 +401,8 @@ class Operator(Callable):
 
         # Operation count after specialization
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
-        try:
+        with contextlib.suppress(AttributeError):
             profiler.record_ops_variation(init_ops, final_ops)
-        except AttributeError:
-            pass
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters)
@@ -462,10 +463,8 @@ class Operator(Callable):
         uiet = iet_build(stree)
 
         # Analyze the IET Sections for C-level profiling
-        try:
+        with contextlib.suppress(AttributeError):
             profiler.analyze(uiet)
-        except AttributeError:
-            pass
 
         return uiet
 
@@ -750,10 +749,8 @@ class Operator(Callable):
         ret = set()
         for i in self.input:
             ret.update(i._arg_names)
-            try:
+            with contextlib.suppress(AttributeError):
                 ret.update(i.grid._arg_names)
-            except AttributeError:
-                pass
         for d in self.dimensions:
             ret.update(d._arg_names)
         ret.update(p.name for p in self.parameters)
@@ -1003,10 +1000,7 @@ class Operator(Callable):
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
-                newmsg = "error in argument '%s' with value '%s': %s" % (
-                    self.parameters[argnum].name,
-                    arg_values[argnum],
-                    e.args[0])
+                newmsg = f"error in argument '{self.parameters[argnum].name}' with value '{arg_values[argnum]}': {e.args[0]}"
                 raise ctypes.ArgumentError(newmsg) from e
             else:
                 raise
@@ -1282,7 +1276,7 @@ def rcompile(expressions, kwargs, options, target=None):
     # it is called multiple times for the same input
     irs, byproduct0 = RCompiles(expressions, cls).compile(**kwargs)
 
-    key = lambda i: isinstance(i, (EntryFunction, DeviceFunction))
+    key = lambda i: isinstance(i, EntryFunction | DeviceFunction)
     byproduct = byproduct0.filter(key)
 
     return irs, byproduct
@@ -1497,10 +1491,7 @@ class ArgumentsMap(dict):
                or not i.is_regular:
                 continue
 
-            if i.is_regular:
-                nbytes = i.nbytes
-            else:
-                nbytes = i.nbytes_max
+            nbytes = i.nbytes if i.is_regular else i.nbytes_max
             v = subs_op_args(nbytes, self)
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges
@@ -1594,7 +1585,7 @@ def parse_kwargs(**kwargs):
     elif isinstance(opt, tuple):
         if len(opt) == 0:
             mode, options = 'noop', {}
-        elif isinstance(opt[-1], (dict, frozendict)):
+        elif isinstance(opt[-1], dict | frozendict):
             if len(opt) == 2:
                 mode, options = opt
             else:

@@ -5,7 +5,7 @@ Passes to gather and form implicit equations from DSL abstractions.
 from collections import defaultdict
 from functools import singledispatch
 
-from devito.ir import SEQUENTIAL, Queue, Forward
+from devito.ir import SEQUENTIAL, Forward, Queue
 from devito.symbolics import retrieve_dimensions
 from devito.tools import Bunch, frozendict, timed_pass
 from devito.types import Eq
@@ -222,7 +222,7 @@ def _lower_msd(dim, cluster):
 def _(dim, cluster):
     i_dim = dim.implicit_dimension
     mapper = {tkn: dim.functions[i_dim, mM]
-              for tkn, mM in zip(dim.tkns, dim.bounds_indices)}
+              for tkn, mM in zip(dim.tkns, dim.bounds_indices, strict=False)}
     return mapper, i_dim
 
 
@@ -254,10 +254,7 @@ def reduce(m0, m1, edims, prefix):
         raise NotImplementedError
     d, = edims
 
-    if prefix[d].direction is Forward:
-        func = max
-    else:
-        func = min
+    func = max if prefix[d].direction is Forward else min
 
     key = lambda i: i.indices[d]
 

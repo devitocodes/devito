@@ -1,22 +1,24 @@
-import numpy as np
-import click
 import os
 
-from devito import Device, configuration, info, warning, set_log_level, switchconfig, norm
+import click
+import numpy as np
+
+from devito import Device, configuration, info, norm, set_log_level, switchconfig, warning
 from devito.arch.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.operator.profiling import PerformanceSummary
 from devito.tools import all_equal, as_tuple, sweep
 from devito.types.dense import DiscreteFunction
-
-from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
-from examples.seismic.tti.tti_example import run as tti_run, tti_setup
-from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
-from examples.seismic.self_adjoint.example_iso import run as acoustic_sa_run, \
-    acoustic_sa_setup
-from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run, \
-    viscoelastic_setup
-
+from examples.seismic.acoustic.acoustic_example import acoustic_setup
+from examples.seismic.acoustic.acoustic_example import run as acoustic_run
+from examples.seismic.elastic.elastic_example import elastic_setup
+from examples.seismic.elastic.elastic_example import run as elastic_run
+from examples.seismic.self_adjoint.example_iso import acoustic_sa_setup
+from examples.seismic.self_adjoint.example_iso import run as acoustic_sa_run
+from examples.seismic.tti.tti_example import run as tti_run
+from examples.seismic.tti.tti_example import tti_setup
+from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run
+from examples.seismic.viscoelastic.viscoelastic_example import viscoelastic_setup
 
 model_type = {
     'viscoelastic': {
@@ -72,7 +74,7 @@ def run_op(solver, operator, **options):
     try:
         op = getattr(solver, operator)
     except AttributeError:
-        raise AttributeError("Operator %s not implemented for %s" % (operator, solver))
+        raise AttributeError(f"Operator {operator} not implemented for {solver}")
 
     # This is a bit ugly but not sure how to make clean input creation for different op
     if operator == "forward":
@@ -93,7 +95,7 @@ def run_op(solver, operator, **options):
         args = args[:-1]
         return op(*args, **options)
     else:
-        raise ValueError("Unrecognized operator %s" % operator)
+        raise ValueError(f"Unrecognized operator {operator}")
 
 
 @click.group()
@@ -155,15 +157,14 @@ def option_performance(f):
             # E.g., `('advanced', {'par-tile': True})`
             value = eval(value)
             if not isinstance(value, tuple) and len(value) >= 1:
-                raise click.BadParameter("Invalid choice `%s` (`opt` must be "
-                                         "either str or tuple)" % str(value))
+                raise click.BadParameter(f"Invalid choice `{str(value)}` (`opt` must be "
+                                         "either str or tuple)")
             opt = value[0]
         except NameError:
             # E.g. `'advanced'`
             opt = value
         if opt not in configuration._accepted['opt']:
-            raise click.BadParameter("Invalid choice `%s` (choose from %s)"
-                                     % (opt, str(configuration._accepted['opt'])))
+            raise click.BadParameter("Invalid choice `{}` (choose from {})".format(opt, str(configuration._accepted['opt'])))
         return value
 
     def config_blockshape(ctx, param, value):
@@ -179,18 +180,18 @@ def option_performance(f):
             # 1. integers, not strings
             # 2. sanity check the (hierarchical) blocking shape
             normalized_value = []
-            for i, block_shape in enumerate(value):
+            for _i, block_shape in enumerate(value):
                 # If hierarchical blocking is activated, say with N levels, here in
                 # `bs` we expect to see 3*N entries
                 bs = [int(x) for x in block_shape.split()]
                 levels = [bs[x:x+3] for x in range(0, len(bs), 3)]
                 if any(len(level) != 3 for level in levels):
                     raise ValueError("Expected 3 entries per block shape level, but got "
-                                     "one level with less than 3 entries (`%s`)" % levels)
+                                     f"one level with less than 3 entries (`{levels}`)")
                 normalized_value.append(levels)
             if not all_equal(len(i) for i in normalized_value):
                 raise ValueError("Found different block shapes with incompatible "
-                                 "number of levels (`%s`)" % normalized_value)
+                                 f"number of levels (`{normalized_value}`)")
             configuration['opt-options']['blocklevels'] = len(normalized_value[0])
         else:
             normalized_value = []
@@ -203,8 +204,7 @@ def option_performance(f):
         elif value != 'off':
             # Sneak-peek at the `block-shape` -- if provided, keep auto-tuning off
             if ctx.params['block_shape']:
-                warning("Skipping autotuning (using explicit block-shape `%s`)"
-                        % str(ctx.params['block_shape']))
+                warning("Skipping autotuning (using explicit block-shape `{}`)".format(str(ctx.params['block_shape'])))
                 level = False
             else:
                 # Make sure to always run in preemptive mode
@@ -272,7 +272,7 @@ def run(problem, **kwargs):
     # Note: the following piece of code is horribly *hacky*, but it works for now
     for i, block_shape in enumerate(block_shapes):
         for n, level in enumerate(block_shape):
-            for d, s in zip(['x', 'y', 'z'], level):
+            for d, s in zip(['x', 'y', 'z'], level, strict=False):
                 options['%s%d_blk%d_size' % (d, i, n)] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
@@ -303,11 +303,11 @@ def run(problem, **kwargs):
 
     dumpfile = kwargs.pop('dump_norms')
     if dumpfile:
-        norms = ["'%s': %f" % (i.name, norm(i)) for i in retval[:-1]
+        norms = [f"'{i.name}': {norm(i):f}" for i in retval[:-1]
                  if isinstance(i, DiscreteFunction)]
         if rank == 0:
             with open(dumpfile, 'w') as f:
-                f.write("{%s}" % ', '.join(norms))
+                f.write("{{{}}}".format(', '.join(norms)))
 
     return retval
 
@@ -341,13 +341,13 @@ def run_jit_backdoor(problem, **kwargs):
     op = solver.op_fwd()
 
     # Get the filename in the JIT cache
-    cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
+    cfile = f"{str(op._compiler.get_jit_dir().joinpath(op._soname))}.c"
 
     if not os.path.exists(cfile):
         # First time we run this problem, let's generate and jit-compile code
         op.cfunction
-        info("You may now edit the generated code in `%s`. "
-             "Then save the file, and re-run this benchmark." % cfile)
+        info(f"You may now edit the generated code in `{cfile}`. "
+             "Then save the file, and re-run this benchmark.")
         return
 
     info("Running wave propagation Operator...")
@@ -362,7 +362,7 @@ def run_jit_backdoor(problem, **kwargs):
     if dumpnorms:
         for i in retval[:-1]:
             if isinstance(i, DiscreteFunction):
-                info("'%s': %f" % (i.name, norm(i)))
+                info(f"'{i.name}': {norm(i):f}")
 
     return retval
 

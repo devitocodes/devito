@@ -9,8 +9,9 @@ import numpy as np
 from sympy import S
 
 from devito.arch import get_advisor_path
-from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
-                           Iteration, FindNodes, Transformer)
+from devito.ir.iet import (
+    ExpressionBundle, FindNodes, Iteration, List, Section, TimedList, Transformer
+)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning
 from devito.mpi import MPI
@@ -195,7 +196,7 @@ class Profiler:
         comm = args.comm
 
         summary = PerformanceSummary()
-        for name, data in self._sections.items():
+        for name, _data in self._sections.items():
             # Time to run the section
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
@@ -274,7 +275,7 @@ class AdvancedProfiler(Profiler):
         sops = [sops]*comm.size
         itershapess = comm.allgather(itershapes)
 
-        return list(zip(times, opss, pointss, traffics, sops, itershapess))
+        return list(zip(times, opss, pointss, traffics, sops, itershapess, strict=False))
 
     # Override basic summary so that arguments other than runtime are computed.
     def summary(self, args, dtype, reduce_over=None):
@@ -459,10 +460,7 @@ class PerformanceSummary(OrderedDict):
         gflops = float(ops)/10**9
         gflopss = gflops/time
 
-        if np.isnan(traffic) or traffic == 0:
-            oi = None
-        else:
-            oi = float(ops/traffic)
+        oi = None if np.isnan(traffic) or traffic == 0 else float(ops / traffic)
 
         self.globals[key] = PerfEntry(time, gflopss, None, oi, None, None)
 

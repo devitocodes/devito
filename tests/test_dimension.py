@@ -1,21 +1,23 @@
-from itertools import product
 from copy import deepcopy
+from itertools import product
 
 import numpy as np
-from sympy import And, Or
 import pytest
+from sympy import And, Or
 
-from conftest import assert_blocking, assert_structure, skipif, opts_tiling
-from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  # noqa
-                    SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
-                    Dimension, DefaultDimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
-                    CustomDimension, dimensions, configuration, norm, Inc, sum)
-from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
-                           FindSymbols, retrieve_iteration_tree)
-from devito.ir.equations.algorithms import concretize_subdims
+from conftest import assert_blocking, assert_structure, opts_tiling, skipif
+from devito import (  # noqa
+    Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension, Dimension,
+    Eq, Function, Ge, Grid, Gt, Inc, Le, Lt, Ne, Operator, SpaceDimension, SparseFunction,
+    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, dimensions,
+    floor, norm, sin, sum, switchconfig
+)
 from devito.ir import SymbolRegistry
-from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
+from devito.ir.equations.algorithms import concretize_subdims
+from devito.ir.iet import (
+    Conditional, Expression, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+)
+from devito.symbolics import INT, IntDiv, indexify, retrieve_functions
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.basic import Scalar
 from devito.types.dimension import AffineIndexAccessFunction, Thickness
@@ -856,7 +858,7 @@ class TestConditionalDimension:
         op.apply(u=u, usave1=u1, usave2=u2, time_M=nt-2)
 
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
-        for (uk, fk) in zip((u1, u2), (f1, f2)):
+        for (uk, fk) in zip((u1, u2), (f1, f2), strict=False):
             assert np.all([np.allclose(uk.data[i], i*fk)
                            for i in range((nt+fk-1)//fk)])
 
@@ -884,7 +886,7 @@ class TestConditionalDimension:
         op.apply(u=u, usave1=u2, time_M=nt-2)
 
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
-        for (uk, fk) in zip((u1, u2), (f1, f2)):
+        for (uk, fk) in zip((u1, u2), (f1, f2), strict=False):
             assert np.all([np.allclose(uk.data[i], i*fk)
                            for i in range((nt+fk-1)//fk)])
 
@@ -1251,13 +1253,13 @@ class TestConditionalDimension:
 
         radius = 1
         indices = [(INT(floor(i)), INT(floor(i))+radius)
-                   for i in sf._position_map.keys()]
+                   for i in sf._position_map]
         bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
         eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]
         for e, i in enumerate(product(*indices)):
             args = [j > 0 for j in i]
-            args.extend([j < k for j, k in zip(i, bounds)])
+            args.extend([j < k for j, k in zip(i, bounds, strict=False)])
             condition = And(*args, evaluate=False)
             cd = ConditionalDimension('sfc%d' % e, parent=sd, condition=condition)
             index = [time] + list(i)
@@ -1687,7 +1689,7 @@ class TestConditionalDimension:
         shape = (21, 21, 21)
         origin = (0., 0., 0.)
         spacing = (1., 1., 1.)
-        extent = tuple([d * (s - 1) for s, d in zip(shape, spacing)])
+        extent = tuple([d * (s - 1) for s, d in zip(shape, spacing, strict=False)])
         grid = Grid(shape=shape, extent=extent, origin=origin)
         time = grid.time_dim
         x, y, z = grid.dimensions
@@ -1696,7 +1698,7 @@ class TestConditionalDimension:
 
         # Place source in the middle of the grid
         src_coords = np.empty((1, len(shape)), dtype=np.float32)
-        src_coords[0, :] = [o + d * (s-1)//2 for o, d, s in zip(origin, spacing, shape)]
+        src_coords[0, :] = [o + d * (s-1)//2 for o, d, s in zip(origin, spacing, shape, strict=False)]
         src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt)
         src.data[:] = 1.
         src.coordinates.data[:] = src_coords[:]
@@ -2024,7 +2026,7 @@ class TestCustomDimension:
                    for d in grid.dimensions]
 
         eqn = Eq(v, u)
-        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims)))
+        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims, strict=False)))
 
         op = Operator(eqn)
 

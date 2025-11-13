@@ -277,7 +277,7 @@ def demo_model(preset, **kwargs):
         nbl = kwargs.pop('nbl', 20)
 
         # Read 2D Marmousi model from devitocodes/data repo
-        data_path = kwargs.get('data_path', None)
+        data_path = kwargs.get('data_path')
         if data_path is None:
             raise ValueError("Path to devitocodes/data not found! Please specify with "
                              "'data_path=<path/to/devitocodes/data>'")
