@@ -114,8 +114,7 @@ class DeviceOperatorMixin:
         o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
 
         if oo:
-            raise InvalidOperator("Unsupported optimization options: [%s]"
-                                  % ", ".join(list(oo)))
+            raise InvalidOperator("Unsupported optimization options: [{}]".format(", ".join(list(oo))))
 
         kwargs['options'].update(o)
 

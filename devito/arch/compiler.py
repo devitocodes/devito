@@ -22,6 +22,7 @@ from devito.parameters import configuration
 from devito.tools import (
     as_list, change_directory, filter_ordered, make_tempdir, memoized_func
 )
+import contextlib
 
 __all__ = ['compiler_registry', 'sniff_mpi_distro']
 
@@ -88,10 +89,8 @@ def sniff_compiler_version(cc, allow_fail=False):
             pass
 
     # Pure integer versions (e.g., ggc5, rather than gcc5.0) need special handling
-    try:
+    with contextlib.suppress(TypeError):
         ver = Version(float(ver))
-    except TypeError:
-        pass
 
     return ver
 
@@ -331,22 +330,21 @@ class Compiler(GCCToolchain):
         logfile = path.join(self.get_jit_dir(), f"{hash_key}.log")
         errfile = path.join(self.get_jit_dir(), f"{hash_key}.err")
 
-        with change_directory(loc):
-            with open(logfile, "w") as lf:
-                with open(errfile, "w") as ef:
+        with change_directory(loc), open(logfile, "w") as lf:
+            with open(errfile, "w") as ef:
 
-                    command = ['make'] + args
-                    lf.write("Compilation command:\n")
-                    lf.write(" ".join(command))
-                    lf.write("\n\n")
-                    try:
-                        check_call(command, stderr=ef, stdout=lf)
-                    except CalledProcessError as e:
-                        raise CompilationError(f'Command "{e.cmd}" return error status'
-                                               f'{e.returncode}. '
-                                               f'Unable to compile code.\n'
-                                               f'Compile log in {logfile}\n'
-                                               f'Compile errors in {errfile}\n')
+                command = ['make'] + args
+                lf.write("Compilation command:\n")
+                lf.write(" ".join(command))
+                lf.write("\n\n")
+                try:
+                    check_call(command, stderr=ef, stdout=lf)
+                except CalledProcessError as e:
+                    raise CompilationError(f'Command "{e.cmd}" return error status'
+                                           f'{e.returncode}. '
+                                           f'Unable to compile code.\n'
+                                           f'Compile log in {logfile}\n'
+                                           f'Compile errors in {errfile}\n')
         debug(f"Make <{' '.join(args)}>")
 
     def _cmdline(self, files, object=False):
@@ -980,15 +978,9 @@ class CustomCompiler(Compiler):
         elif isinstance(platform, IntelDevice):
             _base = OneapiCompiler
         elif isinstance(platform, NvidiaDevice):
-            if language == 'cuda':
-                _base = CudaCompiler
-            else:
-                _base = NvidiaCompiler
+            _base = CudaCompiler if language == 'cuda' else NvidiaCompiler
         elif platform is AMDGPUX:
-            if language == 'hip':
-                _base = HipCompiler
-            else:
-                _base = AOMPCompiler
+            _base = HipCompiler if language == 'hip' else AOMPCompiler
         else:
             _base = GNUCompiler
 

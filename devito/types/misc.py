@@ -109,7 +109,7 @@ class FIndexed(Indexed, Pickable):
         return obj
 
     def __repr__(self):
-        return "%s(%s)" % (self.name, ", ".join(str(i) for i in self.indices))
+        return "{}({})".format(self.name, ", ".join(str(i) for i in self.indices))
 
     __str__ = __repr__
 
@@ -343,7 +343,7 @@ class CriticalRegion(sympy.Function, Fence):
         self.opening = opening
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__,
+        return "{}({})".format(self.__class__.__name__,
                            'OPEN' if self.opening else 'CLOSE')
 
     __str__ = __repr__

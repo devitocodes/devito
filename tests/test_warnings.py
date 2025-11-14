@@ -62,11 +62,11 @@ class TestWarning:
     """
     def test_raise(self):
         with pytest.warns(UserWarning):
-            warnings.warn('Let this be a warning to you')
+            warnings.warn('Let this be a warning to you', stacklevel=2)
 
     def test_raise_devito(self):
         with pytest.warns(DevitoWarning):
-            warnings.warn('Let this be another warning to you', DevitoWarning)
+            warnings.warn('Let this be another warning to you', DevitoWarning, stacklevel=2)
 
     def test_raise_devito_kw(self):
         with pytest.warns(DevitoWarning):
@@ -74,4 +74,4 @@ class TestWarning:
 
     def test_raise_from_custom(self, custom_warning):
         with pytest.warns(NewWarning):
-            warnings.warn(custom_warning)
+            warnings.warn(custom_warning, stacklevel=2)

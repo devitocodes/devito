@@ -36,7 +36,7 @@ class ElementalCall(Call):
 
             # Sanity check
             if k not in self._mapper:
-                raise ValueError("`k` is not a dynamic parameter" % k)
+                raise ValueError("`k` is not a dynamic parameter")
             if len(self._mapper[k]) != len(tv):
                 raise ValueError("Expected %d values for dynamic parameter `%s`, given %d"
                                  % (len(self._mapper[k]), k, len(tv)))
@@ -216,7 +216,7 @@ class KernelLaunch(DeviceCall):
         self.stream = stream
 
     def __repr__(self):
-        return 'Launch[%s]<<<(%s)>>>' % (self.name,
+        return 'Launch[{}]<<<({})>>>'.format(self.name,
                                          ','.join(str(i.name) for i in self.writes))
 
     @cached_property

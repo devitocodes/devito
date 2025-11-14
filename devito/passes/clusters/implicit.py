@@ -254,10 +254,7 @@ def reduce(m0, m1, edims, prefix):
         raise NotImplementedError
     d, = edims
 
-    if prefix[d].direction is Forward:
-        func = max
-    else:
-        func = min
+    func = max if prefix[d].direction is Forward else min
 
     key = lambda i: i.indices[d]
 

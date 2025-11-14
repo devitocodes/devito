@@ -34,7 +34,7 @@ def test_bench(mode, problem, op):
 
     pyversion = sys.executable
     baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
-    benchpath = '%sbenchmarks/user/benchmark.py' % baseline
+    benchpath = f'{baseline}benchmarks/user/benchmark.py'
 
     command_bench = [pyversion, benchpath, mode,
                      '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
@@ -64,7 +64,7 @@ def test_bench(mode, problem, op):
         bench_corename = os.path.join('_'.join([base_filename, arch, shape, nbl, t,
                                       so, to, opt, at, nt, mpi, np, rank]))
 
-        bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
+        bench_filename = f"{dir_name}{bench_corename}{filename_suffix}"
         assert os.path.isfile(bench_filename)
     else:
         assert True

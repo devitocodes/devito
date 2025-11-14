@@ -82,7 +82,7 @@ class DTypesVectorMapper(dict):
         self.update(build_dtypes_vector([field_name], [count]))
 
     def get_base_dtype(self, v, default=None):
-        for (base_dtype, count), dtype in self.items():
+        for (base_dtype, _count), dtype in self.items():
             if dtype is v:
                 return base_dtype
 
@@ -119,8 +119,8 @@ class CustomDtype:
         return hash((self.name, self.template, self.modifier))
 
     def __repr__(self):
-        template = '<%s>' % ','.join([str(i) for i in self.template])
-        return "%s%s%s" % (self.name,
+        template = '<{}>'.format(','.join([str(i) for i in self.template]))
+        return "{}{}{}".format(self.name,
                            template if self.template else '',
                            self.modifier)
 
@@ -262,19 +262,19 @@ def ctypes_to_cstr(ctype, toarray=None):
     elif isinstance(ctype, CustomDtype):
         retval = str(ctype)
     elif issubclass(ctype, ctypes.Structure):
-        retval = 'struct %s' % ctype.__name__
+        retval = f'struct {ctype.__name__}'
     elif issubclass(ctype, ctypes.Union):
-        retval = 'union %s' % ctype.__name__
+        retval = f'union {ctype.__name__}'
     elif issubclass(ctype, ctypes._Pointer):
         if toarray:
-            retval = ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
+            retval = ctypes_to_cstr(ctype._type_, f'(* {toarray})')
         else:
             retval = ctypes_to_cstr(ctype._type_)
             if issubclass(ctype._type_, ctypes._Pointer):
                 # Look-ahead to avoid extra ugly spaces
-                retval = '%s*' % retval
+                retval = f'{retval}*'
             else:
-                retval = '%s *' % retval
+                retval = f'{retval} *'
     elif issubclass(ctype, ctypes.Array):
         retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
     elif ctype.__name__.startswith('c_'):
@@ -304,9 +304,9 @@ def ctypes_to_cstr(ctype, toarray=None):
 
         retval = name
         if prefix:
-            retval = '%s %s' % (prefix, retval)
+            retval = f'{prefix} {retval}'
         if suffix:
-            retval = '%s %s' % (retval, suffix)
+            retval = f'{retval} {suffix}'
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         retval = ctype.__name__
@@ -326,10 +326,7 @@ def is_external_ctype(ctype, includes):
     if issubclass(ctype, ctypes._SimpleCData):
         return False
 
-    if ctype in ctypes_vector_mapper.values():
-        return True
-
-    return False
+    return ctype in ctypes_vector_mapper.values()
 
 
 def is_numpy_dtype(dtype):

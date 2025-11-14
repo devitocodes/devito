@@ -100,10 +100,7 @@ class Lift(Queue):
             # Lifted scalar clusters cannot be guarded
             # as they would not be in the scope of the guarded clusters
             # unless the guard is for an outer dimension
-            if c.is_scalar and not (prefix[:-1] and c.guards):
-                guards = {}
-            else:
-                guards = c.guards
+            guards = {} if c.is_scalar and not (prefix[:-1] and c.guards) else c.guards
 
             lifted.append(c.rebuild(ispace=ispace, properties=properties, guards=guards))
 
@@ -144,7 +141,7 @@ class Fusion(Queue):
 
         # Fusion
         processed = []
-        for k, group in groupby(clusters, key=self._key):
+        for _k, group in groupby(clusters, key=self._key):
             g = list(group)
 
             for maybe_fusible in self._apply_heuristics(g):

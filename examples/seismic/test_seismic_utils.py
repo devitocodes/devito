@@ -1,7 +1,7 @@
-try:
+import contextlib
+import builtins
+with contextlib.suppress(builtins.BaseException):
     import pytest
-except:
-    pass
 import numpy as np
 
 from devito import norm

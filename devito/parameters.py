@@ -269,7 +269,7 @@ class switchconfig(SwitchDecorator):
             configuration[k] = v
 
     def __exit__(self, exc_type, exc_val, traceback):
-        for k, v in self.params.items():
+        for k, _v in self.params.items():
             try:
                 configuration[k] = self.previous[k]
             except ValueError:

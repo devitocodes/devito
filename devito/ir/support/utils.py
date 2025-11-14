@@ -7,6 +7,7 @@ from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, flatten, s
 from devito.types import (
     Dimension, DimensionTuple, Indirection, ModuloDimension, StencilDimension
 )
+import contextlib
 
 __all__ = [
     'AccessMode',
@@ -243,10 +244,8 @@ def detect_io(exprs, relax=False):
     terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
     for i in terminals:
         candidates = set(i.free_symbols)
-        try:
+        with contextlib.suppress(AttributeError):
             candidates.update({i.function})
-        except AttributeError:
-            pass
         for j in candidates:
             try:
                 if rule(j):
@@ -368,10 +367,8 @@ def minmax_index(expr, d):
     """
     indices = set()
     for i in retrieve_indexed(expr):
-        try:
+        with contextlib.suppress(KeyError):
             indices.add(i.indices[d])
-        except KeyError:
-            pass
 
     return Extrema(min(minimum(i) for i in indices),
                    max(maximum(i) for i in indices))

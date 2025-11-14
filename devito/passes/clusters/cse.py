@@ -353,10 +353,7 @@ def catch(exprs, mode):
 
     candidates = []
     for k, v in mapper.items():
-        if mode in ('basic', 'smartsort'):
-            sources = [i for i in v if i == k.expr]
-        else:
-            sources = v
+        sources = [i for i in v if i == k.expr] if mode in ('basic', 'smartsort') else v
 
         if len(sources) > 1:
             candidates.append(Candidate(k.expr, k.conditionals, sources))

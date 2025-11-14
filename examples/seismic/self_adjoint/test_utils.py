@@ -1,9 +1,9 @@
 import numpy as np
+import contextlib
+import builtins
 
-try:
+with contextlib.suppress(builtins.BaseException):
     import pytest
-except:
-    pass
 from devito import Function, Grid
 from examples.seismic.self_adjoint import setup_w_over_q
 

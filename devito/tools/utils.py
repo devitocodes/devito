@@ -83,7 +83,7 @@ def as_tuple(item, type=None, length=None):
     if length and not len(t) == length:
         raise ValueError("Tuple needs to be of length %d" % length)
     if type and not all(isinstance(i, type) for i in t):
-        raise TypeError("Items need to be of type %s" % type)
+        raise TypeError(f"Items need to be of type {type}")
     return t
 
 
@@ -310,7 +310,7 @@ def transitive_closure(R):
     {a:d, b:d, c:d}
     '''
     ans = dict()
-    for k in R.keys():
+    for k in R:
         visited = []
         ans[k] = reachable_items(R, k, visited)
     return ans
@@ -337,9 +337,9 @@ def humanbytes(B):
     elif MB <= B < GB:
         return '%d MB' % round(B / MB)
     elif GB <= B < TB:
-        return '%.1f GB' % round(B / GB, 1)
+        return f'{round(B / GB, 1):.1f} GB'
     elif TB <= B:
-        return '%.2f TB' % round(B / TB, 1)
+        return f'{round(B / TB, 1):.2f} TB'
 
 
 def sorted_priority(items, priority):

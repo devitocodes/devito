@@ -481,7 +481,7 @@ class CGen(Visitor):
             elif isinstance(o.obj, IndexedData):
                 v = f._C_name
             else:
-                assert False
+                raise AssertionError()
             rvalue = f'({cstr}**) {v}'
 
         else:
@@ -510,14 +510,11 @@ class CGen(Visitor):
                 elif isinstance(o.obj, DeviceMap):
                     v = f._C_field_dmap
                 else:
-                    assert False
+                    raise AssertionError()
 
                 rvalue = f'({cstr} {rshape}) {f._C_name}->{v}'
             else:
-                if isinstance(o.obj, Pointer):
-                    v = o.obj.name
-                else:
-                    v = f._C_name
+                v = o.obj.name if isinstance(o.obj, Pointer) else f._C_name
 
                 rvalue = f'({cstr} {rshape}) {v}'
 
@@ -526,10 +523,7 @@ class CGen(Visitor):
     def visit_Dereference(self, o):
         a0, a1 = o.functions
 
-        if o.offset:
-            ptr = f'({a1.name} + {o.offset})'
-        else:
-            ptr = a1.name
+        ptr = f'({a1.name} + {o.offset})' if o.offset else a1.name
 
         if a0.is_AbstractFunction:
             cstr = self.ccode(a0.indexed._C_typedata)
@@ -549,10 +543,7 @@ class CGen(Visitor):
                 lvalue = c.Value(cstr, f'*{self._restrict_keyword} {a0.name}')
 
         else:
-            if a1.is_Symbol:
-                rvalue = f'*{ptr}'
-            else:
-                rvalue = f'{ptr}->{a0._C_name}'
+            rvalue = f'*{ptr}' if a1.is_Symbol else f'{ptr}->{a0._C_name}'
             lvalue = self._gen_value(a0, 0)
 
         return c.Initializer(lvalue, rvalue)
@@ -563,10 +554,7 @@ class CGen(Visitor):
 
     def visit_List(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
-        if o.inline:
-            body = c.Line(' '.join(str(i) for i in body))
-        else:
-            body = c.Collection(body)
+        body = c.Line(' '.join(str(i) for i in body)) if o.inline else c.Collection(body)
         return c.Module(o.header + (body,) + o.footer)
 
     def visit_Section(self, o):
@@ -744,10 +732,7 @@ class CGen(Visitor):
         return c.Collection(body)
 
     def visit_KernelLaunch(self, o):
-        if o.templates:
-            templates = f"<{','.join([str(i) for i in o.templates])}>"
-        else:
-            templates = ''
+        templates = f"<{','.join([str(i) for i in o.templates])}>" if o.templates else ''
 
         launch_args = [o.grid, o.block]
         if o.shm is not None:
@@ -778,7 +763,7 @@ class CGen(Visitor):
         """
         Generate cgen includes from an iterable of symbols and expressions.
         """
-        return [c.Include(i, system=(False if i.endswith('.h') else True))
+        return [c.Include(i, system=(not i.endswith('.h')))
                 for i in o.includes] + [blankline]
 
     def _operator_namespaces(self, o):
@@ -839,10 +824,7 @@ class CGen(Visitor):
         signature = self._gen_signature(o)
 
         # Honor the `retstmt` flag if set
-        if o.body.retstmt:
-            retval = []
-        else:
-            retval = [c.Line(), c.Statement("return 0")]
+        retval = [] if o.body.retstmt else [c.Line(), c.Statement("return 0")]
 
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
@@ -1580,8 +1562,7 @@ class MultilineCall(c.Generable):
                 lines = list(i.generate())
                 if len(lines) > 1:
                     yield tip + ",".join(processed + [lines[0]])
-                    for line in lines[1:-1]:
-                        yield line
+                    yield from lines[1:-1]
                     tip = ""
                     processed = [lines[-1]]
                 else:

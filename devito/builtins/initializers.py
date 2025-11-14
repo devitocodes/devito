@@ -240,11 +240,11 @@ def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
 
         b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo, strict=False)))]
         if any(np.array(b) < 0):
-            raise ValueError("Function `%s` halo is not sufficiently thick." % function)
+            raise ValueError(f"Function `{function}` halo is not sufficiently thick.")
 
     for d, (nl, nr) in zip(function.space_dimensions, as_tuple(nbl), strict=False):
-        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=nl)
-        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=nr)
+        dim_l = dv.SubDimension.left(name=f'abc_{d.name}_l', parent=d, thickness=nl)
+        dim_r = dv.SubDimension.right(name=f'abc_{d.name}_r', parent=d, thickness=nr)
         if mode == 'constant':
             subsl = nl
             subsr = d.symbolic_max - nr
@@ -259,7 +259,7 @@ def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
         rhs.append(function.subs({d: subsr}))
         options.extend([None, None])
 
-        if mapper and d in mapper.keys():
+        if mapper and d in mapper:
             exprs = mapper[d]
             lhs_extra = exprs['lhs']
             rhs_extra = exprs['rhs']
@@ -390,7 +390,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
 
         assert len(lhss) == len(rhss) == len(optionss)
 
-        name = name or 'initialize_%s' % '_'.join(f.name for f in functions)
+        name = name or 'initialize_{}'.format('_'.join(f.name for f in functions))
         assign(lhss, rhss, options=optionss, name=name, **kwargs)
 
     if pad_halo:

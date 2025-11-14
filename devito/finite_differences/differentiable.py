@@ -574,10 +574,7 @@ class Mul(DifferentiableOp, sympy.Mul):
             return sympy.S.Zero
 
         # a*1 -> a
-        if scalar - 1 == 0:
-            args = others
-        else:
-            args = [scalar] + others
+        args = others if scalar - 1 == 0 else [scalar] + others
 
         # Reorder for homogeneity with pure SymPy types
         _mulsort(args)
@@ -721,20 +718,20 @@ class IndexSum(sympy.Expr, Evaluable):
             except AttributeError:
                 pass
             raise ValueError("Expected Dimension with numeric size, "
-                             "got `%s` instead" % d)
+                             f"got `{d}` instead")
 
         # TODO: `has_free` only available with SymPy v>=1.10
         # We should start using `not expr.has_free(*dimensions)` once we drop
         # support for SymPy 1.8<=v<1.0
         if not all(d in expr.free_symbols for d in dimensions):
-            raise ValueError("All Dimensions `%s` must appear in `expr` "
-                             "as free variables" % str(dimensions))
+            raise ValueError(f"All Dimensions `{str(dimensions)}` must appear in `expr` "
+                             "as free variables")
 
         for i in expr.find(IndexSum):
             for d in dimensions:
                 if d in i.dimensions:
-                    raise ValueError("Dimension `%s` already appears in a "
-                                     "nested tensor contraction" % d)
+                    raise ValueError(f"Dimension `{d}` already appears in a "
+                                     "nested tensor contraction")
 
         obj = sympy.Expr.__new__(cls, expr)
         obj._expr = expr
@@ -743,7 +740,7 @@ class IndexSum(sympy.Expr, Evaluable):
         return obj
 
     def __repr__(self):
-        return "%s(%s, (%s))" % (self.__class__.__name__, self.expr,
+        return "{}({}, ({}))".format(self.__class__.__name__, self.expr,
                                  ', '.join(d.name for d in self.dimensions))
 
     __str__ = __repr__
@@ -903,7 +900,7 @@ class IndexDerivative(IndexSum):
 
         # Sanity check
         if not (expr.is_Mul and len(weightss) == 1):
-            raise ValueError("Expect `expr*weights`, got `%s` instead" % str(expr))
+            raise ValueError(f"Expect `expr*weights`, got `{str(expr)}` instead")
         weights = weightss.pop()
 
         obj = super().__new__(cls, expr, dimensions)

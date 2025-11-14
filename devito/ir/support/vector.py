@@ -214,7 +214,7 @@ class Vector(tuple):
         return Vector(*ret, smart=self.smart) if isinstance(key, slice) else ret
 
     def __repr__(self):
-        return "(%s)" % ','.join(str(i) for i in self)
+        return "({})".format(','.join(str(i) for i in self))
 
     @property
     def rank(self):
@@ -273,8 +273,7 @@ class LabeledVector(Vector):
         except (ValueError, TypeError):
             labels, values = (), ()
         if not all(isinstance(i, Dimension) for i in labels):
-            raise ValueError("All labels must be of type Dimension, got [%s]"
-                             % ','.join(i.__class__.__name__ for i in labels))
+            raise ValueError("All labels must be of type Dimension, got [{}]".format(','.join(i.__class__.__name__ for i in labels)))
         obj = super().__new__(cls, *values)
         obj.labels = labels
         return obj
@@ -287,8 +286,7 @@ class LabeledVector(Vector):
         if len(vectors) == 0:
             return LabeledVector()
         if not all(isinstance(v, LabeledVector) for v in vectors):
-            raise ValueError("All items must be of type LabeledVector, got [%s]"
-                             % ','.join(i.__class__.__name__ for i in vectors))
+            raise ValueError("All items must be of type LabeledVector, got [{}]".format(','.join(i.__class__.__name__ for i in vectors)))
         T = OrderedDict()
         for v in vectors:
             for l, i in zip(v.labels, v, strict=False):
@@ -296,7 +294,7 @@ class LabeledVector(Vector):
         return tuple((l, Vector(*i)) for l, i in T.items())
 
     def __repr__(self):
-        return "(%s)" % ','.join('%s:%s' % (l, i) for l, i in zip(self.labels, self, strict=False))
+        return "({})".format(','.join(f'{l}:{i}' for l, i in zip(self.labels, self, strict=False)))
 
     def __hash__(self):
         return hash((tuple(self), self.labels))
@@ -333,8 +331,7 @@ class LabeledVector(Vector):
                     return super().__getitem__(i)
             return None
         else:
-            raise TypeError("Indices must be integers, slices, or Dimensions, not %s"
-                            % type(index))
+            raise TypeError(f"Indices must be integers, slices, or Dimensions, not {type(index)}")
 
     def fromlabel(self, label, v=None):
         return self[label] if label in self.labels else v

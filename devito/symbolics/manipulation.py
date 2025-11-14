@@ -312,10 +312,7 @@ def _eval_numbers(expr, args):
     """
     numbers, others = split(args, lambda i: i.is_Number)
     if len(numbers) > 1:
-        if isinstance(expr, UnevaluableMixin):
-            cls = expr.func.__base__
-        else:
-            cls = expr.func
+        cls = expr.func.__base__ if isinstance(expr, UnevaluableMixin) else expr.func
         args[:] = [cls(*numbers)] + others
 
 

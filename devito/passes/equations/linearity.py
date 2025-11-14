@@ -6,6 +6,7 @@ import sympy
 
 from devito.symbolics import reuse_if_untouched
 from devito.tools import as_mapper, flatten, split, timed_pass
+import contextlib
 
 __all__ = ['collect_derivatives']
 
@@ -47,10 +48,8 @@ def inspect(expr):
         m = inspect(a)
         mapper.update(m)
 
-        try:
+        with contextlib.suppress(KeyError):
             counter.update(m[a])
-        except KeyError:
-            pass
 
     mapper[expr] = counter
 

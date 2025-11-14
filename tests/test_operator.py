@@ -69,7 +69,7 @@ class TestOperatorSetup:
         # Unrecognised platform name -> exception
         try:
             Operator(Eq(u, u + 1), platform='asga')
-            assert False
+            raise AssertionError()
         except InvalidOperator:
             assert True
 
@@ -93,7 +93,7 @@ class TestOperatorSetup:
         # ... but it will raise an exception if an unknown one
         try:
             Operator(Eq(u, u + 1), platform='nvidiaX', compiler='asf')
-            assert False
+            raise AssertionError()
         except InvalidOperator:
             assert True
 
@@ -107,7 +107,7 @@ class TestOperatorSetup:
         # Unsupported combination of `platform` and `language` should throw an error
         try:
             Operator(Eq(u, u + 1), platform='bdw', language='openacc')
-            assert False
+            raise AssertionError()
         except InvalidOperator:
             assert True
 
@@ -123,14 +123,14 @@ class TestOperatorSetup:
         # Unknown pass
         try:
             Operator(Eq(u, u + 1), opt=('aaa'))
-            assert False
+            raise AssertionError()
         except InvalidOperator:
             assert True
 
         # Unknown optimization option
         try:
             Operator(Eq(u, u + 1), opt=('advanced', {'aaa': 1}))
-            assert False
+            raise AssertionError()
         except InvalidOperator:
             assert True
 
@@ -761,8 +761,7 @@ class TestApplyArguments:
                 condition = arguments[name] == v
 
             if not condition:
-                error('Wrong argument %s: expected %s, got %s' %
-                      (name, v, arguments[name]))
+                error(f'Wrong argument {name}: expected {v}, got {arguments[name]}')
             assert condition
 
     def verify_parameters(self, parameters, expected):
@@ -774,11 +773,11 @@ class TestApplyArguments:
         parameters = [p.name for p in parameters]
         for expi in expected:
             if expi not in parameters + boilerplate:
-                error("Missing parameter: %s" % expi)
+                error(f"Missing parameter: {expi}")
             assert expi in parameters + boilerplate
         extra = [p for p in parameters if p not in expected and p not in boilerplate]
         if len(extra) > 0:
-            error("Redundant parameters: %s" % str(extra))
+            error(f"Redundant parameters: {str(extra)}")
         assert len(extra) == 0
 
     def test_default_functions(self):
@@ -1173,7 +1172,7 @@ class TestApplyArguments:
         op = Operator(Eq(a, a + a))
         try:
             op.apply(b=3)
-            assert False
+            raise AssertionError()
         except ValueError:
             # `b` means nothing to `op`, so we end up here
             assert True
@@ -1184,7 +1183,7 @@ class TestApplyArguments:
             assert True
         except ValueError:
             # we should not end up here as we're now ignoring unknown arguments
-            assert False
+            raise AssertionError()
         finally:
             configuration['ignore-unknowns'] = configuration._defaults['ignore-unknowns']
 
@@ -1226,11 +1225,11 @@ class TestApplyArguments:
 
         try:
             op.apply(a=a1, b=b0)
-            assert False
+            raise AssertionError()
         except ValueError as e:
             assert 'Override' in e.args[0]  # Check it's hitting the right error msg
         except:
-            assert False
+            raise AssertionError()
 
     def test_incomplete_override(self):
         """
@@ -1249,11 +1248,11 @@ class TestApplyArguments:
 
         try:
             op.apply(a=a1)
-            assert False
+            raise AssertionError()
         except ValueError as e:
             assert 'Default' in e.args[0]  # Check it's hitting the right error msg
         except:
-            assert False
+            raise AssertionError()
 
     @pytest.mark.parallel(mode=1)
     def test_new_distributor(self, mode):

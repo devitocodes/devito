@@ -95,10 +95,7 @@ def q_terminalop(expr, depth=0):
         return True
     elif expr.is_Add or expr.is_Mul:
         for a in expr.args:
-            if a.is_Pow:
-                elems = a.args
-            else:
-                elems = [a]
+            elems = a.args if a.is_Pow else [a]
             if any(not q_leaf(i) for i in elems):
                 return False
         return True

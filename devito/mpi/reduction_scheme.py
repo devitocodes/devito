@@ -22,7 +22,7 @@ class DistReduce(sympy.Function, Reconstructable):
         return obj
 
     def __repr__(self):
-        return "DistReduce(%s,%s)" % (self.var, self.op)
+        return f"DistReduce({self.var},{self.op})"
 
     __str__ = __repr__
 

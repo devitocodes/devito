@@ -16,6 +16,7 @@ from devito.tools import (  # noqa
 )
 from devito.types import Symbol
 from devito.types.basic import Basic
+import contextlib
 
 __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
            'LeftShift', 'RightShift', 'IntDiv', 'CallFromPointer',
@@ -476,10 +477,8 @@ class Cast(UnaryOp):
     @property
     def _C_ctype(self):
         ctype = ctypes_vector_mapper.get(self.dtype, self.dtype)
-        try:
+        with contextlib.suppress(TypeError):
             ctype = dtype_to_ctype(ctype)
-        except TypeError:
-            pass
         return ctype
 
     @property
@@ -674,10 +673,7 @@ class DefFunction(Function, Pickable):
         return self._template
 
     def __str__(self):
-        if self.template:
-            template = f"<{','.join(str(i) for i in self.template)}>"
-        else:
-            template = ''
+        template = f"<{','.join(str(i) for i in self.template)}>" if self.template else ''
         arguments = ', '.join(str(i) for i in self.arguments)
         return f"{self.name}{template}({arguments})"
 

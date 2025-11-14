@@ -15,6 +15,7 @@ from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import CriticalRegion, Fence, WeakFence
+import contextlib
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -58,7 +59,7 @@ class Cluster:
         self._halo_scheme = halo_scheme
 
     def __repr__(self):
-        return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
+        return "Cluster([{}])".format(('\n' + ' '*9).join(f'{i}' for i in self.exprs))
 
     @classmethod
     def from_clusters(cls, *clusters):
@@ -184,10 +185,8 @@ class Cluster:
         """
         ret = set()
         for f in self.functions:
-            try:
+            with contextlib.suppress(AttributeError):
                 ret.update(f._dist_dimensions)
-            except AttributeError:
-                pass
         return frozenset(ret)
 
     @cached_property
@@ -380,10 +379,7 @@ class Cluster:
         oobs = set()
         for f, v in parts.items():
             for i in v:
-                if i.dim.is_Sub:
-                    d = i.dim.parent
-                else:
-                    d = i.dim
+                d = i.dim.parent if i.dim.is_Sub else i.dim
                 try:
                     if i.lower < 0 or \
                        i.upper > f._size_nodomain[d].left + f._size_halo[d].right:

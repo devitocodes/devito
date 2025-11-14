@@ -32,7 +32,7 @@ class IterationTree(tuple):
         return [i.dim for i in self]
 
     def __repr__(self):
-        return "IterationTree%s" % super().__repr__()
+        return f"IterationTree{super().__repr__()}"
 
     def __getitem__(self, key):
         ret = super().__getitem__(key)

@@ -581,7 +581,7 @@ class TestCaching:
         grid = Grid(shape=(nx, ny), dtype=np.float64)
         cache_size = len(_SymbolCache)
 
-        for i in range(10):
+        for _i in range(10):
             assert(len(_SymbolCache) == cache_size)
 
             Function(name='u', grid=grid, space_order=2)

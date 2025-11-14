@@ -91,10 +91,7 @@ def cire(clusters, mode, sregistry, options, platform):
     # NOTE: Handle prematurely expanded derivatives -- current default on
     # several backends, but soon to become legacy
     if mode == 'sops':
-        if options['expand']:
-            mode = 'eval-derivs'
-        else:
-            mode = 'index-derivs'
+        mode = 'eval-derivs' if options['expand'] else 'index-derivs'
 
     for cls in modes[mode]:
         transformer = cls(sregistry, options, platform)
@@ -516,10 +513,7 @@ def collect(extracted, ispace, minstorage):
             unseen.remove(u)
         group = Group(group, ispace=ispace)
 
-        if minstorage:
-            k = group.dimensions_translated
-        else:
-            k = group.dimensions
+        k = group.dimensions_translated if minstorage else group.dimensions
         mapper.setdefault(k, []).append(group)
 
     aliases = AliasList()
@@ -715,7 +709,7 @@ def lower_aliases(aliases, meta, maxpar):
                         m = i.dim.symbolic_min - i.dim.parent.symbolic_min
                     else:
                         m = 0
-                    d = dmapper[i.dim] = IncrDimension("%ss" % i.dim.name, i.dim, m,
+                    d = dmapper[i.dim] = IncrDimension(f"{i.dim.name}s", i.dim, m,
                                                        dd.symbolic_size, 1, dd.step)
                 sub_iterators[i.dim] = d
             else:
@@ -786,12 +780,12 @@ def optimize_schedule_rotations(schedule, sregistry):
         iis = candidate.lower
         iib = candidate.upper
 
-        name = sregistry.make_name(prefix='%sii' % d.root.name)
+        name = sregistry.make_name(prefix=f'{d.root.name}ii')
         ii = ModuloDimension(name, ds, iis, incr=iib)
 
-        cd = CustomDimension(name='%sc' % d.root.name, symbolic_min=ii,
+        cd = CustomDimension(name=f'{d.root.name}c', symbolic_min=ii,
                              symbolic_max=iib, symbolic_size=n)
-        dsi = ModuloDimension('%si' % ds.root.name, cd, cd + ds - iis, n)
+        dsi = ModuloDimension(f'{ds.root.name}i', cd, cd + ds - iis, n)
 
         mapper = OrderedDict()
         for i in g:
@@ -802,7 +796,7 @@ def optimize_schedule_rotations(schedule, sregistry):
                 try:
                     md = mapper[v]
                 except KeyError:
-                    name = sregistry.make_name(prefix='%sr' % d.root.name)
+                    name = sregistry.make_name(prefix=f'{d.root.name}r')
                     md = mapper.setdefault(v, ModuloDimension(name, ds, v, n))
                 mds.append(md)
             indicess = [indices[:ridx] + [md] + indices[ridx + 1:]
@@ -1074,7 +1068,7 @@ class Group(tuple):
         return obj
 
     def __repr__(self):
-        return "Group(%s)" % ", ".join([str(i) for i in self])
+        return "Group({})".format(", ".join([str(i) for i in self]))
 
     def find_rotation_distance(self, d, interval):
         """
@@ -1256,7 +1250,7 @@ class Alias:
         self.score = score
 
     def __repr__(self):
-        return "Alias<<%s>>" % self.pivot
+        return f"Alias<<{self.pivot}>>"
 
     @property
     def free_symbols(self):
@@ -1297,7 +1291,7 @@ class AliasList:
 
     def __repr__(self):
         if self._list:
-            return "AliasList<\n  %s\n>" % ",\n  ".join(str(i) for i in self._list)
+            return "AliasList<\n  {}\n>".format(",\n  ".join(str(i) for i in self._list))
         else:
             return "<>"
 
@@ -1305,8 +1299,7 @@ class AliasList:
         return self._list.__len__()
 
     def __iter__(self):
-        for i in self._list:
-            yield i
+        yield from self._list
 
     def add(self, pivot, aliaseds, intervals, distances, score):
         assert len(aliaseds) == len(distances)

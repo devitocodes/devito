@@ -437,10 +437,7 @@ class Data(np.ndarray):
             transform = []
             for j, k in zip(idx, self._distributor.glb_shape, strict=False):
                 if isinstance(j, slice) and j.step is not None and j.step < 0:
-                    if j.start is None:
-                        stop = None
-                    else:
-                        stop = j.start + 1
+                    stop = None if j.start is None else j.start + 1
                     if j.stop is None and j.start is None:
                         start = int(np.mod(k-1, -j.step))
                     elif j.stop is None:
@@ -543,10 +540,7 @@ class Data(np.ndarray):
             elif isinstance(j, slice) and j.start is None:
                 norm = 0
             elif isinstance(j, slice) and j.start is not None:
-                if j.start >= 0:
-                    norm = j.start
-                else:
-                    norm = j.start+k.glb_max+1
+                norm = j.start if j.start >= 0 else j.start + k.glb_max + 1
             else:
                 norm = j
             if i is not None:

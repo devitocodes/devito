@@ -143,10 +143,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
         return expr
 
     # Enforce stable time coefficients
-    if dim.is_Time:
-        coefficients = 'taylor'
-    else:
-        coefficients = expr.coefficients
+    coefficients = 'taylor' if dim.is_Time else expr.coefficients
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
                            matvec, x0, coefficients, expand, weights)
@@ -184,10 +181,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         weights = [weights._subs(wdim, i) for i in range(len(indices))]
 
     # Enforce fixed precision FD coefficients to avoid variations in results
-    if scale:
-        scale = dim.spacing**(-deriv_order)
-    else:
-        scale = 1
+    scale = dim.spacing ** (-deriv_order) if scale else 1
     weights = [sympify(scale * w).evalf(_PRECISION) for w in weights]
 
     # Transpose the FD, if necessary

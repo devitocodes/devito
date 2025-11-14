@@ -81,7 +81,7 @@ def devito_mpi_init():
         try:
             thread_level = mpi4py_thread_levels[mpi4py.rc.thread_level]
         except KeyError:
-            assert False
+            raise AssertionError()
 
         MPI.Init_thread(thread_level)
 
@@ -202,7 +202,7 @@ class AbstractDistributor(ABC):
         """
         if dim not in self.dimensions:
             if strict:
-                raise ValueError("`%s` must be one of the Distributor dimensions" % dim)
+                raise ValueError(f"`{dim}` must be one of the Distributor dimensions")
             else:
                 return args[0]
         return self.decomposition[dim].index_glb_to_loc(*args)
@@ -608,8 +608,8 @@ class SubDistributor(DenseDistributor):
             if di.issuperset(si) or di.isdisjoint(si):
                 return {LEFT: False, RIGHT: False}
             elif d.local:
-                raise ValueError("SubDimension %s is local and cannot be"
-                                 " decomposed across MPI ranks" % d)
+                raise ValueError(f"SubDimension {d} is local and cannot be"
+                                 " decomposed across MPI ranks")
             return {LEFT: si.left < di.left,
                     RIGHT: si.right > di.right}
 
@@ -979,7 +979,7 @@ def compute_dims(nprocs, ndim):
     if not v.is_integer():
         # Since pow(64, 1/3) == 3.999..4
         v = int(ceil(v))
-        if not v**ndim == nprocs:
+        if v ** ndim != nprocs:
             # Fallback
             return tuple(MPI.Compute_dims(nprocs, ndim))
     else:

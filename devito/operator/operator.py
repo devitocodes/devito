@@ -42,6 +42,7 @@ from devito.tools import (
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness
+import contextlib
 
 __all__ = ['Operator']
 
@@ -400,10 +401,8 @@ class Operator(Callable):
 
         # Operation count after specialization
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
-        try:
+        with contextlib.suppress(AttributeError):
             profiler.record_ops_variation(init_ops, final_ops)
-        except AttributeError:
-            pass
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters)
@@ -464,10 +463,8 @@ class Operator(Callable):
         uiet = iet_build(stree)
 
         # Analyze the IET Sections for C-level profiling
-        try:
+        with contextlib.suppress(AttributeError):
             profiler.analyze(uiet)
-        except AttributeError:
-            pass
 
         return uiet
 
@@ -752,10 +749,8 @@ class Operator(Callable):
         ret = set()
         for i in self.input:
             ret.update(i._arg_names)
-            try:
+            with contextlib.suppress(AttributeError):
                 ret.update(i.grid._arg_names)
-            except AttributeError:
-                pass
         for d in self.dimensions:
             ret.update(d._arg_names)
         ret.update(p.name for p in self.parameters)
@@ -1005,10 +1000,7 @@ class Operator(Callable):
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
-                newmsg = "error in argument '%s' with value '%s': %s" % (
-                    self.parameters[argnum].name,
-                    arg_values[argnum],
-                    e.args[0])
+                newmsg = f"error in argument '{self.parameters[argnum].name}' with value '{arg_values[argnum]}': {e.args[0]}"
                 raise ctypes.ArgumentError(newmsg) from e
             else:
                 raise
@@ -1499,10 +1491,7 @@ class ArgumentsMap(dict):
                or not i.is_regular:
                 continue
 
-            if i.is_regular:
-                nbytes = i.nbytes
-            else:
-                nbytes = i.nbytes_max
+            nbytes = i.nbytes if i.is_regular else i.nbytes_max
             v = subs_op_args(nbytes, self)
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges

@@ -42,7 +42,7 @@ def test_concurrent_executing_operators():
 
     info("Running operator in threadpool")
     futures = []
-    for i in range(1000):
+    for _i in range(1000):
         futures.append(tpe.submit(do_run, op))
 
     # Get results - exceptions will be raised here if there are any

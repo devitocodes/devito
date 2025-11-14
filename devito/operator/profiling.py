@@ -196,7 +196,7 @@ class Profiler:
         comm = args.comm
 
         summary = PerformanceSummary()
-        for name, data in self._sections.items():
+        for name, _data in self._sections.items():
             # Time to run the section
             time = max(getattr(args[self.name]._obj, name), 10e-7)
 
@@ -460,10 +460,7 @@ class PerformanceSummary(OrderedDict):
         gflops = float(ops)/10**9
         gflopss = gflops/time
 
-        if np.isnan(traffic) or traffic == 0:
-            oi = None
-        else:
-            oi = float(ops/traffic)
+        oi = None if np.isnan(traffic) or traffic == 0 else float(ops / traffic)
 
         self.globals[key] = PerfEntry(time, gflopss, None, oi, None, None)
 

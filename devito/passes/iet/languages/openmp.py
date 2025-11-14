@@ -45,8 +45,8 @@ class OmpRegion(ParallelBlock):
 
     @classmethod
     def _make_header(cls, nthreads, private=None):
-        private = ('private(%s)' % ','.join(private)) if private else ''
-        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
+        private = ('private({})'.format(','.join(private))) if private else ''
+        return c.Pragma(f'omp parallel num_threads({nthreads.name}) {private}')
 
 
 class OmpIteration(PragmaIteration):
@@ -67,11 +67,11 @@ class OmpIteration(PragmaIteration):
             clauses.append('collapse(%d)' % ncollapsed)
 
         if chunk_size is not False:
-            clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
+            clauses.append('schedule({},{})'.format(schedule or 'dynamic',
                                                 chunk_size or 1))
 
         if nthreads:
-            clauses.append('num_threads(%s)' % nthreads)
+            clauses.append(f'num_threads({nthreads})')
 
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))
@@ -93,7 +93,7 @@ class DeviceOmpIteration(OmpIteration):
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
         deviceptrs = filter_ordered(i.name for i in indexeds if i.function._mem_local)
         if deviceptrs:
-            clauses.append("is_device_ptr(%s)" % ",".join(deviceptrs))
+            clauses.append("is_device_ptr({})".format(",".join(deviceptrs)))
 
         return clauses
 

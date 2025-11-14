@@ -229,10 +229,7 @@ def guard(clusters):
             for cd in cds:
                 # `BOTTOM` parent implies a guard that lives outside of
                 # any iteration space, which corresponds to the placeholder None
-                if cd.parent is BOTTOM:
-                    d = None
-                else:
-                    d = cd.parent
+                d = None if cd.parent is BOTTOM else cd.parent
 
                 # If `cd` uses, as condition, an arbitrary SymPy expression, then
                 # we must ensure to nest it inside the last of the Dimensions

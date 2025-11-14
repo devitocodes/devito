@@ -14,6 +14,7 @@ from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
 from .finite_difference import cross_derivative, generic_derivative
 from .rsfd import d45
 from .tools import direct, transpose
+import contextlib
 
 __all__ = ['Derivative']
 
@@ -283,7 +284,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 expr.time_order
                 if getattr(d, 'is_Time', False)
                 else expr.space_order
-                for d in dcounter.keys()
+                for d in dcounter
             )
         return fd_order
 
@@ -481,10 +482,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         This is really useful for more advanced FD definitions. For example
         the conventional Laplacian is `.dxl.T * .dxl`
         """
-        if self._transpose == direct:
-            adjoint = transpose
-        else:
-            adjoint = direct
+        adjoint = transpose if self._transpose == direct else direct
 
         return self._rebuild(transpose=adjoint)
 
@@ -507,7 +505,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         x0 = func.indices_ref.getters
         psubs = {}
         nx0 = x0.copy()
-        for d, d0 in x0.items():
+        for d, _d0 in x0.items():
             if d in self.dims:
                 # d is a valid Derivative dimension
                 continue
@@ -581,10 +579,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             expr = interp_for_fd(expr, x0_interp, **kwargs)
 
         # Step 2: Evaluate derivatives within expression
-        try:
+        with contextlib.suppress(AttributeError):
             expr = expr._evaluate(**kwargs)
-        except AttributeError:
-            pass
 
         # If True, the derivative will be fully expanded as a sum of products,
         # otherwise an IndexSum will returned

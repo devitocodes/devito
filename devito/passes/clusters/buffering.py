@@ -97,10 +97,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     assert callable(key)
 
     v1 = kwargs.get('opt_init_onwrite', False)
-    if callable(v1):
-        init_onwrite = v1
-    else:
-        init_onwrite = lambda f: v1
+    init_onwrite = v1 if callable(v1) else lambda f: v1
 
     options = dict(options)
     options.update({
@@ -405,7 +402,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
         # Finally create the actual buffer
         cls = callback or Array
-        name = sregistry.make_name(prefix='%sb' % f.name)
+        name = sregistry.make_name(prefix=f'{f.name}b')
         # We specify the padding to match the input Function's one, so that
         # the array can be used in place of the Function with valid strides
         # Plain Array do not track mapped so we default to no padding
@@ -445,7 +442,7 @@ class BufferDescriptor:
         self.indices = extract_indices(f, self.dim, clusters)
 
     def __repr__(self):
-        return "Descriptor[%s -> %s]" % (self.f, self.b)
+        return f"Descriptor[{self.f} -> {self.b}]"
 
     @property
     def size(self):
@@ -580,10 +577,7 @@ class BufferDescriptor:
         # May be `db0` (e.g., for double buffering) or `time`
         dim = self.ispace[self.dim].dim
 
-        if self.is_forward_buffering:
-            direction = Forward
-        else:
-            direction = Backward
+        direction = Forward if self.is_forward_buffering else Backward
 
         return self.write_to.switch(self.xd, dim, direction)
 
@@ -805,7 +799,7 @@ def offset_from_centre(d, indices):
                     raise ValueError
             except (IndexError, ValueError):
                 raise NotImplementedError("Cannot apply buffering with nonlinear "
-                                          "index functions (found `%s`)" % v)
+                                          f"index functions (found `{v}`)")
 
         try:
             # Start assuming e.g. `indices = [time - 1, time + 2]`

@@ -766,7 +766,7 @@ def test_interpolation_radius(r, interp):
                              r=r, interpolation=interp)
     try:
         src.interpolate(u)
-        assert False
+        raise AssertionError()
     except ValueError:
         assert True
 
