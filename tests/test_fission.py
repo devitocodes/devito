@@ -2,7 +2,8 @@ import numpy as np
 
 from conftest import assert_structure
 from devito import (
-    Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, TimeFunction, solve
+    Buffer, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain,
+    TimeFunction, VectorTimeFunction, curl, solve
 )
 
 
@@ -126,3 +127,21 @@ def test_issue_1921():
     op1.apply(time_m=1, time_M=5, g=g1)
 
     assert np.all(g.data == g1.data)
+
+
+def test_fission_largest_cluster():
+    grid = Grid(shape=(10, 10, 10))
+    x, y, z = grid.dimensions
+
+    A = VectorTimeFunction(name='A', grid=grid, save=Buffer(1), space_order=2,
+                           time_order=1, staggered=(x, y, z))
+    B = VectorTimeFunction(name='B', grid=grid, save=Buffer(1), space_order=2,
+                           time_order=1, staggered=((y, z), (x, z), (x, y)))
+    f = Function(name='f', grid=grid, space_order=2)
+
+    eqs = [Eq(B.forward, solve(Eq(curl(A), -B.dt), B.forward)),
+           Eq(A.forward, solve(Eq(curl(B.forward), f*A.dt), A.forward))]
+
+    op = Operator(eqs, opt='fission')
+
+    assert_structure(op, ['t,x,y,z', 't,x,y,z'], 't,x,y,z,x,y,z')
