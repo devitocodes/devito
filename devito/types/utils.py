@@ -1,12 +1,13 @@
+from collections import namedtuple
 from ctypes import POINTER, Structure
 from functools import cached_property
 
 from devito.tools import EnrichedTuple, Tag
 # Additional Function-related APIs
 
-__all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'IgnoreDimSort',
-           'HierarchyLayer', 'HostLayer', 'DeviceLayer', 'DiskLayer',
-           'host_layer', 'device_layer', 'disk_layer']
+__all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'Size', 'Offset',
+           'IgnoreDimSort', 'HierarchyLayer', 'HostLayer', 'DeviceLayer',
+           'DiskLayer', 'host_layer', 'device_layer', 'disk_layer']
 
 
 class Buffer(Tag):
@@ -21,6 +22,10 @@ class Stagger(Tag):
 
 NODE = Stagger('node')  # noqa
 CELL = Stagger('cell')
+
+
+Size = namedtuple('Size', 'left right')
+Offset = namedtuple('Offset', 'left right')
 
 
 class DimensionTuple(EnrichedTuple):

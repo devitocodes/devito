@@ -19,7 +19,7 @@ from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
                           is_integer, generator, split, timed_pass)
 from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
                           ModuloDimension, CustomDimension, IncrDimension,
-                          StencilDimension, Indexed, Hyperplane)
+                          StencilDimension, Indexed, Hyperplane, Size)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -1056,9 +1056,6 @@ def pick_best(variants):
 
 
 # Utilities
-
-
-Size = namedtuple('Size', 'left right')
 
 
 class Group(tuple):
