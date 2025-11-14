@@ -950,7 +950,11 @@ class IndexDerivative(IndexSum):
 
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
-    pass
+
+    def _eval_at(self, func):
+        # Like EvalDerivative, a DiffDerivative must have already been evaluated
+        # at a valid x0 and should not be re-evaluated at a different location
+        return self
 
 
 # SymPy args ordering is the same for Derivatives and IndexDerivatives
@@ -997,6 +1001,11 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
     def _new_rawargs(self, *args, **kwargs):
         kwargs.pop('is_commutative', None)
         return self.func(*args, **kwargs)
+
+    def _eval_at(self, func):
+        # An EvalDerivative must have already been evaluated at a valid x0
+        # and should not be re-evaluated at a different location
+        return self
 
 
 class diffify:
@@ -1131,13 +1140,8 @@ def _(expr, x0, **kwargs):
 
 @interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
-    from devito.finite_differences.derivative import Derivative
-    x0_expr = {d: v for d, v in x0.items() if v is not expr.indices_ref[d]}
-    if expr.is_parameter:
-        return expr
-    elif x0_expr:
-        dims = tuple((d, 0) for d in x0_expr)
-        fd_o = tuple([expr.interp_order]*len(dims))
-        return Derivative(expr, *dims, fd_order=fd_o, x0=x0_expr)
+    x0_expr = {d: v for d, v in x0.items() if v.has(d)}
+    if x0_expr:
+        return expr.subs({expr.indices[d]: v for d, v in x0_expr.items()})
     else:
         return expr

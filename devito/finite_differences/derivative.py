@@ -335,20 +335,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             except AttributeError:
                 raise TypeError("fd_order incompatible with dimensions") from None
 
-        if isinstance(self.expr, Derivative):
-            # In case this was called on a perfect cross-derivative `u.dxdy`
-            # we need to propagate the call to the nested derivative
-            rkwe = dict(rkw)
-            rkwe.pop('weights', None)
-            if 'x0' in rkwe:
-                rkwe['x0'] = self._filter_dims(self.expr._filter_dims(rkw['x0']),
-                                               neg=True)
-            if fd_order is not None:
-                fdo = self.expr._filter_dims(_fd_order)
-                if fdo:
-                    rkwe['fd_order'] = fdo
-            rkw['expr'] = self.expr(**rkwe)
-
         if fd_order is not None:
             rkw['fd_order'] = self._filter_dims(_fd_order, as_tuple=True)
 
@@ -530,9 +516,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # it into `u(x + h_x/2).dx` and `v(x).dx`, since they require
             # different FD indices
             mapper = as_mapper(self.expr._args_diff, lambda i: i.staggered)
+            if len(mapper) == 1:
+                # All terms have the same staggering, we can use expr as is
+                return self._rebuild(self.expr, **rkw)
             args = [self.expr.func(*v) for v in mapper.values()]
             args.extend([a for a in self.expr.args if a not in self.expr._args_diff])
-            args = [self._rebuild(a, **rkw) for a in args]
+            args = [self._rebuild(a)._eval_at(func) for a in args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
             # For Mul, We treat the basic case `u(x + h_x/2) * v(x) which is what appear
