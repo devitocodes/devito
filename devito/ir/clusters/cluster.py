@@ -470,7 +470,16 @@ class ClusterGroup(tuple):
 
     def __new__(cls, clusters, ispace=None):
         obj = super().__new__(cls, flatten(as_tuple(clusters)))
-        obj._ispace = ispace
+
+        if ispace is not None:
+            obj._ispace = ispace
+        else:
+            # Best effort attempt to infer a common IterationSpace
+            try:
+                obj._ispace, = {c.ispace for c in obj}
+            except ValueError:
+                obj._ispace = None
+
         return obj
 
     @classmethod
