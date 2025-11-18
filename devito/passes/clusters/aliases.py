@@ -880,13 +880,14 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             # The user might suggest to go more relaxed about this via `opt_minmem`,
             # in which case we extend the halo based on the surrounding
             # Functions to minimize support variables such as strides etc
-            halo = {i.dim: Size(abs(i.lower), abs(i.upper)) for i in writeto}
+            min_halo = {i.dim: Size(abs(i.lower), abs(i.upper)) for i in writeto}
 
             if opt_minmem:
                 functions = []
             else:
                 functions = retrieve_functions(pivot)
 
+            halo = dict(min_halo)
             for f in functions:
                 for d, h0 in list(halo.items()):
                     try:
@@ -895,25 +896,26 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
                         continue
                     halo[d] = Size(max(h0.left, h1.left), max(h0.right, h1.right))
 
+            shift = [halo[d].left - min_halo[d].left for d in writeto.itdims]
             halo = tuple(halo.values())
 
             # The indices used to write into the Array
             indices = []
-            for i in writeto:
+            for i, s in zip(writeto, shift):
                 try:
                     # E.g., `xs`
                     sub_iterators = writeto.sub_iterators[i.dim]
                     assert len(sub_iterators) <= 1
-                    indices.append(sub_iterators[0])
+                    indices.append(sub_iterators[0] + s)
                 except (KeyError, IndexError):
                     # E.g., `z` -- a non-shifted Dimension
-                    indices.append(i.dim - i.lower)
+                    indices.append(i.dim - i.lower + s)
 
             dtype = sympy_dtype(pivot, base=meta.dtype)
             obj = make(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
             expression = Eq(obj[indices], uxreplace(pivot, subs))
 
-            callback = lambda idx: obj[idx]
+            callback = lambda idx: obj[[i + s for i, s in zip(idx, shift)]]
         else:
             # Degenerate case: scalar expression
             assert writeto.size == 0
