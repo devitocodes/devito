@@ -1011,6 +1011,11 @@ def pick_best(variants):
         indexeds1 = search(i.exprs, Indexed)
         functions1.update({i.function for i in indexeds1})
 
+        # Filter out objects that are extremely likely to be in cache if not
+        # in registers
+        functions0 = {f for f in functions0 if f.ndim >= 2}
+        functions1 = {f for f in functions1 if f.ndim >= 2}
+
         nfunctions0 = len(functions0)
         nfunctions1 = len(functions1)
 
