@@ -175,13 +175,17 @@ class LowerImplicitMSD(LowerMSD):
 
             # Make sure the "implicit expressions" are scheduled in
             # the innermost loop such that the thicknesses can be computed
-            edims = set(retrieve_dimensions(mapper.values(), deep=True))
-            if dim not in edims or not edims.issubset(prefix.dimensions):
+            def key(tkn):
+                edims = set(retrieve_dimensions(tkn, deep=True))
+                return dim._defines & edims and edims.issubset(prefix.dimensions)
+
+            mapper = {k: v for k, v in mapper.items() if key(v)}
+            if not mapper:
                 continue
 
             found[d.functions].clusters.append(c)
             found[d.functions].mapper = reduce(found[d.functions].mapper,
-                                               mapper, edims, prefix)
+                                               mapper, {dim}, prefix)
 
         # Turn the reduced mapper into a list of equations
         processed = []
@@ -262,7 +266,7 @@ def reduce(m0, m1, edims, prefix):
     def key(i):
         try:
             return i.indices[d]
-        except AttributeError:
+        except (KeyError, AttributeError):
             return i
 
     mapper = {}
