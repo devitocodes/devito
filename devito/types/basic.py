@@ -1028,6 +1028,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         return mapper
 
+    @property
+    def is_harmonic(self):
+        return self.avg_mode == 'harmonic' or self.avg_mode == 'safe_harmonic'
+
+    @property
+    def is_harmonic_safe(self):
+        return self.avg_mode == 'safe_harmonic'
+
     def _evaluate(self, **kwargs):
         """
         Evaluate off the grid with 2nd order interpolation.
@@ -1046,8 +1054,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         io = self.interp_order
         retval = self.subs({i.subs(subs): self.indices_ref[d]
                             for d, i in mapper.items()})
-        if 'harmonic' in self._avg_mode:
-            retval = retval.safe_inv(retval, safe='safe' in self._avg_mode)
+        if self.is_harmonic:
+            retval = retval._inv(retval, safe=self.is_harmonic_safe)
 
         # Apply interpolation from inner most dim
         for d, i in mapper.items():
@@ -1059,9 +1067,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         retval = retval.subs(subs)
 
         # If harmonic averaging, invert at the end
-        if 'harmonic' in self._avg_mode:
-            retval = retval.safe_inv(self.function.subs(subs),
-                                     safe='safe' in self._avg_mode)
+        if self.is_harmonic:
+            retval = retval._inv(self.function.subs(subs), safe=self.is_harmonic_safe)
 
         return retval
 

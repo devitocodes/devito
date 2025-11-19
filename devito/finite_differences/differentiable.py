@@ -259,7 +259,7 @@ class Differentiable(sympy.Expr, Evaluable):
         from .elementary import floor
         return floor(other / self)
 
-    def safe_inv(self, ref, safe=False):
+    def _inv(self, ref, safe=False):
         if safe:
             return SafeInv(self, ref or self)
         else:

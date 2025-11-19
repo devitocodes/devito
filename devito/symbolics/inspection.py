@@ -13,7 +13,7 @@ from devito.symbolics.extended_dtypes import INT
 from devito.symbolics.extended_sympy import (CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
-from devito.tools import as_tuple, prod
+from devito.tools import as_tuple, prod, is_integer
 from devito.tools.dtypes_lowering import infer_dtype
 
 __all__ = ['compare_ops', 'estimate_cost', 'has_integer_args', 'sympy_dtype']
@@ -287,12 +287,14 @@ def has_integer_args(*args):
         try:
             return np.issubdtype(args[0].dtype, np.integer)
         except AttributeError:
-            return args[0].is_integer
+            return is_integer(args[0])
 
     res = True
     for a in args:
         try:
-            if isinstance(a, INT):
+            if isinstance(a, INT) or \
+               is_integer(a) or \
+               has_integer_args(a):
                 res = res and True
             elif len(a.args) > 0:
                 res = res and has_integer_args(*a.args)

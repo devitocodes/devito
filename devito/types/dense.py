@@ -1541,7 +1541,7 @@ class TimeFunction(Function):
         retval = super()._evaluate(**kwargs)
         if not self._time_buffering and not retval.is_Function:
             # Saved TimeFunction might need streaming, expand interpolations
-            # for easier processing.
+            # for easier processing
             return retval.evaluate
         else:
             return retval
