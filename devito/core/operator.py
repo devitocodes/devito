@@ -123,6 +123,12 @@ class BasicOperator(Operator):
     finite-difference derivatives.
     """
 
+    DERIV_COLLECT = True
+    """
+    Factorize finite-difference derivatives exploiting the linearity of the FD
+    operators.
+    """
+
     DERIV_SCHEDULE = 'basic'
     """
     The schedule to use for the computation of finite-difference derivatives.
@@ -296,7 +302,7 @@ class CustomOperator(BasicOperator):
         # Call passes
         for i in passes:
             try:
-                expressions = passes_mapper[i](expressions)
+                expressions = passes_mapper[i](expressions, **kwargs)
             except KeyError:
                 pass
 
