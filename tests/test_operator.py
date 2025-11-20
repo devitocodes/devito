@@ -2209,8 +2209,12 @@ class TestEstimateMemory:
         eq0 = Eq(f.forward, g + sin(a).dx)
         eq1 = Eq(g.forward, f + sin(a).dx)
 
+        # Ensure the same behavior (and thus honours legacy) irrespective of the
+        # Operator.CIRE_MINMEM value
+        opt = ('advanced', {'cire-minmem': True})
+
         with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
-            op = Operator([eq0, eq1])
+            op = Operator([eq0, eq1], opt=opt)
 
             # Regression to ensure this test functions as intended
             # Ensure an array temporary is created
