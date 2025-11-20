@@ -948,6 +948,20 @@ class IndexDerivative(IndexSum):
 
         return EvalDerivative(*expr.args, base=self.base)
 
+    def _subs(self, old, new, **hints):
+        # We have to work around SymPy's weak implementation of `subs` when
+        # it gets to replacing sub-operations such as `a*b*c` (i.e., potentially
+        # `self`'s `base`) within say `a*b*c*w[i0]` (i.e., the corresponding
+        # `self.expr`), because depending on the complexity of `a/b/c`, SymPy
+        # may fail to identify the sub-expression to be replaced (note: if
+        # `a/b/c` are atoms or Indexeds, it's generally fine)
+
+        if not old.is_Mul or \
+           old is not self.base:
+            return super()._subs(old, new, **hints)
+
+        return self._rebuild(new * self.weights)
+
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
     pass
