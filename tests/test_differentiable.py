@@ -57,7 +57,7 @@ def test_shift():
     assert a.shift(x, x.spacing).shift(x, -x.spacing) == a
     assert a.shift(x, x.spacing).shift(x, x.spacing) == a.shift(x, 2*x.spacing)
     assert a.dx.evaluate.shift(x, x.spacing) == a.shift(x, x.spacing).dx.evaluate
-    assert a.shift(x, .5 * x.spacing)._grid_map == {x: x + .5 * x.spacing}
+    assert a.shift(x, .5 * x.spacing)._grid_map == {x: x + .5 * x.spacing, 'subs': {}}
 
 
 def test_interp():
@@ -109,23 +109,23 @@ def test_avg_mode(ndim, io):
 
     with pytest.raises(ValueError):
         # interp_order > space_order
-        Function(name="a", grid=grid, parameter=True, interp_order=8, space_order=4)
+        Function(name="a", grid=grid, interp_order=8, space_order=4)
     with pytest.raises(ValueError):
         # interp_order < 1
-        Function(name="a", grid=grid, parameter=True, interp_order=0, space_order=4)
+        Function(name="a", grid=grid, interp_order=0, space_order=4)
     with pytest.raises(TypeError):
         # interp_order not int
-        Function(name="a", grid=grid, parameter=True, interp_order=2.5, space_order=4)
+        Function(name="a", grid=grid, interp_order=2.5, space_order=4)
 
     a0 = Function(name="a0", grid=grid, **kw)
-    a = Function(name="a", grid=grid, parameter=True, **kw)
-    b = Function(name="b", grid=grid, parameter=True, avg_mode='harmonic', **kw)
+    a = Function(name="a", grid=grid, **kw)
+    b = Function(name="b", grid=grid, avg_mode='safe_harmonic', **kw)
 
     a0_avg = a0._eval_at(v)
     a_avg = a._eval_at(v).evaluate.simplify()
     b_avg = b._eval_at(v).evaluate.simplify()
 
-    assert a0_avg == a0
+    assert a0_avg == a0.subs(v.indices_ref.getters)
 
     # Indices around the point at the center of a cell
     idx = list(range(-io//2 + 1, io//2 + 1))
@@ -141,7 +141,8 @@ def test_avg_mode(ndim, io):
     assert sympy.simplify(a_avg - expected) == 0
 
     # Harmonic average, h(a[.5]) = 1/(.5/a[0] + .5/a[1])
-    expected = (sum(c / b.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args)))
+    expected = (sum(c * SafeInv(b.subs(arg), b.subs(arg))
+                    for c, arg in zip(ndcoeffs.flatten(), args)))
     assert sympy.simplify(b_avg.args[0] - expected) == 0
     assert isinstance(b_avg, SafeInv)
     assert b_avg.base == b
