@@ -69,6 +69,14 @@ class BasicOperator(Operator):
     intensity of the generated kernel.
     """
 
+    CIRE_MINMEM = True
+    """
+    Minimize memory consumption when allocating temporaries for CIRE-optimized
+    expressions. This may come at the cost of slighly worse performance due to
+    the potential need for extra registers to hold a greater number of support
+    variables (e.g., strides).
+    """
+
     SCALAR_MIN_TYPE = np.float16
     """
     Minimum datatype for a scalar arising from a common sub-expression or CIRE temp.
@@ -113,6 +121,12 @@ class BasicOperator(Operator):
     """
     Unroll all loops with short, numeric trip count, such as loops created by
     finite-difference derivatives.
+    """
+
+    DERIV_COLLECT = True
+    """
+    Factorize finite-difference derivatives exploiting the linearity of the FD
+    operators.
     """
 
     DERIV_SCHEDULE = 'basic'
@@ -288,7 +302,7 @@ class CustomOperator(BasicOperator):
         # Call passes
         for i in passes:
             try:
-                expressions = passes_mapper[i](expressions)
+                expressions = passes_mapper[i](expressions, **kwargs)
             except KeyError:
                 pass
 

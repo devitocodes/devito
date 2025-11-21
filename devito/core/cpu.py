@@ -61,6 +61,7 @@ class Cpu64OperatorMixin:
         o['cire-maxpar'] = oo.pop('cire-maxpar', False)
         o['cire-ftemps'] = oo.pop('cire-ftemps', False)
         o['cire-mingain'] = oo.pop('cire-mingain', cls.CIRE_MINGAIN)
+        o['cire-minmem'] = oo.pop('cire-minmem', cls.CIRE_MINMEM)
         o['cire-schedule'] = oo.pop('cire-schedule', cls.CIRE_SCHEDULE)
 
         # Shared-memory parallelism
@@ -75,6 +76,7 @@ class Cpu64OperatorMixin:
 
         # Code generation options for derivatives
         o['expand'] = oo.pop('expand', cls.EXPAND)
+        o['deriv-collect'] = oo.pop('deriv-collect', cls.DERIV_COLLECT)
         o['deriv-schedule'] = oo.pop('deriv-schedule', cls.DERIV_SCHEDULE)
         o['deriv-unroll'] = oo.pop('deriv-unroll', False)
 
@@ -150,7 +152,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.DSL')
     def _specialize_dsl(cls, expressions, **kwargs):
-        expressions = collect_derivatives(expressions)
+        expressions = collect_derivatives(expressions, **kwargs)
 
         return expressions
 
@@ -253,7 +255,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
     @classmethod
     def _make_dsl_passes_mapper(cls, **kwargs):
         return {
-            'collect-derivs': collect_derivatives,
+            'deriv-collect': collect_derivatives,
         }
 
     @classmethod
@@ -308,7 +310,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
     _known_passes = (
         # DSL
-        'collect-derivs',
+        'deriv-collect',
         # Expressions
         'buffering',
         # Clusters

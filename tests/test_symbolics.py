@@ -717,6 +717,25 @@ def test_canonical_ordering_of_weights():
     assert ccode(cf*wi) == 'f[x][y + i0][z].x*w0[i0]'
 
 
+def test_ideriv_subs_complex():
+    grid = Grid(shape=(3, 3))
+    x, _ = grid.dimensions
+
+    f = Function(name='f', grid=grid, space_order=4)
+    g = f.func(name='g')
+    h = f.func(name='h')
+    b = f.func(name='b')
+
+    ideriv = (f*g*h).dx._evaluate(expand=False)
+
+    i0, = ideriv.dimensions
+    base = ideriv.base
+
+    v = ideriv._subs(base, b._subs(x, x + i0))
+
+    assert str(v) == 'DiffDerivative(w(i0)*b(x + i0, y), (i0))'
+
+
 def test_symbolic_printing():
     b = Symbol('b')
 

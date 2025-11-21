@@ -2099,7 +2099,7 @@ class TestAliases:
         eqn = Eq(v.forward, eval(expr))
 
         op0 = Operator(eqn, opt=('noop', {'openmp': True}))
-        op1 = Operator(eqn, opt=('collect-derivs', 'cire-sops', {'openmp': True}))
+        op1 = Operator(eqn, opt=('deriv-collect', 'cire-sops', {'openmp': True}))
         op2 = Operator(eqn, opt=('cire-sops', {'openmp': True}))
         op3 = Operator(eqn, opt=('advanced', {'openmp': True}))
 

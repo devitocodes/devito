@@ -7,19 +7,20 @@ import sympy
 
 from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
-from devito.ir import (SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward,
-                       IterationSpace, Interval, Cluster, ExprGeometry, Queue,
-                       IntervalGroup, LabeledVector, Vector, normalize_properties,
-                       relax_properties, unbounded, minimum, maximum, extrema,
-                       vmax, vmin)
+from devito.ir import (
+    SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward, IterationSpace, Interval,
+    Cluster, ClusterGroup, ExprGeometry, Queue, IntervalGroup, LabeledVector,
+    Vector, normalize_properties, relax_properties, unbounded, minimum, maximum,
+    extrema, vmax, vmin
+)
 from devito.passes.clusters.cse import _cse
 from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
-                              uxreplace, sympy_dtype)
+                              retrieve_functions, uxreplace, sympy_dtype)
 from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
                           is_integer, generator, split, timed_pass)
 from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
                           ModuloDimension, CustomDimension, IncrDimension,
-                          StencilDimension, Indexed, Hyperplane)
+                          StencilDimension, Indexed, Hyperplane, Size)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -113,23 +114,22 @@ class CireTransformer:
         self.opt_rotate = options['cire-rotate']
         self.opt_ftemps = options['cire-ftemps']
         self.opt_mingain = options['cire-mingain']
+        self.opt_minmem = options['cire-minmem']
         self.opt_min_dtype = options['scalar-min-type']
         self.opt_multisubdomain = True
 
-    def _aliases_from_clusters(self, clusters, exclude, meta):
-        exprs = flatten([c.exprs for c in clusters])
-
+    def _aliases_from_clusters(self, cgroup, exclude, meta):
         # [Clusters]_n -> [Schedule]_m
         variants = []
-        for mapper in self._generate(exprs, exclude):
+        for mapper in self._generate(cgroup, exclude):
             # Clusters -> AliasList
             found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
-            pexprs, aliases = choose(found, exprs, mapper, self.opt_mingain)
+            exprs, aliases = choose(found, cgroup, mapper, self.opt_mingain)
 
             # AliasList -> Schedule
             schedule = lower_aliases(aliases, meta, self.opt_maxpar)
 
-            variants.append(Variant(schedule, pexprs))
+            variants.append(Variant(schedule, exprs))
 
         if not variants:
             return []
@@ -143,14 +143,15 @@ class CireTransformer:
 
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry,
-                                         self.opt_ftemps, self.opt_min_dtype)
+                                         self.opt_ftemps, self.opt_min_dtype,
+                                         self.opt_minmem)
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
             processed = optimize_clusters_msds(processed)
 
         # [Clusters]_k -> [Clusters]_{k+n}
-        for c in clusters:
+        for c in cgroup:
             n = len(c.exprs)
             cexprs, exprs = exprs[:n], exprs[n:]
 
@@ -168,9 +169,9 @@ class CireTransformer:
     def process(self, clusters):
         raise NotImplementedError
 
-    def _generate(self, exprs, exclude):
+    def _generate(self, cgroup, exclude):
         """
-        Generate one or more extractions from ``exprs``. An extraction is a
+        Generate one or more extractions from a ClusterGroup. An extraction is a
         set of CIRE candidates which may be turned into aliases. Two different
         extractions may contain overlapping sub-expressions and, therefore,
         should be processed and evaluated indipendently. An extraction won't
@@ -189,8 +190,8 @@ class CireTransformer:
 
     def _select(self, variants):
         """
-        Select the best variant out of a set of variants, weighing flops
-        and working set.
+        Select the best variant out of a set of `variants`, weighing flops and
+        working set.
         """
         raise NotImplementedError
 
@@ -258,7 +259,7 @@ class CireInvariants(CireTransformerLegacy, Queue):
             if not g:
                 continue
 
-            made = self._aliases_from_clusters(g, exclude, ak)
+            made = self._aliases_from_clusters(ClusterGroup(g), exclude, ak)
 
             if made:
                 idx = processed.index(g[0])
@@ -283,7 +284,9 @@ class CireInvariants(CireTransformerLegacy, Queue):
 
 class CireInvariantsElementary(CireInvariants):
 
-    def _generate(self, exprs, exclude):
+    def _generate(self, cgroup, exclude):
+        exprs = cgroup.exprs
+
         # E.g., extract `sin(x)` and `sqrt(x)` from `a*sin(x)*sqrt(x)`
         rule = lambda e: e.is_Function or (e.is_Pow and e.exp.is_Number and 0 < e.exp < 1)
         cbk_search = lambda e: search(e, rule, 'all', 'bfs_first_hit')
@@ -306,7 +309,9 @@ class CireInvariantsElementary(CireInvariants):
 
 class CireInvariantsDivs(CireInvariants):
 
-    def _generate(self, exprs, exclude):
+    def _generate(self, cgroup, exclude):
+        exprs = cgroup.exprs
+
         # E.g., extract `1/h_x`
         rule = lambda e: e.is_Pow and (not e.exp.is_Number or e.exp < 0)
         cbk_search = lambda e: search(e, rule, 'all', 'bfs_first_hit')
@@ -337,13 +342,17 @@ class CireDerivatives(CireTransformerLegacy):
             # TODO: to process third- and higher-order derivatives, we could
             # extend this by calling `_aliases_from_clusters` repeatedly until
             # `made` is empty. To be investigated
-            made = self._aliases_from_clusters([c], exclude, self._lookup_key(c))
+            made = self._aliases_from_clusters(
+                ClusterGroup(c), exclude, self._lookup_key(c)
+            )
 
             processed.extend(flatten(made) or [c])
 
         return processed
 
-    def _generate(self, exprs, exclude):
+    def _generate(self, cgroup, exclude):
+        exprs = cgroup.exprs
+
         # E.g., extract `u.dx*a*b` and `u.dx*a*c` from
         # `[(u.dx*a*b).dy`, `(u.dx*a*c).dy]`
         basextr = self._do_generate(exprs, exclude, self._cbk_search,
@@ -598,14 +607,15 @@ def collect(extracted, ispace, minstorage):
     return aliases
 
 
-def choose(aliases, exprs, mapper, mingain):
+def choose(aliases, cgroup, mapper, mingain):
     """
     Analyze the detected aliases and, after applying a cost model to rule out
     the aliases with a bad memory/flops trade-off, inject them into the original
     expressions.
     """
-    aliases = AliasList(aliases)
+    exprs = cgroup.exprs
 
+    aliases = AliasList(aliases)
     if not aliases:
         return exprs, aliases
 
@@ -831,11 +841,12 @@ def optimize_schedule_rotations(schedule, sregistry):
     return schedule.rebuild(*processed, rmapper=rmapper)
 
 
-def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
+def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
+                   opt_minmem):
     """
     Turn a Schedule into a sequence of Clusters.
     """
-    if ftemps:
+    if opt_ftemps:
         make = TempFunction
     else:
         # Typical case -- the user does *not* "see" the CIRE-created temporaries
@@ -865,31 +876,51 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
             dimensions = [d.parent if d.is_AbstractSub else d
                           for d in writeto.itdims]
 
-            # The halo must be set according to the size of `writeto`
-            halo = [(abs(i.lower), abs(i.upper)) for i in writeto]
+            # The minimum halo required along each Dimension depends on `writeto`.
+            # The user might suggest to go more relaxed about this via `opt_minmem`,
+            # in which case we extend the halo based on the surrounding
+            # Functions to minimize support variables such as strides etc
+            min_halo = {i.dim: Size(abs(i.lower), abs(i.upper)) for i in writeto}
+
+            if opt_minmem:
+                functions = []
+            else:
+                functions = retrieve_functions(pivot)
+
+            halo = dict(min_halo)
+            for f in functions:
+                for d, h0 in list(halo.items()):
+                    try:
+                        h1 = f._size_halo[d]
+                    except KeyError:
+                        continue
+                    halo[d] = Size(max(h0.left, h1.left), max(h0.right, h1.right))
+
+            shift = [halo[d].left - min_halo[d].left for d in writeto.itdims]
+            halo = tuple(halo.values())
 
             # The indices used to write into the Array
             indices = []
-            for i in writeto:
+            for i, s in zip(writeto, shift):
                 try:
                     # E.g., `xs`
                     sub_iterators = writeto.sub_iterators[i.dim]
                     assert len(sub_iterators) <= 1
-                    indices.append(sub_iterators[0])
+                    indices.append(sub_iterators[0] + s)
                 except (KeyError, IndexError):
                     # E.g., `z` -- a non-shifted Dimension
-                    indices.append(i.dim - i.lower)
+                    indices.append(i.dim - i.lower + s)
 
             dtype = sympy_dtype(pivot, base=meta.dtype)
             obj = make(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
             expression = Eq(obj[indices], uxreplace(pivot, subs))
 
-            callback = lambda idx: obj[idx]
+            callback = lambda idx: obj[[i + s for i, s in zip(idx, shift)]]
         else:
             # Degenerate case: scalar expression
             assert writeto.size == 0
 
-            dtype = sympy_dtype(pivot, base=meta.dtype, smin=min_dtype)
+            dtype = sympy_dtype(pivot, base=meta.dtype, smin=opt_min_dtype)
             obj = Temp(name=name, dtype=dtype)
             expression = Eq(obj, uxreplace(pivot, subs))
 
@@ -979,6 +1010,11 @@ def pick_best(variants):
 
         indexeds1 = search(i.exprs, Indexed)
         functions1.update({i.function for i in indexeds1})
+
+        # Filter out objects that are extremely likely to be in cache if not
+        # in registers
+        functions0 = {f for f in functions0 if f.ndim >= 2}
+        functions1 = {f for f in functions1 if f.ndim >= 2}
 
         nfunctions0 = len(functions0)
         nfunctions1 = len(functions1)

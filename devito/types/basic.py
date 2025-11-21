@@ -1,6 +1,5 @@
 import abc
 import inspect
-from collections import namedtuple
 from ctypes import POINTER, _Pointer, c_char_p, c_char, Structure
 from functools import reduce, cached_property
 from operator import mul
@@ -18,14 +17,10 @@ from devito.tools import (Pickable, as_tuple, dtype_to_ctype,
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
-from devito.types.utils import DimensionTuple
+from devito.types.utils import DimensionTuple, Offset, Size
 
 __all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap',
            'IrregularFunctionInterface']
-
-
-Size = namedtuple('Size', 'left right')
-Offset = namedtuple('Offset', 'left right')
 
 
 class CodeSymbol:
