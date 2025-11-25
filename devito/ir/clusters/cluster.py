@@ -15,7 +15,9 @@ from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
-from devito.types import Fence, WeakFence, CriticalRegion
+from devito.types import (
+    Fence, WeakFence, CriticalRegion, ThreadPoolSync, ThreadCommit, ThreadWait
+)
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -262,26 +264,40 @@ class Cluster:
                 self.is_weak_fence or
                 self.is_critical_region)
 
+    def _is_type(self, cls):
+        return self.exprs and all(isinstance(e.rhs, cls) for e in self.exprs)
+
     @cached_property
     def is_halo_touch(self):
-        return self.exprs and all(isinstance(e.rhs, HaloTouch) for e in self.exprs)
+        return self._is_type(HaloTouch)
 
     @cached_property
     def is_dist_reduce(self):
-        return self.exprs and all(isinstance(e.rhs, DistReduce) for e in self.exprs)
+        return self._is_type(DistReduce)
 
     @cached_property
     def is_fence(self):
-        return (self.exprs and all(isinstance(e.rhs, Fence) for e in self.exprs) or
-                self.is_critical_region)
+        return self._is_type(Fence) or self.is_critical_region
 
     @cached_property
     def is_weak_fence(self):
-        return self.exprs and all(isinstance(e.rhs, WeakFence) for e in self.exprs)
+        return self._is_type(WeakFence)
 
     @cached_property
     def is_critical_region(self):
-        return self.exprs and all(isinstance(e.rhs, CriticalRegion) for e in self.exprs)
+        return self._is_type(CriticalRegion)
+
+    @cached_property
+    def is_thread_pool_sync(self):
+        return self._is_type(ThreadPoolSync)
+
+    @cached_property
+    def is_thread_commit(self):
+        return self._is_type(ThreadCommit)
+
+    @cached_property
+    def is_thread_wait(self):
+        return self._is_type(ThreadWait)
 
     @cached_property
     def is_async(self):
