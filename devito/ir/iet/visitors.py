@@ -327,9 +327,10 @@ class CGen(Visitor):
         else:
             strtype = self.ccode(obj._C_ctype)
             strshape = ''
-            if isinstance(obj, (AbstractFunction, IndexedData)) and mode >= 1:
-                if not obj._mem_stack:
-                    strtype = f'{strtype}{self._restrict_keyword}'
+            if isinstance(obj, (AbstractFunction, IndexedData)) \
+                and mode >= 1 \
+                and not obj._mem_stack:
+                strtype = f'{strtype}{self._restrict_keyword}'
         strtype = ' '.join(qualifiers + [strtype])
 
         if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
@@ -400,12 +401,9 @@ class CGen(Visitor):
 
         prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
 
-        if o.attributes:
-            # NOTE: ugly, but I can't bother extending `c.FunctionDeclaration`
-            # for such a tiny thing
-            v = f"{' '.join(o.attributes)} {o.name}"
-        else:
-            v = o.name
+        # NOTE: ugly, but I can't bother extending `c.FunctionDeclaration`
+        # for such a tiny thing
+        v = f"{' '.join(o.attributes)} {o.name}" if o.attributes else o.name
 
         signature = c.FunctionDeclaration(c.Value(prefix, v), decls)
 
@@ -1188,7 +1186,7 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
 
     def visit_object(self, o: object, flag: bool = False) -> LazyVisit[Node, bool]:
         yield from ()
-        return flag
+        return flag  # noqa: B901
 
     def visit_tuple(self, o: Sequence[Any], flag: bool = False) -> LazyVisit[Node, bool]:
         for el in o:
@@ -1218,7 +1216,7 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
         # Update the flag if we found a stop
         flag &= (o is not self.stop)
 
-        return flag
+        return flag  # noqa: B901
 
 
 ApplicationType = TypeVar('ApplicationType')

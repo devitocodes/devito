@@ -303,7 +303,7 @@ def q_positive(expr):
 
         if x0 is not x1:
             return False
-        if not isinstance(p1, Constant):
+        if not isinstance(p1, Constant):  # noqa SIM103
             # TODO: Same considerations above about Constant apply
             return False
 

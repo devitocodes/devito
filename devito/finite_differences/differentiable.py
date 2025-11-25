@@ -431,11 +431,12 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         for p in pattern:
             # Following sympy convention, return True if any is found
-            if isinstance(p, type) and issubclass(p, sympy.Symbol):
+            if isinstance(p, type) \
+                and issubclass(p, sympy.Symbol) \
+                and any(isinstance(i, p) for i in self.free_symbols):
                 # Symbols (and subclasses) are the leaves of an expression, and they
                 # are promptly available via `free_symbols`. So this is super quick
-                if any(isinstance(i, p) for i in self.free_symbols):
-                    return True
+                return True
         return super().has(*pattern)
 
     def has_free(self, *patterns):
@@ -615,7 +616,9 @@ class Mul(DifferentiableOp, sympy.Mul):
         ref_inds = func_args.indices_ref.getters
 
         for f in self.args:
-            if f not in self._args_diff or f is func_args or isinstance(f, DifferentiableFunction):
+            if f not in self._args_diff \
+                or f is func_args \
+                or isinstance(f, DifferentiableFunction):
                 new_args.append(f)
             else:
                 ind_f = f.indices_ref.getters
@@ -815,7 +818,7 @@ class Weights(Array):
         assert isinstance(weights, (list, tuple, np.ndarray))
 
         # Normalize `weights`
-        from devito.symbolics import pow_to_mul  # noqa, sigh
+        from devito.symbolics import pow_to_mul  # (noqa) sigh
         weights = tuple(pow_to_mul(sympy.sympify(i)) for i in weights)
 
         kwargs['scope'] = kwargs.get('scope', 'stack')
@@ -854,7 +857,9 @@ class Weights(Array):
             return self, False
         else:
             try:
-                weights, flags = zip(*[i._xreplace(rule) for i in self.weights], strict=False)
+                weights, flags = zip(
+                    *[i._xreplace(rule) for i in self.weights], strict=False
+                )
                 if any(flags):
                     return self.func(initvalue=weights, function=None), True
             except AttributeError:

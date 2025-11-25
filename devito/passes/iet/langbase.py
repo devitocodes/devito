@@ -1,4 +1,3 @@
-from abc import ABC
 from functools import singledispatch
 from itertools import takewhile
 
@@ -149,7 +148,7 @@ class LangBB(metaclass=LangMeta):
         raise NotImplementedError
 
 
-class LangTransformer(ABC):
+class LangTransformer:
 
     """
     Abstract base class defining a series of methods capable of specializing
@@ -473,13 +472,13 @@ class DeviceAwareMixin:
             if objcomm is not None:
                 body = _make_setdevice_mpi(iet, objcomm, nodes=lang_init)
 
-                header = c.Comment('Beginning of {}+MPI setup'.format(self.langbb['name']))
-                footer = c.Comment('End of {}+MPI setup'.format(self.langbb['name']))
+                header = c.Comment(f'Beginning of {self.langbb["name"]}+MPI setup')
+                footer = c.Comment(f'End of {self.langbb["name"]}+MPI setup')
             else:
                 body = _make_setdevice_seq(iet, nodes=lang_init)
 
-                header = c.Comment('Beginning of {} setup'.format(self.langbb['name']))
-                footer = c.Comment('End of {} setup'.format(self.langbb['name']))
+                header = c.Comment(f'Beginning of {self.langbb["name"]} setup')
+                footer = c.Comment(f'End of {self.langbb["name"]} setup')
 
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))

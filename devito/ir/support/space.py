@@ -247,7 +247,9 @@ class Interval(AbstractInterval):
             ovl, ovu = Vector(o.lower, smart=True), Vector(o.upper, smart=True)
             return Interval(self.dim, vmin(svl, ovl)[0], vmax(svu, ovu)[0], self.stamp)
         else:
-            raise ValueError(f"Cannot compute union of non-compatible Intervals ({self}, {o})")
+            raise ValueError(
+                f"Cannot compute union of non-compatible Intervals ({self}, {o})"
+            )
 
     def add(self, o):
         if not self.is_compatible(o):
@@ -311,7 +313,10 @@ class IntervalGroup(Ordering):
     @classmethod
     def reorder(cls, items, relations):
         if not all(isinstance(i, AbstractInterval) for i in items):
-            raise ValueError("Cannot create IntervalGroup from objs of type [{}]".format(', '.join(str(type(i)) for i in items)))
+            raise ValueError(
+                "Cannot create IntervalGroup from objs of type "
+                "[{}]".format(', '.join(str(type(i)) for i in items))
+            )
 
         if len(relations) == 1:
             # Special case: avoid expensive topological sorting if possible

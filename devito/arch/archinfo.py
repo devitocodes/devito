@@ -687,8 +687,10 @@ def check_cuda_runtime():
         driver_version = driver_version.value
         runtime_version = runtime_version.value
         if driver_version < runtime_version:
-            warning("The NVidia driver (v%d) on this system may not be compatible "
-                    "with the CUDA runtime (v%d)" % (driver_version, runtime_version))
+            warning(
+                f'The NVidia driver (v{driver_version}) on this system '
+                f'may not be compatible with the CUDA runtime (v{runtime_version})'
+                )
     else:
         warning("Unable to check compatibility of NVidia driver and runtime")
 
@@ -1128,7 +1130,7 @@ class NvidiaDevice(Device):
         elif query == 'async-loads' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
-        elif query in ('tma', 'thread-block-cluster') and cc >= 90:
+        elif query in ('tma', 'thread-block-cluster') and cc >= 90:  # noqa SIM103
             # Tensor Memory Accelerator -- introduced in Hopper
             return True
         else:

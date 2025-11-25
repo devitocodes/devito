@@ -74,7 +74,10 @@ class Vector(tuple):
 
     @_asvector()
     def __add__(self, other):
-        return Vector(*[i + j for i, j in zip(self, other, strict=False)], smart=self.smart)
+        return Vector(
+            *[i + j for i, j in zip(self, other, strict=False)],
+            smart=self.smart
+        )
 
     @_asvector()
     def __radd__(self, other):
@@ -82,7 +85,10 @@ class Vector(tuple):
 
     @_asvector()
     def __sub__(self, other):
-        return Vector(*[i - j for i, j in zip(self, other, strict=False)], smart=self.smart)
+        return Vector(
+            *[i - j for i, j in zip(self, other, strict=False)],
+            smart=self.smart
+        )
 
     @_asvector()
     def __rsub__(self, other):
@@ -124,7 +130,7 @@ class Vector(tuple):
                         return True
                     elif q_positive(i):
                         return False
-                raise TypeError("Non-comparable index functions")
+                raise TypeError("Non-comparable index functions") from None
 
         return False
 
@@ -160,7 +166,7 @@ class Vector(tuple):
                         return True
                     elif q_negative(i):
                         return False
-                raise TypeError("Non-comparable index functions")
+                raise TypeError("Non-comparable index functions") from None
 
         return False
 
@@ -199,7 +205,7 @@ class Vector(tuple):
                         return True
                     elif q_positive(i):
                         return False
-                raise TypeError("Non-comparable index functions")
+                raise TypeError("Non-comparable index functions") from None
 
         # Note: unlike `__lt__`, if we end up here, then *it is* <=. For example,
         # with `v0` and `v1` as above, we would get here
@@ -253,7 +259,10 @@ class Vector(tuple):
         """
         try:
             # Handle quickly the special (yet relevant) cases `other == 0`
-            if is_integer(other) and other == 0 or all(i == 0 for i in other) and self.rank == other.rank:
+            if is_integer(other) \
+                and other == 0 \
+                or all(i == 0 for i in other) \
+                and self.rank == other.rank:
                 return self
         except TypeError:
             pass
@@ -273,7 +282,10 @@ class LabeledVector(Vector):
         except (ValueError, TypeError):
             labels, values = (), ()
         if not all(isinstance(i, Dimension) for i in labels):
-            raise ValueError("All labels must be of type Dimension, got [{}]".format(','.join(i.__class__.__name__ for i in labels)))
+            raise ValueError(
+                "All labels must be of type Dimension, got "
+                "[{}]".format(','.join(i.__class__.__name__ for i in labels))
+            )
         obj = super().__new__(cls, *values)
         obj.labels = labels
         return obj
@@ -286,7 +298,10 @@ class LabeledVector(Vector):
         if len(vectors) == 0:
             return LabeledVector()
         if not all(isinstance(v, LabeledVector) for v in vectors):
-            raise ValueError("All items must be of type LabeledVector, got [{}]".format(','.join(i.__class__.__name__ for i in vectors)))
+            raise ValueError(
+                "All items must be of type LabeledVector, got "
+                "[{}]".format(','.join(i.__class__.__name__ for i in vectors))
+            )
         T = OrderedDict()
         for v in vectors:
             for l, i in zip(v.labels, v, strict=False):
@@ -294,7 +309,9 @@ class LabeledVector(Vector):
         return tuple((l, Vector(*i)) for l, i in T.items())
 
     def __repr__(self):
-        return "({})".format(','.join(f'{l}:{i}' for l, i in zip(self.labels, self, strict=False)))
+        return "({})".format(
+            ','.join(f'{l}:{i}' for l, i in zip(self.labels, self, strict=False))
+        )
 
     def __hash__(self):
         return hash((tuple(self), self.labels))
@@ -331,7 +348,9 @@ class LabeledVector(Vector):
                     return super().__getitem__(i)
             return None
         else:
-            raise TypeError(f"Indices must be integers, slices, or Dimensions, not {type(index)}")
+            raise TypeError(
+                f"Indices must be integers, slices, or Dimensions, not {type(index)}"
+            )
 
     def fromlabel(self, label, v=None):
         return self[label] if label in self.labels else v

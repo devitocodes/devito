@@ -1,10 +1,9 @@
-import abc
 from hashlib import sha1
 
 __all__ = ['Pickable', 'Reconstructable', 'Signer', 'Singleton', 'Stamp', 'Tag']
 
 
-class Tag(abc.ABC):
+class Tag:
 
     """
     An abstract class to define categories of object decorators.

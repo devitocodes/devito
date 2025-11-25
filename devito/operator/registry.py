@@ -52,7 +52,9 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
                 if issubclass(p, cls) and m == mode and l == language:
                     return kls
 
-        raise InvalidOperator(f"Cannot compile an Operator for `{str((platform, mode, language))}`")
+        raise InvalidOperator(
+            f"Cannot compile an Operator for `{str((platform, mode, language))}`"
+        )
 
 
 operator_registry = OperatorRegistry()

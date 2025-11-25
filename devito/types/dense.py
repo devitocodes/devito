@@ -2,6 +2,7 @@ from collections import namedtuple
 from ctypes import POINTER, Structure, byref, c_int, c_ulong, c_void_p, cast
 from functools import cached_property, reduce, wraps
 from operator import mul
+from textwrap import dedent
 
 import numpy as np
 import sympy
@@ -108,9 +109,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
                 # running with MPI and some processes get 0-size arrays after
                 # domain decomposition. We touch the data anyway to avoid the
                 # case `self._data is None`
-                self.data
+                _ = self.data
         else:
-            raise ValueError(f"`initializer` must be callable or buffer, not {type(initializer)}")
+            raise ValueError(
+                f'`initializer` must be callable or buffer, not {type(initializer)}'
+            )
 
     _subs = Differentiable._subs
 
@@ -245,7 +248,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         the outhalo of boundary ranks contains a number of elements depending
         on the rank position in the decomposed grid (corner, side, ...).
         """
-        return tuple(j + i + k for i, (j, k) in zip(self.shape, self._size_outhalo, strict=False))
+        return tuple(
+            j + i + k
+            for i, (j, k) in zip(self.shape, self._size_outhalo, strict=False)
+        )
 
     @cached_property
     def _shape_with_inhalo(self):
@@ -272,9 +278,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         -----
         In an MPI context, this is the *local* with_halo region shape.
         """
-        return DimensionTuple(*[j + i + k for i, (j, k) in zip(self._shape_with_inhalo,
-                                                               self._padding, strict=False)],
-                              getters=self.dimensions)
+        return DimensionTuple(*[
+            j + i + k
+            for i, (j, k) in zip(self._shape_with_inhalo, self._padding, strict=False)
+            ], getters=self.dimensions)
 
     @cached_property
     def shape_global(self):
@@ -330,25 +337,49 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             # and inhalo correspond
             return self._size_inhalo
 
-        left = [abs(min(i.loc_abs_min-i.glb_min-j, 0)) if i and not i.loc_empty else 0
-                for i, j in zip(self._decomposition, self._size_inhalo.left, strict=False)]
-        right = [max(i.loc_abs_max+j-i.glb_max, 0) if i and not i.loc_empty else 0
-                 for i, j in zip(self._decomposition, self._size_inhalo.right, strict=False)]
+        left = [
+            abs(min(i.loc_abs_min-i.glb_min-j, 0))
+            if i and not i.loc_empty
+            else 0
+            for i, j in zip(
+                self._decomposition,
+                self._size_inhalo.left,
+                strict=False
+            )
+        ]
+        right = [
+            max(i.loc_abs_max+j-i.glb_max, 0)
+            if i and not i.loc_empty
+            else 0
+            for i, j in zip(
+                self._decomposition,
+                self._size_inhalo.right,
+                strict=False
+            )
+        ]
 
         sizes = tuple(Size(i, j) for i, j in zip(left, right, strict=False))
 
         if self._distributor.is_parallel and (any(left) or any(right)):
             try:
-                warning_msg = f"""A space order of {self._space_order} and a halo size of {max(self._size_inhalo)} has been
-                                 set but the current rank ({self._distributor.myrank}) has a domain size of
-                                 only {min(self.grid.shape_local)}"""
+                warning_msg = dedent(f"""
+                    A space order of {self._space_order} and a halo size of {max(self._size_inhalo)} has been
+                    set but the current rank ({self._distributor.myrank}) has a domain size of
+                    only {min(self.grid.shape_local)}
+                    """)
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:
-                    left_dist = [i for i, d in zip(left, self.dimensions, strict=False) if d
-                                 in self._distributor.dimensions]
-                    right_dist = [i for i, d in zip(right, self.dimensions, strict=False) if d
-                                  in self._distributor.dimensions]
+                    left_dist = [
+                        i
+                        for i, d in zip(left, self.dimensions, strict=False)
+                        if d in self._distributor.dimensions
+                    ]
+                    right_dist = [
+                        i
+                        for i, d in zip(right, self.dimensions, strict=False)
+                        if d in self._distributor.dimensions
+                    ]
                     for i, j, k, l in zip(left_dist, right_dist,
                                           self._distributor.mycoords,
                                           self._distributor.topology, strict=False):
@@ -688,8 +719,10 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         dataobj._obj.nbytes = data.nbytes
 
         # MPI-related fields
-        dataobj._obj.npsize = (c_ulong*self.ndim)(*[i - sum(j) for i, j in
-                                                    zip(data.shape, self._size_padding, strict=False)])
+        dataobj._obj.npsize = (c_ulong*self.ndim)(*[
+            i - sum(j)
+            for i, j in zip(data.shape, self._size_padding, strict=False)
+        ])
         dataobj._obj.dsize = (c_ulong*self.ndim)(*self._size_domain)
         dataobj._obj.hsize = (c_int*(self.ndim*2))(*flatten(self._size_halo))
         dataobj._obj.hofs = (c_int*(self.ndim*2))(*flatten(self._offset_halo))

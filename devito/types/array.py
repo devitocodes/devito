@@ -171,7 +171,7 @@ class Array(ArrayBasic):
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             padding = tuple((0, i) if is_integer(i) else i for i in padding)
         else:
-            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
+            raise TypeError(f'`padding` must be int or {self.ndim}-tuple of ints')
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
@@ -533,8 +533,10 @@ class Bundle(MappedArrayMixin, ArrayBasic):
             component_index, indices = index[0], index[1:]
             return ComponentAccess(self.indexed[indices], component_index)
         else:
-            raise ValueError("Expected %d or %d indices, got %d instead"
-                             % (self.ndim, self.ndim + 1, len(index)))
+            raise ValueError(
+                f'Expected {self.ndim} or {self.ndim + 1} indices, '
+                f'got {len(index)} instead'
+            )
 
     @property
     def _C_ctype(self):

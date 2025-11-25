@@ -38,8 +38,10 @@ class ElementalCall(Call):
             if k not in self._mapper:
                 raise ValueError("`k` is not a dynamic parameter")
             if len(self._mapper[k]) != len(tv):
-                raise ValueError("Expected %d values for dynamic parameter `%s`, given %d"
-                                 % (len(self._mapper[k]), k, len(tv)))
+                raise ValueError(
+                    f"Expected {len(self._mapper[k])} values for dynamic "
+                    f"parameter `{k}`, given {len(tv)}"
+                )
             # Create the argument list
             for i, j in zip(self._mapper[k], tv, strict=False):
                 arguments[i] = j if incr is False else (arguments[i] + j)

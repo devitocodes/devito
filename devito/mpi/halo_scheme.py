@@ -533,8 +533,11 @@ def classify(exprs, ispace):
         # practically subjected to domain decomposition
         dist = f.grid.distributor
         try:
-            ignored = [d for i, d in zip(dist.topology_logical, dist.dimensions, strict=False)
-                       if i == 1]
+            ignored = [
+                d
+                for i, d in zip(dist.topology_logical, dist.dimensions, strict=False)
+                if i == 1
+            ]
         except TypeError:
             ignored = []
 
@@ -570,7 +573,10 @@ def classify(exprs, ispace):
             combs.remove((CENTER,)*len(f._dist_dimensions))
             for c in combs:
                 key = (f._dist_dimensions, c)
-                if all(v.get((d, s)) is STENCIL or s is CENTER for d, s in zip(*key, strict=False)):
+                if all(
+                    v.get((d, s)) is STENCIL or s is CENTER
+                    for d, s in zip(*key, strict=False)
+                ):
                     v[key] = STENCIL
 
             # Finally update the `halo_labels`

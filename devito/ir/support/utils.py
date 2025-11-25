@@ -1,4 +1,5 @@
 from collections import defaultdict, namedtuple
+from contextlib import suppress
 from itertools import product
 
 from devito.finite_differences import IndexDerivative
@@ -198,11 +199,10 @@ def detect_accesses(exprs):
     other_dims = set()
     for e in as_tuple(exprs):
         other_dims.update(i for i in e.free_symbols if isinstance(i, Dimension))
-        try:
+        with suppress(AttributeError):
+            # If not a types.Eq
             other_dims.update(e.implicit_dims or {})
-        except AttributeError:
-            # Not a types.Eq
-            pass
+
     other_dims = filter_sorted(other_dims)
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 

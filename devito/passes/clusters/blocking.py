@@ -552,12 +552,9 @@ class BlockSizeGenerator:
                 self.umt_small.iter()
             return self.umt_small.next()
 
-        if x:
-            item = self.umt.curitem()
-        else:
-            # We can't `self.umt.iter()` because we might still want to
-            # fallback to `self.umt_small`
-            item = self.umt.nextitem()
+        # We can't `self.umt.iter()` because we might still want to
+        # fallback to `self.umt_small`
+        item = self.umt.curitem() if x else self.umt.nextitem()
 
         # Handle user-provided rules
         # TODO: This is also rudimentary

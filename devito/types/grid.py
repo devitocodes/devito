@@ -224,7 +224,8 @@ class Grid(CartesianDiscretization, ArgProvider):
             i.__subdomain_finalize_legacy__(self)
 
     def __repr__(self):
-        return f"Grid[extent={self.extent}, shape={self.shape}, dimensions={self.dimensions}]"
+        params = f'extent={self.extent}, shape={self.shape}, dimensions={self.dimensions}'
+        return f'Grid[{params}]'
 
     @property
     def extent(self):
@@ -256,8 +257,10 @@ class Grid(CartesianDiscretization, ArgProvider):
     @property
     def origin_offset(self):
         """Physical offset of the local (per-process) origin from the domain origin."""
-        return DimensionTuple(*[i*h for i, h in zip(self.origin_ioffset, self.spacing, strict=False)],
-                              getters=self.dimensions)
+        return DimensionTuple(*[
+            i*h
+            for i, h in zip(self.origin_ioffset, self.spacing, strict=False)
+            ], getters=self.dimensions)
 
     @property
     def time_dim(self):

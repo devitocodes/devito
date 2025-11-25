@@ -51,7 +51,9 @@ def check_input(func):
         try:
             return S.Zero if expr.is_Number else func(expr, *args, **kwargs)
         except AttributeError:
-            raise ValueError(f"'{expr}' must be of type Differentiable, not {type(expr)}")
+            raise ValueError(
+                f"'{expr}' must be of type Differentiable, not {type(expr)}"
+            ) from None
     return wrapper
 
 
@@ -223,7 +225,7 @@ def make_stencil_dimension(expr, _min, _max):
     Create a StencilDimension for `expr` with unique name.
     """
     n = len(expr.find(StencilDimension))
-    return StencilDimension('i%d' % n, _min, _max)
+    return StencilDimension(f'i{n}', _min, _max)
 
 
 @cacheit

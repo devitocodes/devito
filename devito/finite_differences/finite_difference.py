@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from contextlib import suppress
 
 from sympy import sympify
 
@@ -204,11 +205,8 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         expr = expr._subs(dim, indices.expr)
 
         # Re-evaluate any off-the-grid Functions potentially impacted by the FD
-        try:
+        with suppress(AttributeError):
             expr = expr._evaluate(expand=False)
-        except AttributeError:
-            # Pure number
-            pass
 
         deriv = DiffDerivative(expr*weights, {dim: indices.free_dim})
     else:
@@ -218,11 +216,8 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
             term = expr._subs(dim, i) * c
 
             # Re-evaluate any off-the-grid Functions potentially impacted by the FD
-            try:
+            with suppress(AttributeError):
                 term = term.evaluate
-            except AttributeError:
-                # Pure number
-                pass
 
             terms.append(term)
 

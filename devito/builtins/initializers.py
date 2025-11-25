@@ -143,7 +143,10 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
             self.lw = lw
 
         def define(self, dimensions):
-            return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw, strict=False)}
+            return {
+                d: ('middle', l, l)
+                for d, l in zip(dimensions, self.lw, strict=False)
+            }
 
     def create_gaussian_weights(sigma, lw):
         weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
@@ -238,7 +241,9 @@ def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
         def buff(i, j):
             return [(i + k - 2*max(max(nbl))) for k in j]
 
-        b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo, strict=False)))]
+        b = [min(l) for l in (
+            w for w in (buff(i, j) for i, j in zip(local_size, halo, strict=False))
+        )]
         if any(np.array(b) < 0):
             raise ValueError(f"Function `{function}` halo is not sufficiently thick.")
 
@@ -352,8 +357,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         if not isinstance(data, (list, tuple)):
             raise TypeError("Expected a list of `data`")
         elif len(function) != len(data):
-            raise ValueError("Expected %d `data` items, got %d" %
-                             (len(function), len(data)))
+            raise ValueError(f'Expected {len(function)} `data` items, got {len(data)}')
 
         if mapper is not None:
             raise NotImplementedError("Unsupported `mapper` with batching")

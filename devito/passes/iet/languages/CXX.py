@@ -12,13 +12,11 @@ from devito.tools import dtype_to_cstr
 __all__ = ['CXXBB', 'CXXDataManager', 'CXXOrchestrator']
 
 
-def std_arith(prefix=None):
-    if prefix:
-        # Method definition prefix, e.g. "__host__"
-        # Make sure there is a space between the prefix and the method name
-        prefix = prefix if prefix.endswith(" ") else f"{prefix} "
-    else:
-        prefix = ""
+def std_arith(prefix=''):
+    # Method definition prefix, e.g. "__host__"
+    # Make sure there is a space between the prefix and the method name
+    if prefix and not prefix.endswith(" "):
+        prefix = f"{prefix} "
     return f"""
 #include <complex>
 

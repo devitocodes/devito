@@ -70,8 +70,11 @@ class Data(np.ndarray):
 
         # Sanity check -- A Dimension can't be at the same time modulo-iterated
         # and MPI-distributed
-        assert all(i is None for i, j in zip(obj._decomposition, obj._modulo, strict=False)
-                   if j is True)
+        assert all(
+            i is None
+            for i, j in zip(obj._decomposition, obj._modulo, strict=False)
+            if j is True
+        )
 
         return obj
 
@@ -479,7 +482,9 @@ class Data(np.ndarray):
                 return glb_idx
 
         loc_idx = []
-        for i, s, mod, dec in zip(glb_idx, self.shape, self._modulo, self._decomposition, strict=False):
+        for i, s, mod, dec in zip(
+            glb_idx, self.shape, self._modulo, self._decomposition, strict=False
+        ):
             if mod is True:
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
@@ -489,8 +494,9 @@ class Data(np.ndarray):
                     v = convert_index(i, dec, mode='glb_to_loc')
                 except TypeError:
                     if self._is_decomposed:
-                        raise NotImplementedError("Unsupported advanced indexing with "
-                                                  "MPI-distributed Data")
+                        raise NotImplementedError(
+                            "Unsupported advanced indexing with MPI-distributed Data"
+                        ) from None
                     v = i
             else:
                 v = i
@@ -533,7 +539,9 @@ class Data(np.ndarray):
                     data_glb_idx.insert(index, value)
         # Based on `data_glb_idx` the indices to which the locally stored data
         # block correspond can now be computed:
-        for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition, strict=False):
+        for i, j, k in zip(
+            data_glb_idx, as_tuple(idx), self._decomposition, strict=False
+        ):
             if is_integer(j):
                 mapped_idx.append(j)
                 continue

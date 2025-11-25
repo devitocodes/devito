@@ -96,8 +96,10 @@ class Cluster:
         try:
             syncs = normalize_syncs(*[c.syncs for c in clusters])
         except ValueError:
-            raise ValueError("Cannot build a Cluster from Clusters with "
-                             "non-compatible synchronization operations")
+            raise ValueError(
+                "Cannot build a Cluster from Clusters with non-compatible "
+                "synchronization operations"
+            ) from None
 
         halo_scheme = HaloScheme.union([c.halo_scheme for c in clusters])
 

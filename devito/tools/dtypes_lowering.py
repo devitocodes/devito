@@ -35,7 +35,7 @@ def build_dtypes_vector(field_names, counts, mapper=None):
     mapper = mapper or dtype_mapper
     for base_name, base_dtype in mapper.items():
         for count in counts:
-            name = "%s%d" % (base_name, count)
+            name = f'{base_name}{count}'
 
             titles = field_names[:count]
 
@@ -43,9 +43,9 @@ def build_dtypes_vector(field_names, counts, mapper=None):
             if count == 3:
                 padded_count = 4
 
-            names = ["s%d" % i for i in range(count)]
+            names = [f's{i}' for i in range(count)]
             while len(names) < padded_count:
-                names.append("padding%d" % (len(names) - count))
+                names.append(f'padding{len(names) - count}')
 
             if len(titles) < len(names):
                 titles.extend((len(names) - len(titles)) * [None])
@@ -241,7 +241,7 @@ for base_name, base_dtype in dtype_mapper.items():
     for count in counts:
         dtype = dtypes_vector_mapper[(base_dtype, count)]
 
-        name = "%s%d" % (base_name, count)
+        name = f'{base_name}{count}'
         ctype = type(name, (ctypes.Structure,),
                      {'_fields_': [(i, base_ctype) for i in field_names[:count]],
                       '_base_dtype': True})
@@ -276,7 +276,7 @@ def ctypes_to_cstr(ctype, toarray=None):
             else:
                 retval = f'{retval} *'
     elif issubclass(ctype, ctypes.Array):
-        retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
+        retval = f'{ctypes_to_cstr(ctype._type_, toarray)}[{ctype._length_}]'
     elif ctype.__name__.startswith('c_'):
         name = ctype.__name__[2:]
         # A primitive datatype

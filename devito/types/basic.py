@@ -1,6 +1,7 @@
 import abc
 import inspect
 from collections import namedtuple
+from contextlib import suppress
 from ctypes import POINTER, Structure, _Pointer, c_char, c_char_p
 from functools import cached_property, reduce
 from operator import mul
@@ -107,7 +108,7 @@ class CodeSymbol:
         try:
             # We have internal types such as c_complex that are
             # Structure too but should be treated as plain c_type
-            _type._base_dtype
+            _ = _type._base_dtype
         except AttributeError:
             if issubclass(_type, Structure):
                 _type = f'struct {_type.__name__}'
@@ -858,8 +859,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Averaging mode for off the grid evaluation
         self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
         if self._avg_mode not in ['arithmetic', 'harmonic']:
-            raise ValueError(f"Invalid averaging mode_mode {self._avg_mode}, accepted values are"
-                             " arithmetic or harmonic")
+            raise ValueError(
+                f'Invalid averaging mode_mode {self._avg_mode}, '
+                'accepted values are arithmetic or harmonic'
+            )
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -1007,7 +1010,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             # Two indices are aligned if they differ by an Integer*spacing.
             v = (i - j)/d.spacing
             try:
-                if not isinstance(v, sympy.Number) or int(v) == v or (i.is_Symbol and not i.has(d)) or i.is_Integer:
+                if not isinstance(v, sympy.Number) \
+                    or int(v) == v \
+                    or (i.is_Symbol and not i.has(d)) \
+                    or i.is_Integer:
                     continue
                 else:
                     mapper.update({d: i})
@@ -1261,7 +1267,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def _size_nopad(self):
         """Number of points in the domain+halo region."""
-        sizes = tuple(i+sum(j) for i, j in zip(self._size_domain, self._size_halo, strict=False))
+        sizes = tuple(i+sum(j) for i, j in zip(
+            self._size_domain,
+            self._size_halo,
+            strict=False
+        ))
         return DimensionTuple(*sizes, getters=self.dimensions)
 
     @cached_property
@@ -1351,7 +1361,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Indices after substitutions
         indices = []
-        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs, strict=False):
+        for a, d, o, s in zip(
+            self.args,
+            self.dimensions,
+            self.origin,
+            subs,
+            strict=False
+        ):
             if a.is_Function and len(a.args) == 1:
                 # E.g. Abs(expr)
                 arg = a.args[0]
@@ -1471,16 +1487,15 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         """
         newobj = super()._fromrep(rep)
         grid, dimensions = newobj._infer_dims()
-        try:
-            # This is needed when `_fromrep` is called directly in 1.9
-            # for example with mul.
-            newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
-                                     grid=grid, dimensions=dimensions)
-        except TypeError:
-            # We can end up here when `_fromrep` is called through the default _new
-            # when input `comps` don't have grid or dimensions. For example
-            # `test_non_devito_tens` in `test_tensor.py`.
-            pass
+
+        # This is needed when `_fromrep` is called directly in 1.9
+        # for example with mul. We can end up raising a `TypeError`
+        # when `_fromrep` is called through the default _new
+        # when input `comps` don't have grid or dimensions. For example
+        # `test_non_devito_tens` in `test_tensor.py`.
+        with suppress(TypeError):
+            newobj.__init_finalize__(
+                newobj.rows, newobj.cols, newobj.flat(), grid=grid, dimensions=dimensions)
         return newobj
 
     @classmethod
@@ -1627,7 +1642,11 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 row, col = i // other.cols, i % other.cols
                 row_indices = range(self_cols*row, self_cols*(row+1))
                 col_indices = range(col, other_len, other.cols)
-                vec = [mat[a]*other_mat[b] for a, b in zip(row_indices, col_indices, strict=False)]
+                vec = [mat[a]*other_mat[b] for a, b in zip(
+                    row_indices,
+                    col_indices,
+                    strict=False
+                )]
                 new_mat[i] = sum(vec)
 
         # Get new class and return product

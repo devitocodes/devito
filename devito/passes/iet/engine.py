@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextlib import suppress
 from functools import partial, singledispatch, wraps
 
 import numpy as np
@@ -118,11 +119,9 @@ class Graph(Byproduct):
                     continue
 
                 for j in dag.all_predecessors(i.name):
-                    try:
+                    # `j` is a foreign Callable
+                    with suppress(KeyError):
                         v.extend(FindNodes(Iteration).visit(self.efuncs[j]))
-                    except KeyError:
-                        # `j` is a foreign Callable
-                        pass
 
         return found
 

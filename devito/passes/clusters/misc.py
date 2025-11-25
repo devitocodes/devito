@@ -366,10 +366,13 @@ class Fusion(Queue):
 
                 # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
                 # and forbid any sort of fusion. Fences have the same effect
-                elif (any(scope.d_anti_gen()) or
-                      any(i.is_iaw for i in scope.d_output_gen()) or
-                      any(c.is_fence for c in flatten(cgroups[n:n1+1]))) or any(not (i.cause and i.cause & prefix)
-                         for i in scope.d_flow_gen()) or any(scope.d_output_gen()):
+                elif (
+                    any(scope.d_anti_gen()) or
+                    any(i.is_iaw for i in scope.d_output_gen()) or
+                    any(c.is_fence for c in flatten(cgroups[n:n1+1]))
+                ) or any(
+                    not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()
+                ) or any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
 
         return dag

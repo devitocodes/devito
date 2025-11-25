@@ -1,7 +1,7 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
+from contextlib import suppress
 from functools import cached_property
 from itertools import chain, product
-from collections.abc import Callable
 
 import sympy
 from sympy import Expr, S
@@ -110,11 +110,8 @@ class IterationInstance(LabeledVector):
             # q_affine -- ultimately it should get quicker!
 
             sdims = {d for d in dims if d.is_Stencil}
-            if dims == sdims:
-                candidates = sdims
-            else:
-                # E.g. `x + i0 + i1` -> `candidates = {x}`
-                candidates = dims - sdims
+            # E.g. `x + i0 + i1` -> `candidates = {x}`
+            candidates = sdims if dims == sdims else dims - sdims
 
             if len(candidates) == 1:
                 candidate = candidates.pop()
@@ -387,9 +384,8 @@ class TimedAccess(IterationInstance, AccessMode):
 
                 # Case 3: `self` and `other` have some special form such that
                 # it's provable that they never intersect
-                if sai and sit == oit:
-                    if disjoint_test(self[n], other[n], sai, sit):
-                        return Vector(S.ImaginaryUnit)
+                if sai and sit == oit and disjoint_test(self[n], other[n], sai, sit):
+                    return Vector(S.ImaginaryUnit)
 
             # Compute the distance along the current IterationInterval
             if self.function._mem_shared:
@@ -865,11 +861,10 @@ class Scope(CacheInstances):
         for i, e in enumerate(self.exprs):
             terminals = retrieve_accesses(e.lhs)
             if q_routine(e.rhs):
-                try:
+                # E.g., foreign routines, such as `cos` or `sin`
+                with suppress(AttributeError):
                     terminals.update(e.rhs.writes)
-                except AttributeError:
-                    # E.g., foreign routines, such as `cos` or `sin`
-                    pass
+
             for j in terminals:
                 mode = 'WR' if e.is_Reduction else 'W'
                 yield TimedAccess(j, mode, i, e.ispace)
@@ -1370,7 +1365,7 @@ def retrieve_accesses(exprs, **kwargs):
     if not compaccs:
         return retrieve_terminals(exprs, **kwargs)
 
-    subs = {i: Symbol('dummy%d' % n) for n, i in enumerate(compaccs)}
+    subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
     exprs1 = uxreplace(exprs, subs)
 
     return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())

@@ -84,7 +84,7 @@ def autotune(operator, args, level, mode):
         if timesteps is None:
             return args, {}
     else:
-        warning("cannot perform autotuning with %d time loops; skipping" % len(steppers))
+        warning(f'cannot perform autotuning with {len(steppers)} time loops; skipping')
         return args, {}
 
     # Use a fresh Timer for auto-tuning
@@ -134,8 +134,10 @@ def autotune(operator, args, level, mode):
             # Record timing
             elapsed = timer.total
             timings.setdefault(nt, OrderedDict()).setdefault(n, {})[bs] = elapsed
-            log("run <%s> took %f (s) in %d timesteps" %
-                (','.join('{}={}'.format(*i) for i in run), elapsed, timesteps))
+            log(
+                f"run <{','.join('{}={}'.format(*i) for i in run)}> took "
+                f"{elapsed} (s) in {timesteps} timesteps"
+            )
 
             # Prepare for the next autotuning run
             update_time_bounds(stepper, at_args, timesteps, mode)
@@ -298,7 +300,7 @@ def generate_block_shapes(blockable, args, level):
     if level in ['aggressive', 'max']:
         # Ramp up to larger block shapes
         handle = tuple((i, options['blocksize-l0'][-1]) for i, _ in ret[0])
-        for i in range(3):
+        for _ in range(3):
             new_bs = tuple((b, v*2) for b, v in handle)
             ret.insert(ret.index(handle) + 1, new_bs)
             handle = new_bs

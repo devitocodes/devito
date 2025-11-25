@@ -161,7 +161,7 @@ def retrieve_function_carriers(exprs, mode='all'):
     # Filter off Indexeds not carrying a DiscreteFunction
     for i in list(retval):
         try:
-            i.function
+            _ = i.function
         except AttributeError:
             retval.remove(i)
     return retval

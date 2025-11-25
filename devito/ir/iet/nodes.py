@@ -104,7 +104,9 @@ class Node(Signer):
         obj = super().__new__(cls)
         argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
         try:
-            defaults = dict(zip(argnames[-len(defaultvalues):], defaultvalues, strict=False))
+            defaults = dict(
+                zip(argnames[-len(defaultvalues):], defaultvalues, strict=False)
+            )
         except TypeError:
             # No default kwarg values
             defaults = {}
@@ -252,8 +254,9 @@ class List(Node):
         self.inline = inline
 
     def __repr__(self):
-        return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
-                                      len(self.body), len(self.footer))
+        _repr = f'<{self.__class__.__name__} ({len(self.header)}, '
+        _repr += f'{len(self.body)}, {len(self.footer)})>'
+        return _repr
 
 
 class EmptyList(List):
@@ -745,7 +748,7 @@ class While(DoIf):
         self.body = as_tuple(body)
 
     def __repr__(self):
-        return "<While %s; %d>" % (self.condition, len(self.body))
+        return f'<While {self.condition}; {len(self.body)}>'
 
 
 class Callable(Node):
@@ -890,11 +893,10 @@ class CallableBody(MultiTraversable):
         self.retstmt = as_tuple(retstmt)
 
     def __repr__(self):
-        return ("<CallableBody <unpacks=%d, allocs=%d, casts=%d, maps=%d, "
-                "objs=%d> <unmaps=%d, frees=%d>>" %
-                (len(self.unpacks), len(self.allocs), len(self.casts),
-                 len(self.maps), len(self.objs), len(self.unmaps),
-                 len(self.frees)))
+        a = f'unpacks={len(self.unpacks)}, allocs={len(self.allocs)}, '
+        a += f'casts={len(self.casts)}, maps={len(self.maps)}, objs={len(self.objs)}'
+        b = f'unmaps={len(self.unmaps)}, frees={len(self.frees)}'
+        return f'<CallableBody <{a}><{b}>>'
 
 
 class Conditional(DoIf):
@@ -922,10 +924,11 @@ class Conditional(DoIf):
         self.else_body = as_tuple(else_body)
 
     def __repr__(self):
+        _repr = f'<[{ccode(self.condition)}] ? [{repr(self.then_body)}]'
         if self.else_body:
-            return f"<[{ccode(self.condition)}] ? [{repr(self.then_body)}] : [{repr(self.else_body)}]>"
+            return _repr + f' : [{repr(self.else_body)}]>'
         else:
-            return f"<[{ccode(self.condition)}] ? [{repr(self.then_body)}]"
+            return _repr
 
 
 class Switch(DoIf):
@@ -1273,7 +1276,7 @@ class ExpressionBundle(List):
         self.traffic = traffic
 
     def __repr__(self):
-        return "<ExpressionBundle (%d)>" % len(self.exprs)
+        return f'<ExpressionBundle ({len(self.exprs)})>'
 
     @property
     def exprs(self):

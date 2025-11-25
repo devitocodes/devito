@@ -35,7 +35,7 @@ class DeviceAccIteration(PragmaIteration):
             stile = [str(tile[i]) for i in range(ncollapsed)]
             clauses.append('tile({})'.format(','.join(stile)))
         elif ncollapsed > 1:
-            clauses.append('collapse(%d)' % ncollapsed)
+            clauses.append(f'collapse({ncollapsed})')
 
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))

@@ -169,7 +169,9 @@ class BasicOperator(Operator):
         o['parallel'] = False
 
         if oo:
-            raise InvalidOperator("Unrecognized optimization options: [{}]".format(", ".join(list(oo))))
+            raise InvalidOperator(
+                f"Unrecognized optimization options: [{', '.join(list(oo))}]"
+            )
 
         kwargs['options'].update(o)
 
@@ -210,7 +212,9 @@ class BasicOperator(Operator):
             else:
                 args, summary = autotune(self, args, level, mode)
         else:
-            raise ValueError(f"Expected bool, str, or 2-tuple, got `{type(setup)}` instead")
+            raise ValueError(
+                f"Expected bool, str, or 2-tuple, got `{type(setup)}` instead"
+            )
 
         # Record the tuned values
         self._state.setdefault('autotuning', []).append(summary)

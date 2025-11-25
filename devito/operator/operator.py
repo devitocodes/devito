@@ -1,6 +1,7 @@
 import ctypes
 import shutil
 from collections import OrderedDict, namedtuple
+from contextlib import suppress
 from functools import cached_property
 from math import ceil
 from operator import attrgetter
@@ -623,7 +624,7 @@ class Operator(Callable):
                 v = [i for i in overrides if i.name in args]
                 raise InvalidArgument(
                     f"Override `{p}` is incompatible with overrides `{v}`"
-                )
+                ) from None
 
         # Process data-carrier defaults
         for p in defaults:
@@ -1000,7 +1001,8 @@ class Operator(Callable):
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
-                newmsg = f"error in argument '{self.parameters[argnum].name}' with value '{arg_values[argnum]}': {e.args[0]}"
+                newmsg = f"error in argument '{self.parameters[argnum].name}' "
+                newmsg += f"with value '{arg_values[argnum]}': {e.args[0]}"
                 raise ctypes.ArgumentError(newmsg) from e
             else:
                 raise
@@ -1052,7 +1054,7 @@ class Operator(Callable):
         _emit_timings(timings, '  * ')
 
         if self._profiler._ops:
-            ops = ['%d --> %d' % i for i in self._profiler._ops]
+            ops = [f'{i[0]} --> {i[1]}' for i in self._profiler._ops]
             perf(f"Flops reduction after symbolic optimization: [{' ; '.join(ops)}]")
 
     def _emit_apply_profiling(self, args):
@@ -1425,10 +1427,9 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            try:
+            # Might not have this layer in the mapper
+            with suppress(KeyError):
                 mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
-            except KeyError:  # Might not have this layer in the mapper
-                pass
 
         mapper = {k: int(v) for k, v in mapper.items()}
 

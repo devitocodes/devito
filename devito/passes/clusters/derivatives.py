@@ -107,7 +107,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
         cbk0 = deriv_schedule_registry[options['deriv-schedule']]
         cbk1 = deriv_unroll_registry[options['deriv-unroll']]
     except KeyError:
-        raise ValueError("Unknown derivative lowering mode")
+        raise ValueError("Unknown derivative lowering mode") from None
 
     # Lower the IndexDerivative
     init, ideriv = cbk0(expr)

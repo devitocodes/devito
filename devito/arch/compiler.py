@@ -1,6 +1,7 @@
 import platform
 import time
 import warnings
+from contextlib import suppress
 from functools import partial
 from hashlib import sha1
 from os import environ, makedirs, path
@@ -43,16 +44,20 @@ def sniff_compiler_version(cc, allow_fail=False):
             return Version("0")
     except UnicodeDecodeError:
         return Version("0")
-    except OSError:
+    except OSError as e:
         if allow_fail:
             return Version("0")
         else:
-            raise RuntimeError(f"The `{cc}` compiler isn't available on this system")
+            raise RuntimeError(
+                f"The `{cc}` compiler isn't available on this system"
+            ) from e
 
     ver = ver.strip()
     if ver.startswith("gcc"):
         compiler = "gcc"
-    elif ver.startswith("clang") or ver.startswith("Apple LLVM") or ver.startswith("Homebrew clang"):
+    elif ver.startswith("clang") or \
+        ver.startswith("Apple LLVM") or \
+        ver.startswith("Homebrew clang"):
         compiler = "clang"
     elif ver.startswith("Intel"):
         compiler = "icx"
@@ -330,21 +335,21 @@ class Compiler(GCCToolchain):
         logfile = path.join(self.get_jit_dir(), f"{hash_key}.log")
         errfile = path.join(self.get_jit_dir(), f"{hash_key}.err")
 
-        with change_directory(loc), open(logfile, "w") as lf:
-            with open(errfile, "w") as ef:
-
-                command = ['make'] + args
-                lf.write("Compilation command:\n")
-                lf.write(" ".join(command))
-                lf.write("\n\n")
-                try:
-                    check_call(command, stderr=ef, stdout=lf)
-                except CalledProcessError as e:
-                    raise CompilationError(f'Command "{e.cmd}" return error status'
-                                           f'{e.returncode}. '
-                                           f'Unable to compile code.\n'
-                                           f'Compile log in {logfile}\n'
-                                           f'Compile errors in {errfile}\n')
+        with change_directory(loc), open(logfile, "w") as lf, open(errfile, "w") as ef:
+            command = ['make'] + args
+            lf.write("Compilation command:\n")
+            lf.write(" ".join(command))
+            lf.write("\n\n")
+            try:
+                check_call(command, stderr=ef, stdout=lf)
+            except CalledProcessError as e:
+                raise CompilationError(
+                    f'Command "{e.cmd}" return error status'
+                    f'{e.returncode}. '
+                    f'Unable to compile code.\n'
+                    f'Compile log in {logfile}\n'
+                    f'Compile errors in {errfile}\n'
+                ) from None
         debug(f"Make <{' '.join(args)}>")
 
     def _cmdline(self, files, object=False):
@@ -390,9 +395,11 @@ class Compiler(GCCToolchain):
                 # ranks would end up creating different cache dirs
                 cache_dir = cache_dir.joinpath('jit-backdoor')
                 cache_dir.mkdir(parents=True, exist_ok=True)
-            except FileNotFoundError:
-                raise ValueError(f"Trying to use the JIT backdoor for `{src_file}`, but "
-                                 "the file isn't present")
+            except FileNotFoundError as e:
+                raise ValueError(
+                    f"Trying to use the JIT backdoor for `{src_file}`, but "
+                    "the file isn't present"
+                ) from e
 
         # Should the compilation command be emitted?
         debug = configuration['log-level'] == 'DEBUG'
@@ -687,12 +694,10 @@ class CudaCompiler(Compiler):
             # explicitly pass the flags that an `mpicc` would implicitly use
             compile_flags, link_flags = sniff_mpi_flags('mpicxx')
 
-            try:
+            with suppress(ValueError):
                 # No idea why `-pthread` would pop up among the `compile_flags`
+                # Just in case they fix it, we wrap it with suppress
                 compile_flags.remove('-pthread')
-            except ValueError:
-                # Just in case they fix it, we wrap it up within a try-except
-                pass
             self.cflags.extend(compile_flags)
 
             # Some arguments are for the host compiler

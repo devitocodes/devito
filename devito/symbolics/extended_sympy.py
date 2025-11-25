@@ -215,8 +215,8 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             else:
                 try:
                     _params.append(Number(p))
-                except TypeError:
-                    raise ValueError("`params` must be Expr, numbers or str")
+                except TypeError as e:
+                    raise ValueError("`params` must be Expr, numbers or str") from e
         params = Tuple(*_params)
 
         obj = sympy.Expr.__new__(cls, call, pointer, params)
@@ -331,8 +331,8 @@ class ListInitializer(sympy.Expr, Pickable):
         for p in as_tuple(params):
             try:
                 args.append(sympify(p))
-            except sympy.SympifyError:
-                raise ValueError(f"Illegal param `{p}`")
+            except sympy.SympifyError as e:
+                raise ValueError(f"Illegal param `{p}`") from e
         obj = sympy.Expr.__new__(cls, *args)
 
         obj.params = tuple(args)
@@ -368,11 +368,8 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
             # If an AbstractFunction, pull the underlying Symbol
             base = base.indexed.label
         except AttributeError:
-            if isinstance(base, str):
-                base = Symbol(base)
-            else:
-                # Fallback: go plain sympy
-                base = sympify(base)
+            # Fallback: go plain sympy
+            base = Symbol(base) if isinstance(base, str) else sympify(base)
 
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base
@@ -506,7 +503,7 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             base = base.indexed.label
         except AttributeError:
             if not isinstance(base, sympy.Basic):
-                raise ValueError("`base` must be of type sympy.Basic")
+                raise ValueError("`base` must be of type sympy.Basic") from None
 
         index = Tuple(*[sympify(i) for i in as_tuple(index)])
 

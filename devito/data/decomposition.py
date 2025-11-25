@@ -115,7 +115,7 @@ class Decomposition(tuple):
         ret = []
         for i, v in enumerate(self):
             bounds = (min(v, default=None), max(v, default=None))
-            item = '[]' if bounds == (None, None) else '[%d,%d]' % bounds
+            item = '[]' if bounds == (None, None) else f'[{bounds[0]},{bounds[1]}]'
             if self.local == i:
                 item = f"<<{item}>>"
             ret.append(item)
@@ -356,7 +356,7 @@ class Decomposition(tuple):
                 else:
                     return None
         else:
-            raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
+            raise TypeError(f"Expected 1 or 2 arguments, found {len(args)}")
 
     def index_loc_to_glb(self, *args):
         """
@@ -448,7 +448,7 @@ class Decomposition(tuple):
                             glb_stop = loc_idx.stop + self.loc_abs_min
                         return slice(glb_start, glb_stop, loc_idx.step)
         else:
-            raise TypeError("Expected 1 arguments, found %d" % len(args))
+            raise TypeError(f"Expected 1 arguments, found {len(args)}")
 
     def reshape(self, *args):
         """
@@ -520,7 +520,7 @@ class Decomposition(tuple):
         elif len(args) == 2:
             nleft, nright = args
         else:
-            raise TypeError("Expected 1 or 2 arguments, found %d" % len(args))
+            raise TypeError(f"Expected 1 or 2 arguments, found {len(args)}")
 
         items = list(self)
 

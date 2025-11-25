@@ -369,8 +369,10 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
                     padding=0)
 
         mapper = dict(zip(dims, bdims, strict=False))
-        findices = [o - h + mapper.get(d.root, 0)
-                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left, strict=False)]
+        findices = [
+            o - h + mapper.get(d.root, 0)
+            for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left, strict=False)
+        ]
 
         if swap is False:
             swap = lambda i, j: (i, j)
@@ -624,7 +626,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsg('msg%d' % key, f, halos)
+        return MPIMsg(f'msg{key}', f, halos)
 
     def _make_sendrecv(self, f, hse, key, msg=None):
         fcast = cast(f.c0.dtype, '*')
@@ -638,8 +640,10 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
-                 for i in range(len(f._dist_dimensions))]
+        sizes = [
+            FieldFromPointer(f'{msg._C_field_sizes}[{i}]', msg)
+            for i in range(len(f._dist_dimensions))
+        ]
 
         arguments = [fcast(bufg)] + sizes + list(f.handles) + ofsg
         gather = Gather(f'gather{key}', arguments)
@@ -682,8 +686,9 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         if hs.body.is_Call:
             return None
         else:
-            return make_efunc('compute%d' % key, hs.body, hs.arguments,
-                              efunc_type=ComputeFunction)
+            return make_efunc(
+                'compute{key}', hs.body, hs.arguments, efunc_type=ComputeFunction
+            )
 
     def _call_compute(self, hs, compute, *args):
         if compute is None:
@@ -701,8 +706,10 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         fromrank = Symbol(name='fromrank')
 
-        sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
-                 for i in range(len(f._dist_dimensions))]
+        sizes = [
+            FieldFromPointer(f'{msg._C_field_sizes}[{i}]', msg)
+            for i in range(len(f._dist_dimensions))
+        ]
         arguments = [fcast(bufs)] + sizes + list(f.handles) + ofss
         scatter = Scatter(f'scatter{key}', arguments)
 
@@ -756,7 +763,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_remainder(self, hs, key, callcompute, *args):
         assert callcompute.is_Call
         body = [callcompute._rebuild(dynamic_args_mapper=i) for _, i in hs.omapper.owned]
-        return Remainder.make('remainder%d' % key, body)
+        return Remainder.make(f'remainder{key}', body)
 
     def _call_remainder(self, remainder):
         efunc = remainder.make_call()
@@ -809,9 +816,9 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         fromrank = FieldFromComposite(msg._C_field_from, msgi)
         torank = FieldFromComposite(msg._C_field_to, msgi)
 
-        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
+        sizes = [FieldFromComposite(f'{msg._C_field_sizes}[{i}]', msgi)
                  for i in range(len(f._dist_dimensions))]
-        ofsg = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msgi)
+        ofsg = [FieldFromComposite(f'{msg._C_field_ofsg}[{i}]', msgi)
                 for i in range(len(f._dist_dimensions))]
         ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
 
@@ -853,10 +860,13 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         fromrank = FieldFromComposite(msg._C_field_from, msgi)
 
-        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
-                 for i in range(len(f._dist_dimensions))]
-        ofss = [FieldFromComposite('%s[%d]' % (msg._C_field_ofss, i), msgi)
-                for i in range(len(f._dist_dimensions))]
+        sizes = [
+            FieldFromComposite(f'{msg._C_field_sizes}[{i}]', msgi)
+            for i in range(len(f._dist_dimensions))
+        ]
+        ofss = [
+            FieldFromComposite(f'{msg._C_field_ofss}[{i}]', msgi)
+            for i in range(len(f._dist_dimensions))]
         ofss = [fixed.get(d) or ofss.pop(0) for d in f.dimensions]
 
         # The `scatter` must be guarded as we must not alter the halo values along
@@ -904,7 +914,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration(iet, dim, region.nregions - 1)
 
-        return Remainder.make('remainder%d' % key, iet)
+        return Remainder.make(f'remainder{key}', iet)
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -988,7 +998,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             mapper = {i: List(body=[callpoke, i]) for i in
                       FindNodes(ExpressionBundle).visit(hs.body)}
             iet = Transformer(mapper).visit(hs.body)
-            return make_efunc('compute%d' % key, iet, hs.arguments,
+            return make_efunc(f'compute{key}', iet, hs.arguments,
                               efunc_type=ComputeFunction)
 
     def _make_poke(self, hs, key, msgs):
@@ -1017,7 +1027,7 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
         body.append(Return(gflag))
 
-        return make_efunc('pokempi%d' % key, List(body=body), retval='int')
+        return make_efunc(f'pokempi{key}', List(body=body), retval='int')
 
     def _call_poke(self, poke):
         return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)
@@ -1342,8 +1352,8 @@ class MPIRegion(CompositeObject):
         # Sorting for deterministic codegen
         self._arguments = sorted(arguments, key=lambda i: i.name)
 
-        name = "%s%d" % (prefix, key)
-        pname = "region%d" % key
+        name = f'{prefix}{key}'
+        pname = f'region{key}'
 
         fields = []
         for i in self.arguments:

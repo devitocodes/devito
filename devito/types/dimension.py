@@ -359,13 +359,16 @@ class Dimension(ArgProvider):
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
-            raise InvalidArgument("Illegal %s=%d < %s=%d"
-                                  % (self.max_name, args[self.max_name],
-                                     self.min_name, args[self.min_name]))
+            raise InvalidArgument(
+                f'Illegal {self.max_name}={args[self.max_name]} '
+                f'< {self.min_name}={args[self.min_name]}'
+            )
         elif args[self.max_name] == args[self.min_name]-1:
-            debug("%s=%d and %s=%d might cause no iterations along Dimension %s",
-                  self.min_name, args[self.min_name],
-                  self.max_name, args[self.max_name], self.name)
+            debug(
+                f'{self.min_name}={args[self.min_name]} and '
+                f'{self.max_name}={args[self.max_name]} '
+                f'might cause no iterations along Dimension {self.name}'
+            )
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -752,8 +755,10 @@ class SubDimension(AbstractSubDimension):
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
-        return SubDimensionThickness(*[Thickness(name=n, side=s, value=t, **kwargs)
-                                       for n, s, t in zip(names, sides, thickness, strict=False)])
+        return SubDimensionThickness(*[
+            Thickness(name=n, side=s, value=t, **kwargs)
+            for n, s, t in zip(names, sides, thickness, strict=False)
+        ])
 
     @cached_property
     def _interval(self):
@@ -1354,19 +1359,22 @@ class BlockDimension(AbstractIncrDimension):
             # sub-BlockDimensions must be perfect divisors of their parent
             parent_value = args[self.parent.step.name]
             if parent_value % value > 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
-                                      "must divide the parent block size evenly (`%s=%d`)"
-                                      % (name, value, self.parent.step.name,
-                                         parent_value))
+                raise InvalidArgument(
+                    f'Illegal block size `{name}={value}`: sub-block sizes '
+                    f'must divide the parent block size evenly '
+                    f'(`{self.parent.step.name}={parent_value}`)'
+                )
         else:
             if value < 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
-                                      % (name, value))
+                raise InvalidArgument(
+                    f'Illegal block size `{name}={value}`: it should be > 0'
+                )
             if value > args[self.root.max_name] - args[self.root.min_name] + 1:
                 # Avoid OOB
-                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
-                                      "iteration range and it will cause an OOB access"
-                                      % (name, value))
+                raise InvalidArgument(
+                    f"Illegal block size `{name}={value}`: it's greater than the "
+                    'iteration range and it will cause an OOB access'
+                )
 
 
 class CustomDimension(BasicDimension):

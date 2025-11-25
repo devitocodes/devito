@@ -147,7 +147,10 @@ def _estimate_cost(expr, estimate, seen):
     # The flag tells wether it's an integer expression (implying flops==0) or not
     if not expr.args:
         return 0, False
-    flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args], strict=False)
+    flops, flags = zip(
+        *[_estimate_cost(a, estimate, seen) for a in expr.args],
+        strict=False
+    )
     flops = sum(flops)
     if all(flags):
         # `expr` is an operation involving integer operands only
@@ -162,7 +165,10 @@ def _estimate_cost(expr, estimate, seen):
 @_estimate_cost.register(CallFromPointer)
 def _(expr, estimate, seen):
     try:
-        flops, flags = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args], strict=False)
+        flops, flags = zip(
+            *[_estimate_cost(a, estimate, seen) for a in expr.args],
+            strict=False
+        )
     except ValueError:
         flops, flags = [], []
     return sum(flops), all(flags)
@@ -214,7 +220,10 @@ def _(expr, estimate, seen):
 @_estimate_cost.register(Function)
 def _(expr, estimate, seen):
     if q_routine(expr):
-        flops, _ = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args], strict=False)
+        flops, _ = zip(
+            *[_estimate_cost(a, estimate, seen) for a in expr.args],
+            strict=False
+        )
         flops = sum(flops)
         if isinstance(expr, DefFunction):
             # Bypass user-defined or language-specific functions

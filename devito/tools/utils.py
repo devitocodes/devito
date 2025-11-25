@@ -81,7 +81,7 @@ def as_tuple(item, type=None, length=None):
             t = (item,) * (length or 1)
 
     if length and not len(t) == length:
-        raise ValueError("Tuple needs to be of length %d" % length)
+        raise ValueError(f'Tuple needs to be of length {length}')
     if type and not all(isinstance(i, type) for i in t):
         raise TypeError(f"Items need to be of type {type}")
     return t
@@ -213,7 +213,11 @@ def filter_ordered(elements, key=None):
     if key is None:
         return list(dict.fromkeys(elements))
     else:
-        return list(dict(zip([key(i) for i in elements], elements, strict=False)).values())
+        return list(dict(zip(
+            [key(i) for i in elements],
+            elements,
+            strict=False
+        )).values())
 
 
 def filter_sorted(elements, key=None):
@@ -325,17 +329,17 @@ def humanbytes(B):
                 application-converting-b-to-kb-mb-gb-tb
     """
     B = float(B)
-    KB = float(1024)
-    MB = float(KB ** 2)  # 1,048,576
-    GB = float(KB ** 3)  # 1,073,741,824
-    TB = float(KB ** 4)  # 1,099,511,627,776
+    KB = 1024.0
+    MB = KB ** 2  # 1,048,576
+    GB = KB ** 3  # 1,073,741,824
+    TB = KB ** 4  # 1,099,511,627,776
 
     if B < KB:
-        return '%d %s' % (int(B), 'B')
+        return f'{int(B)} B'
     elif KB <= B < MB:
-        return '%d KB' % round(B / KB)
+        return f'{round(B / KB)} KB'
     elif MB <= B < GB:
-        return '%d MB' % round(B / MB)
+        return f'{round(B / MB)} MB'
     elif GB <= B < TB:
         return f'{round(B / GB, 1):.1f} GB'
     elif TB <= B:

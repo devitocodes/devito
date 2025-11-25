@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+from contextlib import suppress
 from functools import partial
 from threading import get_ident
 from time import time
@@ -113,10 +114,8 @@ class timed_region:
     def __exit__(self, *args):
         self.timings[self.name] = time() - self.tic
         del timed_pass.timings[get_ident()]
-        try:
-            # Necessary clean up should one be constructing an Operator within
-            # a try-except, with the Operator construction failing
+        # Necessary clean up should one be constructing an Operator within
+        # a suppress block, with the Operator construction failing.
+        # Typically we do end up with a KeyError
+        with suppress(KeyError):
             del timed_pass.stack[get_ident()]
-        except KeyError:
-            # Typically we end up here
-            pass

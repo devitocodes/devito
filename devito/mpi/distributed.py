@@ -81,7 +81,7 @@ def devito_mpi_init():
         try:
             thread_level = mpi4py_thread_levels[mpi4py.rc.thread_level]
         except KeyError:
-            raise AssertionError()
+            raise AssertionError() from None
 
         MPI.Init_thread(thread_level)
 
@@ -117,7 +117,7 @@ class AbstractDistributor(ABC):
         self._dimensions = as_tuple(dimensions)
 
     def __repr__(self):
-        return "%s(nprocs=%d)" % (self.__class__.__name__, self.nprocs)
+        return "{self.__class__.__name__}(nprocs={self.nprocs})"
 
     @abstractmethod
     def comm(self):
@@ -370,8 +370,12 @@ class Distributor(DenseDistributor):
             self._topology = tuple(1 for _ in range(len(shape)))
 
         # The domain decomposition
-        self._decomposition = [Decomposition(np.array_split(range(i), j), c)
-                               for i, j, c in zip(shape, self.topology, self.mycoords, strict=False)]
+        self._decomposition = [
+            Decomposition(np.array_split(range(i), j), c)
+            for i, j, c in zip(
+                shape, self.topology, self.mycoords, strict=False
+            )
+        ]
 
     @cached_property
     def is_boundary_rank(self):
@@ -463,7 +467,9 @@ class Distributor(DenseDistributor):
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
             neighbor = [c + s.val for c, s in zip(self.mycoords, i, strict=False)]
 
-            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology, strict=False)):
+            if any(c < 0 or c >= s for c, s in zip(
+                neighbor, self.topology, strict=False
+            )):
                 ret[i] = MPI.PROC_NULL
             else:
                 ret[i] = self.comm.Get_cart_rank(neighbor)
@@ -514,7 +520,9 @@ class SubDistributor(DenseDistributor):
         Set up the decomposition, aligned with that of the parent Distributor.
         """
         decompositions = []
-        for dec, i in zip(self.parent._decomposition, self.subdomain_interval, strict=False):
+        for dec, i in zip(
+            self.parent._decomposition, self.subdomain_interval, strict=False
+        ):
             if i is None:
                 decompositions.append(dec)
             else:
@@ -522,8 +530,10 @@ class SubDistributor(DenseDistributor):
                 decompositions.append([d[np.logical_and(d >= start, d <= end)]
                                        for d in dec])
 
-        self._decomposition = [Decomposition(d, c)
-                               for d, c in zip(decompositions, self.mycoords, strict=False)]
+        self._decomposition = [
+            Decomposition(d, c)
+            for d, c in zip(decompositions, self.mycoords, strict=False)
+        ]
 
     @property
     def parent(self):
@@ -558,8 +568,11 @@ class SubDistributor(DenseDistributor):
         """The interval spanned by the SubDomain."""
         # Assumes no override of x_m and x_M supplied to operator
         bounds_map = {d.symbolic_min: 0 for d in self.p.dimensions}
-        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.p.dimensions,
-                                                               self.p.glb_shape, strict=False)})
+        bounds_map.update({
+            d.symbolic_max: s-1 for d, s in zip(
+                self.p.dimensions, self.p.glb_shape, strict=False
+            )
+        })
 
         sd_interval = []  # The Interval of SubDimension indices
         for d in self.dimensions:
@@ -576,8 +589,12 @@ class SubDistributor(DenseDistributor):
     @cached_property
     def intervals(self):
         """The interval spanned by the SubDomain in each dimension on this rank."""
-        return tuple(d if s is None else d.intersect(s)
-                     for d, s in zip(self.domain_interval, self.subdomain_interval, strict=False))
+        return tuple(
+            d if s is None else d.intersect(s)
+            for d, s in zip(
+                self.domain_interval, self.subdomain_interval, strict=False
+            )
+        )
 
     @cached_property
     def crosses(self):
@@ -618,8 +635,11 @@ class SubDistributor(DenseDistributor):
                           self.subdomain_interval, strict=False)}
 
         for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
-            crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i, strict=False)
-                             if s in crosses[d])  # Skip over CENTER
+            crosses[i] = all(
+                crosses[d][s]
+                for d, s in zip(self.dimensions, i, strict=False)
+                if s in crosses[d]
+            )  # Skip over CENTER
 
         return frozendict(crosses)
 
@@ -666,8 +686,10 @@ class SubDistributor(DenseDistributor):
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
             neighbor = [c + s.val for c, s in zip(self.mycoords, i, strict=False)]
 
-            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology, strict=False)) \
-               or not self.crosses[i]:
+            if any(c < 0 or c >= s for c, s in zip(
+                neighbor, self.topology, strict=False
+                )) \
+                or not self.crosses[i]:
                 ret[i] = MPI.PROC_NULL
             else:
                 ret[i] = self.comm.Get_cart_rank(neighbor)
@@ -742,8 +764,10 @@ class SparseDistributor(AbstractDistributor):
             # The i-th entry in `npoint` tells how many sparse points the
             # i-th MPI rank has
             if len(npoint) != nprocs:
-                raise ValueError('The `npoint` tuple must have as many entries as '
-                                 'MPI ranks (got `%d`, need `%d`)' % (npoint, nprocs))
+                raise ValueError(
+                    'The `npoint` tuple must have as many entries as '
+                    f'MPI ranks (got `{npoint}`, need `{nprocs}`)'
+                )
             elif any(i < 0 for i in npoint):
                 raise ValueError('All entries in `npoint` must be >= 0')
             glb_npoint = npoint

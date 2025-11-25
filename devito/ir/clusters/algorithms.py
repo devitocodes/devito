@@ -197,7 +197,7 @@ class Schedule(Queue):
             if d.is_local or d.is_storage_related(candidates):
                 # Would break a dependence on storage
                 return False
-            if any(d.is_carried(i) for i in candidates):
+            if any(d.is_carried(i) for i in candidates):  # noqa: SIM102
                 if (d.is_flow and d.is_lex_negative) or (d.is_anti and d.is_lex_positive):
                     # Would break a data dependence
                     return False

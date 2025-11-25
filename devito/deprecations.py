@@ -4,7 +4,7 @@ from warnings import warn
 
 class DevitoDeprecation:
 
-    @cached_property
+    @cached_property # Replace with cached method???
     def coeff_warn(self):
         warn("The Coefficient API is deprecated and will be removed, coefficients should"
              " be passed directly to the derivative object `u.dx(weights=...)",

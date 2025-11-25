@@ -42,7 +42,9 @@ class Bunch:
         self.__dict__.update(kwargs)
 
     def __repr__(self):
-        return "Bunch({})".format(", ".join(["{}={}".format(*i) for i in self.__dict__.items()]))
+        return "Bunch({})".format(", ".join(
+            ["{}={}".format(*i) for i in self.__dict__.items()]
+        ))
 
     def __iter__(self):
         yield from self.__dict__.values()
@@ -179,7 +181,9 @@ class ReducerMap(MultiDict):
                     return c
             return candidates[0]
         else:
-            raise ValueError(f"Unable to find unique value for key {key}, candidates: {candidates}")
+            raise ValueError(
+                f"Unable to find unique value for key {key}, candidates: {candidates}"
+            )
 
     def reduce(self, key, op=None):
         """

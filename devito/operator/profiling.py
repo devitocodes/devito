@@ -318,7 +318,7 @@ class AdvancedProfiler(Profiler):
             # Same as above but without setup overheads (e.g., host-device
             # data transfers)
             mapper = defaultdict(list)
-            for (name, rank), v in summary.items():
+            for (name, _), v in summary.items():
                 mapper[name].append(v.time)
             reduce_over_nosetup = sum(max(i) for i in mapper.values())
             if reduce_over_nosetup == 0:

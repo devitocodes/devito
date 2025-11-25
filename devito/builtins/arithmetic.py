@@ -31,9 +31,10 @@ def norm(f, order=2):
     n = make_retval(f)
     s = dv.types.Symbol(name='sum', dtype=n.dtype)
 
-    op = dv.Operator([dv.Eq(s, 0.0)] + eqns +
-                     [dv.Inc(s, Pow(dv.Abs(p), order)), dv.Eq(n[0], s)],
-                     name='norm%d' % order)
+    op = dv.Operator(
+        [dv.Eq(s, 0.0)] + eqns + [dv.Inc(s, Pow(dv.Abs(p), order)), dv.Eq(n[0], s)],
+        name=f'norm{order}'
+    )
     op.apply(**kwargs)
 
     v = np.power(n.data[0], 1/order)

@@ -105,7 +105,9 @@ class Constant(DataSymbol):
         try:
             # Might be a plain number, w/o a dtype field
             if key.dtype != self.dtype:
-                warning(f"Data type {key.dtype} of runtime value `{self.name}` does not match the "
-                        f"Constant data type {self.dtype}")
+                warning(
+                    f'Data type {key.dtype} of runtime value `{self.name}` '
+                    f'does not match the Constant data type {self.dtype}'
+                )
         except AttributeError:
             pass

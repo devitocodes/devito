@@ -203,7 +203,7 @@ class CireTransformerLegacy(CireTransformer):
         Carry out the bulk of the work of ``_generate``.
         """
         counter = generator()
-        make = lambda: Symbol(name='dummy%d' % counter(), dtype=np.float32)
+        make = lambda: Symbol(name=f'dummy{counter()}', dtype=np.float32)
 
         if cbk_compose is None:
             cbk_compose = lambda *args: None
@@ -378,7 +378,7 @@ class CireDerivatives(CireTransformerLegacy):
                 raise CompilationError(
                     f"Illegal schedule {self.opt_schedule_strategy}; "
                     f"generated {len(variants)} schedules in total"
-                )
+                ) from None
 
         return pick_best(variants)
 
@@ -583,7 +583,9 @@ def collect(extracted, ispace, minstorage):
             for i in g._items:
                 aliaseds.append(extracted[i.expr])
 
-                distance = [o.distance(v) for o, v in zip(i.offsets, offsets, strict=False)]
+                distance = [
+                    o.distance(v) for o, v in zip(i.offsets, offsets, strict=False)
+                ]
                 distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
                 distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
@@ -833,11 +835,8 @@ def lower_schedule(schedule, meta, sregistry, ftemps, min_dtype):
     """
     Turn a Schedule into a sequence of Clusters.
     """
-    if ftemps:
-        make = TempFunction
-    else:
-        # Typical case -- the user does *not* "see" the CIRE-created temporaries
-        make = TempArray
+    # Typical case -- the user does *not* "see" the CIRE-created temporaries
+    make = TempFunction if ftemps else TempArray
 
     clusters = []
     subs = {}
@@ -1093,7 +1092,10 @@ class Group(tuple):
 
     @cached_property
     def Toffsets(self):
-        return [LabeledVector.transpose(*i) for i in zip(*[i.offsets for i in self], strict=False)]
+        return [
+            LabeledVector.transpose(*i)
+            for i in zip(*[i.offsets for i in self], strict=False)
+        ]
 
     @cached_property
     def diameter(self):
@@ -1119,7 +1121,7 @@ class Group(tuple):
                         items = [Vector(i) for i in v]
                         distance, = vmax(*items) - vmin(*items)
                         if not is_integer(distance):
-                            raise ValueError
+                            raise ValueError from None
                 ret[d] = max(ret[d], distance)
 
         return ret
@@ -1351,7 +1353,7 @@ class Schedule(tuple):
         # Not just the sum for the individual items' cost! There might be
         # redundancies, which we factor out here...
         counter = generator()
-        make = lambda _: Symbol(name='dummy%d' % counter(), dtype=np.float32)
+        make = lambda _: Symbol(name=f'dummy{counter()}', dtype=np.float32)
 
         tot = 0
         for v in as_mapper(self, lambda i: i.ispace).values():

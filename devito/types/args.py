@@ -13,14 +13,18 @@ class ArgProvider:
     @property
     @abc.abstractmethod
     def _arg_names(self):
-        raise NotImplementedError(f'{self.__class__} does not provide any default argument names')
+        raise NotImplementedError(
+            f'{self.__class__} does not provide any default argument names'
+        )
 
     @abc.abstractmethod
     def _arg_defaults(self):
         """
         A map of default argument values defined by this type.
         """
-        raise NotImplementedError(f'{self.__class__} does not provide any default arguments')
+        raise NotImplementedError(
+            f'{self.__class__} does not provide any default arguments'
+        )
 
     @abc.abstractmethod
     def _arg_values(self, **kwargs):
@@ -32,7 +36,9 @@ class ArgProvider:
         **kwargs
             User-provided argument overrides.
         """
-        raise NotImplementedError(f'{self.__class__} does not provide argument value derivation')
+        raise NotImplementedError(
+            f'{self.__class__} does not provide argument value derivation'
+        )
 
     def _arg_check(self, *args, **kwargs):
         """

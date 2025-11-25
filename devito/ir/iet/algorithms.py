@@ -48,7 +48,7 @@ def iet_build(stree):
                                  uindices=i.sub_iterators)
 
         elif i.is_Section:
-            body = Section('section%d' % nsections, body=queues.pop(i))
+            body = Section(f'section{nsections}', body=queues.pop(i))
             nsections += 1
 
         elif i.is_Halo:

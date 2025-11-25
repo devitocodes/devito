@@ -690,7 +690,10 @@ class DeviceAwareDataManager(DataManager):
 
 def make_zero_init(obj, rcompile, sregistry):
     cdims = []
-    for d, (h0, h1), s in zip(obj.dimensions, obj._size_halo, obj.symbolic_shape, strict=False):
+    for d, (h0, h1), s in zip(
+        obj.dimensions, obj._size_halo, obj.symbolic_shape,
+        strict=False
+    ):
         if d.is_NonlinearDerived:
             assert h0 == h1 == 0
             m = 0

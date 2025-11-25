@@ -64,7 +64,7 @@ class OmpIteration(PragmaIteration):
         clauses = []
 
         if ncollapsed > 1:
-            clauses.append('collapse(%d)' % ncollapsed)
+            clauses.append(f'collapse({ncollapsed})')
 
         if chunk_size is not False:
             clauses.append('schedule({},{})'.format(schedule or 'dynamic',
@@ -261,21 +261,18 @@ class AbstractOmpizer(PragmaShmTransformer):
         if isinstance(compiler, GNUCompiler) and \
            compiler.version < Version("6.0"):
             return False
-        elif isinstance(compiler, NvidiaCompiler):
-            # NVC++ does not support array reduction and leads to segfault
-            return False
         else:
-            return True
+            # NVC++ does not support array reduction and leads to segfault
+            return isinstance(compiler, NvidiaCompiler)
 
     @classmethod
     def _support_complex_reduction(cls, compiler):
         # In case we have a CustomCompiler
         if isinstance(compiler, CustomCompiler):
             compiler = compiler._base()
-        if isinstance(compiler, GNUCompiler):
-            # Gcc doesn't supports complex reduction
-            return False
-        return True
+
+        # Gcc doesn't supports complex reduction
+        return isinstance(compiler, GNUCompiler)
 
 
 class Ompizer(AbstractOmpizer):

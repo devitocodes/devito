@@ -179,7 +179,7 @@ class InjectBuffers(Queue):
             # If a buffer is read but never written, then we need to add
             # an Eq to step through the next slot
             # E.g., `ub[0, x] = usave[time+2, x]`
-            for b, v in descriptors.items():
+            for _, v in descriptors.items():
                 if not v.is_readonly:
                     continue
                 if c is not v.firstread:
@@ -222,7 +222,7 @@ class InjectBuffers(Queue):
 
             # Append the copy-back if `c` is the last-write of some buffers
             # E.g., `usave[time+1, x] = ub[t1, x]`
-            for b, v in descriptors.items():
+            for _, v in descriptors.items():
                 if v.is_readonly:
                     continue
                 if c is not v.lastwrite:
@@ -381,10 +381,11 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
             if async_degree is not None:
                 if async_degree < size:
-                    warning("Ignoring provided asynchronous degree as it'd be "
-                            "too small for the required buffer (provided %d, "
-                            "but need at least %d for `%s`)"
-                            % (async_degree, size, f.name))
+                    warning(
+                        "Ignoring provided asynchronous degree as it'd be "
+                        f"too small for the required buffer (provided {async_degree}, "
+                        f"but need at least {size} for `{f.name}`)"
+                    )
                 else:
                     size = async_degree
 
@@ -798,8 +799,10 @@ def offset_from_centre(d, indices):
                 if not ((p - v).is_Integer or (p - v).is_Symbol):
                     raise ValueError
             except (IndexError, ValueError):
-                raise NotImplementedError("Cannot apply buffering with nonlinear "
-                                          f"index functions (found `{v}`)")
+                raise NotImplementedError(
+                    "Cannot apply buffering with nonlinear "
+                    f"index functions (found `{v}`)"
+                ) from None
 
         try:
             # Start assuming e.g. `indices = [time - 1, time + 2]`
