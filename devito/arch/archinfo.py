@@ -497,7 +497,7 @@ def get_visible_devices():
     )
     for v in device_vars:
         try:
-            return tuple(int(i) for i in os.environ[v].split(','))
+            return v, tuple(int(i) for i in os.environ[v].split(','))
         except ValueError:
             # Visible devices set via UUIDs or other non-integer identifiers.
             warning("Setting visible devices via UUIDs or other non-integer"
@@ -507,7 +507,7 @@ def get_visible_devices():
             # Environment variable not set
             continue
 
-    return None
+    return None, None
 
 
 @memoized_func
