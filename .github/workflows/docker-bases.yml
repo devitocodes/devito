@@ -60,7 +60,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -131,7 +131,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -209,7 +209,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -313,7 +313,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}
