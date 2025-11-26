@@ -500,7 +500,9 @@ def pairwise_or(*guards):
 
     # Analysis
     for guard in guards:
-        if guard is true or guard is None:
+        if guard is true:
+            return true
+        elif guard is None:
             continue
         elif isinstance(guard, And):
             components = guard.args
