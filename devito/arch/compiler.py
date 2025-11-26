@@ -14,9 +14,11 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import (GCCToolchain,
                               call_capture_output as _call_capture_output)
 
-from devito.arch import (AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9,
-                         Graviton, Cortex, IntelDevice, get_nvidia_cc, NvidiaArm,
-                         check_cuda_runtime, get_m1_llvm_path)
+from devito.arch import (
+    AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9, Graviton,
+    Cortex, IntelDevice, get_nvidia_cc, NvidiaArm, check_cuda_runtime,
+    get_cuda_version, get_m1_llvm_path
+)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
@@ -764,6 +766,12 @@ class CudaCompiler(Compiler):
         # mismatch that would cause the program to run, but likely producing
         # garbage, since the CUDA kernel behaviour would be undefined
         check_cuda_runtime()
+
+    @property
+    def std(self):
+        # Since CUDA 13, code needs compiling with C++17 standard
+        _cxxstd = 'c++17' if get_cuda_version().major >= 13 else 'c++14'
+        return _cxxstd if self._cpp else self._cstd
 
     def __lookup_cmds__(self):
         self.CC = 'nvcc'
