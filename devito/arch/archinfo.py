@@ -573,7 +573,7 @@ def get_cuda_version():
     finally:
         if out.returncode == 0:
             start = out.stdout.find('release')
-            start = out.stdout.find(',', start)
+            start = out.stdout.find(',', start) + 1
             stop = out.stdout.find('\n', start)
             with suppress(InvalidVersion):
                 cuda_version = parse(out.stdout[start:stop])
@@ -660,9 +660,22 @@ def check_cuda_runtime():
        cuda.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0:
         driver_version = driver_version.value
         runtime_version = runtime_version.value
-        if driver_version < runtime_version:
-            warning("The NVidia driver (v%d) on this system may not be compatible "
-                    "with the CUDA runtime (v%d)" % (driver_version, runtime_version))
+
+        driver_v = parse(str(driver_version/1000))
+        runtime_v = parse(str(runtime_version/1000))
+        # First check the "major" version, known to be incompatible
+        if driver_v.major < runtime_v.major:
+            raise RuntimeError(
+                f'The NVidia driver (v{driver_version}) on this system is '
+                f'not compatible with the CUDA runtime (v{runtime_version})'
+            )
+        # Next check the version including minor revisions which may still
+        # be compatible
+        elif driver_v < runtime_v:
+            warning(
+                f'The NVidia driver (v{driver_version}) on this system may '
+                f'not be compatible with the CUDA runtime (v{runtime_version})'
+            )
     else:
         warning("Unable to check compatibility of NVidia driver and runtime")
 
