@@ -1398,11 +1398,18 @@ class ArgumentsMap(dict):
                 rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
                 logical_deviceid = rank
 
-            visible_devices = get_visible_devices()
+            visible_device_var, visible_devices = get_visible_devices()
             if visible_devices is None:
                 return logical_deviceid
             else:
-                return visible_devices[logical_deviceid]
+                try:
+                    return visible_devices[logical_deviceid]
+                except IndexError:
+                    errmsg = (f"A deviceid value of {logical_deviceid} is not valid "
+                              f"with {visible_device_var}={visible_devices}. Note that "
+                              "deviceid corresponds to the logical index within the "
+                              "visible devices, not the physical device index.")
+                    raise ValueError(errmsg)
         else:
             return None
 
