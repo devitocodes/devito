@@ -414,6 +414,31 @@ def test_namespace():
     assert not ns0.free_symbols
 
 
+def test_list_initializer():
+    # Legacy interface
+    init0 = ListInitializer((1, 2, 3))
+    assert str(init0) == '{1, 2, 3}'
+
+    init1 = ListInitializer(1, 2, 3)
+    assert str(init1) == '{1, 2, 3}'
+
+    # Test hashing and equality
+    assert init0 == init1
+    assert hash(init0) == hash(init1)
+    init2 = ListInitializer(1, 2)
+    assert init0 != init2
+    assert hash(init0) != hash(init2)
+    assert hash(init0) == hash(init1)
+
+    # Reconstruction
+    assert init0 == init0._rebuild()
+    assert init1 == init1._rebuild()
+    assert str(init1._rebuild(4, 5)) == '{4, 5}'
+
+    # Accept `evaluate` but gently ignore it
+    assert str(ListInitializer((1, 2), evaluate=True)) == '{1, 2}'
+
+
 def test_rvalue():
     ctype = ReservedWord('dummytype')
     ns = Namespace(['my', 'namespace'])
