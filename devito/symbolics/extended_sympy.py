@@ -334,10 +334,14 @@ class ListInitializer(sympy.Expr, Pickable):
     Symbolic representation of the C++ list initializer notation ``{a, b, ...}``.
     """
 
-    __rargs__ = ('params',)
+    __rargs__ = ('*params',)
     __rkwargs__ = ('dtype',)
 
-    def __new__(cls, params, dtype=None):
+    def __new__(cls, *params, dtype=None, evaluate=False):
+        # Legacy API: allow a single list/tuple as argument
+        if len(params) == 1 and isinstance(params[0], (list, tuple, np.ndarray)):
+            params = params[0]
+
         args = []
         for p in as_tuple(params):
             try:
