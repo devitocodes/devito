@@ -619,18 +619,12 @@ def get_m1_llvm_path(language):
 
 @memoized_func
 def check_cuda_runtime():
-    libnames = ('libcudart.so', 'libcudart.dylib', 'cudart.dll')
-    for libname in libnames:
-        try:
-            cuda = ctypes.CDLL(libname)
-        except OSError:
-            continue
-        else:
-            break
-    else:
+    libname = ctypes.util.find_library("cudart")
+    if not libname:
         warning("Unable to check compatibility of NVidia driver and runtime")
         return
 
+    cuda = ctypes.CDLL(libname)
     driver_version = ctypes.c_int()
     runtime_version = ctypes.c_int()
 
@@ -1069,6 +1063,32 @@ class NvidiaDevice(Device):
                 return 'tesla'
         return None
 
+    @cached_property
+    def max_shm_per_block(self):
+        """
+        Get the maximum amount of shared memory per thread block
+        """
+        # Load libcudart
+        libname = ctypes.util.find_library("cudart")
+        if not libname:
+            return 64 * 1024  # 64 KB default
+        lib = ctypes.CDLL(libname)
+
+        cudaDevAttrMaxSharedMemoryPerBlockOptin = 97
+        # get current device
+        dev = ctypes.c_int()
+        lib.cudaGetDevice(ctypes.byref(dev))
+
+        # query attribute
+        value = ctypes.c_int()
+        lib.cudaDeviceGetAttribute(
+            ctypes.byref(value),
+            ctypes.c_int(cudaDevAttrMaxSharedMemoryPerBlockOptin),
+            dev
+        )
+
+        return value.value
+
     def supports(self, query, language=None):
         if language != 'cuda':
             return False
@@ -1124,6 +1144,8 @@ class AmdDevice(Device):
     thread_group_size = 64
 
     max_mem_trans_nbytes = 256
+
+    max_shm_per_block = 64*1024  # 64 KB
 
     @cached_property
     def march(cls):

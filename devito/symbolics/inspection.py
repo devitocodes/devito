@@ -4,6 +4,7 @@ import numpy as np
 from sympy import (Function, Indexed, Integer, Mul, Number,
                    Pow, S, Symbol, Tuple)
 from sympy.core.numbers import ImaginaryUnit
+from sympy.core.function import Application
 
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
@@ -12,7 +13,7 @@ from devito.symbolics.extended_dtypes import INT
 from devito.symbolics.extended_sympy import (CallFromPointer, Cast,
                                              DefFunction, ReservedWord)
 from devito.symbolics.queries import q_routine
-from devito.tools import as_tuple, prod
+from devito.tools import as_tuple, prod, is_integer
 from devito.tools.dtypes_lowering import infer_dtype
 
 __all__ = ['compare_ops', 'estimate_cost', 'has_integer_args', 'sympy_dtype']
@@ -116,7 +117,7 @@ def estimate_cost(exprs, estimate=False):
 estimate_values = {
     'elementary': 100,
     'pow': 50,
-    'SafeInv': 10,
+    'SafeInv': 50,
     'div': 5,
     'Abs': 5,
     'floor': 1,
@@ -211,6 +212,7 @@ def _(expr, estimate, seen):
 
 
 @_estimate_cost.register(Function)
+@_estimate_cost.register(Application)
 def _(expr, estimate, seen):
     if q_routine(expr):
         flops, _ = zip(*[_estimate_cost(a, estimate, seen) for a in expr.args])
@@ -227,6 +229,7 @@ def _(expr, estimate, seen):
             flops += 1
     else:
         flops = 0
+
     return flops, False
 
 
@@ -284,12 +287,14 @@ def has_integer_args(*args):
         try:
             return np.issubdtype(args[0].dtype, np.integer)
         except AttributeError:
-            return args[0].is_integer
+            return is_integer(args[0])
 
     res = True
     for a in args:
         try:
-            if isinstance(a, INT):
+            if isinstance(a, INT) or \
+               is_integer(a) or \
+               has_integer_args(a):
                 res = res and True
             elif len(a.args) > 0:
                 res = res and has_integer_args(*a.args)

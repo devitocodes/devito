@@ -6,7 +6,6 @@ import sympy
 
 from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
-from devito.logger import warning
 from devito.ir import (Any, Forward, DummyExpr, Iteration, EmptyList, Prodder,
                        FindApplications, FindNodes, FindSymbols, Transformer,
                        Uxreplace, filter_iterations, retrieve_iteration_tree,
@@ -155,7 +154,7 @@ def _generate_macros(iet, tracker=None, langbb=None, printer=CPrinter, **kwargs)
                      for define, expr in headers)
 
     # Generate Macros from higher-level SymPy objects
-    mheaders, includes = _generate_macros_math(iet, langbb=langbb)
+    mheaders, includes = _generate_macros_math(iet, langbb=langbb, printer=printer)
     includes = sorted(includes, key=str)
     headers.extend(sorted(mheaders, key=str))
 
@@ -199,11 +198,11 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
     return iet
 
 
-def _generate_macros_math(iet, langbb=None):
+def _generate_macros_math(iet, langbb=None, printer=CPrinter):
     headers = []
     includes = []
     for i in FindApplications().visit(iet):
-        header, include = _lower_macro_math(i, langbb)
+        header, include = _lower_macro_math(i, langbb, printer)
         headers.extend(header)
         includes.extend(include)
 
@@ -211,13 +210,13 @@ def _generate_macros_math(iet, langbb=None):
 
 
 @singledispatch
-def _lower_macro_math(expr, langbb):
+def _lower_macro_math(expr, langbb, printer):
     return (), {}
 
 
 @_lower_macro_math.register(Min)
 @_lower_macro_math.register(sympy.Min)
-def _(expr, langbb):
+def _(expr, langbb, printer):
     if has_integer_args(*expr.args):
         return (('MIN(a,b)', ('(((a) < (b)) ? (a) : (b))')),), {}
     else:
@@ -226,7 +225,7 @@ def _(expr, langbb):
 
 @_lower_macro_math.register(Max)
 @_lower_macro_math.register(sympy.Max)
-def _(expr, langbb):
+def _(expr, langbb, printer):
     if has_integer_args(*expr.args):
         return (('MAX(a,b)', ('(((a) > (b)) ? (a) : (b))')),), {}
     else:
@@ -234,15 +233,20 @@ def _(expr, langbb):
 
 
 @_lower_macro_math.register(SafeInv)
-def _(expr, langbb):
+def _(expr, langbb, printer):
     try:
-        eps = np.finfo(expr.base.dtype).resolution**2
-    except ValueError:
-        warning(f"dtype not recognized in SafeInv for {expr.base}, assuming float32")
-        eps = np.finfo(np.float32).resolution**2
-    b = Cast('b', dtype=np.float32)
+        dtype = expr.base.dtype
+        eps = np.finfo(dtype).resolution**2
+    except (AttributeError, ValueError):
+        dtype = np.float32
+        eps = np.finfo(dtype).resolution**2
+
+    b = printer()._print(Cast('b', dtype=dtype))
+    ext = 'F' if dtype is np.float32 else ''
+
     return (('SAFEINV(a, b)',
-             f'(((a) < {eps}F || ({b}) < {eps}F) ? (0.0F) : ((1.0F) / (a)))'),), {}
+             f'(((a) < {eps}{ext} || ({b}) < {eps}{ext}) ? '
+             f'(0.0{ext}) : ((1.0{ext}) / (a)))'),), {}
 
 
 @iet_pass
