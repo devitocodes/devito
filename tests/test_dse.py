@@ -1588,7 +1588,7 @@ class TestAliases:
         so = 8
         grid = Grid(shape=(6, 6, 6))
 
-        f = Function(name='f', grid=grid, space_order=so, parameter=True)
+        f = Function(name='f', grid=grid, space_order=so)
         v = TimeFunction(name="v", grid=grid, space_order=so)
         v1 = TimeFunction(name="v1", grid=grid, space_order=so)
         p = TimeFunction(name="p", grid=grid, space_order=so, staggered=NODE)

@@ -844,7 +844,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Averaging mode for off the grid evaluation
         self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
-        if self._avg_mode not in ['arithmetic', 'harmonic']:
+        if self._avg_mode not in ['arithmetic', 'harmonic', 'safe_harmonic']:
             raise ValueError("Invalid averaging mode_mode %s, accepted values are"
                              " arithmetic or harmonic" % self._avg_mode)
 
@@ -878,8 +878,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         halo = tuple(kwargs.get('halo', ((0, 0),)*self.ndim))
         return DimensionTuple(*halo, getters=self.dimensions)
 
-    def __padding_setup__(self, **kwargs):
-        padding = tuple(kwargs.get('padding', ((0, 0),)*self.ndim))
+    def __padding_setup__(self, padding=None, **kwargs):
+        padding = tuple(padding or ((0, 0),)*self.ndim)
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @cached_property
@@ -990,20 +990,51 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         Mapper of off-grid interpolation points indices for each dimension.
         """
         mapper = {}
+        subs = {}
         for i, j, d in zip(self.indices, self.indices_ref, self.dimensions):
             # Two indices are aligned if they differ by an Integer*spacing.
-            v = (i - j)/d.spacing
+            if not i.has(d):
+                # Maybe a SubDimension
+                dims = {sd for sd in i.free_symbols if getattr(sd, 'is_Dimension', False)
+                        and d in sd._defines}
+
+                # More than one Dimension, cannot handle
+                if len(dims) != 1:
+                    continue
+
+                # SubDimensions -> Dimension substitutions for interpolation
+                sd = dims.pop()
+                v = (i - j._subs(d, sd))/d.spacing
+                i = i._subs(sd, d)
+                subs[d] = sd
+            else:
+                v = (i - j)/d.spacing
+
             try:
                 if not isinstance(v, sympy.Number) or int(v) == v:
+                    # Skip if index is on grid
                     continue
-                # Skip if index is just a Symbol or integer
                 elif (i.is_Symbol and not i.has(d)) or i.is_Integer:
+                    # Skip if index is just a Symbol or integer
                     continue
                 else:
                     mapper.update({d: i})
             except (AttributeError, TypeError):
                 mapper.update({d: i})
+
+        # Substitutions for SubDimensions
+        if mapper:
+            mapper['subs'] = subs
+
         return mapper
+
+    @property
+    def is_harmonic(self):
+        return self.avg_mode == 'harmonic' or self.avg_mode == 'safe_harmonic'
+
+    @property
+    def is_harmonic_safe(self):
+        return self.avg_mode == 'safe_harmonic'
 
     def _evaluate(self, **kwargs):
         """
@@ -1014,29 +1045,30 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         This allow to evaluate off grid points as EvalDerivative that are better
         for the compiler.
         """
+        mapper = self._grid_map
+        subs = mapper.pop('subs', {})
         # Average values if at a location not on the Function's grid
-        if not self._grid_map:
+        if not mapper:
             return self
 
         io = self.interp_order
-        # Base function
-        if self._avg_mode == 'harmonic':
-            retval = 1 / self.function
-        else:
-            retval = self.function
+        retval = self.subs({i.subs(subs): self.indices_ref[d]
+                            for d, i in mapper.items()})
+        if self.is_harmonic:
+            retval = retval._inv(retval, safe=self.is_harmonic_safe)
 
         # Apply interpolation from inner most dim
-        for d, i in self._grid_map.items():
+        for d, i in mapper.items():
             retval = retval.diff(d, deriv_order=0, fd_order=io, x0={d: i})
 
         # Evaluate. Since we used `self.function` it will be on the grid when
         # evaluate is called again within FD
         retval = retval._evaluate(**kwargs)
+        retval = retval.subs(subs)
 
         # If harmonic averaging, invert at the end
-        if self._avg_mode == 'harmonic':
-            from devito.finite_differences.differentiable import SafeInv
-            retval = SafeInv(retval, self.function)
+        if self.is_harmonic:
+            retval = retval._inv(self.function.subs(subs), safe=self.is_harmonic_safe)
 
         return retval
 
