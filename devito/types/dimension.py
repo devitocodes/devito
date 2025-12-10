@@ -457,6 +457,10 @@ class SpaceDimension(BasicDimension):
 
     is_Space = True
 
+    @property
+    def symbolic_min(self):
+        return sympy.S.Zero
+
 
 class TimeDimension(BasicDimension):
 
