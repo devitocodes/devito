@@ -474,7 +474,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         return self._rebuild(transpose=adjoint)
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         """
         Evaluates the derivative at the location of `func`. It is necessary for staggered
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
@@ -521,7 +521,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 return self._rebuild(self.expr, **rkw)
             args = [self.expr.func(*v) for v in mapper.values()]
             args.extend([a for a in self.expr.args if a not in self.expr._args_diff])
-            args = [self._rebuild(a)._eval_at(func) for a in args]
+            args = [self._rebuild(a)._eval_at(func, **kwargs) for a in args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
             # For Mul, We treat the basic case `u(x + h_x/2) * v(x) which is what appear
@@ -594,7 +594,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
                                      self.deriv_order[0], weights=self.weights,
                                      side=self.side, matvec=self.transpose,
-                                     x0=self.x0, expand=expand)
+                                     x0=x0_deriv, expand=expand)
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:
