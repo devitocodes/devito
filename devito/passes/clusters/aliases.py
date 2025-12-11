@@ -525,6 +525,7 @@ def collect(extracted, ispace, minstorage):
             k = group.dimensions_translated
         else:
             k = group.dimensions
+        k = frozenset(d for d in k if not d.is_NonlinearDerived)
         mapper.setdefault(k, []).append(group)
 
     aliases = AliasList()

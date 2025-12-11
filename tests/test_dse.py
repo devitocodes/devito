@@ -2664,6 +2664,25 @@ class TestAliases:
         op()
         assert np.all(src.data == 8)
 
+    def test_space_and_time_invariant_together(self):
+        grid = Grid(shape=(34, 45, 50))
+
+        a = Function(name='a', grid=grid, space_order=8)
+        vx = TimeFunction(name='vx', grid=grid, space_order=8)
+        tzz = vx.func(name='tzz')
+
+        eqn = Eq(tzz.forward, a.dy.dz * (vx.dx.dy + vx.dx.dz) + tzz)
+
+        op = Operator(eqn, opt=('advanced', {'openmp': False}))
+
+        op.cfunction
+
+        assert_structure(
+            op,
+            ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
+            'tx0_blk0y0_blk0xyzyz'
+        )
+
 
 class TestIsoAcoustic:
 
