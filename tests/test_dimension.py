@@ -754,7 +754,7 @@ class TestSubDimension:
         op = Operator([Eq(a[xi], 1), Eq(f, f + a[xi + 1], subdomain=grid.interior)],
                       opt=('advanced', {'openmp': False}))
 
-        assert len(op.parameters) == 6
+        assert len(op.parameters) == 5
         # neither `x_size` nor `xi_size` are expected here
         assert not any(i.name in ('x_size', 'xi_size') for i in op.parameters)
         # Try running it -- regardless of what it will produce, this should run
@@ -779,6 +779,7 @@ class TestSubDimension:
 
         op = Operator(eqn, opt=opt)
 
+        # TODO: Why are bounds overridden here?
         op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
                  x_ltkn0=0, x_rtkn0=0, y_ltkn0=0, y_rtkn0=0)
 
