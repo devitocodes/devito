@@ -218,7 +218,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Reduce flops
         clusters = cire(clusters, 'sops', sregistry, options, platform)
         clusters = factorize(clusters, **kwargs)
-        clusters = optimize_pows(clusters)
 
         # The previous passes may have created fusion opportunities
         clusters = fuse(clusters)

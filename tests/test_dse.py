@@ -1745,7 +1745,7 @@ class TestAliases:
         assert len([i for i in FindSymbols().visit(bns['x0_blk0']) if i.is_Array]) == 7
         assert len(FindNodes(VExpanded).visit(pbs['x0_blk0'])) == 3
 
-    @pytest.mark.parametrize('so_ops', [(4, 147), (8, 211)])
+    @pytest.mark.parametrize('so_ops', [(4, 146), (8, 210)])
     @switchconfig(profiling='advanced')
     def test_tti_J_akin_complete(self, so_ops):
         grid = Grid(shape=(16, 16, 16))
@@ -2725,9 +2725,9 @@ class TestIsoAcoustic:
         bns, _ = assert_blocking(op0, {})
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
-        assert summary0[('section0', None)].ops == 50
+        assert summary0[('section0', None)].ops == 55
         assert summary0[('section1', None)].ops == 44
-        assert np.isclose(summary0[('section0', None)].oi, 2.851, atol=0.001)
+        assert np.isclose(summary0[('section0', None)].oi, 3.136, atol=0.001)
 
         assert summary1[('section0', None)].ops == 31
         assert summary1[('section1', None)].ops == 88
@@ -2779,7 +2779,7 @@ class TestTTI:
         # Make sure no opts were applied
         op = wavesolver.op_fwd(False)
         assert len(op._func_table) == 0
-        assert summary[('section0', None)].ops == 743
+        assert summary[('section0', None)].ops == 753
 
         return v, rec
 
@@ -2865,7 +2865,7 @@ class TestTTIv2:
 
     @switchconfig(profiling='advanced')
     @pytest.mark.parametrize('space_order,expected', [
-        (4, 200), (12, 392)
+        (4, 190), (12, 382)
     ])
     def test_opcounts(self, space_order, expected):
         grid = Grid(shape=(3, 3, 3))
