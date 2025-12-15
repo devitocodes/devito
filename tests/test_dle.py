@@ -146,7 +146,7 @@ def test_cache_blocking_structure_subdims():
     # zi is rebuilt with name z, so check symbolic max and min are preserved
     # Also check the zi was rebuilt
     assert not tree[4].dim.is_Block and tree[4].dim is not zi and\
-        str(tree[4].dim.symbolic_min) == 'z_m + z_ltkn0' and\
+        str(tree[4].dim.symbolic_min) == 'z_ltkn0' and\
         str(tree[4].dim.symbolic_max) == 'z_M - z_rtkn0' and\
         tree[4].dim.parent is z
 
@@ -536,7 +536,7 @@ def test_cache_blocking_imperfect_nest(blockinner):
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
     assert op1.parameters[7] is trees[0][0].step
-    assert op1.parameters[10] is trees[0][1].step
+    assert op1.parameters[9] is trees[0][1].step
 
     u.data[:] = 0.2
     v.data[:] = 1.5
@@ -1380,7 +1380,7 @@ class TestNestedParallelism:
 
         if blocklevels == 1:
             assert not tree[4].dim.is_Block and tree[4].dim is not zi and\
-                str(tree[4].dim.symbolic_min) == 'z_m + z_ltkn0' and\
+                str(tree[4].dim.symbolic_min) == 'z_ltkn0' and\
                 str(tree[4].dim.symbolic_max) == 'z_M - z_rtkn0' and\
                 tree[4].dim.parent is z
         elif blocklevels == 2:
@@ -1391,7 +1391,7 @@ class TestNestedParallelism:
             assert tree[5].dim.is_Block and tree[5].dim.parent is tree[3].dim and\
                 tree[5].dim.root is y
             assert not tree[6].dim.is_Block and tree[6].dim is not zi and\
-                str(tree[6].dim.symbolic_min) == 'z_m + z_ltkn0' and\
+                str(tree[6].dim.symbolic_min) == 'z_ltkn0' and\
                 str(tree[6].dim.symbolic_max) == 'z_M - z_rtkn0' and\
                 tree[6].dim.parent is z
 
