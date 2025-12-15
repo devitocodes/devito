@@ -779,9 +779,7 @@ class TestSubDimension:
 
         op = Operator(eqn, opt=opt)
 
-        # TODO: Why are bounds overridden here?
-        op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
-                 x_ltkn0=0, x_rtkn0=0, y_ltkn0=0, y_rtkn0=0)
+        op.apply(time=3, x_ltkn0=2, x_rtkn0=2, y_ltkn0=2, y_rtkn0=2)
 
         assert np.all(u.data[0, 2:-2, 2:-2] == 4.)
         assert np.all(u.data[1, 2:-2, 2:-2] == 3.)
