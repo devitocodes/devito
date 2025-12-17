@@ -10,7 +10,7 @@ except ImportError:
 
 from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
 from devito.types.basic import IndexedData
-from devito.tools import CustomDtype, Pickable, frozendict
+from devito.tools import CustomDtype, Pickable, as_tuple, frozendict
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
            'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
@@ -235,11 +235,24 @@ class TempArray(Array):
 
     is_autopaddable = True
 
+    __rkwargs__ = (Array.__rkwargs__ + ('shift',))
+
+    def __init_finalize__(self, *args, shift=None, **kwargs):
+        super().__init_finalize__(*args, **kwargs)
+
+        # An integer for each Dimension representing the shift applied to the halo
+        # for homogeneity reasons
+        self._shift = as_tuple(shift)
+
     def __padding_setup__(self, **kwargs):
         padding = kwargs.pop('padding', None)
         if padding is None:
             padding = self.__padding_setup_smart__(**kwargs)
         return super().__padding_setup__(padding=padding, **kwargs)
+
+    @property
+    def shift(self):
+        return self._shift
 
 
 class Fence:
