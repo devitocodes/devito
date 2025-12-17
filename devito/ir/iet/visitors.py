@@ -1499,6 +1499,41 @@ class Uxreplace(Transformer):
                           arguments=arguments)
 
 
+class Specializer(Uxreplace):
+    """
+    A Transformer to "specialize" a pre-built Operator - that is to replace a given
+    set of (scalar) symbols with hard-coded values to free up registers. This will
+    yield a "specialized" version of the Operator, specific to a particular setup.
+    """
+
+    def __init__(self, mapper, nested=False):
+        super().__init__(mapper, nested=nested)
+
+        # Sanity check
+        for k in self.mapper.keys():
+            if not isinstance(k, AbstractSymbol):
+                raise ValueError(f"Attempted to specialize non-scalar symbol: {k}")
+
+    def visit_Operator(self, o, **kwargs):
+        # Entirely fine to apply this to an Operator
+        body = self._visit(o.body)
+        parameters = tuple(i for i in o.parameters if i not in self.mapper)
+
+        # Note: the following is not dissimilar to unpickling an Operator
+        state = o.__getstate__()
+        state['parameters'] = parameters
+        state['body'] = body
+        state.pop('ccode')
+
+        # FIXME: These names aren't great
+        newargs, newkwargs = o.__getnewargs_ex__()
+        newop = o.__class__(*newargs, **newkwargs)
+
+        newop.__setstate__(state)
+
+        return newop
+
+
 # Utils
 
 blankline = c.Line("")
