@@ -1504,6 +1504,11 @@ class Specializer(Uxreplace):
     A Transformer to "specialize" a pre-built Operator - that is to replace a given
     set of (scalar) symbols with hard-coded values to free up registers. This will
     yield a "specialized" version of the Operator, specific to a particular setup.
+
+    Note that the Operator is not re-optimized in response to this replacement - this
+    transformation could nominally result in expressions of the form `f + 0` in the
+    generated code. If one wants to construct an Operator where such expressions are
+    considered, then use of `subs=...` is a better choice.
     """
 
     def __init__(self, mapper, nested=False):
@@ -1515,15 +1520,31 @@ class Specializer(Uxreplace):
                 raise ValueError(f"Attempted to specialize non-scalar symbol: {k}")
 
     def visit_Operator(self, o, **kwargs):
-        # Entirely fine to apply this to an Operator
+        # Entirely fine to apply this to an Operator (unlike Uxreplace) - indeed this
+        # is the intended use case
         body = self._visit(o.body)
+
+        not_params = tuple(i for i in self.mapper if i not in o.parameters)
+        if not_params:
+            raise ValueError(f"Attempted to specialize symbols {not_params} which are not"
+                             " found in the Operator parameters")
+
+        # FIXME: Should also type-check the values supplied against the symbols they are
+        # replacing (and cast them if needed?) -> use a try-except on the cast in
+        # python-land
+
         parameters = tuple(i for i in o.parameters if i not in self.mapper)
 
         # Note: the following is not dissimilar to unpickling an Operator
         state = o.__getstate__()
         state['parameters'] = parameters
         state['body'] = body
-        state.pop('ccode')
+
+        try:
+            state.pop('ccode')
+        except KeyError:
+            # C code has not previously been generated for this Operator
+            pass
 
         # FIXME: These names aren't great
         newargs, newkwargs = o.__getnewargs_ex__()
