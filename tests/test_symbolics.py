@@ -710,11 +710,15 @@ def test_canonical_ordering_of_weights():
     fi = f[x, y + i, z]
     wi = w[i]
     cf = ComponentAccess(fi, 0)
+    safeinv = SafeInv(f, f)
 
     assert (ccode(1.0*f[x, y, z] + 2.0*f[x, y + 1, z] + 3.0*f[x, y + 2, z]) ==
             '1.0F*f[x][y][z] + 2.0F*f[x][y + 1][z] + 3.0F*f[x][y + 2][z]')
     assert ccode(fi*wi) == 'f[x][y + i0][z]*w0[i0]'
     assert ccode(cf*wi) == 'f[x][y + i0][z].x*w0[i0]'
+    assert ccode(safeinv*wi) == 'SAFEINV(f(x, y, z), f(x, y, z))*w0[i0]'
+
+    assert str(safeinv*wi) == 'SafeInv(f(x, y, z), f(x, y, z))*w0[i0]'
 
 
 def test_ideriv_subs_complex():
