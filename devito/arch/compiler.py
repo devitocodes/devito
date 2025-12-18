@@ -66,7 +66,10 @@ def sniff_compiler_version(cc, allow_fail=False):
     elif ver.startswith("icx"):
         compiler = "icx"
     elif ver.startswith("pgcc"):
-        raise CompilationError('Portland compiler no longer supported')
+        raise CompilationError(
+            'Portland compiler no longer supported,'
+            ' use `nvc` from the nvidia HPC SDK instead'
+        )
     elif ver.startswith("nvc++"):
         compiler = "nvc"
     elif ver.startswith("cray"):
