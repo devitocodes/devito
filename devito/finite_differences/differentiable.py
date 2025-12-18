@@ -650,6 +650,10 @@ class SafeInv(Differentiable, sympy.core.function.Application):
     def val(self):
         return self.args[0]
 
+    @property
+    def is_commutative(self):
+        return self.val.is_commutative and self.base.is_commutative
+
     def __str__(self):
         return Pow(self.args[0], -1).__str__()
 
