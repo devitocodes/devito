@@ -14,12 +14,16 @@ def div(func, shift=None, order=None, method='FD', **kwargs):
     method: str, optional, default='FD'
         Discretization method. Options are 'FD' (default) and
         'RSFD' (rotated staggered grid finite-difference).
+    side : Side or tuple of Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x + 1).
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
+    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
-        return func.div(shift=shift, order=order, method=method, w=w)
+        return func.div(shift=shift, order=order, method=method, side=side, w=w)
     except AttributeError:
         return 0
 
@@ -57,12 +61,16 @@ def grad(func, shift=None, order=None, method='FD', **kwargs):
     method: str, optional, default='FD'
         Discretization method. Options are 'FD' (default) and
         'RSFD' (rotated staggered grid finite-difference).
+    side : Side or tuple of Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x + 1).
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
+    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
-        return func.grad(shift=shift, order=order, method=method, w=w)
+        return func.grad(shift=shift, order=order, method=method, side=side, w=w)
     except AttributeError:
         raise AttributeError("Gradient not supported for class %s" % func.__class__)
 
@@ -100,12 +108,16 @@ def curl(func, shift=None, order=None, method='FD', **kwargs):
     method: str, optional, default='FD'
         Discretization method. Options are 'FD' (default) and
         'RSFD' (rotated staggered grid finite-difference).
+    side : Side or tuple of Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x + 1).
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
+    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
-        return func.curl(shift=shift, order=order, method=method, w=w)
+        return func.curl(shift=shift, order=order, method=method, side=side, w=w)
     except AttributeError:
         raise AttributeError("Curl only supported for 3D VectorFunction")
 
@@ -143,12 +155,16 @@ def laplace(func, shift=None, order=None, method='FD', **kwargs):
         Uses `func.space_order` when not specified
     method: str, optional, default='FD'
         Discretization method. Options are 'FD' (default) and 'RSFD'
+    side : Side or tuple of Side, optional, default=centered
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x + 1).
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
+    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
-        return func.laplacian(shift=shift, order=order, method=method, w=w)
+        return func.laplacian(shift=shift, order=order, method=method, side=side, w=w)
     except AttributeError:
         return 0
 

@@ -234,9 +234,13 @@ class TensorFunction(AbstractTensor):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite differences.
         """
+        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         comps = []
         func = vec_func(self)
@@ -247,7 +251,7 @@ class TensorFunction(AbstractTensor):
         for i in range(len(self.space_dimensions)):
             comps.append(sum([getattr(self[j, i], 'd%s' % d.name)
                               (x0=shift_x0(shift, d, i, j), fd_order=order,
-                               method=method, w=w)
+                               method=method, side=side, w=w)
                               for j, d in enumerate(space_dims)]))
         return func._new(comps)
 
@@ -277,9 +281,13 @@ class TensorFunction(AbstractTensor):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite
         """
+        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         comps = []
         func = vec_func(self)
@@ -290,7 +298,7 @@ class TensorFunction(AbstractTensor):
         for j in range(ndim):
             comps.append(sum([getattr(self[j, i], 'd%s2' % d.name)
                               (x0=shift_x0(shift, d, j, i), fd_order=order,
-                               method=method, w=w)
+                               method=method, side=side, w=w)
                               for i, d in enumerate(space_dims)]))
         return func._new(comps)
 
@@ -372,15 +380,20 @@ class VectorFunction(TensorFunction):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
+        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
         space_dims = self.root_dimensions
         return sum([getattr(self[i], 'd%s' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                     fd_order=order, method=method, w=w)
+                                                     fd_order=order, method=method,
+                                                     side=side, w=w)
                     for i, d in enumerate(space_dims)])
 
     @property
@@ -404,16 +417,21 @@ class VectorFunction(TensorFunction):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite
         """
+        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         func = vec_func(self)
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
         space_dims = self.root_dimensions
         comps = [sum([getattr(s, 'd%s2' % d.name)(x0=shift_x0(shift, d, None, i),
-                                                  fd_order=order, w=w, method=method)
+                                                  fd_order=order, method=method,
+                                                  side=side, w=w)
                       for i, d in enumerate(space_dims)])
                  for s in self]
         return func._new(comps)
@@ -432,29 +450,39 @@ class VectorFunction(TensorFunction):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
         if len(self.space_dimensions) != 3:
             raise AttributeError("Curl only supported for 3D VectorFunction")
         # The curl of a VectorFunction is a VectorFunction
+        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         dims = self.root_dimensions
         derivs = ['d%s' % d.name for d in dims]
         shift_x0 = make_shift_x0(shift, (len(dims), len(dims)))
         order = order or self.space_order
         comp1 = (getattr(self[2], derivs[1])(x0=shift_x0(shift, dims[1], 2, 1),
-                                             fd_order=order, method=method, w=w) -
+                                             fd_order=order, method=method,
+                                             side=side, w=w) -
                  getattr(self[1], derivs[2])(x0=shift_x0(shift, dims[2], 1, 2),
-                                             fd_order=order, method=method, w=w))
+                                             fd_order=order, method=method,
+                                             side=side, w=w))
         comp2 = (getattr(self[0], derivs[2])(x0=shift_x0(shift, dims[2], 0, 2),
-                                             fd_order=order, method=method, w=w) -
+                                             fd_order=order, method=method,
+                                             side=side, w=w) -
                  getattr(self[2], derivs[0])(x0=shift_x0(shift, dims[0], 2, 0),
-                                             fd_order=order, method=method, w=w))
+                                             fd_order=order, method=method,
+                                             side=side, w=w))
         comp3 = (getattr(self[1], derivs[0])(x0=shift_x0(shift, dims[0], 1, 0),
-                                             fd_order=order, method=method, w=w) -
+                                             fd_order=order, method=method,
+                                             side=side, w=w) -
                  getattr(self[0], derivs[1])(x0=shift_x0(shift, dims[1], 0, 1),
-                                             fd_order=order, method=method, w=w))
+                                             fd_order=order, method=method,
+                                             side=side, w=w))
         func = vec_func(self)
         return func._new(3, 1, [comp1, comp2, comp3])
 
@@ -472,17 +500,22 @@ class VectorFunction(TensorFunction):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
+        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         func = tens_func(self)
         ndim = len(self.space_dimensions)
         shift_x0 = make_shift_x0(shift, (ndim, ndim))
         order = order or self.space_order
         space_dims = self.root_dimensions
-        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j), w=w,
-                                             fd_order=order, method=method)
+        comps = [[getattr(f, 'd%s' % d.name)(x0=shift_x0(shift, d, i, j),
+                                             fd_order=order, method=method,
+                                             side=side, w=w)
                   for j, d in enumerate(space_dims)]
                  for i, f in enumerate(self)]
         return func._new(comps)

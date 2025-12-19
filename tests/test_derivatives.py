@@ -3,7 +3,8 @@ import pytest
 from sympy import sympify, simplify, diff, Float, Symbol
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
-                    ConditionalDimension, left, right, centered, div, grad)
+                    ConditionalDimension, left, right, centered, div, grad,
+                    curl, laplace, VectorFunction)
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative, Weights,
@@ -623,6 +624,68 @@ class TestFD:
                       type(shift) is tuple else d + shift * d.spacing)
                 gk = getattr(f, 'd%s' % d.name)(x0=x0, fd_order=order).evaluate
                 assert gi == gk
+
+    # TODO: Repeat all these with vector and tensor functions where defined
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_grad_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid, space_order=2)
+
+        # Want to check that it's the same as constructing by hand
+        comps = (f.dx(side=side), f.dy(side=side))
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        expr2 = f.grad(side=side).evaluate
+        expr3 = grad(f, side=side).evaluate
+
+        assert expr1 == expr2
+        assert expr1 == expr3
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_div_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = VectorFunction(name='f', grid=grid, space_order=2, staggered=(None, None))
+
+        expr1 = (f[0].dx(side=side) + f[1].dy(side=side)).evaluate
+
+        expr2 = f.div(side=side).evaluate
+        expr3 = div(f, side=side).evaluate
+
+        assert expr1 == expr2
+        assert expr1 == expr3
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_curl_w_side(self, side):
+        grid = Grid(shape=(11, 11, 11))
+        f = VectorFunction(name='f', grid=grid, space_order=2,
+                           staggered=(None, None, None))
+
+        comps = (f[2].dy(side=side) - f[1].dz(side=side),
+                 f[0].dz(side=side) - f[2].dx(side=side),
+                 f[1].dx(side=side) - f[0].dy(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        expr2 = f.curl(side=side).evaluate
+        expr3 = curl(f, side=side).evaluate
+
+        assert expr1 == expr2
+        assert expr1 == expr3
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_laplace_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid, space_order=2)
+
+        expr1 = (f.dx2(side=side) + f.dy2(side=side)).evaluate
+
+        expr2 = f.laplacian(side=side).evaluate
+        expr3 = laplace(f, side=side).evaluate
+
+        assert expr1 == expr2
+        assert expr1 == expr3
 
     def test_substitution(self):
         grid = Grid((11, 11))
