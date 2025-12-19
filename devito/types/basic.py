@@ -497,7 +497,7 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         devito subclasses of sympy types are quite strict.
         """
         try:
-            if old.name == self.name:
+            if old.is_Symbol and old.name == self.name:
                 return new
         except AttributeError:
             pass

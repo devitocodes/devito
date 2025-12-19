@@ -375,6 +375,16 @@ def test_safeinv():
     assert 'SAFEINV' in str(op1)
     assert 'SAFEINV' in str(op2)
 
+    # Ensure .subs leaves the caller unchanged if no substitutions occur.
+    # We used to have a bug where passing SafeInv to .subs would result
+    # in the construction of weird, nonsensical objects due to the _subs
+    # stub in types.AbstractSymbol
+    f = Function(name='f', grid=grid)
+    ui = u1.indexify()
+    safeinv = SafeInv(ui, ui)
+    v = ui._subs(safeinv, f.indexify())
+    assert str(v) == 'u[x, y]'
+
 
 def test_def_function():
     foo0 = DefFunction('foo', arguments=['a', 'b'], template=['int'])
