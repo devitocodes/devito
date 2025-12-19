@@ -120,7 +120,8 @@ class TestSpecializer:
         for m, o in zip(mappers, ops):
             check_op(m, o)
 
-    # FIXME: Currently throws an error
+    # FIXME: Currently throws an error - probably a missing handler for GuardFactor
+    # in Uxreplace
     # def test_factor(self):
     #     """Test that ConditionalDimensions can have their symbolic factors specialized"""
     #     size = 16
@@ -141,6 +142,28 @@ class TestSpecializer:
     #     assert ci.symbolic_factor.name not in str(op1.ccode)
     #     assert "if ((i)%(4) == 0)" in str(op1.ccode)
 
-    # Spacings
+    def test_spacing(self):
+        """Test that grid spacings can be specialized"""
+        grid = Grid(shape=(11,))
+        f = Function(name='f', grid=grid)
+
+        op0 = Operator(Eq(f, f.dx))
+
+        mapper = {grid.dimensions[0].spacing: sympy.Float(grid.spacing[0])}
+        op1 = Specializer(mapper).visit(op0)
+
+        assert grid.dimensions[0].spacing not in op1.parameters
+        assert grid.dimensions[0].spacing.name not in str(op1.ccode)
+        assert "/1.0e-1F;" in str(op1.ccode)
 
     # Strides/sizes
+    def test_strides(self):
+        """Test that strides and sizes generated for linearization can be specialized"""
+        grid = Grid(shape=(11, 11))
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+
+        op0 = Operator(Eq(f.forward, f.dx2),
+                       opt=('advanced', {'expand': True, 'linearize': True}))
+
+        from IPython import embed; embed()

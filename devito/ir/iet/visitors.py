@@ -11,7 +11,7 @@ from typing import Any, Generic, TypeVar
 import ctypes
 
 import cgen as c
-from sympy import IndexedBase
+from sympy import IndexedBase, Number
 from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
@@ -1515,9 +1515,16 @@ class Specializer(Uxreplace):
         super().__init__(mapper, nested=nested)
 
         # Sanity check
-        for k in self.mapper.keys():
+        for k, v in self.mapper.items():
+            # FIXME: Erronously blocks f_vec->size[1]
+            # Apparently this is an IndexedPointer
             if not isinstance(k, AbstractSymbol):
                 raise ValueError(f"Attempted to specialize non-scalar symbol: {k}")
+
+            if not isinstance(v, Number):
+                raise ValueError("Only SymPy Numbers can used to replace values during "
+                                 f"specialization. Value {v} was supplied for symbol "
+                                 f"{k}, but is of type {type(v)}.")
 
     def visit_Operator(self, o, **kwargs):
         # Entirely fine to apply this to an Operator (unlike Uxreplace) - indeed this
