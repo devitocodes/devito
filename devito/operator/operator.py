@@ -17,7 +17,7 @@ from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument
                                InvalidOperator)
 from devito.logger import (debug, info, perf, warning, is_log_enabled_for,
                            switch_log_level)
-from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
+from devito.ir.equations import LoweredEq, lower_multistage, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, DeviceFunction,
                            FindSymbols, MetaCall, derive_parameters, iet_build)
@@ -40,7 +40,6 @@ from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tup
 from devito.types import (Buffer, Evaluable, host_layer, device_layer,
                           disk_layer)
 from devito.types.dimension import Thickness
-
 
 __all__ = ['Operator']
 
@@ -338,6 +337,8 @@ class Operator(Callable):
             * Apply substitution rules;
             * Shift indices for domain alignment.
         """
+        expressions = lower_multistage(expressions, **kwargs)
+
         expand = kwargs['options'].get('expand', True)
 
         # Specialization is performed on unevaluated expressions
