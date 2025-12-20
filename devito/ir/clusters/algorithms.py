@@ -399,6 +399,83 @@ class HaloComms(Queue):
     def process(self, clusters):
         return self._process_fatd(clusters, 1, seen=set())
 
+    def _derive_halo_schemes(self, c):
+        hs = HaloScheme(c.exprs, c.ispace)
+
+        # 95% of the times we will just return `hs` as is as there are no guards
+        if not c.guards:
+            yield hs, c
+            return
+
+        # This is a more contrived situation in which we might need halo exchanges
+        # from multiple so called loc-indices -- let's check this out
+        candidates = []
+        for f, hse in hs.fmapper.items():
+            reads = c.scope.reads[f]
+
+            for d in hse.loc_indices:
+                if not d._defines & set(c.guards):
+                    continue
+
+                candidates.append(as_mapper(reads, key=lambda i: i[d]).values())
+
+        # 4% of the times we will just return `hs` as is
+        # E.g., we end up here when taking space derivatives of one or more saved
+        # TimeFunctions in equations evaluating gradients that are controlled by
+        # a ConditionalDimension (otherwise we would have exited earlier)
+        if any(len(g) <= 1 for g in candidates):
+            yield hs, c
+            return
+
+        # 1% of the times, finally, we end up here...
+        # At this point we have to create a mock Cluster for each loc-index,
+        # containing all and only the accesses to `f` at a given loc-index
+        # E.g., a mock Cluster at `loc_index=t0` containing the accesses
+        # `[u(t0, x + 8, ...), u(t0, x + 7, ...)], another mock Cluster at
+        # `loc_index=t1` containing the accesses `[u(t1, x + 5, ...),
+        # u(t1, x + 6, ...)]`, and so on
+        for unordered_groups in candidates:
+            # Sort for deterministic code generation
+            groups = sorted(unordered_groups, key=str)
+            for group in groups:
+                pointset = sympy.Function('pointset')
+                v = pointset(*[i.access for i in group])
+                exprs = [e.func(rhs=v) for e in c.exprs]
+
+                c1 = c.rebuild(exprs=exprs)
+
+                hs = HaloScheme(c1.exprs, c.ispace)
+
+                yield hs, c1
+
+    def _make_halo_touch(self, hs, c, prefix):
+        points = set()
+        for f in hs.fmapper:
+            for a in c.scope.getreads(f):
+                points.add(a.access)
+
+        # We also add all written symbols to ultimately create mock WARs
+        # with `c`, which will prevent the newly created HaloTouch from
+        # ever being rescheduled
+        points.update(a.access for a in c.scope.accesses if a.is_write)
+
+        # Sort for determinism
+        # NOTE: not sorting might impact code generation. The order of
+        # the args is important because that's what search functions honor!
+        points = sorted(points, key=str)
+
+        # Construct the HaloTouch Cluster
+        expr = Eq(self.B, HaloTouch(*points, halo_scheme=hs))
+
+        key = lambda i: i in prefix[:-1] or i in hs.loc_indices
+        ispace = c.ispace.project(key)
+        # HaloTouches are not parallel
+        properties = c.properties.sequentialize()
+
+        halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)
+
+        return halo_touch
+
     def callback(self, clusters, prefix, seen=None):
         if not prefix:
             return clusters
@@ -412,38 +489,18 @@ class HaloComms(Queue):
                c in seen:
                 continue
 
-            hs = HaloScheme(c.exprs, c.ispace)
-            if hs.is_void or \
-               not d._defines & hs.distributed_aindices:
-                continue
+            seen.add(c)
 
-            points = set()
-            for f in hs.fmapper:
-                for a in c.scope.getreads(f):
-                    points.add(a.access)
+            for hs, c1 in self._derive_halo_schemes(c):
+                if hs.is_void or \
+                   not d._defines & hs.distributed_aindices:
+                    continue
 
-            # We also add all written symbols to ultimately create mock WARs
-            # with `c`, which will prevent the newly created HaloTouch to ever
-            # be rescheduled after `c` upon topological sorting
-            points.update(a.access for a in c.scope.accesses if a.is_write)
+                halo_touch = self._make_halo_touch(hs, c1, prefix)
 
-            # Sort for determinism
-            # NOTE: not sorting might impact code generation. The order of
-            # the args is important because that's what search functions honor!
-            points = sorted(points, key=str)
+                processed.append(halo_touch)
 
-            # Construct the HaloTouch Cluster
-            expr = Eq(self.B, HaloTouch(*points, halo_scheme=hs))
-
-            key = lambda i: i in prefix[:-1] or i in hs.loc_indices
-            ispace = c.ispace.project(key)
-            # HaloTouches are not parallel
-            properties = c.properties.sequentialize()
-
-            halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)
-
-            processed.append(halo_touch)
-            seen.update({halo_touch, c})
+                seen.add(halo_touch)
 
         processed.extend(clusters)
 
