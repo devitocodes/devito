@@ -107,6 +107,18 @@ configuration.add('log-level', 'INFO', list(logger_registry),
 # and will instead use the custom kernel
 configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=False)
 
+# Enable/disable automatic pickling of named Operators. When enabled, named
+# Operators (that is, Operators instantiated with a name kwarg) are automatically
+# pickled to disk upon creation, and loaded from disk upon subsequent creations,
+# thus bypassing code generation and compilation. This is to be used with caution,
+# since it assumes that things such as Operator creation arguments (e.g., the
+# equations themselves), the Devito configuration, the compiler/runtime, etc,
+# have not changed between runs. Further, data carried by any of the input
+# objects is pickled as well, which may lead to large files on disk. Currently, no
+# safeguards are in place to deal with any of these cases, so... you have been
+# warned! Use at your own risk
+configuration.add('autopickling', 0, [0, 1], preprocessor=bool, impacts_jit=False)
+
 # By default unsafe math is allowed as most applications are insensitive to
 # floating-point roundoff errors. Enabling this disables unsafe math
 # optimisations.
