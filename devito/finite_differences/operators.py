@@ -1,4 +1,4 @@
-def div(func, shift=None, order=None, method='FD', **kwargs):
+def div(func, shift=None, order=None, method='FD', side=None, **kwargs):
     """
     Divergence of the input Function.
 
@@ -20,7 +20,6 @@ def div(func, shift=None, order=None, method='FD', **kwargs):
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
-    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
         return func.div(shift=shift, order=order, method=method, side=side, w=w)
@@ -45,7 +44,7 @@ def div45(func, shift=None, order=None):
     return div(func, shift=shift, order=order, method='RSFD')
 
 
-def grad(func, shift=None, order=None, method='FD', **kwargs):
+def grad(func, shift=None, order=None, method='FD', side=None, **kwargs):
     """
     Gradient of the input Function.
 
@@ -67,7 +66,6 @@ def grad(func, shift=None, order=None, method='FD', **kwargs):
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
-    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
         return func.grad(shift=shift, order=order, method=method, side=side, w=w)
@@ -92,7 +90,7 @@ def grad45(func, shift=None, order=None):
     return grad(func, shift=shift, order=order, method='RSFD')
 
 
-def curl(func, shift=None, order=None, method='FD', **kwargs):
+def curl(func, shift=None, order=None, method='FD', side=None, **kwargs):
     """
     Curl of the input Function. Only supported for VectorFunction
 
@@ -114,7 +112,6 @@ def curl(func, shift=None, order=None, method='FD', **kwargs):
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
-    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
         return func.curl(shift=shift, order=order, method=method, side=side, w=w)
@@ -140,7 +137,7 @@ def curl45(func, shift=None, order=None):
     return curl(func, shift=shift, order=order, method='RSFD')
 
 
-def laplace(func, shift=None, order=None, method='FD', **kwargs):
+def laplace(func, shift=None, order=None, method='FD', side=None, **kwargs):
     """
     Laplacian of the input Function.
 
@@ -161,7 +158,6 @@ def laplace(func, shift=None, order=None, method='FD', **kwargs):
     weights/w: list, tuple, or dict, optional, default=None
         Custom weights for the finite difference coefficients.
     """
-    side = kwargs.get("side")
     w = kwargs.get('weights', kwargs.get('w'))
     try:
         return func.laplacian(shift=shift, order=order, method=method, side=side, w=w)
