@@ -303,14 +303,14 @@ class Differentiable(sympy.Expr, Evaluable):
         return self._subs(dim, dim + shift)
 
     @property
-    def laplace(self, **kwargs):
+    def laplace(self):
         """
         Generates a symbolic expression for the Laplacian, the second
         derivative w.r.t all spatial Dimensions.
         """
-        return self.laplacian(**kwargs)
+        return self.laplacian()
 
-    def laplacian(self, shift=None, order=None, method='FD', **kwargs):
+    def laplacian(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Laplacian of the Differentiable with shifted derivatives and custom
         FD order.
@@ -335,7 +335,6 @@ class Differentiable(sympy.Expr, Evaluable):
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         order = order or self.space_order
         space_dims = self.root_dimensions
@@ -345,7 +344,7 @@ class Differentiable(sympy.Expr, Evaluable):
                                       method=method, fd_order=order, side=side, w=w)
                      for i, d in enumerate(derivs)])
 
-    def div(self, shift=None, order=None, method='FD', **kwargs):
+    def div(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Divergence of the input Function.
 
@@ -367,7 +366,6 @@ class Differentiable(sympy.Expr, Evaluable):
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         space_dims = self.root_dimensions
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
@@ -377,7 +375,7 @@ class Differentiable(sympy.Expr, Evaluable):
                                                  w=w)
                      for i, d in enumerate(space_dims)])
 
-    def grad(self, shift=None, order=None, method='FD', **kwargs):
+    def grad(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Gradient of the input Function.
 
@@ -404,7 +402,6 @@ class Differentiable(sympy.Expr, Evaluable):
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
 
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         comps = [getattr(self, f'd{d.name}')(x0=shift_x0(shift, d, None, i),
                                              fd_order=order, method=method, side=side,

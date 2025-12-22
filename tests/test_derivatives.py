@@ -625,13 +625,13 @@ class TestFD:
                 gk = getattr(f, 'd%s' % d.name)(x0=x0, fd_order=order).evaluate
                 assert gi == gk
 
-    # TODO: Repeat all these with vector and tensor functions where defined
     @pytest.mark.parametrize('side', [left, right, centered])
     def test_grad_w_side(self, side):
         grid = Grid(shape=(11, 11))
         f = Function(name='f', grid=grid, space_order=2)
 
-        # Want to check that it's the same as constructing by hand
+        # Want to check that it's the same as constructing by hand. Note that
+        # all the subsequent tests of this flavor work in the same way.
         comps = (f.dx(side=side), f.dy(side=side))
         expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
                                components=comps, grid=grid).evaluate
@@ -664,6 +664,21 @@ class TestFD:
         assert expr1 == div(f, side=side).evaluate
 
     @pytest.mark.parametrize('side', [left, right, centered])
+    def test_tensor_div_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = TensorFunction(name='f', grid=grid, space_order=2,
+                           staggered=((None, None), (None, None)))
+
+        comps = (f[0, 0].dx(side=side) + f[0, 1].dy(side=side),
+                 f[0, 1].dx(side=side) + f[1, 1].dy(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.div(side=side).evaluate
+        assert expr1 == div(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
     def test_curl_w_side(self, side):
         grid = Grid(shape=(11, 11, 11))
         f = VectorFunction(name='f', grid=grid, space_order=2,
@@ -685,6 +700,35 @@ class TestFD:
         f = Function(name='f', grid=grid, space_order=2)
 
         expr1 = (f.dx2(side=side) + f.dy2(side=side)).evaluate
+
+        assert expr1 == f.laplacian(side=side).evaluate
+        assert expr1 == laplace(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_vector_laplace_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = VectorFunction(name='f', grid=grid, space_order=2, staggered=(None, None))
+
+        comps = (f[0].dx2(side=side) + f[0].dy2(side=side),
+                 f[1].dx2(side=side) + f[1].dy2(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.laplacian(side=side).evaluate
+        assert expr1 == laplace(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [centered])
+    def test_tensor_laplace_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = TensorFunction(name='f', grid=grid, space_order=2,
+                           staggered=((None, None), (None, None)))
+
+        comps = (f[0, 0].dx2(side=side) + f[0, 1].dy2(side=side),
+                 f[0, 1].dx2(side=side) + f[1, 1].dy2(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
 
         assert expr1 == f.laplacian(side=side).evaluate
         assert expr1 == laplace(f, side=side).evaluate

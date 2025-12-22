@@ -220,7 +220,7 @@ class TensorFunction(AbstractTensor):
         else:
             return super().values()
 
-    def div(self, shift=None, order=None, method='FD', **kwargs):
+    def div(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Divergence of the TensorFunction (is a VectorFunction).
 
@@ -240,7 +240,6 @@ class TensorFunction(AbstractTensor):
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite differences.
         """
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         comps = []
         func = vec_func(self)
@@ -262,7 +261,7 @@ class TensorFunction(AbstractTensor):
         """
         return self.laplacian()
 
-    def laplacian(self, shift=None, order=None, method='FD', **kwargs):
+    def laplacian(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Laplacian of the TensorFunction with shifted derivatives and custom
         FD order.
@@ -287,7 +286,6 @@ class TensorFunction(AbstractTensor):
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite
         """
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         comps = []
         func = vec_func(self)
@@ -366,7 +364,7 @@ class VectorFunction(TensorFunction):
 
     __repr__ = __str__
 
-    def div(self, shift=None, order=None, method='FD', **kwargs):
+    def div(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Divergence of the VectorFunction, creates the divergence Function.
 
@@ -386,7 +384,6 @@ class VectorFunction(TensorFunction):
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
         order = order or self.space_order
@@ -403,7 +400,7 @@ class VectorFunction(TensorFunction):
         """
         return self.laplacian()
 
-    def laplacian(self, shift=None, order=None, method='FD', **kwargs):
+    def laplacian(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Laplacian of the VectorFunction, creates the Laplacian VectorFunction.
 
@@ -423,7 +420,6 @@ class VectorFunction(TensorFunction):
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite
         """
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         func = vec_func(self)
         shift_x0 = make_shift_x0(shift, (len(self.space_dimensions),))
@@ -436,7 +432,7 @@ class VectorFunction(TensorFunction):
                  for s in self]
         return func._new(comps)
 
-    def curl(self, shift=None, order=None, method='FD', **kwargs):
+    def curl(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Gradient of the (3D) VectorFunction, creates the curl VectorFunction.
 
@@ -459,7 +455,6 @@ class VectorFunction(TensorFunction):
         if len(self.space_dimensions) != 3:
             raise AttributeError("Curl only supported for 3D VectorFunction")
         # The curl of a VectorFunction is a VectorFunction
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         dims = self.root_dimensions
         derivs = ['d%s' % d.name for d in dims]
@@ -486,7 +481,7 @@ class VectorFunction(TensorFunction):
         func = vec_func(self)
         return func._new(3, 1, [comp1, comp2, comp3])
 
-    def grad(self, shift=None, order=None, method='FD', **kwargs):
+    def grad(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Gradient of the VectorFunction, creates the gradient TensorFunction.
 
@@ -506,7 +501,6 @@ class VectorFunction(TensorFunction):
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
-        side = kwargs.get("side")
         w = kwargs.get('weights', kwargs.get('w'))
         func = tens_func(self)
         ndim = len(self.space_dimensions)
