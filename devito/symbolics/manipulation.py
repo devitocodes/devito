@@ -136,9 +136,9 @@ def _(mapper, rule):
 @singledispatch
 def _uxreplace_handle(expr, args, kwargs):
     try:
-        return expr.func(*args, evaluate=False)
+        return expr.func(*args, evaluate=False, **kwargs)
     except TypeError:
-        return expr.func(*args)
+        return expr.func(*args, **kwargs)
 
 
 @_uxreplace_handle.register(Min)
