@@ -5,8 +5,9 @@ import sympy
 
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
+from devito.ir.support import (Interval, IntervalGroup, IterationSpace,
                                Stencil, detect_io, detect_accesses)
+from devito.ir.support.guards import GuardFactorEq
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
@@ -210,11 +211,11 @@ class LoweredEq(IREq):
             if not d.is_Conditional:
                 continue
             if d.condition is None:
-                conditionals[d] = GuardFactor(d)
+                conditionals[d] = GuardFactorEq.new_from_dim(d)
             else:
                 cond = diff2sympy(lower_exprs(d.condition))
                 if d._factor is not None:
-                    cond = sympy.And(cond, GuardFactor(d))
+                    cond = sympy.And(cond, GuardFactorEq.new_from_dim(d))
                 conditionals[d] = cond
             # Replace dimension with index
             index = d.index

@@ -176,6 +176,11 @@ class Dimension(ArgProvider):
         return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
     @property
+    def symbolic_extrema(self):
+        """Symbols for the minimum and maximum points of the Dimension"""
+        return (self.symbolic_min, self.symbolic_max)
+
+    @property
     def symbolic_incr(self):
         """The increment value while iterating over the Dimension."""
         return sympy.S.One

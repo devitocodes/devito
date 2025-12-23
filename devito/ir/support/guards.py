@@ -38,34 +38,33 @@ class Guard(AbstractGuard):
 
     @property
     def negated(self):
-        return negations[self.__class__](*self._args_rebuild, evaluate=False)
+        try:
+            return negations[self.__class__](*self._args_rebuild, evaluate=False)
+        except KeyError:
+            raise ValueError(f"Class {self.__class__.__name__} does not have a negation")
 
 
 # *** GuardFactor
 
 
-class GuardFactor(Guard, CondEq, Pickable):
+class GuardFactor(Guard, Pickable):
 
     """
     A guard for factor-based ConditionalDimensions.
 
-    Given the ConditionalDimension `d` with factor `k`, create the
-    symbolic relational `d.parent % k == 0`.
+    Introduces a constructor where, given the ConditionalDimension `d` with factor `k`,
+    the symbolic relational `d.parent % k == 0` is created.
     """
 
-    __rargs__ = ('d',)
+    __rargs__ = ('lhs', 'rhs')
 
-    def __new__(cls, d, **kwargs):
+    @classmethod
+    def new_from_dim(cls, d, **kwargs):
         assert d.is_Conditional
 
         obj = super().__new__(cls, d.parent % d.symbolic_factor, 0)
-        obj.d = d
 
         return obj
-
-    @property
-    def _args_rebuild(self):
-        return (self.d,)
 
 
 class GuardFactorEq(GuardFactor, CondEq):
@@ -74,9 +73,6 @@ class GuardFactorEq(GuardFactor, CondEq):
 
 class GuardFactorNe(GuardFactor, CondNe):
     pass
-
-
-GuardFactor = GuardFactorEq
 
 
 # *** GuardBound
