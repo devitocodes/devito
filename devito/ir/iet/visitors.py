@@ -45,6 +45,7 @@ __all__ = [
     'MapExprStmts',
     'MapHaloSpots',
     'MapNodes',
+    'Specializer',
     'Transformer',
     'Uxreplace',
     'printAST',
