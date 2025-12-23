@@ -1,6 +1,8 @@
 import sympy
 import pytest
 
+import numpy as np
+
 from devito import (Grid, Function, TimeFunction, Eq, Operator, SubDomain, Dimension,
                     ConditionalDimension)
 from devito.ir.iet.visitors import Specializer
@@ -171,4 +173,44 @@ class TestSpecializer:
         assert "const int x_fsz0 = 11;" in str(op1.ccode)
         assert "const int y_fsz0 = 11;" in str(op1.ccode)
 
-    # TODO: Should strides get linearized? If so, how?
+    # TODO: Should strides get specialized? If so, how?
+
+    def test_apply_basic(self):
+        """
+        Test that a trivial operator runs and returns the same results when
+        specialized.
+        """
+        grid = Grid(shape=(11, 11))
+        ((x_m, x_M), (y_m, y_M)) = [d.symbolic_extrema for d in grid.dimensions]
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        op0 = Operator(Eq(f, f+1))
+
+        mapper = {x_m: sympy.Integer(2), x_M: sympy.Integer(7),
+                  y_m: sympy.Integer(3), y_M: sympy.Integer(8)}
+
+        op1 = Specializer(mapper).visit(op0)
+
+        assert op1.cfunction is not op0.cfunction
+
+        op1.apply()
+
+        check = np.array(f.data[:])
+        f.data[:] = 0
+
+        op0.apply(x_m=2, x_M=7, y_m=3, y_M=8)
+
+        assert np.all(check == f.data)
+
+
+# class TestApply:
+#     """Tests for specialization of operators at apply time"""
+
+#     def test_basic(self):
+#         grid = Grid(shape=(11, 11))
+
+#         f = TimeFunction(name='f', grid=grid, space_order=2)
+
+#         op = Operator(Eq(f.forward, f + 1))
+
+#         op.apply(time_M=10, specialize=('x_m', 'x_M'))
