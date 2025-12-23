@@ -120,27 +120,25 @@ class TestSpecializer:
         for m, o in zip(mappers, ops):
             check_op(m, o)
 
-    # FIXME: Currently throws an error - probably a missing handler for GuardFactor
-    # in Uxreplace
-    # def test_factor(self):
-    #     """Test that ConditionalDimensions can have their symbolic factors specialized"""
-    #     size = 16
-    #     factor = 4
-    #     i = Dimension(name='i')
-    #     ci = ConditionalDimension(name='ci', parent=i, factor=factor)
+    def test_factor(self):
+        """Test that ConditionalDimensions can have their symbolic factors specialized"""
+        size = 16
+        factor = 4
+        i = Dimension(name='i')
+        ci = ConditionalDimension(name='ci', parent=i, factor=factor)
 
-    #     g = Function(name='g', shape=(size,), dimensions=(i,))
-    #     f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
+        g = Function(name='g', shape=(size,), dimensions=(i,))
+        f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
 
-    #     op0 = Operator([Eq(f, g)])
+        op0 = Operator([Eq(f, g)])
 
-    #     mapper = {ci.symbolic_factor: sympy.Integer(factor)}
+        mapper = {ci.symbolic_factor: sympy.Integer(factor)}
 
-    #     op1 = Specializer(mapper).visit(op0)
+        op1 = Specializer(mapper).visit(op0)
 
-    #     assert ci.symbolic_factor not in op1.parameters
-    #     assert ci.symbolic_factor.name not in str(op1.ccode)
-    #     assert "if ((i)%(4) == 0)" in str(op1.ccode)
+        assert ci.symbolic_factor not in op1.parameters
+        assert ci.symbolic_factor.name not in str(op1.ccode)
+        assert "if ((i)%(4) == 0)" in str(op1.ccode)
 
     def test_spacing(self):
         """Test that grid spacings can be specialized"""
@@ -156,9 +154,8 @@ class TestSpecializer:
         assert grid.dimensions[0].spacing.name not in str(op1.ccode)
         assert "/1.0e-1F;" in str(op1.ccode)
 
-    # Strides/sizes
-    def test_strides(self):
-        """Test that strides and sizes generated for linearization can be specialized"""
+    def test_sizes(self):
+        """Test that strides generated for linearization can be specialized"""
         grid = Grid(shape=(11, 11))
 
         f = TimeFunction(name='f', grid=grid, space_order=2)
@@ -166,4 +163,12 @@ class TestSpecializer:
         op0 = Operator(Eq(f.forward, f.dx2),
                        opt=('advanced', {'expand': True, 'linearize': True}))
 
-        from IPython import embed; embed()
+        mapper = {f.symbolic_shape[1]: sympy.Integer(11),
+                  f.symbolic_shape[2]: sympy.Integer(11)}
+
+        op1 = Specializer(mapper).visit(op0)
+
+        assert "const int x_fsz0 = 11;" in str(op1.ccode)
+        assert "const int y_fsz0 = 11;" in str(op1.ccode)
+
+    # TODO: Should strides get linearized? If so, how?
