@@ -13,7 +13,8 @@ from devito import (
 )
 from devito.data import LEFT, OWNED
 from devito.finite_differences.tools import centered, direct, left, right, transpose
-from devito.ir import Backward, Forward, GuardBound, GuardBoundNext, GuardFactor
+from devito.ir import Backward, Forward, GuardBound, GuardBoundNext
+from devito.ir.support.guards import GuardFactorEq
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (
     MPIMsgEnriched, MPIRegion, MPIRequestObject, MPIStatusObject
@@ -503,7 +504,7 @@ class TestBasic:
         d = Dimension(name='d')
         cd = ConditionalDimension(name='cd', parent=d, factor=4)
 
-        gf = GuardFactor(cd)
+        gf = GuardFactorEq.new_from_dim(cd)
 
         pkl_gf = pickle.dumps(gf)
         new_gf = pickle.loads(pkl_gf)

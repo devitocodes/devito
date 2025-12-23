@@ -21,7 +21,7 @@ from devito.ir.iet.nodes import (
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
-    FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
+    FieldFromComposite, FieldFromPointer, IndexedPointer, ListInitializer, uxreplace
 )
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
@@ -1515,9 +1515,7 @@ class Specializer(Uxreplace):
 
         # Sanity check
         for k, v in self.mapper.items():
-            # FIXME: Erronously blocks f_vec->size[1]
-            # Apparently this is an IndexedPointer
-            if not isinstance(k, AbstractSymbol):
+            if not isinstance(k, (AbstractSymbol, IndexedPointer)):
                 raise ValueError(f"Attempted to specialize non-scalar symbol: {k}")
 
             if not isinstance(v, Number):
@@ -1530,7 +1528,10 @@ class Specializer(Uxreplace):
         # is the intended use case
         body = self._visit(o.body)
 
-        not_params = tuple(i for i in self.mapper if i not in o.parameters)
+        # NOTE: IndexedPointers that want replacing with a hardcoded value won't appear in
+        # the Operator parameters. Perhaps this check wants relaxing.
+        not_params = tuple(i for i in self.mapper
+                           if i not in o.parameters and isinstance(i, AbstractSymbol))
         if not_params:
             raise ValueError(f"Attempted to specialize symbols {not_params} which are not"
                              " found in the Operator parameters")
