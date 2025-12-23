@@ -38,7 +38,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         Derivative order.
     side : Side or tuple of Side, optional, default=centered
         Side of the finite difference location, centered (at x), left (at x - 1)
-        or right (at x +1).
+        or right (at x + 1).
     transpose : Transpose, optional, default=direct
         Forward (matvec=direct) or transpose (matvec=transpose) mode of the
         finite difference.
