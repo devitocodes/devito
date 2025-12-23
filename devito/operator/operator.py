@@ -21,6 +21,7 @@ from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, DeviceFunction,
                            FindSymbols, MetaCall, derive_parameters, iet_build)
+from devito.ir.iet.visitors import Specializer
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
@@ -990,15 +991,33 @@ class Operator(Callable):
         >>> op = Operator(Eq(u3.forward, u3 + 1))
         >>> summary = op.apply(time_M=10)
         """
-        # Compile the operator before building the arguments list
-        # to avoid out of memory with greedy compilers
-        cfunction = self.cfunction
+        # Get items expected to be specialized
+        specialize = as_tuple(kwargs.pop('specialize', []))
+
+        if not specialize:
+            # Compile the operator before building the arguments list
+            # to avoid out of memory with greedy compilers
+            cfunction = self.cfunction
 
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments-preprocess'):
             args = self.arguments(**kwargs)
         with switch_log_level(comm=args.comm):
             self._emit_args_profiling('arguments-preprocess')
+
+        # In the case of specialization, arguments must be processed before
+        # the operator can be compiled
+        if specialize:
+            specialized_args = {p: sympify(args.pop(p.name))
+                                for p in self.parameters if p.name in specialize}
+
+            op = Specializer(specialized_args).visit(self)
+        else:
+            op = self
+
+        from IPython import embed; embed()
+
+        # TODO: Whose profiler should get used here?
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
