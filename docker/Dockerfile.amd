@@ -28,7 +28,7 @@ ENV PATH=$ROCM_HOME/bin:$PATH \
     LD_LIBRARY_PATH=$ROCM_HOME/lib:$ROCM_HOME/lib/llvm/lib:$LD_LIBRARY_PATH
 
 # Until rocm base has it fixed
-RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch | echo "offload-arch already exis"
+RUN ln -s /opt/rocm/llvm/bin/offload-arch /opt/rocm/bin/offload-arch || echo "offload-arch already exists"
 
 # Install UCX
 RUN cd /tmp/ \

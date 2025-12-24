@@ -15,10 +15,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install python
 RUN apt-get update && \
-    apt-get install -y -q gpg apt-utils curl wget libnuma-dev cmake git \
+    apt-get install -y -q gpg apt-utils curl libnuma-dev cmake git \
                           dh-autoreconf python3-venv python3-dev python3-pip
 
 # nodesource: nvdashboard requires nodejs>=10
+SHELL /bin/bash -o pipefail
 RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
 RUN arch="$(uname -m)" && \
     case "$arch" in \
@@ -27,9 +28,9 @@ RUN arch="$(uname -m)" && \
         *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
     esac && \
     echo "deb [trusted=yes, signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat} /" | tee /etc/apt/sources.list.d/nvhpc.list
-RUN apt-key update *&& apt-get update -y
+RUN apt-key update -- * && apt-get update -y
 
-# Install nvhpc. `nvhpc` is the alias for the latest avaialble version
+# Install nvhpc. `nvhpc` is the alias for the latest available version
 ARG ver=nvhpc
 # We use the standard apt-get for the default latest nvhpc. For earlier version, apt has a bug that it will always
 # install the latest nvhpc-x-y no matter which version nvhpc-x-z is requested which would double (extra 10Gb) the size of the image.
@@ -43,10 +44,12 @@ RUN arch="$(uname -m)" && \
     if [ "$ver" = "nvhpc" ]; then \
         apt-get install -y -q --allow-unauthenticated ${ver}; \
     else \
-        export year=$(echo $ver | cut -d "-" -f 2) && \
-        export minor=$(echo $ver | cut -d "-" -f 3) && \
-        wget -O nvhpc.deb "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}_${nvplat}.deb" \
-        || wget -O nvhpc.deb "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}-0_${nvplat}.deb" && \
+        year=$(echo $ver | cut -d "-" -f 2) && \
+        export year && \
+        minor=$(echo $ver | cut -d "-" -f 3) && \
+        export minor && \
+        curl -O nvhpc.deb -L "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}_${nvplat}.deb" \
+        || curl -O nvhpc.deb -L "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}-0_${nvplat}.deb" && \
         apt-get install --allow-unauthenticated -y -q ./nvhpc.deb; \
     fi;
 
@@ -89,6 +92,7 @@ ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self
 #ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self,rc_x,gdr_copy
 
 # Make simlink for path setup since ENV doesn't accept shell commands.
+SHELL /bin/bash -o pipefail
 RUN arch="$(uname -m)" && \
     case "$arch" in \
         x86_64) linux=Linux_x86_64 ;; \
@@ -157,7 +161,7 @@ CMD ["/bin/bash"]
 FROM sdk-base AS nvc
 
 # Make devito env vars file and extras
-ADD docker/nvdashboard.json /app/nvdashboard.json
+COPY docker/nvdashboard.json /app/nvdashboard.json
 
 # mpi4py
 ENV MPI4PY_FLAGS='source $HPCSDK_HOME/comm_libs/hpcx/latest/hpcx-init.sh && hpcx_load && CC=nvc CFLAGS="-noswitcherror -tp=px"'
