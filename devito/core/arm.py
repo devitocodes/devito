@@ -2,8 +2,12 @@ from devito.core.cpu import (Cpu64AdvOperator, Cpu64AdvCXXOperator,
                              Cpu64AdvCOperator)
 from devito.passes.iet import OmpTarget, CXXOmpTarget
 
-__all__ = ['ArmAdvCOperator', 'ArmAdvOmpOperator', 'ArmAdvCXXOperator',
-           'ArmAdvCXXOmpOperator']
+__all__ = [
+    'ArmAdvCOperator',
+    'ArmAdvCXXOmpOperator',
+    'ArmAdvCXXOperator',
+    'ArmAdvOmpOperator',
+]
 
 
 ArmAdvOperator = Cpu64AdvOperator

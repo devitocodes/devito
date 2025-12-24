@@ -11,8 +11,15 @@ from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
 
-__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax',
-           'identity_mapper']
+__all__ = [
+    'ClusterizedEq',
+    'DummyEq',
+    'LoweredEq',
+    'OpInc',
+    'OpMax',
+    'OpMin',
+    'identity_mapper',
+]
 
 
 class IREq(sympy.Eq, Pickable):

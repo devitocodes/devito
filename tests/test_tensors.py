@@ -253,7 +253,7 @@ def test_non_devito_tens(func1):
     f1 = func1(name="f1", grid=grid, components=comps)
     f2 = func1(name="f2", grid=grid)
 
-    assert f1.T == f1
+    assert f1 == f1.T
     assert isinstance(f1.T, sympy.ImmutableDenseMatrix)
     # No devito object in the matrix components, should return a pure sympy Matrix
     assert ~isinstance(f1.T, func1)
@@ -275,7 +275,7 @@ def test_partial_devito_tens(func1):
 
     f1 = func1(name="f1", grid=grid, components=comps)
 
-    assert f1.T == f1
+    assert f1 == f1.T
     assert isinstance(f1.T, func1)
     # Should have original grid
     assert f1[0, 2].grid == grid

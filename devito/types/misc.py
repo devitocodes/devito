@@ -12,10 +12,27 @@ from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
 from devito.types.basic import IndexedData
 from devito.tools import CustomDtype, Pickable, as_tuple, frozendict
 
-__all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
-           'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'auto',
-           'size_t']
+__all__ = [
+    'Auto',
+    'AutoRef',
+    'CriticalRegion',
+    'FIndexed',
+    'Fence',
+    'Global',
+    'Hyperplane',
+    'Indirection',
+    'Jump',
+    'Pointer',
+    'Temp',
+    'TempArray',
+    'Timer',
+    'VolatileInt',
+    'WeakFence',
+    'Wildcard',
+    'auto',
+    'nop',
+    'size_t',
+]
 
 
 class Timer(CompositeObject):

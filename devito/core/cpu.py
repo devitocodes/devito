@@ -14,10 +14,20 @@ from devito.passes.iet import (CTarget, CXXTarget, COmpTarget, CXXOmpTarget,
                                check_stability)
 from devito.tools import timed_pass
 
-__all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
-           'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
-           'Cpu64CustomOperator', 'Cpu64CustomCXXOperator', 'Cpu64AdvCXXOperator',
-           'Cpu64AdvCXXOmpOperator', 'Cpu64FsgCXXOperator', 'Cpu64FsgCXXOmpOperator']
+__all__ = [
+    'Cpu64AdvCOperator',
+    'Cpu64AdvCXXOmpOperator',
+    'Cpu64AdvCXXOperator',
+    'Cpu64AdvOmpOperator',
+    'Cpu64CustomCXXOperator',
+    'Cpu64CustomOperator',
+    'Cpu64FsgCOperator',
+    'Cpu64FsgCXXOmpOperator',
+    'Cpu64FsgCXXOperator',
+    'Cpu64FsgOmpOperator',
+    'Cpu64NoopCOperator',
+    'Cpu64NoopOmpOperator',
+]
 
 
 class Cpu64OperatorMixin:

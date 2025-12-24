@@ -10,9 +10,19 @@ from devito.tools import Pickable
 from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 from devito.tools.algorithms import toposort
 
-__all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'Ordering', 'DAG', 'frozendict',
-           'UnboundTuple', 'UnboundedMultiTuple', 'MemoryEstimate']
+__all__ = [
+    'DAG',
+    'Bunch',
+    'DefaultOrderedDict',
+    'EnrichedTuple',
+    'MemoryEstimate',
+    'OrderedSet',
+    'Ordering',
+    'ReducerMap',
+    'UnboundTuple',
+    'UnboundedMultiTuple',
+    'frozendict',
+]
 
 
 class Bunch:

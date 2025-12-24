@@ -2,7 +2,7 @@ import abc
 from hashlib import sha1
 
 
-__all__ = ['Tag', 'Signer', 'Reconstructable', 'Pickable', 'Singleton', 'Stamp']
+__all__ = ['Pickable', 'Reconstructable', 'Signer', 'Singleton', 'Stamp', 'Tag']
 
 
 class Tag(abc.ABC):

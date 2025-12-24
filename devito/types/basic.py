@@ -19,8 +19,14 @@ from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple, Offset, Size
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap',
-           'IrregularFunctionInterface']
+__all__ = [
+    'DeviceMap',
+    'Indexed',
+    'IndexedData',
+    'IrregularFunctionInterface',
+    'Scalar',
+    'Symbol',
+]
 
 
 class CodeSymbol:
@@ -1587,7 +1593,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             return self._mat
 
     def __init_finalize__(self, *args, **kwargs):
-        self._name = kwargs.get('name', None)
+        self._name = kwargs.get('name')
 
     __hash__ = sympy.ImmutableDenseMatrix.__hash__
 

@@ -8,12 +8,36 @@ import types
 import numpy as np
 import sympy
 
-__all__ = ['prod', 'as_tuple', 'is_integer', 'generator', 'grouper', 'split',
-           'roundm', 'powerset', 'invert', 'flatten', 'single_or', 'filter_ordered',
-           'as_mapper', 'filter_sorted', 'pprint', 'sweep', 'all_equal', 'as_list',
-           'indices_to_slices', 'indices_to_sections', 'transitive_closure',
-           'humanbytes', 'contains_val', 'sorted_priority', 'as_set', 'is_number',
-           'smart_lt', 'smart_gt']
+__all__ = [
+    'all_equal',
+    'as_list',
+    'as_mapper',
+    'as_set',
+    'as_tuple',
+    'contains_val',
+    'filter_ordered',
+    'filter_sorted',
+    'flatten',
+    'generator',
+    'grouper',
+    'humanbytes',
+    'indices_to_sections',
+    'indices_to_slices',
+    'invert',
+    'is_integer',
+    'is_number',
+    'powerset',
+    'pprint',
+    'prod',
+    'roundm',
+    'single_or',
+    'smart_gt',
+    'smart_lt',
+    'sorted_priority',
+    'split',
+    'sweep',
+    'transitive_closure',
+]
 
 
 def prod(iterable, initial=1):

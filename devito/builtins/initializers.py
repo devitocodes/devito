@@ -4,7 +4,7 @@ import devito as dv
 from devito.tools import as_tuple, as_list
 from devito.builtins.utils import check_builtins_args, nbl_to_padsize, pad_outhalo
 
-__all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
+__all__ = ['assign', 'gaussian_smooth', 'initialize_function', 'smooth']
 
 
 @dv.switchconfig(log_level='ERROR')

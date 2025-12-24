@@ -8,7 +8,7 @@ from devito.types.caching import Uncached
 from devito.types.basic import Basic, LocalType
 from devito.types.utils import CtypesFactory
 
-__all__ = ['Object', 'LocalObject', 'CompositeObject']
+__all__ = ['CompositeObject', 'LocalObject', 'Object']
 
 
 class AbstractObject(Basic, sympy.Basic, Pickable):

@@ -20,7 +20,7 @@ from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
                                     MultiSubDimension, DefaultDimension)
 from devito.deprecations import deprecations
 
-__all__ = ['Grid', 'SubDomain', 'SubDomainSet', 'Border']
+__all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet']
 
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
@@ -621,7 +621,7 @@ class SubDomain(AbstractSubDomain):
                 except ValueError:
                     side, thickness = v
                     constructor = {'left': SubDimension.left,
-                                   'right': SubDimension.right}.get(side, None)
+                                   'right': SubDimension.right}.get(side)
                     if constructor is None:
                         raise ValueError(f"Expected sides 'left|right', not `{side}`")
 
@@ -820,7 +820,7 @@ class SubDomainSet(MultiSubDomain):
 
     def __init__(self, **kwargs):
         self._n_domains = kwargs.get('N', 1)
-        self._global_bounds = kwargs.get('bounds', None)
+        self._global_bounds = kwargs.get('bounds')
         super().__init__(**kwargs)
 
         try:

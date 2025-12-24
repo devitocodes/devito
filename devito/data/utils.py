@@ -2,9 +2,19 @@ import numpy as np
 
 from devito.tools import Tag, as_tuple, as_list, is_integer
 
-__all__ = ['Index', 'NONLOCAL', 'PROJECTED', 'index_is_basic', 'index_apply_modulo',
-           'index_dist_to_repl', 'convert_index', 'index_handle_oob',
-           'loc_data_idx', 'mpi_index_maps', 'flip_idx']
+__all__ = [
+    'NONLOCAL',
+    'PROJECTED',
+    'Index',
+    'convert_index',
+    'flip_idx',
+    'index_apply_modulo',
+    'index_dist_to_repl',
+    'index_handle_oob',
+    'index_is_basic',
+    'loc_data_idx',
+    'mpi_index_maps',
+]
 
 
 class Index(Tag):

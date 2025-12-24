@@ -10,8 +10,13 @@ from devito import (Grid, SubDomain, Function, Constant, warning,
 from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
 from devito.tools import as_tuple
 
-__all__ = ['SeismicModel', 'Model', 'ModelElastic',
-           'ModelViscoelastic', 'ModelViscoacoustic']
+__all__ = [
+    'Model',
+    'ModelElastic',
+    'ModelViscoacoustic',
+    'ModelViscoelastic',
+    'SeismicModel',
+]
 
 
 def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):

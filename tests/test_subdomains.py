@@ -375,14 +375,14 @@ class TestMultiSubDomain:
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
-        bounds_ym = int(1)
+        bounds_ym = 1
         bounds_yM = int(Ny/2+1)
         bounds1 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
         bounds_ym = int(Ny/2+1)
-        bounds_yM = int(1)
+        bounds_yM = 1
         bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
@@ -474,14 +474,14 @@ class TestMultiSubDomain:
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
-        bounds_ym = int(1)
+        bounds_ym = 1
         bounds_yM = int(Ny/2+1)
         bounds1 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
         bounds_ym = int(Ny/2+1)
-        bounds_yM = int(1)
+        bounds_yM = 1
         bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))

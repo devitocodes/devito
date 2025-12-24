@@ -12,9 +12,18 @@ from devito.tools import (Ordering, Stamp, as_list, as_set, as_tuple,
                           toposort)
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
-           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any',
-           'null_ispace']
+__all__ = [
+    'Any',
+    'Backward',
+    'DataSpace',
+    'Forward',
+    'Interval',
+    'IntervalGroup',
+    'IterationInterval',
+    'IterationSpace',
+    'NullInterval',
+    'null_ispace',
+]
 
 
 # The default Stamp, used by all new Intervals

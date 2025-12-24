@@ -17,11 +17,24 @@ from devito.types.constant import Constant
 from devito.types.relational import relational_min, relational_max
 
 
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'CustomDimension', 'SteppingDimension', 'SubDimension',
-           'MultiSubDimension', 'ConditionalDimension', 'ModuloDimension',
-           'IncrDimension', 'BlockDimension', 'StencilDimension',
-           'VirtualDimension', 'Spacing', 'dimensions']
+__all__ = [
+    'BlockDimension',
+    'ConditionalDimension',
+    'CustomDimension',
+    'DefaultDimension',
+    'Dimension',
+    'IncrDimension',
+    'ModuloDimension',
+    'MultiSubDimension',
+    'SpaceDimension',
+    'Spacing',
+    'StencilDimension',
+    'SteppingDimension',
+    'SubDimension',
+    'TimeDimension',
+    'VirtualDimension',
+    'dimensions',
+]
 
 
 SubDimensionThickness = namedtuple('SubDimensionThickness', 'left right')

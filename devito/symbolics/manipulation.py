@@ -25,10 +25,21 @@ from devito.types.array import ComponentAccess
 from devito.types.equation import Eq
 from devito.types.relational import Le, Lt, Gt, Ge
 
-__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
-           'normalize_args', 'uxreplace', 'Uxmapper', 'subs_if_composite',
-           'reuse_if_untouched', 'evalrel', 'flatten_args', 'unevaluate',
-           'as_long']
+__all__ = [
+    'Uxmapper',
+    'as_long',
+    'evalrel',
+    'flatten_args',
+    'indexify',
+    'normalize_args',
+    'pow_to_mul',
+    'reuse_if_untouched',
+    'subs_if_composite',
+    'subs_op_args',
+    'unevaluate',
+    'uxreplace',
+    'xreplace_indices',
+]
 
 
 def uxreplace(expr, rule):

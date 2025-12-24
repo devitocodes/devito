@@ -2302,7 +2302,7 @@ class TestEstimateMemory:
 
         summary.to_json("memory_estimate_output.json")
 
-        with open("memory_estimate_output.json", "r") as infile:
+        with open("memory_estimate_output.json") as infile:
             json_object = json.load(infile)
 
             assert json_object['name'] == summary.name

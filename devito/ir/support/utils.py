@@ -8,9 +8,20 @@ from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, s
 from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimension,
                           StencilDimension)
 
-__all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
-           'pull_dims', 'unbounded', 'minimum', 'maximum', 'minmax_index',
-           'extrema', 'erange']
+__all__ = [
+    'AccessMode',
+    'IMask',
+    'Stencil',
+    'detect_accesses',
+    'detect_io',
+    'erange',
+    'extrema',
+    'maximum',
+    'minimum',
+    'minmax_index',
+    'pull_dims',
+    'unbounded',
+]
 
 
 class AccessMode:

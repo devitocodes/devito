@@ -1398,7 +1398,7 @@ class AllreduceCall(Call):
         super().__init__('MPI_Allreduce', arguments, **kwargs)
 
 
-class ReductionBuilder(object):
+class ReductionBuilder:
 
     """
     Build IET routines performing MPI reductions.

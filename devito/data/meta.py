@@ -1,7 +1,16 @@
 from devito.tools import Tag
 
-__all__ = ['DOMAIN', 'CORE', 'OWNED', 'HALO', 'NOPAD', 'FULL',
-           'LEFT', 'RIGHT', 'CENTER']
+__all__ = [
+    'CENTER',
+    'CORE',
+    'DOMAIN',
+    'FULL',
+    'HALO',
+    'LEFT',
+    'NOPAD',
+    'OWNED',
+    'RIGHT',
+]
 
 
 class DataRegion(Tag):

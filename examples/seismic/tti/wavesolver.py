@@ -1,4 +1,3 @@
-# coding: utf-8
 from devito import (Function, TimeFunction, warning, NODE,
                     DevitoCheckpoint, CheckpointOperator, Revolver)
 from devito.tools import memoized_meth

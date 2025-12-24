@@ -3,7 +3,7 @@ from functools import singledispatch
 
 import sympy
 
-__all__ = ['Le', 'Lt', 'Ge', 'Gt', 'Ne', 'relational_min', 'relational_max']
+__all__ = ['Ge', 'Gt', 'Le', 'Lt', 'Ne', 'relational_max', 'relational_min']
 
 
 class AbstractRel:

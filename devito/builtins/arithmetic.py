@@ -3,7 +3,7 @@ import numpy as np
 import devito as dv
 from devito.builtins.utils import make_retval, check_builtins_args
 
-__all__ = ['norm', 'sumall', 'sum', 'inner', 'mmin', 'mmax']
+__all__ = ['inner', 'mmax', 'mmin', 'norm', 'sum', 'sumall']
 
 
 @dv.switchconfig(log_level='ERROR')

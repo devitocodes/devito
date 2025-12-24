@@ -7,7 +7,7 @@ from devito.types.sparse import _default_radius
 
 from .source import *
 
-__all__ = ['AcquisitionGeometry', 'setup_geometry', 'seismic_args']
+__all__ = ['AcquisitionGeometry', 'seismic_args', 'setup_geometry']
 
 
 def setup_geometry(model, tn, f0=0.010, interpolation='linear', **kwargs):
@@ -79,8 +79,8 @@ class AcquisitionGeometry(Pickable):
         self._src_type = kwargs.get('src_type')
         assert (self.src_type in sources or self.src_type is None)
         self._f0 = kwargs.get('f0')
-        self._a = kwargs.get('a', None)
-        self._t0w = kwargs.get('t0w', None)
+        self._a = kwargs.get('a')
+        self._t0w = kwargs.get('t0w')
         if self._src_type is not None and self._f0 is None:
             error("Peak frequency must be provided in KHz" +
                   " for source of type %s" % self._src_type)

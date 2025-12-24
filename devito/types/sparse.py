@@ -21,8 +21,13 @@ from devito.types.equation import Eq, Inc
 from devito.types.utils import IgnoreDimSort
 
 
-__all__ = ['SparseFunction', 'SparseTimeFunction', 'PrecomputedSparseFunction',
-           'PrecomputedSparseTimeFunction', 'MatrixSparseTimeFunction']
+__all__ = [
+    'MatrixSparseTimeFunction',
+    'PrecomputedSparseFunction',
+    'PrecomputedSparseTimeFunction',
+    'SparseFunction',
+    'SparseTimeFunction',
+]
 
 
 _interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator}

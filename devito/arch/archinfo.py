@@ -52,7 +52,7 @@ def get_cpu_info():
 
     # Obtain textual cpu info
     try:
-        with open('/proc/cpuinfo', 'r') as f:
+        with open('/proc/cpuinfo') as f:
             lines = f.readlines()
     except FileNotFoundError:
         lines = []
@@ -731,9 +731,7 @@ def get_platform():
         elif 'intel' in brand:
             # Most likely a desktop i3/i5/i7
             return platform_registry['intel64']
-        elif 'power8' in brand:
-            return platform_registry['power8']
-        elif 'power9' in brand:
+        elif 'power8' in brand or 'power9' in brand:
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']

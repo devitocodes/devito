@@ -11,9 +11,15 @@ from devito.logger import logger
 from devito.parameters import configuration
 from devito.tools import is_integer, infer_datasize
 
-__all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
-           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
-           'default_allocator']
+__all__ = [
+    'ALLOC_ALIGNED',
+    'ALLOC_GUARD',
+    'ALLOC_KNL_DRAM',
+    'ALLOC_KNL_MCDRAM',
+    'ALLOC_NUMA_ANY',
+    'ALLOC_NUMA_LOCAL',
+    'default_allocator',
+]
 
 
 class AbstractMemoryAllocator:

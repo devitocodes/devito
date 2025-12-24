@@ -7,8 +7,16 @@ from .differentiable import EvalDerivative, DiffDerivative, Weights
 from .tools import (left, right, generate_indices, centered, direct, transpose,
                     check_input, fd_weights_registry, process_weights)
 
-__all__ = ['first_derivative', 'cross_derivative', 'generic_derivative',
-           'left', 'right', 'centered', 'transpose', 'generate_indices']
+__all__ = [
+    'centered',
+    'cross_derivative',
+    'first_derivative',
+    'generate_indices',
+    'generic_derivative',
+    'left',
+    'right',
+    'transpose',
+]
 
 # Number of digits for FD coefficients to avoid roundup errors and non-deterministic
 # code generation

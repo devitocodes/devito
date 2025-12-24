@@ -4,7 +4,7 @@ from devito import Real, Imag
 from devito.exceptions import InvalidOperator
 from devito.ir import List
 
-__all__ = ['joins', '_atomic_add_split']
+__all__ = ['_atomic_add_split', 'joins']
 
 
 def joins(*symbols):
