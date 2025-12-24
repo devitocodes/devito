@@ -523,9 +523,7 @@ def classify(exprs, ispace):
 
     mapper = {}
     for f, r in scope.reads.items():
-        if not f.is_DiscreteFunction:
-            continue
-        elif f.grid is None:
+        if not f.is_DiscreteFunction or f.grid is None:
             continue
 
         # In the case of custom topologies, we ignore the Dimensions that aren't

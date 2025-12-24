@@ -10,7 +10,7 @@ from devito.symbolics import pow_to_mul, search
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass
 from devito.types import Hyperplane
 
-__all__ = ['Lift', 'fuse', 'optimize_pows', 'fission', 'optimize_hyperplanes']
+__all__ = ['Lift', 'fission', 'fuse', 'optimize_hyperplanes', 'optimize_pows']
 
 
 class Lift(Queue):
@@ -369,17 +369,8 @@ class Fusion(Queue):
                 # and forbid any sort of fusion. Fences have the same effect
                 elif (any(scope.d_anti_gen()) or
                       any(i.is_iaw for i in scope.d_output_gen()) or
-                      any(c.is_fence for c in flatten(cgroups[n:n1+1]))):
-                    dag.add_edge(cg0, cg1)
-
-                # Any flow-dependences along an inner Dimension (i.e., a Dimension
-                # that doesn't appear in `prefix`) impose that `cg1` follows `cg0`
-                elif any(not (i.cause and i.cause & prefix)
-                         for i in scope.d_flow_gen()):
-                    dag.add_edge(cg0, cg1)
-
-                # Clearly, output dependences must be honored
-                elif any(scope.d_output_gen()):
+                      any(c.is_fence for c in flatten(cgroups[n:n1+1]))) or any(not (i.cause and i.cause & prefix)
+                         for i in scope.d_flow_gen()) or any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
 
         return dag

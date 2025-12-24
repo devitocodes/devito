@@ -9,9 +9,16 @@ from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
                                       q_symbol, q_dimension, q_derivative)
 from devito.tools import as_tuple
 
-__all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_symbols', 'retrieve_dimensions',
-           'retrieve_derivatives', 'search']
+__all__ = [
+    'retrieve_derivatives',
+    'retrieve_dimensions',
+    'retrieve_function_carriers',
+    'retrieve_functions',
+    'retrieve_indexed',
+    'retrieve_symbols',
+    'retrieve_terminals',
+    'search',
+]
 
 
 Expression = sympy.Basic | np.number | int | float

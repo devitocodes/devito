@@ -130,7 +130,7 @@ def roofline(name, project, scale, precision, mode, th):
                 # y = bandwidth * x
                 x1, x2 = 0, min(width, max_compute_bandwidth / bandwidth)
                 y1, y2 = 0, x2*bandwidth
-                label = '{} {:.0f} GB/s'.format(roof.name, bandwidth)
+                label = f'{roof.name} {bandwidth:.0f} GB/s'
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
                 memory_roofs.append(((x1, x2), (y1, y2)))
 
@@ -140,7 +140,7 @@ def roofline(name, project, scale, precision, mode, th):
                 bandwidth /= scale  # scale down as requested by the user
                 x1, x2 = max(bandwidth / max_memory_bandwidth, 0), width
                 y1, y2 = bandwidth, bandwidth
-                label = '{} {:.0f} GFLOPS'.format(roof.name, bandwidth)
+                label = f'{roof.name} {bandwidth:.0f} GFLOPS'
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
                 compute_roofs.append(((x1, x2), (y1, y2)))
 

@@ -29,7 +29,7 @@ def ring_initial(spacing=0.01):
                          np.linspace(0., 1., ny, dtype=np.float32))
     ui = np.zeros((nx, ny), dtype=np.float32)
     r = (xx - .5)**2. + (yy - .5)**2.
-    ui[np.logical_and(.05 <= r, r <= .1)] = 1.
+    ui[np.logical_and(r >= .05, r <= .1)] = 1.
     return ui
 
 

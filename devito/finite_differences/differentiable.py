@@ -21,8 +21,16 @@ from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
 
-__all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
-           'Weights', 'Real', 'Imag', 'Conj']
+__all__ = [
+    'Conj',
+    'DiffDerivative',
+    'Differentiable',
+    'EvalDerivative',
+    'Imag',
+    'IndexDerivative',
+    'Real',
+    'Weights',
+]
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -625,9 +633,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         ref_inds = func_args.indices_ref.getters
 
         for f in self.args:
-            if f not in self._args_diff:
-                new_args.append(f)
-            elif f is func_args or isinstance(f, DifferentiableFunction):
+            if f not in self._args_diff or f is func_args or isinstance(f, DifferentiableFunction):
                 new_args.append(f)
             else:
                 ind_f = f.indices_ref.getters

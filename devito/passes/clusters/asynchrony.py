@@ -9,7 +9,7 @@ from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
-__all__ = ['tasking', 'memcpy_prefetch']
+__all__ = ['memcpy_prefetch', 'tasking']
 
 
 def async_trigger(c, dims):

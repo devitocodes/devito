@@ -10,10 +10,26 @@ from devito.types.array import ComponentAccess
 from devito.types.object import AbstractObject
 
 
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine',
-           'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
-           'q_identity', 'q_symbol', 'q_comp_acc', 'q_multivar', 'q_monoaffine',
-           'q_dimension', 'q_positive', 'q_negative']
+__all__ = [
+    'q_affine',
+    'q_comp_acc',
+    'q_constant',
+    'q_dimension',
+    'q_function',
+    'q_identity',
+    'q_indexed',
+    'q_indirect',
+    'q_leaf',
+    'q_linear',
+    'q_monoaffine',
+    'q_multivar',
+    'q_negative',
+    'q_positive',
+    'q_routine',
+    'q_symbol',
+    'q_terminal',
+    'q_terminalop',
+]
 
 
 # The following SymPy objects are considered tree leaves:

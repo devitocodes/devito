@@ -23,14 +23,48 @@ from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed
                                 Symbol)
 from devito.types.object import AbstractObject, LocalObject
 
-__all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
-           'Call', 'ExprStmt', 'Conditional', 'Iteration', 'List', 'Section',
-           'TimedList', 'Prodder', 'MetaCall', 'PointerCast', 'HaloSpot',
-           'Definition', 'ExpressionBundle', 'AugmentedExpression', 'Break',
-           'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
-           'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
-           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
-           'Using', 'CallableBody', 'Transfer', 'EmptyList', 'Switch']
+__all__ = [
+    'AugmentedExpression',
+    'BlankLine',
+    'Block',
+    'Break',
+    'BusyWait',
+    'Call',
+    'Callable',
+    'CallableBody',
+    'Conditional',
+    'Definition',
+    'Dereference',
+    'DummyExpr',
+    'EmptyList',
+    'ExprStmt',
+    'Expression',
+    'ExpressionBundle',
+    'HaloSpot',
+    'Increment',
+    'Iteration',
+    'Lambda',
+    'List',
+    'ListMajor',
+    'MetaCall',
+    'MultiTraversable',
+    'Node',
+    'ParallelBlock',
+    'ParallelIteration',
+    'ParallelTree',
+    'PointerCast',
+    'Pragma',
+    'Prodder',
+    'Return',
+    'Section',
+    'Switch',
+    'SyncSpot',
+    'TimedList',
+    'Transfer',
+    'Using',
+    'UsingNamespace',
+    'While',
+]
 
 # First-class IET nodes
 
@@ -446,8 +480,8 @@ class Expression(ExprStmt, Node):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return (((self.is_scalar and not self.is_reduction) or
-                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer))))
+        return ((self.is_scalar and not self.is_reduction) or
+                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
     def defines(self):

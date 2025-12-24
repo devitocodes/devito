@@ -9,8 +9,16 @@ from devito.tools import (Pickable, as_tuple, c_restrict_void_p,
 from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
 
-__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess', 'Bag', 'BundleView']
+__all__ = [
+    'Array',
+    'ArrayMapped',
+    'ArrayObject',
+    'Bag',
+    'Bundle',
+    'BundleView',
+    'ComponentAccess',
+    'PointerArray',
+]
 
 
 class ArrayBasic(AbstractFunction, LocalType):

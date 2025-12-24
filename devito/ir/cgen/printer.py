@@ -420,7 +420,7 @@ class BasePrinter(CodePrinter):
 
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
-for k in ('exp log sin cos tan ceiling floor').split():
+for k in ['exp', 'log', 'sin', 'cos', 'tan', 'ceiling', 'floor']:
     setattr(BasePrinter, f'_print_{k}', BasePrinter._print_math_func)
 
 
@@ -432,7 +432,7 @@ PRECEDENCE_VALUES['InlineIf'] = 1
 # Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
 # to always use the correct one from our printer
 if Version(sympy.__version__) >= Version("1.11"):
-    setattr(sympy.printing.str.StrPrinter, '_print_Add', BasePrinter._print_Add)
+    sympy.printing.str.StrPrinter._print_Add = BasePrinter._print_Add
 
 
 def ccode(expr, printer=None, **settings):
