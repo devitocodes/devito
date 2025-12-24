@@ -21,7 +21,7 @@ RUN python3 -m venv /venv && \
     ln -fs /app/nvtop/build/src/nvtop /venv/bin/nvtop
 
 # Copy Devito
-ADD . /app/devito
+COPY . /app/devito
 
 # Remove git files
 RUN rm -rf /app/devito/.git
@@ -30,7 +30,7 @@ RUN rm -rf /app/devito/.git
 RUN eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir --verbose -r /app/devito/requirements-mpi.txt"
 
 # Devito
-RUN /venv/bin/pip install --no-cache-dir -e /app/devito[extras,tests] && rm -rf ~/.cache/pip
+RUN /venv/bin/pip install --no-cache-dir -e "/app/devito[extras,tests]" && rm -rf ~/.cache/pip
 
 FROM $base AS utilities
 
@@ -80,10 +80,10 @@ RUN groupadd -g ${GROUP_ID} app && \
 COPY --from=builder --chown=app:app /app /app
 COPY --from=utilities --chown=app:app /app/nvtop /app/nvtop
 
-ADD --chown=app:app docker/run-jupyter.sh /jupyter
-ADD --chown=app:app docker/run-tests.sh /tests
-ADD --chown=app:app docker/run-print-defaults.sh /print-defaults
-ADD --chown=app:app docker/entrypoint.sh /docker-entrypoint.sh
+COPY --chown=app:app docker/run-jupyter.sh /jupyter
+COPY --chown=app:app docker/run-tests.sh /tests
+COPY --chown=app:app docker/run-print-defaults.sh /print-defaults
+COPY --chown=app:app docker/entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /print-defaults /jupyter /tests /docker-entrypoint.sh
 
 # Venv
