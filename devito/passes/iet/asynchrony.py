@@ -1,21 +1,21 @@
 from collections import namedtuple
-from functools import singledispatch
 from ctypes import c_int
+from functools import singledispatch
 
 import cgen as c
 
-from devito.ir import (AsyncCall, AsyncCallable, BlankLine, Call, Callable,
-                       Conditional, DummyEq, DummyExpr, While, Increment, Iteration,
-                       List, PointerCast, Return, FindNodes, FindSymbols,
-                       ThreadCallable, EntryFunction, Transformer, make_callable,
-                       maybe_alias)
+from devito.ir import (
+    AsyncCall, AsyncCallable, BlankLine, Call, Callable, Conditional, DummyEq, DummyExpr,
+    EntryFunction, FindNodes, FindSymbols, Increment, Iteration, List, PointerCast,
+    Return, ThreadCallable, Transformer, While, make_callable, maybe_alias
+)
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
-                              Null)
+from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Null
 from devito.tools import split
-from devito.types import (Lock, Pointer, PThreadArray, QueueID, SharedData, Temp,
-                          VolatileInt)
+from devito.types import (
+    Lock, Pointer, PThreadArray, QueueID, SharedData, Temp, VolatileInt
+)
 
 __all__ = ['pthreadify']
 

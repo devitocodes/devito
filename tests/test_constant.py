@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito import Grid, Constant, Function, TimeFunction, Eq, solve, Operator
+from devito import Constant, Eq, Function, Grid, Operator, TimeFunction, solve
 
 
 class TestConst:

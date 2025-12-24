@@ -1,11 +1,12 @@
 from collections import defaultdict
-
-from sympy import S
 from itertools import combinations
 
-from devito.ir.iet import (Call, Expression, HaloSpot, Iteration, FindNodes,
-                           FindWithin, MapNodes, MapHaloSpots, Transformer,
-                           retrieve_iteration_tree)
+from sympy import S
+
+from devito.ir.iet import (
+    Call, Expression, FindNodes, FindWithin, HaloSpot, Iteration, MapHaloSpots, MapNodes,
+    Transformer, retrieve_iteration_tree
+)
 from devito.ir.support import PARALLEL, Scope
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder

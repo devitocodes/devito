@@ -1,11 +1,9 @@
 import numpy as np
-
-from devito import configuration, Function, norm, mmax, mmin
-
-from examples.seismic import demo_model, AcquisitionGeometry
-from examples.seismic.acoustic import AcousticWaveSolver
-
 from inversion_utils import compute_residual, update_with_box
+
+from devito import Function, configuration, mmax, mmin, norm
+from examples.seismic import AcquisitionGeometry, demo_model
+from examples.seismic.acoustic import AcousticWaveSolver
 
 # Turn off logging
 configuration['log-level'] = "ERROR"

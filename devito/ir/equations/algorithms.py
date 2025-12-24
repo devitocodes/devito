@@ -1,17 +1,18 @@
 from collections.abc import Iterable
 from functools import singledispatch
 
-from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
-                              retrieve_functions)
-from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
-                          frozendict)
-from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
-                          ConditionalDimension)
+from devito.data.allocators import DataReference
+from devito.logger import warning
+from devito.symbolics import (
+    retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
+)
+from devito.tools import (
+    Ordering, as_tuple, filter_ordered, filter_sorted, flatten, frozendict
+)
+from devito.types import ConditionalDimension, Dimension, Eq, IgnoreDimSort, SubDimension
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension, Thickness
-from devito.data.allocators import DataReference
-from devito.logger import warning
 
 __all__ = ['concretize_subdims', 'dimension_sort', 'lower_exprs']
 

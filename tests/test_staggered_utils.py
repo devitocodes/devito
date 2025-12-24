@@ -1,10 +1,12 @@
-import pytest
 import numpy as np
+import pytest
 from sympy import simplify
 
-from devito import (Function, Grid, NODE, CELL, VectorTimeFunction,
-                    TimeFunction, Eq, Operator, div, Dimension)
-from devito.tools import powerset, as_tuple
+from devito import (
+    CELL, NODE, Dimension, Eq, Function, Grid, Operator, TimeFunction, VectorTimeFunction,
+    div
+)
+from devito.tools import as_tuple, powerset
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])

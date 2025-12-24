@@ -1,10 +1,12 @@
 from itertools import groupby
 
-from devito.ir.iet import (BusyWait, Iteration, Section, TimedList,
-                           FindNodes, FindSymbols, MapNodes, Transformer)
-from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
-                                 HaloUpdateList, HaloWaitList, RemainderCall,
-                                 ComputeCall)
+from devito.ir.iet import (
+    BusyWait, FindNodes, FindSymbols, Iteration, MapNodes, Section, TimedList, Transformer
+)
+from devito.mpi.routines import (
+    ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
+    MPIList, RemainderCall
+)
 from devito.passes.iet.engine import iet_pass
 from devito.types import TempArray, TempFunction, Timer
 

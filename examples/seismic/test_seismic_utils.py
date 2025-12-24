@@ -5,7 +5,7 @@ except:
 import numpy as np
 
 from devito import norm
-from examples.seismic import Model, setup_geometry, AcquisitionGeometry
+from examples.seismic import AcquisitionGeometry, Model, setup_geometry
 
 
 def not_bcs(bc):

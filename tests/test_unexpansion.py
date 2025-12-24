@@ -1,14 +1,16 @@
 import numpy as np
 import pytest
 
-from conftest import assert_structure, get_params, get_arrays, check_array
-from devito import (Buffer, Eq, Function, TimeFunction, Grid, Operator,
-                    Coefficient, Substitutions, cos, sin)
-from devito.finite_differences import Weights
+from conftest import assert_structure, check_array, get_arrays, get_params
+from devito import (
+    Buffer, Coefficient, Eq, Function, Grid, Operator, Substitutions, TimeFunction, cos,
+    sin
+)
 from devito.arch.compiler import OneapiCompiler
+from devito.finite_differences import Weights
 from devito.ir import Expression, FindNodes, FindSymbols
-from devito.parameters import switchconfig, configuration
-from devito.types import Symbol, Dimension
+from devito.parameters import configuration, switchconfig
+from devito.types import Dimension, Symbol
 
 
 class TestLoopScheduling:

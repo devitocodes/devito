@@ -1,6 +1,6 @@
-from anytree import NodeMixin, PostOrderIter, RenderTree, ContStyle
+from anytree import ContStyle, NodeMixin, PostOrderIter, RenderTree
 
-from devito.ir.support import WithLock, PrefetchUpdate
+from devito.ir.support import PrefetchUpdate, WithLock
 
 __all__ = [
     "NodeConditional",

@@ -1,14 +1,14 @@
 from math import floor
 
-import pytest
 import numpy as np
+import pytest
 import scipy.sparse
 
-from devito import (Grid, TimeFunction, Eq, Operator, Dimension, Function,
-                    SparseFunction, SparseTimeFunction, PrecomputedSparseFunction,
-                    PrecomputedSparseTimeFunction, MatrixSparseTimeFunction,
-                    switchconfig)
-
+from devito import (
+    Dimension, Eq, Function, Grid, MatrixSparseTimeFunction, Operator,
+    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
+    SparseTimeFunction, TimeFunction, switchconfig
+)
 
 _sptypes = [SparseFunction, SparseTimeFunction,
             PrecomputedSparseFunction, PrecomputedSparseTimeFunction]

@@ -1,8 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
-from devito import Operator, TimeFunction, Grid, Eq
-from devito.logger import info
-import numpy as np
 from threading import current_thread
+
+import numpy as np
+
+from devito import Eq, Grid, Operator, TimeFunction
+from devito.logger import info
 
 
 def test_concurrent_executing_operators():

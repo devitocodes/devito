@@ -1,14 +1,14 @@
-import pytest
-
 import numpy as np
+import pytest
 from sympy import Ge, Lt
 from sympy.core.mul import _mulsort
 
 from conftest import assert_structure
-from devito import (Grid, Function, TimeFunction, ConditionalDimension, Eq,  # noqa
-                    Operator, cos, sin)
+from devito import (  # noqa
+    ConditionalDimension, Eq, Function, Grid, Operator, TimeFunction, cos, sin
+)
 from devito.finite_differences.differentiable import diffify
-from devito.ir import DummyEq, FindNodes, FindSymbols, Conditional
+from devito.ir import Conditional, DummyEq, FindNodes, FindSymbols
 from devito.ir.support import generator
 from devito.passes.clusters.cse import CTemp, _cse
 from devito.symbolics import indexify

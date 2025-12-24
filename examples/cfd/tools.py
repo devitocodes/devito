@@ -1,7 +1,7 @@
+import numpy as np
+from matplotlib import cm, pyplot
 from mpl_toolkits.mplot3d import Axes3D  # noqa
 
-import numpy as np
-from matplotlib import pyplot, cm
 from devito.logger import warning
 
 

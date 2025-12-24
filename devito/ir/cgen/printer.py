@@ -3,22 +3,20 @@ Utilities to turn SymPy objects into C strings.
 """
 import numpy as np
 import sympy
-
 from mpmath.libmp import prec_to_dps, to_str
 from packaging.version import Version
-
 from sympy.core import S
-from sympy.core.numbers import equal_valued, Float
-from sympy.printing.codeprinter import CodePrinter
+from sympy.core.numbers import Float, equal_valued
 from sympy.logic.boolalg import BooleanFunction
+from sympy.printing.codeprinter import CodePrinter
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 
 from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
+from devito.tools import ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype
 from devito.types.basic import AbstractFunction
-from devito.tools import ctypes_to_cstr, dtype_to_ctype, ctypes_vector_mapper
 
 __all__ = ['BasePrinter', 'ccode']
 

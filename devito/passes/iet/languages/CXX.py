@@ -1,12 +1,12 @@
 import numpy as np
 from sympy.printing.cxx import CXX11CodePrinter
 
-from devito.ir import Call, UsingNamespace, BasePrinter
+from devito.ir import BasePrinter, Call, UsingNamespace
 from devito.passes.iet.definitions import DataManager
-from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.utils import _atomic_add_split
-from devito.symbolics import c_complex, c_double_complex, IndexedPointer, cast, Byref
+from devito.passes.iet.orchestration import Orchestrator
+from devito.symbolics import Byref, IndexedPointer, c_complex, c_double_complex, cast
 from devito.tools import dtype_to_cstr
 
 __all__ = ['CXXBB', 'CXXDataManager', 'CXXOrchestrator']

@@ -1,22 +1,24 @@
-import numpy as np
-import click
 import os
 
-from devito import Device, configuration, info, warning, set_log_level, switchconfig, norm
+import click
+import numpy as np
+
+from devito import Device, configuration, info, norm, set_log_level, switchconfig, warning
 from devito.arch.compiler import IntelCompiler
 from devito.mpi import MPI
 from devito.operator.profiling import PerformanceSummary
 from devito.tools import all_equal, as_tuple, sweep
 from devito.types.dense import DiscreteFunction
-
-from examples.seismic.acoustic.acoustic_example import run as acoustic_run, acoustic_setup
-from examples.seismic.tti.tti_example import run as tti_run, tti_setup
-from examples.seismic.elastic.elastic_example import run as elastic_run, elastic_setup
-from examples.seismic.self_adjoint.example_iso import run as acoustic_sa_run, \
-    acoustic_sa_setup
-from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run, \
-    viscoelastic_setup
-
+from examples.seismic.acoustic.acoustic_example import acoustic_setup
+from examples.seismic.acoustic.acoustic_example import run as acoustic_run
+from examples.seismic.elastic.elastic_example import elastic_setup
+from examples.seismic.elastic.elastic_example import run as elastic_run
+from examples.seismic.self_adjoint.example_iso import acoustic_sa_setup
+from examples.seismic.self_adjoint.example_iso import run as acoustic_sa_run
+from examples.seismic.tti.tti_example import run as tti_run
+from examples.seismic.tti.tti_example import tti_setup
+from examples.seismic.viscoelastic.viscoelastic_example import run as viscoelastic_run
+from examples.seismic.viscoelastic.viscoelastic_example import viscoelastic_setup
 
 model_type = {
     'viscoelastic': {

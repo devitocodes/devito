@@ -1,6 +1,8 @@
 from functools import cached_property
-from scipy import interpolate
+
 import numpy as np
+from scipy import interpolate
+
 try:
     import matplotlib.pyplot as plt
 except:

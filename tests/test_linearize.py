@@ -1,11 +1,13 @@
-import pytest
 import numpy as np
+import pytest
 import scipy.sparse
 
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    Inc, MatrixSparseTimeFunction, sin, switchconfig, configuration)
+from devito import (
+    Eq, Function, Grid, Inc, MatrixSparseTimeFunction, Operator, SparseTimeFunction,
+    TimeFunction, configuration, sin, switchconfig
+)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
-from devito.passes import Graph, linearize, generate_macros
+from devito.passes import Graph, generate_macros, linearize
 from devito.types import Array, Bundle, DefaultDimension
 
 

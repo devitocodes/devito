@@ -1,17 +1,19 @@
-import pytest
 import numpy as np
+import pytest
 from scipy.ndimage import gaussian_filter
+
 try:
     from scipy.datasets import ascent
 except ImportError:
     from scipy.misc import ascent
 
-from devito import ConditionalDimension, Grid, Function, TimeFunction, switchconfig
-from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
-                             inner, mmin, mmax, sum, sumall)
+from devito import ConditionalDimension, Function, Grid, TimeFunction, switchconfig
+from devito.builtins import (
+    assign, gaussian_smooth, initialize_function, inner, mmax, mmin, norm, sum, sumall
+)
 from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
-from devito.types import SubDomain, SparseTimeFunction
+from devito.types import SparseTimeFunction, SubDomain
 
 
 class TestAssign:

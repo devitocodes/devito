@@ -3,7 +3,7 @@
 import importlib
 
 import sympy
-from sympy.core import Basic, Add, sympify
+from sympy.core import Add, Basic, sympify
 from sympy.core.exprtools import gcd_terms
 from sympy.utilities import public
 from sympy.utilities.iterables import iterable

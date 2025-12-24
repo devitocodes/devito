@@ -1,10 +1,10 @@
 """User API to specify equations."""
-import sympy
-
 from functools import cached_property
 
+import sympy
+
 from devito.deprecations import deprecations
-from devito.tools import as_tuple, frozendict, Pickable
+from devito.tools import Pickable, as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
 __all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']

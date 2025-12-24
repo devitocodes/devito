@@ -5,12 +5,12 @@ of the compiler to express the conditions under which a certain object
 """
 
 from collections import Counter, defaultdict
+from functools import singledispatch
 from operator import ge, gt, le, lt
 
-from functools import singledispatch
+import numpy as np
 from sympy import And, Expr, Ge, Gt, Le, Lt, Mul, true
 from sympy.logic.boolalg import BooleanFunction
-import numpy as np
 
 from devito.ir.support.space import Forward, IterationDirection
 from devito.symbolics import CondEq, CondNe, search

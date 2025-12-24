@@ -1,14 +1,16 @@
 import numpy as np
 import pytest
-from sympy import sympify, simplify, diff, Float, Symbol
+from sympy import Float, Symbol, diff, simplify, sympify
 
-from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
-                    ConditionalDimension, left, right, centered, div, grad,
-                    curl, laplace, VectorFunction, TensorFunction)
+from devito import (
+    NODE, ConditionalDimension, Eq, Function, Grid, Operator, TensorFunction,
+    TimeFunction, VectorFunction, centered, cos, curl, div, grad, laplace, left, right,
+    sin
+)
 from devito.finite_differences import Derivative, Differentiable, diffify
-from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
-                                                      IndexDerivative, Weights,
-                                                      DiffDerivative)
+from devito.finite_differences.differentiable import (
+    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights
+)
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 from devito.warnings import DevitoWarning

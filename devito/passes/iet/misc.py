@@ -6,15 +6,16 @@ import sympy
 
 from devito.finite_differences import Max, Min
 from devito.finite_differences.differentiable import SafeInv
-from devito.ir import (Any, Forward, DummyExpr, Iteration, EmptyList, Prodder,
-                       FindApplications, FindNodes, FindSymbols, Transformer,
-                       Uxreplace, filter_iterations, retrieve_iteration_tree,
-                       pull_dims)
+from devito.ir import (
+    Any, DummyExpr, EmptyList, FindApplications, FindNodes, FindSymbols, Forward,
+    Iteration, Prodder, Transformer, Uxreplace, filter_iterations, pull_dims,
+    retrieve_iteration_tree
+)
+from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.C import CPrinter
-from devito.ir.iet.efunc import DeviceFunction, EntryFunction
-from devito.symbolics import (ValueLimit, evalrel, has_integer_args, limits_mapper, Cast)
-from devito.tools import Bunch, as_mapper, filter_ordered, split, as_tuple
+from devito.symbolics import Cast, ValueLimit, evalrel, has_integer_args, limits_mapper
+from devito.tools import Bunch, as_mapper, as_tuple, filter_ordered, split
 from devito.types import FIndexed
 
 __all__ = [

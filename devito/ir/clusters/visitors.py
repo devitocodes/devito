@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-
 from itertools import groupby
 
 from devito.ir.support import IterationSpace, null_ispace

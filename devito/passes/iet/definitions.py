@@ -11,20 +11,20 @@ from operator import itemgetter
 import numpy as np
 
 from devito.ir import (
-    Block, Call, Definition, DummyExpr, Iteration, List, Return, EntryFunction,
-    FindNodes, FindSymbols, MapExprStmts, Transformer, make_callable
+    Block, Call, Definition, DummyExpr, EntryFunction, FindNodes, FindSymbols, Iteration,
+    List, MapExprStmts, Return, Transformer, make_callable
 )
 from devito.passes import is_gpu_create
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (
-    Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer,
-    SizeOf, VOID, pow_to_mul, unevaluate, as_long
+    VOID, Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer, SizeOf,
+    as_long, pow_to_mul, unevaluate
 )
-from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
+from devito.tools import as_list, as_mapper, as_tuple, filter_sorted, flatten
 from devito.types import (
-    Array, ComponentAccess, CustomDimension, Dimension, DeviceMap, DeviceRM,
-    Eq, Symbol, size_t
+    Array, ComponentAccess, CustomDimension, DeviceMap, DeviceRM, Dimension, Eq, Symbol,
+    size_t
 )
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']

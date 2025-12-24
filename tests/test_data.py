@@ -1,11 +1,12 @@
-import pytest
 import numpy as np
+import pytest
 
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Dimension, # noqa
-                    Eq, Operator, ALLOC_GUARD, ALLOC_ALIGNED, configuration,
-                    switchconfig, SparseFunction, PrecomputedSparseFunction,
-                    PrecomputedSparseTimeFunction)
-from devito.data import LEFT, RIGHT, Decomposition, loc_data_idx, convert_index
+from devito import (  # noqa
+    ALLOC_ALIGNED, ALLOC_GUARD, Dimension, Eq, Function, Grid, Operator,
+    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
+    SparseTimeFunction, TimeFunction, configuration, switchconfig
+)
+from devito.data import LEFT, RIGHT, Decomposition, convert_index, loc_data_idx
 from devito.data.allocators import DataReference
 from devito.tools import as_tuple
 from devito.types import Scalar

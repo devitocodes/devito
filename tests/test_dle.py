@@ -1,18 +1,20 @@
 from functools import reduce
 from operator import mul
 
-import sympy
 import numpy as np
 import pytest
+import sympy
 
-from conftest import assert_structure, assert_blocking, _R, skipif
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    CustomDimension, Dimension, DefaultDimension, SubDimension,
-                    PrecomputedSparseTimeFunction, Eq, Inc, ReduceMin, ReduceMax,
-                    Operator, configuration, dimensions, info, cos)
+from conftest import _R, assert_blocking, assert_structure, skipif
+from devito import (
+    CustomDimension, DefaultDimension, Dimension, Eq, Function, Grid, Inc, Operator,
+    PrecomputedSparseTimeFunction, ReduceMax, ReduceMin, SpaceDimension,
+    SparseTimeFunction, SubDimension, TimeFunction, configuration, cos, dimensions, info
+)
 from devito.exceptions import InvalidArgument
-from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
-                           retrieve_iteration_tree, Expression)
+from devito.ir.iet import (
+    Expression, FindNodes, IsPerfectIteration, Iteration, retrieve_iteration_tree
+)
 from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
 from devito.types import Barrier, Scalar, Symbol

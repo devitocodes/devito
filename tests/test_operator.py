@@ -1,14 +1,13 @@
-import os
-from itertools import permutations
-from functools import reduce
-from operator import mul
-import logging
 import json
+import logging
+import os
+from functools import reduce
+from itertools import permutations
+from operator import mul
 
 import numpy as np
-import sympy
-
 import pytest
+import sympy
 
 # Try-except required to allow for import of classes from this file
 # for testing in PRO
@@ -17,26 +16,27 @@ try:
 except ImportError:
     from conftest import assert_structure, skipif
 
-from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, dimensions, configuration, TensorFunction,
-                    TensorTimeFunction, VectorFunction, VectorTimeFunction,
-                    div, grad, switchconfig, exp, Buffer)
-from devito import  Inc, Le, Lt, Ge, Gt, sin  # noqa
+from devito import (  # noqa
+    CELL, NODE, Buffer, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Inc, Le, Lt,
+    Operator, SpaceDimension, SparseFunction, SparseTimeFunction, TensorFunction,
+    TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, configuration,
+    dimensions, div, error, exp, grad, sin, switchconfig
+)
 from devito.arch.archinfo import Device
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
 from devito.ir.equations.algorithms import lower_exprs
-from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
-                           FindNodes, IsPerfectIteration, retrieve_iteration_tree,
-                           FindSymbols)
+from devito.ir.iet import (
+    Callable, Conditional, Expression, FindNodes, FindSymbols, IsPerfectIteration,
+    Iteration, TimedList, retrieve_iteration_tree
+)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
 from devito.types import (
-    Array, Barrier, CustomDimension, Indirection, Scalar, Symbol, ConditionalDimension
+    Array, Barrier, ConditionalDimension, CustomDimension, Indirection, Scalar, Symbol
 )
 
 

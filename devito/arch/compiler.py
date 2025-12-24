@@ -1,29 +1,28 @@
+import platform
+import time
+import warnings
 from functools import partial
 from hashlib import sha1
 from itertools import filterfalse
-from os import environ, path, makedirs
-from packaging.version import Version
-from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
-                        check_call, run)
-import platform
-import warnings
-import time
+from os import environ, makedirs, path
+from subprocess import DEVNULL, PIPE, CalledProcessError, check_call, check_output, run
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
-from codepy.toolchain import (GCCToolchain,
-                              call_capture_output as _call_capture_output)
+from codepy.toolchain import GCCToolchain
+from codepy.toolchain import call_capture_output as _call_capture_output
+from packaging.version import Version
 
 from devito.arch import (
-    AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9, Graviton,
-    Cortex, IntelDevice, get_nvidia_cc, NvidiaArm, check_cuda_runtime,
-    get_cuda_version, get_m1_llvm_path
+    AMDGPUX, POWER8, POWER9, AppleArm, Cortex, Cpu64, Graviton, IntelDevice, NvidiaArm,
+    NvidiaDevice, check_cuda_runtime, get_cuda_version, get_m1_llvm_path, get_nvidia_cc
 )
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.tools import (as_list, change_directory, filter_ordered,
-                          memoized_func, make_tempdir)
+from devito.tools import (
+    as_list, change_directory, filter_ordered, make_tempdir, memoized_func
+)
 
 __all__ = ['compiler_registry', 'sniff_mpi_distro']
 

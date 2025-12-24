@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito import Real, Imag
+from devito import Imag, Real
 from devito.exceptions import InvalidOperator
 from devito.ir import List
 
