@@ -1,7 +1,8 @@
-import pytest
 import warnings
 
-from devito.warnings import warn, DevitoWarning
+import pytest
+
+from devito.warnings import DevitoWarning, warn
 
 
 class NewWarning(UserWarning):

@@ -1,23 +1,25 @@
-from collections.abc import Iterable
-from itertools import chain, product
+from collections.abc import Callable, Iterable
 from functools import cached_property
-from collections.abc import Callable
+from itertools import chain, product
 
-from sympy import S, Expr
 import sympy
+from sympy import Expr, S
 
 from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
-                              q_constant, q_comp_acc, q_affine, q_routine, search,
-                              uxreplace)
-from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth, memoized_generator, smart_gt,
-                          smart_lt, CacheInstances)
-from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
-                          CriticalRegion, Function, Symbol, Temp, TempArray,
-                          TBArray)
+from devito.symbolics import (
+    compare_ops, q_affine, q_comp_acc, q_constant, q_routine, retrieve_indexed,
+    retrieve_terminals, search, uxreplace
+)
+from devito.tools import (
+    CacheInstances, Tag, as_mapper, as_tuple, filter_sorted, flatten, is_integer,
+    memoized_generator, memoized_meth, smart_gt, smart_lt
+)
+from devito.types import (
+    ComponentAccess, CriticalRegion, Dimension, DimensionTuple, Fence, Function, Symbol,
+    TBArray, Temp, TempArray
+)
 
 __all__ = ['ExprGeometry', 'IterationInstance', 'Scope', 'TimedAccess']
 

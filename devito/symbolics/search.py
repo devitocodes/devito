@@ -5,8 +5,9 @@ from typing import Any, Literal
 import numpy as np
 import sympy
 
-from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
-                                      q_symbol, q_dimension, q_derivative)
+from devito.symbolics.queries import (
+    q_derivative, q_dimension, q_function, q_indexed, q_leaf, q_symbol, q_terminal
+)
 from devito.tools import as_tuple
 
 __all__ = [

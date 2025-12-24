@@ -1,7 +1,8 @@
 from devito.ir.clusters.cluster import Cluster
 from devito.ir.clusters.visitors import Queue
-from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC,
-                               SEQUENTIAL, Property, Scope)
+from devito.ir.support import (
+    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_INDEP, SEQUENTIAL, Property, Scope
+)
 from devito.ir.support.space import IterationSpace
 from devito.tools import as_tuple, flatten, timed_pass
 from devito.types.dimension import Dimension

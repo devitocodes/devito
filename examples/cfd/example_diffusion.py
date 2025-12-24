@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 import numpy as np
 import sympy
 
-from devito import Grid, Eq, Operator, TimeFunction, solve
+from devito import Eq, Grid, Operator, TimeFunction, solve
 from devito.logger import log
 
 

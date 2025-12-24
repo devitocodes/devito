@@ -1,15 +1,15 @@
 import abc
 import ctypes
-from ctypes.util import find_library
 import mmap
 import os
 import sys
+from ctypes.util import find_library
 
 import numpy as np
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import is_integer, infer_datasize
+from devito.tools import infer_datasize, is_integer
 
 __all__ = [
     'ALLOC_ALIGNED',

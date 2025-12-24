@@ -1,13 +1,15 @@
-from scipy.special import hankel2
 import numpy as np
+from scipy.special import hankel2
+
 try:
     import pytest
 except:
     pass
-from devito import Grid, Function, Eq, Operator, info
-from examples.seismic import RickerSource, TimeAxis, Model, AcquisitionGeometry
-from examples.seismic.self_adjoint import (acoustic_sa_setup, setup_w_over_q,
-                                           SaIsoAcousticWaveSolver)
+from devito import Eq, Function, Grid, Operator, info
+from examples.seismic import AcquisitionGeometry, Model, RickerSource, TimeAxis
+from examples.seismic.self_adjoint import (
+    SaIsoAcousticWaveSolver, acoustic_sa_setup, setup_w_over_q
+)
 
 # Defaults in global scope
 shapes = [(71, 61), (71, 61, 51)]

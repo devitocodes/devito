@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Grid, Eq, Operator, TimeFunction
+from devito import Eq, Grid, Operator, TimeFunction
 
 
 @pytest.fixture

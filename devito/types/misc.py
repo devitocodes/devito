@@ -2,15 +2,16 @@ from ctypes import c_double, c_void_p
 
 import numpy as np
 import sympy
+
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
-from devito.types.basic import IndexedData
 from devito.tools import CustomDtype, Pickable, as_tuple, frozendict
+from devito.types import Array, CompositeObject, Indexed, LocalObject, Symbol
+from devito.types.basic import IndexedData
 
 __all__ = [
     'Auto',

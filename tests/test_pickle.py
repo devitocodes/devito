@@ -2,31 +2,37 @@ import ctypes
 import pickle as pickle0
 
 import cloudpickle as pickle1
-import pytest
 import numpy as np
+import pytest
 from sympy import Symbol
 
-from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
-                    PrecomputedSparseTimeFunction, SubDomain)
-from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
+from devito import (
+    MPI, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, IncrDimension,
+    Min, Operator, PrecomputedSparseTimeFunction, SparseFunction, SteppingDimension,
+    SubDimension, SubDomain, TimeDimension, TimeFunction, solve
+)
 from devito.data import LEFT, OWNED
-from devito.finite_differences.tools import direct, transpose, left, right, centered
+from devito.finite_differences.tools import centered, direct, left, right, transpose
+from devito.ir import Backward, Forward, GuardBound, GuardBoundNext, GuardFactor
 from devito.mpi.halo_scheme import Halo
-from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
-                                 MPIRegion)
-from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
-                          PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID, NPThreads, ThreadID, TempFunction, Indirection,
-                          FIndexed, ComponentAccess, DefaultDimension)
-from devito.types.basic import BoundSymbol, AbstractSymbol
+from devito.mpi.routines import (
+    MPIMsgEnriched, MPIRegion, MPIRequestObject, MPIStatusObject
+)
+from devito.symbolics import (
+    CallFromPointer, Cast, DefFunction, FieldFromPointer, IntDiv, ListInitializer, SizeOf,
+    pow_to_mul
+)
 from devito.tools import EnrichedTuple
-from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
-                              CallFromPointer, DefFunction, Cast, SizeOf,
-                              pow_to_mul)
-from examples.seismic import (demo_model, AcquisitionGeometry,
-                              TimeAxis, RickerSource, Receiver)
+from devito.types import (
+    Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
+    Indirection, Lock, NPThreads, PointerArray, PThreadArray, Scalar, SharedData
+)
+from devito.types import Symbol as dSymbol
+from devito.types import TempFunction, ThreadID, Timer
+from devito.types.basic import AbstractSymbol, BoundSymbol
+from examples.seismic import (
+    AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
+)
 
 
 class SparseFirst(SparseFunction):

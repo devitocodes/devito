@@ -1,5 +1,6 @@
 import numpy as np
-from devito import Eq, Operator, SubDimension, exp, Min, Abs
+
+from devito import Abs, Eq, Min, Operator, SubDimension, exp
 
 __all__ = ['setup_w_over_q']
 

@@ -1,5 +1,6 @@
-from devito import Eq, Operator, VectorTimeFunction, TensorTimeFunction
-from devito import div, grad, diag, solve
+from devito import (
+    Eq, Operator, TensorTimeFunction, VectorTimeFunction, diag, div, grad, solve
+)
 
 
 def src_rec(v, tau, model, geometry):

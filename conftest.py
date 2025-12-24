@@ -6,14 +6,16 @@ import pytest
 from sympy import Add
 from sympy.printing import sstr
 
-from devito import Eq, configuration, Revolver  # noqa
+from devito import Eq, Revolver, configuration  # noqa
+from devito.arch import Arm, Cpu64, Device, get_advisor_path, sniff_mpi_distro
+from devito.arch.compiler import (
+    IntelCompiler, NvidiaCompiler, OneapiCompiler, compiler_registry
+)
 from devito.checkpointing import NoopRevolver
 from devito.finite_differences.differentiable import EvalDerivative
-from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm, get_advisor_path
-from devito.arch.compiler import (compiler_registry, IntelCompiler, OneapiCompiler,
-                                  NvidiaCompiler)
-from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (
+    FindNodes, FindSymbols, Iteration, ParallelBlock, retrieve_iteration_tree
+)
 from devito.tools import as_tuple
 
 try:

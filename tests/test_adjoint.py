@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Operator, norm, Function, Grid, SparseFunction, inner
+from devito import Function, Grid, Operator, SparseFunction, inner, norm
 from devito.logger import info
 from examples.seismic import demo_model
 from examples.seismic.acoustic import acoustic_setup

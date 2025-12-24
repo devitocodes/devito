@@ -5,21 +5,20 @@ import numpy as np
 from sympy import Mul
 
 from devito.ir.iet import (
-    Call, ExprStmt, Expression, Iteration, SyncSpot, AsyncCallable, FindNodes,
-    FindSymbols, MapNodes, MetaCall, Transformer, EntryFunction, ThreadCallable,
-    Uxreplace, derive_parameters
+    AsyncCallable, Call, EntryFunction, Expression, ExprStmt, FindNodes, FindSymbols,
+    Iteration, MapNodes, MetaCall, SyncSpot, ThreadCallable, Transformer, Uxreplace,
+    derive_parameters
 )
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
-from devito.mpi.routines import Gather, Scatter, HaloUpdate, HaloWait, MPIMsg
+from devito.mpi.routines import Gather, HaloUpdate, HaloWait, MPIMsg, Scatter
 from devito.passes import needs_transfer
-from devito.symbolics import (FieldFromComposite, FieldFromPointer, IndexedPointer,
-                              search)
+from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointer, search
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
 from devito.types import (
-    Array, Bundle, ComponentAccess, CompositeObject, Lock, IncrDimension,
-    ModuloDimension, Indirection, Pointer, SharedData, ThreadArray, Symbol, Temp,
-    NPThreads, NThreadsBase, Wildcard
+    Array, Bundle, ComponentAccess, CompositeObject, IncrDimension, Indirection, Lock,
+    ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData, Symbol, Temp,
+    ThreadArray, Wildcard
 )
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction

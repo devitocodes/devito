@@ -1,9 +1,9 @@
+import types
 from collections import OrderedDict
 from collections.abc import Iterable
 from functools import reduce, wraps
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
-import types
 
 import numpy as np
 import sympy

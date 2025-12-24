@@ -1,12 +1,13 @@
 import numpy as np
 import pytest
 
-from conftest import skipif, opts_device_tiling
-from devito import (Grid, Dimension, Function, TimeFunction, Eq, Inc, solve,
-                    Operator, norm, cos)
+from conftest import opts_device_tiling, skipif
+from devito import (
+    Dimension, Eq, Function, Grid, Inc, Operator, TimeFunction, cos, norm, solve
+)
 from devito.exceptions import InvalidOperator
 from devito.ir.iet import retrieve_iteration_tree
-from examples.seismic import TimeAxis, RickerSource, Receiver
+from examples.seismic import Receiver, RickerSource, TimeAxis
 
 pytestmark = skipif(['nodevice'], whole_module=True)
 

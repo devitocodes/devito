@@ -1,4 +1,5 @@
 from pyrevolve import Checkpoint, Operator
+
 from devito import TimeFunction
 from devito.tools import flatten
 

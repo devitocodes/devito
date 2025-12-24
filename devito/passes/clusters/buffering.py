@@ -2,18 +2,21 @@ from collections import defaultdict, namedtuple
 from functools import cached_property
 from itertools import chain
 
-from sympy import S
 import numpy as np
+from sympy import S
 
-from devito.ir import (Cluster, Backward, Forward, GuardBound, Interval,
-                       IntervalGroup, IterationSpace, Properties, Queue, Vector,
-                       InitArray, lower_exprs, vmax, vmin)
 from devito.exceptions import CompilationError
+from devito.ir import (
+    Backward, Cluster, Forward, GuardBound, InitArray, Interval, IntervalGroup,
+    IterationSpace, Properties, Queue, Vector, lower_exprs, vmax, vmin
+)
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
 from devito.symbolics import IntDiv, retrieve_functions, uxreplace
-from devito.tools import (Stamp, as_mapper, as_tuple, filter_ordered, frozendict,
-                          flatten, is_integer, timed_pass)
+from devito.tools import (
+    Stamp, as_mapper, as_tuple, filter_ordered, flatten, frozendict, is_integer,
+    timed_pass
+)
 from devito.types import Array, CustomDimension, Eq, ModuloDimension
 
 __all__ = ['buffering']

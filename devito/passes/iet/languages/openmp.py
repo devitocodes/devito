@@ -1,22 +1,27 @@
 from functools import cached_property
-from packaging.version import Version
 
 import cgen as c
+from packaging.version import Version
 from sympy import And, Ne, Not
 
-from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX, PVC
-from devito.arch.compiler import GNUCompiler, NvidiaCompiler, CustomCompiler
-from devito.ir import (Call, Conditional, DeviceCall, List, Pragma, Prodder,
-                       ParallelBlock, PointerCast, While, FindSymbols)
+from devito.arch import AMDGPUX, INTELGPUX, NVIDIAX, PVC
+from devito.arch.compiler import CustomCompiler, GNUCompiler, NvidiaCompiler
+from devito.ir import (
+    Call, Conditional, DeviceCall, FindSymbols, List, ParallelBlock, PointerCast, Pragma,
+    Prodder, While
+)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.langbase import LangBB
-from devito.passes.iet.orchestration import Orchestrator
-from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
-                                         PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaIteration, PragmaTransfer)
+from devito.passes.iet.languages.C import CBB
+from devito.passes.iet.languages.C import atomic_add as c_atomic_add
+from devito.passes.iet.languages.CXX import CXXBB
+from devito.passes.iet.languages.CXX import atomic_add as cxx_atomic_add
 from devito.passes.iet.languages.utils import joins
-from devito.passes.iet.languages.C import CBB, atomic_add as c_atomic_add
-from devito.passes.iet.languages.CXX import CXXBB, atomic_add as cxx_atomic_add
+from devito.passes.iet.orchestration import Orchestrator
+from devito.passes.iet.parpragma import (
+    PragmaDeviceAwareTransformer, PragmaIteration, PragmaLangBB, PragmaShmTransformer,
+    PragmaSimdTransformer, PragmaTransfer
+)
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 

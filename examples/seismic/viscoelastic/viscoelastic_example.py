@@ -1,4 +1,5 @@
 import numpy as np
+
 try:
     import pytest
 except ImportError:
@@ -6,8 +7,8 @@ except ImportError:
 
 from devito import norm
 from devito.logger import info
+from examples.seismic import demo_model, seismic_args, setup_geometry
 from examples.seismic.viscoelastic import ViscoelasticWaveSolver
-from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
 def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,

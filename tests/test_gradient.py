@@ -3,11 +3,11 @@ import pytest
 from numpy import linalg
 
 from conftest import skipif
-from devito import Function, info, TimeFunction, Operator, Eq, smooth
+from devito import Eq, Function, Operator, TimeFunction, info, smooth
 from devito.parameters import switchconfig
+from examples.seismic import Receiver, demo_model, setup_geometry
 from examples.seismic.acoustic import acoustic_setup as iso_setup
 from examples.seismic.acoustic.operators import iso_stencil
-from examples.seismic import Receiver, demo_model, setup_geometry
 from examples.seismic.tti import tti_setup
 from examples.seismic.viscoacoustic import viscoacoustic_setup as vsc_setup
 

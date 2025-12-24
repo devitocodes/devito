@@ -1,4 +1,4 @@
-from devito import Grid, SparseTimeFunction, TimeFunction, Operator
+from devito import Grid, Operator, SparseTimeFunction, TimeFunction
 from devito.ir.iet import FindSymbols
 
 

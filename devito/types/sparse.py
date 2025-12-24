@@ -1,25 +1,27 @@
 from collections import OrderedDict
+from functools import cached_property
 from itertools import product
 
-import sympy
 import numpy as np
-from functools import cached_property
+import sympy
 
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
-from devito.operations import (LinearInterpolator, PrecomputedInterpolator,
-                               SincInterpolator)
+from devito.operations import (
+    LinearInterpolator, PrecomputedInterpolator, SincInterpolator
+)
 from devito.symbolics import indexify, retrieve_function_carriers
-from devito.tools import (ReducerMap, as_tuple, flatten, prod, filter_ordered,
-                          is_integer, dtype_to_mpidtype)
-from devito.types.dense import DiscreteFunction, SubFunction
-from devito.types.dimension import (Dimension, ConditionalDimension, DefaultDimension,
-                                    DynamicDimension)
-from devito.types.dimension import dimensions as mkdims
+from devito.tools import (
+    ReducerMap, as_tuple, dtype_to_mpidtype, filter_ordered, flatten, is_integer, prod
+)
 from devito.types.basic import Symbol
+from devito.types.dense import DiscreteFunction, SubFunction
+from devito.types.dimension import (
+    ConditionalDimension, DefaultDimension, Dimension, DynamicDimension
+)
+from devito.types.dimension import dimensions as mkdims
 from devito.types.equation import Eq, Inc
 from devito.types.utils import IgnoreDimSort
-
 
 __all__ = [
     'MatrixSparseTimeFunction',

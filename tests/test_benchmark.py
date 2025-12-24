@@ -1,11 +1,12 @@
-import pytest
 import os
 import sys
+from subprocess import check_call
+
+import pytest
 
 from benchmarks.user.benchmark import run
-from devito import configuration, switchconfig, Grid, TimeFunction, Eq, Operator
 from conftest import skipif
-from subprocess import check_call
+from devito import Eq, Grid, Operator, TimeFunction, configuration, switchconfig
 
 
 @skipif('cpu64-icx')

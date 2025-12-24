@@ -1,8 +1,8 @@
-from functools import wraps, partial
+from functools import partial, wraps
 from itertools import product
 
 import numpy as np
-from sympy import S, finite_diff_weights, cacheit, sympify, Rational, Expr
+from sympy import Expr, Rational, S, cacheit, finite_diff_weights, sympify
 
 from devito.logger import warning
 from devito.tools import Tag, as_tuple

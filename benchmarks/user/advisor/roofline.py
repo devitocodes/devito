@@ -6,20 +6,18 @@ The JSON can be therefore used flexibly.
 
 This module has been partly extracted from the examples directory of Intel Advisor 2018.
 """
-import click
 import json
 import math
-import matplotlib
-from matplotlib.ticker import ScalarFormatter
-import matplotlib.pyplot as plt  # noqa
+import os
+import sys
 
+import click
+import matplotlib
+import matplotlib.pyplot as plt  # noqa
 import numpy as np
 import pandas as pd
-import sys
-import os
-
 from advisor_logging import check, err, log
-
+from matplotlib.ticker import ScalarFormatter
 
 try:
     import advisor

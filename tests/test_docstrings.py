@@ -10,10 +10,10 @@
 # * skipping tests when using a devito backend (where they would fail, for
 #   the most disparate reasons)
 
+import doctest
 from importlib import import_module
 
 import pytest
-import doctest
 
 
 @pytest.mark.parametrize('modname', [

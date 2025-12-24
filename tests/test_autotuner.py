@@ -1,10 +1,10 @@
-import pytest
 import numpy as np
+import pytest
 
 from conftest import assert_blocking, skipif
-from devito import Grid, Function, TimeFunction, Eq, Operator, configuration, switchconfig
-from devito.data import LEFT
+from devito import Eq, Function, Grid, Operator, TimeFunction, configuration, switchconfig
 from devito.core.autotuning import options  # noqa
+from devito.data import LEFT
 
 
 @switchconfig(log_level='DEBUG', develop_mode=True)

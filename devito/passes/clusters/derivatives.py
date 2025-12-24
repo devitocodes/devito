@@ -1,7 +1,7 @@
 from functools import singledispatch
 
-from sympy import S
 import numpy as np
+from sympy import S
 
 from devito.finite_differences import IndexDerivative
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue

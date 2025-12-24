@@ -1,8 +1,9 @@
-import sympy as sp
 import numpy as np
+import sympy as sp
 
-from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, Function, NODE,
-                    div, grad, solve)
+from devito import (
+    NODE, Eq, Function, Operator, TimeFunction, VectorTimeFunction, div, grad, solve
+)
 
 
 def src_rec(p, model, geometry, **kwargs):

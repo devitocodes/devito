@@ -1,25 +1,31 @@
 import abc
 from collections import OrderedDict
-from ctypes import POINTER, c_void_p, c_int, sizeof
+from ctypes import POINTER, c_int, c_void_p, sizeof
 from functools import reduce
 from itertools import product
 from operator import mul
 
 from sympy import Integer
 
-from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
-from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
-from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
-                           Expression, ExpressionBundle, AugmentedExpression,
-                           Iteration, List, Prodder, Return, make_efunc, FindNodes,
-                           Transformer, ElementalCall, CommCallable)
+from devito.data import CENTER, HALO, LEFT, NOPAD, OWNED, RIGHT
+from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
+from devito.ir.iet import (
+    AugmentedExpression, Call, Callable, CommCallable, Conditional, ElementalCall,
+    ElementalFunction, Expression, ExpressionBundle, FindNodes, Iteration, List, Prodder,
+    Return, Transformer, make_efunc
+)
 from devito.mpi import MPI
-from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
-                              IndexedPointer, Macro, cast, subs_op_args)
-from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, infer_datasize,
-                          flatten, generator, is_integer)
-from devito.types import (Array, Bag, BundleView, Dimension, Eq, Symbol,
-                          LocalObject, CompositeObject, CustomDimension)
+from devito.symbolics import (
+    Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
+    subs_op_args
+)
+from devito.tools import (
+    as_mapper, dtype_len, dtype_to_mpitype, flatten, generator, infer_datasize, is_integer
+)
+from devito.types import (
+    Array, Bag, BundleView, CompositeObject, CustomDimension, Dimension, Eq, LocalObject,
+    Symbol
+)
 
 __all__ = ['HaloExchangeBuilder', 'ReductionBuilder', 'mpi_registry']
 

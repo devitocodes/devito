@@ -1,14 +1,14 @@
-from collections import OrderedDict, deque
-from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
-from functools import reduce, cached_property
 import json
+from collections import OrderedDict, deque
+from collections.abc import Callable, Iterable, Mapping, MutableSet, Set
+from functools import cached_property, reduce
 
 import numpy as np
 from multidict import MultiDict
 
 from devito.tools import Pickable
-from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 from devito.tools.algorithms import toposort
+from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 
 __all__ = [
     'DAG',
