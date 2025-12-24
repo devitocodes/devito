@@ -2,14 +2,16 @@ from collections import defaultdict
 
 from sympy import true
 
-from devito.ir import (Forward, Backward, GuardBoundNext, WaitLock, WithLock, SyncArray,
-                       PrefetchUpdate, ReleaseLock, Queue, normalize_syncs)
+from devito.ir import (
+    Backward, Forward, GuardBoundNext, PrefetchUpdate, Queue, ReleaseLock, SyncArray,
+    WaitLock, WithLock, normalize_syncs
+)
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
-__all__ = ['tasking', 'memcpy_prefetch']
+__all__ = ['memcpy_prefetch', 'tasking']
 
 
 def async_trigger(c, dims):

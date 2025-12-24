@@ -1,5 +1,4 @@
-from devito import Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator
-
+from devito import Eq, Function, Grid, Operator, SparseTimeFunction, TimeFunction
 
 # ASV config
 repeat = 10

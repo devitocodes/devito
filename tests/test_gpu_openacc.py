@@ -1,13 +1,14 @@
-import pytest
 import numpy as np
+import pytest
 
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Eq, Operator,
-                    norm, solve, Max)
-from conftest import skipif, assert_blocking, opts_device_tiling
+from conftest import assert_blocking, opts_device_tiling, skipif
+from devito import (
+    Eq, Function, Grid, Max, Operator, SparseTimeFunction, TimeFunction, norm, solve
+)
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import retrieve_iteration_tree, FindNodes, Iteration
-from examples.seismic import TimeAxis, RickerSource, Receiver
+from devito.ir.iet import FindNodes, Iteration, retrieve_iteration_tree
+from examples.seismic import Receiver, RickerSource, TimeAxis
 
 pytestmark = skipif(['nodevice'], whole_module=True)
 

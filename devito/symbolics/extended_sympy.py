@@ -9,11 +9,11 @@ from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
 from sympy.logic.boolalg import BooleanFunction
 
-from devito.finite_differences.elementary import Min, Max
-from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
-                          float3, float4, double2, double3, double4, int2, int3,
-                          int4, dtype_to_ctype, ctypes_to_cstr, ctypes_vector_mapper,
-                          ctypes_to_cstr)
+from devito.finite_differences.elementary import Max, Min
+from devito.tools import (  # noqa
+    Bunch, Pickable, as_tuple, ctypes_to_cstr, ctypes_vector_mapper, double2, double3,
+    double4, dtype_to_ctype, float2, float3, float4, int2, int3, int4, is_integer
+)
 from devito.types import Symbol
 from devito.types.basic import Basic
 

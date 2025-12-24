@@ -1,5 +1,4 @@
-from devito import Grid, Function, TimeFunction, Eq, Operator, gaussian_smooth, norm
-
+from devito import Eq, Function, Grid, Operator, TimeFunction, gaussian_smooth, norm
 
 # ASV config
 repeat = 3

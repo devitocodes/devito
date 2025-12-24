@@ -1,5 +1,4 @@
-from devito import (Eq, Operator, Function, TimeFunction, NODE, Inc, solve,
-                    cos, sin, sqrt)
+from devito import NODE, Eq, Function, Inc, Operator, TimeFunction, cos, sin, solve, sqrt
 from examples.seismic.acoustic.operators import freesurface
 
 

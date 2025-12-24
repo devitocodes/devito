@@ -4,10 +4,14 @@ from anytree import findall
 from sympy import And
 
 from devito.ir.clusters import Cluster
-from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeSync, NodeExprs, NodeSection, NodeHalo)
-from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
-                               IterationSpace, normalize_properties, normalize_syncs)
+from devito.ir.stree.tree import (
+    NodeConditional, NodeExprs, NodeHalo, NodeIteration, NodeSection, NodeSync,
+    ScheduleTree
+)
+from devito.ir.support import (
+    SEQUENTIAL, Any, Interval, IterationInterval, IterationSpace, normalize_properties,
+    normalize_syncs
+)
 from devito.mpi.halo_scheme import HaloScheme
 from devito.tools import Bunch, DefaultOrderedDict, as_mapper
 
@@ -117,7 +121,7 @@ def stree_build(clusters, profiler=None, **kwargs):
         candidates = tuple(reversed(tip.ancestors[1:] + (tip,)))
 
         if not any(i.is_Iteration and i.dim.is_Time for i in candidates) and \
-           not candidates[-1] is stree:
+           candidates[-1] is not stree:
             attach_section(candidates[-1])
             continue
 

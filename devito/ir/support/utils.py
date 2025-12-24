@@ -2,15 +2,26 @@ from collections import defaultdict, namedtuple
 from itertools import product
 
 from devito.finite_differences import IndexDerivative
-from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
-                              search)
-from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
-from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimension,
-                          StencilDimension)
+from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals, search
+from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, flatten, split
+from devito.types import (
+    Dimension, DimensionTuple, Indirection, ModuloDimension, StencilDimension
+)
 
-__all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
-           'pull_dims', 'unbounded', 'minimum', 'maximum', 'minmax_index',
-           'extrema', 'erange']
+__all__ = [
+    'AccessMode',
+    'IMask',
+    'Stencil',
+    'detect_accesses',
+    'detect_io',
+    'erange',
+    'extrema',
+    'maximum',
+    'minimum',
+    'minmax_index',
+    'pull_dims',
+    'unbounded',
+]
 
 
 class AccessMode:

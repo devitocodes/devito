@@ -1,13 +1,15 @@
 import numpy as np
 import pytest
-from sympy import sympify, simplify, diff, Float, Symbol
+from sympy import Float, Symbol, diff, simplify, sympify
 
-from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
-                    ConditionalDimension, left, right, centered, div, grad)
+from devito import (
+    NODE, ConditionalDimension, Eq, Function, Grid, Operator, TimeFunction, centered, cos,
+    div, grad, left, right, sin
+)
 from devito.finite_differences import Derivative, Differentiable, diffify
-from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
-                                                      IndexDerivative, Weights,
-                                                      DiffDerivative)
+from devito.finite_differences.differentiable import (
+    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights
+)
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 from devito.warnings import DevitoWarning
@@ -300,7 +302,7 @@ class TestFD:
         Dpolynome = diff(polynome)
         Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx_s], np.float32)
         # FD derivative, symbolic
-        u_deriv = getattr(u, 'dx45')
+        u_deriv = u.dx45
         # Compute numerical FD
         stencil = Eq(du, u_deriv)
         op = Operator(stencil, subs={d.spacing: dx for d in grid.dimensions})

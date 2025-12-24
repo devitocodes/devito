@@ -7,10 +7,21 @@ from functools import cached_property
 
 from devito.data import FULL
 from devito.tools import Pickable, as_tuple, filter_ordered, frozendict
+
 from .utils import IMask
 
-__all__ = ['WaitLock', 'ReleaseLock', 'WithLock', 'InitArray', 'SyncArray',
-           'PrefetchUpdate', 'SnapOut', 'SnapIn', 'Ops', 'normalize_syncs']
+__all__ = [
+    'InitArray',
+    'Ops',
+    'PrefetchUpdate',
+    'ReleaseLock',
+    'SnapIn',
+    'SnapOut',
+    'SyncArray',
+    'WaitLock',
+    'WithLock',
+    'normalize_syncs',
+]
 
 
 class SyncOp(Pickable):

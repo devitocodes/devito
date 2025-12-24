@@ -1,31 +1,30 @@
+import platform
+import time
+import warnings
 from functools import partial
 from hashlib import sha1
 from itertools import filterfalse
-from os import environ, path, makedirs
-from packaging.version import Version
-from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
-                        check_call, run)
-import platform
-import warnings
-import time
+from os import environ, makedirs, path
+from subprocess import DEVNULL, PIPE, CalledProcessError, check_call, check_output, run
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
-from codepy.toolchain import (GCCToolchain,
-                              call_capture_output as _call_capture_output)
+from codepy.toolchain import GCCToolchain
+from codepy.toolchain import call_capture_output as _call_capture_output
+from packaging.version import Version
 
 from devito.arch import (
-    AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9, Graviton,
-    Cortex, IntelDevice, get_nvidia_cc, NvidiaArm, check_cuda_runtime,
-    get_cuda_version, get_m1_llvm_path
+    AMDGPUX, POWER8, POWER9, AppleArm, Cortex, Cpu64, Graviton, IntelDevice, NvidiaArm,
+    NvidiaDevice, check_cuda_runtime, get_cuda_version, get_m1_llvm_path, get_nvidia_cc
 )
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
-from devito.tools import (as_list, change_directory, filter_ordered,
-                          memoized_func, make_tempdir)
+from devito.tools import (
+    as_list, change_directory, filter_ordered, make_tempdir, memoized_func
+)
 
-__all__ = ['sniff_mpi_distro', 'compiler_registry']
+__all__ = ['compiler_registry', 'sniff_mpi_distro']
 
 
 @memoized_func
@@ -53,11 +52,7 @@ def sniff_compiler_version(cc, allow_fail=False):
     ver = ver.strip()
     if ver.startswith("gcc"):
         compiler = "gcc"
-    elif ver.startswith("clang"):
-        compiler = "clang"
-    elif ver.startswith("Apple LLVM"):
-        compiler = "clang"
-    elif ver.startswith("Homebrew clang"):
+    elif ver.startswith("clang") or ver.startswith("Apple LLVM") or ver.startswith("Homebrew clang"):
         compiler = "clang"
     elif ver.startswith("Intel"):
         compiler = "icx"
@@ -340,22 +335,21 @@ class Compiler(GCCToolchain):
         logfile = path.join(self.get_jit_dir(), f"{hash_key}.log")
         errfile = path.join(self.get_jit_dir(), f"{hash_key}.err")
 
-        with change_directory(loc):
-            with open(logfile, "w") as lf:
-                with open(errfile, "w") as ef:
+        with change_directory(loc), open(logfile, "w") as lf:
+            with open(errfile, "w") as ef:
 
-                    command = ['make'] + args
-                    lf.write("Compilation command:\n")
-                    lf.write(" ".join(command))
-                    lf.write("\n\n")
-                    try:
-                        check_call(command, stderr=ef, stdout=lf)
-                    except CalledProcessError as e:
-                        raise CompilationError(f'Command "{e.cmd}" return error status'
-                                               f'{e.returncode}. '
-                                               f'Unable to compile code.\n'
-                                               f'Compile log in {logfile}\n'
-                                               f'Compile errors in {errfile}\n')
+                command = ['make'] + args
+                lf.write("Compilation command:\n")
+                lf.write(" ".join(command))
+                lf.write("\n\n")
+                try:
+                    check_call(command, stderr=ef, stdout=lf)
+                except CalledProcessError as e:
+                    raise CompilationError(f'Command "{e.cmd}" return error status'
+                                           f'{e.returncode}. '
+                                           f'Unable to compile code.\n'
+                                           f'Compile log in {logfile}\n'
+                                           f'Compile errors in {errfile}\n')
         debug(f"Make <{' '.join(args)}>")
 
     def _cmdline(self, files, object=False):
@@ -393,7 +387,7 @@ class Compiler(GCCToolchain):
             # Warning: dropping `code` on the floor in favor to whatever is written
             # within `src_file`
             try:
-                with open(src_file, 'r') as f:
+                with open(src_file) as f:
                     code = f.read()
                     code = f'{code}/* Backdoor edit at {time.ctime()}*/ \n'
                 # Bypass the devito JIT cache

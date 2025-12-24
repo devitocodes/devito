@@ -1,17 +1,19 @@
-from collections import OrderedDict, namedtuple, defaultdict
+from collections import OrderedDict, defaultdict, namedtuple
+from functools import cached_property
 from itertools import product
 from operator import attrgetter
-from functools import cached_property
 
-from sympy import Max, Min
 import sympy
+from sympy import Max, Min
 
 from devito import configuration
-from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
+from devito.data import CENTER, CORE, LEFT, OWNED, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
-from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted, EnrichedTuple)
+from devito.tools import (
+    EnrichedTuple, Reconstructable, Tag, as_tuple, filter_ordered, filter_sorted, flatten,
+    frozendict, is_integer
+)
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
 
@@ -523,9 +525,7 @@ def classify(exprs, ispace):
 
     mapper = {}
     for f, r in scope.reads.items():
-        if not f.is_DiscreteFunction:
-            continue
-        elif f.grid is None:
+        if not f.is_DiscreteFunction or f.grid is None:
             continue
 
         # In the case of custom topologies, we ignore the Dimensions that aren't

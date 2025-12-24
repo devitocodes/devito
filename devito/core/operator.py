@@ -8,10 +8,11 @@ from devito.exceptions import InvalidOperator
 from devito.ir import FindSymbols
 from devito.logger import warning
 from devito.mpi.routines import mpi_registry
-from devito.parameters import configuration
 from devito.operator import Operator
-from devito.tools import (as_tuple, is_integer, timed_pass,
-                          UnboundTuple, UnboundedMultiTuple)
+from devito.parameters import configuration
+from devito.tools import (
+    UnboundedMultiTuple, UnboundTuple, as_tuple, is_integer, timed_pass
+)
 from devito.types import NThreads, PThreadArray
 
 __all__ = ['CoreOperator', 'CustomOperator',

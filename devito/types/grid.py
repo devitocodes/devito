@@ -7,20 +7,21 @@ import numpy as np
 from sympy import prod
 
 from devito import configuration
-from devito.data import LEFT, RIGHT, CENTER
+from devito.data import CENTER, LEFT, RIGHT
+from devito.deprecations import deprecations
 from devito.logger import warning
-from devito.mpi import Distributor, MPI, SubDistributor
+from devito.mpi import MPI, Distributor, SubDistributor
 from devito.tools import ReducerMap, as_tuple, frozendict
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
 from devito.types.dense import Function
+from devito.types.dimension import (
+    DefaultDimension, Dimension, MultiSubDimension, SpaceDimension, Spacing,
+    SteppingDimension, SubDimension, TimeDimension
+)
 from devito.types.utils import DimensionTuple
-from devito.types.dimension import (Dimension, SpaceDimension, TimeDimension,
-                                    Spacing, SteppingDimension, SubDimension,
-                                    MultiSubDimension, DefaultDimension)
-from devito.deprecations import deprecations
 
-__all__ = ['Grid', 'SubDomain', 'SubDomainSet', 'Border']
+__all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet']
 
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
@@ -621,7 +622,7 @@ class SubDomain(AbstractSubDomain):
                 except ValueError:
                     side, thickness = v
                     constructor = {'left': SubDimension.left,
-                                   'right': SubDimension.right}.get(side, None)
+                                   'right': SubDimension.right}.get(side)
                     if constructor is None:
                         raise ValueError(f"Expected sides 'left|right', not `{side}`")
 
@@ -820,7 +821,7 @@ class SubDomainSet(MultiSubDomain):
 
     def __init__(self, **kwargs):
         self._n_domains = kwargs.get('N', 1)
-        self._global_bounds = kwargs.get('bounds', None)
+        self._global_bounds = kwargs.get('bounds')
         super().__init__(**kwargs)
 
         try:

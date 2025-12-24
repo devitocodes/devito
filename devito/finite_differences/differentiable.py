@@ -1,28 +1,39 @@
 from collections import ChainMap
+from functools import cached_property, singledispatch
 from itertools import product
-from functools import singledispatch, cached_property
 
 import numpy as np
 import sympy
 from sympy.core.add import _addsort
-from sympy.core.mul import _keep_coeff, _mulsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
+from sympy.core.mul import _keep_coeff, _mulsort
+
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.finite_differences.tools import make_shift_x0, coeff_priority
+from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
-from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
-                          infer_dtype, extract_dtype, is_integer, split, is_number)
+from devito.tools import (
+    as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype, is_integer,
+    is_number, split
+)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
 
-__all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
-           'Weights', 'Real', 'Imag', 'Conj']
+__all__ = [
+    'Conj',
+    'DiffDerivative',
+    'Differentiable',
+    'EvalDerivative',
+    'Imag',
+    'IndexDerivative',
+    'Real',
+    'Weights',
+]
 
 
 class Differentiable(sympy.Expr, Evaluable):
@@ -613,9 +624,7 @@ class Mul(DifferentiableOp, sympy.Mul):
         ref_inds = func_args.indices_ref.getters
 
         for f in self.args:
-            if f not in self._args_diff:
-                new_args.append(f)
-            elif f is func_args or isinstance(f, DifferentiableFunction):
+            if f not in self._args_diff or f is func_args or isinstance(f, DifferentiableFunction):
                 new_args.append(f)
             else:
                 ind_f = f.indices_ref.getters

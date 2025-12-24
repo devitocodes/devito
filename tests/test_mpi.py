@@ -1,27 +1,27 @@
-import numpy as np
-import pytest
 from functools import cached_property
 
+import numpy as np
+import pytest
+from test_dse import TestTTI
+
 from conftest import _R, assert_blocking, assert_structure
-from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, VectorTimeFunction, TensorTimeFunction,
-                    Dimension, ConditionalDimension, div, solve, diag, grad,
-                    SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
-                    inner, configuration, switchconfig, generic_derivative,
-                    PrecomputedSparseFunction, DefaultDimension, Buffer,
-                    CustomDimension)
+from devito import (
+    NODE, Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
+    Dimension, Eq, Function, Grid, Inc, Ne, Operator, PrecomputedSparseFunction,
+    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, TensorTimeFunction,
+    TimeFunction, VectorTimeFunction, configuration, diag, div, generic_derivative, grad,
+    inner, norm, solve, switchconfig
+)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
-from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (
+    Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+)
 from devito.mpi import MPI
-from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
-                                 ComputeCall)
 from devito.mpi.distributed import CustomTopology
+from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
-
 from examples.seismic.acoustic import acoustic_setup
-from test_dse import TestTTI
 
 
 # Main body in Operator IET, depending on ISA

@@ -3,34 +3,69 @@
 import abc
 import ctypes
 import inspect
-from functools import cached_property
 from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
+from functools import cached_property
 
 import cgen as c
 from sympy import IndexedBase, sympify
 
 from devito.data import FULL
 from devito.ir.cgen import ccode
-from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
-from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                               PARALLEL_IF_PVT, VECTORIZED, AFFINE, Property,
-                               Forward, WithLock, PrefetchUpdate, detect_io)
-from devito.symbolics import ListInitializer, CallFromPointer
-from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          ctypes_to_cstr)
-from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed,
-                                Symbol)
+from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
+from devito.ir.support import (
+    AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
+    VECTORIZED, Forward, PrefetchUpdate, Property, WithLock, detect_io
+)
+from devito.symbolics import CallFromPointer, ListInitializer
+from devito.tools import (
+    Signer, as_tuple, ctypes_to_cstr, filter_ordered, filter_sorted, flatten
+)
+from devito.types.basic import AbstractFunction, AbstractSymbol, Basic, Indexed, Symbol
 from devito.types.object import AbstractObject, LocalObject
 
-__all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
-           'Call', 'ExprStmt', 'Conditional', 'Iteration', 'List', 'Section',
-           'TimedList', 'Prodder', 'MetaCall', 'PointerCast', 'HaloSpot',
-           'Definition', 'ExpressionBundle', 'AugmentedExpression', 'Break',
-           'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
-           'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
-           'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
-           'Using', 'CallableBody', 'Transfer', 'EmptyList', 'Switch']
+__all__ = [
+    'AugmentedExpression',
+    'BlankLine',
+    'Block',
+    'Break',
+    'BusyWait',
+    'Call',
+    'Callable',
+    'CallableBody',
+    'Conditional',
+    'Definition',
+    'Dereference',
+    'DummyExpr',
+    'EmptyList',
+    'ExprStmt',
+    'Expression',
+    'ExpressionBundle',
+    'HaloSpot',
+    'Increment',
+    'Iteration',
+    'Lambda',
+    'List',
+    'ListMajor',
+    'MetaCall',
+    'MultiTraversable',
+    'Node',
+    'ParallelBlock',
+    'ParallelIteration',
+    'ParallelTree',
+    'PointerCast',
+    'Pragma',
+    'Prodder',
+    'Return',
+    'Section',
+    'Switch',
+    'SyncSpot',
+    'TimedList',
+    'Transfer',
+    'Using',
+    'UsingNamespace',
+    'While',
+]
 
 # First-class IET nodes
 
@@ -446,8 +481,8 @@ class Expression(ExprStmt, Node):
         """
         True if it can be an initializing assignment, False otherwise.
         """
-        return (((self.is_scalar and not self.is_reduction) or
-                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer))))
+        return ((self.is_scalar and not self.is_reduction) or
+                 (self.is_tensor and isinstance(self.expr.rhs, ListInitializer)))
 
     @property
     def defines(self):

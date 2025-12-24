@@ -2,11 +2,13 @@ from collections import OrderedDict
 from functools import cached_property
 
 import numpy as np
+
 try:
     from sympy.matrices.matrixbase import MatrixBase
 except ImportError:
     # Before 1.13
     from sympy.matrices.matrices import MatrixBase
+
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
@@ -114,7 +116,7 @@ class TensorFunction(AbstractTensor):
                 raise TypeError("Need either `grid` or `dimensions`")
         else:
             dims = grid.dimensions
-        stagg = kwargs.get("staggered", None)
+        stagg = kwargs.get("staggered")
         name = kwargs.get("name")
         symm = kwargs.get('symmetric', True)
         diag = kwargs.get('diagonal', False)
@@ -341,7 +343,7 @@ class VectorFunction(TensorFunction):
                 raise TypeError("Need either `grid` or `dimensions`")
         else:
             dims = grid.dimensions
-        stagg = kwargs.get("staggered", None)
+        stagg = kwargs.get("staggered")
         name = kwargs.get("name")
         for i, d in enumerate(dims):
             sub_kwargs = cls._component_kwargs(i, **kwargs)

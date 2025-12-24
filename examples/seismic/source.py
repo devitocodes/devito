@@ -1,6 +1,8 @@
 from functools import cached_property
-from scipy import interpolate
+
 import numpy as np
+from scipy import interpolate
+
 try:
     import matplotlib.pyplot as plt
 except:
@@ -8,8 +10,16 @@ except:
 
 from devito.types import SparseTimeFunction
 
-__all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
-           'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
+__all__ = [
+    'DGaussSource',
+    'GaborSource',
+    'PointSource',
+    'Receiver',
+    'RickerSource',
+    'Shot',
+    'TimeAxis',
+    'WaveletSource',
+]
 
 
 class TimeAxis:

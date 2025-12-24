@@ -1,23 +1,21 @@
+import atexit
 from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
-from itertools import groupby, product
 from functools import cached_property
-
+from itertools import groupby, product
 from math import ceil, pow
-from sympy import factorint, Interval
-
-import atexit
 
 import numpy as np
 from cgen import Struct, Value
+from sympy import Interval, factorint
 
-from devito.data import LEFT, CENTER, RIGHT, Decomposition
+from devito.data import CENTER, LEFT, RIGHT, Decomposition
 from devito.parameters import configuration
-from devito.tools import (EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered,
-                          frozendict)
-from devito.types import CompositeObject, Object, Constant
+from devito.tools import (
+    EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict
+)
+from devito.types import CompositeObject, Constant, Object
 from devito.types.utils import DimensionTuple
-
 
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
@@ -64,8 +62,15 @@ except (RuntimeError, ImportError) as e:
             return None
 
 
-__all__ = ['Distributor', 'SubDistributor', 'SparseDistributor', 'MPI',
-           'CustomTopology', 'devito_mpi_init', 'devito_mpi_finalize']
+__all__ = [
+    'MPI',
+    'CustomTopology',
+    'Distributor',
+    'SparseDistributor',
+    'SubDistributor',
+    'devito_mpi_finalize',
+    'devito_mpi_init',
+]
 
 
 def devito_mpi_init():
@@ -803,7 +808,7 @@ class MPICommObject(Object):
         self.comm = comm
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid', None)
+        grid = kwargs.get('grid')
         # Update `comm` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_comm._arg_defaults()
@@ -856,7 +861,7 @@ class MPINeighborhood(CompositeObject):
         return values
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid', None)
+        grid = kwargs.get('grid')
         # Update `nb` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_neighborhood._arg_defaults()

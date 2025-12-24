@@ -1,8 +1,8 @@
-from functools import wraps, partial
+from functools import partial, wraps
 from itertools import product
 
 import numpy as np
-from sympy import S, finite_diff_weights, cacheit, sympify, Rational, Expr
+from sympy import Expr, Rational, S, cacheit, finite_diff_weights, sympify
 
 from devito.logger import warning
 from devito.tools import Tag, as_tuple
@@ -273,7 +273,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
                     f"({order + 1}) for order {order} scheme."
                     f" Reducing order to {order}")
     # Evaluation point
-    x0 = sympify(((x0 or {}).get(dim) or expr.indices_ref[dim]))
+    x0 = sympify((x0 or {}).get(dim) or expr.indices_ref[dim])
 
     # If provided a pure number, assume it's a valid index
     if x0.is_Number:

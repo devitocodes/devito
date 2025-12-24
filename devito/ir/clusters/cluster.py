@@ -1,22 +1,21 @@
-from itertools import chain
 from functools import cached_property
+from itertools import chain
 
 import numpy as np
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (
-    PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward, Interval, IntervalGroup,
-    IterationSpace, DataSpace, Guards, Properties, Scope, WaitLock, WithLock,
-    PrefetchUpdate, detect_accesses, detect_io, normalize_properties,
-    tailor_properties, update_properties, normalize_syncs, minimum, maximum,
-    null_ispace
+    PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, DataSpace, Forward, Guards, Interval,
+    IntervalGroup, IterationSpace, PrefetchUpdate, Properties, Scope, WaitLock, WithLock,
+    detect_accesses, detect_io, maximum, minimum, normalize_properties, normalize_syncs,
+    null_ispace, tailor_properties, update_properties
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import (
-    Fence, WeakFence, CriticalRegion, ThreadPoolSync, ThreadCommit, ThreadWait
+    CriticalRegion, Fence, ThreadCommit, ThreadPoolSync, ThreadWait, WeakFence
 )
 
 __all__ = ["Cluster", "ClusterGroup"]

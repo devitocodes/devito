@@ -1,26 +1,33 @@
 import abc
 import inspect
-from ctypes import POINTER, _Pointer, c_char_p, c_char, Structure
-from functools import reduce, cached_property
+from ctypes import POINTER, Structure, _Pointer, c_char, c_char_p
+from functools import cached_property, reduce
 from operator import mul
 
 import numpy as np
 import sympy
-
 from sympy.core.assumptions import _assume_rules
 from sympy.core.decorators import call_highest_priority
 
 from devito.data import default_allocator
 from devito.parameters import configuration
-from devito.tools import (Pickable, as_tuple, dtype_to_ctype,
-                          frozendict, memoized_meth, sympy_mutex, CustomDtype)
+from devito.tools import (
+    CustomDtype, Pickable, as_tuple, dtype_to_ctype, frozendict, memoized_meth,
+    sympy_mutex
+)
 from devito.types.args import ArgProvider
 from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple, Offset, Size
 
-__all__ = ['Symbol', 'Scalar', 'Indexed', 'IndexedData', 'DeviceMap',
-           'IrregularFunctionInterface']
+__all__ = [
+    'DeviceMap',
+    'Indexed',
+    'IndexedData',
+    'IrregularFunctionInterface',
+    'Scalar',
+    'Symbol',
+]
 
 
 class CodeSymbol:
@@ -1587,7 +1594,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             return self._mat
 
     def __init_finalize__(self, *args, **kwargs):
-        self._name = kwargs.get('name', None)
+        self._name = kwargs.get('name')
 
     __hash__ = sympy.ImmutableDenseMatrix.__hash__
 

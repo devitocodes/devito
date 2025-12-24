@@ -1,17 +1,25 @@
 import numpy as np
 from sympy import finite_diff_weights as fd_w
+
 try:
     import pytest
 except:
     pass
 
-from devito import (Grid, SubDomain, Function, Constant, warning,
-                    SubDimension, Eq, Inc, Operator, div, sin, Abs)
-from devito.builtins import initialize_function, gaussian_smooth, mmax, mmin
+from devito import (
+    Abs, Constant, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, div, sin,
+    warning
+)
+from devito.builtins import gaussian_smooth, initialize_function, mmax, mmin
 from devito.tools import as_tuple
 
-__all__ = ['SeismicModel', 'Model', 'ModelElastic',
-           'ModelViscoelastic', 'ModelViscoacoustic']
+__all__ = [
+    'Model',
+    'ModelElastic',
+    'ModelViscoacoustic',
+    'ModelViscoelastic',
+    'SeismicModel',
+]
 
 
 def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):

@@ -1,6 +1,7 @@
 from devito.tools import generator
-from devito.types import (DeviceID, NThreads, NThreadsNested, NThreadsNonaffine,
-                          NPThreads, ThreadID)
+from devito.types import (
+    DeviceID, NPThreads, NThreads, NThreadsNested, NThreadsNonaffine, ThreadID
+)
 
 __init__ = ['SymbolRegistry']
 

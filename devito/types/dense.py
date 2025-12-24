@@ -1,36 +1,37 @@
 from collections import namedtuple
-from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
-from functools import wraps, reduce
+from ctypes import POINTER, Structure, byref, c_int, c_ulong, c_void_p, cast
+from functools import cached_property, reduce, wraps
 from operator import mul
 
 import numpy as np
 import sympy
-from functools import cached_property
 
 from devito.builtins import assign
-from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
-                         Data, default_allocator)
+from devito.data import (
+    CENTER, DOMAIN, FULL, HALO, LEFT, NOPAD, OWNED, RIGHT, Data, default_allocator
+)
 from devito.data.allocators import DataReference
 from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
+from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import FieldFromPointer, normalize_args, IndexedPointer
-from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.finite_differences.tools import fd_weights_registry
-from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten,
-                          is_integer, memoized_meth, dtype_to_ctype, humanbytes,
-                          mpi4py_mapper)
-from devito.types.dimension import Dimension
+from devito.symbolics import FieldFromPointer, IndexedPointer, normalize_args
+from devito.tools import (
+    ReducerMap, as_tuple, c_restrict_void_p, dtype_to_ctype, flatten, humanbytes,
+    is_integer, memoized_meth, mpi4py_mapper
+)
 from devito.types.args import ArgProvider
-from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction
+from devito.types.caching import CacheManager
+from devito.types.dimension import Dimension
 from devito.types.utils import (
-    Buffer, DimensionTuple, NODE, CELL, Size, Staggering, host_layer
+    CELL, NODE, Buffer, DimensionTuple, Size, Staggering, host_layer
 )
 
-__all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
+__all__ = ['Function', 'SubFunction', 'TempFunction', 'TimeFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
@@ -341,12 +342,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         if self._distributor.is_parallel and (any(left) or any(right)):
             try:
-                warning_msg = """A space order of {0} and a halo size of {1} has been
-                                 set but the current rank ({2}) has a domain size of
-                                 only {3}""".format(self._space_order,
-                                                    max(self._size_inhalo),
-                                                    self._distributor.myrank,
-                                                    min(self.grid.shape_local))
+                warning_msg = f"""A space order of {self._space_order} and a halo size of {max(self._size_inhalo)} has been
+                                 set but the current rank ({self._distributor.myrank}) has a domain size of
+                                 only {min(self.grid.shape_local)}"""
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:

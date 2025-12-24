@@ -7,7 +7,7 @@ from devito.data.allocators import ALLOC_ALIGNED
 from devito.data.utils import *
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.tools import Tag, as_tuple, as_list, is_integer
+from devito.tools import Tag, as_list, as_tuple, is_integer
 
 __all__ = ['Data']
 

@@ -1,22 +1,22 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
+import ctypes
+import json
+import os
+import re
+import sys
 from contextlib import suppress
 from functools import cached_property
-from subprocess import PIPE, Popen, DEVNULL, run, CalledProcessError
 from pathlib import Path
-import ctypes
-import re
-import os
-import sys
-import json
+from subprocess import DEVNULL, PIPE, CalledProcessError, Popen, run
 
 import cpuinfo
 import numpy as np
-from packaging.version import parse, InvalidVersion
 import psutil
+from packaging.version import InvalidVersion, parse
 
 from devito.logger import warning
-from devito.tools import as_tuple, all_equal, memoized_func
+from devito.tools import all_equal, as_tuple, memoized_func
 
 __all__ = [
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
@@ -52,7 +52,7 @@ def get_cpu_info():
 
     # Obtain textual cpu info
     try:
-        with open('/proc/cpuinfo', 'r') as f:
+        with open('/proc/cpuinfo') as f:
             lines = f.readlines()
     except FileNotFoundError:
         lines = []
@@ -731,9 +731,7 @@ def get_platform():
         elif 'intel' in brand:
             # Most likely a desktop i3/i5/i7
             return platform_registry['intel64']
-        elif 'power8' in brand:
-            return platform_registry['power8']
-        elif 'power9' in brand:
+        elif 'power8' in brand or 'power9' in brand:
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']

@@ -4,11 +4,11 @@ import sympy
 
 from devito.tools import Pickable, as_tuple, sympy_mutex
 from devito.types.args import ArgProvider
-from devito.types.caching import Uncached
 from devito.types.basic import Basic, LocalType
+from devito.types.caching import Uncached
 from devito.types.utils import CtypesFactory
 
-__all__ = ['Object', 'LocalObject', 'CompositeObject']
+__all__ = ['CompositeObject', 'LocalObject', 'Object']
 
 
 class AbstractObject(Basic, sympy.Basic, Pickable):

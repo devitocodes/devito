@@ -1,20 +1,30 @@
 import abc
 from collections import OrderedDict
-from functools import reduce, cached_property
+from functools import cached_property, reduce
 from operator import mul
 
 from sympy import Expr
 
-from devito.ir.support.utils import minimum, maximum
-from devito.ir.support.vector import Vector, vmin, vmax
-from devito.tools import (Ordering, Stamp, as_list, as_set, as_tuple,
-                          filter_ordered, flatten, frozendict, is_integer,
-                          toposort)
+from devito.ir.support.utils import maximum, minimum
+from devito.ir.support.vector import Vector, vmax, vmin
+from devito.tools import (
+    Ordering, Stamp, as_list, as_set, as_tuple, filter_ordered, flatten, frozendict,
+    is_integer, toposort
+)
 from devito.types import Dimension, ModuloDimension
 
-__all__ = ['NullInterval', 'Interval', 'IntervalGroup', 'IterationSpace',
-           'IterationInterval', 'DataSpace', 'Forward', 'Backward', 'Any',
-           'null_ispace']
+__all__ = [
+    'Any',
+    'Backward',
+    'DataSpace',
+    'Forward',
+    'Interval',
+    'IntervalGroup',
+    'IterationInterval',
+    'IterationSpace',
+    'NullInterval',
+    'null_ispace',
+]
 
 
 # The default Stamp, used by all new Intervals

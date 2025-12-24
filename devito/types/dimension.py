@@ -1,10 +1,10 @@
+import math
 from collections import namedtuple
 from functools import cached_property
-import math
 
+import numpy as np
 import sympy
 from sympy.core.decorators import call_highest_priority
-import numpy as np
 
 from devito.data import LEFT, RIGHT
 from devito.deprecations import deprecations
@@ -12,16 +12,28 @@ from devito.exceptions import InvalidArgument
 from devito.logger import debug
 from devito.tools import Pickable, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
-from devito.types.basic import Symbol, DataSymbol, Scalar
+from devito.types.basic import DataSymbol, Scalar, Symbol
 from devito.types.constant import Constant
-from devito.types.relational import relational_min, relational_max
+from devito.types.relational import relational_max, relational_min
 
-
-__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
-           'CustomDimension', 'SteppingDimension', 'SubDimension',
-           'MultiSubDimension', 'ConditionalDimension', 'ModuloDimension',
-           'IncrDimension', 'BlockDimension', 'StencilDimension',
-           'VirtualDimension', 'Spacing', 'dimensions']
+__all__ = [
+    'BlockDimension',
+    'ConditionalDimension',
+    'CustomDimension',
+    'DefaultDimension',
+    'Dimension',
+    'IncrDimension',
+    'ModuloDimension',
+    'MultiSubDimension',
+    'SpaceDimension',
+    'Spacing',
+    'StencilDimension',
+    'SteppingDimension',
+    'SubDimension',
+    'TimeDimension',
+    'VirtualDimension',
+    'dimensions',
+]
 
 
 SubDimensionThickness = namedtuple('SubDimensionThickness', 'left right')
