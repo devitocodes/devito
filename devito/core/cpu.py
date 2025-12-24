@@ -4,14 +4,15 @@ from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import stream_dimensions
+from devito.passes.clusters import (
+    Lift, blocking, buffering, cire, cse, factorize, fission, fuse, optimize_hyperplanes,
+    optimize_pows
+)
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
-                                    factorize, fission, fuse, optimize_pows,
-                                    optimize_hyperplanes)
-from devito.passes.iet import (CTarget, CXXTarget, COmpTarget, CXXOmpTarget,
-                               avoid_denormals, linearize,
-                               mpiize, hoist_prodders, relax_incr_dimensions,
-                               check_stability)
+from devito.passes.iet import (
+    COmpTarget, CTarget, CXXOmpTarget, CXXTarget, avoid_denormals, check_stability,
+    hoist_prodders, linearize, mpiize, relax_incr_dimensions
+)
 from devito.tools import timed_pass
 
 __all__ = [

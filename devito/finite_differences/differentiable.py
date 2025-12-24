@@ -1,23 +1,26 @@
 from collections import ChainMap
+from functools import cached_property, singledispatch
 from itertools import product
-from functools import singledispatch, cached_property
 
 import numpy as np
 import sympy
 from sympy.core.add import _addsort
-from sympy.core.mul import _keep_coeff, _mulsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
+from sympy.core.mul import _keep_coeff, _mulsort
+
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.finite_differences.tools import make_shift_x0, coeff_priority
+from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
-from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
-                          infer_dtype, extract_dtype, is_integer, split, is_number)
+from devito.tools import (
+    as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype, is_integer,
+    is_number, split
+)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
 

@@ -3,8 +3,10 @@ from itertools import groupby, product
 
 from devito.finite_differences import IndexDerivative
 from devito.ir.clusters import Cluster, ClusterGroup, Queue, cluster_pass
-from devito.ir.support import (SEQUENTIAL, SEPARABLE, Scope, ReleaseLock, WaitLock,
-                               WithLock, InitArray, SyncArray, PrefetchUpdate)
+from devito.ir.support import (
+    SEPARABLE, SEQUENTIAL, InitArray, PrefetchUpdate, ReleaseLock, Scope, SyncArray,
+    WaitLock, WithLock
+)
 from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul, search
 from devito.tools import DAG, Stamp, as_tuple, flatten, frozendict, timed_pass

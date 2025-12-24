@@ -4,30 +4,34 @@ Visitor hierarchy to inspect and/or create IETs.
 The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
+import ctypes
 from collections import OrderedDict
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
-import ctypes
 
 import cgen as c
 from sympy import IndexedBase
 from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
-from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
-                                 Call, Lambda, BlankLine, Section, ListMajor)
+from devito.ir.iet.nodes import (
+    BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
+    Section
+)
 from devito.ir.support.space import Backward
-from devito.symbolics import (FieldFromComposite, FieldFromPointer,
-                              ListInitializer, uxreplace)
+from devito.symbolics import (
+    FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
+)
 from devito.symbolics.extended_dtypes import NoDeclStruct
-from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
-                          filter_sorted, flatten, is_external_ctype,
-                          c_restrict_void_p, sorted_priority)
+from devito.tools import (
+    GenericVisitor, as_tuple, c_restrict_void_p, filter_ordered, filter_sorted, flatten,
+    is_external_ctype, sorted_priority
+)
+from devito.types import (
+    ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer
+)
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
-from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
-                          IndexedData, DeviceMap)
-
 
 __all__ = [
     'CGen',
@@ -1604,8 +1608,9 @@ class TemplateDecl(c.Template):
 
 
 def sorted_efuncs(efuncs):
-    from devito.ir.iet.efunc import (CommCallable, DeviceFunction,
-                                     ThreadCallable, ElementalFunction)
+    from devito.ir.iet.efunc import (
+        CommCallable, DeviceFunction, ElementalFunction, ThreadCallable
+    )
 
     priority = {
         DeviceFunction: 3,

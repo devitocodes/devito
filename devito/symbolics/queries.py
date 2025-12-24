@@ -1,14 +1,14 @@
 from sympy import Eq, IndexedBase, Mod, S, diff, nan
 
-from devito.symbolics.extended_sympy import (FieldFromComposite, FieldFromPointer,
-                                             IndexedPointer, IntDiv)
+from devito.symbolics.extended_sympy import (
+    FieldFromComposite, FieldFromPointer, IndexedPointer, IntDiv
+)
 from devito.tools import as_tuple, is_integer
+from devito.types.array import ComponentAccess
 from devito.types.basic import AbstractFunction
 from devito.types.constant import Constant
 from devito.types.dimension import Dimension
-from devito.types.array import ComponentAccess
 from devito.types.object import AbstractObject
-
 
 __all__ = [
     'q_affine',

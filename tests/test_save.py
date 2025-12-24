@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve
+from devito import Buffer, Eq, Grid, Operator, TimeFunction, solve
 
 
 def initial(nt, nx, ny):

@@ -1,10 +1,11 @@
 from collections import OrderedDict
-from itertools import combinations, product
 from functools import total_ordering
+from itertools import combinations, product
 
 from devito.arch import KNL, KNL7210
 from devito.ir import Backward, retrieve_iteration_tree
-from devito.logger import perf, warning as _warning
+from devito.logger import perf
+from devito.logger import warning as _warning
 from devito.mpi.distributed import MPI, MPINeighborhood
 from devito.mpi.routines import MPIMsgEnriched
 from devito.parameters import configuration

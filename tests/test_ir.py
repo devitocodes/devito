@@ -1,20 +1,24 @@
-import pytest
 import numpy as np
+import pytest
 from sympy import S
 
 from conftest import EVAL, skipif  # noqa
-from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
-                    Operator, Dimension, SubDimension, switchconfig)
+from devito import (  # noqa
+    Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeFunction,
+    switchconfig
+)
 from devito.ir.cgen import ccode
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet import Iteration, FindNodes
-from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym0,
-                                     mocksym1)
-from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
-                                     IntervalGroup, IterationSpace)
+from devito.ir.iet import FindNodes, Iteration
+from devito.ir.support.basic import (
+    AFFINE, IRREGULAR, REGULAR, IterationInstance, Scope, TimedAccess, Vector, mocksym0,
+    mocksym1
+)
 from devito.ir.support.guards import GuardOverflow
+from devito.ir.support.space import (
+    Backward, Forward, Interval, IntervalGroup, IterationSpace, NullInterval
+)
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
 from devito.tools.data_structures import frozendict

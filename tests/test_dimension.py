@@ -1,21 +1,23 @@
-from itertools import product
 from copy import deepcopy
+from itertools import product
 
 import numpy as np
-from sympy import And, Or
 import pytest
+from sympy import And, Or
 
-from conftest import assert_blocking, assert_structure, skipif, opts_tiling
-from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  # noqa
-                    SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
-                    Dimension, DefaultDimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
-                    CustomDimension, dimensions, configuration, norm, Inc, sum)
-from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
-                           FindSymbols, retrieve_iteration_tree)
-from devito.ir.equations.algorithms import concretize_subdims
+from conftest import assert_blocking, assert_structure, opts_tiling, skipif
+from devito import (  # noqa
+    Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension, Dimension,
+    Eq, Function, Ge, Grid, Gt, Inc, Le, Lt, Ne, Operator, SpaceDimension, SparseFunction,
+    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, dimensions,
+    floor, norm, sin, sum, switchconfig
+)
 from devito.ir import SymbolRegistry
-from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
+from devito.ir.equations.algorithms import concretize_subdims
+from devito.ir.iet import (
+    Conditional, Expression, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+)
+from devito.symbolics import INT, IntDiv, indexify, retrieve_functions
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.basic import Scalar
 from devito.types.dimension import AffineIndexAccessFunction, Thickness

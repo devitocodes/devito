@@ -2,9 +2,9 @@ from functools import singledispatch
 
 import sympy
 
-from devito.logger import warning
-from devito.finite_differences.differentiable import Add, Mul, EvalDerivative
 from devito.finite_differences.derivative import Derivative
+from devito.finite_differences.differentiable import Add, EvalDerivative, Mul
+from devito.logger import warning
 from devito.tools import as_tuple
 
 __all__ = ['linsolve', 'solve']

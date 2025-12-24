@@ -1,14 +1,13 @@
-import click
 import datetime
 import logging
 import os
 import sys
-
 from pathlib import Path
-from subprocess import check_output, PIPE, Popen
+from subprocess import PIPE, Popen, check_output
 from tempfile import gettempdir, mkdtemp
 
-from advisor_logging import check, log, progress, log_process
+import click
+from advisor_logging import check, log, log_process, progress
 
 
 @click.command()

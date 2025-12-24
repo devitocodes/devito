@@ -3,9 +3,12 @@ from collections.abc import Iterable
 from sympy import sympify
 
 from devito.logger import warning
-from .differentiable import EvalDerivative, DiffDerivative, Weights
-from .tools import (left, right, generate_indices, centered, direct, transpose,
-                    check_input, fd_weights_registry, process_weights)
+
+from .differentiable import DiffDerivative, EvalDerivative, Weights
+from .tools import (
+    centered, check_input, direct, fd_weights_registry, generate_indices, left,
+    process_weights, right, transpose
+)
 
 __all__ = [
     'centered',

@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito.tools import Tag, as_tuple, as_list, is_integer
+from devito.tools import Tag, as_list, as_tuple, is_integer
 
 __all__ = [
     'NONLOCAL',

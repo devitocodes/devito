@@ -1,9 +1,10 @@
 import numpy as np
-import sympy as sp
 import pytest
+import sympy as sp
 
-from devito import (Grid, Function, TimeFunction, Eq,
-                    Dimension, solve, Operator, div, grad, laplace)
+from devito import (
+    Dimension, Eq, Function, Grid, Operator, TimeFunction, div, grad, laplace, solve
+)
 from devito.finite_differences import Differentiable
 from devito.finite_differences.coefficients import Coefficient, Substitutions
 from devito.finite_differences.finite_difference import _PRECISION

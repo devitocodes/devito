@@ -3,8 +3,9 @@ from collections import defaultdict
 from sympy import Add, Mul, S, collect
 
 from devito.ir import cluster_pass
-from devito.symbolics import (BasicWrapperMixin, estimate_cost, reuse_if_untouched,
-                              retrieve_symbols, q_routine)
+from devito.symbolics import (
+    BasicWrapperMixin, estimate_cost, q_routine, retrieve_symbols, reuse_if_untouched
+)
 from devito.tools import ReducerMap
 from devito.types.object import AbstractObject
 

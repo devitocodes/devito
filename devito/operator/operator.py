@@ -1,46 +1,47 @@
-from collections import OrderedDict, namedtuple
-from functools import cached_property
 import ctypes
 import shutil
-from operator import attrgetter
+from collections import OrderedDict, namedtuple
+from functools import cached_property
 from math import ceil
+from operator import attrgetter
 from tempfile import gettempdir
 
-from sympy import sympify
-import sympy
 import numpy as np
+import sympy
+from sympy import sympify
 
-from devito.arch import (ANYCPU, Device, compiler_registry, platform_registry,
-                         get_visible_devices)
+from devito.arch import (
+    ANYCPU, Device, compiler_registry, get_visible_devices, platform_registry
+)
 from devito.data import default_allocator
-from devito.exceptions import (CompilationError, ExecutionError, InvalidArgument,
-                               InvalidOperator)
-from devito.logger import (debug, info, perf, warning, is_log_enabled_for,
-                           switch_log_level)
-from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
+from devito.exceptions import (
+    CompilationError, ExecutionError, InvalidArgument, InvalidOperator
+)
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.iet import (Callable, CInterface, EntryFunction, DeviceFunction,
-                           FindSymbols, MetaCall, derive_parameters, iet_build)
-from devito.ir.support import AccessMode, SymbolRegistry
+from devito.ir.equations import LoweredEq, concretize_subdims, lower_exprs
+from devito.ir.iet import (
+    Callable, CInterface, DeviceFunction, EntryFunction, FindSymbols, MetaCall,
+    derive_parameters, iet_build
+)
 from devito.ir.stree import stree_build
+from devito.ir.support import AccessMode, SymbolRegistry
+from devito.logger import debug, info, is_log_enabled_for, perf, switch_log_level, warning
+from devito.mpi import MPI
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
-from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (
-    Graph, lower_index_derivatives, generate_implicit, generate_macros,
-    minimize_symbols, optimize_pows, unevaluate, error_mapper, is_on_device,
-    lower_dtypes
+    Graph, error_mapper, generate_implicit, generate_macros, is_on_device, lower_dtypes,
+    lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
-from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
-                          flatten, filter_sorted, frozendict, is_integer,
-                          split, timed_pass, timed_region, contains_val,
-                          CacheInstances, MemoryEstimate)
-from devito.types import (Buffer, Evaluable, host_layer, device_layer,
-                          disk_layer)
+from devito.tools import (
+    DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
+    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, split,
+    timed_pass, timed_region
+)
+from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness
-
 
 __all__ = ['Operator']
 

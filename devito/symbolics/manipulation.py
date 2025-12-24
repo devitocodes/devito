@@ -3,27 +3,24 @@ from collections.abc import Iterable
 from functools import singledispatch
 
 import numpy as np
-from sympy import Pow, Add, Mul, Min, Max, S, SympifyError, Tuple, sympify
+from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.finite_differences.differentiable import (
-    EvalDerivative, IndexDerivative
-)
-from devito.symbolics.extended_sympy import DefFunction, rfunc
+from devito.finite_differences.differentiable import EvalDerivative, IndexDerivative
 from devito.symbolics.extended_dtypes import LONG
+from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
-from devito.symbolics.search import (
-    retrieve_indexed, retrieve_functions, retrieve_symbols
-)
-from devito.symbolics.unevaluation import (
-    Add as UnevalAdd, Mul as UnevalMul, Pow as UnevalPow, UnevaluableMixin
-)
+from devito.symbolics.search import retrieve_functions, retrieve_indexed, retrieve_symbols
+from devito.symbolics.unevaluation import Add as UnevalAdd
+from devito.symbolics.unevaluation import Mul as UnevalMul
+from devito.symbolics.unevaluation import Pow as UnevalPow
+from devito.symbolics.unevaluation import UnevaluableMixin
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
-from devito.types.basic import Basic, Indexed
 from devito.types.array import ComponentAccess
+from devito.types.basic import Basic, Indexed
 from devito.types.equation import Eq
-from devito.types.relational import Le, Lt, Gt, Ge
+from devito.types.relational import Ge, Gt, Le, Lt
 
 __all__ = [
     'Uxmapper',

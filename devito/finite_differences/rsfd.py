@@ -1,8 +1,9 @@
 from functools import wraps
 
 from devito.types.dimension import StencilDimension
-from .differentiable import Weights, DiffDerivative
-from .tools import generate_indices, fd_weights_registry
+
+from .differentiable import DiffDerivative, Weights
+from .tools import fd_weights_registry, generate_indices
 
 __all__ = ['d45', 'drot']
 

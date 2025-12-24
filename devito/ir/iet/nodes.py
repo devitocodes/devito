@@ -3,24 +3,25 @@
 import abc
 import ctypes
 import inspect
-from functools import cached_property
 from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
+from functools import cached_property
 
 import cgen as c
 from sympy import IndexedBase, sympify
 
 from devito.data import FULL
 from devito.ir.cgen import ccode
-from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
-from devito.ir.support import (INBOUND, SEQUENTIAL, PARALLEL, PARALLEL_IF_ATOMIC,
-                               PARALLEL_IF_PVT, VECTORIZED, AFFINE, Property,
-                               Forward, WithLock, PrefetchUpdate, detect_io)
-from devito.symbolics import ListInitializer, CallFromPointer
-from devito.tools import (Signer, as_tuple, filter_ordered, filter_sorted, flatten,
-                          ctypes_to_cstr)
-from devito.types.basic import (AbstractFunction, AbstractSymbol, Basic, Indexed,
-                                Symbol)
+from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
+from devito.ir.support import (
+    AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
+    VECTORIZED, Forward, PrefetchUpdate, Property, WithLock, detect_io
+)
+from devito.symbolics import CallFromPointer, ListInitializer
+from devito.tools import (
+    Signer, as_tuple, ctypes_to_cstr, filter_ordered, filter_sorted, flatten
+)
+from devito.types.basic import AbstractFunction, AbstractSymbol, Basic, Indexed, Symbol
 from devito.types.object import AbstractObject, LocalObject
 
 __all__ = [

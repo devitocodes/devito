@@ -1,13 +1,14 @@
+from devito.passes.iet.instrument import instrument
 from devito.passes.iet.languages.C import CDataManager, COrchestrator, CPrinter
 from devito.passes.iet.languages.CXX import CXXDataManager, CXXOrchestrator, CXXPrinter
-from devito.passes.iet.languages.openmp import (SimdOmpizer, Ompizer, DeviceOmpizer,
-                                                OmpDataManager, DeviceOmpDataManager,
-                                                OmpOrchestrator, DeviceOmpOrchestrator,
-                                                CXXSimdOmpizer, CXXOmpizer,
-                                                CXXOmpDataManager, CXXOmpOrchestrator)
-from devito.passes.iet.languages.openacc import (DeviceAccizer, DeviceAccDataManager,
-                                                 AccOrchestrator, AccPrinter)
-from devito.passes.iet.instrument import instrument
+from devito.passes.iet.languages.openacc import (
+    AccOrchestrator, AccPrinter, DeviceAccDataManager, DeviceAccizer
+)
+from devito.passes.iet.languages.openmp import (
+    CXXOmpDataManager, CXXOmpizer, CXXOmpOrchestrator, CXXSimdOmpizer,
+    DeviceOmpDataManager, DeviceOmpizer, DeviceOmpOrchestrator, OmpDataManager, Ompizer,
+    OmpOrchestrator, SimdOmpizer
+)
 
 __all__ = [
     'COmpTarget',

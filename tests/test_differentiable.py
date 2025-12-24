@@ -1,12 +1,13 @@
 from itertools import product
 
-import sympy
-import pytest
 import numpy as np
+import pytest
+import sympy
 
-from devito import Function, Grid, Differentiable, NODE
-from devito.finite_differences.differentiable import (Add, Mul, Pow, diffify,
-                                                      interp_for_fd, SafeInv)
+from devito import NODE, Differentiable, Function, Grid
+from devito.finite_differences.differentiable import (
+    Add, Mul, Pow, SafeInv, diffify, interp_for_fd
+)
 
 
 def test_differentiable():

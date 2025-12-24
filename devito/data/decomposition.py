@@ -4,7 +4,7 @@ from functools import cached_property
 import numpy as np
 
 from devito.data.meta import LEFT
-from devito.tools import is_integer, as_tuple
+from devito.tools import as_tuple, is_integer
 
 __all__ = ['Decomposition']
 

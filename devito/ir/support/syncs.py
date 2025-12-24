@@ -7,6 +7,7 @@ from functools import cached_property
 
 from devito.data import FULL
 from devito.tools import Pickable, as_tuple, filter_ordered, frozendict
+
 from .utils import IMask
 
 __all__ = [

@@ -1,7 +1,8 @@
-import numpy as np
 from argparse import Action, ArgumentError, ArgumentParser
 
-from devito import error, configuration, warning
+import numpy as np
+
+from devito import configuration, error, warning
 from devito.tools import Pickable
 from devito.types.sparse import _default_radius
 

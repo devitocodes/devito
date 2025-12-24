@@ -1,16 +1,19 @@
-from ctypes import byref, c_void_p
 import weakref
+from ctypes import byref, c_void_p
 
 import numpy as np
-from sympy import Expr
 import pytest
+from sympy import Expr
 
-from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
-                    ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
-                    DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
-                    TensorFunction, TensorTimeFunction, VectorTimeFunction)
-from devito.types import (DeviceID, NThreadsBase, NPThreads, Object, LocalObject,
-                          Scalar, Symbol, ThreadID)
+from devito import (
+    ConditionalDimension, Constant, DefaultDimension, Dimension, Eq, Function, Grid,
+    Operator, SparseFunction, SparseTimeFunction, SubDimension, TensorFunction,
+    TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, _SymbolCache,
+    clear_cache, solve
+)
+from devito.types import (
+    DeviceID, LocalObject, NPThreads, NThreadsBase, Object, Scalar, Symbol, ThreadID
+)
 from devito.types.basic import AbstractSymbol
 
 

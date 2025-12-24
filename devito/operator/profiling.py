@@ -9,8 +9,9 @@ import numpy as np
 from sympy import S
 
 from devito.arch import get_advisor_path
-from devito.ir.iet import (ExpressionBundle, List, TimedList, Section,
-                           Iteration, FindNodes, Transformer)
+from devito.ir.iet import (
+    ExpressionBundle, FindNodes, Iteration, List, Section, TimedList, Transformer
+)
 from devito.ir.support import IntervalGroup
 from devito.logger import warning
 from devito.mpi import MPI

@@ -1,10 +1,10 @@
 from collections import OrderedDict
 
 from devito.ir.iet import (
-    Expression, Increment, Iteration, List, Conditional, SyncSpot, Section,
-    HaloSpot, ExpressionBundle, Switch
+    Conditional, Expression, ExpressionBundle, HaloSpot, Increment, Iteration, List,
+    Section, Switch, SyncSpot
 )
-from devito.ir.support import GuardSwitch, GuardCaseSwitch
+from devito.ir.support import GuardCaseSwitch, GuardSwitch
 from devito.tools import as_mapper, timed_pass
 
 __all__ = ['iet_build']

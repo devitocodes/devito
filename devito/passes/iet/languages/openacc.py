@@ -1,18 +1,21 @@
 import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List, Block,
-                       ParallelTree, Pragma, Return, FindSymbols, make_callable)
-from devito.passes import needs_transfer, is_on_device
+from devito.ir import (
+    Block, Call, DeviceCall, DummyExpr, EntryFunction, FindSymbols, List, ParallelTree,
+    Pragma, Return, make_callable
+)
+from devito.passes import is_on_device, needs_transfer
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.orchestration import Orchestrator
-from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.CXX import CXXBB, CXXPrinter
-from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
+from devito.passes.iet.languages.openmp import OmpIteration, OmpRegion
+from devito.passes.iet.orchestration import Orchestrator
+from devito.passes.iet.parpragma import (
+    PragmaDeviceAwareTransformer, PragmaIteration, PragmaLangBB, PragmaTransfer
+)
 from devito.symbolics import FieldFromPointer, Macro, cast
-from devito.tools import filter_ordered, UnboundTuple
+from devito.tools import UnboundTuple, filter_ordered
 from devito.types import Symbol
 
 __all__ = ['AccOrchestrator', 'DeviceAccDataManager', 'DeviceAccizer']

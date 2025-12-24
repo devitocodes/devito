@@ -1,9 +1,11 @@
-from devito import (Function, TimeFunction, warning, NODE,
-                    DevitoCheckpoint, CheckpointOperator, Revolver)
+from devito import (
+    NODE, CheckpointOperator, DevitoCheckpoint, Function, Revolver, TimeFunction, warning
+)
 from devito.tools import memoized_meth
-from examples.seismic.tti.operators import ForwardOperator, AdjointOperator
-from examples.seismic.tti.operators import JacobianOperator, JacobianAdjOperator
-from examples.seismic.tti.operators import particle_velocity_fields
+from examples.seismic.tti.operators import (
+    AdjointOperator, ForwardOperator, JacobianAdjOperator, JacobianOperator,
+    particle_velocity_fields
+)
 
 
 class AnisotropicWaveSolver:

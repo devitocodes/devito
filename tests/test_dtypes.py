@@ -7,10 +7,8 @@ try:
 except ImportError:
     from conftest import skipif
 
-from devito import (
-    Constant, Eq, Function, Grid, Operator, exp, log, sin, configuration
-)
-from devito.arch.compiler import GNUCompiler, CustomCompiler
+from devito import Constant, Eq, Function, Grid, Operator, configuration, exp, log, sin
+from devito.arch.compiler import CustomCompiler, GNUCompiler
 from devito.exceptions import InvalidOperator
 from devito.ir.cgen.printer import BasePrinter
 from devito.passes.iet.langbase import LangBB

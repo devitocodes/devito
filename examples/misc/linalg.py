@@ -1,6 +1,6 @@
 import click
 
-from devito import Inc, Operator, Function, dimensions, info
+from devito import Function, Inc, Operator, dimensions, info
 from devito.tools import as_tuple
 
 __all__ = [

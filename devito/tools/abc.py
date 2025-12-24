@@ -1,7 +1,6 @@
 import abc
 from hashlib import sha1
 
-
 __all__ = ['Pickable', 'Reconstructable', 'Signer', 'Singleton', 'Stamp', 'Tag']
 
 

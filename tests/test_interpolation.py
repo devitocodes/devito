@@ -1,18 +1,20 @@
 import numpy as np
-from numpy import sin, floor
 import pytest
+import scipy.sparse
+from numpy import floor, sin
 from sympy import Float
 
 from conftest import assert_structure
-from devito import (Grid, Operator, Dimension, SparseFunction, SparseTimeFunction,
-                    Function, TimeFunction, DefaultDimension, Eq, switchconfig,
-                    PrecomputedSparseFunction, PrecomputedSparseTimeFunction,
-                    MatrixSparseTimeFunction, SubDomain)
+from devito import (
+    DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction, Operator,
+    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
+    SparseTimeFunction, SubDomain, TimeFunction, switchconfig
+)
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
-from examples.seismic import (demo_model, TimeAxis, RickerSource, Receiver,
-                              AcquisitionGeometry)
+from examples.seismic import (
+    AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
+)
 from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
-import scipy.sparse
 
 
 def unit_box(name='a', shape=(11, 11), grid=None, space_order=1):

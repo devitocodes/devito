@@ -1,33 +1,34 @@
 from collections import namedtuple
-from ctypes import POINTER, Structure, c_int, c_ulong, c_void_p, cast, byref
-from functools import wraps, reduce
+from ctypes import POINTER, Structure, byref, c_int, c_ulong, c_void_p, cast
+from functools import cached_property, reduce, wraps
 from operator import mul
 
 import numpy as np
 import sympy
-from functools import cached_property
 
 from devito.builtins import assign
-from devito.data import (DOMAIN, OWNED, HALO, NOPAD, FULL, LEFT, CENTER, RIGHT,
-                         Data, default_allocator)
+from devito.data import (
+    CENTER, DOMAIN, FULL, HALO, LEFT, NOPAD, OWNED, RIGHT, Data, default_allocator
+)
 from devito.data.allocators import DataReference
 from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
+from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
 from devito.parameters import configuration
-from devito.symbolics import FieldFromPointer, normalize_args, IndexedPointer
-from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.finite_differences.tools import fd_weights_registry
-from devito.tools import (ReducerMap, as_tuple, c_restrict_void_p, flatten,
-                          is_integer, memoized_meth, dtype_to_ctype, humanbytes,
-                          mpi4py_mapper)
-from devito.types.dimension import Dimension
+from devito.symbolics import FieldFromPointer, IndexedPointer, normalize_args
+from devito.tools import (
+    ReducerMap, as_tuple, c_restrict_void_p, dtype_to_ctype, flatten, humanbytes,
+    is_integer, memoized_meth, mpi4py_mapper
+)
 from devito.types.args import ArgProvider
-from devito.types.caching import CacheManager
 from devito.types.basic import AbstractFunction
+from devito.types.caching import CacheManager
+from devito.types.dimension import Dimension
 from devito.types.utils import (
-    Buffer, DimensionTuple, NODE, CELL, Size, Staggering, host_layer
+    CELL, NODE, Buffer, DimensionTuple, Size, Staggering, host_layer
 )
 
 __all__ = ['Function', 'SubFunction', 'TempFunction', 'TimeFunction']
