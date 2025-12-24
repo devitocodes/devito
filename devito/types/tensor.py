@@ -114,7 +114,7 @@ class TensorFunction(AbstractTensor):
                 raise TypeError("Need either `grid` or `dimensions`")
         else:
             dims = grid.dimensions
-        stagg = kwargs.get("staggered", None)
+        stagg = kwargs.get("staggered")
         name = kwargs.get("name")
         symm = kwargs.get('symmetric', True)
         diag = kwargs.get('diagonal', False)
@@ -347,7 +347,7 @@ class VectorFunction(TensorFunction):
                 raise TypeError("Need either `grid` or `dimensions`")
         else:
             dims = grid.dimensions
-        stagg = kwargs.get("staggered", None)
+        stagg = kwargs.get("staggered")
         name = kwargs.get("name")
         for i, d in enumerate(dims):
             sub_kwargs = cls._component_kwargs(i, **kwargs)

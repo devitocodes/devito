@@ -7,8 +7,13 @@ from devito.arch import Device
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 
-__all__ = ['make_retval', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args',
-           'check_builtins_args']
+__all__ = [
+    'abstract_args',
+    'check_builtins_args',
+    'make_retval',
+    'nbl_to_padsize',
+    'pad_outhalo',
+]
 
 
 accumulator_mapper = {

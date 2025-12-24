@@ -665,9 +665,7 @@ class TestDataDistributed:
             assert np.all(result[3] == [[3, 2, 1, 0]])
 
         result1 = np.array(f.data[5, 6:1:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert result1.size == 0
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert result1.size == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(result1 == [[46, 45]])
@@ -675,9 +673,7 @@ class TestDataDistributed:
             assert np.all(result1 == [[44, 43, 42]])
 
         result2 = np.array(f.data[6:4:-1, 6:1:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert result2.size == 0
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert result2.size == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(result2[0] == [[54, 53]])
@@ -687,9 +683,7 @@ class TestDataDistributed:
             assert np.all(result2[1] == [[44, 43, 42]])
 
         result3 = np.array(f.data[6:4:-1, 2:7])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert result3.size == 0
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert result3.size == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(result3[0] == [[50, 51]])
@@ -784,9 +778,7 @@ class TestDataDistributed:
                                                [0, 0, 0, 0, 0, 0],
                                                [0, 0, 0, 0, 0, 0],
                                                [0, 0, 0, 0, 0, 0]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(np.array(g.data)) == 0
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y] or RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(np.array(g.data)) == 0
         else:
             assert np.all(np.array(g.data)) == 0
@@ -921,11 +913,7 @@ class TestDataDistributed:
         t.data[:] = b
 
         tdat0 = np.array(f.data[-2::, -2::])
-        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
-            assert tdat0.size == 0
-        elif LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0]:
-            assert tdat0.size == 0
-        elif RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0] or LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0] or RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
             assert tdat0.size == 0
         else:
             assert np.all(tdat0 == [[54, 55],
@@ -1091,9 +1079,7 @@ class TestDataDistributed:
 
         h.data[8:10, 0:4] = f.data[slices]
 
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.count_nonzero(h.data[:]) == 0
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert np.count_nonzero(h.data[:]) == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],

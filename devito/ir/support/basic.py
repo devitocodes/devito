@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from itertools import chain, product
 from functools import cached_property
-from typing import Callable
+from collections.abc import Callable
 
 from sympy import S, Expr
 import sympy
@@ -19,7 +19,7 @@ from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
 
-__all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
+__all__ = ['ExprGeometry', 'IterationInstance', 'Scope', 'TimedAccess']
 
 
 class IndexMode(Tag):

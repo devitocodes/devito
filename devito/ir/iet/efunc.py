@@ -5,9 +5,20 @@ from devito.ir.iet.utils import derive_parameters
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 
-__all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'make_callable',
-           'EntryFunction', 'AsyncCallable', 'AsyncCall', 'ThreadCallable',
-           'DeviceFunction', 'DeviceCall', 'KernelLaunch', 'CommCallable']
+__all__ = [
+    'AsyncCall',
+    'AsyncCallable',
+    'CommCallable',
+    'DeviceCall',
+    'DeviceFunction',
+    'ElementalCall',
+    'ElementalFunction',
+    'EntryFunction',
+    'KernelLaunch',
+    'ThreadCallable',
+    'make_callable',
+    'make_efunc',
+]
 
 
 # ElementalFunction machinery

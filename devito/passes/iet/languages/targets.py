@@ -9,8 +9,16 @@ from devito.passes.iet.languages.openacc import (DeviceAccizer, DeviceAccDataMan
                                                  AccOrchestrator, AccPrinter)
 from devito.passes.iet.instrument import instrument
 
-__all__ = ['CTarget', 'OmpTarget', 'COmpTarget', 'DeviceOmpTarget', 'DeviceAccTarget',
-           'CXXTarget', 'CXXOmpTarget', 'DeviceCXXOmpTarget']
+__all__ = [
+    'COmpTarget',
+    'CTarget',
+    'CXXOmpTarget',
+    'CXXTarget',
+    'DeviceAccTarget',
+    'DeviceCXXOmpTarget',
+    'DeviceOmpTarget',
+    'OmpTarget',
+]
 
 
 class Target:

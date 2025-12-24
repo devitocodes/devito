@@ -30,7 +30,7 @@ from devito.types.utils import (
     Buffer, DimensionTuple, NODE, CELL, Size, Staggering, host_layer
 )
 
-__all__ = ['Function', 'TimeFunction', 'SubFunction', 'TempFunction']
+__all__ = ['Function', 'SubFunction', 'TempFunction', 'TimeFunction']
 
 
 RegionMeta = namedtuple('RegionMeta', 'offset size')
@@ -341,12 +341,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
         if self._distributor.is_parallel and (any(left) or any(right)):
             try:
-                warning_msg = """A space order of {0} and a halo size of {1} has been
-                                 set but the current rank ({2}) has a domain size of
-                                 only {3}""".format(self._space_order,
-                                                    max(self._size_inhalo),
-                                                    self._distributor.myrank,
-                                                    min(self.grid.shape_local))
+                warning_msg = f"""A space order of {self._space_order} and a halo size of {max(self._size_inhalo)} has been
+                                 set but the current rank ({self._distributor.myrank}) has a domain size of
+                                 only {min(self.grid.shape_local)}"""
                 if not self._distributor.is_boundary_rank:
                     warning(warning_msg)
                 else:

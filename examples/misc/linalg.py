@@ -3,8 +3,13 @@ import click
 from devito import Inc, Operator, Function, dimensions, info
 from devito.tools import as_tuple
 
-__all__ = ['mat_vec', 'transpose_mat_vec', 'mat_mat', 'mat_mat_sum',
-           'chain_contractions']
+__all__ = [
+    'chain_contractions',
+    'mat_mat',
+    'mat_mat_sum',
+    'mat_vec',
+    'transpose_mat_vec',
+]
 
 
 @click.group(chain=True)

@@ -15,7 +15,7 @@ from devito.symbolics import FieldFromPointer, Macro, cast
 from devito.tools import filter_ordered, UnboundTuple
 from devito.types import Symbol
 
-__all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
+__all__ = ['AccOrchestrator', 'DeviceAccDataManager', 'DeviceAccizer']
 
 
 class DeviceAccIteration(PragmaIteration):

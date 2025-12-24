@@ -117,7 +117,7 @@ def stree_build(clusters, profiler=None, **kwargs):
         candidates = tuple(reversed(tip.ancestors[1:] + (tip,)))
 
         if not any(i.is_Iteration and i.dim.is_Time for i in candidates) and \
-           not candidates[-1] is stree:
+           candidates[-1] is not stree:
             attach_section(candidates[-1])
             continue
 

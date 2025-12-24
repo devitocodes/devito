@@ -301,7 +301,7 @@ class TestFD:
         Dpolynome = diff(polynome)
         Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx_s], np.float32)
         # FD derivative, symbolic
-        u_deriv = getattr(u, 'dx45')
+        u_deriv = u.dx45
         # Compute numerical FD
         stencil = Eq(du, u_deriv)
         op = Operator(stencil, subs={d.spacing: dx for d in grid.dimensions})

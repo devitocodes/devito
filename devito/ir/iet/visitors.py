@@ -29,10 +29,22 @@ from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
                           IndexedData, DeviceMap)
 
 
-__all__ = ['FindApplications', 'FindNodes', 'FindWithin', 'FindSections',
-           'FindSymbols', 'MapExprStmts', 'MapHaloSpots', 'MapNodes',
-           'IsPerfectIteration', 'printAST', 'CGen', 'CInterface', 'Transformer',
-           'Uxreplace']
+__all__ = [
+    'CGen',
+    'CInterface',
+    'FindApplications',
+    'FindNodes',
+    'FindSections',
+    'FindSymbols',
+    'FindWithin',
+    'IsPerfectIteration',
+    'MapExprStmts',
+    'MapHaloSpots',
+    'MapNodes',
+    'Transformer',
+    'Uxreplace',
+    'printAST',
+]
 
 
 class Visitor(GenericVisitor):

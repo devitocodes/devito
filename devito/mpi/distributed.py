@@ -64,8 +64,15 @@ except (RuntimeError, ImportError) as e:
             return None
 
 
-__all__ = ['Distributor', 'SubDistributor', 'SparseDistributor', 'MPI',
-           'CustomTopology', 'devito_mpi_init', 'devito_mpi_finalize']
+__all__ = [
+    'MPI',
+    'CustomTopology',
+    'Distributor',
+    'SparseDistributor',
+    'SubDistributor',
+    'devito_mpi_finalize',
+    'devito_mpi_init',
+]
 
 
 def devito_mpi_init():
@@ -803,7 +810,7 @@ class MPICommObject(Object):
         self.comm = comm
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid', None)
+        grid = kwargs.get('grid')
         # Update `comm` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_comm._arg_defaults()
@@ -856,7 +863,7 @@ class MPINeighborhood(CompositeObject):
         return values
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid', None)
+        grid = kwargs.get('grid')
         # Update `nb` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_neighborhood._arg_defaults()

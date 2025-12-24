@@ -6,7 +6,7 @@ from devito.symbolics import q_negative, q_positive
 from devito.tools import as_tuple, is_integer, memoized_meth
 from devito.types import Dimension
 
-__all__ = ['Vector', 'LabeledVector', 'vmin', 'vmax']
+__all__ = ['LabeledVector', 'Vector', 'vmax', 'vmin']
 
 
 class Vector(tuple):
@@ -253,9 +253,7 @@ class Vector(tuple):
         """
         try:
             # Handle quickly the special (yet relevant) cases `other == 0`
-            if is_integer(other) and other == 0:
-                return self
-            elif all(i == 0 for i in other) and self.rank == other.rank:
+            if is_integer(other) and other == 0 or all(i == 0 for i in other) and self.rank == other.rank:
                 return self
         except TypeError:
             pass

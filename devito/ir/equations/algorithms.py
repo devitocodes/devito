@@ -13,7 +13,7 @@ from devito.types.dimension import MultiSubDimension, Thickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
-__all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
+__all__ = ['concretize_subdims', 'dimension_sort', 'lower_exprs']
 
 
 def dimension_sort(expr):

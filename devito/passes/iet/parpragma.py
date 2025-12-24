@@ -18,8 +18,13 @@ from devito.symbolics import INT
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
-__all__ = ['PragmaSimdTransformer', 'PragmaShmTransformer',
-           'PragmaDeviceAwareTransformer', 'PragmaLangBB', 'PragmaTransfer']
+__all__ = [
+    'PragmaDeviceAwareTransformer',
+    'PragmaLangBB',
+    'PragmaShmTransformer',
+    'PragmaSimdTransformer',
+    'PragmaTransfer',
+]
 
 
 class PragmaTransformer(LangTransformer):

@@ -20,10 +20,20 @@ from devito.passes.iet.languages.CXX import CXXBB, atomic_add as cxx_atomic_add
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
-__all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
-           'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
-           'OmpDataManager', 'OmpOrchestrator', 'DeviceOmpOrchestrator',
-           'CXXOmpDataManager', 'CXXOmpOrchestrator']
+__all__ = [
+    'CXXOmpDataManager',
+    'CXXOmpOrchestrator',
+    'DeviceOmpDataManager',
+    'DeviceOmpIteration',
+    'DeviceOmpOrchestrator',
+    'DeviceOmpizer',
+    'OmpDataManager',
+    'OmpIteration',
+    'OmpOrchestrator',
+    'OmpRegion',
+    'Ompizer',
+    'SimdOmpizer',
+]
 
 
 class OmpRegion(ParallelBlock):
