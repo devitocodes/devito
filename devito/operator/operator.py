@@ -29,7 +29,8 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (
     Graph, lower_index_derivatives, generate_implicit, generate_macros,
-    minimize_symbols, unevaluate, error_mapper, is_on_device, lower_dtypes
+    minimize_symbols, optimize_pows, unevaluate, error_mapper, is_on_device,
+    lower_dtypes
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
@@ -408,6 +409,10 @@ class Operator(Callable):
 
         # Lower all remaining high order symbolic objects
         clusters = lower_index_derivatives(clusters, **kwargs)
+
+        # Turn pows into multiplications. This must happen as late as possible
+        # in the compilation process to maximize the optimization potential
+        clusters = optimize_pows(clusters)
 
         # Make sure no reconstructions can unpick any of the symbolic
         # optimizations performed so far

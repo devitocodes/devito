@@ -1021,7 +1021,7 @@ class Function(DiscreteFunction):
     is_autopaddable = True
 
     __rkwargs__ = (DiscreteFunction.__rkwargs__ +
-                   ('space_order', 'interp_order', 'dimensions', 'is_parameter'))
+                   ('space_order', 'interp_order', 'dimensions'))
 
     def _cache_meta(self):
         # Attach additional metadata to self's cache entry
@@ -1062,12 +1062,6 @@ class Function(DiscreteFunction):
             # can clearly avoid that here though!
             self._fd = self.function._fd
 
-        # Flag whether it is a parameter or a variable.
-        # Used at operator evaluation to evaluate the Function at the
-        # variable location (i.e. if the variable is staggered in x the
-        # parameter has to be computed at x + hx/2)
-        self._is_parameter = kwargs.get('parameter', kwargs.get('is_parameter', False))
-
     def __fd_setup__(self):
         """
         Dynamically add derivative short-cuts.
@@ -1078,19 +1072,19 @@ class Function(DiscreteFunction):
     def _fd_priority(self):
         return 1 if self.staggered.on_node else 2
 
-    @property
-    def is_parameter(self):
-        return self._is_parameter
-
     def _eval_at(self, func):
-        if not self.is_parameter or self.staggered == func.staggered:
+        if self.staggered == func.staggered:
             return self
-        mapper = {self.indices_ref[d]: func.indices_ref[d]
-                  for d in self.dimensions
-                  if self.indices_ref[d] is not func.indices_ref[d]}
-        if mapper:
-            return self.subs(mapper)
-        return self
+
+        mapper = {}
+        for d in self.dimensions:
+            try:
+                if self.indices_ref[d] is not func.indices_ref[d]:
+                    mapper[self.indices_ref[d]] = func.indices_ref[d]
+            except KeyError:
+                pass
+
+        return self.subs(mapper)
 
     @classmethod
     def __staggered_setup__(cls, dimensions, staggered=None, **kwargs):
@@ -1542,6 +1536,15 @@ class TimeFunction(Function):
     @property
     def _time_buffering_default(self):
         return self._time_buffering and not isinstance(self.save, Buffer)
+
+    def _evaluate(self, **kwargs):
+        retval = super()._evaluate(**kwargs)
+        if not self._time_buffering and not retval.is_Function:
+            # Saved TimeFunction might need streaming, expand interpolations
+            # for easier processing
+            return retval.evaluate
+        else:
+            return retval
 
     def _arg_check(self, args, intervals, **kwargs):
         super()._arg_check(args, intervals, **kwargs)

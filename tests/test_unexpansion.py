@@ -260,7 +260,7 @@ class Test1Pass:
                                         'cire-mingain': 400}))
 
         # Check code generation
-        assert op._profiler._sections['section1'].sops == 1443
+        assert op._profiler._sections['section1'].sops == 1442
         assert_structure(op, ['x,y,z',
                               't,x0_blk0,y0_blk0,x,y,z',
                               't,x0_blk0,y0_blk0,x,y,z,i1',
@@ -431,7 +431,7 @@ class Test2Pass:
                                         'openmp': False}))
 
         # Check code generation
-        assert op._profiler._sections['section1'].sops == 191
+        assert op._profiler._sections['section1'].sops == 190
         assert_structure(op, ['x,y,z',
                               't,x0_blk0,y0_blk0,x,y,z',
                               't,x0_blk0,y0_blk0,x,y,z,i0',

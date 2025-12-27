@@ -1,5 +1,6 @@
 from functools import partial
 from hashlib import sha1
+from itertools import filterfalse
 from os import environ, path, makedirs
 from packaging.version import Version
 from subprocess import (DEVNULL, PIPE, CalledProcessError, check_output,
@@ -13,9 +14,11 @@ from codepy.jit import compile_from_string
 from codepy.toolchain import (GCCToolchain,
                               call_capture_output as _call_capture_output)
 
-from devito.arch import (AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9,
-                         Graviton, Cortex, IntelDevice, get_nvidia_cc, NvidiaArm,
-                         check_cuda_runtime, get_m1_llvm_path)
+from devito.arch import (
+    AMDGPUX, Cpu64, AppleArm, NvidiaDevice, POWER8, POWER9, Graviton,
+    Cortex, IntelDevice, get_nvidia_cc, NvidiaArm, check_cuda_runtime,
+    get_cuda_version, get_m1_llvm_path
+)
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
@@ -63,7 +66,10 @@ def sniff_compiler_version(cc, allow_fail=False):
     elif ver.startswith("icx"):
         compiler = "icx"
     elif ver.startswith("pgcc"):
-        compiler = "pgcc"
+        raise CompilationError(
+            'Portland compiler no longer supported,'
+            ' use `nvc` from the nvidia HPC SDK instead'
+        )
     elif ver.startswith("nvc++"):
         compiler = "nvc"
     elif ver.startswith("cray"):
@@ -626,7 +632,7 @@ class DPCPPCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
-class PGICompiler(Compiler):
+class NvidiaCompiler(Compiler):
 
     _default_cpp = True
 
@@ -656,24 +662,40 @@ class PGICompiler(Compiler):
 
         if not configuration['safe-math']:
             self.cflags.append('-fast')
-        # Default PGI compile for a target is GPU and single threaded host.
+        # Default compile for a target is GPU and single threaded host.
         # self.cflags += ['-ta=tesla,host']
 
     def __lookup_cmds__(self):
-        # NOTE: using `pgc++` instead of `pgcc` because of issue #1219
-        self.CC = 'pgc++'
-        self.CXX = 'pgc++'
-        self.MPICC = 'mpic++'
-        self.MPICXX = 'mpicxx'
-
-
-class NvidiaCompiler(PGICompiler):
-
-    def __lookup_cmds__(self):
+        # Note: Using `nvc++` instead of `nvcc` because of issue #1219
         self.CC = 'nvc++'
         self.CXX = 'nvc++'
         self.MPICC = 'mpic++'
         self.MPICXX = 'mpicxx'
+
+    def add_libraries(self, libs):
+        # Urgh...
+        # NvidiaCompiler inherits from Compiler inherits from GCCToolchain in codepy
+        # And _GCC_ supports linking versioned shared objects with the syntax:
+        # `gcc -L/path/to/versioned/lib -l:libfoo.so.2.0 ...`
+        # But this syntax is not supported by the Nvidia compiler.
+        # Nor does `codepy.GCCToolchain` understand that linking to versioned objects
+        # is a thing that someone might want to do.
+        #
+        # Since this is just linking information, we can just tell the linker
+        # (which we invoke using the compiler and the `-Wl,-options` syntax) to
+        # go and look in all of the directories we have provided thus far and
+        # the linker supports the syntax:
+        # `ld -L/path/to/versioned/lib -l:libfoo.so.2.0 ...`
+        #
+        # Note: It would be nicer to just look in the one _relevant_ lib dir!
+        new = as_list(libs)
+        versioned = filter(lambda s: s.startswith(':'), new)
+        versioned = map(lambda s: s.removeprefix(':'), versioned)
+        self.add_ldflags([
+            f'-Wl,-L{",-L".join(map(str, self.library_dirs))},-l:{soname}'
+            for soname in versioned
+        ])
+        super().add_libraries(filterfalse(lambda s: s.startswith(':'), new))
 
 
 class CudaCompiler(Compiler):
@@ -747,6 +769,12 @@ class CudaCompiler(Compiler):
         # mismatch that would cause the program to run, but likely producing
         # garbage, since the CUDA kernel behaviour would be undefined
         check_cuda_runtime()
+
+    @property
+    def std(self):
+        # Since CUDA 13, code needs compiling with C++17 standard
+        _cxxstd = 'c++17' if get_cuda_version().major >= 13 else 'c++14'
+        return _cxxstd if self._cpp else self._cstd
 
     def __lookup_cmds__(self):
         self.CC = 'nvcc'
@@ -1065,8 +1093,6 @@ _compiler_registry = {
     'aomp': AOMPCompiler,
     'amdclang': AOMPCompiler,
     'hip': HipCompiler,
-    'pgcc': PGICompiler,
-    'pgi': PGICompiler,
     'nvc': NvidiaCompiler,
     'nvc++': NvidiaCompiler,
     'nvidia': NvidiaCompiler,

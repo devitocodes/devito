@@ -375,6 +375,16 @@ def test_safeinv():
     assert 'SAFEINV' in str(op1)
     assert 'SAFEINV' in str(op2)
 
+    # Ensure .subs leaves the caller unchanged if no substitutions occur.
+    # We used to have a bug where passing SafeInv to .subs would result
+    # in the construction of weird, nonsensical objects due to the _subs
+    # stub in types.AbstractSymbol
+    f = Function(name='f', grid=grid)
+    ui = u1.indexify()
+    safeinv = SafeInv(ui, ui)
+    v = ui._subs(safeinv, f.indexify())
+    assert str(v) == 'u[x, y]'
+
 
 def test_def_function():
     foo0 = DefFunction('foo', arguments=['a', 'b'], template=['int'])
@@ -710,11 +720,15 @@ def test_canonical_ordering_of_weights():
     fi = f[x, y + i, z]
     wi = w[i]
     cf = ComponentAccess(fi, 0)
+    safeinv = SafeInv(f, f)
 
     assert (ccode(1.0*f[x, y, z] + 2.0*f[x, y + 1, z] + 3.0*f[x, y + 2, z]) ==
             '1.0F*f[x][y][z] + 2.0F*f[x][y + 1][z] + 3.0F*f[x][y + 2][z]')
     assert ccode(fi*wi) == 'f[x][y + i0][z]*w0[i0]'
     assert ccode(cf*wi) == 'f[x][y + i0][z].x*w0[i0]'
+    assert ccode(safeinv*wi) == 'SAFEINV(f(x, y, z), f(x, y, z))*w0[i0]'
+
+    assert str(safeinv*wi) == 'SafeInv(f(x, y, z), f(x, y, z))*w0[i0]'
 
 
 def test_ideriv_subs_complex():
@@ -762,7 +776,7 @@ def test_is_on_grid():
     u = Function(name="u", grid=grid, space_order=2)
 
     assert u._grid_map == {}
-    assert u.subs({x: x0})._grid_map == {x: x0}
+    assert u.subs({x: x0})._grid_map == {x: x0, 'subs': {}}
     assert all(uu._grid_map == {} for uu in retrieve_functions(u.subs({x: x0}).evaluate))
 
 

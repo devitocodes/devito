@@ -525,6 +525,7 @@ def collect(extracted, ispace, minstorage):
             k = group.dimensions_translated
         else:
             k = group.dimensions
+        k = frozenset(d for d in k if not d.is_NonlinearDerived)
         mapper.setdefault(k, []).append(group)
 
     aliases = AliasList()
@@ -912,7 +913,8 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
                     indices.append(i.dim - i.lower + s)
 
             dtype = sympy_dtype(pivot, base=meta.dtype)
-            obj = make(name=name, dimensions=dimensions, halo=halo, dtype=dtype)
+            obj = make(name=name, dimensions=dimensions, halo=halo, dtype=dtype,
+                       shift=shift)
             expression = Eq(obj[indices], uxreplace(pivot, subs))
 
             callback = lambda idx: obj[[i + s for i, s in zip(idx, shift)]]
