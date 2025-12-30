@@ -1019,6 +1019,8 @@ class Operator(Callable):
                                   if k not in specialize}
 
             # TODO: Does this cause problems for profilers?
+            # FIXME: Need some way to inspect this Operator for testing
+            # FIXME: Perhaps this should use some separate method
             return op.apply(**specialized_kwargs)
 
         # Invoke kernel function with args
