@@ -1003,16 +1003,18 @@ class Operator(Callable):
         # In the case of specialization, arguments must be processed before
         # the operator can be compiled
         if specialize:
+            # FIXME: Cannot cope with things like sizes/strides yet since it only
+            # looks at the parameters
             specialized_args = {p: sympify(args.pop(p.name))
                                 for p in self.parameters if p.name in specialize}
 
             op = Specializer(specialized_args).visit(self)
-        else:
-            op = self
 
-        from IPython import embed; embed()
+            specialized_kwargs = {k: v for k, v in kwargs.items()
+                                  if k not in specialize}
 
-        # TODO: Whose profiler should get used here?
+            # TODO: Does this cause problems for profilers?
+            return op.apply(**specialized_kwargs)
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
