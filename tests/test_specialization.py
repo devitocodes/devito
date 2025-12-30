@@ -203,14 +203,23 @@ class TestSpecializer:
         assert np.all(check == f.data)
 
 
-# class TestApply:
-#     """Tests for specialization of operators at apply time"""
+class TestApply:
+    """Tests for specialization of operators at apply time"""
 
-#     def test_basic(self):
-#         grid = Grid(shape=(11, 11))
+    def test_basic(self):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        op = Operator(Eq(f, f+1))
 
-#         f = TimeFunction(name='f', grid=grid, space_order=2)
+        # TODO: Need to verify that specialized operator is actually the one
+        # being run. How can I achieve this?
+        op.apply(specialize=('x_m', 'x_M'))
 
-#         op = Operator(Eq(f.forward, f + 1))
+        check = np.array(f.data[:])
+        f.data[:] = 0
+        op.apply()
 
-#         op.apply(time_M=10, specialize=('x_m', 'x_M'))
+        assert np.all(check == f.data)
+
+# Need to test combining specialization and overrides (a range of them)
+# Need to test specialization with MPI (both at)
