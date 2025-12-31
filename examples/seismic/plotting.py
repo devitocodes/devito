@@ -29,9 +29,9 @@ def plot_perturbation(model, model1, colorbar=True):
     domain_size = 1.e-3 * np.array(model.domain_size)
     extent = [model.origin[0], model.origin[0] + domain_size[0],
               model.origin[1] + domain_size[1], model.origin[1]]
+    assert model.nbl == model1.nbl, ValueError("model and model1 have different values for nbl") 
     slices = tuple(slice(model.nbl, -model.nbl) for _ in range(2))
-    slices1 = tuple(slice(model1.nbl, -model1.nbl) for _ in range(2))
-    dv = np.transpose(model.vp.data[slices]) - np.transpose(model1.vp.data[slices1])
+    dv = np.transpose(model.vp.data[slices]) - np.transpose(model1.vp.data[slices])
 
     plot = plt.imshow(dv, animated=True, cmap=cm.jet,
                       vmin=min(dv.reshape(-1)), vmax=max(dv.reshape(-1)),
