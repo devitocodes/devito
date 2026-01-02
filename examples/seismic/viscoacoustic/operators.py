@@ -237,7 +237,7 @@ def kv_1st_order(model, geometry, p, **kwargs):
         return [u_v, u_p]
     else:
         # Particle velocity
-        # Becaue v is a Vector, `.T` applies a standard matrix transpose
+        # Because v is a Vector, `.T` applies a standard matrix transpose
         # so we need to do the derivative transpose by hand with `-*.dtl`
         pde_v = -v.dtl - grad(rho * p)
         u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
@@ -346,7 +346,7 @@ def maxwell_1st_order(model, geometry, p, **kwargs):
 
     else:
         # Particle velocity
-        # Becaue v is a Vector, `.T` applies a standard matrix transpose
+        # Because v is a Vector, `.T` applies a standard matrix transpose
         # so we need to do the derivative transpose by hand with `-*.dtl`
         pde_v = -v.dtl - grad(rho * p)
         u_v = Eq(v.backward, damp * solve(pde_v, v.backward))

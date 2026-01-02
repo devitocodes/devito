@@ -2,7 +2,7 @@
 
 ## These operators are contributed by Chevron Energy Technology Company (2020)
 
-These operators are based on simplfications of the systems presented in:
+These operators are based on simplifications of the systems presented in:
 <br>**Self-adjoint, energy-conserving second-order pseudoacoustic systems for VTI and TTI media for reverse migration and full-waveform inversion** (2016)
 <br>Kenneth Bube, John Washbourne, Raymond Ergas, and Tamas Nemeth
 <br>SEG Technical Program Expanded Abstracts

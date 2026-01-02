@@ -4,7 +4,7 @@
     Institute of Mathematics and Statistics - Applied Mathematics Department
    (felipe.augusto.guedes@gmail.com, saulo@ime.usp.br, pedrosp@ime.usp.br)
 
-**Important Informations:** These notebooks are part of the Project Software Technologies for Modeling and Inversion (STMI) at RCGI in the  University of Sao Paulo.
+**Important Information:** These notebooks are part of the Project Software Technologies for Modeling and Inversion (STMI) at RCGI in the  University of Sao Paulo.
 
 The objective of these notebooks is to present several schemes which are designed to reduce artificial reflections on boundaries in the numerical solution of the acoustic wave equation with finite differences. We consider several methods, covering absorbing boundary conditions and absorbing boundary layers. Among the schemes, we have implemented:
 
@@ -14,7 +14,7 @@ The objective of these notebooks is to present several schemes which are designe
 - Perfectly Matched Layer (PML);
 - Hybrid Absorbing Boundary Conditions (HABC);
 
-The computational implementation of the methods above is done within the framework of <a href="https://www.devitoproject.org/">Devito</a>, which is aimed to produce highly optimized code for finite differences discretizations, generated from high level symbolic problem definitions. Devito presents a work structure in Python and generates code in C ++, which can be taylored for high performance on different computational platforms. The notebooks are organized as follows:
+The computational implementation of the methods above is done within the framework of <a href="https://www.devitoproject.org/">Devito</a>, which is aimed to produce highly optimized code for finite differences discretizations, generated from high level symbolic problem definitions. Devito presents a work structure in Python and generates code in C ++, which can be tailored for high performance on different computational platforms. The notebooks are organized as follows:
 
 - <a href="01_introduction.ipynb">1. Introduction and description of the acoustic problem;</a>
 - <a href="02_damping.ipynb">2. Implementation of Sochaki's damping;</a>
