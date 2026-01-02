@@ -1010,7 +1010,7 @@ class TestNodeParallelism:
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
 
-        # Format: u(t, x, nastyness) += 1
+        # Format: u(t, x, nastiness) += 1
         uf = u[t, x, f, z]
 
         # All loops get collapsed, but the `y` and `z` loops are PARALLEL_IF_ATOMIC,

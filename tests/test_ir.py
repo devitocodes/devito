@@ -234,7 +234,7 @@ class TestVectorHierarchy:
 
     def test_timed_access_regularity(self, ta_literal):
         """
-        Test TimedAcces.{is_regular,is_irregular}
+        Test TimedAccess.{is_regular,is_irregular}
         """
         (tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1,
          tcyx_irr0, tcxx_irr1, tcxy_irr2) = ta_literal
@@ -866,12 +866,12 @@ class TestDependenceAnalysis:
 
         scope = Scope(exprs)
 
-        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        # Mock dependencies so that the fences (CriticalRegions) don't float around
         assert len(scope.writes[mocksym0]) == 2
         assert len(scope.reads[mocksym0]) == 2
         assert len(scope.d_all) == 3
 
-        # No other mock depedencies because there's no other place the Eq
+        # No other mock dependencies because there's no other place the Eq
         # within the critical sequence can float to
         assert len(scope.writes[mocksym1]) == 1
         assert mocksym1 not in scope.reads
@@ -897,14 +897,14 @@ class TestDependenceAnalysis:
 
         scope = Scope(exprs)
 
-        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        # Mock dependencies so that the fences (CriticalRegions) don't float around
         assert len(scope.writes[mocksym0]) == 2
         assert len(scope.reads[mocksym0]) == 4
         assert len([i for i in scope.d_all
                     if i.source.access is mocksym0
                     or i.sink.access is mocksym0]) == 7
 
-        # More mock depedencies because Eq must not float outside of the critical
+        # More mock dependencies because Eq must not float outside of the critical
         # sequence
         assert len(scope.writes[mocksym1]) == 1
         assert len(scope.reads[mocksym1]) == 2

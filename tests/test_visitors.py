@@ -324,7 +324,7 @@ def test_transformer_add_replace(exprs, block2, block3):
 def test_nested_transformer(exprs, iters, block2):
     """When created with the kwarg ``nested=True``, a Transformer performs
     nested replacements. This test simultaneously replace an inner expression
-    and an Iteration sorrounding it."""
+    and an Iteration surrounding it."""
     target_loop = block2.nodes[1]
     target_expr = target_loop.nodes[0].nodes[0]
     mapper = {target_loop: iters[3](target_loop.nodes[0]),

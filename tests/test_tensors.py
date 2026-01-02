@@ -178,7 +178,7 @@ def test_transpose_vs_T(func1):
     f4 = f1.dx.transpose(inner=False)
     # inner=True is the same as T
     assert f3 == f2
-    # inner=False doesn't tranpose inner derivatives
+    # inner=False doesn't transpose inner derivatives
     for f4i, f2i in zip(f4, f2):
         assert f4i == f2i.T
 

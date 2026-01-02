@@ -561,7 +561,7 @@ class TestCaching:
         u.data[:] = 6.
         u_ref = weakref.ref(u.data)
 
-        # Create derivative and delete orignal u[x, y]
+        # Create derivative and delete original u[x, y]
         dx = u.dx
         del u
         clear_cache()
@@ -682,7 +682,7 @@ class TestCaching:
 
         assert len(_SymbolCache) == cur_cache_size + ncreated
 
-        # No new symbolic obejcts are created
+        # No new symbolic objects are created
         u.inject(expr=u, field=u)
         assert len(_SymbolCache) == cur_cache_size + ncreated
 

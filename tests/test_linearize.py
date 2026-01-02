@@ -270,7 +270,7 @@ def test_unsubstituted_indexeds():
     we end up with two `r0[x, y, z]`, but the former's `x` and `y` are
     SpaceDimensions, while the latter's are BlockDimensions. This means
     that the two objects, while looking identical, are different, and in
-    partical they hash differently, hence we need two entries in a mapper
+    particular they hash differently, hence we need two entries in a mapper
     to perform an Uxreplace. But FindSymbols made us detect only one entry...
     """
     grid = Grid(shape=(8, 8, 8))

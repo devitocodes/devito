@@ -1054,7 +1054,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_relations_w_complex_assumptions(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=True)  # noqa
         b = Symbol('b', positive=True)  # noqa
         c = Symbol('c', positive=True)  # noqa
@@ -1095,7 +1095,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=False)  # noqa
         b = Symbol('b', positive=False)  # noqa
         c = Symbol('c', positive=True)  # noqa
@@ -1114,7 +1114,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_assumptions(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=False)
         b = Symbol('b', positive=False)
         c = Symbol('c', positive=True)

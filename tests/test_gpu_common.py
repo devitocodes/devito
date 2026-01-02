@@ -158,7 +158,7 @@ class TestDeviceID:
     def test_deviceid_per_rank(self, mode):
         """
         Test that Device IDs set by the user on a per-rank basis do not
-        get modifed.
+        get modified.
         """
         # Reversed order to ensure it is different to default
         user_set_deviceids = (1, 0)
@@ -1312,7 +1312,7 @@ class TestStreaming:
 
     def test_streaming_split_noleak(self):
         """
-        Make sure the helper pthreads leak no memory in the target langauge runtime.
+        Make sure the helper pthreads leak no memory in the target language runtime.
         """
         nt = 1000
         grid = Grid(shape=(20, 20, 20))

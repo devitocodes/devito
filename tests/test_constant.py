@@ -10,7 +10,7 @@ class TestConst:
 
     def test_const_change(self):
         """
-        Test that Constand.data can be set as required.
+        Test that Constant.data can be set as required.
         """
 
         n = 5

@@ -643,7 +643,7 @@ class TestBasic:
         assert new_eq.implicit_dims[0].name == 'xs'
         assert new_eq.implicit_dims[0].factor == 4
 
-    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct truct'])
+    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct my_struct'])
     def test_Cast(self, pickle, typ):
         a = Symbol('a')
         un = Cast(a, dtype=typ)
@@ -653,7 +653,7 @@ class TestBasic:
 
         assert un == new_un
 
-    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct truct'])
+    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct my_struct'])
     def test_SizeOf(self, pickle, typ):
         un = SizeOf(typ)
 

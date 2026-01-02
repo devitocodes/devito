@@ -1543,7 +1543,7 @@ class TestCodeGeneration:
 
         In the IET we end up with *two* HaloSpots, one placed before the
         time loop, and one placed before the second Eq. The third Eq,
-        reading from f[t0], will seamlessy find its halo up-to-date,
+        reading from f[t0], will seamlessly find its halo up-to-date,
         due to the f[t1] being updated in the previous time iteration.
         """
         grid = Grid(shape=(10,))
@@ -2576,7 +2576,7 @@ class TestOperatorAdvanced:
         # 0 0 4 4 4 4 4 0 0
         # 0 0 5 5 5 5 5 0 0
 
-        assert np.all(u.data_ro_domain[0] == 0)  # The write occures at t=1
+        assert np.all(u.data_ro_domain[0] == 0)  # The write occurs at t=1
 
         glb_pos_map = u.grid.distributor.glb_pos_map
         # Check cornes
