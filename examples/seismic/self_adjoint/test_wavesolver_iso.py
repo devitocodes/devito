@@ -37,7 +37,7 @@ class TestWavesolver:
         rec1.data[:] *= a
 
         # Check receiver wavefeild linearity
-        # Normalize by rms of rec2, to enable using abolute tolerance below
+        # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
         diff = (rec1.data - rec2.data) / rms2
         info("linearity forward F %s (so=%d) rms 1,2,diff; "
@@ -66,7 +66,7 @@ class TestWavesolver:
         src1.data[:] *= a
 
         # Check adjoint source wavefeild linearity
-        # Normalize by rms of rec2, to enable using abolute tolerance below
+        # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(src2.data**2))
         diff = (src1.data - src2.data) / rms2
         info("linearity adjoint F %s (so=%d) rms 1,2,diff; "
@@ -210,7 +210,7 @@ class TestWavesolver:
         m1.data[:] = a * m1.data[:]
         rec2, _, _, _ = solver.jacobian(m1, src0, vp=m0)
 
-        # Normalize by rms of rec2, to enable using abolute tolerance below
+        # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
         diff = (rec1.data - rec2.data) / rms2
         info("linearity forward J %s (so=%d) rms 1,2,diff; "
@@ -259,7 +259,7 @@ class TestWavesolver:
         rec0.data[:] = a * rec0.data[:]
         dm2, _, _, _ = solver.jacobian_adjoint(rec0, u0, vp=m0)
 
-        # Normalize by rms of rec2, to enable using abolute tolerance below
+        # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(dm2.data**2))
         diff = (dm1.data - dm2.data) / rms2
         info("linearity adjoint J %s (so=%d) rms 1,2,diff; "
@@ -366,7 +366,7 @@ class TestWavesolver:
     @pytest.mark.parametrize('so', space_orders)
     def test_analytic_comparison_2d(self, dtype, so):
         """
-        Wnsure that the farfield response from the propagator matches analytic reponse
+        Wnsure that the farfield response from the propagator matches analytic response
         in a wholespace.
         """
         # Setup time / frequency
@@ -393,7 +393,7 @@ class TestWavesolver:
         model = Model(origin=o, shape=shape, vp=v0, b=1.0, spacing=spacing, nbl=npad,
                       space_order=space_order, bcs=init_damp)
 
-        # Source and reciver coordinates
+        # Source and receiver coordinates
         src_coords = np.empty((1, 2), dtype=dtype)
         rec_coords = np.empty((1, 2), dtype=dtype)
         src_coords[0, :] = np.array(model.domain_size) * .5

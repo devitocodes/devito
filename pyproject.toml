@@ -120,6 +120,10 @@ Sur = "Sur"
 pointss = "pointss"
 # numer - common abbrevisation of numerator
 numer = "numer"
+# Yto - Very unfortunately appears in a short random binary string in a notebook
+Yto = "Yto"
+# ges - Random HTML identifier in examples/seismic/tutorials/17_fourier_mode
+ges = "ges"
 
 [tool.flake8]
 max-line-length = 90

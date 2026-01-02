@@ -19,7 +19,7 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
     ymax : int, optional
         Length of the y-axis.
     view: int, optional
-        View point to intialise.
+        View point to initialise.
     """
     if xmin > xmax or ymin > ymax:
         raise ValueError("Dimension min cannot be larger than dimension max.")

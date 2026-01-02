@@ -225,7 +225,7 @@ class GenericModel:
     @property
     def dtype(self):
         """
-        Data type for all assocaited data objects.
+        Data type for all associated data objects.
         """
         return self.grid.dtype
 
@@ -290,10 +290,10 @@ class SeismicModel(GenericModel):
 
         # User provided dt
         self._dt = kwargs.get('dt')
-        # Some wave equation need a rescaled dt that can't be infered from the model
+        # Some wave equation need a rescaled dt that can't be inferred from the model
         # parameters, such as isoacoustic OT4 that can use a dt sqrt(3) larger than
         # isoacoustic OT2. This property should be set from a wavesolver or after model
-        # instanciation only via model.dt_scale = value.
+        # instantiation only via model.dt_scale = value.
         self._dt_scale = 1
 
     def _initialize_physics(self, vp, space_order, **kwargs):
@@ -373,7 +373,7 @@ class SeismicModel(GenericModel):
         """
         # For a fixed time order this number decreases as the space order increases.
         #
-        # The CFL condtion is then given by
+        # The CFL condition is then given by
         # dt <= coeff * h / (max(velocity))
         dt = self._cfl_coeff * np.min(self.spacing) / (self._thomsen_scale*self._max_vp)
         dt = self.dtype("%.3e" % (self.dt_scale * dt))
@@ -388,7 +388,7 @@ class SeismicModel(GenericModel):
         try:
             param = getattr(self, name)
         except AttributeError:
-            # No physical parameter with tha name, create it
+            # No physical parameter with that name, create it
             setattr(self, name, self._gen_phys_param(value, name, self.space_order))
             return
         # Update the physical parameter according to new value
