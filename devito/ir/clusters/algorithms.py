@@ -323,7 +323,7 @@ class Stepper(Queue):
         for size, v in mapper.items():
             for si, iafs in list(v.items()):
                 # Offsets are sorted so that the semantic order (t0, t1, t2) follows
-                # SymPy's index ordering (t, t-1, t+1) afer modulo replacement so
+                # SymPy's index ordering (t, t-1, t+1) after modulo replacement so
                 # that associativity errors are consistent. This corresponds to
                 # sorting offsets {-1, 0, 1} as {0, -1, 1} assigning -inf to 0
                 key = lambda i: -np.inf if i - si == 0 else (i - si)
@@ -666,7 +666,7 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
                 # Populate the Array (the "map" part)
                 processed.append(e.func(a.indexify(), rhs, operation=None))
 
-                # Set all untouched entried to the identity value if necessary
+                # Set all untouched entries to the identity value if necessary
                 if e.conditionals:
                     nc = {d: sympy.Not(v) for d, v in e.conditionals.items()}
                     v = identity_mapper[e.lhs.dtype][e.operation]

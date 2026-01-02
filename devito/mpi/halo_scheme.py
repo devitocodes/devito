@@ -549,11 +549,11 @@ def classify(exprs, ispace):
                         v[(d, LEFT)] = IDENTITY
                         v[(d, RIGHT)] = IDENTITY
                     elif i.affine(d):
-                        thl, thr = i.touched_halo(d)
+                        th_left, th_right = i.touched_halo(d)
                         # Note: if the left-HALO is touched (i.e., `thl = True`), then
                         # the *right-HALO* is to be sent over in a halo exchange
-                        v[(d, LEFT)] = (thr and STENCIL) or IDENTITY
-                        v[(d, RIGHT)] = (thl and STENCIL) or IDENTITY
+                        v[(d, LEFT)] = (th_right and STENCIL) or IDENTITY
+                        v[(d, RIGHT)] = (th_left and STENCIL) or IDENTITY
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL

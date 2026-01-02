@@ -71,7 +71,7 @@ def dimension_sort(expr):
     # -----------------------------------------------
     # 1) Note that (d.parent, d) is what we want, while (d, d.parent) would be
     # wrong; for example, in `((t, time), (t, x, y), (x, y))`, `x` could now
-    # preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,
+    # precede `time`, while `t`, and therefore `time`, *must* appear before `x`,
     # as indicated by the second relation
     implicit_relations = {(d.parent, d) for d in extra if d.is_Derived and not d.indirect}
 

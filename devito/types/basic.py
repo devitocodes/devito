@@ -643,7 +643,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
     """
     Base class for tensor symbols, cached by both SymPy and Devito. It inherits
-    from and mimicks the behaviour of a sympy.Function.
+    from and mimics the behaviour of a sympy.Function.
 
     The hierarchy is structured as follows
 
@@ -1431,10 +1431,10 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
     """
     Base class for vector and tensor valued functions. It inherits from and
-    mimicks the behavior of a sympy.ImmutableDenseMatrix.
+    mimics the behavior of a sympy.ImmutableDenseMatrix.
 
 
-    The sub-hierachy is as follows
+    The sub-hierarchy is as follows
 
                          AbstractTensor
                                 |

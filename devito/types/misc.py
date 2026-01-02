@@ -345,7 +345,7 @@ class CriticalRegion(sympy.Function, Fence):
         * Equations within a critical sequence cannot be moved outside of
           the opening and closing CriticalRegions.
             * However, internal rearrangements are possible
-        * An asynchronous operation initiated within the critial sequence must
+        * An asynchronous operation initiated within the critical sequence must
           terminate before re-entering the opening CriticalRegion.
     """
 

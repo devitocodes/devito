@@ -286,13 +286,13 @@ def _mark_overlappable(iet):
         scope = Scope(i.expr for i in expressions)
 
         # Comp/comm overlaps is legal only if the OWNED regions can grow
-        # arbitrarly, which means all of the dependences must be carried
+        # arbitrarily, which means all of the dependencies must be carried
         # along a non-halo Dimension
         for dep in scope.d_all_gen():
             if dep.function in hs.functions:
                 cause = dep.cause & hs.dimensions
                 if any(dep.distance_mapper[d] is S.Infinity for d in cause):
-                    # E.g., dependences across PARALLEL iterations
+                    # E.g., dependencies across PARALLEL iterations
                     # for x
                     #   for y
                     #     ... = ... f[x, y-1] ...

@@ -7,7 +7,7 @@ We recommend going through tutorial [02_advisor_roofline.ipynb](https://github.c
 * Support is guaranteed only for Intel oneAPI 2025; earlier versions may not work.
 You may download Intel oneAPI [here](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html?packages=oneapi-toolkit&oneapi-toolkit-os=linux&oneapi-lin=apt).
 
-* Add Advisor (advixe-cl) and compilers (icx) in the path. The right env variables should be sourced along the lines of (depending on your isntallation folder):
+* Add Advisor (advixe-cl) and compilers (icx) in the path. The right env variables should be sourced along the lines of (depending on your installation folder):
 ```sh
 source /opt/intel/oneapi/advisor/latest/env/vars.sh
 source /opt/intel/oneapi/compiler/latest/env/vars.sh

@@ -249,7 +249,7 @@ class AdvancedProfiler(Profiler):
 
             traffic = np.nan
 
-        # Nmber of FLOPs performed at each iteration
+        # Number of FLOPs performed at each iteration
         sops = data.sops
 
         # Runtime itermaps/itershapes

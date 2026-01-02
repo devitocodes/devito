@@ -594,7 +594,7 @@ class Relation:
     @cached_property
     def is_lex_positive(self):
         """
-        True if the source preceeds the sink, False otherwise.
+        True if the source precedes the sink, False otherwise.
         """
         return self.source.timestamp < self.sink.timestamp
 
@@ -613,7 +613,7 @@ class Relation:
     @cached_property
     def is_lex_negative(self):
         """
-        True if the sink preceeds the source, False otherwise.
+        True if the sink precedes the source, False otherwise.
         """
         return self.source.timestamp > self.sink.timestamp
 
@@ -948,7 +948,7 @@ class Scope(CacheInstances):
     @memoized_generator
     def reads_synchro_gen(self):
         """
-        Generate all reads due to syncronization operations. These may be explicit
+        Generate all reads due to synchronization operations. These may be explicit
         or implicit.
         """
         # Objects altering the control flow (e.g., synchronization barriers,
@@ -977,7 +977,7 @@ class Scope(CacheInstances):
         """
         Generate all read accesses.
         """
-        # NOTE: The reason to keep the explicit and implict reads separated
+        # NOTE: The reason to keep the explicit and implicit reads separated
         # is efficiency. Sometimes we wish to extract all reads to a given
         # AbstractFunction, and we know that by construction these can't
         # appear among the implicit reads

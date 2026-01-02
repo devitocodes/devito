@@ -26,7 +26,7 @@ def _complex_includes(iet: Callable, langbb: type[LangBB], compiler: Compiler,
     if langbb.get('complex-namespace') is not None:
         metadata['namespaces'] = langbb['complex-namespace']
 
-    # Some languges such as c++11 need some extra arithmetic definitions
+    # Some languages such as c++11 need some extra arithmetic definitions
     if langbb.get('def-complex'):
         dest = compiler.get_jit_dir()
         hfile = dest.joinpath('complex_arith.h')

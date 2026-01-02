@@ -348,6 +348,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
           [2, 3, 3, 3, 3, 2],
           [2, 2, 2, 2, 2, 2]], dtype=int32)
     """
+    # TODO: fix the horrendous use of pluralisation in this function !!!
     if isinstance(function, (list, tuple)):
         if not isinstance(data, (list, tuple)):
             raise TypeError("Expected a list of `data`")

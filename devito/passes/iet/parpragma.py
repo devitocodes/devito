@@ -267,9 +267,9 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
 
-        # Get the collapsable Iterations
-        root, collapsable = self._select_candidates(candidates)
-        ncollapsed = 1 + len(collapsable)
+        # Get the collapsible Iterations
+        root, collapsible = self._select_candidates(candidates)
+        ncollapsed = 1 + len(collapsible)
 
         # Prepare to build a ParallelTree
         if all(i.is_Affine for i in candidates):
@@ -303,7 +303,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             body = self.HostIteration(ncollapsed=ncollapsed, chunk_size=chunk_size,
                                       **root.args)
 
-            niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsable])
+            niters = prod([root.symbolic_size] + [j.symbolic_size for j in collapsible])
             value = INT(Max(INT(niters / (nthreads*self.chunk_nonaffine)), 1))
             prefix = [Expression(DummyEq(chunk_size, value, dtype=np.int32))]
 
@@ -403,7 +403,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
                 continue
 
             # Ignore if already part of an asynchronous region of code
-            # (e.g., an Iteartion embedded within a SyncSpot defining an
+            # (e.g., an Iteration embedded within a SyncSpot defining an
             # asynchronous operation)
             if any(n in sync_mapper for n in candidates):
                 continue
@@ -508,7 +508,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         # ensure the outermost loop is offloaded
         ndptrs = len(self._device_pointers(root))
 
-        return (ndptrs,) + super()._score_candidate(n0, root, collapsable)
+        return (ndptrs,) + super()._score_candidate(n0, root, collapsible)
 
     def _make_threaded_prodders(self, partree):
         if isinstance(partree.root, self.DeviceIteration):
@@ -531,11 +531,11 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         """
         assert candidates
 
-        root, collapsable = self._select_candidates(candidates)
+        root, collapsible = self._select_candidates(candidates)
 
         if self._is_offloadable(root):
             body = self.DeviceIteration(gpu_fit=self.gpu_fit,
-                                        ncollapsed=len(collapsable)+1,
+                                        ncollapsed=len(collapsible)+1,
                                         tile=self.par_tile.nextitem(),
                                         **root.args)
             partree = ParallelTree([], body, nthreads=nthreads)

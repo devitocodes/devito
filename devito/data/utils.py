@@ -172,7 +172,7 @@ def mpi_index_maps(loc_idx, shape, topology, coords, comm):
     that data is stored.
 
     send: An array of shape ``shape`` where each index signifies the rank to which
-    data beloning to that index should be sent.
+    data belonging to that index should be sent.
 
     global_si: An array of ``shape`` shape where each index contains the global index
     to which that index should be sent.

@@ -258,7 +258,7 @@ def _(expr, langbb, printer):
 @iet_pass
 def minimize_symbols(iet):
     """
-    Remove unneccesary symbols. Currently applied sub-passes:
+    Remove unnecessary symbols. Currently applied sub-passes:
 
         * Remove redundant ModuloDimensions (e.g., due to using the
           `save=Buffer(2)` API)

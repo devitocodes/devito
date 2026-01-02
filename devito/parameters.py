@@ -64,7 +64,7 @@ class Parameters(OrderedDict, Signer):
 
     def _preprocess(self, key, value):
         """
-        Execute the preprocesser associated to ``key``, if any. This will
+        Execute the preprocessor associated to ``key``, if any. This will
         return a new value.
         """
         if key in self._preprocess_functions:

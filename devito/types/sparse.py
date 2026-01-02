@@ -218,7 +218,7 @@ class AbstractSparseFunction(DiscreteFunction):
             else:
                 dtype = dtype or self.dtype
 
-        # Wether to initialize the subfunction with the provided data
+        # Whether to initialize the subfunction with the provided data
         # Useful when rebuilding with a placeholder array only used to
         # infer shape and dtype and set the actual data later
         if kwargs.get('init_subfunc', True):
@@ -408,7 +408,7 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         conditions = {}
 
-        # Positon map and temporaries for it
+        # Position map and temporaries for it
         pmap = self._position_map
 
         # Temporaries for the position
@@ -586,10 +586,10 @@ class AbstractSparseFunction(DiscreteFunction):
         dmap = self._dist_datamap
         mask = self._dist_scatter_mask(dmap=dmap)
 
-        # Pack (reordered) SubFuncion values so that they can be sent out via an Alltoallv
+        # Pack (reordered) SubFunction values so that they can be sent out via an Alltoallv
         sfuncd = subfunc.data._local[mask[self._sparse_position]]
 
-        # Send out the sparse point SubFuncion
+        # Send out the sparse point SubFunction
         _, scount, sdisp, rshape, rcount, rdisp = \
             self._dist_subfunc_alltoall(subfunc, dmap=dmap)
         scattered = np.empty(shape=rshape, dtype=subfunc.dtype)
@@ -597,7 +597,7 @@ class AbstractSparseFunction(DiscreteFunction):
                              [scattered, rcount, rdisp, self._smpitype[subfunc]])
         sfuncd = scattered
 
-        # Translate global SubFuncion values into local SubFuncion values
+        # Translate global SubFunction values into local SubFunction values
         if self.dist_origin[subfunc] is not None:
             sfuncd = sfuncd - np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
         return {subfunc: sfuncd}
@@ -642,11 +642,11 @@ class AbstractSparseFunction(DiscreteFunction):
         dmap = self._dist_datamap
         mask = self._dist_scatter_mask(dmap=dmap)
 
-        # Pack (reordered) SubFuncion values so that they can be sent out via an Alltoallv
+        # Pack (reordered) SubFunction values so that they can be sent out via an Alltoallv
         if self.dist_origin[subfunc] is not None:
             sfuncd = sfuncd + np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
 
-        # Send out the sparse point SubFuncion values
+        # Send out the sparse point SubFunction values
         sshape, scount, sdisp, _, rcount, rdisp = \
             self._dist_subfunc_alltoall(subfunc, dmap=dmap)
         gathered = np.empty(shape=sshape, dtype=subfunc.dtype)
@@ -1353,7 +1353,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
     r: int or Mapping[Dimension, Optional[int]]
         The number of gridpoints in each Dimension used to inject/interpolate
-        each physical point.  e.g. bi-/tri-linear interplation would use 2 coefficients
+        each physical point.  e.g. bi-/tri-linear interpolation would use 2 coefficients
         in each Dimension.
 
         The Mapping version of this parameter allows a different number of grid points
@@ -1561,7 +1561,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         )
 
         # This loop maintains a map of nnz indices which touch each
-        # coordinate of the parallised injection Dimension
+        # coordinate of the parallelised injection Dimension
         # This takes the form of a list of nnz indices, and a start/end
         # position in that list for each index in the parallel dim
         self.par_dim_to_nnz_dim = DynamicDimension('par_dim_to_nnz_%s' % self.name)

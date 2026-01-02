@@ -487,7 +487,7 @@ def evalrel(func=min, input=None, assumptions=None):
 
     # Apply assumptions to fill a subs mapper
     # e.g. When looking for 'max' and Gt(a, b), mapper is filled with {b: a} so that `b`
-    # is subsituted by `a`
+    # is substituted by `a`
     mapper = {}
     for a in processed:
         if set(a.args).issubset(input):

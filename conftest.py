@@ -370,15 +370,15 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
     if exp_trees is not None:
         trees = retrieve_iteration_tree(operator)
         exp_trees = [i.replace(',', '') for i in exp_trees]  # 't,x,y' -> 'txy'
-        tree_struc = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
+        tree_struct = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
                        for j in trees])  # Flatten every tree's dims as a string
-        assert tree_struc == exp_trees
+        assert tree_struct == exp_trees
 
     if exp_iters is not None:
         iters = FindNodes(Iteration).visit(operator)
         exp_iters = exp_iters.replace(',', '')  # 't,x,y' -> 'txy'
-        iter_struc = "".join(mapper.get(i.dim.name, i.dim.name) for i in iters)
-        assert iter_struc == exp_iters
+        iter_struct = "".join(mapper.get(i.dim.name, i.dim.name) for i in iters)
+        assert iter_struct == exp_iters
 
 
 def assert_blocking(operator, exp_nests):

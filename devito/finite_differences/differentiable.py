@@ -39,7 +39,7 @@ __all__ = [
 class Differentiable(sympy.Expr, Evaluable):
 
     """
-    A Differentiable is an algebric expression involving Functions, which can
+    A Differentiable is an algebraic expression involving Functions, which can
     be derived w.r.t. one or more Dimensions.
     """
 

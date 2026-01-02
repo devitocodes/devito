@@ -170,11 +170,11 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
 
-        root, collapsable = self._select_candidates(candidates)
-        ncollapsable = len(collapsable) + 1
+        root, collapsible = self._select_candidates(candidates)
+        ncollapsable = len(collapsible) + 1
 
         if self._is_offloadable(root) and \
-           all(i.is_Affine for i in [root] + collapsable) and \
+           all(i.is_Affine for i in [root] + collapsible) and \
            self.par_tile:
             tile = self.par_tile.nextitem()
             assert isinstance(tile, UnboundTuple)

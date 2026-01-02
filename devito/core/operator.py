@@ -73,7 +73,7 @@ class BasicOperator(Operator):
     CIRE_MINMEM = True
     """
     Minimize memory consumption when allocating temporaries for CIRE-optimized
-    expressions. This may come at the cost of slighly worse performance due to
+    expressions. This may come at the cost of slightly worse performance due to
     the potential need for extra registers to hold a greater number of support
     variables (e.g., strides).
     """
@@ -91,7 +91,7 @@ class BasicOperator(Operator):
 
     PAR_COLLAPSE_WORK = 100
     """
-    Use a collapse clause if the trip count of the collapsable loops is statically
+    Use a collapse clause if the trip count of the collapsible loops is statically
     known to exceed this threshold.
     """
 
@@ -172,7 +172,7 @@ class BasicOperator(Operator):
 
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
-        # Will be populated with dummy values; this method is actually overriden
+        # Will be populated with dummy values; this method is actually overridden
         # by the subclasses
         o = {}
         oo = kwargs['options']
