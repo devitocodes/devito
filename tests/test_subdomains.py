@@ -542,7 +542,7 @@ class TestMultiSubDomain:
 
     def test_issue_1761_b(self):
         """
-        Follow-up issue emerged after patching #1761. The thicknesses assigments
+        Follow-up issue emerged after patching #1761. The thicknesses assignments
         were missing before the third equation.
 
         Further improvements have enabled fusing the third equation with the first

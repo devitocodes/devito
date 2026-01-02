@@ -1482,16 +1482,16 @@ class TestConditionalDimension:
         grid = Grid(shape=(4, 4))
         _, y = grid.dimensions
 
-        ths = 10
+        threshold = 10
         g = TimeFunction(name='g', grid=grid)
 
-        ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, ths))
+        ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, threshold))
 
         op = Operator(Eq(g.forward, g + 1, implicit_dims=ci))
 
-        op.apply(time_M=ths+3)
-        assert np.all(g.data[0, :, :] == ths)
-        assert np.all(g.data[1, :, :] == ths + 1)
+        op.apply(time_M=threshold+3)
+        assert np.all(g.data[0, :, :] == threshold)
+        assert np.all(g.data[1, :, :] == threshold + 1)
         assert 'if (g[t0][x + 1][y + 1] <= 10)\n'
         '{\n g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1' in str(op.ccode)
 
@@ -1809,7 +1809,7 @@ class TestConditionalDimension:
         # proxy integral
         f.data[:] = np.array(freq[:])
         # Proxy Fourier integral holder
-        ure = Function(name="ure", grid=grid,
+        u_re = Function(name="u_re", grid=grid,
                        dimensions=(freq_dim,) + u.indices[1:],
                        shape=(nfreq,) + u.shape[1:])
 
@@ -1817,16 +1817,16 @@ class TestConditionalDimension:
         ct = ConditionalDimension(name="ct", parent=time, condition=Ge(time, f))
         eqns = [
             Eq(u.forward, u+1),
-            Eq(ure, ure + u, implicit_dims=ct)
+            Eq(u_re, u_re + u, implicit_dims=ct)
         ]
 
         op = Operator(eqns)
 
         op.apply(time_M=10)
 
-        assert np.all(ure.data[0] == 54)
-        assert np.all(ure.data[1] == 49)
-        assert np.all(ure.data[2] == 27)
+        assert np.all(u_re.data[0] == 54)
+        assert np.all(u_re.data[1] == 49)
+        assert np.all(u_re.data[2] == 27)
 
         # Make sure the ConditionalDimension is at the right depth for performance
         trees = retrieve_iteration_tree(op)

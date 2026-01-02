@@ -62,7 +62,7 @@ def test_avg(ndim):
 @pytest.mark.parametrize('ndim', [1, 2, 3])
 def test_is_param(ndim):
     """
-    Test that only parameter are evaluated at the variable anf Function and FD indices
+    Test that only parameter are evaluated at the variable and Function and FD indices
     stay unchanged
     """
     grid = Grid(tuple([10]*ndim))

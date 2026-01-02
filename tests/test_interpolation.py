@@ -255,7 +255,7 @@ def test_precomputed_injection_time(r):
 ])
 def test_interpolate(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
-    abitrary set of points going across the grid.
+    arbitrary set of points going across the grid.
     """
     a = unit_box(shape=shape)
     p = points(a.grid, coords, npoints=npoints)
@@ -274,7 +274,7 @@ def test_interpolate(shape, coords, npoints=20):
 ])
 def test_interpolate_cumm(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
-    abitrary set of points going across the grid.
+    arbitrary set of points going across the grid.
     """
     a = unit_box(shape=shape)
     p = points(a.grid, coords, npoints=npoints)
@@ -295,7 +295,7 @@ def test_interpolate_cumm(shape, coords, npoints=20):
 ])
 def test_interpolate_time_shift(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
-    abitrary set of points going across the grid.
+    arbitrary set of points going across the grid.
     This test verifies the optional time shifting for SparseTimeFunctions
     """
     a = unit_box_time(shape=shape)
@@ -334,7 +334,7 @@ def test_interpolate_time_shift(shape, coords, npoints=20):
 ])
 def test_interpolate_array(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
-    abitrary set of points going across the grid.
+    arbitrary set of points going across the grid.
     """
     a = unit_box(shape=shape)
     p = points(a.grid, coords, npoints=npoints)
@@ -354,7 +354,7 @@ def test_interpolate_array(shape, coords, npoints=20):
 ])
 def test_interpolate_custom(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
-    abitrary set of points going across the grid.
+    arbitrary set of points going across the grid.
     """
     a = unit_box(shape=shape)
     p = custom_points(a.grid, coords, npoints=npoints)
@@ -399,7 +399,7 @@ def test_interpolation_dx():
 ])
 def test_interpolate_indexed(shape, coords, npoints=20):
     """Test generic point interpolation testing the x-coordinate of an
-    abitrary set of points going across the grid. Unlike other tests,
+    arbitrary set of points going across the grid. Unlike other tests,
     here we interpolate an expression built using the indexed notation.
     """
     a = unit_box(shape=shape)
@@ -476,7 +476,7 @@ def test_multi_inject(shape, coords, nexpr, result, npoints=19):
 ])
 def test_inject_time_shift(shape, coords, result, npoints=19):
     """Test generic point injection testing the x-coordinate of an
-    abitrary set of points going across the grid.
+    arbitrary set of points going across the grid.
     This test verifies the optional time shifting for SparseTimeFunctions
     """
     a = unit_box_time(shape=shape)

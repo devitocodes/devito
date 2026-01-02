@@ -637,7 +637,7 @@ class TestArithmetic:
 
     def test_sparsetimefunction_inject_dt(self):
         """
-        Test injection of the time deivative of a SparseTimeFunction into a TimeFunction
+        Test injection of the time derivative of a SparseTimeFunction into a TimeFunction
         """
         grid = Grid(shape=(11, 11))
         u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
@@ -1009,12 +1009,12 @@ class TestApplyArguments:
         one.data[:] = 1.
         op = Operator(Eq(a.forward, a + one))
 
-        # Test dimension override via the buffered dimenions
+        # Test dimension override via the buffered dimensions
         a.data[0] = 0.
         op(a=a, t=5)
         assert(np.allclose(a.data[1], 5.))
 
-        # Test dimension override via the parent dimenions
+        # Test dimension override via the parent dimensions
         a.data[0] = 0.
         op(a=a, time=4)
         assert(np.allclose(a.data[0], 4.))
@@ -1073,7 +1073,7 @@ class TestApplyArguments:
 
     def test_argument_derivation_order(self, nt=100):
         """ Ensure the precedence order of arguments is respected
-        Defaults < (overriden by) Tensor Arguments < Dimensions < Scalar Arguments
+        Defaults < (overridden by) Tensor Arguments < Dimensions < Scalar Arguments
         """
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)

@@ -2609,7 +2609,7 @@ class TestAliases:
         # it behaves as if it were one
         mock_custom_deriv = u.dx.dy.evaluate
 
-        # This symbolic operation -- creating an Add between an arbitray object
+        # This symbolic operation -- creating an Add between an arbitrary object
         # and an EvalDerivative -- caused the EvalDerivative to be prematurely
         # simplified being flatten into an Add
         expr0 = u.dt - mock_custom_deriv
@@ -2745,7 +2745,7 @@ class TestTTI:
 
     @cached_property
     def model(self):
-        # TTI layered model for the tti test, no need for a smooth interace
+        # TTI layered model for the tti test, no need for a smooth interface
         # bewtween the two layer as the compilation passes are tested, not the
         # physical prettiness of the result -- which ultimately saves time
         return demo_model('layers-tti', nlayers=3, nbl=10, space_order=8,

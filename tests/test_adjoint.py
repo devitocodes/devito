@@ -92,7 +92,7 @@ class TestAdjoint:
         """
         Adjoint test for the forward modeling operator.
         The forward modeling operator F generates a shot record (measurements)
-        from a source while the adjoint of F generates measurments at the source
+        from a source while the adjoint of F generates measurements at the source
         location from data. This test uses the conventional dot test:
         < Fx, y> = <x, F^T y>
         """

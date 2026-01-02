@@ -104,6 +104,11 @@ arange = "arange"
 dorder = "dorder"
 # simpify - function in Devito for creating Sympy expressions
 simpify = "simpify"
+# vas - plural of va
+# Used in tests/test_gpu_common.py::TestStreaming::test_streaming_complete (TODO: FIX)
+vas = "vas"
+# tpe - Thread Pool Executor
+tpe = "tpe"
 
 [tool.typos.default.extend-words]
 # datas - plural of data?
@@ -118,12 +123,13 @@ Sur = "Sur"
 # pointss - plural of points?
 # Horrendous use in operator/profiling (TODO: FIX)
 pointss = "pointss"
-# numer - common abbrevisation of numerator
+# numer - common abbreviation of numerator
 numer = "numer"
 # Yto - Very unfortunately appears in a short random binary string in a notebook
 Yto = "Yto"
 # ges - Random HTML identifier in examples/seismic/tutorials/17_fourier_mode
 ges = "ges"
+
 
 [tool.flake8]
 max-line-length = 90
