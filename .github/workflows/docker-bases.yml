@@ -114,10 +114,10 @@ jobs:
           TAG_BASE: ${{ format('cpu-gcc{0}', matrix.gcc) }}
         run: |
           docker buildx imagetools create \
-            --tag devitocodes/bases:${TAG_BASE} \
-            devitocodes/bases:${TAG_BASE}-amd64 \
-            devitocodes/bases:${TAG_BASE}-arm64
-          docker buildx imagetools inspect devitocodes/bases:${TAG_BASE}
+            --tag "devitocodes/bases:${TAG_BASE}" \
+            "devitocodes/bases:${TAG_BASE}-amd64" \
+            "devitocodes/bases:${TAG_BASE}-arm64"
+          docker buildx imagetools inspect "devitocodes/bases:${TAG_BASE}"
 
   #######################################################
   ############## Intel OneApi CPU #######################
@@ -296,10 +296,10 @@ jobs:
           FINAL_TAG: ${{ matrix.final_tag }}
         run: |
           docker buildx imagetools create \
-            --tag devitocodes/bases:${FINAL_TAG} \
-            devitocodes/bases:${FINAL_TAG}-amd64 \
-            devitocodes/bases:${FINAL_TAG}-arm64
-          docker buildx imagetools inspect devitocodes/bases:${FINAL_TAG}
+            --tag "devitocodes/bases:${FINAL_TAG}" \
+            "devitocodes/bases:${FINAL_TAG}-amd64" \
+            "devitocodes/bases:${FINAL_TAG}-arm64"
+          docker buildx imagetools inspect "devitocodes/bases:${FINAL_TAG}"
 
   #######################################################
   ##################### AMD #############################
