@@ -141,7 +141,7 @@ def autotune(operator, args, level, mode):
             update_time_bounds(stepper, at_args, timesteps, mode)
             timer.reset()
 
-    # The best variant is the one that for a given number of threads had the minium
+    # The best variant is the one that for a given number of threads had the minimum
     # turnaround time
     try:
         runs = 0

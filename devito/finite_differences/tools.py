@@ -108,8 +108,8 @@ def generate_fd_shortcuts(dims, so, to=0):
         deriv = partial(diff_f, deriv_order=d_orders, dims=fd_dims, fd_order=fd_orders)
         name_fd = deriv_name(fd_dims, d_orders)
         dname = (d.root.name for d in fd_dims)
-        desciption = 'derivative of order %s w.r.t dimension %s' % (d_orders, dname)
-        derivatives[name_fd] = (deriv, desciption)
+        description = 'derivative of order %s w.r.t dimension %s' % (d_orders, dname)
+        derivatives[name_fd] = (deriv, description)
 
     # Add non-conventional, non-centered first-order FDs
     for d, o in zip(dims, orders):
@@ -117,18 +117,18 @@ def generate_fd_shortcuts(dims, so, to=0):
         # Add centered first derivatives
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=centered)
         name_fd = 'd%sc' % name
-        desciption = 'centered derivative staggered w.r.t dimension %s' % d.name
-        derivatives[name_fd] = (deriv, desciption)
+        description = 'centered derivative staggered w.r.t dimension %s' % d.name
+        derivatives[name_fd] = (deriv, description)
         # Left
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=left)
         name_fd = 'd%sl' % name
-        desciption = 'left first order derivative w.r.t dimension %s' % d.name
-        derivatives[name_fd] = (deriv, desciption)
+        description = 'left first order derivative w.r.t dimension %s' % d.name
+        derivatives[name_fd] = (deriv, description)
         # Right
         deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, side=right)
         name_fd = 'd%sr' % name
-        desciption = 'right first order derivative w.r.t dimension %s' % d.name
-        derivatives[name_fd] = (deriv, desciption)
+        description = 'right first order derivative w.r.t dimension %s' % d.name
+        derivatives[name_fd] = (deriv, description)
 
     # Add RSFD for first order derivatives
     for d, o in zip(dims, orders):
@@ -136,8 +136,8 @@ def generate_fd_shortcuts(dims, so, to=0):
             name = d.root.name
             deriv = partial(diff_f, deriv_order=1, dims=d, fd_order=o, method='RSFD')
             name_fd = 'd%s45' % name
-            desciption = 'Derivative w.r.t %s with rotated 45 degree FD' % d.name
-            derivatives[name_fd] = (deriv, desciption)
+            description = 'Derivative w.r.t %s with rotated 45 degree FD' % d.name
+            derivatives[name_fd] = (deriv, description)
 
     return derivatives
 

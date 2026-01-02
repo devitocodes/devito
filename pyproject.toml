@@ -102,6 +102,24 @@ default.extend-ignore-words-re = ["\\b[[:alpha:]]{1,2}\\d?\\b", "\\b\\w{20,}\\b"
 arange = "arange"
 # dorder - derivative order
 dorder = "dorder"
+# simpify - function in Devito for creating Sympy expressions
+simpify = "simpify"
+
+[tool.typos.default.extend-words]
+# datas - plural of data?
+# optionss - plural of options?
+# Horrendous use in builtins/initializers (TODO: FIX)
+datas = "datas"
+optionss = "optionss"
+# HPE - Well known company name
+HPE = "HPE"
+# Sur - OS name: MacOS Big Sur
+Sur = "Sur"
+# pointss - plural of points?
+# Horrendous use in operator/profiling (TODO: FIX)
+pointss = "pointss"
+# numer - common abbrevisation of numerator
+numer = "numer"
 
 [tool.flake8]
 max-line-length = 90

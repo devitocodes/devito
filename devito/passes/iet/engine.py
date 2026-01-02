@@ -461,7 +461,7 @@ def reuse_efuncs(root, efuncs, sregistry=None):
         key = afunc._signature()
 
         try:
-            # If we manage to succesfully map `efunc` to a previously abstracted
+            # If we manage to successfully map `efunc` to a previously abstracted
             # `afunc`, we need to update the call sites to use the new Call name
             afunc, mapped = mapper[key]
             mapped.append(efunc)
@@ -744,7 +744,7 @@ def update_args(root, efuncs, dag):
 
         for a in new_params:
             if a in processed:
-                # A child efunc trying to add a symbol alredy added by a
+                # A child efunc trying to add a symbol already added by a
                 # sibling efunc
                 continue
 

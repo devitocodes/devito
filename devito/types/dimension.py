@@ -151,7 +151,7 @@ class Dimension(ArgProvider):
     def class_key(cls):
         """
         Overrides sympy.Symbol.class_key such that Dimensions always
-        preceed other symbols when printed (e.g. x + h_x, not h_x + x).
+        precede other symbols when printed (e.g. x + h_x, not h_x + x).
         """
         a, b, c = super().class_key()
         return a, b - 1, c
@@ -317,7 +317,7 @@ class Dimension(ArgProvider):
             except (AttributeError, TypeError):
                 pass
 
-        # Some `args` may still be DerivedDimenions' defaults. These, in turn,
+        # Some `args` may still be DerivedDimensions' defaults. These, in turn,
         # may represent sets of legal values. If that's the case, here we just
         # pick one. Note that we sort for determinism
         try:

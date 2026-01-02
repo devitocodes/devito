@@ -51,7 +51,7 @@ class DevitoCheckpoint(Checkpoint):
        pyRevolve. Holds a list of symbol objects that hold data.
     """
     def __init__(self, objects):
-        """Intialise a checkpoint object. Upon initialisation, a checkpoint
+        """Initialise a checkpoint object. Upon initialisation, a checkpoint
         stores only a reference to the objects that are passed into it."""
         assert(all(isinstance(o, TimeFunction) for o in objects))
         dtypes = set([o.dtype for o in objects])
@@ -92,7 +92,7 @@ def get_symbol_data(symbol, timestep):
         # Use `._data`, instead of `.data`, as `.data` is a view of the DOMAIN
         # data region which is non-contiguous in memory. The performance hit from
         # dealing with non-contiguous memory is so big (introduces >1 copy), it's
-        # better to checkpoint unneccesarry stuff to get a contiguous chunk of memory.
+        # better to checkpoint unnecessary stuff to get a contiguous chunk of memory.
         ptr = symbol._data[timestep - i, :, :]
         ptrs.append(ptr)
     return ptrs

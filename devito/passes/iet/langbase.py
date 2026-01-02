@@ -245,7 +245,7 @@ class ShmTransformer(LangTransformer):
              * 'par-collapse-ncores': use a collapse clause if the number of
                available physical cores is greater than this threshold.
              * 'par-collapse-work': use a collapse clause if the trip count of the
-               collapsable Iterations is statically known to exceed this threshold.
+               collapsible Iterations is statically known to exceed this threshold.
              * 'par-chunk-nonaffine': coefficient to adjust the chunk size in
                non-affine parallel Iterations.
              * 'par-dynamic-work': use dynamic scheduling if the operation count per
@@ -289,20 +289,20 @@ class ShmTransformer(LangTransformer):
     def threadid(self):
         return self.sregistry.threadid
 
-    def _score_candidate(self, n0, root, collapsable=()):
+    def _score_candidate(self, n0, root, collapsible=()):
         """
-        The score of a collapsable nest depends on the number of fully-parallel
+        The score of a collapsible nest depends on the number of fully-parallel
         Iterations and their position in the nest (the outer, the better).
         """
-        nest = [root] + list(collapsable)
+        nest = [root] + list(collapsible)
         n = len(nest)
 
-        # Number of fully-parallel collapsable Iterations
+        # Number of fully-parallel collapsible Iterations
         key = lambda i: i.is_ParallelNoAtomic
         fp_iters = list(takewhile(key, nest))
         n_fp_iters = len(fp_iters)
 
-        # Number of parallel-if-atomic collapsable Iterations
+        # Number of parallel-if-atomic collapsible Iterations
         key = lambda i: i.is_ParallelAtomic
         pia_iters = list(takewhile(key, nest))
         n_pia_iters = len(pia_iters)
@@ -341,13 +341,13 @@ class ShmTransformer(LangTransformer):
             # Score `root` in isolation
             mapper[(root, ())] = self._score_candidate(n0, root)
 
-            collapsable = []
+            collapsible = []
             for n, i in enumerate(candidates[n0+1:], n0+1):
                 # The Iteration nest [root, ..., i] must be perfect
                 if not IsPerfectIteration(depth=i).visit(root):
                     break
 
-                # Loops are collapsable only if none of the iteration variables
+                # Loops are collapsible only if none of the iteration variables
                 # appear in initializer expressions. For example, the following
                 # two loops cannot be collapsed
                 #
@@ -373,16 +373,16 @@ class ShmTransformer(LangTransformer):
                     except TypeError:
                         pass
 
-                collapsable.append(i)
+                collapsible.append(i)
 
-                # Score `root + collapsable`
-                v = tuple(collapsable)
+                # Score `root + collapsible`
+                v = tuple(collapsible)
                 mapper[(root, v)] = self._score_candidate(n0, root, v)
 
         # Retrieve the candidates with highest score
-        root, collapsable = max(mapper, key=mapper.get)
+        root, collapsible = max(mapper, key=mapper.get)
 
-        return root, list(collapsable)
+        return root, list(collapsible)
 
 
 class DeviceAwareMixin:

@@ -178,7 +178,7 @@ class CireTransformer:
         Generate one or more extractions from a ClusterGroup. An extraction is a
         set of CIRE candidates which may be turned into aliases. Two different
         extractions may contain overlapping sub-expressions and, therefore,
-        should be processed and evaluated indipendently. An extraction won't
+        should be processed and evaluated independently. An extraction won't
         contain any of the symbols appearing in ``exclude``.
         """
         raise NotImplementedError
@@ -676,7 +676,7 @@ def lower_aliases(aliases, meta, maxpar):
             except KeyError:
                 if i.dim in a.free_symbols:
                     # Special case: the Dimension appears within the alias but
-                    # not as an Indexed index. Then, it needs to be addeed to
+                    # not as an Indexed index. Then, it needs to be added to
                     # the `writeto` region too
                     interval = i
                 else:
@@ -863,7 +863,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
         name = sregistry.make_name()
         # Infer the dtype for the pivot
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
-        # that would creat a temporary `int r = b` leading to erronous
+        # that would creat a temporary `int r = b` leading to erroneous
         # numerical results
 
         if writeto:

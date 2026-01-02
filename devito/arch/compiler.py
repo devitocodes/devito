@@ -1027,14 +1027,14 @@ class CustomCompiler(Compiler):
         self._base.__init_finalize__(self, **kwargs)
         # Update cflags
         try:
-            extrac = environ.get('CFLAGS').split(' ')
-            self.cflags = self.cflags + extrac
+            extra_c = environ.get('CFLAGS').split(' ')
+            self.cflags = self.cflags + extra_c
         except AttributeError:
             pass
         # Update ldflags
         try:
-            extrald = environ.get('LDFLAGS').split(' ')
-            self.ldflags = self.ldflags + extrald
+            extra_ld = environ.get('LDFLAGS').split(' ')
+            self.ldflags = self.ldflags + extra_ld
         except AttributeError:
             pass
 

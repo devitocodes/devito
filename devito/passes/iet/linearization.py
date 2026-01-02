@@ -396,7 +396,7 @@ def linearize_transfers(iet, sregistry=None, **kwargs):
             except TypeError:
                 start, size = imask[0], 1
 
-            if start != 0:  # Spare the ugly generated code if unneccesary (occurs often)
+            if start != 0:  # Spare the ugly generated code if unnecessary (occurs often)
                 name = sregistry.make_name(prefix='%s_ofs' % n.function.name)
                 wildcard = Wildcard(name=name, dtype=np.int32, is_const=True)
 

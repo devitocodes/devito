@@ -530,7 +530,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # derivative at x0.
             return self._rebuild(self.expr._gather_for_diff, **rkw)
         else:
-            # For every other cases, that has more functions or more complexe arithmetic,
+            # For every other cases, that has more functions or more complex arithmetic,
             # there is not actual way to decide what to do so it’s as safe to use
             # the expression as is.
             return self._rebuild(self.expr, **rkw)

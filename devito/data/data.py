@@ -337,7 +337,7 @@ class Data(np.ndarray):
         elif np.isscalar(val):
             if index_is_basic(loc_idx):
                 # Won't go through `__getitem__` as it's basic indexing mode,
-                # so we should just propage `loc_idx`
+                # so we should just propagate `loc_idx`
                 super().__setitem__(loc_idx, val)
             else:
                 super().__setitem__(glb_idx, val)

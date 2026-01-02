@@ -429,7 +429,7 @@ class Cluster:
     @cached_property
     def traffic(self):
         """
-        The Cluster compulsary traffic (number of reads/writes), as a mapper
+        The Cluster compulsory traffic (number of reads/writes), as a mapper
         from Functions to IntervalGroups.
 
         Notes

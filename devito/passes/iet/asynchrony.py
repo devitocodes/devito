@@ -57,7 +57,7 @@ def lower_async_objs(iet, **kwargs):
 
 @singledispatch
 def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
-    # All Callables, except for AsyncCallables, may containg one or more
+    # All Callables, except for AsyncCallables, may containing one or more
     # AsyncCalls, which we have to lower into thread-activation code
     efuncs = []
     subs = {}

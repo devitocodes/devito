@@ -126,10 +126,10 @@ class NodeExprs(ScheduleTree):
 
     @property
     def __repr_render__(self):
-        ths = 2
+        threshold = 2
         n = len(self.exprs)
-        ret = ",".join("Eq" for i in range(min(n, ths)))
-        ret = ("%s,..." % ret) if n > ths else ret
+        ret = ",".join("Eq" for i in range(min(n, threshold)))
+        ret = ("%s,..." % ret) if n > threshold else ret
         return "[%s]" % ret
 
 

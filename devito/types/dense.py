@@ -94,7 +94,7 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             self._data = function._data
         elif isinstance(self._allocator, DataReference):
             # Don't want to reinitialise array if DataReference used as allocator;
-            # create a no-op intialiser to avoid overwriting the original array.
+            # create a no-op initialiser to avoid overwriting the original array.
             self._initializer = lambda x: None
         elif initializer is None or callable(initializer) or self.alias:
             # Initialization postponed until the first access to .data
@@ -1056,7 +1056,7 @@ class Function(DiscreteFunction):
             self._fd = self.__fd_setup__()
         else:
             # E.g., `self is f(x + i0, y)` and `self.function is f(x, y)`
-            # Dynamically genereating derivative shortcuts is expensive; we
+            # Dynamically generating derivative shortcuts is expensive; we
             # can clearly avoid that here though!
             self._fd = self.function._fd
 

@@ -451,7 +451,7 @@ class Fission(Queue):
 
             if test0 or guards:
                 # Heuristic: no gain from fissioning if unable to ultimately
-                # increase the number of collapsable iteration spaces, hence give up
+                # increase the number of collapsible iteration spaces, hence give up
                 processed.extend(group)
             else:
                 stamp = Stamp()
