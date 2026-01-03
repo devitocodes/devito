@@ -81,9 +81,9 @@ def as_tuple(item, type=None, length=None):
             t = (item,) * (length or 1)
 
     if length and not len(t) == length:
-        raise ValueError("Tuple needs to be of length %d" % length)
+        raise ValueError(f'Tuple needs to be of length {length}')
     if type and not all(isinstance(i, type) for i in t):
-        raise TypeError("Items need to be of type %s" % type)
+        raise TypeError(f'Items need to be of type {type}')
     return t
 
 
@@ -213,7 +213,7 @@ def filter_ordered(elements, key=None):
     if key is None:
         return list(dict.fromkeys(elements))
     else:
-        return list(dict(zip([key(i) for i in elements], elements)).values())
+        return list(dict(zip([key(i) for i in elements], elements, strict=True)).values())
 
 
 def filter_sorted(elements, key=None):
@@ -245,7 +245,7 @@ def sweep(parameters, keys=None):
     sweep_values = [[v] if isinstance(v, str) or not isinstance(v, Iterable) else v
                     for v in sweep_values]
     for vals in product(*sweep_values):
-        yield dict(zip(keys, vals))
+        yield dict(zip(keys, vals, strict=True))
 
 
 def indices_to_slices(inputlist):
@@ -263,7 +263,7 @@ def indices_to_slices(inputlist):
     """
     inputlist.sort()
     pointers = np.where(np.diff(inputlist) > 1)[0]
-    pointers = zip(np.r_[0, pointers+1], np.r_[pointers, len(inputlist)-1])
+    pointers = zip(np.r_[0, pointers+1], np.r_[pointers, len(inputlist)-1], strict=True)
     slices = [(inputlist[i], inputlist[j]+1) for i, j in pointers]
     return slices
 
@@ -310,7 +310,7 @@ def transitive_closure(R):
     {a:d, b:d, c:d}
     '''
     ans = dict()
-    for k in R.keys():
+    for k in R:
         visited = []
         ans[k] = reachable_items(R, k, visited)
     return ans
@@ -331,15 +331,15 @@ def humanbytes(B):
     TB = float(KB ** 4)  # 1,099,511,627,776
 
     if B < KB:
-        return '%d %s' % (int(B), 'B')
+        return f'{int(B)} B'
     elif KB <= B < MB:
-        return '%d KB' % round(B / KB)
+        return f'{round(B / KB)} KB'
     elif MB <= B < GB:
-        return '%d MB' % round(B / MB)
+        return f'{round(B / MB)} MB'
     elif GB <= B < TB:
-        return '%.1f GB' % round(B / GB, 1)
+        return f'{round(B / GB, 1):.1f} GB'
     elif TB <= B:
-        return '%.2f TB' % round(B / TB, 1)
+        return f'{round(B / TB, 1):.2f} TB'
 
 
 def sorted_priority(items, priority):

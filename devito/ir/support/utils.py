@@ -1,4 +1,5 @@
 from collections import defaultdict, namedtuple
+from contextlib import suppress
 from itertools import product
 
 from devito.finite_differences import IndexDerivative
@@ -139,7 +140,7 @@ def detect_accesses(exprs):
     for e in retrieve_indexed(exprs, deep=True):
         f = e.function
 
-        for a, d0 in zip(e.indices, f.dimensions):
+        for a, d0 in zip(e.indices, f.dimensions, strict=True):
             if isinstance(a, Indirection):
                 a = a.mapped
 
@@ -160,7 +161,7 @@ def detect_accesses(exprs):
                     # accesses (e.g., a[b[x, y] + 1, y]) or 2) as a result of
                     # skewing-based optimizations, such as time skewing (e.g.,
                     # `x - time + 1`) or CIRE rotation (e.g., `x + xx - 4`)
-                    d, others = split(dims, lambda i: d0 in i._defines)
+                    d, others = split(dims, lambda i: d0 in i._defines)  # noqa: B023
 
                     if any(i.is_Indexed for i in a.args) or len(d) != 1:
                         # Case 1) -- with indirect accesses there's not much we can infer
@@ -197,11 +198,9 @@ def detect_accesses(exprs):
     other_dims = set()
     for e in as_tuple(exprs):
         other_dims.update(i for i in e.free_symbols if isinstance(i, Dimension))
-        try:
+        with suppress(AttributeError):
+            # Unless not a types.Eq
             other_dims.update(e.implicit_dims or {})
-        except AttributeError:
-            # Not a types.Eq
-            pass
     other_dims = filter_sorted(other_dims)
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
@@ -243,10 +242,8 @@ def detect_io(exprs, relax=False):
     terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
     for i in terminals:
         candidates = set(i.free_symbols)
-        try:
+        with suppress(AttributeError):
             candidates.update({i.function})
-        except AttributeError:
-            pass
         for j in candidates:
             try:
                 if rule(j):
@@ -368,10 +365,8 @@ def minmax_index(expr, d):
     """
     indices = set()
     for i in retrieve_indexed(expr):
-        try:
+        with suppress(KeyError):
             indices.add(i.indices[d])
-        except KeyError:
-            pass
 
     return Extrema(min(minimum(i) for i in indices),
                    max(maximum(i) for i in indices))
@@ -388,6 +383,6 @@ def erange(expr):
 
     sdims = [d for d in udims if d.is_Stencil]
     ranges = [i.range for i in sdims]
-    mappers = [dict(zip(sdims, i)) for i in product(*ranges)]
+    mappers = [dict(zip(sdims, i, strict=True)) for i in product(*ranges)]
 
     return tuple(expr.subs(m) for m in mappers)

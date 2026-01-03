@@ -141,7 +141,7 @@ class cluster_pass:
             elif len(args) == 2:
                 func, mode = args
             else:
-                assert False
+                raise AssertionError('Too many args')
             obj = object.__new__(cls)
             obj.__init__(func, mode)
             return obj

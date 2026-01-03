@@ -115,7 +115,7 @@ class AnayzeBlockingBase(Queue):
 
         # If we are going to skew, then we might exploit reuse along an
         # otherwise SEQUENTIAL Dimension
-        if self.skewing:
+        if self.skewing:  # noqa: SIM103
             return True
 
         return False
@@ -335,10 +335,7 @@ class SynthesizeBlocking(Queue):
 
     def process(self, clusters):
         # A tool to unroll the explicit integer block shapes, should there be any
-        if self.par_tile:
-            blk_size_gen = BlockSizeGenerator(self.par_tile)
-        else:
-            blk_size_gen = None
+        blk_size_gen = BlockSizeGenerator(self.par_tile) if self.par_tile else None
 
         return self._process_fdta(clusters, 1, blk_size_gen=blk_size_gen)
 
@@ -558,12 +555,9 @@ class BlockSizeGenerator:
                 self.umt_small.iter()
             return self.umt_small.next()
 
-        if x:
-            item = self.umt.curitem()
-        else:
-            # We can't `self.umt.iter()` because we might still want to
-            # fallback to `self.umt_small`
-            item = self.umt.nextitem()
+        # We can't `self.umt.iter()` because we might still want to
+        # fallback to `self.umt_small`
+        item = self.umt.curitem() if x else self.umt.nextitem()
 
         # Handle user-provided rules
         # TODO: This is also rudimentary

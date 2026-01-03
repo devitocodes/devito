@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextlib import suppress
 from functools import partial, singledispatch, wraps
 
 import numpy as np
@@ -118,11 +119,9 @@ class Graph(Byproduct):
                     continue
 
                 for j in dag.all_predecessors(i.name):
-                    try:
+                    with suppress(KeyError):
+                        # In the case where `j` is a foreign Callable
                         v.extend(FindNodes(Iteration).visit(self.efuncs[j]))
-                    except KeyError:
-                        # `j` is a foreign Callable
-                        pass
 
         return found
 
@@ -217,10 +216,7 @@ def iet_pass(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if timed_pass.is_enabled():
-            maybe_timed = timed_pass
-        else:
-            maybe_timed = lambda func, name: func
+        maybe_timed = timed_pass if timed_pass.is_enabled() else lambda func, name: func
         try:
             # If the pass has been disabled, skip it
             if not kwargs['options'][func.__name__]:
@@ -316,7 +312,7 @@ def reuse_compounds(efuncs, sregistry=None):
 
         mapper.update({i0: i1, b0: b1})
 
-        for f0, f1 in zip(i0.fields, i1.fields):
+        for f0, f1 in zip(i0.fields, i1.fields, strict=True):
             for cls in (FieldFromComposite, FieldFromPointer):
                 if f0.is_AbstractFunction:
                     mapper[cls(f0._C_symbol, b0)] = cls(f1._C_symbol, b1)
@@ -395,7 +391,7 @@ def abstract_component_accesses(efuncs):
         f_flatten = f.func(name='flat_data', components=f.c0)
 
         subs = {}
-        for ca, o in zip(compaccs, compoff_params):
+        for ca, o in zip(compaccs, compoff_params, strict=True):
             indices = [Mul(arity_param, i, evaluate=False) for i in ca.indices]
             indices[-1] += o
             subs[ca] = f_flatten.indexed[indices]
@@ -626,7 +622,7 @@ def _(i, mapper, sregistry):
 
     name0 = pp.name
     base = sregistry.make_name(prefix=name0)
-    name1 = sregistry.make_name(prefix='%s_blk' % base)
+    name1 = sregistry.make_name(prefix=f'{base}_blk')
 
     bd = i.parent._rebuild(name1, pp)
     d = i._rebuild(name0, bd, i._min.subs(p, bd), i._max.subs(p, bd))

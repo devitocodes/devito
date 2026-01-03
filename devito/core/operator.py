@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from contextlib import suppress
 from functools import cached_property
 
 import numpy as np
@@ -182,8 +183,9 @@ class BasicOperator(Operator):
         o['parallel'] = False
 
         if oo:
-            raise InvalidOperator("Unrecognized optimization options: [%s]"
-                                  % ", ".join(list(oo)))
+            raise InvalidOperator(
+                f'Unrecognized optimization options: [{", ".join(list(oo))}]'
+            )
 
         kwargs['options'].update(o)
 
@@ -194,7 +196,7 @@ class BasicOperator(Operator):
         oo = kwargs['options']
 
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
-            raise InvalidOperator("Unsupported MPI mode `%s`" % oo['mpi'])
+            raise InvalidOperator("Unsupported MPI mode `{}`".format(oo['mpi']))
 
         if oo['cse-algo'] not in ('basic', 'smartsort', 'advanced'):
             raise InvalidOperator("Illegal `cse-algo` value")
@@ -224,8 +226,9 @@ class BasicOperator(Operator):
             else:
                 args, summary = autotune(self, args, level, mode)
         else:
-            raise ValueError("Expected bool, str, or 2-tuple, got `%s` instead"
-                             % type(setup))
+            raise ValueError(
+                f"Expected bool, str, or 2-tuple, got `{type(setup)}` instead"
+            )
 
         # Record the tuned values
         self._state.setdefault('autotuning', []).append(summary)
@@ -285,10 +288,10 @@ class CustomOperator(BasicOperator):
         for i in passes:
             if i not in cls._known_passes:
                 if i in cls._known_passes_disabled:
-                    warning("Got explicit pass `%s`, but it's unsupported on an "
-                            "Operator of type `%s`" % (i, str(cls)))
+                    warning(f"Got explicit pass `{i}`, but it's unsupported on an "
+                            f"Operator of type `{str(cls)}`")
                 else:
-                    raise InvalidOperator("Unknown pass `%s`" % i)
+                    raise InvalidOperator(f"Unknown pass `{i}`")
 
         return super()._build(expressions, **kwargs)
 
@@ -302,10 +305,8 @@ class CustomOperator(BasicOperator):
 
         # Call passes
         for i in passes:
-            try:
+            with suppress(KeyError):
                 expressions = passes_mapper[i](expressions, **kwargs)
-            except KeyError:
-                pass
 
         return expressions
 
@@ -319,10 +320,8 @@ class CustomOperator(BasicOperator):
 
         # Call passes
         for i in passes:
-            try:
+            with suppress(KeyError):
                 expressions = passes_mapper[i](expressions)
-            except KeyError:
-                pass
 
         return expressions
 
@@ -336,10 +335,8 @@ class CustomOperator(BasicOperator):
 
         # Call passes
         for i in passes:
-            try:
+            with suppress(KeyError):
                 clusters = passes_mapper[i](clusters)
-            except KeyError:
-                pass
 
         return clusters
 
@@ -460,9 +457,9 @@ class ParTile(UnboundedMultiTuple, OptOption):
                     # E.g., ((32, 4, 8),)
                     items = (ParTileArg(x),)
             else:
-                raise ValueError("Expected int or tuple, got %s instead" % type(x))
+                raise ValueError(f"Expected int or tuple, got {type(x)} instead")
         else:
-            raise ValueError("Expected bool or iterable, got %s instead" % type(items))
+            raise ValueError(f"Expected bool or iterable, got {type(items)} instead")
 
         obj = super().__new__(cls, *items)
         obj.default = as_tuple(default)

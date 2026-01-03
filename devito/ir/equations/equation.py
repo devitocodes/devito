@@ -92,9 +92,9 @@ class IREq(sympy.Eq, Pickable):
         if not self.is_Reduction:
             return super().__repr__()
         elif self.operation is OpInc:
-            return '%s += %s' % (self.lhs, self.rhs)
+            return f'{self.lhs} += {self.rhs}'
         else:
-            return '%s = %s(%s)' % (self.lhs, self.operation, self.rhs)
+            return f'{self.lhs} = {self.operation}({self.rhs})'
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -174,7 +174,7 @@ class LoweredEq(IREq):
             input_expr = args[0]
             expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
             for i in cls.__rkwargs__:
-                setattr(expr, '_%s' % i, kwargs.get(i) or getattr(input_expr, i))
+                setattr(expr, f'_{i}', kwargs.get(i) or getattr(input_expr, i))
             return expr
         elif len(args) == 1 and isinstance(args[0], Eq):
             # origin: LoweredEq(devito.Eq)
@@ -182,11 +182,11 @@ class LoweredEq(IREq):
         elif len(args) == 2:
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)
             for i in cls.__rkwargs__:
-                setattr(expr, '_%s' % i, kwargs.pop(i))
+                setattr(expr, f'_{i}', kwargs.pop(i))
             return expr
         else:
-            raise ValueError("Cannot construct LoweredEq from args=%s "
-                             "and kwargs=%s" % (str(args), str(kwargs)))
+            raise ValueError(f"Cannot construct LoweredEq from args={str(args)} "
+                             f"and kwargs={str(kwargs)}")
 
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
@@ -294,7 +294,7 @@ class ClusterizedEq(IREq):
                         v = kwargs[i]
                     except KeyError:
                         v = getattr(input_expr, i, None)
-                    setattr(expr, '_%s' % i, v)
+                    setattr(expr, f'_{i}', v)
             else:
                 expr._ispace = kwargs['ispace']
                 expr._conditionals = kwargs.get('conditionals', frozendict())
@@ -304,10 +304,10 @@ class ClusterizedEq(IREq):
             # origin: ClusterizedEq(lhs, rhs, **kwargs)
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)
             for i in cls.__rkwargs__:
-                setattr(expr, '_%s' % i, kwargs.pop(i))
+                setattr(expr, f'_{i}', kwargs.pop(i))
         else:
-            raise ValueError("Cannot construct ClusterizedEq from args=%s "
-                             "and kwargs=%s" % (str(args), str(kwargs)))
+            raise ValueError(f"Cannot construct ClusterizedEq from args={str(args)} "
+                             f"and kwargs={str(kwargs)}")
         return expr
 
     func = IREq._rebuild
@@ -330,5 +330,5 @@ class DummyEq(ClusterizedEq):
         elif len(args) == 2:
             obj = LoweredEq(Eq(*args, evaluate=False))
         else:
-            raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
+            raise ValueError(f"Cannot construct DummyEq from args={str(args)}")
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)

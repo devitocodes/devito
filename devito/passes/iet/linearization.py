@@ -34,10 +34,7 @@ def linearize(graph, **kwargs):
     else:
         key = lambda f: f.is_AbstractFunction and f.ndim > 1 and not f._mem_stack
 
-    if options['index-mode'] == 'int32':
-        dtype = np.int32
-    else:
-        dtype = np.int64
+    dtype = np.int32 if options['index-mode'] == 'int32' else np.int64
 
     # NOTE: Even if `mode=False`, `key` may still want to enforce linearization
     # of some Functions, so it takes precedence and we then attempt to linearize
@@ -157,7 +154,7 @@ class Tracker:
             k = key1(f, d)
             if not k or k in self.sizes:
                 continue
-            name = self.sregistry.make_name(prefix='%s_fsz' % d.name)
+            name = self.sregistry.make_name(prefix=f'{d.name}_fsz')
             self.sizes[k] = Size(name=name, dtype=dtype, is_const=True)
 
         # Update unique strides table
@@ -168,7 +165,7 @@ class Tracker:
                 continue
             if k in self.strides:
                 continue
-            name = self.sregistry.make_name(prefix='%s_stride' % d.name)
+            name = self.sregistry.make_name(prefix=f'{d.name}_stride')
             self.strides[k] = Stride(name=name, dtype=dtype, is_const=True)
 
     def update(self, functions):
@@ -192,7 +189,7 @@ class Tracker:
             sizes = self.get_sizes(f)
             return {d: self.strides[sizes[n:]] for n, d in enumerate(dims)}
         elif f in self.strides_dynamic:
-            return {d: i for d, i in zip(dims, self.strides_dynamic[f])}
+            return {d: i for d, i in zip(dims, self.strides_dynamic[f], strict=True)}
         else:
             return {}
 
@@ -270,9 +267,8 @@ def linearize_accesses(iet, key0, tracker=None):
     # 4) What `strides` can indeed be constructed?
     mapper = {}
     for sizes, stride in tracker.strides.items():
-        if stride in candidates:
-            if set(sizes).issubset(instances):
-                mapper[stride] = sizes
+        if stride in candidates and set(sizes).issubset(instances):
+            mapper[stride] = sizes
 
     # 5) Construct what needs to *and* can be constructed
     stmts, stmts1 = [], []
@@ -316,7 +312,7 @@ def _(f, d):
 
 @singledispatch
 def _generate_linearization_basic(f, i, tracker):
-    assert False
+    raise AssertionError('This is not allowed')
 
 
 @_generate_linearization_basic.register(DiscreteFunction)
@@ -397,7 +393,7 @@ def linearize_transfers(iet, sregistry=None, **kwargs):
                 start, size = imask[0], 1
 
             if start != 0:  # Spare the ugly generated code if unnecessary (occurs often)
-                name = sregistry.make_name(prefix='%s_ofs' % n.function.name)
+                name = sregistry.make_name(prefix=f'{n.function.name}_ofs')
                 wildcard = Wildcard(name=name, dtype=np.int32, is_const=True)
 
                 symsect = n._rebuild(imask=imask).sections

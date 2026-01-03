@@ -187,10 +187,17 @@ def parallel(item, m):
     testname = get_testname(item)
     # Only spew tracebacks on rank 0.
     # Run xfailing tests to ensure that errors are reported to calling process
-    args = ["-n", "1", pyversion, "-m", "pytest", "-s", "--runxfail", "-qq", testname]
+    args = [
+        "-n", "1", pyversion, "-m", "pytest", "-s", "--runxfail", "-v",
+        "--timeout=600", "--timeout-method=thread", "-o faulthandler_timeout=660",
+        testname
+    ]
     if nprocs > 1:
-        args.extend([":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
-                     "-s", "--runxfail", "--tb=no", "-qq", "--no-summary", testname])
+        args.extend([
+            ":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
+            "-s", "--runxfail", "-v", "--timeout=600", "--timeout-method=thread",
+            "-o faulthandler_timeout=660", testname
+        ])
     # OpenMPI requires an explicit flag for oversubscription. We need it as some
     # of the MPI tests will spawn lots of processes
     if mpi_distro == 'OpenMPI':

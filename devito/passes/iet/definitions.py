@@ -98,10 +98,7 @@ class DataManager:
         """
         decl = Definition(obj)
 
-        if obj._C_init:
-            definition = (decl, obj._C_init)
-        else:
-            definition = (decl)
+        definition = (decl, obj._C_init) if obj._C_init else (decl)
 
         frees = obj._C_free
 
@@ -130,7 +127,7 @@ class DataManager:
             return
 
         # Create input array
-        name = '%s_init' % obj.name
+        name = f'{obj.name}_init'
         initvalue = np.array([unevaluate(pow_to_mul(i)) for i in obj.initvalue])
         src = Array(name=name, dtype=obj.dtype, dimensions=obj.dimensions,
                     space='host', scope='stack', initvalue=initvalue)
@@ -693,7 +690,9 @@ class DeviceAwareDataManager(DataManager):
 
 def make_zero_init(obj, rcompile, sregistry):
     cdims = []
-    for d, (h0, h1), s in zip(obj.dimensions, obj._size_halo, obj.symbolic_shape):
+    for d, (h0, h1), s in zip(
+        obj.dimensions, obj._size_halo, obj.symbolic_shape, strict=True
+    ):
         if d.is_NonlinearDerived:
             assert h0 == h1 == 0
             m = 0

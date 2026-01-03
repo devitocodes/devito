@@ -109,7 +109,7 @@ class FIndexed(Indexed, Pickable):
         return obj
 
     def __repr__(self):
-        return "%s(%s)" % (self.name, ", ".join(str(i) for i in self.indices))
+        return "{}({})".format(self.name, ", ".join(str(i) for i in self.indices))
 
     __str__ = __repr__
 
@@ -156,7 +156,10 @@ class FIndexed(Indexed, Pickable):
         macroargnames = [d.name for d in f.dimensions]
         macroargs = [MacroArgument(i) for i in macroargnames]
 
-        items = [m*strides_map[d] for m, d in zip(macroargs, f.dimensions[1:])]
+        items = [
+            m*strides_map[d]
+            for m, d in zip(macroargs, f.dimensions[1:], strict=False)
+        ]
         items.append(MacroArgument(f.dimensions[-1].name))
 
         define = DefFunction(pname, macroargnames)
@@ -356,8 +359,10 @@ class CriticalRegion(sympy.Function, Fence):
         self.opening = opening
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__,
-                           'OPEN' if self.opening else 'CLOSE')
+        return "{}({})".format(
+            self.__class__.__name__,
+            'OPEN' if self.opening else 'CLOSE'
+        )
 
     __str__ = __repr__
 

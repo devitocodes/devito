@@ -88,7 +88,7 @@ class HierarchyLayer:
         self.suffix = suffix
 
     def __repr__(self):
-        return "Layer<%s>" % self.suffix
+        return f"Layer<{self.suffix}>"
 
     def __eq__(self, other):
         return (isinstance(other, HierarchyLayer) and

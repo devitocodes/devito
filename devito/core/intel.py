@@ -4,14 +4,14 @@ from devito.core.cpu import (
 )
 
 __all__ = [
-                             'Intel64AdvCOperator',
-                             'Intel64AdvCXXOmpOperator',
-                             'Intel64AdvOmpOperator',
-                             'Intel64CXXAdvCOperator',
-                             'Intel64FsgCOperator',
-                             'Intel64FsgCXXOmpOperator',
-                             'Intel64FsgCXXOperator',
-                             'Intel64FsgOmpOperator',
+    'Intel64AdvCOperator',
+    'Intel64AdvCXXOmpOperator',
+    'Intel64AdvOmpOperator',
+    'Intel64CXXAdvCOperator',
+    'Intel64FsgCOperator',
+    'Intel64FsgCXXOmpOperator',
+    'Intel64FsgCXXOperator',
+    'Intel64FsgOmpOperator',
 ]
 
 

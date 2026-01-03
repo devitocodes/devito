@@ -119,7 +119,7 @@ def relax_incr_dimensions(iet, options=None, **kwargs):
         roots_max = {i.dim.root: i.symbolic_max for i in outer}
 
         # Process inner iterations and adjust their bounds
-        for n, i in enumerate(inner):
+        for _, i in enumerate(inner):
             # If definitely in-bounds, as ensured by a prior compiler pass, then
             # we can skip this step
             if i.is_Inbound:
@@ -193,7 +193,7 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
         except KeyError:
             pass
 
-        pname = sregistry.make_name(prefix='%sL' % i.name)
+        pname = sregistry.make_name(prefix=f'{i.name}L')
         header, v = i.bind(pname)
 
         subs[i] = v
@@ -284,7 +284,7 @@ def remove_redundant_moddims(iet):
     subs = {d: sympy.S.Zero for d in degenerates}
 
     redundants = as_mapper(others, key=lambda d: d.offset % d.modulo)
-    for k, v in redundants.items():
+    for _, v in redundants.items():
         chosen = v.pop(0)
         subs.update({d: chosen for d in v})
 

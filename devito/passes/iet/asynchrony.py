@@ -160,7 +160,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     wrap = While(CondNe(FieldFromPointer(sdata.symbolic_flag, sbase), 0), wrap)
 
     # pthread functions expect exactly one argument of type void*
-    tparameter = Pointer(name='_%s' % sdata.name)
+    tparameter = Pointer(name=f'_{sdata.name}')
 
     # Unpack `sdata`
     unpacks = [PointerCast(sdata, tparameter), BlankLine]
@@ -184,7 +184,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
         callback = lambda body: Iteration(list(body) + footer, d, threads.size - 1)
 
     # Create an efunc to initialize `sdata` and tear up the pthreads
-    name = 'init_%s' % sdata.name
+    name = f'init_{sdata.name}'
     body = []
     for i in sdata.cfields:
         if i.is_AbstractFunction:
@@ -230,7 +230,7 @@ def inject_async_tear_updown(iet, tracker=None, **kwargs):
 
     tearup = []
     teardown = []
-    for sdata, threads, init, shutdown in tracker.values():
+    for _, threads, init, shutdown in tracker.values():
         # Tear-up
         arguments = list(init.parameters)
         for n, a in enumerate(list(arguments)):

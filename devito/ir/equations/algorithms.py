@@ -126,11 +126,11 @@ def _lower_exprs(expressions, subs):
 
             # Introduce shifting to align with the computational domain
             indices = [_lower_exprs(a, subs) + o for a, o in
-                       zip(i.indices, f._size_nodomain.left)]
+                       zip(i.indices, f._size_nodomain.left, strict=True)]
 
             # Substitute spacing (spacing only used in own dimension)
             indices = [i.xreplace({d.spacing: 1, -d.spacing: -1})
-                       for i, d in zip(indices, f.dimensions)]
+                       for i, d in zip(indices, f.dimensions, strict=True)]
 
             # Apply substitutions, if necessary
             if dimension_map:
@@ -140,7 +140,7 @@ def _lower_exprs(expressions, subs):
             if isinstance(f, Array) and f.initvalue is not None:
                 initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
                 # TODO: fix rebuild to avoid new name
-                f = f._rebuild(name='%si' % f.name, initvalue=initvalue)
+                f = f._rebuild(name=f'{f.name}i', initvalue=initvalue)
 
             mapper[i] = f.indexed[indices]
         # Add dimensions map to the mapper in case dimensions are used
@@ -319,8 +319,10 @@ def _(d, mapper, rebuilt, sregistry):
         # Warn the user if name has been changed, since this will affect overrides
         if fname != d.functions.name:
             fkwargs['name'] = fname
-            warning("%s <%s> renamed as '%s'. Consider assigning a unique name to %s." %
-                    (str(d.functions), id(d.functions), fname, d.functions.name))
+            warning(
+                f"{str(d.functions)} <{id(d.functions)}> renamed as '{fname}'. "
+                "Consider assigning a unique name to {d.functions.name}."
+            )
 
         fkwargs.update({'function': None,
                         'halo': None,

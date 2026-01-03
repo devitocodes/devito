@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from contextlib import suppress
 from functools import singledispatch
 
 from sympy import Or
@@ -95,11 +96,11 @@ class Orchestrator:
             qid = None
 
         body = list(iet.body)
-        try:
-            body.extend([self.langbb._map_update_device(s.target, s.imask, qid=qid)
-                         for s in sync_ops])
-        except NotImplementedError:
-            pass
+        with suppress(NotImplementedError):
+            body.extend([
+                self.langbb._map_update_device(s.target, s.imask, qid=qid)
+                for s in sync_ops
+            ])
         iet = List(body=body)
 
         return iet, []
@@ -212,11 +213,11 @@ def _(layer, iet, sync_ops, lang, sregistry):
         body.extend([DummyExpr(s.handle, 1) for s in sync_ops])
         body.append(BlankLine)
 
-        name = 'copy_to_%s' % layer.suffix
+        name = f'copy_to_{layer.suffix}'
     except NotImplementedError:
         # A non-device backend
         body = []
-        name = 'copy_from_%s' % layer.suffix
+        name = f'copy_from_{layer.suffix}'
 
     body.extend(list(iet.body))
 
@@ -243,10 +244,10 @@ def _(layer, iet, sync_ops, lang, sregistry):
             body.append(lang._map_wait(qid))
         body.append(BlankLine)
 
-        name = 'prefetch_from_%s' % layer.suffix
+        name = f'prefetch_from_{layer.suffix}'
     except NotImplementedError:
         body = []
-        name = 'prefetch_to_%s' % layer.suffix
+        name = f'prefetch_to_{layer.suffix}'
 
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 

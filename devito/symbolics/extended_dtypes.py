@@ -97,6 +97,6 @@ for (base_name, dtype) in dtype_mapper.items():
     name = base_name.upper()
     globals()[name] = type(name, (BaseCast,), {'_dtype': dtype})
     for i in ['2', '3', '4']:
-        v = '%s%s' % (base_name, i)
+        v = f'{base_name}{i}'
         globals()[v.upper()] = cast(v)
         globals()[f'{v.upper()}P'] = cast(v, '*')

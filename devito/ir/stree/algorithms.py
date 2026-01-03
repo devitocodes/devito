@@ -46,7 +46,7 @@ def stree_build(clusters, profiler=None, **kwargs):
             maybe_reusable = []
 
         index = 0
-        for it0, it1 in zip(c.itintervals, maybe_reusable):
+        for it0, it1 in zip(c.itintervals, maybe_reusable, strict=False):
             if it0 != it1:
                 break
 
@@ -204,7 +204,9 @@ def preprocess(clusters, options=None, **kwargs):
 
             syncs = normalize_syncs(*[c1.syncs for c1 in found])
             if syncs:
-                ispace = c.ispace.prefix(lambda d: d._defines.intersection(syncs))
+                ispace = c.ispace.prefix(
+                    lambda d: d._defines.intersection(syncs)  # noqa: B023
+                )
                 processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
             if all(c1.ispace.is_subset(c.ispace) for c1 in found):
@@ -228,9 +230,9 @@ def preprocess(clusters, options=None, **kwargs):
     # Sanity check!
     try:
         assert not queue
-    except AssertionError:
+    except AssertionError as e:
         if options['mpi']:
-            raise RuntimeError("Unsupported MPI for the given equations")
+            raise RuntimeError("Unsupported MPI for the given equations") from e
 
     return processed
 
@@ -290,7 +292,7 @@ def reuse_section(candidate, section):
     # * Same set of iteration Dimensions
     key = lambda i: i.interval.promote(lambda d: d.is_Block).dim
     test00 = len(iters0) == len(iters1)
-    test01 = all(key(i) is key(j) for i, j in zip(iters0, iters1))
+    test01 = all(key(i) is key(j) for i, j in zip(iters0, iters1, strict=False))
 
     # * All subtrees use at least one local SubDimension (i.e., BCs)
     key = lambda iters: any(i.dim.is_Sub and i.dim.local for i in iters)

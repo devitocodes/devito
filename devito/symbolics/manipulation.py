@@ -301,7 +301,7 @@ def xreplace_indices(exprs, mapper, key=None):
         handle = [i for i in handle if i.base.label in key]
     elif callable(key):
         handle = [i for i in handle if key(i)]
-    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
+    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle], strict=True))
     replaced = [uxreplace(i, mapper) for i in as_tuple(exprs)]
     return replaced if isinstance(exprs, Iterable) else replaced[0]
 
@@ -312,10 +312,7 @@ def _eval_numbers(expr, args):
     """
     numbers, others = split(args, lambda i: i.is_Number)
     if len(numbers) > 1:
-        if isinstance(expr, UnevaluableMixin):
-            cls = expr.func.__base__
-        else:
-            cls = expr.func
+        cls = expr.func.__base__ if isinstance(expr, UnevaluableMixin) else expr.func
         args[:] = [cls(*numbers)] + others
 
 
@@ -427,7 +424,7 @@ def reuse_if_untouched(expr, args, evaluate=False):
     Reconstruct `expr` iff any of the provided `args` is different than
     the corresponding arg in `expr.args`.
     """
-    if all(a is b for a, b in zip(expr.args, args)):
+    if all(a is b for a, b in zip(expr.args, args, strict=False)):
         return expr
     else:
         return expr.func(*args, evaluate=evaluate)
