@@ -48,10 +48,7 @@ def _lower_index_derivatives(clusters, **kwargs):
         for e in c.exprs:
             # Optimization 1: if the LHS is already a Symbol, then surely it's
             # usable as a temporary for one of the IndexDerivatives inside `e`
-            if e.lhs.is_Symbol and e.operation is None:
-                reusable = {e.lhs}
-            else:
-                reusable = set()
+            reusable = {e.lhs} if e.lhs.is_Symbol and e.operation is None else set()
 
             expr, v = _core(e, c, c.ispace, weights, reusable, mapper, **kwargs)
 
@@ -110,7 +107,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
         cbk0 = deriv_schedule_registry[options['deriv-schedule']]
         cbk1 = deriv_unroll_registry[options['deriv-unroll']]
     except KeyError:
-        raise ValueError("Unknown derivative lowering mode")
+        raise ValueError("Unknown derivative lowering mode") from None
 
     # Lower the IndexDerivative
     init, ideriv = cbk0(expr)

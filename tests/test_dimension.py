@@ -1809,9 +1809,12 @@ class TestConditionalDimension:
         # proxy integral
         f.data[:] = np.array(freq[:])
         # Proxy Fourier integral holder
-        u_re = Function(name="u_re", grid=grid,
-                       dimensions=(freq_dim,) + u.indices[1:],
-                       shape=(nfreq,) + u.shape[1:])
+        u_re = Function(
+            name="u_re",
+            grid=grid,
+            dimensions=(freq_dim,) + u.indices[1:],
+            shape=(nfreq,) + u.shape[1:]
+        )
 
         # ConditionalDimension based on `f` to simulate bounds of Fourier integral
         ct = ConditionalDimension(name="ct", parent=time, condition=Ge(time, f))

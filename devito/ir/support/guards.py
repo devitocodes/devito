@@ -454,7 +454,9 @@ def simplify_and(relation, v):
             covered = True
 
             try:
-                if type(a) in (Gt, Ge) and v.rhs > a.rhs or type(a) in (Lt, Le) and v.rhs < a.rhs:
+                if type(a) in (Gt, Ge) \
+                        and v.rhs > a.rhs or type(a) in (Lt, Le) \
+                        and v.rhs < a.rhs:
                     new_args.append(v)
                 else:
                     new_args.append(a)

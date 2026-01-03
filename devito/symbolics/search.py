@@ -104,10 +104,7 @@ def search(exprs: Expression | Iterable[Expression],
 
     assert mode in ('all', 'unique'), "Unknown mode"
 
-    if isinstance(query, type):
-        Q = lambda obj: isinstance(obj, query)
-    else:
-        Q = query
+    Q = (lambda obj: isinstance(obj, query)) if isinstance(query, type) else query
 
     # Search doesn't actually use a BFS (rather, a preorder DFS), but the terminology
     # is retained in this function's parameters for backwards compatibility
@@ -164,7 +161,7 @@ def retrieve_function_carriers(exprs, mode='all'):
     # Filter off Indexeds not carrying a DiscreteFunction
     for i in list(retval):
         try:
-            i.function
+            _ = i.function
         except AttributeError:
             retval.remove(i)
     return retval

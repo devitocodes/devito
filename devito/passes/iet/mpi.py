@@ -243,10 +243,7 @@ def _drop_if_unwritten(iet, options=None, **kwargs):
     which would call the generated library directly.
     """
     drop_unwritten = options['dist-drop-unwritten']
-    if not callable(drop_unwritten):
-        key = lambda f: drop_unwritten
-    else:
-        key = drop_unwritten
+    key = (lambda f: drop_unwritten) if not callable(drop_unwritten) else drop_unwritten
 
     # Analysis
     writes = {i.write for i in FindNodes(Expression).visit(iet)}
@@ -525,7 +522,7 @@ def _semantical_eq_loc_indices(hsf0, hsf1):
     if hsf0.loc_indices != hsf1.loc_indices:
         return False
 
-    for v0, v1 in zip(hsf0.loc_values, hsf1.loc_values):
+    for v0, v1 in zip(hsf0.loc_values, hsf1.loc_values, strict=False):
         if v0 is v1:
             continue
 

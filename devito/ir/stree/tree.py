@@ -29,8 +29,7 @@ class ScheduleTree(NodeMixin):
         return render(self)
 
     def visit(self):
-        for i in PostOrderIter(self):
-            yield i
+        yield from PostOrderIter(self)
 
     @property
     def last(self):
@@ -79,7 +78,7 @@ class NodeIteration(ScheduleTree):
 
     @property
     def __repr_render__(self):
-        return "%s%s" % (self.dim, self.direction)
+        return f"{self.dim}{self.direction}"
 
 
 class NodeConditional(ScheduleTree):
@@ -105,7 +104,7 @@ class NodeSync(ScheduleTree):
 
     @property
     def __repr_render__(self):
-        return "Sync[%s]" % ",".join(i.__class__.__name__ for i in self.sync_ops)
+        return "Sync[{}]".format(",".join(i.__class__.__name__ for i in self.sync_ops))
 
     @property
     def is_async(self):
@@ -129,8 +128,8 @@ class NodeExprs(ScheduleTree):
         threshold = 2
         n = len(self.exprs)
         ret = ",".join("Eq" for i in range(min(n, threshold)))
-        ret = ("%s,..." % ret) if n > threshold else ret
-        return "[%s]" % ret
+        ret = (f"{ret},...") if n > threshold else ret
+        return f"[{ret}]"
 
 
 class NodeHalo(ScheduleTree):

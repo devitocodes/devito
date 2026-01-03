@@ -1,6 +1,7 @@
 import ctypes
 import shutil
 from collections import OrderedDict, namedtuple
+from contextlib import suppress
 from functools import cached_property
 from math import ceil
 from operator import attrgetter
@@ -400,10 +401,8 @@ class Operator(Callable):
 
         # Operation count after specialization
         final_ops = sum(estimate_cost(c.exprs) for c in clusters if c.is_dense)
-        try:
+        with suppress(AttributeError):
             profiler.record_ops_variation(init_ops, final_ops)
-        except AttributeError:
-            pass
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters)
@@ -468,10 +467,8 @@ class Operator(Callable):
         uiet = iet_build(stree)
 
         # Analyze the IET Sections for C-level profiling
-        try:
+        with suppress(AttributeError):
             profiler.analyze(uiet)
-        except AttributeError:
-            pass
 
         return uiet
 
@@ -626,11 +623,11 @@ class Operator(Callable):
             args.update(p._arg_values(estimate_memory=estimate_memory, **kwargs))
             try:
                 args.reduce_inplace()
-            except ValueError:
+            except ValueError as e:
                 v = [i for i in overrides if i.name in args]
                 raise InvalidArgument(
                     f"Override `{p}` is incompatible with overrides `{v}`"
-                )
+                ) from e
 
         # Process data-carrier defaults
         for p in defaults:
@@ -756,10 +753,8 @@ class Operator(Callable):
         ret = set()
         for i in self.input:
             ret.update(i._arg_names)
-            try:
+            with suppress(AttributeError):
                 ret.update(i.grid._arg_names)
-            except AttributeError:
-                pass
         for d in self.dimensions:
             ret.update(d._arg_names)
         ret.update(p.name for p in self.parameters)
@@ -1009,11 +1004,10 @@ class Operator(Callable):
         except ctypes.ArgumentError as e:
             if e.args[0].startswith("argument "):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
-                newmsg = "error in argument '%s' with value '%s': %s" % (
-                    self.parameters[argnum].name,
-                    arg_values[argnum],
-                    e.args[0])
-                raise ctypes.ArgumentError(newmsg) from e
+                raise ctypes.ArgumentError(
+                    f"error in argument '{self.parameters[argnum].name}' with value"
+                    f" '{arg_values[argnum]}': {e.args[0]}"
+                ) from e
             else:
                 raise
 
@@ -1064,7 +1058,7 @@ class Operator(Callable):
         _emit_timings(timings, '  * ')
 
         if self._profiler._ops:
-            ops = ['%d --> %d' % i for i in self._profiler._ops]
+            ops = [f'{i[0]} --> {i[1]}' for i in self._profiler._ops]
             perf(f"Flops reduction after symbolic optimization: [{' ; '.join(ops)}]")
 
     def _emit_apply_profiling(self, args):
@@ -1410,12 +1404,12 @@ class ArgumentsMap(dict):
             else:
                 try:
                     return visible_devices[logical_deviceid]
-                except IndexError:
+                except IndexError as e:
                     errmsg = (f"A deviceid value of {logical_deviceid} is not valid "
                               f"with {visible_device_var}={visible_devices}. Note that "
                               "deviceid corresponds to the logical index within the "
                               "visible devices, not the physical device index.")
-                    raise ValueError(errmsg)
+                    raise ValueError(errmsg) from e
         else:
             return None
 
@@ -1444,10 +1438,9 @@ class ArgumentsMap(dict):
         mapper[host_layer] = int(ANYCPU.memavail() / nproc)
 
         for layer in (host_layer, device_layer):
-            try:
+            with suppress(KeyError):
+                # Since might not have this layer in the mapper
                 mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
-            except KeyError:  # Might not have this layer in the mapper
-                pass
 
         mapper = {k: int(v) for k, v in mapper.items()}
 
@@ -1510,10 +1503,7 @@ class ArgumentsMap(dict):
                or not i.is_regular:
                 continue
 
-            if i.is_regular:
-                nbytes = i.nbytes
-            else:
-                nbytes = i.nbytes_max
+            nbytes = i.nbytes if i.is_regular else i.nbytes_max
             v = subs_op_args(nbytes, self)
             if not is_integer(v):
                 # E.g. the Arrays used to store the MPI halo exchanges

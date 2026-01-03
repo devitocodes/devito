@@ -1,4 +1,3 @@
-from abc import ABC
 from functools import singledispatch
 from itertools import takewhile
 
@@ -30,7 +29,7 @@ class LangMeta(type):
 
     def __getitem__(self, k):
         if k not in self.mapper:
-            raise NotImplementedError("Missing required mapping for `%s`" % k)
+            raise NotImplementedError(f"Missing required mapping for `{k}`")
         return self.mapper[k]
 
     def get(self, k, v=None):
@@ -149,7 +148,7 @@ class LangBB(metaclass=LangMeta):
         raise NotImplementedError
 
 
-class LangTransformer(ABC):
+class LangTransformer:
 
     """
     Abstract base class defining a series of methods capable of specializing
@@ -473,13 +472,13 @@ class DeviceAwareMixin:
             if objcomm is not None:
                 body = _make_setdevice_mpi(iet, objcomm, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s+MPI setup' % self.langbb['name'])
-                footer = c.Comment('End of %s+MPI setup' % self.langbb['name'])
+                header = c.Comment(f'Beginning of {self.langbb["name"]}+MPI setup')
+                footer = c.Comment(f'End of {self.langbb["name"]}+MPI setup')
             else:
                 body = _make_setdevice_seq(iet, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s setup' % self.langbb['name'])
-                footer = c.Comment('End of %s setup' % self.langbb['name'])
+                header = c.Comment(f'Beginning of {self.langbb["name"]} setup')
+                footer = c.Comment(f'End of {self.langbb["name"]} setup')
 
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
@@ -543,7 +542,7 @@ def make_sections_from_imask(f, imask=None):
     datashape = infer_transfer_datashape(f, imask)
 
     sections = []
-    for i, j in zip(imask, datashape):
+    for i, j in zip(imask, datashape, strict=False):
         if i is FULL:
             start, size = 0, j
         else:

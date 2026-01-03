@@ -1,3 +1,4 @@
+from contextlib import suppress
 from functools import cached_property
 from itertools import chain
 
@@ -60,7 +61,7 @@ class Cluster:
         self._halo_scheme = halo_scheme
 
     def __repr__(self):
-        return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
+        return "Cluster([{}])".format(('\n' + ' '*9).join(f'{i}' for i in self.exprs))
 
     @classmethod
     def from_clusters(cls, *clusters):
@@ -96,9 +97,11 @@ class Cluster:
 
         try:
             syncs = normalize_syncs(*[c.syncs for c in clusters])
-        except ValueError:
-            raise ValueError("Cannot build a Cluster from Clusters with "
-                             "non-compatible synchronization operations")
+        except ValueError as e:
+            raise ValueError(
+                "Cannot build a Cluster from Clusters with "
+                "non-compatible synchronization operations"
+            ) from e
 
         halo_scheme = HaloScheme.union([c.halo_scheme for c in clusters])
 
@@ -186,10 +189,8 @@ class Cluster:
         """
         ret = set()
         for f in self.functions:
-            try:
+            with suppress(AttributeError):
                 ret.update(f._dist_dimensions)
-            except AttributeError:
-                pass
         return frozenset(ret)
 
     @cached_property
@@ -396,10 +397,7 @@ class Cluster:
         oobs = set()
         for f, v in parts.items():
             for i in v:
-                if i.dim.is_Sub:
-                    d = i.dim.parent
-                else:
-                    d = i.dim
+                d = i.dim.parent if i.dim.is_Sub else i.dim
                 try:
                     if i.lower < 0 or \
                        i.upper > f._size_nodomain[d].left + f._size_halo[d].right:

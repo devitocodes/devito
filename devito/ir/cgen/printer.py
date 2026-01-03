@@ -1,6 +1,8 @@
 """
 Utilities to turn SymPy objects into C strings.
 """
+from contextlib import suppress
+
 import numpy as np
 import sympy
 from mpmath.libmp import prec_to_dps, to_str
@@ -115,10 +117,8 @@ class BasePrinter(CodePrinter):
             return f'{ctype} *'
 
     def _print_type(self, expr):
-        try:
+        with suppress(TypeError):
             expr = dtype_to_ctype(expr)
-        except TypeError:
-            pass
         try:
             return self.type_mappings[expr]
         except KeyError:
@@ -308,10 +308,7 @@ class BasePrinter(CodePrinter):
         """Print a Float in C-like scientific notation."""
         prec = expr._prec
 
-        if prec < 5:
-            dps = 0
-        else:
-            dps = prec_to_dps(expr._prec)
+        dps = 0 if prec < 5 else prec_to_dps(expr._prec)
 
         if self._settings["full_prec"] is True:
             strip = False

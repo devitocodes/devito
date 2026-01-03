@@ -97,7 +97,7 @@ class NullInterval(AbstractInterval):
     is_Null = True
 
     def __repr__(self):
-        return "%s[Null]%s" % (self.dim, self.stamp)
+        return f"{self.dim}[Null]{self.stamp}"
 
     def __hash__(self):
         return hash(self.dim)
@@ -149,7 +149,7 @@ class Interval(AbstractInterval):
             self.upper = upper
 
     def __repr__(self):
-        return "%s[%s,%s]%s" % (self.dim, self.lower, self.upper, self.stamp)
+        return f"{self.dim}[{self.lower},{self.upper}]{self.stamp}"
 
     def __hash__(self):
         return hash((self.dim, self.offsets))
@@ -247,8 +247,9 @@ class Interval(AbstractInterval):
             ovl, ovu = Vector(o.lower, smart=True), Vector(o.upper, smart=True)
             return Interval(self.dim, vmin(svl, ovl)[0], vmax(svu, ovu)[0], self.stamp)
         else:
-            raise ValueError("Cannot compute union of non-compatible Intervals (%s, %s)" %
-                             (self, o))
+            raise ValueError(
+                f"Cannot compute union of non-compatible Intervals ({self}, {o})"
+            )
 
     def add(self, o):
         if not self.is_compatible(o):
@@ -312,8 +313,10 @@ class IntervalGroup(Ordering):
     @classmethod
     def reorder(cls, items, relations):
         if not all(isinstance(i, AbstractInterval) for i in items):
-            raise ValueError("Cannot create IntervalGroup from objs of type [%s]" %
-                             ', '.join(str(type(i)) for i in items))
+            raise ValueError(
+                'Cannot create IntervalGroup from objs of type '
+                f'[{", ".join(str(type(i)) for i in items)}]'
+            )
 
         if len(relations) == 1:
             # Special case: avoid expensive topological sorting if possible
@@ -332,7 +335,7 @@ class IntervalGroup(Ordering):
             return super().simplify_relations(relations, items, mode)
 
     def __eq__(self, o):
-        return len(self) == len(o) and all(i == j for i, j in zip(self, o))
+        return len(self) == len(o) and all(i == j for i, j in zip(self, o, strict=True))
 
     def __contains__(self, d):
         return any(i.dim is d for i in self)
@@ -341,7 +344,7 @@ class IntervalGroup(Ordering):
         return hash(tuple(self))
 
     def __repr__(self):
-        return "IntervalGroup[%s]" % (', '.join([repr(i) for i in self]))
+        return "IntervalGroup[{}]".format(', '.join([repr(i) for i in self]))
 
     @cached_property
     def dimensions(self):
@@ -426,7 +429,7 @@ class IntervalGroup(Ordering):
         """
         if set(self) != set(o):
             return False
-        if all(i == j for i, j in zip(self, o)):
+        if all(i == j for i, j in zip(self, o, strict=True)):
             # Same input ordering, definitely compatible
             return True
         try:
@@ -550,7 +553,7 @@ class IntervalGroup(Ordering):
             return super().index(key)
         elif isinstance(key, Dimension):
             return super().index(self[key])
-        raise ValueError("Expected Interval or Dimension, got `%s`" % type(key))
+        raise ValueError(f"Expected Interval or Dimension, got `{type(key)}`")
 
     def __getitem__(self, key):
         if is_integer(key):
@@ -621,7 +624,7 @@ class IterationInterval(Interval):
         self.direction = direction
 
     def __repr__(self):
-        return "%s%s" % (super().__repr__(), self.direction)
+        return f"{super().__repr__()}{self.direction}"
 
     def __eq__(self, other):
         if not isinstance(other, IterationInterval):
@@ -654,8 +657,10 @@ class Space:
             self._intervals = IntervalGroup(as_tuple(intervals))
 
     def __repr__(self):
-        return "%s[%s]" % (self.__class__.__name__,
-                           ", ".join(repr(i) for i in self.intervals))
+        return "{}[{}]".format(
+            self.__class__.__name__,
+            ", ".join(repr(i) for i in self.intervals)
+        )
 
     def __eq__(self, other):
         return isinstance(other, Space) and self.intervals == other.intervals
@@ -667,8 +672,7 @@ class Space:
         return len(self.intervals)
 
     def __iter__(self):
-        for i in self.intervals:
-            yield i
+        yield from self.intervals
 
     @property
     def intervals(self):
@@ -719,7 +723,7 @@ class DataSpace(Space):
         parts = {k: v.expand() for k, v in (parts or {}).items()}
         for k, v in list(parts.items()):
             dims = set().union(*[d._defines for d in k.dimensions])
-            parts[k] = v.drop(lambda d: d not in dims)
+            parts[k] = v.drop(lambda d: d not in dims)  # noqa: B023
         self._parts = frozendict(parts)
 
     def __eq__(self, other):
@@ -798,9 +802,9 @@ class IterationSpace(Space):
             self._directions = frozendict(directions)
 
     def __repr__(self):
-        ret = ', '.join(["%s%s" % (repr(i), repr(self.directions[i.dim]))
+        ret = ', '.join([f"{repr(i)}{repr(self.directions[i.dim])}"
                          for i in self.intervals])
-        return "IterationSpace[%s]" % ret
+        return f"IterationSpace[{ret}]"
 
     def __eq__(self, other):
         if self is other:
@@ -853,8 +857,8 @@ class IterationSpace(Space):
                     directions[k] = v
                 elif v is not Any:
                     # Clash detected
-                    raise ValueError("Cannot compute %s of `IterationSpace`s "
-                                     "with incompatible directions" % op)
+                    raise ValueError(f"Cannot compute {op} of `IterationSpace`s "
+                                     "with incompatible directions")
 
         sub_iterators = {}
         for i in others:
@@ -922,10 +926,7 @@ class IterationSpace(Space):
             * either `cond(d)` is true (`cond` is a callable),
             * or `d in cond` is true (`cond` is an iterable)
         """
-        if callable(cond):
-            func = cond
-        else:
-            func = lambda i: i in cond
+        func = cond if callable(cond) else lambda i: i in cond
 
         dims = [i.dim for i in self if not func(i.dim)]
         intervals = self.intervals.drop(dims, strict=strict)
