@@ -45,7 +45,7 @@ def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):
         if not fs or d is not damp.dimensions[-1]:
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
             # left
-            dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+            dim_l = SubDimension.left(name=f'abc_{d.name}_l', parent=d,
                                       thickness=nbl)
             pos = Abs((nbl - (dim_l - d.symbolic_min) + 1) / float(nbl))
             val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
@@ -53,7 +53,7 @@ def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):
             eqs += [Inc(damp.subs({d: dim_l}), val/d.spacing)]
         # right
         dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbr)
-        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+        dim_r = SubDimension.right(name=f'abc_{d.name}_r', parent=d,
                                    thickness=nbr)
         pos = Abs((nbr - (d.symbolic_max - dim_r) + 1) / float(nbr))
         val = dampcoeff * (pos - sin(2*np.pi*pos)/(2*np.pi))
@@ -154,9 +154,9 @@ class GenericModel:
             if init or re_init:
                 if re_init and not init:
                     bcs_o = "damp" if bcs == "mask" else "mask"
-                    warning("Re-initializing damp profile from %s to %s" % (bcs_o, bcs))
-                    warning("Model has to be created with `bcs=\"%s\"`"
-                            "for this WaveSolver" % bcs)
+                    warning(f"Re-initializing damp profile from {bcs_o} to {bcs}")
+                    warning(f"Model has to be created with `bcs=\"{bcs}\"`"
+                            "for this WaveSolver")
                 initialize_damp(self.damp, self.padsizes, self.spacing,
                                 abc_type=bcs, fs=self.fs)
         self._physical_parameters.update(['damp'])
@@ -398,9 +398,8 @@ class SeismicModel(GenericModel):
             elif value.shape == self.shape:
                 initialize_function(param, value, self.nbl)
             else:
-                raise ValueError("Incorrect input size %s for model" % value.shape +
-                                 " %s without or %s with padding" % (self.shape,
-                                                                     param.shape))
+                raise ValueError(f"Incorrect input size {value.shape} for model" +
+                                 f" {self.shape} without or {param.shape} with padding")
         else:
             param.data = value
 

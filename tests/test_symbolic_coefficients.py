@@ -241,10 +241,7 @@ class TestSC:
         """Check compatibility of custom coefficients and TimeFunctions"""
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
-        if stagger:
-            staggered = x
-        else:
-            staggered = None
+        staggered = x if stagger else None
 
         f = TimeFunction(name='f', grid=grid, space_order=2, staggered=staggered)
         g = TimeFunction(name='g', grid=grid, space_order=2, staggered=staggered)

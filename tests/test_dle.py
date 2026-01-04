@@ -252,10 +252,10 @@ class TestBlockingOptRelax:
         eqns = [Eq(damp, 0.)]
         for d in damp.dimensions:
             # Left
-            dl = SubDimension.left(name='%sl' % d.name, parent=d, thickness=nbl)
+            dl = SubDimension.left(name=f'{d.name}l', parent=d, thickness=nbl)
             eqns.extend([Inc(damp.subs({d: dl}), 1.)])
             # right
-            dr = SubDimension.right(name='%sr' % d.name, parent=d, thickness=nbl)
+            dr = SubDimension.right(name=f'{d.name}r', parent=d, thickness=nbl)
             eqns.extend([Inc(damp.subs({d: dr}), 1.)])
 
         op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))

@@ -637,13 +637,13 @@ class TestDependenceAnalysis:
         types = ['flow', 'anti']
         if type != 'all':
             types.remove(type)
-            assert len(getattr(scope, 'd_%s' % type)) == 1
-            assert all(len(getattr(scope, 'd_%s' % i)) == 0 for i in types)
+            assert len(getattr(scope, f'd_{type}')) == 1
+            assert all(len(getattr(scope, f'd_{i}')) == 0 for i in types)
         else:
-            assert all(len(getattr(scope, 'd_%s' % i)) == 1 for i in types)
+            assert all(len(getattr(scope, f'd_{i}')) == 1 for i in types)
 
         # Check mode
-        assert getattr(dep, 'is_%s' % mode)()
+        assert getattr(dep, f'is_{mode}')()
 
         # Check cause
         if exp_cause == 'None':
@@ -655,13 +655,13 @@ class TestDependenceAnalysis:
             assert cause.name == exp_cause
 
         # Check mode restricted to the cause
-        assert getattr(dep, 'is_%s' % mode)(cause)
+        assert getattr(dep, f'is_{mode}')(cause)
         non_causes = [i for i in grid.dimensions if i is not cause]
-        assert all(not getattr(dep, 'is_%s' % mode)(i) for i in non_causes)
+        assert all(not getattr(dep, f'is_{mode}')(i) for i in non_causes)
 
         # Check if it's regular or irregular
-        assert getattr(dep.source, 'is_%s' % regular) or\
-            getattr(dep.sink, 'is_%s' % regular)
+        assert getattr(dep.source, f'is_{regular}') or\
+            getattr(dep.sink, f'is_{regular}')
 
     @pytest.mark.parametrize('exprs,expected', [
         # Trivial flow dep
@@ -723,7 +723,7 @@ class TestDependenceAnalysis:
         assert len(scope.d_all) == len(expected)
 
         for i in ['flow', 'anti', 'output']:
-            for dep in getattr(scope, 'd_%s' % i):
+            for dep in getattr(scope, f'd_{i}'):
                 item = (dep.function.name, i, str(set(dep.cause)))
                 assert item in expected
                 expected.remove(item)

@@ -151,10 +151,7 @@ def Gh_centered(model, field):
     -------
     Sum of the 3D rotated second order derivative in the direction x and y.
     """
-    if model.dim == 3:
-        Gzz = Gzz_centered(model, field)
-    else:
-        Gzz = Gzz_centered_2d(model, field)
+    Gzz = Gzz_centered(model, field) if model.dim == 3 else Gzz_centered_2d(model, field)
     b = getattr(model, 'b', None)
     if b is not None:
         _diff = lambda f, d: getattr(f, f'd{d.name}')

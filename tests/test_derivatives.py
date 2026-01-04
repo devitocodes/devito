@@ -540,11 +540,11 @@ class TestFD:
             assert getattr(g, fd)
 
         for d in grid.dimensions:
-            assert 'd%s' % d.name in f._fd
-            assert 'd%s' % d.name in g._fd
+            assert f'd{d.name}' in f._fd
+            assert f'd{d.name}' in g._fd
             for o in range(2, min(7, so+1)):
-                assert 'd%s%s' % (d.name, o) in f._fd
-                assert 'd%s%s' % (d.name, o) in g._fd
+                assert f'd{d.name}{o}' in f._fd
+                assert f'd{d.name}{o}' in g._fd
 
     def test_shortcuts_mixed(self):
         grid = Grid(shape=(10,))
@@ -611,7 +611,7 @@ class TestFD:
             for i, d in enumerate(grid.dimensions):
                 x0 = (None if shift is None else d + shift[i] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ref += getattr(f, 'd%s' % d.name)(x0=x0, fd_order=order)
+                ref += getattr(f, f'd{d.name}')(x0=x0, fd_order=order)
             assert df == ref.evaluate
 
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
@@ -624,7 +624,7 @@ class TestFD:
             for i, (d, gi) in enumerate(zip(grid.dimensions, g)):
                 x0 = (None if shift is None else d + shift[i] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                gk = getattr(f, 'd%s' % d.name)(x0=x0, fd_order=order).evaluate
+                gk = getattr(f, f'd{d.name}')(x0=x0, fd_order=order).evaluate
                 assert gi == gk
 
     @pytest.mark.parametrize('side', [left, right, centered])

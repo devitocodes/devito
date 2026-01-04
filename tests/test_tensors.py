@@ -300,7 +300,7 @@ def test_shifted_grad_of_vector(shift, ndim):
             for j, d in enumerate(grid.dimensions):
                 x0 = (None if shift is None else d + shift[i][j] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ge = getattr(f[i], 'd%s' % d.name)(x0=x0, fd_order=order)
+                ge = getattr(f[i], f'd{d.name}')(x0=x0, fd_order=order)
                 ref.append(ge.evaluate)
 
         for i, d in enumerate(gf):
@@ -317,7 +317,7 @@ def test_shifted_div_of_vector(shift, ndim):
         for i, d in enumerate(grid.dimensions):
             x0 = (None if shift is None else d + shift[i] * d.spacing if
                   type(shift) is tuple else d + shift * d.spacing)
-            ref += getattr(v[i], 'd%s' % d.name)(x0=x0, fd_order=order)
+            ref += getattr(v[i], f'd{d.name}')(x0=x0, fd_order=order)
 
         assert df == ref.evaluate
 
@@ -336,7 +336,7 @@ def test_shifted_div_of_tensor(shift, ndim):
             for j, d in reversed(list(enumerate(grid.dimensions))):
                 x0 = (None if shift is None else d + shift[i][j] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ge = getattr(f[i, j], 'd%s' % d.name)(x0=x0, fd_order=order)
+                ge = getattr(f[i, j], f'd{d.name}')(x0=x0, fd_order=order)
                 elems.append(ge.evaluate)
             ref.append(sum(elems))
 
@@ -388,7 +388,7 @@ def test_shifted_lap_of_tensor(shift, ndim):
             for i, d in enumerate(v.space_dimensions):
                 x0 = (None if shift is None else d + shift[i][j] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ref += getattr(v[j, i], 'd%s2' % d.name)(x0=x0, fd_order=order)
+                ref += getattr(v[j, i], f'd{d.name}2')(x0=x0, fd_order=order)
             assert df[j] == ref
 
 

@@ -245,10 +245,7 @@ class TestBasic:
                             interpolation=interp)
         u = Function(name='u', grid=grid, space_order=4)
 
-        if op == 'inject':
-            expr = sf.inject(u, sf)
-        else:
-            expr = sf.interpolate(u)
+        expr = sf.inject(u, sf) if op == 'inject' else sf.interpolate(u)
 
         pkl_expr = pickle.dumps(expr)
         new_expr = pickle.loads(pkl_expr)

@@ -205,7 +205,7 @@ def roofline(name, project, scale, precision, mode, th):
     log(f'\nFigure saved in {figpath}{name}.pdf.')
 
     # Save the JSON file
-    with open('%s.json' % name, 'w') as f:
+    with open(f'{name}.json', 'w') as f:
         f.write(json.dumps(roofline_data))
 
     log(f'\nJSON file saved as {name}.json.')
