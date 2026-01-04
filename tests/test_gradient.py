@@ -220,7 +220,7 @@ class TestGradient:
             # Add the perturbation to the model
             def initializer(data):
                 data[:] = np.sqrt(vel0.data**2 * v**2 /
-                                  ((1 - H[i]) * v**2 + H[i] * vel0.data**2))
+                                  ((1 - H[i]) * v**2 + H[i] * vel0.data**2))  # noqa: B023
             vloc = Function(name='vloc', grid=wave.model.grid, space_order=space_order,
                             initializer=initializer)
             # Data for the new model
@@ -280,7 +280,7 @@ class TestGradient:
             # Add the perturbation to the model
             def initializer(data):
                 data[:] = np.sqrt(v0.data**2 * v**2 /
-                                  ((1 - H[i]) * v**2 + H[i] * v0.data**2))
+                                  ((1 - H[i]) * v**2 + H[i] * v0.data**2))  # noqa: B023
             vloc = Function(name='vloc', grid=wave.model.grid, space_order=space_order,
                             initializer=initializer)
             # Data for the new model

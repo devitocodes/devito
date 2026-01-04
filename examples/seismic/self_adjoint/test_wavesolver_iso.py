@@ -1,10 +1,11 @@
+from contextlib import suppress
+
 import numpy as np
 from scipy.special import hankel2
 
-try:
+with suppress(ImportError):
     import pytest
-except:
-    pass
+
 from devito import Eq, Function, Grid, Operator, info
 from examples.seismic import AcquisitionGeometry, Model, RickerSource, TimeAxis
 from examples.seismic.self_adjoint import (
@@ -40,10 +41,12 @@ class TestWavesolver:
         # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
         diff = (rec1.data - rec2.data) / rms2
-        info("linearity forward F %s (so=%d) rms 1,2,diff; "
-             "%+16.10e %+16.10e %+16.10e" %
-             (shape, so, np.sqrt(np.mean(rec1.data**2)), np.sqrt(np.mean(rec2.data**2)),
-              np.sqrt(np.mean(diff**2))))
+        info(
+            f'linearity forward F {shape} ({so=}) rms 1,2,diff; '
+            f'{np.sqrt(np.mean(rec1.data**2)):+16.10e}'
+            f'{np.sqrt(np.mean(rec2.data**2)):+16.10e}'
+            f'{np.sqrt(np.mean(diff**2)):+16.10e}'
+        )
         tol = 1.e-12
         assert np.allclose(diff, 0.0, atol=tol)
 
@@ -69,10 +72,12 @@ class TestWavesolver:
         # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(src2.data**2))
         diff = (src1.data - src2.data) / rms2
-        info("linearity adjoint F %s (so=%d) rms 1,2,diff; "
-             "%+16.10e %+16.10e %+16.10e" %
-             (shape, so, np.sqrt(np.mean(src1.data**2)), np.sqrt(np.mean(src2.data**2)),
-              np.sqrt(np.mean(diff**2))))
+        info(
+            f'linearity adjoint F {shape} ({so=}) rms 1,2,diff; '
+            f'{np.sqrt(np.mean(src1.data**2)):+16.10e}'
+            f'{np.sqrt(np.mean(src2.data**2)):+16.10e} '
+            f'{np.sqrt(np.mean(diff**2)):+16.10e}'
+        )
         tol = 1.e-12
         assert np.allclose(diff, 0.0, atol=tol)
 
@@ -95,8 +100,10 @@ class TestWavesolver:
         sum_s = np.dot(src1.data.reshape(-1), src2.data.reshape(-1))
         sum_r = np.dot(rec1.data.reshape(-1), rec2.data.reshape(-1))
         diff = (sum_s - sum_r) / (sum_s + sum_r)
-        info("adjoint F %s (so=%d) sum_s, sum_r, diff; %+16.10e %+16.10e %+16.10e" %
-             (shape, so, sum_s, sum_r, diff))
+        info(
+            f'adjoint F {shape} ({so=}) sum_s, sum_r, diff; '
+            f'{sum_s:+16.10e} {sum_r:+16.10e} {diff:+16.10e}'
+        )
         assert np.isclose(diff, 0., atol=1.e-12)
 
     @pytest.mark.parametrize('shape', shapes)
@@ -165,8 +172,10 @@ class TestWavesolver:
         #   Assert the 2nd order error has slope dh^4
         p1 = np.polyfit(np.log10(scale), np.log10(norm1), 1)
         p2 = np.polyfit(np.log10(scale), np.log10(norm2), 1)
-        info("linearization F %s (so=%d) 1st (%.1f) = %.4f, 2nd (%.1f) = %.4f" %
-             (shape, so, dh**2, p1[0], dh**4, p2[0]))
+        info(
+            f'linearization F {shape} ({so=}) '
+            f'1st ({dh**2:.1f}) = {p1[0]:.4f}, 2nd ({dh**4:.1f}) = {p2[0]:.4f}'
+        )
 
         # we only really care the 2nd order err is valid, not so much the 1st order error
         assert np.isclose(p1[0], dh**2, rtol=0.25)
@@ -213,10 +222,12 @@ class TestWavesolver:
         # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(rec2.data**2))
         diff = (rec1.data - rec2.data) / rms2
-        info("linearity forward J %s (so=%d) rms 1,2,diff; "
-             "%+16.10e %+16.10e %+16.10e" %
-             (shape, so, np.sqrt(np.mean(rec1.data**2)), np.sqrt(np.mean(rec2.data**2)),
-              np.sqrt(np.mean(diff**2))))
+        info(
+            f'linearity forward J {shape} ({so=}) rms 1,2,diff; '
+            f'{np.sqrt(np.mean(rec1.data**2)):+16.10e} '
+            f'{np.sqrt(np.mean(rec2.data**2)):+16.10e} '
+            f'{np.sqrt(np.mean(diff**2)):+16.10e}'
+        )
         tol = 1.e-12
         assert np.allclose(diff, 0.0, atol=tol)
 
@@ -262,10 +273,12 @@ class TestWavesolver:
         # Normalize by rms of rec2, to enable using absolute tolerance below
         rms2 = np.sqrt(np.mean(dm2.data**2))
         diff = (dm1.data - dm2.data) / rms2
-        info("linearity adjoint J %s (so=%d) rms 1,2,diff; "
-             "%+16.10e %+16.10e %+16.10e" %
-             (shape, so, np.sqrt(np.mean(dm1.data**2)), np.sqrt(np.mean(dm2.data**2)),
-              np.sqrt(np.mean(diff**2))))
+        info(
+            f'linearity adjoint J {shape} ({so=}) rms 1,2,diff; '
+            f'{np.sqrt(np.mean(dm1.data**2)):+16.10e} '
+            f'{np.sqrt(np.mean(dm2.data**2)):+16.10e} '
+            f'{np.sqrt(np.mean(diff**2)):+16.10e}'
+        )
 
     @pytest.mark.parametrize('shape', shapes)
     @pytest.mark.parametrize('dtype', dtypes)
@@ -311,8 +324,10 @@ class TestWavesolver:
         sum_m = np.dot(dm1.data.reshape(-1), dm2.data.reshape(-1))
         sum_d = np.dot(rec1.data.reshape(-1), rec2.data.reshape(-1))
         diff = (sum_m - sum_d) / (sum_m + sum_d)
-        info("adjoint J %s (so=%d) sum_m, sum_d, diff; %16.10e %+16.10e %+16.10e" %
-             (shape, so, sum_m, sum_d, diff))
+        info(
+            f'adjoint J {shape} ({so=}) sum_m, sum_d, diff; '
+            f'{sum_m:16.10e} {sum_d:+16.10e} {diff:+16.10e}'
+        )
         assert np.isclose(diff, 0., atol=1.e-11)
 
     @pytest.mark.parametrize('dtype', dtypes)
@@ -358,8 +373,10 @@ class TestWavesolver:
         g1f2 = np.dot(g1.data, f2.data)
         diff = (f1g2 + g1f2) / (f1g2 - g1f2)
 
-        info("skew symmetry (so=%d) -- f1g2, g1f2, diff; %+16.10e %+16.10e %+16.10e" %
-             (so, f1g2, g1f2, diff))
+        info(
+            f'skew symmetry ({so=}) -- f1g2, g1f2, diff; '
+            f'{f1g2:+16.10e} {g1f2:+16.10e} {diff:+16.10e}'
+        )
         assert np.isclose(diff, 0., atol=1.e-12)
 
     @pytest.mark.parametrize('dtype', dtypes)
@@ -459,7 +476,10 @@ class TestWavesolver:
         arms = np.max(np.abs(uAna))
         drms = np.max(np.abs(diff))
 
-        info(f"Maximum absolute numerical,analytic,diff; {nrms:+12.6e} {arms:+12.6e} {drms:+12.6e}")
+        info(
+            'Maximum absolute numerical,analytic,diff; '
+            f'{nrms:+12.6e} {arms:+12.6e} {drms:+12.6e}'
+        )
 
         # This isnt a very strict tolerance ...
         tol = 0.1

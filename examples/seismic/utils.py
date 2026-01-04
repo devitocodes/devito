@@ -228,14 +228,21 @@ def seismic_args(description):
                 # E.g., `('advanced', {'par-tile': True})`
                 values = eval(values)
                 if not isinstance(values, tuple) and len(values) >= 1:
-                    raise ArgumentError(self, (f"Invalid choice `{str(values)}` (`opt` must be "
-                                               "either str or tuple)"))
+                    raise ArgumentError(
+                        self,
+                        f'Invalid choice `{str(values)}` '
+                        '(`opt` must be either str or tuple)'
+                    )
                 opt = values[0]
             except NameError:
                 # E.g. `'advanced'`
                 opt = values
             if opt not in configuration._accepted['opt']:
-                raise ArgumentError(self, ("Invalid choice `{}` (choose from {})".format(opt, str(configuration._accepted['opt']))))
+                raise ArgumentError(
+                    self,
+                    f'Invalid choice `{opt}`'
+                    f'(choose from {configuration._accepted["opt"]!s})'
+                )
             setattr(args, self.dest, values)
 
     parser = ArgumentParser(description=description)

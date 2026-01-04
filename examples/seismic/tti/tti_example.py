@@ -1,9 +1,8 @@
 import numpy as np
+from contrextlib import suppress
 
-try:
+with suppress(ImportError):
     import pytest
-except ImportError:
-    pass
 
 from devito import Constant, Function, info, norm, smooth
 from examples.seismic import demo_model, seismic_args, setup_geometry

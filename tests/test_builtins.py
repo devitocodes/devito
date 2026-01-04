@@ -112,7 +112,7 @@ class TestAssign:
         stop = loc_shape*(loc_coords+1)
 
         slices = []
-        for i, j in zip(start, stop):
+        for i, j in zip(start, stop, strict=True):
             slices.append(slice(i, j, 1))
         slices = as_tuple(slices)
         assert np.all(a[slices] - np.array(g.data[:]) == 0)
@@ -194,7 +194,7 @@ class TestGaussianSmooth:
         stop = loc_shape*(loc_coords+1)
 
         slices = []
-        for i, j in zip(start, stop):
+        for i, j in zip(start, stop, strict=True):
             slices.append(slice(i, j, 1))
         slices = as_tuple(slices)
         assert np.all(sp_smoothed[slices] - np.array(dv_smoothed.data[:]) == 0)

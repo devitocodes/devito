@@ -10,9 +10,9 @@ class Processing:
     def setup(self):
         grid = Grid(shape=(5, 5, 5))
 
-        funcs = [Function(name='f%d' % n, grid=grid) for n in range(30)]
-        tfuncs = [TimeFunction(name='u%d' % n, grid=grid) for n in range(30)]
-        stfuncs = [SparseTimeFunction(name='su%d' % n, grid=grid, npoint=1, nt=100)
+        funcs = [Function(name=f'f{n}', grid=grid) for n in range(30)]
+        tfuncs = [TimeFunction(name=f'u{n}', grid=grid) for n in range(30)]
+        stfuncs = [SparseTimeFunction(name=f'su{n}', grid=grid, npoint=1, nt=100)
                    for n in range(30)]
         v = TimeFunction(name='v', grid=grid, space_order=2)
 

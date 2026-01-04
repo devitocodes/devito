@@ -1,4 +1,5 @@
 import os
+from contextlib import suppress
 
 import click
 import numpy as np
@@ -73,8 +74,10 @@ def run_op(solver, operator, **options):
     # Get the operator if exist
     try:
         op = getattr(solver, operator)
-    except AttributeError:
-        raise AttributeError(f"Operator {operator} not implemented for {solver}")
+    except AttributeError as e:
+        raise AttributeError(
+            f"Operator {operator} not implemented for {solver}"
+        ) from e
 
     # This is a bit ugly but not sure how to make clean input creation for different op
     if operator == "forward":
@@ -164,7 +167,10 @@ def option_performance(f):
             # E.g. `'advanced'`
             opt = value
         if opt not in configuration._accepted['opt']:
-            raise click.BadParameter("Invalid choice `{}` (choose from {})".format(opt, str(configuration._accepted['opt'])))
+            raise click.BadParameter(
+                f'Invalid choice `{opt} '
+                f'(choose from {str(configuration._accepted["opt"])})'
+            )
         return value
 
     def config_blockshape(ctx, param, value):
@@ -180,7 +186,7 @@ def option_performance(f):
             # 1. integers, not strings
             # 2. sanity check the (hierarchical) blocking shape
             normalized_value = []
-            for i, block_shape in enumerate(value):
+            for block_shape in value:
                 # If hierarchical blocking is activated, say with N levels, here in
                 # `bs` we expect to see 3*N entries
                 bs = [int(x) for x in block_shape.split()]
@@ -204,7 +210,10 @@ def option_performance(f):
         elif value != 'off':
             # Sneak-peek at the `block-shape` -- if provided, keep auto-tuning off
             if ctx.params['block_shape']:
-                warning("Skipping autotuning (using explicit block-shape `{}`)".format(str(ctx.params['block_shape'])))
+                warning(
+                    'Skipping autotuning'
+                    f'(using explicit block-shape `{str(ctx.params["block_shape"])}`)'
+                )
                 level = False
             else:
                 # Make sure to always run in preemptive mode
@@ -272,8 +281,8 @@ def run(problem, **kwargs):
     # Note: the following piece of code is horribly *hacky*, but it works for now
     for i, block_shape in enumerate(block_shapes):
         for n, level in enumerate(block_shape):
-            for d, s in zip(['x', 'y', 'z'], level):
-                options['%s%d_blk%d_size' % (d, i, n)] = s
+            for d, s in zip(['x', 'y', 'z'], level, strict=True):
+                options[f'{d}{i}_blk{n}_size'] = s
 
     solver = setup(space_order=space_order, time_order=time_order, **kwargs)
     if warmup:
@@ -345,7 +354,7 @@ def run_jit_backdoor(problem, **kwargs):
 
     if not os.path.exists(cfile):
         # First time we run this problem, let's generate and jit-compile code
-        op.cfunction
+        _ = op.cfunction
         info(f"You may now edit the generated code in `{cfile}`. "
              "Then save the file, and re-run this benchmark.")
         return
@@ -403,9 +412,10 @@ if __name__ == "__main__":
         set_log_level('DEBUG', comm=MPI.COMM_WORLD)
 
         if MPI.COMM_WORLD.size > 1 and not configuration['mpi']:
-            warning("It seems that you're running over MPI with %d processes, but "
-                    "DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`..."
-                    % MPI.COMM_WORLD.size)
+            warning(
+                f'It seems that you are running over MPI with {MPI.COMM_WORLD.size} '
+                'processes, but DEVITO_MPI is unset. Setting `DEVITO_MPI=basic`...'
+            )
             configuration['mpi'] = 'basic'
     except (TypeError, ModuleNotFoundError):
         # MPI not available
@@ -417,8 +427,6 @@ if __name__ == "__main__":
 
     benchmark(standalone_mode=False)
 
-    try:
+    # In case MPI not available
+    with suppress(TypeError):
         MPI.Finalize()
-    except TypeError:
-        # MPI not available
-        pass

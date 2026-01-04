@@ -193,7 +193,7 @@ class TestMatrixSparseTimeFunction:
 
         m_coo = mstf.matrix.tocoo()
 
-        for row, col, val in zip(m_coo.row, m_coo.col, m_coo.data):
+        for row, col, val in zip(m_coo.row, m_coo.col, m_coo.data, strict=True):
             base_gridpoint = mstf.gridpoints.data[row, :]
 
             # construct the stencil and the slices to which it will be applied
@@ -387,12 +387,12 @@ class TestMatrixSparseTimeFunction:
         op = Operator(sf.interpolate(m))
         sf.manual_scatter()
         args = op.arguments(time_m=0, time_M=9)
-        print("rank %d: %s" % (grid.distributor.myrank, str(args)))
+        print(f'rank {grid.distributor.myrank}: {args!s}')
         op.apply(time_m=0, time_M=0)
         sf.manual_gather()
 
         for i in range(grid.distributor.nprocs):
-            print("==== from rank %d" % i)
+            print(f'==== from rank {i}')
             if i == grid.distributor.myrank:
                 print(repr(sf.data))
             grid.distributor.comm.Barrier()

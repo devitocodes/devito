@@ -36,9 +36,10 @@ def test_bench(mode, problem, op):
     baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
     benchpath = f'{baseline}benchmarks/user/benchmark.py'
 
-    command_bench = [pyversion, benchpath, mode,
-                     '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
-                     '%d' % tn, '-op', op]
+    command_bench = [
+        pyversion, benchpath, mode, '-P', problem,
+        '-d', str(nx), str(ny), str(nz), '--tn', str(tn), '-op', op
+    ]
     if mode == "bench":
         command_bench.extend(['-x', '1'])
     check_call(command_bench)
@@ -48,14 +49,14 @@ def test_bench(mode, problem, op):
     base_filename = problem
     filename_suffix = '.json'
     arch = 'arch[unknown]'
-    shape = 'shape[%d,%d,%d]' % (nx, ny, nz)
+    shape = f'shape[{nx}{ny}{nz}]'
     nbl = 'nbl[10]'
-    t = 'tn[%d]' % tn
+    t = f'tn[{tn}]'
     so = 'so[2]'
     to = 'to[2]'
     opt = 'opt[advanced]'
     at = 'at[aggressive]'
-    nt = 'nt[%d]' % nthreads
+    nt = f'nt[{nthreads}]'
     mpi = 'mpi[False]'
     np = 'np[1]'
     rank = 'rank[0]'

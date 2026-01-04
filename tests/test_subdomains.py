@@ -536,7 +536,7 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['x,y', 't,n0', 't,n0,x,y'], 'x,y,t,n0,x,y')
 
@@ -572,7 +572,7 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op,
                          ['x,y', 't,n0', 't,n0,x,y', 't,n1', 't,n1,x,y'],
@@ -607,7 +607,7 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['x,y', 't,n0', 't,n0,x,y',
                               't,n1', 't,n1,x,y', 't,n0', 't,n0,x,y'],
@@ -633,7 +633,7 @@ class TestMultiSubDomain:
         op = Operator(eqn)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t,n0', 't,n0,x,y', 't,n0,x,y'],
                          't,n0,x,y,x,y')
@@ -660,7 +660,7 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t', 't,n0', 't,n0,x,y', 't,n0', 't,n0,x,y'],
                          't,n0,x,y,n0,x,y')
@@ -680,7 +680,7 @@ class TestMultiSubDomain:
         op = Operator(eqn)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t,n0', 't,n0,x0_blk0,y0_blk0,x,y,z'],
                          't,n0,x0_blk0,y0_blk0,x,y,z')
@@ -1527,7 +1527,7 @@ class TestSubDomainFunctionsParallel:
         assert np.count_nonzero(g.data) == f.data.size
 
         shape = []
-        for i, s in zip(f._distributor.subdomain_interval, slices):
+        for i, s in zip(f._distributor.subdomain_interval, slices, strict=True):
             if i is None:
                 shape.append(s.stop - s.start)
             else:
