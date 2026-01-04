@@ -2541,9 +2541,9 @@ class TestOperatorAdvanced:
         t = grid.stepping_dim
 
         # SubDimensions to implement BCs
-        xl, yl = [SubDimension.left('%sl' % d.name, d, tkn) for d in [x, y]]
-        xi, yi = [SubDimension.middle('%si' % d.name, d, tkn, tkn) for d in [x, y]]
-        xr, yr = [SubDimension.right('%sr' % d.name, d, tkn) for d in [x, y]]
+        xl, yl = [SubDimension.left(f'{d.name}l', d, tkn) for d in [x, y]]
+        xi, yi = [SubDimension.middle(f'{d.name}i', d, tkn, tkn) for d in [x, y]]
+        xr, yr = [SubDimension.right(f'{d.name}r', d, tkn) for d in [x, y]]
 
         # Functions
         u = TimeFunction(name='f', grid=grid)
@@ -3141,7 +3141,7 @@ def gen_serial_norms(shape, so):
     """
     day = np.datetime64('today')
     try:
-        l = np.load("norms%s.npy" % len(shape), allow_pickle=True)
+        l = np.load(f"norms{len(shape)}.npy", allow_pickle=True)
         assert l[-1] == day
     except:
         tn = 500.  # Final time
@@ -3161,7 +3161,7 @@ def gen_serial_norms(shape, so):
         Ev = norm(v)
         Esrca = norm(srca)
 
-        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
+        np.save(f"norms{len(shape)}.npy", (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
 
 
 class TestIsotropicAcoustic:

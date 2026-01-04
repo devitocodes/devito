@@ -94,15 +94,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.constant:
-        if args.azi:
-            preset = 'constant-tti-noazimuth'
-        else:
-            preset = 'constant-tti'
+        preset = 'constant-tti-noazimuth' if args.azi else 'constant-tti'
     else:
-        if args.azi:
-            preset = 'layers-tti-noazimuth'
-        else:
-            preset = 'layers-tti'
+        preset = 'layers-tti-noazimuth' if args.azi else 'layers-tti'
 
     # Preset parameters
     ndim = args.ndim

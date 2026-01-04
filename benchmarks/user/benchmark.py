@@ -74,7 +74,7 @@ def run_op(solver, operator, **options):
     try:
         op = getattr(solver, operator)
     except AttributeError:
-        raise AttributeError("Operator %s not implemented for %s" % (operator, solver))
+        raise AttributeError(f"Operator {operator} not implemented for {solver}")
 
     # This is a bit ugly but not sure how to make clean input creation for different op
     if operator == "forward":
@@ -95,7 +95,7 @@ def run_op(solver, operator, **options):
         args = args[:-1]
         return op(*args, **options)
     else:
-        raise ValueError("Unrecognized operator %s" % operator)
+        raise ValueError(f"Unrecognized operator {operator}")
 
 
 @click.group()
@@ -157,15 +157,14 @@ def option_performance(f):
             # E.g., `('advanced', {'par-tile': True})`
             value = eval(value)
             if not isinstance(value, tuple) and len(value) >= 1:
-                raise click.BadParameter("Invalid choice `%s` (`opt` must be "
-                                         "either str or tuple)" % str(value))
+                raise click.BadParameter(f"Invalid choice `{str(value)}` (`opt` must be "
+                                         "either str or tuple)")
             opt = value[0]
         except NameError:
             # E.g. `'advanced'`
             opt = value
         if opt not in configuration._accepted['opt']:
-            raise click.BadParameter("Invalid choice `%s` (choose from %s)"
-                                     % (opt, str(configuration._accepted['opt'])))
+            raise click.BadParameter("Invalid choice `{}` (choose from {})".format(opt, str(configuration._accepted['opt'])))
         return value
 
     def config_blockshape(ctx, param, value):
@@ -188,11 +187,11 @@ def option_performance(f):
                 levels = [bs[x:x+3] for x in range(0, len(bs), 3)]
                 if any(len(level) != 3 for level in levels):
                     raise ValueError("Expected 3 entries per block shape level, but got "
-                                     "one level with less than 3 entries (`%s`)" % levels)
+                                     f"one level with less than 3 entries (`{levels}`)")
                 normalized_value.append(levels)
             if not all_equal(len(i) for i in normalized_value):
                 raise ValueError("Found different block shapes with incompatible "
-                                 "number of levels (`%s`)" % normalized_value)
+                                 f"number of levels (`{normalized_value}`)")
             configuration['opt-options']['blocklevels'] = len(normalized_value[0])
         else:
             normalized_value = []
@@ -205,8 +204,7 @@ def option_performance(f):
         elif value != 'off':
             # Sneak-peek at the `block-shape` -- if provided, keep auto-tuning off
             if ctx.params['block_shape']:
-                warning("Skipping autotuning (using explicit block-shape `%s`)"
-                        % str(ctx.params['block_shape']))
+                warning("Skipping autotuning (using explicit block-shape `{}`)".format(str(ctx.params['block_shape'])))
                 level = False
             else:
                 # Make sure to always run in preemptive mode
@@ -305,11 +303,11 @@ def run(problem, **kwargs):
 
     dumpfile = kwargs.pop('dump_norms')
     if dumpfile:
-        norms = ["'%s': %f" % (i.name, norm(i)) for i in retval[:-1]
+        norms = [f"'{i.name}': {norm(i):f}" for i in retval[:-1]
                  if isinstance(i, DiscreteFunction)]
         if rank == 0:
             with open(dumpfile, 'w') as f:
-                f.write("{%s}" % ', '.join(norms))
+                f.write("{{{}}}".format(', '.join(norms)))
 
     return retval
 
@@ -343,13 +341,13 @@ def run_jit_backdoor(problem, **kwargs):
     op = solver.op_fwd()
 
     # Get the filename in the JIT cache
-    cfile = "%s.c" % str(op._compiler.get_jit_dir().joinpath(op._soname))
+    cfile = f"{str(op._compiler.get_jit_dir().joinpath(op._soname))}.c"
 
     if not os.path.exists(cfile):
         # First time we run this problem, let's generate and jit-compile code
         op.cfunction
-        info("You may now edit the generated code in `%s`. "
-             "Then save the file, and re-run this benchmark." % cfile)
+        info(f"You may now edit the generated code in `{cfile}`. "
+             "Then save the file, and re-run this benchmark.")
         return
 
     info("Running wave propagation Operator...")
@@ -364,7 +362,7 @@ def run_jit_backdoor(problem, **kwargs):
     if dumpnorms:
         for i in retval[:-1]:
             if isinstance(i, DiscreteFunction):
-                info("'%s': %f" % (i.name, norm(i)))
+                info(f"'{i.name}': {norm(i):f}")
 
     return retval
 

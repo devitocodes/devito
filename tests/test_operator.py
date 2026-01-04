@@ -761,8 +761,7 @@ class TestApplyArguments:
                 condition = arguments[name] == v
 
             if not condition:
-                error('Wrong argument %s: expected %s, got %s' %
-                      (name, v, arguments[name]))
+                error(f'Wrong argument {name}: expected {v}, got {arguments[name]}')
             assert condition
 
     def verify_parameters(self, parameters, expected):
@@ -774,11 +773,11 @@ class TestApplyArguments:
         parameters = [p.name for p in parameters]
         for expi in expected:
             if expi not in parameters + boilerplate:
-                error("Missing parameter: %s" % expi)
+                error(f"Missing parameter: {expi}")
             assert expi in parameters + boilerplate
         extra = [p for p in parameters if p not in expected and p not in boilerplate]
         if len(extra) > 0:
-            error("Redundant parameters: %s" % str(extra))
+            error(f"Redundant parameters: {str(extra)}")
         assert len(extra) == 0
 
     def test_default_functions(self):

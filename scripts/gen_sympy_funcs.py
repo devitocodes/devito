@@ -6,12 +6,12 @@ print("from devito.finite_differences.differentiable\
 
 for fn in funcs:
     try:
-        strc = """class %s(DifferentiableOp, sympy.%s):
-    __sympy_class__ = sympy.%s
-    __new__ = DifferentiableOp.__new__\n\n""" % (fn, fn, fn)
+        strc = f"""class {fn}(DifferentiableOp, sympy.{fn}):
+    __sympy_class__ = sympy.{fn}
+    __new__ = DifferentiableOp.__new__\n\n"""
         exec(strc)
         print(strc)
     except:
         # Some are not classes such as sqrt
-        print("""def %s(x):
-    diffify(sympy.%s(x))\n\n""" % (fn, fn))
+        print(f"""def {fn}(x):
+    diffify(sympy.{fn}(x))\n\n""")
