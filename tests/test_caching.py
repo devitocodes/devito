@@ -581,7 +581,7 @@ class TestCaching:
         grid = Grid(shape=(nx, ny), dtype=np.float64)
         cache_size = len(_SymbolCache)
 
-        for i in range(10):
+        for _ in range(10):
             assert(len(_SymbolCache) == cache_size)
 
             Function(name='u', grid=grid, space_order=2)
@@ -604,7 +604,7 @@ class TestCaching:
         ncreated = 0
         assert(len(_SymbolCache) == cache_size + ncreated)
 
-        u._C_symbol
+        _ = u._C_symbol
         # Cache size won't change since _C_symbol isn't cached by devito to
         # avoid circular references in the cache
         assert(len(_SymbolCache) == cache_size + ncreated)
@@ -678,7 +678,7 @@ class TestCaching:
         ncreated = 2+1+2+2+2+1+4
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
-        i.evaluate
+        _ = i.evaluate
 
         assert len(_SymbolCache) == cur_cache_size + ncreated
 

@@ -1,10 +1,10 @@
+from contextlib import suppress
+
 import numpy as np
 from sympy import finite_diff_weights as fd_w
 
-try:
+with suppress(ImportError):
     import pytest
-except:
-    pass
 
 from devito import (
     Abs, Constant, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, div, sin,
@@ -41,7 +41,7 @@ def initialize_damp(damp, padsizes, spacing, abc_type="damp", fs=False):
     """
 
     eqs = [Eq(damp, 1.0 if abc_type == "mask" else 0.0)]
-    for (nbl, nbr), d in zip(padsizes, damp.dimensions):
+    for (nbl, nbr), d in zip(padsizes, damp.dimensions, strict=True):
         if not fs or d is not damp.dimensions[-1]:
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (nbl)
             # left
@@ -92,7 +92,7 @@ class FSDomain(SubDomain):
         Definition of the upper section of the domain for wrapped indices FS.
         """
 
-        return {d: (d if not d == dimensions[-1] else ('left', self.size))
+        return {d: (d if d != dimensions[-1] else ('left', self.size))
                 for d in dimensions}
 
 
@@ -109,7 +109,7 @@ class GenericModel:
         self.origin = tuple([dtype(o) for o in origin])
         self.fs = fs
         # Default setup
-        origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing)]
+        origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing, strict=True)]
         shape_pml = np.array(shape) + 2 * self.nbl
 
         # Model size depending on freesurface
@@ -234,7 +234,7 @@ class GenericModel:
         """
         Physical size of the domain as determined by shape and spacing
         """
-        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
+        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing, strict=True))
 
 
 class SeismicModel(GenericModel):

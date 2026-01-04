@@ -1,5 +1,6 @@
 import os
 import sys
+from contextlib import suppress
 from subprocess import check_call
 
 import pytest
@@ -51,17 +52,18 @@ def skipif(items, whole_module=False):
         langs = configuration._accepted['language']
         if any(i == f'device-{l}' and configuration['language'] == l for l in langs)\
                 and isinstance(configuration['platform'], Device):
-            skipit = "language `{}` for device unsupported".format(configuration['language'])
+            skipit = f'language `{configuration["language"]}` for device unsupported'
             break
         if any(i == f'device-{k}' and isinstance(configuration['compiler'], v)
                for k, v in compiler_registry.items()) and\
                 isinstance(configuration['platform'], Device):
-            skipit = "compiler `{}` for device unsupported".format(configuration['compiler'])
+            skipit = f'compiler `{configuration["compiler"]}` for device unsupported'
             break
         # Skip if must run on GPUs but not currently on a GPU
         if i in ('nodevice', 'nodevice-omp', 'nodevice-acc') and\
                 not isinstance(configuration['platform'], Device):
-            skipit = ("must run on device, but currently on `{}`".format(configuration['platform'].name))
+            skipit = 'must run on device, but currently on '
+            skipit += f'`{configuration["platform"].name}`'
             break
         # Skip if it won't run with nvc on CPU backend
         if i == 'cpu64-nvc' and \
@@ -186,16 +188,11 @@ def parallel(item, m):
     testname = get_testname(item)
     # Only spew tracebacks on rank 0.
     # Run xfailing tests to ensure that errors are reported to calling process
-    args = [
-        "-n", "1", pyversion, "-m", "pytest", "-s", "--runxfail", "-v",
-        "--timeout=600", "--timeout-method=thread", "-o faulthandler_timeout=660",
-        testname
-    ]
+    args = ["-n", "1", pyversion, "-m", "pytest", "-s", "--runxfail", "-qq", testname]
     if nprocs > 1:
         args.extend([
-            ":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
-            "-s", "--runxfail", "-v", "--timeout=600", "--timeout-method=thread",
-            "-o faulthandler_timeout=660", testname
+            ":", "-n", str(nprocs - 1), pyversion, "-m", "pytest",
+            "-s", "--runxfail", "-v", "--no-summary", testname
         ])
     # OpenMPI requires an explicit flag for oversubscription. We need it as some
     # of the MPI tests will spawn lots of processes
@@ -253,10 +250,8 @@ def pytest_generate_tests(metafunc):
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_call(item):
     inside_pytest_marker = os.environ.get('DEVITO_PYTEST_FLAG', 0)
-    try:
+    with suppress(ValueError):
         inside_pytest_marker = int(inside_pytest_marker)
-    except ValueError:
-        pass
 
     if inside_pytest_marker:
         outcome = yield
@@ -287,15 +282,13 @@ def pytest_runtest_makereport(item, call):
     result = outcome.get_result()
 
     inside_pytest_marker = os.environ.get('DEVITO_PYTEST_FLAG', 0)
-    try:
+    with suppress(ValueError):
         inside_pytest_marker = int(inside_pytest_marker)
-    except ValueError:
-        pass
     if inside_pytest_marker:
         return
 
     if item.get_closest_marker("parallel") or \
-       item.get_closest_marker("decoupler"):
+       item.get_closest_marker("decoupler"):  # noqa: SIM102
         if call.when == 'call' and result.outcome == 'skipped':
             result.outcome = 'passed'
 

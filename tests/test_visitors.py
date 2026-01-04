@@ -391,7 +391,7 @@ def test_map_nodes(block1):
 
     assert len(map_nodes.keys()) == 1
 
-    for iters, (expr,) in map_nodes.items():
+    for iters in map_nodes:
         # Replace the outermost `Iteration` with a `Call`
         callback = Callable('solver', iters[0], 'void', ())
         processed = Transformer({iters[0]: Call(callback.name)}).visit(block1)

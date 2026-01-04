@@ -50,7 +50,9 @@ def test_scheduling_after_rewrite():
     trees = retrieve_iteration_tree(op)
 
     # Check loop nest structure
-    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert all(
+        i.dim is j for i, j in zip(trees[0], grid.dimensions, strict=True)
+    )  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
 
@@ -703,8 +705,8 @@ class TestAliases:
             Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'min-storage': True}))
         except InvalidOperator:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Check that `cire-rotate=True` has no effect in this code has there's
         # no blocking
@@ -2132,7 +2134,7 @@ class TestAliases:
             # Also check against expected operation count to make sure
             # all redundancies have been detected correctly
             for i, expected in enumerate(as_tuple(exp_ops[n])):
-                assert summary[('section%d' % i, None)].ops == expected
+                assert summary[(f'section{i}', None)].ops == expected
 
     def test_derivatives_from_different_levels(self):
         """
@@ -2551,7 +2553,7 @@ class TestAliases:
         op = Operator(eqn, opt='advanced')
         assert_structure(op, ['t', 't,fd', 't,fd,x,y'], 't,fd,x,y')
         # Make sure it compiles
-        op.cfunction
+        _ = op.cfunction
 
         # Check hoisting for time invariant
         eqn = Eq(u, u - (cos(time_sub * factor * f) * sin(g) * uf))
@@ -2559,7 +2561,7 @@ class TestAliases:
         op = Operator(eqn, opt='advanced')
         assert_structure(op, ['x,y', 't', 't,fd', 't,fd,x,y'], 'x,y,t,fd,x,y')
         # Make sure it compiles
-        op.cfunction
+        _ = op.cfunction
 
     def test_hoisting_pow_one(self):
         """
@@ -2675,7 +2677,7 @@ class TestAliases:
 
         op = Operator(eqn, opt=('advanced', {'openmp': False}))
 
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(
             op,

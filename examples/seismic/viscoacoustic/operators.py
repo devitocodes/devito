@@ -612,7 +612,7 @@ def GradientOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
     eq_kernel = kernels[kernel]
     eqn = eq_kernel(model, geometry, pa, forward=False, save=False, **kwargs)
 
-    if time_order == 1:
+    if time_order == 1:  # noqa: SIM108
         gradient_update = Eq(grad, grad - p.dt * pa)
     else:
         gradient_update = Eq(grad, grad + p.dt * pa.dt)

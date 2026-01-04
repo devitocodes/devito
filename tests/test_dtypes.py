@@ -94,7 +94,7 @@ def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str],
     # Check ctypes of the mapped parameters
     params: dict[str, Basic] = {p.name: p for p in op.parameters}
     _u, _c = params['u'], params['c']
-    assert type(_u.indexed._C_ctype._type_()) == ctypes_vector_mapper[dtype]
+    assert isinstance(_u.indexed._C_ctype._type_(), ctypes_vector_mapper[dtype])
     assert _c._C_ctype == expected or ctypes_vector_mapper[dtype]
 
 
@@ -125,7 +125,7 @@ def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None
 @pytest.mark.parametrize('dtype', [np.float32, np.complex64, np.complex128])
 @pytest.mark.parametrize('kwargs', _configs, ids=kw_id)
 def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
-    np.dtype
+    _ = np.dtype
     """
     Tests that the correct complex headers are included when complex dtypes
     are present in the operator, and omitted otherwise.

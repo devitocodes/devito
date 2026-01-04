@@ -285,7 +285,7 @@ class ViscoacousticWaveSolver:
                               space_order=self.space_order, staggered=NODE)
 
             if self.time_order == 1:
-                for i in {k.name: k for k in v}.keys():
+                for i in {k.name: k for k in v}:
                     kwargs.pop(i)
                 va = VectorTimeFunction(name="va", grid=self.model.grid,
                                         time_order=self.time_order,

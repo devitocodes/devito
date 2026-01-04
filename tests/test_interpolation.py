@@ -466,7 +466,7 @@ def test_multi_inject(shape, coords, nexpr, result, npoints=19):
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
     result = (result, result) if nexpr == 1 else (result, 2 * result)
-    for r, a in zip(result, (a1, a2)):
+    for r, a in zip(result, (a1, a2), strict=True):
         assert np.allclose(a.data[indices], r, rtol=1.e-5)
 
 
@@ -628,7 +628,7 @@ def test_edge_sparse():
     sf1.coordinates.data[0, :] = (25.0, 35.0)
 
     expr = sf1.interpolate(u)
-    subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing)}
+    subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing, strict=True)}
     op = Operator(expr, subs=subs)
 
     op()
@@ -766,7 +766,7 @@ def test_interpolation_radius(r, interp):
                              r=r, interpolation=interp)
     try:
         src.interpolate(u)
-        assert False
+        raise AssertionError('Assert False')
     except ValueError:
         assert True
 

@@ -111,6 +111,6 @@ for i in range(0, fwi_iterations):
     update_with_box(model0.vp, alpha, direction)
 
     # Log the progress made
-    print('Objective value is %f at iteration %d' % (phi, i+1))
+    print(f'Objective value is {phi} at iteration {i + 1}')
 
 assert np.isclose(history[-1], 3828, atol=1e1, rtol=0)

@@ -112,7 +112,7 @@ class TestFD:
             expr = getattr(expr, d)
         assert(expr.__str__() == expected)
         # Make sure the FD evaluation executes
-        expr.evaluate
+        _ = expr.evaluate
 
     @pytest.mark.parametrize('expr,expected', [
         ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
@@ -621,7 +621,7 @@ class TestFD:
         f = Function(name="f", grid=grid, space_order=4)
         for order in [None, 2]:
             g = grad(f, shift=shift, order=order).evaluate
-            for i, (d, gi) in enumerate(zip(grid.dimensions, g)):
+            for i, (d, gi) in enumerate(zip(grid.dimensions, g, strict=True)):
                 x0 = (None if shift is None else d + shift[i] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
                 gk = getattr(f, f'd{d.name}')(x0=x0, fd_order=order).evaluate
@@ -1170,7 +1170,7 @@ class TestTwoStageEvaluation:
         v = grad(f)._evaluate(expand=False)
 
         assert all(isinstance(i, IndexDerivative) for i in v)
-        assert all(zip([Add(*i.args) for i in grad(f).evaluate], v.evaluate))
+        assert all(zip([Add(*i.args) for i in grad(f).evaluate], v.evaluate, strict=True))
 
     def test_laplacian_opt(self):
         grid = Grid(shape=(4, 4))
@@ -1178,7 +1178,7 @@ class TestTwoStageEvaluation:
 
         assert f.laplacian() == f.laplace
         df = f.laplacian(order=2, shift=.5)
-        for (v, d) in zip(df.args, grid.dimensions):
+        for (v, d) in zip(df.args, grid.dimensions, strict=True):
             assert v.dims[0] == d
             assert v.fd_order == (2,)
             assert v.deriv_order == (2,)

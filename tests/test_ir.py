@@ -172,11 +172,11 @@ class TestVectorHierarchy:
         for ii in [fax, fa4]:
             try:
                 ii + fcx1y
-                assert False
+                raise AssertionError('Assert False')
             except TypeError:
                 pass
-            except:
-                assert False
+            except Exception as e:
+                raise AssertionError('Assert False') from e
 
     def test_iteration_instance_distance(self, ii_num, ii_literal):
         """
@@ -197,11 +197,11 @@ class TestVectorHierarchy:
         # Should fail due mismatching indices
         try:
             fcxy.distance(fax)
-            assert False
+            raise AssertionError('Assert False')
         except TypeError:
             pass
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     def test_iteration_instance_cmp(self, ii_num, ii_literal):
         """
@@ -219,14 +219,14 @@ class TestVectorHierarchy:
         assert fc23 > fc00
         assert fc00 >= fc00
 
-        # Lexicographic comparison with numbers but different rank should faxl
+        # Lexicographic comparison with numbers but different rank should fail
         try:
-            fa4 > fc23
-            assert False
+            fa4 > fc23  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             pass
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Lexicographic comparison with literals
         assert fcxy <= fcxy
@@ -315,30 +315,30 @@ class TestVectorHierarchy:
 
         # Non-comparable due to different direction
         try:
-            rev_tcxy_w0 > tcxy_r0
-            assert False
+            rev_tcxy_w0 > tcxy_r0  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Non-comparable due to different aindices
         try:
-            tcxy_w0 > tcyx_irr0
-            assert False
+            tcxy_w0 > tcyx_irr0  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Non-comparable due to mismatching Intervals
         try:
-            tcxy_w0 > tcyx_irr0
-            assert False
+            tcxy_w0 > tcyx_irr0  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Comparable even though the TimedAccess is irregular (reflexivity)
         assert tcyx_irr0 >= tcyx_irr0
@@ -445,12 +445,12 @@ class TestSpace:
         for i, j in [(ix, nully), (ix, iy), (iy, ix), (ix, ixs1), (ixs1, ix)]:
             try:
                 i.union(j)
-                assert False  # Shouldn't arrive here
+                raise AssertionError('Assert False')  # Shouldn't arrive here
             except ValueError:
                 assert True
-            except:
+            except Exception as e:
                 # No other types of exception expected
-                assert False
+                raise AssertionError('Assert False') from e
 
         # Mixed symbolic and non-symbolic
         c = Constant(name='c')

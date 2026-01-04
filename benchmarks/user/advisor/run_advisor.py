@@ -140,8 +140,7 @@ def run_with_advisor(path, output, name, exec_args):
     advixe_logger.setLevel(logging.INFO)
 
     advixe_formatter = logging.Formatter('%(asctime)s: %(message)s')
-    logger_datetime = '%d.%d.%d.%d.%d.%d' % (dt.year, dt.month,
-                                             dt.day, dt.hour, dt.minute, dt.second)
+    logger_datetime = f'{dt.year}.{dt.month}.{dt.day}.{dt.hour}.{dt.minute}.{dt.second}'
     advixe_handler = logging.FileHandler(f'{output}/{name}_{logger_datetime}.log')
     advixe_handler.setFormatter(advixe_formatter)
     advixe_logger.addHandler(advixe_handler)

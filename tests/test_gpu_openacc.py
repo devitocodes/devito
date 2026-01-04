@@ -61,8 +61,8 @@ class TestCodeGeneration:
                      platform='nvidiaX', language='openacc', opt='openmp')
         except InvalidOperator:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     @pytest.mark.parametrize('opt', opts_device_tiling)
     def test_blocking(self, opt):
@@ -166,11 +166,11 @@ class TestCodeGeneration:
             'acc parallel loop tile(32,4,4) present(u)'
         assert bns['x1_blk0'].pragmas[0].ccode.value ==\
             'acc parallel loop tile(16,4,4) present(u,v)'
-        for root, v in zip(bns.values(), expected):
+        for root, v in zip(bns.values(), expected, strict=True):
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
             assert len(iters) == len(v)
-            assert all(i.step == j for i, j in zip(iters, v))
+            assert all(i.step == j for i, j in zip(iters, v, strict=True))
 
     def test_std_max(self):
         grid = Grid(shape=(3, 3, 3))
