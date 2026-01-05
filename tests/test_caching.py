@@ -678,7 +678,8 @@ class TestCaching:
         ncreated = 2+1+2+2+2+1+4
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
-        _ = i.evaluate
+        # The expression is not redundant, but storing it changes the symbol count
+        i.evaluate  # noqa: B018
 
         assert len(_SymbolCache) == cur_cache_size + ncreated
 

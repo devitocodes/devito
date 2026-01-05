@@ -1492,8 +1492,29 @@ class TestConditionalDimension:
         op.apply(time_M=threshold+3)
         assert np.all(g.data[0, :, :] == threshold)
         assert np.all(g.data[1, :, :] == threshold + 1)
-        assert 'if (g[t0][x + 1][y + 1] <= 10)\n' + \
-            '{\n g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1' in str(op.ccode)
+
+        # We want to assert that the following snippet:
+        # ```
+        #   if (g[t0][x + 1][y + 1] <= 10)
+        #   {
+        #     g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1
+        # ```
+        # is in the generated code, but indentation etc. seems to vary.
+        part1 = 'if (g[t0][x + 1][y + 1] <= 10)\n'
+        part2 = 'g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1'
+        whole_code = str(op.ccode)
+
+        try:
+            loc = whole_code.find(part1)
+            assert loc != -1
+            assert whole_code.find(part2, loc + len(part1)) != -1
+        except AssertionError:
+            # Try the alternative string
+            part1 = 'if (gL0(t0, x + 1, y + 1) <= 10)\n'
+            part2 = 'gL0(t1, x + 1, y + 1) = gL0(t0, x + 1, y + 1) + 1'
+            loc = whole_code.find(part1)
+            assert loc != -1
+            assert whole_code.find(part2, loc + len(part1)) != -1
 
     def test_expr_like_lowering(self):
         """
