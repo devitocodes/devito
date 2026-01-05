@@ -1,5 +1,6 @@
+from contextlib import suppress
+
 import numpy as np
-from contrextlib import suppress
 
 with suppress(ImportError):
     import pytest

@@ -21,8 +21,10 @@ from devito.types import Barrier, Scalar, Symbol
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):
-    blocksizes = {f'{d}0_blk{level}_size': v
-                  for d, v in zip(grid.dimensions, blockshape, strict=True)}
+    blocksizes = {
+        f'{d}0_blk{level}_size': v
+        for d, v in zip(grid.dimensions, blockshape, strict=False)
+    }
     blocksizes = {k: v for k, v in blocksizes.items() if k in op._known_arguments}
     # Sanity check
     if grid.dim == 1 or len(blockshape) == 0:
