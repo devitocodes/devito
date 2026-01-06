@@ -31,10 +31,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8-pyproject isort ruff
 
-    - name: Lint codebase with flake8
-      run: |
-        flake8 --builtins=ArgumentError .
-
     - name: Lint the Python imports with isort
       run: |
         isort --check-only .
@@ -42,6 +38,10 @@ jobs:
     - name: Lint codebase with ruff
       run: |
         ruff check --preview --output-format github
+
+    - name: Lint codebase with flake8
+      run: |
+        flake8 --builtins=ArgumentError .
 
   spellcheck:
     name: "Spellcheck everything"
