@@ -1,10 +1,12 @@
+import logging
+
 import sympy
 import pytest
 
 import numpy as np
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, SubDomain, Dimension,
-                    ConditionalDimension)
+                    ConditionalDimension, switchconfig)
 from devito.ir.iet.visitors import Specializer
 
 # Test that specializer replaces symbols as expected
@@ -202,24 +204,36 @@ class TestSpecializer:
 
         assert np.all(check == f.data)
 
+    # TODO: Need a test to check that block sizes can be specialized
+    # TODO: Need to test that tile sizes can be specialized
+
 
 class TestApply:
     """Tests for specialization of operators at apply time"""
 
-    def test_basic(self):
+    @pytest.mark.parametrize('override', [False, True])
+    def test_basic(self, caplog, override):
         grid = Grid(shape=(11, 11))
         f = Function(name='f', grid=grid, dtype=np.int32)
         op = Operator(Eq(f, f+1))
 
-        # TODO: Need to verify that specialized operator is actually the one
-        # being run. How can I achieve this?
-        op.apply(specialize=('x_m', 'x_M'))
+        specialize = ('x_m', 'x_M')
+
+        kwargs = {}
+        if override:
+            kwargs['x_m'] = 3
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op.apply(specialize=specialize, **kwargs)
+
+            # Ensure that the specialized operator was run
+            assert all(s not in caplog.text for s in specialize)
+            assert "specialized arguments preprocess" in caplog.text
 
         check = np.array(f.data[:])
         f.data[:] = 0
-        op.apply()
+        op.apply(**kwargs)
 
         assert np.all(check == f.data)
 
-# Need to test combining specialization and overrides (a range of them)
 # Need to test specialization with MPI (both at)
