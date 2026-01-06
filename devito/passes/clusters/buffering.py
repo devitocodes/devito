@@ -562,7 +562,7 @@ class BufferDescriptor:
         # Analogous to the above, we need to include the halo region as well
         ihalo = IntervalGroup([
             Interval(i.dim, -h.left, h.right, i.stamp)
-            for i, h in zip(ispace, self.b._size_halo, strict=True)
+            for i, h in zip(ispace, self.b._size_halo, strict=False)
         ])
 
         ispace = IterationSpace.union(ispace, IterationSpace(ihalo))

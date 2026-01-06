@@ -438,7 +438,7 @@ class TimedAccess(IterationInstance, AccessMode):
 
         # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
         # nasty, `a[i+1, 3] -> a[i, 4]`
-        for i, j in zip(self[n:], other[n:], strict=True):
+        for i, j in zip(self[n:], other[n:], strict=False):
             if i == j:
                 ret.append(S.Zero)
             else:

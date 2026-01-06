@@ -140,7 +140,7 @@ def detect_accesses(exprs):
     for e in retrieve_indexed(exprs, deep=True):
         f = e.function
 
-        for a, d0 in zip(e.indices, f.dimensions, strict=True):
+        for a, d0 in zip(e.indices, f.dimensions, strict=False):
             if isinstance(a, Indirection):
                 a = a.mapped
 
