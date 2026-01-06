@@ -1,9 +1,9 @@
 import abc
 import ctypes
+import ctypes.util
 import mmap
 import os
 import sys
-from ctypes.util import find_library
 
 import numpy as np
 
@@ -153,7 +153,7 @@ class PosixAllocator(MemoryAllocator):
 
     @classmethod
     def initialize(cls):
-        handle = find_library('c')
+        handle = ctypes.util.find_library('c')
 
         # Special case: on MacOS Big Sur any code that attempts to check
         # for dynamic library presence by looking for a file at a path
@@ -274,7 +274,7 @@ class NumaAllocator(MemoryAllocator):
 
     @classmethod
     def initialize(cls):
-        handle = find_library('numa')
+        handle = ctypes.util.find_library('numa')
         if handle is None:
             return
         lib = ctypes.CDLL(handle)
