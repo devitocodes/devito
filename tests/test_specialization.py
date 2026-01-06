@@ -228,12 +228,15 @@ class TestApply:
 
             # Ensure that the specialized operator was run
             assert all(s not in caplog.text for s in specialize)
-            assert "specialized arguments preprocess" in caplog.text
+            assert "specialization" in caplog.text
 
         check = np.array(f.data[:])
         f.data[:] = 0
         op.apply(**kwargs)
 
-        assert np.all(check == f.data)
+        assert np.all(check == f.data[:])
 
-# Need to test specialization with MPI (both at)
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('override', [False, True])
+    def test_basic_mpi(self, caplog, mode, override):
+        self.test_basic(caplog, override)
