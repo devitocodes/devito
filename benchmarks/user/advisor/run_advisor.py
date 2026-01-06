@@ -132,7 +132,7 @@ def run_with_advisor(path, output, name, exec_args):
     # Before collecting the `survey` and `tripcounts` a "pure" python run
     # to warmup the jit cache is preceded
 
-    log('Starting Intel Advisor\'s `roofline` analysis for `%s`' % name)
+    log(f'Starting Intel Advisor\'s `roofline` analysis for `{name}`')
     dt = datetime.datetime.now()
 
     # Set up a file logger that will track the output of the advisor profiling
@@ -140,9 +140,8 @@ def run_with_advisor(path, output, name, exec_args):
     advixe_logger.setLevel(logging.INFO)
 
     advixe_formatter = logging.Formatter('%(asctime)s: %(message)s')
-    logger_datetime = '%d.%d.%d.%d.%d.%d' % (dt.year, dt.month,
-                                             dt.day, dt.hour, dt.minute, dt.second)
-    advixe_handler = logging.FileHandler('%s/%s_%s.log' % (output, name, logger_datetime))
+    logger_datetime = f'{dt.year}.{dt.month}.{dt.day}.{dt.hour}.{dt.minute}.{dt.second}'
+    advixe_handler = logging.FileHandler(f'{output}/{name}_{logger_datetime}.log')
     advixe_handler.setFormatter(advixe_formatter)
     advixe_logger.addHandler(advixe_handler)
 

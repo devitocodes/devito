@@ -33,9 +33,9 @@ class DeviceAccIteration(PragmaIteration):
 
         if tile:
             stile = [str(tile[i]) for i in range(ncollapsed)]
-            clauses.append('tile(%s)' % ','.join(stile))
+            clauses.append('tile({})'.format(','.join(stile)))
         elif ncollapsed > 1:
-            clauses.append('collapse(%d)' % ncollapsed)
+            clauses.append(f'collapse({ncollapsed})')
 
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))
@@ -49,10 +49,10 @@ class DeviceAccIteration(PragmaIteration):
         # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
         # indirectly indexed arrays (e.g., a[b[i]]) unless a present clause is used
         if presents:
-            clauses.append("present(%s)" % ",".join(presents))
+            clauses.append("present({})".format(",".join(presents)))
 
         if deviceptrs:
-            clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
+            clauses.append("deviceptr({})".format(",".join(deviceptrs)))
 
         return clauses
 

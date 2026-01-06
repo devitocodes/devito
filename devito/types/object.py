@@ -1,3 +1,4 @@
+from contextlib import suppress
 from ctypes import byref
 
 import sympy
@@ -207,11 +208,9 @@ class LocalObject(AbstractObject, LocalType):
         ret = set()
         ret.update(super().free_symbols)
         for i in self.cargs:
-            try:
+            with suppress(AttributeError):
+                # AttributeError with pure integers
                 ret.update(i.free_symbols)
-            except AttributeError:
-                # E.g., pure integers
-                pass
         return ret
 
     @property

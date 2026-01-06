@@ -225,8 +225,10 @@ def _lower_msd(dim, cluster):
 @_lower_msd.register(MultiSubDimension)
 def _(dim, cluster):
     i_dim = dim.implicit_dimension
-    mapper = {tkn: dim.functions[i_dim, mM]
-              for tkn, mM in zip(dim.tkns, dim.bounds_indices)}
+    mapper = {
+        tkn: dim.functions[i_dim, mM]
+        for tkn, mM in zip(dim.tkns, dim.bounds_indices, strict=True)
+    }
     return mapper, i_dim
 
 
@@ -258,10 +260,7 @@ def reduce(m0, m1, edims, prefix):
         raise NotImplementedError
     d, = edims
 
-    if prefix[d].direction is Forward:
-        func = max
-    else:
-        func = min
+    func = max if prefix[d].direction is Forward else min
 
     def key(i):
         try:

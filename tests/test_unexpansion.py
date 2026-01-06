@@ -41,16 +41,16 @@ class TestSymbolicCoeffs:
         w = np.zeros(3)
 
         # Pure derivative
-        Operator(Eq(u, u.dx2(weights=w)), opt=opt).cfunction
+        _ = Operator(Eq(u, u.dx2(weights=w)), opt=opt).cfunction
 
         # Mixed derivative
-        Operator(Eq(u, u.dx.dx), opt=opt).cfunction
+        _ = Operator(Eq(u, u.dx.dx), opt=opt).cfunction
 
         # Non-perfect mixed derivative
-        Operator(Eq(u, (u.dx(weights=w) + v.dx).dx), opt=opt).cfunction
+        _ = Operator(Eq(u, (u.dx(weights=w) + v.dx).dx), opt=opt).cfunction
 
         # Compound expression
-        Operator(Eq(u, (v*u.dx).dy(weights=w)), opt=opt).cfunction
+        _ = Operator(Eq(u, (v*u.dx).dy(weights=w)), opt=opt).cfunction
 
     @pytest.mark.parametrize('coeffs,expected', [
         ((7, 7, 7), 3),  # We've had a bug triggered by identical coeffs
@@ -71,7 +71,7 @@ class TestSymbolicCoeffs:
                 p.dx(weights=coeffs0).dy(weights=coeffs1))
 
         op = Operator(eq, opt=('advanced', {'expand': False}))
-        op.cfunction
+        _ = op.cfunction
 
         # w0, w1, ...
         functions = FindSymbols().visit(op)
@@ -244,7 +244,7 @@ class Test1Pass:
                                                'cire-mingain': 200}))
 
         # Check generated code -- redundant IndexDerivatives have been caught!
-        op1._profiler._sections['section0'].sops == 65
+        assert op1._profiler._sections['section0'].sops == 65
 
         op0.apply(time_M=5)
         op1.apply(time_M=5, u=u1, v=v1)
@@ -269,7 +269,7 @@ class Test1Pass:
                               't,x0_blk0,y0_blk0,x,y,z,i1,i0'],
                          'x,y,z,t,x0_blk0,y0_blk0,x,y,z,i1,i0')
 
-        op.cfunction
+        _ = op.cfunction
 
     def test_v5(self):
         grid = Grid(shape=(16, 16))
@@ -290,7 +290,7 @@ class Test1Pass:
         assert op._profiler._sections['section0'].sops == 127
         assert_structure(op, ['t,x,y', 't,x,y,i1', 't,x,y,i1,i0'], 't,x,y,i1,i0')
 
-        op.cfunction
+        _ = op.cfunction
 
     def test_v6(self):
         grid = Grid(shape=(16, 16))
@@ -315,7 +315,7 @@ class Test1Pass:
         assert op._profiler._sections['section0'].sops == 133
         assert_structure(op, ['t,x,y', 't,x,y,i1', 't,x,y,i1,i0'], 't,x,y,i1,i0')
 
-        op.cfunction
+        _ = op.cfunction
 
     def test_transpose(self):
         shape = (11, 11, 11)
@@ -364,7 +364,7 @@ class Test1Pass:
         temps = [i for i in FindSymbols().visit(exprs) if isinstance(i, Symbol)]
         assert len(temps) == 2 + nlin
 
-        op.cfunction
+        _ = op.cfunction
 
     def test_buffering_timestencil(self):
         grid = Grid((11, 11))
@@ -441,7 +441,7 @@ class Test2Pass:
                               't,x0_blk0,y0_blk0,x,y,z,i1'],
                          'x,y,z,t,x0_blk0,y0_blk0,x,y,z,i0,x,y,z,i1')
 
-        op.cfunction
+        _ = op.cfunction
 
     def test_diff_first_deriv(self):
         grid = Grid(shape=(16, 16, 16))

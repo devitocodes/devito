@@ -45,8 +45,8 @@ class OmpRegion(ParallelBlock):
 
     @classmethod
     def _make_header(cls, nthreads, private=None):
-        private = ('private(%s)' % ','.join(private)) if private else ''
-        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
+        private = ('private({})'.format(','.join(private))) if private else ''
+        return c.Pragma(f'omp parallel num_threads({nthreads.name}) {private}')
 
 
 class OmpIteration(PragmaIteration):
@@ -64,14 +64,16 @@ class OmpIteration(PragmaIteration):
         clauses = []
 
         if ncollapsed > 1:
-            clauses.append('collapse(%d)' % ncollapsed)
+            clauses.append(f'collapse({ncollapsed})')
 
         if chunk_size is not False:
-            clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
-                                                chunk_size or 1))
+            clauses.append('schedule({},{})'.format(
+                schedule or 'dynamic',
+                chunk_size or 1
+            ))
 
         if nthreads:
-            clauses.append('num_threads(%s)' % nthreads)
+            clauses.append(f'num_threads({nthreads})')
 
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))
@@ -93,7 +95,7 @@ class DeviceOmpIteration(OmpIteration):
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
         deviceptrs = filter_ordered(i.name for i in indexeds if i.function._mem_local)
         if deviceptrs:
-            clauses.append("is_device_ptr(%s)" % ",".join(deviceptrs))
+            clauses.append("is_device_ptr({})".format(",".join(deviceptrs)))
 
         return clauses
 
@@ -261,21 +263,18 @@ class AbstractOmpizer(PragmaShmTransformer):
         if isinstance(compiler, GNUCompiler) and \
            compiler.version < Version("6.0"):
             return False
-        elif isinstance(compiler, NvidiaCompiler):
-            # NVC++ does not support array reduction and leads to segfault
-            return False
         else:
-            return True
+            # NVC++ does not support array reduction and leads to segfault
+            return not isinstance(compiler, NvidiaCompiler)
 
     @classmethod
     def _support_complex_reduction(cls, compiler):
         # In case we have a CustomCompiler
         if isinstance(compiler, CustomCompiler):
             compiler = compiler._base()
-        if isinstance(compiler, GNUCompiler):
+        else:
             # Gcc doesn't supports complex reduction
-            return False
-        return True
+            return not isinstance(compiler, GNUCompiler)
 
 
 class Ompizer(AbstractOmpizer):

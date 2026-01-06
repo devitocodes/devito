@@ -61,8 +61,8 @@ class TestCodeGeneration:
                      platform='nvidiaX', language='openacc', opt='openmp')
         except InvalidOperator:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     @pytest.mark.parametrize('opt', opts_device_tiling)
     def test_blocking(self, opt):
@@ -112,7 +112,7 @@ class TestCodeGeneration:
             'acc parallel loop tile(32,4) present(u)'
         strtile = ','.join([str(i) for i in stile])
         assert trees[3][1].pragmas[0].ccode.value ==\
-            'acc parallel loop tile(%s) present(src,src_coords,u)' % strtile
+            f'acc parallel loop tile({strtile}) present(src,src_coords,u)'
 
     @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
                                           ((32, 4, 4), (8, 8, 8)),
@@ -141,7 +141,7 @@ class TestCodeGeneration:
             'acc parallel loop tile(8,8) present(u)'
         sclause = 'collapse(4)' if par_tile[-1] is None else 'tile(8,8,8,8)'
         assert trees[3][1].pragmas[0].ccode.value ==\
-            'acc parallel loop %s present(src,src_coords,u)' % sclause
+            f'acc parallel loop {sclause} present(src,src_coords,u)'
 
     def test_multi_tile_blocking_structure(self):
         grid = Grid(shape=(8, 8, 8))
@@ -166,11 +166,11 @@ class TestCodeGeneration:
             'acc parallel loop tile(32,4,4) present(u)'
         assert bns['x1_blk0'].pragmas[0].ccode.value ==\
             'acc parallel loop tile(16,4,4) present(u,v)'
-        for root, v in zip(bns.values(), expected):
+        for root, v in zip(bns.values(), expected, strict=True):
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
             assert len(iters) == len(v)
-            assert all(i.step == j for i, j in zip(iters, v))
+            assert all(i.step == j for i, j in zip(iters, v, strict=True))
 
     def test_std_max(self):
         grid = Grid(shape=(3, 3, 3))

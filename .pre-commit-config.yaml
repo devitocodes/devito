@@ -13,13 +13,18 @@ repos:
     hooks:
       # Run isort to check only (don't modify files)
       - id: isort
-        args: [ --check-only ]
+        args: [--check-only, --filter-files]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.14.4
     hooks:
       # Run the linter to check only (don't modify files)
       - id: ruff-check
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        additional_dependencies: [flake8-pyproject]
   - repo: https://github.com/crate-ci/typos
     rev: v1.39.1
     hooks:

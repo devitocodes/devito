@@ -70,7 +70,7 @@ class Data(np.ndarray):
 
         # Sanity check -- A Dimension can't be at the same time modulo-iterated
         # and MPI-distributed
-        assert all(i is None for i, j in zip(obj._decomposition, obj._modulo)
+        assert all(i is None for i, j in zip(obj._decomposition, obj._modulo, strict=True)
                    if j is True)
 
         return obj
@@ -118,10 +118,13 @@ class Data(np.ndarray):
             # From `__getitem__`
             self._distributor = obj._distributor
             glb_idx = obj._normalize_index(obj._index_stash)
-            self._modulo = tuple(m for i, m in zip(glb_idx, obj._modulo)
-                                 if not is_integer(i))
+            self._modulo = tuple(
+                m
+                for i, m in zip(glb_idx, obj._modulo, strict=False)
+                if not is_integer(i)
+            )
             decomposition = []
-            for i, dec in zip(glb_idx, obj._decomposition):
+            for i, dec in zip(glb_idx, obj._decomposition, strict=False):
                 if is_integer(i):
                     continue
                 elif dec is None:
@@ -240,7 +243,7 @@ class Data(np.ndarray):
                     shape = [r.stop-r.start for r in self._distributor.all_ranges[i]]
                     idx = [slice(r.start - d.glb_min, r.stop - d.glb_min, r.step)
                            for r, d in zip(self._distributor.all_ranges[i],
-                                           self._distributor.decomposition)]
+                                           self._distributor.decomposition, strict=True)]
                     for j in range(len(self.shape) - len(self._distributor.glb_shape)):
                         shape.insert(j, glb_shape[j])
                         idx.insert(j, slice(0, glb_shape[j]+1, 1))
@@ -309,7 +312,7 @@ class Data(np.ndarray):
             # Check if dimensions of the view should now be reduced to
             # be consistent with those of an equivalent NumPy serial view
             if not is_gather:
-                newshape = tuple(s for s, i in zip(retval.shape, loc_idx)
+                newshape = tuple(s for s, i in zip(retval.shape, loc_idx, strict=True)
                                  if type(i) is not np.int64)
             else:
                 newshape = ()
@@ -373,7 +376,7 @@ class Data(np.ndarray):
                 glb_idx = self._normalize_index(glb_idx)
                 glb_idx, val = self._process_args(glb_idx, val)
                 val_idx = [index_dist_to_repl(i, dec) for i, dec in
-                           zip(glb_idx, self._decomposition)]
+                           zip(glb_idx, self._decomposition, strict=True)]
                 if NONLOCAL in val_idx:
                     # no-op
                     return
@@ -388,7 +391,7 @@ class Data(np.ndarray):
                 val_idx = val_idx[len(val_idx)-val.ndim:]
                 processed = []
                 # Handle step size > 1
-                for i, j in zip(glb_idx, val_idx):
+                for i, j in zip(glb_idx, val_idx, strict=False):
                     if isinstance(i, slice) and i.step is not None and i.step > 1 and \
                             j.stop > j.start:
                         processed.append(slice(j.start, j.stop, 1))
@@ -435,12 +438,9 @@ class Data(np.ndarray):
                for i in as_tuple(idx)):
             processed = []
             transform = []
-            for j, k in zip(idx, self._distributor.glb_shape):
+            for j, k in zip(idx, self._distributor.glb_shape, strict=True):
                 if isinstance(j, slice) and j.step is not None and j.step < 0:
-                    if j.start is None:
-                        stop = None
-                    else:
-                        stop = j.start + 1
+                    stop = None if j.start is None else j.start + 1
                     if j.stop is None and j.start is None:
                         start = int(np.mod(k-1, -j.step))
                     elif j.stop is None:
@@ -482,7 +482,9 @@ class Data(np.ndarray):
                 return glb_idx
 
         loc_idx = []
-        for i, s, mod, dec in zip(glb_idx, self.shape, self._modulo, self._decomposition):
+        for i, s, mod, dec in zip(
+            glb_idx, self.shape, self._modulo, self._decomposition, strict=False
+        ):
             if mod is True:
                 # Need to wrap index based on modulo
                 v = index_apply_modulo(i, s)
@@ -490,10 +492,11 @@ class Data(np.ndarray):
                 # Convert the user-provided global indices into local indices.
                 try:
                     v = convert_index(i, dec, mode='glb_to_loc')
-                except TypeError:
+                except TypeError as e:
                     if self._is_decomposed:
-                        raise NotImplementedError("Unsupported advanced indexing with "
-                                                  "MPI-distributed Data")
+                        raise NotImplementedError(
+                            "Unsupported advanced indexing with MPI-distributed Data"
+                        ) from e
                     v = i
             else:
                 v = i
@@ -523,7 +526,7 @@ class Data(np.ndarray):
         # Convert integers to slices so that shape dims are preserved
         if is_integer(as_tuple(idx)[0]):
             data_glb_idx.append(slice(0, 1, 1))
-        for i, j in zip(data_loc_idx, val._decomposition):
+        for i, j in zip(data_loc_idx, val._decomposition, strict=True):
             if not j.loc_empty:
                 data_glb_idx.append(j.index_loc_to_glb(i))
             else:
@@ -536,17 +539,16 @@ class Data(np.ndarray):
                     data_glb_idx.insert(index, value)
         # Based on `data_glb_idx` the indices to which the locally stored data
         # block correspond can now be computed:
-        for i, j, k in zip(data_glb_idx, as_tuple(idx), self._decomposition):
+        for i, j, k in zip(
+            data_glb_idx, as_tuple(idx), self._decomposition, strict=False
+        ):
             if is_integer(j):
                 mapped_idx.append(j)
                 continue
             elif isinstance(j, slice) and j.start is None:
                 norm = 0
             elif isinstance(j, slice) and j.start is not None:
-                if j.start >= 0:
-                    norm = j.start
-                else:
-                    norm = j.start+k.glb_max+1
+                norm = j.start if j.start >= 0 else j.start+k.glb_max+1
             else:
                 norm = j
             if i is not None:
@@ -580,7 +582,7 @@ class Data(np.ndarray):
         if isinstance(step, int) or step is None:
             step = [step for _ in self.shape]
         idx = []
-        for i, j, k in zip(start, stop, step):
+        for i, j, k in zip(start, stop, step, strict=True):
             idx.append(slice(i, j, k))
         idx = tuple(idx)
         if self._distributor.is_parallel and self._distributor.nprocs > 1:

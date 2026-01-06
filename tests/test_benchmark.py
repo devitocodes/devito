@@ -34,11 +34,12 @@ def test_bench(mode, problem, op):
 
     pyversion = sys.executable
     baseline = os.path.realpath(__file__).split("tests/test_benchmark.py")[0]
-    benchpath = '%sbenchmarks/user/benchmark.py' % baseline
+    benchpath = f'{baseline}benchmarks/user/benchmark.py'
 
-    command_bench = [pyversion, benchpath, mode,
-                     '-P', problem, '-d', '%d' % nx, '%d' % ny, '%d' % nz, '--tn',
-                     '%d' % tn, '-op', op]
+    command_bench = [
+        pyversion, benchpath, mode, '-P', problem,
+        '-d', str(nx), str(ny), str(nz), '--tn', str(tn), '-op', op
+    ]
     if mode == "bench":
         command_bench.extend(['-x', '1'])
     check_call(command_bench)
@@ -48,14 +49,14 @@ def test_bench(mode, problem, op):
     base_filename = problem
     filename_suffix = '.json'
     arch = 'arch[unknown]'
-    shape = 'shape[%d,%d,%d]' % (nx, ny, nz)
+    shape = f'shape[{nx}{ny}{nz}]'
     nbl = 'nbl[10]'
-    t = 'tn[%d]' % tn
+    t = f'tn[{tn}]'
     so = 'so[2]'
     to = 'to[2]'
     opt = 'opt[advanced]'
     at = 'at[aggressive]'
-    nt = 'nt[%d]' % nthreads
+    nt = f'nt[{nthreads}]'
     mpi = 'mpi[False]'
     np = 'np[1]'
     rank = 'rank[0]'
@@ -64,7 +65,7 @@ def test_bench(mode, problem, op):
         bench_corename = os.path.join('_'.join([base_filename, arch, shape, nbl, t,
                                       so, to, opt, at, nt, mpi, np, rank]))
 
-        bench_filename = "%s%s%s" % (dir_name, bench_corename, filename_suffix)
+        bench_filename = f"{dir_name}{bench_corename}{filename_suffix}"
         assert os.path.isfile(bench_filename)
     else:
         assert True

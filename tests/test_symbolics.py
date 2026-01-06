@@ -216,7 +216,7 @@ def test_bundle():
     fg = Bundle(name='fg', components=(f, g))
 
     # Test reconstruction
-    fg._rebuild().components == fg.components
+    assert fg._rebuild().components == fg.components
 
 
 def test_call_from_pointer():

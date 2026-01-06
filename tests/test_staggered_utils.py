@@ -50,7 +50,9 @@ def test_avg(ndim):
         shifted = f
         for dd in d:
             shifted = shifted.subs({dd: dd - dd.spacing/2})
-        assert all(i == dd for i, dd in zip(shifted.indices, grid.dimensions))
+        assert all(
+            i == dd for i, dd in zip(shifted.indices, grid.dimensions, strict=True)
+        )
         # Average automatically i.e.:
         # f not defined at x so f(x, y) = 0.5*f(x - h_x/2, y) + 0.5*f(x + h_x/2, y)
         avg = f
@@ -180,7 +182,7 @@ def test_staggered_rebuild(stagg):
 
     # Check that rebuild correctly set the staggered indices
     # with the new dimensions
-    for (d, nd) in zip(grid.dimensions, new_dims):
+    for (d, nd) in zip(grid.dimensions, new_dims, strict=True):
         if d in as_tuple(stagg) or stagg is CELL:
             assert f2.indices[nd] == nd + nd.spacing / 2
         else:

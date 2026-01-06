@@ -3,10 +3,10 @@ from devito.core.cpu import (
 )
 
 __all__ = [
-                             'PowerAdvCOperator',
-                             'PowerAdvCXXOmpOperator',
-                             'PowerAdvOmpOperator',
-                             'PowerCXXAdvCOperator',
+    'PowerAdvCOperator',
+    'PowerAdvCXXOmpOperator',
+    'PowerAdvOmpOperator',
+    'PowerCXXAdvCOperator',
 ]
 
 PowerAdvCOperator = Cpu64AdvCOperator

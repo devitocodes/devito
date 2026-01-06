@@ -69,7 +69,7 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True, cmap="jet"):
               model.origin[1] + domain_size[1], model.origin[1]]
 
     slices = tuple(slice(model.nbl, -model.nbl) for _ in range(2))
-    if getattr(model, 'vp', None) is not None:
+    if getattr(model, 'vp', None) is not None:  # noqa: SIM108
         field = model.vp.data[slices]
     else:
         field = model.lam.data[slices]

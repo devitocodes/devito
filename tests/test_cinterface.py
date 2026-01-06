@@ -26,7 +26,7 @@ def test_basic():
     ccode = str(ccode)
     hcode = str(hcode)
 
-    assert 'include "%s.h"' % name in ccode
+    assert f'include "{name}.h"' in ccode
 
     # The public `struct dataobj` only appears in the header file
     assert 'struct dataobj\n{' not in ccode

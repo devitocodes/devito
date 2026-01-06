@@ -1,5 +1,6 @@
 import math
 from collections import namedtuple
+from contextlib import suppress
 from functools import cached_property
 
 import numpy as np
@@ -306,16 +307,12 @@ class Dimension(ArgProvider):
         defaults = self._arg_defaults()
         if glb_minv is None:
             loc_minv = args.get(self.min_name, defaults[self.min_name])
-            try:
+            with suppress(AttributeError, TypeError):
                 loc_minv -= min(interval.lower, 0)
-            except (AttributeError, TypeError):
-                pass
         if glb_maxv is None:
             loc_maxv = args.get(self.max_name, defaults[self.max_name])
-            try:
+            with suppress(AttributeError, TypeError):
                 loc_maxv -= max(interval.upper, 0)
-            except (AttributeError, TypeError):
-                pass
 
         # Some `args` may still be DerivedDimensions' defaults. These, in turn,
         # may represent sets of legal values. If that's the case, here we just
@@ -323,17 +320,13 @@ class Dimension(ArgProvider):
         try:
             loc_minv = loc_minv.stop
         except AttributeError:
-            try:
+            with suppress(TypeError):
                 loc_minv = sorted(loc_minv).pop(0)
-            except TypeError:
-                pass
         try:
             loc_maxv = loc_maxv.stop
         except AttributeError:
-            try:
+            with suppress(TypeError):
                 loc_maxv = sorted(loc_maxv).pop(0)
-            except TypeError:
-                pass
 
         return {self.min_name: loc_minv, self.max_name: loc_maxv}
 
@@ -366,9 +359,10 @@ class Dimension(ArgProvider):
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
-            raise InvalidArgument("Illegal %s=%d < %s=%d"
-                                  % (self.max_name, args[self.max_name],
-                                     self.min_name, args[self.min_name]))
+            raise InvalidArgument(
+                f'Illegal {self.max_name}={args[self.max_name]} < '
+                f'{self.min_name}={args[self.min_name]}'
+            )
         elif args[self.max_name] == args[self.min_name]-1:
             debug("%s=%d and %s=%d might cause no iterations along Dimension %s",
                   self.min_name, args[self.min_name],
@@ -645,7 +639,7 @@ class AbstractSubDimension(DerivedDimension):
     def _symbolic_thickness(self, **kwargs):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True}
 
-        names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
+        names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         return SubDimensionThickness(*[Thickness(name=n, **kwargs) for n in names])
 
     @cached_property
@@ -757,10 +751,12 @@ class SubDimension(AbstractSubDimension):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
                   'root': self.root, 'local': self.local}
 
-        names = ["%s_%stkn" % (self.parent.name, s) for s in ('l', 'r')]
+        names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
-        return SubDimensionThickness(*[Thickness(name=n, side=s, value=t, **kwargs)
-                                       for n, s, t in zip(names, sides, thickness)])
+        return SubDimensionThickness(*[
+            Thickness(name=n, side=s, value=t, **kwargs)
+            for n, s, t in zip(names, sides, thickness, strict=True)
+        ])
 
     @cached_property
     def _interval(self):
@@ -934,7 +930,7 @@ class ConditionalDimension(DerivedDimension):
         elif is_number(factor):
             self._factor = int(factor)
         elif factor.is_Constant:
-            deprecations.constant_factor_warn
+            _ = deprecations.constant_factor_warn
             self._factor = factor
         else:
             raise ValueError("factor must be an integer")
@@ -987,10 +983,8 @@ class ConditionalDimension(DerivedDimension):
         retval = set(super().free_symbols)
         if self.condition is not None:
             retval |= self.condition.free_symbols
-        try:
+        with suppress(AttributeError):
             retval |= self.factor.free_symbols
-        except AttributeError:
-            pass
         return retval
 
     def _arg_values(self, interval, grid=None, args=None, **kwargs):
@@ -1005,15 +999,11 @@ class ConditionalDimension(DerivedDimension):
 
         toint = lambda x: math.ceil(x / fact)
         vals = {}
-        try:
+        with suppress(KeyError, TypeError):
             vals[self.min_name] = toint(kwargs.get(self.parent.min_name))
-        except (KeyError, TypeError):
-            pass
 
-        try:
+        with suppress(KeyError, TypeError):
             vals[self.max_name] = toint(kwargs.get(self.parent.max_name))
-        except (KeyError, TypeError):
-            pass
 
         vals[self.symbolic_factor.name] = fact
 
@@ -1147,10 +1137,7 @@ class ModuloDimension(DerivedDimension):
 
     @cached_property
     def symbolic_incr(self):
-        if self._incr is not None:
-            incr = self._incr
-        else:
-            incr = self.offset
+        incr = self._incr if self._incr is not None else self.offset
         if self.modulo is not None:
             incr = incr % self.modulo
         # Make sure we return a symbolic object as this point `incr` may well
@@ -1370,19 +1357,22 @@ class BlockDimension(AbstractIncrDimension):
             # sub-BlockDimensions must be perfect divisors of their parent
             parent_value = args[self.parent.step.name]
             if parent_value % value > 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: sub-block sizes "
-                                      "must divide the parent block size evenly (`%s=%d`)"
-                                      % (name, value, self.parent.step.name,
-                                         parent_value))
+                raise InvalidArgument(
+                    f'Illegal block size `{name}={value}`: sub-block sizes '
+                    'must divide the parent block size evenly '
+                    f'(`{self.parent.step.name}={parent_value}`)'
+                )
         else:
             if value < 0:
-                raise InvalidArgument("Illegal block size `%s=%d`: it should be > 0"
-                                      % (name, value))
+                raise InvalidArgument(
+                    f'Illegal block size `{name}={value}`: it should be > 0'
+                )
             if value > args[self.root.max_name] - args[self.root.min_name] + 1:
                 # Avoid OOB
-                raise InvalidArgument("Illegal block size `%s=%d`: it's greater than the "
-                                      "iteration range and it will cause an OOB access"
-                                      % (name, value))
+                raise InvalidArgument(
+                    f'Illegal block size `{name}={value}`: it is greater than the '
+                    'iteration range and it will cause an OOB access'
+                )
 
 
 class CustomDimension(BasicDimension):
@@ -1540,8 +1530,8 @@ class DynamicSubDimension(DynamicDimensionMixin, SubDimension):
 
     @classmethod
     def _symbolic_thickness(cls, name):
-        return (Scalar(name="%s_ltkn" % name, dtype=np.int32, nonnegative=True),
-                Scalar(name="%s_rtkn" % name, dtype=np.int32, nonnegative=True))
+        return (Scalar(name=f"{name}_ltkn", dtype=np.int32, nonnegative=True),
+                Scalar(name=f"{name}_rtkn", dtype=np.int32, nonnegative=True))
 
 
 class StencilDimension(BasicDimension):
@@ -1571,13 +1561,13 @@ class StencilDimension(BasicDimension):
         self._spacing = sympy.sympify(spacing)
 
         if not is_integer(_min):
-            raise ValueError("Expected integer `min` (got %s)" % _min)
+            raise ValueError(f"Expected integer `min` (got {_min})")
         if not is_integer(_max):
-            raise ValueError("Expected integer `max` (got %s)" % _max)
+            raise ValueError(f"Expected integer `max` (got {_max})")
         if not is_integer(self._spacing):
-            raise ValueError("Expected integer `spacing` (got %s)" % self._spacing)
+            raise ValueError(f"Expected integer `spacing` (got {self._spacing})")
         if not is_integer(step):
-            raise ValueError("Expected integer `step` (got %s)" % step)
+            raise ValueError(f"Expected integer `step` (got {step})")
 
         self._min = int(_min)
         self._max = int(_max)
@@ -1586,7 +1576,7 @@ class StencilDimension(BasicDimension):
         self._size = _max - _min + 1
 
         if self._size < 1:
-            raise ValueError("Expected size greater than 0 (got %s)" % self._size)
+            raise ValueError(f"Expected size greater than 0 (got {self._size})")
 
     @property
     def step(self):
@@ -1860,7 +1850,7 @@ class AffineIndexAccessFunction(IndexAccessFunction):
 
 def dimensions(names, n=1):
     if n > 1:
-        return tuple(Dimension('%s%s' % (names, i)) for i in range(n))
+        return tuple(Dimension(f'{names}{i}') for i in range(n))
     else:
         assert type(names) is str
         return tuple(Dimension(i) for i in names.split())

@@ -509,7 +509,7 @@ class TestStreaming:
         # a host Function
         piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 1
-        assert type(piters.pop()) == OmpIteration
+        assert isinstance(piters.pop(), OmpIteration)
 
     def test_tasking_multi_output(self):
         nt = 10

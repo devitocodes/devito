@@ -65,7 +65,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None,
                 **kwargs):
         if coefficients is not None:
-            deprecations.coeff_warn
+            _ = deprecations.coeff_warn
         kwargs['evaluate'] = False
         # Backward compatibility
         rhs = cls._apply_coeffs(rhs, coefficients)
@@ -127,7 +127,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         if self.lhs.is_Matrix:
             # Maps the Equations to retrieve the rhs from relevant lhs
             try:
-                eqs = dict(zip(self.lhs, self.rhs))
+                eqs = dict(zip(self.lhs, self.rhs, strict=True))
             except TypeError:
                 # Same rhs for all lhs
                 assert not self.rhs.is_Matrix
@@ -183,7 +183,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         return self.func(self.lhs.xreplace(rules), self.rhs.xreplace(rules))
 
     def __str__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+        return f"{self.__class__.__name__}({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 
@@ -198,7 +198,7 @@ class Reduction(Eq):
     is_Reduction = True
 
     def __str__(self):
-        return "%s(%s, %s)" % (self.__class__.__name__, self.lhs, self.rhs)
+        return f"{self.__class__.__name__}({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 

@@ -95,10 +95,7 @@ def q_terminalop(expr, depth=0):
         return True
     elif expr.is_Add or expr.is_Mul:
         for a in expr.args:
-            if a.is_Pow:
-                elems = a.args
-            else:
-                elems = [a]
+            elems = a.args if a.is_Pow else [a]
             if any(not q_leaf(i) for i in elems):
                 return False
         return True
@@ -306,14 +303,13 @@ def q_positive(expr):
 
         if x0 is not x1:
             return False
-        if not isinstance(p1, Constant):
-            # TODO: Same considerations above about Constant apply
-            return False
 
         # At this point we are in the form `X {+,-} X / p0 + p1`, where
         # `X`, `p0`, and `p1` are definitely positive; since `X > X / p0`,
         # definitely the answer is True
-        return True
+        # OR we are a constant and return False
+        # TODO: Same considerations above about Constant apply
+        return isinstance(p1, Constant)
 
     if len(expr.args) == 2:
         return case0(*expr.args) or case1(S.Zero, *expr.args)

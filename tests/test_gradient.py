@@ -220,7 +220,7 @@ class TestGradient:
             # Add the perturbation to the model
             def initializer(data):
                 data[:] = np.sqrt(vel0.data**2 * v**2 /
-                                  ((1 - H[i]) * v**2 + H[i] * vel0.data**2))
+                                  ((1 - H[i]) * v**2 + H[i] * vel0.data**2))  # noqa: B023
             vloc = Function(name='vloc', grid=wave.model.grid, space_order=space_order,
                             initializer=initializer)
             # Data for the new model
@@ -234,8 +234,8 @@ class TestGradient:
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-        info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
-        info(r'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
+        info(f'1st order error, Phi(m0+dm)-Phi(m0): {p1}')
+        info(rf'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: {p2}')
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 
@@ -280,7 +280,7 @@ class TestGradient:
             # Add the perturbation to the model
             def initializer(data):
                 data[:] = np.sqrt(v0.data**2 * v**2 /
-                                  ((1 - H[i]) * v**2 + H[i] * v0.data**2))
+                                  ((1 - H[i]) * v**2 + H[i] * v0.data**2))  # noqa: B023
             vloc = Function(name='vloc', grid=wave.model.grid, space_order=space_order,
                             initializer=initializer)
             # Data for the new model
@@ -295,9 +295,9 @@ class TestGradient:
         # Test slope of the  tests
         p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-        info('1st order error, Phi(m0+dm)-Phi(m0) with slope: %s compared to 1' % (p1[0]))
+        info(f'1st order error, Phi(m0+dm)-Phi(m0) with slope: {p1[0]} compared to 1')
         info(r'2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>with slope:'
-             ' %s compared to 2' % (p2[0]))
+             f' {p2[0]} compared to 2')
         assert np.isclose(p1[0], 1.0, rtol=0.1)
         assert np.isclose(p2[0], 2.0, rtol=0.1)
 

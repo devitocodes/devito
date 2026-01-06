@@ -25,5 +25,5 @@ import pytest
     'symbolics.inspection', 'tools.utils', 'tools.data_structures'
 ])
 def test_docstrings(modname):
-    module = import_module('devito.%s' % modname)
+    module = import_module(f'devito.{modname}')
     assert doctest.testmod(module).failed == 0

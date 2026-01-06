@@ -245,10 +245,7 @@ class TestBasic:
                             interpolation=interp)
         u = Function(name='u', grid=grid, space_order=4)
 
-        if op == 'inject':
-            expr = sf.inject(u, sf)
-        else:
-            expr = sf.interpolate(u)
+        expr = sf.inject(u, sf) if op == 'inject' else sf.interpolate(u)
 
         pkl_expr = pickle.dumps(expr)
         new_expr = pickle.loads(pkl_expr)
@@ -391,8 +388,8 @@ class TestBasic:
         pkl_lock = pickle.dumps(lock)
         new_lock = pickle.loads(pkl_lock)
 
-        lock.name == new_lock.name
-        new_lock.dimensions[0].symbolic_size == ld.symbolic_size
+        assert lock.name == new_lock.name
+        assert new_lock.dimensions[0].symbolic_size == ld.symbolic_size
 
     def test_p_thread_array(self, pickle):
         a = PThreadArray(name='threads', npthreads=4)
@@ -686,7 +683,7 @@ class TestAdvanced:
                                coordinates=[(0.,), (1.,), (2.,)])
 
         # Plain `pickle` doesn't support pickling of dynamic classes
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             pickle0.dumps(msf)
 
         # But `cloudpickle` does
@@ -776,7 +773,7 @@ class TestOperator:
     def test_operator_function_w_preallocation(self, pickle):
         grid = Grid(shape=(3, 3, 3))
         f = Function(name='f', grid=grid)
-        f.data
+        _ = f.data
 
         op = Operator(Eq(f, f + 1))
         op.apply()
@@ -807,7 +804,7 @@ class TestOperator:
     def test_operator_timefunction_w_preallocation(self, pickle):
         grid = Grid(shape=(3, 3, 3))
         f = TimeFunction(name='f', grid=grid, save=3)
-        f.data
+        _ = f.data
 
         op = Operator(Eq(f.forward, f + 1))
         op.apply(time=0)
@@ -852,8 +849,8 @@ class TestOperator:
         pkl_op = pickle.dumps(op)
         new_op = pickle.loads(pkl_op)
 
-        op.cfunction
-        new_op.cfunction
+        _ = op.cfunction
+        _ = new_op.cfunction
 
         assert str(op) == str(new_op)
 
@@ -953,7 +950,11 @@ class TestOperator:
         assert obj.key == new_obj.key
         assert obj.name == new_obj.name
         assert len(new_obj.arguments) == 2
-        assert all(d0.name == d1.name for d0, d1 in zip(obj.arguments, new_obj.arguments))
+        assert all(
+            d0.name == d1.name for d0, d1 in zip(
+                obj.arguments, new_obj.arguments, strict=True
+            )
+        )
         assert all(new_obj.arguments[i] is new_obj.owned[i][0][0][0]  # `x` and `y`
                    for i in range(2))
         assert new_obj.owned[0][0][0][1] is new_obj.owned[1][0][0][1]  # `OWNED`
@@ -1017,7 +1018,7 @@ class TestOperator:
         pkl_origin = pickle.dumps(model.grid.origin_symbols)
         new_origin = pickle.loads(pkl_origin)
 
-        for a, b in zip(model.grid.origin_symbols, new_origin):
+        for a, b in zip(model.grid.origin_symbols, new_origin, strict=True):
             assert a.compare(b) == 0
 
         # Test Class TimeDimension pickling
@@ -1040,7 +1041,7 @@ class TestOperator:
 
         assert model.grid.extent == new_grid.extent
         assert model.grid.shape == new_grid.shape
-        for a, b in zip(model.grid.dimensions, new_grid.dimensions):
+        for a, b in zip(model.grid.dimensions, new_grid.dimensions, strict=True):
             assert a.compare(b) == 0
 
         ricker = RickerSource(name='src', grid=model.grid, f0=f0, time_range=time_range)
@@ -1076,7 +1077,9 @@ class TestOperator:
         op_fwd = Operator(eqn, subs=subs)
 
         tmp_pickle_op_fn = "tmp_operator.pickle"
-        pickle.dump(op_fwd, open(tmp_pickle_op_fn, "wb"))
-        op_new = pickle.load(open(tmp_pickle_op_fn, "rb"))
+        with open(tmp_pickle_op_fn, "wb") as fh:
+            pickle.dump(op_fwd, fh)
+        with open(tmp_pickle_op_fn, "rb") as fh:
+            op_new = pickle.load(fh)
 
         assert str(op_fwd) == str(op_new)

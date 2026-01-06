@@ -74,7 +74,9 @@ class Vector(tuple):
 
     @_asvector()
     def __add__(self, other):
-        return Vector(*[i + j for i, j in zip(self, other)], smart=self.smart)
+        return Vector(
+            *[i + j for i, j in zip(self, other, strict=True)], smart=self.smart
+        )
 
     @_asvector()
     def __radd__(self, other):
@@ -82,7 +84,9 @@ class Vector(tuple):
 
     @_asvector()
     def __sub__(self, other):
-        return Vector(*[i - j for i, j in zip(self, other)], smart=self.smart)
+        return Vector(
+            *[i - j for i, j in zip(self, other, strict=True)], smart=self.smart
+        )
 
     @_asvector()
     def __rsub__(self, other):
@@ -109,7 +113,7 @@ class Vector(tuple):
                     return True
                 elif val > 0:
                     return False
-            except TypeError:
+            except TypeError as e:
                 if self.smart:
                     if (i < 0) == true:
                         return True
@@ -124,7 +128,7 @@ class Vector(tuple):
                         return True
                     elif q_positive(i):
                         return False
-                raise TypeError("Non-comparable index functions")
+                raise TypeError("Non-comparable index functions") from e
 
         return False
 
@@ -145,7 +149,7 @@ class Vector(tuple):
                     return True
                 elif val < 0:
                     return False
-            except TypeError:
+            except TypeError as e:
                 if self.smart:
                     if (i > 0) == true:
                         return True
@@ -160,7 +164,7 @@ class Vector(tuple):
                         return True
                     elif q_negative(i):
                         return False
-                raise TypeError("Non-comparable index functions")
+                raise TypeError("Non-comparable index functions") from e
 
         return False
 
@@ -184,7 +188,7 @@ class Vector(tuple):
                     return True
                 elif val > 0:
                     return False
-            except TypeError:
+            except TypeError as e:
                 if self.smart:
                     if (i < 0) == true:
                         return True
@@ -199,7 +203,7 @@ class Vector(tuple):
                         return True
                     elif q_positive(i):
                         return False
-                raise TypeError("Non-comparable index functions")
+                raise TypeError("Non-comparable index functions") from e
 
         # Note: unlike `__lt__`, if we end up here, then *it is* <=. For example,
         # with `v0` and `v1` as above, we would get here
@@ -214,7 +218,7 @@ class Vector(tuple):
         return Vector(*ret, smart=self.smart) if isinstance(key, slice) else ret
 
     def __repr__(self):
-        return "(%s)" % ','.join(str(i) for i in self)
+        return "({})".format(','.join(str(i) for i in self))
 
     @property
     def rank(self):
@@ -253,7 +257,9 @@ class Vector(tuple):
         """
         try:
             # Handle quickly the special (yet relevant) cases `other == 0`
-            if is_integer(other) and other == 0 or all(i == 0 for i in other) and self.rank == other.rank:
+            if is_integer(other) \
+                    and other == 0 or all(i == 0 for i in other) \
+                    and self.rank == other.rank:
                 return self
         except TypeError:
             pass
@@ -269,12 +275,14 @@ class LabeledVector(Vector):
 
     def __new__(cls, items=None):
         try:
-            labels, values = zip(*items)
+            labels, values = zip(*items, strict=True)
         except (ValueError, TypeError):
             labels, values = (), ()
         if not all(isinstance(i, Dimension) for i in labels):
-            raise ValueError("All labels must be of type Dimension, got [%s]"
-                             % ','.join(i.__class__.__name__ for i in labels))
+            raise ValueError(
+                'All labels must be of type Dimension, got '
+                f'[{", ".join(i.__class__.__name__ for i in labels)}]'
+            )
         obj = super().__new__(cls, *values)
         obj.labels = labels
         return obj
@@ -287,16 +295,20 @@ class LabeledVector(Vector):
         if len(vectors) == 0:
             return LabeledVector()
         if not all(isinstance(v, LabeledVector) for v in vectors):
-            raise ValueError("All items must be of type LabeledVector, got [%s]"
-                             % ','.join(i.__class__.__name__ for i in vectors))
+            raise ValueError(
+                'All items must be of type LabeledVector, got '
+                f'[{", ".join(i.__class__.__name__ for i in vectors)}]'
+            )
         T = OrderedDict()
         for v in vectors:
-            for l, i in zip(v.labels, v):
+            for l, i in zip(v.labels, v, strict=True):
                 T.setdefault(l, []).append(i)
         return tuple((l, Vector(*i)) for l, i in T.items())
 
     def __repr__(self):
-        return "(%s)" % ','.join('%s:%s' % (l, i) for l, i in zip(self.labels, self))
+        return "({})".format(
+            ','.join(f'{l}:{i}' for l, i in zip(self.labels, self, strict=True))
+        )
 
     def __hash__(self):
         return hash((tuple(self), self.labels))
@@ -333,14 +345,15 @@ class LabeledVector(Vector):
                     return super().__getitem__(i)
             return None
         else:
-            raise TypeError("Indices must be integers, slices, or Dimensions, not %s"
-                            % type(index))
+            raise TypeError(
+                f"Indices must be integers, slices, or Dimensions, not {type(index)}"
+            )
 
     def fromlabel(self, label, v=None):
         return self[label] if label in self.labels else v
 
     def items(self):
-        return zip(self.labels, self)
+        return zip(self.labels, self, strict=True)
 
     @memoized_meth
     def distance(self, other):
@@ -356,7 +369,7 @@ class LabeledVector(Vector):
             raise TypeError("Cannot compute distance from obj of type %s", type(other))
         if self.labels != other.labels:
             raise TypeError("Cannot compute distance due to mismatching `labels`")
-        return LabeledVector(list(zip(self.labels, self - other)))
+        return LabeledVector(list(zip(self.labels, self - other, strict=True)))
 
 
 # Utility functions

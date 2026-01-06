@@ -94,7 +94,7 @@ def test_dtype_mapping(dtype: np.dtype[np.inexact], kwargs: dict[str, str],
     # Check ctypes of the mapped parameters
     params: dict[str, Basic] = {p.name: p for p in op.parameters}
     _u, _c = params['u'], params['c']
-    assert type(_u.indexed._C_ctype._type_()) == ctypes_vector_mapper[dtype]
+    assert isinstance(_u.indexed._C_ctype._type_(), ctypes_vector_mapper[dtype])
     assert _c._C_ctype == expected or ctypes_vector_mapper[dtype]
 
 
@@ -125,7 +125,7 @@ def test_cse_ctypes(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None
 @pytest.mark.parametrize('dtype', [np.float32, np.complex64, np.complex128])
 @pytest.mark.parametrize('kwargs', _configs, ids=kw_id)
 def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) -> None:
-    np.dtype
+    _ = np.dtype
     """
     Tests that the correct complex headers are included when complex dtypes
     are present in the operator, and omitted otherwise.
@@ -160,10 +160,7 @@ def test_imag_unit(dtype: np.complexfloating, kwargs: dict[str, str]) -> None:
         unit_str = '_Complex_I'
     else:
         # C++ provides imaginary literals
-        if dtype == np.complex64:
-            unit_str = '1if'
-        else:
-            unit_str = '1i'
+        unit_str = '1if' if dtype == np.complex64 else '1i'
 
     # Set up an operator
     s = Symbol(name='s', dtype=dtype)
@@ -191,10 +188,10 @@ def test_math_functions(dtype: np.dtype[np.inexact],
     if 'CXX' not in configuration['language']:
         if np.issubdtype(dtype, np.complexfloating):
             # Complex functions have a 'c' prefix
-            call_str = 'c%s' % call_str
+            call_str = f'c{call_str}'
         if dtype(0).real.itemsize <= 4:
             # Single precision have an 'f' suffix (half is promoted to single)
-            call_str = '%sf' % call_str
+            call_str = f'{call_str}f'
 
     # Operator setup
     a = Symbol(name='a', dtype=dtype)

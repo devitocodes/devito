@@ -1,4 +1,5 @@
 from collections import defaultdict
+from contextlib import suppress
 from functools import cached_property
 
 import cgen as c
@@ -190,21 +191,21 @@ class PragmaIteration(ParallelIteration):
             if i.is_Indexed:
                 f = i.function
                 bounds = []
-                for k, d in zip(imask, f.dimensions):
+                for k, d in zip(imask, f.dimensions, strict=False):
                     if is_integer(k):
-                        bounds.append('[%s]' % k)
+                        bounds.append(f'[{k}]')
                     elif k is FULL:
                         # Lower FULL Dimensions into a range spanning the entire
                         # Dimension space, e.g. `reduction(+:f[0:f_vec->size[1]])`
-                        bounds.append('[0:%s]' % f._C_get_field(FULL, d).size)
+                        bounds.append(f'[0:{f._C_get_field(FULL, d).size}]')
                     else:
                         assert isinstance(k, tuple) and len(k) == 2
-                        bounds.append('[%s:%s]' % k)
-                mapper[r.name].append('%s%s' % (i.name, ''.join(bounds)))
+                        bounds.append('[{}:{}]'.format(*k))
+                mapper[r.name].append('{}{}'.format(i.name, ''.join(bounds)))
             else:
                 mapper[r.name].append(str(i))
 
-        args = ['reduction(%s:%s)' % (k, ','.join(v)) for k, v in mapper.items()]
+        args = ['reduction({}:{})'.format(k, ','.join(v)) for k, v in mapper.items()]
 
         return ' '.join(args)
 
@@ -275,10 +276,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
         if all(i.is_Affine for i in candidates):
             bundles = FindNodes(ExpressionBundle).visit(root)
             sops = sum(i.ops for i in bundles)
-            if sops >= self.dynamic_work:
-                schedule = 'dynamic'
-            else:
-                schedule = 'static'
+            schedule = 'dynamic' if sops >= self.dynamic_work else 'static'
             if nthreads is None:
                 # pragma ... for ... schedule(..., 1)
                 nthreads = self.nthreads
@@ -473,16 +471,14 @@ class PragmaTransfer(Pragma, Transfer):
     def expr_symbols(self):
         retval = [self.function.indexed]
         for i in self.arguments + tuple(flatten(self.sections)):
-            try:
+            with suppress(AttributeError):
                 retval.extend(i.free_symbols)
-            except AttributeError:
-                pass
         return tuple(retval)
 
     @cached_property
     def _generate(self):
         # Stringify sections
-        sections = ''.join(['[%s:%s]' % (ccode(i), ccode(j))
+        sections = ''.join([f'[{ccode(i)}:{ccode(j)}]'
                             for i, j in self.sections])
         arguments = [ccode(i) for i in self.arguments]
         return self.pragma % (self.function.name, sections, *arguments)
@@ -503,7 +499,7 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
         self.par_tile = options['par-tile'].reset()
         self.par_disabled = options['par-disabled']
 
-    def _score_candidate(self, n0, root, collapsable=()):
+    def _score_candidate(self, n0, root, collapsible=()):
         # `ndptrs`, the number of device pointers, part of the score too to
         # ensure the outermost loop is offloaded
         ndptrs = len(self._device_pointers(root))

@@ -63,7 +63,7 @@ def simulate_ic(parameters, step=1, snapshots=-1):
     # Initial condition
     msh = np.meshgrid(*[
         np.linspace(o, e, s) for o, e, s
-        in zip(p.origin, p.extent, p.shape)
+        in zip(p.origin, p.extent, p.shape, strict=True)
     ])
     ic = gaussian(msh, mu=p.mu, sigma_sq=p.sigma_sq)
 

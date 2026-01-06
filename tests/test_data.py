@@ -131,8 +131,8 @@ class TestDataBasic:
             u.data[:] = v
         except ValueError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Assign from array having shape with some 1-valued entries
         v = np.zeros(shape=(4, 1, 4), dtype=u.dtype)
@@ -175,12 +175,12 @@ class TestDataBasic:
 
         try:
             u.data[5]
-            assert False
+            raise AssertionError('Assert False')
         except IndexError:
             pass
         try:
             v.data[nt]
-            assert False
+            raise AssertionError('Assert False')
         except IndexError:
             pass
 
@@ -269,8 +269,9 @@ class TestMetaData:
         assert u._offset_domain == (2, 2, 2)
         assert u._offset_halo == ((0, 6), (0, 6), (0, 6))
         assert u._offset_owned == ((2, 4), (2, 4), (2, 4))
-        assert tuple(i + j*2 for i, j in zip(u.shape, u._size_halo.left)) ==\
-            u.shape_with_halo
+        assert tuple(
+            i + j*2 for i, j in zip(u.shape, u._size_halo.left, strict=True)
+        ) == u.shape_with_halo
 
         # Try with different grid shape and space_order
         grid2 = Grid(shape=(3, 3, 3))
@@ -278,16 +279,18 @@ class TestMetaData:
         assert u2.shape == (3, 3, 3)
         assert u2._offset_domain == (4, 4, 4)
         assert u2._offset_halo == ((0, 7), (0, 7), (0, 7))
-        assert tuple(i + j*2 for i, j in zip(u2.shape, u2._size_halo.left)) ==\
-            u2.shape_with_halo
+        assert tuple(
+            i + j*2 for i, j in zip(u2.shape, u2._size_halo.left, strict=True)
+        ) == u2.shape_with_halo
         assert u2.shape_with_halo == (11, 11, 11)
 
     def test_wo_halo_w_padding(self):
         grid = Grid(shape=(4, 4, 4))
         u = Function(name='u', grid=grid, space_order=2, padding=((1, 1), (3, 3), (4, 4)))
 
-        assert tuple(i + j + k for i, (j, k) in zip(u.shape_with_halo, u._padding)) ==\
-            u.shape_allocated
+        assert tuple(
+            i + j + k for i, (j, k) in zip(u.shape_with_halo, u._padding, strict=True)
+        ) == u.shape_allocated
         assert u._halo == ((2, 2), (2, 2), (2, 2))
         assert u._size_padding == ((1, 1), (3, 3), (4, 4))
         assert u._size_padding.left == u._size_padding.right == (1, 3, 4)
@@ -409,7 +412,7 @@ class TestDecomposition:
 
         idx0 = (5, slice(8, 11, 1))
         result0 = []
-        for i, j in zip(idx0, decomposition):
+        for i, j in zip(idx0, decomposition, strict=True):
             result0.append(convert_index(i, j))
         expected0 = (0, slice(0, 3, 1))
         assert as_tuple(result0) == expected0
@@ -419,58 +422,92 @@ class TestDecomposition:
 
         # Identity decomposition
         assert len(d.reshape(0, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, 0), [[0, 1], [2, 3]]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(0, 0), [[0, 1], [2, 3]], strict=True)
+        )
 
     def test_reshape_right_only(self):
         d = Decomposition([[0, 1], [2, 3]], 2)
 
         # Extension at right only
         assert len(d.reshape(0, 2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, 2), [[0, 1], [2, 3, 4, 5]]))
+        assert all(
+            list(i) == j for i, j in zip(
+                d.reshape(0, 2), [[0, 1], [2, 3, 4, 5]], strict=True
+            )
+        )
         # Reduction at right affecting one sub-domain only, but not the whole subdomain
         assert len(d.reshape(0, -1)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -1), [[0, 1], [2]]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(0, -1), [[0, 1], [2]], strict=True)
+        )
         # Reduction at right over one whole sub-domain
         assert len(d.reshape(0, -2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -2), [[0, 1], []]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(0, -2), [[0, 1], []], strict=True)
+        )
         # Reduction at right over multiple sub-domains
         assert len(d.reshape(0, -3)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(0, -3), [[0], []]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(0, -3), [[0], []], strict=True)
+        )
 
     def test_reshape_left_only(self):
         d = Decomposition([[0, 1], [2, 3]], 2)
 
         # Extension at left only
         assert len(d.reshape(2, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(2, 0), [[0, 1, 2, 3], [4, 5]]))
+        assert all(
+            list(i) == j for i, j in zip(
+                d.reshape(2, 0), [[0, 1, 2, 3], [4, 5]], strict=True
+            )
+        )
         # Reduction at left affecting one sub-domain only, but not the whole subdomain
         assert len(d.reshape(-1, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, 0), [[0], [1, 2]]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(-1, 0), [[0], [1, 2]], strict=True)
+        )
         # Reduction at left over one whole sub-domain
         assert len(d.reshape(-2, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-2, 0), [[], [0, 1]]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(-2, 0), [[], [0, 1]], strict=True)
+        )
         # Reduction at right over multiple sub-domains
         assert len(d.reshape(-3, 0)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-3, 0), [[], [0]]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(-3, 0), [[], [0]], strict=True)
+        )
 
     def test_reshape_left_right(self):
         d = Decomposition([[0, 1], [2, 3]], 2)
 
         # Extension at both left and right
         assert len(d.reshape(1, 1)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(1, 1), [[0, 1, 2], [3, 4, 5]]))
+        assert all(
+            list(i) == j for i, j in zip(
+                d.reshape(1, 1), [[0, 1, 2], [3, 4, 5]], strict=True
+            )
+        )
         # Reduction at both left and right
         assert len(d.reshape(-1, -1)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -1), [[0], [1]]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(-1, -1), [[0], [1]], strict=True)
+        )
         # Reduction at both left and right, with the right one obliterating one subdomain
         assert len(d.reshape(-1, -2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -2), [[0], []]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(-1, -2), [[0], []], strict=True)
+        )
         # Reduction at both left and right obliterating all subdomains
         # triggering an exception
         assert len(d.reshape(-1, -3)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []], strict=True)
+        )
         assert len(d.reshape(-2, -2)) == 2
-        assert all(list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []]))
+        assert all(
+            list(i) == j for i, j in zip(d.reshape(-1, -3), [[], []], strict=True)
+        )
 
     def test_reshape_slice(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
@@ -666,7 +703,8 @@ class TestDataDistributed:
             assert np.all(result[3] == [[3, 2, 1, 0]])
 
         result1 = np.array(f.data[5, 6:1:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] \
+                or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert result1.size == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(result1 == [[46, 45]])
@@ -674,7 +712,8 @@ class TestDataDistributed:
             assert np.all(result1 == [[44, 43, 42]])
 
         result2 = np.array(f.data[6:4:-1, 6:1:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] \
+                or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert result2.size == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(result2[0] == [[54, 53]])
@@ -684,7 +723,8 @@ class TestDataDistributed:
             assert np.all(result2[1] == [[44, 43, 42]])
 
         result3 = np.array(f.data[6:4:-1, 2:7])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] \
+                or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert result3.size == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(result3[0] == [[50, 51]])
@@ -779,7 +819,8 @@ class TestDataDistributed:
                                                [0, 0, 0, 0, 0, 0],
                                                [0, 0, 0, 0, 0, 0],
                                                [0, 0, 0, 0, 0, 0]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y] or RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y] \
+                or RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(np.array(g.data)) == 0
         else:
             assert np.all(np.array(g.data)) == 0
@@ -914,7 +955,9 @@ class TestDataDistributed:
         t.data[:] = b
 
         tdat0 = np.array(f.data[-2::, -2::])
-        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0] or LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0] or RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
+        if LEFT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0] \
+                or LEFT in glb_pos_map0[x0] and RIGHT in glb_pos_map0[y0] \
+                or RIGHT in glb_pos_map0[x0] and LEFT in glb_pos_map0[y0]:
             assert tdat0.size == 0
         else:
             assert np.all(tdat0 == [[54, 55],
@@ -1080,7 +1123,8 @@ class TestDataDistributed:
 
         h.data[8:10, 0:4] = f.data[slices]
 
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] \
+                or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
             assert np.count_nonzero(h.data[:]) == 0
         elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
             assert np.all(np.array(h.data) == [[0, 0, 0, 0, 0, 0],
@@ -1202,8 +1246,8 @@ class TestDataDistributed:
             u.data[1:3, 1:3] = a[1:2, 1:2]
         except ValueError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     @pytest.mark.parallel(mode=4)
     def test_misc_setup(self, mode):
@@ -1225,7 +1269,7 @@ class TestDataDistributed:
         # The following should all raise an exception as illegal
         try:
             Function(name='c3', grid=grid, dimensions=(y, dy))
-            assert False
+            raise AssertionError('Assert False')
         except TypeError:
             # Missing `shape`
             assert True
@@ -1233,7 +1277,7 @@ class TestDataDistributed:
         # The following should all raise an exception as illegal
         try:
             Function(name='c4', grid=grid, dimensions=(y, dy), shape=(3, 5))
-            assert False
+            raise AssertionError('Assert False')
         except ValueError:
             # The provided y-size, 3, doesn't match the y-size in grid (4)
             assert True
@@ -1241,7 +1285,7 @@ class TestDataDistributed:
         # The following should all raise an exception as illegal
         try:
             Function(name='c4', grid=grid, dimensions=(y, dy), shape=(4,))
-            assert False
+            raise AssertionError('Assert False')
         except ValueError:
             # Too few entries for `shape` (two expected, for `y` and `dy`)
             assert True
@@ -1314,7 +1358,7 @@ class TestDataDistributed:
         lslice = loc_data_idx(f.data._index_glb_to_loc(gslice))
         sl = []
         Null = slice(-1, -2, None)
-        for s, gs, d in zip(lslice, gslice, f._decomposition):
+        for s, gs, d in zip(lslice, gslice, f._decomposition, strict=True):
             if type(s) is slice and s == Null:
                 sl.append(s)
             elif type(gs) is not slice:
@@ -1420,7 +1464,7 @@ class TestDataGather:
         if isinstance(stop, int) or stop is None:
             stop = [stop for _ in grid.shape]
         idx = []
-        for i, j, k in zip(start, stop, step):
+        for i, j, k in zip(start, stop, step, strict=True):
             idx.append(slice(i, j, k))
         idx = tuple(idx)
 
@@ -1454,7 +1498,7 @@ class TestDataGather:
         if isinstance(stop, int) or stop is None:
             stop = [stop for _ in grid.shape]
         idx = []
-        for i, j, k in zip(start, stop, step):
+        for i, j, k in zip(start, stop, step, strict=True):
             idx.append(slice(i, j, k))
         idx = tuple(idx)
 

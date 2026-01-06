@@ -100,10 +100,7 @@ class Lift(Queue):
             # Lifted scalar clusters cannot be guarded
             # as they would not be in the scope of the guarded clusters
             # unless the guard is for an outer dimension
-            if c.is_scalar and not (prefix[:-1] and c.guards):
-                guards = {}
-            else:
-                guards = c.guards
+            guards = {} if c.is_scalar and not (prefix[:-1] and c.guards) else c.guards
 
             lifted.append(c.rebuild(ispace=ispace, properties=properties, guards=guards))
 
@@ -144,7 +141,7 @@ class Fusion(Queue):
 
         # Fusion
         processed = []
-        for k, group in groupby(clusters, key=self._key):
+        for _, group in groupby(clusters, key=self._key):
             g = list(group)
 
             for maybe_fusible in self._apply_heuristics(g):
@@ -348,7 +345,7 @@ class Fusion(Queue):
                 # True if a cross-ClusterGroup dependence, False otherwise
                 t0 = source.timestamp
                 t1 = sink.timestamp
-                v = len(cg0.exprs)
+                v = len(cg0.exprs)  # noqa: B023
                 return t0 < v <= t1 or t1 < v <= t0
 
             for n1, cg1 in enumerate(cgroups[n+1:], start=n+1):
@@ -369,10 +366,12 @@ class Fusion(Queue):
 
                 # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
                 # and forbid any sort of fusion. Fences have the same effect
-                elif (any(scope.d_anti_gen()) or
-                      any(i.is_iaw for i in scope.d_output_gen()) or
-                      any(c.is_fence for c in flatten(cgroups[n:n1+1]))) or any(not (i.cause and i.cause & prefix)
-                         for i in scope.d_flow_gen()) or any(scope.d_output_gen()):
+                elif (
+                    any(scope.d_anti_gen()) or
+                    any(i.is_iaw for i in scope.d_output_gen()) or
+                    any(c.is_fence for c in flatten(cgroups[n:n1+1]))
+                ) or any(not (i.cause and i.cause & prefix) for i in scope.d_flow_gen()) \
+                        or any(scope.d_output_gen()):
                     dag.add_edge(cg0, cg1)
 
         return dag
@@ -397,7 +396,7 @@ def fuse(clusters, toposort=False, options=None):
     nxt = clusters
     while True:
         nxt = fuse(clusters, toposort='nofuse', options=options)
-        if all(c0 is c1 for c0, c1 in zip(clusters, nxt)):
+        if all(c0 is c1 for c0, c1 in zip(clusters, nxt, strict=True)):
             break
         clusters = nxt
     clusters = fuse(clusters, toposort=False, options=options)

@@ -1,9 +1,9 @@
+from contextlib import suppress
+
 import numpy as np
 
-try:
+with suppress(ImportError):
     import pytest
-except ImportError:
-    pass
 
 from devito import Constant, Function, norm, smooth
 from devito.logger import info

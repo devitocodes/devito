@@ -84,8 +84,8 @@ class TestCodeGeneration:
             Operator(Eq(u.forward, u + 1), language='openmp', opt='openacc')
         except InvalidOperator:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     @pytest.mark.parametrize('opt', opts_device_tiling)
     def test_blocking(self, opt):
@@ -125,17 +125,15 @@ class TestCodeGeneration:
             'omp target teams distribute parallel for collapse(3)'
         for i, f in enumerate([u, v]):
             assert op.body.maps[i].ccode.value ==\
-                ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]*'
-                 '%(n)s_vec->size[1]*%(n)s_vec->size[2]*%(n)s_vec->size[3]])' %
-                 {'n': f.name})
+                (f'omp target enter data map(to: {f.name}[0:{f.name}_vec->size[0]*'
+                 f'{f.name}_vec->size[1]*{f.name}_vec->size[2]*{f.name}_vec->size[3]])')
             assert op.body.unmaps[2*i + 0].ccode.value ==\
-                ('omp target update from(%(n)s[0:%(n)s_vec->size[0]*'
-                 '%(n)s_vec->size[1]*%(n)s_vec->size[2]*%(n)s_vec->size[3]])' %
-                 {'n': f.name})
+                (f'omp target update from({f.name}[0:{f.name}_vec->size[0]*'
+                 f'{f.name}_vec->size[1]*{f.name}_vec->size[2]*{f.name}_vec->size[3]])')
             assert op.body.unmaps[2*i + 1].ccode.value ==\
-                ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]*'
-                 '%(n)s_vec->size[1]*%(n)s_vec->size[2]*%(n)s_vec->size[3]]) '
-                 'if(devicerm)' % {'n': f.name})
+                (f'omp target exit data map(release: {f.name}[0:{f.name}_vec->size[0]*'
+                 f'{f.name}_vec->size[1]*{f.name}_vec->size[2]*{f.name}_vec->size[3]]) '
+                 'if(devicerm)')
 
     def test_multiple_loops(self):
         grid = Grid(shape=(3, 3, 3))
@@ -164,18 +162,21 @@ class TestCodeGeneration:
 
         # Check `u` and `v`
         for i, f in enumerate([u, v], 1):
-            assert op.body.maps[i].ccode.value ==\
-                ('omp target enter data map(to: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
-                 {'n': f.name})
-            assert op.body.unmaps[2*i + 0].ccode.value ==\
-                ('omp target update from(%(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]])' %
-                 {'n': f.name})
-            assert op.body.unmaps[2*i + 1].ccode.value ==\
-                ('omp target exit data map(release: %(n)s[0:%(n)s_vec->size[0]]'
-                 '[0:%(n)s_vec->size[1]][0:%(n)s_vec->size[2]][0:%(n)s_vec->size[3]]) '
-                 'if(devicerm)' % {'n': f.name})
+            assert op.body.maps[i].ccode.value == (
+                f'omp target enter data map(to: {f.name}'
+                f'[0:{f.name}_vec->size[0]][0:{f.name}_vec->size[1]]'
+                f'[0:{f.name}_vec->size[2]][0:{f.name}_vec->size[3]])'
+            )
+            assert op.body.unmaps[2*i + 0].ccode.value == (
+                f'omp target update from({f.name}'
+                f'[0:{f.name}_vec->size[0]][0:{f.name}_vec->size[1]]'
+                f'[0:{f.name}_vec->size[2]][0:{f.name}_vec->size[3]])'
+            )
+            assert op.body.unmaps[2*i + 1].ccode.value == (
+                f'omp target exit data map(release: {f.name}'
+                f'[0:{f.name}_vec->size[0]][0:{f.name}_vec->size[1]]'
+                f'[0:{f.name}_vec->size[2]][0:{f.name}_vec->size[3]]) '
+                'if(devicerm)')
 
         # Check `f`
         assert op.body.maps[0].ccode.value ==\
