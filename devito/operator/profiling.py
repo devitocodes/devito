@@ -425,8 +425,8 @@ class PerformanceSummary(OrderedDict):
         if not ops or any(not np.isfinite(i) for i in [ops, points, traffic]):
             self[k] = PerfEntry(time, 0.0, 0.0, 0.0, 0, [])
         else:
-            gflops = float(ops)/10**9
-            gpoints = float(points)/10**9
+            gflops = float(ops)/10e9
+            gpoints = float(points)/10e9
             gflopss = gflops/time
             gpointss = gpoints/time
             oi = float(ops/traffic)
