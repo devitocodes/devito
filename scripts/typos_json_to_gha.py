@@ -13,13 +13,11 @@ def main():
     )
 
     for line in sys.stdin:
-        error_code = 1
         # Grab the JSON data coming from typos from stdin
         data = json.loads(line.rstrip())
 
         if data['type'] == 'binary_file':
             continue
-
         try:
             # Calculate the end column and format the correction
             suggestions = ', '.join(data['corrections'])
@@ -38,6 +36,8 @@ def main():
             print('Caught unhandled exception')
             print(f'{data}')
             print(f'{e}')
+        finally:
+            error_code = 1
 
     return error_code
 
