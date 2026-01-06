@@ -5,7 +5,7 @@ import cgen as c
 from sympy import And, Ne, Not
 
 from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX, PVC
-from devito.arch.compiler import GNUCompiler, NvidiaCompiler
+from devito.arch.compiler import GNUCompiler, NvidiaCompiler, CustomCompiler
 from devito.ir import (Call, Conditional, DeviceCall, List, Pragma, Prodder,
                        ParallelBlock, PointerCast, While, FindSymbols)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
@@ -15,8 +15,8 @@ from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransfo
                                          PragmaDeviceAwareTransformer, PragmaLangBB,
                                          PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.utils import joins
-from devito.passes.iet.languages.C import CBB
-from devito.passes.iet.languages.CXX import CXXBB
+from devito.passes.iet.languages.C import CBB, atomic_add as c_atomic_add
+from devito.passes.iet.languages.CXX import CXXBB, atomic_add as cxx_atomic_add
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
@@ -133,8 +133,7 @@ class AbstractOmpBB(LangBB):
             Pragma('omp simd'),
         'simd-for-aligned': lambda n, *a:
             SimdForAligned('omp simd aligned(%s:%d)', arguments=(n, *a)),
-        'atomic':
-            Pragma('omp atomic update')
+        'atomic': lambda i, s: i._rebuild(pragmas=Pragma('omp atomic update'))
     }
 
     Region = OmpRegion
@@ -144,11 +143,20 @@ class AbstractOmpBB(LangBB):
 
 
 class OmpBB(AbstractOmpBB):
-    mapper = {**AbstractOmpBB.mapper, **CBB.mapper}
+
+    mapper = {
+        **AbstractOmpBB.mapper,
+        **CBB.mapper,
+        'atomic': lambda i, s: c_atomic_add(i, Pragma('omp atomic update'), split=s)
+    }
 
 
 class CXXOmpBB(AbstractOmpBB):
-    mapper = {**AbstractOmpBB.mapper, **CXXBB.mapper}
+    mapper = {
+        **AbstractOmpBB.mapper,
+        **CXXBB.mapper,
+        'atomic': lambda i, s: cxx_atomic_add(i, Pragma('omp atomic update'), split=s)
+    }
 
 
 class DeviceOmpBB(OmpBB, PragmaLangBB):
@@ -230,6 +238,9 @@ class AbstractOmpizer(PragmaShmTransformer):
 
     @classmethod
     def _support_array_reduction(cls, compiler):
+        # In case we have a CustomCompiler
+        if isinstance(compiler, CustomCompiler):
+            compiler = compiler._base()
         # Not all backend compilers support array reduction!
         # Here are the known unsupported ones:
         if isinstance(compiler, GNUCompiler) and \
@@ -240,6 +251,16 @@ class AbstractOmpizer(PragmaShmTransformer):
             return False
         else:
             return True
+
+    @classmethod
+    def _support_complex_reduction(cls, compiler):
+        # In case we have a CustomCompiler
+        if isinstance(compiler, CustomCompiler):
+            compiler = compiler._base()
+        if isinstance(compiler, GNUCompiler):
+            # Gcc doesn't supports complex reduction
+            return False
+        return True
 
 
 class Ompizer(AbstractOmpizer):

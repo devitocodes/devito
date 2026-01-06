@@ -362,7 +362,10 @@ class CGen(Visitor):
         elif isinstance(obj, (FieldFromComposite, FieldFromPointer)):
             return self._gen_value(obj.function.base, 0).typename
         else:
-            return None
+            try:
+                return obj._type_.__name__
+            except AttributeError:
+                return None
 
     def _args_decl(self, args):
         """Generate cgen declarations from an iterable of symbols and expressions."""
@@ -637,6 +640,12 @@ class CGen(Visitor):
             return c.If(self.ccode(o.condition), then_body, else_body)
         else:
             return c.If(self.ccode(o.condition), then_body)
+
+    def visit_Switch(self, o):
+        condition = self.ccode(o.condition)
+        mapper = {k: self._visit(v) for k, v in o.as_mapper.items()}
+
+        return Switch(condition, mapper)
 
     def visit_Iteration(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
@@ -1448,6 +1457,12 @@ class Uxreplace(Transformer):
         return o._rebuild(condition=condition, then_body=then_body,
                           else_body=else_body)
 
+    def visit_Switch(self, o):
+        condition = uxreplace(o.condition, self.mapper)
+        nodes = self._visit(o.nodes)
+        default = self._visit(o.default)
+        return o._rebuild(condition=condition, nodes=nodes, default=default)
+
     def visit_PointerCast(self, o):
         function = self.mapper.get(o.function, o.function)
         obj = self.mapper.get(o.obj, o.obj)
@@ -1520,6 +1535,31 @@ def printAST(node, verbose=True):
 
 class LambdaCollection(c.Collection):
     pass
+
+
+class Switch(c.Generable):
+
+    def __init__(self, condition, mapper):
+        self.condition = condition
+
+        # If the `default` case is present, it is encoded with the key "default"
+        self.mapper = mapper
+
+    def generate(self):
+        yield f"switch ({self.condition})"
+        yield "{"
+
+        for case, body in self.mapper.items():
+            if case == "default":
+                yield "  default: {"
+            else:
+                yield f"  case {case}: {{"
+            for line in body.generate():
+                yield f"    {line}"
+            yield "    break;"
+            yield "  }"
+
+        yield "}"
 
 
 class MultilineCall(c.Generable):

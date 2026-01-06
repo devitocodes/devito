@@ -36,7 +36,7 @@ def skipif(items, whole_module=False):
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
                      'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc',
                      'noadvisor', 'cpu64-arm', 'cpu64-icpx', 'chkpnt', 'petsc'})
-    accepted.update({'nodevice'})
+    accepted.update({'nodevice', 'noomp'})
     unknown = sorted(set(items) - accepted)
     if unknown:
         raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
@@ -86,6 +86,10 @@ def skipif(items, whole_module=False):
             (not isinstance(configuration['compiler'], IntelCompiler) or
              not get_advisor_path()):
             skipit = "Only `icx+advisor` should be tested here"
+            break
+        # Slip if not using openmp
+        if i == 'noomp' and 'openmp' not in configuration['language']:
+            skipit = "Must use openmp"
             break
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):

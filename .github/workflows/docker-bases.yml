@@ -18,16 +18,16 @@ on:
     inputs:
       cpu:
         type: boolean
-        default: false
+        default: true
       nvidia:
         type: boolean
-        default: false
+        default: true
       amd:
         type: boolean
-        default: false
+        default: true
       intel:
         type: boolean
-        default: false
+        default: true
 
       tags:
         description: "Build compiler bases"
@@ -60,7 +60,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -131,7 +131,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -190,6 +190,7 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
+        cuda: ['12', '13']
         include:
           - arch: amd64
             platform: linux/amd64
@@ -199,10 +200,16 @@ jobs:
           - arch: arm64
             platform: linux/arm64
             runner: ubuntu-24.04-arm
+          - cuda: '12'
+            nvhpc_version: 'nvhpc-25-7'
+            extra_tag: '12'
+          - cuda: '13'
+            nvhpc_version: 'nvhpc'
+            extra_tag: ''
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -227,10 +234,12 @@ jobs:
           push: true
           target: "nvc"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvc"
+          build-args: |
+            arch=nvc
+            ver=${{ matrix.nvhpc_version }}
           # Label (not tag) with runner name for traceability without changing image tags
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:nvidia-nvc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
       - name: NVCC image
         uses: docker/build-push-action@v6
@@ -240,9 +249,11 @@ jobs:
           push: true
           target: "nvcc"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvcc"
+          build-args: |
+            arch=nvcc
+            ver=${{ matrix.nvhpc_version }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:nvidia-nvcc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:nvidia-nvcc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
       - name: NVC host image
         uses: docker/build-push-action@v6
@@ -252,9 +263,11 @@ jobs:
           push: true
           target: "nvc-host"
           platforms: ${{ matrix.platform }}
-          build-args: "arch=nvc-host"
+          build-args: |
+            arch=nvc-host
+            ver=${{ matrix.nvhpc_version }}
           labels: builder-runner=${{ runner.name }}
-          tags: "devitocodes/bases:cpu-nvc-${{ matrix.arch }}"
+          tags: "devitocodes/bases:cpu-nvc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
   deploy-nvidia-bases-manifest:
     if: inputs.nvidia
@@ -266,7 +279,7 @@ jobs:
 
     strategy:
       matrix:
-        final_tag: [nvidia-nvc, nvidia-nvcc, cpu-nvc]
+        final_tag: [nvidia-nvc, nvidia-nvcc, cpu-nvc, nvidia-nvc12, nvidia-nvcc12, cpu-nvc12]
 
     steps:
       - name: Set up Docker Buildx
@@ -300,7 +313,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Check event name
         run: echo ${{ github.event_name }}

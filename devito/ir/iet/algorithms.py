@@ -1,8 +1,11 @@
 from collections import OrderedDict
 
-from devito.ir.iet import (Expression, Increment, Iteration, List, Conditional, SyncSpot,
-                           Section, HaloSpot, ExpressionBundle)
-from devito.tools import timed_pass
+from devito.ir.iet import (
+    Expression, Increment, Iteration, List, Conditional, SyncSpot, Section,
+    HaloSpot, ExpressionBundle, Switch
+)
+from devito.ir.support import GuardSwitch, GuardCaseSwitch
+from devito.tools import as_mapper, timed_pass
 from devito.petsc.types import MetaData
 from devito.petsc.iet.nodes import petsc_iet_mapper
 
@@ -33,7 +36,12 @@ def iet_build(stree):
             body = ExpressionBundle(i.ispace, i.ops, i.traffic, body=exprs)
 
         elif i.is_Conditional:
-            body = Conditional(i.guard, queues.pop(i))
+            if isinstance(i.guard, GuardSwitch):
+                bundle, = queues.pop(i)
+                cases, nodes = _unpack_switch_case(bundle)
+                body = Switch(i.guard.arg, cases, nodes)
+            else:
+                body = Conditional(i.guard, queues.pop(i))
 
         elif i.is_Iteration:
             if i.dim.is_Virtual:
@@ -59,3 +67,26 @@ def iet_build(stree):
         queues.setdefault(i.parent, []).append(body)
 
     assert False
+
+
+def _unpack_switch_case(bundle):
+    """
+    Helper to unpack an ExpressionBundle containing GuardCaseSwitch expressions
+    into Switch cases and corresponding IET nodes.
+    """
+    assert bundle.is_ExpressionBundle
+    assert all(isinstance(e.rhs, GuardCaseSwitch) for e in bundle.body)
+
+    mapper = as_mapper(bundle.body, key=lambda e: e.rhs.case)
+
+    cases = list(mapper)
+
+    nodes = []
+    for v in mapper.values():
+        exprs = [e._rebuild(expr=e.expr._subs(e.rhs, e.rhs.arg)) for e in v]
+        if len(exprs) > 1:
+            nodes.append(List(body=exprs))
+        else:
+            nodes.append(*exprs)
+
+    return cases, nodes

@@ -11,11 +11,22 @@ __all__ = ['collect_derivatives']
 
 
 @timed_pass()
-def collect_derivatives(expressions):
+def collect_derivatives(expressions, options=None, **kwargs):
     """
     Exploit linearity of finite-differences to collect `Derivative`'s of
     same type. This may help CIRE creating fewer temporaries while catching
     larger redundant sub-expressions.
+    """
+    deriv_collect = options['deriv-collect']
+    if not deriv_collect:
+        return expressions
+
+    return _collect_derivatives(expressions)
+
+
+def _collect_derivatives(expressions):
+    """
+    Carry out the bulk of the work for `collect_derivatives`.
     """
     processed = []
     for e in expressions:

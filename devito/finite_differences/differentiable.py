@@ -259,6 +259,12 @@ class Differentiable(sympy.Expr, Evaluable):
         from .elementary import floor
         return floor(other / self)
 
+    def _inv(self, ref, safe=False):
+        if safe:
+            return SafeInv(self, ref or self)
+        else:
+            return 1 / self
+
     def __mod__(self, other):
         return Mod(self, other)
 
@@ -304,7 +310,7 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         return self.laplacian()
 
-    def laplacian(self, shift=None, order=None, method='FD', **kwargs):
+    def laplacian(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Laplacian of the Differentiable with shifted derivatives and custom
         FD order.
@@ -323,8 +329,11 @@ class Differentiable(sympy.Expr, Evaluable):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
-            Custom weights for the finite differences.
+            Custom weights for the finite difference coefficients.
         """
         w = kwargs.get('weights', kwargs.get('w'))
         order = order or self.space_order
@@ -332,10 +341,10 @@ class Differentiable(sympy.Expr, Evaluable):
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         derivs = tuple(f'd{d.name}2' for d in space_dims)
         return Add(*[getattr(self, d)(x0=shift_x0(shift, space_dims[i], None, i),
-                                      method=method, fd_order=order, w=w)
+                                      method=method, fd_order=order, side=side, w=w)
                      for i, d in enumerate(derivs)])
 
-    def div(self, shift=None, order=None, method='FD', **kwargs):
+    def div(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Divergence of the input Function.
 
@@ -351,6 +360,9 @@ class Differentiable(sympy.Expr, Evaluable):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
             Custom weights for the finite difference coefficients.
         """
@@ -359,10 +371,11 @@ class Differentiable(sympy.Expr, Evaluable):
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
         return Add(*[getattr(self, f'd{d.name}')(x0=shift_x0(shift, d, None, i),
-                                                 fd_order=order, method=method, w=w)
+                                                 fd_order=order, method=method, side=side,
+                                                 w=w)
                      for i, d in enumerate(space_dims)])
 
-    def grad(self, shift=None, order=None, method='FD', **kwargs):
+    def grad(self, shift=None, order=None, method='FD', side=None, **kwargs):
         """
         Gradient of the input Function.
 
@@ -378,16 +391,21 @@ class Differentiable(sympy.Expr, Evaluable):
         method: str, optional, default='FD'
             Discretization method. Options are 'FD' (default) and
             'RSFD' (rotated staggered grid finite-difference).
+        side : Side or tuple of Side, optional, default=centered
+            Side of the finite difference location, centered (at x), left (at x - 1)
+            or right (at x + 1).
         weights/w: list, tuple, or dict, optional, default=None
-            Custom weights for the finite
+            Custom weights for the finite difference coefficients.
         """
         from devito.types.tensor import VectorFunction, VectorTimeFunction
         space_dims = self.root_dimensions
         shift_x0 = make_shift_x0(shift, (len(space_dims),))
         order = order or self.space_order
+
         w = kwargs.get('weights', kwargs.get('w'))
         comps = [getattr(self, f'd{d.name}')(x0=shift_x0(shift, d, None, i),
-                                             fd_order=order, method=method, w=w)
+                                             fd_order=order, method=method, side=side,
+                                             w=w)
                  for i, d in enumerate(space_dims)]
         vec_func = VectorTimeFunction if self.is_TimeDependent else VectorFunction
         return vec_func(name=f'grad_{self.name}', time_order=self.time_order,
@@ -643,6 +661,10 @@ class SafeInv(Differentiable, sympy.core.function.Application):
     @property
     def val(self):
         return self.args[0]
+
+    @property
+    def is_commutative(self):
+        return self.val.is_commutative and self.base.is_commutative
 
     def __str__(self):
         return Pow(self.args[0], -1).__str__()
@@ -948,9 +970,27 @@ class IndexDerivative(IndexSum):
 
         return EvalDerivative(*expr.args, base=self.base)
 
+    def _subs(self, old, new, **hints):
+        # We have to work around SymPy's weak implementation of `subs` when
+        # it gets to replacing sub-operations such as `a*b*c` (i.e., potentially
+        # `self`'s `base`) within say `a*b*c*w[i0]` (i.e., the corresponding
+        # `self.expr`), because depending on the complexity of `a/b/c`, SymPy
+        # may fail to identify the sub-expression to be replaced (note: if
+        # `a/b/c` are atoms or Indexeds, it's generally fine)
+
+        if not old.is_Mul or \
+           old is not self.base:
+            return super()._subs(old, new, **hints)
+
+        return self._rebuild(new * self.weights)
+
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
-    pass
+
+    def _eval_at(self, func):
+        # Like EvalDerivative, a DiffDerivative must have already been evaluated
+        # at a valid x0 and should not be re-evaluated at a different location
+        return self
 
 
 # SymPy args ordering is the same for Derivatives and IndexDerivatives
@@ -997,6 +1037,11 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
     def _new_rawargs(self, *args, **kwargs):
         kwargs.pop('is_commutative', None)
         return self.func(*args, **kwargs)
+
+    def _eval_at(self, func):
+        # An EvalDerivative must have already been evaluated at a valid x0
+        # and should not be re-evaluated at a different location
+        return self
 
 
 class diffify:
@@ -1131,13 +1176,8 @@ def _(expr, x0, **kwargs):
 
 @interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
-    from devito.finite_differences.derivative import Derivative
-    x0_expr = {d: v for d, v in x0.items() if v is not expr.indices_ref[d]}
-    if expr.is_parameter:
-        return expr
-    elif x0_expr:
-        dims = tuple((d, 0) for d in x0_expr)
-        fd_o = tuple([expr.interp_order]*len(dims))
-        return Derivative(expr, *dims, fd_order=fd_o, x0=x0_expr)
+    x0_expr = {d: v for d, v in x0.items() if v.has(d)}
+    if x0_expr:
+        return expr.subs({expr.indices[d]: v for d, v in x0_expr.items()})
     else:
         return expr

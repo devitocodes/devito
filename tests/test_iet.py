@@ -8,10 +8,10 @@ import sympy
 from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
                     switchconfig)
 from devito.ir.iet import (
-    Call, Callable, Conditional, Definition, DeviceCall, DummyExpr, Iteration, List,
-    KernelLaunch, Dereference, Lambda, ElementalFunction, CGen, FindSymbols,
-    filter_iterations, make_efunc, retrieve_iteration_tree, Transformer,
-    Callback, FindNodes
+    Call, Callable, Conditional, Definition, DeviceCall, DummyExpr, Iteration,
+    List, KernelLaunch, Dereference, Lambda, Switch, ElementalFunction, CGen,
+    FindSymbols, filter_iterations, make_efunc, retrieve_iteration_tree,
+    Transformer, Callback, FindNodes
 )
 from devito.ir import SymbolRegistry
 from devito.passes.iet.engine import Graph
@@ -538,3 +538,31 @@ def test_dereference_base_plus_off():
     deref = Dereference(x, ptr, offset=off)
 
     assert str(deref) == "float (*restrict x)[3] = (float (*)[3]) (p + offs);"
+
+
+def test_switch_case():
+    flag = Symbol(name='flag')
+    a = Symbol(name='a')
+
+    cases = [0, 1]
+    nodes = [DummyExpr(a, 1), DummyExpr(a, 2)]
+    default = DummyExpr(a, 0)
+
+    switch = Switch(flag, cases, nodes, default=default)
+
+    assert str(switch) == """\
+switch (flag)
+{
+  case 0: {
+    a = 1;
+    break;
+  }
+  case 1: {
+    a = 2;
+    break;
+  }
+  default: {
+    a = 0;
+    break;
+  }
+}"""

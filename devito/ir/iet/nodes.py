@@ -30,8 +30,8 @@ __all__ = ['Node', 'MultiTraversable', 'Block', 'Expression', 'Callable',
            'Increment', 'Return', 'While', 'ListMajor', 'ParallelIteration',
            'ParallelBlock', 'Dereference', 'Lambda', 'SyncSpot', 'Pragma',
            'DummyExpr', 'BlankLine', 'ParallelTree', 'BusyWait', 'UsingNamespace',
-           'Using', 'CallableBody', 'Transfer', 'Callback', 'FixedArgsCallable',
-           'EmptyList']
+           'Using', 'CallableBody', 'Transfer', 'EmptyList', 'Switch', 'Callback',
+           'FixedArgsCallable']
 
 # First-class IET nodes
 
@@ -406,6 +406,11 @@ class Expression(ExprStmt, Node):
     def output(self):
         """The Symbol/Indexed this Expression writes to."""
         return self.expr.lhs
+
+    @property
+    def rhs(self):
+        """The right-hand side of the underlying expression."""
+        return self.expr.rhs
 
     @cached_property
     def reads(self):
@@ -900,6 +905,50 @@ class Conditional(DoIf):
                 (ccode(self.condition), repr(self.then_body), repr(self.else_body))
         else:
             return "<[%s] ? [%s]" % (ccode(self.condition), repr(self.then_body))
+
+
+class Switch(DoIf):
+
+    """
+    A node to express switch-case blocks.
+
+    Parameters
+    ----------
+    condition : expr-like
+        The switch condition.
+    cases : expr-like or list of expr-like
+        One or more case conditions; there must be one case per node in `nodes`,
+        plus an optional default case.
+    nodes : Node or list of Node
+        One or more Case nodes.
+    default : Node, optional
+        The default case of the switch, if any.
+    """
+
+    _traversable = ['nodes', 'default']
+
+    def __init__(self, condition, cases, nodes, default=None):
+        super().__init__(condition)
+
+        self.cases = as_tuple(cases)
+        self.nodes = as_tuple(nodes)
+        self.default = default
+
+        assert len(self.cases) == len(self.nodes)
+
+    def __repr__(self):
+        return "f<Switch {ccode(self.condition)}; {self.ncases} cases>"
+
+    @property
+    def ncases(self):
+        return len(self.cases) + int(self.default is not None)
+
+    @property
+    def as_mapper(self):
+        retval = dict(zip(self.cases, self.nodes))
+        if self.default:
+            retval['default'] = self.default
+        return retval
 
 
 # Second level IET nodes

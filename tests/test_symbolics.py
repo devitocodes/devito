@@ -4,13 +4,13 @@ import sympy
 import pytest
 import numpy as np
 
-from sympy import And, Expr, Number, Symbol
+from sympy import And, Expr, Number, Symbol, true
 from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
                     Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
                     Min, Max, Real, Imag, Conj, SubDomain, configuration)
 from devito.finite_differences.differentiable import SafeInv, Weights, Mul
 from devito.ir import Expression, FindNodes, ccode
-from devito.ir.support.guards import GuardExpr, simplify_and
+from devito.ir.support.guards import GuardExpr, simplify_and, pairwise_or
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (
     retrieve_functions, retrieve_indexed, evalrel, CallFromPointer, Cast, # noqa
@@ -391,6 +391,16 @@ def test_safeinv():
     assert 'SAFEINV' in str(op1)
     assert 'SAFEINV' in str(op2)
 
+    # Ensure .subs leaves the caller unchanged if no substitutions occur.
+    # We used to have a bug where passing SafeInv to .subs would result
+    # in the construction of weird, nonsensical objects due to the _subs
+    # stub in types.AbstractSymbol
+    f = Function(name='f', grid=grid)
+    ui = u1.indexify()
+    safeinv = SafeInv(ui, ui)
+    v = ui._subs(safeinv, f.indexify())
+    assert str(v) == 'u[x, y]'
+
 
 def test_def_function():
     foo0 = DefFunction('foo', arguments=['a', 'b'], template=['int'])
@@ -687,6 +697,33 @@ def test_guard_expr_Le_Ge_mixed():
     assert v11 is And(g5, g6)
 
 
+def test_guard_pairwise_or():
+    grid = Grid(shape=(3, 3, 3))
+    x, y, z = grid.dimensions
+
+    flag = GuardExpr('flag', initvalue=And(x >= 4, x <= 14))
+
+    g0 = And(flag, z >= 8, z <= 39)
+    g1 = And(z >= 8, z <= 40)
+    g2 = y >= 9
+    v0 = pairwise_or(g0, g1, g2)
+    assert v0 is true
+
+    g3 = And(z >= 7, z <= 40)
+    g4 = And(z >= 8, z <= 42, y >= 9)
+    v1 = pairwise_or(g0, g3, g4)
+    assert v1 == And(z >= 7, z <= 42)
+
+    # Some unsupported cases
+    g5 = And(flag, z >= 9, x >= 5)
+    g6 = x >= 3
+    with pytest.raises(NotImplementedError):
+        pairwise_or(g5, g6)
+    g7 = And(z <= y)
+    with pytest.raises(NotImplementedError):
+        pairwise_or(g0, g7)
+
+
 def test_canonical_ordering_of_weights():
     grid = Grid(shape=(3, 3, 3))
     x, y, z = grid.dimensions
@@ -699,11 +736,34 @@ def test_canonical_ordering_of_weights():
     fi = f[x, y + i, z]
     wi = w[i]
     cf = ComponentAccess(fi, 0)
+    safeinv = SafeInv(f, f)
 
     assert (ccode(1.0*f[x, y, z] + 2.0*f[x, y + 1, z] + 3.0*f[x, y + 2, z]) ==
             '1.0F*f[x][y][z] + 2.0F*f[x][y + 1][z] + 3.0F*f[x][y + 2][z]')
     assert ccode(fi*wi) == 'f[x][y + i0][z]*w0[i0]'
     assert ccode(cf*wi) == 'f[x][y + i0][z].x*w0[i0]'
+    assert ccode(safeinv*wi) == 'SAFEINV(f(x, y, z), f(x, y, z))*w0[i0]'
+
+    assert str(safeinv*wi) == 'SafeInv(f(x, y, z), f(x, y, z))*w0[i0]'
+
+
+def test_ideriv_subs_complex():
+    grid = Grid(shape=(3, 3))
+    x, _ = grid.dimensions
+
+    f = Function(name='f', grid=grid, space_order=4)
+    g = f.func(name='g')
+    h = f.func(name='h')
+    b = f.func(name='b')
+
+    ideriv = (f*g*h).dx._evaluate(expand=False)
+
+    i0, = ideriv.dimensions
+    base = ideriv.base
+
+    v = ideriv._subs(base, b._subs(x, x + i0))
+
+    assert str(v) == 'DiffDerivative(w(i0)*b(x + i0, y), (i0))'
 
 
 def test_symbolic_printing():
@@ -732,7 +792,7 @@ def test_is_on_grid():
     u = Function(name="u", grid=grid, space_order=2)
 
     assert u._grid_map == {}
-    assert u.subs({x: x0})._grid_map == {x: x0}
+    assert u.subs({x: x0})._grid_map == {x: x0, 'subs': {}}
     assert all(uu._grid_map == {} for uu in retrieve_functions(u.subs({x: x0}).evaluate))
 
 

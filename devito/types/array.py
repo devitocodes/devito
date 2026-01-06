@@ -605,8 +605,9 @@ class ComponentAccess(Expr, Pickable):
     __rkwargs__ = ('index', 'component_names')
 
     def __new__(cls, arg, index=0, component_names=None, **kwargs):
-        if not arg.is_Indexed:
-            raise ValueError("Expected Indexed, got `%s` instead" % type(arg))
+        if not (arg.is_Symbol or arg.is_Indexed):
+            raise ValueError(f"Expected Symbol or Indexed, got `{type(arg)}` "
+                             "instead")
         if not is_integer(index) or index > 3:
             raise ValueError("Expected 0 <= index < 4")
 

@@ -149,10 +149,10 @@ class Graph(Byproduct):
             try:
                 compiler = kwargs['compiler']
                 compiler.add_include_dirs(as_tuple(metadata.get('include_dirs')))
-                compiler.add_libraries(as_tuple(metadata.get('libs')))
                 compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')),
                                           rpath=metadata.get('rpath', False))
                 compiler.add_ldflags(as_tuple(metadata.get('ldflags')))
+                compiler.add_libraries(as_tuple(metadata.get('libs')))
             except KeyError:
                 pass
 

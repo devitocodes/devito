@@ -44,6 +44,28 @@ jobs:
             test: ''
             runner: ubuntu-24.04-arm
 
+          - base: 'bases:nvidia-nvc12'
+            tag: 'nvidia-nvc12'
+            arch: amd64
+            platform: linux/amd64
+            run_tests: false
+            tag_suffix: '-amd64'
+            # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
+            # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
+            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
+            runner: ["self-hosted", "nvidiagpu"]
+
+          - base: 'bases:nvidia-nvc12'
+            tag: 'nvidia-nvc12'
+            arch: arm64
+            platform: linux/arm64
+            run_tests: false
+            tag_suffix: '-arm64'
+            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            test: ''
+            runner: ubuntu-24.04-arm
+
           # Runtime gpu flags from https://hub.docker.com/r/rocm/tensorflow/
           - base: 'bases:amd'
             tag: 'amd'
@@ -87,7 +109,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set per‑runner variables
         run: |
@@ -127,9 +149,9 @@ jobs:
             type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
             type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }},suffix=${{ matrix.tag_suffix }}
             # Legacy "gpu" tag
-            type=raw,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
-            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
-            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
+            type=raw,value=gpu-dev,enable=${{ contains(matrix.base, 'bases:nvidia-nvc') }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }},suffix=${{ matrix.tag_suffix }}
             # Legacy "cpu" tag
             type=raw,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
             type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
@@ -170,6 +192,9 @@ jobs:
           - tag: 'nvidia-nvc'
             base: 'bases:nvidia-nvc'
             arches: "amd64 arm64"
+          - tag: 'nvidia-nvc12'
+            base: 'bases:nvidia-nvc12'
+            arches: "amd64 arm64"
           - tag: 'gcc'
             base: 'bases:cpu-gcc'
             arches: "amd64 arm64"
@@ -198,9 +223,9 @@ jobs:
             type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }}
             type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }}
             # Legacy "gpu" tag
-            type=raw,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc' }}
-            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }}
-            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  matrix.base == 'bases:nvidia-nvc' }}
+            type=raw,value=gpu-dev,enable=${{ contains(matrix.base, 'bases:nvidia-nvc') }}
+            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }}
+            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }}
             # Legacy "cpu" tag
             type=raw,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }}
             type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }}
@@ -215,7 +240,7 @@ jobs:
             echo "No tags generated, skipping"
             exit 0
           fi
-          for tag in $TAGS; do
+          echo "$TAGS" | while read -r tag; do
             refs=""
             for arch in $ARCHES; do
               refs="$refs devitocodes/devito:${tag}-${arch}"
@@ -236,6 +261,10 @@ jobs:
       matrix:
         include:
           - tag: 'nvidia-nvc'
+            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
+            runner: ["self-hosted", "nvidiagpu"]
+          - tag: 'nvidia-nvc12'
             flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "nvidiagpu"]

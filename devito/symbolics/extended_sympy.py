@@ -7,6 +7,7 @@ import numpy as np
 import sympy
 from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
+from sympy.logic.boolalg import BooleanFunction
 
 from devito.finite_differences.elementary import Min, Max
 from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
@@ -16,13 +17,14 @@ from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
 from devito.types import Symbol
 from devito.types.basic import Basic
 
-__all__ = ['CondEq', 'CondNe', 'IntDiv', 'CallFromPointer',  # noqa
+__all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
+           'LeftShift', 'RightShift', 'IntDiv', 'CallFromPointer',
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
            'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
-           'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace',
-           'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
-           'Mod', 'VectorAccess']
+           'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace', 'Rvalue',
+           'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
+           'VectorAccess', 'Mod']
 
 
 class CondEq(sympy.Eq):
@@ -61,6 +63,34 @@ class CondNe(sympy.Ne):
     @property
     def negated(self):
         return CondEq(*self.args, evaluate=False)
+
+
+class BitwiseNot(BooleanFunction):
+    op = '~'
+
+
+class BitwiseBinaryOp(BooleanFunction):
+    op = ''
+
+    # Enforce two args
+    def __new__(cls, arg0, arg1, **kwargs):
+        return super().__new__(cls, arg0, arg1, **kwargs)
+
+
+class BitwiseXor(BitwiseBinaryOp):
+    op = '^'
+
+
+class BitwiseAnd(BitwiseBinaryOp):
+    op = '&'
+
+
+class LeftShift(BitwiseBinaryOp):
+    op = '<<'
+
+
+class RightShift(BitwiseBinaryOp):
+    op = '>>'
 
 
 class IntDiv(sympy.Expr):
@@ -199,9 +229,10 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             pointer = Symbol(pointer)
         if isinstance(call, str):
             call = Symbol(call)
-        elif not isinstance(call.base, Basic):
-            raise ValueError("`call` must be a `devito.Basic` or a type "
-                             "with compatible interface")
+        # TODO: Should it just be call not call.base?
+        elif not isinstance(call.base, (BasicWrapperMixin, Basic)):
+            raise ValueError(f"`call` {call} must be a `devito.Basic` or a type "
+                             f"with compatible interface, not {type(call)}")
         _params = []
         for p in as_tuple(params):
             if isinstance(p, str):

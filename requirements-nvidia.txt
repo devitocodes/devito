@@ -3,4 +3,4 @@ dask-cuda<25.10.1
 jupyterlab>=3,<4.4.2
 jupyterlab-nvdashboard<0.13.1
 dask_labextension<7.0.1
-fsspec<2025.9.1
+fsspec<2025.10.1

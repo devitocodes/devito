@@ -149,6 +149,12 @@ class TestDeviceID:
             # So should be the second of the two visible devices specified (3)
             assert argmap._physical_deviceid == 3
 
+        with switchenv({'CUDA_VISIBLE_DEVICES': "1"}), switchconfig(deviceid=0):
+            op1 = Operator(eq)
+
+            argmap1 = op1.arguments()
+            assert argmap1._physical_deviceid == 1
+
     @pytest.mark.parallel(mode=2)
     def test_deviceid_per_rank(self, mode):
         """

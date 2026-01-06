@@ -47,7 +47,7 @@ jobs:
           # -------------------- NVIDIA job --------------------
           - name: pytest-gpu-acc-nvidia
             test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/test_operator.py::TestEstimateMemory"
-            base: "devitocodes/bases:nvidia-nvc"
+            base: "devitocodes/bases:nvidia-nvc12"
             runner_label: nvidiagpu
             test_drive_cmd: "nvidia-smi"
             # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
@@ -75,7 +75,7 @@ jobs:
 
     steps:
       - name: Checkout devito
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set per-runner tags
         run: |

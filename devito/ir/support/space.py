@@ -1063,6 +1063,13 @@ class IterationSpace(Space):
     def innermost(self):
         return self[-1]
 
+    @property
+    def idim(self):
+        """
+        Shortcut for the innermost Dimension.
+        """
+        return self.innermost.dim
+
     @cached_property
     def concrete(self):
         return self.project(lambda d: not d.is_Virtual)

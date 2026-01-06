@@ -39,10 +39,10 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
 
     - name: Checkout data
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
        repository: 'devitocodes/data'
        path: 'data'

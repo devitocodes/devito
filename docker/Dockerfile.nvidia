@@ -11,7 +11,7 @@ FROM ubuntu:22.04 AS sdk-base
 
 SHELL ["/bin/bash", "-c"]
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install python
 RUN apt-get update && \
@@ -20,7 +20,13 @@ RUN apt-get update && \
 
 # nodesource: nvdashboard requires nodejs>=10
 RUN curl https://developer.download.nvidia.com/hpc-sdk/ubuntu/DEB-GPG-KEY-NVIDIA-HPC-SDK | gpg --yes --dearmor -o /usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg
-RUN echo 'deb [trusted=yes, signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64 /' | tee /etc/apt/sources.list.d/nvhpc.list
+RUN arch="$(uname -m)" && \
+    case "$arch" in \
+        x86_64) nvplat=amd64 ;; \
+        aarch64|arm64) nvplat=arm64 ;; \
+        *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac && \
+    echo "deb [trusted=yes, signed-by=/usr/share/keyrings/nvidia-hpcsdk-archive-keyring.gpg] https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat} /" | tee /etc/apt/sources.list.d/nvhpc.list
 RUN apt-key update *&& apt-get update -y
 
 # Install nvhpc. `nvhpc` is the alias for the latest avaialble version
@@ -28,12 +34,20 @@ ARG ver=nvhpc
 # We use the standard apt-get for the default latest nvhpc. For earlier version, apt has a bug that it will always
 # install the latest nvhpc-x-y no matter which version nvhpc-x-z is requested which would double (extra 10Gb) the size of the image.
 # So for specific version we directly download the specific deb and install it.
-RUN if [ "$ver" = "nvhpc" ]; then \
+RUN arch="$(uname -m)" && \
+    case "$arch" in \
+        x86_64) nvplat=amd64 ;; \
+        aarch64|arm64) nvplat=arm64 ;; \
+        *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac && \
+    if [ "$ver" = "nvhpc" ]; then \
         apt-get install -y -q --allow-unauthenticated ${ver}; \
     else \
-        export year=$(echo $ver | cut -d "-" -f 2) && export minor=$(echo $ver | cut -d "-" -f 3) && \
-        wget https://developer.download.nvidia.com/hpc-sdk/ubuntu/amd64/nvhpc_${year}.${minor}_amd64.deb && \
-        apt-get install --allow-unauthenticated -y -q ./nvhpc_${year}.${minor}_amd64.deb; \
+        export year=$(echo $ver | cut -d "-" -f 2) && \
+        export minor=$(echo $ver | cut -d "-" -f 3) && \
+        wget -O nvhpc.deb "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}_${nvplat}.deb" \
+        || wget -O nvhpc.deb "https://developer.download.nvidia.com/hpc-sdk/ubuntu/${nvplat}/nvhpc_${year}.${minor}-0_${nvplat}.deb" && \
+        apt-get install --allow-unauthenticated -y -q ./nvhpc.deb; \
     fi;
 
 # Nodejs https://github.com/nodesource/distributions
@@ -43,12 +57,15 @@ RUN apt-get update && apt-get install -y -q \
         liblapack-dev libblas-dev \
         libibverbs-dev libmlx4-1 libmlx5-1 ibutils \
         # Devito Jupyter Notebooks and Ux experience
-        nodejs ffmpeg gcc-offload-nvptx \
+        nodejs ffmpeg \
         texlive-latex-extra texlive-fonts-recommended dvipng cm-super
 
+# nvptx only available on x86_64
+RUN apt-get install -y -q gcc-offload-nvptx || echo "Skipping nvptx compiler installation on non-x86_64 architecture"
+
 # nvidia-container-runtime
-ENV NVIDIA_VISIBLE_DEVICES all
-ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 # MPI ROOT USER DEFAULTS
 ENV OMPI_ALLOW_RUN_AS_ROOT=1
@@ -72,13 +89,19 @@ ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self
 #ENV UCX_TLS=cuda,cuda_copy,cuda_ipc,sm,shm,self,rc_x,gdr_copy
 
 # Make simlink for path setup since ENV doesn't accept shell commands.
-RUN export NVARCH=$(ls -1 /opt/nvidia/hpc_sdk/Linux_x86_64/ | grep '\.' | head -n 1) && \
-    export CUDA_V=$(ls /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/ | grep '\.') && \
-    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH} /opt/nvhpc && \
-    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/${CUDA_V}/extras/CUPTI /opt/CUPTI && \
-    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/comm_libs/${CUDA_V}/nvshmem /opt/nvhpc/comm_libs/nvshmem && \
-    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/comm_libs/${CUDA_V}/nccl /opt/nvhpc/comm_libs/nccl && \
-    ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/${NVARCH}/cuda/${CUDA_V}/compute-sanitizer/compute-sanitizer /opt/nvhpc/compilers/bin/compute-sanitizer
+RUN arch="$(uname -m)" && \
+    case "$arch" in \
+        x86_64) linux=Linux_x86_64 ;; \
+        aarch64|arm64) linux=Linux_aarch64 ;; \
+        *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac && \
+    export NVARCH=$(ls -1 /opt/nvidia/hpc_sdk/${linux}/ | grep '\.' | head -n 1) && \
+    export CUDA_V=$(ls /opt/nvidia/hpc_sdk/${linux}/${NVARCH}/cuda/ | grep '\.') && \
+    ln -sf /opt/nvidia/hpc_sdk/${linux}/${NVARCH} /opt/nvhpc && \
+    ln -sf /opt/nvidia/hpc_sdk/${linux}/${NVARCH}/cuda/${CUDA_V}/extras/CUPTI /opt/CUPTI && \
+    ln -sf /opt/nvidia/hpc_sdk/${linux}/comm_libs/${CUDA_V}/nvshmem /opt/nvhpc/comm_libs/nvshmem && \
+    ln -sf /opt/nvidia/hpc_sdk/${linux}/comm_libs/${CUDA_V}/nccl /opt/nvhpc/comm_libs/nccl && \
+    ln -sf /opt/nvidia/hpc_sdk/${linux}/${NVARCH}/cuda/${CUDA_V}/compute-sanitizer/compute-sanitizer /opt/nvhpc/compilers/bin/compute-sanitizer
 
 # Starting nvhpc 23.5 and cuda 12.1, hpcx and openmpi are inside the cuda version folder, only the bin is in the comm_libs path
 RUN export CUDA_V=$(/opt/nvhpc/cuda/bin/nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p') && \
@@ -102,12 +125,12 @@ RUN echo "$HPCSDK_HOME/cuda/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
     
 # Compiler, CUDA, and Library paths
 # CUDA_HOME has been deprecated but keep for now because of other dependencies (@mloubout).
-ENV CUDA_HOME $HPCSDK_HOME/cuda
-ENV NVHPC_CUDA_HOME $HPCSDK_HOME/cuda
-ENV CUDA_ROOT $HPCSDK_HOME/cuda/bin
-ENV PATH $HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
-ENV LD_LIBRARY_PATH $HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:${LD_LIBRARY_PATH}
-ENV CPATH $HPCSDK_HOME/comm_libs/mpi/include:$HPCSDK_HOME/comm_libs/nvshmem/include:$HPCSDK_HOME/comm_libs/nccl/include:$HPCSDK_HOME/math_libs/include:${CPATH}
+ENV CUDA_HOME=$HPCSDK_HOME/cuda
+ENV NVHPC_CUDA_HOME=$HPCSDK_HOME/cuda
+ENV CUDA_ROOT=$HPCSDK_HOME/cuda/bin
+ENV PATH=$HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:${PATH}
+ENV LD_LIBRARY_PATH=$HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR
+ENV CPATH=$HPCSDK_HOME/comm_libs/mpi/include:$HPCSDK_HOME/comm_libs/nvshmem/include:$HPCSDK_HOME/comm_libs/nccl/include:$HPCSDK_HOME/math_libs/include
 
 # MPI
 RUN rm -f  $HPCSDK_HOME/comm_libs/mpi && \

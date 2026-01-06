@@ -29,7 +29,8 @@ from devito.mpi import MPI
 from devito.parameters import configuration
 from devito.passes import (
     Graph, lower_index_derivatives, generate_implicit, generate_macros,
-    minimize_symbols, unevaluate, error_mapper, is_on_device, lower_dtypes
+    minimize_symbols, optimize_pows, unevaluate, error_mapper, is_on_device,
+    lower_dtypes
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (DAG, OrderedSet, Signer, ReducerMap, as_mapper, as_tuple,
@@ -415,6 +416,10 @@ class Operator(Callable):
 
         # Lower all remaining high order symbolic objects
         clusters = lower_index_derivatives(clusters, **kwargs)
+
+        # Turn pows into multiplications. This must happen as late as possible
+        # in the compilation process to maximize the optimization potential
+        clusters = optimize_pows(clusters)
 
         # Make sure no reconstructions can unpick any of the symbolic
         # optimizations performed so far
@@ -1410,11 +1415,18 @@ class ArgumentsMap(dict):
                 rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
                 logical_deviceid = rank
 
-            visible_devices = get_visible_devices()
+            visible_device_var, visible_devices = get_visible_devices()
             if visible_devices is None:
                 return logical_deviceid
             else:
-                return visible_devices[logical_deviceid]
+                try:
+                    return visible_devices[logical_deviceid]
+                except IndexError:
+                    errmsg = (f"A deviceid value of {logical_deviceid} is not valid "
+                              f"with {visible_device_var}={visible_devices}. Note that "
+                              "deviceid corresponds to the logical index within the "
+                              "visible devices, not the physical device index.")
+                    raise ValueError(errmsg)
         else:
             return None
 

@@ -22,7 +22,8 @@ from devito.types.misc import Fence, VolatileInt
 
 __all__ = ['NThreads', 'NThreadsNested', 'NThreadsNonaffine', 'NThreadsBase',
            'DeviceID', 'ThreadID', 'Lock', 'ThreadArray', 'PThreadArray',
-           'SharedData', 'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray']
+           'SharedData', 'NPThreads', 'DeviceRM', 'QueueID', 'Barrier', 'TBArray',
+           'ThreadPoolSync', 'ThreadCommit', 'ThreadWait']
 
 
 class NThreadsAbstract(Scalar):
@@ -316,6 +317,38 @@ class Barrier(Fence):
 
     """
     A generic synchronization barrier for threads or processes.
+    """
+
+    pass
+
+
+class ThreadPoolSync(Barrier):
+
+    """
+    A generic synchronization barrier for a pool of threads.
+    """
+
+    pass
+
+
+class ThreadCommit(Fence):
+
+    """
+    A generic commit operation for a single thread, typically used to issue
+    a memory operation at a specific program point, which requires the special
+    treatment that all Fence subclasses provide (i.e., to avoid being reshuffled
+    around by optimization passes).
+    """
+
+    pass
+
+
+class ThreadWait(Fence):
+
+    """
+    A generic wait operation for a single thread, typically used to synchronize
+    after a memory operation issued at a specific program point with a
+    ThreadCommit operation.
     """
 
     pass

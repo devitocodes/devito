@@ -1395,7 +1395,7 @@ class MPIRegion(CompositeObject):
 class AllreduceCall(Call):
 
     def __init__(self, arguments, **kwargs):
-        super().__init__('MPI_Allreduce', arguments)
+        super().__init__('MPI_Allreduce', arguments, **kwargs)
 
 
 class ReductionBuilder(object):
@@ -1422,6 +1422,6 @@ class ReductionBuilder(object):
         op = self.mapper[dr.op]
 
         arguments = [inplace, Byref(f), Integer(1), mpitype, op, comm]
-        allreduce = AllreduceCall(arguments)
+        allreduce = AllreduceCall(arguments, writes=f)
 
         return allreduce

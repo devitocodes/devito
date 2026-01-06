@@ -67,12 +67,26 @@ def key1(f, d):
 
         * False if not statically linearizable, that is not linearizable via
           constant symbolic sizes and strides;
-        * A 3-tuple `(Dimension, halo size, grid)` otherwise.
+        * A 3-tuple `(Dimension, halo size, pad dtype)` otherwise.
     """
     if f.is_regular:
         # For paddable objects the following holds:
         # `same dim + same halo + same padding_dtype => same (auto-)padding`
-        return (d, f._size_halo[d], f.__padding_dtype__)
+        if d is f.dimensions[-1]:
+            # Only the last dimension is padded
+            try:
+                if f.padding == f.mapped.padding:
+                    # Padding set from the mapped Function
+                    # e.g. from buffering or fft temp array
+                    pad_key = f.mapped.__padding_dtype__
+                else:
+                    pad_key = f.__padding_dtype__
+            except AttributeError:
+                pad_key = f.__padding_dtype__
+        else:
+            pad_key = None
+
+        return (d, f._size_halo[d], pad_key)
     else:
         return False
 

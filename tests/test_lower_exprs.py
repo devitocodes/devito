@@ -6,7 +6,9 @@ from devito import (Grid, TimeFunction, Function, Operator, Eq, solve,
 from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import LoweredEq
-from devito.passes.equations.linearity import collect_derivatives
+from devito.passes.equations.linearity import (
+    _collect_derivatives as collect_derivatives
+)
 from devito.tools import timed_region
 
 
@@ -34,8 +36,9 @@ class TestCollectDerivatives:
 
             # Since all Function are time dependent, there should be no collection
             # and produce the same result as with the pre evaluated expression
-            expr = Operator._lower_exprs([eq], options={})[0]
-            expr2 = Operator._lower_exprs([eq.evaluate], options={})[0]
+            options = {'deriv-collect': True}
+            expr = Operator._lower_exprs([eq], options=options)[0]
+            expr2 = Operator._lower_exprs([eq.evaluate], options=options)[0]
 
         assert expr == expr2
 
@@ -45,7 +48,7 @@ class TestCollectDerivatives:
         u = TimeFunction(name="u", grid=grid, space_order=4, time_order=2)
 
         eq = Eq(u.forward, u.dx.dx + 0.3*u.dy.dx)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert len(leq.find(Derivative)) == 3
 
@@ -56,7 +59,7 @@ class TestCollectDerivatives:
         u = TimeFunction(name="u", grid=grid, space_order=4, time_order=2)
 
         eq = Eq(u.forward, u.dx.dx + dt**0.2*u.dy.dx)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert len(leq.find(Derivative)) == 3
 
@@ -69,7 +72,7 @@ class TestCollectDerivatives:
 
         eq = Eq(u.forward, u.laplace + dt**0.2*u.biharmonic(1/f))
 
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert len(eq.rhs.args) == 3
         assert len(leq.rhs.args) == 2
@@ -86,7 +89,7 @@ class TestCollectDerivatives:
 
         pde = u.dt2 - (u.dx.dx + u.dy.dy) - u.dx.dy
         eq = Eq(u.forward, solve(pde, u.forward))
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert len(eq.rhs.find(Derivative)) == 5
         assert len(leq.rhs.find(Derivative)) == 4
@@ -99,7 +102,7 @@ class TestCollectDerivatives:
         u = TimeFunction(name="u", grid=grid)
 
         eq = Eq(u.forward, (0.4 + dt)*(u.dx + u.dy))
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq == leq
 
@@ -112,7 +115,7 @@ class TestCollectDerivatives:
         v = TimeFunction(name="v", grid=grid)
 
         eq = Eq(u.forward, ((0.4 + dt)*u.dx + 0.3)*hx + v.dx)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq != leq
         args = leq.rhs.args
@@ -129,7 +132,7 @@ class TestCollectDerivatives:
         v = TimeFunction(name="v", grid=grid, space_order=2)
 
         eq = Eq(u.forward, (((0.4 + dt)*u.dx + 0.3)*hx + v.dx).dy + (0.2 + hy)*v.dy)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq != leq
         assert leq.rhs == ((v + hx*(0.4 + dt)*u).dx + 0.3*hx + (0.2 + hy)*v).dy
@@ -143,7 +146,7 @@ class TestCollectDerivatives:
         v = TimeFunction(name="v", grid=grid, space_order=2)
 
         eq = Eq(u.forward, ((0.4 + dt*(hy + 1. + hx*hy))*u.dx + 0.3)*hx + v.dx)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq != leq
         assert leq.rhs == 0.3*hx + (hx*(0.4 + dt*(hy + 1. + hx*hy))*u + v).dx
@@ -158,7 +161,7 @@ class TestCollectDerivatives:
         v = TimeFunction(name="v", grid=grid, space_order=2)
 
         eq = Eq(u.forward, 0.4 + a*(hx + dt*(u.dx + v.dx)))
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq != leq
         assert leq.rhs == 0.4 + a*(hx + (dt*u + dt*v).dx)
@@ -172,7 +175,7 @@ class TestCollectDerivatives:
         f = Function(name='f', grid=grid)
 
         eq = Eq(u.forward, u.dx + 0.2*f[xi, yi]*v.dx)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq == leq
 
@@ -184,7 +187,7 @@ class TestCollectDerivatives:
         v = TimeFunction(name="v", grid=grid, staggered=x)
 
         eq = Eq(u.forward, u.dx + v.dx)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq == leq
 
@@ -195,13 +198,13 @@ class TestCollectDerivatives:
 
         # First case is obvious...
         eq = Eq(u.forward, u.dx2 + u.dx.dy + 1.)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq == leq
 
         # y-derivative should not get collected!
         eq = Eq(u.forward, u.dy2 + u.dx.dy + 1.)
-        leq = collect_derivatives.func([eq])[0]
+        leq = collect_derivatives([eq])[0]
 
         assert eq == leq
 

@@ -3,7 +3,8 @@ import pytest
 from sympy import sympify, simplify, diff, Float, Symbol
 
 from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
-                    ConditionalDimension, left, right, centered, div, grad)
+                    ConditionalDimension, left, right, centered, div, grad,
+                    curl, laplace, VectorFunction, TensorFunction)
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
                                                       IndexDerivative, Weights,
@@ -624,6 +625,114 @@ class TestFD:
                 gk = getattr(f, 'd%s' % d.name)(x0=x0, fd_order=order).evaluate
                 assert gi == gk
 
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_grad_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid, space_order=2)
+
+        # Want to check that it's the same as constructing by hand. Note that
+        # all the subsequent tests of this flavor work in the same way.
+        comps = (f.dx(side=side), f.dy(side=side))
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.grad(side=side).evaluate
+        assert expr1 == grad(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_vector_grad_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = VectorFunction(name='f', grid=grid, space_order=2, staggered=(None, None))
+
+        comps = ((f[0].dx(side=side), f[0].dy(side=side)),
+                 (f[1].dx(side=side), f[1].dy(side=side)))
+
+        expr1 = TensorFunction(name=f"{f.name}_tens", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.grad(side=side).evaluate
+        assert expr1 == grad(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_div_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = VectorFunction(name='f', grid=grid, space_order=2, staggered=(None, None))
+
+        expr1 = (f[0].dx(side=side) + f[1].dy(side=side)).evaluate
+
+        assert expr1 == f.div(side=side).evaluate
+        assert expr1 == div(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_tensor_div_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = TensorFunction(name='f', grid=grid, space_order=2,
+                           staggered=((None, None), (None, None)))
+
+        comps = (f[0, 0].dx(side=side) + f[0, 1].dy(side=side),
+                 f[0, 1].dx(side=side) + f[1, 1].dy(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.div(side=side).evaluate
+        assert expr1 == div(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_curl_w_side(self, side):
+        grid = Grid(shape=(11, 11, 11))
+        f = VectorFunction(name='f', grid=grid, space_order=2,
+                           staggered=(None, None, None))
+
+        comps = (f[2].dy(side=side) - f[1].dz(side=side),
+                 f[0].dz(side=side) - f[2].dx(side=side),
+                 f[1].dx(side=side) - f[0].dy(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.curl(side=side).evaluate
+        assert expr1 == curl(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_laplace_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid, space_order=2)
+
+        expr1 = (f.dx2(side=side) + f.dy2(side=side)).evaluate
+
+        assert expr1 == f.laplacian(side=side).evaluate
+        assert expr1 == laplace(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [left, right, centered])
+    def test_vector_laplace_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = VectorFunction(name='f', grid=grid, space_order=2, staggered=(None, None))
+
+        comps = (f[0].dx2(side=side) + f[0].dy2(side=side),
+                 f[1].dx2(side=side) + f[1].dy2(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.laplacian(side=side).evaluate
+        assert expr1 == laplace(f, side=side).evaluate
+
+    @pytest.mark.parametrize('side', [centered])
+    def test_tensor_laplace_w_side(self, side):
+        grid = Grid(shape=(11, 11))
+        f = TensorFunction(name='f', grid=grid, space_order=2,
+                           staggered=((None, None), (None, None)))
+
+        comps = (f[0, 0].dx2(side=side) + f[0, 1].dy2(side=side),
+                 f[0, 1].dx2(side=side) + f[1, 1].dy2(side=side))
+
+        expr1 = VectorFunction(name=f"{f.name}_vec", space_order=f.space_order,
+                               components=comps, grid=grid).evaluate
+
+        assert expr1 == f.laplacian(side=side).evaluate
+        assert expr1 == laplace(f, side=side).evaluate
+
     def test_substitution(self):
         grid = Grid((11, 11))
         f = Function(name="f", grid=grid, space_order=4)
@@ -773,12 +882,48 @@ class TestFD:
         xp = x + x.spacing / 2
 
         f = TimeFunction(name="f", grid=grid, space_order=space_order, staggered=y)
-        p = Function(name="p", grid=grid, space_order=space_order, parameter=True)
+        p = Function(name="p", grid=grid, space_order=space_order)
         g = TimeFunction(name="g", grid=grid, space_order=space_order, staggered=(x, y))
 
         eqn = Eq(g, (p * f).dx)
         eqne = eqn.evaluate.rhs
         assert simplify(eqne - (p._subs(y, yp).evaluate * f).dx(x0=xp).evaluate) == 0
+
+    def test_param_stagg_add(self):
+        space_order = 2
+        nx, ny = 5, 5
+        extent = (nx-1, ny-1)
+
+        grid = Grid(shape=(nx, ny), extent=extent)
+        x, y = grid.dimensions
+        yp = y + y.spacing / 2
+        xp = x + x.spacing / 2
+
+        x, y = grid.dimensions
+
+        vx = TimeFunction(name="vx", grid=grid, space_order=space_order,
+                          time_order1=1, staggered=x)
+        txx = TimeFunction(name="txx", grid=grid, space_order=space_order,
+                           time_order=1, staggered=NODE)
+        txy = TimeFunction(name="txy", grid=grid, space_order=space_order,
+                           time_order=1, staggered=(x, y))
+        c11 = Function(name="c11", grid=grid, space_order=space_order)
+        c66 = Function(name="c66", grid=grid, space_order=space_order)
+
+        eq0 = Eq(vx, (c66 * txy).dy)
+        eq1 = Eq(vx, (c11 * txx).dy)
+        eq2 = Eq(vx, (c11 * txx + c66 * txy).dy)
+
+        # Expects to evaluate c66 at xp then the derivative at yp
+        expect0 = (c66.subs({x: xp, y: yp}).evaluate * txy).dy.evaluate
+        assert simplify(eq0.evaluate.rhs - expect0) == 0
+
+        # Expects to evaluate c11 and txy at xp then the derivative at yp
+        expect1 = (c11._subs(x, xp).evaluate * txx._subs(x, xp).evaluate).dy.evaluate
+        assert simplify(eq1.evaluate.rhs - expect1) == 0
+
+        # Addition should apply the same logic as above for each term
+        assert simplify(eq2.evaluate.rhs - (expect1 + expect0)) == 0
 
 
 class TestTwoStageEvaluation:
