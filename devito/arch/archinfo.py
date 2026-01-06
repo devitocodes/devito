@@ -661,6 +661,11 @@ def check_cuda_runtime():
         driver_version = driver_version.value
         runtime_version = runtime_version.value
 
+        if driver_version == 0:
+            # cudart present but no driver detected. Likely isolation
+            # run such as version check or within a docker build.
+            return
+
         driver_v = parse(str(driver_version/1000))
         runtime_v = parse(str(runtime_version/1000))
         # First check the "major" version, known to be incompatible
