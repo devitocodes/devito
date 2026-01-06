@@ -989,10 +989,35 @@ class Operator(Callable):
         # Get items expected to be specialized
         specialize = as_tuple(kwargs.pop('specialize', []))
 
-        if not specialize:
-            # Compile the operator before building the arguments list
-            # to avoid out of memory with greedy compilers
-            cfunction = self.cfunction
+        # In the case of specialization, arguments must be processed before
+        # the operator can be compiled
+        if specialize:
+            # FIXME: Cannot cope with things like sizes/strides yet since it only
+            # looks at the parameters
+
+            # Build the arguments list for specialization
+            with self._profiler.timer_on('specialized-arguments-preprocess'):
+                args = self.arguments(**kwargs)
+            with switch_log_level(comm=args.comm):
+                self._emit_args_profiling('specialized-arguments-preprocess')
+
+            # Uses parameters here since Specializer needs {symbol: sympy value} mapper
+            specialized_values = {p: sympify(args[p.name])
+                                  for p in self.parameters if p.name in specialize}
+
+            op = Specializer(specialized_values).visit(self)
+
+            # TODO: Does this cause problems for profilers?
+            # FIXME: Need some way to inspect this Operator for testing
+            # FIXME: Perhaps this should use some separate method
+            unspecialized_kwargs = {k: v for k, v in kwargs.items()
+                                    if k not in specialize}
+
+            return op.apply(**unspecialized_kwargs)
+
+        # Compile the operator before building the arguments list
+        # to avoid out of memory with greedy compilers
+        cfunction = self.cfunction
 
         # Build the arguments list to invoke the kernel function
         with self._profiler.timer_on('arguments-preprocess'):
@@ -1000,23 +1025,9 @@ class Operator(Callable):
         with switch_log_level(comm=args.comm):
             self._emit_args_profiling('arguments-preprocess')
 
-        # In the case of specialization, arguments must be processed before
-        # the operator can be compiled
-        if specialize:
-            # FIXME: Cannot cope with things like sizes/strides yet since it only
-            # looks at the parameters
-            specialized_args = {p: sympify(args.pop(p.name))
-                                for p in self.parameters if p.name in specialize}
-
-            op = Specializer(specialized_args).visit(self)
-
-            specialized_kwargs = {k: v for k, v in kwargs.items()
-                                  if k not in specialize}
-
-            # TODO: Does this cause problems for profilers?
-            # FIXME: Need some way to inspect this Operator for testing
-            # FIXME: Perhaps this should use some separate method
-            return op.apply(**specialized_kwargs)
+        args_string = ", ".join([f"{p.name}={args[p.name]}"
+                                 for p in self.parameters if p.is_Symbol])
+        debug(f"Invoking `{self.name}` with scalar arguments: {args_string}")
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
