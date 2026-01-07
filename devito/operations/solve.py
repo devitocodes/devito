@@ -7,6 +7,8 @@ from devito.finite_differences.differentiable import Add, Mul, EvalDerivative
 from devito.finite_differences.derivative import Derivative
 from devito.tools import as_tuple
 
+from devito.types.multistage import resolve_method
+
 __all__ = ['solve', 'linsolve']
 
 
@@ -56,9 +58,12 @@ def solve(eq, target, **kwargs):
 
     # We need to rebuild the vector/tensor as sympy.solve outputs a tuple of solutions
     if len(sols) > 1:
-        return target.new_from_mat(sols)
+        sols_temp = target.new_from_mat(sols)
     else:
-        return sols[0]
+        sols_temp = sols[0]
+
+    method = kwargs.get("method", None)
+    return sols_temp if method is None else resolve_method(method)(target, sols_temp)
 
 
 def linsolve(expr, target, **kwargs):
