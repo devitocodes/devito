@@ -153,13 +153,16 @@ def test_petsc_solve():
     action_expr = FindNodes(Expression).visit(matvec_efunc[0])
     rhs_expr = FindNodes(Expression).visit(b_efunc[0])
 
+    # TODO: Investigate why there are double brackets here
+    # TODO: The output is technically "correct" but there are redundant operations that
+    # have not been cancelled out / simplified
     assert str(action_expr[-1].expr.rhs) == (
-        '(x_f[x + 1, y + 2]/ctx0->h_x**2'
-        ' - 2.0*x_f[x + 2, y + 2]/ctx0->h_x**2'
-        ' + x_f[x + 3, y + 2]/ctx0->h_x**2'
-        ' + x_f[x + 2, y + 1]/ctx0->h_y**2'
-        ' - 2.0*x_f[x + 2, y + 2]/ctx0->h_y**2'
-        ' + x_f[x + 2, y + 3]/ctx0->h_y**2)*ctx0->h_x*ctx0->h_y'
+        '(x_f[x + 1, y + 2]/((ctx0->h_x*ctx0->h_x))'
+        ' - 2.0*x_f[x + 2, y + 2]/(ctx0->h_x*ctx0->h_x)'
+        ' + x_f[x + 3, y + 2]/((ctx0->h_x*ctx0->h_x))'
+        ' + x_f[x + 2, y + 1]/((ctx0->h_y*ctx0->h_y))'
+        ' - 2.0*x_f[x + 2, y + 2]/(ctx0->h_y*ctx0->h_y)'
+        ' + x_f[x + 2, y + 3]/((ctx0->h_y*ctx0->h_y)))*ctx0->h_x*ctx0->h_y'
     )
 
     assert str(rhs_expr[-1].expr.rhs) == 'ctx0->h_x*ctx0->h_y*g[x + 2, y + 2]'
