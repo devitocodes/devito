@@ -241,7 +241,8 @@ class CDE(Queue):
                 else:
                     exprs.append(uxreplace(e, {**subs0, **subs}))
 
-            processed.append(c.rebuild(exprs=exprs))
+            if exprs:
+                processed.append(c.rebuild(exprs=exprs))
 
         seen.update(processed)
 
