@@ -1,7 +1,8 @@
 from devito import Function, TimeFunction, DevitoCheckpoint, CheckpointOperator, Revolver
 from devito.tools import memoized_meth
 from examples.seismic.acoustic.operators import (
-    ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+    ForwardOperator, AdjointOperator, GradientOperator, BornOperator,
+    create_snapshot_time_function
 )
 
 
@@ -23,6 +24,7 @@ class AcousticWaveSolver:
     space_order: int, optional
         Order of the spatial stencil discretisation. Defaults to 4.
     """
+
     def __init__(self, model, geometry, kernel='OT2', space_order=4, **kwargs):
         self.model = model
         self.model._initialize_bcs(bcs="damp")
@@ -44,11 +46,11 @@ class AcousticWaveSolver:
         return self.model.critical_dt
 
     @memoized_meth
-    def op_fwd(self, save=None):
+    def op_fwd(self, save=None, factor=None):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, geometry=self.geometry,
                                kernel=self.kernel, space_order=self.space_order,
-                               **self._kwargs)
+                               factor=factor, **self._kwargs)
 
     @memoized_meth
     def op_adj(self):
@@ -58,11 +60,11 @@ class AcousticWaveSolver:
                                **self._kwargs)
 
     @memoized_meth
-    def op_grad(self, save=True):
+    def op_grad(self, save=True, factor=None):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=save, geometry=self.geometry,
                                 kernel=self.kernel, space_order=self.space_order,
-                                **self._kwargs)
+                                factor=factor, **self._kwargs)
 
     @memoized_meth
     def op_born(self):
@@ -71,7 +73,11 @@ class AcousticWaveSolver:
                             kernel=self.kernel, space_order=self.space_order,
                             **self._kwargs)
 
-    def forward(self, src=None, rec=None, u=None, model=None, save=None, **kwargs):
+    def forward(
+        self, src=None, rec=None, u=None, usnaps=None,
+        model=None, save=None, factor=None,
+        **kwargs
+    ):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -90,6 +96,8 @@ class AcousticWaveSolver:
             The time-constant velocity.
         save : bool, optional
             Whether or not to save the entire (unrolled) wavefield.
+        factor : int, optional
+            Downsampling factor to save snapshots of the wavefield.
 
         Returns
         -------
@@ -101,19 +109,35 @@ class AcousticWaveSolver:
         rec = rec or self.geometry.rec
 
         # Create the forward wavefield if not provided
+        save_value = self.geometry.nt if save and factor is None else None
         u = u or TimeFunction(name='u', grid=self.model.grid,
-                              save=self.geometry.nt if save else None,
+                              save=save_value,
                               time_order=2, space_order=self.space_order)
+
+        # Create snapshots of the forward wavefield
+        usnaps = usnaps or create_snapshot_time_function(
+            self.model, 'usnaps', self.geometry, self.space_order, factor
+        )
 
         model = model or self.model
         # Pick vp from model unless explicitly provided
         kwargs.update(model.physical_params(**kwargs))
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u,
-                                          dt=kwargs.pop('dt', self.dt), **kwargs)
-
-        return rec, u, summary
+        if factor:
+            # Return snapshots of the forward wavefield
+            summary = self.op_fwd(save, factor).apply(
+                src=src, rec=rec, u=u, usnaps=usnaps,
+                dt=kwargs.pop('dt', self.dt), **kwargs
+            )
+            return rec, usnaps, summary
+        else:
+            # Return the full forward wavefield
+            summary = self.op_fwd(save, factor).apply(
+                src=src, rec=rec, u=u,
+                dt=kwargs.pop('dt', self.dt), **kwargs
+            )
+            return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, model=None, **kwargs):
         """
@@ -156,7 +180,7 @@ class AcousticWaveSolver:
         return srca, v, summary
 
     def jacobian_adjoint(self, rec, u, src=None, v=None, grad=None, model=None,
-                         checkpointing=False, **kwargs):
+                         factor=None, checkpointing=False, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
@@ -168,6 +192,8 @@ class AcousticWaveSolver:
             Receiver data.
         u : TimeFunction
             Full wavefield `u` (created with save=True).
+        usnaps : TimeFunction
+            Snapshots of the wavefield `u`.
         v : TimeFunction, optional
             Stores the computed wavefield.
         grad : Function, optional
@@ -176,12 +202,25 @@ class AcousticWaveSolver:
             Object containing the physical parameters.
         vp : Function or float, optional
             The time-constant velocity.
+        checkpointing : boolean, optional
+            Flag to enable checkpointing (default False).
+            Cannot be used with snapshotting.
+        factor : int, optional
+            Downsampling factor for the saved snapshots of the wavefield `u`.
+            Cannot be used with checkpointing.
 
         Returns
         -------
         Gradient field and performance summary.
         """
         dt = kwargs.pop('dt', self.dt)
+        # Check that snapshotting and checkpointing are not used together
+        if factor is not None and checkpointing:
+            raise ValueError(
+                "Cannot use snapshotting (factor) and "
+                "checkpointing simultaneously."
+            )
+
         # Gradient symbol
         grad = grad or Function(name='grad', grid=self.model.grid)
 
@@ -209,8 +248,10 @@ class AcousticWaveSolver:
             wrp.apply_forward()
             summary = wrp.apply_reverse()
         else:
-            summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, dt=dt,
-                                           **kwargs)
+            summary = self.op_grad(factor=factor).apply(
+                rec=rec, grad=grad, v=v, u=u, dt=dt, **kwargs
+            )
+
         return grad, summary
 
     def jacobian(self, dmin, src=None, rec=None, u=None, U=None, model=None, **kwargs):
