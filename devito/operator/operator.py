@@ -339,6 +339,7 @@ class Operator(Callable):
             * Shift indices for domain alignment.
         """
         expand = kwargs['options'].get('expand', True)
+        mul_first = kwargs['options'].get('eval-mul-first', False)
 
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
@@ -349,7 +350,8 @@ class Operator(Callable):
         # ModuloDimensions
         if not expand:
             expand = lambda d: d.is_Stepping
-        expressions = flatten([i._evaluate(expand=expand) for i in expressions])
+        expressions = flatten([i._evaluate(expand=expand, mul_first=mul_first)
+                               for i in expressions])
 
         # Scalarize the tensor equations, if any
         expressions = [j for i in expressions for j in i._flatten]

@@ -123,6 +123,12 @@ class BasicOperator(Operator):
     finite-difference derivatives.
     """
 
+    MUL_FIRST = False
+    """
+    When evaluating expressions location, prioritize multiplication
+    operations.
+    """
+
     DERIV_COLLECT = True
     """
     Factorize finite-difference derivatives exploiting the linearity of the FD
