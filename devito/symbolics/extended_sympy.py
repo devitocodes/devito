@@ -35,7 +35,8 @@ class CondEq(sympy.Eq):
     """
 
     def __new__(cls, *args, **kwargs):
-        return sympy.Eq.__new__(cls, *args, evaluate=False)
+        kwargs['evaluate'] = False
+        return sympy.Eq.__new__(cls, *args, **kwargs)
 
     @property
     def canonical(self):

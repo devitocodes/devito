@@ -21,6 +21,7 @@ from devito.ir.equations import LoweredEq, lower_exprs, concretize_subdims
 from devito.ir.clusters import ClusterGroup, clusterize
 from devito.ir.iet import (Callable, CInterface, EntryFunction, DeviceFunction,
                            FindSymbols, MetaCall, derive_parameters, iet_build)
+from devito.ir.iet.visitors import Specializer
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.ir.stree import stree_build
 from devito.operator.profiling import create_profile
@@ -990,6 +991,30 @@ class Operator(Callable):
         >>> op = Operator(Eq(u3.forward, u3 + 1))
         >>> summary = op.apply(time_M=10)
         """
+        # Get items expected to be specialized
+        specialize = as_tuple(kwargs.pop('specialize', []))
+
+        if specialize:
+            # FIXME: Cannot cope with things like sizes/strides yet since it only
+            # looks at the parameters
+
+            # Build the arguments list for specialization
+            with self._profiler.timer_on('specialization'):
+                args = self.arguments(**kwargs)
+                # Uses parameters here since Specializer needs {symbol: sympy value}
+                specialized_values = {p: sympify(args[p.name])
+                                      for p in self.parameters if p.name in specialize}
+
+                op = Specializer(specialized_values).visit(self)
+
+            with switch_log_level(comm=args.comm):
+                self._emit_args_profiling('specialization')
+
+            unspecialized_kwargs = {k: v for k, v in kwargs.items()
+                                    if k not in specialize}
+
+            return op.apply(**unspecialized_kwargs)
+
         # Compile the operator before building the arguments list
         # to avoid out of memory with greedy compilers
         cfunction = self.cfunction
@@ -999,6 +1024,8 @@ class Operator(Callable):
             args = self.arguments(**kwargs)
         with switch_log_level(comm=args.comm):
             self._emit_args_profiling('arguments-preprocess')
+
+        self._emit_arguments(args)
 
         # Invoke kernel function with args
         arg_values = [args[p.name] for p in self.parameters]
@@ -1034,6 +1061,28 @@ class Operator(Callable):
         elapsed = fround(self._profiler.py_timers[tag])
         tagstr = ' '.join(tag.split('-'))
         debug(f"Operator `{self.name}` {tagstr}: {elapsed:.2f} s")
+
+    def _emit_arguments(self, args):
+        comm = args.comm
+        scalar_args = ", ".join([f"{p.name}={args[p.name]}"
+                                 for p in self.parameters
+                                 if p.is_Symbol])
+
+        rank = f"[rank{args.comm.Get_rank()}] " if comm is not MPI.COMM_NULL else ""
+
+        msg = f"* {rank}{scalar_args}"
+
+        with switch_log_level(comm=comm):
+            debug(f"Scalar arguments used to invoke `{self.name}`")
+
+            if comm is not MPI.COMM_NULL:
+                # With MPI enabled, we add one entry per rank
+                allmsg = comm.allgather(msg)
+                if comm.Get_rank() == 0:
+                    for m in allmsg:
+                        debug(m)
+            else:
+                debug(msg)
 
     def _emit_build_profiling(self):
         if not is_log_enabled_for('PERF'):

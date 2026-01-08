@@ -11,10 +11,11 @@ from typing import Any, Generic, TypeVar
 import ctypes
 
 import cgen as c
-from sympy import IndexedBase
+from sympy import IndexedBase, Number
 from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
+from devito.symbolics import IndexedPointer
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
                                  Call, Lambda, BlankLine, Section, ListMajor)
 from devito.ir.support.space import Backward
@@ -1497,6 +1498,70 @@ class Uxreplace(Transformer):
         stream = self.mapper.get(o.stream, o.stream)
         return o._rebuild(grid=grid, block=block, stream=stream,
                           arguments=arguments)
+
+
+class Specializer(Uxreplace):
+    """
+    A Transformer to "specialize" a pre-built Operator - that is to replace a given
+    set of (scalar) symbols with hard-coded values to free up registers. This will
+    yield a "specialized" version of the Operator, specific to a particular setup.
+
+    Note that the Operator is not re-optimized in response to this replacement - this
+    transformation could nominally result in expressions of the form `f + 0` in the
+    generated code. If one wants to construct an Operator where such expressions are
+    considered, then use of `subs=...` is a better choice.
+    """
+
+    def __init__(self, mapper, nested=False):
+        super().__init__(mapper, nested=nested)
+
+        # Sanity check
+        for k, v in self.mapper.items():
+            if not isinstance(k, (AbstractSymbol, IndexedPointer)):
+                raise ValueError(f"Attempted to specialize non-scalar symbol: {k}")
+
+            if not isinstance(v, Number):
+                raise ValueError("Only SymPy Numbers can used to replace values during "
+                                 f"specialization. Value {v} was supplied for symbol "
+                                 f"{k}, but is of type {type(v)}.")
+
+    def visit_Operator(self, o, **kwargs):
+        # Entirely fine to apply this to an Operator (unlike Uxreplace) - indeed this
+        # is the intended use case
+        body = self._visit(o.body)
+
+        # NOTE: IndexedPointers that want replacing with a hardcoded value won't appear in
+        # the Operator parameters. Perhaps this check wants relaxing.
+        not_params = tuple(i for i in self.mapper
+                           if i not in o.parameters and isinstance(i, AbstractSymbol))
+        if not_params:
+            raise ValueError(f"Attempted to specialize symbols {not_params} which are not"
+                             " found in the Operator parameters")
+
+        # FIXME: Should also type-check the values supplied against the symbols they are
+        # replacing (and cast them if needed?) -> use a try-except on the cast in
+        # python-land
+
+        parameters = tuple(i for i in o.parameters if i not in self.mapper)
+
+        # Note: the following is not dissimilar to unpickling an Operator
+        state = o.__getstate__()
+        state['parameters'] = parameters
+        state['body'] = body
+
+        try:
+            state.pop('ccode')
+        except KeyError:
+            # C code has not previously been generated for this Operator
+            pass
+
+        # FIXME: These names aren't great
+        newargs, newkwargs = o.__getnewargs_ex__()
+        newop = o.__class__(*newargs, **newkwargs)
+
+        newop.__setstate__(state)
+
+        return newop
 
 
 # Utils
