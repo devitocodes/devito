@@ -1,7 +1,11 @@
 import itertools
 
-from petsctools import flatten_parameters
-
+try:
+    from petsctools import flatten_parameters
+except ImportError:
+    # TODO: drop
+    def flatten_parameters():
+        raise ImportError("petsctools is not installed")
 
 # NOTE: Will be extended, the default preconditioner is not going to be 'none'
 base_solve_defaults = {
