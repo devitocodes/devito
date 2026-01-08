@@ -6,6 +6,8 @@ from devito.ir.iet import (
 )
 from devito.ir.support import GuardSwitch, GuardCaseSwitch
 from devito.tools import as_mapper, timed_pass
+from devito.petsc.types import MetaData
+from devito.petsc.iet.nodes import petsc_iet_mapper
 
 __all__ = ['iet_build']
 
@@ -27,6 +29,8 @@ def iet_build(stree):
             for e in i.exprs:
                 if e.is_Increment:
                     exprs.append(Increment(e))
+                elif isinstance(e.rhs, MetaData):
+                    exprs.append(petsc_iet_mapper[e.operation](e, operation=e.operation))
                 else:
                     exprs.append(Expression(e, operation=e.operation))
             body = ExpressionBundle(i.ispace, i.ops, i.traffic, body=exprs)

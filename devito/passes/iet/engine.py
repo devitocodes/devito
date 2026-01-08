@@ -4,10 +4,11 @@ from functools import partial, singledispatch, wraps
 import numpy as np
 from sympy import Mul
 
+from devito.finite_differences.differentiable import Differentiable
 from devito.ir.iet import (
     Call, ExprStmt, Expression, Iteration, SyncSpot, AsyncCallable, FindNodes,
-    FindSymbols, MapNodes, MetaCall, Transformer, EntryFunction, ThreadCallable,
-    Uxreplace, derive_parameters
+    FindSymbols, MapNodes, MetaCall, Transformer, EntryFunction,
+    FixedArgsCallable, Uxreplace, derive_parameters
 )
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
@@ -24,6 +25,7 @@ from devito.types import (
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
+from devito.types.array import ArrayBasic
 
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 
@@ -149,6 +151,7 @@ class Graph(Byproduct):
                 compiler.add_include_dirs(as_tuple(metadata.get('include_dirs')))
                 compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')),
                                           rpath=metadata.get('rpath', False))
+                compiler.add_ldflags(as_tuple(metadata.get('ldflags')))
                 compiler.add_libraries(as_tuple(metadata.get('libs')))
             except KeyError:
                 pass
@@ -518,7 +521,8 @@ def abstract_objects(objects0, sregistry=None):
 
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    keys = [Bundle, Array, Differentiable, DiscreteFunction,
+            AbstractIncrDimension, BlockDimension]
     priority = {k: i for i, k in enumerate(keys, start=1)}
     objects = sorted_priority(objects, priority)
 
@@ -553,7 +557,7 @@ def _(i, mapper, sregistry):
     })
 
 
-@abstract_object.register(Array)
+@abstract_object.register(ArrayBasic)
 def _(i, mapper, sregistry):
     if isinstance(i, Lock):
         name = sregistry.make_name(prefix='lock')
@@ -708,12 +712,12 @@ def update_args(root, efuncs, dag):
 
         foo(..., z) : root(x, z)
     """
-    if isinstance(root, ThreadCallable):
+    if isinstance(root, FixedArgsCallable):
         return efuncs
 
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
-    new_params = derive_parameters(root)
+    new_params = derive_parameters(root, drop_locals=True)
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)

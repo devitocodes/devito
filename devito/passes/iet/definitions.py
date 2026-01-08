@@ -339,9 +339,10 @@ class DataManager:
         """
         Allocate an Array of Objects in the low latency memory.
         """
+        frees = getattr(obj, '_C_free', None)
         decl = Definition(obj)
 
-        storage.update(obj, site, allocs=decl)
+        storage.update(obj, site, allocs=decl, frees=frees)
 
     def _alloc_pointed_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -416,6 +417,10 @@ class DataManager:
                 init = self.langbb['thread-num'](retobj=tid)
                 frees.append(Block(header=header, body=[init] + body))
             frees.extend(as_list(cbody.frees) + flatten(v.frees))
+            frees = sorted(frees, key=lambda x: min(
+                (obj._C_free_priority for obj in FindSymbols().visit(x)
+                 if obj.is_LocalType), default=float('inf')
+            ))
 
             # maps/unmaps
             maps = as_list(cbody.maps) + flatten(v.maps)
@@ -490,11 +495,10 @@ class DataManager:
                     # Track, to be handled by the EntryFunction being a global obj!
                     globs.add(i)
 
-            elif i.is_ObjectArray:
-                self._alloc_object_array_on_low_lat_mem(iet, i, storage)
-
             elif i.is_PointerArray:
                 self._alloc_pointed_array_on_high_bw_mem(iet, i, storage)
+            else:
+                self._alloc_object_array_on_low_lat_mem(iet, i, storage)
 
         # Handle postponed global objects
         if isinstance(iet, EntryFunction) and globs:

@@ -11,13 +11,16 @@ from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
 from devito.passes.iet import (CTarget, CXXTarget, COmpTarget, CXXOmpTarget,
                                avoid_denormals, linearize,
                                mpiize, hoist_prodders, relax_incr_dimensions,
-                               check_stability)
+                               check_stability, PetscTarget)
 from devito.tools import timed_pass
+
+from devito.petsc.iet.passes import lower_petsc_symbols
 
 __all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
            'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
            'Cpu64CustomOperator', 'Cpu64CustomCXXOperator', 'Cpu64AdvCXXOperator',
-           'Cpu64AdvCXXOmpOperator', 'Cpu64FsgCXXOperator', 'Cpu64FsgCXXOmpOperator']
+           'Cpu64AdvCXXOmpOperator', 'Cpu64FsgCXXOperator', 'Cpu64FsgCXXOmpOperator',
+           'Cpu64NoopPetscOperator']
 
 
 class Cpu64OperatorMixin:
@@ -144,6 +147,9 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
 
+        # Lower PETSc symbols
+        lower_petsc_symbols(graph, **kwargs)
+
         return graph
 
 
@@ -221,6 +227,9 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
+
+        # Lower PETSc symbols
+        lower_petsc_symbols(graph, **kwargs)
 
         # Linearize n-dimensional Indexeds
         linearize(graph, **kwargs)
@@ -361,6 +370,15 @@ class Cpu64CXXNoopOmpOperator(Cpu64NoopOperator):
     LINEARIZE = True
 
 
+class Cpu64NoopPetscOperator(Cpu64NoopOperator):
+    _Target = PetscTarget
+
+    @classmethod
+    def _rcompile_wrapper(cls, **kwargs0):
+        kwargs0['language'] = 'petsc'
+        return super()._rcompile_wrapper(**kwargs0)
+
+
 class Cpu64AdvCOperator(Cpu64AdvOperator):
     _Target = CTarget
 
@@ -368,6 +386,15 @@ class Cpu64AdvCOperator(Cpu64AdvOperator):
 class Cpu64AdvCXXOperator(Cpu64AdvOperator):
     _Target = CXXTarget
     LINEARIZE = True
+
+
+class Cpu64AdvPetscOperator(Cpu64AdvOperator):
+    _Target = PetscTarget
+
+    @classmethod
+    def _rcompile_wrapper(cls, **kwargs0):
+        kwargs0['language'] = 'petsc'
+        return super()._rcompile_wrapper(**kwargs0)
 
 
 class Cpu64AdvOmpOperator(Cpu64AdvOperator):

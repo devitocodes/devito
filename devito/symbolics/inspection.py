@@ -312,12 +312,16 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
     if expr is None:
         return default
 
+    def inspect_args(e, dtypes):
+        for arg in e.args:
+            dtype = getattr(arg, "dtype", None)
+            if dtype is not None:
+                dtypes.add(dtype)
+            else:
+                inspect_args(arg, dtypes)
+
     dtypes = {base} - {None}
-    for i in expr.free_symbols:
-        try:
-            dtypes.add(i.dtype)
-        except AttributeError:
-            pass
+    inspect_args(expr, dtypes)
 
     dtype = infer_dtype(dtypes)
 

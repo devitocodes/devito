@@ -61,6 +61,21 @@ class ArrayBasic(AbstractFunction, LocalType):
         return self._is_const
 
     @property
+    def _C_free(self):
+        """
+        A symbolic destructor for the Array, injected in the generated code.
+
+        Notes
+        -----
+        To be overridden by subclasses, ignored otherwise.
+        """
+        return None
+
+    @property
+    def _C_free_priority(self):
+        return 0
+
+    @property
     def c0(self):
         # ArrayBasic can be used as a base class for tensorial objects (that is,
         # arrays whose components are AbstractFunctions). This property enables
@@ -526,8 +541,10 @@ class Bundle(MappedArrayMixin, ArrayBasic):
             component_index, indices = index[0], index[1:]
             return ComponentAccess(self.indexed[indices], component_index)
         else:
-            raise ValueError("Expected %d or %d indices, got %d instead"
-                             % (self.ndim, self.ndim + 1, len(index)))
+            raise ValueError(
+                f"Expected {self.ndim} or {self.ndim + 1} indices, "
+                f"got {len(index)} instead"
+            )
 
     @property
     def _C_ctype(self):
@@ -582,20 +599,23 @@ class BundleView(Bundle):
 
 class ComponentAccess(Expr, Pickable):
 
-    _component_names = ('x', 'y', 'z', 'w')
+    _default_component_names = ('x', 'y', 'z', 'w')
 
     __rargs__ = ('arg',)
-    __rkwargs__ = ('index',)
+    __rkwargs__ = ('index', 'component_names')
 
-    def __new__(cls, arg, index=0, **kwargs):
+    def __new__(cls, arg, index=0, component_names=None, **kwargs):
         if not (arg.is_Symbol or arg.is_Indexed):
             raise ValueError(f"Expected Symbol or Indexed, got `{type(arg)}` "
                              "instead")
         if not is_integer(index) or index > 3:
             raise ValueError("Expected 0 <= index < 4")
 
+        names = component_names or cls._default_component_names
+
         obj = Expr.__new__(cls, arg)
         obj._index = index
+        obj._component_names = names
 
         return obj
 
@@ -623,6 +643,10 @@ class ComponentAccess(Expr, Pickable):
     @property
     def index(self):
         return self._index
+
+    @property
+    def component_names(self):
+        return self._component_names
 
     @property
     def sindex(self):

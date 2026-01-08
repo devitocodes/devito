@@ -26,7 +26,7 @@ from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
                           c_restrict_void_p, sorted_priority)
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
-                          IndexedData, DeviceMap)
+                          IndexedData, DeviceMap, LocalCompositeObject)
 
 
 __all__ = ['FindApplications', 'FindNodes', 'FindWithin', 'FindSections',
@@ -252,7 +252,7 @@ class CGen(Visitor):
 
     def _gen_struct_decl(self, obj, masked=()):
         """
-        Convert ctypes.Struct -> cgen.Structure.
+        Convert ctypes.Struct and LocalCompositeObject -> cgen.Structure.
         """
         ctype = obj._C_ctype
         try:
@@ -264,7 +264,16 @@ class CGen(Visitor):
                 return None
         except TypeError:
             # E.g., `ctype` is of type `dtypes_lowering.CustomDtype`
-            return None
+            if isinstance(obj, LocalCompositeObject):
+                # TODO: re-evaluate: Setting ctype to obj allows
+                # _gen_struct_decl to generate a cgen.Structure from a
+                # LocalCompositeObject, where obj._C_ctype is a CustomDtype.
+                # LocalCompositeObject has a __fields__ property,
+                # which allows the subsequent code in this function to work
+                # correctly.
+                ctype = obj
+            else:
+                return None
 
         try:
             return obj._C_typedecl
@@ -316,7 +325,7 @@ class CGen(Visitor):
                     strtype = f'{strtype}{self._restrict_keyword}'
         strtype = ' '.join(qualifiers + [strtype])
 
-        if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
+        if obj.is_LocalType and obj._C_modifier is not None and mode == 2:
             strtype += obj._C_modifier
 
         strname = obj._C_name
@@ -509,13 +518,23 @@ class CGen(Visitor):
 
     def visit_Dereference(self, o):
         a0, a1 = o.functions
+        # TODO: Potentially reconsider — the `if a1.is_CompositeObject`
+        # ensures that all objects dereferenced from a PETSc struct
+        # (e.g., `ctx0`) are handled correctly.
+        # **Example**
+        # Need this: struct dataobj *rhs_vec = ctx0->rhs_vec;
+        # Not this: PetscScalar (* rhs)[rhs_vec->size[1]] =
+        # (PetscScalar (*)[rhs_vec->size[1]]) ctx0;
 
         if o.offset:
             ptr = f'({a1.name} + {o.offset})'
         else:
             ptr = a1.name
 
-        if a0.is_AbstractFunction:
+        if a1.is_CompositeObject:
+            rvalue = f'{a1.name}->{a0._C_name}'
+            lvalue = self._gen_value(a0, 0)
+        elif a0.is_AbstractFunction:
             cstr = self.ccode(a0.indexed._C_typedata)
 
             try:
@@ -723,6 +742,9 @@ class CGen(Visitor):
         top = c.Line(f"[{', '.join(captures)}]({', '.join(decls)}){''.join(extra)}")
         return LambdaCollection([top, c.Block(body)])
 
+    def visit_Callback(self, o, nested_call=False):
+        return CallbackArg(o)
+
     def visit_HaloSpot(self, o):
         body = flatten(self._visit(i) for i in o.children)
         return c.Collection(body)
@@ -805,8 +827,11 @@ class CGen(Visitor):
         for i in o._func_table.values():
             if not i.local:
                 continue
-            typedecls.extend([self._gen_struct_decl(j) for j in i.root.parameters
-                              if xfilter(j)])
+            typedecls.extend([
+                self._gen_struct_decl(j)
+                for j in FindSymbols().visit(i.root)
+                if xfilter(j)
+            ])
         typedecls = filter_sorted(typedecls, key=lambda i: i.tpname)
 
         return typedecls
@@ -1078,7 +1103,7 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         Drive the search. Accepted:
         - `symbolics`: Collect all AbstractFunction objects, default
         - `basics`: Collect all Basic objects
-        - `abstractsymbols`: Collect all AbstractSymbol objects
+        - `symbols`: Collect all AbstractSymbol objects
         - `dimensions`: Collect all Dimensions
         - `indexeds`: Collect all Indexed objects
         - `indexedbases`: Collect all IndexedBase objects
@@ -1602,3 +1627,12 @@ def sorted_efuncs(efuncs):
         CommCallable: 1
     }
     return sorted_priority(efuncs, priority)
+
+
+class CallbackArg(c.Generable):
+
+    def __init__(self, callback):
+        self.callback = callback
+
+    def generate(self):
+        yield self.callback.callback_form

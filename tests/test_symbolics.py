@@ -16,11 +16,13 @@ from devito.symbolics import (
     retrieve_functions, retrieve_indexed, evalrel, CallFromPointer, Cast, # noqa
     DefFunction, FieldFromPointer, INT, FieldFromComposite, IntDiv, Namespace,
     Rvalue, ReservedWord, ListInitializer, uxreplace, pow_to_mul,
-    retrieve_derivatives, BaseCast, SizeOf, VectorAccess
+    retrieve_derivatives, BaseCast, SizeOf, VectorAccess, separate_eqn,
+    centre_stencil, sympy_dtype
 )
 from devito.tools import as_tuple, CustomDtype
 from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
-                          ComponentAccess, StencilDimension, Symbol as dSymbol)
+                          ComponentAccess, StencilDimension, Symbol as dSymbol,
+                          CompositeObject)
 from devito.types.basic import AbstractSymbol
 
 
@@ -265,6 +267,17 @@ def test_field_from_pointer():
     # Free symbols
     assert ffp1.free_symbols == {s}
 
+    # Test dtype
+    f = dSymbol('f')
+    pfields = [(f._C_name, f._C_ctype)]
+    struct = CompositeObject('s1', 'myStruct', pfields)
+    ffp4 = FieldFromPointer(f, struct)
+    assert str(ffp4) == 's1->f'
+    assert ffp4.dtype == f.dtype
+    expr = 1/ffp4
+    dtype = sympy_dtype(expr)
+    assert dtype == f.dtype
+
 
 def test_field_from_composite():
     s = Symbol('s')
@@ -309,7 +322,10 @@ def test_extended_sympy_arithmetic():
     # noncommutative
     o = Object(name='o', dtype=c_void_p)
     bar = FieldFromPointer('bar', o)
-    assert ccode(-1 + bar) == '-1 + o->bar'
+    # TODO: Edit/fix/update according to PR #2513
+    # The order changed due to adding the dtype property
+    # to FieldFromPointer
+    assert ccode(-1 + bar) == 'o->bar - 1'
 
 
 def test_integer_abs():
@@ -1162,6 +1178,244 @@ def test_print_div():
     b = SizeOf(np.int64)
     cstr = ccode(a / b)
     assert cstr == 'sizeof(int)/sizeof(long)'
+
+
+@pytest.mark.parametrize('eqn, target, expected', [
+    ('Eq(f1.laplace, g1)',
+     'f1', ('g1(x, y)', 'Derivative(f1(x, y), (x, 2)) + Derivative(f1(x, y), (y, 2))')),
+    ('Eq(g1, f1.laplace)',
+     'f1', ('-g1(x, y)', '-Derivative(f1(x, y), (x, 2)) - Derivative(f1(x, y), (y, 2))')),
+    ('Eq(g1, f1.laplace)', 'g1',
+     ('Derivative(f1(x, y), (x, 2)) + Derivative(f1(x, y), (y, 2))', 'g1(x, y)')),
+    ('Eq(f1 + f1.laplace, g1)', 'f1', ('g1(x, y)',
+     'f1(x, y) + Derivative(f1(x, y), (x, 2)) + Derivative(f1(x, y), (y, 2))')),
+    ('Eq(g1.dx + f1.dx, g1)', 'f1',
+     ('g1(x, y) - Derivative(g1(x, y), x)', 'Derivative(f1(x, y), x)')),
+    ('Eq(g1.dx + f1.dx, g1)', 'g1',
+     ('-Derivative(f1(x, y), x)', '-g1(x, y) + Derivative(g1(x, y), x)')),
+    ('Eq(f1 * g1.dx, g1)', 'g1', ('0', 'f1(x, y)*Derivative(g1(x, y), x) - g1(x, y)')),
+    ('Eq(f1 * g1.dx, g1)', 'f1', ('g1(x, y)', 'f1(x, y)*Derivative(g1(x, y), x)')),
+    ('Eq((f1 * g1.dx).dy, f1)', 'f1',
+     ('0', '-f1(x, y) + Derivative(f1(x, y)*Derivative(g1(x, y), x), y)')),
+    ('Eq((f1 * g1.dx).dy, f1)', 'g1',
+     ('f1(x, y)', 'Derivative(f1(x, y)*Derivative(g1(x, y), x), y)')),
+    ('Eq(f2.laplace, g2)', 'g2',
+     ('-Derivative(f2(t, x, y), (x, 2)) - Derivative(f2(t, x, y), (y, 2))',
+      '-g2(t, x, y)')),
+    ('Eq(f2.laplace, g2)', 'f2', ('g2(t, x, y)',
+     'Derivative(f2(t, x, y), (x, 2)) + Derivative(f2(t, x, y), (y, 2))')),
+    ('Eq(f2.laplace, f2)', 'f2', ('0',
+     '-f2(t, x, y) + Derivative(f2(t, x, y), (x, 2)) + Derivative(f2(t, x, y), (y, 2))')),
+    ('Eq(f2*g2, f2)', 'f2', ('0', 'f2(t, x, y)*g2(t, x, y) - f2(t, x, y)')),
+    ('Eq(f2*g2, f2)', 'g2', ('f2(t, x, y)', 'f2(t, x, y)*g2(t, x, y)')),
+    ('Eq(g2*f2.laplace, f2)', 'g2', ('f2(t, x, y)',
+     '(Derivative(f2(t, x, y), (x, 2)) + Derivative(f2(t, x, y), (y, 2)))*g2(t, x, y)')),
+    ('Eq(f2.forward, f2)', 'f2.forward', ('f2(t, x, y)', 'f2(t + dt, x, y)')),
+    ('Eq(f2.forward, f2)', 'f2', ('-f2(t + dt, x, y)', '-f2(t, x, y)')),
+    ('Eq(f2.forward.laplace, f2)', 'f2.forward', ('f2(t, x, y)',
+     'Derivative(f2(t + dt, x, y), (x, 2)) + Derivative(f2(t + dt, x, y), (y, 2))')),
+    ('Eq(f2.forward.laplace, f2)', 'f2',
+     ('-Derivative(f2(t + dt, x, y), (x, 2)) - Derivative(f2(t + dt, x, y), (y, 2))',
+      '-f2(t, x, y)')),
+    ('Eq(f2.laplace + f2.forward.laplace, g2)', 'f2.forward',
+     ('g2(t, x, y) - Derivative(f2(t, x, y), (x, 2)) - Derivative(f2(t, x, y), (y, 2))',
+      'Derivative(f2(t + dt, x, y), (x, 2)) + Derivative(f2(t + dt, x, y), (y, 2))')),
+    ('Eq(g2.laplace, f2 + g2.forward)', 'g2.forward',
+     ('f2(t, x, y) - Derivative(g2(t, x, y), (x, 2)) - Derivative(g2(t, x, y), (y, 2))',
+      '-g2(t + dt, x, y)'))
+])
+def test_separate_eqn(eqn, target, expected):
+    """
+    Test the separate_eqn function.
+    """
+    grid = Grid((2, 2))
+
+    so = 2
+
+    f1 = Function(name='f1', grid=grid, space_order=so)  # noqa
+    g1 = Function(name='g1', grid=grid, space_order=so)  # noqa
+
+    f2 = TimeFunction(name='f2', grid=grid, space_order=so)  # noqa
+    g2 = TimeFunction(name='g2', grid=grid, space_order=so)  # noqa
+
+    b, F, _, _ = separate_eqn(eval(eqn), eval(target))
+    expected_b, expected_F = expected
+
+    assert str(b) == expected_b
+    assert str(F) == expected_F
+
+
+@pytest.mark.parametrize('eqn, target, expected', [
+    ('Eq(f1.laplace, g1).evaluate', 'f1',
+        (
+            'g1(x, y)',
+            '-2.0*f1(x, y)/h_x**2 + f1(x - h_x, y)/h_x**2 + f1(x + h_x, y)/h_x**2 '
+            '- 2.0*f1(x, y)/h_y**2 + f1(x, y - h_y)/h_y**2 + f1(x, y + h_y)/h_y**2'
+        )),
+    ('Eq(g1, f1.laplace).evaluate', 'f1',
+        (
+            '-g1(x, y)',
+            '-(-2.0*f1(x, y)/h_x**2 + f1(x - h_x, y)/h_x**2 + f1(x + h_x, y)/h_x**2) '
+            '- (-2.0*f1(x, y)/h_y**2 + f1(x, y - h_y)/h_y**2 + f1(x, y + h_y)/h_y**2)'
+        )),
+    ('Eq(g1, f1.laplace).evaluate', 'g1',
+        (
+            '-2.0*f1(x, y)/h_x**2 + f1(x - h_x, y)/h_x**2 + f1(x + h_x, y)/h_x**2 '
+            '- 2.0*f1(x, y)/h_y**2 + f1(x, y - h_y)/h_y**2 + f1(x, y + h_y)/h_y**2',
+            'g1(x, y)'
+        )),
+    ('Eq(f1 + f1.laplace, g1).evaluate', 'f1',
+        (
+            'g1(x, y)',
+            '-2.0*f1(x, y)/h_x**2 + f1(x - h_x, y)/h_x**2 + f1(x + h_x, y)/h_x**2 - 2.0'
+            '*f1(x, y)/h_y**2 + f1(x, y - h_y)/h_y**2 + f1(x, y + h_y)/h_y**2 + f1(x, y)'
+        )),
+    ('Eq(g1.dx + f1.dx, g1).evaluate', 'f1',
+        (
+            '-(-g1(x, y)/h_x + g1(x + h_x, y)/h_x) + g1(x, y)',
+            '-f1(x, y)/h_x + f1(x + h_x, y)/h_x'
+        )),
+    ('Eq(g1.dx + f1.dx, g1).evaluate', 'g1',
+        (
+            '-(-f1(x, y)/h_x + f1(x + h_x, y)/h_x)',
+            '-g1(x, y)/h_x + g1(x + h_x, y)/h_x - g1(x, y)'
+        )),
+    ('Eq(f1 * g1.dx, g1).evaluate', 'g1',
+        (
+            '0', '(-g1(x, y)/h_x + g1(x + h_x, y)/h_x)*f1(x, y) - g1(x, y)'
+        )),
+    ('Eq(f1 * g1.dx, g1).evaluate', 'f1',
+        (
+            'g1(x, y)', '(-g1(x, y)/h_x + g1(x + h_x, y)/h_x)*f1(x, y)'
+        )),
+    ('Eq((f1 * g1.dx).dy, f1).evaluate', 'f1',
+        (
+            '0', '(-1/h_y)*(-g1(x, y)/h_x + g1(x + h_x, y)/h_x)*f1(x, y) '
+            '+ (-g1(x, y + h_y)/h_x + g1(x + h_x, y + h_y)/h_x)*f1(x, y + h_y)/h_y '
+            '- f1(x, y)'
+        )),
+    ('Eq((f1 * g1.dx).dy, f1).evaluate', 'g1',
+        (
+            'f1(x, y)', '(-1/h_y)*(-g1(x, y)/h_x + g1(x + h_x, y)/h_x)*f1(x, y) + '
+            '(-g1(x, y + h_y)/h_x + g1(x + h_x, y + h_y)/h_x)*f1(x, y + h_y)/h_y'
+        )),
+    ('Eq(f2.laplace, g2).evaluate', 'g2',
+        (
+            '-(-2.0*f2(t, x, y)/h_x**2 + f2(t, x - h_x, y)/h_x**2 + f2(t, x + h_x, y)'
+            '/h_x**2) - (-2.0*f2(t, x, y)/h_y**2 + f2(t, x, y - h_y)/h_y**2 + '
+            'f2(t, x, y + h_y)/h_y**2)', '-g2(t, x, y)'
+        )),
+    ('Eq(f2.laplace, g2).evaluate', 'f2',
+        (
+            'g2(t, x, y)', '-2.0*f2(t, x, y)/h_x**2 + f2(t, x - h_x, y)/h_x**2 + '
+            'f2(t, x + h_x, y)/h_x**2 - 2.0*f2(t, x, y)/h_y**2 + f2(t, x, y - h_y)'
+            '/h_y**2 + f2(t, x, y + h_y)/h_y**2'
+        )),
+    ('Eq(f2.laplace, f2).evaluate', 'f2',
+        (
+            '0', '-2.0*f2(t, x, y)/h_x**2 + f2(t, x - h_x, y)/h_x**2 + '
+            'f2(t, x + h_x, y)/h_x**2 - 2.0*f2(t, x, y)/h_y**2 + f2(t, x, y - h_y)/h_y**2'
+            ' + f2(t, x, y + h_y)/h_y**2 - f2(t, x, y)'
+        )),
+    ('Eq(g2*f2.laplace, f2).evaluate', 'g2',
+        (
+            'f2(t, x, y)', '(-2.0*f2(t, x, y)/h_x**2 + f2(t, x - h_x, y)/h_x**2 + '
+            'f2(t, x + h_x, y)/h_x**2 - 2.0*f2(t, x, y)/h_y**2 + f2(t, x, y - h_y)/h_y**2'
+            ' + f2(t, x, y + h_y)/h_y**2)*g2(t, x, y)'
+        )),
+    ('Eq(f2.forward.laplace, f2).evaluate', 'f2.forward',
+        (
+            'f2(t, x, y)', '-2.0*f2(t + dt, x, y)/h_x**2 + f2(t + dt, x - h_x, y)/h_x**2'
+            ' + f2(t + dt, x + h_x, y)/h_x**2 - 2.0*f2(t + dt, x, y)/h_y**2 + '
+            'f2(t + dt, x, y - h_y)/h_y**2 + f2(t + dt, x, y + h_y)/h_y**2'
+        )),
+    ('Eq(f2.forward.laplace, f2).evaluate', 'f2',
+        (
+            '-(-2.0*f2(t + dt, x, y)/h_x**2 + f2(t + dt, x - h_x, y)/h_x**2 + '
+            'f2(t + dt, x + h_x, y)/h_x**2) - (-2.0*f2(t + dt, x, y)/h_y**2 + '
+            'f2(t + dt, x, y - h_y)/h_y**2 + f2(t + dt, x, y + h_y)/h_y**2)',
+            '-f2(t, x, y)'
+        )),
+    ('Eq(f2.laplace + f2.forward.laplace, g2).evaluate', 'f2.forward',
+        (
+            '-(-2.0*f2(t, x, y)/h_x**2 + f2(t, x - h_x, y)/h_x**2 + f2(t, x + h_x, y)/'
+            'h_x**2) - (-2.0*f2(t, x, y)/h_y**2 + f2(t, x, y - h_y)/h_y**2 + '
+            'f2(t, x, y + h_y)/h_y**2) + g2(t, x, y)', '-2.0*f2(t + dt, x, y)/h_x**2 + '
+            'f2(t + dt, x - h_x, y)/h_x**2 + f2(t + dt, x + h_x, y)/h_x**2 - 2.0*'
+            'f2(t + dt, x, y)/h_y**2 + f2(t + dt, x, y - h_y)/h_y**2 + '
+            'f2(t + dt, x, y + h_y)/h_y**2'
+        )),
+    ('Eq(g2.laplace, f2 + g2.forward).evaluate', 'g2.forward',
+        (
+            '-(-2.0*g2(t, x, y)/h_x**2 + g2(t, x - h_x, y)/h_x**2 + '
+            'g2(t, x + h_x, y)/h_x**2) - (-2.0*g2(t, x, y)/h_y**2 + g2(t, x, y - h_y)'
+            '/h_y**2 + g2(t, x, y + h_y)/h_y**2) + f2(t, x, y)', '-g2(t + dt, x, y)'
+        ))
+])
+def test_separate_eval_eqn(eqn, target, expected):
+    """
+    Test the separate_eqn function on pre-evaluated equations.
+    """
+    grid = Grid((2, 2))
+
+    so = 2
+
+    f1 = Function(name='f1', grid=grid, space_order=so)  # noqa
+    g1 = Function(name='g1', grid=grid, space_order=so)  # noqa
+
+    f2 = TimeFunction(name='f2', grid=grid, space_order=so)  # noqa
+    g2 = TimeFunction(name='g2', grid=grid, space_order=so)  # noqa
+
+    b, F, _, _ = separate_eqn(eval(eqn), eval(target))
+    expected_b, expected_F = expected
+
+    assert str(b) == expected_b
+    assert str(F) == expected_F
+
+
+@pytest.mark.parametrize('expr, so, target, expected', [
+    ('f1.laplace', 2, 'f1', '-2.0*f1(x, y)/h_y**2 - 2.0*f1(x, y)/h_x**2'),
+    ('f1 + f1.laplace', 2, 'f1',
+     'f1(x, y) - 2.0*f1(x, y)/h_y**2 - 2.0*f1(x, y)/h_x**2'),
+    ('g1.dx + f1.dx', 2, 'f1', '-f1(x, y)/h_x'),
+    ('10 + f1.dx2', 2, 'g1', '0'),
+    ('(f1 * g1.dx).dy', 2, 'f1',
+     '(-1/h_y)*(-g1(x, y)/h_x + g1(x + h_x, y)/h_x)*f1(x, y)'),
+    ('(f1 * g1.dx).dy', 2, 'g1', '-(-1/h_y)*f1(x, y)*g1(x, y)/h_x'),
+    ('f2.laplace', 2, 'f2', '-2.0*f2(t, x, y)/h_y**2 - 2.0*f2(t, x, y)/h_x**2'),
+    ('f2*g2', 2, 'f2', 'f2(t, x, y)*g2(t, x, y)'),
+    ('g2*f2.laplace', 2, 'f2',
+     '(-2.0*f2(t, x, y)/h_y**2 - 2.0*f2(t, x, y)/h_x**2)*g2(t, x, y)'),
+    ('f2.forward', 2, 'f2.forward', 'f2(t + dt, x, y)'),
+    ('f2.forward.laplace', 2, 'f2.forward',
+     '-2.0*f2(t + dt, x, y)/h_y**2 - 2.0*f2(t + dt, x, y)/h_x**2'),
+    ('f2.laplace + f2.forward.laplace', 2, 'f2.forward',
+     '-2.0*f2(t + dt, x, y)/h_y**2 - 2.0*f2(t + dt, x, y)/h_x**2'),
+    ('f2.laplace + f2.forward.laplace', 2,
+     'f2', '-2.0*f2(t, x, y)/h_y**2 - 2.0*f2(t, x, y)/h_x**2'),
+    ('f2.laplace', 4, 'f2', '-2.5*f2(t, x, y)/h_y**2 - 2.5*f2(t, x, y)/h_x**2'),
+    ('f2.laplace + f2.forward.laplace', 4, 'f2.forward',
+     '-2.5*f2(t + dt, x, y)/h_y**2 - 2.5*f2(t + dt, x, y)/h_x**2'),
+    ('f2.laplace + f2.forward.laplace', 4, 'f2',
+     '-2.5*f2(t, x, y)/h_y**2 - 2.5*f2(t, x, y)/h_x**2'),
+    ('f2.forward*f2.forward.laplace', 4, 'f2.forward',
+     '(-2.5*f2(t + dt, x, y)/h_y**2 - 2.5*f2(t + dt, x, y)/h_x**2)*f2(t + dt, x, y)')
+])
+def test_centre_stencil(expr, so, target, expected):
+    """
+    Test extraction of centre stencil from an equation.
+    """
+    grid = Grid((2, 2))
+
+    f1 = Function(name='f1', grid=grid, space_order=so)  # noqa
+    g1 = Function(name='g1', grid=grid, space_order=so)  # noqa
+
+    f2 = TimeFunction(name='f2', grid=grid, space_order=so)  # noqa
+    g2 = TimeFunction(name='g2', grid=grid, space_order=so)  # noqa
+
+    centre = centre_stencil(eval(expr), eval(target))
+
+    assert str(centre) == expected
 
 
 def test_customdtype_complex():

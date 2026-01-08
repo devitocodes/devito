@@ -1,0 +1,41 @@
+##############################################################
+# Dockerfile.petsc: Installs PETSc
+##############################################################
+
+ARG base=devitocodes/devito:gcc-dev-amd64
+
+FROM $base
+
+USER root
+
+RUN python3 -m venv /venv && \
+    mkdir -p /opt/petsc && \
+    cd /opt/petsc && \
+    git clone -b v3.24.0 https://gitlab.com/petsc/petsc.git petsc && \
+    cd petsc && \
+    ./configure --with-fortran-bindings=0 --with-mpi-dir=/opt/openmpi \
+                --with-openblas-include=$(pkg-config --variable=includedir openblas) \
+                --with-openblas-lib=$(pkg-config --variable=libdir openblas)/libopenblas.so \
+                PETSC_ARCH=devito_build && \
+    make all
+
+# Remove existing devito 
+RUN rm -rf /app/devito/.git
+
+# Copy Devito from petsc branch
+ADD . /app/devito
+
+# Remove git files
+RUN rm -rf /app/devito/.git
+
+# Mpi4py
+RUN eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir --verbose -r /app/devito/requirements-mpi.txt"
+
+# Install Devito with petsc requirements
+RUN /venv/bin/pip install --no-cache-dir -e /app/devito[extras,tests,petsc] && rm -rf ~/.cache/pip
+
+ENV PETSC_DIR="/opt/petsc/petsc"
+ENV PETSC_ARCH="devito_build"
+
+# Switch back to non-root user
+USER app
