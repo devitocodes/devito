@@ -49,7 +49,7 @@ jobs:
       uses: conda-incubator/setup-miniconda@v3
       with:
        activate-environment: devito
-       environment-file: environment-dev.yml
+       environment-file: environment-dev.yaml
        auto-activate-base: false
 
     - name: Tests in examples
