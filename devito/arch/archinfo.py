@@ -657,10 +657,11 @@ def check_cuda_runtime():
     runtime_version = ctypes.c_int()
 
     # Check the get*Version call succeeds and is a non-zero value
-    if cuda.cudaDriverGetVersion(ctypes.byref(driver_version)) == 0 \
-            and cuda.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0 \
-            and driver_version.value:
+    call_success = cuda.cudaDriverGetVersion(ctypes.byref(driver_version)) == 0
+    call_success &= cuda.cudaRuntimeGetVersion(ctypes.byref(runtime_version)) == 0
+    call_success &= bool(driver_version.value)
 
+    if call_success:
         driver_v = parse(str(driver_version.value/1000))
         runtime_v = parse(str(runtime_version.value/1000))
         # First check the "major" version, known to be incompatible
