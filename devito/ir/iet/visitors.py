@@ -1524,6 +1524,11 @@ class Specializer(Uxreplace):
                 raise ValueError("Only SymPy Numbers can used to replace values during "
                                  f"specialization. Value {v} was supplied for symbol "
                                  f"{k}, but is of type {type(v)}.")
+            
+    def visit_KernelLaunch(self, o):
+        # Remove kernel args if they are to be hardcoded
+        arguments = [i for i in o.arguments if i not in self.mapper]
+        return o._rebuild(arguments=arguments)
 
     def visit_Operator(self, o, **kwargs):
         # Entirely fine to apply this to an Operator (unlike Uxreplace) - indeed this
