@@ -1,34 +1,45 @@
 from collections import ChainMap
+from functools import cached_property, singledispatch
 from itertools import product
-from functools import singledispatch, cached_property
 
 import numpy as np
 import sympy
 from sympy.core.add import _addsort
-from sympy.core.mul import _keep_coeff, _mulsort
 from sympy.core.decorators import call_highest_priority
 from sympy.core.evalf import evalf_table
+from sympy.core.mul import _keep_coeff, _mulsort
+
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.finite_differences.tools import make_shift_x0, coeff_priority
+from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
-from devito.tools import (as_tuple, filter_ordered, flatten, frozendict,
-                          infer_dtype, extract_dtype, is_integer, split, is_number)
+from devito.tools import (
+    as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype, is_integer,
+    is_number, split
+)
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
 
-__all__ = ['Differentiable', 'DiffDerivative', 'IndexDerivative', 'EvalDerivative',
-           'Weights', 'Real', 'Imag', 'Conj']
+__all__ = [
+    'Conj',
+    'DiffDerivative',
+    'Differentiable',
+    'EvalDerivative',
+    'Imag',
+    'IndexDerivative',
+    'Real',
+    'Weights',
+]
 
 
 class Differentiable(sympy.Expr, Evaluable):
 
     """
-    A Differentiable is an algebric expression involving Functions, which can
+    A Differentiable is an algebraic expression involving Functions, which can
     be derived w.r.t. one or more Dimensions.
     """
 
@@ -159,7 +170,9 @@ class Differentiable(sympy.Expr, Evaluable):
         if not func.is_Staggered:
             # Cartesian grid, do no waste time
             return self
-        return self.func(*[getattr(a, '_eval_at', lambda x: a)(func) for a in self.args])
+        return self.func(*[
+            getattr(a, '_eval_at', lambda x: a)(func) for a in self.args  # noqa: B023
+        ])  # false positive
 
     def _subs(self, old, new, **hints):
         if old == self:
@@ -438,11 +451,12 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         for p in pattern:
             # Following sympy convention, return True if any is found
-            if isinstance(p, type) and issubclass(p, sympy.Symbol):
+            if isinstance(p, type) \
+                    and issubclass(p, sympy.Symbol) \
+                    and any(isinstance(i, p) for i in self.free_symbols):
                 # Symbols (and subclasses) are the leaves of an expression, and they
                 # are promptly available via `free_symbols`. So this is super quick
-                if any(isinstance(i, p) for i in self.free_symbols):
-                    return True
+                return True
         return super().has(*pattern)
 
     def has_free(self, *patterns):
@@ -489,8 +503,10 @@ class DifferentiableOp(Differentiable):
         return obj
 
     def subs(self, *args, **kwargs):
-        return self.func(*[getattr(a, 'subs', lambda x: a)(*args, **kwargs)
-                           for a in self.args], evaluate=False)
+        return self.func(
+            *[getattr(a, 'subs', lambda x: a)(*args, **kwargs)  # noqa: B023
+                for a in self.args], evaluate=False
+        )  # false positive
 
     _subs = Differentiable._subs
 
@@ -581,10 +597,7 @@ class Mul(DifferentiableOp, sympy.Mul):
             return sympy.S.Zero
 
         # a*1 -> a
-        if scalar - 1 == 0:
-            args = others
-        else:
-            args = [scalar] + others
+        args = others if scalar - 1 == 0 else [scalar] + others
 
         # Reorder for homogeneity with pure SymPy types
         _mulsort(args)
@@ -625,9 +638,9 @@ class Mul(DifferentiableOp, sympy.Mul):
         ref_inds = func_args.indices_ref.getters
 
         for f in self.args:
-            if f not in self._args_diff:
-                new_args.append(f)
-            elif f is func_args or isinstance(f, DifferentiableFunction):
+            if f not in self._args_diff \
+                    or f is func_args \
+                    or isinstance(f, DifferentiableFunction):
                 new_args.append(f)
             else:
                 ind_f = f.indices_ref.getters
@@ -734,20 +747,20 @@ class IndexSum(sympy.Expr, Evaluable):
             except AttributeError:
                 pass
             raise ValueError("Expected Dimension with numeric size, "
-                             "got `%s` instead" % d)
+                             f"got `{d}` instead")
 
         # TODO: `has_free` only available with SymPy v>=1.10
         # We should start using `not expr.has_free(*dimensions)` once we drop
         # support for SymPy 1.8<=v<1.0
         if not all(d in expr.free_symbols for d in dimensions):
-            raise ValueError("All Dimensions `%s` must appear in `expr` "
-                             "as free variables" % str(dimensions))
+            raise ValueError(f"All Dimensions `{str(dimensions)}` must appear in `expr` "
+                             "as free variables")
 
         for i in expr.find(IndexSum):
             for d in dimensions:
                 if d in i.dimensions:
-                    raise ValueError("Dimension `%s` already appears in a "
-                                     "nested tensor contraction" % d)
+                    raise ValueError(f"Dimension `{d}` already appears in a "
+                                     "nested tensor contraction")
 
         obj = sympy.Expr.__new__(cls, expr)
         obj._expr = expr
@@ -756,8 +769,11 @@ class IndexSum(sympy.Expr, Evaluable):
         return obj
 
     def __repr__(self):
-        return "%s(%s, (%s))" % (self.__class__.__name__, self.expr,
-                                 ', '.join(d.name for d in self.dimensions))
+        return "{}({}, ({}))".format(
+            self.__class__.__name__,
+            self.expr,
+            ', '.join(d.name for d in self.dimensions)
+        )
 
     __str__ = __repr__
 
@@ -791,7 +807,7 @@ class IndexSum(sympy.Expr, Evaluable):
         values = product(*[list(d.range) for d in self.dimensions])
         terms = []
         for i in values:
-            mapper = dict(zip(self.dimensions, i))
+            mapper = dict(zip(self.dimensions, i, strict=True))
             terms.append(expr.xreplace(mapper))
         return sum(terms)
 
@@ -831,7 +847,7 @@ class Weights(Array):
         assert isinstance(weights, (list, tuple, np.ndarray))
 
         # Normalize `weights`
-        from devito.symbolics import pow_to_mul  # noqa, sigh
+        from devito.symbolics import pow_to_mul
         weights = tuple(pow_to_mul(sympy.sympify(i)) for i in weights)
 
         kwargs['scope'] = kwargs.get('scope', 'stack')
@@ -870,7 +886,9 @@ class Weights(Array):
             return self, False
         else:
             try:
-                weights, flags = zip(*[i._xreplace(rule) for i in self.weights])
+                weights, flags = zip(
+                    *[i._xreplace(rule) for i in self.weights], strict=True
+                )
                 if any(flags):
                     return self.func(initvalue=weights, function=None), True
             except AttributeError:
@@ -916,7 +934,7 @@ class IndexDerivative(IndexSum):
 
         # Sanity check
         if not (expr.is_Mul and len(weightss) == 1):
-            raise ValueError("Expect `expr*weights`, got `%s` instead" % str(expr))
+            raise ValueError(f"Expect `expr*weights`, got `{str(expr)}` instead")
         weights = weightss.pop()
 
         obj = super().__new__(cls, expr, dimensions)

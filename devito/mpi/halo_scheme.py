@@ -1,17 +1,20 @@
-from collections import OrderedDict, namedtuple, defaultdict
+from collections import OrderedDict, defaultdict, namedtuple
+from contextlib import suppress
+from functools import cached_property
 from itertools import product
 from operator import attrgetter
-from functools import cached_property
 
-from sympy import Max, Min
 import sympy
+from sympy import Max, Min
 
 from devito import configuration
-from devito.data import CORE, OWNED, LEFT, CENTER, RIGHT
+from devito.data import CENTER, CORE, LEFT, OWNED, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
-from devito.tools import (Reconstructable, Tag, as_tuple, filter_ordered, flatten,
-                          frozendict, is_integer, filter_sorted, EnrichedTuple)
+from devito.tools import (
+    EnrichedTuple, Reconstructable, Tag, as_tuple, filter_ordered, filter_sorted, flatten,
+    frozendict, is_integer
+)
 
 __all__ = ['HaloScheme', 'HaloSchemeEntry', 'HaloSchemeException', 'HaloTouch']
 
@@ -36,7 +39,7 @@ class HaloSchemeEntry(EnrichedTuple):
         getters = cls.__rargs__ + cls.__rkwargs__
         items = [frozendict(loc_indices), frozendict(loc_dirs),
                  frozenset(halos), frozenset(dims), bundle]
-        kwargs = dict(zip(getters, items))
+        kwargs = dict(zip(getters, items, strict=True))
         return super().__new__(cls, *items, getters=getters, **kwargs)
 
     def __hash__(self):
@@ -149,7 +152,7 @@ class HaloScheme:
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
-        return "HaloScheme<%s>" % fnames
+        return f"HaloScheme<{fnames}>"
 
     def __eq__(self, other):
         return (isinstance(other, HaloScheme) and
@@ -399,7 +402,7 @@ class HaloScheme:
         mapper = {}
         for f, v in self.halos.items():
             dimensions = filter_ordered(flatten(i.dim for i in v))
-            for d, s in zip(f.dimensions, f._size_owned):
+            for d, s in zip(f.dimensions, f._size_owned, strict=True):
                 if d in dimensions:
                     maxl, maxr = mapper.get(d, (0, 0))
                     mapper[d] = (max(maxl, s.left), max(maxr, s.right))
@@ -523,17 +526,18 @@ def classify(exprs, ispace):
 
     mapper = {}
     for f, r in scope.reads.items():
-        if not f.is_DiscreteFunction:
-            continue
-        elif f.grid is None:
+        if not f.is_DiscreteFunction or f.grid is None:
             continue
 
         # In the case of custom topologies, we ignore the Dimensions that aren't
         # practically subjected to domain decomposition
         dist = f.grid.distributor
         try:
-            ignored = [d for i, d in zip(dist.topology_logical, dist.dimensions)
-                       if i == 1]
+            ignored = [
+                d
+                for i, d in zip(dist.topology_logical, dist.dimensions, strict=True)
+                if i == 1
+            ]
         except TypeError:
             ignored = []
 
@@ -549,11 +553,11 @@ def classify(exprs, ispace):
                         v[(d, LEFT)] = IDENTITY
                         v[(d, RIGHT)] = IDENTITY
                     elif i.affine(d):
-                        thl, thr = i.touched_halo(d)
+                        th_left, th_right = i.touched_halo(d)
                         # Note: if the left-HALO is touched (i.e., `thl = True`), then
                         # the *right-HALO* is to be sent over in a halo exchange
-                        v[(d, LEFT)] = (thr and STENCIL) or IDENTITY
-                        v[(d, RIGHT)] = (thl and STENCIL) or IDENTITY
+                        v[(d, LEFT)] = (th_right and STENCIL) or IDENTITY
+                        v[(d, RIGHT)] = (th_left and STENCIL) or IDENTITY
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
@@ -569,7 +573,10 @@ def classify(exprs, ispace):
             combs.remove((CENTER,)*len(f._dist_dimensions))
             for c in combs:
                 key = (f._dist_dimensions, c)
-                if all(v.get((d, s)) is STENCIL or s is CENTER for d, s in zip(*key)):
+                if all(
+                    v.get((d, s)) is STENCIL or s is CENTER
+                    for d, s in zip(*key, strict=True)
+                ):
                     v[key] = STENCIL
 
             # Finally update the `halo_labels`
@@ -597,16 +604,13 @@ def classify(exprs, ispace):
         # Separate halo-exchange Dimensions from `loc_indices`
         raw_loc_indices, halos = defaultdict(list), []
         for (d, s), hl in halo_labels.items():
-            try:
+            with suppress(KeyError):
                 hl.remove(IDENTITY)
-            except KeyError:
-                pass
             if not hl:
                 continue
             elif len(hl) > 1:
                 raise HaloSchemeException("Inconsistency found while building a halo "
-                                          "scheme for `%s` along Dimension `%s`"
-                                          % (f, d))
+                                          f"scheme for `{f}` along Dimension `{d}`")
             elif hl.pop() is STENCIL:
                 halos.append(Halo(d, s))
             else:
@@ -683,7 +687,7 @@ class HaloTouch(sympy.Function, Reconstructable):
         return obj
 
     def __repr__(self):
-        return "HaloTouch(%s)" % ",".join(f.name for f in self.halo_scheme.fmapper)
+        return "HaloTouch({})".format(",".join(f.name for f in self.halo_scheme.fmapper))
 
     __str__ = __repr__
 

@@ -1,13 +1,14 @@
-import numpy as np
 from argparse import Action, ArgumentError, ArgumentParser
 
-from devito import error, configuration, warning
+import numpy as np
+
+from devito import configuration, error, warning
 from devito.tools import Pickable
 from devito.types.sparse import _default_radius
 
 from .source import *
 
-__all__ = ['AcquisitionGeometry', 'setup_geometry', 'seismic_args']
+__all__ = ['AcquisitionGeometry', 'seismic_args', 'setup_geometry']
 
 
 def setup_geometry(model, tn, f0=0.010, interpolation='linear', **kwargs):
@@ -79,11 +80,11 @@ class AcquisitionGeometry(Pickable):
         self._src_type = kwargs.get('src_type')
         assert (self.src_type in sources or self.src_type is None)
         self._f0 = kwargs.get('f0')
-        self._a = kwargs.get('a', None)
-        self._t0w = kwargs.get('t0w', None)
+        self._a = kwargs.get('a')
+        self._t0w = kwargs.get('t0w')
         if self._src_type is not None and self._f0 is None:
             error("Peak frequency must be provided in KHz" +
-                  " for source of type %s" % self._src_type)
+                  f" for source of type {self._src_type}")
 
         self._grid = model.grid
         self._model = model
@@ -227,15 +228,21 @@ def seismic_args(description):
                 # E.g., `('advanced', {'par-tile': True})`
                 values = eval(values)
                 if not isinstance(values, tuple) and len(values) >= 1:
-                    raise ArgumentError(self, ("Invalid choice `%s` (`opt` must be "
-                                               "either str or tuple)" % str(values)))
+                    raise ArgumentError(
+                        self,
+                        f'Invalid choice `{str(values)}` '
+                        '(`opt` must be either str or tuple)'
+                    )
                 opt = values[0]
             except NameError:
                 # E.g. `'advanced'`
                 opt = values
             if opt not in configuration._accepted['opt']:
-                raise ArgumentError(self, ("Invalid choice `%s` (choose from %s)"
-                                           % (opt, str(configuration._accepted['opt']))))
+                raise ArgumentError(
+                    self,
+                    f'Invalid choice `{opt}`'
+                    f'(choose from {configuration._accepted["opt"]!s})'
+                )
             setattr(args, self.dest, values)
 
     parser = ArgumentParser(description=description)

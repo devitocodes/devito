@@ -1,26 +1,30 @@
 from ctypes import c_void_p
 
-import sympy
-import pytest
 import numpy as np
-
+import pytest
+import sympy
 from sympy import And, Expr, Number, Symbol, true
-from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
-                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, Real, Imag, Conj, SubDomain, configuration)
-from devito.finite_differences.differentiable import SafeInv, Weights, Mul
-from devito.ir import Expression, FindNodes, ccode
-from devito.ir.support.guards import GuardExpr, simplify_and, pairwise_or
-from devito.mpi.halo_scheme import HaloTouch
-from devito.symbolics import (
-    retrieve_functions, retrieve_indexed, evalrel, CallFromPointer, Cast, # noqa
-    DefFunction, FieldFromPointer, INT, FieldFromComposite, IntDiv, Namespace,
-    Rvalue, ReservedWord, ListInitializer, uxreplace, pow_to_mul,
-    retrieve_derivatives, BaseCast, SizeOf, VectorAccess
+
+from devito import (  # noqa
+    Abs, Conj, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Imag, Le, Lt, Max, Min,
+    Operator, Real, SubDimension, SubDomain, TimeFunction, configuration, cos, norm, sin,
+    solve
 )
-from devito.tools import as_tuple, CustomDtype
-from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
-                          ComponentAccess, StencilDimension, Symbol as dSymbol)
+from devito.finite_differences.differentiable import Mul, SafeInv, Weights
+from devito.ir import Expression, FindNodes, ccode
+from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
+from devito.mpi.halo_scheme import HaloTouch
+from devito.symbolics import (  # noqa
+    INT, BaseCast, CallFromPointer, Cast, DefFunction, FieldFromComposite,
+    FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, Rvalue, SizeOf,
+    VectorAccess, evalrel, pow_to_mul, retrieve_derivatives, retrieve_functions,
+    retrieve_indexed, uxreplace
+)
+from devito.tools import CustomDtype, as_tuple
+from devito.types import (
+    Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
+)
+from devito.types import Symbol as dSymbol
 from devito.types.basic import AbstractSymbol
 
 
@@ -212,7 +216,7 @@ def test_bundle():
     fg = Bundle(name='fg', components=(f, g))
 
     # Test reconstruction
-    fg._rebuild().components == fg.components
+    assert fg._rebuild().components == fg.components
 
 
 def test_call_from_pointer():
@@ -1050,7 +1054,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_relations_w_complex_assumptions(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=True)  # noqa
         b = Symbol('b', positive=True)  # noqa
         c = Symbol('c', positive=True)  # noqa
@@ -1091,7 +1095,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=False)  # noqa
         b = Symbol('b', positive=False)  # noqa
         c = Symbol('c', positive=True)  # noqa
@@ -1110,7 +1114,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_assumptions(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=False)
         b = Symbol('b', positive=False)
         c = Symbol('c', positive=True)

@@ -6,8 +6,7 @@ from sympy.core import cache
 
 from devito.tools import safe_dict_copy
 
-
-__all__ = ['Cached', 'Uncached', '_SymbolCache', 'CacheManager']
+__all__ = ['CacheManager', 'Cached', 'Uncached', '_SymbolCache']
 
 _SymbolCache = {}
 """The symbol cache."""
@@ -145,17 +144,17 @@ class CacheManager:
     data is lost (and thus memory is freed).
     """
 
-    gc_ths = 3*10**8
+    gc_threshold = 3*10**8
     """
     The `clear` function will trigger garbage collection if at least one weak
-    reference points to an unreachable object whose size in bytes is greated
-    than the `gc_ths` value. Garbage collection is an expensive operation, so
+    reference points to an unreachable object whose size in bytes is greater
+    than the `gc_threshold` value. Garbage collection is an expensive operation, so
     we do it judiciously.
     """
 
-    force_ths = 100
+    force_threshold = 100
     """
-    After `force_ths` *consecutive* calls ``clear(force=False)``, the flag
+    After `force_threshold` *consecutive* calls ``clear(force=False)``, the flag
     ``force`` is ignored, and thus ``clear(force=True)`` is executed.
     ``
     """
@@ -184,11 +183,11 @@ class CacheManager:
         if force:
             gc.collect()
         else:
-            if cls.ncalls_w_force_false + 1 == cls.force_ths:
+            if cls.ncalls_w_force_false + 1 == cls.force_threshold:
                 # Case 1: too long since we called gc.collect, let's do it now
                 gc.collect()
                 cls.ncalls_w_force_false = 0
-            elif any(i.nbytes > cls.gc_ths for i in cache_copied.values()):
+            elif any(i.nbytes > cls.gc_threshold for i in cache_copied.values()):
                 # Case 2: we got big objects in cache, we try to reclaim memory
                 gc.collect()
                 cls.ncalls_w_force_false = 0

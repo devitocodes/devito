@@ -3,32 +3,40 @@ from collections.abc import Iterable
 from functools import singledispatch
 
 import numpy as np
-from sympy import Pow, Add, Mul, Min, Max, S, SympifyError, Tuple, sympify
+from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, sympify
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.finite_differences.differentiable import (
-    EvalDerivative, IndexDerivative
-)
-from devito.symbolics.extended_sympy import DefFunction, rfunc
+from devito.finite_differences.differentiable import EvalDerivative, IndexDerivative
 from devito.symbolics.extended_dtypes import LONG
+from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
-from devito.symbolics.search import (
-    retrieve_indexed, retrieve_functions, retrieve_symbols
-)
-from devito.symbolics.unevaluation import (
-    Add as UnevalAdd, Mul as UnevalMul, Pow as UnevalPow, UnevaluableMixin
-)
+from devito.symbolics.search import retrieve_functions, retrieve_indexed, retrieve_symbols
+from devito.symbolics.unevaluation import Add as UnevalAdd
+from devito.symbolics.unevaluation import Mul as UnevalMul
+from devito.symbolics.unevaluation import Pow as UnevalPow
+from devito.symbolics.unevaluation import UnevaluableMixin
 from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
-from devito.types.basic import Basic, Indexed
 from devito.types.array import ComponentAccess
+from devito.types.basic import Basic, Indexed
 from devito.types.equation import Eq
-from devito.types.relational import Le, Lt, Gt, Ge
+from devito.types.relational import Ge, Gt, Le, Lt
 
-__all__ = ['xreplace_indices', 'pow_to_mul', 'indexify', 'subs_op_args',
-           'normalize_args', 'uxreplace', 'Uxmapper', 'subs_if_composite',
-           'reuse_if_untouched', 'evalrel', 'flatten_args', 'unevaluate',
-           'as_long']
+__all__ = [
+    'Uxmapper',
+    'as_long',
+    'evalrel',
+    'flatten_args',
+    'indexify',
+    'normalize_args',
+    'pow_to_mul',
+    'reuse_if_untouched',
+    'subs_if_composite',
+    'subs_op_args',
+    'unevaluate',
+    'uxreplace',
+    'xreplace_indices',
+]
 
 
 def uxreplace(expr, rule):
@@ -293,7 +301,7 @@ def xreplace_indices(exprs, mapper, key=None):
         handle = [i for i in handle if i.base.label in key]
     elif callable(key):
         handle = [i for i in handle if key(i)]
-    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
+    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle], strict=True))
     replaced = [uxreplace(i, mapper) for i in as_tuple(exprs)]
     return replaced if isinstance(exprs, Iterable) else replaced[0]
 
@@ -304,10 +312,7 @@ def _eval_numbers(expr, args):
     """
     numbers, others = split(args, lambda i: i.is_Number)
     if len(numbers) > 1:
-        if isinstance(expr, UnevaluableMixin):
-            cls = expr.func.__base__
-        else:
-            cls = expr.func
+        cls = expr.func.__base__ if isinstance(expr, UnevaluableMixin) else expr.func
         args[:] = [cls(*numbers)] + others
 
 
@@ -419,7 +424,7 @@ def reuse_if_untouched(expr, args, evaluate=False):
     Reconstruct `expr` iff any of the provided `args` is different than
     the corresponding arg in `expr.args`.
     """
-    if all(a is b for a, b in zip(expr.args, args)):
+    if all(a is b for a, b in zip(expr.args, args, strict=False)):
         return expr
     else:
         return expr.func(*args, evaluate=evaluate)
@@ -479,7 +484,7 @@ def evalrel(func=min, input=None, assumptions=None):
 
     # Apply assumptions to fill a subs mapper
     # e.g. When looking for 'max' and Gt(a, b), mapper is filled with {b: a} so that `b`
-    # is subsituted by `a`
+    # is substituted by `a`
     mapper = {}
     for a in processed:
         if set(a.args).issubset(input):

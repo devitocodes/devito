@@ -6,21 +6,34 @@ from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import is_on_device, stream_dimensions
+from devito.passes.clusters import (
+    Lift, blocking, buffering, cire, cse, factorize, fission, fuse, memcpy_prefetch,
+    optimize_pows, tasking
+)
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, tasking, memcpy_prefetch, blocking,
-                                    buffering, cire, cse, factorize, fission, fuse,
-                                    optimize_pows)
-from devito.passes.iet import (DeviceOmpTarget, DeviceAccTarget, DeviceCXXOmpTarget,
-                               mpiize, hoist_prodders, linearize, pthreadify,
-                               relax_incr_dimensions, check_stability)
+from devito.passes.iet import (
+    DeviceAccTarget, DeviceCXXOmpTarget, DeviceOmpTarget, check_stability, hoist_prodders,
+    linearize, mpiize, pthreadify, relax_incr_dimensions
+)
 from devito.tools import as_tuple, timed_pass
 
-__all__ = ['DeviceNoopOperator', 'DeviceAdvOperator', 'DeviceCustomOperator',
-           'DeviceNoopOmpOperator', 'DeviceAdvOmpOperator', 'DeviceFsgOmpOperator',
-           'DeviceCustomOmpOperator', 'DeviceNoopAccOperator', 'DeviceAdvAccOperator',
-           'DeviceFsgAccOperator', 'DeviceCustomAccOperator', 'DeviceNoopCXXOmpOperator',
-           'DeviceAdvCXXOmpOperator', 'DeviceFsgCXXOmpOperator',
-           'DeviceCustomCXXOmpOperator']
+__all__ = [
+    'DeviceAdvAccOperator',
+    'DeviceAdvCXXOmpOperator',
+    'DeviceAdvOmpOperator',
+    'DeviceAdvOperator',
+    'DeviceCustomAccOperator',
+    'DeviceCustomCXXOmpOperator',
+    'DeviceCustomOmpOperator',
+    'DeviceCustomOperator',
+    'DeviceFsgAccOperator',
+    'DeviceFsgCXXOmpOperator',
+    'DeviceFsgOmpOperator',
+    'DeviceNoopAccOperator',
+    'DeviceNoopCXXOmpOperator',
+    'DeviceNoopOmpOperator',
+    'DeviceNoopOperator',
+]
 
 
 class DeviceOperatorMixin:
@@ -103,8 +116,9 @@ class DeviceOperatorMixin:
         o['scalar-min-type'] = oo.pop('scalar-min-type', cls.SCALAR_MIN_TYPE)
 
         if oo:
-            raise InvalidOperator("Unsupported optimization options: [%s]"
-                                  % ", ".join(list(oo)))
+            raise InvalidOperator(
+                f'Unsupported optimization options: [{", ".join(list(oo))}]'
+            )
 
         kwargs['options'].update(o)
 

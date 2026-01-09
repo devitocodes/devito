@@ -1,6 +1,6 @@
 import pytest
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, switchconfig
+from devito import Eq, Function, Grid, Operator, TimeFunction, switchconfig
 from devito.exceptions import ExecutionError
 
 

@@ -2,7 +2,7 @@ from devito.ir import Cluster
 from devito.tools import as_tuple
 from devito.types import CriticalRegion, Eq, Symbol
 
-__all__ = ['is_memcpy', 'make_critical_sequence', 'in_critical_region']
+__all__ = ['in_critical_region', 'is_memcpy', 'make_critical_sequence']
 
 
 def is_memcpy(expr):

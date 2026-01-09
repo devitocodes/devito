@@ -1,24 +1,24 @@
 """Collection of utilities to detect properties of the underlying architecture."""
 
+import ctypes
+import json
+import os
+import re
+import sys
 from contextlib import suppress
 from functools import cached_property
-from subprocess import PIPE, Popen, DEVNULL, run, CalledProcessError
 from pathlib import Path
-import ctypes
-import re
-import os
-import sys
-import json
+from subprocess import DEVNULL, PIPE, CalledProcessError, Popen, run
 
 import cpuinfo
 import numpy as np
-from packaging.version import parse, InvalidVersion
 import psutil
+from packaging.version import InvalidVersion, parse
 
 from devito.logger import warning
-from devito.tools import as_tuple, all_equal, memoized_func
+from devito.tools import all_equal, as_tuple, memoized_func
 
-__all__ = [
+__all__ = [  # noqa: RUF022
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
     'get_nvidia_cc', 'get_cuda_path', 'get_cuda_version', 'get_hip_path',
     'check_cuda_runtime', 'get_m1_llvm_path', 'get_advisor_path', 'Platform',
@@ -52,7 +52,7 @@ def get_cpu_info():
 
     # Obtain textual cpu info
     try:
-        with open('/proc/cpuinfo', 'r') as f:
+        with open('/proc/cpuinfo') as f:
             lines = f.readlines()
     except FileNotFoundError:
         lines = []
@@ -391,7 +391,7 @@ def get_gpu_info():
                     return None
                 return cbk
 
-            gpu_info['mem.%s' % i] = make_cbk(i)
+            gpu_info[f'mem.{i}'] = make_cbk(i)
 
         gpu_info['architecture'] = 'unspecified'
         gpu_info['vendor'] = 'INTEL'
@@ -731,9 +731,7 @@ def get_platform():
         elif 'intel' in brand:
             # Most likely a desktop i3/i5/i7
             return platform_registry['intel64']
-        elif 'power8' in brand:
-            return platform_registry['power8']
-        elif 'power9' in brand:
+        elif 'power8' in brand or 'power9' in brand:
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']
@@ -782,7 +780,7 @@ class Platform:
         return self.name
 
     def __repr__(self):
-        return "TargetPlatform[%s]" % self.name
+        return f'TargetPlatform[{self.name}]'
 
     def _detect_isa(self):
         return 'unknown'
@@ -1143,7 +1141,7 @@ class NvidiaDevice(Device):
         elif query == 'async-loads' and cc >= 80:
             # Asynchronous pipeline loads -- introduced in Ampere
             return True
-        elif query in ('tma', 'thread-block-cluster') and cc >= 90:
+        elif query in ('tma', 'thread-block-cluster') and cc >= 90:  # noqa: SIM103
             # Tensor Memory Accelerator -- introduced in Hopper
             return True
         else:
@@ -1204,10 +1202,8 @@ class AmdDevice(Device):
         try:
             p1 = Popen(['offload-arch'], stdout=PIPE, stderr=PIPE)
         except OSError:
-            try:
+            with suppress(OSError):
                 p1 = Popen(['mygpu', '-d', fallback], stdout=PIPE, stderr=PIPE)
-            except OSError:
-                pass
             return fallback
 
         output, _ = p1.communicate()
@@ -1250,7 +1246,7 @@ def node_max_mem_trans_nbytes(platform):
     elif isinstance(platform, Device):
         return max(Cpu64.max_mem_trans_nbytes, mmtb0)
     else:
-        assert False, f"Unknown platform type: {type(platform)}"
+        raise AssertionError(f"Unknown platform type: {type(platform)}")
 
 
 # CPUs

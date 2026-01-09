@@ -1,37 +1,52 @@
 from functools import cached_property
-from packaging.version import Version
 
 import cgen as c
+from packaging.version import Version
 from sympy import And, Ne, Not
 
-from devito.arch import AMDGPUX, NVIDIAX, INTELGPUX, PVC
-from devito.arch.compiler import GNUCompiler, NvidiaCompiler, CustomCompiler
-from devito.ir import (Call, Conditional, DeviceCall, List, Pragma, Prodder,
-                       ParallelBlock, PointerCast, While, FindSymbols)
+from devito.arch import AMDGPUX, INTELGPUX, NVIDIAX, PVC
+from devito.arch.compiler import CustomCompiler, GNUCompiler, NvidiaCompiler
+from devito.ir import (
+    Call, Conditional, DeviceCall, FindSymbols, List, ParallelBlock, PointerCast, Pragma,
+    Prodder, While
+)
 from devito.passes.iet.definitions import DataManager, DeviceAwareDataManager
 from devito.passes.iet.langbase import LangBB
-from devito.passes.iet.orchestration import Orchestrator
-from devito.passes.iet.parpragma import (PragmaSimdTransformer, PragmaShmTransformer,
-                                         PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaIteration, PragmaTransfer)
+from devito.passes.iet.languages.C import CBB
+from devito.passes.iet.languages.C import atomic_add as c_atomic_add
+from devito.passes.iet.languages.CXX import CXXBB
+from devito.passes.iet.languages.CXX import atomic_add as cxx_atomic_add
 from devito.passes.iet.languages.utils import joins
-from devito.passes.iet.languages.C import CBB, atomic_add as c_atomic_add
-from devito.passes.iet.languages.CXX import CXXBB, atomic_add as cxx_atomic_add
+from devito.passes.iet.orchestration import Orchestrator
+from devito.passes.iet.parpragma import (
+    PragmaDeviceAwareTransformer, PragmaIteration, PragmaLangBB, PragmaShmTransformer,
+    PragmaSimdTransformer, PragmaTransfer
+)
 from devito.symbolics import CondEq, DefFunction
 from devito.tools import filter_ordered
 
-__all__ = ['SimdOmpizer', 'Ompizer', 'OmpIteration', 'OmpRegion',
-           'DeviceOmpizer', 'DeviceOmpIteration', 'DeviceOmpDataManager',
-           'OmpDataManager', 'OmpOrchestrator', 'DeviceOmpOrchestrator',
-           'CXXOmpDataManager', 'CXXOmpOrchestrator']
+__all__ = [
+    'CXXOmpDataManager',
+    'CXXOmpOrchestrator',
+    'DeviceOmpDataManager',
+    'DeviceOmpIteration',
+    'DeviceOmpOrchestrator',
+    'DeviceOmpizer',
+    'OmpDataManager',
+    'OmpIteration',
+    'OmpOrchestrator',
+    'OmpRegion',
+    'Ompizer',
+    'SimdOmpizer',
+]
 
 
 class OmpRegion(ParallelBlock):
 
     @classmethod
     def _make_header(cls, nthreads, private=None):
-        private = ('private(%s)' % ','.join(private)) if private else ''
-        return c.Pragma('omp parallel num_threads(%s) %s' % (nthreads.name, private))
+        private = ('private({})'.format(','.join(private))) if private else ''
+        return c.Pragma(f'omp parallel num_threads({nthreads.name}) {private}')
 
 
 class OmpIteration(PragmaIteration):
@@ -49,14 +64,16 @@ class OmpIteration(PragmaIteration):
         clauses = []
 
         if ncollapsed > 1:
-            clauses.append('collapse(%d)' % ncollapsed)
+            clauses.append(f'collapse({ncollapsed})')
 
         if chunk_size is not False:
-            clauses.append('schedule(%s,%s)' % (schedule or 'dynamic',
-                                                chunk_size or 1))
+            clauses.append('schedule({},{})'.format(
+                schedule or 'dynamic',
+                chunk_size or 1
+            ))
 
         if nthreads:
-            clauses.append('num_threads(%s)' % nthreads)
+            clauses.append(f'num_threads({nthreads})')
 
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))
@@ -78,7 +95,7 @@ class DeviceOmpIteration(OmpIteration):
         indexeds = FindSymbols('indexeds').visit(kwargs['nodes'])
         deviceptrs = filter_ordered(i.name for i in indexeds if i.function._mem_local)
         if deviceptrs:
-            clauses.append("is_device_ptr(%s)" % ",".join(deviceptrs))
+            clauses.append("is_device_ptr({})".format(",".join(deviceptrs)))
 
         return clauses
 
@@ -246,21 +263,18 @@ class AbstractOmpizer(PragmaShmTransformer):
         if isinstance(compiler, GNUCompiler) and \
            compiler.version < Version("6.0"):
             return False
-        elif isinstance(compiler, NvidiaCompiler):
-            # NVC++ does not support array reduction and leads to segfault
-            return False
         else:
-            return True
+            # NVC++ does not support array reduction and leads to segfault
+            return not isinstance(compiler, NvidiaCompiler)
 
     @classmethod
     def _support_complex_reduction(cls, compiler):
         # In case we have a CustomCompiler
         if isinstance(compiler, CustomCompiler):
             compiler = compiler._base()
-        if isinstance(compiler, GNUCompiler):
+        else:
             # Gcc doesn't supports complex reduction
-            return False
-        return True
+            return not isinstance(compiler, GNUCompiler)
 
 
 class Ompizer(AbstractOmpizer):

@@ -1,5 +1,6 @@
 import numpy as np
-from devito import Eq, Operator, SubDimension, exp, Min, Abs
+
+from devito import Abs, Eq, Min, Operator, SubDimension, exp
 
 __all__ = ['setup_w_over_q']
 
@@ -30,10 +31,10 @@ def setup_w_over_q(wOverQ, w, qmin, qmax, npad, sigma=0):
         sigma value for call to scipy gaussian smoother, default 5.
     """
     # sanity checks
-    assert w > 0, "supplied w value [%f] must be positive" % (w)
-    assert qmin > 0, "supplied qmin value [%f] must be positive" % (qmin)
-    assert qmax > 0, "supplied qmax value [%f] must be positive" % (qmax)
-    assert npad > 0, "supplied npad value [%f] must be positive" % (npad)
+    assert w > 0, f"supplied w value [{w:f}] must be positive"
+    assert qmin > 0, f"supplied qmin value [{qmin:f}] must be positive"
+    assert qmax > 0, f"supplied qmax value [{qmax:f}] must be positive"
+    assert npad > 0, f"supplied npad value [{npad:f}] must be positive"
     for n in wOverQ.grid.shape:
         if n - 2*npad < 1:
             raise ValueError("2 * npad must not exceed dimension size!")
@@ -46,12 +47,12 @@ def setup_w_over_q(wOverQ, w, qmin, qmax, npad, sigma=0):
     eqs = [Eq(wOverQ, 1)]
     for d in wOverQ.dimensions:
         # left
-        dim_l = SubDimension.left(name='abc_%s_l' % d.name, parent=d,
+        dim_l = SubDimension.left(name=f'abc_{d.name}_l', parent=d,
                                   thickness=npad)
         pos = Abs(dim_l - d.symbolic_min) / float(npad)
         eqs.append(Eq(wOverQ.subs({d: dim_l}), Min(wOverQ.subs({d: dim_l}), pos)))
         # right
-        dim_r = SubDimension.right(name='abc_%s_r' % d.name, parent=d,
+        dim_r = SubDimension.right(name=f'abc_{d.name}_r', parent=d,
                                    thickness=npad)
         pos = Abs(d.symbolic_max - dim_r) / float(npad)
         eqs.append(Eq(wOverQ.subs({d: dim_r}), Min(wOverQ.subs({d: dim_r}), pos)))

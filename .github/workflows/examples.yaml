@@ -49,7 +49,7 @@ jobs:
       uses: conda-incubator/setup-miniconda@v3
       with:
        activate-environment: devito
-       environment-file: environment-dev.yml
+       environment-file: environment-dev.yaml
        auto-activate-base: false
 
     - name: Tests in examples
@@ -101,4 +101,4 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        name: ${{ matrix.name }}
+        name: Examples

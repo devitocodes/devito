@@ -2,9 +2,10 @@ import cgen as c
 import numpy as np
 from sympy import Expr, Not, S
 
-from devito.ir.iet import (Call, Conditional, DummyExpr, EntryFunction, Iteration,
-                           List, Break, Return, FindNodes, FindSymbols, Transformer,
-                           make_callable)
+from devito.ir.iet import (
+    Break, Call, Conditional, DummyExpr, EntryFunction, FindNodes, FindSymbols, Iteration,
+    List, Return, Transformer, make_callable
+)
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import CondEq, MathFunction
 from devito.tools import dtype_to_ctype

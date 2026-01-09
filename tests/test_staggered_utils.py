@@ -1,10 +1,12 @@
-import pytest
 import numpy as np
+import pytest
 from sympy import simplify
 
-from devito import (Function, Grid, NODE, CELL, VectorTimeFunction,
-                    TimeFunction, Eq, Operator, div, Dimension)
-from devito.tools import powerset, as_tuple
+from devito import (
+    CELL, NODE, Dimension, Eq, Function, Grid, Operator, TimeFunction, VectorTimeFunction,
+    div
+)
+from devito.tools import as_tuple, powerset
 
 
 @pytest.mark.parametrize('ndim', [1, 2, 3])
@@ -48,7 +50,9 @@ def test_avg(ndim):
         shifted = f
         for dd in d:
             shifted = shifted.subs({dd: dd - dd.spacing/2})
-        assert all(i == dd for i, dd in zip(shifted.indices, grid.dimensions))
+        assert all(
+            i == dd for i, dd in zip(shifted.indices, grid.dimensions, strict=True)
+        )
         # Average automatically i.e.:
         # f not defined at x so f(x, y) = 0.5*f(x - h_x/2, y) + 0.5*f(x + h_x/2, y)
         avg = f
@@ -60,7 +64,7 @@ def test_avg(ndim):
 @pytest.mark.parametrize('ndim', [1, 2, 3])
 def test_is_param(ndim):
     """
-    Test that only parameter are evaluated at the variable anf Function and FD indices
+    Test that only parameter are evaluated at the variable and Function and FD indices
     stay unchanged
     """
     grid = Grid(tuple([10]*ndim))
@@ -178,7 +182,7 @@ def test_staggered_rebuild(stagg):
 
     # Check that rebuild correctly set the staggered indices
     # with the new dimensions
-    for (d, nd) in zip(grid.dimensions, new_dims):
+    for (d, nd) in zip(grid.dimensions, new_dims, strict=True):
         if d in as_tuple(stagg) or stagg is CELL:
             assert f2.indices[nd] == nd + nd.spacing / 2
         else:

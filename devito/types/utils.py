@@ -3,11 +3,25 @@ from ctypes import POINTER, Structure
 from functools import cached_property
 
 from devito.tools import EnrichedTuple, Tag
+
 # Additional Function-related APIs
 
-__all__ = ['Buffer', 'DimensionTuple', 'NODE', 'CELL', 'Size', 'Offset',
-           'IgnoreDimSort', 'HierarchyLayer', 'HostLayer', 'DeviceLayer',
-           'DiskLayer', 'host_layer', 'device_layer', 'disk_layer']
+__all__ = [
+    'CELL',
+    'NODE',
+    'Buffer',
+    'DeviceLayer',
+    'DimensionTuple',
+    'DiskLayer',
+    'HierarchyLayer',
+    'HostLayer',
+    'IgnoreDimSort',
+    'Offset',
+    'Size',
+    'device_layer',
+    'disk_layer',
+    'host_layer',
+]
 
 
 class Buffer(Tag):
@@ -74,7 +88,7 @@ class HierarchyLayer:
         self.suffix = suffix
 
     def __repr__(self):
-        return "Layer<%s>" % self.suffix
+        return f"Layer<{self.suffix}>"
 
     def __eq__(self, other):
         return (isinstance(other, HierarchyLayer) and

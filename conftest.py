@@ -1,19 +1,22 @@
 import os
 import sys
+from contextlib import suppress
 from subprocess import check_call
 
 import pytest
 from sympy import Add
 from sympy.printing import sstr
 
-from devito import Eq, configuration, Revolver  # noqa
+from devito import Eq, Revolver, configuration  # noqa
+from devito.arch import Arm, Cpu64, Device, get_advisor_path, sniff_mpi_distro
+from devito.arch.compiler import (
+    IntelCompiler, NvidiaCompiler, OneapiCompiler, compiler_registry
+)
 from devito.checkpointing import NoopRevolver
 from devito.finite_differences.differentiable import EvalDerivative
-from devito.arch import Cpu64, Device, sniff_mpi_distro, Arm, get_advisor_path
-from devito.arch.compiler import (compiler_registry, IntelCompiler, OneapiCompiler,
-                                  NvidiaCompiler)
-from devito.ir.iet import (FindNodes, FindSymbols, Iteration, ParallelBlock,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (
+    FindNodes, FindSymbols, Iteration, ParallelBlock, retrieve_iteration_tree
+)
 from devito.tools import as_tuple
 
 try:
@@ -38,29 +41,29 @@ def skipif(items, whole_module=False):
     accepted.update({'nodevice', 'noomp'})
     unknown = sorted(set(items) - accepted)
     if unknown:
-        raise ValueError("Illegal skipif argument(s) `%s`" % unknown)
+        raise ValueError(f"Illegal skipif argument(s) `{unknown}`")
     skipit = False
     for i in items:
         # Skip if won't run on GPUs
         if i == 'device' and isinstance(configuration['platform'], Device):
-            skipit = "device `%s` unsupported" % configuration['platform'].name
+            skipit = "device `{}` unsupported".format(configuration['platform'].name)
             break
         # Skip if won't run on a specific GPU backend
         langs = configuration._accepted['language']
-        if any(i == 'device-%s' % l and configuration['language'] == l for l in langs)\
+        if any(i == f'device-{l}' and configuration['language'] == l for l in langs)\
                 and isinstance(configuration['platform'], Device):
-            skipit = "language `%s` for device unsupported" % configuration['language']
+            skipit = f'language `{configuration["language"]}` for device unsupported'
             break
-        if any(i == 'device-%s' % k and isinstance(configuration['compiler'], v)
+        if any(i == f'device-{k}' and isinstance(configuration['compiler'], v)
                for k, v in compiler_registry.items()) and\
                 isinstance(configuration['platform'], Device):
-            skipit = "compiler `%s` for device unsupported" % configuration['compiler']
+            skipit = f'compiler `{configuration["compiler"]}` for device unsupported'
             break
         # Skip if must run on GPUs but not currently on a GPU
         if i in ('nodevice', 'nodevice-omp', 'nodevice-acc') and\
                 not isinstance(configuration['platform'], Device):
-            skipit = ("must run on device, but currently on `%s`" %
-                      configuration['platform'].name)
+            skipit = 'must run on device, but currently on '
+            skipit += f'`{configuration["platform"].name}`'
             break
         # Skip if it won't run with nvc on CPU backend
         if i == 'cpu64-nvc' and \
@@ -135,9 +138,9 @@ def EVAL(exprs, *args):
 
 def get_testname(item):
     if item.cls is not None:
-        return "%s::%s::%s" % (item.fspath, item.cls.__name__, item.name)
+        return f"{item.fspath}::{item.cls.__name__}::{item.name}"
     else:
-        return "%s::%s" % (item.fspath, item.name)
+        return f"{item.fspath}::{item.name}"
 
 
 def set_run_reset(env_vars, call):
@@ -177,7 +180,7 @@ def parallel(item, m):
         if len(m) == 2:
             nprocs, scheme = m
         else:
-            raise ValueError("Can't run test: unexpected mode `%s`" % m)
+            raise ValueError(f"Can't run test: unexpected mode `{m}`")
 
     env_vars = {'DEVITO_MPI': scheme}
 
@@ -187,8 +190,10 @@ def parallel(item, m):
     # Run xfailing tests to ensure that errors are reported to calling process
     args = ["-n", "1", pyversion, "-m", "pytest", "-s", "--runxfail", "-qq", testname]
     if nprocs > 1:
-        args.extend([":", "-n", "%d" % (nprocs - 1), pyversion, "-m", "pytest",
-                     "-s", "--runxfail", "--tb=no", "-qq", "--no-summary", testname])
+        args.extend([
+            ":", "-n", str(nprocs - 1), pyversion, "-m", "pytest",
+            "-s", "--runxfail", "-v", "--no-summary", testname
+        ])
     # OpenMPI requires an explicit flag for oversubscription. We need it as some
     # of the MPI tests will spawn lots of processes
     if mpi_distro == 'OpenMPI':
@@ -245,10 +250,8 @@ def pytest_generate_tests(metafunc):
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_call(item):
     inside_pytest_marker = os.environ.get('DEVITO_PYTEST_FLAG', 0)
-    try:
+    with suppress(ValueError):
         inside_pytest_marker = int(inside_pytest_marker)
-    except ValueError:
-        pass
 
     if inside_pytest_marker:
         outcome = yield
@@ -279,15 +282,13 @@ def pytest_runtest_makereport(item, call):
     result = outcome.get_result()
 
     inside_pytest_marker = os.environ.get('DEVITO_PYTEST_FLAG', 0)
-    try:
+    with suppress(ValueError):
         inside_pytest_marker = int(inside_pytest_marker)
-    except ValueError:
-        pass
     if inside_pytest_marker:
         return
 
     if item.get_closest_marker("parallel") or \
-       item.get_closest_marker("decoupler"):
+       item.get_closest_marker("decoupler"):  # noqa: SIM102
         if call.when == 'call' and result.outcome == 'skipped':
             result.outcome = 'passed'
 
@@ -368,15 +369,15 @@ def assert_structure(operator, exp_trees=None, exp_iters=None):
     if exp_trees is not None:
         trees = retrieve_iteration_tree(operator)
         exp_trees = [i.replace(',', '') for i in exp_trees]  # 't,x,y' -> 'txy'
-        tree_struc = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
+        tree_struct = (["".join(mapper.get(i.dim.name, i.dim.name) for i in j)
                        for j in trees])  # Flatten every tree's dims as a string
-        assert tree_struc == exp_trees
+        assert tree_struct == exp_trees
 
     if exp_iters is not None:
         iters = FindNodes(Iteration).visit(operator)
         exp_iters = exp_iters.replace(',', '')  # 't,x,y' -> 'txy'
-        iter_struc = "".join(mapper.get(i.dim.name, i.dim.name) for i in iters)
-        assert iter_struc == exp_iters
+        iter_struct = "".join(mapper.get(i.dim.name, i.dim.name) for i in iters)
+        assert iter_struct == exp_iters
 
 
 def assert_blocking(operator, exp_nests):

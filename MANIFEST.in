@@ -10,7 +10,7 @@ prune .github
 prune binder
 prune docker
 # Exclude hidden files and YAML files
-exclude .* *.yml
+exclude .* *.yaml
 
 # Exclude compiled and temporary files
 global-exclude *~ *.py[cod] *.so

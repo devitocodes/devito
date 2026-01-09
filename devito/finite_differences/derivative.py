@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import Iterable
+from contextlib import suppress
 from functools import cached_property
 from itertools import chain
 
@@ -283,7 +284,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 expr.time_order
                 if getattr(d, 'is_Time', False)
                 else expr.space_order
-                for d in dcounter.keys()
+                for d in dcounter
             )
         return fd_order
 
@@ -467,10 +468,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         This is really useful for more advanced FD definitions. For example
         the conventional Laplacian is `.dxl.T * .dxl`
         """
-        if self._transpose == direct:
-            adjoint = transpose
-        else:
-            adjoint = direct
+        adjoint = transpose if self._transpose == direct else direct
 
         return self._rebuild(transpose=adjoint)
 
@@ -493,7 +491,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         x0 = func.indices_ref.getters
         psubs = {}
         nx0 = x0.copy()
-        for d, d0 in x0.items():
+        for d in x0:
             if d in self.dims:
                 # d is a valid Derivative dimension
                 continue
@@ -530,7 +528,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # derivative at x0.
             return self._rebuild(self.expr._gather_for_diff, **rkw)
         else:
-            # For every other cases, that has more functions or more complexe arithmetic,
+            # For every other cases, that has more functions or more complex arithmetic,
             # there is not actual way to decide what to do so it’s as safe to use
             # the expression as is.
             return self._rebuild(self.expr, **rkw)
@@ -570,10 +568,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             expr = interp_for_fd(expr, x0_interp, **kwargs)
 
         # Step 2: Evaluate derivatives within expression
-        try:
+        with suppress(AttributeError):
             expr = expr._evaluate(**kwargs)
-        except AttributeError:
-            pass
 
         # If True, the derivative will be fully expanded as a sum of products,
         # otherwise an IndexSum will returned

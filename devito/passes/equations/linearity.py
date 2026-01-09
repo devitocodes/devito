@@ -1,4 +1,5 @@
 from collections import Counter
+from contextlib import suppress
 from functools import singledispatch
 from itertools import product
 
@@ -58,10 +59,8 @@ def inspect(expr):
         m = inspect(a)
         mapper.update(m)
 
-        try:
+        with suppress(KeyError):
             counter.update(m[a])
-        except KeyError:
-            pass
 
     mapper[expr] = counter
 

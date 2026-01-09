@@ -5,7 +5,7 @@ __all__ = ['Coefficient', 'Substitutions']
 
 class Coefficient:
     def __init__(self, deriv_order, function, dimension, weights):
-        deprecations.coeff_warn
+        _ = deprecations.coeff_warn
         self._weights = weights
         self._deriv_order = deriv_order
         self._function = function
@@ -34,7 +34,7 @@ class Coefficient:
 
 class Substitutions:
     def __init__(self, *args):
-        deprecations.coeff_warn
+        _ = deprecations.coeff_warn
         if any(not isinstance(arg, Coefficient) for arg in args):
             raise TypeError("Non Coefficient object within input")
 

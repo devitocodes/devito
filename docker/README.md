@@ -1,6 +1,6 @@
 # [Devito] Docker image library
 
-In order to facilitate the dissemination, usage, and development of Devito, we provide a series of Docker images. These images support numerous architectures and compilers and are tagged accordingly. You can find all the available images at [DevitoHub](https://hub.docker.com/r/devitocodes/). The following describes the available images and the workflow to build it yourself. 
+In order to facilitate the dissemination, usage, and development of Devito, we provide a series of Docker images. These images support numerous architectures and compilers and are tagged accordingly. You can find all the available images at [DevitoHub](https://hub.docker.com/r/devitocodes/). The following describes the available images and the workflow to build it yourself.
 
 ## [Devito] images
 
@@ -17,7 +17,7 @@ These images provide a working environment for any CPU architecture and come wit
 To run this image locally, you will first need to install `docker`. Then, the following commands will get you started:
 
 ```bash
-# Pull image and start a bash shell 
+# Pull image and start a bash shell
 docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 devitocodes/devito:gcc-latest /bin/bash
 docker run --rm -it -p 8888:8888 -p 8787:8787 -p 8786:8786 --device=/dev/infiniband/uverbs0 --device=/dev/infiniband/rdma_cm devitocodes/devito:gcc-latest /bin/bash
 

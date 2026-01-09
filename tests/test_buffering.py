@@ -1,12 +1,14 @@
-import pytest
 import numpy as np
+import pytest
 
 from conftest import skipif
-from devito import (Constant, Grid, TimeFunction, Operator, Eq, SubDimension,
-                    SubDomain, ConditionalDimension, configuration, switchconfig)
+from devito import (
+    ConditionalDimension, Constant, Eq, Grid, Operator, SubDimension, SubDomain,
+    TimeFunction, configuration, switchconfig
+)
 from devito.arch.archinfo import AppleArm
-from devito.ir import FindSymbols, retrieve_iteration_tree
 from devito.exceptions import CompilationError
+from devito.ir import FindSymbols, retrieve_iteration_tree
 
 
 def test_read_write():

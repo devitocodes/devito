@@ -1,19 +1,20 @@
 from collections.abc import Iterable
 from functools import singledispatch
 
-from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
-                              retrieve_functions)
-from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
-                          frozendict)
-from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
-                          ConditionalDimension)
+from devito.data.allocators import DataReference
+from devito.logger import warning
+from devito.symbolics import (
+    retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
+)
+from devito.tools import (
+    Ordering, as_tuple, filter_ordered, filter_sorted, flatten, frozendict
+)
+from devito.types import ConditionalDimension, Dimension, Eq, IgnoreDimSort, SubDimension
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension, Thickness
-from devito.data.allocators import DataReference
-from devito.logger import warning
 
-__all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
+__all__ = ['concretize_subdims', 'dimension_sort', 'lower_exprs']
 
 
 def dimension_sort(expr):
@@ -70,7 +71,7 @@ def dimension_sort(expr):
     # -----------------------------------------------
     # 1) Note that (d.parent, d) is what we want, while (d, d.parent) would be
     # wrong; for example, in `((t, time), (t, x, y), (x, y))`, `x` could now
-    # preceed `time`, while `t`, and therefore `time`, *must* appear before `x`,
+    # precede `time`, while `t`, and therefore `time`, *must* appear before `x`,
     # as indicated by the second relation
     implicit_relations = {(d.parent, d) for d in extra if d.is_Derived and not d.indirect}
 
@@ -125,11 +126,11 @@ def _lower_exprs(expressions, subs):
 
             # Introduce shifting to align with the computational domain
             indices = [_lower_exprs(a, subs) + o for a, o in
-                       zip(i.indices, f._size_nodomain.left)]
+                       zip(i.indices, f._size_nodomain.left, strict=True)]
 
             # Substitute spacing (spacing only used in own dimension)
             indices = [i.xreplace({d.spacing: 1, -d.spacing: -1})
-                       for i, d in zip(indices, f.dimensions)]
+                       for i, d in zip(indices, f.dimensions, strict=True)]
 
             # Apply substitutions, if necessary
             if dimension_map:
@@ -139,7 +140,7 @@ def _lower_exprs(expressions, subs):
             if isinstance(f, Array) and f.initvalue is not None:
                 initvalue = [_lower_exprs(i, subs) for i in f.initvalue]
                 # TODO: fix rebuild to avoid new name
-                f = f._rebuild(name='%si' % f.name, initvalue=initvalue)
+                f = f._rebuild(name=f'{f.name}i', initvalue=initvalue)
 
             mapper[i] = f.indexed[indices]
         # Add dimensions map to the mapper in case dimensions are used
@@ -318,8 +319,10 @@ def _(d, mapper, rebuilt, sregistry):
         # Warn the user if name has been changed, since this will affect overrides
         if fname != d.functions.name:
             fkwargs['name'] = fname
-            warning("%s <%s> renamed as '%s'. Consider assigning a unique name to %s." %
-                    (str(d.functions), id(d.functions), fname, d.functions.name))
+            warning(
+                f"{str(d.functions)} <{id(d.functions)}> renamed as '{fname}'. "
+                "Consider assigning a unique name to {d.functions.name}."
+            )
 
         fkwargs.update({'function': None,
                         'halo': None,

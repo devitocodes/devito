@@ -1,21 +1,21 @@
 from collections import namedtuple
-from functools import singledispatch
 from ctypes import c_int
+from functools import singledispatch
 
 import cgen as c
 
-from devito.ir import (AsyncCall, AsyncCallable, BlankLine, Call, Callable,
-                       Conditional, DummyEq, DummyExpr, While, Increment, Iteration,
-                       List, PointerCast, Return, FindNodes, FindSymbols,
-                       ThreadCallable, EntryFunction, Transformer, make_callable,
-                       maybe_alias)
+from devito.ir import (
+    AsyncCall, AsyncCallable, BlankLine, Call, Callable, Conditional, DummyEq, DummyExpr,
+    EntryFunction, FindNodes, FindSymbols, Increment, Iteration, List, PointerCast,
+    Return, ThreadCallable, Transformer, While, make_callable, maybe_alias
+)
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import (CondEq, CondNe, FieldFromComposite, FieldFromPointer,
-                              Null)
+from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Null
 from devito.tools import split
-from devito.types import (Lock, Pointer, PThreadArray, QueueID, SharedData, Temp,
-                          VolatileInt)
+from devito.types import (
+    Lock, Pointer, PThreadArray, QueueID, SharedData, Temp, VolatileInt
+)
 
 __all__ = ['pthreadify']
 
@@ -57,7 +57,7 @@ def lower_async_objs(iet, **kwargs):
 
 @singledispatch
 def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
-    # All Callables, except for AsyncCallables, may containg one or more
+    # All Callables, except for AsyncCallables, may containing one or more
     # AsyncCalls, which we have to lower into thread-activation code
     efuncs = []
     subs = {}
@@ -160,7 +160,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     wrap = While(CondNe(FieldFromPointer(sdata.symbolic_flag, sbase), 0), wrap)
 
     # pthread functions expect exactly one argument of type void*
-    tparameter = Pointer(name='_%s' % sdata.name)
+    tparameter = Pointer(name=f'_{sdata.name}')
 
     # Unpack `sdata`
     unpacks = [PointerCast(sdata, tparameter), BlankLine]
@@ -184,7 +184,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
         callback = lambda body: Iteration(list(body) + footer, d, threads.size - 1)
 
     # Create an efunc to initialize `sdata` and tear up the pthreads
-    name = 'init_%s' % sdata.name
+    name = f'init_{sdata.name}'
     body = []
     for i in sdata.cfields:
         if i.is_AbstractFunction:
@@ -230,7 +230,7 @@ def inject_async_tear_updown(iet, tracker=None, **kwargs):
 
     tearup = []
     teardown = []
-    for sdata, threads, init, shutdown in tracker.values():
+    for _, threads, init, shutdown in tracker.values():
         # Tear-up
         arguments = list(init.parameters)
         for n, a in enumerate(list(arguments)):

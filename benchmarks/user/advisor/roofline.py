@@ -6,20 +6,18 @@ The JSON can be therefore used flexibly.
 
 This module has been partly extracted from the examples directory of Intel Advisor 2018.
 """
-import click
 import json
 import math
-import matplotlib
-from matplotlib.ticker import ScalarFormatter
-import matplotlib.pyplot as plt  # noqa
+import os
+import sys
 
+import click
+import matplotlib
+import matplotlib.pyplot as plt  # noqa
 import numpy as np
 import pandas as pd
-import sys
-import os
-
 from advisor_logging import check, err, log
-
+from matplotlib.ticker import ScalarFormatter
 
 try:
     import advisor
@@ -130,7 +128,7 @@ def roofline(name, project, scale, precision, mode, th):
                 # y = bandwidth * x
                 x1, x2 = 0, min(width, max_compute_bandwidth / bandwidth)
                 y1, y2 = 0, x2*bandwidth
-                label = '{} {:.0f} GB/s'.format(roof.name, bandwidth)
+                label = f'{roof.name} {bandwidth:.0f} GB/s'
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
                 memory_roofs.append(((x1, x2), (y1, y2)))
 
@@ -140,7 +138,7 @@ def roofline(name, project, scale, precision, mode, th):
                 bandwidth /= scale  # scale down as requested by the user
                 x1, x2 = max(bandwidth / max_memory_bandwidth, 0), width
                 y1, y2 = bandwidth, bandwidth
-                label = '{} {:.0f} GFLOPS'.format(roof.name, bandwidth)
+                label = f'{roof.name} {bandwidth:.0f} GFLOPS'
                 ax.plot([x1, x2], [y1, y2], '-', label=label)
                 compute_roofs.append(((x1, x2), (y1, y2)))
 
@@ -207,7 +205,7 @@ def roofline(name, project, scale, precision, mode, th):
     log(f'\nFigure saved in {figpath}{name}.pdf.')
 
     # Save the JSON file
-    with open('%s.json' % name, 'w') as f:
+    with open(f'{name}.json', 'w') as f:
         f.write(json.dumps(roofline_data))
 
     log(f'\nJSON file saved as {name}.json.')

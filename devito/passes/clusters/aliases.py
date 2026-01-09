@@ -1,5 +1,5 @@
 from collections import Counter, OrderedDict, defaultdict, namedtuple
-from functools import singledispatch, cached_property
+from functools import cached_property, singledispatch
 from itertools import groupby
 
 import numpy as np
@@ -8,19 +8,23 @@ import sympy
 from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (
-    SEQUENTIAL, PARALLEL_IF_PVT, SEPARABLE, Forward, IterationSpace, Interval,
-    Cluster, ClusterGroup, ExprGeometry, Queue, IntervalGroup, LabeledVector,
-    Vector, normalize_properties, relax_properties, unbounded, minimum, maximum,
-    extrema, vmax, vmin
+    PARALLEL_IF_PVT, SEPARABLE, SEQUENTIAL, Cluster, ClusterGroup, ExprGeometry, Forward,
+    Interval, IntervalGroup, IterationSpace, LabeledVector, Queue, Vector, extrema,
+    maximum, minimum, normalize_properties, relax_properties, unbounded, vmax, vmin
 )
 from devito.passes.clusters.cse import _cse
-from devito.symbolics import (Uxmapper, estimate_cost, search, reuse_if_untouched,
-                              retrieve_functions, uxreplace, sympy_dtype)
-from devito.tools import (Stamp, as_mapper, as_tuple, flatten, frozendict,
-                          is_integer, generator, split, timed_pass)
-from devito.types import (Eq, Symbol, Temp, TempArray, TempFunction,
-                          ModuloDimension, CustomDimension, IncrDimension,
-                          StencilDimension, Indexed, Hyperplane, Size)
+from devito.symbolics import (
+    Uxmapper, estimate_cost, retrieve_functions, reuse_if_untouched, search, sympy_dtype,
+    uxreplace
+)
+from devito.tools import (
+    Stamp, as_mapper, as_tuple, flatten, frozendict, generator, is_integer, split,
+    timed_pass
+)
+from devito.types import (
+    CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension, Size,
+    StencilDimension, Symbol, Temp, TempArray, TempFunction
+)
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -88,10 +92,7 @@ def cire(clusters, mode, sregistry, options, platform):
     # NOTE: Handle prematurely expanded derivatives -- current default on
     # several backends, but soon to become legacy
     if mode == 'sops':
-        if options['expand']:
-            mode = 'eval-derivs'
-        else:
-            mode = 'index-derivs'
+        mode = 'eval-derivs' if options['expand'] else 'index-derivs'
 
     for cls in modes[mode]:
         transformer = cls(sregistry, options, platform)
@@ -174,7 +175,7 @@ class CireTransformer:
         Generate one or more extractions from a ClusterGroup. An extraction is a
         set of CIRE candidates which may be turned into aliases. Two different
         extractions may contain overlapping sub-expressions and, therefore,
-        should be processed and evaluated indipendently. An extraction won't
+        should be processed and evaluated independently. An extraction won't
         contain any of the symbols appearing in ``exclude``.
         """
         raise NotImplementedError
@@ -203,7 +204,7 @@ class CireTransformerLegacy(CireTransformer):
         Carry out the bulk of the work of ``_generate``.
         """
         counter = generator()
-        make = lambda: Symbol(name='dummy%d' % counter(), dtype=np.float32)
+        make = lambda: Symbol(name=f'dummy{counter()}', dtype=np.float32)
 
         if cbk_compose is None:
             cbk_compose = lambda *args: None
@@ -372,7 +373,9 @@ class CireDerivatives(CireTransformerLegacy):
         candidates = sorted(grank, reverse=True)[:2]
         for i in candidates:
             lower_pri_elems = flatten([grank[j] for j in candidates if j != i])
-            cbk_search = lambda e: self._cbk_search2(e, grank[i] + lower_pri_elems)
+            cbk_search = lambda e: self._cbk_search2(
+                e, grank[i] + lower_pri_elems  # noqa: B023
+            )
             yield self._do_generate(exprs, exclude, cbk_search, self._cbk_compose)
 
     def _lookup_key(self, c):
@@ -382,11 +385,11 @@ class CireDerivatives(CireTransformerLegacy):
         if isinstance(self.opt_schedule_strategy, int):
             try:
                 return variants[self.opt_schedule_strategy]
-            except IndexError:
+            except IndexError as e:
                 raise CompilationError(
                     f"Illegal schedule {self.opt_schedule_strategy}; "
                     f"generated {len(variants)} schedules in total"
-                )
+                ) from e
 
         return pick_best(variants)
 
@@ -521,10 +524,8 @@ def collect(extracted, ispace, minstorage):
             unseen.remove(u)
         group = Group(group, ispace=ispace)
 
-        if minstorage:
-            k = group.dimensions_translated
-        else:
-            k = group.dimensions
+        k = group.dimensions_translated if minstorage else group.dimensions
+
         k = frozenset(d for d in k if not d.is_NonlinearDerived)
         mapper.setdefault(k, []).append(group)
 
@@ -567,7 +568,7 @@ def collect(extracted, ispace, minstorage):
             # Heuristic: first try retaining the larger ones
             smallest = len(min(groups, key=len))
             fallback = groups
-            groups, remainder = split(groups, lambda g: len(g) > smallest)
+            groups, remainder = split(groups, lambda g: len(g) > smallest)  # noqa: B023
             if groups:
                 queue.append(remainder)
             elif len(remainder) > 1:
@@ -586,7 +587,7 @@ def collect(extracted, ispace, minstorage):
             offsets = [LabeledVector([(l, v[l] + distances[l]) for l in v.labels])
                        for v in c.offsets]
             subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
-                    for i, b, v in zip(c.indexeds, c.bases, offsets)}
+                    for i, b, v in zip(c.indexeds, c.bases, offsets, strict=True)}
             pivot = uxreplace(c.expr, subs)
 
             # Distance of each aliased expression from the basis alias
@@ -595,7 +596,9 @@ def collect(extracted, ispace, minstorage):
             for i in g._items:
                 aliaseds.append(extracted[i.expr])
 
-                distance = [o.distance(v) for o, v in zip(i.offsets, offsets)]
+                distance = [
+                    o.distance(v) for o, v in zip(i.offsets, offsets, strict=True)
+                ]
                 distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
                 distances.append(LabeledVector([(d, v.pop()) for d, v in distance]))
 
@@ -672,7 +675,7 @@ def lower_aliases(aliases, meta, maxpar):
             except KeyError:
                 if i.dim in a.free_symbols:
                     # Special case: the Dimension appears within the alias but
-                    # not as an Indexed index. Then, it needs to be addeed to
+                    # not as an Indexed index. Then, it needs to be added to
                     # the `writeto` region too
                     interval = i
                 else:
@@ -722,14 +725,14 @@ def lower_aliases(aliases, meta, maxpar):
                         m = i.dim.symbolic_min - i.dim.parent.symbolic_min
                     else:
                         m = 0
-                    d = dmapper[i.dim] = IncrDimension("%ss" % i.dim.name, i.dim, m,
+                    d = dmapper[i.dim] = IncrDimension(f"{i.dim.name}s", i.dim, m,
                                                        dd.symbolic_size, 1, dd.step)
                 sub_iterators[i.dim] = d
             else:
                 d = i.dim
 
             # Given the iteration `interval`, lower distances to indices
-            for distance, indices in zip(a.distances, indicess):
+            for distance, indices in zip(a.distances, indicess, strict=True):
                 v = distance[interval.dim] or 0
                 try:
                     indices.append(d - interval.lower + v)
@@ -793,12 +796,12 @@ def optimize_schedule_rotations(schedule, sregistry):
         iis = candidate.lower
         iib = candidate.upper
 
-        name = sregistry.make_name(prefix='%sii' % d.root.name)
+        name = sregistry.make_name(prefix=f'{d.root.name}ii')
         ii = ModuloDimension(name, ds, iis, incr=iib)
 
-        cd = CustomDimension(name='%sc' % d.root.name, symbolic_min=ii,
+        cd = CustomDimension(name=f'{d.root.name}c', symbolic_min=ii,
                              symbolic_max=iib, symbolic_size=n)
-        dsi = ModuloDimension('%si' % ds.root.name, cd, cd + ds - iis, n)
+        dsi = ModuloDimension(f'{ds.root.name}i', cd, cd + ds - iis, n)
 
         mapper = OrderedDict()
         for i in g:
@@ -809,11 +812,13 @@ def optimize_schedule_rotations(schedule, sregistry):
                 try:
                     md = mapper[v]
                 except KeyError:
-                    name = sregistry.make_name(prefix='%sr' % d.root.name)
+                    name = sregistry.make_name(prefix=f'{d.root.name}r')
                     md = mapper.setdefault(v, ModuloDimension(name, ds, v, n))
                 mds.append(md)
-            indicess = [indices[:ridx] + [md] + indices[ridx + 1:]
-                        for md, indices in zip(mds, i.indicess)]
+            indicess = [
+                indices[:ridx] + [md] + indices[ridx + 1:]
+                for md, indices in zip(mds, i.indicess, strict=True)
+            ]
 
             # Update `writeto` by switching `d` to `dsi`
             intervals = k.intervals.switch(d, dsi).zero(dsi)
@@ -847,11 +852,8 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
     """
     Turn a Schedule into a sequence of Clusters.
     """
-    if opt_ftemps:
-        make = TempFunction
-    else:
-        # Typical case -- the user does *not* "see" the CIRE-created temporaries
-        make = TempArray
+    # Typical case -- the user does *not* "see" the CIRE-created temporaries
+    make = TempFunction if opt_ftemps else TempArray
 
     clusters = []
     subs = {}
@@ -859,7 +861,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
         name = sregistry.make_name()
         # Infer the dtype for the pivot
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
-        # that would creat a temporary `int r = b` leading to erronous
+        # that would creat a temporary `int r = b` leading to erroneous
         # numerical results
 
         if writeto:
@@ -883,10 +885,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             # Functions to minimize support variables such as strides etc
             min_halo = {i.dim: Size(abs(i.lower), abs(i.upper)) for i in writeto}
 
-            if opt_minmem:
-                functions = []
-            else:
-                functions = retrieve_functions(pivot)
+            functions = [] if opt_minmem else retrieve_functions(pivot)
 
             halo = dict(min_halo)
             for f in functions:
@@ -902,7 +901,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
 
             # The indices used to write into the Array
             indices = []
-            for i, s in zip(writeto, shift):
+            for i, s in zip(writeto, shift, strict=True):
                 try:
                     # E.g., `xs`
                     sub_iterators = writeto.sub_iterators[i.dim]
@@ -917,7 +916,9 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
                        shift=shift)
             expression = Eq(obj[indices], uxreplace(pivot, subs))
 
-            callback = lambda idx: obj[[i + s for i, s in zip(idx, shift)]]
+            callback = lambda idx: obj[  # noqa: B023
+                [i + s for i, s in zip(idx, shift, strict=True)]  # noqa: B023
+            ]
         else:
             # Degenerate case: scalar expression
             assert writeto.size == 0
@@ -926,11 +927,13 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             obj = Temp(name=name, dtype=dtype)
             expression = Eq(obj, uxreplace(pivot, subs))
 
-            callback = lambda idx: obj
+            callback = lambda idx: obj  # noqa: B023
 
         # Create the substitution rules for the aliasing expressions
-        subs.update({aliased: callback(indices)
-                     for aliased, indices in zip(aliaseds, indicess)})
+        subs.update({
+            aliased: callback(indices)
+            for aliased, indices in zip(aliaseds, indicess, strict=True)
+        })
 
         properties = dict(meta.properties)
 
@@ -1090,8 +1093,8 @@ class Group(tuple):
                 processed.append(c)
                 continue
 
-            f0 = lambda e: minimum(e, sdims)
-            f1 = lambda e: maximum(e, sdims)
+            f0 = lambda e: minimum(e, sdims)  # noqa: B023
+            f1 = lambda e: maximum(e, sdims)  # noqa: B023
 
             for f in (f0, f1):
                 expr = f(c.expr)
@@ -1108,7 +1111,7 @@ class Group(tuple):
         return obj
 
     def __repr__(self):
-        return "Group(%s)" % ", ".join([str(i) for i in self])
+        return "Group({})".format(", ".join([str(i) for i in self]))
 
     def find_rotation_distance(self, d, interval):
         """
@@ -1133,7 +1136,10 @@ class Group(tuple):
 
     @cached_property
     def Toffsets(self):
-        return [LabeledVector.transpose(*i) for i in zip(*[i.offsets for i in self])]
+        return [
+            LabeledVector.transpose(*i)
+            for i in zip(*[i.offsets for i in self], strict=True)
+        ]
 
     @cached_property
     def diameter(self):
@@ -1148,18 +1154,18 @@ class Group(tuple):
                     continue
                 try:
                     distance = int(max(v) - min(v))
-                except TypeError:
+                except TypeError as e:
                     # An entry in `v` has symbolic components, e.g. `x_m + 2`
                     if len(set(v)) == 1:
                         continue
                     else:
-                        # Worst-case scenario, we raraly end up here
+                        # Worst-case scenario, we rarely end up here
                         # Resort to the fast vector-based comparison machinery
                         # (rather than the slower sympy.simplify)
                         items = [Vector(i) for i in v]
                         distance, = vmax(*items) - vmin(*items)
                         if not is_integer(distance):
-                            raise ValueError
+                            raise ValueError('Distrance is not an integer') from e
                 ret[d] = max(ret[d], distance)
 
         return ret
@@ -1209,7 +1215,7 @@ class Group(tuple):
                 assert distance == mini - rotation.upper
                 distances.append(distance)
 
-            ret[d] = list(zip(m, distances))
+            ret[d] = list(zip(m, distances, strict=True))
 
         return ret
 
@@ -1223,7 +1229,7 @@ class Group(tuple):
 
         ret = defaultdict(lambda: [np.inf, -np.inf])
         for i in self:
-            distance = [o.distance(v) for o, v in zip(i.offsets, c.offsets)]
+            distance = [o.distance(v) for o, v in zip(i.offsets, c.offsets, strict=True)]
             distance = [(d, set(v)) for d, v in LabeledVector.transpose(*distance)]
 
             for d, v in distance:
@@ -1248,7 +1254,7 @@ class Group(tuple):
         c = self.pivot
 
         ret = defaultdict(lambda: (-np.inf, np.inf))
-        for i, ofs in zip(c.indexeds, c.offsets):
+        for i, ofs in zip(c.indexeds, c.offsets, strict=True):
             f = i.function
 
             for l in ofs.labels:
@@ -1290,7 +1296,7 @@ class Alias:
         self.score = score
 
     def __repr__(self):
-        return "Alias<<%s>>" % self.pivot
+        return f"Alias<<{self.pivot}>>"
 
     @property
     def free_symbols(self):
@@ -1331,7 +1337,7 @@ class AliasList:
 
     def __repr__(self):
         if self._list:
-            return "AliasList<\n  %s\n>" % ",\n  ".join(str(i) for i in self._list)
+            return "AliasList<\n  {}\n>".format(",\n  ".join(str(i) for i in self._list))
         else:
             return "<>"
 
@@ -1339,8 +1345,7 @@ class AliasList:
         return self._list.__len__()
 
     def __iter__(self):
-        for i in self._list:
-            yield i
+        yield from self._list
 
     def add(self, pivot, aliaseds, intervals, distances, score):
         assert len(aliaseds) == len(distances)
@@ -1392,7 +1397,7 @@ class Schedule(tuple):
         # Not just the sum for the individual items' cost! There might be
         # redundancies, which we factor out here...
         counter = generator()
-        make = lambda _: Symbol(name='dummy%d' % counter(), dtype=np.float32)
+        make = lambda _: Symbol(name=f'dummy{counter()}', dtype=np.float32)
 
         tot = 0
         for v in as_mapper(self, lambda i: i.ispace).values():
@@ -1423,7 +1428,7 @@ def cit(ispace0, ispace1):
     The Common IterationIntervals of two IterationSpaces.
     """
     found = []
-    for it0, it1 in zip(ispace0.itintervals, ispace1.itintervals):
+    for it0, it1 in zip(ispace0.itintervals, ispace1.itintervals, strict=True):
         if it0 == it1:
             found.append(it0)
         else:

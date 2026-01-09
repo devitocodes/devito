@@ -1,25 +1,31 @@
 import abc
 from collections import OrderedDict
-from ctypes import POINTER, c_void_p, c_int, sizeof
+from ctypes import POINTER, c_int, c_void_p, sizeof
 from functools import reduce
 from itertools import product
 from operator import mul
 
 from sympy import Integer
 
-from devito.data import OWNED, HALO, NOPAD, LEFT, CENTER, RIGHT
-from devito.ir.equations import DummyEq, OpInc, OpMin, OpMax
-from devito.ir.iet import (Call, Callable, Conditional, ElementalFunction,
-                           Expression, ExpressionBundle, AugmentedExpression,
-                           Iteration, List, Prodder, Return, make_efunc, FindNodes,
-                           Transformer, ElementalCall, CommCallable)
+from devito.data import CENTER, HALO, LEFT, NOPAD, OWNED, RIGHT
+from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
+from devito.ir.iet import (
+    AugmentedExpression, Call, Callable, CommCallable, Conditional, ElementalCall,
+    ElementalFunction, Expression, ExpressionBundle, FindNodes, Iteration, List, Prodder,
+    Return, Transformer, make_efunc
+)
 from devito.mpi import MPI
-from devito.symbolics import (Byref, CondNe, FieldFromPointer, FieldFromComposite,
-                              IndexedPointer, Macro, cast, subs_op_args)
-from devito.tools import (as_mapper, dtype_to_mpitype, dtype_len, infer_datasize,
-                          flatten, generator, is_integer)
-from devito.types import (Array, Bag, BundleView, Dimension, Eq, Symbol,
-                          LocalObject, CompositeObject, CustomDimension)
+from devito.symbolics import (
+    Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
+    subs_op_args
+)
+from devito.tools import (
+    as_mapper, dtype_len, dtype_to_mpitype, flatten, generator, infer_datasize, is_integer
+)
+from devito.types import (
+    Array, Bag, BundleView, CompositeObject, CustomDimension, Dimension, Eq, LocalObject,
+    Symbol
+)
 
 __all__ = ['HaloExchangeBuilder', 'ReductionBuilder', 'mpi_registry']
 
@@ -113,7 +119,7 @@ class HaloExchangeBuilder:
         # Callables
         haloupdates = []
         halowaits = []
-        for i, (f, hse) in enumerate(hs.fmapper.items()):
+        for f, hse in hs.fmapper.items():
             msg = self._msgs[(f, hse)]
             haloupdate, halowait = mapper[(f, hse)]
             haloupdates.append(self._call_haloupdate(haloupdate.name, f, hse, msg))
@@ -309,12 +315,12 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
             # We recast everything else as Bags for simplicity -- worst case
             # scenario all Bags only have one component.
             try:
-                name = "bag_%s" % "".join(f.name for f in components)
+                name = "bag_{}".format("".join(f.name for f in components))
                 bag = Bag(name=name, components=components)
                 halo_scheme = halo_scheme.add(bag, hse)
             except ValueError:
                 for i in components:
-                    name = "bag_%s" % i.name
+                    name = f"bag_{i.name}"
                     bag = Bag(name=name, components=i)
                     halo_scheme = halo_scheme.add(bag, hse)
 
@@ -348,11 +354,13 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
     def _make_copy(self, f, hse, key, swap=False):
         dims = [d.root for d in f.dimensions if d not in hse.loc_indices]
-        ofs = [Symbol(name='o%s' % d.root, is_const=True) for d in f.dimensions]
+        ofs = [Symbol(name=f'o{d.root}', is_const=True) for d in f.dimensions]
 
-        bshape = [Symbol(name='b%s' % d.symbolic_size) for d in dims]
-        bdims = [CustomDimension(name=d.name, parent=d, symbolic_size=s)
-                 for d, s in zip(dims, bshape)]
+        bshape = [Symbol(name=f'b{d.symbolic_size}') for d in dims]
+        bdims = [
+            CustomDimension(name=d.name, parent=d, symbolic_size=s)
+            for d, s in zip(dims, bshape, strict=True)
+        ]
 
         eqns = []
         eqns.extend([Eq(d.symbolic_min, 0) for d in bdims])
@@ -362,16 +370,18 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype,
                     padding=0)
 
-        mapper = dict(zip(dims, bdims))
-        findices = [o - h + mapper.get(d.root, 0)
-                    for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left)]
+        mapper = dict(zip(dims, bdims, strict=True))
+        findices = [
+            o - h + mapper.get(d.root, 0)
+            for d, o, h in zip(f.dimensions, ofs, f._size_nodomain.left, strict=True)
+        ]
 
         if swap is False:
             swap = lambda i, j: (i, j)
-            name = 'gather%s' % key
+            name = f'gather{key}'
         else:
             swap = lambda i, j: (j, i)
-            name = 'scatter%s' % key
+            name = f'scatter{key}'
 
         if isinstance(f, Bag):
             for i, c in enumerate(f.components):
@@ -404,8 +414,8 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         bufs = Array(name='bufs', dimensions=bdims, dtype=f.c0.dtype,
                      padding=0, liveness='eager')
 
-        ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
-        ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
+        ofsg = [Symbol(name=f'og{d.root}') for d in f.dimensions]
+        ofss = [Symbol(name=f'os{d.root}') for d in f.dimensions]
 
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
@@ -413,9 +423,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         shape = [d.symbolic_size for d in dims]
 
         arguments = [bufg] + shape + list(f.handles) + ofsg
-        gather = Gather('gather%s' % key, arguments)
+        gather = Gather(f'gather{key}', arguments)
         arguments = [bufs] + shape + list(f.handles) + ofss
-        scatter = Scatter('scatter%s' % key, arguments)
+        scatter = Scatter(f'scatter{key}', arguments)
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
@@ -439,7 +449,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         parameters = (list(f.handles) + shape + ofsg + ofss +
                       [fromrank, torank, comm])
 
-        return SendRecv('sendrecv%s' % key, iet, parameters, bufg, bufs)
+        return SendRecv(f'sendrecv{key}', iet, parameters, bufg, bufs)
 
     def _call_sendrecv(self, name, *args, **kwargs):
         args = list(args[0].handles) + flatten(args[1:])
@@ -450,7 +460,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
 
         # Build a mapper `(dim, side, region) -> (size, ofs)` for `f`. `size` and
         # `ofs` are symbolic objects. This mapper tells what data values should be
@@ -498,7 +508,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
 
         parameters = list(f.handles) + [comm, nb] + list(fixed.values())
 
-        return HaloUpdate('haloupdate%s' % key, iet, parameters)
+        return HaloUpdate(f'haloupdate{key}', iet, parameters)
 
     def _call_haloupdate(self, name, f, hse, *args):
         comm = f.grid.distributor._obj_comm
@@ -560,7 +570,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
         nb = distributor._obj_neighborhood
         comm = distributor._obj_comm
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
 
         # Only retain the halos required by the Diag scheme
         # Note: `sorted` is only for deterministic code generation
@@ -568,7 +578,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
         body = []
         for dims, tosides in halos:
-            mapper = OrderedDict(zip(dims, tosides))
+            mapper = OrderedDict(zip(dims, tosides, strict=True))
 
             sizes = [f._C_get_field(OWNED, d, s).size for d, s in mapper.items()]
 
@@ -576,7 +586,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
             ofsg = [fixed.get(d, f._C_get_field(OWNED, d, mapper.get(d)).offset)
                     for d in f.dimensions]
 
-            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides]))
+            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides], strict=True))
             fromrank = FieldFromPointer(''.join(i.name[0] for i in mapper.values()), nb)
             ofss = [fixed.get(d, f._C_get_field(HALO, d, mapper.get(d)).offset)
                     for d in f.dimensions]
@@ -590,7 +600,7 @@ class DiagHaloExchangeBuilder(BasicHaloExchangeBuilder):
 
         parameters = list(f.handles) + [comm, nb] + list(fixed.values())
 
-        return HaloUpdate('haloupdate%s' % key, iet, parameters)
+        return HaloUpdate(f'haloupdate{key}', iet, parameters)
 
 
 class ComputeCall(ElementalCall):
@@ -618,7 +628,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
         halos = sorted(i for i in hse.halos if isinstance(i.dim, tuple))
-        return MPIMsg('msg%d' % key, f, halos)
+        return MPIMsg(f'msg{key}', f, halos)
 
     def _make_sendrecv(self, f, hse, key, msg=None):
         fcast = cast(f.c0.dtype, '*')
@@ -627,16 +637,18 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         bufg = FieldFromPointer(msg._C_field_bufg, msg)
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
 
-        ofsg = [Symbol(name='og%s' % d.root) for d in f.dimensions]
+        ofsg = [Symbol(name=f'og{d.root}') for d in f.dimensions]
 
         fromrank = Symbol(name='fromrank')
         torank = Symbol(name='torank')
 
-        sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
-                 for i in range(len(f._dist_dimensions))]
+        sizes = [
+            FieldFromPointer(f'{msg._C_field_sizes}[{i}]', msg)
+            for i in range(len(f._dist_dimensions))
+        ]
 
         arguments = [fcast(bufg)] + sizes + list(f.handles) + ofsg
-        gather = Gather('gather%s' % key, arguments)
+        gather = Gather(f'gather{key}', arguments)
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
@@ -652,7 +664,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         parameters = list(f.handles) + ofsg + [fromrank, torank, comm, msg]
 
-        return SendRecv('sendrecv%s' % key, iet, parameters, bufg, bufs)
+        return SendRecv(f'sendrecv{key}', iet, parameters, bufg, bufs)
 
     def _call_sendrecv(self, name, *args, msg=None, haloid=None):
         # Drop `sizes` as this HaloExchangeBuilder conveys them through `msg`
@@ -676,8 +688,12 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
         if hs.body.is_Call:
             return None
         else:
-            return make_efunc('compute%d' % key, hs.body, hs.arguments,
-                              efunc_type=ComputeFunction)
+            return make_efunc(
+                f'compute{key}',
+                hs.body,
+                hs.arguments,
+                efunc_type=ComputeFunction
+            )
 
     def _call_compute(self, hs, compute, *args):
         if compute is None:
@@ -691,14 +707,16 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         bufs = FieldFromPointer(msg._C_field_bufs, msg)
 
-        ofss = [Symbol(name='os%s' % d.root) for d in f.dimensions]
+        ofss = [Symbol(name=f'os{d.root}') for d in f.dimensions]
 
         fromrank = Symbol(name='fromrank')
 
-        sizes = [FieldFromPointer('%s[%d]' % (msg._C_field_sizes, i), msg)
-                 for i in range(len(f._dist_dimensions))]
+        sizes = [
+            FieldFromPointer(f'{msg._C_field_sizes}[{i}]', msg)
+            for i in range(len(f._dist_dimensions))
+        ]
         arguments = [fcast(bufs)] + sizes + list(f.handles) + ofss
-        scatter = Scatter('scatter%s' % key, arguments)
+        scatter = Scatter(f'scatter{key}', arguments)
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
@@ -713,12 +731,12 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         parameters = (list(f.handles) + ofss + [fromrank, msg])
 
-        return Callable('wait_%s' % key, iet, 'void', parameters, ('static',))
+        return Callable(f'wait_{key}', iet, 'void', parameters, ('static',))
 
     def _make_halowait(self, f, hse, key, wait, msg=None):
         nb = f.grid.distributor._obj_neighborhood
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
 
         # Only retain the halos required by the Diag scheme
         # Note: `sorted` is only for deterministic code generation
@@ -726,7 +744,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
 
         body = []
         for dims, tosides in halos:
-            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides]))
+            mapper = OrderedDict(zip(dims, [i.flip() for i in tosides], strict=True))
             fromrank = FieldFromPointer(''.join(i.name[0] for i in mapper.values()), nb)
             ofss = [fixed.get(d, f._C_get_field(HALO, d, mapper.get(d)).offset)
                     for d in f.dimensions]
@@ -750,7 +768,7 @@ class OverlapHaloExchangeBuilder(DiagHaloExchangeBuilder):
     def _make_remainder(self, hs, key, callcompute, *args):
         assert callcompute.is_Call
         body = [callcompute._rebuild(dynamic_args_mapper=i) for _, i in hs.omapper.owned]
-        return Remainder.make('remainder%d' % key, body)
+        return Remainder.make(f'remainder{key}', body)
 
     def _call_remainder(self, remainder):
         efunc = remainder.make_call()
@@ -791,7 +809,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         fcast = cast(f.c0.dtype, '*')
         comm = f.grid.distributor._obj_comm
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
 
         dim = Dimension(name='i')
 
@@ -803,15 +821,19 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         fromrank = FieldFromComposite(msg._C_field_from, msgi)
         torank = FieldFromComposite(msg._C_field_to, msgi)
 
-        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
-                 for i in range(len(f._dist_dimensions))]
-        ofsg = [FieldFromComposite('%s[%d]' % (msg._C_field_ofsg, i), msgi)
-                for i in range(len(f._dist_dimensions))]
+        sizes = [
+            FieldFromComposite(f'{msg._C_field_sizes}[{i}]', msgi)
+            for i in range(len(f._dist_dimensions))
+        ]
+        ofsg = [
+            FieldFromComposite(f'{msg._C_field_ofsg}[{i}]', msgi)
+            for i in range(len(f._dist_dimensions))
+        ]
         ofsg = [fixed.get(d) or ofsg.pop(0) for d in f.dimensions]
 
         # The `gather` is unnecessary if sending to MPI.PROC_NULL
         arguments = [fcast(bufg)] + sizes + list(f.handles) + ofsg
-        gather = Gather('gather%s' % key, arguments)
+        gather = Gather(f'gather{key}', arguments)
         gather = Conditional(CondNe(torank, Macro('MPI_PROC_NULL')), gather)
 
         # Make Irecv/Isend
@@ -827,7 +849,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         ncomms = Symbol(name='ncomms')
         iet = Iteration([recv, gather, send], dim, ncomms - 1)
         parameters = f.handles + (comm, msg, ncomms) + tuple(fixed.values())
-        return HaloUpdate('haloupdate%s' % key, iet, parameters)
+        return HaloUpdate(f'haloupdate{key}', iet, parameters)
 
     def _call_haloupdate(self, name, f, hse, msg):
         comm = f.grid.distributor._obj_comm
@@ -837,7 +859,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     def _make_halowait(self, f, hse, key, *args, msg=None):
         fcast = cast(f.c0.dtype, '*')
 
-        fixed = {d: Symbol(name="o%s" % d.root) for d in hse.loc_indices}
+        fixed = {d: Symbol(name=f"o{d.root}") for d in hse.loc_indices}
 
         dim = Dimension(name='i')
 
@@ -847,16 +869,20 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
 
         fromrank = FieldFromComposite(msg._C_field_from, msgi)
 
-        sizes = [FieldFromComposite('%s[%d]' % (msg._C_field_sizes, i), msgi)
-                 for i in range(len(f._dist_dimensions))]
-        ofss = [FieldFromComposite('%s[%d]' % (msg._C_field_ofss, i), msgi)
-                for i in range(len(f._dist_dimensions))]
+        sizes = [
+            FieldFromComposite(f'{msg._C_field_sizes}[{i}]', msgi)
+            for i in range(len(f._dist_dimensions))
+        ]
+        ofss = [
+            FieldFromComposite(f'{msg._C_field_ofss}[{i}]', msgi)
+            for i in range(len(f._dist_dimensions))
+        ]
         ofss = [fixed.get(d) or ofss.pop(0) for d in f.dimensions]
 
         # The `scatter` must be guarded as we must not alter the halo values along
         # the domain boundary, where the sender is actually MPI.PROC_NULL
         arguments = [fcast(bufs)] + sizes + list(f.handles) + ofss
-        scatter = Scatter('scatter%s' % key, arguments)
+        scatter = Scatter(f'scatter{key}', arguments)
         scatter = Conditional(CondNe(fromrank, Macro('MPI_PROC_NULL')), scatter)
 
         rrecv = Byref(FieldFromComposite(msg._C_field_rrecv, msgi))
@@ -898,7 +924,7 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         # The -1 below is because an Iteration, by default, generates <=
         iet = Iteration(iet, dim, region.nregions - 1)
 
-        return Remainder.make('remainder%d' % key, iet)
+        return Remainder.make(f'remainder{key}', iet)
 
 
 class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
@@ -982,8 +1008,12 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
             mapper = {i: List(body=[callpoke, i]) for i in
                       FindNodes(ExpressionBundle).visit(hs.body)}
             iet = Transformer(mapper).visit(hs.body)
-            return make_efunc('compute%d' % key, iet, hs.arguments,
-                              efunc_type=ComputeFunction)
+            return make_efunc(
+                f'compute{key}',
+                iet,
+                hs.arguments,
+                efunc_type=ComputeFunction
+            )
 
     def _make_poke(self, hs, key, msgs):
         lflag = Symbol(name='lflag')
@@ -1011,7 +1041,11 @@ class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
         body.append(Return(gflag))
 
-        return make_efunc('pokempi%d' % key, List(body=body), retval='int')
+        return make_efunc(
+            f'pokempi{key}',
+            List(body=body),
+            retval='int'
+        )
 
     def _call_poke(self, poke):
         return Prodder(poke.name, poke.parameters, single_thread=True, periodic=True)
@@ -1213,7 +1247,7 @@ class MPIMsg(CompositeObject):
 
             # Buffer shape for this peer
             shape = []
-            for dim, side in zip(*halo):
+            for dim, side in zip(*halo, strict=True):
                 try:
                     shape.append(getattr(f._size_owned[dim], side.name))
                 except AttributeError:
@@ -1286,7 +1320,7 @@ class MPIMsgEnriched(MPIMsg):
             # `torank` peer + gather offsets
             entry.torank = neighborhood[halo.side]
             ofsg = []
-            for dim, side in zip(*halo):
+            for dim, side in zip(*halo, strict=True):
                 try:
                     v = getattr(f._offset_owned[dim], side.name)
                     ofsg.append(self._as_number(v, args))
@@ -1298,7 +1332,7 @@ class MPIMsgEnriched(MPIMsg):
             # `fromrank` peer + scatter offsets
             entry.fromrank = neighborhood[tuple(i.flip() for i in halo.side)]
             ofss = []
-            for dim, side in zip(*halo):
+            for dim, side in zip(*halo, strict=True):
                 try:
                     v = getattr(f._offset_halo[dim], side.flip().name)
                     ofss.append(self._as_number(v, args))
@@ -1336,8 +1370,8 @@ class MPIRegion(CompositeObject):
         # Sorting for deterministic codegen
         self._arguments = sorted(arguments, key=lambda i: i.name)
 
-        name = "%s%d" % (prefix, key)
-        pname = "region%d" % key
+        name = f'{prefix}{key}'
+        pname = f'region{key}'
 
         fields = []
         for i in self.arguments:
@@ -1398,7 +1432,7 @@ class AllreduceCall(Call):
         super().__init__('MPI_Allreduce', arguments, **kwargs)
 
 
-class ReductionBuilder(object):
+class ReductionBuilder:
 
     """
     Build IET routines performing MPI reductions.

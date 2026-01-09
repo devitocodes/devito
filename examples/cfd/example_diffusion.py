@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 import numpy as np
 import sympy
 
-from devito import Grid, Eq, Operator, TimeFunction, solve
+from devito import Eq, Grid, Operator, TimeFunction, solve
 from devito.logger import log
 
 
@@ -29,7 +29,7 @@ def ring_initial(spacing=0.01):
                          np.linspace(0., 1., ny, dtype=np.float32))
     ui = np.zeros((nx, ny), dtype=np.float32)
     r = (xx - .5)**2. + (yy - .5)**2.
-    ui[np.logical_and(.05 <= r, r <= .1)] = 1.
+    ui[np.logical_and(r >= .05, r <= .1)] = 1.
     return ui
 
 
@@ -51,8 +51,10 @@ def execute_python(ui, spacing=0.01, a=0.5, timesteps=500):
                 uyy = (u[t0, i, j+1] - 2*u[t0, i, j] + u[t0, i, j-1]) / dy2
                 u[t1, i, j] = u[t0, i, j] + dt * a * (uxx + uyy)
     runtime = time.time() - tstart
-    log("Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, runtime))
+    log(
+        f'Python: Diffusion with dx={spacing:0.4f}, dy={spacing:0.4f}, '
+        f'executed {timesteps} timesteps in {runtime} seconds'
+    )
     return u[ti % 2, :, :], runtime
 
 
@@ -73,8 +75,10 @@ def execute_numpy(ui, spacing=0.01, a=0.5, timesteps=500):
         uyy = (u[t0, 1:-1, 2:] - 2*u[t0, 1:-1, 1:-1] + u[t0, 1:-1, :-2]) / dy2
         u[t1, 1:-1, 1:-1] = u[t0, 1:-1, 1:-1] + a * dt * (uxx + uyy)
     runtime = time.time() - tstart
-    log("Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, runtime))
+    log(
+        f'Numpy: Diffusion with dx={spacing:0.4f}, dy={spacing:0.4f}, '
+        f'executed {timesteps} timesteps in {runtime} seconds'
+    )
     return u[ti % 2, :, :], runtime
 
 
@@ -108,8 +112,10 @@ def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
                                    u[t0, :-2, 1:-1], u[t0, 1:-1, 2:],
                                    u[t0, 1:-1, :-2], dt, spacing)
     runtime = time.time() - tstart
-    log("Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, runtime))
+    log(
+        f'Lambdify: Diffusion with dx={spacing:0.4f}, dy={spacing:0.4f}, '
+        f'executed {timesteps} timesteps in {runtime} seconds'
+    )
     return u[ti % 2, :, :], runtime
 
 
@@ -133,8 +139,10 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     tstart = time.time()
     op.apply(u=u, t=timesteps, dt=dt)
     runtime = time.time() - tstart
-    log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, runtime))
+    log(
+        f'Devito: Diffusion with dx={spacing:0.4f}, dy={spacing:0.4f}, '
+        f'executed {timesteps} timesteps in {runtime} seconds'
+    )
     return u.data[1, :], runtime
 
 

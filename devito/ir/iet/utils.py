@@ -5,8 +5,12 @@ from devito.symbolics import Keyword, Macro
 from devito.tools import filter_ordered
 from devito.types import Global
 
-__all__ = ['filter_iterations', 'retrieve_iteration_tree', 'derive_parameters',
-           'maybe_alias']
+__all__ = [
+    'derive_parameters',
+    'filter_iterations',
+    'maybe_alias',
+    'retrieve_iteration_tree',
+]
 
 
 class IterationTree(tuple):
@@ -28,7 +32,7 @@ class IterationTree(tuple):
         return [i.dim for i in self]
 
     def __repr__(self):
-        return "IterationTree%s" % super().__repr__()
+        return f"IterationTree{super().__repr__()}"
 
     def __getitem__(self, key):
         ret = super().__getitem__(key)

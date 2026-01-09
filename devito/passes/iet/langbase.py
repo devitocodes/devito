@@ -1,19 +1,20 @@
 from functools import singledispatch
 from itertools import takewhile
-from abc import ABC
 
 import cgen as c
 
 from devito.data import FULL
-from devito.ir import (DummyExpr, Call, Conditional, Expression, List, Prodder,
-                       ParallelIteration, ParallelBlock, PointerCast, EntryFunction,
-                       AsyncCallable, FindNodes, FindSymbols, IsPerfectIteration)
+from devito.ir import (
+    AsyncCallable, Call, Conditional, DummyExpr, EntryFunction, Expression, FindNodes,
+    FindSymbols, IsPerfectIteration, List, ParallelBlock, ParallelIteration, PointerCast,
+    Prodder
+)
 from devito.mpi.distributed import MPICommObject
 from devito.passes import is_on_device
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import Byref, CondNe, SizeOf
 from devito.tools import as_list, is_integer, prod
-from devito.types import Symbol, QueueID, Wildcard
+from devito.types import QueueID, Symbol, Wildcard
 
 __all__ = ['LangBB', 'LangTransformer']
 
@@ -28,7 +29,7 @@ class LangMeta(type):
 
     def __getitem__(self, k):
         if k not in self.mapper:
-            raise NotImplementedError("Missing required mapping for `%s`" % k)
+            raise NotImplementedError(f"Missing required mapping for `{k}`")
         return self.mapper[k]
 
     def get(self, k, v=None):
@@ -147,7 +148,7 @@ class LangBB(metaclass=LangMeta):
         raise NotImplementedError
 
 
-class LangTransformer(ABC):
+class LangTransformer:
 
     """
     Abstract base class defining a series of methods capable of specializing
@@ -243,7 +244,7 @@ class ShmTransformer(LangTransformer):
              * 'par-collapse-ncores': use a collapse clause if the number of
                available physical cores is greater than this threshold.
              * 'par-collapse-work': use a collapse clause if the trip count of the
-               collapsable Iterations is statically known to exceed this threshold.
+               collapsible Iterations is statically known to exceed this threshold.
              * 'par-chunk-nonaffine': coefficient to adjust the chunk size in
                non-affine parallel Iterations.
              * 'par-dynamic-work': use dynamic scheduling if the operation count per
@@ -287,20 +288,20 @@ class ShmTransformer(LangTransformer):
     def threadid(self):
         return self.sregistry.threadid
 
-    def _score_candidate(self, n0, root, collapsable=()):
+    def _score_candidate(self, n0, root, collapsible=()):
         """
-        The score of a collapsable nest depends on the number of fully-parallel
+        The score of a collapsible nest depends on the number of fully-parallel
         Iterations and their position in the nest (the outer, the better).
         """
-        nest = [root] + list(collapsable)
+        nest = [root] + list(collapsible)
         n = len(nest)
 
-        # Number of fully-parallel collapsable Iterations
+        # Number of fully-parallel collapsible Iterations
         key = lambda i: i.is_ParallelNoAtomic
         fp_iters = list(takewhile(key, nest))
         n_fp_iters = len(fp_iters)
 
-        # Number of parallel-if-atomic collapsable Iterations
+        # Number of parallel-if-atomic collapsible Iterations
         key = lambda i: i.is_ParallelAtomic
         pia_iters = list(takewhile(key, nest))
         n_pia_iters = len(pia_iters)
@@ -339,13 +340,13 @@ class ShmTransformer(LangTransformer):
             # Score `root` in isolation
             mapper[(root, ())] = self._score_candidate(n0, root)
 
-            collapsable = []
+            collapsible = []
             for n, i in enumerate(candidates[n0+1:], n0+1):
                 # The Iteration nest [root, ..., i] must be perfect
                 if not IsPerfectIteration(depth=i).visit(root):
                     break
 
-                # Loops are collapsable only if none of the iteration variables
+                # Loops are collapsible only if none of the iteration variables
                 # appear in initializer expressions. For example, the following
                 # two loops cannot be collapsed
                 #
@@ -371,16 +372,16 @@ class ShmTransformer(LangTransformer):
                     except TypeError:
                         pass
 
-                collapsable.append(i)
+                collapsible.append(i)
 
-                # Score `root + collapsable`
-                v = tuple(collapsable)
+                # Score `root + collapsible`
+                v = tuple(collapsible)
                 mapper[(root, v)] = self._score_candidate(n0, root, v)
 
         # Retrieve the candidates with highest score
-        root, collapsable = max(mapper, key=mapper.get)
+        root, collapsible = max(mapper, key=mapper.get)
 
-        return root, list(collapsable)
+        return root, list(collapsible)
 
 
 class DeviceAwareMixin:
@@ -471,13 +472,13 @@ class DeviceAwareMixin:
             if objcomm is not None:
                 body = _make_setdevice_mpi(iet, objcomm, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s+MPI setup' % self.langbb['name'])
-                footer = c.Comment('End of %s+MPI setup' % self.langbb['name'])
+                header = c.Comment(f'Beginning of {self.langbb["name"]}+MPI setup')
+                footer = c.Comment(f'End of {self.langbb["name"]}+MPI setup')
             else:
                 body = _make_setdevice_seq(iet, nodes=lang_init)
 
-                header = c.Comment('Beginning of %s setup' % self.langbb['name'])
-                footer = c.Comment('End of %s setup' % self.langbb['name'])
+                header = c.Comment(f'Beginning of {self.langbb["name"]} setup')
+                footer = c.Comment(f'End of {self.langbb["name"]} setup')
 
             init = List(header=header, body=body, footer=footer)
             iet = iet._rebuild(body=iet.body._rebuild(init=init))
@@ -541,7 +542,7 @@ def make_sections_from_imask(f, imask=None):
     datashape = infer_transfer_datashape(f, imask)
 
     sections = []
-    for i, j in zip(imask, datashape):
+    for i, j in zip(imask, datashape, strict=False):
         if i is FULL:
             start, size = 0, j
         else:

@@ -2,7 +2,7 @@ from functools import cached_property
 from warnings import warn
 
 
-class DevitoDeprecation():
+class DevitoDeprecation:
 
     @cached_property
     def coeff_warn(self):

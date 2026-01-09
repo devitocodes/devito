@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Operator, norm, Function, Grid, SparseFunction, inner
+from devito import Function, Grid, Operator, SparseFunction, inner, norm
 from devito.logger import info
 from examples.seismic import demo_model
 from examples.seismic.acoustic import acoustic_setup
@@ -92,7 +92,7 @@ class TestAdjoint:
         """
         Adjoint test for the forward modeling operator.
         The forward modeling operator F generates a shot record (measurements)
-        from a source while the adjoint of F generates measurments at the source
+        from a source while the adjoint of F generates measurements at the source
         location from data. This test uses the conventional dot test:
         < Fx, y> = <x, F^T y>
         """
@@ -114,8 +114,10 @@ class TestAdjoint:
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = inner(srca, solver.geometry.src)
         term2 = norm(rec) ** 2
-        info('<x, A^Ty>: %f, <Ax,y>: %f, difference: %4.4e, ratio: %f'
-             % (term1, term2, (term1 - term2)/term1, term1 / term2))
+        info(
+            f'<x, A^Ty>: {term1:f}, <Ax,y>: {term2:f}, '
+            f'difference: {(term1 - term2)/term1:4.4e}, ratio: {term1 / term2:f}'
+        )
         assert np.isclose((term1 - term2)/term1, 0., atol=1.e-11)
 
     @pytest.mark.parametrize('mkey, shape, kernel, space_order, time_order, setup_func', [
@@ -192,8 +194,10 @@ class TestAdjoint:
         # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
         term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
         term2 = norm(du)**2
-        info('<x, J^Ty>: %f, <Jx,y>: %f, difference: %4.4e, ratio: %f'
-             % (term1, term2, (term1 - term2)/term1, term1 / term2))
+        info(
+            f'<x, J^Ty>: {term1:f}, <Jx,y>: {term2:f}, '
+            f'difference: {(term1 - term2)/term1:4.4e}, ratio: {term1 / term2:f}'
+        )
         assert np.isclose((term1 - term2)/term1, 0., atol=1.e-12)
 
     @pytest.mark.parametrize('shape, coords', [

@@ -1,18 +1,29 @@
-from collections import OrderedDict, deque
-from collections.abc import Callable, Iterable, MutableSet, Mapping, Set
-from functools import reduce, cached_property
 import json
+from collections import OrderedDict, deque
+from collections.abc import Callable, Iterable, Mapping, MutableSet, Set
+from contextlib import suppress
+from functools import cached_property, reduce
 
 import numpy as np
 from multidict import MultiDict
 
 from devito.tools import Pickable
-from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 from devito.tools.algorithms import toposort
+from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 
-__all__ = ['Bunch', 'EnrichedTuple', 'ReducerMap', 'DefaultOrderedDict',
-           'OrderedSet', 'Ordering', 'DAG', 'frozendict',
-           'UnboundTuple', 'UnboundedMultiTuple', 'MemoryEstimate']
+__all__ = [
+    'DAG',
+    'Bunch',
+    'DefaultOrderedDict',
+    'EnrichedTuple',
+    'MemoryEstimate',
+    'OrderedSet',
+    'Ordering',
+    'ReducerMap',
+    'UnboundTuple',
+    'UnboundedMultiTuple',
+    'frozendict',
+]
 
 
 class Bunch:
@@ -31,11 +42,12 @@ class Bunch:
         self.__dict__.update(kwargs)
 
     def __repr__(self):
-        return "Bunch(%s)" % ", ".join(["%s=%s" % i for i in self.__dict__.items()])
+        return "Bunch({})".format(
+            ", ".join(["{}={}".format(*i) for i in self.__dict__.items()])
+        )
 
     def __iter__(self):
-        for i in self.__dict__.values():
-            yield i
+        yield from self.__dict__.values()
 
 
 class EnrichedTuple(tuple, Pickable):
@@ -51,7 +63,7 @@ class EnrichedTuple(tuple, Pickable):
         obj = super().__new__(cls, items)
         obj.__dict__.update(kwargs)
         # Convert to list if we're getting an OrderedDict from rebuild
-        obj.getters = OrderedDict(zip(list(getters or []), items))
+        obj.getters = OrderedDict(zip(list(getters or []), items, strict=False))
         return obj
 
     def _rebuild(self, *args, **kwargs):
@@ -108,7 +120,7 @@ class ReducerMap(MultiDict):
         ret = ReducerMap()
         for i in dicts:
             if not isinstance(i, Mapping):
-                raise ValueError("Expected Mapping, got `%s`" % type(i))
+                raise ValueError(f"Expected Mapping, got `{type(i)}`")
             ret.update(i)
         return ret
 
@@ -169,8 +181,9 @@ class ReducerMap(MultiDict):
                     return c
             return candidates[0]
         else:
-            raise ValueError("Unable to find unique value for key %s, candidates: %s"
-                             % (key, candidates))
+            raise ValueError(
+                f'Unable to find unique value for key {key}, candidates: {candidates}'
+            )
 
     def reduce(self, key, op=None):
         """
@@ -230,10 +243,7 @@ class DefaultOrderedDict(OrderedDict):
         return value
 
     def __reduce__(self):
-        if self.default_factory is None:
-            args = tuple()
-        else:
-            args = self.default_factory,
+        args = tuple() if self.default_factory is None else (self.default_factory,)
         return type(self), args, None, None, self()
 
     def copy(self):
@@ -293,10 +303,10 @@ class OrderedSet(OrderedDict, MutableSet):
         return self >= other and self != other
 
     def __repr__(self):
-        return 'OrderedSet([%s])' % (', '.join(map(repr, self.keys())))
+        return 'OrderedSet([{}])'.format(', '.join(map(repr, self.keys())))
 
     def __str__(self):
-        return '{%s}' % (', '.join(map(repr, self.keys())))
+        return '{{{}}}'.format(', '.join(map(repr, self.keys())))
 
     difference = property(lambda self: self.__sub__)
     difference_update = property(lambda self: self.__isub__)
@@ -438,15 +448,15 @@ class DAG:
         if node_name in self.graph:
             if ignore_existing is True:
                 return
-            raise KeyError('node %s already exists' % node_name)
+            raise KeyError(f'node {node_name} already exists')
         self.graph[node_name] = OrderedSet()
 
     def delete_node(self, node_name):
         """Delete a node and all edges referencing it."""
         if node_name not in self.graph:
-            raise KeyError('node %s does not exist' % node_name)
+            raise KeyError(f'node {node_name} does not exist')
         self.graph.pop(node_name)
-        for node, edges in self.graph.items():
+        for _, edges in self.graph.items():
             if node_name in edges:
                 edges.remove(node_name)
 
@@ -466,10 +476,8 @@ class DAG:
         if dep_node not in self.graph.get(ind_node, []):
             raise KeyError('this edge does not exist in graph')
         self.graph[ind_node].remove(dep_node)
-        try:
+        with suppress(KeyError):
             del self.labels[ind_node][dep_node]
-        except KeyError:
-            pass
 
     def get_label(self, ind_node, dep_node, default=None):
         try:
@@ -502,7 +510,7 @@ class DAG:
     def downstream(self, node):
         """Return a list of all nodes this node has edges towards."""
         if node not in self.graph:
-            raise KeyError('node %s is not in graph' % node)
+            raise KeyError(f'node {node} is not in graph')
         return list(self.graph[node])
 
     def all_downstreams(self, node):
@@ -596,7 +604,7 @@ class DAG:
 
     def find_paths(self, node):
         if node not in self.graph:
-            raise KeyError('node %s is not in graph' % node)
+            raise KeyError(f'node {node} is not in graph')
 
         paths = []
 
@@ -650,7 +658,7 @@ class frozendict(Mapping):
         return len(self._dict)
 
     def __repr__(self):
-        return '<%s %r>' % (self.__class__.__name__, self._dict)
+        return f'<{self.__class__.__name__} {self._dict!r}>'
 
     def __hash__(self):
         if self._hash is None:
@@ -772,7 +780,7 @@ class UnboundTuple(tuple):
 
     def __repr__(self):
         sitems = [s.__repr__() for s in self]
-        return "%s(%s)" % (self.__class__.__name__, ", ".join(sitems))
+        return "{}({})".format(self.__class__.__name__, ", ".join(sitems))
 
     def __getitem__(self, idx):
         if not self:

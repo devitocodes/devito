@@ -1,13 +1,12 @@
 """Monkeypatch for as_independent required for Devito Derivative. """
 
-from packaging.version import Version
-
 import sympy
+from packaging.version import Version
 from sympy.core.add import _unevaluated_Add
 from sympy.core.expr import Expr
 from sympy.core.mul import _unevaluated_Mul
-from sympy.core.symbol import Symbol
 from sympy.core.singleton import S
+from sympy.core.symbol import Symbol
 
 """
 Copy of upstream sympy methods, without docstrings, comments or typehints

@@ -1,7 +1,8 @@
 from devito import Function, TimeFunction
 from devito.tools import memoized_meth
-from examples.seismic.self_adjoint.operators import IsoFwdOperator, IsoAdjOperator, \
-    IsoJacobianFwdOperator, IsoJacobianAdjOperator
+from examples.seismic.self_adjoint.operators import (
+    IsoAdjOperator, IsoFwdOperator, IsoJacobianAdjOperator, IsoJacobianFwdOperator
+)
 
 
 class SaIsoAcousticWaveSolver:

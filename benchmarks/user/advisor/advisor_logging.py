@@ -9,18 +9,18 @@ def check(cond, msg):
 
 
 def err(msg):
-    print('\033[1;37;31m%s\033[0m' % msg)  # print in RED
+    print(f'\033[1;37;31m{msg}\033[0m')  # print in RED
 
 
 def log(msg):
-    print('\033[1;37;32m%s\033[0m' % msg)  # print in GREEN
+    print(f'\033[1;37;32m{msg}\033[0m')  # print in GREEN
 
 
 @contextmanager
 def progress(msg):
-    print('\033[1;37;32m%s ... \033[0m' % msg, end='', flush=True)  # print in GREEN
+    print(f'\033[1;37;32m{msg} ... \033[0m', end='', flush=True)  # print in GREEN
     yield
-    print('\033[1;37;32m%s\033[0m' % 'Done!')
+    print('\033[1;37;32m{}\033[0m'.format('Done!'))
 
 
 def log_process(process, logger):

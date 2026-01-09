@@ -1,14 +1,15 @@
 import cgen as c
-from sympy import Mod
 import pytest
+from sympy import Mod
 
-from devito import Grid, Eq, Function, TimeFunction, Operator, Min, sin
+from devito import Eq, Function, Grid, Min, Operator, TimeFunction, sin
 from devito.ir.equations import DummyEq
-from devito.ir.iet import (Block, Expression, Callable, FindNodes, FindSections,
-                           FindSymbols, IsPerfectIteration, Transformer,
-                           Conditional, printAST, Iteration, MapNodes, Call,
-                           FindApplications)
-from devito.types import SpaceDimension, Array, Symbol
+from devito.ir.iet import (
+    Block, Call, Callable, Conditional, Expression, FindApplications, FindNodes,
+    FindSections, FindSymbols, IsPerfectIteration, Iteration, MapNodes, Transformer,
+    printAST
+)
+from devito.types import Array, SpaceDimension, Symbol
 
 
 @pytest.fixture(scope="module")
@@ -323,7 +324,7 @@ def test_transformer_add_replace(exprs, block2, block3):
 def test_nested_transformer(exprs, iters, block2):
     """When created with the kwarg ``nested=True``, a Transformer performs
     nested replacements. This test simultaneously replace an inner expression
-    and an Iteration sorrounding it."""
+    and an Iteration surrounding it."""
     target_loop = block2.nodes[1]
     target_expr = target_loop.nodes[0].nodes[0]
     mapper = {target_loop: iters[3](target_loop.nodes[0]),
@@ -390,7 +391,7 @@ def test_map_nodes(block1):
 
     assert len(map_nodes.keys()) == 1
 
-    for iters, (expr,) in map_nodes.items():
+    for iters in map_nodes:
         # Replace the outermost `Iteration` with a `Call`
         callback = Callable('solver', iters[0], 'void', ())
         processed = Transformer({iters[0]: Call(callback.name)}).visit(block1)

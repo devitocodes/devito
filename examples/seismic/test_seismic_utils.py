@@ -1,11 +1,12 @@
-try:
+from contextlib import suppress
+
+with suppress(ImportError):
     import pytest
-except:
-    pass
+
 import numpy as np
 
 from devito import norm
-from examples.seismic import Model, setup_geometry, AcquisitionGeometry
+from examples.seismic import AcquisitionGeometry, Model, setup_geometry
 
 
 def not_bcs(bc):
@@ -26,7 +27,7 @@ def test_damp(nbl, bcs):
     except AttributeError:
         center = model.damp
 
-    assert all([s == s0 + 2 * nbl for s, s0 in zip(model.vp.shape, shape)])
+    assert all([s == s0 + 2 * nbl for s, s0 in zip(model.vp.shape, shape, strict=True)])
     assert center == bcs[1]
 
     switch_bcs = not_bcs(bcs[0])

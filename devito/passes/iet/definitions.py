@@ -11,20 +11,20 @@ from operator import itemgetter
 import numpy as np
 
 from devito.ir import (
-    Block, Call, Definition, DummyExpr, Iteration, List, Return, EntryFunction,
-    FindNodes, FindSymbols, MapExprStmts, Transformer, make_callable
+    Block, Call, Definition, DummyExpr, EntryFunction, FindNodes, FindSymbols, Iteration,
+    List, MapExprStmts, Return, Transformer, make_callable
 )
 from devito.passes import is_gpu_create
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import (
-    Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer,
-    SizeOf, VOID, pow_to_mul, unevaluate, as_long
+    VOID, Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer, SizeOf,
+    as_long, pow_to_mul, unevaluate
 )
-from devito.tools import as_mapper, as_list, as_tuple, filter_sorted, flatten
+from devito.tools import as_list, as_mapper, as_tuple, filter_sorted, flatten
 from devito.types import (
-    Array, ComponentAccess, CustomDimension, Dimension, DeviceMap, DeviceRM,
-    Eq, Symbol, size_t
+    Array, ComponentAccess, CustomDimension, DeviceMap, DeviceRM, Dimension, Eq, Symbol,
+    size_t
 )
 
 __all__ = ['DataManager', 'DeviceAwareDataManager', 'Storage']
@@ -98,10 +98,7 @@ class DataManager:
         """
         decl = Definition(obj)
 
-        if obj._C_init:
-            definition = (decl, obj._C_init)
-        else:
-            definition = (decl)
+        definition = (decl, obj._C_init) if obj._C_init else (decl)
 
         frees = obj._C_free
 
@@ -130,7 +127,7 @@ class DataManager:
             return
 
         # Create input array
-        name = '%s_init' % obj.name
+        name = f'{obj.name}_init'
         initvalue = np.array([unevaluate(pow_to_mul(i)) for i in obj.initvalue])
         src = Array(name=name, dtype=obj.dtype, dimensions=obj.dimensions,
                     space='host', scope='stack', initvalue=initvalue)
@@ -693,7 +690,9 @@ class DeviceAwareDataManager(DataManager):
 
 def make_zero_init(obj, rcompile, sregistry):
     cdims = []
-    for d, (h0, h1), s in zip(obj.dimensions, obj._size_halo, obj.symbolic_shape):
+    for d, (h0, h1), s in zip(
+        obj.dimensions, obj._size_halo, obj.symbolic_shape, strict=True
+    ):
         if d.is_NonlinearDerived:
             assert h0 == h1 == 0
             m = 0

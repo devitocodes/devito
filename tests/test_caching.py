@@ -1,16 +1,19 @@
-from ctypes import byref, c_void_p
 import weakref
+from ctypes import byref, c_void_p
 
 import numpy as np
-from sympy import Expr
 import pytest
+from sympy import Expr
 
-from devito import (Grid, Function, TimeFunction, SparseFunction, SparseTimeFunction,
-                    ConditionalDimension, SubDimension, Constant, Operator, Eq, Dimension,
-                    DefaultDimension, _SymbolCache, clear_cache, solve, VectorFunction,
-                    TensorFunction, TensorTimeFunction, VectorTimeFunction)
-from devito.types import (DeviceID, NThreadsBase, NPThreads, Object, LocalObject,
-                          Scalar, Symbol, ThreadID)
+from devito import (
+    ConditionalDimension, Constant, DefaultDimension, Dimension, Eq, Function, Grid,
+    Operator, SparseFunction, SparseTimeFunction, SubDimension, TensorFunction,
+    TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, _SymbolCache,
+    clear_cache, solve
+)
+from devito.types import (
+    DeviceID, LocalObject, NPThreads, NThreadsBase, Object, Scalar, Symbol, ThreadID
+)
 from devito.types.basic import AbstractSymbol
 
 
@@ -558,7 +561,7 @@ class TestCaching:
         u.data[:] = 6.
         u_ref = weakref.ref(u.data)
 
-        # Create derivative and delete orignal u[x, y]
+        # Create derivative and delete original u[x, y]
         dx = u.dx
         del u
         clear_cache()
@@ -578,7 +581,7 @@ class TestCaching:
         grid = Grid(shape=(nx, ny), dtype=np.float64)
         cache_size = len(_SymbolCache)
 
-        for i in range(10):
+        for _ in range(10):
             assert(len(_SymbolCache) == cache_size)
 
             Function(name='u', grid=grid, space_order=2)
@@ -601,7 +604,7 @@ class TestCaching:
         ncreated = 0
         assert(len(_SymbolCache) == cache_size + ncreated)
 
-        u._C_symbol
+        _ = u._C_symbol
         # Cache size won't change since _C_symbol isn't cached by devito to
         # avoid circular references in the cache
         assert(len(_SymbolCache) == cache_size + ncreated)
@@ -675,11 +678,12 @@ class TestCaching:
         ncreated = 2+1+2+2+2+1+4
         # Note that injection is now lazy so no new symbols should be created
         assert len(_SymbolCache) == cur_cache_size
-        i.evaluate
+        # The expression is not redundant, but storing it changes the symbol count
+        i.evaluate  # noqa: B018
 
         assert len(_SymbolCache) == cur_cache_size + ncreated
 
-        # No new symbolic obejcts are created
+        # No new symbolic objects are created
         u.inject(expr=u, field=u)
         assert len(_SymbolCache) == cur_cache_size + ncreated
 

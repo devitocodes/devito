@@ -1,5 +1,4 @@
 import sympy
-
 from packaging.version import Version
 
 from devito.finite_differences.differentiable import DifferentiableFunction, diffify

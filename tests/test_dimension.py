@@ -1,21 +1,23 @@
-from itertools import product
 from copy import deepcopy
+from itertools import product
 
 import numpy as np
-from sympy import And, Or
 import pytest
+from sympy import And, Or
 
-from conftest import assert_blocking, assert_structure, skipif, opts_tiling
-from devito import (ConditionalDimension, Grid, Function, TimeFunction, floor,  # noqa
-                    SparseFunction, SparseTimeFunction, Eq, Operator, Constant,
-                    Dimension, DefaultDimension, SubDimension, switchconfig,
-                    SubDomain, Lt, Le, Gt, Ge, Ne, Buffer, sin, SpaceDimension,
-                    CustomDimension, dimensions, configuration, norm, Inc, sum)
-from devito.ir.iet import (Conditional, Expression, Iteration, FindNodes,
-                           FindSymbols, retrieve_iteration_tree)
-from devito.ir.equations.algorithms import concretize_subdims
+from conftest import assert_blocking, assert_structure, opts_tiling, skipif
+from devito import (  # noqa
+    Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension, Dimension,
+    Eq, Function, Ge, Grid, Gt, Inc, Le, Lt, Ne, Operator, SpaceDimension, SparseFunction,
+    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, dimensions,
+    floor, norm, sin, sum, switchconfig
+)
 from devito.ir import SymbolRegistry
-from devito.symbolics import indexify, retrieve_functions, IntDiv, INT
+from devito.ir.equations.algorithms import concretize_subdims
+from devito.ir.iet import (
+    Conditional, Expression, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+)
+from devito.symbolics import INT, IntDiv, indexify, retrieve_functions
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.basic import Scalar
 from devito.types.dimension import AffineIndexAccessFunction, Thickness
@@ -856,7 +858,7 @@ class TestConditionalDimension:
         op.apply(u=u, usave1=u1, usave2=u2, time_M=nt-2)
 
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
-        for (uk, fk) in zip((u1, u2), (f1, f2)):
+        for (uk, fk) in zip((u1, u2), (f1, f2), strict=True):
             assert np.all([np.allclose(uk.data[i], i*fk)
                            for i in range((nt+fk-1)//fk)])
 
@@ -884,7 +886,7 @@ class TestConditionalDimension:
         op.apply(u=u, usave1=u2, time_M=nt-2)
 
         assert np.all(np.allclose(u.data[(nt-1) % 3], nt-1))
-        for (uk, fk) in zip((u1, u2), (f1, f2)):
+        for (uk, fk) in zip((u1, u2), (f1, f2), strict=True):
             assert np.all([np.allclose(uk.data[i], i*fk)
                            for i in range((nt+fk-1)//fk)])
 
@@ -1251,15 +1253,15 @@ class TestConditionalDimension:
 
         radius = 1
         indices = [(INT(floor(i)), INT(floor(i))+radius)
-                   for i in sf._position_map.keys()]
+                   for i in sf._position_map]
         bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
         eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]
         for e, i in enumerate(product(*indices)):
             args = [j > 0 for j in i]
-            args.extend([j < k for j, k in zip(i, bounds)])
+            args.extend([j < k for j, k in zip(i, bounds, strict=True)])
             condition = And(*args, evaluate=False)
-            cd = ConditionalDimension('sfc%d' % e, parent=sd, condition=condition)
+            cd = ConditionalDimension(f'sfc{e}', parent=sd, condition=condition)
             index = [time] + list(i)
             eqs.append(Eq(f[index], f[index] + sf[cd]))
 
@@ -1288,7 +1290,7 @@ class TestConditionalDimension:
 
         # Ensure both code generation and jitting work
         op = Operator(eq)
-        op.cfunction
+        _ = op.cfunction
 
     @pytest.mark.parametrize('value', [0, 1])
     def test_constant_as_condition(self, value):
@@ -1480,18 +1482,39 @@ class TestConditionalDimension:
         grid = Grid(shape=(4, 4))
         _, y = grid.dimensions
 
-        ths = 10
+        threshold = 10
         g = TimeFunction(name='g', grid=grid)
 
-        ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, ths))
+        ci = ConditionalDimension(name='ci', parent=y, condition=Le(g, threshold))
 
         op = Operator(Eq(g.forward, g + 1, implicit_dims=ci))
 
-        op.apply(time_M=ths+3)
-        assert np.all(g.data[0, :, :] == ths)
-        assert np.all(g.data[1, :, :] == ths + 1)
-        assert 'if (g[t0][x + 1][y + 1] <= 10)\n'
-        '{\n g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1' in str(op.ccode)
+        op.apply(time_M=threshold+3)
+        assert np.all(g.data[0, :, :] == threshold)
+        assert np.all(g.data[1, :, :] == threshold + 1)
+
+        # We want to assert that the following snippet:
+        # ```
+        #   if (g[t0][x + 1][y + 1] <= 10)
+        #   {
+        #     g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1
+        # ```
+        # is in the generated code, but indentation etc. seems to vary.
+        part1 = 'if (g[t0][x + 1][y + 1] <= 10)\n'
+        part2 = 'g[t1][x + 1][y + 1] = g[t0][x + 1][y + 1] + 1'
+        whole_code = str(op.ccode)
+
+        try:
+            loc = whole_code.find(part1)
+            assert loc != -1
+            assert whole_code.find(part2, loc + len(part1)) != -1
+        except AssertionError:
+            # Try the alternative string
+            part1 = 'if (gL0(t0, x + 1, y + 1) <= 10)\n'
+            part2 = 'gL0(t1, x + 1, y + 1) = gL0(t0, x + 1, y + 1) + 1'
+            loc = whole_code.find(part1)
+            assert loc != -1
+            assert whole_code.find(part2, loc + len(part1)) != -1
 
     def test_expr_like_lowering(self):
         """
@@ -1687,7 +1710,7 @@ class TestConditionalDimension:
         shape = (21, 21, 21)
         origin = (0., 0., 0.)
         spacing = (1., 1., 1.)
-        extent = tuple([d * (s - 1) for s, d in zip(shape, spacing)])
+        extent = tuple([d * (s - 1) for s, d in zip(shape, spacing, strict=True)])
         grid = Grid(shape=shape, extent=extent, origin=origin)
         time = grid.time_dim
         x, y, z = grid.dimensions
@@ -1696,7 +1719,10 @@ class TestConditionalDimension:
 
         # Place source in the middle of the grid
         src_coords = np.empty((1, len(shape)), dtype=np.float32)
-        src_coords[0, :] = [o + d * (s-1)//2 for o, d, s in zip(origin, spacing, shape)]
+        src_coords[0, :] = [
+            o + d * (s-1)//2
+            for o, d, s in zip(origin, spacing, shape, strict=True)
+        ]
         src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt)
         src.data[:] = 1.
         src.coordinates.data[:] = src_coords[:]
@@ -1744,7 +1770,7 @@ class TestConditionalDimension:
                        Eq(f2[t5, t6, t7, t8], 2 * t9 + t10, implicit_dims=cd)])
 
         # Check it compiles correctly! See issue report
-        op.cfunction
+        _ = op.cfunction
 
     @pytest.mark.parametrize('factor', [
         4,
@@ -1807,24 +1833,27 @@ class TestConditionalDimension:
         # proxy integral
         f.data[:] = np.array(freq[:])
         # Proxy Fourier integral holder
-        ure = Function(name="ure", grid=grid,
-                       dimensions=(freq_dim,) + u.indices[1:],
-                       shape=(nfreq,) + u.shape[1:])
+        u_re = Function(
+            name="u_re",
+            grid=grid,
+            dimensions=(freq_dim,) + u.indices[1:],
+            shape=(nfreq,) + u.shape[1:]
+        )
 
         # ConditionalDimension based on `f` to simulate bounds of Fourier integral
         ct = ConditionalDimension(name="ct", parent=time, condition=Ge(time, f))
         eqns = [
             Eq(u.forward, u+1),
-            Eq(ure, ure + u, implicit_dims=ct)
+            Eq(u_re, u_re + u, implicit_dims=ct)
         ]
 
         op = Operator(eqns)
 
         op.apply(time_M=10)
 
-        assert np.all(ure.data[0] == 54)
-        assert np.all(ure.data[1] == 49)
-        assert np.all(ure.data[2] == 27)
+        assert np.all(u_re.data[0] == 54)
+        assert np.all(u_re.data[1] == 49)
+        assert np.all(u_re.data[2] == 27)
 
         # Make sure the ConditionalDimension is at the right depth for performance
         trees = retrieve_iteration_tree(op)
@@ -1854,7 +1883,7 @@ class TestConditionalDimension:
 
         op = Operator(eqns)
 
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t', 't,x', 't,x'], 't,x,x')
 
@@ -2024,7 +2053,7 @@ class TestCustomDimension:
                    for d in grid.dimensions]
 
         eqn = Eq(v, u)
-        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims)))
+        eqn = eqn.xreplace(dict(zip(grid.dimensions, subdims, strict=True)))
 
         op = Operator(eqn)
 

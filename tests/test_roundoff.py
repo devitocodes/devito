@@ -1,8 +1,8 @@
-import pytest
 import numpy as np
+import pytest
 
 from conftest import skipif
-from devito import Grid, Constant, TimeFunction, Eq, Operator, switchconfig
+from devito import Constant, Eq, Grid, Operator, TimeFunction, switchconfig
 
 
 class TestRoundoff:

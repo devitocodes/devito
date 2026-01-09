@@ -1,7 +1,7 @@
 """The parameters dictionary contains global parameter settings."""
+import os
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-import os
 from functools import wraps
 
 from devito.logger import info, warning
@@ -64,7 +64,7 @@ class Parameters(OrderedDict, Signer):
 
     def _preprocess(self, key, value):
         """
-        Execute the preprocesser associated to ``key``, if any. This will
+        Execute the preprocessor associated to ``key``, if any. This will
         return a new value.
         """
         if key in self._preprocess_functions:
@@ -197,7 +197,7 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
         try:
             items = v.split(';')
             # Env variable format: 'var=k1:v1;k2:v2:k3:v3:...'
-            keys, values = zip(*[i.split(':') for i in items])
+            keys, values = zip(*[i.split(':') for i in items], strict=True)
             # Casting
             values = [eval(i) for i in values]
         except AttributeError:
@@ -215,7 +215,7 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
                 except (TypeError, ValueError):
                     keys[i] = j
         if len(keys) == len(values):
-            configuration.update(k, dict(zip(keys, values)))
+            configuration.update(k, dict(zip(keys, values, strict=True)))
         elif len(keys) == 1:
             configuration.update(k, keys[0])
         else:
@@ -269,7 +269,7 @@ class switchconfig(SwitchDecorator):
             configuration[k] = v
 
     def __exit__(self, exc_type, exc_val, traceback):
-        for k, v in self.params.items():
+        for k in self.params:
             try:
                 configuration[k] = self.previous[k]
             except ValueError:

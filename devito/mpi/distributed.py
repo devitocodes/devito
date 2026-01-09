@@ -1,23 +1,21 @@
+import atexit
 from abc import ABC, abstractmethod
 from ctypes import c_int, c_void_p, sizeof
-from itertools import groupby, product
 from functools import cached_property
-
+from itertools import groupby, product
 from math import ceil, pow
-from sympy import factorint, Interval
-
-import atexit
 
 import numpy as np
 from cgen import Struct, Value
+from sympy import Interval, factorint
 
-from devito.data import LEFT, CENTER, RIGHT, Decomposition
+from devito.data import CENTER, LEFT, RIGHT, Decomposition
 from devito.parameters import configuration
-from devito.tools import (EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered,
-                          frozendict)
-from devito.types import CompositeObject, Object, Constant
+from devito.tools import (
+    EnrichedTuple, as_tuple, ctypes_to_cstr, filter_ordered, frozendict
+)
+from devito.types import CompositeObject, Constant, Object
 from devito.types.utils import DimensionTuple
-
 
 # Do not prematurely initialize MPI
 # This allows launching a Devito program from within another Python program
@@ -64,8 +62,15 @@ except (RuntimeError, ImportError) as e:
             return None
 
 
-__all__ = ['Distributor', 'SubDistributor', 'SparseDistributor', 'MPI',
-           'CustomTopology', 'devito_mpi_init', 'devito_mpi_finalize']
+__all__ = [
+    'MPI',
+    'CustomTopology',
+    'Distributor',
+    'SparseDistributor',
+    'SubDistributor',
+    'devito_mpi_finalize',
+    'devito_mpi_init',
+]
 
 
 def devito_mpi_init():
@@ -75,8 +80,8 @@ def devito_mpi_init():
     if not MPI.Is_initialized():
         try:
             thread_level = mpi4py_thread_levels[mpi4py.rc.thread_level]
-        except KeyError:
-            assert False
+        except KeyError as e:
+            raise AssertionError('mpi4py thread levels not accessible') from e
 
         MPI.Init_thread(thread_level)
 
@@ -112,7 +117,7 @@ class AbstractDistributor(ABC):
         self._dimensions = as_tuple(dimensions)
 
     def __repr__(self):
-        return "%s(nprocs=%d)" % (self.__class__.__name__, self.nprocs)
+        return f'{self.__class__.__name__}(nprocs={self.nprocs})'
 
     @abstractmethod
     def comm(self):
@@ -142,7 +147,7 @@ class AbstractDistributor(ABC):
     def glb_numb(self):
         """The global indices owned by the calling MPI rank."""
         assert len(self.mycoords) == len(self.decomposition)
-        glb_numb = [i[j] for i, j in zip(self.decomposition, self.mycoords)]
+        glb_numb = [i[j] for i, j in zip(self.decomposition, self.mycoords, strict=True)]
         return EnrichedTuple(*glb_numb, getters=self.dimensions)
 
     @cached_property
@@ -152,7 +157,7 @@ class AbstractDistributor(ABC):
         Dimensions to slices.
         """
         return {d: slice(min(i), max(i) + 1) if len(i) > 0 else slice(0, -1)
-                for d, i in zip(self.dimensions, self.glb_numb)}
+                for d, i in zip(self.dimensions, self.glb_numb, strict=True)}
 
     @property
     def glb_shape(self):
@@ -197,7 +202,7 @@ class AbstractDistributor(ABC):
         """
         if dim not in self.dimensions:
             if strict:
-                raise ValueError("`%s` must be one of the Distributor dimensions" % dim)
+                raise ValueError(f"`{dim}` must be one of the Distributor dimensions")
             else:
                 return args[0]
         return self.decomposition[dim].index_glb_to_loc(*args)
@@ -279,7 +284,7 @@ class DenseDistributor(AbstractDistributor):
         """The global numbering of all MPI ranks."""
         ret = []
         for c in self.all_coords:
-            glb_numb = [i[j] for i, j in zip(self.decomposition, c)]
+            glb_numb = [i[j] for i, j in zip(self.decomposition, c, strict=True)]
             ret.append(EnrichedTuple(*glb_numb, getters=self.dimensions))
         return tuple(ret)
 
@@ -365,16 +370,20 @@ class Distributor(DenseDistributor):
             self._topology = tuple(1 for _ in range(len(shape)))
 
         # The domain decomposition
-        self._decomposition = [Decomposition(np.array_split(range(i), j), c)
-                               for i, j, c in zip(shape, self.topology, self.mycoords)]
+        self._decomposition = [
+            Decomposition(np.array_split(range(i), j), c)
+            for i, j, c in zip(shape, self.topology, self.mycoords, strict=True)
+        ]
 
     @cached_property
     def is_boundary_rank(self):
         """
         MPI rank interfaces with the boundary of the domain.
         """
-        return any([i == 0 or i == j-1 for i, j in
-                   zip(self.mycoords, self.topology)])
+        return any([
+            i == 0 or i == j-1
+            for i, j in zip(self.mycoords, self.topology, strict=True)
+        ])
 
     @cached_property
     def glb_pos_map(self):
@@ -383,7 +392,7 @@ class Distributor(DenseDistributor):
         MPI rank in the decomposed domain.
         """
         ret = {}
-        for d, i, s in zip(self.dimensions, self.mycoords, self.topology):
+        for d, i, s in zip(self.dimensions, self.mycoords, self.topology, strict=True):
             v = []
             if i == 0:
                 v.append(LEFT)
@@ -456,9 +465,9 @@ class Distributor(DenseDistributor):
 
         # Set up diagonal neighbours
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
-            neighbor = [c + s.val for c, s in zip(self.mycoords, i)]
+            neighbor = [c + s.val for c, s in zip(self.mycoords, i, strict=True)]
 
-            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology)):
+            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology, strict=True)):
                 ret[i] = MPI.PROC_NULL
             else:
                 ret[i] = self.comm.Get_cart_rank(neighbor)
@@ -494,9 +503,11 @@ class SubDistributor(DenseDistributor):
         super().__init__(subdomain.shape, subdomain.dimensions)
 
         self._subdomain_name = subdomain.name
-        self._dimension_map = frozendict({pd: sd for pd, sd
-                                          in zip(subdomain.grid.dimensions,
-                                                 subdomain.dimensions)})
+        self._dimension_map = frozendict({
+            pd: sd for pd, sd in zip(
+                subdomain.grid.dimensions, subdomain.dimensions, strict=True
+            )
+        })
 
         self._parent = subdomain.grid.distributor
         self._comm = self.parent.comm
@@ -509,16 +520,21 @@ class SubDistributor(DenseDistributor):
         Set up the decomposition, aligned with that of the parent Distributor.
         """
         decompositions = []
-        for dec, i in zip(self.parent._decomposition, self.subdomain_interval):
+        for dec, i in zip(
+            self.parent._decomposition, self.subdomain_interval, strict=True
+        ):
             if i is None:
                 decompositions.append(dec)
             else:
                 start, end = _interval_bounds(i)
-                decompositions.append([d[np.logical_and(d >= start, d <= end)]
-                                       for d in dec])
+                decompositions.append(
+                    [d[np.logical_and(d >= start, d <= end)] for d in dec]
+                )
 
-        self._decomposition = [Decomposition(d, c)
-                               for d, c in zip(decompositions, self.mycoords)]
+        self._decomposition = [
+            Decomposition(d, c)
+            for d, c in zip(decompositions, self.mycoords, strict=True)
+        ]
 
     @property
     def parent(self):
@@ -553,8 +569,10 @@ class SubDistributor(DenseDistributor):
         """The interval spanned by the SubDomain."""
         # Assumes no override of x_m and x_M supplied to operator
         bounds_map = {d.symbolic_min: 0 for d in self.p.dimensions}
-        bounds_map.update({d.symbolic_max: s-1 for d, s in zip(self.p.dimensions,
-                                                               self.p.glb_shape)})
+        bounds_map.update({
+            d.symbolic_max: s - 1
+            for d, s in zip(self.p.dimensions, self.p.glb_shape, strict=True)
+        })
 
         sd_interval = []  # The Interval of SubDimension indices
         for d in self.dimensions:
@@ -571,8 +589,10 @@ class SubDistributor(DenseDistributor):
     @cached_property
     def intervals(self):
         """The interval spanned by the SubDomain in each dimension on this rank."""
-        return tuple(d if s is None else d.intersect(s)
-                     for d, s in zip(self.domain_interval, self.subdomain_interval))
+        return tuple(
+            d if s is None else d.intersect(s)
+            for d, s in zip(self.domain_interval, self.subdomain_interval, strict=True)
+        )
 
     @cached_property
     def crosses(self):
@@ -603,18 +623,27 @@ class SubDistributor(DenseDistributor):
             if di.issuperset(si) or di.isdisjoint(si):
                 return {LEFT: False, RIGHT: False}
             elif d.local:
-                raise ValueError("SubDimension %s is local and cannot be"
-                                 " decomposed across MPI ranks" % d)
+                raise ValueError(f"SubDimension {d} is local and cannot be"
+                                 " decomposed across MPI ranks")
             return {LEFT: si.left < di.left,
                     RIGHT: si.right > di.right}
 
-        crosses = {d: get_crosses(d, di, si) for d, di, si
-                   in zip(self.dimensions, self.domain_interval,
-                          self.subdomain_interval)}
+        crosses = {
+            d: get_crosses(d, di, si)
+            for d, di, si in zip(
+                self.dimensions,
+                self.domain_interval,
+                self.subdomain_interval,
+                strict=True
+            )
+        }
 
         for i in product([LEFT, CENTER, RIGHT], repeat=len(self.dimensions)):
-            crosses[i] = all(crosses[d][s] for d, s in zip(self.dimensions, i)
-                             if s in crosses[d])  # Skip over CENTER
+            crosses[i] = all(
+                crosses[d][s]
+                for d, s in zip(self.dimensions, i, strict=True)
+                if s in crosses[d]
+            )  # Skip over CENTER
 
         return frozendict(crosses)
 
@@ -659,10 +688,11 @@ class SubDistributor(DenseDistributor):
 
         # Set up diagonal neighbours
         for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
-            neighbor = [c + s.val for c, s in zip(self.mycoords, i)]
+            neighbor = [c + s.val for c, s in zip(self.mycoords, i, strict=True)]
 
-            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology)) \
-               or not self.crosses[i]:
+            if any(
+                c < 0 or c >= s for c, s in zip(neighbor, self.topology, strict=True)
+            ) or not self.crosses[i]:
                 ret[i] = MPI.PROC_NULL
             else:
                 ret[i] = self.comm.Get_cart_rank(neighbor)
@@ -673,7 +703,7 @@ class SubDistributor(DenseDistributor):
     def rank_populated(self):
         """Constant symbol for a switch indicating that data is allocated on this rank"""
         return Constant(name=f'rank_populated_{self._subdomain_name}', dtype=np.int8,
-                        value=int(not(self.loc_empty)))
+                        value=int(not self.loc_empty))
 
 
 def _interval_bounds(interval):
@@ -737,8 +767,10 @@ class SparseDistributor(AbstractDistributor):
             # The i-th entry in `npoint` tells how many sparse points the
             # i-th MPI rank has
             if len(npoint) != nprocs:
-                raise ValueError('The `npoint` tuple must have as many entries as '
-                                 'MPI ranks (got `%d`, need `%d`)' % (npoint, nprocs))
+                raise ValueError(
+                    'The `npoint` tuple must have as many entries as '
+                    f'MPI ranks (got `{npoint}`, need `{nprocs}`)'
+                )
             elif any(i < 0 for i in npoint):
                 raise ValueError('All entries in `npoint` must be >= 0')
             glb_npoint = npoint
@@ -803,7 +835,7 @@ class MPICommObject(Object):
         self.comm = comm
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid', None)
+        grid = kwargs.get('grid')
         # Update `comm` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_comm._arg_defaults()
@@ -845,18 +877,18 @@ class MPINeighborhood(CompositeObject):
         #
         # With this override, we generate the one on the right
         groups = [list(g) for k, g in groupby(self.pfields, key=lambda x: x[0][0])]
-        groups = [(j[0], i) for i, j in [zip(*g) for g in groups]]
+        groups = [(j[0], i) for i, j in [zip(*g, strict=True) for g in groups]]
         return Struct(self.pname, [Value(ctypes_to_cstr(i), ', '.join(j))
                                    for i, j in groups])
 
     def _arg_defaults(self):
         values = super()._arg_defaults()
-        for name, i in zip(self.fields, self.entries):
+        for name, i in zip(self.fields, self.entries, strict=True):
             setattr(values[self.name]._obj, name, self.neighborhood[i])
         return values
 
     def _arg_values(self, *args, **kwargs):
-        grid = kwargs.get('grid', None)
+        grid = kwargs.get('grid')
         # Update `nb` based on object attached to `grid`
         if grid is not None:
             return grid.distributor._obj_neighborhood._arg_defaults()
@@ -954,7 +986,7 @@ class CustomTopology(tuple):
             star_vals = [int(np.prod(s)) for s in split]
 
             # Apply computed star values to the processed
-            for index, value in zip(star_pos, star_vals):
+            for index, value in zip(star_pos, star_vals, strict=True):
                 processed[index] = value
 
         # Final check that topology matches the communicator size
@@ -974,7 +1006,7 @@ def compute_dims(nprocs, ndim):
     if not v.is_integer():
         # Since pow(64, 1/3) == 3.999..4
         v = int(ceil(v))
-        if not v**ndim == nprocs:
+        if v**ndim != nprocs:
             # Fallback
             return tuple(MPI.Compute_dims(nprocs, ndim))
     else:

@@ -4,9 +4,20 @@ import logging
 import sys
 from contextlib import contextmanager
 
-__all__ = ('set_log_level', 'set_log_noperf', 'is_log_enabled_for', 'switch_log_level',
-           'log', 'warning', 'error', 'perf', 'hint',
-           'RED', 'GREEN', 'BLUE')
+__all__ = (
+    'BLUE',
+    'GREEN',
+    'RED',
+    'error',
+    'hint',
+    'is_log_enabled_for',
+    'log',
+    'perf',
+    'set_log_level',
+    'set_log_noperf',
+    'switch_log_level',
+    'warning',
+)
 
 
 logger = logging.getLogger('Devito')

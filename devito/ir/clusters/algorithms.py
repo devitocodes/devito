@@ -7,19 +7,19 @@ import sympy
 
 from devito.exceptions import CompilationError
 from devito.finite_differences.elementary import Max, Min
-from devito.ir.support import (Any, Backward, Forward, IterationSpace, erange,
-                               pull_dims)
-from devito.ir.equations import OpMin, OpMax, identity_mapper
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, cluster_pass
-from devito.ir.support import Scope
+from devito.ir.equations import OpMax, OpMin, identity_mapper
+from devito.ir.support import (
+    Any, Backward, Forward, IterationSpace, Scope, erange, pull_dims
+)
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
-from devito.symbolics import (limits_mapper, retrieve_indexed, uxreplace,
-                              xreplace_indices)
-from devito.tools import (DefaultOrderedDict, Stamp, as_mapper, flatten,
-                          is_integer, split, timed_pass, toposort)
+from devito.symbolics import limits_mapper, retrieve_indexed, uxreplace, xreplace_indices
+from devito.tools import (
+    DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer, split, timed_pass, toposort
+)
 from devito.types import Array, Eq, Symbol
 from devito.types.dimension import BOTTOM, ModuloDimension
 
@@ -197,7 +197,7 @@ class Schedule(Queue):
             if d.is_local or d.is_storage_related(candidates):
                 # Would break a dependence on storage
                 return False
-            if any(d.is_carried(i) for i in candidates):
+            if any(d.is_carried(i) for i in candidates):  # noqa: SIM102
                 if (d.is_flow and d.is_lex_negative) or (d.is_anti and d.is_lex_positive):
                     # Would break a data dependence
                     return False
@@ -229,10 +229,7 @@ def guard(clusters):
             for cd in cds:
                 # `BOTTOM` parent implies a guard that lives outside of
                 # any iteration space, which corresponds to the placeholder None
-                if cd.parent is BOTTOM:
-                    d = None
-                else:
-                    d = cd.parent
+                d = None if cd.parent is BOTTOM else cd.parent
 
                 # If `cd` uses, as condition, an arbitrary SymPy expression, then
                 # we must ensure to nest it inside the last of the Dimensions
@@ -323,10 +320,10 @@ class Stepper(Queue):
         for size, v in mapper.items():
             for si, iafs in list(v.items()):
                 # Offsets are sorted so that the semantic order (t0, t1, t2) follows
-                # SymPy's index ordering (t, t-1, t+1) afer modulo replacement so
+                # SymPy's index ordering (t, t-1, t+1) after modulo replacement so
                 # that associativity errors are consistent. This corresponds to
                 # sorting offsets {-1, 0, 1} as {0, -1, 1} assigning -inf to 0
-                key = lambda i: -np.inf if i - si == 0 else (i - si)
+                key = lambda i: -np.inf if i - si == 0 else (i - si)  # noqa: B023
                 siafs = sorted(iafs, key=key)
 
                 for iaf in siafs:
@@ -435,7 +432,7 @@ class HaloComms(Queue):
             # Construct the HaloTouch Cluster
             expr = Eq(self.B, HaloTouch(*points, halo_scheme=hs))
 
-            key = lambda i: i in prefix[:-1] or i in hs.loc_indices
+            key = lambda i: i in prefix[:-1] or i in hs.loc_indices  # noqa: B023
             ispace = c.ispace.project(key)
             # HaloTouches are not parallel
             properties = c.properties.sequentialize()
@@ -463,7 +460,7 @@ def reduction_comms(clusters):
     for c in clusters:
         # Schedule the global distributed reductions encountered before `c`,
         # if `c`'s IterationSpace is such that the reduction can be carried out
-        found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))
+        found, fifo = split(fifo, lambda dr: dr.ispace.is_subset(c.ispace))  # noqa: B023
         _update(found)
 
         # Detect the global distributed reductions in `c`
@@ -478,7 +475,7 @@ def reduction_comms(clusters):
                 continue
 
             # Is Inc/Max/Min/... actually used for a reduction?
-            ispace = c.ispace.project(lambda d: d in var.free_symbols)
+            ispace = c.ispace.project(lambda d: d in var.free_symbols)  # noqa: B023
             if ispace.itdims == c.ispace.itdims:
                 continue
 
@@ -492,7 +489,7 @@ def reduction_comms(clusters):
 
             # The IterationSpace within which the global distributed reduction
             # must be carried out
-            ispace = c.ispace.prefix(lambda d: d in var.free_symbols)
+            ispace = c.ispace.prefix(lambda d: d in var.free_symbols)  # noqa: B023
             expr = [Eq(var, DistReduce(var, op=op, grid=grid, ispace=ispace))]
             fifo.append(c.rebuild(exprs=expr, ispace=ispace))
 
@@ -666,7 +663,7 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
                 # Populate the Array (the "map" part)
                 processed.append(e.func(a.indexify(), rhs, operation=None))
 
-                # Set all untouched entried to the identity value if necessary
+                # Set all untouched entries to the identity value if necessary
                 if e.conditionals:
                     nc = {d: sympy.Not(v) for d, v in e.conditionals.items()}
                     v = identity_mapper[e.lhs.dtype][e.operation]
