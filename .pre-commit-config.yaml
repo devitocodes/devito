@@ -1,5 +1,5 @@
 # See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
+default_stages: [pre-commit]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v3.2.0
@@ -13,23 +13,28 @@ repos:
     hooks:
       # Run isort to check only (don't modify files)
       - id: isort
+        name: "Check imports are sorted"
         args: [--check-only, --filter-files]
+        stages: [pre-commit]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.14.4
     hooks:
       # Run the linter to check only (don't modify files)
       - id: ruff-check
+        name: "Check code is linted with ruff"
   - repo: https://github.com/PyCQA/flake8
     rev: 7.3.0
     hooks:
       - id: flake8
+        name: "Check code is linted with flake8"
         additional_dependencies: [flake8-pyproject]
   - repo: https://github.com/crate-ci/typos
     rev: v1.39.1
     hooks:
       - id: typos
-        args: []
+        name: "Check files for typos"
+        stages: [pre-commit]
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.8
     hooks:
@@ -39,3 +44,33 @@ repos:
     hooks:
       - id: hadolint-docker
         entry: -e HADOLINT_IGNORE=DL3003,DL3004,DL3005,DL3007,DL3008,DL3009,DL3013,DL3015,DL3042,DL3059,SC2103,SC2046,SC2086 ghcr.io/hadolint/hadolint hadolint
+  #
+  # These stages modify the files applying fixes where possible
+  # Since this may be undesirable they will not run automatically
+  # These stages can be run with
+  # pre-commit run --hook-stage manual
+  #
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      # Run isort to check only (don't modify files)
+      - id: isort
+        name: "Fix imports with isort"
+        args: [--filter-files]
+        stages: [manual]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.14.4
+    hooks:
+      # Run the linter to check only (don't modify files)
+      - id: ruff-check
+        name: "Fix linting errors with ruff check --fix"
+        args: [--fix]
+        stages: [manual]
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.39.1
+    hooks:
+      - id: typos
+        name: "Fix typos"
+        args: [-w]
+        stages: [manual]

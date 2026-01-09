@@ -110,7 +110,7 @@ These checks will:
 * Lint GitHub Actions workflow files using actionlint *
 * Lint Dockerfiles using hadolint *
 
-(* these checks will not change the edited files, you must manually fix the files or run an automated tool eg: `ruff check --fix`)
+(* these checks will not change the edited files, you must manually fix the files or run an automated tool eg: `ruff check --fix` see below for details)
 
 If you absolutely must push "dirty" code, `pre-commit` can be circumvented using:
 ```bash
@@ -132,6 +132,23 @@ Some coding rules are "enforced" (and automatically checked by CI), some are "st
   - Variable names should be explicative (Devito prefers "long and clear" over "short and FORTRAN like").
   - Comment your code, and do not be afraid of being verbose. The first letter must be capitalized. Do not use punctuation (unless the comment consists of multiple sentences).
 * We _like_ that blank lines are used to logically split blocks of code implementing different (possibly sequential) tasks.
+
+#### Pre-commit
+
+You can use `pre-commit` to apply automated fixes for line endings, ends of files, import sorting and ruff linting.
+All of these steps can be run together on your changes by running:
+```bash
+pre-commit run --hook-stage manual
+```
+Adding the `-a` flag runs this on all files in the repository, not just the files that you have changed.
+Adding the name of the stage will run just one check.
+See the [pre-commit-config](https://github.com/devitocodes/devito/blob/main/.pre-commit.yaml) file for the names of stages.
+
+Some fixes can be automatically applied by the ruff linter, but may change the code in undesirable ways.
+This step can only be run manually:
+```bash
+ruff check --fix --unsafe-fixes
+```
 
 ### Adding tutorials or examples
 
