@@ -71,7 +71,7 @@ def run_op(solver, operator, **options):
     """
     Initialize any necessary input and run the operator associated with the solver.
     """
-    # Get the operator if exist
+    # Get the operator if it exists
     try:
         op = getattr(solver, operator)
     except AttributeError as e:

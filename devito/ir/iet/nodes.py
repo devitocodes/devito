@@ -1513,7 +1513,7 @@ class SyncSpot(List):
         self.sync_ops = sync_ops
 
     def __repr__(self):
-        return "<SyncSpot ({})>".format(",".join(str(i) for i in self.sync_ops))
+        return f"<SyncSpot ({','.join(str(i) for i in self.sync_ops)})>"
 
     @property
     def is_async_op(self):
@@ -1590,7 +1590,7 @@ class HaloSpot(Node):
         self._halo_scheme = halo_scheme
 
     def __repr__(self):
-        functions = "({})".format(",".join(i.name for i in self.functions))
+        functions = f"({','.join(i.name for i in self.functions)})"
         return f"<{self.__class__.__name__}{functions}>"
 
     @property

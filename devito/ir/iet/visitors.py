@@ -479,7 +479,7 @@ class CGen(Visitor):
             elif isinstance(o.obj, IndexedData):
                 v = f._C_name
             else:
-                raise AssertionError('rvalue is not a recognised type')
+                raise TypeError('rvalue is not a recognised type')
             rvalue = f'({cstr}**) {v}'
 
         else:
@@ -508,7 +508,7 @@ class CGen(Visitor):
                 elif isinstance(o.obj, DeviceMap):
                     v = f._C_field_dmap
                 else:
-                    raise AssertionError('rvalue is not a recognised type')
+                    raise TypeError('rvalue is not a recognised type')
 
                 rvalue = f'({cstr} {rshape}) {f._C_name}->{v}'
             else:

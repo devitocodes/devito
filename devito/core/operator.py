@@ -196,7 +196,7 @@ class BasicOperator(Operator):
         oo = kwargs['options']
 
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
-            raise InvalidOperator("Unsupported MPI mode `{}`".format(oo['mpi']))
+            raise InvalidOperator(f"Unsupported MPI mode `{oo['mpi']}`")
 
         if oo['cse-algo'] not in ('basic', 'smartsort', 'advanced'):
             raise InvalidOperator("Illegal `cse-algo` value")

@@ -228,11 +228,8 @@ def preprocess(clusters, options=None, **kwargs):
                 processed.append(c)
 
     # Sanity check!
-    try:
-        assert not queue
-    except AssertionError as e:
-        if options['mpi']:
-            raise RuntimeError("Unsupported MPI for the given equations") from e
+    if not queue and options['mpi']:
+        raise RuntimeError("Unsupported MPI for the given equations")
 
     return processed
 

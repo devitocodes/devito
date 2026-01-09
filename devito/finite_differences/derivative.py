@@ -491,7 +491,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         x0 = func.indices_ref.getters
         psubs = {}
         nx0 = x0.copy()
-        for d, _ in x0.items():
+        for d in x0:
             if d in self.dims:
                 # d is a valid Derivative dimension
                 continue
