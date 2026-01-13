@@ -507,11 +507,13 @@ class check_visible_devices:
         retval = self.func(*args, **kw)
 
         if len(self.seen) == 0:
-            self.seen.add(hash())
+            self.seen.add(hash(retval))
         elif hash(retval) not in self.seen:
             warning(f"{retval[0]} has been changed since Devito was initialized, which "
                     "may lead to unexpected behaviour. Ensure that environment variables "
                     "are set before importing Devito.")
+
+        return retval
 
     def __repr__(self):
         """Return the function's docstring."""

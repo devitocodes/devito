@@ -1,3 +1,5 @@
+import logging
+
 import cloudpickle as pickle
 import numpy as np
 import pytest
@@ -106,6 +108,17 @@ class TestDeviceID:
         argmap2 = op2.arguments()
         # Default physical deviceid expected to be 0
         assert argmap2._physical_deviceid == 0
+
+    def test_visible_device_warning(self, caplog):
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        eq = Eq(u, u+1)
+
+        from IPython import embed; embed()
+        with switchenv({'CUDA_VISIBLE_DEVICES': "0"}), caplog.at_level(logging.WARNING):
+            op1 = Operator(eq)
+            assert "CUDA_VISIBLE_DEVICES has been changed" in caplog.text
 
     @pytest.mark.parallel(mode=2)
     @pytest.mark.parametrize('visible_devices', ["1,2", "1,0", "0,2,3"])
