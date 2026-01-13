@@ -493,6 +493,32 @@ def get_gpu_info():
     return None
 
 
+class check_visible_devices:
+    """
+    Decorator. Hashes a function's return value and emits a warning if
+    it has changed from a previous call.
+    """
+
+    def __init__(self, func):
+        self.func = func
+        self.seen = set()
+
+    def __call__(self, *args, **kw):
+        retval = self.func(*args, **kw)
+
+        if len(self.seen) == 0:
+            self.seen.add(hash())
+        elif hash(retval) not in self.seen:
+            warning(f"{retval[0]} has been changed since Devito was initialized, which "
+                    "may lead to unexpected behaviour. Ensure that environment variables "
+                    "are set before importing Devito.")
+
+    def __repr__(self):
+        """Return the function's docstring."""
+        return self.func.__doc__
+
+
+@check_visible_devices
 def get_visible_devices():
     device_vars = (
         'CUDA_VISIBLE_DEVICES',
@@ -505,8 +531,8 @@ def get_visible_devices():
         except ValueError:
             # Visible devices set via UUIDs or other non-integer identifiers.
             warning("Setting visible devices via UUIDs or other non-integer"
-                    " identifiers is currently unsupported: environment variable"
-                    f" {v}={os.environ[v]} ignored.")
+                    " identifiers is currently unsupported by Devito: environment"
+                    f" variable {v}={os.environ[v]} may result in unintended behaviour.")
         except KeyError:
             # Environment variable not set
             continue
@@ -529,6 +555,10 @@ def get_nvidia_cc():
 
     cc_major = ctypes.c_int()
     cc_minor = ctypes.c_int()
+
+    # Note CUDA/HIP_VISIBLE_DEVICES so a warning can be raised if it is changed
+    # post-initialization
+    _ = get_visible_devices()
 
     if cuda.cuInit(0) != 0:
         return None
