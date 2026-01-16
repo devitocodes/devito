@@ -14,6 +14,7 @@ import numpy as np
 
 from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
+from devito.symbolics import search
 from devito.tools import as_list, as_tuple, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
@@ -75,8 +76,8 @@ class NThreadsBase(NThreadsAbstract):
             raise InvalidArgument("Cannot determine `npthreads`") from None
 
         # If a symbolic object, it must be resolved
-        if isinstance(npthreads, NPThreads):
-            npthreads = kwargs.get(npthreads.name, npthreads.size)
+        for th in search(npthreads, NPThreads):
+            npthreads = npthreads._subs(th, kwargs.get(th.name, th.size))
 
         return {self.name: max(base_nthreads - npthreads, 1)}
 

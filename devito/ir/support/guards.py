@@ -300,6 +300,7 @@ class Guards(frozendict):
 
     def pairwise_or(self, d, *guards):
         m = dict(self)
+        guards = list(guards)
 
         if d in m:
             guards.append(m[d])
