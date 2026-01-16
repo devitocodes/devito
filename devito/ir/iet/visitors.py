@@ -17,7 +17,7 @@ from sympy.core.function import Application
 from devito.exceptions import CompilationError
 from devito.symbolics import IndexedPointer
 from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
-                                 Call, Lambda, BlankLine, Section, ListMajor)
+                                 Call, Lambda, BlankLine, Section, ListMajor, MetaCall)
 from devito.ir.support.space import Backward
 from devito.symbolics import (FieldFromComposite, FieldFromPointer,
                               ListInitializer, uxreplace)
@@ -1509,7 +1509,8 @@ class Specializer(Uxreplace):
     Note that the Operator is not re-optimized in response to this replacement - this
     transformation could nominally result in expressions of the form `f + 0` in the
     generated code. If one wants to construct an Operator where such expressions are
-    considered, then use of `subs=...` is a better choice.
+    considered, then use of `subs=...` at construction time is a better choice. However,
+    it is likely that such expressions will be optimized away by the C-level compiler.
     """
 
     def __init__(self, mapper, nested=False):
@@ -1553,6 +1554,23 @@ class Specializer(Uxreplace):
         state = o.__getstate__()
         state['parameters'] = parameters
         state['body'] = body
+
+        # TODO: Also rebuild the _func_table for the Operator
+        # TODO: This is somewhat incongruent with the visitor and should be refactored
+
+        func_table = OrderedDict()
+        for k, v in o._func_table.items():
+            root = v.root
+            local = v.local
+
+            body = self._visit(root.body)
+            parameters = tuple(i for i in root.parameters if i not in self.mapper)
+
+            new_root = root._rebuild(body=body, parameters=parameters)
+
+            func_table[k] = MetaCall(root=new_root, local=local)
+
+        state['_func_table'] = func_table
 
         try:
             state.pop('ccode')
