@@ -1526,6 +1526,18 @@ class Specializer(Uxreplace):
                                  f"specialization. Value {v} was supplied for symbol "
                                  f"{k}, but is of type {type(v)}.")
             
+    def visit_OrderedDict(self, o):
+        return OrderedDict((k, self._visit(v)) for k, v in o.items())
+    
+    def visit_MetaCall(self, o):
+        root = self._visit(o.root)
+        return MetaCall(root=root, local=o.local)
+    
+    def visit_Callable(self, o):
+        body = self._visit(o.body)
+        parameters = [i for i in o.parameters if i not in self.mapper]
+        return o._rebuild(body=body, parameters=parameters)
+            
     def visit_KernelLaunch(self, o):
         # Remove kernel args if they are to be hardcoded
         arguments = [i for i in o.arguments if i not in self.mapper]
@@ -1554,23 +1566,8 @@ class Specializer(Uxreplace):
         state = o.__getstate__()
         state['parameters'] = parameters
         state['body'] = body
-
-        # TODO: Also rebuild the _func_table for the Operator
-        # TODO: This is somewhat incongruent with the visitor and should be refactored
-
-        func_table = OrderedDict()
-        for k, v in o._func_table.items():
-            root = v.root
-            local = v.local
-
-            body = self._visit(root.body)
-            parameters = tuple(i for i in root.parameters if i not in self.mapper)
-
-            new_root = root._rebuild(body=body, parameters=parameters)
-
-            func_table[k] = MetaCall(root=new_root, local=local)
-
-        state['_func_table'] = func_table
+        # Modify the _func_table to ensure callbacks are specialized
+        state['_func_table'] = self._visit(o._func_table)
 
         try:
             state.pop('ccode')
