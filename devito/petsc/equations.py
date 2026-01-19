@@ -61,6 +61,7 @@ def lower_exprs_petsc(expressions, **kwargs):
         additional_exprs.append(new_e)
 
     return expressions + additional_exprs
+    # return expressions
     
 
 
