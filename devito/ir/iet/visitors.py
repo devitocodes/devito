@@ -1526,6 +1526,30 @@ class Specializer(Uxreplace):
                                  f"specialization. Value {v} was supplied for symbol "
                                  f"{k}, but is of type {type(v)}.")
             
+    def _visit(self, o, *args, **kwargs):
+        retval = super()._visit(o, *args, **kwargs)
+        # print(f"Visiting {o.__class__}")
+        # print(retval)
+        # print("--------------------------------------------")
+        return retval
+    
+    # TODO: Should probably be moved to Uxreplace at least (as should some of these others I think?)
+    def visit_DifferentiableFunction(self, o):
+        return uxreplace(o, self.mapper)
+    
+    def visit_Definition(self, o):
+        try:
+            function = self._visit(o.function)
+            return o._rebuild(function=function)
+        except KeyError:
+            return o
+        
+    def visit_BlockGrid(self, o):
+        # TODO: Should probably be made into a uxreplace handler of some description
+        cargs = self._visit(o.cargs)
+        shape = self._visit(o.shape)
+        return o._rebuild(cargs=cargs, shape=shape)
+            
     def visit_OrderedDict(self, o):
         return OrderedDict((k, self._visit(v)) for k, v in o.items())
     
