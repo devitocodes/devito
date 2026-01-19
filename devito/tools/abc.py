@@ -146,13 +146,7 @@ class Reconstructable:
         except AttributeError:
             pass
 
-        # Should we use a custom reconstructor?
-        try:
-            cls = self._rcls
-        except AttributeError:
-            cls = self.__class__
-
-        return cls(*args, **kwargs)
+        return self.__class__(*args, **kwargs)
 
 
 class Pickable(Reconstructable):
@@ -218,10 +212,7 @@ class Pickable(Reconstructable):
         except AttributeError:
             pass
 
-        try:
-            return self._rcls
-        except AttributeError:
-            return None
+        return None
 
     def __reduce_ex__(self, proto):
         ret = object.__reduce_ex__(self, proto)
