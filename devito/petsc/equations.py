@@ -1,3 +1,4 @@
+from sympy import Eq
 from devito.symbolics import retrieve_indexed, retrieve_dimensions
 from devito.petsc import EssentialBC
 from devito.types.dimension import CustomBoundSubDimension
@@ -26,15 +27,17 @@ def lower_exprs_petsc(expressions, **kwargs):
             halo_size_left = indexeds[0].function._size_halo[d].left
             halo_size_right = indexeds[0].function._size_halo[d].right
 
-            grid = indexeds[0].function.grid
 
-            from devito.petsc.types.dimension import SubDimMax
+            from devito.petsc.types.dimension import SubDimMax, SubDimMin
+
+
 
             # TODO: change name..
 
-            # global_rtkn = kwargs.get(d.rtkn.name, d.rtkn.value)
-            # in theory this class shoulod just take in d directly 
+            # in theory this class shoulod just take in d
+            # TODO: use unique name
             subdim_max = SubDimMax(d.name + '_max', subdim=d, thickness=d.thickness)
+            subdim_min = SubDimMin(d.name + '_min', subdim=d, thickness=d.thickness)
 
             # from IPython import embed; embed()
 
@@ -43,7 +46,7 @@ def lower_exprs_petsc(expressions, **kwargs):
             parent=d.parent,
             thickness=d.thickness,
             local=d.local,
-            custom_left=Max(d.ltkn, d.parent.symbolic_min - halo_size_left),
+            custom_left=Max(subdim_min, d.parent.symbolic_min - halo_size_left),
             custom_right=Min(subdim_max, d.parent.symbolic_max + halo_size_right)
             )
             mapper[d] = new_dim
@@ -60,8 +63,8 @@ def lower_exprs_petsc(expressions, **kwargs):
 
         additional_exprs.append(new_e)
 
+    # return expressions + additional_exprs
     return expressions + additional_exprs
-    # return expressions
-    
+
 
 
