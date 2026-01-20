@@ -182,10 +182,10 @@ class InjectBuffers(Queue):
             for _, v in descriptors.items():
                 if not v.is_readonly:
                     continue
-                if c is not v.firstread:
+                if c not in v.firstread:
                     continue
 
-                idxf = v.last_idx
+                idxf = v.last_idx[c]
                 idxb = mds[(v.xd, idxf)]
 
                 lhs = v.b.indexify()._subs(v.xd, idxb)
@@ -225,10 +225,10 @@ class InjectBuffers(Queue):
             for _, v in descriptors.items():
                 if v.is_readonly:
                     continue
-                if c is not v.lastwrite:
+                if c not in v.lastwrite:
                     continue
 
-                idxf = v.last_idx
+                idxf = v.last_idx[c]
                 idxb = mds[(v.xd, idxf)]
 
                 lhs = v.f.indexify()._subs(v.dim, idxf)
@@ -508,17 +508,19 @@ class BufferDescriptor:
 
     @cached_property
     def firstread(self):
+        mapper = {}
         for c in self.clusters:
             if c.scope.reads.get(self.f):
-                return c
-        return None
+                mapper.setdefault(c.guards, c)
+        return tuple(mapper.values())
 
     @cached_property
     def lastwrite(self):
+        mapper = {}
         for c in reversed(self.clusters):
             if c.scope.writes.get(self.f):
-                return c
-        return None
+                mapper.setdefault(c.guards, c)
+        return tuple(mapper.values())
 
     @property
     def is_read(self):
@@ -529,7 +531,7 @@ class BufferDescriptor:
 
     @property
     def is_write(self):
-        return self.lastwrite is not None
+        return bool(self.lastwrite)
 
     @property
     def is_readonly(self):
@@ -604,8 +606,14 @@ class BufferDescriptor:
             * `time-1` in the case of `foo(u[time-1], u[time], u[time+1])`
                with a backwards-propagating `time` Dimension.
         """
+        mapper = {}
         func = vmax if self.is_forward_buffering else vmin
-        return func(*[Vector(i) for i in self.indices])[0]
+        for c in self.lastwrite + self.firstread:
+            indices = extract_indices(self.f, self.dim, [c])
+            idx = func(*[Vector(i) for i in indices])[0]
+            mapper[c] = idx
+
+        return frozendict(mapper)
 
     @cached_property
     def first_idx(self):
