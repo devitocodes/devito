@@ -762,7 +762,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Initialization. The following attributes must be available
         # when executing __init_finalize__
         newobj._name = name
-        newobj._dimensions = dimensions
+        newobj._dimensions = DimensionTuple(*dimensions, getters=dimensions)
         newobj._shape = cls.__shape_setup__(**kwargs)
         newobj._dtype = cls.__dtype_setup__(**kwargs)
 

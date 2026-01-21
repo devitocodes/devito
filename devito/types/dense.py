@@ -1128,7 +1128,8 @@ class Function(DiscreteFunction):
         for d in self.dimensions:
             try:
                 if self.indices_ref[d] is not func.indices_ref[d]:
-                    mapper[self.indices_ref[d]] = func.indices_ref[d]
+                    f_idx = func.indices_ref[d]._subs(func.dimensions[d], d)
+                    mapper[self.indices_ref[d]] = f_idx
             except KeyError:
                 pass
 

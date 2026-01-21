@@ -187,3 +187,16 @@ def test_staggered_rebuild(stagg):
             assert f2.indices[nd] == nd + nd.spacing / 2
         else:
             assert f2.indices[nd] == nd
+
+
+def test_eval_at_different_dim():
+    grid = Grid(shape=(31, 17, 25))
+    nt = 5
+    x, _, _ = grid.dimensions
+
+    v = TimeFunction(name="v", grid=grid, staggered=x)
+    tau = TimeFunction(name="tau", grid=grid, save=nt)
+
+    eq = Eq(tau.forward, v).evaluate
+
+    assert grid.time_dim not in eq.rhs.free_symbols
