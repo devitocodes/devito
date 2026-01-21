@@ -371,6 +371,7 @@ class Operator(Callable):
 
         # rename etc
         expressions = lower_exprs_petsc(expressions, **kwargs)
+        # from IPython import embed; embed()
 
         processed = [LoweredEq(i) for i in expressions]
 

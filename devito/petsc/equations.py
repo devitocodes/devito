@@ -1,19 +1,30 @@
 from sympy import Eq
 from devito.symbolics import retrieve_indexed, retrieve_dimensions
-from devito.petsc import EssentialBC
+from devito.petsc.types.equation import ConstrainEssentialBC
 from devito.types.dimension import CustomBoundSubDimension
 from devito import Min, Max
 
 
 def lower_exprs_petsc(expressions, **kwargs):
-    mapper = {}
+    # Constrain EssentialBCs using PetscSection if specified to do so
+    expressions = constrain_essential_bcs(expressions, **kwargs)
 
-    additional_exprs = []
+    return expressions
+
+
+
+def constrain_essential_bcs(expressions, **kwargs):
+    """TODO: improve docs ..Modify the subdims used in ConstrainEssentialBC equations ... to locally
+    constrain nodes (including non owned halo nodes) ....."""
+
+    mapper = {}
+    new_exprs = []
 
     # build mapper
     for e in expressions:
-        if not isinstance(e, EssentialBC):
+        if not isinstance(e, ConstrainEssentialBC):
             continue
+
         indexeds = retrieve_indexed(e)
         dims = retrieve_dimensions([i for j in indexeds for i in j.indices], mode='unique')
 
@@ -29,8 +40,6 @@ def lower_exprs_petsc(expressions, **kwargs):
 
 
             from devito.petsc.types.dimension import SubDimMax, SubDimMin
-
-
 
             # TODO: change name..
 
@@ -51,20 +60,13 @@ def lower_exprs_petsc(expressions, **kwargs):
             )
             mapper[d] = new_dim
 
-            # from IPython import embed; embed()
-
     # build new expressions
     for e in expressions:
-        if not isinstance(e, EssentialBC):
-            continue
+        if isinstance(e, ConstrainEssentialBC):
+            new_e = e.subs(mapper)
+            new_exprs.append(new_e)
+        
+        else:
+            new_exprs.append(e)
 
-        # build new expression
-        new_e = e.subs(mapper)
-
-        additional_exprs.append(new_e)
-
-    # return expressions + additional_exprs
-    return expressions + additional_exprs
-
-
-
+    return new_exprs

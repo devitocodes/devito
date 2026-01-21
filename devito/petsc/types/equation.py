@@ -43,3 +43,12 @@ class ZeroColumn(EssentialBC):
     Created and managed directly by Devito, not by users.
     """
     pass
+
+
+class ConstrainEssentialBC(EssentialBC):
+    """
+    Equation used to constrain nodes marked by EssentialBCs
+    inside a PetscSection. This type of equation is generated inside
+    petscsolve if the user sets `constrain_bcs=True`.
+    """
+    pass

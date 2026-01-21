@@ -9,7 +9,9 @@ from devito.types.equation import Eq
 from devito.operations.solve import eval_time_derivatives
 
 from devito.petsc.config import petsc_variables
-from devito.petsc.types.equation import EssentialBC, ZeroRow, ZeroColumn
+from devito.petsc.types.equation import (
+    EssentialBC, ZeroRow, ZeroColumn, ConstrainEssentialBC
+)
 
 
 class MetaData(sympy.Function, Reconstructable):
@@ -125,11 +127,14 @@ class FieldData:
     initial_guess : InitialGuess
         Defines the initial guess for the solution, which satisfies
         essential boundary conditions.
+    constrain_bc : ConstrainBC
+        Defines the metadata for constraining essential boundary conditions i.e
+        removing them from the global solve.
     arrays : dict
         A dictionary mapping `target` to its corresponding PETScArrays.
     """
     def __init__(self, target=None, jacobian=None, residual=None,
-                 initial_guess=None, arrays=None, **kwargs):
+                 initial_guess=None, constrain_bc=None, arrays=None, **kwargs):
         self._target = target
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
         if self._target.dtype != petsc_precision:
@@ -141,6 +146,7 @@ class FieldData:
         self._jacobian = jacobian
         self._residual = residual
         self._initial_guess = initial_guess
+        self._constrain_bc = constrain_bc
         self._arrays = arrays
 
     @property
@@ -158,6 +164,10 @@ class FieldData:
     @property
     def initial_guess(self):
         return self._initial_guess
+
+    @property
+    def constrain_bc(self):
+        return self._constrain_bc
 
     @property
     def arrays(self):
@@ -265,6 +275,7 @@ class BaseJacobian:
             for m in matvecs
         ]
 
+    # TODO: rethink : can likely turn off if user requests to constrain bcs
     def _scale_bcs(self, matvecs, scdiag):
         """
         Scale the EssentialBCs in `matvecs` by `scdiag`.
@@ -569,6 +580,7 @@ class Residual:
         arrays = self.arrays[self.target]
         volume = self.target.grid.symbolic_volume_cell
 
+        # TODO: rethink : can likely turn off if user requests to constrain bcs
         if isinstance(eq, EssentialBC):
             # The initial guess satisfies the essential BCs, so this term is zero.
             # Still included to support Jacobian testing via finite differences.
@@ -592,6 +604,7 @@ class Residual:
 
     def _make_b(self, expr, b):
         b_arr = self.arrays[self.target]['b']
+        # TODO: rethink : can likely turn off if user requests to constrain bcs
         rhs = 0. if isinstance(expr, EssentialBC) else b.subs(self.time_mapper)
         rhs = rhs * self.target.grid.symbolic_volume_cell
         return (Eq(b_arr, rhs, subdomain=expr.subdomain),)
@@ -650,6 +663,7 @@ class MixedResidual(Residual):
             target_funcs = set(generate_targets(Eq(eval_zeroed_eqn, 0), t))
             mapper.update(targets_to_arrays(self.arrays[t]['x'], target_funcs))
 
+        # TODO: rethink : can likely turn off if user requests to constrain bcs
         if isinstance(expr, EssentialBC):
             rhs = (self.arrays[target]['x'] - expr.rhs)*self.scdiag[target]
             zero_row = ZeroRow(
@@ -702,6 +716,42 @@ class InitialGuess:
             assert expr.lhs == self.target
             return Eq(
                 self.arrays[self.target]['x'], expr.rhs.subs(self.time_mapper),
+                subdomain=expr.subdomain
+            )
+        else:
+            return None
+        
+
+class ConstrainBC:
+    """
+    Metadata passed to `SolverExpr` to constrain essential
+    boundary conditions using a PetscSection.
+    """
+    def __init__(self, target, exprs, arrays):
+        self.target = target
+        self.arrays = arrays
+        self._build_exprs(as_tuple(exprs))
+
+    @property
+    def exprs(self):
+        return self._exprs
+
+    def _build_exprs(self, exprs):
+        """
+        Return a list of symbolic expressions
+        used to constrain essential boundary conditions.
+        """
+        self._exprs = tuple([
+            eq for eq in
+            (self._make_constraint(e) for e in exprs)
+            if eq is not None
+        ])
+
+    def _make_constraint(self, expr):
+        if isinstance(expr, EssentialBC):
+            assert expr.lhs == self.target
+            return ConstrainEssentialBC(
+                self.arrays[self.target]['x'], expr.rhs,
                 subdomain=expr.subdomain
             )
         else:

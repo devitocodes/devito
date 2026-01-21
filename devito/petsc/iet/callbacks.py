@@ -37,15 +37,18 @@ class BaseCallbackBuilder:
         self._efuncs = OrderedDict()
         self._struct_params = []
 
+        # TODO: use either efunc or callback lingo here
         self._set_options_efunc = None
         self._clear_options_efunc = None
         self._main_matvec_callback = None
         self._user_struct_callback = None
         self._F_efunc = None
         self._b_efunc = None
+        self._constrain_bc_efunc = None
 
         self._J_efuncs = []
-        self._initial_guesses = []
+        # TODO: isn't there only ever one of these per solver so why is it a list?
+        self._initial_guess_efuncs = []
 
         self._make_core()
         self._efuncs = self._uxreplace_efuncs()
@@ -82,9 +85,10 @@ class BaseCallbackBuilder:
         """
         return self._J_efuncs
 
+    # TODO: do i really need a property for this - probs not?
     @property
-    def initial_guesses(self):
-        return self._initial_guesses
+    def initial_guess_efuncs(self):
+        return self._initial_guess_efuncs
 
     @property
     def user_struct_callback(self):
@@ -112,11 +116,18 @@ class BaseCallbackBuilder:
 
     def _make_core(self):
         self._make_options_callback()
+        # Make the mat-vec callback to form the matfree Jacobian
         self._make_matvec(self.field_data.jacobian)
+        # Make the residual callback
         self._make_formfunc()
+        # Make the RHS callback
         self._make_formrhs()
+        # Make the initial guess callback
         if self.field_data.initial_guess.exprs:
             self._make_initial_guess()
+        # Make the callback used to constrain boundary nodes
+        if self.field_data.constrain_bc.exprs:
+            self._make_constrain_bc()
         self._make_user_struct_callback()
 
     def _make_petsc_callable(self, prefix, body, parameters=()):
@@ -578,7 +589,7 @@ class BaseCallbackBuilder:
         cb = self._make_petsc_callable(
             'FormInitialGuess', body, parameters=(sobjs['callbackdm'], objs['xloc'])
         )
-        self._initial_guesses.append(cb)
+        self._initial_guess_efuncs.append(cb)
         self._efuncs[cb.name] = cb
 
     def _create_initial_guess_body(self, body):
@@ -636,6 +647,29 @@ class BaseCallbackBuilder:
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
         return Uxreplace(subs).visit(body)
+    
+    def _make_constrain_bc(self):
+        exprs = self.field_data.constrain_bc.exprs
+        sobjs = self.solver_objs
+        objs = self.objs
+
+        # Compile constrain `eqns` into an IET via recursive compilation
+        irs, _ = self.rcompile(
+            exprs, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
+        )
+        # from IPython import embed; embed()
+        body = self._create_constrain_bc_body(
+            List(body=irs.uiet.body)
+        )
+        cb = self._make_petsc_callable(
+            'ConstrainBCs', body, parameters=(sobjs['callbackdm'],)
+        )
+        self._constrain_bc_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    def _create_constrain_bc_body(self, body):
+        return body
 
     def _make_user_struct_callback(self):
         """

@@ -23,7 +23,7 @@ from devito.petsc.iet.callbacks import (
     get_user_struct_fields
 )
 from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
-from devito.petsc.iet.builder import BuilderBase, CoupledBuilder, make_core_petsc_calls
+from devito.petsc.iet.builder import BuilderBase, CoupledBuilder, ConstrainedBCBuilder, make_core_petsc_calls
 from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
@@ -248,6 +248,7 @@ class BuildSolver:
         self.get_info = inject_solve.expr.rhs.get_info
         self.kwargs = kwargs
         self.coupled = isinstance(inject_solve.expr.rhs.field_data, MultipleFieldData)
+        self.constrain_bc = inject_solve.expr.rhs.field_data.constrain_bc
         self.common_kwargs = {
             'inject_solve': self.inject_solve,
             'objs': self.objs,
@@ -280,10 +281,22 @@ class BuildSolver:
         return CoupledCallbackBuilder(**self.common_kwargs) \
             if self.coupled else BaseCallbackBuilder(**self.common_kwargs)
 
+    # @cached_property
+    # def builder(self):
+    #     return CoupledBuilder(**self.common_kwargs) \
+    #         if self.coupled else BuilderBase(**self.common_kwargs)
+    
     @cached_property
     def builder(self):
-        return CoupledBuilder(**self.common_kwargs) \
-            if self.coupled else BuilderBase(**self.common_kwargs)
+        if self.coupled and self.constrain_bc:
+            # TODO: implement CoupledConstrainedBCBuilder
+            return CoupledBuilder(**self.common_kwargs) 
+        elif self.coupled:
+            return CoupledBuilder(**self.common_kwargs) 
+        elif self.constrain_bc:
+            return ConstrainedBCBuilder(**self.common_kwargs) 
+        else:
+            return BuilderBase(**self.common_kwargs) 
 
     @cached_property
     def solve(self):

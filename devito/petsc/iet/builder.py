@@ -1,4 +1,5 @@
 import math
+from functools import cached_property
 
 from devito.ir.iet import DummyExpr, BlankLine
 from devito.symbolics import (Byref, FieldFromPointer, VOID,
@@ -22,7 +23,11 @@ class BuilderBase:
         self.callback_builder = kwargs.get('callback_builder')
         self.field_data = self.inject_solve.expr.rhs.field_data
         self.formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
-        self.calls = self._setup()
+        # self.calls = self._setup()
+
+    @cached_property
+    def calls(self):
+        return self._setup()
 
     @property
     def snes_ctx(self):
@@ -142,9 +147,11 @@ class BuilderBase:
 
     def _create_dmda_calls(self, dmda):
         dmda_create = self._create_dmda(dmda)
+        # TODO: probs need to set the dm options prefix the same as snes?
+        dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
-        return dmda_create, dm_setup, dm_mat_type
+        return dmda_create, dm_set_from_opts, dm_setup, dm_mat_type
 
     def _create_dmda(self, dmda):
         sobjs = self.solver_objs
@@ -184,7 +191,7 @@ class BuilderBase:
         dmda = petsc_call(f'DMDACreate{nspace_dims}d', args)
 
         return dmda
-
+    
 
 class CoupledBuilder(BuilderBase):
     def _setup(self):
@@ -332,6 +339,35 @@ class CoupledBuilder(BuilderBase):
             create_submats) + \
             tuple(deref_dms) + tuple(xglobals) + tuple(xlocals) + (BlankLine,)
         return coupled_setup
+    
+
+class ConstrainedBCMixin:
+    """
+    """
+    def _create_dmda_calls(self, dmda):
+        # TODO: CLEAN UP
+        dmda_create = self._create_dmda(dmda)
+        # TODO: probs need to set the dm options prefix the same as snes?
+        # don't hardcode this probs? - the dm needs to be specific to the solver as well
+        da_create_section = petsc_call('PetscOptionsSetValue', [Null, '-da_use_section', Null])
+        dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
+        dm_setup = petsc_call('DMSetUp', [dmda])
+        dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
+
+        set_constraints = petsc_call(
+            self.callback_builder._constrain_bc_efunc.name, []
+        )
+        # OBVS CLEANUP
+        return dmda_create, da_create_section, dm_set_from_opts, dm_setup, dm_mat_type, set_constraints
+    
+
+class ConstrainedBCBuilder(ConstrainedBCMixin, BuilderBase):
+    pass
+
+
+# TODO: Implement this properly
+class CoupledConstrainedBCBuilder(ConstrainedBCMixin, CoupledBuilder):
+    pass
 
 
 def petsc_call_mpi(specific_call, call_args):
