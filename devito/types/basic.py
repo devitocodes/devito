@@ -762,7 +762,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Initialization. The following attributes must be available
         # when executing __init_finalize__
         newobj._name = name
-        newobj._dimensions = DimensionTuple(*dimensions, getters=dimensions)
+        newobj._dimensions = dimensions
         newobj._shape = cls.__shape_setup__(**kwargs)
         newobj._dtype = cls.__dtype_setup__(**kwargs)
 
@@ -971,7 +971,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
-        return self._dimensions
+        return DimensionTuple(*self._dimensions, getters=self._dimensions)
 
     @cached_property
     def space_dimensions(self):

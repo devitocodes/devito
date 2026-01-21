@@ -16,7 +16,9 @@ from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.symbolics.unevaluation import Pow as UnevalPow
 from devito.symbolics.unevaluation import UnevaluableMixin
-from devito.tools import as_list, as_tuple, flatten, split, transitive_closure
+from devito.tools import (
+    EnrichedTuple, as_list, as_tuple, flatten, split, transitive_closure
+)
 from devito.types.array import ComponentAccess
 from devito.types.basic import Basic, Indexed
 from devito.types.equation import Eq
@@ -128,6 +130,12 @@ def _(iterable, rule):
         ret.append(ax)
         changed |= flag
     return iterable.__class__(ret), changed
+
+
+@_uxreplace_dispatch.register(EnrichedTuple)
+def _(iterable, rule):
+    retval, changed = _uxreplace_dispatch(tuple(iterable), rule)
+    return iterable.__class__(*retval, getters=iterable.getters), changed
 
 
 @_uxreplace_dispatch.register(dict)
