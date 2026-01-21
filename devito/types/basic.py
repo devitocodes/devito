@@ -971,7 +971,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @property
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
-        return self._dimensions
+        return DimensionTuple(*self._dimensions, getters=self._dimensions)
 
     @cached_property
     def space_dimensions(self):
