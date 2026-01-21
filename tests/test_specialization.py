@@ -9,22 +9,6 @@ from devito import (Grid, Function, TimeFunction, Eq, Operator, SubDomain, Dimen
                     ConditionalDimension, switchconfig)
 from devito.ir.iet.visitors import Specializer
 
-# Test that specializer replaces symbols as expected
-
-# Create a couple of arbitrary operators
-# Reference bounds, subdomains, spacings, constants, conditionaldimensions with symbolic
-# factor
-# Create a couple of different substitution sets
-
-# Check that all the instances in the kernel are replaced
-# Check that all the instances in the parameters are removed
-
-# Check that sanity check catches attempts to specialize non-scalar types
-# Check that trying to specialize symbols not in the Operator parameters results
-# in an error being thrown
-
-# Check that sizes and strides get specialized when using `linearize=True`
-
 
 class TestSpecializer:
     """Tests for the Specializer transformer"""
@@ -240,3 +224,29 @@ class TestApply:
     @pytest.mark.parametrize('override', [False, True])
     def test_basic_mpi(self, caplog, mode, override):
         self.test_basic(caplog, override)
+
+    def test_diffusion_like(self):
+        grid = Grid(shape=(11, 11))
+
+        dt = 2.5e-5
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        f.data[:, 4:-4, 4:-4] = 1
+
+        op = Operator(Eq(f.forward, f - grid.time_dim.spacing*f.laplace))
+
+        op.apply(t_M=100, dt=dt)
+
+        check = np.array(f.data[0])
+        f.data[:] = 0
+        f.data[:, 4:-4, 4:-4] = 1
+
+        op.apply(t_M=100, dt=dt, specialize=tuple())
+
+        print(f.data[0])
+        print(check)
+        assert False
+
+    # Diffusion-like test
+    # Acoustic-like test (with and without source injection)
+    # Elastic-like test (with and without source injection)
