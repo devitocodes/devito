@@ -117,8 +117,8 @@ def estimate_cost(exprs, estimate=False):
 
 estimate_values = {
     'elementary': 100,
+    'SafeInv': 75,
     'pow': 50,
-    'SafeInv': 50,
     'div': 5,
     'Abs': 5,
     'floor': 1,
