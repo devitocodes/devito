@@ -210,11 +210,12 @@ class MultipleFieldData(FieldData):
     arrays : dict
         A dictionary mapping the `targets` to their corresponding PETScArrays.
     """
-    def __init__(self, targets, arrays, jacobian=None, residual=None):
+    def __init__(self, targets, arrays, jacobian=None, residual=None, constrain_bc=None):
         self._targets = as_tuple(targets)
         self._arrays = arrays
         self._jacobian = jacobian
         self._residual = residual
+        self._constrain_bc = constrain_bc
 
     @cached_property
     def space_dimensions(self):

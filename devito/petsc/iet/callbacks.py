@@ -126,7 +126,7 @@ class BaseCallbackBuilder:
         if self.field_data.initial_guess.exprs:
             self._make_initial_guess()
         # Make the callback used to constrain boundary nodes
-        if self.field_data.constrain_bc.exprs:
+        if self.field_data.constrain_bc:
             self._make_constrain_bc()
         self._make_user_struct_callback()
 
@@ -658,7 +658,6 @@ class BaseCallbackBuilder:
             exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        # from IPython import embed; embed()
         body = self._create_constrain_bc_body(
             List(body=irs.uiet.body)
         )
@@ -669,7 +668,60 @@ class BaseCallbackBuilder:
         self._efuncs[cb.name] = cb
 
     def _create_constrain_bc_body(self, body):
-        return body
+        linsolve_expr = self.inject_solve.expr.rhs
+        objs = self.objs
+        sobjs = self.solver_objs
+        target = self.target
+
+        dmda = sobjs['callbackdm']
+        ctx = objs['dummyctx']
+
+        x_arr = self.field_data.arrays[target]['x']
+
+        vec_get_array = petsc_call(
+            'VecGetArray', [objs['xloc'], Byref(x_arr._C_symbol)]
+        )
+
+        dm_get_local_info = petsc_call(
+            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+        )
+
+        body = self.time_dependence.uxreplace_time(body)
+
+        fields = get_user_struct_fields(body)
+        self._struct_params.extend(fields)
+
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
+        )
+
+        vec_restore_array = petsc_call(
+            'VecRestoreArray', [objs['xloc'], Byref(x_arr._C_symbol)]
+        )
+
+        body = body._rebuild(body=body.body + (vec_restore_array,))
+
+        stacks = (
+            vec_get_array,
+            dm_get_local_info
+        )
+
+        # Dereference function data in struct
+        derefs = dereference_funcs(ctx, fields)
+
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [Definition(ctx), dm_get_app_context]
+
+        body = self._make_callable_body(
+            body, standalones=struct_definition, stacks=stacks+derefs
+        )
+
+        # Replace non-function data with pointer to data in struct
+        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
+                i in fields if not isinstance(i.function, AbstractFunction)}
+
+        return Uxreplace(subs).visit(body)
 
     def _make_user_struct_callback(self):
         """

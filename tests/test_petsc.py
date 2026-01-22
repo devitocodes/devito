@@ -2208,3 +2208,348 @@ class TestPrinter:
 
         assert 'PETSC_PI' in str(op.ccode)
         assert 'M_PI' not in str(op.ccode)
+
+
+class TestPetscSection:
+    """
+    """
+    # first test that the loop generated is correct symbolically..
+
+    # TODO: loop bound modification only needs to happen for subdomain 'middle' type 
+    # so ensure this happens - by construction left and right subdomains do not cross ranks
+
+
+    # tests:
+    # first 2 test a "left" subdomain made using a "middle"
+
+    # tests 3&4 test a "right" subdomain made using a "middle"
+
+    # tests 5&6 test a "middle" subdomain made using a "middle"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4])
+    def test_1_constrain_indices_1d(self, mode):
+        # TODO: probably move the explanation stuff outside of this function etc
+        # halo size 2
+        # 12 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
+        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
+        # IMPROVE WORDING
+        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+
+        # 1 rank:
+        #            0   
+        # [x x x x x x x] x x x x x
+
+        # Expected: {0: (0, 6)}
+
+
+        # 2 ranks:
+        #       0           1       
+        # [x x x x x x|x] x x x x x
+
+        # Expected: {0: (0, 6), 1: (-2, 0)}
+
+
+        # 4 ranks:
+        #    0     1      2     3         
+        # [x x x|x x x|x] x x|x x x
+
+        # Expected: {0: (0, 4), 1: (-2, 3), 2: (-2, 0), 3: (null loop - locally doesn't cover any of the subdomain)}
+        # rank 3 comes out as (-2,-3) -> null loop
+
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 5)}
+
+
+        sub = Middle()
+
+        n = 12
+        so = 2
+
+        grid = Grid(
+            shape=(n,), subdomains=(sub,), dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so, dtype=np.float64)
+        bc = Function(name='bc', grid=grid, space_order=so, dtype=np.float64)
+
+        eq = Eq(u, 22., subdomain=grid.interior)
+        bc = EssentialBC(u, bc, subdomain=sub)
+
+        solver = petscsolve([eq, bc], u, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+
+        # TODO: this should probs be extracted from the loop bounds generated in the code instead..
+        # or maybe not but probs shouldn't hardcode the 2 etc...
+        rank = grid.distributor.myrank
+        args = op.arguments()
+
+        loop_bound_min = max(args['ix_min0'], args['x_m']-so)
+        loop_bound_max = min(args['ix_max0'], args['x_M']+so)
+
+        # print(f"rank {rank}: loop_bound_min = {loop_bound_min}")
+        # print(f"rank {rank}: loop_bound_max = {loop_bound_max}")
+
+        expected = {
+            1: {
+                0: (0, 6),
+            },
+            2: {
+                0: (0, 6),
+                1: (-2, 0),
+            },
+            4: {
+                0: (0, 4),
+                1: (-2, 3),
+                2: (-2, 0),
+                3: (-2, -3),  # null loop, expected
+            },
+        }[mode]
+
+        actual = (loop_bound_min, loop_bound_max)
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_2_constrain_indices_1d(self, mode):
+
+        # bigger grid than test 1
+        # halo size 2
+        # 24 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
+        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
+        # IMPROVE WORDING
+        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+
+        # 1 rank:
+        #                        0   
+        # [x x x x x x x x x x x x x x x x x x x x] x x x x
+
+        # Expected: {0: (0, 19)}
+
+
+        # 2 ranks:
+        #            0                       1       
+        # [x x x x x x x x x x x x|x x x x x x x x] x x x x
+
+        # Expected: {0: (0, 13), 1: (-2, 7)}
+
+
+        # 4 ranks:
+        #       0           1           2            3         
+        # [x x x x x x|x x x x x x|x x x x x x|x x] x x x x
+
+        # Expected: {0: (0, 7), 1: (-2, 7), 2: (-2, 7), 3: (-2, 1)}
+
+
+        # 6 ranks:
+        #     0       1       2       3       4        5         
+        # [x x x x|x x x x|x x x x|x x x x|x x x x]|x x x x
+
+        # Expected: {0: (0, 5), 1: (-2, 5), 2: (-2, 5), 3: (-2, 5), 4: (-2, 3), 5: (-2, -1)}
+
+
+        # 8 ranks:
+        #    0     1     2     3     4     5     6      7         
+        # [x x x|x x x|x x x|x x x|x x x|x x x|x x] x|x x x
+
+        # Expected: {0: (0, 4), 1: (-2, 4), 2: (-2, 4), 3: (-2, 4), 4: (-2, 4), 5: (-2, 4), 6: (-2, 1), 7: (-2, -2)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        grid = Grid(
+            shape=(n,), subdomains=(sub,), dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so, dtype=np.float64)
+        bc = Function(name='bc', grid=grid, space_order=so, dtype=np.float64)
+
+        eq = Eq(u, 22., subdomain=grid.interior)
+        bc = EssentialBC(u, bc, subdomain=sub)
+
+        solver = petscsolve([eq, bc], u, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+
+        # TODO: this should probs be extracted from the loop bounds generated in the code instead..
+        # or maybe not but probs shouldn't hardcode the 2 etc...
+        rank = grid.distributor.myrank
+        args = op.arguments()
+
+        loop_bound_min = max(args['ix_min0'], args['x_m']-so)
+        loop_bound_max = min(args['ix_max0'], args['x_M']+so)
+
+        # print(f"rank {rank}: loop_bound_min = {loop_bound_min}")
+        # print(f"rank {rank}: loop_bound_max = {loop_bound_max}")
+
+        expected = {
+            1: {
+                0: (0, 19),
+            },
+            2: {
+                0: (0, 13),
+                1: (-2, 7),
+            },
+            4: {
+                0: (0, 7),
+                1: (-2, 7),
+                2: (-2, 7),
+                3: (-2, 1),
+            },
+            6: {
+                0: (0, 5),
+                1: (-2, 5),
+                2: (-2, 5),
+                3: (-2, 5),
+                4: (-2, 3),
+                5: (-2, -1)
+            },
+            8: {
+                0: (0, 4),
+                1: (-2, 4),
+                2: (-2, 4),
+                3: (-2, 4),
+                4: (-2, 4),
+                5: (-2, 4),
+                6: (-2, 1),
+                7: (-2, -2)
+            }
+        }[mode]
+
+        actual = (loop_bound_min, loop_bound_max)
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_3_constrain_indices_1d(self, mode):
+
+        # same as test 2 but bigger halo size 
+        # halo size 4
+        # 24 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
+        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
+        # IMPROVE WORDING
+        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+
+        # 1 rank:
+        #                        0   
+        # [x x x x x x x x x x x x x x x x x x x x] x x x x
+
+        # Expected: {0: (0, 19)}
+
+
+        # 2 ranks:
+        #            0                       1       
+        # [x x x x x x x x x x x x|x x x x x x x x] x x x x
+
+        # Expected: {0: (0, 15), 1: (-4, 7)}
+
+
+        # 4 ranks:
+        #       0           1           2            3         
+        # [x x x x x x|x x x x x x|x x x x x x|x x] x x x x
+
+        # Expected: {0: (0, 9), 1: (-4, 9), 2: (-4, 7), 3: (-4, 1)}
+
+
+        # 6 ranks:
+        #     0       1       2       3       4        5         
+        # [x x x x|x x x x|x x x x|x x x x|x x x x]|x x x x
+
+        # Expected: {0: (0, 7), 1: (-4, 7), 2: (-4, 7), 3: (-4, 7), 4: (-4, 3), 5: (-4, -1)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+
+        sub = Middle()
+
+        n = 24
+        so = 4
+
+        grid = Grid(
+            shape=(n,), subdomains=(sub,), dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so, dtype=np.float64)
+        bc = Function(name='bc', grid=grid, space_order=so, dtype=np.float64)
+
+        eq = Eq(u, 22., subdomain=grid.interior)
+        bc = EssentialBC(u, bc, subdomain=sub)
+
+        solver = petscsolve([eq, bc], u, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+
+        # TODO: this should probs be extracted from the loop bounds generated in the code instead..
+        # or maybe not but probs shouldn't hardcode the 2 etc...
+        rank = grid.distributor.myrank
+        args = op.arguments()
+
+        loop_bound_min = max(args['ix_min0'], args['x_m']-so)
+        loop_bound_max = min(args['ix_max0'], args['x_M']+so)
+
+        # print(f"rank {rank}: loop_bound_min = {loop_bound_min}")
+        # print(f"rank {rank}: loop_bound_max = {loop_bound_max}")
+
+        expected = {
+            1: {
+                0: (0, 19),
+            },
+            2: {
+                0: (0, 15),
+                1: (-4, 7),
+            },
+            4: {
+                0: (0, 9),
+                1: (-4, 9),
+                2: (-4, 7),
+                3: (-4, 1),
+            },
+            6: {
+                0: (0, 7),
+                1: (-4, 7),
+                2: (-4, 7),
+                3: (-4, 7),
+                4: (-4, 3),
+                5: (-4, -1)
+            }
+        }[mode]
+
+        actual = (loop_bound_min, loop_bound_max)
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+
+
+    # TODO NEXT - a subdomain that is created with middle (n, 0) to create a "right subdomain" using a "middle"

@@ -35,6 +35,8 @@ def constrain_essential_bcs(expressions, **kwargs):
 
             # obvs shouldn't be obtained from indexeds[0], but how should it be obtained?
             # USE e.lhs function -> the one that the BC is being applied to
+            # from IPython import embed; embed()
+            # f._size_nodomain.left
             halo_size_left = indexeds[0].function._size_halo[d].left
             halo_size_right = indexeds[0].function._size_halo[d].right
 
@@ -45,11 +47,11 @@ def constrain_essential_bcs(expressions, **kwargs):
 
             # in theory this class shoulod just take in d
             # TODO: use unique name
-            subdim_max = SubDimMax(d.name + '_max', subdim=d, thickness=d.thickness)
-            subdim_min = SubDimMin(d.name + '_min', subdim=d, thickness=d.thickness)
+            sregistry = kwargs.get('sregistry')
+            subdim_max = SubDimMax(sregistry.make_name(prefix=d.name + '_max'), subdim=d, thickness=d.thickness)
+            subdim_min = SubDimMin(sregistry.make_name(prefix=d.name + '_min'), subdim=d, thickness=d.thickness)
 
             # from IPython import embed; embed()
-
             new_dim = CustomBoundSubDimension(
             name=d.name,
             parent=d.parent,
