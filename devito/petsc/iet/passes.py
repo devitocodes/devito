@@ -22,7 +22,7 @@ from devito.petsc.iet.callbacks import (
     BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context,
     get_user_struct_fields
 )
-from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
+from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder, objs
 from devito.petsc.iet.builder import BuilderBase, CoupledBuilder, ConstrainedBCBuilder, make_core_petsc_calls
 from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
@@ -264,11 +264,14 @@ class BuildSolver:
 
     @cached_property
     def type_builder(self):
-        return (
-            CoupledTypeBuilder(**self.common_kwargs)
-            if self.coupled else
-            BaseTypeBuilder(**self.common_kwargs)
-        )
+        if self.coupled and self.constrain_bc:
+            return NotImplementedError
+        elif self.coupled:
+            return CoupledTypeBuilder(**self.common_kwargs) 
+        elif self.constrain_bc:
+            return ConstrainedBCTypeBuilder(**self.common_kwargs) 
+        else:
+            return BaseTypeBuilder(**self.common_kwargs) 
 
     @cached_property
     def time_dependence(self):
@@ -280,17 +283,12 @@ class BuildSolver:
     def callback_builder(self):
         return CoupledCallbackBuilder(**self.common_kwargs) \
             if self.coupled else BaseCallbackBuilder(**self.common_kwargs)
-
-    # @cached_property
-    # def builder(self):
-    #     return CoupledBuilder(**self.common_kwargs) \
-    #         if self.coupled else BuilderBase(**self.common_kwargs)
     
     @cached_property
     def builder(self):
         if self.coupled and self.constrain_bc:
-            # TODO: implement CoupledConstrainedBCBuilder
-            return CoupledBuilder(**self.common_kwargs) 
+            # TODO: implement CoupledConstrainedBCBuilder 
+            return NotImplementedError
         elif self.coupled:
             return CoupledBuilder(**self.common_kwargs) 
         elif self.constrain_bc:

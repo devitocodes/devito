@@ -8,7 +8,7 @@ from devito.petsc.types import (
     PetscBundle, DM, Mat, CallbackVec, Vec, KSP, PC, SNES, PetscInt, StartPtr,
     PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct, CallbackDM,
     PetscMPIInt, PetscErrorCode, PointerMat, MatReuse, CallbackPointerDM,
-    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats
+    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats, PetscSectionGlobal, PetscSectionLocal, PetscSF
 )
 
 
@@ -197,6 +197,21 @@ class CoupledTypeBuilder(BaseTypeBuilder):
             base_dict[f'scatter{name}'] = VecScatter(
                 sreg.make_name(prefix=f'scatter{name}')
             )
+
+
+class ConstrainedBCTypeBuilder(BaseTypeBuilder):
+    def _extend_build(self, base_dict):
+        sreg = self.sregistry
+        base_dict['lsection'] = PetscSectionLocal(
+            name=sreg.make_name(prefix='lsection')
+        )
+        base_dict['gsection'] = PetscSectionGlobal(
+            name=sreg.make_name(prefix='gsection')
+        )
+        base_dict['sf'] = PetscSF(
+            name=sreg.make_name(prefix='sf')
+        )
+        return base_dict
 
 
 subdms = PointerDM(name='subdms')

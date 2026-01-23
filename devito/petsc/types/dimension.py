@@ -29,7 +29,7 @@ class SubDimMax(Thickness):
         g_x_M = decomp.glb_max
         # print(g_x_M)
         val = decomp.index_glb_to_loc_unsafe(g_x_M - grtkn)
-        print(val)
+        # print(val)
 
 
         return {self.name: int(val)}

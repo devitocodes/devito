@@ -193,6 +193,22 @@ class SingleIS(PetscObject):
     dtype = CustomDtype('IS')
 
 
+class PetscSectionGlobal(PetscObject):
+    dtype = CustomDtype('PetscSection')
+
+    @property
+    def _C_free(self):
+        return petsc_call('PetscSectionDestroy', [Byref(self.function)])
+
+
+class PetscSectionLocal(PetscObject):
+    dtype = CustomDtype('PetscSection')
+
+
+class PetscSF(PetscObject):
+    dtype = CustomDtype('PetscSF')
+
+
 class PETScStruct(LocalCompositeObject):
 
     @property
@@ -340,5 +356,6 @@ FREE_PRIORITY = {
     Vec: 1,
     Mat: 2,
     SNES: 3,
-    DM: 4,
+    PetscSectionGlobal: 4,
+    DM: 5,
 }
