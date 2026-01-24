@@ -185,17 +185,11 @@ class Differentiable(sympy.Expr, Evaluable):
         return sorted(coefficients, key=key, reverse=True)[0]
 
     def _eval_at(self, func, **kwargs):
-        if not func.is_Staggered:
+        if not func.is_Staggered and not self.is_Staggered:
             # Cartesian grid, do no waste time
             return self
-<<<<<<< HEAD
-        return self.func(*[
-            getattr(a, '_eval_at', lambda x: a)(func) for a in self.args  # noqa: B023
-        ])  # false positive
-=======
         return self.func(*[getattr(a, '_eval_at', lambda x, **kw: a)(func, **kwargs)
                            for a in self.args])
->>>>>>> 198aedce4 (api: add mul interp mode)
 
     def _subs(self, old, new, **hints):
         if old == self:
@@ -497,14 +491,19 @@ class Differentiable(sympy.Expr, Evaluable):
             return all(i in self.free_symbols for i in patterns)
 
 
+<<<<<<< HEAD
 def highest_priority(diff_op):
     if not diff_op._args_diff:
         return diff_op
 
+=======
+def highest_priority(DiffOp, ref=None):
+>>>>>>> c34bae6f0 (tweak mul mode)
     # We want to get the object with highest priority
     # We also need to make sure that the object with the largest
     # set of dimensions is used when multiple ones with the same
     # priority appear
+<<<<<<< HEAD
     prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
 <<<<<<< HEAD
     prio_func = sorted(diff_op._args_diff, key=prio, reverse=True)[0]
@@ -514,6 +513,14 @@ def highest_priority(diff_op):
         return highest_priority(prio_func)
     return prio_func
 =======
+=======
+    def stagg(x):
+        try:
+            return int(x.staggered == ref.staggered)
+        except AttributeError:
+            return 0
+    prio = lambda x: (stagg(x), getattr(x, '_fd_priority', 0), len(x.dimensions))
+>>>>>>> c34bae6f0 (tweak mul mode)
     args = DiffOp._args_diff
     if not args:
         return DiffOp
@@ -692,50 +699,62 @@ class Mul(DifferentiableOp, sympy.Mul):
         if not mul_first:
             return super()._eval_at(func, mul_first=mul_first)
 
-        # Not a basic a*b*c... expression, just defer to superclass
+        # Same staggering, no need to interpolate
+        if self.staggered == func.staggered:
+            return self
+
+        # Get highest priority function for evaluation
+        func0 = highest_priority(self, ref=func)
+
+        # Not a basic a*b*c... expression, expand
         if any(isinstance(f, DifferentiableOp) for f in self.args):
-            return super()._eval_at(func, mul_first=mul_first)
+            return diffify(self._eval_expand_mul())._eval_at(func, mul_first=mul_first)
 
         # Split Derivative and Differentiable args
         derivs, other = split(self.args, lambda e: isinstance(e, sympy.Derivative))
 
+        # Evaluate all at highest priority function
         if derivs:
-            derivs = Differentiable._eval_at(self.func(*derivs), func,
-                                             mul_first=mul_first)
+            derivs = self.func(*[d._eval_at(func, mul_first=mul_first) for d in derivs])
         else:
             derivs = 1
 
         if not other:
             return derivs
-        elif len(other) > 1:
-            expr = self.func(*other)._gather_for_diff
-        else:
-            expr = other[0]
+        expr = self.func(*other)
 
         # Non differentiable expr (e.g., number)
         if not isinstance(expr, Differentiable):
             return self.func(derivs, expr)
 
-        # Build mapper for dimensions that need to be interpolated
-        mapper = {}
-        for d in self.dimensions:
-            try:
-                if self.indices_ref[d] is not func.indices_ref[d]:
-                    mapper[d] = func.indices_ref[d]
-            except KeyError:
-                pass
+        # Evaluate expression at func_args
+        print(f"\nEvaluating expr {expr} at func0 {func0} for func {func} from {self}")
+        expr = Differentiable._eval_at(expr, func0, mul_first=False)
 
-        # Nothing to interpolate
-        if not mapper:
-            return super()._eval_at(func, mul_first=mul_first)
+        # Interpolate derivatives at func0
+        x0 = {d: v for d, v in func0.indices_ref.getters.items()
+            if not d.is_Time and v is not func.indices_ref.getters.get(d, d)}
+        if x0 and not derivs == 1:
+            print(f"Interpolating derivs {derivs} x0={derivs.x0} at {x0}")
+            derivs = derivs.diff(*x0.keys(), deriv_order=(0,)*len(x0),
+                                fd_order=(self.interp_order,)*len(x0),
+                                x0=x0)
+        newexpr = self.func(derivs, expr)
 
-        # Interpolate expr at the required indices
-        interp = expr.diff(*mapper.keys(), deriv_order=[0 for _ in mapper],
-                           fd_order=[self.interp_order for _ in mapper],
-                           x0=mapper)
-
-        # Return the full expression with Derivatives
-        return self.func(derivs, interp)
+        # Finally at func
+        if not func.staggered == func0.staggered:
+            x0_f = {d: v for d, v in func.indices_ref.getters.items()
+                    if not d.is_Time and v is not func0.indices_ref.getters.get(d)}
+            if x0_f:
+                print(f"Final interpolation of derivs {self.func(derivs, expr)} at func {x0_f}")
+                return newexpr.diff(*x0_f.keys(), deriv_order=(0,)*len(x0_f),
+                                    fd_order=(self.interp_order,)*len(x0_f),
+                                    x0=x0_f)
+            else:
+                return newexpr
+        else:
+            # Return the full expression with Derivatives
+            return newexpr
 
 
 class Pow(DifferentiableOp, sympy.Pow):

@@ -57,14 +57,15 @@ class Staggering(DimensionTuple):
     def on_node(self):
         return not self or all(s == 0 for s in self)
 
-    @property
-    def _ref(self):
-        if not self:
-            return None
-        elif self.on_node:
-            return NODE
-        else:
-            return tuple(d for d, s in zip(self.getters, self, strict=True) if s == 1)
+    def __eq__(self, other):
+        if not isinstance(other, Staggering):
+            return False
+        all_same = self and other and all(a == b for a, b in zip(self, other))
+        all_node = self.on_node and other.on_node
+
+        return all_same or all_node
+
+    __hash__ = DimensionTuple.__hash__
 
 
 class IgnoreDimSort(tuple):

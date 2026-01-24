@@ -89,7 +89,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     evaluation are `x0`, `fd_order` and `side`.
     """
 
-    _fd_priority = 3
+    _fd_priority = .9
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
@@ -472,7 +472,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         return self._rebuild(transpose=adjoint)
 
-    def _eval_at(self, func, **kwargs):
+    def _eval_at(self, func, mul_first=False, **kwargs):
         """
         Evaluates the derivative at the location of `func`. It is necessary for staggered
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
@@ -525,7 +525,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 return self._rebuild(self.expr, **rkw)
             args = [self.expr.func(*v) for v in mapper.values()]
             args.extend([a for a in self.expr.args if a not in self.expr._args_diff])
-            args = [self._rebuild(a)._eval_at(func, **kwargs) for a in args]
+            args = [self._rebuild(a)._eval_at(func, mul_first=mul_first, **kwargs)
+                    for a in args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
             # For Mul, We treat the basic case `u(x + h_x/2) * v(x) which is what appear
