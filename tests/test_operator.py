@@ -1485,7 +1485,7 @@ class TestLoopScheduling:
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
+         '++++', ['xyz', 'xyz'], 'xyzz'),
         # 1) WAR 1->2, 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
@@ -1533,7 +1533,7 @@ class TestLoopScheduling:
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzyzyz'),
+         '+++++++', ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
         # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',

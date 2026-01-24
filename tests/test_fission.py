@@ -143,5 +143,6 @@ def test_fission_largest_cluster():
            Eq(A.forward, solve(Eq(curl(B.forward), f*A.dt), A.forward))]
 
     op = Operator(eqs, opt='fission')
+    from IPython import embed; embed()
 
     assert_structure(op, ['t,x,y,z', 't,x,y,z'], 't,x,y,z,x,y,z')

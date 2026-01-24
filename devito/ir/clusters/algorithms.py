@@ -36,6 +36,8 @@ def clusterize(exprs, **kwargs):
     # Setup the IterationSpaces based on data dependence analysis
     clusters = impose_total_ordering(clusters)
     clusters = Schedule().process(clusters)
+    if "e_xx" in str(clusters):
+        from IPython import embed; embed()
 
     # Handle SteppingDimensions
     clusters = Stepper(**kwargs).process(clusters)
@@ -156,11 +158,19 @@ class Schedule(Queue):
 
         # Schedule Clusters over different IterationSpaces if this increases
         # parallelism
-        for i in reversed(range(len(clusters) - 1)):
-            if self._break_for_parallelism(scope, candidates, i):
-                return self.callback(clusters[:i+1], prefix,
-                                     clusters[i+1:] + backlog,
+        #for i in reversed(range(len(clusters) - 1)):
+        for i in range(1, len(clusters)):
+            #TODO: DO IT A LA FUSION with is_cross...
+            scope1 = Scope(flatten(c.exprs for c in clusters[:i+1]))
+
+            if self._break_for_parallelism(scope1, candidates, i) or \
+               self._break_for_locality(scope1, candidates, i):
+
+                return self.callback(clusters[:i], prefix, clusters[i:] + backlog,
                                      candidates | known_break)
+                #return self.callback(clusters[:i+1], prefix,
+                #clusters[i+1:] + backlog,
+                #candidates | known_break)
 
         # Compute iteration direction
         idir = {d: Backward for d in candidates if d.root in scope.d_anti.cause}
@@ -199,11 +209,23 @@ class Schedule(Queue):
                 # Would break a dependence on storage
                 return False
             if any(d.is_carried(i) for i in candidates):  # noqa: SIM102
+                #TODO GROUP IF CONDITIONS
                 if (d.is_flow and d.is_lex_negative) or (d.is_anti and d.is_lex_positive):
                     # Would break a data dependence
                     return False
             test = test or (bool(d.cause & candidates) and not d.is_lex_equal)
         return test
+
+    def _break_for_locality(self, scope, candidates, i):
+        key = lambda dep: dep.is_read and dep.function._mem_heap
+
+        accesses_before_i = scope.a_query(range(i))
+        reads_before_i = {dep.function for dep in accesses_before_i if key(dep)}
+
+        accesses_at_i = scope.a_query(i)
+        reads_at_i = {dep.function for dep in accesses_at_i if key(dep)}
+
+        return not (reads_before_i & reads_at_i)
 
 
 @timed_pass()
