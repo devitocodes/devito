@@ -1118,7 +1118,7 @@ class Function(DiscreteFunction):
     def _fd_priority(self):
         return 1.2 if self.staggered.on_node else 1.1
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         if self.staggered == func.staggered or self.interp_order == 0:
             return self
 

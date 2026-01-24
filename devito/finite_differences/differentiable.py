@@ -185,9 +185,6 @@ class Differentiable(sympy.Expr, Evaluable):
         return sorted(coefficients, key=key, reverse=True)[0]
 
     def _eval_at(self, func, **kwargs):
-        if not func.is_Staggered and not self.is_Staggered:
-            # Cartesian grid, do no waste time
-            return self
         return self.func(*[getattr(a, '_eval_at', lambda x, **kw: a)(func, **kwargs)
                            for a in self.args])
 
@@ -491,42 +488,21 @@ class Differentiable(sympy.Expr, Evaluable):
             return all(i in self.free_symbols for i in patterns)
 
 
-<<<<<<< HEAD
 def highest_priority(diff_op):
     if not diff_op._args_diff:
         return diff_op
 
-=======
-def highest_priority(DiffOp, ref=None):
->>>>>>> c34bae6f0 (tweak mul mode)
     # We want to get the object with highest priority
     # We also need to make sure that the object with the largest
     # set of dimensions is used when multiple ones with the same
     # priority appear
-<<<<<<< HEAD
     prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
-<<<<<<< HEAD
     prio_func = sorted(diff_op._args_diff, key=prio, reverse=True)[0]
 
     # The highest priority must be a Function
     if not isinstance(prio_func, AbstractFunction):
         return highest_priority(prio_func)
     return prio_func
-=======
-=======
-    def stagg(x):
-        try:
-            return int(x.staggered == ref.staggered)
-        except AttributeError:
-            return 0
-    prio = lambda x: (stagg(x), getattr(x, '_fd_priority', 0), len(x.dimensions))
->>>>>>> c34bae6f0 (tweak mul mode)
-    args = DiffOp._args_diff
-    if not args:
-        return DiffOp
-    else:
-        return sorted(DiffOp._args_diff, key=prio, reverse=True)[0]
->>>>>>> 198aedce4 (api: add mul interp mode)
 
 
 class DifferentiableOp(Differentiable):
@@ -594,16 +570,14 @@ class DifferentiableFunction(DifferentiableOp):
     def __new__(cls, *args, **kwargs):
         return cls.__sympy_class__.__new__(cls, *args, **kwargs)
 
-<<<<<<< HEAD
     @property
     def _fd_priority(self):
         if highest_priority(self) is self:
             return super()._fd_priority
         return highest_priority(self)._fd_priority
-=======
+
     def _eval_at(self, func, **kwargs):
         return self
->>>>>>> 198aedce4 (api: add mul interp mode)
 
 
 class Add(DifferentiableOp, sympy.Add):
@@ -1179,7 +1153,7 @@ class diffify:
 
     Notes
     -----
-    The name "diffify" stems from SymPy's "simpify", which has an analogous task --
+    The name "diffify" stems from SymPy's "simplify", which has an analogous task --
     converting all arguments into SymPy core objects.
     """
 

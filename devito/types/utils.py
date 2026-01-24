@@ -65,6 +65,15 @@ class Staggering(DimensionTuple):
 
         return all_same or all_node
 
+    @property
+    def _ref(self):
+        if not self:
+            return None
+        elif self.on_node:
+            return NODE
+        else:
+            return tuple(d for d, s in zip(self.getters, self, strict=True) if s == 1)
+
     __hash__ = DimensionTuple.__hash__
 
 
