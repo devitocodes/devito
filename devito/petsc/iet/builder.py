@@ -3,7 +3,7 @@ from functools import cached_property
 
 from devito.ir.iet import DummyExpr, BlankLine
 from devito.symbolics import (Byref, FieldFromPointer, VOID,
-                              FieldFromComposite, Null)
+                              FieldFromComposite, Null, String)
 
 from devito.petsc.iet.nodes import (
     FormFunctionCallback, MatShellSetOp, PETScCall, petsc_call
@@ -343,6 +343,7 @@ class CoupledBuilder(BuilderBase):
 
 class ConstrainedBCMixin:
     """
+    not really a mixin?
     """
     def _create_dmda_calls(self, dmda):
         sobjs = self.solver_objs
@@ -350,13 +351,17 @@ class ConstrainedBCMixin:
         dmda_create = self._create_dmda(dmda)
         # TODO: probs need to set the dm options prefix the same as snes?
         # don't hardcode this probs? - the dm needs to be specific to the solver as well
-        da_create_section = petsc_call('PetscOptionsSetValue', [Null, '-da_use_section', Null])
+        da_create_section = petsc_call('PetscOptionsSetValue', [Null, String("-da_use_section"), Null])
         dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
 
-        set_constraints = petsc_call(
-            self.callback_builder._constrain_bc_efunc.name, [dmda]
+        count_bcs = petsc_call(
+            self.callback_builder._count_bc_efunc.name, [dmda, Byref(sobjs['numBC'])]
+        )
+
+        set_point_bcs = petsc_call(
+            self.callback_builder._point_bc_efunc.name, [dmda, Byref(sobjs['numBC'])]
         )
 
         get_local_section = petsc_call('DMGetLocalSection', [dmda, Byref(sobjs['lsection'])])
@@ -377,7 +382,8 @@ class ConstrainedBCMixin:
             dm_set_from_opts,
             dm_setup,
             dm_mat_type,
-            set_constraints,
+            count_bcs,
+            set_point_bcs,
             get_local_section,
             get_point_sf,
             create_global_section,

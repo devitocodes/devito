@@ -99,6 +99,20 @@ class PetscInt(PetscObject):
     dtype = CustomIntType('PetscInt')
 
 
+class CallbackPetscInt(PetscObject):
+    """
+    """
+    dtype = CustomIntType('PetscInt', modifier=' *')
+
+
+class PetscIntPtr(PetscObject):
+    """
+    """
+    dtype = CustomIntType('PetscInt')
+
+    _C_modifier = ' *'
+
+
 class PetscScalar(PetscObject):
     dtype = CustomIntType('PetscScalar')
 
@@ -303,6 +317,14 @@ class CallbackPointerIS(PETScArrayObject):
     @property
     def dtype(self):
         return CustomDtype('IS', modifier=' *')
+    
+
+class CallbackPointerPetscInt(PETScArrayObject):
+    """
+    """
+    @property
+    def dtype(self):
+        return CustomDtype('PetscInt', modifier=' *')
 
 
 class PointerIS(CallbackPointerIS):
@@ -349,6 +371,9 @@ class ArgvSymbol(DataSymbol):
 
 class NofSubMats(Scalar, LocalType):
     pass
+
+
+TempSymb = PetscInt(name='numBC2')
 
 
 FREE_PRIORITY = {

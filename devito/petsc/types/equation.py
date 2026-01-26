@@ -1,4 +1,4 @@
-from devito.types.equation import Eq
+from devito.types.equation import Eq, Inc
 
 
 __all__ = ['EssentialBC']
@@ -45,10 +45,28 @@ class ZeroColumn(EssentialBC):
     pass
 
 
-class ConstrainEssentialBC(EssentialBC):
-    """
-    Equation used to constrain nodes marked by EssentialBCs
-    inside a PetscSection. This type of equation is generated inside
-    petscsolve if the user sets `constrain_bcs=True`.
-    """
+class ConstrainBC(EssentialBC):
     pass
+
+
+# class NoOfEssentialBC(ConstrainBC, Inc):
+#     """
+#     Equation used count essential boundary condition nodes.
+#     This type of equation is generated inside
+#     petscsolve if the user sets `constrain_bcs=True`.
+#     """
+#     def __new__(cls, *args, **kwargs):
+#         return Inc.__new__(Inc, *args, **kwargs)
+    
+
+class NoOfEssentialBC(ConstrainBC, Inc):
+    """Equation used count essential boundary condition nodes.
+    This type of equation is generated inside
+    petscsolve if the user sets `constrain_bcs=True`."""
+    def __new__(cls, *args, **kwargs):
+        return Inc.__new__(Inc, *args, **kwargs)
+
+
+class PointEssentialBC(ConstrainBC):
+    pass
+

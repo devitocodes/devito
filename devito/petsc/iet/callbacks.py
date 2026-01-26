@@ -17,6 +17,7 @@ from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
+from devito.petsc.types.object import TempSymb
 
 
 class BaseCallbackBuilder:
@@ -44,7 +45,8 @@ class BaseCallbackBuilder:
         self._user_struct_callback = None
         self._F_efunc = None
         self._b_efunc = None
-        self._constrain_bc_efunc = None
+        self._count_bc_efunc = None
+        self._point_bc_efunc = None
 
         self._J_efuncs = []
         # TODO: isn't there only ever one of these per solver so why is it a list?
@@ -649,25 +651,39 @@ class BaseCallbackBuilder:
         return Uxreplace(subs).visit(body)
     
     def _make_constrain_bc(self):
-        exprs = self.field_data.constrain_bc.exprs
+        increment_exprs = self.field_data.constrain_bc.increment_exprs
+        point_bc_exprs = self.field_data.constrain_bc.point_bc_exprs
         sobjs = self.solver_objs
         objs = self.objs
 
         # Compile constrain `eqns` into an IET via recursive compilation
-        irs, _ = self.rcompile(
-            exprs, options={'mpi': False}, sregistry=self.sregistry,
+        irs0, _ = self.rcompile(
+            increment_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        body = self._create_constrain_bc_body(
-            List(body=irs.uiet.body)
+        # Compile constrain `eqns` into an IET via recursive compilation
+        irs1, _ = self.rcompile(
+            point_bc_exprs, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
         )
-        cb = self._make_petsc_callable(
-            'ConstrainBCs', body, parameters=(sobjs['callbackdm'],)
+        count_bc_body = self._create_count_bc_body(
+            List(body=irs0.uiet.body)
         )
-        self._constrain_bc_efunc = cb
-        self._efuncs[cb.name] = cb
+        set_point_bc_body = self._create_set_point_bc_body(
+            List(body=irs1.uiet.body)
+        )
+        cb0 = self._make_petsc_callable(
+            'CountBCs', count_bc_body, parameters=(sobjs['callbackdm'], sobjs['numBCPtr'])
+        )
+        cb1 = self._make_petsc_callable(
+            'SetPointBCs', set_point_bc_body, parameters=(sobjs['callbackdm'], sobjs['numBC'])
+        )
+        self._count_bc_efunc = cb0
+        self._efuncs[cb0.name] = cb0
+        self._point_bc_efunc = cb1
+        self._efuncs[cb1.name] = cb1
 
-    def _create_constrain_bc_body(self, body):
+    def _create_count_bc_body(self, body):
         linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
@@ -676,11 +692,6 @@ class BaseCallbackBuilder:
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
-        x_arr = self.field_data.arrays[target]['x']
-
-        vec_get_array = petsc_call(
-            'VecGetArray', [objs['xloc'], Byref(x_arr._C_symbol)]
-        )
 
         dm_get_local_info = petsc_call(
             'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
@@ -695,15 +706,14 @@ class BaseCallbackBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        vec_restore_array = petsc_call(
-            'VecRestoreArray', [objs['xloc'], Byref(x_arr._C_symbol)]
-        )
+        # dummyexpr = Dereference(self.target, sobjs['numBCPtr'])
 
-        body = body._rebuild(body=body.body + (vec_restore_array,))
+        # body = body._rebuild(body=body.body)
+
+        body = body._rebuild(body.body)
 
         stacks = (
-            vec_get_array,
-            dm_get_local_info
+            dm_get_local_info,
         )
 
         # Dereference function data in struct
@@ -720,6 +730,62 @@ class BaseCallbackBuilder:
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
+        
+        # subs[]
+        # subs[self.target] = sobjs['numBC']
+        
+        subs[TempSymb._C_symbol] = sobjs['numBCPtr']._C_symbol
+
+        # from IPython import embed; embed()
+
+        return Uxreplace(subs).visit(body)
+    
+    def _create_set_point_bc_body(self, body):
+        linsolve_expr = self.inject_solve.expr.rhs
+        objs = self.objs
+        sobjs = self.solver_objs
+        target = self.target
+
+        dmda = sobjs['callbackdm']
+        ctx = objs['dummyctx']
+
+
+        dm_get_local_info = petsc_call(
+            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+        )
+
+        body = self.time_dependence.uxreplace_time(body)
+
+        fields = get_user_struct_fields(body)
+        self._struct_params.extend(fields)
+
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
+        )
+
+        # body = body._rebuild(body=body.body)
+
+        stacks = (
+            dm_get_local_info,
+        )
+
+        # Dereference function data in struct
+        derefs = dereference_funcs(ctx, fields)
+
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [Definition(ctx), dm_get_app_context, Definition(sobjs['k_iter'])]
+
+        body = self._make_callable_body(
+            body, standalones=struct_definition, stacks=stacks+derefs
+        )
+
+        # Replace non-function data with pointer to data in struct
+        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
+                i in fields if not isinstance(i.function, AbstractFunction)}
+        
+
+        subs[TempSymb._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
 
         return Uxreplace(subs).visit(body)
 

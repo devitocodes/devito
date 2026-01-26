@@ -1,6 +1,6 @@
 from sympy import Eq
 from devito.symbolics import retrieve_indexed, retrieve_dimensions
-from devito.petsc.types.equation import ConstrainEssentialBC
+from devito.petsc.types.equation import ConstrainBC
 from devito.types.dimension import CustomBoundSubDimension
 from devito import Min, Max
 
@@ -22,7 +22,8 @@ def constrain_essential_bcs(expressions, **kwargs):
 
     # build mapper
     for e in expressions:
-        if not isinstance(e, ConstrainEssentialBC):
+        # from IPython import embed; embed()
+        if not isinstance(e, ConstrainBC):
             continue
 
         indexeds = retrieve_indexed(e)
@@ -64,7 +65,7 @@ def constrain_essential_bcs(expressions, **kwargs):
 
     # build new expressions
     for e in expressions:
-        if isinstance(e, ConstrainEssentialBC):
+        if isinstance(e, ConstrainBC):
             new_e = e.subs(mapper)
             new_exprs.append(new_e)
         

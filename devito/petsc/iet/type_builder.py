@@ -8,7 +8,8 @@ from devito.petsc.types import (
     PetscBundle, DM, Mat, CallbackVec, Vec, KSP, PC, SNES, PetscInt, StartPtr,
     PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct, CallbackDM,
     PetscMPIInt, PetscErrorCode, PointerMat, MatReuse, CallbackPointerDM,
-    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats, PetscSectionGlobal, PetscSectionLocal, PetscSF
+    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats, PetscSectionGlobal, PetscSectionLocal, PetscSF,
+    PetscIntPtr, CallbackPetscInt, CallbackPointerPetscInt
 )
 
 
@@ -210,6 +211,19 @@ class ConstrainedBCTypeBuilder(BaseTypeBuilder):
         )
         base_dict['sf'] = PetscSF(
             name=sreg.make_name(prefix='sf')
+        )  
+        name = sreg.make_name(prefix='numBC')
+        base_dict['numBC'] = PetscInt(
+            name=name, initvalue=0
+        )
+        base_dict['numBCPtr'] = CallbackPetscInt(
+            name=sreg.make_name(prefix='numBCPtr'), initvalue=0
+        )
+        base_dict['bcPointsArr'] = CallbackPointerPetscInt(
+            name=sreg.make_name(prefix='bcPointsArr')
+        )
+        base_dict['k_iter'] = PetscInt(
+            name='k_iter', initvalue=0
         )
         return base_dict
 

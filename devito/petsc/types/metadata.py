@@ -1,16 +1,18 @@
 import sympy
 from itertools import chain
 from functools import cached_property
+import numpy as np
 
 from devito.tools import Reconstructable, sympy_mutex, as_tuple, frozendict
 from devito.tools.dtypes_lowering import dtype_mapper
 from devito.symbolics.extraction import separate_eqn, generate_targets, centre_stencil
-from devito.types.equation import Eq
+from devito.types.equation import Eq, Inc
 from devito.operations.solve import eval_time_derivatives
 
 from devito.petsc.config import petsc_variables
+from devito.petsc.types.object import PetscInt, TempSymb
 from devito.petsc.types.equation import (
-    EssentialBC, ZeroRow, ZeroColumn, ConstrainEssentialBC
+    EssentialBC, ZeroRow, ZeroColumn, NoOfEssentialBC, PointEssentialBC
 )
 
 
@@ -731,33 +733,69 @@ class ConstrainBC:
     def __init__(self, target, exprs, arrays):
         self.target = target
         self.arrays = arrays
-        self._build_exprs(as_tuple(exprs))
+        self._make_increment_exprs(as_tuple(exprs))
+        self._make_point_bc_exprs(as_tuple(exprs))
 
     @property
-    def exprs(self):
-        return self._exprs
+    def increment_exprs(self):
+        return self._increment_exprs
+    
+    @property
+    def point_bc_exprs(self):
+        return self._point_bc_exprs
 
-    def _build_exprs(self, exprs):
+    def _make_increment_exprs(self, exprs):
         """
         Return a list of symbolic expressions
-        used to constrain essential boundary conditions.
+        used to count the number of essential boundary conditions.
         """
-        self._exprs = tuple([
+        self._increment_exprs = tuple([
             eq for eq in
-            (self._make_constraint(e) for e in exprs)
+            (self._make_increment_expr(e) for e in exprs)
             if eq is not None
         ])
 
-    def _make_constraint(self, expr):
+    def _make_increment_expr(self, expr):
+        """
+        Make the Eq that is used to increment the number of essential
+        boundary nodes in the generated ccode.
+        """
+        # rhssymb = PetscInt(name='rhssymb')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
-            return ConstrainEssentialBC(
-                self.arrays[self.target]['x'], expr.rhs,
+            return NoOfEssentialBC(
+                TempSymb, expr.rhs,
                 subdomain=expr.subdomain
             )
         else:
             return None
+        
+    def _make_point_bc_exprs(self, exprs):
+        """
+        Return a list of symbolic expressions
+        used to count the number of essential boundary conditions.
+        """
+        self._point_bc_exprs = tuple([
+            eq for eq in
+            (self._make_point_bc_expr(e) for e in exprs)
+            if eq is not None
+        ])
 
+    def _make_point_bc_expr(self, expr):
+        """
+        Make the Eq that is used to increment the number of essential
+        boundary nodes in the generated ccode.
+        """
+        numBC = PetscInt(name='numBC2')
+        if isinstance(expr, EssentialBC):
+            assert expr.lhs == self.target
+            return NoOfEssentialBC(
+                TempSymb, expr.rhs,
+                subdomain=expr.subdomain
+            )
+        else:
+            return None
+        
 
 def targets_to_arrays(array, targets):
     """
@@ -781,3 +819,4 @@ def targets_to_arrays(array, targets):
         array.subs(dict(zip(array.indices, i))) for i in space_indices
     ]
     return frozendict(zip(targets, array_targets))
+
