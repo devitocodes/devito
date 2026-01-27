@@ -8,10 +8,9 @@ class EssentialBC(Eq):
     """
     Represents an essential boundary condition for use with `petscsolve`.
 
-    Due to ongoing work on PetscSection and DMDA integration (WIP),
-    these conditions are imposed as trivial equations. The compiler
-    will automatically zero the corresponding rows/columns in the Jacobian
-    and lift the boundary terms into the residual RHS.
+    The compiler will automatically zero the corresponding rows/columns in the Jacobian
+    and lift the boundary terms into the residual RHS, unless the user
+    specifies `constrain_bcs=True` to `petscsolve`.
 
     Note:
         - To define an essential boundary condition, use:
@@ -47,37 +46,14 @@ class ZeroColumn(EssentialBC):
 
 class ConstrainBC(EssentialBC):
     pass
-
-
-# class NoOfEssentialBC(ConstrainBC, Inc):
-#     """
-#     Equation used count essential boundary condition nodes.
-#     This type of equation is generated inside
-#     petscsolve if the user sets `constrain_bcs=True`.
-#     """
-#     def __new__(cls, *args, **kwargs):
-#         return Inc.__new__(Inc, *args, **kwargs)
     
 
-class NoOfEssentialBC(ConstrainBC):
+class NoOfEssentialBC(Inc, ConstrainBC):
     """Equation used count essential boundary condition nodes.
     This type of equation is generated inside
     petscsolve if the user sets `constrain_bcs=True`."""
-    # def __new__(cls, *args, **kwargs):
-    #     return Inc.__new__(Inc, *args, **kwargs)
     pass
-    
-
-# class NoOfEssentialBC(Inc, ConstrainBC):
-#     """
-#     Equation used to count essential boundary condition nodes.
-#     """
-
-#     def __new__(cls, *args, **kwargs):
-#         obj = super().__new__(cls, *args, **kwargs)
-#         return obj
 
 
 class PointEssentialBC(ConstrainBC):
     pass
-

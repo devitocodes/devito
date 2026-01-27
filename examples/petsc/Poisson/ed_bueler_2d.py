@@ -99,6 +99,8 @@ bcs += [EssentialBC(u, bc, subdomain=sub2)]
 bcs += [EssentialBC(u, bc, subdomain=sub3)]
 bcs += [EssentialBC(u, bc, subdomain=sub4)]
 
+
+
 exprs = [eqn] + bcs
 petsc = petscsolve(
     exprs, target=u,
@@ -109,11 +111,11 @@ petsc = petscsolve(
 
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
-    summary = op.apply()
+    # summary = op.apply()
     # print(op.arguments())
 
 
-# print(op.ccode)
+print(op.ccode)
 # iters = summary.petsc[('section0', 'poisson_2d')].KSPGetIterationNumber
 
 u_exact = Function(name='u_exact', grid=grid, space_order=2)

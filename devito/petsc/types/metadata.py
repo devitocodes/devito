@@ -762,12 +762,14 @@ class ConstrainBC:
         """
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
-            from math import prod
-
-            rhs = prod(expr.rhs.dimensions)
+            # return NoOfEssentialBC(
+            #     TempSymb, expr.rhs,
+            #     subdomain=expr.subdomain,
+            # )
             return NoOfEssentialBC(
-                TempSymb, rhs,
-                subdomain=expr.subdomain
+                TempSymb, 1,
+                subdomain=expr.subdomain,
+                implicit_dims=expr.subdomain.dimensions
             )
         else:
             return None
@@ -791,7 +793,7 @@ class ConstrainBC:
         numBC = PetscInt(name='numBC2')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
-            return NoOfEssentialBC(
+            return PointEssentialBC(
                 TempSymb, expr.rhs,
                 subdomain=expr.subdomain
             )
