@@ -361,7 +361,7 @@ class ConstrainedBCMixin:
         )
 
         set_point_bcs = petsc_call(
-            self.callback_builder._point_bc_efunc.name, [dmda, Byref(sobjs['numBC'])]
+            self.callback_builder._point_bc_efunc.name, [dmda, sobjs['numBC']]
         )
 
         get_local_section = petsc_call('DMGetLocalSection', [dmda, Byref(sobjs['lsection'])])

@@ -59,12 +59,23 @@ class ConstrainBC(EssentialBC):
 #         return Inc.__new__(Inc, *args, **kwargs)
     
 
-class NoOfEssentialBC(ConstrainBC, Inc):
+class NoOfEssentialBC(ConstrainBC):
     """Equation used count essential boundary condition nodes.
     This type of equation is generated inside
     petscsolve if the user sets `constrain_bcs=True`."""
-    def __new__(cls, *args, **kwargs):
-        return Inc.__new__(Inc, *args, **kwargs)
+    # def __new__(cls, *args, **kwargs):
+    #     return Inc.__new__(Inc, *args, **kwargs)
+    pass
+    
+
+# class NoOfEssentialBC(Inc, ConstrainBC):
+#     """
+#     Equation used to count essential boundary condition nodes.
+#     """
+
+#     def __new__(cls, *args, **kwargs):
+#         obj = super().__new__(cls, *args, **kwargs)
+#         return obj
 
 
 class PointEssentialBC(ConstrainBC):

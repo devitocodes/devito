@@ -760,11 +760,13 @@ class ConstrainBC:
         Make the Eq that is used to increment the number of essential
         boundary nodes in the generated ccode.
         """
-        # rhssymb = PetscInt(name='rhssymb')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
+            from math import prod
+
+            rhs = prod(expr.rhs.dimensions)
             return NoOfEssentialBC(
-                TempSymb, expr.rhs,
+                TempSymb, rhs,
                 subdomain=expr.subdomain
             )
         else:
