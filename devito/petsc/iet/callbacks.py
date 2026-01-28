@@ -5,7 +5,7 @@ from devito.ir.iet import (
     BlankLine, Callable, Iteration, PointerCast, Definition
 )
 from devito.symbolics import (
-    Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null, VOID
+    Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null, VOID, Cast
 )
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
@@ -17,7 +17,7 @@ from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
-from devito.petsc.types.object import TempSymb
+from devito.petsc.types.object import Counter
 
 
 class BaseCallbackBuilder:
@@ -693,10 +693,6 @@ class BaseCallbackBuilder:
         ctx = objs['dummyctx']
 
 
-        dm_get_local_info = petsc_call(
-            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
-        )
-
         body = self.time_dependence.uxreplace_time(body)
 
         fields = get_user_struct_fields(body)
@@ -710,21 +706,24 @@ class BaseCallbackBuilder:
 
         # body = body._rebuild(body=body.body)
 
-        body = body._rebuild(body.body)
-
-        stacks = (
-            dm_get_local_info,
-        )
-
         # Dereference function data in struct
-        derefs = dereference_funcs(ctx, fields)
+        # derefs = dereference_funcs(ctx, fields)
+        
+        # OBVS change names
+        deref_ptr = DummyExpr(Counter, Deref(sobjs['numBCPtr']))
+        move_ptr = DummyExpr(Deref(sobjs['numBCPtr']), Counter)
+
+        # from IPython import embed; embed()
 
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
         struct_definition = [Definition(ctx), dm_get_app_context]
 
+
+        body = body._rebuild(body.body + (move_ptr,))
+
         body = self._make_callable_body(
-            body, standalones=struct_definition, stacks=stacks+derefs
+            body, standalones=struct_definition, stacks=(deref_ptr,)
         )
 
         # Replace non-function data with pointer to data in struct
@@ -734,7 +733,7 @@ class BaseCallbackBuilder:
         # subs[]
         # subs[self.target] = sobjs['numBC']
         
-        subs[TempSymb._C_symbol] = sobjs['numBCPtr']._C_symbol
+        # subs[Counter._C_symbol] = Cast(Deref(sobjs['numBCPtr']._C_symbol))
 
         # from IPython import embed; embed()
 
@@ -785,7 +784,7 @@ class BaseCallbackBuilder:
                 i in fields if not isinstance(i.function, AbstractFunction)}
         
 
-        subs[TempSymb._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
+        subs[Counter._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
 
         return Uxreplace(subs).visit(body)
 

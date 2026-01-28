@@ -17,7 +17,7 @@ from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
-from devito.types.basic import AbstractFunction
+from devito.types.basic import AbstractFunction, PostIncrementIndex
 from devito.tools import ctypes_to_cstr, dtype_to_ctype, ctypes_vector_mapper
 
 __all__ = ['BasePrinter', 'ccode']
@@ -148,8 +148,13 @@ class BasePrinter(CodePrinter):
         --------
         U[t,x,y,z] -> U[t][x][y][z]
         """
-        inds = ''.join(['[' + self._print(x) + ']' for x in expr.indices])
-        return f'{self._print(expr.base.label)}{inds}'
+        inds = []
+        for i in expr.indices:
+            if isinstance(i, PostIncrementIndex):
+                inds.append(f"[{self._print(i)}++]")
+            else:
+                inds.append(f"[{self._print(i)}]")
+        return f"{self._print(expr.base.label)}{''.join(inds)}"
 
     def _print_FIndexed(self, expr):
         """
@@ -165,7 +170,19 @@ class BasePrinter(CodePrinter):
         except AttributeError:
             label = expr.base.label
         return f'{self._print(label)}({inds})'
+    
+    # def _print_PostIncrementIndexed(self, expr):
+    #     """
+    #     Print an Indexed as a ...
 
+    #     Examples
+    #     --------
+    #     U[k] -> U[k++]
+    #     """
+    #     # from IPython import embed; embed()
+    #     inds = ''.join(['[' + self._print(x) + '++' + ']' for x in expr.indices])
+    #     return f'{self._print(expr.base.label)}{inds}'
+    
     def _print_Rational(self, expr):
         """Print a Rational as a C-like float/float division."""
         # This method and _print_Float below forcefully add a F to any

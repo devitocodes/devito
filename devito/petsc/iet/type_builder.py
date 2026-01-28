@@ -9,7 +9,7 @@ from devito.petsc.types import (
     PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct, CallbackDM,
     PetscMPIInt, PetscErrorCode, PointerMat, MatReuse, CallbackPointerDM,
     CallbackPointerIS, CallbackMat, DummyArg, NofSubMats, PetscSectionGlobal, PetscSectionLocal, PetscSF,
-    PetscIntPtr, CallbackPetscInt, CallbackPointerPetscInt
+    PetscIntPtr, CallbackPetscInt, CallbackPointerPetscInt, PostIncrementIndex
 )
 
 
@@ -222,7 +222,7 @@ class ConstrainedBCTypeBuilder(BaseTypeBuilder):
         base_dict['bcPointsArr'] = CallbackPointerPetscInt(
             name=sreg.make_name(prefix='bcPointsArr')
         )
-        base_dict['k_iter'] = PetscInt(
+        base_dict['k_iter'] = PostIncrementIndex(
             name='k_iter', initvalue=0
         )
         return base_dict

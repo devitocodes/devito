@@ -10,7 +10,7 @@ from devito.types.equation import Eq, Inc
 from devito.operations.solve import eval_time_derivatives
 
 from devito.petsc.config import petsc_variables
-from devito.petsc.types.object import PetscInt, TempSymb
+from devito.petsc.types.object import PetscInt, Counter
 from devito.petsc.types.equation import (
     EssentialBC, ZeroRow, ZeroColumn, NoOfEssentialBC, PointEssentialBC
 )
@@ -762,12 +762,8 @@ class ConstrainBC:
         """
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
-            # return NoOfEssentialBC(
-            #     TempSymb, expr.rhs,
-            #     subdomain=expr.subdomain,
-            # )
             return NoOfEssentialBC(
-                TempSymb, 1,
+                Counter, 1,
                 subdomain=expr.subdomain,
                 implicit_dims=expr.subdomain.dimensions
             )
@@ -790,11 +786,11 @@ class ConstrainBC:
         Make the Eq that is used to increment the number of essential
         boundary nodes in the generated ccode.
         """
-        numBC = PetscInt(name='numBC2')
+        # numBC = PetscInt(name='numBC2')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
             return PointEssentialBC(
-                TempSymb, expr.rhs,
+                Counter, expr.rhs,
                 subdomain=expr.subdomain
             )
         else:

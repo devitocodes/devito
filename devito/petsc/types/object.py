@@ -1,4 +1,5 @@
 from ctypes import POINTER, c_char
+from functools import cached_property
 
 from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
 from devito.types import (
@@ -6,7 +7,7 @@ from devito.types import (
     CustomDimension, Scalar
 )
 from devito.symbolics import Byref, cast
-from devito.types.basic import DataSymbol, LocalType
+from devito.types.basic import DataSymbol, LocalType, PostIncrementIndex
 
 from devito.petsc.iet.nodes import petsc_call
 
@@ -319,6 +320,10 @@ class CallbackPointerIS(PETScArrayObject):
         return CustomDtype('IS', modifier=' *')
     
 
+class PetscPostIncrementIndex(PostIncrementIndex):
+    pass
+    
+
 class CallbackPointerPetscInt(PETScArrayObject):
     """
     """
@@ -373,7 +378,8 @@ class NofSubMats(Scalar, LocalType):
     pass
 
 
-TempSymb = PetscInt(name='numBC2')
+# Can this be attached to the consrain bc object in metadata maybe? probs shoulnd't be here
+Counter = PetscInt(name='count')
 
 
 FREE_PRIORITY = {

@@ -947,6 +947,3 @@ rfunc_mapper = {
     min: Min,
     max: Max,
 }
-
-
-Null = Macro('NULL')
