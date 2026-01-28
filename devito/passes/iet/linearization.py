@@ -25,7 +25,7 @@ def linearize(graph, **kwargs):
 
     mode = options.get('linearize')
     maybe_callback = kwargs.pop('callback', mode)
-
+    # from IPython import embed; embed()
     if not maybe_callback:
         return
     elif callable(maybe_callback):
@@ -212,7 +212,7 @@ def linearize_accesses(iet, key0, tracker=None):
     indexeds = FindSymbols('indexeds').visit(iet)
     needs = filter_ordered(i.function for i in indexeds if key0(i.function))
     needs = sorted(needs, key=lambda f: len(f.dimensions), reverse=True)
-
+    # from IPython import embed; embed()
     # Update unique sizes and strides
     tracker.update(needs)
 
@@ -230,9 +230,10 @@ def linearize_accesses(iet, key0, tracker=None):
             continue
 
         v = generate_linearization(f, i, tracker)
+        # from IPython import embed; embed()
         if v is not None:
             subs[i] = v
-
+    # from IPython import embed; embed()
     iet = Uxreplace(subs).visit(iet)
 
     # 2) What `iet` *offers*

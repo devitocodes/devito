@@ -149,11 +149,29 @@ class FIndexed(Indexed, Pickable):
         findexed = self.func(accessor=accessor)
 
         return ((define, expr), findexed)
+    
+
+    @property
+    def linear_index(self):
+        f = self.function
+        strides_map = self.strides_map
+        indices = self.indices
+
+        items = [
+            idx * strides_map[d]
+            for idx, d in zip(indices, f.dimensions[1:])
+        ]
+        items.append(indices[-1])
+        
+        return sympy.Add(*items, evaluate=False)
 
     func = Pickable._rebuild
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+# the special postindex type sould live in this file i think
 
 
 class Global(Symbol):

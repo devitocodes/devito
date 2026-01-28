@@ -11,6 +11,7 @@ from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types import Dimension, Temp, TempArray
 from devito.tools import filter_ordered
+from devito.passes.iet.linearization import linearize_accesses
 
 from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp, petsc_call
 from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
@@ -28,6 +29,7 @@ class BaseCallbackBuilder:
 
         self.rcompile = kwargs.get('rcompile', None)
         self.sregistry = kwargs.get('sregistry', None)
+        self.options = kwargs.get('options', {})
         self.concretize_mapper = kwargs.get('concretize_mapper', {})
         self.time_dependence = kwargs.get('time_dependence')
         self.objs = kwargs.get('objs')
@@ -753,6 +755,25 @@ class BaseCallbackBuilder:
             'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
         )
 
+        import numpy as np
+        if self.options['index-mode'] == 'int32':
+            dtype = np.int32
+        else:
+            dtype = np.int64
+        from devito.passes.iet.linearization import Tracker
+
+        tracker = Tracker('basic', dtype, self.sregistry)
+
+        key = lambda f: f.name == 'bc'
+        body = linearize_accesses(body, key0=key, tracker=tracker)
+
+        # will only be findexeds 'indexeds'
+        findexeds = FindSymbols('indexeds').visit(body)
+        mapper_findexeds = {i: i.linear_index for i in findexeds}
+
+        # from IPython import embed; embed()
+
+        # findexeds = 
         body = self.time_dependence.uxreplace_time(body)
 
         fields = get_user_struct_fields(body)
@@ -762,7 +783,12 @@ class BaseCallbackBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        # body = body._rebuild(body=body.body)
+        comm = sobjs['comm']
+        is_create_general = petsc_call(
+            'ISCreateGeneral', [comm, sobjs['numBC'], sobjs['bcPointsArr'], 'PETSC_OWN_POINTER']
+        )
+
+        body = body._rebuild(body=body.body + (is_create_general,))
 
         stacks = (
             dm_get_local_info,
@@ -786,7 +812,10 @@ class BaseCallbackBuilder:
 
         subs[Counter._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
 
-        return Uxreplace(subs).visit(body)
+        body = Uxreplace(mapper_findexeds).visit(body)
+        body = Uxreplace(subs).visit(body)
+
+        return body
 
     def _make_user_struct_callback(self):
         """
