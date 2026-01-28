@@ -7,7 +7,7 @@ from devito.types import (
     CustomDimension, Scalar
 )
 from devito.symbolics import Byref, cast
-from devito.types.basic import DataSymbol, LocalType, PostIncrementIndex
+from devito.types.basic import DataSymbol, LocalType
 
 from devito.petsc.iet.nodes import petsc_call
 
@@ -318,10 +318,6 @@ class CallbackPointerIS(PETScArrayObject):
     @property
     def dtype(self):
         return CustomDtype('IS', modifier=' *')
-    
-
-class PetscPostIncrementIndex(PostIncrementIndex):
-    pass
     
 
 class CallbackPointerPetscInt(PETScArrayObject):

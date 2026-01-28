@@ -17,7 +17,8 @@ from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
-from devito.types.basic import AbstractFunction, PostIncrementIndex
+from devito.types.basic import AbstractFunction
+from devito.types.misc import PostIncrementIndex
 from devito.tools import ctypes_to_cstr, dtype_to_ctype, ctypes_vector_mapper
 
 __all__ = ['BasePrinter', 'ccode']

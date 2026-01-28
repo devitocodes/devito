@@ -9,6 +9,7 @@ from devito.symbolics import (
 )
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
+from devito.types.misc import PostIncrementIndex
 from devito.types import Dimension, Temp, TempArray
 from devito.tools import filter_ordered
 from devito.passes.iet.linearization import linearize_accesses
@@ -694,7 +695,6 @@ class BaseCallbackBuilder:
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
-
         body = self.time_dependence.uxreplace_time(body)
 
         fields = get_user_struct_fields(body)
@@ -785,10 +785,13 @@ class BaseCallbackBuilder:
 
         comm = sobjs['comm']
         is_create_general = petsc_call(
-            'ISCreateGeneral', [comm, sobjs['numBC'], sobjs['bcPointsArr'], 'PETSC_OWN_POINTER']
+            'ISCreateGeneral', [comm, sobjs['numBC'], sobjs['bcPointsArr'], 'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
         )
 
-        body = body._rebuild(body=body.body + (is_create_general,))
+        malloc = petsc_call(
+            'PetscMalloc1', [1, sobjs['bcPoints']]
+        )
+        body = body._rebuild(body=body.body + (is_create_general,malloc))
 
         stacks = (
             dm_get_local_info,
@@ -1300,7 +1303,7 @@ def zero_vector(vec):
 def get_user_struct_fields(iet):
     fields = [f.function for f in FindSymbols('basics').visit(iet)]
     from devito.types.basic import LocalType
-    avoid = (Temp, TempArray, LocalType)
+    avoid = (Temp, TempArray, LocalType, PostIncrementIndex)
     fields = [f for f in fields if not isinstance(f.function, avoid)]
     fields = [
         f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))

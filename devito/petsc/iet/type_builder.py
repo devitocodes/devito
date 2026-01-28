@@ -2,6 +2,7 @@ import numpy as np
 
 from devito.symbolics import String
 from devito.types import Symbol
+from devito.types.misc import PostIncrementIndex
 from devito.tools import frozendict
 
 from devito.petsc.types import (
@@ -9,7 +10,7 @@ from devito.petsc.types import (
     PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct, CallbackDM,
     PetscMPIInt, PetscErrorCode, PointerMat, MatReuse, CallbackPointerDM,
     CallbackPointerIS, CallbackMat, DummyArg, NofSubMats, PetscSectionGlobal, PetscSectionLocal, PetscSF,
-    PetscIntPtr, CallbackPetscInt, CallbackPointerPetscInt, PostIncrementIndex
+    PetscIntPtr, CallbackPetscInt, CallbackPointerPetscInt, SingleIS
 )
 
 
@@ -225,6 +226,9 @@ class ConstrainedBCTypeBuilder(BaseTypeBuilder):
         base_dict['k_iter'] = PostIncrementIndex(
             name='k_iter', initvalue=0
         )
+        # change names etc..
+        base_dict['bcPointsIS'] = SingleIS(name='bcPointsIS')
+        base_dict['bcPoints'] = PointerIS(name='bcPoints')
         return base_dict
 
 

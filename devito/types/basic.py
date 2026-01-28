@@ -1927,7 +1927,3 @@ class LocalType(Basic):
     to impose pass-by-reference semantics.
     """
     _C_modifier = None
-
-
-class PostIncrementIndex(DataSymbol):
-    pass

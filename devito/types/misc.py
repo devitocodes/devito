@@ -172,6 +172,8 @@ class FIndexed(Indexed, Pickable):
 
 
 # the special postindex type sould live in this file i think
+class PostIncrementIndex(Symbol):
+    pass
 
 
 class Global(Symbol):
