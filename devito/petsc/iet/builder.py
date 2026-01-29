@@ -40,6 +40,13 @@ class BuilderBase:
     def _setup(self):
         sobjs = self.solver_objs
         dmda = sobjs['dmda']
+        mainctx = sobjs['userctx']
+
+        call_struct_callback = petsc_call(
+            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
+        )
+
+        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
@@ -105,18 +112,12 @@ class BuilderBase:
 
         dmda_calls = self._create_dmda_calls(dmda)
 
-        mainctx = sobjs['userctx']
-
-        call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
-        )
-
         # TODO: maybe don't need to explictly set this
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
 
-        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
-
         base_setup = dmda_calls + (
+            call_struct_callback,
+            calls_set_app_ctx,
             snes_create,
             snes_options_prefix,
             set_options,
@@ -131,9 +132,7 @@ class BuilderBase:
             matvec_operation,
             formfunc_operation,
             snes_set_options,
-            call_struct_callback,
             mat_set_dm,
-            calls_set_app_ctx,
             BlankLine
         )
         extended_setup = self._extend_setup()
@@ -256,8 +255,6 @@ class CoupledBuilder(BuilderBase):
 
         # TODO: maybe don't need to explictly set this
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
-
-        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
 
         create_field_decomp = petsc_call(
             'DMCreateFieldDecomposition',

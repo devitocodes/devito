@@ -12,6 +12,9 @@ from devito.types.basic import DataSymbol, LocalType
 from devito.petsc.iet.nodes import petsc_call
 
 
+# TODO: unnecessary use of "CALLBACK" types - just create a simple way of destroying or not destroying a certain type
+
+
 class PetscMixin:
     @property
     def _C_free_priority(self):
@@ -207,6 +210,12 @@ class StartPtr(PetscObject):
 class SingleIS(PetscObject):
     dtype = CustomDtype('IS')
 
+
+# class SingleISDestroy(SingleIS):
+#     @property
+#     def _C_free(self):
+#         return petsc_call('ISDestroy', [Byref(self.function)])
+ 
 
 class PetscSectionGlobal(PetscObject):
     dtype = CustomDtype('PetscSection')

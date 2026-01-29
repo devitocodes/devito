@@ -212,7 +212,7 @@ def linearize_accesses(iet, key0, tracker=None):
     indexeds = FindSymbols('indexeds').visit(iet)
     needs = filter_ordered(i.function for i in indexeds if key0(i.function))
     needs = sorted(needs, key=lambda f: len(f.dimensions), reverse=True)
-    # from IPython import embed; embed()
+
     # Update unique sizes and strides
     tracker.update(needs)
 
@@ -230,16 +230,17 @@ def linearize_accesses(iet, key0, tracker=None):
             continue
 
         v = generate_linearization(f, i, tracker)
-        # from IPython import embed; embed()
+
         if v is not None:
             subs[i] = v
-    # from IPython import embed; embed()
+
     iet = Uxreplace(subs).visit(iet)
 
     # 2) What `iet` *offers*
     # E.g. `{x_fsz0 -> u_vec->size[1]}`
     defines = FindSymbols('defines').visit(iet)
     offers = filter_ordered(i for i in defines if key0(i.function))
+    # from IPython import embed; embed()
     instances = {}
     for i in offers:
         f = i.function
@@ -294,7 +295,7 @@ def linearize_accesses(iet, key0, tracker=None):
     if stmts:
         body = iet.body._rebuild(strides=stmts)
         iet = iet._rebuild(body=body)
-
+    # from IPython import embed; embed()
     return iet
 
 
