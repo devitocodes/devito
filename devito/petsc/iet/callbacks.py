@@ -755,23 +755,22 @@ class BaseCallbackBuilder:
             'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
         )
 
-        import numpy as np
-        if self.options['index-mode'] == 'int32':
-            dtype = np.int32
-        else:
-            dtype = np.int64
-        from devito.passes.iet.linearization import Tracker
+        # import numpy as np
+        # if self.options['index-mode'] == 'int32':
+        #     dtype = np.int32
+        # else:
+        #     dtype = np.int64
+        # from devito.passes.iet.linearization import Tracker
 
-        tracker = Tracker('basic', dtype, self.sregistry)
+        # tracker = Tracker('basic', dtype, self.sregistry)
+        # # from IPython import embed; embed()
+        # key = lambda f: f.name == 'u'
+        # body = linearize_accesses(body, key0=key, tracker=tracker)
 
-        key = lambda f: f.name == 'bc'
-        body = linearize_accesses(body, key0=key, tracker=tracker)
-
-        # will only be findexeds 'indexeds'
-        findexeds = FindSymbols('indexeds').visit(body)
-        mapper_findexeds = {i: i.linear_index for i in findexeds}
-
-
+        # # will only be findexeds 'indexeds'
+        # findexeds = FindSymbols('indexeds').visit(body)
+        # mapper_findexeds = {i: i.linear_index for i in findexeds}
+        
         # from IPython import embed; embed()
 
         # findexeds = 
@@ -789,7 +788,11 @@ class BaseCallbackBuilder:
             'ISCreateGeneral', [comm, sobjs['numBC'], sobjs['bcPointsArr'], 'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
         )
 
-        malloc = petsc_call(
+        malloc_bc_points_arr = petsc_call(
+            'PetscMalloc1', [sobjs['numBC'], sobjs['bcPointsArr']]
+        )
+
+        malloc_bc_points = petsc_call(
             'PetscMalloc1', [1, sobjs['bcPoints']]
         )
 
@@ -798,7 +801,7 @@ class BaseCallbackBuilder:
         set_point_bc = petsc_call(
             'DMDASetPointBC', [dmda, 1, sobjs['bcPoints'], Null]
         )
-        body = body._rebuild(body=body.body + (is_create_general, malloc, dummy_expr, set_point_bc))
+        body = body._rebuild(body=(malloc_bc_points_arr,)+ body.body + (is_create_general, malloc_bc_points, dummy_expr, set_point_bc))
 
         stacks = (
             dm_get_local_info,
@@ -821,7 +824,7 @@ class BaseCallbackBuilder:
 
         subs[Counter._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
 
-        body = Uxreplace(mapper_findexeds).visit(body)
+        # body = Uxreplace(mapper_findexeds).visit(body)
         body = Uxreplace(subs).visit(body)
 
         return body

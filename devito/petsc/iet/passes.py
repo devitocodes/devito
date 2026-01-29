@@ -9,7 +9,9 @@ from devito.ir.iet import (
 )
 from devito.symbolics import Byref, Macro, Null, FieldFromPointer
 from devito.types.basic import DataSymbol
+from devito.types.misc import FIndexed
 import devito.logger
+from devito.passes.iet.linearization import linearize_accesses
 
 from devito.petsc.types import (
     MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct,
@@ -125,6 +127,61 @@ def lower_petsc_symbols(iet, **kwargs):
     rebuild_child_user_struct(iet, mapper=callback_struct_mapper)
     # Rebuild `MainUserStruct` and update iet accordingly
     rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
+
+    # from IPython import embed; embed()
+
+
+    iet = linear_indices(iet, **kwargs)
+
+    ############ tmp
+    # import numpy as np
+    # if kwargs['options']['index-mode'] == 'int32':
+    #     dtype = np.int32
+    # else:
+    #     dtype = np.int64
+    # from devito.passes.iet.linearization import Tracker
+
+    # tracker = Tracker('basic', dtype, kwargs['sregistry'])
+
+    # key = lambda f: f.name == 'bc'
+    # body = linearize_accesses(body, key0=key, tracker=tracker)
+
+    # # will only be findexeds 'indexeds'
+    # findexeds = FindSymbols('indexeds').visit(body)
+    # mapper_findexeds = {i: i.linear_index for i in findexeds}
+
+    # iet = 
+
+
+@iet_pass
+def linear_indices(iet, **kwargs):
+
+    if not iet.name.startswith("SetPointBCs"):
+        return iet, {}
+
+    import numpy as np
+    if kwargs['options']['index-mode'] == 'int32':
+        dtype = np.int32
+    else:
+        dtype = np.int64
+    from devito.passes.iet.linearization import Tracker
+
+    tracker = Tracker('basic', dtype, kwargs['sregistry'])
+    # from IPython import embed; embed()
+    key = lambda f: f.name == 'u'
+    iet = linearize_accesses(iet, key0=key, tracker=tracker)
+    # from IPython import embed; embed()
+    # will only be findexeds 'indexeds'
+    findexeds = [i for i in FindSymbols('indexeds').visit(iet) if isinstance(i, FIndexed)]
+    mapper_findexeds = {i: i.linear_index for i in findexeds}
+
+
+    iet = Uxreplace(mapper_findexeds).visit(iet)
+
+
+    # from IPython import embed; embed()
+
+    return iet, {}
 
 
 @iet_pass

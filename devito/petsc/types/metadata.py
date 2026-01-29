@@ -789,8 +789,9 @@ class ConstrainBC:
         # numBC = PetscInt(name='numBC2')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
+            # from IPython import embed; embed()
             return PointEssentialBC(
-                Counter, expr.rhs,
+                Counter, self.target,
                 subdomain=expr.subdomain
             )
         else:

@@ -40,13 +40,7 @@ class BuilderBase:
     def _setup(self):
         sobjs = self.solver_objs
         dmda = sobjs['dmda']
-        mainctx = sobjs['userctx']
-
-        call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
-        )
-
-        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
+        # mainctx = sobjs['userctx']
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
@@ -116,8 +110,8 @@ class BuilderBase:
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
 
         base_setup = dmda_calls + (
-            call_struct_callback,
-            calls_set_app_ctx,
+            # call_struct_callback,
+            # calls_set_app_ctx,
             snes_create,
             snes_options_prefix,
             set_options,
@@ -150,7 +144,15 @@ class BuilderBase:
         dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
-        return dmda_create, dm_set_from_opts, dm_setup, dm_mat_type
+        mainctx = self.solver_objs['userctx']
+
+        call_struct_callback = petsc_call(
+            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
+        )
+
+        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
+
+        return dmda_create, dm_set_from_opts, dm_setup, dm_mat_type, call_struct_callback, calls_set_app_ctx
 
     def _create_dmda(self, dmda):
         sobjs = self.solver_objs
@@ -344,6 +346,8 @@ class ConstrainedBCMixin:
     """
     def _create_dmda_calls(self, dmda):
         sobjs = self.solver_objs
+        # mainctx = sobjs['mainctx']
+        mainctx = sobjs['userctx']
         # TODO: CLEAN UP
         dmda_create = self._create_dmda(dmda)
         # TODO: probs need to set the dm options prefix the same as snes?
@@ -373,12 +377,21 @@ class ConstrainedBCMixin:
 
         dm_create_section_sf = petsc_call('DMCreateSectionSF', [dmda, sobjs['lsection'], sobjs['gsection']])
 
+
+        call_struct_callback = petsc_call(
+            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
+        )
+
+        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
+
         return (
             dmda_create,
             da_create_section,
             dm_set_from_opts,
             dm_setup,
             dm_mat_type,
+            call_struct_callback,
+            calls_set_app_ctx,
             count_bcs,
             set_point_bcs,
             get_local_section,
