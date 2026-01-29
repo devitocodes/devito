@@ -223,7 +223,7 @@ class LoweredEq(IREq):
             else:
                 cond = diff2sympy(lower_exprs(d.condition))
                 if d._factor is not None:
-                    cond = sympy.And(cond, GuardFactor(d))
+                    cond = d.relation(cond, GuardFactor(d))
                 conditionals[d] = cond
             # Replace dimension with index
             index = d.index
