@@ -40,7 +40,7 @@ jobs:
   ############## Basic gcc CPU ##########################
   #######################################################
   deploy-cpu-bases:
-    if: inputs.cpu
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cpu }}
     name: "cpu-base-${{ matrix.arch }}-gcc${{ matrix.gcc }}"
     runs-on: ${{ matrix.runner }}
     env:
@@ -88,7 +88,7 @@ jobs:
           tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}-${{ matrix.arch }}"
 
   deploy-cpu-bases-manifest:
-    if: inputs.cpu
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cpu }}
     name: "cpu-base-manifest"
     runs-on: ubuntu-latest
     needs: deploy-cpu-bases
@@ -123,7 +123,7 @@ jobs:
   ############## Intel OneApi CPU #######################
   #######################################################
   deploy-oneapi-bases:
-    if: inputs.intel
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.intel }}
     name: "oneapi-base"
     runs-on: ubuntu-latest
     env:
@@ -181,7 +181,7 @@ jobs:
   ################### Nvidia nvhpc ######################
   #######################################################
   deploy-nvidia-bases:
-    if: inputs.nvidia
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.nvidia }}
     name: "nvidia-bases-${{ matrix.arch }}"
     runs-on: ${{ matrix.runner }}
     env:
@@ -270,7 +270,7 @@ jobs:
           tags: "devitocodes/bases:cpu-nvc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
   deploy-nvidia-bases-manifest:
-    if: inputs.nvidia
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.nvidia }}
     name: "nvidia-base-manifest"
     runs-on: ubuntu-latest
     needs: deploy-nvidia-bases
@@ -305,7 +305,7 @@ jobs:
   ##################### AMD #############################
   #######################################################
   deploy-amd-bases:
-    if: inputs.amd
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.amd }}
     name: "amd-base"
     runs-on: ["self-hosted", "amdgpu"]
     env:
