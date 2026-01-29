@@ -789,11 +789,11 @@ class BaseCallbackBuilder:
         )
 
         malloc_bc_points_arr = petsc_call(
-            'PetscMalloc1', [sobjs['numBC'], sobjs['bcPointsArr']]
+            'PetscMalloc1', [sobjs['numBC'], Byref(sobjs['bcPointsArr']._C_symbol)]
         )
 
         malloc_bc_points = petsc_call(
-            'PetscMalloc1', [1, sobjs['bcPoints']]
+            'PetscMalloc1', [1, Byref(sobjs['bcPoints']._C_symbol)]
         )
 
         dummy_expr = DummyExpr(sobjs['bcPoints'].indexed[0], sobjs['bcPointsIS'])
