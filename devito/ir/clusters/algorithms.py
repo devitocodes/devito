@@ -286,7 +286,8 @@ def guard(clusters):
                     conditionals.pop(cd, None)
                     exprs[i] = e.func(*e.args, conditionals=conditionals)
 
-            # Combination mode is And by default and Or if all conditions are
+            # Combination `mode` is And by default.
+            # If all conditions are Or then Or combination `mode` is used.
             guards = {d: mode(*v, evaluate=False) for d, v in guards.items()}
 
             # Construct a guarded Cluster

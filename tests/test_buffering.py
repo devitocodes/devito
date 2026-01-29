@@ -780,7 +780,7 @@ def test_multi_cond():
     eqs.append(Eq(f.forward, T+1, implicit_dims=ctend))
 
     # run operator with buffering
-    op = Operator(eqs, opt=('streaming', 'buffering'))
+    op = Operator(eqs, opt='buffering')
     op.apply(time_m=0, time_M=ntmod-2)
 
     for i in range(nt):

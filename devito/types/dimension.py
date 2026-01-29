@@ -861,7 +861,10 @@ class ConditionalDimension(DerivedDimension):
         index into arrays. A typical use case is when arrays are accessed
         indirectly via the ``condition`` expression.
     relation: Or/And, default=And
-        How this ConditionalDimension will be combined with other ones.
+        How this ConditionalDimension will be combined with other ones during
+        lowering for example combining Function's ConditionalDimension with
+        an Equation's implicit_dim. All Dimensions within an equation
+        must have `Or` relation for the final combined condition to be Or.
 
     Examples
     --------
