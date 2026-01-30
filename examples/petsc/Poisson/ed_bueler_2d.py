@@ -109,13 +109,19 @@ petsc = petscsolve(
     constrain_bcs=True
 )
 
+
+
+rank = grid.distributor.myrank
+# from IPython import embed; embed()
+
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
+    args = op.arguments()
+    print(f"[rank {rank}] arguments = {args}")
     summary = op.apply()
-    # print(op.arguments())
 
 
-# print(op.ccode)
+print(op.ccode)
 # iters = summary.petsc[('section0', 'poisson_2d')].KSPGetIterationNumber
 
 u_exact = Function(name='u_exact', grid=grid, space_order=2)

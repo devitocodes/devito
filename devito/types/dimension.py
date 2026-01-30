@@ -844,11 +844,32 @@ class CustomBoundSubDimension(SubDimension):
     def custom_right(self):
         return self._custom_right
 
-    # @cached_property
-    # def _interval(self):
-    #     left = self.parent.symbolic_min + self._offset_left
-    #     right = self.parent.symbolic_max - self._offset_right
-    #     return sympy.Interval(left, right)
+    @cached_property
+    def _interval(self):
+        left = self.custom_left
+        right = self.custom_right
+        return sympy.Interval(left, right)
+
+
+class CustomBoundSpaceDimension(SpaceDimension):
+
+    # have is_CustomSub = True ... here?
+
+    __rargs__ = SpaceDimension.__rargs__ + ('custom_left', 'custom_right')
+
+    def __init_finalize__(self, name,
+                          custom_left=0, custom_right=0, **kwargs):
+        self._custom_left = custom_left
+        self._custom_right = custom_right
+        super().__init_finalize__(name, **kwargs)
+
+    @property
+    def custom_left(self):
+        return self._custom_left
+
+    @property
+    def custom_right(self):
+        return self._custom_right
 
     @cached_property
     def _interval(self):

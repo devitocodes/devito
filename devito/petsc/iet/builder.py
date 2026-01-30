@@ -330,7 +330,7 @@ class CoupledBuilder(BuilderBase):
             snes_set_options,
             call_struct_callback,
             mat_set_dm,
-            calls_set_app_ctx,
+            # calls_set_app_ctx,
             create_field_decomp,
             matop_create_submats_op,
             call_coupled_struct_callback,
@@ -367,6 +367,9 @@ class ConstrainedBCMixin:
 
         get_local_section = petsc_call('DMGetLocalSection', [dmda, Byref(sobjs['lsection'])])
 
+        import cgen as c
+        tmp = c.Line("PetscCall(PetscSectionView(lsection0, NULL));")
+
         get_point_sf = petsc_call('DMGetPointSF', [dmda, Byref(sobjs['sf'])])
 
         create_global_section = petsc_call(
@@ -395,6 +398,7 @@ class ConstrainedBCMixin:
             count_bcs,
             set_point_bcs,
             get_local_section,
+            tmp,
             get_point_sf,
             create_global_section,
             dm_set_global_section,

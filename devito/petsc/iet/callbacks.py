@@ -731,13 +731,6 @@ class BaseCallbackBuilder:
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
-        
-        # subs[]
-        # subs[self.target] = sobjs['numBC']
-        
-        # subs[Counter._C_symbol] = Cast(Deref(sobjs['numBCPtr']._C_symbol))
-
-        # from IPython import embed; embed()
 
         return Uxreplace(subs).visit(body)
     
@@ -750,30 +743,10 @@ class BaseCallbackBuilder:
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
-
         dm_get_local_info = petsc_call(
             'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
         )
 
-        # import numpy as np
-        # if self.options['index-mode'] == 'int32':
-        #     dtype = np.int32
-        # else:
-        #     dtype = np.int64
-        # from devito.passes.iet.linearization import Tracker
-
-        # tracker = Tracker('basic', dtype, self.sregistry)
-        # # from IPython import embed; embed()
-        # key = lambda f: f.name == 'u'
-        # body = linearize_accesses(body, key0=key, tracker=tracker)
-
-        # # will only be findexeds 'indexeds'
-        # findexeds = FindSymbols('indexeds').visit(body)
-        # mapper_findexeds = {i: i.linear_index for i in findexeds}
-        
-        # from IPython import embed; embed()
-
-        # findexeds = 
         body = self.time_dependence.uxreplace_time(body)
 
         fields = get_user_struct_fields(body)
@@ -784,8 +757,10 @@ class BaseCallbackBuilder:
         )
 
         comm = sobjs['comm']
+        # Obvs fix the first arg
         is_create_general = petsc_call(
-            'ISCreateGeneral', [comm, sobjs['numBC'], sobjs['bcPointsArr'], 'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
+            'ISCreateGeneral', ['PetscObjectComm((PetscObject)(dm0))', sobjs['numBC'], sobjs['bcPointsArr'],
+                                'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
         )
 
         malloc_bc_points_arr = petsc_call(
@@ -824,10 +799,7 @@ class BaseCallbackBuilder:
 
         subs[Counter._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
 
-        # body = Uxreplace(mapper_findexeds).visit(body)
-        body = Uxreplace(subs).visit(body)
-
-        return body
+        return Uxreplace(subs).visit(body)
 
     def _make_user_struct_callback(self):
         """
