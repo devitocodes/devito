@@ -765,7 +765,8 @@ class ConstrainBC:
             return NoOfEssentialBC(
                 Counter, 1,
                 subdomain=expr.subdomain,
-                implicit_dims=expr.subdomain.dimensions
+                implicit_dims=expr.subdomain.dimensions,
+                target=self.target
             )
         else:
             return None
@@ -789,10 +790,10 @@ class ConstrainBC:
         # numBC = PetscInt(name='numBC2')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
-            # from IPython import embed; embed()
             return PointEssentialBC(
                 Counter, self.target,
-                subdomain=expr.subdomain
+                subdomain=expr.subdomain,
+                target=self.target
             )
         else:
             return None

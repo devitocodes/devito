@@ -18,7 +18,22 @@ class EssentialBC(Eq):
           where `target` is the Function-like object passed to `petscsolve`.
         - SubDomains used for multiple `EssentialBC`s must not overlap.
     """
-    pass
+    __rkwargs__ = Eq.__rkwargs__ + ("target",)
+
+    def __new__(cls, *args, target=None, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+
+        if target is None:
+            lhs = obj.lhs
+            target = getattr(lhs, "function", lhs)
+
+        obj._target = target
+        return obj
+
+    @property
+    def target(self):
+        return self._target
+
 
 
 class ZeroRow(EssentialBC):

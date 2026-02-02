@@ -7,6 +7,8 @@ from devito import (Grid, Function, Eq, Operator, switchconfig,
 from devito.petsc import petscsolve, EssentialBC
 from devito.petsc.initialize import PetscInitialize
 
+from devito.mpi.distributed import MPI
+
 import matplotlib.pyplot as plt
 
 configuration['compiler'] = 'custom'
@@ -116,9 +118,9 @@ rank = grid.distributor.myrank
 
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
-    # args = op.arguments()
-    # print(f"[rank {rank}] arguments = {args}")
-    # summary = op.apply()
+    args = op.arguments()
+    print(f"[rank {rank}] arguments = {args}")
+    summary = op.apply()
 
 
 print(op.ccode)
@@ -131,12 +133,16 @@ print(u_exact)
 diff = Function(name='diff', grid=grid, space_order=2)
 diff.data[:] = u_exact.data[:] - u.data[:]
 
-# # Compute infinity norm using numpy
-# # TODO: Figure out how to compute the infinity norm using Devito
-infinity_norm = np.linalg.norm(diff.data[:].ravel(), ord=np.inf)
-print(f"Infinity Norm={infinity_norm}")
 
-# # Compute discrete L2 norm (RMS error)
-n_interior = np.prod([s - 1 for s in grid.shape])
-discrete_l2_norm = norm(diff) / np.sqrt(n_interior)
-print(f"Discrete L2 Norm={discrete_l2_norm}")
+gathered = diff.data._gather()
+comm = grid.comm
+
+if comm is not None and configuration['mpi']:
+    if comm != MPI.COMM_NULL and comm.rank == 0:
+        infinity_norm_mpi = np.linalg.norm(np.asarray(gathered).ravel(), ord=np.inf)
+    else:
+        infinity_norm_mpi = None
+else:
+    infinity_norm_mpi = None
+
+print(f"Infinity Norm={infinity_norm_mpi}")

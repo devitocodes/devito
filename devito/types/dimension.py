@@ -21,7 +21,7 @@ __all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'DefaultDimension',
            'CustomDimension', 'SteppingDimension', 'SubDimension',
            'MultiSubDimension', 'ConditionalDimension', 'ModuloDimension',
            'IncrDimension', 'BlockDimension', 'StencilDimension',
-           'VirtualDimension', 'Spacing', 'dimensions', 'CustomBoundSubDimension']
+           'VirtualDimension', 'Spacing', 'dimensions']
 
 
 SubDimensionThickness = namedtuple('SubDimensionThickness', 'left right')
@@ -824,68 +824,68 @@ class MultiSubDimension(AbstractSubDimension):
         return self.parent.bound_symbols
     
 
-class CustomBoundSubDimension(SubDimension):
+# class CustomBoundSubDimension(SubDimension):
 
-    # have is_CustomSub = True ... here?
+#     # have is_CustomSub = True ... here?
 
-    __rargs__ = SubDimension.__rargs__ + ('custom_left', 'custom_right')
+#     __rargs__ = SubDimension.__rargs__ + ('custom_left', 'custom_right')
 
-    def __init_finalize__(self, name, parent, thickness, local,
-                          custom_left=0, custom_right=0, **kwargs):
-        self._custom_left = custom_left
-        self._custom_right = custom_right
-        super().__init_finalize__(name, parent, thickness, local)
+#     def __init_finalize__(self, name, parent, thickness, local,
+#                           custom_left=0, custom_right=0, **kwargs):
+#         self._custom_left = custom_left
+#         self._custom_right = custom_right
+#         super().__init_finalize__(name, parent, thickness, local)
 
-    @property
-    def custom_left(self):
-        return self._custom_left
+#     @property
+#     def custom_left(self):
+#         return self._custom_left
 
-    @property
-    def custom_right(self):
-        return self._custom_right
+#     @property
+#     def custom_right(self):
+#         return self._custom_right
 
-    @cached_property
-    def _interval(self):
-        left = self.custom_left
-        right = self.custom_right
-        return sympy.Interval(left, right)
+#     @cached_property
+#     def _interval(self):
+#         left = self.custom_left
+#         right = self.custom_right
+#         return sympy.Interval(left, right)
 
 
-class CustomBoundSpaceDimension(SpaceDimension):
+# class CustomBoundSpaceDimension(SpaceDimension):
 
-    # have is_CustomSub = True ... here?
+#     # have is_CustomSub = True ... here?
 
-    __rargs__ = SpaceDimension.__rargs__ + ('custom_left', 'custom_right')
+#     __rargs__ = SpaceDimension.__rargs__ + ('custom_left', 'custom_right')
 
-    def __init_finalize__(self, name,
-                          custom_left=0, custom_right=0, **kwargs):
-        self._custom_left = custom_left
-        self._custom_right = custom_right
-        super().__init_finalize__(name, **kwargs)
+#     def __init_finalize__(self, name,
+#                           custom_left=0, custom_right=0, **kwargs):
+#         self._custom_left = custom_left
+#         self._custom_right = custom_right
+#         super().__init_finalize__(name, **kwargs)
 
-    @property
-    def custom_left(self):
-        return self._custom_left
+#     @property
+#     def custom_left(self):
+#         return self._custom_left
 
-    @property
-    def custom_right(self):
-        return self._custom_right
+#     @property
+#     def custom_right(self):
+#         return self._custom_right
 
-    @cached_property
-    def _interval(self):
-        left = self.custom_left
-        right = self.custom_right
-        return sympy.Interval(left, right)
+#     @cached_property
+#     def _interval(self):
+#         left = self.custom_left
+#         right = self.custom_right
+#         return sympy.Interval(left, right)
     
-    @cached_property
-    def symbolic_min(self):
-        """Symbol defining the minimum point of the Dimension."""
-        return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
+#     @cached_property
+#     def symbolic_min(self):
+#         """Symbol defining the minimum point of the Dimension."""
+#         return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
-    @cached_property
-    def symbolic_max(self):
-        """Symbol defining the maximum point of the Dimension."""
-        return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
+#     @cached_property
+#     def symbolic_max(self):
+#         """Symbol defining the maximum point of the Dimension."""
+#         return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
 
 class SubsamplingFactor(Scalar):
