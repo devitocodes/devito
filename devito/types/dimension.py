@@ -876,6 +876,16 @@ class CustomBoundSpaceDimension(SpaceDimension):
         left = self.custom_left
         right = self.custom_right
         return sympy.Interval(left, right)
+    
+    @cached_property
+    def symbolic_min(self):
+        """Symbol defining the minimum point of the Dimension."""
+        return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
+
+    @cached_property
+    def symbolic_max(self):
+        """Symbol defining the maximum point of the Dimension."""
+        return Scalar(name=self.max_name, dtype=np.int32, is_const=True)
 
 
 class SubsamplingFactor(Scalar):

@@ -116,9 +116,9 @@ rank = grid.distributor.myrank
 
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
-    args = op.arguments()
-    print(f"[rank {rank}] arguments = {args}")
-    summary = op.apply()
+    # args = op.arguments()
+    # print(f"[rank {rank}] arguments = {args}")
+    # summary = op.apply()
 
 
 print(op.ccode)
