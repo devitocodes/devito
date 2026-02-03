@@ -55,7 +55,7 @@ class Lift(Queue):
                 continue
 
             # Is `c` a real candidate -- is there at least one invariant Dimension?
-            if any(d._defines & hope_invariant for d in c.used_dimensions):
+            if any(d._defines & hope_invariant for d in c.exprs_dimensions):
                 processed.append(c)
                 continue
 
@@ -69,16 +69,16 @@ class Lift(Queue):
             # All of the inner Dimensions must appear in the write-to region
             # otherwise we would violate data dependencies. Consider
             #
-            # 1)                 2)                          3)
-            # for i              for i                       for i
-            #   for x              for x                       for x
-            #     r = f(a[x])        for y                       for y
-            #                          r[x] = f(a[x, y])           r[x, y] = f(a[x, y])
+            # 1)                2)                        3)
+            # for i             for i                     for i
+            #   for x             for x                     for x
+            #     r = f(a[x])       for y                     for y
+            #                         r[x] = f(a[x, y])         r[x, y] = f(a[x, y])
             #
             # In 1) and 2) lifting is infeasible; in 3) the statement can
             # be lifted outside the `i` loop as `r`'s write-to region contains
             # both `x` and `y`
-            xed = {d._defines for d in c.used_dimensions if d not in outer}
+            xed = {d._defines for d in c.exprs_dimensions if d not in outer}
             if not all(i & set(w.dimensions) for i, w in product(xed, c.scope.writes)):
                 processed.append(c)
                 continue
