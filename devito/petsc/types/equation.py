@@ -24,8 +24,7 @@ class EssentialBC(Eq):
         obj = super().__new__(cls, *args, **kwargs)
 
         if target is None:
-            lhs = obj.lhs
-            target = getattr(lhs, "function", lhs)
+            target = obj.lhs.function
 
         obj._target = target
         return obj

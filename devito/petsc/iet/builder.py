@@ -152,7 +152,14 @@ class BuilderBase:
 
         calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
 
-        return dmda_create, dm_set_from_opts, dm_setup, dm_mat_type, call_struct_callback, calls_set_app_ctx
+        return (
+            dmda_create,
+            dm_set_from_opts,
+            dm_setup,
+            dm_mat_type,
+            call_struct_callback,
+            calls_set_app_ctx
+        )
 
     def _create_dmda(self, dmda):
         sobjs = self.solver_objs
@@ -192,7 +199,7 @@ class BuilderBase:
         dmda = petsc_call(f'DMDACreate{nspace_dims}d', args)
 
         return dmda
-    
+
 
 class CoupledBuilder(BuilderBase):
     def _setup(self):

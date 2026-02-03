@@ -171,19 +171,7 @@ class BasePrinter(CodePrinter):
         except AttributeError:
             label = expr.base.label
         return f'{self._print(label)}({inds})'
-    
-    # def _print_PostIncrementIndexed(self, expr):
-    #     """
-    #     Print an Indexed as a ...
 
-    #     Examples
-    #     --------
-    #     U[k] -> U[k++]
-    #     """
-    #     # from IPython import embed; embed()
-    #     inds = ''.join(['[' + self._print(x) + '++' + ']' for x in expr.indices])
-    #     return f'{self._print(expr.base.label)}{inds}'
-    
     def _print_Rational(self, expr):
         """Print a Rational as a C-like float/float division."""
         # This method and _print_Float below forcefully add a F to any

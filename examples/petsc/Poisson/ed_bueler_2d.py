@@ -71,15 +71,16 @@ Ly = np.float64(1.)
 
 n = 17
 h = Lx/(n-1)
+so = 2
 
 
 grid = Grid(
     shape=(n, n), extent=(Lx, Ly), subdomains=subdomains, dtype=np.float64
 )
 
-u = Function(name='u', grid=grid, space_order=2)
-f = Function(name='f', grid=grid, space_order=2)
-bc = Function(name='bc', grid=grid, space_order=2)
+u = Function(name='u', grid=grid, space_order=so)
+f = Function(name='f', grid=grid, space_order=so)
+bc = Function(name='bc', grid=grid, space_order=so)
 
 eqn = Eq(-u.laplace, f, subdomain=grid.interior)
 
@@ -120,17 +121,17 @@ with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
     args = op.arguments()
     print(f"[rank {rank}] arguments = {args}")
-    summary = op.apply()
+    # summary = op.apply()
 
 
 print(op.ccode)
 # iters = summary.petsc[('section0', 'poisson_2d')].KSPGetIterationNumber
 
-u_exact = Function(name='u_exact', grid=grid, space_order=2)
+u_exact = Function(name='u_exact', grid=grid, space_order=so)
 u_exact.data[:] = exact(X, Y)
 print(u_exact)
 
-diff = Function(name='diff', grid=grid, space_order=2)
+diff = Function(name='diff', grid=grid, space_order=so)
 diff.data[:] = u_exact.data[:] - u.data[:]
 
 

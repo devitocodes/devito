@@ -1149,7 +1149,7 @@ class Dereference(ExprStmt, Node):
             else:
                 ret.extend([self.pointer, self.pointee.indexed])
                 ret.extend(flatten(i.free_symbols
-                                for i in self.pointee.symbolic_shape[1:]))
+                           for i in self.pointee.symbolic_shape[1:]))
         else:
             assert False, f"Unexpected pointer type {type(self.pointer)}"
 

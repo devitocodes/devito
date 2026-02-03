@@ -453,8 +453,8 @@ class Decomposition(tuple):
     def index_glb_to_loc_unsafe(self, glb_idx, rel=True):
         """
         Convert a global index to a local index even if not owned.
-        WARNING: Must not be used to index data as there are no guard rails against returning out
-        of bound indices.
+        WARNING: Must not be used to index data as there are no guard
+        rails against returning out of bound indices.
         """
         if not self.loc_empty:
             loc_abs_min = self.loc_abs_min - self.glb_min
