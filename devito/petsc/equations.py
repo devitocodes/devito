@@ -18,11 +18,8 @@ def lower_exprs_petsc(expressions, **kwargs):
 
 def constrain_essential_bcs(expressions, **kwargs):
     """
-    Expand ConstrainBC expressions to include halo regions by creating new
-    CustomDimensions for all relevant subdimensions and space dimensions,
-    then applying the mapper to all ConstrainBCs.
+    NOTE:
     """
-
     sregistry = kwargs['sregistry']
     new_exprs = []
 
@@ -40,7 +37,7 @@ def constrain_essential_bcs(expressions, **kwargs):
     space_dims = [d for d in all_dims if isinstance(d, SpaceDimension)]
 
     mapper = {}
-
+    # from IPython import embed; embed()
     for d in subdims:
         halo = halo_size[d]
 
@@ -52,7 +49,7 @@ def constrain_essential_bcs(expressions, **kwargs):
         )
 
         mapper[d] = CustomDimension(
-            name=sregistry.make_name(prefix=f"{d.name}_new"),
+            name=d.name,
             symbolic_min=Max(subdim_min, d.parent.symbolic_min - halo.left),
             symbolic_max=Min(subdim_max, d.parent.symbolic_max + halo.right),
         )
@@ -73,6 +70,7 @@ def constrain_essential_bcs(expressions, **kwargs):
         )
 
     # Apply mapper to all expressions
+    # from IPython import embed; embed()
     for e in expressions:
         if not isinstance(e, ConstrainBC):
             new_exprs.append(e)
@@ -83,7 +81,9 @@ def constrain_essential_bcs(expressions, **kwargs):
             new_exprs.append(e)
             continue
 
-        new_e = uxreplace(e, mapper)
+        # new_e = uxreplace(e, mapper)
+        new_e = e.subs(mapper)
+        
 
         if e.implicit_dims:
             new_e = new_e._rebuild(

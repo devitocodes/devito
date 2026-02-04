@@ -2213,25 +2213,24 @@ class TestPrinter:
 class TestPetscSection:
     """
     These tests validate the use of `PetscSection` (from PETSc) to constrain essential
-    boundary nodes by removing them from the linear solver, rather than leaving them in
+    boundary nodes by removing them from the linear solver, rather than keeping them in
     the system as trivial equations.
 
     Users specify essential boundary conditions via the `EssentialBC` equation, with a specifed `SubDomain`.
     When `constrain_bcs=True` is passed to `petscsolve`, the Devito compiler generates code that
-    removes these degrees of freedom from the linear system. A requirement for this in PETSc is
-    that each MPI rank identifies ALL constrained nodes that lie within its local data region, including
+    removes these degrees of freedom from the linear system. A PETSc requirement is
+    that each MPI rank identifies ALL constrained nodes within its local data region, including
     non-owned (halo) nodes.
 
     To achieve this, the compiler creates new `EssentialBC`-like equations with modified (sub)dimensions
-    (to extend the loop bounds) that are utilised in two callback functions to constrain the nodes.
-    No non-owned (haloed) data is indexed into - the loops are purely used to specify the constrained "local" indices
-    on each rank.
+    (to extend the loop bounds), which are used in two callback functions to constrain the nodes.
+    No non-owned (halo) data is indexed into - the loops are only used to specify the constrained "local"
+    indices on each rank.
 
     Tests in this class use the following notation:
     - `x`   : a grid point
     - `[]`  : the `SubDomain` specified by the `EssentialBC` (the region being constrained)
     - `|`   : an MPI rank boundary
-
     """
     # first test that the loop generated is correct symbolically..
 
@@ -2272,10 +2271,7 @@ class TestPetscSection:
     @pytest.mark.parallel(mode=[1, 2, 4])
     def test_1_constrain_indices_1d(self, mode):
         # halo size 2
-        # 12 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
-        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
-        # IMPROVE WORDING
-        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+        # 12 grid points
 
         # 1 rank:
         #            0   
@@ -2295,8 +2291,7 @@ class TestPetscSection:
         #    0     1      2     3         
         # [x x x|x x x|x] x x|x x x
 
-        # Expected: {0: (0, 4), 1: (-2, 3), 2: (-2, 0), 3: (null loop - locally doesn't cover any of the subdomain)}
-        # rank 3 comes out as (-2,-3) -> null loop
+        # Expected: {0: (0, 4), 1: (-2, 3), 2: (-2, 0), 3: (-2, -3)}
 
         class Middle(SubDomain):
             name = 'submiddle'
@@ -2519,10 +2514,7 @@ class TestPetscSection:
 
         # subdomain on the right side of the grid not left
         # halo size 2
-        # 24 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
-        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
-        # IMPROVE WORDING
-        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+        # 24 grid points in 1D
 
         # 1 rank:
         #                        0   
@@ -2623,10 +2615,7 @@ class TestPetscSection:
         # subdomain on the right side of the grid not left
         # halo size 4
         # same as test 4 but halo size 4 (so don't test 8 ranks)
-        # 24 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
-        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
-        # IMPROVE WORDING
-        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+        # 24 grid points in 1D
 
         # 1 rank:
         #                        0   
@@ -2709,10 +2698,7 @@ class TestPetscSection:
 
         # subdomain in the MIDDLE 
         # halo size 2
-        # 24 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
-        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
-        # IMPROVE WORDING
-        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+        # 24 grid points in 1D
 
         # 1 rank:
         #                        0   
@@ -2811,10 +2797,7 @@ class TestPetscSection:
 
         # subdomain in the MIDDLE 
         # halo size 4
-        # 24 grid points in 1D with a subdomain spanning the region contained inside the brackets [], x represents a grid point, | represents the decomposition
-        # {rank: (min, max)} represents the loop bounds to constrain indices (locally) corresponding to the subdomain on this particular rank
-        # IMPROVE WORDING
-        # In petsc, when constraining indices, you constrain local (haloed) indices - INCLUDING NON OWNED INDICES
+        # 24 grid points in 1D
 
         # 1 rank:
         #                        0   

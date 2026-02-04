@@ -103,7 +103,6 @@ bcs += [EssentialBC(u, bc, subdomain=sub3)]
 bcs += [EssentialBC(u, bc, subdomain=sub4)]
 
 
-
 exprs = [eqn] + bcs
 petsc = petscsolve(
     exprs, target=u,
@@ -111,8 +110,6 @@ petsc = petscsolve(
     options_prefix='poisson_2d',
     constrain_bcs=True
 )
-
-
 
 rank = grid.distributor.myrank
 # from IPython import embed; embed()
