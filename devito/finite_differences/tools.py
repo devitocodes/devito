@@ -50,10 +50,9 @@ def check_input(func):
     def wrapper(expr, *args, **kwargs):
         try:
             return S.Zero if expr.is_Number else func(expr, *args, **kwargs)
-        except AttributeError:
-            raise ValueError(
-                f"'{expr}' must be of type Differentiable, not {type(expr)}"
-            ) from None
+        except Exception as e:
+            raise type(e)(f"Error while computing finite-difference for expr={expr}: "
+                          f"{e}") from e
     return wrapper
 
 
