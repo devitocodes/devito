@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
+from sympy import Or
 
 from conftest import skipif
 from devito import (
-    ConditionalDimension, Constant, Eq, Grid, Operator, SubDimension, SubDomain,
+    CondEq, ConditionalDimension, Constant, Eq, Grid, Operator, SubDimension, SubDomain,
     TimeFunction, configuration, switchconfig
 )
 from devito.arch.archinfo import AppleArm
@@ -751,3 +752,36 @@ def test_buffer_reuse():
 
     assert all(np.all(usave.data[i-1] == i) for i in range(1, nt + 1))
     assert all(np.all(vsave.data[i-1] == i + 1) for i in range(1, nt + 1))
+
+
+def test_multi_cond():
+    grid = Grid((3, 3))
+    nt = 5
+
+    x, y = grid.dimensions
+
+    factor = 2
+    ntmod = (nt - 1) * factor + 1
+
+    ct1 = ConditionalDimension(name="ct1", parent=grid.time_dim,
+                               factor=factor, relation=Or)
+    ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
+                                 condition=CondEq(grid.time_dim, ntmod - 2),
+                                 relation=Or)
+
+    f = TimeFunction(grid=grid, name='f', time_order=0,
+                     space_order=0, save=nt, time_dim=ct1)
+    T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
+
+    eqs = [Eq(T, grid.time_dim)]
+    # this to save times from 0 to nt - 2
+    eqs.append(Eq(f, T))
+    # this to save the last time sample nt - 1
+    eqs.append(Eq(f.forward, T+1, implicit_dims=ctend))
+
+    # run operator with buffering
+    op = Operator(eqs, opt='buffering')
+    op.apply(time_m=0, time_M=ntmod-2)
+
+    for i in range(nt):
+        assert np.allclose(f.data[i], i*2)

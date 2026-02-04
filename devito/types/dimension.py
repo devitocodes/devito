@@ -860,6 +860,11 @@ class ConditionalDimension(DerivedDimension):
         If True, use `self`, rather than the parent Dimension, to
         index into arrays. A typical use case is when arrays are accessed
         indirectly via the ``condition`` expression.
+    relation: Or/And, default=And
+        How this ConditionalDimension will be combined with other ones during
+        lowering for example combining Function's ConditionalDimension with
+        an Equation's implicit_dim. All Dimensions within an equation
+        must have `Or` relation for the final combined condition to be Or.
 
     Examples
     --------
@@ -913,10 +918,10 @@ class ConditionalDimension(DerivedDimension):
     is_Conditional = True
 
     __rkwargs__ = DerivedDimension.__rkwargs__ + \
-        ('factor', 'condition', 'indirect')
+        ('factor', 'condition', 'indirect', 'relation')
 
     def __init_finalize__(self, name, parent=None, factor=None, condition=None,
-                          indirect=False, **kwargs):
+                          indirect=False, relation=sympy.And, **kwargs):
         # `parent=None` degenerates to a ConditionalDimension outside of
         # any iteration space
         if parent is None:
@@ -937,6 +942,7 @@ class ConditionalDimension(DerivedDimension):
 
         self._condition = condition
         self._indirect = indirect
+        self._relation = relation
 
     @property
     def uses_symbolic_factor(self):
@@ -977,6 +983,10 @@ class ConditionalDimension(DerivedDimension):
     @property
     def indirect(self):
         return self._indirect
+
+    @property
+    def relation(self):
+        return self._relation
 
     @cached_property
     def free_symbols(self):

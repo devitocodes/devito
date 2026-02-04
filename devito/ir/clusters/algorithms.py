@@ -254,6 +254,7 @@ def guard(clusters):
 
             # Chain together all `cds` conditions from all expressions in `c`
             guards = {}
+            mode = sympy.Or
             for cd in cds:
                 # `BOTTOM` parent implies a guard that lives outside of
                 # any iteration space, which corresponds to the placeholder None
@@ -270,6 +271,7 @@ def guard(clusters):
 
                 # Pull `cd` from any expr
                 condition = guards.setdefault(k, [])
+                mode = mode and cd.relation
                 for e in exprs:
                     try:
                         condition.append(e.conditionals[cd])
@@ -284,7 +286,9 @@ def guard(clusters):
                     conditionals.pop(cd, None)
                     exprs[i] = e.func(*e.args, conditionals=conditionals)
 
-            guards = {d: sympy.And(*v, evaluate=False) for d, v in guards.items()}
+            # Combination `mode` is And by default.
+            # If all conditions are Or then Or combination `mode` is used.
+            guards = {d: mode(*v, evaluate=False) for d, v in guards.items()}
 
             # Construct a guarded Cluster
             processed.append(c.rebuild(exprs=exprs, guards=guards))
