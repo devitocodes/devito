@@ -177,7 +177,7 @@ class Cluster:
         The Dimensions that appear explicitly in the Cluster expressions.
         """
         dims_explicit = {i for i in self.free_symbols if i.is_Dimension}
-        dims_implicit = set().union(*[set(e.implicit_dims) for e in self.exprs])
+        dims_implicit = {d for e in self.exprs for d in e.implicit_dims}
         return dims_explicit | dims_implicit
 
     @cached_property
@@ -185,7 +185,7 @@ class Cluster:
         """
         The Dimensions that appear explicitly in the Cluster guards.
         """
-        syms_guards = set().union(*[e.free_symbols for e in self.guards.values()])
+        syms_guards = {d for e in self.guards.values() for d in e.free_symbols}
         dims_guards = {i for i in syms_guards if i.is_Dimension}
         return dims_guards
 

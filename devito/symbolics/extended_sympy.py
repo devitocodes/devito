@@ -151,9 +151,8 @@ class IntDiv(sympy.Expr):
 class Terminal:
 
     """
-    Abstract base class for all terminal objects, that is, those objects
-    collected by `retrieve_terminals` in addition to all other SymPy atoms
-    such as `Symbol`, `Number`, etc.
+    Abstract base class for special SymPy objects that can only appear as
+    leaves (that is nodes with no children/arguments) in an expression.
     """
 
     pass
@@ -553,10 +552,6 @@ class Reserved(Pickable):
     """
     A base class for all reserved words used throughout the lowering process,
     including the final stage of code generation itself.
-
-    Reserved objects have the following properties:
-
-        * `estimate_cost(o) = 0`, where `o` is an instance of Reserved
     """
 
     pass
