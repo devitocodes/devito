@@ -48,7 +48,11 @@ jobs:
 
     - name: Build docker image
       run: |
-          docker build -f docker/Dockerfile.petsc --tag devito_petsc_image:test .
+          docker build \
+            -f docker/Dockerfile.petsc \
+            --build-arg PETSC_REPO=https://gitlab.com/ZoeLeibowitz/petsc.git \
+            --build-arg PETSC_BRANCH=zoe/feature-da-section-sf \
+            --tag devito_petsc_image:test .
 
     - name: Set run prefix
       run: |

@@ -2264,8 +2264,8 @@ class TestPetscSection:
 
         bounds = []
         for _, dim in enumerate(grid.dimensions):
-            ub = max(args[f'i{dim.name}_min0'], args[f'{dim.name}_m'] - so)
-            lb = min(args[f'i{dim.name}_max0'], args[f'{dim.name}_M'] + so)
+            lb = max(args[f'i{dim.name}_min0'], args[f'{dim.name}_m'] - so)
+            ub = min(args[f'i{dim.name}_max0'], args[f'{dim.name}_M'] + so)
             bounds.append((lb, ub))
 
         return rank, tuple(bounds)
