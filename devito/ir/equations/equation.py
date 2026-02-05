@@ -107,10 +107,6 @@ class Operation(Tag):
             ReduceMin: OpMin,
             PetscEq: OpPetsc
         }
-        # try:
-        #     return reduction_mapper[type(expr)]
-        # except KeyError:
-        #     pass
 
         for expr_type, op in reduction_mapper.items():
             if isinstance(expr, expr_type):

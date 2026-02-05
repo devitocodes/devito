@@ -23,7 +23,6 @@ class BuilderBase:
         self.callback_builder = kwargs.get('callback_builder')
         self.field_data = self.inject_solve.expr.rhs.field_data
         self.formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
-        # self.calls = self._setup()
 
     @cached_property
     def calls(self):
@@ -40,7 +39,6 @@ class BuilderBase:
     def _setup(self):
         sobjs = self.solver_objs
         dmda = sobjs['dmda']
-        # mainctx = sobjs['userctx']
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
@@ -110,8 +108,6 @@ class BuilderBase:
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
 
         base_setup = dmda_calls + (
-            # call_struct_callback,
-            # calls_set_app_ctx,
             snes_create,
             snes_options_prefix,
             set_options,
@@ -337,7 +333,6 @@ class CoupledBuilder(BuilderBase):
             snes_set_options,
             call_struct_callback,
             mat_set_dm,
-            # calls_set_app_ctx,
             create_field_decomp,
             matop_create_submats_op,
             call_coupled_struct_callback,
@@ -378,9 +373,6 @@ class ConstrainedBCMixin:
             'DMGetLocalSection', [dmda, Byref(sobjs['lsection'])]
         )
 
-        import cgen as c
-        tmp = c.Line("PetscCall(PetscSectionView(lsection0, NULL));")
-
         get_point_sf = petsc_call('DMGetPointSF', [dmda, Byref(sobjs['sf'])])
 
         create_global_section = petsc_call(
@@ -414,7 +406,6 @@ class ConstrainedBCMixin:
             count_bcs,
             set_point_bcs,
             get_local_section,
-            tmp,
             get_point_sf,
             create_global_section,
             dm_set_global_section,
@@ -426,7 +417,7 @@ class ConstrainedBCBuilder(ConstrainedBCMixin, BuilderBase):
     pass
 
 
-# TODO: Implement this properly
+# TODO: Implement this class properly
 class CoupledConstrainedBCBuilder(ConstrainedBCMixin, CoupledBuilder):
     pass
 

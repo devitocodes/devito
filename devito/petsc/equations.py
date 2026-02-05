@@ -18,7 +18,6 @@ def lower_exprs_petsc(expressions, **kwargs):
 
 def constrain_essential_bcs(expressions, **kwargs):
     """
-    NOTE:
     """
     sregistry = kwargs['sregistry']
     new_exprs = []
@@ -37,7 +36,7 @@ def constrain_essential_bcs(expressions, **kwargs):
     space_dims = [d for d in all_dims if isinstance(d, SpaceDimension)]
 
     mapper = {}
-    # from IPython import embed; embed()
+
     for d in subdims:
         halo = halo_size[d]
 
@@ -69,8 +68,7 @@ def constrain_essential_bcs(expressions, **kwargs):
             symbolic_max=Min(space_dim_max, d.symbolic_max + halo.right),
         )
 
-    # Apply mapper to all expressions
-    # from IPython import embed; embed()
+    # Apply mapper to expressions
     for e in expressions:
         if not isinstance(e, ConstrainBC):
             new_exprs.append(e)

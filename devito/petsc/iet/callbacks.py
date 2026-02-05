@@ -645,6 +645,11 @@ class BaseCallbackBuilder:
         return Uxreplace(subs).visit(body)
 
     def _make_constrain_bc(self):
+        """
+        To constrain essential boundary nodes, two additional callbacks are
+        required - this function generates the two new efuncs `CountBCs` and
+        `SetPointBCs`.
+        """
         increment_exprs = self.field_data.constrain_bc.increment_exprs
         point_bc_exprs = self.field_data.constrain_bc.point_bc_exprs
         sobjs = self.solver_objs
@@ -694,7 +699,7 @@ class BaseCallbackBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        # OBVS change names
+        # TODO: change names
         deref_ptr = DummyExpr(Counter, Deref(sobjs['numBCPtr']))
         move_ptr = DummyExpr(Deref(sobjs['numBCPtr']), Counter)
 

@@ -25,7 +25,7 @@ def linearize(graph, **kwargs):
 
     mode = options.get('linearize')
     maybe_callback = kwargs.pop('callback', mode)
-    # from IPython import embed; embed()
+
     if not maybe_callback:
         return
     elif callable(maybe_callback):
@@ -230,7 +230,6 @@ def linearize_accesses(iet, key0, tracker=None):
             continue
 
         v = generate_linearization(f, i, tracker)
-
         if v is not None:
             subs[i] = v
 
@@ -240,7 +239,7 @@ def linearize_accesses(iet, key0, tracker=None):
     # E.g. `{x_fsz0 -> u_vec->size[1]}`
     defines = FindSymbols('defines').visit(iet)
     offers = filter_ordered(i for i in defines if key0(i.function))
-    # from IPython import embed; embed()
+
     instances = {}
     for i in offers:
         f = i.function
@@ -295,7 +294,7 @@ def linearize_accesses(iet, key0, tracker=None):
     if stmts:
         body = iet.body._rebuild(strides=stmts)
         iet = iet._rebuild(body=body)
-    # from IPython import embed; embed()
+
     return iet
 
 

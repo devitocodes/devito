@@ -786,14 +786,8 @@ class ConstrainBC:
         Make the Eq that is used to increment the number of essential
         boundary nodes in the generated ccode.
         """
-        # numBC = PetscInt(name='numBC2')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
-            # return PointEssentialBC(
-            #     Counter, self.target,
-            #     subdomain=expr.subdomain,
-            #     target=self.target
-            # )
             return PointEssentialBC(
                 Counter, self.target,
                 subdomain=expr.subdomain,

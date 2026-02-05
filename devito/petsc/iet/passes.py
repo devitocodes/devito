@@ -137,7 +137,8 @@ def lower_petsc_symbols(iet, **kwargs):
 
 @iet_pass
 def linear_indices(iet, **kwargs):
-
+    """
+    """
     if not iet.name.startswith("SetPointBCs"):
         return iet, {}
 

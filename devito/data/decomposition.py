@@ -465,8 +465,9 @@ class Decomposition(tuple):
             loc_abs_max = self.loc_abs_max
             glb_max = self.glb_max
 
-        base = loc_abs_min if rel else 0
         glb_min = 0
+
+        base = loc_abs_min if rel else 0
 
         # index_glb_to_loc(index)
         # -> Base case, empty local subdomain
@@ -476,9 +477,7 @@ class Decomposition(tuple):
         if glb_idx < 0:
             glb_idx = glb_max + glb_idx + 1
         # -> Do the actual conversion
-        if loc_abs_min <= glb_idx <= loc_abs_max:
-            return glb_idx - base
-        elif glb_min <= glb_idx <= glb_max:
+        if loc_abs_min <= glb_idx <= loc_abs_max or glb_min <= glb_idx <= glb_max:
             return glb_idx - base
         else:
             # This should raise an exception when used to access a numpy.array

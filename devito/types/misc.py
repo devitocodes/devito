@@ -152,6 +152,8 @@ class FIndexed(Indexed, Pickable):
 
     @property
     def linear_index(self):
+        """
+        """
         f = self.function
         strides_map = self.strides_map
         indices = self.indices
@@ -170,8 +172,9 @@ class FIndexed(Indexed, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-# the special postindex type sould live in this file i think
 class PostIncrementIndex(LocalObject):
+    """
+    """
     dtype = np.int32
 
 

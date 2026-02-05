@@ -369,9 +369,7 @@ class Operator(Callable):
         # in particular uniqueness across expressions is ensured
         expressions = concretize_subdims(expressions, **kwargs)
 
-        # rename etc
         expressions = lower_exprs_petsc(expressions, **kwargs)
-        # from IPython import embed; embed()
 
         processed = [LoweredEq(i) for i in expressions]
 
