@@ -88,7 +88,7 @@ class BuilderBase:
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        matvec = self.callback_builder.main_matvec_callback
+        matvec = self.callback_builder.main_matvec_efunc
         matvec_operation = petsc_call(
             'MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
@@ -147,7 +147,7 @@ class BuilderBase:
         mainctx = self.solver_objs['userctx']
 
         call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
+            self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
         )
 
         calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
@@ -238,7 +238,7 @@ class CoupledBuilder(BuilderBase):
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        matvec = self.callback_builder.main_matvec_callback
+        matvec = self.callback_builder.main_matvec_efunc
         matvec_operation = petsc_call(
             'MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
@@ -259,7 +259,7 @@ class CoupledBuilder(BuilderBase):
         mainctx = sobjs['userctx']
 
         call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
+            self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
         )
 
         # TODO: maybe don't need to explictly set this
@@ -345,7 +345,7 @@ class CoupledBuilder(BuilderBase):
             create_submats) + \
             tuple(deref_dms) + tuple(xglobals) + tuple(xlocals) + (BlankLine,)
         return coupled_setup
-    
+
 
 class ConstrainedBCMixin:
     """
@@ -359,7 +359,9 @@ class ConstrainedBCMixin:
         dmda_create = self._create_dmda(dmda)
         # TODO: probs need to set the dm options prefix the same as snes?
         # don't hardcode this probs? - the dm needs to be specific to the solver as well
-        da_create_section = petsc_call('PetscOptionsSetValue', [Null, String("-da_use_section"), Null])
+        da_create_section = petsc_call(
+            'PetscOptionsSetValue', [Null, String("-da_use_section"), Null]
+        )
         dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
@@ -372,7 +374,9 @@ class ConstrainedBCMixin:
             self.callback_builder._point_bc_efunc.name, [dmda, sobjs['numBC']]
         )
 
-        get_local_section = petsc_call('DMGetLocalSection', [dmda, Byref(sobjs['lsection'])])
+        get_local_section = petsc_call(
+            'DMGetLocalSection', [dmda, Byref(sobjs['lsection'])]
+        )
 
         import cgen as c
         tmp = c.Line("PetscCall(PetscSectionView(lsection0, NULL));")
@@ -380,16 +384,21 @@ class ConstrainedBCMixin:
         get_point_sf = petsc_call('DMGetPointSF', [dmda, Byref(sobjs['sf'])])
 
         create_global_section = petsc_call(
-            'PetscSectionCreateGlobalSection', [sobjs['lsection'], sobjs['sf'], 'PETSC_TRUE', 'PETSC_FALSE', 'PETSC_FALSE', Byref(sobjs['gsection'])]
+            'PetscSectionCreateGlobalSection',
+            [sobjs['lsection'], sobjs['sf'], 'PETSC_TRUE', 'PETSC_FALSE', 'PETSC_FALSE',
+             Byref(sobjs['gsection'])]
         )
 
-        dm_set_global_section = petsc_call('DMSetGlobalSection', [dmda, sobjs['gsection']])
+        dm_set_global_section = petsc_call(
+            'DMSetGlobalSection', [dmda, sobjs['gsection']]
+        )
 
-        dm_create_section_sf = petsc_call('DMCreateSectionSF', [dmda, sobjs['lsection'], sobjs['gsection']])
-
+        dm_create_section_sf = petsc_call(
+            'DMCreateSectionSF', [dmda, sobjs['lsection'], sobjs['gsection']]
+        )
 
         call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
+            self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
         )
 
         calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
@@ -411,7 +420,7 @@ class ConstrainedBCMixin:
             dm_set_global_section,
             dm_create_section_sf
         )
-    
+
 
 class ConstrainedBCBuilder(ConstrainedBCMixin, BuilderBase):
     pass

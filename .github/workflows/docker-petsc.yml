@@ -6,7 +6,8 @@ permissions:
 on:
   push:
     branches:
-      - petsc         # Push events on petsc branch
+      # NOTE: specific to this branch, to be updated
+      - petscsection         # Push events on petscsection branch
 
 jobs:
   build-and-push:
@@ -39,7 +40,7 @@ jobs:
           file: docker/Dockerfile.petsc
           push: true
           tags: |
-            devitocodes/devito-petsc:latest
+            devitocodes/devito-petsc:petscsection
           build-args: base=devitocodes/devito:gcc-dev-amd64
           platforms: linux/amd64
 

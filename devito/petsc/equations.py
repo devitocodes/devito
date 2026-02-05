@@ -81,16 +81,13 @@ def constrain_essential_bcs(expressions, **kwargs):
             new_exprs.append(e)
             continue
 
-        # new_e = uxreplace(e, mapper)
-        new_e = e.subs(mapper)
-        
+        new_e = uxreplace(e, mapper)
 
         if e.implicit_dims:
             new_e = new_e._rebuild(
                 implicit_dims=tuple(mapper.get(d, d) for d in e.implicit_dims)
             )
         new_exprs.append(new_e)
-
     return new_exprs
 
 

@@ -34,7 +34,6 @@ class EssentialBC(Eq):
         return self._target
 
 
-
 class ZeroRow(EssentialBC):
     """
     Equation used to zero all entries, except the diagonal,
@@ -60,7 +59,7 @@ class ZeroColumn(EssentialBC):
 
 class ConstrainBC(EssentialBC):
     pass
-    
+
 
 class NoOfEssentialBC(Inc, ConstrainBC):
     """Equation used count essential boundary condition nodes.

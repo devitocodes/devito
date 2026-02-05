@@ -57,6 +57,7 @@ class DM(CallbackDM):
 
 
 DMCast = cast('DM')
+PetscObjectCast = cast('PetscObject')
 
 
 class CallbackMat(PetscObject):

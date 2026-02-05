@@ -8,10 +8,10 @@ from devito.ir.iet import (
     FindSymbols, DummyExpr, Uxreplace, Dereference
 )
 from devito.symbolics import Byref, Macro, Null, FieldFromPointer
-from devito.types.basic import DataSymbol
+from devito.types.basic import DataSymbol, LocalType
 from devito.types.misc import FIndexed
 import devito.logger
-from devito.passes.iet.linearization import linearize_accesses
+from devito.passes.iet.linearization import linearize_accesses, Tracker
 
 from devito.petsc.types import (
     MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct,
@@ -24,8 +24,12 @@ from devito.petsc.iet.callbacks import (
     BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context,
     get_user_struct_fields
 )
-from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder, objs
-from devito.petsc.iet.builder import BuilderBase, CoupledBuilder, ConstrainedBCBuilder, make_core_petsc_calls
+from devito.petsc.iet.type_builder import (
+    BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder, objs
+)
+from devito.petsc.iet.builder import (
+    BuilderBase, CoupledBuilder, ConstrainedBCBuilder, make_core_petsc_calls
+)
 from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
@@ -72,7 +76,7 @@ def lower_petsc(iet, **kwargs):
     subs = {}
     efuncs = {}
 
-    # Map each `PetscMetaData`` to its Section (for logging)
+    # Map each `PetscMetaData` to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
     # Prefixes within the same `Operator` should not be duplicated
@@ -128,29 +132,7 @@ def lower_petsc_symbols(iet, **kwargs):
     # Rebuild `MainUserStruct` and update iet accordingly
     rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
 
-    # from IPython import embed; embed()
-
-
     iet = linear_indices(iet, **kwargs)
-
-    ############ tmp
-    # import numpy as np
-    # if kwargs['options']['index-mode'] == 'int32':
-    #     dtype = np.int32
-    # else:
-    #     dtype = np.int64
-    # from devito.passes.iet.linearization import Tracker
-
-    # tracker = Tracker('basic', dtype, kwargs['sregistry'])
-
-    # key = lambda f: f.name == 'bc'
-    # body = linearize_accesses(body, key0=key, tracker=tracker)
-
-    # # will only be findexeds 'indexeds'
-    # findexeds = FindSymbols('indexeds').visit(body)
-    # mapper_findexeds = {i: i.linear_index for i in findexeds}
-
-    # iet = 
 
 
 @iet_pass
@@ -159,29 +141,23 @@ def linear_indices(iet, **kwargs):
     if not iet.name.startswith("SetPointBCs"):
         return iet, {}
 
-    import numpy as np
     if kwargs['options']['index-mode'] == 'int32':
         dtype = np.int32
     else:
         dtype = np.int64
-    from devito.passes.iet.linearization import Tracker
 
     tracker = Tracker('basic', dtype, kwargs['sregistry'])
-    # from IPython import embed; embed()
-    key = lambda f: f.name == 'u'
+    candidates = {
+        i.name for i in FindSymbols('indexeds').visit(iet)
+        if not isinstance(i.function, LocalType)
+    }
+    key = lambda f: f.name in candidates
     iet = linearize_accesses(iet, key0=key, tracker=tracker)
-    # from IPython import embed; embed()
-    # will only be findexeds 'indexeds'
+
     findexeds = [i for i in FindSymbols('indexeds').visit(iet) if isinstance(i, FIndexed)]
     mapper_findexeds = {i: i.linear_index for i in findexeds}
 
-
-    iet = Uxreplace(mapper_findexeds).visit(iet)
-
-
-    # from IPython import embed; embed()
-
-    return iet, {}
+    return Uxreplace(mapper_findexeds).visit(iet), {}
 
 
 @iet_pass
@@ -324,11 +300,11 @@ class BuildSolver:
         if self.coupled and self.constrain_bc:
             return NotImplementedError
         elif self.coupled:
-            return CoupledTypeBuilder(**self.common_kwargs) 
+            return CoupledTypeBuilder(**self.common_kwargs)
         elif self.constrain_bc:
-            return ConstrainedBCTypeBuilder(**self.common_kwargs) 
+            return ConstrainedBCTypeBuilder(**self.common_kwargs)
         else:
-            return BaseTypeBuilder(**self.common_kwargs) 
+            return BaseTypeBuilder(**self.common_kwargs)
 
     @cached_property
     def time_dependence(self):
@@ -340,18 +316,18 @@ class BuildSolver:
     def callback_builder(self):
         return CoupledCallbackBuilder(**self.common_kwargs) \
             if self.coupled else BaseCallbackBuilder(**self.common_kwargs)
-    
+
     @cached_property
     def builder(self):
         if self.coupled and self.constrain_bc:
-            # TODO: implement CoupledConstrainedBCBuilder 
+            # TODO: implement CoupledConstrainedBCBuilder
             return NotImplementedError
         elif self.coupled:
-            return CoupledBuilder(**self.common_kwargs) 
+            return CoupledBuilder(**self.common_kwargs)
         elif self.constrain_bc:
-            return ConstrainedBCBuilder(**self.common_kwargs) 
+            return ConstrainedBCBuilder(**self.common_kwargs)
         else:
-            return BuilderBase(**self.common_kwargs) 
+            return BuilderBase(**self.common_kwargs)
 
     @cached_property
     def solve(self):

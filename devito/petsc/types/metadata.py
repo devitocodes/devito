@@ -1,16 +1,15 @@
 import sympy
 from itertools import chain
 from functools import cached_property
-import numpy as np
 
 from devito.tools import Reconstructable, sympy_mutex, as_tuple, frozendict
 from devito.tools.dtypes_lowering import dtype_mapper
 from devito.symbolics.extraction import separate_eqn, generate_targets, centre_stencil
-from devito.types.equation import Eq, Inc
+from devito.types.equation import Eq
 from devito.operations.solve import eval_time_derivatives
 
 from devito.petsc.config import petsc_variables
-from devito.petsc.types.object import PetscInt, Counter
+from devito.petsc.types.object import Counter
 from devito.petsc.types.equation import (
     EssentialBC, ZeroRow, ZeroColumn, NoOfEssentialBC, PointEssentialBC
 )
@@ -739,7 +738,7 @@ class ConstrainBC:
     @property
     def increment_exprs(self):
         return self._increment_exprs
-    
+
     @property
     def point_bc_exprs(self):
         return self._point_bc_exprs
@@ -790,6 +789,11 @@ class ConstrainBC:
         # numBC = PetscInt(name='numBC2')
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
+            # return PointEssentialBC(
+            #     Counter, self.target,
+            #     subdomain=expr.subdomain,
+            #     target=self.target
+            # )
             return PointEssentialBC(
                 Counter, self.target,
                 subdomain=expr.subdomain,

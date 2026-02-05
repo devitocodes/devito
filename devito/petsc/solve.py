@@ -94,7 +94,7 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
         return InjectSolve(solver_parameters, {target: target_exprs},
                            options_prefix, get_info, constrain_bcs).build_expr()
     else:
-        # TODO: extend mixed case to support constrain_bcs
+        # TODO: extend to support constrain_bcs
         return InjectMixedSolve(solver_parameters, target_exprs,
                                 options_prefix, get_info).build_expr()
 
@@ -137,18 +137,18 @@ class InjectSolve:
 
         exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
 
-        # TODO: rethink about how essential bcs need to be treated if constrain_bcs is enabled
-        # likely don't need various bits of functionality inside these classes if constrain_bcs is enabled
+        # TODO: If constrain_bcs is enabled, essential BC handling may be redundant
+        # (or need adjusting) in the following classes
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
         initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
 
-        # TODO: extend this to mixed case
-        # TODO: clean up
-        if self.constrain_bcs:
-            constrain_bc = ConstrainBC(target, exprs, arrays)
-        else:
-            constrain_bc = None
+        # TODO: Extend this to mixed case
+        constrain_bc = (
+            ConstrainBC(target, exprs, arrays)
+            if self.constrain_bcs
+            else None
+        )
 
         field_data = FieldData(
             target=target,

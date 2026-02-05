@@ -5,17 +5,17 @@ from devito.ir.iet import (
     BlankLine, Callable, Iteration, PointerCast, Definition
 )
 from devito.symbolics import (
-    Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null, VOID, Cast
+    Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null, VOID
 )
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
 from devito.types.misc import PostIncrementIndex
 from devito.types import Dimension, Temp, TempArray
 from devito.tools import filter_ordered
-from devito.passes.iet.linearization import linearize_accesses, Stride
+from devito.passes.iet.linearization import Stride
 
 from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp, petsc_call
-from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
+from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct, PetscObjectCast
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
@@ -37,22 +37,18 @@ class BaseCallbackBuilder:
         self.solver_objs = kwargs.get('solver_objs')
         self.inject_solve = kwargs.get('inject_solve')
         self.solve_expr = self.inject_solve.expr.rhs
-
-        self._efuncs = OrderedDict()
         self._struct_params = []
 
-        # TODO: use either efunc or callback lingo here
+        self._efuncs = OrderedDict()
         self._set_options_efunc = None
         self._clear_options_efunc = None
-        self._main_matvec_callback = None
-        self._user_struct_callback = None
+        self._main_matvec_efunc = None
+        self._user_struct_efunc = None
         self._F_efunc = None
         self._b_efunc = None
         self._count_bc_efunc = None
         self._point_bc_efunc = None
-
         self._J_efuncs = []
-        # TODO: isn't there only ever one of these per solver so why is it a list?
         self._initial_guess_efuncs = []
 
         self._make_core()
@@ -71,7 +67,7 @@ class BaseCallbackBuilder:
         return filter_ordered(self.struct_params)
 
     @property
-    def main_matvec_callback(self):
+    def main_matvec_efunc(self):
         """
         The matrix-vector callback for the full Jacobian.
         This is the function set in the main Kernel via:
@@ -90,14 +86,9 @@ class BaseCallbackBuilder:
         """
         return self._J_efuncs
 
-    # TODO: do i really need a property for this - probs not?
     @property
-    def initial_guess_efuncs(self):
-        return self._initial_guess_efuncs
-
-    @property
-    def user_struct_callback(self):
-        return self._user_struct_callback
+    def user_struct_efunc(self):
+        return self._user_struct_efunc
 
     @property
     def solver_parameters(self):
@@ -133,7 +124,7 @@ class BaseCallbackBuilder:
         # Make the callback used to constrain boundary nodes
         if self.field_data.constrain_bc:
             self._make_constrain_bc()
-        self._make_user_struct_callback()
+        self._make_user_struct_efunc()
 
     def _make_petsc_callable(self, prefix, body, parameters=()):
         return PETScCallable(
@@ -652,12 +643,11 @@ class BaseCallbackBuilder:
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
         return Uxreplace(subs).visit(body)
-    
+
     def _make_constrain_bc(self):
         increment_exprs = self.field_data.constrain_bc.increment_exprs
         point_bc_exprs = self.field_data.constrain_bc.point_bc_exprs
         sobjs = self.solver_objs
-        objs = self.objs
 
         # Compile constrain `eqns` into an IET via recursive compilation
         irs0, _ = self.rcompile(
@@ -676,10 +666,12 @@ class BaseCallbackBuilder:
             List(body=irs1.uiet.body)
         )
         cb0 = self._make_petsc_callable(
-            'CountBCs', count_bc_body, parameters=(sobjs['callbackdm'], sobjs['numBCPtr'])
+            'CountBCs', count_bc_body,
+            parameters=(sobjs['callbackdm'], sobjs['numBCPtr'])
         )
         cb1 = self._make_petsc_callable(
-            'SetPointBCs', set_point_bc_body, parameters=(sobjs['callbackdm'], sobjs['numBC'])
+            'SetPointBCs', set_point_bc_body,
+            parameters=(sobjs['callbackdm'], sobjs['numBC'])
         )
         self._count_bc_efunc = cb0
         self._efuncs[cb0.name] = cb0
@@ -687,10 +679,8 @@ class BaseCallbackBuilder:
         self._efuncs[cb1.name] = cb1
 
     def _create_count_bc_body(self, body):
-        linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
-        target = self.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
@@ -704,41 +694,29 @@ class BaseCallbackBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        # dummyexpr = Dereference(self.target, sobjs['numBCPtr'])
-
-        # body = body._rebuild(body=body.body)
-
-        # Dereference function data in struct
-        # derefs = dereference_funcs(ctx, fields)
-        
         # OBVS change names
         deref_ptr = DummyExpr(Counter, Deref(sobjs['numBCPtr']))
         move_ptr = DummyExpr(Deref(sobjs['numBCPtr']), Counter)
 
-        # from IPython import embed; embed()
-
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
         struct_definition = [Definition(ctx), dm_get_app_context]
-
 
         body = body._rebuild(body.body + (move_ptr,))
 
         body = self._make_callable_body(
             body, standalones=struct_definition, stacks=(deref_ptr,)
         )
-
         # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
         return Uxreplace(subs).visit(body)
-    
+
     def _create_set_point_bc_body(self, body):
         linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
-        target = self.target
 
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
@@ -755,14 +733,11 @@ class BaseCallbackBuilder:
         dm_get_app_context = petsc_call(
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
-
-        comm = sobjs['comm']
-        # Obvs fix the first arg
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(dmda)])
         is_create_general = petsc_call(
-            'ISCreateGeneral', ['PetscObjectComm((PetscObject)(dm0))', sobjs['numBC'], sobjs['bcPointsArr'],
+            'ISCreateGeneral', [petsc_obj_comm, sobjs['numBC'], sobjs['bcPointsArr'],
                                 'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
         )
-
         malloc_bc_points_arr = petsc_call(
             'PetscMalloc1', [sobjs['numBC'], Byref(sobjs['bcPointsArr']._C_symbol)]
         )
@@ -776,8 +751,18 @@ class BaseCallbackBuilder:
         set_point_bc = petsc_call(
             'DMDASetPointBC', [dmda, 1, sobjs['bcPoints'], Null]
         )
-        body = body._rebuild(body=(malloc_bc_points_arr,)+ body.body + (is_create_general, malloc_bc_points, dummy_expr, set_point_bc))
-
+        body = body._rebuild(
+            body=(
+                (malloc_bc_points_arr,)
+                + body.body
+                + (
+                    is_create_general,
+                    malloc_bc_points,
+                    dummy_expr,
+                    set_point_bc,
+                )
+            )
+        )
         stacks = (
             dm_get_local_info,
         )
@@ -787,10 +772,14 @@ class BaseCallbackBuilder:
 
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
-        struct_definition = [Definition(ctx), dm_get_app_context, Definition(sobjs['k_iter'])]
+        standalones = [
+            Definition(ctx),
+            dm_get_app_context,
+            Definition(sobjs['k_iter'])
+        ]
 
         body = self._make_callable_body(
-            body, standalones=struct_definition, stacks=stacks+derefs
+            body, standalones=standalones, stacks=stacks+derefs
         )
 
         # Replace non-function data with pointer to data in struct
@@ -801,7 +790,7 @@ class BaseCallbackBuilder:
 
         return Uxreplace(subs).visit(body)
 
-    def _make_user_struct_callback(self):
+    def _make_user_struct_efunc(self):
         """
         This is the struct initialised inside the main kernel and
         attached to the DM via DMSetApplicationContext.
@@ -824,7 +813,7 @@ class BaseCallbackBuilder:
             parameters=[mainctx]
         )
         self._efuncs[cb.name] = cb
-        self._user_struct_callback = cb
+        self._user_struct_efunc = cb
 
     def _uxreplace_efuncs(self):
         sobjs = self.solver_objs
@@ -857,13 +846,13 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         return self.inject_solve.expr.rhs.field_data.jacobian
 
     @property
-    def main_matvec_callback(self):
+    def main_matvec_efunc(self):
         """
         This is the matrix-vector callback associated with the whole Jacobian i.e
         is set in the main kernel via
         `PetscCall(MatShellSetOperation(J,MATOP_MULT,(void (*)(void))MyMatShellMult));`
         """
-        return self._main_matvec_callback
+        return self._main_matvec_efunc
 
     def _make_core(self):
         for sm in self.field_data.jacobian.nonzero_submatrices:
@@ -872,7 +861,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         self._make_options_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc()
-        self._make_user_struct_callback()
+        self._make_user_struct_efunc()
         self._create_submatrices()
         self._efuncs['PopulateMatContext'] = self.objs['dummyefunc']
 
@@ -884,7 +873,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         cb = self._make_petsc_callable(
             'WholeMatMult', List(body=body), parameters=parameters
         )
-        self._main_matvec_callback = cb
+        self._main_matvec_efunc = cb
         self._efuncs[cb.name] = cb
 
     def _whole_matvec_body(self):
