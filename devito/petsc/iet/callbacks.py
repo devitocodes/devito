@@ -646,20 +646,19 @@ class BaseCallbackBuilder:
 
     def _make_constrain_bc(self):
         """
-        To constrain essential boundary nodes, two additional callbacks are
-        required - this function generates the two new efuncs `CountBCs` and
-        `SetPointBCs`.
+        To constrain essential boundary nodes, two additional callbacks are required.
+        This method constructs the corresponding efuncs: `CountBCs` and `SetPointBCs`.
         """
         increment_exprs = self.field_data.constrain_bc.increment_exprs
         point_bc_exprs = self.field_data.constrain_bc.point_bc_exprs
         sobjs = self.solver_objs
 
-        # Compile constrain `eqns` into an IET via recursive compilation
+        # Compile `increment_exprs` into an IET via recursive compilation
         irs0, _ = self.rcompile(
             increment_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        # Compile constrain `eqns` into an IET via recursive compilation
+        # Compile `point_bc_exprs` into an IET via recursive compilation
         irs1, _ = self.rcompile(
             point_bc_exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper

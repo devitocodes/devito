@@ -344,16 +344,16 @@ class CoupledBuilder(BuilderBase):
 
 class ConstrainedBCMixin:
     """
-    not really a mixin?
     """
     def _create_dmda_calls(self, dmda):
         sobjs = self.solver_objs
-        # mainctx = sobjs['mainctx']
         mainctx = sobjs['userctx']
-        # TODO: CLEAN UP
+
         dmda_create = self._create_dmda(dmda)
-        # TODO: probs need to set the dm options prefix the same as snes?
-        # don't hardcode this probs? - the dm needs to be specific to the solver as well
+
+        # TODO: likely need to set the dm options prefix the same as snes?
+        # likely shouldn't hardcode this option like this.. (should be set in the options
+        # callback)
         da_create_section = petsc_call(
             'PetscOptionsSetValue', [Null, String("-da_use_section"), Null]
         )

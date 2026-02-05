@@ -10,7 +10,8 @@ from devito.petsc.types.dimension import (
 
 
 def lower_exprs_petsc(expressions, **kwargs):
-    # Constrain EssentialBCs using PetscSection if specified to do so
+
+    # Process `ConstrainBC` equations 
     expressions = constrain_essential_bcs(expressions, **kwargs)
 
     return expressions

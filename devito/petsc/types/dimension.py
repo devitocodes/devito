@@ -20,9 +20,8 @@ class SubDimMax(Thickness):
         grtkn = kwargs.get(self.subdim.rtkn.name, self.subdim.rtkn.value)
         # decomposition info
         decomp = dist.decomposition[self.subdim.parent]
-        g_x_M = decomp.glb_max
-        val = decomp.index_glb_to_loc_unsafe(g_x_M - grtkn)
-
+        glb_max = decomp.glb_max
+        val = decomp.index_glb_to_loc_unsafe(glb_max - grtkn)
         return {self.name: int(val)}
 
 
@@ -43,12 +42,10 @@ class SubDimMin(Thickness):
         dist = grid.distributor
         # global ltkn
         gltkn = kwargs.get(self.subdim.ltkn.name, self.subdim.ltkn.value)
-
         # decomposition info
         decomp = dist.decomposition[self.subdim.parent]
-        g_x_m = decomp.glb_min
-        val = decomp.index_glb_to_loc_unsafe(g_x_m + gltkn)
-
+        glb_min = decomp.glb_min
+        val = decomp.index_glb_to_loc_unsafe(glb_min + gltkn)
         return {self.name: int(val)}
 
 
@@ -68,18 +65,14 @@ class SpaceDimMax(Thickness):
     def _arg_values(self, grid=None, **kwargs):
         dist = grid.distributor
         decomp = dist.decomposition[self.space_dim]
-        # obvs not just x etc..
-        g_x_M = decomp.glb_max
-
-        val = decomp.index_glb_to_loc_unsafe(g_x_M)
-
+        glb_max = decomp.glb_max
+        val = decomp.index_glb_to_loc_unsafe(glb_max)
         return {self.name: int(val)}
 
 
 class SpaceDimMin(Thickness):
     """
     """
-
     def __init_finalize__(self, *args, **kwargs):
         self._space_dim = kwargs.pop('space_dim')
         self._dtype = self._space_dim.dtype
@@ -93,8 +86,6 @@ class SpaceDimMin(Thickness):
     def _arg_values(self, grid=None, **kwargs):
         dist = grid.distributor
         decomp = dist.decomposition[self.space_dim]
-        # Obvs not just x etc..
-        g_x_m = decomp.glb_min
-        val = decomp.index_glb_to_loc_unsafe(g_x_m)
-
+        glb_min = decomp.glb_min
+        val = decomp.index_glb_to_loc_unsafe(glb_min)
         return {self.name: int(val)}

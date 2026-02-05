@@ -153,6 +153,7 @@ class FIndexed(Indexed, Pickable):
     @property
     def linear_index(self):
         """
+        TODO: Add tests
         """
         f = self.function
         strides_map = self.strides_map

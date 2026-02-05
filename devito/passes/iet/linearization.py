@@ -239,7 +239,6 @@ def linearize_accesses(iet, key0, tracker=None):
     # E.g. `{x_fsz0 -> u_vec->size[1]}`
     defines = FindSymbols('defines').visit(iet)
     offers = filter_ordered(i for i in defines if key0(i.function))
-
     instances = {}
     for i in offers:
         f = i.function
