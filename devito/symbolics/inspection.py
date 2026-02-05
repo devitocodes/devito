@@ -10,9 +10,7 @@ from devito.finite_differences import Derivative
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.logger import warning
 from devito.symbolics.extended_dtypes import INT
-from devito.symbolics.extended_sympy import (
-    CallFromPointer, Cast, DefFunction, Reserved
-)
+from devito.symbolics.extended_sympy import CallFromPointer, Cast, DefFunction, Reserved
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, is_integer, prod
 from devito.tools.dtypes_lowering import infer_dtype
