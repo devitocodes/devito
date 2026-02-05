@@ -17,10 +17,12 @@ from devito.ir.iet import (
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
-    FLOAT, Byref, Class, FieldFromComposite, InlineIf, Macro, String
+    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
+    String
 )
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
 from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol
+from devito.types.misc import FunctionMap
 
 
 @pytest.fixture
@@ -299,6 +301,52 @@ static void foo()
 }"""
 
 
+def test_make_cuda_tensor_map():
+
+    class CUTensorMap(FunctionMap):
+
+        dtype = CustomDtype('CUtensorMap')
+
+        @property
+        def _C_init(self):
+            symsizes = list(reversed(self.tensor.symbolic_shape))
+            sizeof_dtype = SizeOf(self.tensor.dmap._C_typedata)
+
+            sizes = ListInitializer(symsizes)
+            strides = ListInitializer([
+                np.prod(symsizes[:i])*sizeof_dtype for i in range(1, len(symsizes))
+            ])
+
+            arguments = [
+                Byref(self),
+                Macro('CU_TENSOR_MAP_DATA_TYPE_FLOAT32'),
+                4, self.tensor.dmap, sizes, strides,
+            ]
+            call = Call('cuTensorMapEncodeTiled', arguments)
+
+            return call
+
+    grid = Grid(shape=(10, 10, 10))
+
+    u = TimeFunction(name='u', grid=grid)
+
+    tmap = CUTensorMap('tmap', u)
+
+    iet = Call('foo', tmap)
+    iet = ElementalFunction('foo', iet, parameters=())
+    dm = CDataManager(sregistry=None)
+    iet = CDataManager.place_definitions.__wrapped__(dm, iet)[0]
+
+    assert str(iet) == """\
+static void foo()
+{
+  CUtensorMap tmap;
+  cuTensorMapEncodeTiled(&tmap,CU_TENSOR_MAP_DATA_TYPE_FLOAT32,4,d_u,{u_vec->size[3], u_vec->size[2], u_vec->size[1], u_vec->size[0]},{sizeof(float)*u_vec->size[3], sizeof(float)*u_vec->size[2]*u_vec->size[3], sizeof(float)*u_vec->size[1]*u_vec->size[2]*u_vec->size[3]});
+
+  foo(tmap);
+}"""  # noqa
+
+
 def test_cpp_local_object():
     """
     Test C++ support for LocalObjects.
@@ -311,7 +359,7 @@ def test_cpp_local_object():
     lo0 = MyObject('obj0')
 
     # Globally-scoped objects must not be declared in the function body
-    lo1 = MyObject('obj1', is_global=True)
+    lo1 = MyObject('obj1', scope='global')
 
     # A LocalObject using both a template and a modifier
     class SpecialObject(LocalObject):

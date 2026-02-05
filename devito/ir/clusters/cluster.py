@@ -172,15 +172,34 @@ class Cluster:
         return set().union(*[i._defines for i in self.ispace.dimensions])
 
     @cached_property
+    def exprs_dimensions(self):
+        """
+        The Dimensions that appear explicitly in the Cluster expressions.
+        """
+        dims_explicit = {i for i in self.free_symbols if i.is_Dimension}
+        dims_implicit = {d for e in self.exprs for d in e.implicit_dims}
+        return dims_explicit | dims_implicit
+
+    @cached_property
+    def guards_dimensions(self):
+        """
+        The Dimensions that appear explicitly in the Cluster guards.
+        """
+        syms_guards = {d for e in self.guards.values() for d in e.free_symbols}
+        dims_guards = {i for i in syms_guards if i.is_Dimension}
+        return dims_guards
+
+    @cached_property
     def used_dimensions(self):
         """
-        The Dimensions that *actually* appear among the expressions in ``self``.
-        These do not necessarily coincide the IterationSpace Dimensions; for
-        example, reduction or redundant (i.e., invariant) Dimensions won't
-        appear in an expression.
+        All the Dimensions that appear explicitly either within the expressions
+        or the guards.
+
+        Note that, in some cases, some of the IterationSpace Dimensions might
+        not appear here among the used Dimensions -- for example, reduction or
+        redundant (i.e., invariant) Dimensions.
         """
-        idims = set.union(*[set(e.implicit_dims) for e in self.exprs])
-        return {i for i in self.free_symbols if i.is_Dimension} | idims
+        return self.exprs_dimensions | self.guards_dimensions
 
     @cached_property
     def dist_dimensions(self):

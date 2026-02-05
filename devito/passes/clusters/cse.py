@@ -13,9 +13,8 @@ except ImportError:
 
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
-from devito.symbolics import estimate_cost, q_leaf, q_terminal
+from devito.symbolics import Reserved, estimate_cost, q_leaf, q_terminal, search
 from devito.symbolics.manipulation import _uxreplace
-from devito.symbolics.search import search
 from devito.tools import DAG, as_list, as_tuple, extract_dtype, frozendict
 from devito.types import Eq, Symbol, Temp
 
@@ -399,6 +398,7 @@ def _(expr):
 
 @_catch.register(Indexed)
 @_catch.register(Symbol)
+@_catch.register(Reserved)
 def _(expr):
     """
     Handler for objects preventing CSE to propagate through their arguments.

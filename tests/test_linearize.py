@@ -686,4 +686,6 @@ def test_cire_n_strides():
     op0.apply(time_M=10)
     op2.apply(time_M=10, u=u1)
 
-    assert np.all(u.data == u1.data)
+    # NOTE: not exact equality because `op2` slightly changes the order of
+    # arithmetic operations, which in turn causes some rounding differences
+    assert np.allclose(u.data, u1.data, rtol=1e-5)
