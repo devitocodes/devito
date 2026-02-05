@@ -18,8 +18,8 @@ from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointe
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
 from devito.types import (
     Array, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,
-    Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData,
-    Symbol, Temp, ThreadArray, Wildcard
+    Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData, Symbol,
+    Temp, ThreadArray, Wildcard
 )
 from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction

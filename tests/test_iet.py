@@ -17,13 +17,11 @@ from devito.ir.iet import (
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
-    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer,
-    Macro, SizeOf, String
+    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
+    String
 )
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import (
-    Array, CustomDimension, LocalObject, Pointer, Symbol
-)
+from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol
 from devito.types.misc import FunctionMap
 
 
