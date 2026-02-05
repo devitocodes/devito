@@ -8,8 +8,8 @@ except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject, ArrayObject
-from devito.types.basic import IndexedData, DataSymbol
+from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
+from devito.types.basic import IndexedData
 from devito.tools import CustomDtype, Pickable, as_tuple, frozendict
 
 __all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
@@ -149,7 +149,6 @@ class FIndexed(Indexed, Pickable):
         findexed = self.func(accessor=accessor)
 
         return ((define, expr), findexed)
-    
 
     @property
     def linear_index(self):
@@ -162,7 +161,7 @@ class FIndexed(Indexed, Pickable):
             for idx, d in zip(indices, f.dimensions[1:])
         ]
         items.append(indices[-1])
-        
+
         return sympy.Add(*items, evaluate=False)
 
     func = Pickable._rebuild

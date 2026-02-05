@@ -722,7 +722,7 @@ class InitialGuess:
             )
         else:
             return None
-        
+
 
 class ConstrainBC:
     """
@@ -769,7 +769,7 @@ class ConstrainBC:
             )
         else:
             return None
-        
+
     def _make_point_bc_exprs(self, exprs):
         """
         Return a list of symbolic expressions
@@ -801,7 +801,7 @@ class ConstrainBC:
             )
         else:
             return None
-        
+
 
 def targets_to_arrays(array, targets):
     """
@@ -825,4 +825,3 @@ def targets_to_arrays(array, targets):
         array.subs(dict(zip(array.indices, i))) for i in space_indices
     ]
     return frozendict(zip(targets, array_targets))
-
