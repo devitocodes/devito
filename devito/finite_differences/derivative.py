@@ -478,6 +478,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
         has to be computed at x=x + h_x/2.
         """
+        # No staggering, don't waste time
+        if not self.expr.staggered and not func.staggered:
+            return self
         # If an x0 already exists or evaluating at the same function (i.e u = u.dx)
         # do not overwrite it
         if self.x0 or self.side is not None or func.function is self.expr.function:

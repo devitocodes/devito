@@ -95,13 +95,36 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def indices(self):
-        return tuple(filter_ordered(flatten(getattr(i, 'indices', ())
-                                            for i in self._args_diff)))
+        if not self._args_diff:
+            return DimensionTuple()
+
+        # Get indices of all args and merge them
+        mapper = {}
+        for a in self._args_diff:
+            for d, i in a.indices.getters.items():
+                mapper.setdefault(d, []).append(i)
+
+        # Filter unique indices
+        mapper = {k: v[0] if len(v) == 1 else tuple(filter_ordered(v))
+                  for k, v in mapper.items()}
+
+        return DimensionTuple(*mapper.values(), getters=tuple(mapper.keys()))
 
     @cached_property
     def dimensions(self):
-        return tuple(filter_ordered(flatten(getattr(i, 'dimensions', ())
-                                            for i in self._args_diff)))
+        if not self._args_diff:
+            return DimensionTuple()
+
+        # Use the staggering of the highest priority function
+        return highest_priority(self).dimensions
+
+    @cached_property
+    def staggered(self):
+        if not self._args_diff:
+            return None
+
+        # Use the staggering of the highest priority function
+        return highest_priority(self).staggered
 
     @cached_property
     def root_dimensions(self):
@@ -116,11 +139,6 @@ class Differentiable(sympy.Expr, Evaluable):
         elif len(self._args_diff) == 0:
             return DimensionTuple(*self.dimensions, getters=self.dimensions)
         return highest_priority(self).indices_ref
-
-    @cached_property
-    def staggered(self):
-        return tuple(filter_ordered(flatten(getattr(i, 'staggered', ())
-                                            for i in self._args_diff)))
 
     @cached_property
     def is_Staggered(self):
@@ -474,13 +492,21 @@ class Differentiable(sympy.Expr, Evaluable):
             return all(i in self.free_symbols for i in patterns)
 
 
-def highest_priority(DiffOp):
+def highest_priority(diff_op):
+    if not diff_op._args_diff:
+        return diff_op
+
     # We want to get the object with highest priority
     # We also need to make sure that the object with the largest
     # set of dimensions is used when multiple ones with the same
     # priority appear
     prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
-    return sorted(DiffOp._args_diff, key=prio, reverse=True)[0]
+    prio_func = sorted(diff_op._args_diff, key=prio, reverse=True)[0]
+
+    # The highest priority must be a Function
+    if not isinstance(prio_func, AbstractFunction):
+        return highest_priority(prio_func)
+    return prio_func
 
 
 class DifferentiableOp(Differentiable):
@@ -548,8 +574,11 @@ class DifferentiableFunction(DifferentiableOp):
     def __new__(cls, *args, **kwargs):
         return cls.__sympy_class__.__new__(cls, *args, **kwargs)
 
-    def _eval_at(self, func):
-        return self
+    @property
+    def _fd_priority(self):
+        if highest_priority(self) is self:
+            return super()._fd_priority
+        return highest_priority(self)._fd_priority
 
 
 class Add(DifferentiableOp, sympy.Add):
@@ -633,26 +662,12 @@ class Mul(DifferentiableOp, sympy.Mul):
         if len(set(f.staggered for f in self._args_diff)) == 1:
             return self
 
-        func_args = highest_priority(self)
-        new_args = []
-        ref_inds = func_args.indices_ref.getters
-
-        for f in self.args:
-            if f not in self._args_diff \
-                    or f is func_args \
-                    or isinstance(f, DifferentiableFunction):
-                new_args.append(f)
-            else:
-                ind_f = f.indices_ref.getters
-                mapper = {ind_f.get(d, d): ref_inds.get(d, d)
-                          for d in self.dimensions
-                          if ind_f.get(d, d) is not ref_inds.get(d, d)}
-                if mapper:
-                    new_args.append(f.subs(mapper))
-                else:
-                    new_args.append(f)
-
-        return self.func(*new_args, evaluate=False)
+        derivs, other = split(self.args, lambda a: isinstance(a, sympy.Derivative))
+        if len(derivs) == 0:
+            return self._eval_at(highest_priority(self))
+        else:
+            other = self.func(*other)._eval_at(highest_priority(self))
+            return self.func(other, *derivs)
 
 
 class Pow(DifferentiableOp, sympy.Pow):
@@ -1034,6 +1049,9 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         obj = super().__new__(cls, *args, **kwargs)
 
         try:
+            if base is obj:
+                # In some rare cases (rebuild?) base may be obj itself
+                base = base.base
             obj.base = base
         except AttributeError:
             # This might happen if e.g. one attempts a (re)construction with
@@ -1060,6 +1078,10 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         # An EvalDerivative must have already been evaluated at a valid x0
         # and should not be re-evaluated at a different location
         return self
+
+    @property
+    def indices_ref(self):
+        return self.base.indices_ref
 
 
 class diffify:
@@ -1184,6 +1206,29 @@ def _(expr, x0, **kwargs):
     return expr.func(interp_for_fd(expr.expr, x0_expr, **kwargs))
 
 
+@interp_for_fd.register(Mul)
+def _(expr, x0, **kwargs):
+    # For a Mul expression, we interpolate the whole expression
+    # Do we actually need interpolation
+    if all(expr.indices[d] is i for d, i in x0.items()):
+        return expr
+
+    # Split args between those that need interp and those that don't
+    def test0(a):
+        return all(a.indices[d] is i for d, i in x0.items() if d in a.dimensions)
+
+    oa, ia = split(expr._args_diff,
+                   lambda a: isinstance(a, sympy.Derivative) or test0(a))
+    oa = oa + tuple(a for a in expr.args if a not in expr._args_diff)
+
+    # Interpolate the necessary args
+    d_dims = tuple((d, 0) for d in x0)
+    fd_order = tuple(expr.interp_order for d in x0)
+    iexpr = expr.func(*ia).diff(*d_dims, fd_order=fd_order, x0=x0, **kwargs)
+
+    return expr.func(iexpr, *oa)
+
+
 @interp_for_fd.register(sympy.Expr)
 def _(expr, x0, **kwargs):
     if expr.args:
@@ -1194,7 +1239,8 @@ def _(expr, x0, **kwargs):
 
 @interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
-    x0_expr = {d: v for d, v in x0.items() if v.has(d)}
+    x0_expr = {d: v for d, v in x0.items() if v.has(d)
+               and expr.indices[d] is not v}
     if x0_expr:
         return expr.subs({expr.indices[d]: v for d, v in x0_expr.items()})
     else:

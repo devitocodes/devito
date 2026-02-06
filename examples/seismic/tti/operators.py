@@ -280,7 +280,6 @@ def kernel_staggered_2d(model, u, v, **kwargs):
     epsilon = 1 + 2 * epsilon
     delta = sqrt(1 + 2 * delta)
     s = model.grid.stepping_dim.spacing
-    x, z = model.grid.dimensions
 
     # Get source
     qu = kwargs.get('qu', 0)
@@ -291,14 +290,14 @@ def kernel_staggered_2d(model, u, v, **kwargs):
 
     if forward:
         # Stencils
-        phdx = costheta * u.dx - sintheta * u.dyc
+        phdx = costheta * u.dx - sintheta * u.dy
         u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-        pvdz = sintheta * v.dxc + costheta * v.dy
+        pvdz = sintheta * v.dx + costheta * v.dy
         u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
-        dvx = costheta * vx.forward.dx - sintheta * vx.forward.dyc
-        dvz = sintheta * vz.forward.dxc + costheta * vz.forward.dy
+        dvx = costheta * vx.forward.dx - sintheta * vx.forward.dy
+        dvz = sintheta * vz.forward.dx + costheta * vz.forward.dy
 
         # u and v equations
         pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * dvx + dvz)) + s / m * qv)
@@ -306,16 +305,16 @@ def kernel_staggered_2d(model, u, v, **kwargs):
                    s / m * qu)
     else:
         # Stencils
-        phdx = ((costheta*epsilon*u).dx - (sintheta*epsilon*u).dyc +
-                (costheta*delta*v).dx - (sintheta*delta*v).dyc)
+        a = epsilon * u + delta * v
+        phdx = (costheta * a).dx - (sintheta * a).dy
         u_vx = Eq(vx.backward, dampl * vx + dampl * s * phdx)
 
-        pvdz = ((sintheta*delta*u).dxc + (costheta*delta*u).dy +
-                (sintheta*v).dxc + (costheta*v).dy)
+        b = delta * u + v
+        pvdz = (sintheta * b).dx + (costheta * b).dy
         u_vz = Eq(vz.backward, dampl * vz + dampl * s * pvdz)
 
-        dvx = (costheta * vx.backward).dx - (sintheta * vx.backward).dyc
-        dvz = (sintheta * vz.backward).dxc + (costheta * vz.backward).dy
+        dvx = (costheta * vx.backward).dx - (sintheta * vx.backward).dy
+        dvz = (sintheta * vz.backward).dx + (costheta * vz.backward).dy
 
         # u and v equations
         pv_eq = Eq(v.backward, dampl * (v + s / m * dvz))
@@ -356,24 +355,24 @@ def kernel_staggered_3d(model, u, v, **kwargs):
     if forward:
         # Stencils
         phdx = (costheta * cosphi * u.dx +
-                costheta * sinphi * u.dyc -
-                sintheta * u.dzc)
+                costheta * sinphi * u.dy -
+                sintheta * u.dz)
         u_vx = Eq(vx.forward, dampl * vx - dampl * s * phdx)
 
-        phdy = -sinphi * u.dxc + cosphi * u.dy
+        phdy = -sinphi * u.dx + cosphi * u.dy
         u_vy = Eq(vy.forward, dampl * vy - dampl * s * phdy)
 
-        pvdz = (sintheta * cosphi * v.dxc +
-                sintheta * sinphi * v.dyc +
+        pvdz = (sintheta * cosphi * v.dx +
+                sintheta * sinphi * v.dy +
                 costheta * v.dz)
         u_vz = Eq(vz.forward, dampl * vz - dampl * s * pvdz)
 
         dvx = (costheta * cosphi * vx.forward.dx +
-               costheta * sinphi * vx.forward.dyc -
-               sintheta * vx.forward.dzc)
-        dvy = -sinphi * vy.forward.dxc + cosphi * vy.forward.dy
-        dvz = (sintheta * cosphi * vz.forward.dxc +
-               sintheta * sinphi * vz.forward.dyc +
+               costheta * sinphi * vx.forward.dy -
+               sintheta * vx.forward.dz)
+        dvy = -sinphi * vy.forward.dx + cosphi * vy.forward.dy
+        dvz = (sintheta * cosphi * vz.forward.dx +
+               sintheta * sinphi * vz.forward.dy +
                costheta * vz.forward.dz)
         # u and v equations
         pv_eq = Eq(v.forward, dampl * (v - s / m * (delta * (dvx + dvy) + dvz)) +
@@ -383,30 +382,27 @@ def kernel_staggered_3d(model, u, v, **kwargs):
                                                     delta * dvz)) + s / m * qu)
     else:
         # Stencils
-        phdx = ((costheta * cosphi * epsilon*u).dx +
-                (costheta * sinphi * epsilon*u).dyc -
-                (sintheta * epsilon*u).dzc + (costheta * cosphi * delta*v).dx +
-                                             (costheta * sinphi * delta*v).dyc -
-                                             (sintheta * delta*v).dzc)
+        a = epsilon * u + delta * v
+        phdx = ((costheta * cosphi * a).dx +
+                (costheta * sinphi * a).dy -
+                (sintheta * a).dz)
         u_vx = Eq(vx.backward, dampl * vx + dampl * s * phdx)
 
-        phdy = (-(sinphi * epsilon*u).dxc + (cosphi * epsilon*u).dy -
-                (sinphi * delta*v).dxc + (cosphi * delta*v).dy)
+        phdy = (-(sinphi * a).dx + (cosphi * a).dy)
         u_vy = Eq(vy.backward, dampl * vy + dampl * s * phdy)
 
-        pvdz = ((sintheta * cosphi * delta*u).dxc +
-                (sintheta * sinphi * delta*u).dyc +
-                (costheta * delta*u).dz + (sintheta * cosphi * v).dxc +
-                                          (sintheta * sinphi * v).dyc +
-                                          (costheta * v).dz)
+        b = delta * u + v
+        pvdz = ((sintheta * cosphi * b).dx +
+                (sintheta * sinphi * b).dy +
+                (costheta * b).dz)
         u_vz = Eq(vz.backward, dampl * vz + dampl * s * pvdz)
 
         dvx = ((costheta * cosphi * vx.backward).dx +
-               (costheta * sinphi * vx.backward).dyc -
-               (sintheta * vx.backward).dzc)
-        dvy = (-sinphi * vy.backward).dxc + (cosphi * vy.backward).dy
-        dvz = ((sintheta * cosphi * vz.backward).dxc +
-               (sintheta * sinphi * vz.backward).dyc +
+               (costheta * sinphi * vx.backward).dy -
+               (sintheta * vx.backward).dz)
+        dvy = (-sinphi * vy.backward).dx + (cosphi * vy.backward).dy
+        dvz = ((sintheta * cosphi * vz.backward).dx +
+               (sintheta * sinphi * vz.backward).dy +
                (costheta * vz.backward).dz)
         # u and v equations
         pv_eq = Eq(v.backward, dampl * (v + s / m * dvz))

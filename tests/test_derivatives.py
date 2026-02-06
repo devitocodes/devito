@@ -9,7 +9,7 @@ from devito import (
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
-    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights
+    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights, interp_for_fd
 )
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
@@ -921,7 +921,7 @@ class TestFD:
         assert simplify(eq0.evaluate.rhs - expect0) == 0
 
         # Expects to evaluate c11 and txy at xp then the derivative at yp
-        expect1 = (c11._subs(x, xp).evaluate * txx._subs(x, xp).evaluate).dy.evaluate
+        expect1 = (interp_for_fd((c11 * txx), {x: xp}).evaluate).dy.evaluate
         assert simplify(eq1.evaluate.rhs - expect1) == 0
 
         # Addition should apply the same logic as above for each term
