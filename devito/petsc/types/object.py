@@ -11,6 +11,10 @@ from devito.types.basic import DataSymbol, LocalType
 from devito.petsc.iet.nodes import petsc_call
 
 
+# TODO: unnecessary use of "CALLBACK" types - just create a simple
+# way of destroying or not destroying a certain type
+
+
 class PetscMixin:
     @property
     def _C_free_priority(self):
@@ -53,6 +57,7 @@ class DM(CallbackDM):
 
 
 DMCast = cast('DM')
+PetscObjectCast = cast('PetscObject')
 
 
 class CallbackMat(PetscObject):
@@ -97,6 +102,20 @@ class PetscInt(PetscObject):
     to PETSc functions.
     """
     dtype = CustomIntType('PetscInt')
+
+
+class CallbackPetscInt(PetscObject):
+    """
+    """
+    dtype = CustomIntType('PetscInt', modifier=' *')
+
+
+class PetscIntPtr(PetscObject):
+    """
+    """
+    dtype = CustomIntType('PetscInt')
+
+    _C_modifier = ' *'
 
 
 class PetscScalar(PetscObject):
@@ -191,6 +210,22 @@ class StartPtr(PetscObject):
 
 class SingleIS(PetscObject):
     dtype = CustomDtype('IS')
+
+
+class PetscSectionGlobal(PetscObject):
+    dtype = CustomDtype('PetscSection')
+
+    @property
+    def _C_free(self):
+        return petsc_call('PetscSectionDestroy', [Byref(self.function)])
+
+
+class PetscSectionLocal(PetscObject):
+    dtype = CustomDtype('PetscSection')
+
+
+class PetscSF(PetscObject):
+    dtype = CustomDtype('PetscSF')
 
 
 class PETScStruct(LocalCompositeObject):
@@ -289,6 +324,14 @@ class CallbackPointerIS(PETScArrayObject):
         return CustomDtype('IS', modifier=' *')
 
 
+class CallbackPointerPetscInt(PETScArrayObject):
+    """
+    """
+    @property
+    def dtype(self):
+        return CustomDtype('PetscInt', modifier=' *')
+
+
 class PointerIS(CallbackPointerIS):
     @property
     def _C_free(self):
@@ -335,10 +378,16 @@ class NofSubMats(Scalar, LocalType):
     pass
 
 
+# Can this be attached to the consrain bc object in metadata maybe? probs
+# shoulnd't be here
+Counter = PetscInt(name='count')
+
+
 FREE_PRIORITY = {
     PETScArrayObject: 0,
     Vec: 1,
     Mat: 2,
     SNES: 3,
-    DM: 4,
+    PetscSectionGlobal: 4,
+    DM: 5,
 }

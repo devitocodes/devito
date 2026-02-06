@@ -2208,3 +2208,567 @@ class TestPrinter:
 
         assert 'PETSC_PI' in str(op.ccode)
         assert 'M_PI' not in str(op.ccode)
+
+
+class TestPetscSection:
+    """
+    These tests validate the use of `PetscSection` (from PETSc) to constrain essential
+    boundary nodes by removing them from the linear solver, rather than keeping them in
+    the system as trivial equations.
+
+    Users specify essential boundary conditions via the `EssentialBC` equation,
+    with a specifed `SubDomain`. When `constrain_bcs=True` is passed to `petscsolve`,
+    the Devito compiler generates code that removes these degrees of freedom from
+    the linear system. A PETSc requirement is that each MPI rank identifies ALL
+    constrained nodes within its local data region, including non-owned (halo) nodes.
+
+    To achieve this, the compiler creates new `EssentialBC`-like equations with
+    modified (sub)dimensions (to extend the loop bounds), which are used in two
+    callback functions to constrain the nodes. No non-owned (halo) data is indexed
+    into - the loops are only used to specify the constrained "local" indices
+    on each rank.
+
+    Tests in this class use the following notation:
+    - `x`   : a grid point
+    - `[]`  : the `SubDomain` specified by the `EssentialBC` (the constrained region)
+    - `|`   : an MPI rank boundary
+    """
+    # first test that the loop generated is correct symbolically..
+
+    # TODO: loop bound modification only needs to happen for subdomain 'middle' type
+    # so ensure this happens - by construction left and right subdomains do not
+    # cross ranks instead of doing the manual loop bound check - grab the actual
+    # iteration from the generated code I think...?
+
+    def _get_loop_bounds(self, shape, so, subdomain):
+        grid = Grid(
+            shape=shape,
+            subdomains=(subdomain,),
+            dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='u', grid=grid, space_order=so)
+        bc = Function(name='bc', grid=grid, space_order=so)
+
+        eq = Eq(u, v, subdomain=grid.interior)
+        bc = EssentialBC(u, bc, subdomain=subdomain)
+
+        solver = petscsolve([eq, bc], u, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+
+        args = op.arguments()
+        rank = grid.distributor.myrank
+
+        bounds = []
+        for _, dim in enumerate(grid.dimensions):
+            lb = max(args[f'i{dim.name}_min0'], args[f'{dim.name}_m'] - so)
+            ub = min(args[f'i{dim.name}_max0'], args[f'{dim.name}_M'] + so)
+            bounds.append((lb, ub))
+
+        return rank, tuple(bounds)
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_constrain_indices_1d_left_halo2(self, mode):
+        """halo_size=2, n=24, constrain left side of grid"""
+
+        # 1 rank:
+        #                        0
+        # [x x x x x x x x x x x x x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 19)}
+
+        # 2 ranks:
+        #            0                       1
+        # [x x x x x x x x x x x x|x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 13), 1: (-2, 7)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # [x x x x x x|x x x x x x|x x x x x x|x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 7), 1: (-2, 7), 2: (-2, 7), 3: (-2, 1)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # [x x x x|x x x x|x x x x|x x x x|x x x x]|x x x x
+        # Expected bounds per rank:
+        # {0: (0, 5), 1: (-2, 5), 2: (-2, 5), 3: (-2, 5), 4: (-2, 3), 5: (-2, -1)}
+
+        # 8 ranks:
+        #    0     1     2     3     4     5     6      7
+        # [x x x|x x x|x x x|x x x|x x x|x x x|x x] x|x x x
+        # Expected bounds per rank:
+        # {0: (0, 4), 1: (-2, 4), 2: (-2, 4), 3: (-2, 4), 4: (-2, 4),
+        #  5: (-2, 4), 6: (-2, 1), 7: (-2, -2)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (0, 19),
+            },
+            2: {
+                0: (0, 13),
+                1: (-2, 7),
+            },
+            4: {
+                0: (0, 7),
+                1: (-2, 7),
+                2: (-2, 7),
+                3: (-2, 1),
+            },
+            6: {
+                0: (0, 5),
+                1: (-2, 5),
+                2: (-2, 5),
+                3: (-2, 5),
+                4: (-2, 3),
+                5: (-2, -1)
+            },
+            8: {
+                0: (0, 4),
+                1: (-2, 4),
+                2: (-2, 4),
+                3: (-2, 4),
+                4: (-2, 4),
+                5: (-2, 4),
+                6: (-2, 1),
+                7: (-2, -2)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_indices_1d_left_halo4(self, mode):
+        """halo_size=4, n=24, constrain left side of grid"""
+
+        # 1 rank:
+        #                        0
+        # [x x x x x x x x x x x x x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 19)}
+
+        # 2 ranks:
+        #            0                       1
+        # [x x x x x x x x x x x x|x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 15), 1: (-4, 7)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # [x x x x x x|x x x x x x|x x x x x x|x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 9), 1: (-4, 9), 2: (-4, 7), 3: (-4, 1)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # [x x x x|x x x x|x x x x|x x x x|x x x x]|x x x x
+        # Expected bounds per rank:
+        # {0: (0, 7), 1: (-4, 7), 2: (-4, 7), 3: (-4, 7), 4: (-4, 3), 5: (-4, -1)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+        sub = Middle()
+
+        n = 24
+        so = 4
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (0, 19),
+            },
+            2: {
+                0: (0, 15),
+                1: (-4, 7),
+            },
+            4: {
+                0: (0, 9),
+                1: (-4, 9),
+                2: (-4, 7),
+                3: (-4, 1),
+            },
+            6: {
+                0: (0, 7),
+                1: (-4, 7),
+                2: (-4, 7),
+                3: (-4, 7),
+                4: (-4, 3),
+                5: (-4, -1)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_constrain_indices_1d_right_halo2(self, mode):
+        """halo_size=2, n=24, constrain right side of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x [x x x x x x x x x x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 23)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x [x x x x x x x x x|x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 13), 1: (-2, 11)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x [x x x|x x x x x x|x x x x x x|x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 7), 1: (-2, 7), 2: (-2, 7), 3: (-2, 5)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x [x|x x x x|x x x x|x x x x|x x x x|x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 5), 1: (-1, 5), 2: (-2, 5), 3: (-2, 5), 4: (-2, 5), 5: (-2, 3)}
+
+        # 8 ranks:
+        #    0     1     2     3     4     5     6      7
+        # x x x[|x x x|x x x|x x x|x x x|x x x|x x x|x x x]
+        # Expected bounds per rank:
+        # {0: (3, 4), 1: (0, 4), 2: (-2, 4), 3: (-2, 4), 4: (-2, 4),
+        #  5: (-2, 4), 6: (-2, 4), 7: (-2, 2)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 3, 0)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (3, 23),
+            },
+            2: {
+                0: (3, 13),
+                1: (-2, 11),
+            },
+            4: {
+                0: (3, 7),
+                1: (-2, 7),
+                2: (-2, 7),
+                3: (-2, 5),
+            },
+            6: {
+                0: (3, 5),
+                1: (-1, 5),
+                2: (-2, 5),
+                3: (-2, 5),
+                4: (-2, 5),
+                5: (-2, 3)
+            },
+            8: {
+                0: (3, 4),
+                1: (0, 4),
+                2: (-2, 4),
+                3: (-2, 4),
+                4: (-2, 4),
+                5: (-2, 4),
+                6: (-2, 4),
+                7: (-2, 2)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_indices_1d_right_halo4(self, mode):
+        """halo_size=4, n=24, constrain right side of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x [x x x x x x x x x x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 23)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x [x x x x x x x x x|x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 15), 1: (-4, 11)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x [x x x|x x x x x x|x x x x x x|x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 9), 1: (-3, 9), 2: (-4, 9), 3: (-4, 5)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x [x|x x x x|x x x x|x x x x|x x x x|x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 7), 1: (-1, 7), 2: (-4, 7), 3: (-4, 7), 4: (-4, 7), 5: (-4, 3)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 3, 0)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (3, 23),
+            },
+            2: {
+                0: (3, 13),
+                1: (-2, 11),
+            },
+            4: {
+                0: (3, 7),
+                1: (-2, 7),
+                2: (-2, 7),
+                3: (-2, 5),
+            },
+            6: {
+                0: (3, 5),
+                1: (-1, 5),
+                2: (-2, 5),
+                3: (-2, 5),
+                4: (-2, 5),
+                5: (-2, 3)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_constrain_indices_1d_middle_halo2(self, mode):
+        """halo_size=2, n=24, constrain middle of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x x x x x x [x x x x x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 18)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x x x x x x [x x x x|x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 13), 1: (-2, 6)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x x x x|x x [x x x x|x x x x x x|x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 7), 1: (2, 7), 2: (-2, 6), 3: (-2, 0)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x x|x x x x[|x x x x|x x x x|x x x] x|x x x x
+        # Expected bounds per rank:
+        # {0: (8, 5), 1: (4, 5), 2: (0, 5), 3: (-2, 5), 4: (-2, 2), 5: (-2, -2)}
+
+        # 8 ranks:
+        #   0     1     2      3     4     5     6      7
+        # x x x|x x x|x x [x|x x x|x x x|x x x|x] x x|x x x
+        # Expected bounds per rank:
+        # {0: (8, 4), 1: (5, 4), 2: (2, 4), 3: (-1, 4), 4: (-2, 4),
+        #  5: (-2, 3), 6: (-2, 0), 7: (-2, -3)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 8, 5)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (8, 18),
+            },
+            2: {
+                0: (8, 13),
+                1: (-2, 6),
+            },
+            4: {
+                0: (8, 7),
+                1: (2, 7),
+                2: (-2, 6),
+                3: (-2, 0),
+            },
+            6: {
+                0: (8, 5),
+                1: (4, 5),
+                2: (0, 5),
+                3: (-2, 5),
+                4: (-2, 2),
+                5: (-2, -2)
+            },
+            8: {
+                0: (8, 4),
+                1: (5, 4),
+                2: (2, 4),
+                3: (-1, 4),
+                4: (-2, 4),
+                5: (-2, 3),
+                6: (-2, 0),
+                7: (-2, -3)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_indices_1d_middle_halo4(self, mode):
+        """halo_size=4, n=24, constrain middle of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x x x x x x [x x x x x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 18)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x x x x x x [x x x x|x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 15), 1: (-4, 6)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x x x x|x x [x x x x|x x x x x x|x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 9), 1: (2, 9), 2: (-4, 6), 3: (-4, 0)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x x|x x x x[|x x x x|x x x x|x x x] x|x x x x
+        # Expected bounds per rank:
+        # {0: (8, 7), 1: (4, 7), 2: (0, 7), 3: (-4, 6), 4: (-4, 2), 5: (-4, -2)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 8, 5)}
+
+        sub = Middle()
+
+        n = 24
+        so = 4
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (8, 18),
+            },
+            2: {
+                0: (8, 15),
+                1: (-4, 6),
+            },
+            4: {
+                0: (8, 9),
+                1: (2, 9),
+                2: (-4, 6),
+                3: (-4, 0),
+            },
+            6: {
+                0: (8, 7),
+                1: (4, 7),
+                2: (0, 7),
+                3: (-4, 6),
+                4: (-4, 2),
+                5: (-4, -2)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    # TODO: add 2d and 3d tests

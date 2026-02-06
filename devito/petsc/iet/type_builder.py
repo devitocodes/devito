@@ -2,13 +2,15 @@ import numpy as np
 
 from devito.symbolics import String
 from devito.types import Symbol
+from devito.types.misc import PostIncrementIndex
 from devito.tools import frozendict
 
 from devito.petsc.types import (
     PetscBundle, DM, Mat, CallbackVec, Vec, KSP, PC, SNES, PetscInt, StartPtr,
     PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct, CallbackDM,
     PetscMPIInt, PetscErrorCode, PointerMat, MatReuse, CallbackPointerDM,
-    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats
+    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats, PetscSectionGlobal,
+    PetscSectionLocal, PetscSF, CallbackPetscInt, CallbackPointerPetscInt, SingleIS
 )
 
 
@@ -197,6 +199,37 @@ class CoupledTypeBuilder(BaseTypeBuilder):
             base_dict[f'scatter{name}'] = VecScatter(
                 sreg.make_name(prefix=f'scatter{name}')
             )
+
+
+class ConstrainedBCTypeBuilder(BaseTypeBuilder):
+    def _extend_build(self, base_dict):
+        sreg = self.sregistry
+        base_dict['lsection'] = PetscSectionLocal(
+            name=sreg.make_name(prefix='lsection')
+        )
+        base_dict['gsection'] = PetscSectionGlobal(
+            name=sreg.make_name(prefix='gsection')
+        )
+        base_dict['sf'] = PetscSF(
+            name=sreg.make_name(prefix='sf')
+        )
+        name = sreg.make_name(prefix='numBC')
+        base_dict['numBC'] = PetscInt(
+            name=name, initvalue=0
+        )
+        base_dict['numBCPtr'] = CallbackPetscInt(
+            name=sreg.make_name(prefix='numBCPtr'), initvalue=0
+        )
+        base_dict['bcPointsArr'] = CallbackPointerPetscInt(
+            name=sreg.make_name(prefix='bcPointsArr')
+        )
+        base_dict['k_iter'] = PostIncrementIndex(
+            name='k_iter', initvalue=0
+        )
+        # change names etc..
+        base_dict['bcPointsIS'] = SingleIS(name='bcPointsIS')
+        base_dict['bcPoints'] = PointerIS(name='bcPoints')
+        return base_dict
 
 
 subdms = PointerDM(name='subdms')

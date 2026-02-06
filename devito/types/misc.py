@@ -150,10 +150,33 @@ class FIndexed(Indexed, Pickable):
 
         return ((define, expr), findexed)
 
+    @property
+    def linear_index(self):
+        """
+        TODO: Add tests
+        """
+        f = self.function
+        strides_map = self.strides_map
+        indices = self.indices
+
+        items = [
+            idx * strides_map[d]
+            for idx, d in zip(indices, f.dimensions[1:])
+        ]
+        items.append(indices[-1])
+
+        return sympy.Add(*items, evaluate=False)
+
     func = Pickable._rebuild
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class PostIncrementIndex(LocalObject):
+    """
+    """
+    dtype = np.int32
 
 
 class Global(Symbol):

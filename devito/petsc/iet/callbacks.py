@@ -9,14 +9,17 @@ from devito.symbolics import (
 )
 from devito.symbolics.unevaluation import Mul
 from devito.types.basic import AbstractFunction
+from devito.types.misc import PostIncrementIndex
 from devito.types import Dimension, Temp, TempArray
 from devito.tools import filter_ordered
+from devito.passes.iet.linearization import Stride
 
 from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp, petsc_call
-from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct
+from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct, PetscObjectCast
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
+from devito.petsc.types.object import Counter
 
 
 class BaseCallbackBuilder:
@@ -27,25 +30,26 @@ class BaseCallbackBuilder:
 
         self.rcompile = kwargs.get('rcompile', None)
         self.sregistry = kwargs.get('sregistry', None)
+        self.options = kwargs.get('options', {})
         self.concretize_mapper = kwargs.get('concretize_mapper', {})
         self.time_dependence = kwargs.get('time_dependence')
         self.objs = kwargs.get('objs')
         self.solver_objs = kwargs.get('solver_objs')
         self.inject_solve = kwargs.get('inject_solve')
         self.solve_expr = self.inject_solve.expr.rhs
-
-        self._efuncs = OrderedDict()
         self._struct_params = []
 
+        self._efuncs = OrderedDict()
         self._set_options_efunc = None
         self._clear_options_efunc = None
-        self._main_matvec_callback = None
-        self._user_struct_callback = None
+        self._main_matvec_efunc = None
+        self._user_struct_efunc = None
         self._F_efunc = None
         self._b_efunc = None
-
+        self._count_bc_efunc = None
+        self._point_bc_efunc = None
         self._J_efuncs = []
-        self._initial_guesses = []
+        self._initial_guess_efuncs = []
 
         self._make_core()
         self._efuncs = self._uxreplace_efuncs()
@@ -63,7 +67,7 @@ class BaseCallbackBuilder:
         return filter_ordered(self.struct_params)
 
     @property
-    def main_matvec_callback(self):
+    def main_matvec_efunc(self):
         """
         The matrix-vector callback for the full Jacobian.
         This is the function set in the main Kernel via:
@@ -83,12 +87,8 @@ class BaseCallbackBuilder:
         return self._J_efuncs
 
     @property
-    def initial_guesses(self):
-        return self._initial_guesses
-
-    @property
-    def user_struct_callback(self):
-        return self._user_struct_callback
+    def user_struct_efunc(self):
+        return self._user_struct_efunc
 
     @property
     def solver_parameters(self):
@@ -112,12 +112,19 @@ class BaseCallbackBuilder:
 
     def _make_core(self):
         self._make_options_callback()
+        # Make the mat-vec callback to form the matfree Jacobian
         self._make_matvec(self.field_data.jacobian)
+        # Make the residual callback
         self._make_formfunc()
+        # Make the RHS callback
         self._make_formrhs()
+        # Make the initial guess callback
         if self.field_data.initial_guess.exprs:
             self._make_initial_guess()
-        self._make_user_struct_callback()
+        # Make the callback used to constrain boundary nodes
+        if self.field_data.constrain_bc:
+            self._make_constrain_bc()
+        self._make_user_struct_efunc()
 
     def _make_petsc_callable(self, prefix, body, parameters=()):
         return PETScCallable(
@@ -578,7 +585,7 @@ class BaseCallbackBuilder:
         cb = self._make_petsc_callable(
             'FormInitialGuess', body, parameters=(sobjs['callbackdm'], objs['xloc'])
         )
-        self._initial_guesses.append(cb)
+        self._initial_guess_efuncs.append(cb)
         self._efuncs[cb.name] = cb
 
     def _create_initial_guess_body(self, body):
@@ -637,7 +644,157 @@ class BaseCallbackBuilder:
 
         return Uxreplace(subs).visit(body)
 
-    def _make_user_struct_callback(self):
+    def _make_constrain_bc(self):
+        """
+        To constrain essential boundary nodes, two additional callbacks are required.
+        This method constructs the corresponding efuncs: `CountBCs` and `SetPointBCs`.
+        """
+        increment_exprs = self.field_data.constrain_bc.increment_exprs
+        point_bc_exprs = self.field_data.constrain_bc.point_bc_exprs
+        sobjs = self.solver_objs
+
+        # Compile `increment_exprs` into an IET via recursive compilation
+        irs0, _ = self.rcompile(
+            increment_exprs, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
+        )
+        # Compile `point_bc_exprs` into an IET via recursive compilation
+        irs1, _ = self.rcompile(
+            point_bc_exprs, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
+        )
+        count_bc_body = self._create_count_bc_body(
+            List(body=irs0.uiet.body)
+        )
+        set_point_bc_body = self._create_set_point_bc_body(
+            List(body=irs1.uiet.body)
+        )
+        cb0 = self._make_petsc_callable(
+            'CountBCs', count_bc_body,
+            parameters=(sobjs['callbackdm'], sobjs['numBCPtr'])
+        )
+        cb1 = self._make_petsc_callable(
+            'SetPointBCs', set_point_bc_body,
+            parameters=(sobjs['callbackdm'], sobjs['numBC'])
+        )
+        self._count_bc_efunc = cb0
+        self._efuncs[cb0.name] = cb0
+        self._point_bc_efunc = cb1
+        self._efuncs[cb1.name] = cb1
+
+    def _create_count_bc_body(self, body):
+        objs = self.objs
+        sobjs = self.solver_objs
+
+        dmda = sobjs['callbackdm']
+        ctx = objs['dummyctx']
+
+        body = self.time_dependence.uxreplace_time(body)
+
+        fields = get_user_struct_fields(body)
+        self._struct_params.extend(fields)
+
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
+        )
+
+        # TODO: change names
+        deref_ptr = DummyExpr(Counter, Deref(sobjs['numBCPtr']))
+        move_ptr = DummyExpr(Deref(sobjs['numBCPtr']), Counter)
+
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        struct_definition = [Definition(ctx), dm_get_app_context]
+
+        body = body._rebuild(body.body + (move_ptr,))
+
+        body = self._make_callable_body(
+            body, standalones=struct_definition, stacks=(deref_ptr,)
+        )
+        # Replace non-function data with pointer to data in struct
+        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
+                i in fields if not isinstance(i.function, AbstractFunction)}
+
+        return Uxreplace(subs).visit(body)
+
+    def _create_set_point_bc_body(self, body):
+        linsolve_expr = self.inject_solve.expr.rhs
+        objs = self.objs
+        sobjs = self.solver_objs
+
+        dmda = sobjs['callbackdm']
+        ctx = objs['dummyctx']
+
+        dm_get_local_info = petsc_call(
+            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+        )
+
+        body = self.time_dependence.uxreplace_time(body)
+
+        fields = get_user_struct_fields(body)
+        self._struct_params.extend(fields)
+
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
+        )
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(dmda)])
+        is_create_general = petsc_call(
+            'ISCreateGeneral', [petsc_obj_comm, sobjs['numBC'], sobjs['bcPointsArr'],
+                                'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
+        )
+        malloc_bc_points_arr = petsc_call(
+            'PetscMalloc1', [sobjs['numBC'], Byref(sobjs['bcPointsArr']._C_symbol)]
+        )
+
+        malloc_bc_points = petsc_call(
+            'PetscMalloc1', [1, Byref(sobjs['bcPoints']._C_symbol)]
+        )
+
+        dummy_expr = DummyExpr(sobjs['bcPoints'].indexed[0], sobjs['bcPointsIS'])
+
+        set_point_bc = petsc_call(
+            'DMDASetPointBC', [dmda, 1, sobjs['bcPoints'], Null]
+        )
+        body = body._rebuild(
+            body=(
+                (malloc_bc_points_arr,)
+                + body.body
+                + (
+                    is_create_general,
+                    malloc_bc_points,
+                    dummy_expr,
+                    set_point_bc,
+                )
+            )
+        )
+        stacks = (
+            dm_get_local_info,
+        )
+
+        # Dereference function data in struct
+        derefs = dereference_funcs(ctx, fields)
+
+        # Force the struct definition to appear at the very start, since
+        # stacks, allocs etc may rely on its information
+        standalones = [
+            Definition(ctx),
+            dm_get_app_context,
+            Definition(sobjs['k_iter'])
+        ]
+
+        body = self._make_callable_body(
+            body, standalones=standalones, stacks=stacks+derefs
+        )
+
+        # Replace non-function data with pointer to data in struct
+        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
+                i in fields if not isinstance(i.function, AbstractFunction)}
+
+        subs[Counter._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
+
+        return Uxreplace(subs).visit(body)
+
+    def _make_user_struct_efunc(self):
         """
         This is the struct initialised inside the main kernel and
         attached to the DM via DMSetApplicationContext.
@@ -660,7 +817,7 @@ class BaseCallbackBuilder:
             parameters=[mainctx]
         )
         self._efuncs[cb.name] = cb
-        self._user_struct_callback = cb
+        self._user_struct_efunc = cb
 
     def _uxreplace_efuncs(self):
         sobjs = self.solver_objs
@@ -693,13 +850,13 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         return self.inject_solve.expr.rhs.field_data.jacobian
 
     @property
-    def main_matvec_callback(self):
+    def main_matvec_efunc(self):
         """
         This is the matrix-vector callback associated with the whole Jacobian i.e
         is set in the main kernel via
         `PetscCall(MatShellSetOperation(J,MATOP_MULT,(void (*)(void))MyMatShellMult));`
         """
-        return self._main_matvec_callback
+        return self._main_matvec_efunc
 
     def _make_core(self):
         for sm in self.field_data.jacobian.nonzero_submatrices:
@@ -708,7 +865,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         self._make_options_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc()
-        self._make_user_struct_callback()
+        self._make_user_struct_efunc()
         self._create_submatrices()
         self._efuncs['PopulateMatContext'] = self.objs['dummyefunc']
 
@@ -720,7 +877,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         cb = self._make_petsc_callable(
             'WholeMatMult', List(body=body), parameters=parameters
         )
-        self._main_matvec_callback = cb
+        self._main_matvec_efunc = cb
         self._efuncs[cb.name] = cb
 
     def _whole_matvec_body(self):
@@ -1120,7 +1277,7 @@ def zero_vector(vec):
 def get_user_struct_fields(iet):
     fields = [f.function for f in FindSymbols('basics').visit(iet)]
     from devito.types.basic import LocalType
-    avoid = (Temp, TempArray, LocalType)
+    avoid = (Temp, TempArray, LocalType, PostIncrementIndex, Stride)
     fields = [f for f in fields if not isinstance(f.function, avoid)]
     fields = [
         f for f in fields if not (f.is_Dimension and not (f.is_Time or f.is_Modulo))

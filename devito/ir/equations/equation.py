@@ -107,10 +107,10 @@ class Operation(Tag):
             ReduceMin: OpMin,
             PetscEq: OpPetsc
         }
-        try:
-            return reduction_mapper[type(expr)]
-        except KeyError:
-            pass
+
+        for expr_type, op in reduction_mapper.items():
+            if isinstance(expr, expr_type):
+                return op
 
         # NOTE: in the future we might want to track down other kinds
         # of operations here (e.g., memcpy). However, we don't care for

@@ -8,8 +8,10 @@ from devito.ir.iet import (
     FindSymbols, DummyExpr, Uxreplace, Dereference
 )
 from devito.symbolics import Byref, Macro, Null, FieldFromPointer
-from devito.types.basic import DataSymbol
+from devito.types.basic import DataSymbol, LocalType
+from devito.types.misc import FIndexed
 import devito.logger
+from devito.passes.iet.linearization import linearize_accesses, Tracker
 
 from devito.petsc.types import (
     MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct,
@@ -22,8 +24,12 @@ from devito.petsc.iet.callbacks import (
     BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context,
     get_user_struct_fields
 )
-from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
-from devito.petsc.iet.builder import BuilderBase, CoupledBuilder, make_core_petsc_calls
+from devito.petsc.iet.type_builder import (
+    BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder, objs
+)
+from devito.petsc.iet.builder import (
+    BuilderBase, CoupledBuilder, ConstrainedBCBuilder, make_core_petsc_calls
+)
 from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
@@ -70,7 +76,7 @@ def lower_petsc(iet, **kwargs):
     subs = {}
     efuncs = {}
 
-    # Map each `PetscMetaData`` to its Section (for logging)
+    # Map each `PetscMetaData` to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
     # Prefixes within the same `Operator` should not be duplicated
@@ -125,6 +131,48 @@ def lower_petsc_symbols(iet, **kwargs):
     rebuild_child_user_struct(iet, mapper=callback_struct_mapper)
     # Rebuild `MainUserStruct` and update iet accordingly
     rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
+
+    iet = linear_indices(iet, **kwargs)
+
+
+@iet_pass
+def linear_indices(iet, **kwargs):
+    """
+    """
+    if not iet.name.startswith("SetPointBCs"):
+        return iet, {}
+
+    if kwargs['options']['index-mode'] == 'int32':
+        dtype = np.int32
+    else:
+        dtype = np.int64
+
+    tracker = Tracker('basic', dtype, kwargs['sregistry'])
+
+    indexeds = [
+        i for i in FindSymbols('indexeds').visit(iet)
+        if not isinstance(i.function, LocalType)
+    ]
+    candidates = {i.function.name for i in indexeds}
+    key = lambda f: f.name in candidates
+
+    iet = linearize_accesses(iet, key0=key, tracker=tracker)
+
+    indexeds = [
+        i for i in FindSymbols('indexeds').visit(iet)
+        if i.function.name in candidates
+    ]
+    mapper_findexeds = {i: linear_index(i) for i in indexeds}
+
+    return Uxreplace(mapper_findexeds).visit(iet), {}
+
+
+def linear_index(i):
+    if isinstance(i, FIndexed):
+        return i.linear_index
+    # 1D case
+    assert len(i.indices) == 1
+    return i.indices[0]
 
 
 @iet_pass
@@ -248,6 +296,7 @@ class BuildSolver:
         self.get_info = inject_solve.expr.rhs.get_info
         self.kwargs = kwargs
         self.coupled = isinstance(inject_solve.expr.rhs.field_data, MultipleFieldData)
+        self.constrain_bc = inject_solve.expr.rhs.field_data.constrain_bc
         self.common_kwargs = {
             'inject_solve': self.inject_solve,
             'objs': self.objs,
@@ -263,11 +312,14 @@ class BuildSolver:
 
     @cached_property
     def type_builder(self):
-        return (
-            CoupledTypeBuilder(**self.common_kwargs)
-            if self.coupled else
-            BaseTypeBuilder(**self.common_kwargs)
-        )
+        if self.coupled and self.constrain_bc:
+            return NotImplementedError
+        elif self.coupled:
+            return CoupledTypeBuilder(**self.common_kwargs)
+        elif self.constrain_bc:
+            return ConstrainedBCTypeBuilder(**self.common_kwargs)
+        else:
+            return BaseTypeBuilder(**self.common_kwargs)
 
     @cached_property
     def time_dependence(self):
@@ -282,8 +334,15 @@ class BuildSolver:
 
     @cached_property
     def builder(self):
-        return CoupledBuilder(**self.common_kwargs) \
-            if self.coupled else BuilderBase(**self.common_kwargs)
+        if self.coupled and self.constrain_bc:
+            # TODO: implement CoupledConstrainedBCBuilder
+            return NotImplementedError
+        elif self.coupled:
+            return CoupledBuilder(**self.common_kwargs)
+        elif self.constrain_bc:
+            return ConstrainedBCBuilder(**self.common_kwargs)
+        else:
+            return BuilderBase(**self.common_kwargs)
 
     @cached_property
     def solve(self):

@@ -1,8 +1,9 @@
 import math
+from functools import cached_property
 
 from devito.ir.iet import DummyExpr, BlankLine
 from devito.symbolics import (Byref, FieldFromPointer, VOID,
-                              FieldFromComposite, Null)
+                              FieldFromComposite, Null, String)
 
 from devito.petsc.iet.nodes import (
     FormFunctionCallback, MatShellSetOp, PETScCall, petsc_call
@@ -22,7 +23,10 @@ class BuilderBase:
         self.callback_builder = kwargs.get('callback_builder')
         self.field_data = self.inject_solve.expr.rhs.field_data
         self.formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
-        self.calls = self._setup()
+
+    @cached_property
+    def calls(self):
+        return self._setup()
 
     @property
     def snes_ctx(self):
@@ -82,7 +86,7 @@ class BuilderBase:
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        matvec = self.callback_builder.main_matvec_callback
+        matvec = self.callback_builder.main_matvec_efunc
         matvec_operation = petsc_call(
             'MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
@@ -100,16 +104,8 @@ class BuilderBase:
 
         dmda_calls = self._create_dmda_calls(dmda)
 
-        mainctx = sobjs['userctx']
-
-        call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
-        )
-
         # TODO: maybe don't need to explictly set this
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
-
-        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
 
         base_setup = dmda_calls + (
             snes_create,
@@ -126,9 +122,7 @@ class BuilderBase:
             matvec_operation,
             formfunc_operation,
             snes_set_options,
-            call_struct_callback,
             mat_set_dm,
-            calls_set_app_ctx,
             BlankLine
         )
         extended_setup = self._extend_setup()
@@ -142,9 +136,26 @@ class BuilderBase:
 
     def _create_dmda_calls(self, dmda):
         dmda_create = self._create_dmda(dmda)
+        # TODO: probs need to set the dm options prefix the same as snes?
+        dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
-        return dmda_create, dm_setup, dm_mat_type
+        mainctx = self.solver_objs['userctx']
+
+        call_struct_callback = petsc_call(
+            self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
+        )
+
+        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
+
+        return (
+            dmda_create,
+            dm_set_from_opts,
+            dm_setup,
+            dm_mat_type,
+            call_struct_callback,
+            calls_set_app_ctx
+        )
 
     def _create_dmda(self, dmda):
         sobjs = self.solver_objs
@@ -223,7 +234,7 @@ class CoupledBuilder(BuilderBase):
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        matvec = self.callback_builder.main_matvec_callback
+        matvec = self.callback_builder.main_matvec_efunc
         matvec_operation = petsc_call(
             'MatShellSetOperation',
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
@@ -244,13 +255,11 @@ class CoupledBuilder(BuilderBase):
         mainctx = sobjs['userctx']
 
         call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_callback.name, [Byref(mainctx)]
+            self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
         )
 
         # TODO: maybe don't need to explictly set this
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
-
-        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
 
         create_field_decomp = petsc_call(
             'DMCreateFieldDecomposition',
@@ -324,7 +333,6 @@ class CoupledBuilder(BuilderBase):
             snes_set_options,
             call_struct_callback,
             mat_set_dm,
-            calls_set_app_ctx,
             create_field_decomp,
             matop_create_submats_op,
             call_coupled_struct_callback,
@@ -332,6 +340,86 @@ class CoupledBuilder(BuilderBase):
             create_submats) + \
             tuple(deref_dms) + tuple(xglobals) + tuple(xlocals) + (BlankLine,)
         return coupled_setup
+
+
+class ConstrainedBCMixin:
+    """
+    """
+    def _create_dmda_calls(self, dmda):
+        sobjs = self.solver_objs
+        mainctx = sobjs['userctx']
+
+        dmda_create = self._create_dmda(dmda)
+
+        # TODO: likely need to set the dm options prefix the same as snes?
+        # likely shouldn't hardcode this option like this.. (should be set in the options
+        # callback)
+        da_create_section = petsc_call(
+            'PetscOptionsSetValue', [Null, String("-da_use_section"), Null]
+        )
+        dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
+        dm_setup = petsc_call('DMSetUp', [dmda])
+        dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
+
+        count_bcs = petsc_call(
+            self.callback_builder._count_bc_efunc.name, [dmda, Byref(sobjs['numBC'])]
+        )
+
+        set_point_bcs = petsc_call(
+            self.callback_builder._point_bc_efunc.name, [dmda, sobjs['numBC']]
+        )
+
+        get_local_section = petsc_call(
+            'DMGetLocalSection', [dmda, Byref(sobjs['lsection'])]
+        )
+
+        get_point_sf = petsc_call('DMGetPointSF', [dmda, Byref(sobjs['sf'])])
+
+        create_global_section = petsc_call(
+            'PetscSectionCreateGlobalSection',
+            [sobjs['lsection'], sobjs['sf'], 'PETSC_TRUE', 'PETSC_FALSE', 'PETSC_FALSE',
+             Byref(sobjs['gsection'])]
+        )
+
+        dm_set_global_section = petsc_call(
+            'DMSetGlobalSection', [dmda, sobjs['gsection']]
+        )
+
+        dm_create_section_sf = petsc_call(
+            'DMCreateSectionSF', [dmda, sobjs['lsection'], sobjs['gsection']]
+        )
+
+        call_struct_callback = petsc_call(
+            self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
+        )
+
+        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
+
+        return (
+            dmda_create,
+            da_create_section,
+            dm_set_from_opts,
+            dm_setup,
+            dm_mat_type,
+            call_struct_callback,
+            calls_set_app_ctx,
+            count_bcs,
+            set_point_bcs,
+            get_local_section,
+            get_point_sf,
+            create_global_section,
+            dm_set_global_section,
+            dm_create_section_sf
+        )
+
+
+class ConstrainedBCBuilder(ConstrainedBCMixin, BuilderBase):
+    pass
+
+
+# TODO: Implement this class properly
+class CoupledConstrainedBCBuilder(ConstrainedBCMixin, CoupledBuilder):
+    pass
 
 
 def petsc_call_mpi(specific_call, call_args):

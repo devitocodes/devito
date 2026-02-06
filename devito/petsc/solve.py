@@ -6,7 +6,7 @@ from devito.symbolics import retrieve_functions, retrieve_dimensions
 
 from devito.petsc.types import (
     LinearSolverMetaData, PETScArray, DMDALocalInfo, FieldData, MultipleFieldData,
-    Jacobian, Residual, MixedResidual, MixedJacobian, InitialGuess
+    Jacobian, Residual, MixedResidual, MixedJacobian, InitialGuess, ConstrainBC
 )
 from devito.petsc.types.equation import EssentialBC
 from devito.petsc.solver_parameters import (
@@ -18,7 +18,7 @@ __all__ = ['petscsolve']
 
 
 def petscsolve(target_exprs, target=None, solver_parameters=None,
-               options_prefix=None, get_info=[]):
+               options_prefix=None, get_info=[], constrain_bcs=False):
     """
     Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
@@ -78,6 +78,12 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
         - ['kspgetiterationnumber', 'kspgettolerances', 'kspgetconvergedreason',
            'kspgettype', 'kspgetnormtype', 'snesgetiterationnumber']
 
+    constrain_bcs : bool, optional
+        If `True`, essential boundary conditions specifed by `EssentialBC` equations
+        are constrained through a `PetscSection`. As a result, the corresponding degrees
+        of freedom are excluded from the global solver and are not imposed using
+        trivial equations.
+
     Returns
     -------
     Eq:
@@ -86,15 +92,16 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
     """
     if target is not None:
         return InjectSolve(solver_parameters, {target: target_exprs},
-                           options_prefix, get_info).build_expr()
+                           options_prefix, get_info, constrain_bcs).build_expr()
     else:
+        # TODO: extend to support constrain_bcs
         return InjectMixedSolve(solver_parameters, target_exprs,
                                 options_prefix, get_info).build_expr()
 
 
 class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
-                 get_info=[]):
+                 get_info=[], constrain_bcs=False):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
         self.time_mapper = None
         self.target_exprs = target_exprs
@@ -102,6 +109,7 @@ class InjectSolve:
         self.user_prefix = options_prefix
         self.formatted_prefix = format_options_prefix(options_prefix)
         self.get_info = [f.lower() for f in get_info]
+        self.constrain_bcs = constrain_bcs
 
     def build_expr(self):
         target, funcs, field_data = self.linear_solve_args()
@@ -129,16 +137,26 @@ class InjectSolve:
 
         exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
 
+        # TODO: If constrain_bcs is enabled, essential BC handling may be redundant
+        # (or need adjusting) in the following classes
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
         initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
+
+        # TODO: Extend this to mixed case
+        constrain_bc = (
+            ConstrainBC(target, exprs, arrays)
+            if self.constrain_bcs
+            else None
+        )
 
         field_data = FieldData(
             target=target,
             jacobian=jacobian,
             residual=residual,
             initial_guess=initial_guess,
-            arrays=arrays
+            arrays=arrays,
+            constrain_bc=constrain_bc
         )
 
         return target, funcs, field_data

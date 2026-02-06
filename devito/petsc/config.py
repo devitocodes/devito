@@ -44,7 +44,8 @@ def core_metadata():
     petsc_lib = tuple([arch / 'lib' for arch in petsc_dir])
 
     return {
-        'includes': ('petscsnes.h', 'petscdmda.h'),
+        # TODO: Only add petscsection header when needed
+        'includes': ('petscsnes.h', 'petscdmda.h', 'petscsection.h'),
         'include_dirs': petsc_include,
         'libs': ('petsc'),
         'lib_dirs': petsc_lib,
