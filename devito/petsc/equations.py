@@ -27,7 +27,7 @@ def constrain_essential_bcs(expressions, **kwargs):
     if not constrain_expressions:
         return expressions
 
-    # TODO: potentially re-think how I extract the halo size
+    # TODO: rethink
     halo_size = {e.target.function._size_halo for e in constrain_expressions}
     assert len(halo_size) == 1
     halo_size = halo_size.pop()
