@@ -20,12 +20,12 @@ def lower_exprs_petsc(expressions, **kwargs):
 def constrain_essential_bcs(expressions, **kwargs):
     """
     """
-    sregistry = kwargs['sregistry']
-    new_exprs = []
-
     constrain_expressions = [e for e in expressions if isinstance(e, ConstrainBC)]
     if not constrain_expressions:
         return expressions
+
+    sregistry = kwargs.get('sregistry')
+    new_exprs = []
 
     # TODO: rethink
     halo_size = {e.target.function._size_halo for e in constrain_expressions}
