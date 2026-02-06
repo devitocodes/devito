@@ -11,7 +11,7 @@ from devito.ir.support import (
 )
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
-from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
+from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min, relational_shift
 
 __all__ = [
     'ClusterizedEq',
@@ -229,13 +229,10 @@ class LoweredEq(IREq):
             index = d.index
             if d.condition is not None and d in expr.free_symbols:
                 index = index - relational_min(d.condition, d.parent)
-                # If there is a condition we might access on a non-factor
-                # index and need to make sure we don't overwrite the previous
-                # index
-                num = index + d.symbolic_factor - 1
+                shift = relational_shift(d.condition, d.parent)
             else:
-                num = index
-            expr = uxreplace(expr, {d: IntDiv(num, d.symbolic_factor)})
+                shift = 0
+            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
 
         conditionals = frozendict(conditionals)
 

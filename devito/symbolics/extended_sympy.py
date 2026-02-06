@@ -17,6 +17,7 @@ from devito.tools import (  # noqa
 )
 from devito.types import Symbol
 from devito.types.basic import Basic
+from devito.types.relational import Ge
 
 __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
            'LeftShift', 'RightShift', 'IntDiv', 'CallFromPointer',
@@ -45,6 +46,11 @@ class CondEq(sympy.Eq):
     @property
     def negated(self):
         return CondNe(*self.args, evaluate=False)
+
+    @property
+    def _as_min(self):
+        from devito.symbolics.extended_dtypes import INT
+        return INT(Ge(*self.args))
 
 
 class CondNe(sympy.Ne):
