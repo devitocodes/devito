@@ -148,17 +148,31 @@ def linear_indices(iet, **kwargs):
         dtype = np.int64
 
     tracker = Tracker('basic', dtype, kwargs['sregistry'])
-    candidates = {
-        i.name for i in FindSymbols('indexeds').visit(iet)
+
+    indexeds = [
+        i for i in FindSymbols('indexeds').visit(iet)
         if not isinstance(i.function, LocalType)
-    }
+    ]
+    candidates = {i.function.name for i in indexeds}
     key = lambda f: f.name in candidates
+
     iet = linearize_accesses(iet, key0=key, tracker=tracker)
 
-    findexeds = [i for i in FindSymbols('indexeds').visit(iet) if isinstance(i, FIndexed)]
-    mapper_findexeds = {i: i.linear_index for i in findexeds}
+    indexeds = [
+        i for i in FindSymbols('indexeds').visit(iet)
+        if i.function.name in candidates
+    ]
+    mapper_findexeds = {i: linear_index(i) for i in indexeds}
 
     return Uxreplace(mapper_findexeds).visit(iet), {}
+
+
+def linear_index(i):
+    if isinstance(i, FIndexed):
+        return i.linear_index
+    # 1D case
+    assert len(i.indices) == 1
+    return i.indices[0]
 
 
 @iet_pass
