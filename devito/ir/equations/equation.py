@@ -229,7 +229,13 @@ class LoweredEq(IREq):
             index = d.index
             if d.condition is not None and d in expr.free_symbols:
                 index = index - relational_min(d.condition, d.parent)
-            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor)})
+                # If there is a condition we might access on a non-factor
+                # index and need to make sure we don't overwrite the previous
+                # index
+                num = index + d.symbolic_factor - 1
+            else:
+                num = index
+            expr = uxreplace(expr, {d: IntDiv(num, d.symbolic_factor)})
 
         conditionals = frozendict(conditionals)
 

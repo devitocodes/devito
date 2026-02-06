@@ -240,7 +240,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
 
     fetch = e.rhs.indices[d]
     fshift = {Forward: 1, Backward: -1}.get(direction, 0)
-    findex = fetch + fshift if fetch.find(IntDiv) else fetch._subs(pd, pd + fshift)
+    findex = fetch._subs(pd, pd + fshift)
 
     # If fetching into e.g. `ub[t1]` we might need to prefetch into e.g. `ub[t0]`
     tindex0 = e.lhs.indices[d]
