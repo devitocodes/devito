@@ -1,5 +1,5 @@
 cupy-cuda12x<13.6.1
-dask-cuda<25.12.1
+dask-cuda<26.2.1
 jupyterlab>=3,<4.4.2
 jupyterlab-nvdashboard<0.13.1
 dask_labextension<7.0.1
