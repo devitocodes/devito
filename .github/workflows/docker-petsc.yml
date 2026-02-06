@@ -6,8 +6,9 @@ permissions:
 on:
   push:
     branches:
-      # NOTE: specific to this branch, to be updated
-      - petscsection         # Push events on petscsection branch
+      - petsc
+      # will be dropped after merge into petsc branch
+      - petscsection
 
 jobs:
   build-and-push:
@@ -44,7 +45,7 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            devitocodes/devito-petsc:petscsection
+            devitocodes/devito-petsc:latest
           build-args: |
             base=devitocodes/devito:gcc-dev-amd64
             PETSC_REPO=${{ env.PETSC_REPO }}
