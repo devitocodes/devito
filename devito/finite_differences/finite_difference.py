@@ -157,6 +157,8 @@ def first_derivative(expr, dim, fd_order, **kwargs):
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
                     expand, weights=None):
+    if deriv_order == 0 and not expr.is_Add:
+        print(expr, dim, fd_order)
     # Always expand time derivatives to avoid issue with buffering and streaming.
     # Time derivative are almost always short stencils and won't benefit from
     # unexpansion in the rare case the derivative is not evaluated for time stepping.
