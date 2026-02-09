@@ -1,20 +1,24 @@
-import pytest
 import numpy as np
+import pytest
 from sympy import S
 
 from conftest import EVAL, skipif  # noqa
-from devito import (Eq, Inc, Grid, Constant, Function, TimeFunction, # noqa
-                    Operator, Dimension, SubDimension, switchconfig)
+from devito import (  # noqa
+    Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeFunction,
+    switchconfig
+)
 from devito.ir.cgen import ccode
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
-from devito.ir.iet import Iteration, FindNodes
-from devito.ir.support.basic import (IterationInstance, TimedAccess, Scope,
-                                     Vector, AFFINE, REGULAR, IRREGULAR, mocksym0,
-                                     mocksym1)
-from devito.ir.support.space import (NullInterval, Interval, Forward, Backward,
-                                     IntervalGroup, IterationSpace)
+from devito.ir.iet import FindNodes, Iteration
+from devito.ir.support.basic import (
+    AFFINE, IRREGULAR, REGULAR, IterationInstance, Scope, TimedAccess, Vector, mocksym0,
+    mocksym1
+)
 from devito.ir.support.guards import GuardOverflow
+from devito.ir.support.space import (
+    Backward, Forward, Interval, IntervalGroup, IterationSpace, NullInterval
+)
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
 from devito.tools.data_structures import frozendict
@@ -168,11 +172,11 @@ class TestVectorHierarchy:
         for ii in [fax, fa4]:
             try:
                 ii + fcx1y
-                assert False
+                raise AssertionError('Assert False')
             except TypeError:
                 pass
-            except:
-                assert False
+            except Exception as e:
+                raise AssertionError('Assert False') from e
 
     def test_iteration_instance_distance(self, ii_num, ii_literal):
         """
@@ -193,11 +197,11 @@ class TestVectorHierarchy:
         # Should fail due mismatching indices
         try:
             fcxy.distance(fax)
-            assert False
+            raise AssertionError('Assert False')
         except TypeError:
             pass
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     def test_iteration_instance_cmp(self, ii_num, ii_literal):
         """
@@ -215,14 +219,14 @@ class TestVectorHierarchy:
         assert fc23 > fc00
         assert fc00 >= fc00
 
-        # Lexicographic comparison with numbers but different rank should faxl
+        # Lexicographic comparison with numbers but different rank should fail
         try:
-            fa4 > fc23
-            assert False
+            fa4 > fc23  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             pass
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Lexicographic comparison with literals
         assert fcxy <= fcxy
@@ -230,7 +234,7 @@ class TestVectorHierarchy:
 
     def test_timed_access_regularity(self, ta_literal):
         """
-        Test TimedAcces.{is_regular,is_irregular}
+        Test TimedAccess.{is_regular,is_irregular}
         """
         (tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1,
          tcyx_irr0, tcxx_irr1, tcxy_irr2) = ta_literal
@@ -311,30 +315,30 @@ class TestVectorHierarchy:
 
         # Non-comparable due to different direction
         try:
-            rev_tcxy_w0 > tcxy_r0
-            assert False
+            rev_tcxy_w0 > tcxy_r0  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Non-comparable due to different aindices
         try:
-            tcxy_w0 > tcyx_irr0
-            assert False
+            tcxy_w0 > tcyx_irr0  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Non-comparable due to mismatching Intervals
         try:
-            tcxy_w0 > tcyx_irr0
-            assert False
+            tcxy_w0 > tcyx_irr0  # noqa: B015
+            raise AssertionError('Assert False')
         except TypeError:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Comparable even though the TimedAccess is irregular (reflexivity)
         assert tcyx_irr0 >= tcyx_irr0
@@ -441,12 +445,12 @@ class TestSpace:
         for i, j in [(ix, nully), (ix, iy), (iy, ix), (ix, ixs1), (ixs1, ix)]:
             try:
                 i.union(j)
-                assert False  # Shouldn't arrive here
+                raise AssertionError('Assert False')  # Shouldn't arrive here
             except ValueError:
                 assert True
-            except:
+            except Exception as e:
                 # No other types of exception expected
-                assert False
+                raise AssertionError('Assert False') from e
 
         # Mixed symbolic and non-symbolic
         c = Constant(name='c')
@@ -633,13 +637,13 @@ class TestDependenceAnalysis:
         types = ['flow', 'anti']
         if type != 'all':
             types.remove(type)
-            assert len(getattr(scope, 'd_%s' % type)) == 1
-            assert all(len(getattr(scope, 'd_%s' % i)) == 0 for i in types)
+            assert len(getattr(scope, f'd_{type}')) == 1
+            assert all(len(getattr(scope, f'd_{i}')) == 0 for i in types)
         else:
-            assert all(len(getattr(scope, 'd_%s' % i)) == 1 for i in types)
+            assert all(len(getattr(scope, f'd_{i}')) == 1 for i in types)
 
         # Check mode
-        assert getattr(dep, 'is_%s' % mode)()
+        assert getattr(dep, f'is_{mode}')()
 
         # Check cause
         if exp_cause == 'None':
@@ -651,13 +655,13 @@ class TestDependenceAnalysis:
             assert cause.name == exp_cause
 
         # Check mode restricted to the cause
-        assert getattr(dep, 'is_%s' % mode)(cause)
+        assert getattr(dep, f'is_{mode}')(cause)
         non_causes = [i for i in grid.dimensions if i is not cause]
-        assert all(not getattr(dep, 'is_%s' % mode)(i) for i in non_causes)
+        assert all(not getattr(dep, f'is_{mode}')(i) for i in non_causes)
 
         # Check if it's regular or irregular
-        assert getattr(dep.source, 'is_%s' % regular) or\
-            getattr(dep.sink, 'is_%s' % regular)
+        assert getattr(dep.source, f'is_{regular}') or\
+            getattr(dep.sink, f'is_{regular}')
 
     @pytest.mark.parametrize('exprs,expected', [
         # Trivial flow dep
@@ -719,7 +723,7 @@ class TestDependenceAnalysis:
         assert len(scope.d_all) == len(expected)
 
         for i in ['flow', 'anti', 'output']:
-            for dep in getattr(scope, 'd_%s' % i):
+            for dep in getattr(scope, f'd_{i}'):
                 item = (dep.function.name, i, str(set(dep.cause)))
                 assert item in expected
                 expected.remove(item)
@@ -862,12 +866,12 @@ class TestDependenceAnalysis:
 
         scope = Scope(exprs)
 
-        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        # Mock dependencies so that the fences (CriticalRegions) don't float around
         assert len(scope.writes[mocksym0]) == 2
         assert len(scope.reads[mocksym0]) == 2
         assert len(scope.d_all) == 3
 
-        # No other mock depedencies because there's no other place the Eq
+        # No other mock dependencies because there's no other place the Eq
         # within the critical sequence can float to
         assert len(scope.writes[mocksym1]) == 1
         assert mocksym1 not in scope.reads
@@ -893,14 +897,14 @@ class TestDependenceAnalysis:
 
         scope = Scope(exprs)
 
-        # Mock depedencies so that the fences (CriticalRegions) don't float around
+        # Mock dependencies so that the fences (CriticalRegions) don't float around
         assert len(scope.writes[mocksym0]) == 2
         assert len(scope.reads[mocksym0]) == 4
         assert len([i for i in scope.d_all
                     if i.source.access is mocksym0
                     or i.sink.access is mocksym0]) == 7
 
-        # More mock depedencies because Eq must not float outside of the critical
+        # More mock dependencies because Eq must not float outside of the critical
         # sequence
         assert len(scope.writes[mocksym1]) == 1
         assert len(scope.reads[mocksym1]) == 2

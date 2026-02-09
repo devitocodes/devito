@@ -1,0 +1,94 @@
+name: Lint
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+   # Trigger the workflow on push or pull request,
+   # but only for the main branch
+   push:
+     branches:
+       - main
+   pull_request:
+     branches:
+       - main
+
+jobs:
+  codelint:
+    name: "Lint the codebase"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.10"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8-pyproject isort ruff
+
+    - name: Lint the Python imports with isort
+      run: |
+        isort --check-only .
+
+    - name: Lint codebase with ruff
+      run: |
+        ruff check --preview --output-format github
+
+    - name: Lint codebase with flake8
+      run: |
+        flake8 --builtins=ArgumentError .
+
+  spellcheck:
+    name: "Spellcheck everything"
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.10"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install typos
+
+    - name: Spellcheck the codebase with typos
+      run: |
+        typos --format json | python scripts/typos_json_to_gha.py
+
+  actionlint:
+    name: "Lint Github actions YAML files"
+    # There's a way to add error formatting so GH actions adds messages to code,
+    # but I can't work out the right number of quotes to get it to work
+    # https://github.com/rhysd/actionlint/blob/main/docs/usage.md
+    # #example-error-annotation-on-github-actions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check workflow files
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
+
+  dockerlint:
+    name: "Lint dockerfiles"
+    runs-on: ubuntu-latest
+    container:
+      image: hadolint/hadolint:latest-alpine
+      env:
+        HADOLINT_IGNORE: "DL3003,DL3004,DL3005,DL3007,DL3008,DL3009,DL3013,DL3015,DL3042,DL3059,SC2103,SC2046,SC2086"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint dockerfiles inside hadolint container
+        run: |
+          for DOCKERFILE in docker/Dockerfile.*; \
+            do \
+            echo "    Linting $DOCKERFILE"; \
+            hadolint "$DOCKERFILE" \
+            || exit 1; \
+          done

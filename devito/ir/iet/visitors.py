@@ -4,35 +4,51 @@ Visitor hierarchy to inspect and/or create IETs.
 The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
+import ctypes
 from collections import OrderedDict
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
-import ctypes
 
 import cgen as c
 from sympy import IndexedBase
 from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
-from devito.ir.iet.nodes import (Node, Iteration, Expression, ExpressionBundle,
-                                 Call, Lambda, BlankLine, Section, ListMajor)
+from devito.ir.iet.nodes import (
+    BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
+    Section
+)
 from devito.ir.support.space import Backward
-from devito.symbolics import (FieldFromComposite, FieldFromPointer,
-                              ListInitializer, uxreplace)
+from devito.symbolics import (
+    FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
+)
 from devito.symbolics.extended_dtypes import NoDeclStruct
-from devito.tools import (GenericVisitor, as_tuple, filter_ordered,
-                          filter_sorted, flatten, is_external_ctype,
-                          c_restrict_void_p, sorted_priority)
+from devito.tools import (
+    GenericVisitor, as_tuple, c_restrict_void_p, filter_ordered, filter_sorted, flatten,
+    is_external_ctype, sorted_priority
+)
+from devito.types import (
+    ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer
+)
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
-from devito.types import (ArrayObject, CompositeObject, Dimension, Pointer,
-                          IndexedData, DeviceMap)
 
-
-__all__ = ['FindApplications', 'FindNodes', 'FindWithin', 'FindSections',
-           'FindSymbols', 'MapExprStmts', 'MapHaloSpots', 'MapNodes',
-           'IsPerfectIteration', 'printAST', 'CGen', 'CInterface', 'Transformer',
-           'Uxreplace']
+__all__ = [
+    'CGen',
+    'CInterface',
+    'FindApplications',
+    'FindNodes',
+    'FindSections',
+    'FindSymbols',
+    'FindWithin',
+    'IsPerfectIteration',
+    'MapExprStmts',
+    'MapHaloSpots',
+    'MapNodes',
+    'Transformer',
+    'Uxreplace',
+    'printAST',
+]
 
 
 class Visitor(GenericVisitor):
@@ -48,7 +64,7 @@ class Visitor(GenericVisitor):
         """A visit method that rebuilds nodes if their children have changed."""
         ops, okwargs = o.operands()
         new_ops = [self._visit(op, *args, **kwargs) for op in ops]
-        if all(a is b for a, b in zip(ops, new_ops)):
+        if all(a is b for a, b in zip(ops, new_ops, strict=True)):
             return o
         return o._rebuild(*new_ops, **okwargs)
 
@@ -87,7 +103,7 @@ class LazyVisitor(GenericVisitor, Generic[YieldType, ResultType, FlagType]):
     def _visit(self, o, *args, **kwargs) -> LazyVisit[YieldType, FlagType]:
         meth = self.lookup_method(o)
         flag = yield from meth(o, *args, **kwargs)
-        return flag
+        return flag  # noqa: B901
 
     def _post_visit(self, ret: LazyVisit[YieldType, FlagType]) -> ResultType:
         return list(ret)
@@ -97,13 +113,13 @@ class LazyVisitor(GenericVisitor, Generic[YieldType, ResultType, FlagType]):
 
     def visit_Node(self, o: Node, **kwargs) -> LazyVisit[YieldType, FlagType]:
         flag = yield from self._visit(o.children, **kwargs)
-        return flag
+        return flag  # noqa: B901
 
     def visit_tuple(self, o: Sequence[Any], **kwargs) -> LazyVisit[YieldType, FlagType]:
         flag: FlagType = None
         for i in o:
             flag = yield from self._visit(i, **kwargs)
-        return flag
+        return flag  # noqa: B901
 
     visit_list = visit_tuple
 
@@ -280,7 +296,7 @@ class CGen(Visitor):
             fields = (None,)*len(ctype._fields_)
 
         entries = []
-        for i, (n, ct) in zip(fields, ctype._fields_):
+        for i, (n, ct) in zip(fields, ctype._fields_, strict=True):
             try:
                 entries.append(self._gen_value(i, 0, masked=('const',)))
             except AttributeError:
@@ -311,9 +327,10 @@ class CGen(Visitor):
         else:
             strtype = self.ccode(obj._C_ctype)
             strshape = ''
-            if isinstance(obj, (AbstractFunction, IndexedData)) and mode >= 1:
-                if not obj._mem_stack:
-                    strtype = f'{strtype}{self._restrict_keyword}'
+            if isinstance(obj, (AbstractFunction, IndexedData)) \
+                    and mode >= 1 \
+                    and not obj._mem_stack:
+                strtype = f'{strtype}{self._restrict_keyword}'
         strtype = ' '.join(qualifiers + [strtype])
 
         if obj.is_LocalObject and obj._C_modifier is not None and mode == 2:
@@ -384,12 +401,9 @@ class CGen(Visitor):
 
         prefix = ' '.join(o.prefix + (self._gen_rettype(o.retval),))
 
-        if o.attributes:
-            # NOTE: ugly, but I can't bother extending `c.FunctionDeclaration`
-            # for such a tiny thing
-            v = f"{' '.join(o.attributes)} {o.name}"
-        else:
-            v = o.name
+        # NOTE: ugly, but I can't bother extending `c.FunctionDeclaration`
+        # for such a tiny thing
+        v = f"{' '.join(o.attributes)} {o.name}" if o.attributes else o.name
 
         signature = c.FunctionDeclaration(c.Value(prefix, v), decls)
 
@@ -465,7 +479,7 @@ class CGen(Visitor):
             elif isinstance(o.obj, IndexedData):
                 v = f._C_name
             else:
-                assert False
+                raise TypeError('rvalue is not a recognised type')
             rvalue = f'({cstr}**) {v}'
 
         else:
@@ -494,14 +508,11 @@ class CGen(Visitor):
                 elif isinstance(o.obj, DeviceMap):
                     v = f._C_field_dmap
                 else:
-                    assert False
+                    raise TypeError('rvalue is not a recognised type')
 
                 rvalue = f'({cstr} {rshape}) {f._C_name}->{v}'
             else:
-                if isinstance(o.obj, Pointer):
-                    v = o.obj.name
-                else:
-                    v = f._C_name
+                v = o.obj.name if isinstance(o.obj, Pointer) else f._C_name
 
                 rvalue = f'({cstr} {rshape}) {v}'
 
@@ -510,10 +521,7 @@ class CGen(Visitor):
     def visit_Dereference(self, o):
         a0, a1 = o.functions
 
-        if o.offset:
-            ptr = f'({a1.name} + {o.offset})'
-        else:
-            ptr = a1.name
+        ptr = f'({a1.name} + {o.offset})' if o.offset else a1.name
 
         if a0.is_AbstractFunction:
             cstr = self.ccode(a0.indexed._C_typedata)
@@ -533,10 +541,7 @@ class CGen(Visitor):
                 lvalue = c.Value(cstr, f'*{self._restrict_keyword} {a0.name}')
 
         else:
-            if a1.is_Symbol:
-                rvalue = f'*{ptr}'
-            else:
-                rvalue = f'{ptr}->{a0._C_name}'
+            rvalue = f'*{ptr}' if a1.is_Symbol else f'{ptr}->{a0._C_name}'
             lvalue = self._gen_value(a0, 0)
 
         return c.Initializer(lvalue, rvalue)
@@ -547,10 +552,7 @@ class CGen(Visitor):
 
     def visit_List(self, o):
         body = flatten(self._visit(i) for i in self._blankline_logic(o.children))
-        if o.inline:
-            body = c.Line(' '.join(str(i) for i in body))
-        else:
-            body = c.Collection(body)
+        body = c.Line(' '.join(str(i) for i in body)) if o.inline else c.Collection(body)
         return c.Module(o.header + (body,) + o.footer)
 
     def visit_Section(self, o):
@@ -728,10 +730,7 @@ class CGen(Visitor):
         return c.Collection(body)
 
     def visit_KernelLaunch(self, o):
-        if o.templates:
-            templates = f"<{','.join([str(i) for i in o.templates])}>"
-        else:
-            templates = ''
+        templates = f"<{','.join([str(i) for i in o.templates])}>" if o.templates else ''
 
         launch_args = [o.grid, o.block]
         if o.shm is not None:
@@ -762,7 +761,7 @@ class CGen(Visitor):
         """
         Generate cgen includes from an iterable of symbols and expressions.
         """
-        return [c.Include(i, system=(False if i.endswith('.h') else True))
+        return [c.Include(i, system=(not i.endswith('.h')))
                 for i in o.includes] + [blankline]
 
     def _operator_namespaces(self, o):
@@ -823,10 +822,7 @@ class CGen(Visitor):
         signature = self._gen_signature(o)
 
         # Honor the `retstmt` flag if set
-        if o.body.retstmt:
-            retval = []
-        else:
-            retval = [c.Line(), c.Statement("return 0")]
+        retval = [] if o.body.retstmt else [c.Line(), c.Statement("return 0")]
 
         kernel = c.FunctionBody(signature, c.Block(body + retval))
 
@@ -1190,14 +1186,14 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
 
     def visit_object(self, o: object, flag: bool = False) -> LazyVisit[Node, bool]:
         yield from ()
-        return flag
+        return flag  # noqa: B901
 
     def visit_tuple(self, o: Sequence[Any], flag: bool = False) -> LazyVisit[Node, bool]:
         for el in o:
             # Yield results from visiting this element, and update the flag
             flag = yield from self._visit(el, flag=flag)
 
-        return flag
+        return flag  # noqa: B901
 
     visit_list = visit_tuple
 
@@ -1220,7 +1216,7 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
         # Update the flag if we found a stop
         flag &= (o is not self.stop)
 
-        return flag
+        return flag  # noqa: B901
 
 
 ApplicationType = TypeVar('ApplicationType')
@@ -1564,8 +1560,7 @@ class MultilineCall(c.Generable):
                 lines = list(i.generate())
                 if len(lines) > 1:
                     yield tip + ",".join(processed + [lines[0]])
-                    for line in lines[1:-1]:
-                        yield line
+                    yield from lines[1:-1]
                     tip = ""
                     processed = [lines[-1]]
                 else:
@@ -1592,8 +1587,9 @@ class TemplateDecl(c.Template):
 
 
 def sorted_efuncs(efuncs):
-    from devito.ir.iet.efunc import (CommCallable, DeviceFunction,
-                                     ThreadCallable, ElementalFunction)
+    from devito.ir.iet.efunc import (
+        CommCallable, DeviceFunction, ElementalFunction, ThreadCallable
+    )
 
     priority = {
         DeviceFunction: 3,

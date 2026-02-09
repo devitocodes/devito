@@ -8,15 +8,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from devito import (
-    ConditionalDimension,
-    Eq,
-    Operator,
-    SparseTimeFunction,
-    TimeFunction,
-    solve,
+    ConditionalDimension, Eq, Operator, SparseTimeFunction, TimeFunction, solve
 )
 from devito.timestepping.superstep import superstep_generator
-from examples.seismic import demo_model, SeismicModel
+from examples.seismic import SeismicModel, demo_model
 
 
 def ricker(t, f=10, A=1):
@@ -67,7 +62,7 @@ def acoustic_model(model, t0, t1, t2, critical_dt, source, step=1, snapshots=1):
     if step == 1:
         # Non-superstep case
         # In this case we need to create a new `TimeFunction` and copy
-        # the previous soluton into that new function. This is necessary
+        # the previous solution into that new function. This is necessary
         # when a rotating buffer is used in the `TimeFunction` and the
         # order of the timesteps is not necessarily the right order for
         # resuming the simulation. We also create a new stencil that

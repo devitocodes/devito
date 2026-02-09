@@ -1,10 +1,20 @@
 import numpy as np
 
-from devito.tools import Tag, as_tuple, as_list, is_integer
+from devito.tools import Tag, as_list, as_tuple, is_integer
 
-__all__ = ['Index', 'NONLOCAL', 'PROJECTED', 'index_is_basic', 'index_apply_modulo',
-           'index_dist_to_repl', 'convert_index', 'index_handle_oob',
-           'loc_data_idx', 'mpi_index_maps', 'flip_idx']
+__all__ = [
+    'NONLOCAL',
+    'PROJECTED',
+    'Index',
+    'convert_index',
+    'flip_idx',
+    'index_apply_modulo',
+    'index_dist_to_repl',
+    'index_handle_oob',
+    'index_is_basic',
+    'loc_data_idx',
+    'mpi_index_maps',
+]
 
 
 class Index(Tag):
@@ -44,7 +54,7 @@ def index_apply_modulo(idx, modulo):
     elif isinstance(idx, np.ndarray):
         return idx
     else:
-        raise ValueError("Cannot apply modulo to index of type `%s`" % type(idx))
+        raise ValueError(f"Cannot apply modulo to index of type `{type(idx)}`")
 
 
 def index_dist_to_repl(idx, decomposition):
@@ -54,16 +64,13 @@ def index_dist_to_repl(idx, decomposition):
 
     # Derive shift value
     if isinstance(idx, slice):
-        if idx.step is None or idx.step >= 0:
-            value = idx.start
-        else:
-            value = idx.stop
+        value = idx.start if idx.step is None or idx.step >= 0 else idx.stop
     else:
         value = idx
     if value is None:
         value = 0
     elif not is_integer(value):
-        raise ValueError("Cannot derive shift value from type `%s`" % type(value))
+        raise ValueError(f"Cannot derive shift value from type `{type(value)}`")
 
     if value < 0:
         value += decomposition.glb_max + 1
@@ -80,12 +87,11 @@ def index_dist_to_repl(idx, decomposition):
     elif isinstance(idx, np.ndarray):
         return idx - value
     elif isinstance(idx, slice):
-        if idx.step is not None and idx.step < 0:
-            if idx.stop is None:
-                return slice(idx.start - value, None, idx.step)
+        if idx.step is not None and idx.step < 0 and idx.stop is None:
+            return slice(idx.start - value, None, idx.step)
         return slice(idx.start - value, idx.stop - value, idx.step)
     else:
-        raise ValueError("Cannot apply shift to type `%s`" % type(idx))
+        raise ValueError(f"Cannot apply shift to type `{type(idx)}`")
 
 
 def convert_index(idx, decomposition, mode='glb_to_loc'):
@@ -97,7 +103,7 @@ def convert_index(idx, decomposition, mode='glb_to_loc'):
     elif isinstance(idx, np.ndarray):
         return np.vectorize(lambda i: decomposition(i, mode=mode))(idx).astype(idx.dtype)
     else:
-        raise ValueError("Cannot convert index of type `%s` " % type(idx))
+        raise ValueError(f"Cannot convert index of type `{type(idx)}` ")
 
 
 def index_handle_oob(idx):
@@ -162,7 +168,7 @@ def mpi_index_maps(loc_idx, shape, topology, coords, comm):
     that data is stored.
 
     send: An array of shape ``shape`` where each index signifies the rank to which
-    data beloning to that index should be sent.
+    data belonging to that index should be sent.
 
     global_si: An array of ``shape`` shape where each index contains the global index
     to which that index should be sent.
@@ -331,7 +337,7 @@ def mpi_index_maps(loc_idx, shape, topology, coords, comm):
         owner = owners[index]
         my_slice = n_rank_slice[owner]
         rnorm_index = []
-        for j, k in zip(my_slice, index):
+        for j, k in zip(my_slice, index, strict=True):
             rnorm_index.append(k-j.start)
         local_si[index] = as_tuple(rnorm_index)
         it.iternext()
@@ -377,7 +383,7 @@ def flip_idx(idx, decomposition):
     (slice(8, 11, 1),)
     """
     processed = []
-    for i, j in zip(as_tuple(idx), decomposition):
+    for i, j in zip(as_tuple(idx), decomposition, strict=False):
         if isinstance(i, slice) and i.step is not None and i.step < 0:
             if i.start is None:
                 stop = None
@@ -397,7 +403,7 @@ def flip_idx(idx, decomposition):
                 start = i.start + j.glb_max + 1
             else:
                 start = i.start
-            if i.stop is not None and i.stop < 0:
+            if i.stop is not None and i.stop < 0:  # noqa: SIM108
                 stop = i.stop + j.glb_max + 1
             else:
                 stop = i.stop

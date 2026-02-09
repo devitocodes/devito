@@ -1,7 +1,7 @@
+import numpy as np
+from matplotlib import cm, pyplot
 from mpl_toolkits.mplot3d import Axes3D  # noqa
 
-import numpy as np
-from matplotlib import pyplot, cm
 from devito.logger import warning
 
 
@@ -19,7 +19,7 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
     ymax : int, optional
         Length of the y-axis.
     view: int, optional
-        View point to intialise.
+        View point to initialise.
     """
     if xmin > xmax or ymin > ymax:
         raise ValueError("Dimension min cannot be larger than dimension max.")
@@ -29,9 +29,8 @@ def plot_field(field, xmin=0., xmax=2., ymin=0., ymax=2., zmin=None, zmax=None,
     elif(zmin is None and zmax is not None):
         if np.min(field) >= zmax:
             warning("zmax is less than field's minima. Figure deceptive.")
-    elif(zmin is not None and zmax is None):
-        if np.max(field) <= zmin:
-            warning("zmin is larger than field's maxima. Figure deceptive.")
+    elif(zmin is not None and zmax is None) and np.max(field) <= zmin:
+        warning("zmin is larger than field's maxima. Figure deceptive.")
     x_coord = np.linspace(xmin, xmax, field.shape[0])
     y_coord = np.linspace(ymin, ymax, field.shape[1])
     fig = pyplot.figure(figsize=(11, 7), dpi=100)

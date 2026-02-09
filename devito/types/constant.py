@@ -100,12 +100,14 @@ class Constant(DataSymbol):
         Check that `args` contains legal runtime values bound to `self`.
         """
         if self.name not in args:
-            raise InvalidArgument("No runtime value for %s" % self.name)
+            raise InvalidArgument(f"No runtime value for {self.name}")
         key = args[self.name]
         try:
             # Might be a plain number, w/o a dtype field
             if key.dtype != self.dtype:
-                warning("Data type %s of runtime value `%s` does not match the "
-                        "Constant data type %s" % (key.dtype, self.name, self.dtype))
+                warning(
+                    f'Data type {key.dtype} of runtime value `{self.name}` '
+                    f'does not match the Constant data type {self.dtype}'
+                )
         except AttributeError:
             pass

@@ -1,24 +1,24 @@
 """
 Utilities to turn SymPy objects into C strings.
 """
+from contextlib import suppress
+
 import numpy as np
 import sympy
-
 from mpmath.libmp import prec_to_dps, to_str
 from packaging.version import Version
-
 from sympy.core import S
-from sympy.core.numbers import equal_valued, Float
-from sympy.printing.codeprinter import CodePrinter
+from sympy.core.numbers import Float, equal_valued
 from sympy.logic.boolalg import BooleanFunction
+from sympy.printing.codeprinter import CodePrinter
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 
 from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
+from devito.tools import ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype
 from devito.types.basic import AbstractFunction
-from devito.tools import ctypes_to_cstr, dtype_to_ctype, ctypes_vector_mapper
 
 __all__ = ['BasePrinter', 'ccode']
 
@@ -117,10 +117,8 @@ class BasePrinter(CodePrinter):
             return f'{ctype} *'
 
     def _print_type(self, expr):
-        try:
+        with suppress(TypeError):
             expr = dtype_to_ctype(expr)
-        except TypeError:
-            pass
         try:
             return self.type_mappings[expr]
         except KeyError:
@@ -310,10 +308,7 @@ class BasePrinter(CodePrinter):
         """Print a Float in C-like scientific notation."""
         prec = expr._prec
 
-        if prec < 5:
-            dps = 0
-        else:
-            dps = prec_to_dps(expr._prec)
+        dps = 0 if prec < 5 else prec_to_dps(expr._prec)
 
         if self._settings["full_prec"] is True:
             strip = False
@@ -420,7 +415,7 @@ class BasePrinter(CodePrinter):
 
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
-for k in ('exp log sin cos tan ceiling floor').split():
+for k in ['exp', 'log', 'sin', 'cos', 'tan', 'ceiling', 'floor']:
     setattr(BasePrinter, f'_print_{k}', BasePrinter._print_math_func)
 
 
@@ -432,7 +427,7 @@ PRECEDENCE_VALUES['InlineIf'] = 1
 # Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
 # to always use the correct one from our printer
 if Version(sympy.__version__) >= Version("1.11"):
-    setattr(sympy.printing.str.StrPrinter, '_print_Add', BasePrinter._print_Add)
+    sympy.printing.str.StrPrinter._print_Add = BasePrinter._print_Add
 
 
 def ccode(expr, printer=None, **settings):

@@ -1,6 +1,7 @@
 from devito.tools import generator
-from devito.types import (DeviceID, NThreads, NThreadsNested, NThreadsNonaffine,
-                          NPThreads, ThreadID)
+from devito.types import (
+    DeviceID, NPThreads, NThreads, NThreadsNested, NThreadsNonaffine, ThreadID
+)
 
 __init__ = ['SymbolRegistry']
 
@@ -44,7 +45,7 @@ class SymbolRegistry:
             if not increment_first:
                 return prefix
 
-        return "%s%d" % (prefix, counter())
+        return f'{prefix}{counter()}'
 
     def make_npthreads(self, size):
         name = self.make_name(prefix='npthreads')

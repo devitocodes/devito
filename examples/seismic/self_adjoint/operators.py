@@ -1,4 +1,4 @@
-from devito import Eq, Operator, Function, TimeFunction
+from devito import Eq, Function, Operator, TimeFunction
 
 
 def iso_stencil(field, model, **kwargs):

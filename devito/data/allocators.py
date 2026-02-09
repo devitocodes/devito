@@ -1,6 +1,6 @@
 import abc
 import ctypes
-from ctypes.util import find_library
+import ctypes.util
 import mmap
 import os
 import sys
@@ -9,11 +9,17 @@ import numpy as np
 
 from devito.logger import logger
 from devito.parameters import configuration
-from devito.tools import is_integer, infer_datasize
+from devito.tools import infer_datasize, is_integer
 
-__all__ = ['ALLOC_ALIGNED', 'ALLOC_NUMA_LOCAL', 'ALLOC_NUMA_ANY',
-           'ALLOC_KNL_MCDRAM', 'ALLOC_KNL_DRAM', 'ALLOC_GUARD',
-           'default_allocator']
+__all__ = [
+    'ALLOC_ALIGNED',
+    'ALLOC_GUARD',
+    'ALLOC_KNL_DRAM',
+    'ALLOC_KNL_MCDRAM',
+    'ALLOC_NUMA_ANY',
+    'ALLOC_NUMA_LOCAL',
+    'default_allocator',
+]
 
 
 class AbstractMemoryAllocator:
@@ -147,7 +153,7 @@ class PosixAllocator(MemoryAllocator):
 
     @classmethod
     def initialize(cls):
-        handle = find_library('c')
+        handle = ctypes.util.find_library('c')
 
         # Special case: on MacOS Big Sur any code that attempts to check
         # for dynamic library presence by looking for a file at a path
@@ -268,7 +274,7 @@ class NumaAllocator(MemoryAllocator):
 
     @classmethod
     def initialize(cls):
-        handle = find_library('numa')
+        handle = ctypes.util.find_library('numa')
         if handle is None:
             return
         lib = ctypes.CDLL(handle)

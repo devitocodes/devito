@@ -35,7 +35,7 @@ def build_dtypes_vector(field_names, counts, mapper=None):
     mapper = mapper or dtype_mapper
     for base_name, base_dtype in mapper.items():
         for count in counts:
-            name = "%s%d" % (base_name, count)
+            name = f'{base_name}{count}'
 
             titles = field_names[:count]
 
@@ -43,9 +43,9 @@ def build_dtypes_vector(field_names, counts, mapper=None):
             if count == 3:
                 padded_count = 4
 
-            names = ["s%d" % i for i in range(count)]
+            names = [f's{i}' for i in range(count)]
             while len(names) < padded_count:
-                names.append("padding%d" % (len(names) - count))
+                names.append(f'padding{len(names) - count}')
 
             if len(titles) < len(names):
                 titles.extend((len(names) - len(titles)) * [None])
@@ -82,7 +82,7 @@ class DTypesVectorMapper(dict):
         self.update(build_dtypes_vector([field_name], [count]))
 
     def get_base_dtype(self, v, default=None):
-        for (base_dtype, count), dtype in self.items():
+        for (base_dtype, _), dtype in self.items():
             if dtype is v:
                 return base_dtype
 
@@ -119,10 +119,12 @@ class CustomDtype:
         return hash((self.name, self.template, self.modifier))
 
     def __repr__(self):
-        template = '<%s>' % ','.join([str(i) for i in self.template])
-        return "%s%s%s" % (self.name,
-                           template if self.template else '',
-                           self.modifier)
+        template = '<{}>'.format(','.join([str(i) for i in self.template]))
+        return "{}{}{}".format(
+            self.name,
+            template if self.template else '',
+            self.modifier
+        )
 
     __str__ = __repr__
 
@@ -241,7 +243,7 @@ for base_name, base_dtype in dtype_mapper.items():
     for count in counts:
         dtype = dtypes_vector_mapper[(base_dtype, count)]
 
-        name = "%s%d" % (base_name, count)
+        name = f'{base_name}{count}'
         ctype = type(name, (ctypes.Structure,),
                      {'_fields_': [(i, base_ctype) for i in field_names[:count]],
                       '_base_dtype': True})
@@ -262,21 +264,21 @@ def ctypes_to_cstr(ctype, toarray=None):
     elif isinstance(ctype, CustomDtype):
         retval = str(ctype)
     elif issubclass(ctype, ctypes.Structure):
-        retval = 'struct %s' % ctype.__name__
+        retval = f'struct {ctype.__name__}'
     elif issubclass(ctype, ctypes.Union):
-        retval = 'union %s' % ctype.__name__
+        retval = f'union {ctype.__name__}'
     elif issubclass(ctype, ctypes._Pointer):
         if toarray:
-            retval = ctypes_to_cstr(ctype._type_, '(* %s)' % toarray)
+            retval = ctypes_to_cstr(ctype._type_, f'(* {toarray})')
         else:
             retval = ctypes_to_cstr(ctype._type_)
             if issubclass(ctype._type_, ctypes._Pointer):
                 # Look-ahead to avoid extra ugly spaces
-                retval = '%s*' % retval
+                retval = f'{retval}*'
             else:
-                retval = '%s *' % retval
+                retval = f'{retval} *'
     elif issubclass(ctype, ctypes.Array):
-        retval = '%s[%d]' % (ctypes_to_cstr(ctype._type_, toarray), ctype._length_)
+        retval = f'{ctypes_to_cstr(ctype._type_, toarray)}[{ctype._length_}]'
     elif ctype.__name__.startswith('c_'):
         name = ctype.__name__[2:]
         # A primitive datatype
@@ -304,9 +306,9 @@ def ctypes_to_cstr(ctype, toarray=None):
 
         retval = name
         if prefix:
-            retval = '%s %s' % (prefix, retval)
+            retval = f'{prefix} {retval}'
         if suffix:
-            retval = '%s %s' % (retval, suffix)
+            retval = f'{retval} {suffix}'
     else:
         # A custom datatype (e.g., a typedef-ed pointer to struct)
         retval = ctype.__name__
@@ -326,10 +328,7 @@ def is_external_ctype(ctype, includes):
     if issubclass(ctype, ctypes._SimpleCData):
         return False
 
-    if ctype in ctypes_vector_mapper.values():
-        return True
-
-    return False
+    return ctype in ctypes_vector_mapper.values()
 
 
 def is_numpy_dtype(dtype):

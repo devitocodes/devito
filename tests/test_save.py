@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito import Buffer, Grid, Eq, Operator, TimeFunction, solve
+from devito import Buffer, Eq, Grid, Operator, TimeFunction, solve
 
 
 def initial(nt, nx, ny):
@@ -8,7 +8,7 @@ def initial(nt, nx, ny):
                          np.linspace(0., 1., ny, dtype=np.float32))
     ui = np.zeros((nt, nx, ny), dtype=np.float32)
     r = (xx - .5)**2. + (yy - .5)**2.
-    ui[0, np.logical_and(.05 <= r, r <= .1)] = 1.
+    ui[0, np.logical_and(r >= .05, r <= .1)] = 1.
 
     return ui
 

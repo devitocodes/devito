@@ -36,12 +36,12 @@ jobs:
 
     - name: Set VIRTUAL_ENV
       run: |
-        echo "VIRTUAL_ENV=$ENVHOME/asv" >> $GITHUB_ENV
-        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
+        echo "VIRTUAL_ENV=$ENVHOME/asv" >> "$GITHUB_ENV"
+        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> "$GITHUB_ENV"
 
     - name: Set PATH
       run: |
-        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> $GITHUB_ENV
+        echo "PATH=$VIRTUAL_ENV/bin:$PATH" >> "$GITHUB_ENV"
 
     - name: Install dependencies
       run: |

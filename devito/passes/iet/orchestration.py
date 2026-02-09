@@ -1,14 +1,17 @@
 from collections import OrderedDict
+from contextlib import suppress
 from functools import singledispatch
 
 from sympy import Or
 
 from devito.exceptions import CompilationError
-from devito.ir.iet import (Call, Callable, List, SyncSpot, FindNodes, Transformer,
-                           BlankLine, BusyWait, DummyExpr, AsyncCall, AsyncCallable,
-                           make_callable, derive_parameters)
-from devito.ir.support import (WaitLock, WithLock, ReleaseLock, InitArray,
-                               SyncArray, PrefetchUpdate, SnapOut, SnapIn)
+from devito.ir.iet import (
+    AsyncCall, AsyncCallable, BlankLine, BusyWait, Call, Callable, DummyExpr, FindNodes,
+    List, SyncSpot, Transformer, derive_parameters, make_callable
+)
+from devito.ir.support import (
+    InitArray, PrefetchUpdate, ReleaseLock, SnapIn, SnapOut, SyncArray, WaitLock, WithLock
+)
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
@@ -93,11 +96,11 @@ class Orchestrator:
             qid = None
 
         body = list(iet.body)
-        try:
-            body.extend([self.langbb._map_update_device(s.target, s.imask, qid=qid)
-                         for s in sync_ops])
-        except NotImplementedError:
-            pass
+        with suppress(NotImplementedError):
+            body.extend([
+                self.langbb._map_update_device(s.target, s.imask, qid=qid)
+                for s in sync_ops
+            ])
         iet = List(body=body)
 
         return iet, []
@@ -210,11 +213,11 @@ def _(layer, iet, sync_ops, lang, sregistry):
         body.extend([DummyExpr(s.handle, 1) for s in sync_ops])
         body.append(BlankLine)
 
-        name = 'copy_to_%s' % layer.suffix
+        name = f'copy_to_{layer.suffix}'
     except NotImplementedError:
         # A non-device backend
         body = []
-        name = 'copy_from_%s' % layer.suffix
+        name = f'copy_from_{layer.suffix}'
 
     body.extend(list(iet.body))
 
@@ -241,10 +244,10 @@ def _(layer, iet, sync_ops, lang, sregistry):
             body.append(lang._map_wait(qid))
         body.append(BlankLine)
 
-        name = 'prefetch_from_%s' % layer.suffix
+        name = f'prefetch_from_{layer.suffix}'
     except NotImplementedError:
         body = []
-        name = 'prefetch_to_%s' % layer.suffix
+        name = f'prefetch_to_{layer.suffix}'
 
     body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
 

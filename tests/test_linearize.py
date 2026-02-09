@@ -1,11 +1,13 @@
-import pytest
 import numpy as np
+import pytest
 import scipy.sparse
 
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, Operator, Eq,
-                    Inc, MatrixSparseTimeFunction, sin, switchconfig, configuration)
+from devito import (
+    Eq, Function, Grid, Inc, MatrixSparseTimeFunction, Operator, SparseTimeFunction,
+    TimeFunction, configuration, sin, switchconfig
+)
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
-from devito.passes import Graph, linearize, generate_macros
+from devito.passes import Graph, generate_macros, linearize
 from devito.types import Array, Bundle, DefaultDimension
 
 
@@ -268,7 +270,7 @@ def test_unsubstituted_indexeds():
     we end up with two `r0[x, y, z]`, but the former's `x` and `y` are
     SpaceDimensions, while the latter's are BlockDimensions. This means
     that the two objects, while looking identical, are different, and in
-    partical they hash differently, hence we need two entries in a mapper
+    particular they hash differently, hence we need two entries in a mapper
     to perform an Uxreplace. But FindSymbols made us detect only one entry...
     """
     grid = Grid(shape=(8, 8, 8))

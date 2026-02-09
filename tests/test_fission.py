@@ -1,8 +1,9 @@
 import numpy as np
 
 from conftest import assert_structure
-from devito import (Eq, Inc, Grid, Function, TimeFunction, SubDimension, SubDomain,
-                    Operator, solve)
+from devito import (
+    Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, TimeFunction, solve
+)
 
 
 def test_issue_1725():
@@ -38,7 +39,7 @@ def test_issue_1725():
 
 def test_nofission_as_unprofitable():
     """
-    Test there's no fission if no increase in number of collapsable loops.
+    Test there's no fission if no increase in number of collapsible loops.
     """
     grid = Grid(shape=(20, 20))
     x, y = grid.dimensions
@@ -78,7 +79,7 @@ def test_nofission_as_illegal():
 
 def test_fission_partial():
     """
-    Test there's no fission if no increase in number of collapsable loops.
+    Test there's no fission if no increase in number of collapsible loops.
     """
     grid = Grid(shape=(20, 20))
     x, y = grid.dimensions

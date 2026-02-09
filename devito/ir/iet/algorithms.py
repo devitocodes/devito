@@ -1,10 +1,10 @@
 from collections import OrderedDict
 
 from devito.ir.iet import (
-    Expression, Increment, Iteration, List, Conditional, SyncSpot, Section,
-    HaloSpot, ExpressionBundle, Switch
+    Conditional, Expression, ExpressionBundle, HaloSpot, Increment, Iteration, List,
+    Section, Switch, SyncSpot
 )
-from devito.ir.support import GuardSwitch, GuardCaseSwitch
+from devito.ir.support import GuardCaseSwitch, GuardSwitch
 from devito.tools import as_mapper, timed_pass
 
 __all__ = ['iet_build']
@@ -48,7 +48,7 @@ def iet_build(stree):
                                  uindices=i.sub_iterators)
 
         elif i.is_Section:
-            body = Section('section%d' % nsections, body=queues.pop(i))
+            body = Section(f'section{nsections}', body=queues.pop(i))
             nsections += 1
 
         elif i.is_Halo:
@@ -62,7 +62,7 @@ def iet_build(stree):
 
         queues.setdefault(i.parent, []).append(body)
 
-    assert False
+    raise AssertionError('This function did not return')
 
 
 def _unpack_switch_case(bundle):

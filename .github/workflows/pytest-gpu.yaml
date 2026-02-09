@@ -79,8 +79,8 @@ jobs:
 
       - name: Set per-runner tags
         run: |
-          echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
-          echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}-${{ github.sha }}" >> $GITHUB_ENV
+          echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}" >> "$GITHUB_ENV"
+          echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}-${{ github.sha }}" >> "$GITHUB_ENV"
 
       - name: Ensure buildx builder
         run: |
@@ -93,7 +93,7 @@ jobs:
           docker buildx build . \
             --builder "${RUNNER_NAME// /_}" \
             --load \
-            --label ci-run=$GITHUB_RUN_ID \
+            --label ci-run="$GITHUB_RUN_ID" \
             --rm --pull \
             --file docker/Dockerfile.devito \
             --tag "${DOCKER_IMAGE}" \
@@ -107,7 +107,7 @@ jobs:
           # Make sure CUDA_VISIBLE_DEVICES is at least *something* on NVIDIA
           # runners; fall back to "all" so the driver probe does not fail.
           if [[ "${{ matrix.runner_label }}" == "nvidiagpu" && -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
-            echo "CUDA_VISIBLE_DEVICES=all" >> $GITHUB_ENV
+            echo "CUDA_VISIBLE_DEVICES=all" >> "$GITHUB_ENV"
           fi
 
           # Run a simple driver-probe command (nvidia-smi / rocm-smi)
@@ -124,7 +124,7 @@ jobs:
 
           # Run the test suite using the matrix-defined flags
           docker run ${{ matrix.flags }} \
-            ${ci_env} \
+            "${ci_env}" \
             -e CI=true \
             -e PYTHONFAULTHANDLER=1 \
             -e DEVITO_LOGGING=DEBUG \
@@ -152,7 +152,7 @@ jobs:
           docker rmi -f "${DOCKER_IMAGE}" || true
 
           # Classic image layers created in this job
-          docker image prune -f --filter label=ci-run=$GITHUB_RUN_ID
+          docker image prune -f --filter label=ci-run="$GITHUB_RUN_ID"
 
           # BuildKit cache: target the per-runner builder explicitly
           docker builder prune --builder "${RUNNER_NAME// /_}" \

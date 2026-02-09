@@ -1,16 +1,26 @@
-from ctypes import POINTER, Structure, c_void_p, c_int, c_uint64
+from ctypes import POINTER, Structure, c_int, c_uint64, c_void_p
 from functools import cached_property
 
 import numpy as np
 from sympy import Expr, cacheit
 
-from devito.tools import (Pickable, as_tuple, c_restrict_void_p,
-                          dtype_to_ctype, dtypes_vector_mapper, is_integer)
+from devito.tools import (
+    Pickable, as_tuple, c_restrict_void_p, dtype_to_ctype, dtypes_vector_mapper,
+    is_integer
+)
 from devito.types.basic import AbstractFunction, LocalType
 from devito.types.utils import CtypesFactory, DimensionTuple
 
-__all__ = ['Array', 'ArrayMapped', 'ArrayObject', 'PointerArray', 'Bundle',
-           'ComponentAccess', 'Bag', 'BundleView']
+__all__ = [
+    'Array',
+    'ArrayMapped',
+    'ArrayObject',
+    'Bag',
+    'Bundle',
+    'BundleView',
+    'ComponentAccess',
+    'PointerArray',
+]
 
 
 class ArrayBasic(AbstractFunction, LocalType):
@@ -31,10 +41,7 @@ class ArrayBasic(AbstractFunction, LocalType):
     def __indices_setup__(cls, *args, **kwargs):
         dimensions = kwargs['dimensions']
 
-        if args:
-            indices = args
-        else:
-            indices = dimensions
+        indices = args or dimensions
 
         return as_tuple(dimensions), as_tuple(indices)
 
@@ -164,7 +171,7 @@ class Array(ArrayBasic):
         elif isinstance(padding, tuple) and len(padding) == self.ndim:
             padding = tuple((0, i) if is_integer(i) else i for i in padding)
         else:
-            raise TypeError("`padding` must be int or %d-tuple of ints" % self.ndim)
+            raise TypeError(f'`padding` must be int or {self.ndim}-tuple of ints')
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
@@ -212,7 +219,7 @@ class Array(ArrayBasic):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
 
     def _make_pointer(self, dim):
-        return PointerArray(name='p%s' % self.name, dimensions=dim, array=self)
+        return PointerArray(name=f'p{self.name}', dimensions=dim, array=self)
 
 
 class MappedArrayMixin:
@@ -272,13 +279,13 @@ class ArrayObject(ArrayBasic):
         fields = tuple(kwargs.pop('fields', ()))
 
         self._fields = fields
-        self._pname = kwargs.pop('pname', 't%s' % name)
+        self._pname = kwargs.pop('pname', f't{name}')
 
         super().__init_finalize__(*args, **kwargs)
 
     @classmethod
     def __dtype_setup__(cls, **kwargs):
-        pname = kwargs.get('pname', 't%s' % kwargs['name'])
+        pname = kwargs.get('pname', 't{}'.format(kwargs['name']))
         pfields = cls.__pfields_setup__(**kwargs)
         return CtypesFactory.generate(pname, pfields)
 
@@ -526,8 +533,10 @@ class Bundle(MappedArrayMixin, ArrayBasic):
             component_index, indices = index[0], index[1:]
             return ComponentAccess(self.indexed[indices], component_index)
         else:
-            raise ValueError("Expected %d or %d indices, got %d instead"
-                             % (self.ndim, self.ndim + 1, len(index)))
+            raise ValueError(
+                f'Expected {self.ndim} or {self.ndim + 1} indices, '
+                f'got {len(index)} instead'
+            )
 
     @property
     def _C_ctype(self):
@@ -603,7 +612,7 @@ class ComponentAccess(Expr, Pickable):
         return super()._hashable_content() + (self._index,)
 
     def __str__(self):
-        return "%s.%s" % (self.base, self.sindex)
+        return f"{self.base}.{self.sindex}"
 
     __repr__ = __str__
 

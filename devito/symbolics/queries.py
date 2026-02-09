@@ -1,19 +1,35 @@
 from sympy import Eq, IndexedBase, Mod, S, diff, nan
 
-from devito.symbolics.extended_sympy import (FieldFromComposite, FieldFromPointer,
-                                             IndexedPointer, IntDiv)
+from devito.symbolics.extended_sympy import (
+    FieldFromComposite, FieldFromPointer, IndexedPointer, IntDiv
+)
 from devito.tools import as_tuple, is_integer
+from devito.types.array import ComponentAccess
 from devito.types.basic import AbstractFunction
 from devito.types.constant import Constant
 from devito.types.dimension import Dimension
-from devito.types.array import ComponentAccess
 from devito.types.object import AbstractObject
 
-
-__all__ = ['q_leaf', 'q_indexed', 'q_terminal', 'q_function', 'q_routine',
-           'q_terminalop', 'q_indirect', 'q_constant', 'q_affine', 'q_linear',
-           'q_identity', 'q_symbol', 'q_comp_acc', 'q_multivar', 'q_monoaffine',
-           'q_dimension', 'q_positive', 'q_negative']
+__all__ = [
+    'q_affine',
+    'q_comp_acc',
+    'q_constant',
+    'q_dimension',
+    'q_function',
+    'q_identity',
+    'q_indexed',
+    'q_indirect',
+    'q_leaf',
+    'q_linear',
+    'q_monoaffine',
+    'q_multivar',
+    'q_negative',
+    'q_positive',
+    'q_routine',
+    'q_symbol',
+    'q_terminal',
+    'q_terminalop',
+]
 
 
 # The following SymPy objects are considered tree leaves:
@@ -79,10 +95,7 @@ def q_terminalop(expr, depth=0):
         return True
     elif expr.is_Add or expr.is_Mul:
         for a in expr.args:
-            if a.is_Pow:
-                elems = a.args
-            else:
-                elems = [a]
+            elems = a.args if a.is_Pow else [a]
             if any(not q_leaf(i) for i in elems):
                 return False
         return True
@@ -290,14 +303,13 @@ def q_positive(expr):
 
         if x0 is not x1:
             return False
-        if not isinstance(p1, Constant):
-            # TODO: Same considerations above about Constant apply
-            return False
 
         # At this point we are in the form `X {+,-} X / p0 + p1`, where
         # `X`, `p0`, and `p1` are definitely positive; since `X > X / p0`,
         # definitely the answer is True
-        return True
+        # OR we are a constant and return False
+        # TODO: Same considerations above about Constant apply
+        return isinstance(p1, Constant)
 
     if len(expr.args) == 2:
         return case0(*expr.args) or case1(S.Zero, *expr.args)

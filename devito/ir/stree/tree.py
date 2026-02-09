@@ -1,9 +1,16 @@
-from anytree import NodeMixin, PostOrderIter, RenderTree, ContStyle
+from anytree import ContStyle, NodeMixin, PostOrderIter, RenderTree
 
-from devito.ir.support import WithLock, PrefetchUpdate
+from devito.ir.support import PrefetchUpdate, WithLock
 
-__all__ = ["ScheduleTree", "NodeSection", "NodeIteration", "NodeConditional",
-           "NodeSync", "NodeExprs", "NodeHalo"]
+__all__ = [
+    "NodeConditional",
+    "NodeExprs",
+    "NodeHalo",
+    "NodeIteration",
+    "NodeSection",
+    "NodeSync",
+    "ScheduleTree",
+]
 
 
 class ScheduleTree(NodeMixin):
@@ -22,8 +29,7 @@ class ScheduleTree(NodeMixin):
         return render(self)
 
     def visit(self):
-        for i in PostOrderIter(self):
-            yield i
+        yield from PostOrderIter(self)
 
     @property
     def last(self):
@@ -72,7 +78,7 @@ class NodeIteration(ScheduleTree):
 
     @property
     def __repr_render__(self):
-        return "%s%s" % (self.dim, self.direction)
+        return f"{self.dim}{self.direction}"
 
 
 class NodeConditional(ScheduleTree):
@@ -98,7 +104,7 @@ class NodeSync(ScheduleTree):
 
     @property
     def __repr_render__(self):
-        return "Sync[%s]" % ",".join(i.__class__.__name__ for i in self.sync_ops)
+        return "Sync[{}]".format(",".join(i.__class__.__name__ for i in self.sync_ops))
 
     @property
     def is_async(self):
@@ -119,11 +125,11 @@ class NodeExprs(ScheduleTree):
 
     @property
     def __repr_render__(self):
-        ths = 2
+        threshold = 2
         n = len(self.exprs)
-        ret = ",".join("Eq" for i in range(min(n, ths)))
-        ret = ("%s,..." % ret) if n > ths else ret
-        return "[%s]" % ret
+        ret = ",".join("Eq" for i in range(min(n, threshold)))
+        ret = (f"{ret},...") if n > threshold else ret
+        return f"[{ret}]"
 
 
 class NodeHalo(ScheduleTree):

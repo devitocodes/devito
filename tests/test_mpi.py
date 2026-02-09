@@ -1,27 +1,27 @@
-import numpy as np
-import pytest
 from functools import cached_property
 
+import numpy as np
+import pytest
+from test_dse import TestTTI
+
 from conftest import _R, assert_blocking, assert_structure
-from devito import (Grid, Constant, Function, TimeFunction, SparseFunction,
-                    SparseTimeFunction, VectorTimeFunction, TensorTimeFunction,
-                    Dimension, ConditionalDimension, div, solve, diag, grad,
-                    SubDimension, SubDomain, Eq, Ne, Inc, NODE, Operator, norm,
-                    inner, configuration, switchconfig, generic_derivative,
-                    PrecomputedSparseFunction, DefaultDimension, Buffer,
-                    CustomDimension)
+from devito import (
+    NODE, Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
+    Dimension, Eq, Function, Grid, Inc, Ne, Operator, PrecomputedSparseFunction,
+    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, TensorTimeFunction,
+    TimeFunction, VectorTimeFunction, configuration, diag, div, generic_derivative, grad,
+    inner, norm, solve, switchconfig
+)
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
-from devito.ir.iet import (Call, Conditional, Iteration, FindNodes, FindSymbols,
-                           retrieve_iteration_tree)
+from devito.ir.iet import (
+    Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+)
 from devito.mpi import MPI
-from devito.mpi.routines import (HaloUpdateCall, HaloUpdateList, MPICall,
-                                 ComputeCall)
 from devito.mpi.distributed import CustomTopology
+from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
-
 from examples.seismic.acoustic import acoustic_setup
-from test_dse import TestTTI
 
 
 # Main body in Operator IET, depending on ISA
@@ -167,7 +167,9 @@ class TestDistributor:
                 (0, 1, PN, 2, 3, PN, PN, PN, PN)]
         }
 
-        mapper = dict(zip(attrs, expected[distributor.nprocs][distributor.myrank]))
+        mapper = dict(zip(
+            attrs, expected[distributor.nprocs][distributor.myrank], strict=True
+        ))
         obj = distributor._obj_neighborhood
         value = obj._arg_defaults()[obj.name]
         assert all(getattr(value._obj, k) == v for k, v in mapper.items())
@@ -357,8 +359,13 @@ class TestSubDistributor:
         md = MyDomain(grid=grid)
         d = md.distributor
 
-        for dec, pdec, sdi, sh in zip(d.decomposition, d.parent.decomposition,
-                                      d.subdomain_interval, grid.shape):
+        for dec, pdec, sdi, sh in zip(
+            d.decomposition,
+            d.parent.decomposition,
+            d.subdomain_interval,
+            grid.shape,
+            strict=True
+        ):
             # Get the global min and max
             lower_bounds = [np.amin(i) for i in dec if i.size != 0]
             upper_bounds = [np.amax(i) for i in dec if i.size != 0]
@@ -578,8 +585,14 @@ class TestFunction:
         grid = Grid(shape=shape)
         f = Function(name='f', grid=grid)
 
-        assert all(i == slice(*j)
-                   for i, j in zip(f.local_indices, expected[grid.distributor.myrank]))
+        assert all(
+            i == slice(*j)
+            for i, j in zip(
+                f.local_indices,
+                expected[grid.distributor.myrank],
+                strict=True
+            )
+        )
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('shape', [(1,), (2, 3), (4, 5, 6)])
@@ -1498,7 +1511,7 @@ class TestCodeGeneration:
         eqns += [Eq(U.forward, U.dx + u.forward)]
 
         op = Operator(eqns)
-        op.cfunction
+        _ = op.cfunction
 
         check_halo_exchanges(op, 2, 2)
 
@@ -1521,7 +1534,7 @@ class TestCodeGeneration:
         op = Operator(eqns)
 
         assert len(FindNodes(HaloUpdateCall).visit(op)) == 1
-        op.cfunction
+        _ = op.cfunction
 
     @pytest.mark.parallel(mode=2)
     def test_merge_and_hoist_haloupdate_if_diff_locindices(self, mode):
@@ -1543,7 +1556,7 @@ class TestCodeGeneration:
 
         In the IET we end up with *two* HaloSpots, one placed before the
         time loop, and one placed before the second Eq. The third Eq,
-        reading from f[t0], will seamlessy find its halo up-to-date,
+        reading from f[t0], will seamlessly find its halo up-to-date,
         due to the f[t1] being updated in the previous time iteration.
         """
         grid = Grid(shape=(10,))
@@ -1601,7 +1614,7 @@ class TestCodeGeneration:
                 rec.interpolate(expr=v1)]
 
         op = Operator(eqns)
-        op.cfunction
+        _ = op.cfunction
 
         calls, _ = check_halo_exchanges(op, 2, 2)
         for i, v in enumerate([v2, v1]):
@@ -1794,7 +1807,7 @@ class TestCodeGeneration:
 
         op = Operator(eqns)
 
-        op.cfunction
+        _ = op.cfunction
 
         calls = FindNodes(Call).visit(op)
 
@@ -1834,7 +1847,7 @@ class TestCodeGeneration:
 
         op = Operator(eqns)
 
-        op.cfunction
+        _ = op.cfunction
 
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 2
@@ -1932,7 +1945,7 @@ class TestCodeGeneration:
                     eval(expr)]
 
         op = Operator(eqns)
-        op.cfunction
+        _ = op.cfunction
 
         calls, _ = check_halo_exchanges(op, exp0, exp1)
         for i, v in enumerate(args):
@@ -1954,7 +1967,7 @@ class TestCodeGeneration:
                 Eq(v3, v2.laplace + v1)]
 
         op = Operator(eqns)
-        op.cfunction
+        _ = op.cfunction
 
         calls, _ = check_halo_exchanges(op, 3, 2)
         # More specifically, we ensure HaloSpot(v2) is on the last loop nest
@@ -1975,7 +1988,7 @@ class TestCodeGeneration:
                 rec.interpolate(expr=v1.forward)]
 
         op = Operator(eqns)
-        op.cfunction
+        _ = op.cfunction
 
         calls, _ = check_halo_exchanges(op, 3, 2)
         assert calls[0].arguments[0] is v2
@@ -2011,7 +2024,7 @@ class TestCodeGeneration:
         eq1 = Eq(f.backward, f.laplace + .002)
 
         op1 = Operator(rec + [eq1])
-        op1.cfunction
+        _ = op1.cfunction
 
         check_halo_exchanges(op1, 1, 1)
 
@@ -2541,9 +2554,9 @@ class TestOperatorAdvanced:
         t = grid.stepping_dim
 
         # SubDimensions to implement BCs
-        xl, yl = [SubDimension.left('%sl' % d.name, d, tkn) for d in [x, y]]
-        xi, yi = [SubDimension.middle('%si' % d.name, d, tkn, tkn) for d in [x, y]]
-        xr, yr = [SubDimension.right('%sr' % d.name, d, tkn) for d in [x, y]]
+        xl, yl = [SubDimension.left(f'{d.name}l', d, tkn) for d in [x, y]]
+        xi, yi = [SubDimension.middle(f'{d.name}i', d, tkn, tkn) for d in [x, y]]
+        xr, yr = [SubDimension.right(f'{d.name}r', d, tkn) for d in [x, y]]
 
         # Functions
         u = TimeFunction(name='f', grid=grid)
@@ -2576,7 +2589,7 @@ class TestOperatorAdvanced:
         # 0 0 4 4 4 4 4 0 0
         # 0 0 5 5 5 5 5 0 0
 
-        assert np.all(u.data_ro_domain[0] == 0)  # The write occures at t=1
+        assert np.all(u.data_ro_domain[0] == 0)  # The write occurs at t=1
 
         glb_pos_map = u.grid.distributor.glb_pos_map
         # Check cornes
@@ -3127,7 +3140,7 @@ class TestOperatorAdvanced:
 
         op = Operator(eqns)
 
-        op.cfunction
+        _ = op.cfunction
 
         calls, _ = check_halo_exchanges(op, 2, 1)
         args = calls[0].arguments
@@ -3141,7 +3154,7 @@ def gen_serial_norms(shape, so):
     """
     day = np.datetime64('today')
     try:
-        l = np.load("norms%s.npy" % len(shape), allow_pickle=True)
+        l = np.load(f"norms{len(shape)}.npy", allow_pickle=True)
         assert l[-1] == day
     except:
         tn = 500.  # Final time
@@ -3161,7 +3174,7 @@ def gen_serial_norms(shape, so):
         Ev = norm(v)
         Esrca = norm(srca)
 
-        np.save("norms%s.npy" % len(shape), (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
+        np.save(f"norms{len(shape)}.npy", (Eu, Erec, Ev, Esrca, day), allow_pickle=True)
 
 
 class TestIsotropicAcoustic:
@@ -3280,7 +3293,7 @@ class TestElasticLike:
         u_t = Eq(tau.forward, damp * solve(pde_tau, tau.forward))
 
         op = Operator([u_v] + [u_t] + rec_term)
-        op.cfunction
+        _ = op.cfunction
 
         assert len(op._func_table) == 11
 
@@ -3350,7 +3363,7 @@ class TestElasticLike:
         rec_term1 = rec.interpolate(expr=v.forward)
 
         op1 = Operator([u_v, u_tau, rec_term1])
-        op1.cfunction
+        _ = op1.cfunction
 
         calls, _ = check_halo_exchanges(op1, 2, 2)
         assert calls[0].arguments[0] is tau
@@ -3411,7 +3424,7 @@ class TestElasticLike:
         rec_term3 = rec2.interpolate(expr=v2.forward)
 
         op3 = Operator([u_v, u_v2, u_tau, u_tau2, rec_term0, rec_term3])
-        op3.cfunction
+        _ = op3.cfunction
 
         calls = [i for i in FindNodes(Call).visit(op3) if isinstance(i, HaloUpdateCall)]
 
@@ -3493,7 +3506,7 @@ def get_time_loop(op):
     for i in iters:
         if i.dim.is_Time:
             return i
-    assert False
+    raise AssertionError('Assert False')
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import difflib
 
-__all__ = ['unidiff_output', 'print_kernel']
+__all__ = ['print_kernel', 'unidiff_output']
 
 
 def unidiff_output(expected, actual):

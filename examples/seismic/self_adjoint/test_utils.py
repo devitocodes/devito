@@ -1,9 +1,11 @@
+from contextlib import suppress
+
 import numpy as np
-try:
+
+with suppress(ImportError):
     import pytest
-except:
-    pass
-from devito import Grid, Function
+
+from devito import Function, Grid
 from examples.seismic.self_adjoint import setup_w_over_q
 
 

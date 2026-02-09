@@ -1,4 +1,5 @@
 from collections import OrderedDict, defaultdict
+from contextlib import suppress
 from functools import partial
 from threading import get_ident
 from time import time
@@ -36,7 +37,7 @@ class timed_pass:
                 assert name is None
                 func, name = args
             else:
-                assert False
+                raise AssertionError('Incorrect number of args')
             obj = object.__new__(cls)
             obj.__init__(func, name)
             return obj
@@ -64,10 +65,7 @@ class timed_pass:
         if not isinstance(timings, dict):
             raise ValueError("Attempting to use `timed_pass` outside a `timed_region`")
 
-        if self.name is not None:
-            frame = self.name
-        else:
-            frame = self.func.__name__
+        frame = self.name if self.name is not None else self.func.__name__
 
         stack = timed_pass.stack[tid]
         stack.append(frame)
@@ -116,10 +114,8 @@ class timed_region:
     def __exit__(self, *args):
         self.timings[self.name] = time() - self.tic
         del timed_pass.timings[get_ident()]
-        try:
+        with suppress(KeyError):
             # Necessary clean up should one be constructing an Operator within
             # a try-except, with the Operator construction failing
+            # Typically we suppress
             del timed_pass.stack[get_ident()]
-        except KeyError:
-            # Typically we end up here
-            pass

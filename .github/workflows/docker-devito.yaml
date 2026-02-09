@@ -113,7 +113,7 @@ jobs:
 
       - name: Set per‑runner variables
         run: |
-          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> "$GITHUB_ENV"
 
       - name: Check event name
         run: echo ${{ github.event_name }}
@@ -246,8 +246,8 @@ jobs:
               refs="$refs devitocodes/devito:${tag}-${arch}"
             done
             echo "Creating manifest for devitocodes/devito:${tag} using:${refs}"
-            docker buildx imagetools create --tag devitocodes/devito:${tag} $refs
-            docker buildx imagetools inspect devitocodes/devito:${tag}
+            docker buildx imagetools create --tag "devitocodes/devito:${tag}" "$refs"
+            docker buildx imagetools inspect "devitocodes/devito:${tag}"
           done
 
   test-devito:
@@ -286,7 +286,7 @@ jobs:
 
       - name: Set per‑runner variables
         run: |
-          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> "$GITHUB_ENV"
 
       - name: Run tests against multi-arch image
         run: |

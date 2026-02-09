@@ -1,11 +1,11 @@
 import numpy as np
 from sympy.printing.c import C99CodePrinter
 
-from devito.ir import Call, BasePrinter
+from devito.ir import BasePrinter, Call
 from devito.passes.iet.definitions import DataManager
-from devito.passes.iet.orchestration import Orchestrator
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.utils import _atomic_add_split
+from devito.passes.iet.orchestration import Orchestrator
 from devito.symbolics import c_complex, c_double_complex
 from devito.symbolics.extended_sympy import UnaryOp
 from devito.tools import dtype_to_cstr
@@ -101,5 +101,5 @@ class CPrinter(BasePrinter, C99CodePrinter):
                 f'({self._print(expr.args[0])})')
 
     def _print_Conj(self, expr):
-        # In C, conj is not preceeded by the func_prefix
+        # In C, conj is not preceded by the func_prefix
         return (f'conj{self.func_literal(expr)}({self._print(expr.args[0])})')

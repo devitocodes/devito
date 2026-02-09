@@ -1,14 +1,13 @@
-import os
-from itertools import permutations
-from functools import reduce
-from operator import mul
-import logging
 import json
+import logging
+import os
+from functools import reduce
+from itertools import permutations
+from operator import mul
 
 import numpy as np
-import sympy
-
 import pytest
+import sympy
 
 # Try-except required to allow for import of classes from this file
 # for testing in PRO
@@ -17,26 +16,27 @@ try:
 except ImportError:
     from conftest import assert_structure, skipif
 
-from devito import (Grid, Eq, Operator, Constant, Function, TimeFunction,
-                    SparseFunction, SparseTimeFunction, Dimension, error, SpaceDimension,
-                    NODE, CELL, dimensions, configuration, TensorFunction,
-                    TensorTimeFunction, VectorFunction, VectorTimeFunction,
-                    div, grad, switchconfig, exp, Buffer)
-from devito import  Inc, Le, Lt, Ge, Gt, sin  # noqa
+from devito import (  # noqa
+    CELL, NODE, Buffer, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Inc, Le, Lt,
+    Operator, SpaceDimension, SparseFunction, SparseTimeFunction, TensorFunction,
+    TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, configuration,
+    dimensions, div, error, exp, grad, sin, switchconfig
+)
 from devito.arch.archinfo import Device
 from devito.exceptions import InvalidOperator
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations import ClusterizedEq
 from devito.ir.equations.algorithms import lower_exprs
-from devito.ir.iet import (Callable, Conditional, Expression, Iteration, TimedList,
-                           FindNodes, IsPerfectIteration, retrieve_iteration_tree,
-                           FindSymbols)
+from devito.ir.iet import (
+    Callable, Conditional, Expression, FindNodes, FindSymbols, IsPerfectIteration,
+    Iteration, TimedList, retrieve_iteration_tree
+)
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
 from devito.tools import flatten, powerset, timed_region
 from devito.types import (
-    Array, Barrier, CustomDimension, Indirection, Scalar, Symbol, ConditionalDimension
+    Array, Barrier, ConditionalDimension, CustomDimension, Indirection, Scalar, Symbol
 )
 
 
@@ -69,7 +69,7 @@ class TestOperatorSetup:
         # Unrecognised platform name -> exception
         try:
             Operator(Eq(u, u + 1), platform='asga')
-            assert False
+            raise AssertionError('Assert False')
         except InvalidOperator:
             assert True
 
@@ -93,7 +93,7 @@ class TestOperatorSetup:
         # ... but it will raise an exception if an unknown one
         try:
             Operator(Eq(u, u + 1), platform='nvidiaX', compiler='asf')
-            assert False
+            raise AssertionError('Assert False')
         except InvalidOperator:
             assert True
 
@@ -107,7 +107,7 @@ class TestOperatorSetup:
         # Unsupported combination of `platform` and `language` should throw an error
         try:
             Operator(Eq(u, u + 1), platform='bdw', language='openacc')
-            assert False
+            raise AssertionError('Assert False')
         except InvalidOperator:
             assert True
 
@@ -123,14 +123,14 @@ class TestOperatorSetup:
         # Unknown pass
         try:
             Operator(Eq(u, u + 1), opt=('aaa'))
-            assert False
+            raise AssertionError('Assert False')
         except InvalidOperator:
             assert True
 
         # Unknown optimization option
         try:
             Operator(Eq(u, u + 1), opt=('advanced', {'aaa': 1}))
-            assert False
+            raise AssertionError('Assert False')
         except InvalidOperator:
             assert True
 
@@ -302,7 +302,7 @@ class TestCodeGen:
             ompreg = timedlist.body[0]
             assert ompreg.body[0].dim is grid.time_dim
         else:
-            timedlist.body[0].dim is grid.time_dim
+            timedlist.body[0].dim is grid.time_dim  # noqa: B015
 
     def test_nested_lowering(self):
         """
@@ -637,7 +637,7 @@ class TestArithmetic:
 
     def test_sparsetimefunction_inject_dt(self):
         """
-        Test injection of the time deivative of a SparseTimeFunction into a TimeFunction
+        Test injection of the time derivative of a SparseTimeFunction into a TimeFunction
         """
         grid = Grid(shape=(11, 11))
         u = TimeFunction(name='u', grid=grid, time_order=2, save=5, space_order=1)
@@ -761,8 +761,7 @@ class TestApplyArguments:
                 condition = arguments[name] == v
 
             if not condition:
-                error('Wrong argument %s: expected %s, got %s' %
-                      (name, v, arguments[name]))
+                error(f'Wrong argument {name}: expected {v}, got {arguments[name]}')
             assert condition
 
     def verify_parameters(self, parameters, expected):
@@ -774,11 +773,11 @@ class TestApplyArguments:
         parameters = [p.name for p in parameters]
         for expi in expected:
             if expi not in parameters + boilerplate:
-                error("Missing parameter: %s" % expi)
+                error(f"Missing parameter: {expi}")
             assert expi in parameters + boilerplate
         extra = [p for p in parameters if p not in expected and p not in boilerplate]
         if len(extra) > 0:
-            error("Redundant parameters: %s" % str(extra))
+            error(f"Redundant parameters: {str(extra)}")
         assert len(extra) == 0
 
     def test_default_functions(self):
@@ -1009,12 +1008,12 @@ class TestApplyArguments:
         one.data[:] = 1.
         op = Operator(Eq(a.forward, a + one))
 
-        # Test dimension override via the buffered dimenions
+        # Test dimension override via the buffered dimensions
         a.data[0] = 0.
         op(a=a, t=5)
         assert(np.allclose(a.data[1], 5.))
 
-        # Test dimension override via the parent dimenions
+        # Test dimension override via the parent dimensions
         a.data[0] = 0.
         op(a=a, time=4)
         assert(np.allclose(a.data[0], 4.))
@@ -1073,7 +1072,7 @@ class TestApplyArguments:
 
     def test_argument_derivation_order(self, nt=100):
         """ Ensure the precedence order of arguments is respected
-        Defaults < (overriden by) Tensor Arguments < Dimensions < Scalar Arguments
+        Defaults < (overridden by) Tensor Arguments < Dimensions < Scalar Arguments
         """
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
@@ -1173,7 +1172,7 @@ class TestApplyArguments:
         op = Operator(Eq(a, a + a))
         try:
             op.apply(b=3)
-            assert False
+            raise AssertionError('Assert False')
         except ValueError:
             # `b` means nothing to `op`, so we end up here
             assert True
@@ -1182,9 +1181,9 @@ class TestApplyArguments:
             configuration['ignore-unknowns'] = True
             op.apply(b=3)
             assert True
-        except ValueError:
+        except ValueError as e:
             # we should not end up here as we're now ignoring unknown arguments
-            assert False
+            raise AssertionError('Assert False') from e
         finally:
             configuration['ignore-unknowns'] = configuration._defaults['ignore-unknowns']
 
@@ -1226,11 +1225,11 @@ class TestApplyArguments:
 
         try:
             op.apply(a=a1, b=b0)
-            assert False
+            raise AssertionError('Assert False')
         except ValueError as e:
             assert 'Override' in e.args[0]  # Check it's hitting the right error msg
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     def test_incomplete_override(self):
         """
@@ -1249,11 +1248,11 @@ class TestApplyArguments:
 
         try:
             op.apply(a=a1)
-            assert False
+            raise AssertionError('Assert False')
         except ValueError as e:
             assert 'Default' in e.args[0]  # Check it's hitting the right error msg
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
     @pytest.mark.parallel(mode=1)
     def test_new_distributor(self, mode):
@@ -1445,6 +1444,42 @@ class TestLoopScheduling:
             # Fission happened
             assert i[exp_depth].dim is exp_dim
 
+    def test_fission_for_parallelism_b(self):
+        so = 2
+        grid = Grid(shape=(10, 10, 10))
+        x, y, z = grid.dimensions
+
+        f0 = TimeFunction(name='f0', grid=grid, space_order=so, staggered=(x,))
+        f1 = TimeFunction(name='f1', grid=grid, space_order=so, staggered=(y,))
+
+        f2 = TimeFunction(name='f2', grid=grid, space_order=so, staggered=(x, z))
+        f3 = TimeFunction(name='f3', grid=grid, space_order=so, staggered=(y, z))
+
+        f4 = TimeFunction(name='f4', grid=grid, space_order=so, staggered=NODE)
+
+        eq0 = Eq(f2, f0.dz)
+        eq1 = Eq(f3, f1.dz)
+        eq2 = Eq(f4, f2 + f3)
+
+        op = Operator([eq0, eq1, eq2])
+
+        trees = retrieve_iteration_tree(op)
+
+        # First two equations should be fused for parallelism, but the third should be
+        # fissioned
+        assert len(trees) == 2
+        assert len(trees[0][-1].nodes[0].exprs) == 2
+        assert len(trees[1][-1].nodes[0].exprs) == 1
+
+        def check_expr_contents(expr, expected):
+            assert all(f.base in expr.expr_symbols for f in expected)
+
+        # Check expressions match equations
+        check_expr_contents(trees[0][-1].nodes[0].exprs[0], (f2, f0))
+        check_expr_contents(trees[0][-1].nodes[0].exprs[1], (f3, f1))
+
+        check_expr_contents(trees[1][-1].nodes[0].exprs[0], (f4, f2, f3))
+
     @pytest.mark.parametrize('exprs', [
         # 0) Storage related dependence
         ('Eq(u.forward, v)', 'Eq(v, u.dxl)'),
@@ -1486,7 +1521,7 @@ class TestLoopScheduling:
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti3[x,y,z])',
           'Eq(ti3[x,y,z], ti1[x,y,z+1] + 1.)'),
-         '+++++', ['xyz', 'xyz', 'xyz'], 'xyzzz'),
+         '++++', ['xyz', 'xyz'], 'xyzz'),
         # 1) WAR 1->2, 2->3
         (('Eq(ti0[x,y,z], ti0[x,y,z] + ti1[x,y,z])',
           'Eq(ti1[x,y,z], ti0[x,y,z+1])',
@@ -1534,7 +1569,7 @@ class TestLoopScheduling:
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzyzyz'),
+         '+++++++', ['txyz', 'txyz', 'txyz'], 'txyzzyz'),
         # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
@@ -1594,6 +1629,15 @@ class TestLoopScheduling:
           'Eq(tu[t+1,xi,yi,zi], tv[t+1,xi,yi,zi] + tv[t+1,xi+1,yi,zi])',
           'Eq(tw[t+1,x,y,z], tv[t+1,x,y,z] + tv[t+1,x+1,y,z])'),
          '++++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzxyz'),
+        # 20) RAW 1->3, WAR 2->3; expected=2
+        # It's important the split occurs after the second equation, since the
+        # first two can safely be fused together (previously, instead,
+        # due to an issue in `break_for_parallelism`, the eqns were split over
+        # three loop nests)
+        (('Eq(tu[t+1,x,y,z], tu[t,x,y,z] + tu[t,x+1,y,z])',
+          'Eq(tv[t+1,x,y,z], tv[t,x,y,z] + 1)',
+          'Eq(tw[t+1,x,y,z], tu[t+1,x+1,y,z] + tw[t,x+1,y,z] + tv[t+1,x+1,y,z])'),
+         '+++++++', ['txyz', 'txyz'], 'txyzxyz'),
     ])
     def test_consistency_anti_dependences(self, exprs, directions, expected, visit):
         """
@@ -1633,7 +1677,10 @@ class TestLoopScheduling:
         assert "".join(mapper.get(i.dim.name, i.dim.name) for i in iters) == visit
         # mapper just makes it quicker to write out the test parametrization
         mapper = {'+': Forward, '-': Backward, '*': Any}
-        assert all(i.direction == mapper[j] for i, j in zip(iters, directions))
+        assert all(
+            i.direction == mapper[j]
+            for i, j in zip(iters, directions, strict=True)
+        )
 
     def test_expressions_imperfect_loops(self):
         """
@@ -1750,7 +1797,10 @@ class TestLoopScheduling:
                     Eq(b, time*b*a + b)]
             eqns2 = [Eq(a.forward, a.laplace + 1.),
                      Eq(b2, time*b2*a + b2)]
-            subs = {d.spacing: v for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim])}
+            subs = {
+                d.spacing: v
+                for d, v in zip(dims0, [2.5, 1.5, 2.0][:grid.dim], strict=True)
+            }
 
             op = Operator(eqns, subs=subs, opt='noop')
             trees = retrieve_iteration_tree(op)
@@ -2302,7 +2352,7 @@ class TestEstimateMemory:
 
         summary.to_json("memory_estimate_output.json")
 
-        with open("memory_estimate_output.json", "r") as infile:
+        with open("memory_estimate_output.json") as infile:
             json_object = json.load(infile)
 
             assert json_object['name'] == summary.name

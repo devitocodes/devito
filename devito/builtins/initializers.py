@@ -1,10 +1,10 @@
 import numpy as np
 
 import devito as dv
-from devito.tools import as_tuple, as_list
 from devito.builtins.utils import check_builtins_args, nbl_to_padsize, pad_outhalo
+from devito.tools import as_list, as_tuple
 
-__all__ = ['assign', 'smooth', 'gaussian_smooth', 'initialize_function']
+__all__ = ['assign', 'gaussian_smooth', 'initialize_function', 'smooth']
 
 
 @dv.switchconfig(log_level='ERROR')
@@ -59,18 +59,18 @@ def assign(f, rhs=0, options=None, name='assign', assign_halo=False, **kwargs):
 
     eqs = []
     if options:
-        for i, j, k in zip(as_list(f), rhs, options):
+        for i, j, k in zip(as_list(f), rhs, options, strict=True):
             if k is not None:
                 eqs.append(dv.Eq(i, j, **k))
             else:
                 eqs.append(dv.Eq(i, j))
     else:
-        for i, j in zip(as_list(f), rhs):
+        for i, j in zip(as_list(f), rhs, strict=True):
             eqs.append(dv.Eq(i, j))
 
     if assign_halo:
         subs = {}
-        for d, h in zip(f.dimensions, f._size_halo):
+        for d, h in zip(f.dimensions, f._size_halo, strict=True):
             if sum(h) == 0:
                 continue
             subs[d] = dv.CustomDimension(name=d.name, parent=d,
@@ -143,15 +143,15 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
             self.lw = lw
 
         def define(self, dimensions):
-            return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw)}
+            return {d: ('middle', l, l) for d, l in zip(dimensions, self.lw, strict=True)}
 
     def create_gaussian_weights(sigma, lw):
         weights = [w/w.sum() for w in (np.exp(-0.5/s**2*(np.linspace(-l, l, 2*l+1))**2)
-                   for s, l in zip(sigma, lw))]
+                   for s, l in zip(sigma, lw, strict=True))]
         return as_tuple(np.array(w) for w in weights)
 
     def fset(f, g):
-        indices = [slice(l, -l, 1) for _, l in zip(g.dimensions, lw)]
+        indices = [slice(l, -l, 1) for _, l in zip(g.dimensions, lw, strict=True)]
         slices = (slice(None, None, 1), )*g.ndim
         if isinstance(f, np.ndarray):
             f[slices] = g.data[tuple(indices)]
@@ -182,7 +182,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
 
     # Create the padded grid:
     objective_domain = ObjectiveDomain(lw)
-    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw)])
+    shape_padded = tuple([np.array(s) + 2*l for s, l in zip(shape, lw, strict=True)])
     extent_padded = tuple([s-1 for s in shape_padded])
     grid = dv.Grid(shape=shape_padded, subdomains=objective_domain,
                    extent=extent_padded)
@@ -193,7 +193,7 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     weights = create_gaussian_weights(sigma, lw)
 
     mapper = {}
-    for d, l, w in zip(f_c.dimensions, lw, weights):
+    for d, l, w in zip(f_c.dimensions, lw, weights, strict=True):
         lhs = []
         rhs = []
         options = []
@@ -238,13 +238,15 @@ def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
         def buff(i, j):
             return [(i + k - 2*max(max(nbl))) for k in j]
 
-        b = [min(l) for l in (w for w in (buff(i, j) for i, j in zip(local_size, halo)))]
+        b = [min(l) for l in (
+            w for w in (buff(i, j) for i, j in zip(local_size, halo, strict=True))
+        )]
         if any(np.array(b) < 0):
-            raise ValueError("Function `%s` halo is not sufficiently thick." % function)
+            raise ValueError(f'Function `{function}` halo is not sufficiently thick.')
 
-    for d, (nl, nr) in zip(function.space_dimensions, as_tuple(nbl)):
-        dim_l = dv.SubDimension.left(name='abc_%s_l' % d.name, parent=d, thickness=nl)
-        dim_r = dv.SubDimension.right(name='abc_%s_r' % d.name, parent=d, thickness=nr)
+    for d, (nl, nr) in zip(function.space_dimensions, as_tuple(nbl), strict=True):
+        dim_l = dv.SubDimension.left(name=f'abc_{d.name}_l', parent=d, thickness=nl)
+        dim_r = dv.SubDimension.right(name=f'abc_{d.name}_r', parent=d, thickness=nr)
         if mode == 'constant':
             subsl = nl
             subsr = d.symbolic_max - nr
@@ -259,7 +261,7 @@ def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
         rhs.append(function.subs({d: subsr}))
         options.extend([None, None])
 
-        if mapper and d in mapper.keys():
+        if mapper and d in mapper:
             exprs = mapper[d]
             lhs_extra = exprs['lhs']
             rhs_extra = exprs['rhs']
@@ -348,12 +350,14 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
           [2, 3, 3, 3, 3, 2],
           [2, 2, 2, 2, 2, 2]], dtype=int32)
     """
+    # TODO: fix the horrendous use of pluralisation in this function !!!
     if isinstance(function, (list, tuple)):
         if not isinstance(data, (list, tuple)):
             raise TypeError("Expected a list of `data`")
         elif len(function) != len(data):
-            raise ValueError("Expected %d `data` items, got %d" %
-                             (len(function), len(data)))
+            raise ValueError(
+                f'Expected {len(function)} `data` items, got {len(data)}'
+            )
 
         if mapper is not None:
             raise NotImplementedError("Unsupported `mapper` with batching")
@@ -373,14 +377,14 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
         f._create_data()
 
     if nbl == 0:
-        for f, data in zip(functions, datas):
+        for f, data in zip(functions, datas, strict=True):
             if isinstance(data, dv.Function):
                 f.data[:] = data.data[:]
             else:
                 f.data[:] = data[:]
     else:
         lhss, rhss, optionss = [], [], []
-        for f, data in zip(functions, datas):
+        for f, data in zip(functions, datas, strict=True):
 
             lhs, rhs, options = _initialize_function(f, data, nbl, mapper, mode)
 
@@ -390,7 +394,7 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
 
         assert len(lhss) == len(rhss) == len(optionss)
 
-        name = name or 'initialize_%s' % '_'.join(f.name for f in functions)
+        name = name or f'initialize_{"_".join(f.name for f in functions)}'
         assign(lhss, rhss, options=optionss, name=name, **kwargs)
 
     if pad_halo:

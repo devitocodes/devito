@@ -64,7 +64,7 @@ Focus on modeling and math — Devito handles the performance.
 
 
 ## What Devito is not
-As is hopefully implied by the preceeding section, Devito is *not* a seismic modelling or imaging framework, nor is it a set of pre-baked solvers. Whilst Devito is often associated with seismic imaging, this is just one application domain. Our RTM and FWI examples use Devito under the hood, but the engine itself is physics-agnostic. There’s no built-in assumption about waves, seismics, or domains — you provide the physics, and Devito delivers efficient, architecture-aware implementations.
+As is hopefully implied by the preceding section, Devito is *not* a seismic modelling or imaging framework, nor is it a set of pre-baked solvers. Whilst Devito is often associated with seismic imaging, this is just one application domain. Our RTM and FWI examples use Devito under the hood, but the engine itself is physics-agnostic. There’s no built-in assumption about waves, seismics, or domains — you provide the physics, and Devito delivers efficient, architecture-aware implementations.
 
 Furthermore, the examples provided with Devito are often conflated with the core DSL and compiler. However, the purpose of this collection of tutorials, code samples, and helper functions is fourfold:
 

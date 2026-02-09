@@ -78,9 +78,9 @@ jobs:
     - name: Set run prefix
       run: |
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py310' ]; then
-              echo "RUN_CMD=docker run --init -t --rm --name testrun devito_img" >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --init -t --rm --name testrun devito_img" >> "$GITHUB_ENV"
           else
-              echo "RUN_CMD=" >> $GITHUB_ENV
+              echo "RUN_CMD=" >> "$GITHUB_ENV"
           fi
       id: set-run
 
@@ -88,7 +88,7 @@ jobs:
       if: matrix.name != 'tutos-docker-gcc-py310'
       run: |
         python -m pip install --upgrade pip
-        pip install -e .[tests,extras]
+        pip install -e ".[tests,extras]"
         pip install blosc
 
     - name: Check Docker image Python version

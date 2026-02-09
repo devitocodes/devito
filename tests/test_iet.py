@@ -1,25 +1,26 @@
-import pytest
-
 from ctypes import c_void_p
+
 import cgen
 import numpy as np
+import pytest
 import sympy
 
-from devito import (Eq, Grid, Function, TimeFunction, Operator, Dimension,  # noqa
-                    switchconfig)
-from devito.ir.iet import (
-    Call, Callable, Conditional, Definition, DeviceCall, DummyExpr, Iteration,
-    List, KernelLaunch, Dereference, Lambda, Switch, ElementalFunction, CGen,
-    FindSymbols, filter_iterations, make_efunc, retrieve_iteration_tree,
-    Transformer
+from devito import (  # noqa
+    Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
 )
 from devito.ir import SymbolRegistry
+from devito.ir.iet import (
+    Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
+    ElementalFunction, FindSymbols, Iteration, KernelLaunch, Lambda, List, Switch,
+    Transformer, filter_iterations, make_efunc, retrieve_iteration_tree
+)
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
-from devito.symbolics import (Byref, FieldFromComposite, InlineIf, Macro, Class,
-                              String, FLOAT)
+from devito.symbolics import (
+    FLOAT, Byref, Class, FieldFromComposite, InlineIf, Macro, String
+)
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import CustomDimension, Array, LocalObject, Symbol, Pointer
+from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol
 
 
 @pytest.fixture
@@ -76,11 +77,11 @@ def test_make_efuncs(exprs, nfuncs, ntimeiters, nests):
     efuncs = []
     for n, tree in enumerate(retrieve_iteration_tree(op)):
         root = filter_iterations(tree, key=lambda i: i.dim.is_Space)[0]
-        efuncs.append(make_efunc('f%d' % n, root))
+        efuncs.append(make_efunc(f'f{n}', root))
 
     assert len(efuncs) == len(nfuncs) == len(ntimeiters) == len(nests)
 
-    for efunc, nf, nt, nest in zip(efuncs, nfuncs, ntimeiters, nests):
+    for efunc, nf, nt, nest in zip(efuncs, nfuncs, ntimeiters, nests, strict=True):
         # Check the `efunc` parameters
         assert all(i in efunc.parameters for i in (x.symbolic_min, x.symbolic_max))
         assert all(i in efunc.parameters for i in (y.symbolic_min, y.symbolic_max))
@@ -97,7 +98,7 @@ def test_make_efuncs(exprs, nfuncs, ntimeiters, nests):
         trees = retrieve_iteration_tree(efunc)
         assert len(trees) == 1
         tree = trees[0]
-        assert all(i.dim.name == j for i, j in zip(tree, nest))
+        assert all(i.dim.name == j for i, j in zip(tree, nest, strict=True))
 
         assert efunc.make_call()
 

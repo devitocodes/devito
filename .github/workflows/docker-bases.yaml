@@ -40,7 +40,7 @@ jobs:
   ############## Basic gcc CPU ##########################
   #######################################################
   deploy-cpu-bases:
-    if: inputs.cpu
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cpu }}
     name: "cpu-base-${{ matrix.arch }}-gcc${{ matrix.gcc }}"
     runs-on: ${{ matrix.runner }}
     env:
@@ -88,7 +88,7 @@ jobs:
           tags: "devitocodes/bases:cpu-gcc${{ matrix.gcc }}-${{ matrix.arch }}"
 
   deploy-cpu-bases-manifest:
-    if: inputs.cpu
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.cpu }}
     name: "cpu-base-manifest"
     runs-on: ubuntu-latest
     needs: deploy-cpu-bases
@@ -114,16 +114,16 @@ jobs:
           TAG_BASE: ${{ format('cpu-gcc{0}', matrix.gcc) }}
         run: |
           docker buildx imagetools create \
-            --tag devitocodes/bases:${TAG_BASE} \
-            devitocodes/bases:${TAG_BASE}-amd64 \
-            devitocodes/bases:${TAG_BASE}-arm64
-          docker buildx imagetools inspect devitocodes/bases:${TAG_BASE}
+            --tag "devitocodes/bases:${TAG_BASE}" \
+            "devitocodes/bases:${TAG_BASE}-amd64" \
+            "devitocodes/bases:${TAG_BASE}-arm64"
+          docker buildx imagetools inspect "devitocodes/bases:${TAG_BASE}"
 
   #######################################################
   ############## Intel OneApi CPU #######################
   #######################################################
   deploy-oneapi-bases:
-    if: inputs.intel
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.intel }}
     name: "oneapi-base"
     runs-on: ubuntu-latest
     env:
@@ -181,7 +181,7 @@ jobs:
   ################### Nvidia nvhpc ######################
   #######################################################
   deploy-nvidia-bases:
-    if: inputs.nvidia
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.nvidia }}
     name: "nvidia-bases-${{ matrix.arch }}"
     runs-on: ${{ matrix.runner }}
     env:
@@ -270,7 +270,7 @@ jobs:
           tags: "devitocodes/bases:cpu-nvc${{ matrix.extra_tag }}-${{ matrix.arch }}"
 
   deploy-nvidia-bases-manifest:
-    if: inputs.nvidia
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.nvidia }}
     name: "nvidia-base-manifest"
     runs-on: ubuntu-latest
     needs: deploy-nvidia-bases
@@ -296,16 +296,16 @@ jobs:
           FINAL_TAG: ${{ matrix.final_tag }}
         run: |
           docker buildx imagetools create \
-            --tag devitocodes/bases:${FINAL_TAG} \
-            devitocodes/bases:${FINAL_TAG}-amd64 \
-            devitocodes/bases:${FINAL_TAG}-arm64
-          docker buildx imagetools inspect devitocodes/bases:${FINAL_TAG}
+            --tag "devitocodes/bases:${FINAL_TAG}" \
+            "devitocodes/bases:${FINAL_TAG}-amd64" \
+            "devitocodes/bases:${FINAL_TAG}-arm64"
+          docker buildx imagetools inspect "devitocodes/bases:${FINAL_TAG}"
 
   #######################################################
   ##################### AMD #############################
   #######################################################
   deploy-amd-bases:
-    if: inputs.amd
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.amd }}
     name: "amd-base"
     runs-on: ["self-hosted", "amdgpu"]
     env:

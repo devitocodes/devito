@@ -1,8 +1,8 @@
 # Devito: Fast Stencil Computation from Symbolic Specification
 
-[![Build Status for the Core backend](https://github.com/devitocodes/devito/actions/workflows/pytest-core-nompi.yml/badge.svg?branch=main)](https://github.com/devitocodes/devito/actions/workflows/pytest-core-nompi.yml)
-[![Build Status with MPI](https://github.com/devitocodes/devito/actions/workflows/pytest-core-mpi.yml/badge.svg?branch=main)](https://github.com/devitocodes/devito/actions/workflows/pytest-core-mpi.yml)
-[![Build Status on GPU](https://github.com/devitocodes/devito/actions/workflows/pytest-gpu.yml/badge.svg?branch=main)](https://github.com/devitocodes/devito/actions/workflows/pytest-gpu.yml)
+[![Build Status for the Core backend](https://github.com/devitocodes/devito/actions/workflows/pytest-core-nompi.yaml/badge.svg?branch=main)](https://github.com/devitocodes/devito/actions/workflows/pytest-core-nompi.yaml)
+[![Build Status with MPI](https://github.com/devitocodes/devito/actions/workflows/pytest-core-mpi.yaml/badge.svg?branch=main)](https://github.com/devitocodes/devito/actions/workflows/pytest-core-mpi.yaml)
+[![Build Status on GPU](https://github.com/devitocodes/devito/actions/workflows/pytest-gpu.yaml/badge.svg?branch=main)](https://github.com/devitocodes/devito/actions/workflows/pytest-gpu.yaml)
 [![Code Coverage](https://codecov.io/gh/devitocodes/devito/branch/main/graph/badge.svg)](https://codecov.io/gh/devitocodes/devito)
 [![Slack Status](https://img.shields.io/badge/chat-on%20slack-%2336C5F0)](https://join.slack.com/t/devitocodes/shared_invite/zt-2hgp6891e-jQDcepOWPQwxL5JJegYKSA)
 [![asv](http://img.shields.io/badge/benchmarked%20by-asv-blue.svg?style=flat)](https://devitocodes.github.io/devito-performance)
@@ -95,7 +95,7 @@ provided with Devito or create your own notebooks.
 instructions and other options. If you encounter a problem during installation, please
 see the
 [installation issues](https://github.com/devitocodes/devito/wiki/Installation-Issues) we
-have seen in the past. 
+have seen in the past.
 
 ## Resources
 
@@ -126,4 +126,4 @@ are facing issues or just trying it out, join the
 [conversation](https://join.slack.com/t/devitocodes/shared_invite/zt-2hgp6891e-jQDcepOWPQwxL5JJegYKSA).
 
 ## Interactive jupyter notebooks
-The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/main) jupyterhub. 
+The tutorial jupyter notebook are available interactively at the public [binder](https://mybinder.org/v2/gh/devitocodes/devito/main) jupyterhub.

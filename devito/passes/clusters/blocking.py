@@ -2,13 +2,16 @@ from sympy import sympify
 
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
-from devito.ir.support import (AFFINE, PARALLEL, PARALLEL_IF_ATOMIC,
-                               PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
-                               IntervalGroup, IterationSpace, Scope)
+from devito.ir.support import (
+    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
+    IntervalGroup, IterationSpace, Scope
+)
 from devito.passes import is_on_device
 from devito.symbolics import search, uxreplace, xreplace_indices
-from devito.tools import (UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple,
-                          filter_ordered, flatten, is_integer)
+from devito.tools import (
+    UnboundedMultiTuple, UnboundTuple, as_mapper, as_tuple, filter_ordered, flatten,
+    is_integer
+)
 from devito.types import BlockDimension
 
 __all__ = ['blocking']
@@ -97,9 +100,9 @@ class AnayzeBlockingBase(Queue):
         return super()._process_fatd(clusters, level, prefix)
 
     def _has_data_reuse(self, cluster):
-        # A sufficient condition for the existance of data reuse in `cluster`
+        # A sufficient condition for the existence of data reuse in `cluster`
         # is that the same Function is accessed twice at the same memory location,
-        # which translates into the existance of any Relation accross Indexeds
+        # which translates into the existence of any Relation across Indexeds
         if any(r.function.is_AbstractFunction for r in cluster.scope.r_gen()):
             return True
         if search(cluster.exprs, IndexSum):
@@ -112,7 +115,7 @@ class AnayzeBlockingBase(Queue):
 
         # If we are going to skew, then we might exploit reuse along an
         # otherwise SEQUENTIAL Dimension
-        if self.skewing:
+        if self.skewing:  # noqa: SIM103
             return True
 
         return False
@@ -332,10 +335,7 @@ class SynthesizeBlocking(Queue):
 
     def process(self, clusters):
         # A tool to unroll the explicit integer block shapes, should there be any
-        if self.par_tile:
-            blk_size_gen = BlockSizeGenerator(self.par_tile)
-        else:
-            blk_size_gen = None
+        blk_size_gen = BlockSizeGenerator(self.par_tile) if self.par_tile else None
 
         return self._process_fdta(clusters, 1, blk_size_gen=blk_size_gen)
 
@@ -555,12 +555,9 @@ class BlockSizeGenerator:
                 self.umt_small.iter()
             return self.umt_small.next()
 
-        if x:
-            item = self.umt.curitem()
-        else:
-            # We can't `self.umt.iter()` because we might still want to
-            # fallback to `self.umt_small`
-            item = self.umt.nextitem()
+        # We can't `self.umt.iter()` because we might still want to
+        # fallback to `self.umt_small`
+        item = self.umt.curitem() if x else self.umt.nextitem()
 
         # Handle user-provided rules
         # TODO: This is also rudimentary

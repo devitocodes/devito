@@ -1,11 +1,9 @@
 import numpy as np
-
-from devito import configuration, Function, norm, mmax, mmin
-
-from examples.seismic import demo_model, AcquisitionGeometry
-from examples.seismic.acoustic import AcousticWaveSolver
-
 from inversion_utils import compute_residual, update_with_box
+
+from devito import Function, configuration, mmax, mmin, norm
+from examples.seismic import AcquisitionGeometry, demo_model
+from examples.seismic.acoustic import AcousticWaveSolver
 
 # Turn off logging
 configuration['log-level'] = "ERROR"
@@ -113,6 +111,6 @@ for i in range(0, fwi_iterations):
     update_with_box(model0.vp, alpha, direction)
 
     # Log the progress made
-    print('Objective value is %f at iteration %d' % (phi, i+1))
+    print(f'Objective value is {phi} at iteration {i + 1}')
 
 assert np.isclose(history[-1], 3828, atol=1e1, rtol=0)

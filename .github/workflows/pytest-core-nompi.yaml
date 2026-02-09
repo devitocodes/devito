@@ -153,9 +153,9 @@ jobs:
     - name: Set run prefix
       run: |
           if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run --init -t --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> $GITHUB_ENV
+              echo "RUN_CMD=docker run --init -t --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} --name testrun devito_img"  >> "$GITHUB_ENV"
           else
-              echo "RUN_CMD=" >> $GITHUB_ENV
+              echo "RUN_CMD=" >> "$GITHUB_ENV"
           fi
       id: set-run
 
@@ -168,7 +168,7 @@ jobs:
       run : |
           if [ "${{ runner.os }}" == 'macOS' ]; then
             brew install llvm libomp
-            echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
+            echo "/opt/homebrew/opt/llvm/bin" >> "$GITHUB_PATH"
           fi
       id: set-tests
 
@@ -178,14 +178,14 @@ jobs:
           major=${ver%%.*}
           minor=${ver#*.}; minor=${minor%%.*}
           if [ "$major" -eq 3 ] && [ "$minor" -ge 12 ]; then
-            echo "PIPFLAGS='--break-system-packages'" >> $GITHUB_ENV
+            echo "PIPFLAGS='--break-system-packages'" >> "$GITHUB_ENV"
           fi
 
     - name: Install dependencies
       if: "!contains(matrix.name, 'docker')"
       run: |
         python3 -m pip install ${{ env.PIPFLAGS }} --upgrade pip
-        python3 -m pip install ${{ env.PIPFLAGS }} -e .[tests,extras]
+        python3 -m pip install ${{ env.PIPFLAGS }} -e ".[tests,extras]"
         python3 -m pip install ${{ env.PIPFLAGS }} sympy==${{matrix.sympy}}
 
     - name: Check Docker image Python version
