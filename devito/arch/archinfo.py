@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+from collections import defaultdict
 from contextlib import suppress
 from functools import cached_property
 from pathlib import Path
@@ -17,6 +18,7 @@ from packaging.version import InvalidVersion, parse
 
 from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
+from devito.warnings import warn
 
 __all__ = [  # noqa: RUF022
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
@@ -24,6 +26,7 @@ __all__ = [  # noqa: RUF022
     'check_cuda_runtime', 'get_m1_llvm_path', 'get_advisor_path', 'Platform',
     'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device',
     'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+    'old_get_cpu_info',
     # Brand-agnostic
     'ANYCPU', 'ANYGPU',
     # Intel CPUs
@@ -47,7 +50,7 @@ __all__ = [  # noqa: RUF022
 
 
 @memoized_func
-def get_cpu_info():
+def old_get_cpu_info():
     """Attempt CPU info autodetection."""
 
     # Obtain textual cpu info
@@ -167,6 +170,166 @@ def get_cpu_info():
     cpu_info['physical'] = physical
     return cpu_info
 
+def text2dict(text):
+    return {
+        line.split(':', 1)[0].strip(): line.split(':', 1)[1].strip()
+        for line in text.splitlines()
+    }
+
+def cast2numeric(adict):
+    # Try and convert numeric values
+    for k, v in adict.items():
+        if not v:
+            adict[k] = None
+            continue
+        for cast in [int, float]:
+            with suppress(ValueError):
+                adict[k] = cast(v)
+                break
+    return adict
+
+def set2range(aset):
+    if len(aset) == 1:
+        r = aset.pop()
+    else:
+        r = aset
+    return r
+
+@memoized_func
+def proc_cpuinfo():
+    """ Creates a `dict` containing the information in `/proc/cpuinfo`
+    """
+    # Obtain CPU info as text
+    try:
+        with open('/proc/cpuinfo') as f:
+            lines = f.read()
+        command = 'cat /proc/cpuinfo'
+    except FileNotFoundError:
+        lines = ''
+        command = '`/proc/cpuinfo` not found'
+        warn(f'File {command}')
+
+    hwthreads = lines.strip().split('\n\n')
+    logical = len(hwthreads)
+
+    info = []
+    for hwt in hwthreads:
+        info.append(cast2numeric(text2dict(hwt)))
+
+    # Nightmare
+    variations = defaultdict(set)
+    for hwt in info:
+        for k, v in hwt.items():
+            variations[k].add(v)
+
+    final = {}
+    for k, v in variations.items():
+        final[k] = set2range(v)
+
+    # `cpu MHz` is a "live" value so ignore it
+    with suppress(KeyError):
+        del final['cpu MHz']
+
+    final['command'] = command
+
+    return final
+
+@memoized_func
+def lscpu():
+    """ Creates a `dict` containing the information from `lscpu`
+    """
+    # Use `lscpu -J` if available (not available prior to v2.30, cerca 2017)
+    try:
+        ret = run(['lscpu', '-J'], capture_output=True, text=True)
+        info = {
+            x['field'].rstrip(':'): x['data']
+            for x in json.loads(ret.stdout)['lscpu']
+        }
+        info['command'] = 'lscpu -J'
+    except Exception as e:
+        info = None
+
+    # Use `lscpu` if `-J` argument is not available
+    if info is None:
+        try:
+            ret = run(['lscpu'], capture_output=True, text=True)
+            info = text2dict(ret.stdout)
+            info['command'] = 'lscpu'
+        except Exception as e:
+            msg = '`lscpu` not found'
+            warn(f'Command {msg}')
+            info = {'command': msg}
+
+    return cast2numeric(info)
+
+@memoized_func
+def get_cpu_info():
+    """Collect CPU information
+
+    This function enriches the output of the `get_cpu_info` function provided by
+    `cpuinfo` by adding the number of physical and logical cores.
+
+    There are numerous workarounds for different platforms where issues have
+    been encountered previously.
+
+    Returns a dictionary with at least the following keys populated:
+    - brand: str, fallback ''
+    - flags: list[str], fallback []
+    - logical: int, fallback 1
+    - physical: int, fallback 1
+    """
+    try:
+        cpu_info = cpuinfo.get_cpu_info()
+    except Exception as e:
+        warn(f'Calling `cpuinfo.get_cpu_info()` faised an exception\n {e !s}')
+        cpu_info = {}
+
+    cpu_info['logical'] = psutil.cpu_count(logical=True)
+    cpu_info['physical'] = psutil.cpu_count(logical=False)
+
+    # At this point on a well behaved system we have everything that we need.
+    # If only life were that simple! We now check what we obtained
+
+    procinfo = proc_cpuinfo()
+    lscpuinfo = lscpu()
+    # brand:
+    if cpu_info.get('brand') is None:
+        for source, key in (
+            (procinfo, 'model name'),
+            (procinfo, 'cpu'),
+            (cpuinfo, 'arch'),
+            (cpuinfo, 'brand_raw'),
+        ):
+            cpu_info['brand'] = source.get(key)
+            if cpu_info.get('brand'):
+                break
+        else:
+            cpu_info['brand'] = ''
+
+    # flags:
+    if cpu_info.get('flags') is None:
+        for source, key in (
+            (procinfo, 'features'),
+            (procinfo, 'flags'),
+        ):
+            cpu_info['flags'] = source.get(key)
+            if cpu_info.get('flags'):
+                break
+        else:
+            cpu_info['flags'] = []
+
+    # logical
+    if cpu_info.get('logical') is None:
+        cpu_info['logical'] = lscpuinfo.get('CPU(s)', 1)
+
+    # physical
+    if cpu_info.get('physical') is None:
+        cpu_info['physical'] = lscpuinfo.get('Core(s) per socket', 1) * lscpuinfo.get('Socket(s)', 1)
+
+    cpu_info[procinfo.pop('command')] = procinfo
+    cpu_info[lscpuinfo.pop('command')] = lscpuinfo
+
+    return cpu_info
 
 @memoized_func
 def get_gpu_info():
@@ -682,7 +845,7 @@ def check_cuda_runtime():
 
 
 @memoized_func
-def lscpu():
+def old_lscpu():
     try:
         p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
     except OSError:
