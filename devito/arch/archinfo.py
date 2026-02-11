@@ -5,7 +5,6 @@ import json
 import os
 import re
 import sys
-from collections import defaultdict
 from contextlib import suppress
 from functools import cached_property
 from pathlib import Path
@@ -20,13 +19,16 @@ from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
 from devito.warnings import warn
 
+from .commands import lscpu, lshw, lspci, nvidia_smi, proc_cpuinfo, rocm_smi, sycl_ls
+
+
 __all__ = [  # noqa: RUF022
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
     'get_nvidia_cc', 'get_cuda_path', 'get_cuda_version', 'get_hip_path',
     'check_cuda_runtime', 'get_m1_llvm_path', 'get_advisor_path', 'Platform',
     'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device',
     'NvidiaDevice', 'AmdDevice', 'IntelDevice',
-    'old_get_cpu_info',
+    'old_get_cpu_info', 'old_get_gpu_info',
     # Brand-agnostic
     'ANYCPU', 'ANYGPU',
     # Intel CPUs
@@ -170,97 +172,6 @@ def old_get_cpu_info():
     cpu_info['physical'] = physical
     return cpu_info
 
-def text2dict(text):
-    return {
-        line.split(':', 1)[0].strip(): line.split(':', 1)[1].strip()
-        for line in text.splitlines()
-    }
-
-def cast2numeric(adict):
-    # Try and convert numeric values
-    for k, v in adict.items():
-        if not v:
-            adict[k] = None
-            continue
-        for cast in [int, float]:
-            with suppress(ValueError):
-                adict[k] = cast(v)
-                break
-    return adict
-
-def set2range(aset):
-    if len(aset) == 1:
-        r = aset.pop()
-    else:
-        r = aset
-    return r
-
-@memoized_func
-def proc_cpuinfo():
-    """ Creates a `dict` containing the information in `/proc/cpuinfo`
-    """
-    # Obtain CPU info as text
-    try:
-        with open('/proc/cpuinfo') as f:
-            lines = f.read()
-        command = 'cat /proc/cpuinfo'
-    except FileNotFoundError:
-        lines = ''
-        command = '`/proc/cpuinfo` not found'
-        warn(f'File {command}')
-
-    hwthreads = lines.strip().split('\n\n')
-    logical = len(hwthreads)
-
-    info = []
-    for hwt in hwthreads:
-        info.append(cast2numeric(text2dict(hwt)))
-
-    # Nightmare
-    variations = defaultdict(set)
-    for hwt in info:
-        for k, v in hwt.items():
-            variations[k].add(v)
-
-    final = {}
-    for k, v in variations.items():
-        final[k] = set2range(v)
-
-    # `cpu MHz` is a "live" value so ignore it
-    with suppress(KeyError):
-        del final['cpu MHz']
-
-    final['command'] = command
-
-    return final
-
-@memoized_func
-def lscpu():
-    """ Creates a `dict` containing the information from `lscpu`
-    """
-    # Use `lscpu -J` if available (not available prior to v2.30, cerca 2017)
-    try:
-        ret = run(['lscpu', '-J'], capture_output=True, text=True)
-        info = {
-            x['field'].rstrip(':'): x['data']
-            for x in json.loads(ret.stdout)['lscpu']
-        }
-        info['command'] = 'lscpu -J'
-    except Exception as e:
-        info = None
-
-    # Use `lscpu` if `-J` argument is not available
-    if info is None:
-        try:
-            ret = run(['lscpu'], capture_output=True, text=True)
-            info = text2dict(ret.stdout)
-            info['command'] = 'lscpu'
-        except Exception as e:
-            msg = '`lscpu` not found'
-            warn(f'Command {msg}')
-            info = {'command': msg}
-
-    return cast2numeric(info)
 
 @memoized_func
 def get_cpu_info():
@@ -329,10 +240,19 @@ def get_cpu_info():
     cpu_info[procinfo.pop('command')] = procinfo
     cpu_info[lscpuinfo.pop('command')] = lscpuinfo
 
+    # This might actually be a bad idea...
+    # ~ # Like gpu_info attach callbacks for memory status
+    # ~ # NOTE: from the psutil docs:
+    # ~ # - The sum of used and available does not necessarily equal total.
+    # ~ # - free doesn’t reflect the actual memory available (use available instead)
+    # ~ cpu_info['mem.free'] = lambda: psutil.virtual_memory().available
+    # ~ cpu_info['mem.used'] = lambda: psutil.virtual_memory().used
+    # ~ cpu_info['mem.total'] = psutil.virtual_memory().total
     return cpu_info
 
+
 @memoized_func
-def get_gpu_info():
+def old_get_gpu_info():
     """Attempt GPU info autodetection."""
 
     # Filter out virtual GPUs from a list of GPU dictionaries
@@ -654,6 +574,70 @@ def get_gpu_info():
         pass
 
     return None
+
+
+def homogenise_gpus(gpu_infos):
+    """Parse textual gpu info into a dict
+
+    Run homogeneity checks on a list of GPUs, return GPU with count if
+    homogeneous, otherwise None.
+    """
+    if gpu_infos == []:
+        homogenous = {}
+    else:
+        # Check must ignore physical IDs as they may differ
+        for gpu_info in gpu_infos:
+            gpu_info.pop('physicalid', None)
+
+        if all_equal(gpu_infos):
+            gpu_infos[0]['ncards'] = len(gpu_infos)
+            homogenous = gpu_infos[0]
+        else:
+            warning('Different models of graphics cards detected')
+            homogenous = {'ncards': len(gpu_infos)}
+
+    return homogenous
+
+
+@memoized_func
+def get_gpu_info():
+    """Attempt GPU info autodetection.
+
+    Probe for GPU information in the following order:
+    1. `nvidia-smi`, nvidia cards only
+    2. `rocm-smi`, AMD cards only
+    3. `sycl-ls`, Intel cards only
+    4. `lshw`
+    5. `lspci`, more readable but less detailed than `lshw`
+
+    nvidia and AMD cards allow polling the used and available memory
+
+    Returns a dictionary which is empty or has at least the following keys populated:
+    - physicalid: str
+    - product: str
+    - vendor: str
+    - architecture: str, fallback 'unspecified'
+    """
+
+    for call in [nvidia_smi, rocm_smi, sycl_ls, lshw, lspci]:
+        try:
+            gpu_info = homogenise_gpus(call())
+            break
+        except (OSError):
+            gpu_info = {}
+
+    # Attach callbacks to retrieve instantaneous memory info
+    # Unsure whether this is used or even used to work!
+    if gpu_info['vendor'] == 'NVIDIA':
+        pass
+
+    if gpu_info['vendor'] == 'AMD':
+        pass
+
+    if gpu_info['vendor'] == 'INTEL':
+        pass
+
+    return gpu_info
 
 
 def get_visible_devices():
