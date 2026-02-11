@@ -281,6 +281,13 @@ class BasePrinter(CodePrinter):
 
     def _print_BitwiseBinaryOp(self, expr):
         arg0, arg1 = expr.args
+
+        prec = precedence(expr)
+        if not arg0.is_Atom:
+            arg0 = self.parenthesize(arg0, prec)
+        if not arg1.is_Atom:
+            arg1 = self.parenthesize(arg1, prec)
+
         return f'{self._print(arg0)} {expr.op} {self._print(arg1)}'
 
     def _print_Add(self, expr, order=None):
