@@ -22,6 +22,7 @@ class PetscLogger:
         self.section_mapper = kwargs.get('section_mapper', {})
         self.inject_solve = kwargs.get('inject_solve', None)
 
+        # TODO: fix the segfault with kspgettype
         if level <= PERF:
             funcs = [
                 # KSP specific

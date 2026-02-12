@@ -201,6 +201,10 @@ class MatReuse(PetscObject):
 class VecScatter(PetscObject):
     dtype = CustomDtype('VecScatter')
 
+    @property
+    def _C_free(self):
+        return petsc_call('VecScatterDestroy', [Byref(self.function)])
+
 
 class StartPtr(PetscObject):
     def __init__(self, name, dtype):
@@ -228,7 +232,7 @@ class PetscSF(PetscObject):
     dtype = CustomDtype('PetscSF')
 
 
-class PETScStruct(LocalCompositeObject):
+class PETScStruct(LocalCompositeObject, PetscMixin):
 
     @property
     def time_dim_fields(self):
@@ -268,9 +272,34 @@ class CallbackUserStruct(PETScStruct):
 
 class JacobianStruct(PETScStruct):
     def __init__(self, name='jctx', pname='JacobianCtx', fields=None,
-                 modifier='', liveness='lazy'):
+                 modifier='', liveness='lazy', no_of_submats=0):
         super().__init__(name, pname, fields, modifier, liveness)
+        self._no_of_submats = no_of_submats
     _C_modifier = None
+
+    @property
+    def _C_free(self):
+        # from IPython import embed; embed()
+        submats = [i for i in self.fields if isinstance(i, PointerMat)]
+        submats = submats[0]
+        # from IPython import embed; embed()
+        from devito.symbolics import FieldFromComposite
+        destroy_call = [petsc_call('MatDestroy', [Byref(FieldFromComposite(submats.indexed[i], self.function))]) for i in range(self._no_of_submats)]
+        destroy_call.append(petsc_call('PetscFree', [Byref(FieldFromComposite(submats.base, self.function))]))
+        return destroy_call
+        # return petsc_call('PetscFree', [Byref(self.function)])
+    
+
+    # @property
+    # def _C_free(self):
+
+    #     submats = [i for i in self.fields if isinstance(i, PointerMat)]
+    #     destroy_calls = [
+    #         petsc_call('MatDestroy', [Byref(self.indexify().subs({self.dim: i}))])
+    #         for i in range(self._no_of_submats)
+    #     ]
+    #     destroy_calls.append(petsc_call('PetscFree', [self.function]))
+    #     return destroy_calls
 
 
 class SubMatrixStruct(PETScStruct):
@@ -385,9 +414,11 @@ Counter = PetscInt(name='count')
 
 FREE_PRIORITY = {
     PETScArrayObject: 0,
-    Vec: 1,
-    Mat: 2,
-    SNES: 3,
-    PetscSectionGlobal: 4,
-    DM: 5,
+    JacobianStruct: 1,
+    VecScatter: 2,
+    Vec: 3,
+    Mat: 4,
+    SNES: 5,
+    PetscSectionGlobal: 6,
+    DM: 7,
 }

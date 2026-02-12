@@ -839,6 +839,7 @@ class BaseCallbackBuilder:
 class CoupledCallbackBuilder(BaseCallbackBuilder):
     def __init__(self, **kwargs):
         self._submatrices_callback = None
+        self._destroy_submat_callback = None
         super().__init__(**kwargs)
 
     @property
@@ -866,6 +867,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         self._make_whole_matvec()
         self._make_whole_formfunc()
         self._make_user_struct_efunc()
+        self._create_destroy_submatrix()
         self._create_submatrices()
         self._efuncs['PopulateMatContext'] = self.objs['dummyefunc']
 
@@ -1064,6 +1066,28 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
         return Uxreplace(subs).visit(formfunc_body)
+    
+    def _create_destroy_submatrix(self):
+        # Need a special destroy because each submatrix has a manually
+        # PetscMalloc'ed context attached via MatShellSetContext
+
+        objs = self.objs
+
+        get_ctx = petsc_call(
+            'MatShellGetContext', [objs['J'], Byref(objs['subctx'])]
+        )
+
+        free_ctx = petsc_call(
+            'PetscFree', [objs['subctx']]
+        )
+
+        body = self._make_callable_body((get_ctx, free_ctx))
+
+        cb = self._make_petsc_callable(
+            'DestroySubMatrixCtx', body, parameters=(objs['J']))
+
+        self._destroy_submat_callback = cb
+        self._efuncs[cb.name] = cb
 
     def _create_submatrices(self):
         body = self._submat_callback_body()
@@ -1153,6 +1177,15 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
 
         set_ctx = petsc_call('MatShellSetContext', [objs['block'], objs['subctx']])
 
+        set_destroy_mat_op = petsc_call(
+            'MatShellSetOperation',
+            [
+                objs['block'],
+                'MATOP_DESTROY',
+                MatShellSetOp(self._destroy_submat_callback.name, VOID._dtype, VOID._dtype),
+            ],
+        )
+
         mat_setup = petsc_call('MatSetUp', [objs['block']])
 
         assign_block = DummyExpr(objs['submat_arr'].indexed[i], objs['block'])
@@ -1169,6 +1202,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
             dm_set_ctx,
             matset_dm,
             set_ctx,
+            set_destroy_mat_op,
             mat_setup,
             assign_block
         )

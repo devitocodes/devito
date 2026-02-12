@@ -119,7 +119,7 @@ class CoupledTypeBuilder(BaseTypeBuilder):
 
         base_dict['jacctx'] = JacobianStruct(
             name=sreg.make_name(prefix=objs['ljacctx'].name),
-            fields=objs['ljacctx'].fields,
+            fields=objs['ljacctx'].fields, no_of_submats=2
         )
 
         for sm in submatrices:
@@ -175,7 +175,7 @@ class CoupledTypeBuilder(BaseTypeBuilder):
             base_dict[f'{name}_ptr'] = StartPtr(
                 sreg.make_name(prefix=f'{name}_ptr'), t.dtype
             )
-            base_dict[f'xlocal{name}'] = CallbackVec(
+            base_dict[f'xlocal{name}'] = Vec(
                 sreg.make_name(prefix=f'xlocal{name}'), liveness='eager'
             )
             base_dict[f'Fglobal{name}'] = CallbackVec(
