@@ -119,7 +119,7 @@ class CoupledTypeBuilder(BaseTypeBuilder):
 
         base_dict['jacctx'] = JacobianStruct(
             name=sreg.make_name(prefix=objs['ljacctx'].name),
-            fields=objs['ljacctx'].fields, no_of_submats=2
+            fields=objs['ljacctx'].fields, no_of_submats=len(targets)*len(targets)
         )
 
         for sm in submatrices:

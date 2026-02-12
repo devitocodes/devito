@@ -279,27 +279,12 @@ class JacobianStruct(PETScStruct):
 
     @property
     def _C_free(self):
-        # from IPython import embed; embed()
         submats = [i for i in self.fields if isinstance(i, PointerMat)]
         submats = submats[0]
-        # from IPython import embed; embed()
         from devito.symbolics import FieldFromComposite
         destroy_call = [petsc_call('MatDestroy', [Byref(FieldFromComposite(submats.indexed[i], self.function))]) for i in range(self._no_of_submats)]
         destroy_call.append(petsc_call('PetscFree', [Byref(FieldFromComposite(submats.base, self.function))]))
         return destroy_call
-        # return petsc_call('PetscFree', [Byref(self.function)])
-    
-
-    # @property
-    # def _C_free(self):
-
-    #     submats = [i for i in self.fields if isinstance(i, PointerMat)]
-    #     destroy_calls = [
-    #         petsc_call('MatDestroy', [Byref(self.indexify().subs({self.dim: i}))])
-    #         for i in range(self._no_of_submats)
-    #     ]
-    #     destroy_calls.append(petsc_call('PetscFree', [self.function]))
-    #     return destroy_calls
 
 
 class SubMatrixStruct(PETScStruct):
