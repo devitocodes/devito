@@ -917,7 +917,7 @@ class TestCoupledLinear:
         # TODO: As noted in the other test, some efuncs are not reused
         # where reuse is possible, investigate.
         assert len(callbacks1) == 12
-        assert len(callbacks2) == 8
+        assert len(callbacks2) == 9
 
         # Check field_data type
         field0 = petsc1.rhs.field_data
@@ -991,16 +991,25 @@ class TestCoupledLinear:
 
         frees = op.body.frees
 
+        n_submats = n_fields*n_fields
+        # Jacobian struct submats
+        for i in range(n_submats):
+            assert str(frees[i]) == f'PetscCall(MatDestroy(&jctx0.submats[{i}]));'
+        assert str(frees[n_submats]) == 'PetscCall(PetscFree(jctx0.submats));'
+
+        offset = n_submats + 1
+
         # IS Destroy calls
         for i in range(n_fields):
-            assert str(frees[i]) == f'PetscCall(ISDestroy(&fields0[{i}]));'
-        assert str(frees[n_fields]) == 'PetscCall(PetscFree(fields0));'
+            assert str(frees[offset + i]) == f'PetscCall(ISDestroy(&fields0[{i}]));'
+        assert str(frees[offset + n_fields]) == 'PetscCall(PetscFree(fields0));'
+
+        offset += n_fields + 1
 
         # DM Destroy calls
         for i in range(n_fields):
-            assert str(frees[n_fields + 1 + i]) == \
-                f'PetscCall(DMDestroy(&subdms0[{i}]));'
-        assert str(frees[n_fields*2 + 1]) == 'PetscCall(PetscFree(subdms0));'
+            assert str(frees[offset + i]) == f'PetscCall(DMDestroy(&subdms0[{i}]));'
+        assert str(frees[offset + n_fields]) == 'PetscCall(PetscFree(subdms0));'
 
     @skipif('petsc')
     def test_dmda_dofs(self):
@@ -1443,7 +1452,7 @@ class TestCoupledLinear:
             '+ r1*a0[ix + 2][iy + 3]))*o0->h_x*o0->h_y;' in str(J00)
 
         # J00 and J11 are semantically identical so check efunc reuse
-        assert len(op._func_table.values()) == 9
+        assert len(op._func_table.values()) == 10
         # J00_MatMult0 is reused (in replace of J11_MatMult0)
         create = op._func_table['MatCreateSubMatrices0'].root
         assert 'MatShellSetOperation(submat_arr[0],' \

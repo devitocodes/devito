@@ -6,11 +6,11 @@ from devito.types.misc import PostIncrementIndex
 from devito.tools import frozendict
 
 from devito.petsc.types import (
-    PetscBundle, DM, Mat, CallbackVec, Vec, KSP, PC, SNES, PetscInt, StartPtr,
-    PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct, CallbackDM,
-    PetscMPIInt, PetscErrorCode, PointerMat, MatReuse, CallbackPointerDM,
-    CallbackPointerIS, CallbackMat, DummyArg, NofSubMats, PetscSectionGlobal,
-    PetscSectionLocal, PetscSF, CallbackPetscInt, CallbackPointerPetscInt, SingleIS
+    PetscBundle, DM, Mat, Vec, KSP, PC, SNES, PetscInt, StartPtr,
+    PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct,
+    PetscMPIInt, PetscErrorCode, PointerMat, MatReuse,
+    DummyArg, NofSubMats, PetscSectionGlobal,
+    PetscSectionLocal, PetscSF, CallbackPetscInt, PointerPetscInt, SingleIS
 )
 
 
@@ -46,7 +46,7 @@ class BaseTypeBuilder:
                 - 'localsize' (PetscInt): The local length of the solution vector.
                 - 'dmda' (DM): The DMDA object associated with this solve, linked to
                    the SNES object via `SNESSetDM`.
-                - 'callbackdm' (CallbackDM): The DM object accessed within callback
+                - 'callbackdm' (DM): The DM object accessed within callback
                    functions via `SNESGetDM`.
         """
         sreg = self.sregistry
@@ -60,13 +60,13 @@ class BaseTypeBuilder:
             'xglobal': Vec(sreg.make_name(prefix='xglobal')),
             'xlocal': Vec(sreg.make_name(prefix='xlocal')),
             'bglobal': Vec(sreg.make_name(prefix='bglobal')),
-            'blocal': CallbackVec(sreg.make_name(prefix='blocal')),
+            'blocal': Vec(sreg.make_name(prefix='blocal'), destroy=False),
             'ksp': KSP(sreg.make_name(prefix='ksp')),
             'pc': PC(sreg.make_name(prefix='pc')),
             'snes': SNES(snes_name),
             'localsize': PetscInt(sreg.make_name(prefix='localsize')),
             'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
-            'callbackdm': CallbackDM(sreg.make_name(prefix='dm')),
+            'callbackdm': DM(sreg.make_name(prefix='dm'), destroy=False),
             'snes_prefix': String(formatted_prefix),
         }
 
@@ -129,9 +129,9 @@ class CoupledTypeBuilder(BaseTypeBuilder):
                 name=f'{name}ctx',
                 fields=objs['subctx'].fields,
             )
-            base_dict[f'{name}X'] = CallbackVec(f'{name}X')
-            base_dict[f'{name}Y'] = CallbackVec(f'{name}Y')
-            base_dict[f'{name}F'] = CallbackVec(f'{name}F')
+            base_dict[f'{name}X'] = Vec(f'{name}X', destroy=False)
+            base_dict[f'{name}Y'] = Vec(f'{name}Y', destroy=False)
+            base_dict[f'{name}F'] = Vec(f'{name}F', destroy=False)
 
         # Bundle objects/metadata required by the coupled residual callback
         f_components, x_components = [], []
@@ -178,17 +178,17 @@ class CoupledTypeBuilder(BaseTypeBuilder):
             base_dict[f'xlocal{name}'] = Vec(
                 sreg.make_name(prefix=f'xlocal{name}'), liveness='eager'
             )
-            base_dict[f'Fglobal{name}'] = CallbackVec(
-                sreg.make_name(prefix=f'Fglobal{name}'), liveness='eager'
+            base_dict[f'Fglobal{name}'] = Vec(
+                sreg.make_name(prefix=f'Fglobal{name}'), liveness='eager', destroy=False
             )
-            base_dict[f'Xglobal{name}'] = CallbackVec(
-                sreg.make_name(prefix=f'Xglobal{name}')
+            base_dict[f'Xglobal{name}'] = Vec(
+                sreg.make_name(prefix=f'Xglobal{name}'), destroy=False
             )
             base_dict[f'xglobal{name}'] = Vec(
                 sreg.make_name(prefix=f'xglobal{name}')
             )
-            base_dict[f'blocal{name}'] = CallbackVec(
-                sreg.make_name(prefix=f'blocal{name}'), liveness='eager'
+            base_dict[f'blocal{name}'] = Vec(
+                sreg.make_name(prefix=f'blocal{name}'), liveness='eager', destroy=False
             )
             base_dict[f'bglobal{name}'] = Vec(
                 sreg.make_name(prefix=f'bglobal{name}')
@@ -220,7 +220,7 @@ class ConstrainedBCTypeBuilder(BaseTypeBuilder):
         base_dict['numBCPtr'] = CallbackPetscInt(
             name=sreg.make_name(prefix='numBCPtr'), initvalue=0
         )
-        base_dict['bcPointsArr'] = CallbackPointerPetscInt(
+        base_dict['bcPointsArr'] = PointerPetscInt(
             name=sreg.make_name(prefix='bcPointsArr')
         )
         base_dict['k_iter'] = PostIncrementIndex(
@@ -246,7 +246,7 @@ cols = PointerIS(name='cols')
 objs = frozendict({
     'size': PetscMPIInt(name='size'),
     'err': PetscErrorCode(name='err'),
-    'block': CallbackMat('block'),
+    'block': Mat('block', destroy=False),
     'submat_arr': PointerMat(name='submat_arr'),
     'subblockrows': PetscInt('subblockrows'),
     'subblockcols': PetscInt('subblockcols'),
@@ -254,11 +254,11 @@ objs = frozendict({
     'colidx': PetscInt('colidx'),
     'J': Mat('J'),
     'X': Vec('X'),
-    'xloc': CallbackVec('xloc'),
+    'xloc': Vec('xloc', destroy=False),
     'Y': Vec('Y'),
-    'yloc': CallbackVec('yloc'),
+    'yloc': Vec('yloc', destroy=False),
     'F': Vec('F'),
-    'floc': CallbackVec('floc'),
+    'floc': Vec('floc', destroy=False),
     'B': Vec('B'),
     'nfields': PetscInt('nfields'),
     'irow': PointerIS(name='irow'),
@@ -270,12 +270,12 @@ objs = frozendict({
     'rows': rows,
     'cols': cols,
     'Subdms': subdms,
-    'LocalSubdms': CallbackPointerDM(name='subdms'),
+    'LocalSubdms': PointerDM(name='subdms', destroy=False),
     'Fields': fields,
-    'LocalFields': CallbackPointerIS(name='fields'),
+    'LocalFields': PointerIS(name='fields', destroy=False),
     'Submats': submats,
     'ljacctx': JacobianStruct(
-        fields=[subdms, fields, submats], modifier=' *'
+        fields=[subdms, fields, submats], modifier=' *', destroy=False
     ),
     'subctx': SubMatrixStruct(fields=[rows, cols]),
     'dummyctx': Symbol('lctx'),

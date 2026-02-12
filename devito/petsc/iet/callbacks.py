@@ -1066,7 +1066,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
         return Uxreplace(subs).visit(formfunc_body)
-    
+
     def _create_destroy_submatrix(self):
         # Need a special destroy because each submatrix has a manually
         # PetscMalloc'ed context attached via MatShellSetContext
@@ -1177,12 +1177,14 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
 
         set_ctx = petsc_call('MatShellSetContext', [objs['block'], objs['subctx']])
 
+        destroy_cb = self._destroy_submat_callback.name
+
         set_destroy_mat_op = petsc_call(
             'MatShellSetOperation',
             [
                 objs['block'],
                 'MATOP_DESTROY',
-                MatShellSetOp(self._destroy_submat_callback.name, VOID._dtype, VOID._dtype),
+                MatShellSetOp(destroy_cb, VOID._dtype, VOID._dtype),
             ],
         )
 
