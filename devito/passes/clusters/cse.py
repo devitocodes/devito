@@ -36,6 +36,18 @@ def retrieve_ctemps(exprs, mode='all'):
     return search(exprs, lambda expr: isinstance(expr, CTemp), mode, 'dfs')
 
 
+def cse_dtype(exprdtype, cdtype):
+    """
+    Return the dtype of a CSE temporary given the dtype of the expression to be
+    captured and the cluster's dtype.
+    """
+    if np.issubdtype(cdtype, np.complexfloating):
+        return np.promote_types(exprdtype, cdtype(0).real.__class__).type
+    else:
+        # Real cluster, can safely promote to the largest precision
+        return np.promote_types(exprdtype, cdtype).type
+
+
 @cluster_pass
 def cse(cluster, sregistry=None, options=None, **kwargs):
     """
@@ -86,7 +98,7 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     if cluster.is_fence:
         return cluster
 
-    make_dtype = lambda e: np.promote_types(e.dtype, dtype).type
+    make_dtype = lambda e: cse_dtype(e.dtype, dtype)
     make = lambda e: CTemp(name=sregistry.make_name(), dtype=make_dtype(e))
 
     exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)

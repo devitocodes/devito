@@ -234,6 +234,19 @@ class LoweredEq(IREq):
                 shift = 0
             expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
 
+        # Merge conditionals when possible. E.g if we have an implicit_dim
+        # and there is a dimension with the same parent, we ca merged
+        # its condition
+        for d in input_expr.implicit_dims:
+            if d not in conditionals:
+                continue
+            for cd in dict(conditionals):
+                if cd.parent == d.parent and cd != d:
+                    cond = conditionals.pop(d)
+                    mode = cd.relation and d.relation
+                    conditionals[cd] = mode(cond, conditionals[cd])
+                    break
+
         conditionals = frozendict(conditionals)
 
         # Lower all Differentiable operations into SymPy operations

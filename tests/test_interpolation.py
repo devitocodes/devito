@@ -855,6 +855,21 @@ def test_point_symbol_types(dtype, expected):
     assert point_symbol.dtype is expected
 
 
+@pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+def test_interp_complex(dtype):
+    grid = Grid((11, 11, 11))
+
+    sc = SparseFunction(name="sc", grid=grid, npoint=1, dtype=dtype)
+    sc.coordinates.data[:] = [.5, .5, .5]
+
+    fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
+    fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
+    opC = Operator([sc.interpolate(expr=fc)], name="OpC")
+    opC()
+
+    assert np.isclose(sc.data[0], fc.data[5, 5, 5])
+
+
 class SD0(SubDomain):
     name = 'sd0'
 
