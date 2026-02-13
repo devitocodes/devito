@@ -474,7 +474,7 @@ class Operator(Callable):
 
     @classmethod
     @timed_pass(name='lowering.IET')
-    def _lower_iet(cls, uiet, profiler=None, **kwargs):
+    def _lower_iet(cls, uiet, **kwargs):
         """
         Iteration/Expression tree lowering:
 
@@ -496,7 +496,7 @@ class Operator(Callable):
         # Instrument the IET for C-level profiling
         # Note: this is postponed until after _specialize_iet because during
         # specialization further Sections may be introduced
-        cls._Target.instrument(graph, profiler=profiler, **kwargs)
+        cls._Target.instrument(graph, **kwargs)
 
         # Extract the necessary macros from the symbolic objects
         generate_macros(graph, **kwargs)

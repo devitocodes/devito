@@ -160,27 +160,36 @@ class LangTransformer:
     The constructs of the target language. To be specialized by a subclass.
     """
 
-    def __init__(self, key, sregistry, platform, compiler):
+    def __init__(self, key=None, options=None, sregistry=None, platform=None,
+                 compiler=None, profiler=None, **kwargs):
         """
         Parameters
         ----------
         key : callable, optional
             Return True if an Iteration can and should be parallelized,
             False otherwise.
+        options : dict, optional
+            The optimization options.
         sregistry : SymbolRegistry
             The symbol registry, to access the symbols appearing in an IET.
         platform : Platform
             The underlying platform.
         compiler : Compiler
             The underlying JIT compiler.
+        profiler : Profiler
+            The underlying Profiler, used to instrument the IET.
         """
         if key is not None:
             self.key = key
         else:
             self.key = lambda i: False
+
+        self.uses_mpi = options['mpi']
+
         self.sregistry = sregistry
         self.platform = platform
         self.compiler = compiler
+        self.profiler = profiler
 
     @iet_pass
     def make_parallel(self, iet):
@@ -228,11 +237,11 @@ class ShmTransformer(LangTransformer):
     shared-memory-parallel IETs for CPUs.
     """
 
-    def __init__(self, key, sregistry, options, platform, compiler):
+    def __init__(self, key, options=None, **kwargs):
         """
         Parameters
         ----------
-        key : callable, optional
+        key : callable
             Return True if an Iteration can and should be parallelized,
             False otherwise.
         sregistry : SymbolRegistry
@@ -251,12 +260,13 @@ class ShmTransformer(LangTransformer):
                iteration exceeds this threshold. Otherwise, use static scheduling.
              * 'par-nested': nested parallelism if the number of hyperthreads
                per core is greater than this threshold.
+             * 'mpi': tells whether MPI is enabled.
         platform : Platform
             The underlying platform.
         compiler : Compiler
             The underlying JIT compiler.
         """
-        super().__init__(key, sregistry, platform, compiler)
+        super().__init__(key, options=options, **kwargs)
 
         self.collapse_ncores = options['par-collapse-ncores']
         self.collapse_work = options['par-collapse-work']
@@ -391,7 +401,7 @@ class DeviceAwareMixin:
         return self.sregistry.deviceid
 
     @iet_pass
-    def initialize(self, iet, options=None):
+    def initialize(self, iet):
         """
         An `iet_pass` which transforms an IET such that the target language
         runtime is initialized.
@@ -416,7 +426,7 @@ class DeviceAwareMixin:
             # Fallback -- might end up here because the Operator has no
             # halo exchanges, but we now need it nonetheless to perform
             # the rank-GPU assignment
-            if options['mpi']:
+            if self.uses_mpi:
                 for i in iet.parameters:
                     try:
                         return i.grid.distributor._obj_comm

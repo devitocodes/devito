@@ -180,18 +180,13 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
-
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
 
         # GPU parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+        parizer = cls._Target.Parizer(**kwargs)
         parizer.make_parallel(graph)
-        parizer.initialize(graph, options=options)
+        parizer.initialize(graph)
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
@@ -248,11 +243,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
-
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
 
@@ -260,9 +250,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         relax_incr_dimensions(graph, **kwargs)
 
         # GPU parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+        parizer = cls._Target.Parizer(**kwargs)
         parizer.make_parallel(graph)
-        parizer.initialize(graph, options=options)
+        parizer.initialize(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -325,22 +315,17 @@ class DeviceCustomOperator(DeviceOperatorMixin, CustomOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
-
-        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+        parizer = cls._Target.Parizer(**kwargs)
         orchestrator = cls._Target.Orchestrator(**kwargs)
 
         return {
             'parallel': parizer.make_parallel,
             'orchestrate': partial(orchestrator.process),
-            'pthreadify': partial(pthreadify, sregistry=sregistry),
+            'pthreadify': partial(pthreadify, **kwargs),
             'mpi': partial(mpiize, **kwargs),
             'linearize': partial(linearize, **kwargs),
             'prodders': partial(hoist_prodders),
-            'init': partial(parizer.initialize, options=options)
+            'init': partial(parizer.initialize)
         }
 
     _known_passes = (
