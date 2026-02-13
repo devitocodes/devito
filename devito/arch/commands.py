@@ -12,6 +12,7 @@ __all__ = [
     'lscpu',
     'lshw',
     'lspci',
+    'lspci_gpu',
     'nvidia_smi',
     'nvidia_smi_memory',
     'proc_cpuinfo',
@@ -171,7 +172,7 @@ def nvidia_smi_memory():
             # the output format (though we still have tests in place that
             # will catch this)
             vals = []
-            for value in line.split(', ')
+            for value in line.split(', '):
                 _, v, unit = re.split(r'([0-9]+)\s', line)
                 assert unit == 'MiB'
                 vals.append(int(v)*10**6)
@@ -331,7 +332,7 @@ def lshw():
     return filter_real_gpus(gpu_infos)
 
 
-def lspci():
+def old_lspci():
     ret = run(['lspci'], capture_output=True, text=True)
     lines = ret.stdout.splitlines()
 
@@ -363,3 +364,38 @@ def lspci():
             gpu_infos.append(gpu_info)
 
     return filter_real_gpus(gpu_infos)
+
+
+def lspci():
+    ret = run(['lspci', '-mm', '-v'], capture_output=True, text=True)
+    blocks = ret.stdout.strip().split('\n\n')
+
+    pci_info = {}
+    for device in blocks:
+        line = device.splitlines()
+        slot = line[0].split(':', 1)[1].strip()
+        info = {
+            (part:=l.split(':', 1))[0]: part[1].strip()
+            for l in line[1:]
+        }
+        pci_info[slot] = info
+    return pci_info
+
+
+def lspci_gpu():
+    devices = lspci()
+
+    gpu_info = []
+    for dev in devices.values():
+        # Graphics cards are listed as VGA, 3D controllers or Displays in lspci
+        if any(sub in dev['Class'] for sub in ('VGA', '3D', 'Display')):
+            info = {}
+            info['class'] = dev['Class']
+            info['vendor'] = dev['Vendor']
+            info['device'] = dev['Device']
+            info['product'] = dev['Device']
+            info['architecture'] = 'unspecified'
+            info['physicalid'] = 'unknown'
+            gpu_info.append(info)
+
+    return filter_real_gpus(gpu_info)

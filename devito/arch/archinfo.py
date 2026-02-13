@@ -19,7 +19,9 @@ from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
 from devito.warnings import warn
 
-from .commands import lscpu, lshw, lspci, nvidia_smi, proc_cpuinfo, rocm_smi, sycl_ls
+from .commands import (
+    lscpu, lshw, lspci_gpu, nvidia_smi, proc_cpuinfo, rocm_smi, sycl_ls
+)
 
 
 __all__ = [  # noqa: RUF022
@@ -192,7 +194,7 @@ def get_cpu_info():
     try:
         cpu_info = cpuinfo.get_cpu_info()
     except Exception as e:
-        warn(f'Calling `cpuinfo.get_cpu_info()` faised an exception\n {e !s}')
+        warn(f'Calling `cpuinfo.get_cpu_info()` raised an exception\n {e !s}')
         cpu_info = {}
 
     cpu_info['logical'] = psutil.cpu_count(logical=True)
@@ -619,11 +621,11 @@ def get_gpu_info():
     - architecture: str, fallback 'unspecified'
     """
 
-    for call in [nvidia_smi, rocm_smi, sycl_ls, lshw, lspci]:
+    for call in [nvidia_smi, rocm_smi, sycl_ls, lshw, lspci_gpu]:
         try:
             gpu_info = homogenise_gpus(call())
             break
-        except (OSError):
+        except (OSError, FileNotFoundError, CalledProcessError):
             gpu_info = {}
 
     # Attach callbacks to retrieve instantaneous memory info
