@@ -213,7 +213,7 @@ class LoweredEq(IREq):
                                   relations=ordering.relations, mode='partial')
         ispace = IterationSpace(intervals, iterators)
 
-        # Construct the conditionals and replace the ConditionalDimensions in `expr`
+        # Construct the conditionals
         conditionals = {}
         for d in ordering:
             if not d.is_Conditional:
@@ -225,14 +225,6 @@ class LoweredEq(IREq):
                 if d._factor is not None:
                     cond = d.relation(cond, GuardFactor(d))
                 conditionals[d] = cond
-            # Replace dimension with index
-            index = d.index
-            if d.condition is not None and d in expr.free_symbols:
-                index = index - relational_min(d.condition, d.parent)
-                shift = relational_shift(d.condition, d.parent)
-            else:
-                shift = 0
-            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
 
         # Merge conditionals when possible. E.g if we have an implicit_dim
         # and there is a dimension with the same parent, we ca merged
@@ -248,6 +240,14 @@ class LoweredEq(IREq):
                     break
 
         conditionals = frozendict(conditionals)
+
+        # Replace the ConditionalDimensions in `expr`
+        for d, cond in conditionals.items():
+            # Replace dimension with index
+            index = d.index
+            index = index - relational_min(cond, d.parent)
+            shift = relational_shift(cond, d.parent)
+            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
 
         # Lower all Differentiable operations into SymPy operations
         rhs = diff2sympy(expr.rhs)

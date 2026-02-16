@@ -302,7 +302,22 @@ def relational_shift(expr, s):
     if not expr.has(s):
         return 0
 
-    try:
-        return expr._as_min
-    except (TypeError, AttributeError):
+    return _relational_shift(expr, s)
+
+
+@singledispatch
+def _relational_shift(s, expr):
+    return 0
+
+
+@_relational_shift.register(sympy.Or)
+@_relational_shift.register(sympy.And)
+def _(expr, s):
+    return sum([_relational_shift(e, s) for e in expr.args])
+
+
+@_relational_shift.register(sympy.Eq)
+def _(expr, s):
+    if isinstance(expr.lhs, sympy.Mod):
         return 0
+    return expr._as_min
