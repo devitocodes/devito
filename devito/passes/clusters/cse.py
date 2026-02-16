@@ -103,14 +103,9 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     if cluster.is_fence:
         return cluster
 
-<<<<<<< HEAD
     def make(e):
         edtype = cse_dtype(e.dtype, dtype)
         return CTemp(name=sregistry.make_name(), dtype=edtype)
-=======
-    make_dtype = lambda e: cse_dtype(e.dtype, dtype)
-    make = lambda e: CTemp(name=sregistry.make_name(), dtype=make_dtype(e))
->>>>>>> 54c5e49e2 (api: fix interpolate with complex dtype)
 
     exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)
 
