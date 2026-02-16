@@ -754,7 +754,7 @@ def test_buffer_reuse():
     assert all(np.all(vsave.data[i-1] == i + 1) for i in range(1, nt + 1))
 
 
-def test_multi_cond():
+def test_multi_cond_v0():
     grid = Grid((3, 3))
     nt = 5
 
@@ -774,14 +774,47 @@ def test_multi_cond():
     T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
 
     eqs = [Eq(T, grid.time_dim)]
-    # this to save times from 0 to nt - 2
-    eqs.append(Eq(f, T))
-    # this to save the last time sample nt - 1
-    eqs.append(Eq(f.forward, T+1, implicit_dims=ctend))
+    # This saves
+    # - All subsampled times since ct1 is the dimension of f
+    # - The last time step (ntmod - 2) through ctend (since it's set as ct1 or ctend)
+    eqs.append(Eq(f, T, implicit_dims=ctend))
 
     # run operator with buffering
     op = Operator(eqs, opt='buffering')
     op.apply(time_m=0, time_M=ntmod-2)
 
-    for i in range(nt):
+    for i in range(nt-1):
         assert np.allclose(f.data[i], i*2)
+    assert np.allclose(f.data[nt-1], ntmod - 2)
+
+
+def test_multi_cond_v1():
+    grid = Grid((3, 3))
+    nt = 5
+
+    x, y = grid.dimensions
+
+    factor = 2
+    ntmod = (nt - 1) * factor + 1
+
+    ct1 = ConditionalDimension(name="ct1", parent=grid.time_dim,
+                               factor=factor, relation=Or,
+                               condition=CondEq(grid.time_dim, ntmod - 2))
+
+    f = TimeFunction(grid=grid, name='f', time_order=0,
+                     space_order=0, save=nt, time_dim=ct1)
+    T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
+
+    eqs = [Eq(T, grid.time_dim)]
+    # This saves
+    # - All subsampled times since ct1 is the dimension of f with factor 2
+    # - The last time step (ntmod - 2) since ct1 also has the condition for ntmod - 2
+    eqs.append(Eq(f, T))
+
+    # run operator with buffering
+    op = Operator(eqs, opt='buffering')
+    op.apply(time_m=0, time_M=ntmod-2)
+
+    for i in range(nt-1):
+        assert np.allclose(f.data[i], i*2)
+    assert np.allclose(f.data[nt-1], ntmod - 2)
