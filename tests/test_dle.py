@@ -109,6 +109,35 @@ def test_cache_blocking_structure(blockinner, openmp, expected):
         assert 'omp for' in trees[0][1].pragmas[0].ccode.value
 
 
+@skipif('noomp')
+@pytest.mark.parametrize("blockinner", [False, True])
+def test_cache_blocking_openmp_execution(blockinner):
+    """
+    Verify that blockinner + OpenMP actually compiles and produces
+    correct results. This catches canonical-form violations in the
+    generated for-loop headers (e.g. uindices in the init clause).
+    """
+    grid = Grid(shape=(12, 12, 12), dtype=np.float64)
+
+    u = TimeFunction(name='u', grid=grid, space_order=4)
+    v = TimeFunction(name='v', grid=grid, space_order=4)
+
+    eqns = [Eq(u.forward, u.laplace + 1.)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt=('advanced', {'openmp': True,
+                                            'blockinner': blockinner,
+                                            'par-collapse-ncores': 1}))
+
+    u.data[:] = 0.1
+    op0(time_M=5)
+
+    v.data[:] = 0.1
+    op1(u=v, time_M=5)
+
+    assert np.allclose(u.data, v.data, rtol=1e-12)
+
+
 def test_cache_blocking_structure_subdims():
     """
     Test that:
@@ -512,6 +541,34 @@ def test_cache_blocking_hierarchical(blockshape0, blockshape1, exception):
         assert exception
     except Exception as e:
         raise AssertionError('Assert False') from e
+
+
+@pytest.mark.parametrize("blockinner", [False, True])
+def test_cache_blocking_hierarchical_high_order(blockinner):
+    """
+    Verify that blocklevels=2 works correctly with high space_order
+    stencils. High-order stencils produce literal Integer step sizes
+    in BlockDimension._arg_values, exercising a different code path
+    than low-order stencils.
+    """
+    grid = Grid(shape=(45, 45, 45), dtype=np.float64)
+
+    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=8)
+    v = TimeFunction(name='v', grid=grid, time_order=1, space_order=8)
+
+    # Use a small coefficient to keep the stencil stable
+    eqns = [Eq(u.forward, u + 1e-4 * u.laplace)]
+
+    op0 = Operator(eqns, opt='noop')
+    op1 = Operator(eqns, opt=('advanced', {'blockinner': blockinner,
+                                            'blocklevels': 2}))
+
+    u.data[0, :] = np.linspace(-1, 1, 45**3).reshape((45, 45, 45))
+    v.data[0, :] = u.data[0, :]
+    op0(u=u, time_M=10)
+    op1(u=v, time_M=10)
+
+    assert np.allclose(u.data, v.data, rtol=1e-12)
 
 
 @pytest.mark.parametrize("blockinner", [False, True])

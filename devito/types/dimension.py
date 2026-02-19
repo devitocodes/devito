@@ -1344,7 +1344,11 @@ class BlockDimension(AbstractIncrDimension):
         elif isinstance(self.parent, BlockDimension):
             # `self` is a BlockDimension within an outer BlockDimension, but
             # no value supplied -> the sub-block will span the entire block
-            return {name: args[self.parent.step.name]}
+            try:
+                return {name: args[self.parent.step.name]}
+            except AttributeError:
+                # Parent's step is a literal (e.g. Integer), use it directly
+                return {name: int(self.parent.step)}
         else:
             # TODO": Check the args for space order and apply heuristics (e.g.,
             # `2*space_order`?) for even better block sizes
@@ -1365,12 +1369,18 @@ class BlockDimension(AbstractIncrDimension):
         value = args[name]
         if isinstance(self.parent, BlockDimension):
             # sub-BlockDimensions must be perfect divisors of their parent
-            parent_value = args[self.parent.step.name]
+            try:
+                parent_step_name = self.parent.step.name
+                parent_value = args[parent_step_name]
+            except AttributeError:
+                # Parent's step is a literal (e.g. Integer)
+                parent_step_name = str(self.parent.step)
+                parent_value = int(self.parent.step)
             if parent_value % value > 0:
                 raise InvalidArgument(
                     f'Illegal block size `{name}={value}`: sub-block sizes '
                     'must divide the parent block size evenly '
-                    f'(`{self.parent.step.name}={parent_value}`)'
+                    f'(`{parent_step_name}={parent_value}`)'
                 )
         else:
             if value < 0:

@@ -647,14 +647,47 @@ class CGen(Visitor):
             loop_inc = f'{o.index} += {o.limits[2]}'
 
         # Append unbounded indices, if any
-        if o.uindices:
-            uinit = [f'{i.name} = {self.ccode(i.symbolic_min)}' for i in o.uindices]
+        if o.uindices and o.pragmas:
+            # When pragmas are present (e.g., OpenMP parallel for), the
+            # for-loop header must be in canonical form: a single loop
+            # variable in init/cond/incr. Compute uindex values inside
+            # the loop body instead, where they are automatically
+            # thread-private
+            uinit_stmts = []
+            for i in o.uindices:
+                if i.is_Modulo:
+                    # Modulo dimensions: symbolic_incr computes the
+                    # value from the parent dimension (the loop variable)
+                    value = i.symbolic_incr
+                else:
+                    # IncrDimension: derive value from loop variable
+                    # position relative to loop start
+                    if o.direction == Backward:
+                        n_iters = _max - o.dim
+                    else:
+                        n_iters = o.dim - _min
+                    _step = o.limits[2]
+                    if _step != 1:
+                        n_iters = n_iters / _step
+                    if i.symbolic_incr != 1:
+                        value = i.symbolic_min + n_iters * i.symbolic_incr
+                    else:
+                        value = i.symbolic_min + n_iters
+                uinit_stmts.append(
+                    c.Statement(f'int {i.name} = {self.ccode(value)}')
+                )
+            body = list(uinit_stmts) + list(body)
+        elif o.uindices:
+            uinit = [f'{i.name} = {self.ccode(i.symbolic_min)}'
+                     for i in o.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
 
             ustep = []
             for i in o.uindices:
                 op = '=' if i.is_Modulo else '+='
-                ustep.append(f'{i.name} {op} {self.ccode(i.symbolic_incr)}')
+                ustep.append(
+                    f'{i.name} {op} {self.ccode(i.symbolic_incr)}'
+                )
             loop_inc = c.Line(', '.join([loop_inc] + ustep))
 
         # Create For header+body
