@@ -924,6 +924,43 @@ class Operator(Callable):
         # Hook for enriching memory report with additional metadata
         return {}
 
+    def specialize(self, **kwargs):
+        """
+        """
+
+        specialize = as_tuple(kwargs.pop('specialize', []))
+
+        if not specialize:
+            return self, kwargs
+
+        # FIXME: Cannot cope with things like sizes/strides yet since it only
+        # looks at the parameters
+
+        # Build the arguments list for specialization
+        with self._profiler.timer_on('specialization'):
+            args = self.arguments(**kwargs)
+            # Uses parameters here since Specializer needs {symbol: sympy value}
+            specialized_values = {p: sympify(args[p.name])
+                                  for p in self.parameters
+                                  if p.name in specialize}
+
+            op = Specializer(specialized_values).visit(self)
+
+        with switch_log_level(comm=args.comm):
+            self._emit_args_profiling('specialization')
+
+        unspecialized_kwargs = {k: v for k, v in kwargs.items()
+                                if k not in specialize}
+
+        return op, unspecialized_kwargs
+
+    def apply_specialize(self, **kwargs):
+        """
+        """
+
+        op, unspecialized_kwargs = self.specialize(**kwargs)
+        return op.apply(**unspecialized_kwargs)
+
     def apply(self, **kwargs):
         """
         Execute the Operator.
@@ -986,29 +1023,6 @@ class Operator(Callable):
         >>> op = Operator(Eq(u3.forward, u3 + 1))
         >>> summary = op.apply(time_M=10)
         """
-        # Get items expected to be specialized
-        specialize = as_tuple(kwargs.pop('specialize', []))
-
-        if specialize:
-            # FIXME: Cannot cope with things like sizes/strides yet since it only
-            # looks at the parameters
-
-            # Build the arguments list for specialization
-            with self._profiler.timer_on('specialization'):
-                args = self.arguments(**kwargs)
-                # Uses parameters here since Specializer needs {symbol: sympy value}
-                specialized_values = {p: sympify(args[p.name])
-                                      for p in self.parameters if p.name in specialize}
-
-                op = Specializer(specialized_values).visit(self)
-
-            with switch_log_level(comm=args.comm):
-                self._emit_args_profiling('specialization')
-
-            unspecialized_kwargs = {k: v for k, v in kwargs.items()
-                                    if k not in specialize}
-
-            return op.apply(**unspecialized_kwargs)
 
         # Compile the operator before building the arguments list
         # to avoid out of memory with greedy compilers
