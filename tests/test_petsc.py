@@ -30,8 +30,8 @@ def command_line():
     # Random prefixes to validate command line argument parsing
     prefix = (
         'd17weqroeg', 'riabfodkj5', 'fir8o3lsak',
-        'zwejklqn25', 'qtr2vfvwiu')
-
+        'zwejklqn25', 'qtr2vfvwiu'
+    )
     petsc_option = (
         ('ksp_rtol',),
         ('ksp_rtol', 'ksp_atol'),
@@ -52,6 +52,9 @@ def command_line():
         for o, v in zip(opt, val, strict=True):
             argv.extend([f'-{p}_{o}', str(v)])
         expected[p] = zip(opt, val)
+
+    if os.environ.get('DEVITO_PYTEST_FLAG', '0') == '2':
+        argv.extend(['-malloc_dump'])
     return argv, expected
 
 
@@ -1696,7 +1699,8 @@ class TestSolverParameters:
         self.eq2 = Eq(self.g.laplace, self.h)
 
     @skipif('petsc')
-    def test_different_solver_params(self):
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_different_solver_params(self, mode):
         # Explicitly set the solver parameters
         solver1 = petscsolve(
             self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
@@ -1717,7 +1721,8 @@ class TestSolverParameters:
             in str(op._func_table['SetPetscOptions1'].root)
 
     @skipif('petsc')
-    def test_options_prefix(self):
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_options_prefix(self, mode):
         solver1 = petscsolve(self.eq1, self.e,
                              solver_parameters={'ksp_rtol': '1e-10'},
                              options_prefix='poisson1')
@@ -1740,7 +1745,8 @@ class TestSolverParameters:
             in str(op._func_table['SetPetscOptions1'].root)
 
     @skipif('petsc')
-    def test_options_no_value(self):
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_options_no_value(self, mode):
         """
         Test solver parameters that do not require a value, such as
         `snes_view` and `ksp_view`.
@@ -1929,84 +1935,84 @@ class TestSolverParameters:
         for opt, val in expected[prefix]:
             assert entry.KSPGetTolerances[opt.removeprefix('ksp_')] == val
 
-    # @skipif('petsc')
-    # @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
-    # def test_command_line_priority_ksp_type(self, command_line, log_level):
-    #     """
-    #     Test the solver parameter 'ksp_type' specified via the command line
-    #     take precedence over the one specified in the `solver_parameters` dict.
-    #     """
-    #     prefix = 'zwejklqn25'
-    #     _, expected = command_line
+    @skipif('petsc')
+    @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
+    def test_command_line_priority_ksp_type(self, command_line, log_level):
+        """
+        Test the solver parameter 'ksp_type' specified via the command line
+        take precedence over the one specified in the `solver_parameters` dict.
+        """
+        prefix = 'zwejklqn25'
+        _, expected = command_line
 
-    #     # Set `ksp_type`` in the solver parameters, which should be overridden
-    #     # by the command line value (which is set to `cg` -
-    #     # see the `command_line` fixture).
-    #     params = {'ksp_type': 'richardson'}
+        # Set `ksp_type`` in the solver parameters, which should be overridden
+        # by the command line value (which is set to `cg` -
+        # see the `command_line` fixture).
+        params = {'ksp_type': 'richardson'}
 
-    #     solver1 = petscsolve(
-    #         self.eq1, target=self.e,
-    #         solver_parameters=params,
-    #         options_prefix=prefix
-    #     )
-    #     with switchconfig(language='petsc', log_level=log_level):
-    #         op = Operator(solver1)
-    #         summary = op.apply()
+        solver1 = petscsolve(
+            self.eq1, target=self.e,
+            solver_parameters=params,
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc', log_level=log_level):
+            op = Operator(solver1)
+            summary = op.apply()
 
-    #     petsc_summary = summary.petsc
-    #     entry = petsc_summary.get_entry('section0', prefix)
-    #     for _, val in expected[prefix]:
-    #         assert entry.KSPGetType == val
-    #         assert not entry.KSPGetType == params['ksp_type']
+        petsc_summary = summary.petsc
+        entry = petsc_summary.get_entry('section0', prefix)
+        for _, val in expected[prefix]:
+            assert entry.KSPGetType == val
+            assert not entry.KSPGetType == params['ksp_type']
 
-    # @skipif('petsc')
-    # def test_command_line_priority_ccode(self, command_line):
-    #     """
-    #     Verify that if an option is set via the command line,
-    #     the corresponding entry in `linear_solve_defaults` or `solver_parameters`
-    #     is not set or cleared in the generated code. (The command line option
-    #     will have already been set in the global PetscOptions database
-    #     during PetscInitialize().)
-    #     """
-    #     prefix = 'qtr2vfvwiu'
+    @skipif('petsc')
+    def test_command_line_priority_ccode(self, command_line):
+        """
+        Verify that if an option is set via the command line,
+        the corresponding entry in `linear_solve_defaults` or `solver_parameters`
+        is not set or cleared in the generated code. (The command line option
+        will have already been set in the global PetscOptions database
+        during PetscInitialize().)
+        """
+        prefix = 'qtr2vfvwiu'
 
-    #     solver = petscsolve(
-    #         self.eq1, target=self.e,
-    #         # Specify a solver parameter that is not set via the
-    #         # command line (see the `command_line` fixture for this prefix).
-    #         solver_parameters={'ksp_rtol': '1e-10'},
-    #         options_prefix=prefix
-    #     )
-    #     with switchconfig(language='petsc'):
-    #         op = Operator(solver)
+        solver = petscsolve(
+            self.eq1, target=self.e,
+            # Specify a solver parameter that is not set via the
+            # command line (see the `command_line` fixture for this prefix).
+            solver_parameters={'ksp_rtol': '1e-10'},
+            options_prefix=prefix
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
 
-    #     set_options_callback = str(op._func_table['SetPetscOptions0'].root)
-    #     clear_options_callback = str(op._func_table['ClearPetscOptions0'].root)
+        set_options_callback = str(op._func_table['SetPetscOptions0'].root)
+        clear_options_callback = str(op._func_table['ClearPetscOptions0'].root)
 
-    #     # Check that the `ksp_rtol` option IS set and cleared explicitly
-    #     # since it is NOT set via the command line.
-    #     assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_rtol","1e-10")' \
-    #         in set_options_callback
-    #     assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_rtol")' \
-    #         in clear_options_callback
+        # Check that the `ksp_rtol` option IS set and cleared explicitly
+        # since it is NOT set via the command line.
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_rtol","1e-10")' \
+            in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_rtol")' \
+            in clear_options_callback
 
-    #     # Check that the `ksp_divtol` and `ksp_type` options are NOT set
-    #     # or cleared explicitly since they ARE set via the command line.
-    #     assert f'PetscOptionsSetValue(NULL,"-{prefix}_div_tol",' \
-    #         not in set_options_callback
-    #     assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_type",' \
-    #         not in set_options_callback
-    #     assert f'PetscOptionsClearValue(NULL,"-{prefix}_div_tol"));' \
-    #         not in clear_options_callback
-    #     assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_type"));' \
-    #         not in clear_options_callback
+        # Check that the `ksp_divtol` and `ksp_type` options are NOT set
+        # or cleared explicitly since they ARE set via the command line.
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_div_tol",' \
+            not in set_options_callback
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_type",' \
+            not in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_div_tol"));' \
+            not in clear_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_type"));' \
+            not in clear_options_callback
 
-    #     # Check that options specifed by the `linear_solver_defaults`
-    #     # are still set and cleared
-    #     assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_atol",' \
-    #         in set_options_callback
-    #     assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_atol"));' \
-    #         in clear_options_callback
+        # Check that options specifed by the `linear_solver_defaults`
+        # are still set and cleared
+        assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_atol",' \
+            in set_options_callback
+        assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_atol"));' \
+            in clear_options_callback
 
 
 class TestHashing:
@@ -2196,6 +2202,34 @@ class TestGetInfo:
         assert entry2.KSPGetType == 'cg'
         assert entry2['KSPGetType'] == 'cg'
         assert entry2['kspgettype'] == 'cg'
+
+    @skipif('petsc')
+    def test_get_ksp_type_large_grid(self):
+        """
+        Test for a dangling-pointer segfault when reading KSPGetType
+        after op.apply().  KSPType is ``const char*`` into KSP-owned memory;
+        after SNESDestroy that pointer is invalid.  The crash only appeared
+        reliably on large grids (n=257) because the freed KSP memory must be
+        reclaimed by the heap before Python reads the profiler struct.
+        """
+        get_info = ['kspgettype']
+        grid = Grid(shape=(257, 257), dtype=np.float64)
+        e = Function(name='e', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid, space_order=2)
+        eq = Eq(e.laplace, f)
+
+        solver = petscsolve(
+            eq, target=e,
+            solver_parameters={'ksp_type': 'cg'},
+            options_prefix='test_ksp_type',
+            get_info=get_info
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+            summary = op.apply()
+
+        entry = summary.petsc.get_entry('section0', 'test_ksp_type')
+        assert entry.KSPGetType == 'cg'
 
 
 class TestPrinter:
@@ -2781,3 +2815,25 @@ class TestPetscSection:
             f"rank {rank}: expected {expected[rank]}, got {actual}"
 
     # TODO: add 2d and 3d tests
+
+
+# @skipif('petsc')
+# def test_apply_memory():
+
+#     nx = 81
+#     ny = 81
+
+#     grid = Grid(shape=(nx, ny), extent=(2., 2.), dtype=np.float64)
+
+#     u = Function(name='u', grid=grid, dtype=np.float64, space_order=2)
+#     v = Function(name='v', grid=grid, dtype=np.float64, space_order=2)
+
+#     v.data[:] = 5.0
+
+#     eq = Eq(v, u.laplace, subdomain=grid.interior)
+
+#     petsc = petscsolve([eq], u)
+
+#     with switchconfig(language='petsc'):
+#         op = Operator(petsc)
+#         op.apply()

@@ -6,7 +6,8 @@ from devito.logger import PERF
 from devito.tools import frozendict
 
 from devito.petsc.iet.nodes import petsc_call
-from devito.petsc.logging import petsc_return_variable_dict, PetscInfo
+from devito.petsc.logging import petsc_return_variable_dict, PetscInfo, KSPTYPE_MAX_LEN
+from devito.petsc.types import KSPType
 
 
 class PetscLogger:
@@ -22,14 +23,13 @@ class PetscLogger:
         self.section_mapper = kwargs.get('section_mapper', {})
         self.inject_solve = kwargs.get('inject_solve', None)
 
-        # TODO: fix the segfault with kspgettype
         if level <= PERF:
             funcs = [
                 # KSP specific
                 'kspgetiterationnumber',
                 'kspgettolerances',
                 'kspgetconvergedreason',
-                # 'kspgettype',
+                'kspgettype',
                 'kspgetnormtype',
                 # SNES specific
                 'snesgetiterationnumber',
@@ -94,10 +94,22 @@ class PetscLogger:
                 petsc_call(return_variable.name, [input] + by_ref_output)
             )
             # TODO: Perform a PetscCIntCast here?
-            exprs = [
-                DummyExpr(FieldFromPointer(i._C_symbol, struct), i._C_symbol)
-                for i in output_params
-            ]
-            calls.extend(exprs)
+            for i in output_params:
+                if isinstance(i, KSPType):
+                    # KSPType is `const char*` into KSP-owned memory.  After
+                    # SNESDestroy that pointer is invalid, so we copy the string
+                    # into the inline char buffer in the profiler struct instead
+                    # of storing the raw pointer.
+                    calls.append(
+                        petsc_call('PetscStrncpy', [
+                            FieldFromPointer(i._C_symbol, struct),
+                            i._C_symbol,
+                            KSPTYPE_MAX_LEN
+                        ])
+                    )
+                else:
+                    calls.append(
+                        DummyExpr(FieldFromPointer(i._C_symbol, struct), i._C_symbol)
+                    )
 
         return tuple(calls)

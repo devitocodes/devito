@@ -1,13 +1,16 @@
 import os
 from collections import namedtuple
 from dataclasses import dataclass
+from functools import cached_property
+
+from cgen import Struct, Value
 
 from devito.types import CompositeObject
 
 from devito.petsc.types import (
     PetscInt, PetscScalar, KSPType, KSPConvergedReason, KSPNormType
 )
-from devito.petsc.config import petsc_type_to_ctype
+from devito.petsc.config import petsc_type_to_ctype, KSPTYPE_MAX_LEN
 
 
 class PetscEntry:
@@ -160,6 +163,22 @@ class PetscInfo(CompositeObject):
     @property
     def fields(self):
         return self._fields
+
+    @cached_property
+    def _C_typedecl(self):
+        """
+        Override generated C struct declaration so that KSPType fields
+        are emitted as ``char name[KSPTYPE_MAX_LEN]`` rather than ``KSPType name``
+        (i.e. ``const char *``).  This avoids a segfault when Python reads the
+        profiler struct after SNESDestroy has freed the KSP.
+        """
+        entries = []
+        for field in self._fields:
+            if str(field.dtype) == 'KSPType':
+                entries.append(Value('char', '%s[%d]' % (field.name, KSPTYPE_MAX_LEN)))
+            else:
+                entries.append(Value(str(field.dtype), field.name))
+        return Struct(self.dtype._type_.__name__, entries)
 
     @property
     def prefix(self):
