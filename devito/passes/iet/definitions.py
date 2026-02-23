@@ -5,7 +5,6 @@ of symbols and data.
 
 from collections import OrderedDict
 from ctypes import c_uint64
-from functools import singledispatch
 from operator import itemgetter
 
 import numpy as np
@@ -98,14 +97,29 @@ class DataManager:
         """
         decl = Definition(obj)
 
-        definition = (decl, obj._C_init) if obj._C_init else (decl)
+        init = obj._C_init
+        if not init:
+            definition = decl
+            efuncs = ()
+        elif isinstance(init, (list, tuple)):
+            assert len(init) == 2, "Expected (efunc, call)"
+            init, definition = init
+            efuncs = (init,)
+        elif init.is_Callable:
+            definition = Call(init.name, init.parameters,
+                              retobj=obj if init.retval else None)
+            efuncs = (init,)
+        else:
+            definition = (decl, init)
+            efuncs = ()
 
         frees = obj._C_free
 
         if obj.free_symbols - {obj}:
-            storage.update(obj, site, objs=definition, frees=frees)
+            storage.update(obj, site, objs=definition, efuncs=efuncs, frees=frees)
         else:
-            storage.update(obj, site, standalones=definition, frees=frees)
+            storage.update(obj, site, standalones=definition, efuncs=efuncs,
+                           frees=frees)
 
     def _alloc_array_on_low_lat_mem(self, site, obj, storage):
         """
@@ -552,7 +566,7 @@ class DeviceAwareDataManager(DataManager):
     def __init__(self, options=None, **kwargs):
         self.gpu_fit = options['gpu-fit']
         self.gpu_create = options['gpu-create']
-        self.pmode = options.get('place-transfers')
+        self.gpu_place_transfers = options.get('place-transfers')
 
         super().__init__(**kwargs)
 
@@ -585,7 +599,8 @@ class DeviceAwareDataManager(DataManager):
 
         storage.update(obj, site, maps=mmap, unmaps=unmap)
 
-    def _map_function_on_high_bw_mem(self, site, obj, storage, devicerm, read_only=False):
+    def _map_function_on_high_bw_mem(self, site, obj, storage, devicerm,
+                                     read_only=False, **kwargs):
         """
         Map a Function already defined in the host memory in to the device high
         bandwidth memory.
@@ -618,42 +633,41 @@ class DeviceAwareDataManager(DataManager):
         storage.update(obj, site, maps=mmap, unmaps=unmap, efuncs=efuncs)
 
     @iet_pass
-    def place_transfers(self, iet, data_movs=None, **kwargs):
+    def place_transfers(self, iet, data_movs=None, ctx=None, **kwargs):
         """
         Create a new IET with host-device data transfers. This requires mapping
         symbols to the suitable memory spaces.
         """
-        if not self.pmode:
+        if not self.gpu_place_transfers:
             return iet, {}
 
-        @singledispatch
-        def _place_transfers(iet, data_movs):
+        if not isinstance(iet, EntryFunction):
             return iet, {}
 
-        @_place_transfers.register(EntryFunction)
-        def _(iet, data_movs):
-            reads, writes = data_movs
+        reads, writes = data_movs
 
-            # Special symbol which gives user code control over data deallocations
-            devicerm = DeviceRM()
+        # Special symbol which gives user code control over data deallocations
+        devicerm = DeviceRM()
 
-            storage = Storage()
-            for i in filter_sorted(writes):
-                if i.is_Array:
-                    self._map_array_on_high_bw_mem(iet, i, storage)
-                else:
-                    self._map_function_on_high_bw_mem(iet, i, storage, devicerm)
-            for i in filter_sorted(reads - writes):
-                if i.is_Array:
-                    self._map_array_on_high_bw_mem(iet, i, storage)
-                else:
-                    self._map_function_on_high_bw_mem(iet, i, storage, devicerm, True)
+        storage = Storage()
+        for i in filter_sorted(writes):
+            if i.is_Array:
+                self._map_array_on_high_bw_mem(iet, i, storage)
+            else:
+                self._map_function_on_high_bw_mem(
+                    iet, i, storage, devicerm, ctx=ctx
+                )
+        for i in filter_sorted(reads - writes):
+            if i.is_Array:
+                self._map_array_on_high_bw_mem(iet, i, storage)
+            else:
+                self._map_function_on_high_bw_mem(
+                    iet, i, storage, devicerm, read_only=True, ctx=ctx
+                )
 
-            iet, efuncs = self._inject_definitions(iet, storage)
+        iet, efuncs = self._inject_definitions(iet, storage)
 
-            return iet, {'efuncs': efuncs}
-
-        return _place_transfers(iet, data_movs=data_movs)
+        return iet, {'efuncs': efuncs}
 
     @iet_pass
     def place_devptr(self, iet, **kwargs):
