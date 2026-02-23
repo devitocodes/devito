@@ -195,6 +195,12 @@ class WeightedInterpolator(GenericInterpolator):
     def __init__(self, sfunction):
         self.sfunction = sfunction
 
+    def __str__(self):
+        return f'{self.__class__.__name__}({self.sfunction})'
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.sfunction.name})'
+
     @property
     def grid(self):
         return self.sfunction.grid
