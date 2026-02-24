@@ -1,4 +1,4 @@
-cupy-cuda12x<14.0.1
+cupy-cuda12x<14.0.2
 dask-cuda<26.2.1
 jupyterlab>=3,<4.4.2
 jupyterlab-nvdashboard<0.13.1
