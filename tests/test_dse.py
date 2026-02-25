@@ -28,6 +28,7 @@ from devito.symbolics import (  # noqa
 )
 from devito.tools import as_tuple
 from devito.types import PrecomputedSparseTimeFunction, Scalar, Symbol
+from devito.types.misc import Temp
 from examples.seismic import AcquisitionGeometry, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -2684,6 +2685,94 @@ class TestAliases:
             ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
             'tx0_blk0y0_blk0xyzyz'
         )
+
+    def test_split_cond(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+        # The alias should have been lifted out of the condition
+        assert 'float r0 = cos(time);' in str(op.body.body[0])
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 1
+
+    def test_split_cond_multi_alias(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time) + sin(time), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(time) - sin(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+        # The alias should have been lifted out of the condition
+        assert 'float r3 = cos(time);' in str(op.body.body[0])
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 5
+
+    def test_multi_cond_no_split(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time), implicit_dims=ct)
+        # Not hoisting the inite would have this equation split the time
+        # loop to initialize the alias for sin(time)
+        eq1 = Eq(u.forward, u.forward + sin(time), implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward - sin(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+
+        assert_structure(
+            op,
+            ['t', 't,x,y', 't,x,y', 't,x,y'],
+            'txyxyxy'
+        )
+
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 4
+
+    def test_alias_with_conditional(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(ct), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(ct), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+
+        # The alias should have been lifted out of the condition
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert not scalars
 
 
 class TestIsoAcoustic:
