@@ -58,8 +58,8 @@ def test_func_of_indices():
 
 
 @pytest.mark.parametrize('dtype,expected', [
-    (np.float32, "float r0 = 1.0F/h_x;"),
-    (np.float64, "double r0 = 1.0/h_x;")
+    (np.float32, "const float r0 = 1.0F/h_x;"),
+    (np.float64, "const double r0 = 1.0/h_x;")
 ])
 def test_floatification_issue_1627(dtype, expected):
     """

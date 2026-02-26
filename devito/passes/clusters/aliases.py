@@ -127,6 +127,8 @@ class CireTransformer:
         for mapper in self._generate(cgroup, exclude):
             # Clusters -> AliasList
             found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
+            if not found:
+                continue
             exprs, aliases = self._choose(found, cgroup, mapper)
 
             # AliasList -> Schedule
@@ -147,7 +149,7 @@ class CireTransformer:
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry,
                                          self.opt_ftemps, self.opt_min_dtype,
-                                         self.opt_minmem)
+                                         self.opt_minmem, nclusters=len(cgroup))
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
@@ -272,7 +274,6 @@ class CireTransformerLegacy(CireTransformer):
                     free_symbols = i.free_symbols
                 if {a.function for a in free_symbols} & exclude:
                     continue
-
                 mapper.add(i, make, terms)
 
         return mapper
@@ -853,7 +854,7 @@ def optimize_schedule_rotations(schedule, sregistry):
 
 
 def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
-                   opt_minmem):
+                   opt_minmem, nclusters=1):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -929,20 +930,21 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             # Degenerate case: scalar expression
             assert writeto.size == 0
 
-            guards = None
             is_cond = any(isinstance(d, (SubsamplingFactor, ConditionalDimension))
                           for d in pivot.free_symbols)
-            if meta.guards and is_cond:
+            if meta.guards and is_cond and nclusters > 1:
                 # Scalar alias that depends on a guard, unsafe to lift out of the guard
                 # Do not alias
                 expression = None
                 callback = lambda idx: uxreplace(pivot, subs)  # noqa: B023
             else:
                 dtype = sympy_dtype(pivot, base=meta.dtype, smin=opt_min_dtype)
-                obj = Temp(name=name, dtype=dtype)
+                obj = Temp(name=name, dtype=dtype, is_const=True)
                 expression = Eq(obj, uxreplace(pivot, subs))
 
                 callback = lambda idx: obj  # noqa: B023
+                # Only keep the guard if there is no cross-cluster reuse of the scalar
+                guards = meta.guards if nclusters == 1 else None
 
         # Create the substitution rules for the aliasing expressions
         subs.update({

@@ -102,7 +102,14 @@ class Lift(Queue):
             # unless the guard is for an outer dimension
             guards = {} if c.is_scalar and not (prefix[:-1] and c.guards) else c.guards
 
-            lifted.append(c.rebuild(ispace=ispace, properties=properties, guards=guards))
+            _lifted = c.rebuild(ispace=ispace, properties=properties, guards=guards)
+            if guards and clusters[max(n-1, 0)].guards != guards and _lifted.is_scalar:
+                # Heuristic: if the lifted Cluster has different guards than the
+                # previous one, then we are likely to end up with a separate
+                # Cluster, hence give up on lifting
+                processed.append(_lifted)
+            else:
+                lifted.append(_lifted)
 
         return lifted + processed
 

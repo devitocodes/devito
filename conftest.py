@@ -479,3 +479,9 @@ def check_array(array, exp_halo, exp_shape, rotate=False):
 
     assert tuple(array.halo) == exp_halo
     assert tuple(shape) == tuple(exp_shape)
+
+
+# Main body in Operator IET, depending on ISA
+def body0(op):
+    bidx = 0 if 'sse' not in configuration['platform'].known_isas else 1
+    return op.body.body[bidx]

@@ -5,8 +5,8 @@ import pytest
 from sympy import Mul  # noqa
 
 from conftest import (  # noqa
-    _R, EVAL, assert_blocking, assert_structure, check_array, get_arrays, get_params,
-    skipif
+    _R, EVAL, assert_blocking, assert_structure, body0, check_array, get_arrays,
+    get_params, skipif
 )
 from devito import (  # noqa
     NODE, Abs, ConditionalDimension, Constant, DefaultDimension, Derivative, Dimension,
@@ -348,8 +348,8 @@ class TestLifting:
         trees = retrieve_iteration_tree(op)
 
         assert len(trees) == 3
-        assert_structure(op, ['t', 't,x,y', 't,x,y'], 'txyxy')
-        assert trees[0].dimensions == [time]
+        assert_structure(op, ['t,x,y', 't', 't,x,y'], 'txyxy')
+        assert trees[1].dimensions == [time]
 
 
 class TestAliases:
@@ -2552,6 +2552,7 @@ class TestAliases:
         eqn = Eq(u, u - (cos(time_sub * factor * f) * uf))
 
         op = Operator(eqn, opt='advanced')
+
         assert_structure(op, ['t', 't,fd', 't,fd,x,y'], 't,fd,x,y')
         # Make sure it compiles
         _ = op.cfunction
@@ -2700,10 +2701,12 @@ class TestAliases:
         eq2 = Eq(u.forward, u.forward + cos(time), implicit_dims=ct)
 
         op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
         # The alias should have been lifted out of the condition
-        assert 'float r0 = cos(time);' in str(op.body.body[0])
+        assert 'float r0 = cos(time);' in str(body0(op))
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
         assert len(scalars) == 1
 
@@ -2721,10 +2724,12 @@ class TestAliases:
         eq2 = Eq(u.forward, u.forward + cos(time) - sin(time), implicit_dims=ct)
 
         op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
         # The alias should have been lifted out of the condition
-        assert 'float r3 = cos(time);' in str(op.body.body[0])
+        assert 'float r3 = cos(time);' in str(body0(op))
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
         assert len(scalars) == 5
 
@@ -2743,6 +2748,7 @@ class TestAliases:
         eq2 = Eq(u.forward, u.forward - sin(time), implicit_dims=ct)
 
         op = Operator([eq0, eq1, eq2])
+        op(time=5)
 
         assert_structure(
             op,
@@ -2751,7 +2757,7 @@ class TestAliases:
         )
 
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 4
+        assert len(scalars) == 3
 
     def test_alias_with_conditional(self):
         grid = Grid((11, 11))
@@ -2767,6 +2773,8 @@ class TestAliases:
         eq2 = Eq(u.forward, u.forward + cos(ct), implicit_dims=ct)
 
         op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
 
