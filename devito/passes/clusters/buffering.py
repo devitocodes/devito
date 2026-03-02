@@ -3,7 +3,7 @@ from functools import cached_property
 from itertools import chain
 
 import numpy as np
-from sympy import S
+from sympy import S, simplify
 
 from devito.exceptions import CompilationError
 from devito.ir import (
@@ -775,7 +775,7 @@ def infer_buffer_size(f, dim, clusters):
         slots = [Vector(i) for i in slots]
         size = int((vmax(*slots) - vmin(*slots) + 1)[0])
 
-    return size
+    return simplify(size)
 
 
 def offset_from_centre(d, indices):

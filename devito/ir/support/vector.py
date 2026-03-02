@@ -128,6 +128,7 @@ class Vector(tuple):
                         return True
                     elif q_positive(i):
                         return False
+
                 raise TypeError("Non-comparable index functions") from e
 
         return False
@@ -164,6 +165,7 @@ class Vector(tuple):
                         return True
                     elif q_negative(i):
                         return False
+
                 raise TypeError("Non-comparable index functions") from e
 
         return False
@@ -203,6 +205,7 @@ class Vector(tuple):
                         return True
                     elif q_positive(i):
                         return False
+
                 raise TypeError("Non-comparable index functions") from e
 
         # Note: unlike `__lt__`, if we end up here, then *it is* <=. For example,

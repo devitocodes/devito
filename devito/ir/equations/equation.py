@@ -11,7 +11,7 @@ from devito.ir.support import (
 )
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
-from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
+from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min, relational_shift
 
 __all__ = [
     'ClusterizedEq',
@@ -215,7 +215,7 @@ class LoweredEq(IREq):
                                   relations=ordering.relations, mode='partial')
         ispace = IterationSpace(intervals, iterators)
 
-        # Construct the conditionals and replace the ConditionalDimensions in `expr`
+        # Construct the conditionals
         conditionals = {}
         for d in ordering:
             if not d.is_Conditional:
@@ -227,13 +227,29 @@ class LoweredEq(IREq):
                 if d._factor is not None:
                     cond = d.relation(cond, GuardFactor(d))
                 conditionals[d] = cond
-            # Replace dimension with index
-            index = d.index
-            if d.condition is not None and d in expr.free_symbols:
-                index = index - relational_min(d.condition, d.parent)
-            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor)})
+
+        # Merge conditionals when possible. E.g if we have an implicit_dim
+        # and there is a dimension with the same parent, we ca merged
+        # its condition
+        for d in input_expr.implicit_dims:
+            if d not in conditionals:
+                continue
+            for cd in dict(conditionals):
+                if cd.parent == d.parent and cd != d:
+                    cond = conditionals.pop(d)
+                    mode = cd.relation and d.relation
+                    conditionals[cd] = mode(cond, conditionals[cd])
+                    break
 
         conditionals = frozendict(conditionals)
+
+        # Replace the ConditionalDimensions in `expr`
+        for d, cond in conditionals.items():
+            # Replace dimension with index
+            index = d.index
+            index = index - relational_min(cond, d.parent)
+            shift = relational_shift(cond, d.parent)
+            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
 
         # Lower all Differentiable operations into SymPy operations
         rhs = diff2sympy(expr.rhs)
