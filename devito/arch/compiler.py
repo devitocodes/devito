@@ -549,9 +549,10 @@ class ClangCompiler(Compiler):
             llvmm1 = get_m1_llvm_path(language)
             if llvmm1 and 'openmp' in language:
                 mx = platform.march
+                self.cflags += [f'-mcpu=apple-{mx}',
+                                '-Xclang', f'-I{llvmm1["include"]}']
                 self.ldflags += [f'-mcpu=apple-{mx}',
                                  '-fopenmp', f'-L{llvmm1["libs"]}']
-                self.cflags += ['-Xclang', f'-I{llvmm1["include"]}']
         else:
             if platform in [POWER8, POWER9]:
                 # -march isn't supported on power architectures
