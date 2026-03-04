@@ -1,12 +1,13 @@
 import logging
 
-import sympy
-import pytest
-
 import numpy as np
+import pytest
+import sympy
 
-from devito import (Grid, Function, TimeFunction, Eq, Operator, SubDomain, Dimension,
-                    ConditionalDimension, switchconfig)
+from devito import (
+    ConditionalDimension, Dimension, Eq, Function, Grid, Operator, SubDomain,
+    TimeFunction, switchconfig
+)
 from devito.ir.iet.visitors import Specializer
 
 
@@ -66,14 +67,14 @@ class TestSpecializer:
         mappers = (mapper0, mapper1, mapper2, mapper3)
         ops = tuple(Specializer(m).visit(op) for m in mappers)
 
-        for m, o in zip(mappers, ops):
+        for m, o in zip(mappers, ops, strict=True):
             check_op(m, o)
 
     def test_subdomain(self):
         """Test that SubDomain thicknesses can be specialized"""
 
         def check_op(mapper, operator):
-            for k in mapper.keys():
+            for k in mapper:
                 assert k not in operator.parameters
                 assert k.name not in str(operator.ccode)
 
@@ -105,7 +106,7 @@ class TestSpecializer:
         mappers = (mapper0, mapper1, mapper2)
         ops = tuple(Specializer(m).visit(op) for m in mappers)
 
-        for m, o in zip(mappers, ops):
+        for m, o in zip(mappers, ops, strict=True):
             check_op(m, o)
 
     def test_factor(self):
@@ -208,7 +209,7 @@ class TestApply:
             kwargs['x_m'] = 3
 
         with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
-            op.apply(specialize=specialize, **kwargs)
+            op.apply_specialize(specialize=specialize, **kwargs)
 
             # Ensure that the specialized operator was run
             assert all(s not in caplog.text for s in specialize)
@@ -225,7 +226,14 @@ class TestApply:
     def test_basic_mpi(self, caplog, mode, override):
         self.test_basic(caplog, override)
 
-    def test_diffusion_like(self):
+    @pytest.mark.parametrize('specialize',
+                             [('x_m',),
+                              ('y_M',),
+                              ('t_m',),
+                              ('t_m', 't_M'),
+                              ('x_m', 'y_M'),
+                              ('x_m', 'x_M', 'y_m', 'y_M')])
+    def test_diffusion_like(self, specialize):
         grid = Grid(shape=(11, 11))
 
         dt = 2.5e-5
@@ -237,15 +245,13 @@ class TestApply:
 
         op.apply(t_M=100, dt=dt)
 
-        check = np.array(f.data[0])
+        check = np.array(f.data)
         f.data[:] = 0
         f.data[:, 4:-4, 4:-4] = 1
 
-        op.apply(t_M=100, dt=dt, specialize=tuple())
+        op.apply_specialize(t_M=100, dt=dt, specialize=specialize)
 
-        print(f.data[0])
-        print(check)
-        assert False
+        assert np.all(np.isclose(check, f.data))
 
     # Diffusion-like test
     # Acoustic-like test (with and without source injection)
