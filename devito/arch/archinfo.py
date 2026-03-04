@@ -23,7 +23,7 @@ __all__ = [  # noqa: RUF022
     'get_nvidia_cc', 'get_cuda_path', 'get_cuda_version', 'get_hip_path',
     'check_cuda_runtime', 'get_m1_llvm_path', 'get_advisor_path', 'Platform',
     'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device',
-    'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+    'NvidiaDevice', 'AmdDevice', 'IntelDevice', 'AppleGPU',
     # Brand-agnostic
     'ANYCPU', 'ANYGPU',
     # Intel CPUs
@@ -38,7 +38,7 @@ __all__ = [  # noqa: RUF022
     # Other legacy CPUs
     'POWER8', 'POWER9',
     # Generic GPUs
-    'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
+    'AMDGPUX', 'NVIDIAX', 'INTELGPUX', 'APPLEGPUX',
     # Nvidia GPUs
     'VOLTA', 'AMPERE', 'HOPPER', 'BLACKWELL',
     # Intel GPUs
@@ -1214,6 +1214,49 @@ class AmdDevice(Device):
             return fallback
 
 
+class AppleGPU(Device):
+
+    """Apple Silicon GPU accessed via Metal."""
+
+    thread_group_size = 32  # SIMD group width on Apple Silicon
+
+    max_mem_trans_nbytes = 128
+
+    def __init__(self, name, **kwargs):
+        kwargs.setdefault('max_threads_per_block', 1024)
+        kwargs.setdefault('max_threads_dimx', 1024)
+        kwargs.setdefault('max_threads_dimy', 1024)
+        kwargs.setdefault('max_threads_dimz', 1024)
+        super().__init__(name, **kwargs)
+
+    @cached_property
+    def march(self):
+        try:
+            sysinfo = run(["sysctl", "-n", "machdep.cpu.brand_string"],
+                          stdout=PIPE, stderr=DEVNULL).stdout.decode("utf-8").strip()
+            mx = sysinfo.split(' ')[1].lower()
+            # Clang only supports up to apple-m2 as a -mcpu target
+            return min(mx, 'm2')
+        except (IndexError, OSError):
+            return None
+
+
+@memoized_func
+def get_apple_gpu_info():
+    """Detect Apple Silicon GPU capabilities."""
+    try:
+        brand = run(["sysctl", "-n", "machdep.cpu.brand_string"],
+                    stdout=PIPE, stderr=DEVNULL).stdout.decode("utf-8").strip()
+        memsize = run(["sysctl", "-n", "hw.memsize"],
+                      stdout=PIPE, stderr=DEVNULL).stdout.decode("utf-8").strip()
+        return {
+            'product': brand,
+            'mem.total': int(memsize) if memsize else None,
+        }
+    except (OSError, ValueError):
+        return None
+
+
 @memoized_func
 def node_max_mem_trans_nbytes(platform):
     """
@@ -1293,6 +1336,8 @@ HOPPER = Hopper('hopper')
 BLACKWELL = Blackwell('blackwell')
 
 AMDGPUX = AmdDevice('amdgpuX')
+
+APPLEGPUX = AppleGPU('applegpuX')
 
 INTELGPUX = IntelDevice('intelgpuX')
 PVC = IntelDevice('pvc')  # Legacy codename for MAX GPUs

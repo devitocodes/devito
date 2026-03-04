@@ -15,8 +15,9 @@ from codepy.toolchain import call_capture_output as _call_capture_output
 from packaging.version import Version
 
 from devito.arch import (
-    AMDGPUX, POWER8, POWER9, AppleArm, Cortex, Cpu64, Graviton, IntelDevice, NvidiaArm,
-    NvidiaDevice, check_cuda_runtime, get_cuda_version, get_m1_llvm_path, get_nvidia_cc
+    AMDGPUX, POWER8, POWER9, AppleArm, AppleGPU, Cortex, Cpu64, Graviton,
+    IntelDevice, NvidiaArm, NvidiaDevice, check_cuda_runtime, get_cuda_version,
+    get_m1_llvm_path, get_nvidia_cc
 )
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
@@ -985,6 +986,85 @@ class SyclCompiler(OneapiCompiler):
             warning(f"Unsupported platform {platform}")
 
 
+class MetalCompiler(Compiler):
+
+    _default_cpp = True
+
+    def __init_finalize__(self, **kwargs):
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        # C++17 required by metal-cpp
+        self.cflags.remove(f'-std={self.std}')
+        self.cflags.append('-std=c++17')
+
+        self.cflags += ['-Wno-unused-result', '-Wno-unused-variable',
+                        '-Wno-unused-function',
+                        '-Drestrict=__restrict__']
+
+        # Metal and Foundation frameworks
+        self.ldflags += ['-framework', 'Metal',
+                         '-framework', 'Foundation',
+                         '-lobjc']
+
+        # metal-cpp headers
+        metal_cpp_path = self._find_metal_cpp()
+        if metal_cpp_path:
+            self.cflags.append(f'-I{metal_cpp_path}')
+
+        # Metal runtime header (from DevitoPro)
+        metal_runtime_path = self._find_metal_runtime()
+        if metal_runtime_path:
+            self.cflags.append(f'-I{metal_runtime_path}')
+
+        # Apple Silicon CPU target for host code
+        if isinstance(platform, AppleGPU):
+            mx = platform.march
+            if mx:
+                self.cflags.append(f'-mcpu=apple-{mx}')
+                self.ldflags.append(f'-mcpu=apple-{mx}')
+
+        if not configuration['safe-math']:
+            self.cflags.append('-ffast-math')
+
+        self.src_ext = 'cpp'
+
+    @property
+    def std(self):
+        return 'c++17'
+
+    def __lookup_cmds__(self):
+        # metal-cpp requires Apple's system clang, not Homebrew's LLVM
+        self.CC = '/usr/bin/clang++'
+        self.CXX = '/usr/bin/clang++'
+        self.MPICC = 'mpicxx'
+        self.MPICXX = 'mpicxx'
+
+    @staticmethod
+    def _find_metal_cpp():
+        """Find metal-cpp headers in common locations."""
+        candidates = [
+            '/opt/homebrew/include/metal-cpp',
+            '/usr/local/include/metal-cpp',
+        ]
+        for p in candidates:
+            if path.isdir(p):
+                return p
+        return None
+
+    @staticmethod
+    def _find_metal_runtime():
+        """Find the Metal runtime header (metal_runtime.h)."""
+        try:
+            import devitopro
+            devitopro_dir = path.dirname(path.dirname(devitopro.__file__))
+            metal_dir = path.join(devitopro_dir, 'devitopro_ext', 'metal')
+            if path.isdir(metal_dir):
+                return metal_dir
+        except ImportError:
+            pass
+        return None
+
+
 class CustomCompiler(Compiler):
 
     """
@@ -1004,7 +1084,9 @@ class CustomCompiler(Compiler):
         platform = kwargs.pop('platform', configuration['platform'])
         language = kwargs.pop('language', configuration['language'])
 
-        if isinstance(platform, AppleArm):
+        if isinstance(platform, AppleGPU):
+            _base = MetalCompiler
+        elif isinstance(platform, AppleArm):
             _base = ClangCompiler
         elif isinstance(platform, IntelDevice):
             _base = OneapiCompiler
@@ -1095,6 +1177,7 @@ _compiler_registry = {
     'icx': OneapiCompiler,
     'icpx': OneapiCompiler,
     'sycl': SyclCompiler,
+    'metal': MetalCompiler,
     'icc': IntelCompiler,
     'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
