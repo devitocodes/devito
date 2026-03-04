@@ -1194,7 +1194,7 @@ class TestCoupledLinear:
         ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
          'h_x*(5.0 - 2.5/h_x**2)'),
         ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '2',
-         'h_x*(1 + 1/h_x - 2.0/h_x**2)'),
+         'h_x*(1 - 1/h_x - 2.0/h_x**2)'),
         ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '4',
          'h_x*(1 - 2.5/h_x**2)'),
         ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
@@ -1244,7 +1244,7 @@ class TestCoupledLinear:
         ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
          'h_x*h_y*(5.0 - 2.5/h_y**2 - 2.5/h_x**2)'),
         ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
-         '2', 'h_x*h_y*(1 + 1/h_y - 2.0/h_y**2 + 1/h_x - 2.0/h_x**2)'),
+         '2', 'h_x*h_y*(1 - 1/h_y - 2.0/h_y**2 - 1/h_x - 2.0/h_x**2)'),
         ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
          '4', 'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
         ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
@@ -1295,7 +1295,7 @@ class TestCoupledLinear:
          'h_x*h_y*h_z*(5.0 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
         ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
          'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '2',
-         'h_x*h_y*h_z*(1 + 1/h_z - 2.0/h_z**2 + 1/h_y - 2.0/h_y**2 + ' +
+         'h_x*h_y*h_z*(1 - 1/h_z - 2.0/h_z**2 - 1/h_y - 2.0/h_y**2 - ' +
          '1/h_x - 2.0/h_x**2)'),
         ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
          'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '4',
