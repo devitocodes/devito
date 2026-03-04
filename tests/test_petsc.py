@@ -229,9 +229,9 @@ def test_petsc_cast():
     eqn2 = Eq(f2.laplace, 10)
     eqn3 = Eq(f3.laplace, 10)
 
-    petsc1 = petscsolve(eqn1, f1)
-    petsc2 = petscsolve(eqn2, f2)
-    petsc3 = petscsolve(eqn3, f3)
+    petsc1 = petscsolve(eqn1, f1, options_prefix='cast1d')
+    petsc2 = petscsolve(eqn2, f2, options_prefix='cast2d')
+    petsc3 = petscsolve(eqn3, f3, options_prefix='cast3d')
 
     with switchconfig(language='petsc'):
         op1 = Operator(petsc1)
@@ -261,9 +261,9 @@ def test_dmda_create():
     eqn2 = Eq(f2.laplace, 10)
     eqn3 = Eq(f3.laplace, 10)
 
-    petsc1 = petscsolve(eqn1, f1)
-    petsc2 = petscsolve(eqn2, f2)
-    petsc3 = petscsolve(eqn3, f3)
+    petsc1 = petscsolve(eqn1, f1, options_prefix='dmda1d')
+    petsc2 = petscsolve(eqn2, f2, options_prefix='dmda2d')
+    petsc3 = petscsolve(eqn3, f3, options_prefix='dmda3d')
 
     with switchconfig(language='petsc'):
         op1 = Operator(petsc1, opt='noop')

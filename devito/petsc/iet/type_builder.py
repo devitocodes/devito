@@ -108,13 +108,6 @@ class CoupledTypeBuilder(BaseTypeBuilder):
         )
         base_dict['nfields'] = PetscInt(sreg.make_name(prefix='nfields'))
 
-        space_dims = len(self.field_data.grid.dimensions)
-
-        dim_labels = ["M", "N", "P"]
-        base_dict.update({
-            dim_labels[i]: PetscInt(dim_labels[i]) for i in range(space_dims)
-        })
-
         submatrices = self.field_data.jacobian.nonzero_submatrices
 
         base_dict['jacctx'] = JacobianStruct(
@@ -132,6 +125,10 @@ class CoupledTypeBuilder(BaseTypeBuilder):
             base_dict[f'{name}X'] = Vec(f'{name}X', destroy=False)
             base_dict[f'{name}Y'] = Vec(f'{name}Y', destroy=False)
             base_dict[f'{name}F'] = Vec(f'{name}F', destroy=False)
+
+        # Temporary Vec used in MatCreateSubMatrices to query constrained
+        # global sizes from sub-DMs (works for both constrained and unconstrained).
+        base_dict['tmpvec'] = Vec('tmpvec', destroy=False)
 
         # Bundle objects/metadata required by the coupled residual callback
         f_components, x_components = [], []

@@ -1128,15 +1128,41 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
 
         dm_get_info = petsc_call(
             'DMDAGetInfo', [
-                sobjs['callbackdm'], Null, Byref(sobjs['M']), Byref(sobjs['N']),
+                sobjs['callbackdm'], Null, Null, Null,
                 Null, Null, Null, Null, Byref(objs['dof']), Null, Null, Null, Null, Null
             ]
         )
-        subblock_rows = DummyExpr(objs['subblockrows'], Mul(sobjs['M'], sobjs['N']))
-        subblock_cols = DummyExpr(objs['subblockcols'], Mul(sobjs['M'], sobjs['N']))
 
         ptr = DummyExpr(
             objs['submat_arr']._C_symbol, Deref(objs['Submats']._C_symbol), init=True
+        )
+
+        i = Dimension(name='i')
+        tmpvec = sobjs['tmpvec']
+
+        row_idx = DummyExpr(objs['rowidx'], IntDiv(i, objs['dof']))
+        col_idx = DummyExpr(objs['colidx'], Mod(i, objs['dof']))
+
+        # Query constrained global size from each sub-DM via a temporary Vec.
+        # For unconstrained sub-DMs this is equivalent to M*N; for constrained
+        # (BC-excluded) sub-DMs it returns the reduced size automatically.
+        get_row_vec = petsc_call(
+            'DMGetGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tmpvec)]
+        )
+        get_row_size = petsc_call(
+            'VecGetSize', [tmpvec, Byref(objs['subblockrows'])]
+        )
+        restore_row_vec = petsc_call(
+            'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tmpvec)]
+        )
+        get_col_vec = petsc_call(
+            'DMGetGlobalVector', [objs['Subdms'].indexed[objs['colidx']], Byref(tmpvec)]
+        )
+        get_col_size = petsc_call(
+            'VecGetSize', [tmpvec, Byref(objs['subblockcols'])]
+        )
+        restore_col_vec = petsc_call(
+            'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['colidx']], Byref(tmpvec)]
         )
 
         mat_create = petsc_call('MatCreate', [sobjs['comm'], Byref(objs['block'])])
@@ -1151,10 +1177,6 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         mat_set_type = petsc_call('MatSetType', [objs['block'], 'MATSHELL'])
 
         malloc = petsc_call('PetscMalloc1', [1, Byref(objs['subctx'])])
-        i = Dimension(name='i')
-
-        row_idx = DummyExpr(objs['rowidx'], IntDiv(i, objs['dof']))
-        col_idx = DummyExpr(objs['colidx'], Mod(i, objs['dof']))
 
         deref_subdm = Dereference(objs['Subdms'], objs['ljacctx'])
 
@@ -1193,12 +1215,18 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         assign_block = DummyExpr(objs['submat_arr'].indexed[i], objs['block'])
 
         iter_body = (
+            row_idx,
+            col_idx,
+            get_row_vec,
+            get_row_size,
+            restore_row_vec,
+            get_col_vec,
+            get_col_size,
+            restore_col_vec,
             mat_create,
             mat_set_sizes,
             mat_set_type,
             malloc,
-            row_idx,
-            col_idx,
             set_rows,
             set_cols,
             dm_set_ctx,
@@ -1233,8 +1261,6 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
             mat_get_dm,
             dm_get_app,
             dm_get_info,
-            subblock_rows,
-            subblock_cols,
             ptr,
             BlankLine,
             iteration,
