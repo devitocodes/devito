@@ -361,12 +361,15 @@ class ConstrainedBCMixin:
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
 
+        targets = self.field_data.targets
         count_bcs = petsc_call(
-            self.callback_builder._count_bc_efunc.name, [dmda, Byref(sobjs['numBC'])]
+            self.callback_builder._count_bc_efunc.name,
+            [dmda] + [Byref(sobjs[f'numBC_{t.name}']) for t in targets]
         )
 
         set_point_bcs = petsc_call(
-            self.callback_builder._point_bc_efunc.name, [dmda, sobjs['numBC']]
+            self.callback_builder._set_point_bc_efunc.name,
+            [dmda] + [sobjs[f'numBC_{t.name}'] for t in targets]
         )
 
         get_local_section = petsc_call(

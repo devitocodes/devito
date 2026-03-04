@@ -9,7 +9,7 @@ from devito.types.equation import Eq
 from devito.operations.solve import eval_time_derivatives
 
 from devito.petsc.config import petsc_variables
-from devito.petsc.types.object import Counter
+from devito.petsc.types.object import PetscInt
 from devito.petsc.types.equation import (
     EssentialBC, ZeroRow, ZeroColumn, NoOfEssentialBC, PointEssentialBC
 )
@@ -732,6 +732,7 @@ class ConstrainBC:
     def __init__(self, target, exprs, arrays):
         self.target = target
         self.arrays = arrays
+        self.counter = PetscInt(name=f'count_{target.name}')
         self._make_increment_exprs(as_tuple(exprs))
         self._make_point_bc_exprs(as_tuple(exprs))
 
@@ -762,7 +763,7 @@ class ConstrainBC:
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
             return NoOfEssentialBC(
-                Counter, 1,
+                self.counter, 1,
                 subdomain=expr.subdomain,
                 implicit_dims=expr.subdomain.dimensions,
                 target=self.target
@@ -789,7 +790,7 @@ class ConstrainBC:
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
             return PointEssentialBC(
-                Counter, self.target,
+                self.counter, self.target,
                 subdomain=expr.subdomain,
                 target=self.target
             )

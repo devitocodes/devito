@@ -210,22 +210,65 @@ class ConstrainedBCTypeBuilder(BaseTypeBuilder):
         base_dict['sf'] = PetscSF(
             name=sreg.make_name(prefix='sf')
         )
-        name = sreg.make_name(prefix='numBC')
-        base_dict['numBC'] = PetscInt(
-            name=name, initvalue=0
+        tname = self.field_data.target.name
+        base_dict[f'numBC_{tname}'] = PetscInt(
+            name=sreg.make_name(prefix='numBC'), initvalue=0
         )
-        base_dict['numBCPtr'] = CallbackPetscInt(
+        base_dict[f'numBCPtr_{tname}'] = CallbackPetscInt(
             name=sreg.make_name(prefix='numBCPtr'), initvalue=0
         )
-        base_dict['bcPointsArr'] = PointerPetscInt(
+        base_dict[f'bcPointsArr_{tname}'] = PointerPetscInt(
             name=sreg.make_name(prefix='bcPointsArr')
         )
-        base_dict['k_iter'] = PostIncrementIndex(
+        base_dict[f'k_iter_{tname}'] = PostIncrementIndex(
             name='k_iter', initvalue=0
         )
-        # change names etc..
         base_dict['bcPointsIS'] = SingleIS(name='bcPointsIS')
         base_dict['bcPoints'] = PointerIS(name='bcPoints')
+        return base_dict
+
+
+class CoupledConstrainedBCTypeBuilder(CoupledTypeBuilder):
+    def _extend_build(self, base_dict):
+        base_dict = super()._extend_build(base_dict)
+        sreg = self.sregistry
+        targets = self.field_data.targets
+        nfields = len(targets)
+
+        # Shared section/SF objects
+        base_dict['lsection'] = PetscSectionLocal(
+            name=sreg.make_name(prefix='lsection')
+        )
+        base_dict['gsection'] = PetscSectionGlobal(
+            name=sreg.make_name(prefix='gsection')
+        )
+        base_dict['sf'] = PetscSF(
+            name=sreg.make_name(prefix='sf')
+        )
+
+        # Per-field BC objects
+        for t in targets:
+            tname = t.name
+            base_dict[f'numBC_{tname}'] = PetscInt(
+                name=sreg.make_name(prefix=f'numBC{tname}'), initvalue=0
+            )
+            base_dict[f'numBCPtr_{tname}'] = CallbackPetscInt(
+                name=sreg.make_name(prefix=f'numBCPtr{tname}'), initvalue=0
+            )
+            base_dict[f'bcPointsArr_{tname}'] = PointerPetscInt(
+                name=sreg.make_name(prefix=f'bcPointsArr{tname}')
+            )
+            base_dict[f'k_iter_{tname}'] = PostIncrementIndex(
+                name=sreg.make_name(prefix=f'k{tname}'), initvalue=0
+            )
+
+        # IS arrays for all fields (one entry per field)
+        base_dict['bcPointsIS'] = PointerIS(
+            name='bcPointsIS', nindices=nfields
+        )
+        base_dict['bcCompsIS'] = PointerIS(
+            name='bcCompsIS', nindices=nfields
+        )
         return base_dict
 
 

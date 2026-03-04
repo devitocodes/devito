@@ -15,11 +15,12 @@ from devito.tools import filter_ordered
 from devito.passes.iet.linearization import Stride
 
 from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp, petsc_call
-from devito.petsc.types import DMCast, MainUserStruct, CallbackUserStruct, PetscObjectCast
+from devito.petsc.types import (
+    DMCast, MainUserStruct, CallbackUserStruct, PetscObjectCast, PetscInt
+)
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
-from devito.petsc.types.object import Counter
 
 
 class BaseCallbackBuilder:
@@ -47,7 +48,7 @@ class BaseCallbackBuilder:
         self._F_efunc = None
         self._b_efunc = None
         self._count_bc_efunc = None
-        self._point_bc_efunc = None
+        self._set_point_bc_efunc = None
         self._J_efuncs = []
         self._initial_guess_efuncs = []
 
@@ -646,43 +647,65 @@ class BaseCallbackBuilder:
 
     def _make_constrain_bc(self):
         """
-        To constrain essential boundary nodes, two additional callbacks are required.
-        This method constructs the corresponding efuncs: `CountBCs` and `SetPointBCs`.
+        Constructs the `CountBCs` and `SetPointBCs` efuncs. Works for both
+        single- and multi-field: all fields' expressions are compiled together
+        (clustering may fuse loops) and a single callback is emitted for each.
         """
-        increment_exprs = self.field_data.constrain_bc.increment_exprs
-        point_bc_exprs = self.field_data.constrain_bc.point_bc_exprs
+        constrain_bc = self.field_data.constrain_bc
         sobjs = self.solver_objs
 
-        # Compile `increment_exprs` into an IET via recursive compilation
+        # Normalize to dict {target: ConstrainBC}
+        if isinstance(constrain_bc, dict):
+            constrain_bc_dict = constrain_bc
+        else:
+            constrain_bc_dict = {self.field_data.target: constrain_bc}
+        targets = list(constrain_bc_dict.keys())
+
+        all_increment_exprs = [
+            e for t in targets for e in constrain_bc_dict[t].increment_exprs
+        ]
         irs0, _ = self.rcompile(
-            increment_exprs, options={'mpi': False}, sregistry=self.sregistry,
-            concretize_mapper=self.concretize_mapper
+            all_increment_exprs, options={'mpi': False},
+            sregistry=self.sregistry, concretize_mapper=self.concretize_mapper
         )
-        # Compile `point_bc_exprs` into an IET via recursive compilation
+        all_point_bc_exprs = [
+            e for t in targets for e in constrain_bc_dict[t].point_bc_exprs
+        ]
         irs1, _ = self.rcompile(
-            point_bc_exprs, options={'mpi': False}, sregistry=self.sregistry,
-            concretize_mapper=self.concretize_mapper
+            all_point_bc_exprs, options={'mpi': False},
+            sregistry=self.sregistry, concretize_mapper=self.concretize_mapper
         )
-        count_bc_body = self._create_count_bc_body(
-            List(body=irs0.uiet.body)
-        )
+
+        pairs = [
+            (sobjs[f'numBCPtr_{t.name}'], constrain_bc_dict[t].counter)
+            for t in targets
+        ]
+        count_bc_body = self._create_count_bc_body(List(body=irs0.uiet.body), pairs)
         set_point_bc_body = self._create_set_point_bc_body(
-            List(body=irs1.uiet.body)
+            List(body=irs1.uiet.body), constrain_bc_dict
         )
+
+        numBCPtr_params = tuple(sobjs[f'numBCPtr_{t.name}'] for t in targets)
+        numBC_params = tuple(sobjs[f'numBC_{t.name}'] for t in targets)
+
         cb0 = self._make_petsc_callable(
             'CountBCs', count_bc_body,
-            parameters=(sobjs['callbackdm'], sobjs['numBCPtr'])
+            parameters=(sobjs['callbackdm'],) + numBCPtr_params
         )
         cb1 = self._make_petsc_callable(
             'SetPointBCs', set_point_bc_body,
-            parameters=(sobjs['callbackdm'], sobjs['numBC'])
+            parameters=(sobjs['callbackdm'],) + numBC_params
         )
         self._count_bc_efunc = cb0
+        self._set_point_bc_efunc = cb1
         self._efuncs[cb0.name] = cb0
-        self._point_bc_efunc = cb1
         self._efuncs[cb1.name] = cb1
 
-    def _create_count_bc_body(self, body):
+    def _create_count_bc_body(self, body, pairs):
+        """
+        Generic CountBCs body. `pairs` is a list of (numBCPtr, counter) tuples,
+        one per field. All fields are handled in a single callback body.
+        """
         objs = self.objs
         sobjs = self.solver_objs
 
@@ -698,26 +721,29 @@ class BaseCallbackBuilder:
             'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
         )
 
-        # TODO: change names
-        deref_ptr = DummyExpr(Counter, Deref(sobjs['numBCPtr']))
-        move_ptr = DummyExpr(Deref(sobjs['numBCPtr']), Counter)
+        deref_ptrs = tuple(
+            DummyExpr(counter, Deref(numBCPtr)) for numBCPtr, counter in pairs
+        )
+        move_ptrs = tuple(
+            DummyExpr(Deref(numBCPtr), counter) for numBCPtr, counter in pairs
+        )
 
-        # Force the struct definition to appear at the very start, since
-        # stacks, allocs etc may rely on its information
         struct_definition = [Definition(ctx), dm_get_app_context]
 
-        body = body._rebuild(body.body + (move_ptr,))
+        body = body._rebuild(body.body + move_ptrs)
 
         body = self._make_callable_body(
-            body, standalones=struct_definition, stacks=(deref_ptr,)
+            body, standalones=struct_definition, stacks=deref_ptrs
         )
-        # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
 
         return Uxreplace(subs).visit(body)
 
-    def _create_set_point_bc_body(self, body):
+    def _create_set_point_bc_body(self, body, constrain_bc_dict):
+        """Single-field SetPointBCs body. `constrain_bc_dict` has one entry."""
+        (target, constrain_bc), = constrain_bc_dict.items()
+        tname = target.name
         linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
         sobjs = self.solver_objs
@@ -739,19 +765,18 @@ class BaseCallbackBuilder:
         )
         petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(dmda)])
         is_create_general = petsc_call(
-            'ISCreateGeneral', [petsc_obj_comm, sobjs['numBC'], sobjs['bcPointsArr'],
-                                'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
+            'ISCreateGeneral',
+            [petsc_obj_comm, sobjs[f'numBC_{tname}'], sobjs[f'bcPointsArr_{tname}'],
+             'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
         )
         malloc_bc_points_arr = petsc_call(
-            'PetscMalloc1', [sobjs['numBC'], Byref(sobjs['bcPointsArr']._C_symbol)]
+            'PetscMalloc1',
+            [sobjs[f'numBC_{tname}'], Byref(sobjs[f'bcPointsArr_{tname}']._C_symbol)]
         )
-
         malloc_bc_points = petsc_call(
             'PetscMalloc1', [1, Byref(sobjs['bcPoints']._C_symbol)]
         )
-
         dummy_expr = DummyExpr(sobjs['bcPoints'].indexed[0], sobjs['bcPointsIS'])
-
         set_point_bc = petsc_call(
             'DMDASetPointBC', [dmda, 1, sobjs['bcPoints'], Null]
         )
@@ -759,38 +784,24 @@ class BaseCallbackBuilder:
             body=(
                 (malloc_bc_points_arr,)
                 + body.body
-                + (
-                    is_create_general,
-                    malloc_bc_points,
-                    dummy_expr,
-                    set_point_bc,
-                )
+                + (is_create_general, malloc_bc_points, dummy_expr, set_point_bc,)
             )
         )
-        stacks = (
-            dm_get_local_info,
-        )
 
-        # Dereference function data in struct
         derefs = dereference_funcs(ctx, fields)
-
-        # Force the struct definition to appear at the very start, since
-        # stacks, allocs etc may rely on its information
         standalones = [
             Definition(ctx),
             dm_get_app_context,
-            Definition(sobjs['k_iter'])
+            Definition(sobjs[f'k_iter_{tname}'])
         ]
-
         body = self._make_callable_body(
-            body, standalones=standalones, stacks=stacks+derefs
+            body, standalones=standalones, stacks=(dm_get_local_info,) + derefs
         )
 
-        # Replace non-function data with pointer to data in struct
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
-
-        subs[Counter._C_symbol] = sobjs['bcPointsArr'].indexed[sobjs['k_iter']]
+        subs[constrain_bc.counter._C_symbol] = \
+            sobjs[f'bcPointsArr_{tname}'].indexed[sobjs[f'k_iter_{tname}']]
 
         return Uxreplace(subs).visit(body)
 
@@ -846,6 +857,105 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
     def submatrices_callback(self):
         return self._submatrices_callback
 
+    def _create_set_point_bc_body(self, body, _constrain_bc_dict):
+        return self._create_set_point_bc_body_coupled(body)
+
+    def _create_set_point_bc_body_coupled(self, body):
+        """
+        Combined SetPointBCs body for all target fields. The body is compiled
+        from all fields' point_bc_exprs together (loops may be fused by
+        clustering). Per-field counter symbols are substituted with the
+        corresponding bcPointsArr[k_iter] after assembly.
+        """
+        linsolve_expr = self.inject_solve.expr.rhs
+        objs = self.objs
+        sobjs = self.solver_objs
+        constrain_bc = self.field_data.constrain_bc
+        targets = self.field_data.targets
+        nfields = len(targets)
+        dmda = sobjs['callbackdm']
+        ctx = objs['dummyctx']
+
+        dm_get_local_info = petsc_call(
+            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+        )
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
+        )
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(dmda)])
+
+        body = self.time_dependence.uxreplace_time(body)
+        fields = get_user_struct_fields(body)
+        self._struct_params.extend(fields)
+
+        bcPointsIS = sobjs['bcPointsIS']
+        bcCompsIS = sobjs['bcCompsIS']
+
+        # Zero-initialise IS arrays (PetscCalloc1 sets pointers to NULL so
+        # the automatic ISDestroy cleanup is safe even on early exit)
+        is_array_mallocs = (
+            petsc_call('PetscCalloc1', [nfields, Byref(bcPointsIS._C_symbol)]),
+            petsc_call('PetscCalloc1', [nfields, Byref(bcCompsIS._C_symbol)]),
+        )
+        bc_arr_mallocs = tuple(
+            petsc_call('PetscMalloc1',
+                       [sobjs[f'numBC_{t.name}'],
+                        Byref(sobjs[f'bcPointsArr_{t.name}']._C_symbol)])
+            for t in targets
+        )
+
+        is_creates, comp_creates = [], []
+        for i, t in enumerate(targets):
+            tname = t.name
+            is_creates.append(petsc_call(
+                'ISCreateGeneral',
+                [petsc_obj_comm, sobjs[f'numBC_{tname}'],
+                 sobjs[f'bcPointsArr_{tname}'],
+                 'PETSC_OWN_POINTER', Byref(bcPointsIS.indexed[i])]
+            ))
+            comp_arr = PetscInt(name=f'comp{i}', initvalue=i)
+            comp_creates.append(petsc_call(
+                'ISCreateGeneral',
+                [petsc_obj_comm, 1, Byref(comp_arr),
+                 'PETSC_COPY_VALUES', Byref(bcCompsIS.indexed[i])]
+            ))
+
+        set_point_bc = petsc_call(
+            'DMDASetPointBC', [dmda, nfields, bcPointsIS, bcCompsIS]
+        )
+
+        body = body._rebuild(body=(
+            is_array_mallocs
+            + bc_arr_mallocs
+            + body.body
+            + tuple(is_creates)
+            + tuple(comp_creates)
+            + (set_point_bc,)
+        ))
+
+        derefs = dereference_funcs(ctx, fields)
+        k_defs = [Definition(sobjs[f'k_iter_{t.name}']) for t in targets]
+        comp_defs = [
+            Definition(PetscInt(name=f'comp{i}', initvalue=i))
+            for i in range(nfields)
+        ]
+        standalones = [Definition(ctx), dm_get_app_context] + k_defs + comp_defs
+
+        body = self._make_callable_body(
+            body, standalones=standalones,
+            stacks=(dm_get_local_info,) + derefs
+        )
+
+        # Struct substitutions + per-field counter → bcArr[k_iter]
+        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
+                i in fields if not isinstance(i.function, AbstractFunction)}
+        for t in targets:
+            tname = t.name
+            subs[constrain_bc[t].counter._C_symbol] = \
+                sobjs[f'bcPointsArr_{tname}'].indexed[sobjs[f'k_iter_{tname}']]
+
+        return Uxreplace(subs).visit(body)
+
     @property
     def jacobian(self):
         return self.inject_solve.expr.rhs.field_data.jacobian
@@ -866,6 +976,8 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         self._make_options_callback()
         self._make_whole_matvec()
         self._make_whole_formfunc()
+        if self.field_data.constrain_bc:
+            self._make_constrain_bc()
         self._make_user_struct_efunc()
         self._create_destroy_submatrix()
         self._create_submatrices()
@@ -1138,31 +1250,29 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         )
 
         i = Dimension(name='i')
-        tmpvec = sobjs['tmpvec']
+        tvec = sobjs['tmpvec']
 
         row_idx = DummyExpr(objs['rowidx'], IntDiv(i, objs['dof']))
         col_idx = DummyExpr(objs['colidx'], Mod(i, objs['dof']))
 
-        # Query constrained global size from each sub-DM via a temporary Vec.
-        # For unconstrained sub-DMs this is equivalent to M*N; for constrained
-        # (BC-excluded) sub-DMs it returns the reduced size automatically.
+        # Query global size from each sub-DM via a temporary Vec.
         get_row_vec = petsc_call(
-            'DMGetGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tmpvec)]
+            'DMGetGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tvec)]
         )
         get_row_size = petsc_call(
-            'VecGetSize', [tmpvec, Byref(objs['subblockrows'])]
+            'VecGetSize', [tvec, Byref(objs['subblockrows'])]
         )
         restore_row_vec = petsc_call(
-            'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tmpvec)]
+            'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tvec)]
         )
         get_col_vec = petsc_call(
-            'DMGetGlobalVector', [objs['Subdms'].indexed[objs['colidx']], Byref(tmpvec)]
+            'DMGetGlobalVector', [objs['Subdms'].indexed[objs['colidx']], Byref(tvec)]
         )
         get_col_size = petsc_call(
-            'VecGetSize', [tmpvec, Byref(objs['subblockcols'])]
+            'VecGetSize', [tvec, Byref(objs['subblockcols'])]
         )
         restore_col_vec = petsc_call(
-            'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['colidx']], Byref(tmpvec)]
+            'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['colidx']], Byref(tvec)]
         )
 
         mat_create = petsc_call('MatCreate', [sobjs['comm'], Byref(objs['block'])])

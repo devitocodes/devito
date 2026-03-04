@@ -94,9 +94,8 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
         return InjectSolve(solver_parameters, {target: target_exprs},
                            options_prefix, get_info, constrain_bcs).build_expr()
     else:
-        # TODO: extend to support constrain_bcs
         return InjectMixedSolve(solver_parameters, target_exprs,
-                                options_prefix, get_info).build_expr()
+                                options_prefix, get_info, constrain_bcs).build_expr()
 
 
 class InjectSolve:
@@ -198,11 +197,17 @@ class InjectMixedSolve(InjectSolve):
             jacobian.target_scaler_mapper
         )
 
+        constrain_bc = {
+            t: ConstrainBC(t, as_tuple(self.target_exprs[t]), arrays)
+            for t in targets
+        } if self.constrain_bcs else None
+
         all_data = MultipleFieldData(
             targets=targets,
             arrays=arrays,
             jacobian=jacobian,
-            residual=residual
+            residual=residual,
+            constrain_bc=constrain_bc
         )
 
         return targets[0], funcs, all_data

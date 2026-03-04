@@ -25,10 +25,12 @@ from devito.petsc.iet.callbacks import (
     get_user_struct_fields
 )
 from devito.petsc.iet.type_builder import (
-    BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder, objs
+    BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder,
+    CoupledConstrainedBCTypeBuilder, objs
 )
 from devito.petsc.iet.builder import (
-    BuilderBase, CoupledBuilder, ConstrainedBCBuilder, make_core_petsc_calls
+    BuilderBase, CoupledBuilder, ConstrainedBCBuilder, CoupledConstrainedBCBuilder,
+    make_core_petsc_calls
 )
 from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
@@ -313,7 +315,7 @@ class BuildSolver:
     @cached_property
     def type_builder(self):
         if self.coupled and self.constrain_bc:
-            return NotImplementedError
+            return CoupledConstrainedBCTypeBuilder(**self.common_kwargs)
         elif self.coupled:
             return CoupledTypeBuilder(**self.common_kwargs)
         elif self.constrain_bc:
@@ -335,8 +337,7 @@ class BuildSolver:
     @cached_property
     def builder(self):
         if self.coupled and self.constrain_bc:
-            # TODO: implement CoupledConstrainedBCBuilder
-            return NotImplementedError
+            return CoupledConstrainedBCBuilder(**self.common_kwargs)
         elif self.coupled:
             return CoupledBuilder(**self.common_kwargs)
         elif self.constrain_bc:
