@@ -65,6 +65,8 @@ jobs:
   test-mpi-docker:
       name: pytest-mpi
       runs-on: ${{ matrix.os }}
+      outputs:
+        unique : ${{ steps.uniquetag.outputs.unique }}
       strategy:
         matrix:
           name: [gcc, gcc-arm, icx]
@@ -89,15 +91,57 @@ jobs:
       - name: Checkout devito
         uses: actions/checkout@v6
 
-      - name: Build docker image
+      - name: Generate unique CI tag
+        id: uniquetag
         run: |
-          docker build . --file docker/Dockerfile.devito --tag devito_img --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }}
+          UNIQUE=$(echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" | cksum | cut -f 1 -d " ")
+          echo "Unique ID: ${UNIQUE}"
+          echo "unique=${UNIQUE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build docker image
+        env:
+          UNIQUE: ${{ steps.uniquetag.outputs.unique }}
+        run: |
+          docker build \
+            --file docker/Dockerfile.devito \
+            --tag "devito_img${UNIQUE}" \
+            --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }} \
+            .
 
       - name: Test with pytest
+        env:
+          UNIQUE: ${{ steps.uniquetag.outputs.unique }}
         run: |
-          docker run --init -t --rm -e CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} -e OMP_NUM_THREADS=1 --name testrun devito_img pytest tests/test_mpi.py
+          docker run \
+            --init -t --rm \
+            --env CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} \
+            --env OMP_NUM_THREADS=1 \
+            --name "testrun devito_img${UNIQUE}" \
+            pytest tests/test_mpi.py
 
       - name: Test examples with MPI
+        env:
+          UNIQUE: ${{ steps.uniquetag.outputs.unique }}
         run: |
-          docker run --init -t --rm ${{ matrix.mpiflag }} -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/acoustic
-          docker run --init -t --rm -e DEVITO_MPI=1 -e OMP_NUM_THREADS=1 --name examplerun devito_img mpiexec -n 2 pytest examples/seismic/tti
+          docker run \
+            --init -t --rm
+            ${{ matrix.mpiflag }} \
+            --env DEVITO_MPI=1 \
+            --env OMP_NUM_THREADS=1 \
+            --name examplerun \
+            "devito_img${UNIQUE}" \
+            mpiexec -n 2 pytest examples/seismic/acoustic
+          #
+          docker run \
+            --init -t --rm \
+            --env DEVITO_MPI=1 \
+            --env OMP_NUM_THREADS=1 \
+            --name examplerun \
+            "devito_img${UNIQUE}" \
+            mpiexec -n 2 pytest examples/seismic/tti
+
+      - name: Cleanup
+        env:
+          UNIQUE: ${{ steps.uniquetag.outputs.unique }}
+        run: |
+            docker image rm -f "devito_img${UNIQUE}"

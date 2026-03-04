@@ -37,6 +37,9 @@ jobs:
       - self-hosted
       - ${{ matrix.runner_label }}
 
+    outputs:
+      unique : ${{ steps.uniquetag.outputs.unique }}
+
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +55,7 @@ jobs:
             test_drive_cmd: "nvidia-smi"
             # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
             # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
-            flags: >-
+            dockerflags: >-
               --init --rm -t
               --name ${CONTAINER_BASENAME}
               --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
@@ -64,7 +67,7 @@ jobs:
             base: "devitocodes/bases:amd"
             test_drive_cmd: "rocm-smi"
             # Unchanged, still passes through required /dev nodes etc.
-            flags: >-
+            dockerflags: >-
               --init --network=host
               --device=/dev/kfd --device=/dev/dri
               --ipc=host
@@ -77,9 +80,18 @@ jobs:
       - name: Checkout devito
         uses: actions/checkout@v6
 
-      - name: Set per-runner tags
+      - name: Generate unique CI tag
+        id: uniquetag
         run: |
-          echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}" >> "$GITHUB_ENV"
+          UNIQUE=$(echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" | cksum | cut -f 1 -d " ")
+          echo "Unique ID: ${UNIQUE}"
+          echo "unique=${UNIQUE}" >> "$GITHUB_OUTPUT"
+
+      - name: Set per-runner tags
+        env:
+          UNIQUE: ${{ steps.uniquetag.outputs.unique }}
+        run: |
+          echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}-${UNIQUE}" >> "$GITHUB_ENV"
           echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}-${{ github.sha }}" >> "$GITHUB_ENV"
 
       - name: Ensure buildx builder
@@ -112,7 +124,7 @@ jobs:
 
           # Run a simple driver-probe command (nvidia-smi / rocm-smi)
           docker rm -f "${CONTAINER_BASENAME}" 2>/dev/null || true
-          docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
+          docker run ${{ matrix.dockerflags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
 
       - name: Test with pytest
         env:
@@ -123,12 +135,13 @@ jobs:
           ci_env=$(bash <(curl -s https://codecov.io/env))
 
           # Run the test suite using the matrix-defined flags
-          docker run ${{ matrix.flags }} \
+          docker run \
+            ${{ matrix.dockerflags }} \
             "${ci_env}" \
-            -e CI=true \
-            -e PYTHONFAULTHANDLER=1 \
-            -e DEVITO_LOGGING=DEBUG \
-            -e CODECOV_TOKEN \
+            --env CI=true \
+            --env PYTHONFAULTHANDLER=1 \
+            --env DEVITO_LOGGING=DEBUG \
+            --env CODECOV_TOKEN \
             "${DOCKER_IMAGE}" \
             pytest -vvv --capture=no --showlocals \
                    --log-cli-level=DEBUG -o log_cli=true \
@@ -138,11 +151,17 @@ jobs:
 
       - name: Test examples
         run: |
-          docker run ${{ matrix.flags }} "${DOCKER_IMAGE}" pytest ${{ matrix.test_examples }}
+          docker run \
+            ${{ matrix.dockerflags }} \
+            "${DOCKER_IMAGE}" \
+            pytest ${{ matrix.test_examples }}
 
       - name: Test examples with MPI
         run: |
-          docker run ${{ matrix.flags }} --env DEVITO_MPI=1 "${DOCKER_IMAGE}" \
+          docker run \
+            ${{ matrix.dockerflags }} \
+            --env DEVITO_MPI=1 \
+            "${DOCKER_IMAGE}" \
             mpiexec -n 2 pytest ${{ matrix.test_examples }}
 
       - name: Builder & image cleanup (keep 3 days of cache)

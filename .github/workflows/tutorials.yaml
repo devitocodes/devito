@@ -26,6 +26,9 @@ jobs:
       DEVITO_ARCH: "${{ matrix.compiler }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
 
+    outputs:
+      unique : ${{ steps.uniquetag.outputs.unique }}
+
     strategy:
       # Prevent all build to stop if a single one fails
       fail-fast: false
@@ -59,6 +62,13 @@ jobs:
     - name: Checkout devito
       uses: actions/checkout@v6
 
+    - name: Generate unique CI tag
+      id: uniquetag
+      run: |
+        UNIQUE=$(echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" | cksum | cut -f 1 -d " ")
+        echo "Unique ID: ${UNIQUE}"
+        echo "unique=${UNIQUE}" >> "$GITHUB_OUTPUT"
+
     - name: Set up Python ${{ matrix.pyver }}
       if: "!contains(matrix.name, 'docker')"
       uses: actions/setup-python@v6
@@ -72,13 +82,24 @@ jobs:
 
     - name: Build docker image
       if: "contains(matrix.name, 'docker')"
+      env:
+        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
       run: |
-          docker build . --pull --file docker/Dockerfile.devito --tag devito_img
+          docker build \
+            --pull \
+            --file docker/Dockerfile.devito \
+            --tag "devito_img${UNIQUE}" \
+            .
 
     - name: Set run prefix
+      env:
+        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
       run: |
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py310' ]; then
-              echo "RUN_CMD=docker run --init -t --rm --name testrun devito_img" >> "$GITHUB_ENV"
+              echo "RUN_CMD=docker run \
+              --init -t --rm \
+              --name testrun \
+              devito_img${UNIQUE}" >> "$GITHUB_ENV"
           else
               echo "RUN_CMD=" >> "$GITHUB_ENV"
           fi
@@ -149,3 +170,10 @@ jobs:
     - name: Timestepping Notebooks
       run: |
         ${{ env.RUN_CMD }} py.test --nbval examples/timestepping
+
+    - name: Cleanup Docker
+      if: "contains(matrix.name, 'docker')"
+      env:
+        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
+      run: |
+          docker image rm -f "devito_img${UNIQUE}"
