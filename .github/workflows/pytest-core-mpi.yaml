@@ -125,7 +125,7 @@ jobs:
           UNIQUE: ${{ steps.uniquetag.outputs.unique }}
         run: |
           docker run \
-            --init -t --rm
+            --init -t --rm \
             ${{ matrix.mpiflag }} \
             --env DEVITO_MPI=1 \
             --env OMP_NUM_THREADS=1 \
