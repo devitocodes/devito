@@ -96,12 +96,12 @@ jobs:
         UNIQUE: ${{ steps.uniquetag.outputs.unique }}
       run: |
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py310' ]; then
-              echo "RUN_CMD=docker run \
+            echo "RUN_CMD=docker run \
               --init -t --rm \
-              --name testrun \
+              --name \"testrun\" \
               \"devito_img${UNIQUE}\"" >> "$GITHUB_ENV"
           else
-              echo "RUN_CMD=" >> "$GITHUB_ENV"
+            echo "RUN_CMD=" >> "$GITHUB_ENV"
           fi
       id: set-run
 
@@ -137,7 +137,7 @@ jobs:
     - name: Dask notebooks
       if: runner.os != 'macOS'
       run: |
-          ${{ env.RUN_CMD }} py.test --nbval examples/seismic/tutorials/*dask*.ipynb
+        ${{ env.RUN_CMD }} py.test --nbval examples/seismic/tutorials/*dask*.ipynb
 
     - name: Self-adjoint notebooks
       run: |
