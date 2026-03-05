@@ -99,12 +99,10 @@ class Lift(Queue):
 
             # If `c` is made of scalar expressions within guards, then we must keep
             # it close to the adjacent Clusters for correctness
-            if c.is_scalar and c.guards:
-                items = processed
+            if c.is_scalar and c.guards and ispace:
+                processed.append(c.rebuild(ispace=ispace, properties=properties))
             else:
-                items = lifted
-
-            items.append(c.rebuild(ispace=ispace, properties=properties))
+                lifted.append(c.rebuild(ispace=ispace, properties=properties))
 
         return lifted + processed
 

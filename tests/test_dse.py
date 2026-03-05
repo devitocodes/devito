@@ -2779,7 +2779,7 @@ class TestAliases:
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
 
-        # # Each guard should have its own alias for cos(time/ctf)
+        # Each guard should have its own alias for cos(time/ctf)
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
         assert len(scalars) == 2
 
@@ -2800,8 +2800,76 @@ class TestAliases:
 
         op.apply(time_M=3)
 
-        assert np.isclose(norm(f), 254292.75, atol=1e-1, rtol=0)
-        assert np.isclose(norm(s), 191.44644, atol=1e-1, rtol=0)
+        assert np.isclose(norm(f), 254292.75, atol=0, rtol=1e-5)
+        assert np.isclose(norm(s), 191.44644, atol=0, rtol=1e-4)
+
+    def test_scalar_with_cond_access(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct3', parent=time, condition=Ge(time, 2))
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        f1 = TimeFunction(name='f1', grid=grid, save=10, time_order=0,
+                          dimensions=(ct,), time_dim=ct, shape=(10,))
+        f1.data[:] = np.arange(10)
+
+        eq0 = Eq(u.forward, u + cos(f1))
+        eq1 = Eq(u.forward, u.forward + sin(time), implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward - sin(f1))
+
+        op = Operator([eq0, eq1, eq2])
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+
+        # # Each guard should have its own alias for cos/sin(f1[time-2])
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 3
+
+        assert_structure(
+            op,
+            ['t', 't,x,y', 't,x,y', 't,x,y'],
+            'txyxyxy'
+        )
+
+        # This would segfault without the right placement of the alias
+        op.apply(time_M=12)
+
+    def test_scalar_with_cond_tinvariant(self):
+        grid = Grid((10, 10))
+        time = grid.time_dim
+        dt = time.spacing
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+
+        eq0 = Eq(u.forward, u / dt + 1)
+        eq1 = Eq(u.forward, u.forward + 1/dt**2, implicit_dims=ct)
+
+        op = Operator([eq0, eq1])
+        op(time=5, dt=1)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 1
+        # One for each 1/dt 1/dt**2
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 2
+
+        assert_structure(
+            op,
+            ['t,x,y', 't', 't,x,y'],
+            'txyxy'
+        )
+
+        # Both aliases should be hoisted outside the time loop
+        assert str(body0(op).body[0]) == 'const float r0 = 1.0F/dt;'
+        assert not body0(op).body[0].ispace
+        assert str(body0(op).body[1]) == 'const float r1 = 1.0F/(dt*dt);'
+        assert not body0(op).body[1].ispace
 
 
 class TestIsoAcoustic:
