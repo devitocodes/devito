@@ -6,7 +6,9 @@ permissions:
 on:
   push:
     branches:
-      - petsc         # Push events on petsc branch
+      - petsc
+      # will be dropped after merge into petsc branch
+      - petscsection
 
 jobs:
   build-and-push:
@@ -15,6 +17,9 @@ jobs:
     env:
       # Use buildkit
       DOCKER_BUILDKIT: "1"
+
+      PETSC_REPO: https://gitlab.com/ZoeLeibowitz/petsc.git
+      PETSC_BRANCH: zoe/feature-da-section-sf
 
     steps:
       - name: Checkout devito
@@ -38,10 +43,13 @@ jobs:
           context: .
           file: docker/Dockerfile.petsc
           push: true
+          platforms: linux/amd64
           tags: |
             devitocodes/devito-petsc:latest
-          build-args: base=devitocodes/devito:gcc-dev-amd64
-          platforms: linux/amd64
+          build-args: |
+            base=devitocodes/devito:gcc-dev-amd64
+            PETSC_REPO=${{ env.PETSC_REPO }}
+            PETSC_BRANCH=${{ env.PETSC_BRANCH }}
 
       - name: Remove dangling layers
         run: docker system prune -f

@@ -3,15 +3,20 @@
 ##############################################################
 
 ARG base=devitocodes/devito:gcc-dev-amd64
+ARG PETSC_REPO=https://gitlab.com/petsc/petsc.git
+ARG PETSC_BRANCH=v3.24.0
 
 FROM $base
+
+ARG PETSC_REPO
+ARG PETSC_BRANCH
 
 USER root
 
 RUN python3 -m venv /venv && \
     mkdir -p /opt/petsc && \
     cd /opt/petsc && \
-    git clone -b v3.24.0 https://gitlab.com/petsc/petsc.git petsc && \
+    git clone -b ${PETSC_BRANCH} ${PETSC_REPO} petsc && \
     cd petsc && \
     ./configure --with-fortran-bindings=0 --with-mpi-dir=/opt/openmpi \
                 --with-openblas-include=$(pkg-config --variable=includedir openblas) \

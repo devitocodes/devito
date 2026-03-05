@@ -42,6 +42,7 @@ from devito.types import (Buffer, Evaluable, host_layer, device_layer,
 from devito.types.dimension import Thickness
 from devito.petsc.iet.passes import lower_petsc
 from devito.petsc.clusters import petsc_preprocess
+from devito.petsc.equations import lower_exprs_petsc
 
 __all__ = ['Operator']
 
@@ -367,6 +368,8 @@ class Operator(Callable):
         # Turn user-defined SubDimensions into concrete SubDimensions,
         # in particular uniqueness across expressions is ensured
         expressions = concretize_subdims(expressions, **kwargs)
+
+        expressions = lower_exprs_petsc(expressions, **kwargs)
 
         processed = [LoweredEq(i) for i in expressions]
 

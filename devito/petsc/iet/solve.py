@@ -37,8 +37,8 @@ class Solve:
 
         vec_place_array = self.time_dependence.place_array(target)
 
-        if self.callback_builder.initial_guesses:
-            initguess = self.callback_builder.initial_guesses[0]
+        if self.callback_builder._initial_guess_efuncs:
+            initguess = self.callback_builder._initial_guess_efuncs[0]
             initguess_call = petsc_call(initguess.name, [dmda, sobjs['xlocal']])
         else:
             initguess_call = None

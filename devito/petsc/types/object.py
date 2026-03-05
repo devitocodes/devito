@@ -5,40 +5,59 @@ from devito.types import (
     LocalObject, LocalCompositeObject, ModuloDimension, TimeDimension, ArrayObject,
     CustomDimension, Scalar
 )
-from devito.symbolics import Byref, cast
+from devito.symbolics import Byref, cast, FieldFromComposite
 from devito.types.basic import DataSymbol, LocalType
 
 from devito.petsc.iet.nodes import petsc_call
 
 
+# TODO: unnecessary use of "CALLBACK" types - just create a simple
+# way of destroying or not destroying a certain type
+
+
 class PetscMixin:
+    def __init__(self, *args, destroy=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._destroy = destroy
+
+    @property
+    def _C_free(self):
+        if not self._destroy:
+            return None
+        return self._C_free_impl()
+
+    def _C_free_impl(self):
+        """
+        Implement the PETSc destruction logic for this object.
+
+        Subclasses should override this method to emit the appropriate
+        PETSc destroy call(s) (e.g., `DMDestroy`, `VecDestroy`, etc.).
+
+        Objects obtained inside callback functions via PETSc "Get"
+        routines (e.g. `SNESGetDM`, `KSPGetPC`) are managed elsewhere
+        and must not be destroyed here. In such cases, this method
+        should return ``None``.
+        """
+        return None
+
     @property
     def _C_free_priority(self):
-        if type(self) in FREE_PRIORITY:
-            return FREE_PRIORITY[type(self)]
-        else:
-            return super()._C_free_priority
+        for cls, prio in FREE_PRIORITY.items():
+            if isinstance(self, cls):
+                return prio
+        return super()._C_free_priority
 
 
 class PetscObject(PetscMixin, LocalObject):
     pass
 
 
-class CallbackDM(PetscObject):
+class DM(PetscObject):
     """
-    PETSc Data Management object (DM). This is the DM instance
-    accessed within the callback functions via `SNESGetDM` and
-    is not destroyed during callback execution.
+    PETSc Data Management object (DM).
     """
     dtype = CustomDtype('DM')
 
-
-class DM(CallbackDM):
-    """
-    PETSc Data Management object (DM). This is the primary DM instance
-    created within the main kernel and linked to the SNES
-    solver using `SNESSetDM`.
-    """
     def __init__(self, *args, dofs=1, **kwargs):
         super().__init__(*args, **kwargs)
         self._dofs = dofs
@@ -47,39 +66,31 @@ class DM(CallbackDM):
     def dofs(self):
         return self._dofs
 
-    @property
-    def _C_free(self):
+    def _C_free_impl(self):
         return petsc_call('DMDestroy', [Byref(self.function)])
 
 
 DMCast = cast('DM')
+PetscObjectCast = cast('PetscObject')
 
 
-class CallbackMat(PetscObject):
+class Mat(PetscObject):
     """
-    PETSc Matrix object (Mat) used within callback functions.
-    These instances are not destroyed during callback execution;
-    instead, they are managed and destroyed in the main kernel.
+    PETSc Matrix object (Mat).
     """
     dtype = CustomDtype('Mat')
 
-
-class Mat(CallbackMat):
-    @property
-    def _C_free(self):
+    def _C_free_impl(self):
         return petsc_call('MatDestroy', [Byref(self.function)])
 
 
-class CallbackVec(PetscObject):
+class Vec(PetscObject):
     """
     PETSc vector object (Vec).
     """
     dtype = CustomDtype('Vec')
 
-
-class Vec(CallbackVec):
-    @property
-    def _C_free(self):
+    def _C_free_impl(self):
         return petsc_call('VecDestroy', [Byref(self.function)])
 
 
@@ -97,6 +108,20 @@ class PetscInt(PetscObject):
     to PETSc functions.
     """
     dtype = CustomIntType('PetscInt')
+
+
+class CallbackPetscInt(PetscObject):
+    """
+    """
+    dtype = CustomIntType('PetscInt', modifier=' *')
+
+
+class PetscIntPtr(PetscObject):
+    """
+    """
+    dtype = CustomIntType('PetscInt')
+
+    _C_modifier = ' *'
 
 
 class PetscScalar(PetscObject):
@@ -123,16 +148,13 @@ class KSPNormType(PetscObject):
     dtype = CustomDtype('KSPNormType')
 
 
-class CallbackSNES(PetscObject):
+class SNES(PetscObject):
     """
     PETSc SNES : Non-Linear Systems Solvers.
     """
     dtype = CustomDtype('SNES')
 
-
-class SNES(CallbackSNES):
-    @property
-    def _C_free(self):
+    def _C_free_impl(self):
         return petsc_call('SNESDestroy', [Byref(self.function)])
 
 
@@ -182,6 +204,9 @@ class MatReuse(PetscObject):
 class VecScatter(PetscObject):
     dtype = CustomDtype('VecScatter')
 
+    def _C_free_impl(self):
+        return petsc_call('VecScatterDestroy', [Byref(self.function)])
+
 
 class StartPtr(PetscObject):
     def __init__(self, name, dtype):
@@ -193,7 +218,22 @@ class SingleIS(PetscObject):
     dtype = CustomDtype('IS')
 
 
-class PETScStruct(LocalCompositeObject):
+class PetscSectionGlobal(PetscObject):
+    dtype = CustomDtype('PetscSection')
+
+    def _C_free_impl(self):
+        return petsc_call('PetscSectionDestroy', [Byref(self.function)])
+
+
+class PetscSectionLocal(PetscObject):
+    dtype = CustomDtype('PetscSection')
+
+
+class PetscSF(PetscObject):
+    dtype = CustomDtype('PetscSF')
+
+
+class PETScStruct(PetscMixin, LocalCompositeObject):
 
     @property
     def time_dim_fields(self):
@@ -233,9 +273,33 @@ class CallbackUserStruct(PETScStruct):
 
 class JacobianStruct(PETScStruct):
     def __init__(self, name='jctx', pname='JacobianCtx', fields=None,
-                 modifier='', liveness='lazy'):
-        super().__init__(name, pname, fields, modifier, liveness)
+                 modifier='', liveness='lazy', no_of_submats=0, **kwargs):
+        super().__init__(name, pname, fields, modifier, liveness, **kwargs)
+        self._no_of_submats = no_of_submats
     _C_modifier = None
+
+    def _C_free_impl(self):
+        pointer_mat = [i for i in self.fields if isinstance(i, PointerMat)]
+        assert len(pointer_mat) == 1
+        pointer_mat = pointer_mat[0]
+
+        # Destroy each sub-matrix
+        destroy_calls = [
+            petsc_call(
+                'MatDestroy',
+                [Byref(FieldFromComposite(pointer_mat.indexed[i],
+                                          self.function))]
+            )
+            for i in range(self._no_of_submats)
+        ]
+        # Free the allocated matrix pointer array
+        destroy_calls.append(
+            petsc_call(
+                'PetscFree',
+                [FieldFromComposite(pointer_mat.base, self.function)]
+            )
+        )
+        return destroy_calls
 
 
 class SubMatrixStruct(PETScStruct):
@@ -279,7 +343,7 @@ class PETScArrayObject(PetscMixin, ArrayObject, LocalType):
         return False
 
 
-class CallbackPointerIS(PETScArrayObject):
+class PointerIS(PETScArrayObject):
     """
     Index set object used for efficient indexing into vectors and matrices.
     https://petsc.org/release/manualpages/IS/IS/
@@ -288,10 +352,7 @@ class CallbackPointerIS(PETScArrayObject):
     def dtype(self):
         return CustomDtype('IS', modifier=' *')
 
-
-class PointerIS(CallbackPointerIS):
-    @property
-    def _C_free(self):
+    def _C_free_impl(self):
         destroy_calls = [
             petsc_call('ISDestroy', [Byref(self.indexify().subs({self.dim: i}))])
             for i in range(self._nindices)
@@ -300,15 +361,21 @@ class PointerIS(CallbackPointerIS):
         return destroy_calls
 
 
-class CallbackPointerDM(PETScArrayObject):
+class PointerPetscInt(PETScArrayObject):
+    """
+    TODO: figure out names for this class vs PetscIntPtr class
+    """
+    @property
+    def dtype(self):
+        return CustomDtype('PetscInt', modifier=' *')
+
+
+class PointerDM(PETScArrayObject):
     @property
     def dtype(self):
         return CustomDtype('DM', modifier=' *')
 
-
-class PointerDM(CallbackPointerDM):
-    @property
-    def _C_free(self):
+    def _C_free_impl(self):
         destroy_calls = [
             petsc_call('DMDestroy', [Byref(self.indexify().subs({self.dim: i}))])
             for i in range(self._nindices)
@@ -336,9 +403,12 @@ class NofSubMats(Scalar, LocalType):
 
 
 FREE_PRIORITY = {
-    PETScArrayObject: 0,
-    Vec: 1,
-    Mat: 2,
-    SNES: 3,
-    DM: 4,
+    JacobianStruct: 0,
+    PETScArrayObject: 1,
+    VecScatter: 2,
+    Vec: 3,
+    Mat: 4,
+    SNES: 5,
+    PetscSectionGlobal: 6,
+    DM: 7,
 }
