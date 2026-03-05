@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from test_dse import TestTTI
 
-from conftest import _R, assert_blocking, assert_structure
+from conftest import _R, assert_blocking, assert_structure, body0
 from devito import (
     NODE, Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
     Dimension, Eq, Function, Grid, Inc, Ne, Operator, PrecomputedSparseFunction,
@@ -22,12 +22,6 @@ from devito.mpi.distributed import CustomTopology
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
 from examples.seismic.acoustic import acoustic_setup
-
-
-# Main body in Operator IET, depending on ISA
-def body0(op):
-    bidx = 0 if 'sse' not in configuration['platform'].known_isas else 1
-    return op.body.body[bidx]
 
 
 class TestDistributor:

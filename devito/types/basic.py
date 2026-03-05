@@ -1589,7 +1589,7 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         comps = [f.func(*args, name=f.name.replace(self.name, newname), **kwargs)
                  for f in self.flat()]
         # Rebuild the matrix with the new components
-        return self._new(comps)
+        return self._new(*self.shape, comps)
 
     func = _rebuild
 

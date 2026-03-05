@@ -126,6 +126,8 @@ class CireTransformer:
         for mapper in self._generate(cgroup, exclude):
             # Clusters -> AliasList
             found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
+            if not found:
+                continue
             exprs, aliases = self._choose(found, cgroup, mapper)
 
             # AliasList -> Schedule
@@ -271,13 +273,14 @@ class CireTransformerLegacy(CireTransformer):
                     free_symbols = i.free_symbols
                 if {a.function for a in free_symbols} & exclude:
                     continue
-
                 mapper.add(i, make, terms)
 
         return mapper
 
 
 class CireInvariants(CireTransformerLegacy, Queue):
+
+    _q_guards_in_key = True
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
@@ -928,7 +931,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             assert writeto.size == 0
 
             dtype = sympy_dtype(pivot, base=meta.dtype, smin=opt_min_dtype)
-            obj = Temp(name=name, dtype=dtype)
+            obj = Temp(name=name, dtype=dtype, is_const=True)
             expression = Eq(obj, uxreplace(pivot, subs))
 
             callback = lambda idx: obj  # noqa: B023

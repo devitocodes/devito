@@ -5,8 +5,8 @@ import pytest
 from sympy import Mul  # noqa
 
 from conftest import (  # noqa
-    _R, EVAL, assert_blocking, assert_structure, check_array, get_arrays, get_params,
-    skipif
+    _R, EVAL, assert_blocking, assert_structure, body0, check_array, get_arrays,
+    get_params, skipif
 )
 from devito import (  # noqa
     NODE, Abs, ConditionalDimension, Constant, DefaultDimension, Derivative, Dimension,
@@ -28,6 +28,7 @@ from devito.symbolics import (  # noqa
 )
 from devito.tools import as_tuple
 from devito.types import PrecomputedSparseTimeFunction, Scalar, Symbol
+from devito.types.misc import Temp
 from examples.seismic import AcquisitionGeometry, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
@@ -347,8 +348,8 @@ class TestLifting:
         trees = retrieve_iteration_tree(op)
 
         assert len(trees) == 3
-        assert_structure(op, ['t', 't,x,y', 't,x,y'], 'txyxy')
-        assert trees[0].dimensions == [time]
+        assert_structure(op, ['t,x,y', 't', 't,x,y'], 'txyxy')
+        assert trees[1].dimensions == [time]
 
 
 class TestAliases:
@@ -2551,6 +2552,7 @@ class TestAliases:
         eqn = Eq(u, u - (cos(time_sub * factor * f) * uf))
 
         op = Operator(eqn, opt='advanced')
+
         assert_structure(op, ['t', 't,fd', 't,fd,x,y'], 't,fd,x,y')
         # Make sure it compiles
         _ = op.cfunction
@@ -2684,6 +2686,190 @@ class TestAliases:
             ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
             'tx0_blk0y0_blk0xyzyz'
         )
+
+    def test_split_cond(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+        # Each guard should have its own alias for cos(time)
+        assert 'float r0 = cos(time);' in str(body0(op))
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 2
+
+    def test_split_cond_multi_alias(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time) + sin(time), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(time) - sin(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+        # Each guard should have its own aliases for cos(time) and sin(time)
+        assert 'const float r0 = sin(time) + cos(time)' in str(body0(op))
+        assert 'const float r1 = cos(time);' in str(body0(op))
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 3
+
+    def test_multi_cond_no_split(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time), implicit_dims=ct)
+        # Not hoisting the init would have this equation split the time
+        # loop to initialize the alias for sin(time)
+        eq1 = Eq(u.forward, u.forward + sin(time), implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward - sin(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        assert_structure(
+            op,
+            ['t', 't,x,y', 't,x,y', 't,x,y'],
+            'txyxyxy'
+        )
+
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 3
+
+    def test_alias_with_conditional(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(ct), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(ct), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+
+        # Each guard should have its own alias for cos(time/ctf)
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 2
+
+    def test_scalar_alias_interp(self):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        t_sub = ConditionalDimension(name='t_sub', parent=time, factor=3)
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=100)
+
+        eq = Eq(f.forward, f.laplace + .002)
+
+        rec = s.interpolate(expr=f, implicit_dims=t_sub)
+
+        op = Operator(rec + [eq])
+
+        op.apply(time_M=3)
+
+        assert np.isclose(norm(f), 254292.75, atol=0, rtol=1e-5)
+        assert np.isclose(norm(s), 191.44644, atol=0, rtol=1e-4)
+
+    def test_scalar_with_cond_access(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct3', parent=time, condition=Ge(time, 2))
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        f1 = TimeFunction(name='f1', grid=grid, save=10, time_order=0,
+                          dimensions=(ct,), time_dim=ct, shape=(10,))
+        f1.data[:] = np.arange(10)
+
+        eq0 = Eq(u.forward, u + cos(f1))
+        eq1 = Eq(u.forward, u.forward + sin(time), implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward - sin(f1))
+
+        op = Operator([eq0, eq1, eq2])
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+
+        # # Each guard should have its own alias for cos/sin(f1[time-2])
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 3
+
+        assert_structure(
+            op,
+            ['t', 't,x,y', 't,x,y', 't,x,y'],
+            'txyxyxy'
+        )
+
+        # This would segfault without the right placement of the alias
+        op.apply(time_M=12)
+
+    def test_scalar_with_cond_tinvariant(self):
+        grid = Grid((10, 10))
+        time = grid.time_dim
+        dt = time.spacing
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+
+        eq0 = Eq(u.forward, u / dt + 1)
+        eq1 = Eq(u.forward, u.forward + 1/dt**2, implicit_dims=ct)
+
+        op = Operator([eq0, eq1])
+        op(time=5, dt=1)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 1
+        # One for each 1/dt 1/dt**2
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 2
+
+        assert_structure(
+            op,
+            ['t,x,y', 't', 't,x,y'],
+            'txyxy'
+        )
+
+        # Both aliases should be hoisted outside the time loop
+        assert str(body0(op).body[0]) == 'const float r0 = 1.0F/dt;'
+        assert not body0(op).body[0].ispace
+        assert str(body0(op).body[1]) == 'const float r1 = 1.0F/(dt*dt);'
+        assert not body0(op).body[1].ispace
 
 
 class TestIsoAcoustic:

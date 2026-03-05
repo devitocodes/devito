@@ -96,7 +96,7 @@ class Search:
 
 
 def search(exprs: Expression | Iterable[Expression],
-           query: type | Callable[[Any], bool],
+           query: type | tuple[type, ...] | Callable[[Any], bool],
            mode: Mode = 'unique',
            visit: Literal['dfs', 'bfs', 'bfs_first_hit'] = 'dfs',
            deep: bool = False) -> List | set[Expression]:
@@ -104,7 +104,10 @@ def search(exprs: Expression | Iterable[Expression],
 
     assert mode in ('all', 'unique'), "Unknown mode"
 
-    Q = (lambda obj: isinstance(obj, query)) if isinstance(query, type) else query
+    if isinstance(query, (type, tuple)):
+        Q = lambda obj: isinstance(obj, query)
+    else:
+        Q = query
 
     # Search doesn't actually use a BFS (rather, a preorder DFS), but the terminology
     # is retained in this function's parameters for backwards compatibility

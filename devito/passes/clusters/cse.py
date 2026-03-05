@@ -40,6 +40,12 @@ def cse_dtype(exprdtype, cdtype):
     Return the dtype of a CSE temporary given the dtype of the expression to be
     captured and the cluster's dtype.
     """
+    if np.issubdtype(cdtype, np.floating) and np.issubdtype(exprdtype, np.integer):
+        # Integer expression and floating-point cluster: promote to the floating point
+        # np.promote_types upcast integers (e.g int32 -> Float64) so we
+        # need to ensure that the promoted type is not larger than the cluster's dtype
+        return cdtype
+
     if np.issubdtype(cdtype, np.complexfloating):
         return np.promote_types(exprdtype, cdtype(0).real.__class__).type
     else:
@@ -97,8 +103,9 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     if cluster.is_fence:
         return cluster
 
-    make_dtype = lambda e: cse_dtype(e.dtype, dtype)
-    make = lambda e: CTemp(name=sregistry.make_name(), dtype=make_dtype(e))
+    def make(e):
+        edtype = cse_dtype(e.dtype, dtype)
+        return CTemp(name=sregistry.make_name(), dtype=edtype)
 
     exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)
 

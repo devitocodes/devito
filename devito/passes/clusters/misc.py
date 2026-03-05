@@ -97,12 +97,12 @@ class Lift(Queue):
 
             properties = c.properties.filter(key)
 
-            # Lifted scalar clusters cannot be guarded
-            # as they would not be in the scope of the guarded clusters
-            # unless the guard is for an outer dimension
-            guards = {} if c.is_scalar and not (prefix[:-1] and c.guards) else c.guards
-
-            lifted.append(c.rebuild(ispace=ispace, properties=properties, guards=guards))
+            # If `c` is made of scalar expressions within guards, then we must keep
+            # it close to the adjacent Clusters for correctness
+            if c.is_scalar and c.guards and ispace:
+                processed.append(c.rebuild(ispace=ispace, properties=properties))
+            else:
+                lifted.append(c.rebuild(ispace=ispace, properties=properties))
 
         return lifted + processed
 
