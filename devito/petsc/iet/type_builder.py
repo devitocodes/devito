@@ -290,6 +290,8 @@ objs = frozendict({
     'submat_arr': PointerMat(name='submat_arr'),
     'subblockrows': PetscInt('subblockrows'),
     'subblockcols': PetscInt('subblockcols'),
+    'sublocalrows': PetscInt('sublocalrows'),
+    'sublocalcols': PetscInt('sublocalcols'),
     'rowidx': PetscInt('rowidx'),
     'colidx': PetscInt('colidx'),
     'J': Mat('J'),

@@ -1255,12 +1255,15 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         row_idx = DummyExpr(objs['rowidx'], IntDiv(i, objs['dof']))
         col_idx = DummyExpr(objs['colidx'], Mod(i, objs['dof']))
 
-        # Query global size from each sub-DM via a temporary Vec.
+        # Query global and local sizes from each sub-DM via a temporary Vec.
         get_row_vec = petsc_call(
             'DMGetGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tvec)]
         )
         get_row_size = petsc_call(
             'VecGetSize', [tvec, Byref(objs['subblockrows'])]
+        )
+        get_row_local_size = petsc_call(
+            'VecGetLocalSize', [tvec, Byref(objs['sublocalrows'])]
         )
         restore_row_vec = petsc_call(
             'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['rowidx']], Byref(tvec)]
@@ -1271,15 +1274,19 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         get_col_size = petsc_call(
             'VecGetSize', [tvec, Byref(objs['subblockcols'])]
         )
+        get_col_local_size = petsc_call(
+            'VecGetLocalSize', [tvec, Byref(objs['sublocalcols'])]
+        )
         restore_col_vec = petsc_call(
             'DMRestoreGlobalVector', [objs['Subdms'].indexed[objs['colidx']], Byref(tvec)]
         )
 
-        mat_create = petsc_call('MatCreate', [sobjs['comm'], Byref(objs['block'])])
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(objs['J'])])
+        mat_create = petsc_call('MatCreate', [petsc_obj_comm, Byref(objs['block'])])
 
         mat_set_sizes = petsc_call(
             'MatSetSizes', [
-                objs['block'], 'PETSC_DECIDE', 'PETSC_DECIDE',
+                objs['block'], objs['sublocalrows'], objs['sublocalcols'],
                 objs['subblockrows'], objs['subblockcols']
             ]
         )
@@ -1329,9 +1336,11 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
             col_idx,
             get_row_vec,
             get_row_size,
+            get_row_local_size,
             restore_row_vec,
             get_col_vec,
             get_col_size,
+            get_col_local_size,
             restore_col_vec,
             mat_create,
             mat_set_sizes,

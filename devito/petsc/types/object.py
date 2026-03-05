@@ -402,11 +402,6 @@ class NofSubMats(Scalar, LocalType):
     pass
 
 
-# Can this be attached to the consrain bc object in metadata maybe? probs
-# shoulnd't be here
-Counter = PetscInt(name='count')
-
-
 FREE_PRIORITY = {
     JacobianStruct: 0,
     PETScArrayObject: 1,

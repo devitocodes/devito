@@ -142,7 +142,6 @@ class InjectSolve:
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
         initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
 
-        # TODO: Extend this to mixed case
         constrain_bc = (
             ConstrainBC(target, exprs, arrays)
             if self.constrain_bcs
