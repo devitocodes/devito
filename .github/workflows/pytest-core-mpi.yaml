@@ -116,7 +116,8 @@ jobs:
             --init -t --rm \
             --env CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} \
             --env OMP_NUM_THREADS=1 \
-            --name "testrun devito_img${UNIQUE}" \
+            --name testrun \
+            "devito_img${UNIQUE}" \
             pytest tests/test_mpi.py
 
       - name: Test examples with MPI

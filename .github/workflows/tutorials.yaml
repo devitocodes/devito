@@ -98,8 +98,8 @@ jobs:
           if [ "${{ matrix.name }}" == 'tutos-docker-gcc-py310' ]; then
             echo "RUN_CMD=docker run \
               --init -t --rm \
-              --name \"testrun\" \
-              \"devito_img${UNIQUE}\"" >> "$GITHUB_ENV"
+              --name testrun \
+              devito_img${UNIQUE}" >> "$GITHUB_ENV"
           else
             echo "RUN_CMD=" >> "$GITHUB_ENV"
           fi
