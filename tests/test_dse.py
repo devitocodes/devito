@@ -2705,10 +2705,10 @@ class TestAliases:
 
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
-        # The alias should have been lifted out of the condition
+        # Each guard should have its own alias for cos(time)
         assert 'float r0 = cos(time);' in str(body0(op))
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 1
+        assert len(scalars) == 2
 
     def test_split_cond_multi_alias(self):
         grid = Grid((11, 11))
@@ -2728,10 +2728,11 @@ class TestAliases:
 
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
-        # The alias should have been lifted out of the condition
-        assert 'float r3 = cos(time);' in str(body0(op))
+        # Each guard should have its own aliases for cos(time) and sin(time)
+        assert 'const float r0 = sin(time) + cos(time)' in str(body0(op))
+        assert 'const float r1 = cos(time);' in str(body0(op))
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 5
+        assert len(scalars) == 3
 
     def test_multi_cond_no_split(self):
         grid = Grid((11, 11))
@@ -2742,7 +2743,7 @@ class TestAliases:
         ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
 
         eq0 = Eq(u.forward, u + cos(time), implicit_dims=ct)
-        # Not hoisting the inite would have this equation split the time
+        # Not hoisting the init would have this equation split the time
         # loop to initialize the alias for sin(time)
         eq1 = Eq(u.forward, u.forward + sin(time), implicit_dims=ct2)
         eq2 = Eq(u.forward, u.forward - sin(time), implicit_dims=ct)
@@ -2778,9 +2779,29 @@ class TestAliases:
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
 
-        # The alias should have been lifted out of the condition
+        # # Each guard should have its own alias for cos(time/ctf)
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert not scalars
+        assert len(scalars) == 2
+
+    def test_scalar_alias_interp(self):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        t_sub = ConditionalDimension(name='t_sub', parent=time, factor=3)
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=100)
+
+        eq = Eq(f.forward, f.laplace + .002)
+
+        rec = s.interpolate(expr=f, implicit_dims=t_sub)
+
+        op = Operator(rec + [eq])
+
+        op.apply(time_M=3)
+
+        assert np.isclose(norm(f), 254292.75, atol=1e-1, rtol=0)
+        assert np.isclose(norm(s), 191.44644, atol=1e-1, rtol=0)
 
 
 class TestIsoAcoustic:

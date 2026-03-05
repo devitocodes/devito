@@ -25,7 +25,6 @@ from devito.types import (
     CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension, Size,
     StencilDimension, Symbol, Temp, TempArray, TempFunction
 )
-from devito.types.dimension import ConditionalDimension, SubsamplingFactor
 from devito.types.grid import MultiSubDimension
 
 __all__ = ['cire']
@@ -149,7 +148,7 @@ class CireTransformer:
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(schedule, meta, self.sregistry,
                                          self.opt_ftemps, self.opt_min_dtype,
-                                         self.opt_minmem, nclusters=len(cgroup))
+                                         self.opt_minmem)
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
@@ -280,6 +279,8 @@ class CireTransformerLegacy(CireTransformer):
 
 
 class CireInvariants(CireTransformerLegacy, Queue):
+
+    _q_guards_in_key = True
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
@@ -854,7 +855,7 @@ def optimize_schedule_rotations(schedule, sregistry):
 
 
 def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
-                   opt_minmem, nclusters=1):
+                   opt_minmem):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -925,26 +926,15 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             callback = lambda idx: obj[  # noqa: B023
                 [i + s for i, s in zip(idx, shift, strict=True)]  # noqa: B023
             ]
-            guards = meta.guards
         else:
             # Degenerate case: scalar expression
             assert writeto.size == 0
 
-            is_cond = any(isinstance(d, (SubsamplingFactor, ConditionalDimension))
-                          for d in pivot.free_symbols)
-            if meta.guards and is_cond and nclusters > 1:
-                # Scalar alias that depends on a guard, unsafe to lift out of the guard
-                # Do not alias
-                expression = None
-                callback = lambda idx: uxreplace(pivot, subs)  # noqa: B023
-            else:
-                dtype = sympy_dtype(pivot, base=meta.dtype, smin=opt_min_dtype)
-                obj = Temp(name=name, dtype=dtype, is_const=True)
-                expression = Eq(obj, uxreplace(pivot, subs))
+            dtype = sympy_dtype(pivot, base=meta.dtype, smin=opt_min_dtype)
+            obj = Temp(name=name, dtype=dtype, is_const=True)
+            expression = Eq(obj, uxreplace(pivot, subs))
 
-                callback = lambda idx: obj  # noqa: B023
-                # Only keep the guard if there is no cross-cluster reuse of the scalar
-                guards = meta.guards if nclusters == 1 else None
+            callback = lambda idx: obj  # noqa: B023
 
         # Create the substitution rules for the aliasing expressions
         subs.update({
@@ -970,8 +960,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             properties[Hyperplane(writeto.itdims)] = {SEPARABLE}
 
         # Finally, build the alias Cluster
-        if expression is not None:
-            clusters.append(Cluster(expression, ispace, guards, properties))
+        clusters.append(Cluster(expression, ispace, meta.guards, properties))
 
     return clusters, subs
 
