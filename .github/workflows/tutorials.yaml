@@ -99,7 +99,7 @@ jobs:
               echo "RUN_CMD=docker run \
               --init -t --rm \
               --name testrun \
-              devito_img${UNIQUE}" >> "$GITHUB_ENV"
+              \"devito_img${UNIQUE}\"" >> "$GITHUB_ENV"
           else
               echo "RUN_CMD=" >> "$GITHUB_ENV"
           fi
