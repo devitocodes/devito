@@ -6,6 +6,7 @@ import os
 import re
 import sys
 from contextlib import suppress
+from ctypes import util as ctypesutil
 from functools import cached_property
 from pathlib import Path
 from subprocess import DEVNULL, PIPE, CalledProcessError, Popen, run
@@ -647,7 +648,7 @@ def get_m1_llvm_path(language):
 
 @memoized_func
 def check_cuda_runtime():
-    libname = ctypes.util.find_library("cudart")
+    libname = ctypesutil.find_library("cudart")
     if not libname:
         warning("Unable to check compatibility of NVidia driver and runtime")
         return
@@ -1109,7 +1110,7 @@ class NvidiaDevice(Device):
         Get the maximum amount of shared memory per thread block
         """
         # Load libcudart
-        libname = ctypes.util.find_library("cudart")
+        libname = ctypesutil.find_library("cudart")
         if not libname:
             return 64 * 1024  # 64 KB default
         lib = ctypes.CDLL(libname)
