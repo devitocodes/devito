@@ -39,6 +39,7 @@ repos:
     rev: v1.7.8
     hooks:
       - id: actionlint-docker
+        args: [-oneline]
   - repo: https://github.com/hadolint/hadolint
     rev: v2.12.0
     hooks:
