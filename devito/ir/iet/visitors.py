@@ -16,8 +16,8 @@ from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
 from devito.ir.iet.nodes import (
-    BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
-    MetaCall, Section
+    BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, MetaCall,
+    Node, Section
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
@@ -1593,13 +1593,17 @@ class Specializer(Uxreplace):
         # Modify the _func_table to ensure callbacks are specialized
         state['_func_table'] = self._visit(o._func_table)
 
-        try:
-            state.pop('ccode')
-        except KeyError:
-            # C code has not previously been generated for this Operator
-            pass
+        state.pop('ccode', None)
 
-        # FIXME: These names aren't great
+        # The specialized operator must be compiled fresh - strip any pre-existing
+        # compiled binary state inherited from a previously-applied operator.
+        # Without this, __setstate__ reloads the old binary (which expects the full
+        # parameter list), while the new operator has fewer parameters after
+        # specialization, causing a stack corruption (SIGABRT) at call time.
+        state.pop('binary', None)
+        state.pop('soname', None)
+        state.pop('_soname', None)  # Clear cached soname so it is recomputed
+
         newargs, newkwargs = o.__getnewargs_ex__()
         newop = o.__class__(*newargs, **newkwargs)
 

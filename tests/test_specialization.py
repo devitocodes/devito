@@ -229,8 +229,8 @@ class TestApply:
     @pytest.mark.parametrize('specialize',
                              [('x_m',),
                               ('y_M',),
-                              ('t_m',),
-                              ('t_m', 't_M'),
+                              ('time_m',),
+                              ('time_m', 'time_M'),
                               ('x_m', 'y_M'),
                               ('x_m', 'x_M', 'y_m', 'y_M')])
     def test_diffusion_like(self, specialize):
