@@ -11,17 +11,17 @@ from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 
 import cgen as c
-from sympy import IndexedBase
+from sympy import IndexedBase, Number
 from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
 from devito.ir.iet.nodes import (
-    BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
-    Section
+    BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, MetaCall,
+    Node, Section
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
-    FieldFromComposite, FieldFromPointer, ListInitializer, uxreplace
+    FieldFromComposite, FieldFromPointer, IndexedPointer, ListInitializer, uxreplace
 )
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
@@ -45,6 +45,7 @@ __all__ = [
     'MapExprStmts',
     'MapHaloSpots',
     'MapNodes',
+    'Specializer',
     'Transformer',
     'Uxreplace',
     'printAST',
@@ -1496,6 +1497,119 @@ class Uxreplace(Transformer):
         stream = self.mapper.get(o.stream, o.stream)
         return o._rebuild(grid=grid, block=block, stream=stream,
                           arguments=arguments)
+
+
+class Specializer(Uxreplace):
+    """
+    A Transformer to "specialize" a pre-built Operator - that is to replace a given
+    set of (scalar) symbols with hard-coded values to free up registers. This will
+    yield a "specialized" version of the Operator, specific to a particular setup.
+
+    Note that the Operator is not re-optimized in response to this replacement - this
+    transformation could nominally result in expressions of the form `f + 0` in the
+    generated code. If one wants to construct an Operator where such expressions are
+    considered, then use of `subs=...` at construction time is a better choice. However,
+    it is likely that such expressions will be optimized away by the C-level compiler.
+    """
+
+    def __init__(self, mapper, nested=False):
+        super().__init__(mapper, nested=nested)
+
+        # Sanity check
+        for k, v in self.mapper.items():
+            if not isinstance(k, (AbstractSymbol, IndexedPointer)):
+                raise ValueError(f"Attempted to specialize non-scalar symbol: {k}")
+
+            if not isinstance(v, Number):
+                raise ValueError("Only SymPy Numbers can used to replace values during "
+                                 f"specialization. Value {v} was supplied for symbol "
+                                 f"{k}, but is of type {type(v)}.")
+
+    def _visit(self, o, *args, **kwargs):
+        retval = super()._visit(o, *args, **kwargs)
+        # print(f"Visiting {o.__class__}")
+        # print(retval)
+        # print("--------------------------------------------")
+        return retval
+
+    # TODO: Should probably be moved to Uxreplace at least (as should some of these
+    # others I think?)
+    def visit_DifferentiableFunction(self, o):
+        return uxreplace(o, self.mapper)
+
+    def visit_Definition(self, o):
+        try:
+            function = self._visit(o.function)
+            return o._rebuild(function=function)
+        except KeyError:
+            return o
+
+    def visit_BlockGrid(self, o):
+        # TODO: Should probably be made into a uxreplace handler of some description
+        cargs = self._visit(o.cargs)
+        shape = self._visit(o.shape)
+        return o._rebuild(cargs=cargs, shape=shape)
+
+    def visit_OrderedDict(self, o):
+        return OrderedDict((k, self._visit(v)) for k, v in o.items())
+
+    def visit_MetaCall(self, o):
+        root = self._visit(o.root)
+        return MetaCall(root=root, local=o.local)
+
+    def visit_Callable(self, o):
+        body = self._visit(o.body)
+        parameters = [i for i in o.parameters if i not in self.mapper]
+        return o._rebuild(body=body, parameters=parameters)
+
+    def visit_KernelLaunch(self, o):
+        # Remove kernel args if they are to be hardcoded
+        arguments = [i for i in o.arguments if i not in self.mapper]
+        return o._rebuild(arguments=arguments)
+
+    def visit_Operator(self, o, **kwargs):
+        # Entirely fine to apply this to an Operator (unlike Uxreplace) - indeed this
+        # is the intended use case
+        body = self._visit(o.body)
+
+        # NOTE: IndexedPointers that want replacing with a hardcoded value won't appear in
+        # the Operator parameters. Perhaps this check wants relaxing.
+        not_params = tuple(i for i in self.mapper
+                           if i not in o.parameters and isinstance(i, AbstractSymbol))
+        if not_params:
+            raise ValueError(f"Attempted to specialize symbols {not_params} which are not"
+                             " found in the Operator parameters")
+
+        # FIXME: Should also type-check the values supplied against the symbols they are
+        # replacing (and cast them if needed?) -> use a try-except on the cast in
+        # python-land
+
+        parameters = tuple(i for i in o.parameters if i not in self.mapper)
+
+        # Note: the following is not dissimilar to unpickling an Operator
+        state = o.__getstate__()
+        state['parameters'] = parameters
+        state['body'] = body
+        # Modify the _func_table to ensure callbacks are specialized
+        state['_func_table'] = self._visit(o._func_table)
+
+        state.pop('ccode', None)
+
+        # The specialized operator must be compiled fresh - strip any pre-existing
+        # compiled binary state inherited from a previously-applied operator.
+        # Without this, __setstate__ reloads the old binary (which expects the full
+        # parameter list), while the new operator has fewer parameters after
+        # specialization, causing a stack corruption (SIGABRT) at call time.
+        state.pop('binary', None)
+        state.pop('soname', None)
+        state.pop('_soname', None)  # Clear cached soname so it is recomputed
+
+        newargs, newkwargs = o.__getnewargs_ex__()
+        newop = o.__class__(*newargs, **newkwargs)
+
+        newop.__setstate__(state)
+
+        return newop
 
 
 # Utils
