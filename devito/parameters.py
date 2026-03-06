@@ -1,8 +1,10 @@
 """The parameters dictionary contains global parameter settings."""
+import inspect
 import os
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from functools import wraps
+from types import FunctionType
 
 from devito.logger import info, warning
 from devito.tools import Signer, filter_ordered
@@ -226,7 +228,7 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
 
 class SwitchDecorator(ABC):
     """
-    Abstract base class that turns a context manager class into a decorator.
+    Abstract base class that turns a context manager class into a decorator
     """
     @abstractmethod
     def __init__(self, *args, **kwargs):
@@ -240,8 +242,20 @@ class SwitchDecorator(ABC):
     def __exit__(self, exc_type, exc_val, traceback):
         pass
 
-    def __call__(self, func, *args, **kwargs):
-        """ The call method turns the context manager class into a decorator
+    def __call__(self, target, *args, **kwargs):
+        """
+        The call method turns the context manager class into a decorator
+        """
+        if inspect.isclass(target):
+            return self._decorate_class(target, *args, **kwargs)
+        elif callable(target):
+            return self._decorate_callable(target, *args, **kwargs)
+        raise TypeError("Decorator is to be applied to a class or callable, not "
+                        f"{type(target)}")
+
+    def _decorate_callable(self, func, *args, **kwargs):
+        """
+        Apply the decorator to a function
         """
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -249,6 +263,16 @@ class SwitchDecorator(ABC):
                 result = func(*args, **kwargs)
             return result
         return wrapper
+
+    def _decorate_class(self, cls, *args, **kwargs):
+        """
+        Apply the decorator to a class, thereby wrapping its methods
+        """
+        for name, attr in list(vars(cls).items()):
+            if isinstance(attr, (FunctionType,)):
+                setattr(cls, name, self._decorate_callable(attr, *args, **kwargs))
+
+        return cls
 
 
 class switchconfig(SwitchDecorator):
