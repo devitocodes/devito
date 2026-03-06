@@ -126,8 +126,6 @@ class CireTransformer:
         for mapper in self._generate(cgroup, exclude):
             # Clusters -> AliasList
             found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
-            if not found:
-                continue
             exprs, aliases = self._choose(found, cgroup, mapper)
 
             # AliasList -> Schedule
