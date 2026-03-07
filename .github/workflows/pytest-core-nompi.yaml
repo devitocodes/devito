@@ -27,9 +27,6 @@ jobs:
       DEVITO_LANGUAGE: ${{ matrix.language }}
       OMP_NUM_THREADS: 2
 
-    outputs:
-      unique : ${{ steps.uniquetag.outputs.unique }}
-
     strategy:
       # Prevent all build to stop if a single one fails
       fail-fast: false
@@ -139,9 +136,11 @@ jobs:
           set: adjoint
 
     steps:
+    # TODO: This workflow should really be split into 2 (Docker and non-Docker)
     - name: Checkout devito
       uses: actions/checkout@v6
 
+    # Bare metal (not Docker)
     - name: Set up Python ${{ matrix.python-version }}
       if: "!contains(matrix.name, 'docker')"
       uses: actions/setup-python@v6
@@ -149,45 +148,13 @@ jobs:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
 
-    - name: Generate unique CI tag
-      id: uniquetag
-      run: |
-        UNIQUE=$(echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" | cksum | cut -f 1 -d " ")
-        echo "Unique ID: ${UNIQUE}"
-        echo "unique=${UNIQUE}" >> "$GITHUB_OUTPUT"
-
-    - name: Build docker image
-      if: contains(matrix.name, 'docker')
-      env:
-        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
-      run: |
-          docker build \
-            --file docker/Dockerfile.devito \
-            --tag "devito_img${UNIQUE}" \
-            --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }} \
-            .
-
-    - name: Set run prefix
-      env:
-        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
-      run: |
-          if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run \
-                --init -t --rm \
-                --env CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} \
-                --name testrun \
-                devito_img${UNIQUE}" >> "$GITHUB_ENV"
-          else
-              echo "RUN_CMD=" >> "$GITHUB_ENV"
-          fi
-      id: set-run
-
     - name: Install ${{ matrix.arch }} compiler
       if: "runner.os == 'linux' && !contains(matrix.name, 'docker') && matrix.arch !='custom' "
       run : |
         sudo apt-get install -y ${{ matrix.arch }}
 
     - name: Set tests (reduced number for OSX)
+      if: "!contains(matrix.name, 'docker')"
       run : |
           if [ "${{ runner.os }}" == 'macOS' ]; then
             brew install llvm libomp
@@ -196,6 +163,7 @@ jobs:
       id: set-tests
 
     - name: Set pip flags for latest python (3.12)
+      if: "!contains(matrix.name, 'docker')"
       run: |
           ver="${{ matrix.python-version }}"
           major=${ver%%.*}
@@ -215,27 +183,17 @@ jobs:
       if: matrix.name == 'pytest-ubuntu-py310-gcc14-omp'
       run: python3 -m pip install ${{ env.PIPFLAGS }} numpy==1.26
 
-    - name: Check Docker image Python version
-      if: "contains(matrix.name, 'docker')"
-      run: |
-        declared_pyver="${{ matrix.python-version }}"
-        actual_pyver=$(${{ env.RUN_CMD }} python3 --version | grep "Python " | cut -d' ' -f2 | cut -d'.' -f1,2)
-        echo "Declared Python version: $declared_pyver"
-        echo "Actual Python version: $actual_pyver"
-        if [ "$declared_pyver" != "$actual_pyver" ]; then
-          echo "Python version mismatch: declared $declared_pyver, image has $actual_pyver"
-          exit 1
-        fi
-
     - name: Check configuration
+      if: "!contains(matrix.name, 'docker')"
       run: |
-        ${{ env.RUN_CMD }} python3 \
+        python3 \
           -c "from devito import configuration; \
           print(''.join(['%s: %s \n' % (k, v) for (k, v) in configuration.items()]))"
 
     - name: Test with pytest
+      if: "!contains(matrix.name, 'docker')"
       run: |
-        ${{ env.RUN_CMD }} pytest \
+        pytest \
           -k "${{ matrix.test-set }}" \
           -m "not parallel" \
           --cov \
@@ -250,9 +208,57 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
 
-    - name: Cleanup Docker
+    # Docker
+    - id: build
+      name: Build docker image
+      if: contains(matrix.name, 'docker')
+      uses: ./.github/actions/docker-build
+      with:
+        file: docker/Dockerfile.devito
+        tag: devito_img
+        base: devitocodes/bases:cpu-${{ matrix.arch }}
+
+    - name: Get the Docker image Python version
       if: "contains(matrix.name, 'docker')"
-      env:
-        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: devito_img
+        command: >
+          python3 --version | grep "Python " | cut -d' ' -f2 | cut -d'.' -f1,2 > dockerpythonversion.txt
+
+    - name: Check Docker image Python version
+      if: "contains(matrix.name, 'docker')"
       run: |
-          docker image rm -f "devito_img${UNIQUE}"
+        declared_pyver="${{ matrix.python-version }}"
+        actual_pyver=$(cat dockerpythonversion.txt)
+        echo "Declared Python version: $declared_pyver"
+        echo "Actual Python version: $actual_pyver"
+        if [ "$declared_pyver" != "$actual_pyver" ]; then
+          echo "Python version mismatch: declared $declared_pyver, image has $actual_pyver"
+          exit 1
+        fi
+
+    - name: Test with pytest
+      if: "contains(matrix.name, 'docker')"
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        env: |
+          CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
+        tag: devito_img
+        command: |
+          pytest \
+            -k "${{ matrix.test-set }}" \
+            -m "not parallel" \
+            --cov \
+            --cov-config=.coveragerc \
+            --cov-report=xml \
+            tests/
+
+    - name: Cleanup docker image
+      if: always()
+      uses: ./.github/actions/docker-clean
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: devito_img
