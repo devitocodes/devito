@@ -140,18 +140,15 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
 
         # Shared-memory parallelism
         if options['openmp']:
-            parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+            parizer = cls._Target.Parizer(**kwargs)
             parizer.make_parallel(graph)
-            parizer.initialize(graph, options=options)
+            parizer.initialize(graph)
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
@@ -205,11 +202,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
-
         # Flush denormal numbers
         avoid_denormals(graph, **kwargs)
 
@@ -220,10 +212,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         relax_incr_dimensions(graph, **kwargs)
 
         # Parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+        parizer = cls._Target.Parizer(**kwargs)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
-        parizer.initialize(graph, options=options)
+        parizer.initialize(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -300,12 +292,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
-
-        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+        parizer = cls._Target.Parizer(**kwargs)
 
         return {
             'denormals': partial(avoid_denormals, **kwargs),
@@ -316,7 +303,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'linearize': partial(linearize, **kwargs),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
-            'init': partial(parizer.initialize, options=options)
+            'init': partial(parizer.initialize)
         }
 
     _known_passes = (

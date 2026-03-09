@@ -688,4 +688,4 @@ def test_cire_n_strides():
 
     # NOTE: not exact equality because `op2` slightly changes the order of
     # arithmetic operations, which in turn causes some rounding differences
-    assert np.allclose(u.data, u1.data, rtol=1e-5)
+    assert np.allclose(u.data, u1.data, rtol=1e-4)

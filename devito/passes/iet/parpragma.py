@@ -225,9 +225,9 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
     IETs for CPUs.
     """
 
-    def __init__(self, sregistry, options, platform, compiler):
+    def __init__(self, **kwargs):
         key = lambda i: i.is_ParallelRelaxed and not i.is_Vectorized
-        super().__init__(key, sregistry, options, platform, compiler)
+        super().__init__(key, **kwargs)
 
     def _make_reductions(self, partree):
         if not any(i.is_ParallelAtomic for i in partree.collapsed):
@@ -491,8 +491,8 @@ class PragmaDeviceAwareTransformer(DeviceAwareMixin, PragmaShmTransformer):
     shared-memory-parallel, and device-parallel IETs.
     """
 
-    def __init__(self, sregistry, options, platform, compiler):
-        super().__init__(sregistry, options, platform, compiler)
+    def __init__(self, options=None, **kwargs):
+        super().__init__(options=options, **kwargs)
 
         self.gpu_fit = options['gpu-fit']
         # Need to reset the tile in case was already used and iter over by blocking

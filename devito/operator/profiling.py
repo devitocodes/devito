@@ -180,6 +180,10 @@ class Profiler:
     def all_sections(self):
         return list(self._sections) + flatten(self._subsections.values())
 
+    @property
+    def high_verbosity(self):
+        return self._verbosity >= 2
+
     def summary(self, args, dtype, reduce_over=None):
         """
         Return a PerformanceSummary of the profiled sections.

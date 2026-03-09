@@ -14,7 +14,7 @@ __all__ = ['instrument']
 
 
 def instrument(graph, **kwargs):
-    profiler = kwargs['profiler']
+    profiler = kwargs.get('profiler')
     if profiler is None:
         return
 
