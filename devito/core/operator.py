@@ -79,6 +79,12 @@ class BasicOperator(Operator):
     variables (e.g., strides).
     """
 
+    CIRE_ND_ARRAY = False
+    """
+    Use a single Array of shape `(K, X, Y, Z)` to store the K arrays of shape
+    `(X, Y, Z)` extracted by CIRE.
+    """
+
     SCALAR_MIN_TYPE = np.float16
     """
     Minimum datatype for a scalar arising from a common sub-expression or CIRE temp.

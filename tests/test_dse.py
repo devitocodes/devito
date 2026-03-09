@@ -2685,6 +2685,32 @@ class TestAliases:
             'tx0_blk0y0_blk0xyzyz'
         )
 
+    def test_single_4D_array(self):
+        grid = Grid(shape=(16, 16, 16))
+
+        u = TimeFunction(name='u', grid=grid, space_order=16)
+        u1 = u.func(name='u1')
+        v = u.func(name='v')
+
+        eqn = Eq(u.forward, u.dy.dz + u.dy2.dx2 + v.dy.dx + .01)
+
+        op0 = Operator(eqn)
+        op1 = Operator(eqn, opt=('advanced', {'cire-nd-array': True}))
+
+        # Check generated code
+        assert len(get_arrays(op1)) == 1
+
+        u.data[:] = .3
+        u1.data[:] = .3
+        v.data[:] = .14
+
+        op0.apply(time_M=1)
+        op1.apply(time_M=1, u=u1)
+
+        # NOTE: not exact equality because the order of the arithmetic operations
+        # is now slightly different due to using a different naming convention
+        assert np.allclose(u.data, u1.data, rtol=1e-7)
+
 
 class TestIsoAcoustic:
 

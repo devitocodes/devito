@@ -73,6 +73,7 @@ class Cpu64OperatorMixin:
         o['cire-ftemps'] = oo.pop('cire-ftemps', False)
         o['cire-mingain'] = oo.pop('cire-mingain', cls.CIRE_MINGAIN)
         o['cire-minmem'] = oo.pop('cire-minmem', cls.CIRE_MINMEM)
+        o['cire-nd-array'] = oo.pop('cire-nd-array', cls.CIRE_ND_ARRAY)
         o['cire-schedule'] = oo.pop('cire-schedule', cls.CIRE_SCHEDULE)
 
         # Shared-memory parallelism

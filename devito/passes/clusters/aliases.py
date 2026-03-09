@@ -8,14 +8,15 @@ import sympy
 from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (
-    PARALLEL_IF_PVT, SEPARABLE, SEQUENTIAL, Cluster, ClusterGroup, ExprGeometry, Forward,
-    Interval, IntervalGroup, IterationSpace, LabeledVector, Queue, Vector, extrema,
-    maximum, minimum, normalize_properties, relax_properties, unbounded, vmax, vmin
+    PARALLEL_IF_PVT, SEPARABLE, SEQUENTIAL, Cluster, ClusterGroup, ExprGeometry,
+    Forward, Interval, IntervalGroup, IterationSpace, LabeledVector, Queue, Vector,
+    extrema, maximum, minimum, normalize_properties, relax_properties, unbounded,
+    vmax, vmin
 )
 from devito.passes.clusters.cse import _cse
 from devito.symbolics import (
-    Uxmapper, estimate_cost, retrieve_functions, reuse_if_untouched, search, sympy_dtype,
-    uxreplace
+    Uxmapper, estimate_cost, retrieve_functions, reuse_if_untouched, search,
+    sympy_dtype, uxreplace
 )
 from devito.tools import (
     Stamp, as_mapper, as_tuple, flatten, frozendict, generator, is_integer, split,
@@ -117,6 +118,7 @@ class CireTransformer:
         self.opt_ftemps = options['cire-ftemps']
         self.opt_mingain = options['cire-mingain']
         self.opt_minmem = options['cire-minmem']
+        self.opt_nd_array = options['cire-nd-array']
         self.opt_min_dtype = options['scalar-min-type']
         self.opt_multisubdomain = True
 
@@ -151,6 +153,10 @@ class CireTransformer:
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
             processed = optimize_clusters_msds(processed)
+
+        # [Clusters]_k -> [Clusters]_k (optimization)
+        if self.opt_nd_array:
+            processed, subs = as_single_nd_array(processed, subs)
 
         # [Clusters]_k -> [Clusters]_{k+n}
         for c in cgroup:
@@ -988,6 +994,52 @@ def optimize_clusters_msds(clusters):
             processed.append(c)
 
     return processed
+
+
+def as_single_nd_array(clusters, subs):
+    """
+    Turn subsets of compatible Arrays into a single higher dimensional Array.
+    """
+    # Construct the new subs
+    functions = set().union(*[c.scope.writes for c in clusters])
+    mapper = as_mapper(functions, lambda f: f.shape)
+
+    subs0 = {}
+    subs = dict(subs)
+
+    for shape, arrays in mapper.items():
+        if not shape:
+            continue
+
+        n = len(arrays)
+        if n <= 1:
+            continue
+
+        cd = CustomDimension(name='d', symbolic_size=n)
+
+        ordered = sorted(arrays, key=lambda f: f.name)
+        f = ordered[0]
+        ndarray = f.func(dimensions=(cd, *f.dimensions),
+                         shape=(n, *f.shape),
+                         halo=((0, 0), *f.halo))
+
+        make = lambda a: ndarray[[ordered.index(a.function), *a.indices]]
+
+        for c in clusters:
+            subs0.update({e.lhs: make(e.lhs) for e in c.exprs})
+
+        subs.update({
+            k: make(v) for k, v in subs.items() if v.function in ordered
+        })
+
+    # Construct the new initialising expressions
+    processed = []
+    for c in clusters:
+        exprs = [uxreplace(e, subs0) for e in c.exprs]
+
+        processed.append(c.rebuild(exprs=exprs))
+
+    return processed, subs
 
 
 def pick_best(variants):
