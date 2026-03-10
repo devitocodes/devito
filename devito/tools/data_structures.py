@@ -99,7 +99,10 @@ class EnrichedTuple(tuple, Pickable):
         return tuple(self), sdict
 
     def get(self, key, val=None):
-        return self.getters.get(key, val)
+        try:
+            return self[key]
+        except KeyError:
+            return val
 
     @property
     def items(self) -> tuple:
