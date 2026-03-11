@@ -339,3 +339,4 @@ def _(d, mapper, rebuilt, sregistry):
     kwargs['functions'] = functions
 
     mapper[d] = d._rebuild(**kwargs)
+    mapper.update({tkn0: tkn1 for tkn0, tkn1 in zip(d.thickness, tkns, strict=True)})
