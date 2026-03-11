@@ -1000,14 +1000,20 @@ def as_single_nd_array(clusters, subs):
     """
     Turn subsets of compatible Arrays into a single higher dimensional Array.
     """
-    # Construct the new subs
+    # Map based on compatibility
     functions = set().union(*[c.scope.writes for c in clusters])
-    mapper = as_mapper(functions, lambda f: f.shape)
 
+    compatible_key = lambda f: (
+        f.shape,
+        frozenset(i.indices for i in subs.values() if f is i.function)
+    )
+    mapper = as_mapper(functions, compatible_key)
+
+    # Construct the new subs
     subs0 = {}
     subs = dict(subs)
 
-    for shape, arrays in mapper.items():
+    for (shape, _), arrays in mapper.items():
         if not shape:
             continue
 
@@ -1026,7 +1032,10 @@ def as_single_nd_array(clusters, subs):
         make = lambda a: ndarray[[ordered.index(a.function), *a.indices]]
 
         for c in clusters:
-            subs0.update({e.lhs: make(e.lhs) for e in c.exprs})
+            try:
+                subs0.update({e.lhs: make(e.lhs) for e in c.exprs})
+            except ValueError:
+                pass
 
         subs.update({
             k: make(v) for k, v in subs.items() if v.function in ordered
