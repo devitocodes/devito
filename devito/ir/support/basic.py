@@ -385,9 +385,6 @@ class TimedAccess(IterationInstance, AccessMode):
                 # it's provable that they never intersect
                 if sai and sit == oit and disjoint_test(self[n], other[n], sai, sit):
                     return Vector(S.ImaginaryUnit)
-                
-            # if 'p_bck_xx,[t, x + 9, y + 16, z + 16' in str(self):
-            #     from IPython import embed; embed()
 
             # Compute the distance along the current IterationInterval
             if self.function._mem_shared:
@@ -1444,24 +1441,18 @@ def degenerating_indices(i0, i1, function):
         pass
 
     # Case 2: SteppingDimension corresponding to buffer of size 1
-    # if str(i1) == "t - 1" and str(i0) == 't':
-    #     from IPython import embed; embed()
-
     # Extract dimension from both IndexAccessFunctions -> d0, d1
     try:
         d0 = i0.d
     except AttributeError:
         d0 = i0
-
     try:
         d1 = i1.d
     except AttributeError:
         d1 = i1
 
     with suppress(AttributeError):
-        if d0 is d1 and d0.is_Stepping:
-            # Buffer is size 1
-            if function._size_domain[d0] == 1:
-                return True
+        if d0 is d1 and d0.is_Stepping and function._size_domain[d0] == 1:
+            return True
 
     return False
