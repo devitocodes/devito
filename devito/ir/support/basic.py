@@ -392,7 +392,9 @@ class TimedAccess(IterationInstance, AccessMode):
                 # objects falls back to zero, as any other value would be
                 # nonsensical
                 ret.append(S.Zero)
-            elif degenerating_dimensions(sai, oai):
+            # FIXME: This should have returned True
+            # elif degenerating_indices(sai, oai):
+            elif degenerating_indices(self[n], other[n], self.function):
                 # Special case: `sai` and `oai` may be different symbolic objects
                 # but they can be proved to systematically generate the same value
                 ret.append(S.Zero)
@@ -1425,17 +1427,32 @@ def disjoint_test(e0, e1, d, it):
     return not bool(i0.intersect(i1))
 
 
-def degenerating_dimensions(d0, d1):
+def degenerating_indices(i0, i1, function):
     """
-    True if `d0` and `d1` are Dimensions that are possibly symbolically
+    True if `i0` and `i1` are indices that are possibly symbolically
     different, but they can be proved to systematically degenerate to the
     same value, False otherwise.
     """
     # Case 1: ModuloDimensions of size 1
     try:
-        if d0.is_Modulo and d1.is_Modulo and d0.modulo == d1.modulo == 1:
+        if i0.is_Modulo and i1.is_Modulo and i0.modulo == i1.modulo == 1:
             return True
     except AttributeError:
         pass
+
+    # Case 2: SteppingDimension corresponding to buffer of size 1
+    # Extract dimension from both IndexAccessFunctions -> d0, d1
+    try:
+        d0 = i0.d
+    except AttributeError:
+        d0 = i0
+    try:
+        d1 = i1.d
+    except AttributeError:
+        d1 = i1
+
+    with suppress(AttributeError):
+        if d0 is d1 and d0.is_Stepping and function._size_domain[d0] == 1:
+            return True
 
     return False
