@@ -297,14 +297,15 @@ class CireInvariants(CireTransformerLegacy, Queue):
     def callback(self, clusters, prefix, xtracted=None):
         if not prefix:
             return clusters
-        d = prefix[-1].dim
+        p = prefix[-1]
+        d = p.dim
 
         # Rule out extractions that would break data dependencies
         exclude = set().union(*[c.scope.writes for c in clusters])
 
         # Rule out extractions that depend on the Dimension currently investigated,
         # as they clearly wouldn't be invariants
-        exclude.add(d)
+        exclude.update({d, *p.sub_iterators})
 
         key = lambda c: self._lookup_key(c, d)
         processed = list(clusters)
