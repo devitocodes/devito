@@ -176,6 +176,7 @@ jobs:
         env: |
           CI=true
           CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
+          DEVITO_LOGGING=DEBUG
           PYTHONFAULTHANDLER=1
         command: |
           pytest \
@@ -258,7 +259,6 @@ jobs:
         env: |
           CI=true
           CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
-          DEVITO_LOGGING=DEBUG
           PYTHONFAULTHANDLER=1
         command: |
           pytest --nbval examples/userapi
