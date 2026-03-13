@@ -3,6 +3,7 @@
 ##############################################################
 
 # Base image with compilers
+# Update default in .github/actions/docker-build if this value ever changes
 ARG base=devitocodes/bases:cpu-gcc
 
 FROM $base AS builder

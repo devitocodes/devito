@@ -1,0 +1,21 @@
+name: Docker cleanup action
+description: Composite action for removing Docker images
+author: "Devito"
+
+inputs:
+# The only supported GHA input type is string
+  uid:
+    description: "Unique identifier output from docker-build action"
+    required: true
+  tag:
+    description: "Tag of the built image to use"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - id: dockerclean
+      name: "Cleanup docker image"
+      shell: bash
+      run: |
+          docker image rm -f "${{ inputs.tag }}_${{ inputs.uid }}"

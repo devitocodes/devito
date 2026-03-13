@@ -1,0 +1,55 @@
+name: Docker build action
+description: Composite action for building Devito Docker containers
+author: "Devito"
+
+inputs:
+# The only supported GHA input type is string
+  file:
+    description: "Dockerfile containing build instructions"
+    required: true
+    default: Dockerfile
+  tag:
+    description: "Tag to add to the built image"
+    required: true
+  base:
+    description: "Base docker image to build on top of"
+    required: true
+    # Update default if docker/Dockerfile.devito ever changes default
+    default: "devitocodes/bases:cpu-gcc"
+
+outputs:
+  unique:
+    description: "Unique identifier for the CI run"
+    value: ${{ steps.uniquetag.outputs.unique }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: uniquetag
+      name: "Generate unique CI tag"
+      shell: bash
+      run: |
+        UNIQUE=$(echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" | cksum | cut -f 1 -d " ")
+        echo "Unique ID: ${UNIQUE}"
+        echo "unique=${UNIQUE}" >> "$GITHUB_OUTPUT"
+
+    - id: dockerbuild
+      name: "Build docker container"
+      shell: bash
+      run: |
+        docker build \
+          --pull \
+          --file ${{ inputs.file }} \
+          --tag ${{ inputs.tag }}_${{ steps.uniquetag.outputs.unique }} \
+          --build-arg base=${{ inputs.base }} \
+          .
+
+# Do we need to be more specific?
+#~ docker buildx build . \
+  #~ --builder "${RUNNER_NAME// /_}" \
+  #~ --load \
+  #~ --label ci-run="$GITHUB_RUN_ID" \
+  #~ --rm --pull \
+  #~ --file docker/Dockerfile.devito \
+  #~ --tag "${DOCKER_IMAGE}" \
+  #~ --build-arg base="${{ matrix.base }}"

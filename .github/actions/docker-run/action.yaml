@@ -1,0 +1,56 @@
+name: Docker run action
+description: Composite action for running commands in Docker containers
+author: "Devito"
+
+inputs:
+# The only supported GHA input type is string
+  uid:
+    description: "Unique identifier output from docker-build action"
+    required: true
+  args:
+    description: "Arguments to pass to `docker run`"
+    required: true
+    default: ""
+  env:
+    description: "Environment variables to set inside the docker container, one environment variable per line"
+    required: true
+    default: ""
+  tag:
+    description: "Tag of the built image to use"
+    required: true
+  command:
+    description: "Command to execute inside of the docker container"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - id: processenv
+      name: Process environment variable list
+      shell: bash
+      env:
+        ENV_INPUT: ${{ inputs.env }}
+      run: |
+        ENV_STRING=""
+        # Read line by line with here string, safely handling spaces within the values
+        while IFS= read -r LINE; do
+          if [[ -n "$LINE" ]]; then
+            ENV_STRING="$ENV_STRING --env $LINE"
+          fi
+        done <<< "$ENV_INPUT"
+        # Remove the leading space from the first concatenation
+        ENV_STRING="${ENV_STRING# }"
+        echo "env=$ENV_STRING" >> "$GITHUB_OUTPUT"
+
+    - id: dockerrun
+      name: "Run command ${{ inputs.command }} in ${{ inputs.tag }} docker container"
+      shell: bash
+      run: |
+        docker run \
+          --init -t --rm \
+          ${{ inputs.args }} \
+          --name "ci-${{ inputs.name }}-${{ inputs.uid }}" \
+          --env-file=docker/coverage.env \
+          ${{ steps.processenv.outputs.env }} \
+          "${{ inputs.tag }}_${{ inputs.uid }}" \
+          ${{ inputs.command }}

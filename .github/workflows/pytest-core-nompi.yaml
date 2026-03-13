@@ -18,7 +18,7 @@ on:
       - main
 
 jobs:
-  pytest:
+  test-nompi-basic:
     name: ${{ matrix.name }}-${{ matrix.set }}
     runs-on: "${{ matrix.os }}"
 
@@ -27,25 +27,19 @@ jobs:
       DEVITO_LANGUAGE: ${{ matrix.language }}
       OMP_NUM_THREADS: 2
 
-    outputs:
-      unique : ${{ steps.uniquetag.outputs.unique }}
-
     strategy:
       # Prevent all build to stop if a single one fails
       fail-fast: false
 
       matrix:
         name: [
+           pytest-osx-py312-clang-omp,
+           pytest-ubuntu-py310-gcc14-omp,
+           pytest-ubuntu-py310-gcc9-omp,
+           pytest-ubuntu-py311-gcc10-noomp,
            pytest-ubuntu-py311-gcc11-cxxnoomp,
            pytest-ubuntu-py312-gcc12-cxxomp,
-           pytest-ubuntu-py310-gcc14-omp,
-           pytest-ubuntu-py311-gcc10-noomp,
            pytest-ubuntu-py312-gcc13-omp,
-           pytest-ubuntu-py310-gcc9-omp,
-           pytest-osx-py312-clang-omp,
-           pytest-docker-py310-gcc-omp,
-           pytest-docker-py310-gcc-omp-arm64,
-           pytest-docker-py310-icx-omp,
            pytest-ubuntu-py313-gcc14-omp
         ]
         set: [base, adjoint]
@@ -100,27 +94,6 @@ jobs:
           language: "openmp"
           sympy: "1.12"
 
-        - name: pytest-docker-py310-gcc-omp
-          python-version: '3.10'
-          os: ubuntu-latest
-          arch: "gcc"
-          language: "openmp"
-          sympy: "1.13"
-
-        - name: pytest-docker-py310-gcc-omp-arm64
-          python-version: '3.10'
-          os: ubuntu-24.04-arm
-          arch: "gcc"
-          language: "openmp"
-          sympy: "1.13"
-
-        - name: pytest-docker-py310-icx-omp
-          python-version: '3.10'
-          os: ubuntu-latest
-          arch: "icx"
-          language: "openmp"
-          sympy: "1.13"
-
         - name: pytest-ubuntu-py313-gcc14-omp
           python-version: '3.13'
           os: ubuntu-24.04
@@ -143,47 +116,13 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Set up Python ${{ matrix.python-version }}
-      if: "!contains(matrix.name, 'docker')"
       uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
 
-    - name: Generate unique CI tag
-      id: uniquetag
-      run: |
-        UNIQUE=$(echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" | cksum | cut -f 1 -d " ")
-        echo "Unique ID: ${UNIQUE}"
-        echo "unique=${UNIQUE}" >> "$GITHUB_OUTPUT"
-
-    - name: Build docker image
-      if: contains(matrix.name, 'docker')
-      env:
-        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
-      run: |
-          docker build \
-            --file docker/Dockerfile.devito \
-            --tag "devito_img${UNIQUE}" \
-            --build-arg base=devitocodes/bases:cpu-${{ matrix.arch }} \
-            .
-
-    - name: Set run prefix
-      env:
-        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
-      run: |
-          if [[ "${{ matrix.name }}" =~ "docker" ]]; then
-              echo "RUN_CMD=docker run \
-                --init -t --rm \
-                --env CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }} \
-                --name testrun \
-                devito_img${UNIQUE}" >> "$GITHUB_ENV"
-          else
-              echo "RUN_CMD=" >> "$GITHUB_ENV"
-          fi
-      id: set-run
-
     - name: Install ${{ matrix.arch }} compiler
-      if: "runner.os == 'linux' && !contains(matrix.name, 'docker') && matrix.arch !='custom' "
+      if: "runner.os == 'linux' && matrix.arch !='custom' "
       run : |
         sudo apt-get install -y ${{ matrix.arch }}
 
@@ -205,7 +144,6 @@ jobs:
           fi
 
     - name: Install dependencies
-      if: "!contains(matrix.name, 'docker')"
       run: |
         python3 -m pip install ${{ env.PIPFLAGS }} --upgrade pip
         python3 -m pip install ${{ env.PIPFLAGS }} -e ".[tests,extras]"
@@ -215,27 +153,15 @@ jobs:
       if: matrix.name == 'pytest-ubuntu-py310-gcc14-omp'
       run: python3 -m pip install ${{ env.PIPFLAGS }} numpy==1.26
 
-    - name: Check Docker image Python version
-      if: "contains(matrix.name, 'docker')"
-      run: |
-        declared_pyver="${{ matrix.python-version }}"
-        actual_pyver=$(${{ env.RUN_CMD }} python3 --version | grep "Python " | cut -d' ' -f2 | cut -d'.' -f1,2)
-        echo "Declared Python version: $declared_pyver"
-        echo "Actual Python version: $actual_pyver"
-        if [ "$declared_pyver" != "$actual_pyver" ]; then
-          echo "Python version mismatch: declared $declared_pyver, image has $actual_pyver"
-          exit 1
-        fi
-
     - name: Check configuration
       run: |
-        ${{ env.RUN_CMD }} python3 \
+        python3 \
           -c "from devito import configuration; \
           print(''.join(['%s: %s \n' % (k, v) for (k, v) in configuration.items()]))"
 
     - name: Test with pytest
       run: |
-        ${{ env.RUN_CMD }} pytest \
+        pytest \
           -k "${{ matrix.test-set }}" \
           -m "not parallel" \
           --cov \
@@ -244,15 +170,110 @@ jobs:
           tests/
 
     - name: Upload coverage to Codecov
-      if: "!contains(matrix.name, 'docker')"
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         name: ${{ matrix.name }}
 
-    - name: Cleanup Docker
-      if: "contains(matrix.name, 'docker')"
-      env:
-        UNIQUE: ${{ steps.uniquetag.outputs.unique }}
+  test-nompi-docker:
+    name: ${{ matrix.name }}-${{ matrix.set }}
+    runs-on: "${{ matrix.os }}"
+
+    env:
+      DEVITO_ARCH: "${{ matrix.arch }}"
+      DEVITO_LANGUAGE: ${{ matrix.language }}
+      OMP_NUM_THREADS: 2
+
+    strategy:
+      # Prevent all build to stop if a single one fails
+      fail-fast: false
+
+      matrix:
+        name: [
+           pytest-docker-py310-gcc-omp,
+           pytest-docker-py310-gcc-omp-arm64,
+           pytest-docker-py310-icx-omp,
+        ]
+        set: [base, adjoint]
+
+        include:
+        - name: pytest-docker-py310-gcc-omp
+          python-version: '3.10'
+          os: ubuntu-latest
+          arch: "gcc"
+          language: "openmp"
+          sympy: "1.13"
+
+        - name: pytest-docker-py310-gcc-omp-arm64
+          python-version: '3.10'
+          os: ubuntu-24.04-arm
+          arch: "gcc"
+          language: "openmp"
+          sympy: "1.13"
+
+        - name: pytest-docker-py310-icx-omp
+          python-version: '3.10'
+          os: ubuntu-latest
+          arch: "icx"
+          language: "openmp"
+          sympy: "1.13"
+
+        - set: base
+          test-set: 'not adjoint'
+
+        - set: adjoint
+          test-set: 'adjoint'
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v6
+
+    - id: build
+      name: Build docker image
+      uses: ./.github/actions/docker-build
+      with:
+        file: docker/Dockerfile.devito
+        tag: ${{ matrix.name }}
+        base: devitocodes/bases:cpu-${{ matrix.arch }}
+
+    - name: Get the Docker image Python version
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        command: >
+          python3 --version | grep "Python " | cut -d' ' -f2 | cut -d'.' -f1,2 > dockerpythonversion.txt
+
+    - name: Check Docker image Python version
       run: |
-          docker image rm -f "devito_img${UNIQUE}"
+        declared_pyver="${{ matrix.python-version }}"
+        actual_pyver=$(cat dockerpythonversion.txt)
+        echo "Declared Python version: $declared_pyver"
+        echo "Actual Python version: $actual_pyver"
+        if [ "$declared_pyver" != "$actual_pyver" ]; then
+          echo "Python version mismatch: declared $declared_pyver, image has $actual_pyver"
+          exit 1
+        fi
+
+    - name: Test with pytest
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        env: |
+          CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
+        command: |
+          pytest \
+            -k "${{ matrix.test-set }}" \
+            -m "not parallel" \
+            --cov \
+            --cov-config=.coveragerc \
+            --cov-report=xml \
+            tests/
+
+    - name: Cleanup docker image
+      if: always()
+      uses: ./.github/actions/docker-clean
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}

@@ -1,12 +1,8 @@
-# Runner information:
+# Workflow information:
 #  - OpenACC/OpenMP on NVIDIA runs on runners labeled `nvidiagpu`
 #  - OpenMP on AMD runs on runners labeled `amdgpu`
-#
-# Changes vs original:
-#  * Respect CUDA_VISIBLE_DEVICES for NVIDIA jobs by passing it AND restricting Docker with --gpus "device=…"
-#  * Tag images and container names with ${{ runner.name }} to avoid cross-runner races and maximize cache reuse
-#  * Remove docker prune / global container deletes (we assume disk space is fine)
-#  * Add comments throughout
+#  - Respect CUDA_VISIBLE_DEVICES for NVIDIA jobs by passing it AND restricting Docker with --gpus "device=…"
+#  - Tag images and container names to avoid cross-runner races and maximize cache reuse
 
 name: CI-gpu
 
@@ -31,14 +27,11 @@ on:
         description: "Run GPU tests"
 
 jobs:
-  build:
+  test-gpu-docker:
     name: ${{ matrix.name }}
     runs-on:
       - self-hosted
       - ${{ matrix.runner_label }}
-
-    outputs:
-      unique : ${{ steps.uniquetag.outputs.unique }}
 
     strategy:
       fail-fast: false
@@ -47,133 +40,98 @@ jobs:
         test_examples: ["examples/seismic/tti/tti_example.py examples/seismic/acoustic/acoustic_example.py examples/seismic/viscoacoustic/viscoacoustic_example.py examples/seismic/viscoelastic/viscoelastic_example.py examples/seismic/elastic/elastic_example.py"]
 
         include:
-          # -------------------- NVIDIA job --------------------
-          - name: pytest-gpu-acc-nvidia
-            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/test_operator.py::TestEstimateMemory"
-            base: "devitocodes/bases:nvidia-nvc12"
-            runner_label: nvidiagpu
-            test_drive_cmd: "nvidia-smi"
-            # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
-            # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
-            dockerflags: >-
-              --init --rm -t
-              --name ${CONTAINER_BASENAME}
-              --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+        # -------------------- NVIDIA job --------------------
+        - name: pytest-gpu-acc-nvidia
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/test_operator.py::TestEstimateMemory"
+          base: "devitocodes/bases:nvidia-nvc12"
+          runner_label: nvidiagpu
+          test_drive_cmd: "nvidia-smi"
+          # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
+          # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
+          dockerflags: --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
 
-          # -------------------- AMD job -----------------------
-          - name: pytest-gpu-omp-amd
-            test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py tests/test_operator.py::TestEstimateMemory"
-            runner_label: amdgpu
-            base: "devitocodes/bases:amd"
-            test_drive_cmd: "rocm-smi"
-            # Unchanged, still passes through required /dev nodes etc.
-            dockerflags: >-
-              --init --network=host
-              --device=/dev/kfd --device=/dev/dri
-              --ipc=host
-              --group-add video --group-add "$(getent group render | cut -d: -f3)"
-              --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
-              --rm -t
-              --name ${CONTAINER_BASENAME}
+        # -------------------- AMD job -----------------------
+        - name: pytest-gpu-omp-amd
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py tests/test_operator.py::TestEstimateMemory"
+          runner_label: amdgpu
+          base: "devitocodes/bases:amd"
+          test_drive_cmd: "rocm-smi"
+          # Unchanged, still passes through required /dev nodes etc.
+          dockerflags: >-
+            --network=host
+            --device=/dev/kfd --device=/dev/dri
+            --ipc=host
+            --group-add video --group-add "$(getent group render | cut -d: -f3)"
+            --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
 
     steps:
-      - name: Checkout devito
-        uses: actions/checkout@v6
+    - name: Checkout devito
+      uses: actions/checkout@v6
 
-      - name: Generate unique CI tag
-        id: uniquetag
-        run: |
-          UNIQUE=$(echo "${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}" | cksum | cut -f 1 -d " ")
-          echo "Unique ID: ${UNIQUE}"
-          echo "unique=${UNIQUE}" >> "$GITHUB_OUTPUT"
+    - id: build
+      name: Build docker image
+      uses: ./.github/actions/docker-build
+      with:
+        file: docker/Dockerfile.devito
+        tag: ${{ matrix.name }}
+        base: ${{ matrix.base }}
 
-      - name: Set per-runner tags
-        env:
-          UNIQUE: ${{ steps.uniquetag.outputs.unique }}
-        run: |
-          echo "DOCKER_IMAGE=${{ matrix.name }}-${RUNNER_NAME// /_}-${UNIQUE}" >> "$GITHUB_ENV"
-          echo "CONTAINER_BASENAME=testrun-${{ matrix.name }}-${RUNNER_NAME// /_}-${{ github.sha }}" >> "$GITHUB_ENV"
+    - name: Probe GPU
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        command: ${{ matrix.test_drive_cmd }}
 
-      - name: Ensure buildx builder
-        run: |
-          docker buildx inspect "${RUNNER_NAME// /_}" >/dev/null 2>&1 || \
-            docker buildx create --name "${RUNNER_NAME// /_}" --driver docker-container
-          docker buildx use "${RUNNER_NAME// /_}"
+    - name: Test with pytest
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        env: |
+          CI=true
+          CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
+          DEVITO_LOGGING=DEBUG
+          PYTHONFAULTHANDLER=1
+        command: |
+          pytest \
+            -vvv \
+            --capture=no \
+            --showlocals \
+            --log-cli-level=DEBUG \
+            -o log_cli=true \
+            --full-trace \
+            --durations=10 \
+            --cov \
+            --cov-config=.coveragerc \
+            --cov-report=xml \
+            ${{ matrix.test_files }}
 
-      - name: Build docker image
-        run: |
-          docker buildx build . \
-            --builder "${RUNNER_NAME// /_}" \
-            --load \
-            --label ci-run="$GITHUB_RUN_ID" \
-            --rm --pull \
-            --file docker/Dockerfile.devito \
-            --tag "${DOCKER_IMAGE}" \
-            --build-arg base="${{ matrix.base }}"
+    - name: Test examples
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        env: |
+        command: pytest ${{ matrix.test_examples }}
 
-      - name: Export CODECOV token
-        run: echo "CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}" >> "$GITHUB_ENV"
+    - name: Test examples with MPI
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        env: |
+          DEVITO_LOGGING=DEBUG
+          DEVITO_MPI=1
+        command: mpiexec -n 2 pytest ${{ matrix.test_examples }}
 
-      - name: Probe gpu
-        run: |
-          # Make sure CUDA_VISIBLE_DEVICES is at least *something* on NVIDIA
-          # runners; fall back to "all" so the driver probe does not fail.
-          if [[ "${{ matrix.runner_label }}" == "nvidiagpu" && -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
-            echo "CUDA_VISIBLE_DEVICES=all" >> "$GITHUB_ENV"
-          fi
-
-          # Run a simple driver-probe command (nvidia-smi / rocm-smi)
-          docker rm -f "${CONTAINER_BASENAME}" 2>/dev/null || true
-          docker run ${{ matrix.dockerflags }} "${DOCKER_IMAGE}" ${{ matrix.test_drive_cmd }}
-
-      - name: Test with pytest
-        env:
-          # Exported earlier in the job; needed inside the container for codecov
-          CODECOV_TOKEN: ${{ env.CODECOV_TOKEN }}
-        run: |
-          # Add Codecov’s environment variables (GITHUB_SHA, etc.)
-          ci_env=$(bash <(curl -s https://codecov.io/env))
-
-          # Run the test suite using the matrix-defined flags
-          docker run \
-            ${{ matrix.dockerflags }} \
-            "${ci_env}" \
-            --env CI=true \
-            --env PYTHONFAULTHANDLER=1 \
-            --env DEVITO_LOGGING=DEBUG \
-            --env CODECOV_TOKEN \
-            "${DOCKER_IMAGE}" \
-            pytest -vvv --capture=no --showlocals \
-                   --log-cli-level=DEBUG -o log_cli=true \
-                   --full-trace --durations=10 \
-                   --cov --cov-config=.coveragerc --cov-report=xml \
-                   ${{ matrix.test_files }}
-
-      - name: Test examples
-        run: |
-          docker run \
-            ${{ matrix.dockerflags }} \
-            "${DOCKER_IMAGE}" \
-            pytest ${{ matrix.test_examples }}
-
-      - name: Test examples with MPI
-        run: |
-          docker run \
-            ${{ matrix.dockerflags }} \
-            --env DEVITO_MPI=1 \
-            "${DOCKER_IMAGE}" \
-            mpiexec -n 2 pytest ${{ matrix.test_examples }}
-
-      - name: Builder & image cleanup (keep 3 days of cache)
-        if: always()
-        run: |
-          # Remove only the test image we built
-          docker rmi -f "${DOCKER_IMAGE}" || true
-
-          # Classic image layers created in this job
-          docker image prune -f --filter label=ci-run="$GITHUB_RUN_ID"
-
-          # BuildKit cache: target the per-runner builder explicitly
-          docker builder prune --builder "${RUNNER_NAME// /_}" \
-                              -f \
-                              --filter "until=72h"
+    - name: Cleanup docker image
+      if: always()
+      uses: ./.github/actions/docker-clean
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
