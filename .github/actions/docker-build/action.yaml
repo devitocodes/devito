@@ -14,6 +14,7 @@ inputs:
   base:
     description: "Base docker image to build on top of"
     required: true
+    # Update default if docker/Dockerfile.devito ever changes default
     default: "devitocodes/bases:cpu-gcc"
 
 outputs:
