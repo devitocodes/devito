@@ -14,7 +14,7 @@ inputs:
   base:
     description: "Base docker image to build on top of"
     required: true
-    default: ""
+    default: "devitocodes/bases:cpu-gcc"
 
 outputs:
   unique:
