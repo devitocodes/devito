@@ -14,6 +14,7 @@ inputs:
   base:
     description: "Base docker image to build on top of"
     required: true
+    default: ""
 
 outputs:
   unique:
