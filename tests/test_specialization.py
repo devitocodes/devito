@@ -5,8 +5,8 @@ import pytest
 import sympy
 
 from devito import (
-    ConditionalDimension, Dimension, Eq, Function, Grid, Operator, SubDomain,
-    TimeFunction, switchconfig
+    ConditionalDimension, Dimension, Eq, Function, Grid, Operator, SparseTimeFunction,
+    SubDomain, TimeFunction, solve, switchconfig
 )
 from devito.ir.iet.visitors import Specializer
 
@@ -233,7 +233,7 @@ class TestApply:
                               ('time_m', 'time_M'),
                               ('x_m', 'y_M'),
                               ('x_m', 'x_M', 'y_m', 'y_M')])
-    def test_diffusion_like(self, specialize):
+    def test_diffusion(self, specialize):
         grid = Grid(shape=(11, 11))
 
         dt = 2.5e-5
@@ -253,6 +253,64 @@ class TestApply:
 
         assert np.all(np.isclose(check, f.data))
 
-    # Diffusion-like test
-    # Acoustic-like test (with and without source injection)
+    @pytest.mark.parametrize('specialize',
+                             [('x_m',),
+                              ('y_M',),
+                              ('time_m',),
+                              ('time_m', 'time_M'),
+                              ('x_m', 'y_M'),
+                              ('x_m', 'x_M', 'y_m', 'y_M')])
+    @pytest.mark.parametrize('source', [False, True])
+    def test_acoustic(self, specialize, source):
+        # TODO: Add source injection switch
+        grid = Grid(shape=(101, 101))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2)
+
+        def gaussian(x, x0=0, sigma=1):
+            return np.exp(-(x - x0)**2 / (2 * sigma**2))
+
+        # Initialise with Gaussian bump
+        def gaussian_bump(x, y, x0=0, y0=0, sigma=1):
+            return gaussian(x, x0=x0, sigma=sigma)*gaussian(y, x0=y0, sigma=sigma)
+
+        x = np.linspace(-grid.extent[0]/2, grid.extent[0]/2, grid.shape[0])
+        y = np.linspace(-grid.extent[1]/2, grid.extent[1]/2, grid.shape[0])
+        xx, yy = np.meshgrid(x, y, indexing='ij')
+
+        u.data[:] = gaussian_bump(xx, yy, sigma=0.05)
+
+        c = 1.
+        m = 1/c**2  # Square slowness
+
+        dt = 0.6*min(grid.spacing)/c
+
+        pde = m * u.dt2 - u.laplace
+        stencil = Eq(u.forward, solve(pde, u.forward))
+
+        if source:
+            src = SparseTimeFunction(name='src', grid=grid, nt=51, npoint=1)
+            src.coordinates.data[:] = np.array(grid.extent)/2
+            src.data[:, 0] = np.sin(np.linspace(0, 2*np.pi, 51))
+
+            src_term = src.inject(field=u.forward, expr=src)
+            op = Operator([stencil] + src_term)
+        else:
+            op = Operator(stencil)
+
+        op.apply(t_M=50, dt=dt)
+
+        # Save and reset result
+        check = np.array(u.data)
+        u.data[:] = gaussian_bump(xx, yy, sigma=0.05)
+
+        op.apply_specialize(t_M=50, dt=dt, specialize=specialize)
+
+        assert np.all(np.isclose(check, u.data))
+
+        if source:
+            assert np.isclose(np.linalg.norm(u.data), 21.698477)
+        else:
+            assert np.isclose(np.linalg.norm(u.data), 10.793053)
+
     # Elastic-like test (with and without source injection)
