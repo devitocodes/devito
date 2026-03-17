@@ -1604,6 +1604,10 @@ class Specializer(Uxreplace):
         state.pop('soname', None)
         state.pop('_soname', None)  # Clear cached soname so it is recomputed
 
+        # Tag operator to indicate that it's specialized
+        name = state['name']
+        state['name'] = f"{name}Specialized"
+
         newargs, newkwargs = o.__getnewargs_ex__()
         newop = o.__class__(*newargs, **newkwargs)
 

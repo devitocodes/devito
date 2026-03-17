@@ -6,7 +6,8 @@ import sympy
 
 from devito import (
     ConditionalDimension, Dimension, Eq, Function, Grid, Operator, SparseTimeFunction,
-    SubDomain, TimeFunction, solve, switchconfig
+    SubDomain, TensorTimeFunction, TimeFunction, VectorTimeFunction, diag, div, grad,
+    solve, switchconfig
 )
 from devito.ir.iet.visitors import Specializer
 
@@ -262,7 +263,6 @@ class TestApply:
                               ('x_m', 'x_M', 'y_m', 'y_M')])
     @pytest.mark.parametrize('source', [False, True])
     def test_acoustic(self, specialize, source):
-        # TODO: Add source injection switch
         grid = Grid(shape=(101, 101))
 
         u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2)
@@ -313,4 +313,63 @@ class TestApply:
         else:
             assert np.isclose(np.linalg.norm(u.data), 10.793053)
 
-    # Elastic-like test (with and without source injection)
+    @pytest.mark.parametrize('specialize',
+                             [('x_m',),
+                              ('y_M',),
+                              ('time_m',),
+                              ('time_m', 'time_M'),
+                              ('x_m', 'y_M'),
+                              ('x_m', 'x_M', 'y_m', 'y_M'),
+                              ('o_x', 'o_y', 'p_src_m', 'p_src_M')])
+    def test_elastic(self, specialize):
+        grid = Grid(shape=(101, 101))
+
+        tau = TensorTimeFunction(name='tau', grid=grid, space_order=4)
+        v = VectorTimeFunction(name='v', grid=grid, space_order=4)
+
+        vp = 1.25
+        vs = 0.75
+        density = 1.
+
+        dt = 0.6*min(grid.spacing)/vp
+
+        mu = vs**2 * density
+        l = (vp**2 * density - 2*mu)
+        b = 1/density
+
+        pde_v = v.dt - b * div(tau)
+        pde_tau = tau.dt - l * diag(div(v.forward)) \
+            - mu * (grad(v.forward) + grad(v.forward).transpose(inner=False))
+
+        u_v = Eq(v.forward, solve(pde_v, v.forward))
+        u_t = Eq(tau.forward, solve(pde_tau, tau.forward))
+
+        src = SparseTimeFunction(name='src', grid=grid, nt=51, npoint=1)
+        src.coordinates.data[:] = np.array(grid.extent)/2
+        src.data[:, 0] = np.sin(np.linspace(0, 2*np.pi, 51))
+
+        src_xx = src.inject(field=tau[0, 0].forward, expr=src)
+        src_yy = src.inject(field=tau[1, 1].forward, expr=src)
+
+        op = Operator([u_v] + [u_t] + src_xx + src_yy)
+
+        op.apply(t_M=50, dt=dt)
+
+        # Save and reset result
+        fields = (tau[0, 0], tau[0, 1], tau[1, 1], v[0], v[1])
+
+        checks = {field.name: np.array(field.data) for field in fields}
+
+        for field in fields:
+            field.data[:] = 0
+
+        op.apply_specialize(t_M=50, dt=dt, specialize=specialize)
+
+        for field in fields:
+            check = checks[field.name]
+            assert np.all(np.isclose(check, field.data))
+
+        norms = (1.333946, 0.4931774, 1.333946, 1.1619346, 1.1619346)
+
+        for field, norm in zip(fields, norms, strict=True):
+            assert np.isclose(np.linalg.norm(field.data), norm)
