@@ -16,7 +16,8 @@ from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import (
-    CriticalRegion, Fence, ThreadCommit, ThreadPoolSync, ThreadWait, WeakFence
+    CriticalRegion, Fence, Indexed, TensorMove, ThreadArrive, ThreadCommit,
+    ThreadPoolSync, ThreadWait, WeakFence
 )
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -311,12 +312,41 @@ class Cluster:
         return self._is_type(ThreadPoolSync)
 
     @cached_property
+    def is_shm_write(self):
+        return all(w._mem_shared for w in self.scope.writes)
+
+    @cached_property
     def is_thread_commit(self):
         return self._is_type(ThreadCommit)
 
     @cached_property
+    def is_thread_arrive(self):
+        return self._is_type(ThreadArrive)
+
+    @cached_property
     def is_thread_wait(self):
         return self._is_type(ThreadWait)
+
+    @cached_property
+    def is_word_move(self):
+        return (self._is_type(Indexed) and
+                all(e.rhs.function._mem_heap for e in self.exprs))
+
+    @cached_property
+    def is_tensor_move(self):
+        return self._is_type(TensorMove)
+
+    @cached_property
+    def is_word_move_to_mem_shared(self):
+        return self.is_word_move and self.is_shm_write
+
+    @cached_property
+    def is_tensor_move_to_mem_shared(self):
+        return self.is_tensor_move and self.is_shm_write
+
+    @cached_property
+    def is_glb_load_to_mem_shared(self):
+        return self.is_word_move_to_mem_shared or self.is_tensor_move_to_mem_shared
 
     @cached_property
     def is_async(self):
@@ -556,6 +586,10 @@ class ClusterGroup(tuple):
     @property
     def is_halo_touch(self):
         return all(i.is_halo_touch for i in self)
+
+    @cached_property
+    def is_glb_load_to_mem_shared(self):
+        return all(i.is_glb_load_to_mem_shared for i in self)
 
     @cached_property
     def dtype(self):

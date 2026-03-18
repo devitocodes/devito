@@ -232,7 +232,7 @@ class Fusion(Queue):
         weak.append(c.properties.is_core_init())
 
         # Prefetchable Clusters should get merged, if possible
-        weak.append(c.properties.is_prefetchable_shm())
+        weak.append(c.is_glb_load_to_mem_shared)
 
         # Promoting adjacency of IndexDerivatives will maximize their reuse
         weak.append(any(search(c.exprs, IndexDerivative)))

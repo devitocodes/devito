@@ -11,10 +11,11 @@ from ctypes import POINTER, c_void_p
 from functools import cached_property
 
 import numpy as np
+from sympy import Expr
 
 from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
-from devito.symbolics import search
+from devito.symbolics import Reserved, Terminal, search
 from devito.tools import as_list, as_tuple, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
@@ -35,7 +36,9 @@ __all__ = [
     'QueueID',
     'SharedData',
     'TBArray',
+    'TensorMove',
     'ThreadArray',
+    'ThreadArrive',
     'ThreadCommit',
     'ThreadID',
     'ThreadPoolSync',
@@ -365,12 +368,24 @@ class ThreadCommit(Fence):
     pass
 
 
+class ThreadArrive(Fence):
+
+    """
+    A generic arrive operation for a single thread, typically used to signal
+    the arrival at a certain point through a suitable synchronization object.
+    """
+
+    pass
+
+
 class ThreadWait(Fence):
 
     """
     A generic wait operation for a single thread, typically used to synchronize
-    after a memory operation issued at a specific program point with a
-    ThreadCommit operation.
+    with other threads over:
+
+        * a memory operation issued by a prior ThreadCommit operation.
+        * the consumption of a shared resource via a ThreadArrive operation.
     """
 
     pass
@@ -386,3 +401,18 @@ class TBArray(Array):
         kwargs['liveness'] = 'eager'
 
         super().__init_finalize__(*args, **kwargs)
+
+
+class TensorMove(Expr, Reserved, Terminal):
+
+    """
+    Represent the LOAD/STORE of a multi-dimensional block of data from/to a higher
+    level of the memory hierarchy
+    """
+
+    func = Reserved._rebuild
+
+    def _ccode(self, printer):
+        return str(self)
+
+    _sympystr = _ccode
