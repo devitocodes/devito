@@ -192,6 +192,8 @@ class TestSpecializer:
 
     # TODO: Need a test to check that block sizes can be specialized
     # TODO: Need to test that tile sizes can be specialized
+    # TODO: Test pickling followed by specialization
+    # TODO: Test specialized operators can be pickled
 
 
 class TestApply:

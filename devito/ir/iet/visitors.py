@@ -1525,11 +1525,14 @@ class Specializer(Uxreplace):
                                  f"specialization. Value {v} was supplied for symbol "
                                  f"{k}, but is of type {type(v)}.")
 
+            try:
+                _ = k.dtype(v)
+            except ValueError as e:
+                raise ValueError(f"Value {v} is incompatible with {k.dtype} dtype "
+                                 "of {k}") from e
+
     def _visit(self, o, *args, **kwargs):
         retval = super()._visit(o, *args, **kwargs)
-        # print(f"Visiting {o.__class__}")
-        # print(retval)
-        # print("--------------------------------------------")
         return retval
 
     # TODO: Should probably be moved to Uxreplace at least (as should some of these
@@ -1579,10 +1582,6 @@ class Specializer(Uxreplace):
         if not_params:
             raise ValueError(f"Attempted to specialize symbols {not_params} which are not"
                              " found in the Operator parameters")
-
-        # FIXME: Should also type-check the values supplied against the symbols they are
-        # replacing (and cast them if needed?) -> use a try-except on the cast in
-        # python-land
 
         parameters = tuple(i for i in o.parameters if i not in self.mapper)
 
