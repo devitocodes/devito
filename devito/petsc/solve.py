@@ -145,7 +145,9 @@ class InjectSolve:
         initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
 
         constrain_exprs = self._get_constrain_exprs(exprs)
-        constrain_bc = ConstrainBC(target, constrain_exprs, arrays) if constrain_exprs else None
+        constrain_bc = None
+        if constrain_exprs:
+            constrain_bc = ConstrainBC(target, constrain_exprs, arrays)
 
         field_data = FieldData(
             target=target,
@@ -205,11 +207,11 @@ class InjectMixedSolve(InjectSolve):
             jacobian.target_scaler_mapper
         )
 
-        constrain_bc = {
-            t: ConstrainBC(t, self._get_constrain_exprs(as_tuple(self.target_exprs[t])), arrays)
-            for t in targets
-            if self._get_constrain_exprs(as_tuple(self.target_exprs[t]))
-        }
+        constrain_bc = {}
+        for t in targets:
+            cexprs = self._get_constrain_exprs(as_tuple(self.target_exprs[t]))
+            if cexprs:
+                constrain_bc[t] = ConstrainBC(t, cexprs, arrays)
         constrain_bc = constrain_bc if constrain_bc else None
 
         all_data = MultipleFieldData(

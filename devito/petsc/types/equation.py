@@ -10,8 +10,8 @@ class EssentialBC(Eq):
 
     The compiler will automatically zero the corresponding rows/columns in the Jacobian
     and lift the boundary terms into the residual RHS, unless the BC is constrained
-    via a `PetscSection`. In which case, they are set once and removed from the global solver.
-    Constraining can be enabled in two ways:
+    via a `PetscSection`. In which case, they are set once and removed from the
+    global solver. Constraining can be enabled in two ways:
 
     - Globally: pass `constrain_bcs=True` to `petscsolve` to constrain all
       `EssentialBC`s in the solve.
