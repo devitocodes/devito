@@ -79,10 +79,12 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
            'kspgettype', 'kspgetnormtype', 'snesgetiterationnumber']
 
     constrain_bcs : bool, optional
-        If `True`, essential boundary conditions specifed by `EssentialBC` equations
-        are constrained through a `PetscSection`. As a result, the corresponding degrees
-        of freedom are excluded from the global solver and are not imposed using
-        trivial equations.
+        If `True`, ALL `EssentialBC` equations are constrained via a `PetscSection`,
+        excluding the corresponding degrees of freedom from the global solver.
+        Individual `EssentialBC`s can also be constrained independently by passing
+        ``constrain=True`` to their constructor (e.g.
+        ``EssentialBC(lhs, rhs, subdomain=..., constrain=True)``), regardless of
+        this flag.
 
     Returns
     -------
@@ -142,11 +144,8 @@ class InjectSolve:
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
         initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
 
-        constrain_bc = (
-            ConstrainBC(target, exprs, arrays)
-            if self.constrain_bcs
-            else None
-        )
+        constrain_exprs = self._get_constrain_exprs(exprs)
+        constrain_bc = ConstrainBC(target, constrain_exprs, arrays) if constrain_exprs else None
 
         field_data = FieldData(
             target=target,
@@ -158,6 +157,16 @@ class InjectSolve:
         )
 
         return target, funcs, field_data
+
+    def _get_constrain_exprs(self, exprs):
+        """
+        Return the subset of `exprs` to be constrained via PetscSection.
+        If `constrain_bcs=True`, all `EssentialBC` exprs are returned.
+        Otherwise, only those individually marked with ``constrain=True``.
+        """
+        if self.constrain_bcs:
+            return tuple(e for e in exprs if isinstance(e, EssentialBC))
+        return tuple(e for e in exprs if isinstance(e, EssentialBC) and e.constrain)
 
     def generate_arrays(self, *targets):
         return {
@@ -197,9 +206,11 @@ class InjectMixedSolve(InjectSolve):
         )
 
         constrain_bc = {
-            t: ConstrainBC(t, as_tuple(self.target_exprs[t]), arrays)
+            t: ConstrainBC(t, self._get_constrain_exprs(as_tuple(self.target_exprs[t])), arrays)
             for t in targets
-        } if self.constrain_bcs else None
+            if self._get_constrain_exprs(as_tuple(self.target_exprs[t]))
+        }
+        constrain_bc = constrain_bc if constrain_bc else None
 
         all_data = MultipleFieldData(
             targets=targets,

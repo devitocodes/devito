@@ -1481,9 +1481,9 @@ class TestMPI:
     def test_laplacian_1d(self, nx, unorm, mode):
         """
         """
-        configuration['compiler'] = 'custom'
-        os.environ['CC'] = 'mpicc'
-        PetscInitialize()
+        # configuration['compiler'] = 'custom'
+        # os.environ['CC'] = 'mpicc'
+        # PetscInitialize()
 
         class SubSide(SubDomain):
             def __init__(self, side='left', grid=None):

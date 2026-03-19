@@ -9,8 +9,13 @@ class EssentialBC(Eq):
     Represents an essential boundary condition for use with `petscsolve`.
 
     The compiler will automatically zero the corresponding rows/columns in the Jacobian
-    and lift the boundary terms into the residual RHS, unless the user
-    specifies `constrain_bcs=True` to `petscsolve`.
+    and lift the boundary terms into the residual RHS, unless the BC is constrained
+    via a `PetscSection`. Constraining can be enabled in two ways:
+
+    - Globally: pass `constrain_bcs=True` to `petscsolve` to constrain all
+      `EssentialBC`s in the solve.
+    - Individually: pass `constrain=True` to a specific `EssentialBC` constructor,
+      e.g. ``EssentialBC(lhs, rhs, subdomain=..., constrain=True)``.
 
     Note:
         - To define an essential boundary condition, use:
@@ -18,20 +23,25 @@ class EssentialBC(Eq):
           where `target` is the Function-like object passed to `petscsolve`.
         - SubDomains used for multiple `EssentialBC`s must not overlap.
     """
-    __rkwargs__ = Eq.__rkwargs__ + ("target",)
+    __rkwargs__ = Eq.__rkwargs__ + ("target", "constrain")
 
-    def __new__(cls, *args, target=None, **kwargs):
+    def __new__(cls, *args, target=None, constrain=False, **kwargs):
         obj = super().__new__(cls, *args, **kwargs)
 
         if target is None:
             target = obj.lhs.function
 
         obj._target = target
+        obj._constrain = constrain
         return obj
 
     @property
     def target(self):
         return self._target
+
+    @property
+    def constrain(self):
+        return self._constrain
 
 
 class ZeroRow(EssentialBC):

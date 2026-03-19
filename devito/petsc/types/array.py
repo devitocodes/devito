@@ -51,11 +51,12 @@ class PETScArray(ArrayBasic, Differentiable):
     @classmethod
     def __indices_setup__(cls, *args, **kwargs):
         target = kwargs['target']
-        dimensions = tuple(target.indices[d] for d in target.space_dimensions)
+        dimensions = tuple(target.space_dimensions)
+        target_indices = tuple(target.indices[d] for d in target.space_dimensions)
         if args:
             indices = args
         else:
-            indices = dimensions
+            indices = target_indices
         return as_tuple(dimensions), as_tuple(indices)
 
     def __halo_setup__(self, **kwargs):
@@ -122,6 +123,19 @@ class PETScArray(ArrayBasic, Differentiable):
             FieldFromComposite('g%sm' % d.name, self.localinfo) for d in self.dimensions]
         # Reverse it since DMDA is setup backwards to Devito dimensions.
         return DimensionTuple(*field_from_composites[::-1], getters=self.dimensions)
+
+    # TODO: Is this necessary? Taken directly from `Function`.
+    def _eval_at(self, func):                                                                                                                   
+        if self.staggered == func.staggered:                                                                                                  
+            return self                                                                                                                         
+        mapper = {}
+        for d in self.dimensions:                                                                                                               
+            try:                                                                                                                              
+                if self.indices_ref[d] is not func.indices_ref[d]:                                                                              
+                    mapper[self.indices_ref[d]] = func.indices_ref[d]                                                                           
+            except KeyError:                                                                                                                    
+                pass                                                                                                                            
+        return self.subs(mapper) 
 
 
 class PetscBundle(Bundle):
