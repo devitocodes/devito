@@ -328,6 +328,10 @@ class Cluster:
         return self._is_type(ThreadWait)
 
     @cached_property
+    def is_thread_sync(self):
+        return self.is_thread_pool_sync or self.is_thread_wait
+
+    @cached_property
     def is_word_move(self):
         return (self._is_type(Indexed) and
                 all(e.rhs.function._mem_heap for e in self.exprs))
