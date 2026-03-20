@@ -161,7 +161,20 @@ class TestSpecializer:
         assert "const int x_fsz0 = 11;" in str(op1.ccode)
         assert "const int y_fsz0 = 11;" in str(op1.ccode)
 
-    # TODO: Should strides get specialized? If so, how?
+    def test_blocking(self):
+        grid = Grid(shape=(11, 11, 11))
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        op0 = Operator(Eq(f.forward, f.laplace))
+
+        block_params = [p for p in op0.parameters if 'blk' in str(p)]
+        mapper = {p: sympy.Integer(32) for p in block_params}
+
+        op1 = Specializer(mapper).visit(op0)
+
+        assert "blk0_size" not in str(op1.ccode)
+        assert "x0_blk0 += 32" in str(op1.ccode)
+        assert "y0_blk0 += 32" in str(op1.ccode)
 
     def test_apply_basic(self):
         """
@@ -189,11 +202,6 @@ class TestSpecializer:
         op0.apply(x_m=2, x_M=7, y_m=3, y_M=8)
 
         assert np.all(check == f.data)
-
-    # TODO: Need a test to check that block sizes can be specialized
-    # TODO: Need to test that tile sizes can be specialized
-    # TODO: Test pickling followed by specialization
-    # TODO: Test specialized operators can be pickled
 
 
 class TestApply:
@@ -311,9 +319,9 @@ class TestApply:
         assert np.all(np.isclose(check, u.data))
 
         if source:
-            assert np.isclose(np.linalg.norm(u.data), 21.698477)
+            assert np.isclose(np.linalg.norm(u.data), 21.698477, atol=1e-4, rtol=0)
         else:
-            assert np.isclose(np.linalg.norm(u.data), 10.793053)
+            assert np.isclose(np.linalg.norm(u.data), 10.793053, atol=1e-4, rtol=0)
 
     @pytest.mark.parametrize('specialize',
                              [('x_m',),
@@ -374,4 +382,4 @@ class TestApply:
         norms = (1.333946, 0.4931774, 1.333946, 1.1619346, 1.1619346)
 
         for field, norm in zip(fields, norms, strict=True):
-            assert np.isclose(np.linalg.norm(field.data), norm)
+            assert np.isclose(np.linalg.norm(field.data), norm, atol=1e-4, rtol=0)

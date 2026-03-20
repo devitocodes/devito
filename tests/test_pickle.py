@@ -4,6 +4,7 @@ import pickle as pickle0
 import cloudpickle as pickle1
 import numpy as np
 import pytest
+import sympy
 from sympy import Symbol
 
 from devito import (
@@ -14,6 +15,7 @@ from devito import (
 from devito.data import LEFT, OWNED
 from devito.finite_differences.tools import centered, direct, left, right, transpose
 from devito.ir import Backward, Forward, GuardBound, GuardBoundNext
+from devito.ir.iet.visitors import Specializer
 from devito.ir.support.guards import GuardFactorEq
 from devito.mpi.halo_scheme import Halo
 from devito.mpi.routines import (
@@ -755,6 +757,28 @@ class TestOperator:
         new_op = pickle.loads(pkl_op)
 
         assert str(op) == str(new_op)
+
+    def test_specialized_operator(self, pickle):
+        grid = Grid(shape=(3, 3))
+        x_m, y_m = [d.symbolic_min for d in grid.dimensions]
+
+        f = Function(name='f', grid=grid)
+
+        op = Operator(Eq(f, f + 1))
+
+        pkl_op = pickle.dumps(op)
+        new_op = pickle.loads(pkl_op)
+
+        mapper = {x_m: sympy.S.Zero, y_m: sympy.S.Zero}
+
+        # Check pickled operators can be specialized
+        op0 = Specializer(mapper).visit(new_op)
+
+        # Check that specialized operators can be pickled
+        pkl_op0 = pickle.dumps(op0)
+        new_op0 = pickle.loads(pkl_op0)
+
+        assert str(op0) == str(new_op0)
 
     def test_operator_function(self, pickle):
         grid = Grid(shape=(3, 3, 3))
