@@ -8,8 +8,8 @@ from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (
     PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, DataSpace, Forward, Guards, Interval,
     IntervalGroup, IterationSpace, PrefetchUpdate, Properties, Scope, WaitLock, WithLock,
-    detect_accesses, detect_io, maximum, minimum, normalize_properties, normalize_syncs,
-    null_ispace, tailor_properties, update_properties
+    detect_accesses, maximum, minimum, normalize_properties, normalize_syncs, null_ispace,
+    tailor_properties, update_properties
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
@@ -491,7 +491,8 @@ class Cluster:
         -----
         If a Function is both read and written, then it is counted twice.
         """
-        reads, writes = detect_io(self.exprs, relax=True)
+        reads = flatten(i.read_functions_relaxed for i in self.exprs)
+        writes = flatten(i.write_functions_relaxed for i in self.exprs)
         accesses = [(i, 'r') for i in reads] + [(i, 'w') for i in writes]
 
         # Ordering isn't important at this point, so returning an unordered

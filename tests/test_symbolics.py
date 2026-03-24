@@ -848,6 +848,18 @@ def test_is_on_grid():
     assert all(uu._grid_map == {} for uu in retrieve_functions(u.subs({x: x0}).evaluate))
 
 
+def test_retrieve_functions_mixed_carriers():
+    grid = Grid((10,))
+    x = grid.dimensions[0]
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    expr = f + FIndexed(g.base, x)
+
+    assert retrieve_functions(expr, mode='unique') == {f, g}
+
+
 @pytest.mark.parametrize('expr,expected', [
     ('f[x+2]*g[x+4] + f[x+3]*g[x+5] + f[x+4] + f[x+1]',
      ['f[x+2]', 'g[x+4]', 'f[x+3]', 'g[x+5]', 'f[x+1]', 'f[x+4]']),

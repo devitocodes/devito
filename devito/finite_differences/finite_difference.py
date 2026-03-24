@@ -170,14 +170,15 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     # `coefficients` method (`taylor` or `symbolic`)
     if weights is None:
         weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
-    if isinstance(weights, Iterable) and len(weights) != len(indices):
+        _, wdim, _ = process_weights(weights, expr, dim)
+    elif isinstance(weights, Iterable) and len(weights) != len(indices):
         warning(f"Number of weights ({len(weights)}) does not match "
                 f"number of indices ({len(indices)}), reverting to Taylor")
         scale = False
+        wdim = None
         weights = fd_weights_registry['taylor'](expr, deriv_order, indices, x0)
 
     # Did fd_weights_registry return a new Function/Expression instead of a values?
-    _, wdim, _ = process_weights(weights, expr, dim)
     if wdim is not None:
         weights = [weights._subs(wdim, i) for i in range(len(indices))]
 

@@ -38,8 +38,8 @@ from devito.passes import (
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
     DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
-    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, split,
-    timed_pass, timed_region
+    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer,
+    memoized_func, split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness
@@ -184,7 +184,11 @@ class Operator(Callable):
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
-            op = cls._build(expressions, **kwargs)
+            try:
+                op = cls._build(expressions, **kwargs)
+            finally:
+                CacheInstances.clear_caches()
+                memoized_func.clear_build_caches()
         op._profiler.py_timers.update(r.timings)
 
         # Emit info about how long it took to perform the lowering
@@ -261,14 +265,11 @@ class Operator(Callable):
         op._state = cls._initialize_state(**kwargs)
 
         # Produced by the various compilation passes
-        op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
-        op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
+        op._reads = filter_sorted(flatten(e.read_functions for e in irs.expressions))
+        op._writes = filter_sorted(flatten(e.write_functions for e in irs.expressions))
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
-
-        # Clear build-scoped instance caches
-        CacheInstances.clear_caches()
 
         return op
 

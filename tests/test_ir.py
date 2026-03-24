@@ -788,6 +788,18 @@ class TestDependenceAnalysis:
         v = scope.d_flow.pop()
         assert v.function is s1
 
+    def test_ireq_function_views_indirect_indices(self):
+        grid = Grid(shape=(4,))
+        x, = grid.dimensions
+
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=grid)
+        a = Function(name='a', grid=grid)
+
+        expr = LoweredEq(Eq(u, f[a[x]]))
+
+        assert set(expr.read_functions) == {f, a}
+
     def test_array_shared(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions

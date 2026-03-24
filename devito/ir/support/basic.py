@@ -10,8 +10,8 @@ from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (
-    compare_ops, q_affine, q_comp_acc, q_constant, q_routine, retrieve_indexed,
-    retrieve_terminals, search, uxreplace
+    compare_ops, q_affine, q_comp_acc, q_constant, retrieve_accesses,
+    retrieve_indexed
 )
 from devito.tools import (
     CacheInstances, Tag, as_mapper, as_tuple, filter_sorted, flatten, is_integer,
@@ -320,6 +320,7 @@ class TimedAccess(IterationInstance, AccessMode):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
+    @memoized_meth
     def distance(self, other, logical=False):
         """
         Compute the distance from ``self`` to ``other``.
@@ -876,13 +877,7 @@ class Scope(CacheInstances):
         Generate all write accesses.
         """
         for i, e in enumerate(self.exprs):
-            terminals = retrieve_accesses(e.lhs)
-            if q_routine(e.rhs):
-                with suppress(AttributeError):
-                    # Everything except: foreign routines, such as `cos` or `sin` etc.
-                    terminals.update(e.rhs.writes)
-
-            for j in terminals:
+            for j in e.writes:
                 mode = 'WR' if e.is_Reduction else 'W'
                 yield TimedAccess(j, mode, i, e.ispace)
 
@@ -919,11 +914,7 @@ class Scope(CacheInstances):
         expressions.
         """
         for i, e in enumerate(self.exprs):
-            # Reads
-            terminals = retrieve_accesses(e.rhs, deep=True)
-            with suppress(AttributeError):
-                terminals.update(retrieve_accesses(e.lhs.indices))
-            for j in terminals:
+            for j in e.reads_explicit:
                 mode = 'RR' if j.function is e.lhs.function and e.is_Reduction else 'R'
                 yield TimedAccess(j, mode, i, e.ispace)
 
@@ -932,9 +923,8 @@ class Scope(CacheInstances):
                 yield TimedAccess(e.lhs, 'RR', i, e.ispace)
 
             # Look up ConditionalDimensions
-            for v in e.conditionals.values():
-                for j in retrieve_accesses(v):
-                    yield TimedAccess(j, 'R', -1, e.ispace)
+            for j in e.reads_conditional:
+                yield TimedAccess(j, 'R', -1, e.ispace)
 
     @memoized_generator
     def reads_implicit_gen(self):
@@ -1379,23 +1369,6 @@ class ExprGeometry:
 
 def vinf(entries):
     return Vector(*(entries + [S.Infinity]))
-
-
-def retrieve_accesses(exprs, **kwargs):
-    """
-    Like retrieve_terminals, but ensure that if a ComponentAccess is found,
-    the ComponentAccess itself is returned, while the wrapped Indexed is discarded.
-    """
-    kwargs['mode'] = 'unique'
-
-    compaccs = search(exprs, ComponentAccess)
-    if not compaccs:
-        return retrieve_terminals(exprs, **kwargs)
-
-    subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
-    exprs1 = uxreplace(exprs, subs)
-
-    return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())
 
 
 def disjoint_test(e0, e1, d, it):

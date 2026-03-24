@@ -19,9 +19,22 @@ class memoized_func:
         https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
     """
 
-    def __init__(self, func):
+    # Long-lived caches for process-global helpers, such as arch discovery.
+    _scope_persistent = 'persistent'
+    # Build-scoped caches that may retain compiler inputs during Operator construction.
+    _scope_build = 'build'
+    _scoped_caches = {}
+
+    def __new__(cls, func=None, *, scope=None):
+        if func is None:
+            return lambda f: cls(f, scope=scope)
+        return super().__new__(cls)
+
+    def __init__(self, func, *, scope=None):
         self.func = func
+        self.scope = scope or self._scope_persistent
         self.cache = {}
+        self._scoped_caches.setdefault(self.scope, set()).add(self)
 
     def __call__(self, *args, **kw):
         if not isinstance(args, Hashable):
@@ -43,6 +56,18 @@ class memoized_func:
     def __get__(self, obj, objtype):
         """Support instance methods."""
         return partial(self.__call__, obj)
+
+    def clear(self):
+        self.cache.clear()
+
+    @classmethod
+    def clear_scoped_caches(cls, scope):
+        for cache in cls._scoped_caches.get(scope, ()):
+            cache.clear()
+
+    @classmethod
+    def clear_build_caches(cls):
+        cls.clear_scoped_caches(cls._scope_build)
 
 
 class memoized_meth:
