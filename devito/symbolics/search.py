@@ -8,13 +8,14 @@ import sympy
 from devito.symbolics.queries import (
     q_derivative, q_dimension, q_function, q_indexed, q_leaf, q_symbol, q_terminal
 )
-from devito.tools import as_tuple
+from devito.tools import as_tuple, memoized_func
 
 __all__ = [
     'retrieve_derivatives',
     'retrieve_dimensions',
     'retrieve_function_carriers',
     'retrieve_functions',
+    'retrieve_accesses',
     'retrieve_indexed',
     'retrieve_symbols',
     'retrieve_terminals',
@@ -140,10 +141,19 @@ def retrieve_indexed(exprs, mode='all', deep=False):
 
 def retrieve_functions(exprs, mode='all', deep=False):
     """Shorthand to retrieve the DiscreteFunctions in `exprs`."""
-    indexeds = search(exprs, q_indexed, mode, 'dfs', deep)
+    query = lambda i: q_function(i) or q_indexed(i)
+    found = search(exprs, query, 'all', 'dfs', deep)
 
-    functions = search(exprs, q_function, mode, 'dfs', deep)
-    functions.update({i.function for i in indexeds})
+    functions = modes[mode]()
+    indexed_functions = set()
+
+    for i in found:
+        if q_function(i):
+            functions.add(i) if mode == 'unique' else functions.append(i)
+        else:
+            indexed_functions.add(i.function)
+
+    functions.update(indexed_functions)
 
     return functions
 
@@ -175,6 +185,26 @@ def retrieve_function_carriers(exprs, mode='all'):
 def retrieve_terminals(exprs, mode='all', deep=False):
     """Shorthand to retrieve Indexeds and Symbols within ``exprs``."""
     return search(exprs, q_terminal, mode, 'dfs', deep)
+
+
+@memoized_func(scope='build')
+def retrieve_accesses(exprs, deep=False):
+    """
+    Like retrieve_terminals, but ensure that if a ComponentAccess is found,
+    the ComponentAccess itself is returned, while the wrapped Indexed is discarded.
+    """
+    from devito.symbolics.manipulation import uxreplace
+    from devito.types import ComponentAccess, Symbol
+
+    compaccs = search(exprs, ComponentAccess)
+    if not compaccs:
+        return frozenset(retrieve_terminals(exprs, mode='unique', deep=deep))
+
+    subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
+    exprs1 = uxreplace(exprs, subs)
+
+    return frozenset(compaccs | retrieve_terminals(exprs1, mode='unique', deep=deep) -
+                     set(subs.values()))
 
 
 def retrieve_dimensions(exprs, mode='all', deep=False):

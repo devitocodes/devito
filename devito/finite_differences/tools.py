@@ -228,8 +228,12 @@ def make_stencil_dimension(expr, _min, _max):
 
 
 @cacheit
-def numeric_weights(function, deriv_order, indices, x0):
+def _numeric_weights(deriv_order, indices, x0):
     return finite_diff_weights(deriv_order, indices, x0)[-1][-1]
+
+
+def numeric_weights(function, deriv_order, indices, x0):
+    return _numeric_weights(deriv_order, indices, x0)
 
 
 fd_weights_registry = {'taylor': numeric_weights, 'standard': numeric_weights,

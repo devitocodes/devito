@@ -212,7 +212,6 @@ class TestCacheInstances:
         cache_size = Object._instance_cache.cache_info()[-1]
         assert cache_size == 0
 
-
 def test_switchenv():
     # Save previous environment
     previous_environ = dict(os.environ)

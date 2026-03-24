@@ -16,7 +16,7 @@ from devito.ir.cgen import ccode
 from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin, OpMinMax
 from devito.ir.support import (
     AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
-    VECTORIZED, Forward, PrefetchUpdate, Property, WithLock, detect_io
+    VECTORIZED, Forward, PrefetchUpdate, Property, WithLock
 )
 from devito.symbolics import CallFromPointer, ListInitializer
 from devito.tools import (
@@ -452,7 +452,7 @@ class Expression(ExprStmt, Node):
     @cached_property
     def reads(self):
         """The Functions read by the Expression."""
-        return detect_io(self.expr, relax=True)[0]
+        return self.expr.read_functions_relaxed
 
     @cached_property
     def write(self):

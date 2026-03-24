@@ -976,6 +976,10 @@ class IndexDerivative(IndexSum):
     def base(self):
         return self.expr.func(*[a for a in self.expr.args if a is not self.weights])
 
+    @cached_property
+    def pivot(self):
+        return self.base.subs({d: 0 for d in self.dimensions})
+
     @property
     def weights(self):
         return self._weights
