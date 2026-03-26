@@ -7,8 +7,13 @@ import os
 
 from devito import (Grid, Function, TimeFunction,
                     Derivative, Operator, Eq, configuration)
+<<<<<<< HEAD
 from devito.operations.solve import solve
 from devito.types.multistage import multistage_method, MultiStage
+=======
+from devito.operations.solve_new import solve
+from devito.types.multistage_new import multistage_method, MultiStage
+>>>>>>> 4d2ab4da6 (updating small changes from EdC review on 26-03-2026)
 from devito.ir.support import SymbolRegistry
 from devito.ir.equations import lower_multistage
 
