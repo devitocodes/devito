@@ -176,7 +176,7 @@ class MultiStage(Eq):
             f"_evaluate() must be implemented in the subclass {self.__class__.__name__}")
 
 
-class RungeKutta(MultiStage):
+class TableauRungeKutta(MultiStage):
     """
     Base class for explicit Runge-Kutta (RK) time integration methods defined
     via a Butcher tableau.
@@ -210,8 +210,14 @@ class RungeKutta(MultiStage):
     CoeffsBC = tuple[float | np.number, ...]
     CoeffsA = tuple[CoeffsBC, ...]
 
-    def __init__(self, a: CoeffsA, b: CoeffsBC, c: CoeffsBC, lhs, rhs, **kwargs) -> None:
-        self.a, self.b, self.c = a, b, c
+    def __init__(self, lhs, rhs, a: CoeffsA = None, b: CoeffsBC = None,
+                 c: CoeffsBC = None, **kwargs) -> None:
+        self.a = a if a is not None else getattr(self, 'a', None)
+        self.b = b if b is not None else getattr(self, 'b', None)
+        self.c = c if c is not None else getattr(self, 'c', None)
+
+        if self.a is None or self.b is None or self.c is None:
+            raise ValueError("TableauRungeKutta requires coefficients 'a', 'b', and 'c'.")
 
     @property
     def s(self):
@@ -240,7 +246,8 @@ class RungeKutta(MultiStage):
         for j in range(self.n_eq):
             k_j = []
             for _ in range(self.s):
-                k_j.append(TimeFunction(name=f'{sregistry.make_name(prefix="k")}', grid=self.lhs[j].grid, 
+                k_name = sregistry.make_name(prefix="k")
+                k_j.append(TimeFunction(name=k_name, grid=self.lhs[j].grid,
                                         space_order=self.lhs[j].space_order, time_order=0, dtype=self.lhs[j].dtype))
             k.append(k_j)
 
@@ -265,21 +272,10 @@ class RungeKutta(MultiStage):
                          for l in range(self.n_eq)])
 
         return stage_eqs
-
-
-class FixedTableauRungeKutta(RungeKutta):
-    """
-    Runge-Kutta variant with class-defined Butcher tableau coefficients.
-
-    Subclasses must define class attributes `a`, `b`, and `c`.
-    """
-
-    def __init__(self, lhs, rhs, **kwargs):
-        super().__init__(a=self.a, b=self.b, c=self.c, lhs=lhs, rhs=rhs, **kwargs)
-
+    
 
 @register_method(aliases=['RK44'])
-class RungeKutta44(FixedTableauRungeKutta):
+class RungeKutta44(TableauRungeKutta):
     """
     Classic 4th-order Runge-Kutta (RK4) time integration method.
 
@@ -302,7 +298,7 @@ class RungeKutta44(FixedTableauRungeKutta):
     c = (0, 1/2, 1/2, 1)
 
 @register_method(aliases=['RK32'])
-class RungeKutta32(FixedTableauRungeKutta):
+class RungeKutta32(TableauRungeKutta):
     """
     3 stages 2nd-order Runge-Kutta (RK32) time integration method.
 
@@ -324,7 +320,7 @@ class RungeKutta32(FixedTableauRungeKutta):
     c = (0, 1/2, 1/2)
 
 @register_method(aliases=['RK97'])
-class RungeKutta97(FixedTableauRungeKutta):
+class RungeKutta97(TableauRungeKutta):
     """
     9 stages 7th-order Runge-Kutta (RK97) time integration method.
 
@@ -525,7 +521,7 @@ class HighOrderRungeKuttaExponential(MultiStage):
             # update stage equations with source contributions
             stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
 
-            # include the last stage to the final approximation with the corresponding stage coefficient (alpha[i])
+            # include the last stage to the final approximation with the corresponding alpha coefficient
             stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[i]) for lhs_j, k_j in zip(self.lhs, k)])
         
         # Final Runge-Kutta updates
