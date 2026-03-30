@@ -5,8 +5,8 @@ from sympy import Float, Symbol, diff, simplify, sympify
 from conftest import assert_structure
 from devito import (
     NODE, ConditionalDimension, Eq, Function, Grid, Operator, TensorFunction,
-    TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl, div,
-    grad, laplace, left, right, sin
+    TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl, div, grad,
+    laplace, left, right, sin
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
