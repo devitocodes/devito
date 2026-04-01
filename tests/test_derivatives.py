@@ -933,7 +933,7 @@ class TestFD:
 
         tau = TensorTimeFunction(name="tau", grid=grid, save=10)
 
-        eq = Eq(tau[0,1], tau[2,2])
+        eq = Eq(tau[0, 1], tau[2, 2])
 
         op = Operator(eq, opt=('advanced', {'expand': False}))
 

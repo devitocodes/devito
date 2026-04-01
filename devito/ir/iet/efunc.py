@@ -11,9 +11,9 @@ __all__ = [
     'AsyncCall',
     'AsyncCallable',
     'CommCallable',
-    'EFuncMetadata',
     'DeviceCall',
     'DeviceFunction',
+    'EFuncMeta',
     'ElementalCall',
     'ElementalFunction',
     'EntryFunction',
@@ -25,7 +25,7 @@ __all__ = [
 
 
 @dataclass(frozen=True)
-class EFuncMetadata:
+class EFuncMeta:
 
     body: object = None
     efuncs: tuple = ()
@@ -34,12 +34,8 @@ class EFuncMetadata:
     libs: tuple = ()
 
     @classmethod
-    def from_body(cls, body):
-        return cls(body=body)
-
-    @classmethod
     def compose(cls, *items):
-        items = tuple(i for i in items if i is not None)
+        items = tuple(items)
 
         if not items:
             return cls()
