@@ -212,6 +212,31 @@ class TestCacheInstances:
         cache_size = Object._instance_cache.cache_info()[-1]
         assert cache_size == 0
 
+    def test_uncached_subclass_bypasses_parent_preprocess(self):
+        """
+        Tests that an uncached subclass does not inherit its parent's
+        preprocessing contract.
+        """
+        class Parent(CacheInstances):
+            @classmethod
+            def _preprocess_args(cls, value):
+                return (value + 1,), {}
+
+            def __init__(self, value: int):
+                self.value = value
+
+        class Child(Parent):
+            _instance_cache_size = 0
+
+            def __init__(self, left: int, right: int):
+                self.value = (left, right)
+
+        obj0 = Child(1, 2)
+        obj1 = Child(1, 2)
+
+        assert obj0.value == (1, 2)
+        assert obj0 is not obj1
+
 def test_switchenv():
     # Save previous environment
     previous_environ = dict(os.environ)

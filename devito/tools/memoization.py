@@ -179,6 +179,9 @@ class CacheInstancesMeta(type):
 
     def __call__(cls: type[InstanceType],  # type: ignore
                  *args, **kwargs) -> InstanceType:
+        if cls._instance_cache_size == 0:
+            return super().__call__(*args, **kwargs)
+
         args, kwargs = cls._preprocess_args(*args, **kwargs)
         return cls._instance_cache(*args, **kwargs)
 
@@ -198,7 +201,7 @@ class CacheInstances(metaclass=CacheInstancesMeta):
     """
 
     _instance_cache: Callable | None = None
-    _instance_cache_size: int = 128
+    _instance_cache_size: int = 8192
 
     @classmethod
     def _preprocess_args(cls, *args, **kwargs):

@@ -121,12 +121,27 @@ class Cluster:
                 raise ValueError("`exprs` provided both as arg and kwarg")
             kwargs['exprs'] = args[0]
 
-        return self.__class__(exprs=kwargs.get('exprs', self.exprs),
-                              ispace=kwargs.get('ispace', self.ispace),
-                              guards=kwargs.get('guards', self.guards),
-                              properties=kwargs.get('properties', self.properties),
-                              syncs=kwargs.get('syncs', self.syncs),
-                              halo_scheme=kwargs.get('halo_scheme', self.halo_scheme))
+        exprs = kwargs.get('exprs', self.exprs)
+        ispace = kwargs.get('ispace', self.ispace)
+        guards = kwargs.get('guards', self.guards)
+        properties = kwargs.get('properties', self.properties)
+        syncs = kwargs.get('syncs', self.syncs)
+        halo_scheme = kwargs.get('halo_scheme', self.halo_scheme)
+
+        if exprs is self.exprs and \
+           ispace is self.ispace and \
+           guards is self.guards and \
+           properties is self.properties and \
+           syncs is self.syncs and \
+           halo_scheme is self.halo_scheme:
+            return self
+
+        return self.__class__(exprs=exprs,
+                              ispace=ispace,
+                              guards=guards,
+                              properties=properties,
+                              syncs=syncs,
+                              halo_scheme=halo_scheme)
 
     @property
     def exprs(self):

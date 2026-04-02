@@ -17,7 +17,8 @@ from devito.ir.support.basic import (
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
-    Backward, Forward, Interval, IntervalGroup, IterationSpace, NullInterval
+    Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
+    NullInterval
 )
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
@@ -358,6 +359,60 @@ class TestSpace:
     @pytest.fixture
     def y(self, grid):
         return grid.dimensions[1]
+
+    def test_null_interval_cache_identity(self, x):
+        i0 = NullInterval(x)
+        i1 = NullInterval(x)
+
+        assert i0 is i1
+
+    def test_interval_cache_identity(self, x):
+        i0 = Interval(x, -2, 2)
+        i1 = Interval(x, -2, 2)
+
+        assert i0 is i1
+
+    def test_iteration_interval_cache_identity(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        i0 = IterationInterval(Interval(x), (xi,), Forward)
+        i1 = IterationInterval(Interval(x), (xi,), Forward)
+
+        assert i0 is i1
+
+    def test_iteration_interval_cache_distinguishes_sub_iterators(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        i0 = IterationInterval(Interval(x), (xi,), Forward)
+        i1 = IterationInterval(Interval(x), (), Forward)
+
+        assert i0 is not i1
+
+    def test_interval_group_cache_identity(self, x, y):
+        ig0 = IntervalGroup([Interval(x, -2, 2), Interval(y, -1, 1)],
+                            relations=((x, y),), mode='partial')
+        ig1 = IntervalGroup((Interval(x, -2, 2), Interval(y, -1, 1)),
+                            relations=((x, y),), mode='partial')
+
+        assert ig0 is ig1
+
+    def test_iteration_space_cache_identity(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        ispace0 = IterationSpace([Interval(x)], {x: (xi,)}, {x: Forward})
+        ispace1 = IterationSpace([Interval(x)], {x: (xi,)}, {x: Forward})
+
+        assert ispace0 is ispace1
+        assert isinstance(ispace0[x], IterationInterval)
+        assert ispace0[x] is ispace1[x]
+
+    def test_iteration_space_cache_distinguishes_sub_iterators(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        ispace0 = IterationSpace([Interval(x)], {x: (xi,)}, {x: Forward})
+        ispace1 = IterationSpace([Interval(x)], directions={x: Forward})
+
+        assert ispace0 is not ispace1
 
     def test_intervals_intersection(self, x, y):
         nullx = NullInterval(x)

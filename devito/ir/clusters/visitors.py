@@ -113,6 +113,10 @@ class Queue:
 
 class Prefix(IterationSpace):
 
+    @classmethod
+    def _preprocess_args(cls, ispace, guards, properties, syncs):
+        return (ispace, guards, properties, syncs), {}
+
     def __init__(self, ispace, guards, properties, syncs):
         super().__init__(ispace.intervals, ispace.sub_iterators, ispace.directions)
 
