@@ -8,8 +8,8 @@ from sympy import Expr
 from devito.ir.support.utils import maximum, minimum
 from devito.ir.support.vector import Vector, vmax, vmin
 from devito.tools import (
-    Ordering, Stamp, as_list, as_set, as_tuple, filter_ordered, flatten, frozendict,
-    is_integer, toposort
+    CacheInstances, Ordering, Stamp, as_list, as_set, as_tuple, filter_ordered,
+    flatten, frozendict, is_integer, toposort
 )
 from devito.types import Dimension, ModuloDimension
 
@@ -88,13 +88,17 @@ class AbstractInterval:
     translate = negate
 
 
-class NullInterval(AbstractInterval):
+class NullInterval(AbstractInterval, CacheInstances):
 
     """
     A degenerate iterated closed interval on Z.
     """
 
     is_Null = True
+
+    @classmethod
+    def _preprocess_args(cls, dim, stamp=S0):
+        return (dim, stamp), {}
 
     def __repr__(self):
         return f"{self.dim}[Null]{self.stamp}"
@@ -120,7 +124,7 @@ class NullInterval(AbstractInterval):
         return NullInterval(d, self.stamp)
 
 
-class Interval(AbstractInterval):
+class Interval(AbstractInterval, CacheInstances):
 
     """
     Interval(dim, lower, upper)
@@ -133,6 +137,18 @@ class Interval(AbstractInterval):
     """
 
     is_Defined = True
+
+    @classmethod
+    def _preprocess_args(cls, dim, lower=0, upper=0, stamp=S0):
+        try:
+            lower = int(lower)
+        except TypeError:
+            assert isinstance(lower, Expr)
+        try:
+            upper = int(upper)
+        except TypeError:
+            assert isinstance(upper, Expr)
+        return (dim, lower, upper, stamp), {}
 
     def __init__(self, dim, lower=0, upper=0, stamp=S0):
         super().__init__(dim, stamp)
@@ -304,11 +320,17 @@ class Interval(AbstractInterval):
         )
 
 
-class IntervalGroup(Ordering):
+class IntervalGroup(Ordering, CacheInstances):
 
     """
     A sequence of Intervals equipped with set-like operations.
     """
+
+    @classmethod
+    def _preprocess_args(cls, items=None, relations=None, mode='total'):
+        items = as_tuple(items)
+        relations = tuple(tuple(i) for i in as_tuple(relations))
+        return (items,), {'relations': relations, 'mode': mode}
 
     @classmethod
     def reorder(cls, items, relations):
@@ -335,13 +357,13 @@ class IntervalGroup(Ordering):
             return super().simplify_relations(relations, items, mode)
 
     def __eq__(self, o):
-        return len(self) == len(o) and all(i == j for i, j in zip(self, o, strict=True))
+        return isinstance(o, IntervalGroup) and super().__eq__(o)
 
     def __contains__(self, d):
         return any(i.dim is d for i in self)
 
     def __hash__(self):
-        return hash(tuple(self))
+        return hash((tuple(self), self.relations, self.mode))
 
     def __repr__(self):
         return "IntervalGroup[{}]".format(', '.join([repr(i) for i in self]))
@@ -618,6 +640,11 @@ class IterationInterval(Interval):
     An Interval associated with metadata.
     """
 
+    @classmethod
+    def _preprocess_args(cls, interval, sub_iterators=(), direction=Forward):
+        sub_iterators = tuple(filter_ordered(as_tuple(sub_iterators)))
+        return (interval, sub_iterators, direction), {}
+
     def __init__(self, interval, sub_iterators=(), direction=Forward):
         super().__init__(interval.dim, *interval.offsets, stamp=interval.stamp)
         self.sub_iterators = sub_iterators
@@ -768,8 +795,7 @@ class DataSpace(Space):
 
         return DataSpace(intervals, parts)
 
-
-class IterationSpace(Space):
+class IterationSpace(Space, CacheInstances):
 
     """
     Represent an iteration space as a Space with additional metadata and operations.
@@ -785,23 +811,29 @@ class IterationSpace(Space):
         A mapper from Dimensions in ``intervals`` to IterationDirections.
     """
 
+    @classmethod
+    def _preprocess_args(cls, intervals, sub_iterators=None, directions=None):
+        if not isinstance(intervals, IntervalGroup):
+            intervals = IntervalGroup(as_tuple(intervals))
+
+        sub_iterators = sub_iterators or {}
+        sub_iterators = {d: tuple(filter_ordered(as_tuple(v)))
+                         for d, v in sub_iterators.items() if d in intervals}
+        sub_iterators.update({i.dim: () for i in intervals
+                              if i.dim not in sub_iterators})
+
+        directions = directions or {}
+        directions = {d: v for d, v in directions.items() if d in intervals}
+        directions.update({i.dim: Any for i in intervals
+                           if i.dim not in directions})
+
+        return (intervals, frozendict(sub_iterators), frozendict(directions)), {}
+
     def __init__(self, intervals, sub_iterators=None, directions=None):
         super().__init__(intervals)
 
-        # Normalize sub-iterators
-        sub_iterators = sub_iterators or {}
-        sub_iterators = {d: tuple(filter_ordered(as_tuple(v)))
-                         for d, v in sub_iterators.items() if d in self.intervals}
-        sub_iterators.update({i.dim: () for i in self.intervals
-                              if i.dim not in sub_iterators})
-        self._sub_iterators = frozendict(sub_iterators)
-
-        # Normalize directions
-        directions = directions or {}
-        directions = {d: v for d, v in directions.items() if d in self.intervals}
-        directions.update({i.dim: Any for i in self.intervals
-                           if i.dim not in directions})
-        self._directions = frozendict(directions)
+        self._sub_iterators = sub_iterators
+        self._directions = directions
 
     def __repr__(self):
         ret = ', '.join([f"{repr(i)}{repr(self.directions[i.dim])}"

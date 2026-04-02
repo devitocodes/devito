@@ -199,6 +199,11 @@ class Properties(frozendict):
     A mapper {Dimension -> {properties}}.
     """
 
+    def __init__(self, *args, **kwargs):
+        mapper = dict(*args, **kwargs)
+        mapper = {d: frozenset(as_tuple(v)) for d, v in mapper.items()}
+        super().__init__(mapper)
+
     @property
     def dimensions(self):
         return tuple(self)
