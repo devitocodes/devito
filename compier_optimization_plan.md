@@ -1,27 +1,36 @@
 # Faster-Python Iteration 1: Temporary OSS Compilation Optimization Plan
 
-## Status after `compiler: Augment caching and memoization`
+## Status after current landed caching/reuse work
 
 Current measured compile times with PRO `faster-python-1`, OSS `faster-python-1`,
 `devitopro-cuda:latest`, `--taskset 0-15`, and `--deviceid 0`:
 
-- `test_profile_etti_stress_like_schedule_infos`: `27.45 s`
-- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `84.56 s`
+- `test_profile_etti_stress_like_schedule_infos`: `24.65 s`
+- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `79.68 s`
 
 Compared with the March 30, 2026 no-cache baseline on the same probe family:
 
-- stress-like: `29.99 s -> 27.45 s` (`-2.54 s`, about `8.5%`)
-- velocity+stress: `98.49 s -> 84.56 s` (`-13.93 s`, about `14.1%`)
+- stress-like: `29.99 s -> 24.65 s` (`-5.34 s`, about `17.8%`)
+- velocity+stress: `98.49 s -> 79.68 s` (`-18.81 s`, about `19.1%`)
 
 Compared with the later retrieve-accesses-only replay on the same branch family:
 
-- stress-like: `29.32 s -> 27.45 s` (`-1.87 s`)
-- velocity+stress: `93.16 s -> 84.56 s` (`-8.60 s`)
+- stress-like: `29.32 s -> 24.65 s` (`-4.67 s`)
+- velocity+stress: `93.16 s -> 79.68 s` (`-13.48 s`)
 
-This iteration completed the `Scope`/access-inventory caching replay and a
-narrow subset of the finite-difference helper memoization work. It also fixed
-the build-lifetime leak introduced by compiler-scoped memoization by clearing
-build-scoped caches after `Operator` construction and in `clear_cache()`.
+Compared with the pre-space/rebuild branch (`3f3017e46`,
+`compiler: Augment caching and memoization`):
+
+- stress-like: `27.45 s -> 24.65 s` (`-2.80 s`)
+- velocity+stress: `84.56 s -> 79.68 s` (`-4.88 s`)
+
+The current landed branch now covers:
+
+- narrow helper memoization and finite-difference evaluation caching
+  (`3f3017e46`)
+- `Scope`/access-inventory caching and lazy function-view reuse (`3f3017e46`)
+- conservative space-object caching and no-op `Cluster.rebuild()` reuse
+  (`e16f222e1`)
 
 This temporary note captures the main OSS-side compilation optimizations explored in
 iteration 0. The list below is intentionally in ascending order of complexity:
@@ -30,30 +39,30 @@ algorithmic and threading changes come later.
 
 1. ~~Cache tiny pure helper results and other stable scalar metadata first.~~
 
-   Completed in a narrow form in the current branch via cached
+   Completed in a narrow form in `3f3017e46`
+   (`compiler: Augment caching and memoization`) via cached
    `IndexDerivative.pivot`, memoized `Derivative._eval_fd`, and shared
    numeric-weight reuse.
 
-   Relevant iteration-0 commits:
-   `981ab5b89` (`compiler: Memoize distance`),
-   `f49400743` (`ir: Cache TimedAccess instances`),
-   `4817f16fb` (`finite-differences: Cache IndexDerivative pivot`),
-   `de20783e6` (`finite-differences: Cache IndexDerivative pivot functions`),
-   `4b5572663` (`finite-differences: Memoize derivative evaluation`),
-   `eb9cfc161` (`finite-differences: Relax numeric weight cache keys`).
+   Performance:
+   this helper bucket was not isolated cleanly from point 5 in the squashed
+   branch, but it is part of the landed `29.32 s -> 27.45 s` and
+   `93.16 s -> 84.56 s` move.
 
    Rationale:
    these changes are local, easy to reason about, and usually do not alter the
    structure of the compiler pipeline.
 
-2. Preserve identity on no-op symbolic and visitor rewrites.
+2. ~~Preserve identity on no-op symbolic and visitor rewrites.~~
 
-   Relevant iteration-0 commits:
-   `e01862ac3` (`tools: cache generic visitor handlers`),
-   `11220b982` (`symbolics: fast-path untouched uxreplace leaves`),
-   `ecc90f11e` (`symbolics: avoid rebuilding untouched uxreplace containers`),
-   `a0f779421` (`iet: Preserve identity on no-op visitor rewrites`),
-   `f31d2e0c7` (`CODEX: ITER 8`, no-op `Transformer` / `Uxreplace` fast paths).
+   Completed in a narrow compiler-local form in `e16f222e1`
+   (`compiler: Augment caching and tweak memoization heuristics`) via
+   `Cluster.rebuild()` returning `self` when all effective rebuild inputs are
+   already identical objects.
+
+   Performance:
+   not isolated cleanly from point 9 below; the combined landed diff moved the
+   probes from `27.45 s -> 24.65 s` and `84.56 s -> 79.68 s`.
 
    Rationale:
    this is still fairly contained work, but it starts touching generic traversal
@@ -87,15 +96,15 @@ algorithmic and threading changes come later.
 5. ~~Cheapen `Scope` construction and pairwise dependence pre-checks used by
    fusion/topofusion.~~
 
-   Completed in the current branch via memoized `retrieve_accesses`, lazy
-   cached `IREq` read/write inventories, and reuse of cached function views in
+   Completed in `3f3017e46` via memoized `retrieve_accesses`, lazy cached
+   `IREq` read/write inventories, and reuse of cached function views in
    `Scope`, `Cluster.traffic`, `Expression`, and `Operator`.
 
-   Relevant iteration-0 commits:
-   `0f4355875` (`CODEX: ITER 1`, cached read/write target sets and `may_interact`),
-   `dc9408808` (`CODEX: ITER 2`, reuse `getreads` and avoid repeated generators),
-   `f56e22998` (`CODEX: ITER 3`, synthetic pair scopes built from cached accesses),
-   `ca76e0472` (`CODEX: ITER 4`, memoized access extraction helpers).
+   Performance:
+   the landed cache/memoization batch moved the probes from
+   `29.32 s -> 27.45 s` and `93.16 s -> 84.56 s`. A narrower mid-iteration
+   replay of the `Scope`/access portion alone had already reached roughly
+   `27.65 s` and `86.21 s`.
 
    Rationale:
    these changes keep the same broad fusion algorithm, but they start replacing
@@ -135,12 +144,17 @@ algorithmic and threading changes come later.
    this depends on the earlier `Scope` and hazard-summary work, and it sits in a
    particularly regression-prone area of the compiler.
 
-9. Treat aggressive object/space caching as a late experiment, not an initial
-   iteration-1 target.
+9. ~~Treat aggressive object/space caching as a late experiment, not an
+   initial iteration-1 target.~~
 
-   Relevant iteration-0 commits:
-   `d67aab676` (`ir: cache space objects conservatively`),
-   `b52716dfa` (revert of the above).
+   Completed in a conservative form in `e16f222e1` via cached
+   `Interval`/`IterationSpace`-family objects, immutable/hashable `Properties`,
+   `Prefix._preprocess_args`, and the no-op `Cluster.rebuild()` fast path
+   above.
+
+   Performance:
+   compared with the pre-space/rebuild branch, the landed diff moved the probes
+   from `27.45 s -> 24.65 s` and `84.56 s -> 79.68 s`.
 
    Rationale:
    iteration 0 showed that this class of optimization can improve compile-time
