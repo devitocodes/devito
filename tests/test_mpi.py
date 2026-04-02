@@ -3294,7 +3294,8 @@ class TestIsotropicAcoustic:
 
     @pytest.mark.parametrize('nd', [1, 2, 3])
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2'), (4, 'full')])
+                                (4, 'overlap2'), (4, 'full')],
+                          timeout=600)
     def test_adjoint_F(self, nd, mode):
         self.run_adjoint_F(nd)
 

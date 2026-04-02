@@ -183,6 +183,7 @@ def parallel(item, m):
             raise ValueError(f"Can't run test: unexpected mode `{m}`")
 
     env_vars = {'DEVITO_MPI': scheme}
+    timeout = item.get_closest_marker("parallel").kwargs.get('timeout', 300)
 
     pyversion = sys.executable
     testname = get_testname(item)
@@ -197,7 +198,7 @@ def parallel(item, m):
     # OpenMPI requires an explicit flag for oversubscription. We need it as some
     # of the MPI tests will spawn lots of processes
     if mpi_distro == 'OpenMPI':
-        call = [mpi_exec, '--oversubscribe', '--timeout', '300'] + args
+        call = [mpi_exec, '--oversubscribe', '--timeout', str(timeout)] + args
     else:
         call = [mpi_exec] + args
 
@@ -228,7 +229,7 @@ def pytest_configure(config):
     """Register an additional marker."""
     config.addinivalue_line(
         "markers",
-        "parallel(mode): mark test to run in parallel"
+        "parallel(mode, timeout=300): mark test to run in parallel"
     )
     config.addinivalue_line(
         "markers",
