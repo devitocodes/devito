@@ -16,7 +16,7 @@ from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import (
-    CriticalRegion, Fence, Indexed, TensorMove, ThreadArrive, ThreadCommit,
+    CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
     ThreadPoolSync, ThreadWait, WeakFence
 )
 
@@ -302,6 +302,10 @@ class Cluster:
     @cached_property
     def is_weak_fence(self):
         return self._is_type(WeakFence)
+
+    @cached_property
+    def is_phase_marker(self):
+        return self._is_type(PhaseMarker)
 
     @cached_property
     def is_critical_region(self):

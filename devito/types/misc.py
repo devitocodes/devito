@@ -24,6 +24,7 @@ __all__ = [
     'Hyperplane',
     'Indirection',
     'Jump',
+    'PhaseMarker',
     'Pointer',
     'Temp',
     'TempArray',
@@ -327,6 +328,17 @@ class WeakFence(sympy.Function, Fence):
     Equations cannot be moved across a WeakFence.
     However an operation initiated before a WeakFence can terminate at any
     point in time.
+    """
+
+    pass
+
+
+class PhaseMarker(WeakFence):
+
+    """
+    A special WeakFence acting as a marker to logically separate different compute phases.
+    Thus, statements in different phases will not be reordered across the marker upon
+    topological sorting.
     """
 
     pass
