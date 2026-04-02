@@ -1,11 +1,38 @@
 # Faster-Python Iteration 1: Temporary OSS Compilation Optimization Plan
 
+## Status after `compiler: Augment caching and memoization`
+
+Current measured compile times with PRO `faster-python-1`, OSS `faster-python-1`,
+`devitopro-cuda:latest`, `--taskset 0-15`, and `--deviceid 0`:
+
+- `test_profile_etti_stress_like_schedule_infos`: `27.45 s`
+- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `84.56 s`
+
+Compared with the March 30, 2026 no-cache baseline on the same probe family:
+
+- stress-like: `29.99 s -> 27.45 s` (`-2.54 s`, about `8.5%`)
+- velocity+stress: `98.49 s -> 84.56 s` (`-13.93 s`, about `14.1%`)
+
+Compared with the later retrieve-accesses-only replay on the same branch family:
+
+- stress-like: `29.32 s -> 27.45 s` (`-1.87 s`)
+- velocity+stress: `93.16 s -> 84.56 s` (`-8.60 s`)
+
+This iteration completed the `Scope`/access-inventory caching replay and a
+narrow subset of the finite-difference helper memoization work. It also fixed
+the build-lifetime leak introduced by compiler-scoped memoization by clearing
+build-scoped caches after `Operator` construction and in `clear_cache()`.
+
 This temporary note captures the main OSS-side compilation optimizations explored in
 iteration 0. The list below is intentionally in ascending order of complexity:
 smaller and safer caching/micro-optimization ideas come first, while broader
 algorithmic and threading changes come later.
 
-1. Cache tiny pure helper results and other stable scalar metadata first.
+1. ~~Cache tiny pure helper results and other stable scalar metadata first.~~
+
+   Completed in a narrow form in the current branch via cached
+   `IndexDerivative.pivot`, memoized `Derivative._eval_fd`, and shared
+   numeric-weight reuse.
 
    Relevant iteration-0 commits:
    `981ab5b89` (`compiler: Memoize distance`),
@@ -57,8 +84,12 @@ algorithmic and threading changes come later.
    this is the first bucket that spans multiple IET passes and shared helper
    caches, so it is more invasive than the previous purely local fast paths.
 
-5. Cheapen `Scope` construction and pairwise dependence pre-checks used by
-   fusion/topofusion.
+5. ~~Cheapen `Scope` construction and pairwise dependence pre-checks used by
+   fusion/topofusion.~~
+
+   Completed in the current branch via memoized `retrieve_accesses`, lazy
+   cached `IREq` read/write inventories, and reuse of cached function views in
+   `Scope`, `Cluster.traffic`, `Expression`, and `Operator`.
 
    Relevant iteration-0 commits:
    `0f4355875` (`CODEX: ITER 1`, cached read/write target sets and `may_interact`),
