@@ -18,7 +18,7 @@ from devito.ir.support.basic import (
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
     Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
-    NullInterval
+    NullInterval, null_ispace
 )
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
@@ -140,6 +140,12 @@ class TestVectorHierarchy:
         assert v2 < vs3
         assert v2 <= vs3
         assert vs3 > v2
+
+    def test_timedaccess_cached(self, fc, x, y):
+        ta0 = TimedAccess(fc[x, y], 'R', 0)
+        ta1 = TimedAccess(fc[x, y], 'R', 0, null_ispace)
+
+        assert ta0 is ta1
 
     def test_iteration_instance_arithmetic(self, x, y, ii_num, ii_literal):
         """

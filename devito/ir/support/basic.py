@@ -200,7 +200,7 @@ class IterationInstance(LabeledVector):
         return self.rank == 0
 
 
-class TimedAccess(IterationInstance, AccessMode):
+class TimedAccess(IterationInstance, AccessMode, CacheInstances):
 
     """
     A TimedAccess ties together an IterationInstance and an AccessMode.
@@ -217,6 +217,12 @@ class TimedAccess(IterationInstance, AccessMode):
     operators for lexicographic ordering of TimedAccess objects, based
     on the values of the index functions and the access mode (read, write).
     """
+
+    @classmethod
+    def _preprocess_args(cls, access, mode, timestamp, ispace=None):
+        if ispace is None:
+            ispace = null_ispace
+        return (access, mode, timestamp, ispace), {}
 
     def __new__(cls, access, mode, timestamp, ispace=None):
         obj = super().__new__(cls, access)
