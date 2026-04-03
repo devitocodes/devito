@@ -5,24 +5,29 @@
 Current measured compile times with PRO `faster-python-1`, OSS `faster-python-1`,
 `devitopro-cuda:latest`, `--taskset 0-15`, and `--deviceid 0`:
 
-- `test_profile_etti_stress_like_schedule_infos`: `24.65 s`
-- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `79.68 s`
+- `test_profile_etti_stress_like_schedule_infos`: `23.16 s`
+- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `72.34 s`
 
 Compared with the March 30, 2026 no-cache baseline on the same probe family:
 
-- stress-like: `29.99 s -> 24.65 s` (`-5.34 s`, about `17.8%`)
-- velocity+stress: `98.49 s -> 79.68 s` (`-18.81 s`, about `19.1%`)
+- stress-like: `29.99 s -> 23.16 s` (`-6.83 s`, about `22.8%`)
+- velocity+stress: `98.49 s -> 72.34 s` (`-26.15 s`, about `26.6%`)
 
 Compared with the later retrieve-accesses-only replay on the same branch family:
 
-- stress-like: `29.32 s -> 24.65 s` (`-4.67 s`)
-- velocity+stress: `93.16 s -> 79.68 s` (`-13.48 s`)
+- stress-like: `29.32 s -> 23.16 s` (`-6.16 s`)
+- velocity+stress: `93.16 s -> 72.34 s` (`-20.82 s`)
+
+Compared with the pre-`TimedAccess` landed branch state:
+
+- stress-like: `24.65 s -> 23.16 s` (`-1.49 s`)
+- velocity+stress: `79.68 s -> 72.34 s` (`-7.34 s`)
 
 Compared with the pre-space/rebuild branch (`3f3017e46`,
 `compiler: Augment caching and memoization`):
 
-- stress-like: `27.45 s -> 24.65 s` (`-2.80 s`)
-- velocity+stress: `84.56 s -> 79.68 s` (`-4.88 s`)
+- stress-like: `27.45 s -> 23.16 s` (`-4.29 s`)
+- velocity+stress: `84.56 s -> 72.34 s` (`-12.22 s`)
 
 The current landed branch now covers:
 
@@ -31,6 +36,8 @@ The current landed branch now covers:
 - `Scope`/access-inventory caching and lazy function-view reuse (`3f3017e46`)
 - conservative space-object caching and no-op `Cluster.rebuild()` reuse
   (`e16f222e1`)
+- cached `TimedAccess` construction and reuse of its per-instance distance cache
+  across repeated `Scope` builds (`fd850927a`)
 
 This temporary note captures the main OSS-side compilation optimizations explored in
 iteration 0. The list below is intentionally in ascending order of complexity:
@@ -104,7 +111,10 @@ algorithmic and threading changes come later.
    the landed cache/memoization batch moved the probes from
    `29.32 s -> 27.45 s` and `93.16 s -> 84.56 s`. A narrower mid-iteration
    replay of the `Scope`/access portion alone had already reached roughly
-   `27.65 s` and `86.21 s`.
+   `27.65 s` and `86.21 s`. A later `TimedAccess` follow-up in `fd850927a`
+   moved the landed branch further from `24.65 s -> 23.16 s` and
+   `79.68 s -> 72.34 s`, for a total point-5-aligned move of roughly
+   `29.32 s -> 23.16 s` and `93.16 s -> 72.34 s`.
 
    Rationale:
    these changes keep the same broad fusion algorithm, but they start replacing
