@@ -2,10 +2,11 @@ import numpy as np
 import pytest
 from sympy import Float, Symbol, diff, simplify, sympify
 
+from conftest import assert_structure
 from devito import (
     NODE, ConditionalDimension, Eq, Function, Grid, Operator, TensorFunction,
-    TimeFunction, VectorFunction, centered, cos, curl, div, grad, laplace, left, right,
-    sin
+    TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl, div, grad,
+    laplace, left, right, sin
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
@@ -926,6 +927,17 @@ class TestFD:
 
         # Addition should apply the same logic as above for each term
         assert simplify(eq2.evaluate.rhs - (expect1 + expect0)) == 0
+
+    def test_unexpand_space_interp_w_saved_timefunc(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        tau = TensorTimeFunction(name="tau", grid=grid, save=10)
+
+        eq = Eq(tau[0, 1], tau[2, 2])
+
+        op = Operator(eq, opt=('advanced', {'expand': False}))
+
+        assert_structure(op, ['t,x,y,z', 't,x,y,z,i1', 't,x,y,z,i1,i0'])
 
 
 class TestTwoStageEvaluation:

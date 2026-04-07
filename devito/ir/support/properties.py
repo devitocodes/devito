@@ -97,11 +97,6 @@ PREFETCHABLE = Property('prefetchable')
 A Dimension along which prefetching is feasible and beneficial.
 """
 
-PREFETCHABLE_SHM = Property('prefetchable-shm')
-"""
-A Dimension along which shared-memory prefetching is feasible and beneficial.
-"""
-
 INIT_CORE_SHM = Property('init-core-shm')
 """
 A Dimension along which the shared-memory CORE data region is initialized.
@@ -190,32 +185,6 @@ def update_properties(properties, exprs):
     if not exprs:
         return properties
 
-    # Auto-detect prefetchable Dimensions
-    dims = set()
-    flag = False
-    for e in as_tuple(exprs):
-        w, r = e.args
-
-        # Ensure it's in the form `Indexed = Indexed`
-        try:
-            wf, rf = w.function, r.function
-        except AttributeError:
-            break
-
-        if not rf or not wf._mem_shared:
-            break
-        dims.update({d.parent for d in wf.dimensions if d.parent in properties})
-
-        if not rf._mem_heap:
-            break
-    else:
-        flag = True
-
-    if flag:
-        properties = properties.prefetchable_shm(dims)
-    else:
-        properties = properties.drop(properties=PREFETCHABLE_SHM)
-
     # Remove properties that are trivially incompatible with `exprs`
     if not all(e.lhs.function._mem_shared for e in as_tuple(exprs)):
         drop = {INIT_CORE_SHM, INIT_HALO_LEFT_SHM, INIT_HALO_RIGHT_SHM}
@@ -283,9 +252,6 @@ class Properties(frozendict):
         for d in as_tuple(dims):
             m[d] = self.get(d, set()) | {v}
         return Properties(m)
-
-    def prefetchable_shm(self, dims):
-        return self.prefetchable(dims, PREFETCHABLE_SHM)
 
     def block(self, dims, kind='default'):
         if kind == 'default':
@@ -356,9 +322,6 @@ class Properties(frozendict):
 
     def is_prefetchable(self, dims=None, v=PREFETCHABLE):
         return self._is_property_any(dims, PREFETCHABLE)
-
-    def is_prefetchable_shm(self, dims=None):
-        return self._is_property_any(dims, PREFETCHABLE_SHM)
 
     def is_core_init(self, dims=None):
         return self._is_property_any(dims, INIT_CORE_SHM)

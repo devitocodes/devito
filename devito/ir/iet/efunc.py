@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from functools import cached_property
+from itertools import chain
 
 from devito.ir.iet.nodes import Call, Callable
 from devito.ir.iet.utils import derive_parameters
@@ -11,6 +13,7 @@ __all__ = [
     'CommCallable',
     'DeviceCall',
     'DeviceFunction',
+    'EFuncMeta',
     'ElementalCall',
     'ElementalFunction',
     'EntryFunction',
@@ -19,6 +22,38 @@ __all__ = [
     'make_callable',
     'make_efunc',
 ]
+
+
+@dataclass(frozen=True)
+class EFuncMeta:
+
+    body: object = None
+    efuncs: tuple = ()
+    includes: tuple = ()
+    namespaces: tuple = ()
+    libs: tuple = ()
+
+    @classmethod
+    def compose(cls, *items):
+        items = tuple(items)
+
+        if not items:
+            return cls()
+
+        return cls(
+            body=items[-1].body,
+            efuncs=tuple(chain.from_iterable(i.efuncs for i in items)),
+            includes=tuple(chain.from_iterable(i.includes for i in items)),
+            namespaces=tuple(chain.from_iterable(i.namespaces for i in items)),
+            libs=tuple(chain.from_iterable(i.libs for i in items))
+        )
+
+    def __iter__(self):
+        yield self.body
+        yield self.efuncs
+        yield self.includes
+        yield self.namespaces
+        yield self.libs
 
 
 # ElementalFunction machinery
