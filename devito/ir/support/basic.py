@@ -327,6 +327,13 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
         return self.timestamp < other.timestamp
 
     @memoized_meth
+    def shifted(self, offset):
+        if offset == 0:
+            return self
+
+        return TimedAccess(self.access, self.mode, self.timestamp + offset, self.ispace)
+
+    @memoized_meth
     def distance(self, other, logical=False):
         """
         Compute the distance from ``self`` to ``other``.
@@ -861,17 +868,57 @@ class Scope(CacheInstances):
     Rule = Callable[[TimedAccess, TimedAccess], bool]
 
     @classmethod
+    def from_scopes(cls, scope0, scope1, rules=None):
+        """
+        Build a Scope out of two existing Scopes by reusing their cached accesses.
+        """
+        offset = len(scope0.exprs)
+
+        targets = (
+            scope0.write_targets & scope1.functions
+        ) | (
+            scope1.write_targets & scope0.functions
+        )
+
+        reads = {}
+        writes = {}
+
+        for f in targets:
+            shifted = tuple(i.shifted(offset) for i in scope1.getreads(f))
+            accesses = scope0.getreads(f)
+            if shifted:
+                accesses = accesses + shifted if accesses else shifted
+            if accesses:
+                reads[f] = accesses
+
+            shifted = tuple(i.shifted(offset) for i in scope1.getwrites(f))
+            accesses = scope0.getwrites(f)
+            if shifted:
+                accesses = accesses + shifted if accesses else shifted
+            if accesses:
+                writes[f] = accesses
+
+        return cls((), rules=rules, reads=reads.items(), writes=writes.items())
+
+    @classmethod
     def _preprocess_args(cls, exprs: Expr | Iterable[Expr],
                          **kwargs) -> tuple[tuple, dict]:
+        for i in ('reads', 'writes'):
+            with suppress(KeyError):
+                kwargs[i] = tuple(kwargs[i])
+
         return (as_tuple(exprs),), kwargs
 
     def __init__(self, exprs: tuple[Expr],
-                 rules: Rule | tuple[Rule] | None = None) -> None:
+                 rules: Rule | tuple[Rule] | None = None,
+                 reads=None, writes=None) -> None:
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
         """
         self.exprs = exprs
+        self._reads = dict(reads) if reads is not None else None
+        self._writes = dict(writes) if writes is not None else None
 
         # A set of rules to drive the collection of dependencies
         self.rules: tuple[Scope.Rule] = as_tuple(rules)  # type: ignore[assignment]
@@ -910,6 +957,9 @@ class Scope(CacheInstances):
         """
         Create a mapper from functions to write accesses.
         """
+        if self._writes is not None:
+            return self._writes
+
         return as_mapper(self.writes_gen(), key=lambda i: i.function)
 
     @memoized_generator
@@ -1004,22 +1054,28 @@ class Scope(CacheInstances):
         the iteration symbols.
         """
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
-            for i in chain(self.reads_explicit_gen(), self.reads_synchro_gen()):
-                if f is i.function:
-                    for j in extrema(i.access):
-                        yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
+            for i in self.getreads(f):
+                for j in extrema(i.access):
+                    yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
 
         else:
-            for i in self.reads_gen():
-                if f is i.function:
-                    yield i
+            for i in self.getreads(f):
+                yield i
 
     @cached_property
     def reads(self):
         """
         Create a mapper from functions to read accesses.
         """
+        if self._reads is not None:
+            return self._reads
+
         return as_mapper(self.reads_gen(), key=lambda i: i.function)
+
+    @cached_property
+    def read_targets(self):
+        """The Functions read within the Scope."""
+        return frozenset(self.reads)
 
     @cached_property
     def read_only(self):
@@ -1027,6 +1083,16 @@ class Scope(CacheInstances):
         Create a mapper from functions to read accesses.
         """
         return set(self.reads) - set(self.writes)
+
+    @cached_property
+    def write_targets(self):
+        """The Functions written within the Scope."""
+        return frozenset(self.writes)
+
+    @cached_property
+    def has_barrier(self):
+        """True if the Scope contains a fence-like control-flow object."""
+        return any(isinstance(e.rhs, (Fence, CriticalRegion)) for e in self.exprs)
 
     @cached_property
     def initialized(self):
@@ -1084,6 +1150,23 @@ class Scope(CacheInstances):
         return set(self.reads) | set(self.writes)
 
     @memoized_meth
+    def may_interact(self, other, has_barrier=False):
+        """
+        True if the Scope may induce cross-scope ordering constraints.
+
+        This is a cheap pre-check used to avoid full dependence analysis when
+        two scopes do not touch any common Function through a write and no
+        fence-like object lies between them.
+        """
+        if has_barrier or self.has_barrier or other.has_barrier:
+            return True
+
+        if self.write_targets & other.functions:
+            return True
+
+        return bool(other.write_targets & self.functions)
+
+    @memoized_meth
     def a_query(self, timestamps=None, modes=None):
         timestamps = as_tuple(timestamps)
         modes = as_tuple(modes) or TimedAccess._modes
@@ -1094,8 +1177,9 @@ class Scope(CacheInstances):
     def d_flow_gen(self):
         """Generate the flow (or "read-after-write") dependences."""
         for k, v in self.writes.items():
+            reads = tuple(self.reads_smart_gen(k))
             for w in v:
-                for r in self.reads_smart_gen(k):
+                for r in reads:
                     if any(not rule(w, r) for rule in self.rules):
                         continue
 
@@ -1125,8 +1209,9 @@ class Scope(CacheInstances):
     def d_anti_gen(self, depcls=Dependence):
         """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
+            reads = tuple(self.reads_smart_gen(k))
             for w in v:
-                for r in self.reads_smart_gen(k):
+                for r in reads:
                     if any(not rule(r, w) for rule in self.rules):
                         continue
 
@@ -1375,6 +1460,17 @@ class ExprGeometry:
 
 def vinf(entries):
     return Vector(*(entries + [S.Infinity]))
+
+
+def _cause_from_distance(findices, distance):
+    for i, j in zip(findices, distance, strict=False):
+        try:
+            if j > 0:
+                return i._defines
+        except TypeError:
+            return i._defines
+
+    return frozenset()
 
 
 def disjoint_test(e0, e1, d, it):

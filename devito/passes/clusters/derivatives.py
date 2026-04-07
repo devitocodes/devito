@@ -5,7 +5,7 @@ from sympy import S
 
 from devito.finite_differences import IndexDerivative, Weights
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
-from devito.passes.clusters.misc import fuse
+from devito.passes.clusters.fusion import fuse
 from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, uxreplace
 from devito.tools import infer_dtype, timed_pass
 from devito.types import Eq, Inc, Indexed, Symbol
