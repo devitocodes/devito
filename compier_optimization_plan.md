@@ -96,6 +96,22 @@ algorithmic and threading changes come later.
    caches),
    `96ff77a94` (`iet: Prune reuse_efuncs by name family`).
 
+   Current replay status:
+   still WIP and intentionally not landed.
+
+   April 7, 2026 replay findings on the current iteration-1 branch:
+   rebuilding the non-WIP subset (`b05dd2084` + `f91d9256f` + `96ff77a94`)
+   was correct on targeted `test_iet.py` / DSE checks, but the payoff was small
+   relative to the extra engine/utils complexity.
+
+   Performance:
+   `b05dd2084` alone was flat-to-worse on the probes (`23.16 s -> 23.16 s` and
+   `72.34 s -> 73.66 s`).
+   Adding the two non-WIP `engine.py` follow-ups improved that to
+   `23.16 s -> 22.01 s` and `72.34 s -> 72.03 s`.
+   The subset was therefore dropped rather than landed: the light probe moved
+   nicely, but the heavy probe improved by only about `0.31 s`.
+
    Rationale:
    this is the first bucket that spans multiple IET passes and shared helper
    caches, so it is more invasive than the previous purely local fast paths.
