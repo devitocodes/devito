@@ -14,29 +14,37 @@ from devito.tools import (
 __all__ = ['fuse']
 
 
-def _is_prefix_carried(dependence, prefix):
-    return bool(dependence.cause & prefix)
+# No hazard: fusion may proceed.
+NO_HAZARD = None
+# Ordering hazard: preserve program order and forbid fusion.
+EDGE = 'edge'
+# Prefix anti-dependence: break the execution flow across the pair.
+BREAK = 'break'
 
 
 @memoized_func(scope='build')
-def _fusion_hazards(scope, prefix):
+def _fusion_hazards(scope0, scope1, prefix):
+    scope = Scope.from_scopes(scope0, scope1)
+    if scope is None:
+        return NO_HAZARD
+
     anti = False
     for i in scope.d_anti_gen():
-        if _is_prefix_carried(i, prefix):
-            return True, True
+        if i.cause & prefix:
+            return BREAK
         anti = True
 
     if anti:
-        return False, True
+        return EDGE
 
     for i in scope.d_flow_gen():
-        if not _is_prefix_carried(i, prefix):
-            return False, True
+        if not (i.cause & prefix):
+            return EDGE
 
     for _ in scope.d_output_gen():
-        return False, True
+        return EDGE
 
-    return False, False
+    return NO_HAZARD
 
 
 class Fusion(Queue):
@@ -270,42 +278,28 @@ class Fusion(Queue):
         prefix = frozenset(i.dim for i in as_tuple(prefix))
 
         dag = DAG(nodes=cgroups)
-        scopes = [cg.scope for cg in cgroups]
+        for n, cg0 in enumerate(cgroups):
+            # Track whether there is any fence between `cg0` and the current `cg1`.
+            fenced = cg0.scope.has_barrier
 
-        barrier_count = [0]
-        for scope in scopes:
-            barrier_count.append(barrier_count[-1] + int(scope.has_barrier))
+            for n1, cg1 in enumerate(cgroups[n+1:], start=n+1):
+                fenced = fenced or cg1.scope.has_barrier
 
-        for n, (cg0, scope0) in enumerate(zip(cgroups, scopes, strict=True)):
-            def is_cross(source, sink):
-                # True if a cross-ClusterGroup dependence, False otherwise
-                t0 = source.timestamp
-                t1 = sink.timestamp
-                v = len(cg0.exprs)
-                return t0 < v <= t1 or t1 < v <= t0
-
-            for n1, (cg1, scope1) in enumerate(zip(cgroups[n+1:], scopes[n+1:],
-                                                   strict=True), start=n+1):
-                has_barrier = barrier_count[n1 + 1] > barrier_count[n]
-                if not scope0.may_interact(scope1, has_barrier):
+                hazard = _fusion_hazards(cg0.scope, cg1.scope, prefix)
+                if not (hazard or fenced):
                     continue
-
-                # Reuse the cached per-ClusterGroup accesses instead of
-                # rescanning the symbolic expressions for each candidate pair.
-                scope = Scope.from_scopes(scope0, scope1, rules=is_cross)
-                anti_prefix, forbids_fusion = _fusion_hazards(scope, prefix)
 
                 # Anti-dependences along `prefix` break the execution flow
                 # (intuitively, "the loop nests are to be kept separated")
                 # * All ClusterGroups between `cg0` and `cg1` must precede `cg1`
                 # * All ClusterGroups after `cg1` cannot precede `cg1`
-                if anti_prefix:
+                if hazard == BREAK:
                     for cg2 in cgroups[n:n1]:
                         dag.add_edge(cg2, cg1)
                     for cg2 in cgroups[n1+1:]:
                         dag.add_edge(cg1, cg2)
                     break
-                elif has_barrier or forbids_fusion:
+                elif fenced or hazard == EDGE:
                     # Any anti- and iaw-dependences impose that `cg1` follows `cg0`
                     # and forbid any sort of fusion. Fences have the same effect
                     dag.add_edge(cg0, cg1)
