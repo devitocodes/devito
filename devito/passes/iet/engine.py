@@ -135,6 +135,7 @@ class Graph(Byproduct):
         efuncs = dict(self.efuncs)
         for i in dag.topological_sort():
             efunc, metadata = func(efuncs[i], **kwargs)
+            new_efuncs = metadata.get('efuncs', [])
 
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
@@ -151,10 +152,8 @@ class Graph(Byproduct):
             except KeyError:
                 pass
 
-            if efunc is efuncs[i]:
+            if efunc is efuncs[i] and not new_efuncs:
                 continue
-
-            new_efuncs = metadata.get('efuncs', [])
 
             efuncs[i] = efunc
             efuncs.update(dict([(i.name, i) for i in new_efuncs]))
@@ -780,6 +779,14 @@ def update_args(root, efuncs, dag):
         mapper = {c: c._rebuild(arguments=_filter(c.arguments))
                   for c in FindNodes(Call).visit(efuncs[n])
                   if c.name == root.name}
-        efuncs[n] = Transformer(mapper).visit(efuncs[n])
+        if not mapper:
+            continue
+
+        efunc = Transformer(mapper).visit(efuncs[n])
+        if efunc is efuncs[n]:
+            continue
+
+        efuncs[n] = efunc
+        efuncs = update_args(efunc, efuncs, dag)
 
     return efuncs
