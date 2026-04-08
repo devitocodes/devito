@@ -16,6 +16,7 @@ from sympy import IndexedBase
 from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
+from devito.ir.cgen.printer import get_printer
 from devito.ir.iet.nodes import (
     BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
     Section
@@ -256,8 +257,8 @@ class CGen(Visitor):
             printer = CPrinter
         self.printer = printer
 
-    def ccode(self, expr, **kwargs):
-        return self.printer(settings=kwargs).doprint(expr, None)
+    def ccode(self, expr, dtype=None):
+        return get_printer(self.printer, dtype).doprint(expr, None)
 
     @property
     def _qualifiers_mapper(self):
