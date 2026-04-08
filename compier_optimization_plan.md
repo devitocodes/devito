@@ -1,33 +1,33 @@
 # Faster-Python Iteration 1: Temporary OSS Compilation Optimization Plan
 
-## Status after current landed caching/reuse work
+## Status after current landed caching/reuse and fusion work
 
 Current measured compile times with PRO `faster-python-1`, OSS `faster-python-1`,
 `devitopro-cuda:latest`, `--taskset 0-15`, and `--deviceid 0`:
 
-- `test_profile_etti_stress_like_schedule_infos`: `23.16 s`
-- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `72.34 s`
+- `test_profile_etti_stress_like_schedule_infos`: `15.94 s`
+- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `36.92 s`
 
 Compared with the March 30, 2026 no-cache baseline on the same probe family:
 
-- stress-like: `29.99 s -> 23.16 s` (`-6.83 s`, about `22.8%`)
-- velocity+stress: `98.49 s -> 72.34 s` (`-26.15 s`, about `26.6%`)
+- stress-like: `29.99 s -> 15.94 s` (`-14.05 s`, about `46.8%`)
+- velocity+stress: `98.49 s -> 36.92 s` (`-61.57 s`, about `62.5%`)
 
 Compared with the later retrieve-accesses-only replay on the same branch family:
 
-- stress-like: `29.32 s -> 23.16 s` (`-6.16 s`)
-- velocity+stress: `93.16 s -> 72.34 s` (`-20.82 s`)
+- stress-like: `29.32 s -> 15.94 s` (`-13.38 s`)
+- velocity+stress: `93.16 s -> 36.92 s` (`-56.24 s`)
 
 Compared with the pre-`TimedAccess` landed branch state:
 
-- stress-like: `24.65 s -> 23.16 s` (`-1.49 s`)
-- velocity+stress: `79.68 s -> 72.34 s` (`-7.34 s`)
+- stress-like: `24.65 s -> 15.94 s` (`-8.71 s`)
+- velocity+stress: `79.68 s -> 36.92 s` (`-42.76 s`)
 
 Compared with the pre-space/rebuild branch (`3f3017e46`,
 `compiler: Augment caching and memoization`):
 
-- stress-like: `27.45 s -> 23.16 s` (`-4.29 s`)
-- velocity+stress: `84.56 s -> 72.34 s` (`-12.22 s`)
+- stress-like: `27.45 s -> 15.94 s` (`-11.51 s`)
+- velocity+stress: `84.56 s -> 36.92 s` (`-47.64 s`)
 
 The current landed branch now covers:
 
@@ -38,6 +38,22 @@ The current landed branch now covers:
   (`e16f222e1`)
 - cached `TimedAccess` construction and reuse of its per-instance distance cache
   across repeated `Scope` builds (`fd850927a`)
+- synthetic `Scope.from_scopes(...)` construction from cached access summaries,
+  plus fusion-hazard analysis over those synthetic scopes rather than fresh
+  `Scope(exprs0 + exprs1)` rescans
+
+Current profiled bottlenecks on the landed branch:
+
+- stress-like:
+  `lowering.Clusters ~= 8.8 s`, `lowering.IET ~= 5.8 s`
+- velocity+stress:
+  `lowering.Clusters ~= 24.5 s`, `lowering.IET ~= 10.4 s`
+- hottest Cluster-side buckets on velocity+stress:
+  `optimize_kernels ~= 18.3 s`, `lower_index_derivatives ~= 4.1 s`
+- hottest IET-side buckets on velocity+stress:
+  `optimize_halospots ~= 2.7 s`, `make_parallel ~= 2.1 s`,
+  `_place_transfers ~= 1.5 s`, `place_definitions ~= 1.1 s`,
+  `linearization ~= 0.5 s`
 
 This temporary note captures the main OSS-side compilation optimizations explored in
 iteration 0. The list below is intentionally in ascending order of complexity:
@@ -136,18 +152,28 @@ algorithmic and threading changes come later.
    these changes keep the same broad fusion algorithm, but they start replacing
    repeated rescans with cached summaries and synthetic scopes.
 
-6. Replace repeated generic fusion-hazard walks with focused hazard summaries,
-   and tighten derivative-driven rescans.
+6. ~~Replace repeated generic fusion-hazard walks with focused hazard summaries,
+   and tighten derivative-driven rescans.~~
 
    Relevant iteration-0 commits:
    `8c2e76a99` (`CODEX: ITER 5`, `fusion_hazards` summary),
    `024de93a2` (`clusters: Cheapen derivative topofusion hazards`),
    `0abbe2cb9` (`clusters: Restrict derivative nofuse rescans`).
 
+   Completed on the current branch in a simpler form than the original iteration-0
+   patches: fusion hazard analysis now reuses the already-cached per-ClusterGroup
+   `Scope` inventories and synthesizes cross-scope dependences via
+   `Scope.from_scopes(...)`, instead of repeatedly constructing fresh
+   `Scope(exprs0 + exprs1)` objects from raw expressions.
+
+   Performance:
+   compared with the pre-fusion landed state, the probes moved from
+   `23.16 s -> 15.94 s` and `72.34 s -> 36.92 s`.
+
    Rationale:
-   this bucket produced meaningful wins, but it was also one of the first places
-   where correctness regressions appeared. It should be revisited only after the
-   simpler cache-based groundwork is back in place.
+   this turned out to be the dominant remaining algorithmic win after the earlier
+   caching groundwork was in place. The essential gain is sparing repeated
+   expression rescans during fusion/topofusion legality checks.
 
 7. Add concurrency inside expression lowering only after the single-threaded
    fast paths are understood.
