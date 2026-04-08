@@ -7,7 +7,7 @@ from devito.ir.equations import DummyEq
 from devito.ir.iet import (
     Block, Call, Callable, Conditional, Expression, FindApplications, FindNodes,
     FindSections, FindSymbols, IsPerfectIteration, Iteration, MapNodes, Transformer,
-    printAST
+    Uxreplace, printAST
 )
 from devito.types import Array, SpaceDimension, Symbol
 
@@ -247,6 +247,14 @@ def test_transformer_wrap(exprs, block1, block2, block3):
         assert line1 in newcode
         assert line2 in newcode
         assert "a[i] = a[i] + b[i] + 5.0F;" in newcode
+
+
+def test_transformer_reuses_untouched_node(block1):
+    assert Transformer({}).visit(block1) is block1
+
+
+def test_uxreplace_reuses_untouched_node(block1):
+    assert Uxreplace({}).visit(block1) is block1
 
 
 def test_transformer_replace(exprs, block1, block2, block3):
