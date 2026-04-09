@@ -568,6 +568,17 @@ class ClusterGroup(tuple):
 
         return obj
 
+    def __eq__(self, other):
+        return (isinstance(other, ClusterGroup) and
+                super().__eq__(other) and
+                self._ispace == other._ispace)
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash((tuple(self), self._ispace))
+
     @classmethod
     def concatenate(cls, *cgroups):
         return list(chain(*cgroups))
