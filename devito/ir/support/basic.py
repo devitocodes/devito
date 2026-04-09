@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 from contextlib import suppress
-from functools import cached_property
+from functools import cached_property, wraps
 from itertools import chain, product
 
 import sympy
@@ -874,6 +874,19 @@ class Scope(CacheInstances):
     # Describes a rule for dependencies
     Rule = Callable[[TimedAccess, TimedAccess], bool]
 
+    def normalize_input(func):
+
+        @wraps(func)
+        def wrapper(self, *args, writes=None, **kwargs):
+            mapped = {}
+            for k in as_tuple(writes or self.writes):
+                v = self.getwrites(k)
+                if v:
+                    mapped[k] = v
+            return func(self, *args, writes=mapped, **kwargs)
+
+        return wrapper
+
     @classmethod
     @memoized_func(scope='build')
     def from_scopes(cls, scope0, scope1):
@@ -1174,9 +1187,14 @@ class Scope(CacheInstances):
                      if a.timestamp in timestamps and a.mode in modes)
 
     @memoized_generator
-    def d_flow_gen(self):
-        """Generate the flow (or "read-after-write") dependences."""
-        for k, v in self.writes.items():
+    @normalize_input
+    def d_flow_gen(self, writes=None):
+        """
+        Generate the flow (or "read-after-write") dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        for k, v in writes.items():
             reads = tuple(self.reads_smart_gen(k))
             for w in v:
                 for r in reads:
@@ -1206,9 +1224,14 @@ class Scope(CacheInstances):
         return DependenceGroup(self.d_flow_gen())
 
     @memoized_generator
-    def d_anti_gen(self, depcls=Dependence):
-        """Generate the anti (or "write-after-read") dependences."""
-        for k, v in self.writes.items():
+    @normalize_input
+    def d_anti_gen(self, depcls=Dependence, writes=None):
+        """
+        Generate the anti (or "write-after-read") dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        for k, v in writes.items():
             reads = tuple(self.reads_smart_gen(k))
             for w in v:
                 for r in reads:
@@ -1246,11 +1269,16 @@ class Scope(CacheInstances):
         return DependenceGroup(self.d_anti_gen(depcls=LogicalDependence))
 
     @memoized_generator
-    def d_output_gen(self):
-        """Generate the output (or "write-after-write") dependences."""
-        for k, v in self.writes.items():
+    @normalize_input
+    def d_output_gen(self, writes=None):
+        """
+        Generate the output (or "write-after-write") dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        for k, v in writes.items():
             for w1 in v:
-                for w2 in self.writes.get(k, []):
+                for w2 in v:
                     if any(not rule(w2, w1) for rule in self.rules):
                         continue
 
@@ -1274,9 +1302,15 @@ class Scope(CacheInstances):
         """Output (or "write-after-write") dependences."""
         return DependenceGroup(self.d_output_gen())
 
-    def d_all_gen(self):
-        """Generate all flow, anti and output dependences."""
-        return chain(self.d_flow_gen(), self.d_anti_gen(), self.d_output_gen())
+    def d_all_gen(self, writes=None):
+        """
+        Generate all flow, anti and output dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        return chain(self.d_flow_gen(writes=writes),
+                     self.d_anti_gen(writes=writes),
+                     self.d_output_gen(writes=writes))
 
     @cached_property
     def d_all(self):
