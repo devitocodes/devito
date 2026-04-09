@@ -125,7 +125,7 @@ class Graph(Byproduct):
 
         return found
 
-    def apply(self, func, **kwargs):
+    def apply(self, func, *, updates_args=True, **kwargs):
         """
         Apply `func` to all nodes in the Graph. This changes the state of the Graph.
         """
@@ -158,9 +158,10 @@ class Graph(Byproduct):
             efuncs[i] = efunc
             efuncs.update(dict([(i.name, i) for i in new_efuncs]))
 
-            # Update the parameters / arguments lists since `func` may have
-            # introduced or removed objects
-            efuncs = update_args(efunc, efuncs, dag)
+            # Update the parameters / arguments lists if the pass may have
+            # introduced or removed objects.
+            if updates_args:
+                efuncs = update_args(efunc, efuncs, dag)
 
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
@@ -205,13 +206,16 @@ class Graph(Byproduct):
         )
 
 
-def iet_pass(func):
+def iet_pass(func=None, *, updates_args=True):
+    if func is None:
+        return partial(iet_pass, updates_args=updates_args)
+
     if isinstance(func, tuple):
         assert len(func) == 2 and func[0] is iet_visit
         call = lambda graph: graph.visit
         func = func[1]
     else:
-        call = lambda graph: graph.apply
+        call = lambda graph: partial(graph.apply, updates_args=updates_args)
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -230,6 +234,7 @@ def iet_pass(func):
             # Instance method case
             self, graph = args
             return maybe_timed(call(graph), func.__name__)(partial(func, self), **kwargs)
+
     return wrapper
 
 

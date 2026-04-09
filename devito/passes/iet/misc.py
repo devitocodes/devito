@@ -29,7 +29,7 @@ __all__ = [
 ]
 
 
-@iet_pass
+@iet_pass(updates_args=False)
 def avoid_denormals(iet, platform=None, **kwargs):
     """
     Introduce nodes in the Iteration/Expression tree that will expand to C
@@ -60,7 +60,7 @@ def avoid_denormals(iet, platform=None, **kwargs):
     return iet, {'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
 
-@iet_pass
+@iet_pass(updates_args=False)
 def hoist_prodders(iet):
     """
     Move Prodders within the outer levels of an Iteration tree.
@@ -151,7 +151,7 @@ def generate_macros(graph, **kwargs):
     _generate_macros(graph, tracker={}, **kwargs)
 
 
-@iet_pass
+@iet_pass(updates_args=False)
 def _generate_macros(iet, tracker=None, langbb=None, printer=CPrinter, **kwargs):
     # Derive the Macros necessary for the FIndexeds
     iet = _generate_macros_findexeds(iet, tracker=tracker, **kwargs)

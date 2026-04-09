@@ -27,7 +27,7 @@ def instrument(graph, **kwargs):
     sync_sections(graph, **kwargs)
 
 
-@iet_pass
+@iet_pass(updates_args=False)
 def track_subsections(iet, **kwargs):
     """
     Add sub-Sections to the `profiler`. Sub-Sections include:
@@ -122,7 +122,7 @@ def instrument_sections(iet, **kwargs):
     return piet, {'headers': headers}
 
 
-@iet_pass
+@iet_pass(updates_args=False)
 def sync_sections(iet, langbb=None, profiler=None, **kwargs):
     """
     Wrap sections within global barriers if deemed necessary by the profiler.
