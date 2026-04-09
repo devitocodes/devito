@@ -101,7 +101,7 @@ class Parallelism(Detector):
         is_parallel_atomic = False
 
         scope = Scope(flatten(c.exprs for c in clusters))
-        for dep in scope.d_all_gen():
+        for dep in scope.d_all_gen(writes=scope.writes_tensor):
             test00 = dep.is_indep(dim) and not dep.is_storage_related(dim)
             test01 = all(dep.is_reduce_atmost(i) for i in prev)
             if test00 and test01:
@@ -110,10 +110,6 @@ class Parallelism(Detector):
             test1 = len(prev) > 0 and any(dep.is_carried(i) for i in prev)
             if test1:
                 is_parallel_indep &= (dep.distance_mapper.get(dim.root) == 0)
-                continue
-
-            if dep.function in scope.initialized:
-                # False alarm, the dependence is over a locally-defined symbol
                 continue
 
             if dep.is_reduction:

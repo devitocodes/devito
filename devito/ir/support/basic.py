@@ -1002,6 +1002,12 @@ class Scope(CacheInstances):
 
         return as_mapper(self.writes_gen(), key=lambda i: i.function)
 
+    @cached_property
+    def writes_tensor(self):
+        initialized = frozenset(e.lhs.function for e in self.exprs
+                                if not e.is_Reduction and e.is_scalar)
+        return frozenset(self.writes) - initialized
+
     @memoized_generator
     def reads_explicit_gen(self):
         """
@@ -1123,11 +1129,6 @@ class Scope(CacheInstances):
     def has_barrier(self):
         """True if the Scope contains a fence-like control-flow object."""
         return any(isinstance(e.rhs, (Fence, CriticalRegion)) for e in self.exprs)
-
-    @cached_property
-    def initialized(self):
-        return frozenset(e.lhs.function for e in self.exprs
-                         if not e.is_Reduction and e.is_scalar)
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
