@@ -1423,11 +1423,13 @@ class ArgumentsMap(dict):
         if isinstance(self.platform, Device):
             # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
             logical_deviceid = self.get('deviceid', -1)
+            visible_device_var, visible_devices = get_visible_devices()
             if logical_deviceid < 0:
                 rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
-                logical_deviceid = rank
-
-            visible_device_var, visible_devices = get_visible_devices()
+                if visible_devices is None:
+                    logical_deviceid = rank
+                else:
+                    logical_deviceid = rank % len(visible_devices)
             if visible_devices is None:
                 return logical_deviceid
             elif len(visible_devices) == 1:
