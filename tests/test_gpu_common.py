@@ -82,6 +82,8 @@ class TestDeviceID:
     @pytest.mark.parametrize('env_variables', [{"CUDA_VISIBLE_DEVICES": "1"},
                                                {"CUDA_VISIBLE_DEVICES": "1,2"},
                                                {"CUDA_VISIBLE_DEVICES": "1,0"},
+                                               {"NVIDIA_VISIBLE_DEVICES": "1"},
+                                               {"NVIDIA_VISIBLE_DEVICES": "1,2"},
                                                {"ROCR_VISIBLE_DEVICES": "1"},
                                                {"HIP_VISIBLE_DEVICES": " 1"}])
     def test_visible_devices(self, env_variables):
