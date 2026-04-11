@@ -1,33 +1,34 @@
 # Faster-Python Iteration 1: Temporary OSS Compilation Optimization Plan
 
-## Status after current landed caching/reuse and fusion work
+## Status after current landed caching/reuse, fusion, and derivative-topofuse work
 
-Current measured compile times with PRO `faster-python-1`, OSS `faster-python-1`,
-`devitopro-cuda:latest`, `--taskset 0-15`, and `--deviceid 0`:
+Current measured compile times on April 10, 2026 with PRO `faster-python-1`,
+OSS `faster-python-1`, `devitopro-cuda:latest`, `--taskset 0-15`, and
+`--deviceid 0`:
 
-- `test_profile_etti_stress_like_schedule_infos`: `15.94 s`
-- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `36.92 s`
+- `test_profile_etti_stress_like_schedule_infos`: `13.63 s`
+- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `32.00 s`
 
 Compared with the March 30, 2026 no-cache baseline on the same probe family:
 
-- stress-like: `29.99 s -> 15.94 s` (`-14.05 s`, about `46.8%`)
-- velocity+stress: `98.49 s -> 36.92 s` (`-61.57 s`, about `62.5%`)
+- stress-like: `29.99 s -> 13.63 s` (`-16.36 s`, about `54.5%`)
+- velocity+stress: `98.49 s -> 32.00 s` (`-66.49 s`, about `67.5%`)
 
 Compared with the later retrieve-accesses-only replay on the same branch family:
 
-- stress-like: `29.32 s -> 15.94 s` (`-13.38 s`)
-- velocity+stress: `93.16 s -> 36.92 s` (`-56.24 s`)
+- stress-like: `29.32 s -> 13.63 s` (`-15.69 s`)
+- velocity+stress: `93.16 s -> 32.00 s` (`-61.16 s`)
 
 Compared with the pre-`TimedAccess` landed branch state:
 
-- stress-like: `24.65 s -> 15.94 s` (`-8.71 s`)
-- velocity+stress: `79.68 s -> 36.92 s` (`-42.76 s`)
+- stress-like: `24.65 s -> 13.63 s` (`-11.02 s`)
+- velocity+stress: `79.68 s -> 32.00 s` (`-47.68 s`)
 
 Compared with the pre-space/rebuild branch (`3f3017e46`,
 `compiler: Augment caching and memoization`):
 
-- stress-like: `27.45 s -> 15.94 s` (`-11.51 s`)
-- velocity+stress: `84.56 s -> 36.92 s` (`-47.64 s`)
+- stress-like: `27.45 s -> 13.63 s` (`-13.82 s`)
+- velocity+stress: `84.56 s -> 32.00 s` (`-52.56 s`)
 
 The current landed branch now covers:
 
@@ -41,19 +42,37 @@ The current landed branch now covers:
 - synthetic `Scope.from_scopes(...)` construction from cached access summaries,
   plus fusion-hazard analysis over those synthetic scopes rather than fresh
   `Scope(exprs0 + exprs1)` rescans
+- bounded derivative-driven topofusion in `lower_index_derivatives`, using the
+  maximum nested `IndexDerivative.depth` as an upper bound on the number of
+  productive `toposort='nofuse'` rounds before the final plain `fuse(False)`
 
 Current profiled bottlenecks on the landed branch:
 
 - stress-like:
-  `lowering.Clusters ~= 8.8 s`, `lowering.IET ~= 5.8 s`
+  `lowering.Clusters ~= 8.45 s`, `lowering.IET ~= 3.64 s`,
+  `optimize_kernels ~= 6.12 s`, `fuse ~= 0.53 s`
 - velocity+stress:
-  `lowering.Clusters ~= 24.5 s`, `lowering.IET ~= 10.4 s`
+  `lowering.Clusters ~= 23.82 s`, `lowering.IET ~= 5.64 s`,
+  `specializing.Clusters ~= 19.24 s`, `fuse ~= 2.71 s`
 - hottest Cluster-side buckets on velocity+stress:
-  `optimize_kernels ~= 18.3 s`, `lower_index_derivatives ~= 4.1 s`
+  `optimize_kernels ~= 18.17 s`, with the remaining clean OSS cluster-side
+  work still dominated by fusion/topofusion rather than the derivative
+  lowering wrapper itself
 - hottest IET-side buckets on velocity+stress:
-  `optimize_halospots ~= 2.7 s`, `make_parallel ~= 2.1 s`,
-  `_place_transfers ~= 1.5 s`, `place_definitions ~= 1.1 s`,
-  `linearization ~= 0.5 s`
+  `make_parallel ~= 1.59 s`, `place_definitions ~= 1.33 s`,
+  `_place_transfers ~= 0.86 s`, `linearization ~= 0.37 s`,
+  `_generate_macros ~= 0.24 s`, `minimize_symbols ~= 0.25 s`,
+  `optimize_halospots ~= 0.22 s`
+
+Validation status of the latest derivative-topofuse heuristic:
+
+- targeted OSS sensitivity checks around `test_unexpansion.py::{test_v3,test_v4,
+  test_v5}` passed
+- the previously failing PRO CUDA regression in compressed layered MPI
+  serialization turned out to be unrelated to compilation changes; it was a
+  `NVIDIA_VISIBLE_DEVICES`/implicit `deviceid` correctness bug and is now fixed
+- a full fresh OSS + PRO sweep has not yet been rerun after the current
+  derivative-topofuse heuristic
 
 This temporary note captures the main OSS-side compilation optimizations explored in
 iteration 0. The list below is intentionally in ascending order of complexity:
@@ -164,11 +183,15 @@ algorithmic and threading changes come later.
    patches: fusion hazard analysis now reuses the already-cached per-ClusterGroup
    `Scope` inventories and synthesizes cross-scope dependences via
    `Scope.from_scopes(...)`, instead of repeatedly constructing fresh
-   `Scope(exprs0 + exprs1)` objects from raw expressions.
+   `Scope(exprs0 + exprs1)` objects from raw expressions. The derivative side is
+   also now bounded: `lower_index_derivatives` runs at most `max_depth`
+   `toposort='nofuse'` rounds, where `max_depth` is the maximum nested
+   `IndexDerivative.depth` across the input clusters, and then finishes with the
+   usual plain `fuse(False)`.
 
    Performance:
    compared with the pre-fusion landed state, the probes moved from
-   `23.16 s -> 15.94 s` and `72.34 s -> 36.92 s`.
+   `23.16 s -> 13.63 s` and `72.34 s -> 32.00 s`.
 
    Rationale:
    this turned out to be the dominant remaining algorithmic win after the earlier
