@@ -1041,7 +1041,7 @@ class ConditionalDimension(DerivedDimension):
                     raise ValueError(f"Incompatible size for ConditionalDimension "
                                      f"{self.name}: {size} < {size0}")
             else:
-                defaults[dim.parent.max_name] = range(d0, d0 + factor*size - 1)
+                defaults[dim.parent.max_name] = range(d0, d0 + factor*size)
 
         return defaults
 
