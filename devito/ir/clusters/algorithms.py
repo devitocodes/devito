@@ -471,9 +471,11 @@ class HaloComms(Queue):
             # Construct the HaloTouch Cluster
             expr = Eq(self.B, HaloTouch(*points, halo_scheme=hs))
 
-            key = lambda i: i in prefix[:-1] or i in hs.loc_indices  # noqa: B023
+            key0 = lambda i: i in prefix[:-1] or i in hs.loc_indices  # noqa: B023
+            key1 = lambda i: i not in hs.distributed_defined  # noqa: B023
+            key = lambda i: key0(i) and key1(i)  # noqa: B023
             ispace = c.ispace.project(key)
-            # HaloTouches are not parallel
+
             properties = c.properties.sequentialize()
 
             halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)
