@@ -318,12 +318,12 @@ class Dimension(ArgProvider):
         # may represent sets of legal values. If that's the case, here we just
         # pick one. Note that we sort for determinism
         try:
-            loc_minv = loc_minv.stop
+            loc_minv = loc_minv.start
         except AttributeError:
             with suppress(TypeError):
                 loc_minv = sorted(loc_minv).pop(0)
         try:
-            loc_maxv = loc_maxv.stop
+            loc_maxv = loc_maxv.stop - 1
         except AttributeError:
             with suppress(TypeError):
                 loc_maxv = sorted(loc_maxv).pop(0)
@@ -1041,7 +1041,9 @@ class ConditionalDimension(DerivedDimension):
                     raise ValueError(f"Incompatible size for ConditionalDimension "
                                      f"{self.name}: {size} < {size0}")
             else:
-                defaults[dim.parent.max_name] = range(d0, d0 + factor*size - 1)
+                # Given a factor the last time index is factor*(size - 1)
+                # The maximum allowed value is then factor*size - 1
+                defaults[dim.parent.max_name] = range(d0, d0 + factor*size)
 
         return defaults
 

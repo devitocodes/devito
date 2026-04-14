@@ -1315,6 +1315,34 @@ class TestApplyArguments:
         # But the following should work perfectly fine
         op.arguments(x_size=2, y_size=2)
 
+    @pytest.mark.parametrize('vfact', [1, 3, 4])
+    def test_apply_args_consitency(self, vfact):
+        nt = 201
+        grid = Grid(shape=(11, 11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=4)
+        rec = SparseTimeFunction(name='rec', grid=grid, npoint=1, nt=nt)
+
+        factor = Constant(name='factor', value=vfact, dtype=np.int32)
+        time_sub = ConditionalDimension(name='t_sub', parent=time, factor=factor)
+        usave = TimeFunction(name='usave', grid=grid, space_order=4, time_order=0,
+                             save=nt, time_dim=time_sub)
+
+        eqns = [
+            Eq(u.forward, u + 1),
+            Eq(usave, u),
+        ] + rec.interpolate(expr=u)
+
+        op = Operator(eqns, opt='noop')
+        args0 = op.arguments(time_m=0, time_M=nt-2)
+        args1 = op.arguments(time_m=0, time_M=nt-2, rec=rec, usave=usave)
+
+        for k, v in args0.items():
+            assert k in args1
+            if isinstance(v, int):
+                assert args1[k] == v
+
 
 @skipif('device')
 class TestDeclarator:

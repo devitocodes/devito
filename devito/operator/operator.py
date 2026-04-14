@@ -603,11 +603,6 @@ class Operator(Callable):
                  if i.is_Derived and i.parent in nodes]
         toposort = DAG(nodes, edges).topological_sort()
 
-        futures = {}
-        for d in reversed(toposort):
-            if set(d._arg_names).intersection(kwargs):
-                futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
-
         # Prepare to process data-carriers
         args = kwargs['args'] = ReducerMap()
 
@@ -637,9 +632,6 @@ class Operator(Callable):
             for k, v in p._arg_values(estimate_memory=estimate_memory, **kwargs).items():
                 if k not in args:
                     args[k] = v
-                elif k in futures:
-                    # An explicit override is later going to set `args[k]`
-                    pass
                 elif k in kwargs:
                     # User is in control
                     # E.g., given a ConditionalDimension `t_sub` with factor `fact`
@@ -652,8 +644,11 @@ class Operator(Callable):
                         f"`{k}={v}`, while `{k}={args[k]}` is expected. Perhaps "
                         f"you forgot to override `{p}`?"
                     )
+                else:
+                    args[k] = args.unique(k, candidate=v)
 
-        args = kwargs['args'] = args.reduce_all()
+        args.reduce_inplace()
+        kwargs['args'] = args
 
         for i in discretizations:
             args.update(i._arg_values(**kwargs))

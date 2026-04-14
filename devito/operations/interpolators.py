@@ -34,6 +34,34 @@ def check_radius(func):
     return wrapper
 
 
+def check_coords(func):
+    @wraps(func)
+    def wrapper(interp, *args, **kwargs):
+        inputs = args + as_tuple(kwargs.get('expr', ()))
+
+        # SubFunction of the SparseFunction use to create the interpolator
+        sfunc = interp.sfunction
+
+        # SubFunctions found in the arguments of the interpolation/injection operation
+        a_sfuncs = {f for f in retrieve_functions(inputs)
+                    if f.is_SparseFunction} - {sfunc}
+        if not a_sfuncs:
+            # Only uses the the interpolator's SparseFunction, so no need to check
+            return func(interp, *args, **kwargs)
+
+        # Check that it uses the same coordinates as the interpolator's SparseFunction
+        subfuncs = {getattr(sfunc, s, None) for s in sfunc._sub_functions}
+        for f in a_sfuncs:
+            for s in f._sub_functions:
+                if getattr(f, s, None) not in subfuncs:
+                    raise ValueError(f"Interpolation/injection with {sfunc}"
+                                     f"requires {f} "
+                                     f"to use the same {s} as {sfunc}")
+
+        return func(interp, *args, **kwargs)
+    return wrapper
+
+
 def _extract_subdomain(variables):
     """
     Check if any of the variables provided are defined on a SubDomain
@@ -322,6 +350,7 @@ class WeightedInterpolator(GenericInterpolator):
         return idx_subs, temps
 
     @check_radius
+    @check_coords
     def interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
         Generate equations interpolating an arbitrary expression into ``self``.
@@ -342,6 +371,7 @@ class WeightedInterpolator(GenericInterpolator):
         return Interpolation(expr, increment, implicit_dims, self_subs, self)
 
     @check_radius
+    @check_coords
     def inject(self, field, expr, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
