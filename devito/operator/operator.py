@@ -603,11 +603,6 @@ class Operator(Callable):
                  if i.is_Derived and i.parent in nodes]
         toposort = DAG(nodes, edges).topological_sort()
 
-        futures = {}
-        for d in reversed(toposort):
-            if set(d._arg_names).intersection(kwargs):
-                futures.update(d._arg_values(self._dspace[d], args={}, **kwargs))
-
         # Prepare to process data-carriers
         args = kwargs['args'] = ReducerMap()
 
@@ -637,15 +632,12 @@ class Operator(Callable):
             for k, v in p._arg_values(estimate_memory=estimate_memory, **kwargs).items():
                 if k not in args:
                     args[k] = v
-                elif k in futures:
-                    # An explicit override is later going to set `args[k]`
-                    pass
                 elif k in kwargs:
                     # User is in control
                     # E.g., given a ConditionalDimension `t_sub` with factor `fact`
                     # and a TimeFunction `usave(t_sub, x, y)`, an override for
                     # `fact` is supplied w/o overriding `usave`; that's legal
-                    pass
+                    args[k] = args.unique(k, candidate=v)
                 elif is_integer(args[k]) and not contains_val(args[k], v):
                     raise InvalidArgument(
                         f"Default `{p}` is incompatible with other args as "

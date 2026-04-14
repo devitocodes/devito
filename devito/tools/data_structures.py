@@ -139,7 +139,7 @@ class ReducerMap(MultiDict):
         else:
             self.extend(values)
 
-    def unique(self, key):
+    def unique(self, key, candidate=None):
         """
         Returns a unique value for a given key, if such a value
         exists, and raises a ``ValueError`` if it does not.
@@ -150,7 +150,7 @@ class ReducerMap(MultiDict):
             Key for which to retrieve a unique value.
         """
         candidates = self.getall(key)
-        candidates = [c for c in candidates if c is not None]
+        candidates = [c for c in candidates + [candidate] if c is not None]
         if not candidates:
             return None
 
