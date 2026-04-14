@@ -71,6 +71,12 @@ Validation status of the latest derivative-topofuse heuristic:
 - the previously failing PRO CUDA regression in compressed layered MPI
   serialization turned out to be unrelated to compilation changes; it was a
   `NVIDIA_VISIBLE_DEVICES`/implicit `deviceid` correctness bug and is now fixed
+- current PRO `tests/test_gpu_lang.py::TestKernelOptDefault::
+  test_flip_for_canonical_ordering` is failing on the `faster-python-1`
+  PRO/OSS pair, but the failure hits the baseline `op0.apply(...)` path with an
+  undefined `npthreads0` symbol in generated CUDA, so it currently looks like
+  an OSS-side issue unrelated to the derivative-topofuse / `dsequences()`
+  changes
 - a full fresh OSS + PRO sweep has not yet been rerun after the current
   derivative-topofuse heuristic
 
