@@ -1042,7 +1042,8 @@ class ConditionalDimension(DerivedDimension):
                                      f"{self.name}: {size} < {size0}")
             else:
                 # Given a factor the last time index is factor*(size - 1)
-                defaults[dim.parent.max_name] = range(d0, d0 + factor*(size - 1) + 1)
+                # The maximum allowed value is then factor*size - 1
+                defaults[dim.parent.max_name] = range(d0, d0 + factor*size)
 
         return defaults
 
