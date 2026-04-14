@@ -1255,3 +1255,18 @@ class TestSubDomainInterpolation:
             assert data1 == None  # noqa
             assert data2 == None  # noqa
             assert data3 == None  # noqa
+
+
+def test_wrong_coords():
+    grid = Grid(shape=(11, 11))
+    s = SparseFunction(name='src', npoint=1, grid=grid)
+    s2 = SparseFunction(name='src2', npoint=1, grid=grid)
+    u = Function(name='u', grid=grid)
+
+    with pytest.raises(ValueError) as vinfo:
+        s.inject(u, expr=s2)
+    assert "Interpolation/injection with" in str(vinfo.value)
+
+    with pytest.raises(ValueError) as vinfo:
+        s.interpolate(u + s2)
+    assert "Interpolation/injection with" in str(vinfo.value)
