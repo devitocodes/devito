@@ -223,8 +223,6 @@ class ReducerMap(MultiDict):
         for k, v in self.reduce_all().items():
             self[k] = v
 
-        return self
-
 
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769

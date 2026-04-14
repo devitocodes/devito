@@ -647,7 +647,8 @@ class Operator(Callable):
                 else:
                     args[k] = args.unique(k, candidate=v)
 
-        kwargs['args'] = args.reduce_inplace()
+        args.reduce_inplace()
+        kwargs['args'] = args
 
         for i in discretizations:
             args.update(i._arg_values(**kwargs))
