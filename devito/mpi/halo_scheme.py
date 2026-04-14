@@ -430,6 +430,10 @@ class HaloScheme:
         return set().union(*[i.dims for i in self.fmapper.values()])
 
     @cached_property
+    def distributed_defined(self):
+        return set().union(*[i._defines for i in self.distributed])
+
+    @cached_property
     def loc_indices(self):
         return set().union(*[i.loc_indices.keys() for i in self.fmapper.values()])
 

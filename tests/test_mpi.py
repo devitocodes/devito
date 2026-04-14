@@ -2181,6 +2181,28 @@ class TestCodeGeneration:
         assert np.allclose(g.data, expected)
         assert np.allclose(h.data, expected)
 
+    @pytest.mark.parallel(mode=1)
+    def test_lift_halo_update_outside_distributed(self, mode):
+        grid = Grid(shape=(28, 28, 28))
+        x, _, _ = grid.dimensions
+        h_x = x.spacing
+
+        vx = TimeFunction(name="vx", grid=grid, space_order=4, time_order=1)
+        vy = TimeFunction(name="vy", grid=grid, space_order=4, time_order=1)
+        vz = TimeFunction(name="vz", grid=grid, space_order=4, time_order=1)
+
+        eqn = Eq(vz, vz.dy + vz.dx(x0=x - 5.*h_x) + (vx.dy + vy.dx).dx.dy + vz)
+
+        # Ensure the Operator can be constructed and jit-compiled correctly
+        op = Operator(eqn)
+        _ = op.cfunction
+
+        # Check generated code -- expected one halo exchange exactly at the top
+        # of the time loop
+        tloop = get_time_loop(op)
+        halo_update = tloop.nodes[0].body[0].body[0].body[0]
+        assert isinstance(halo_update, HaloUpdateList)
+
 
 class TestOperatorAdvanced:
 
