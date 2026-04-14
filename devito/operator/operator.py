@@ -637,14 +637,15 @@ class Operator(Callable):
                     # E.g., given a ConditionalDimension `t_sub` with factor `fact`
                     # and a TimeFunction `usave(t_sub, x, y)`, an override for
                     # `fact` is supplied w/o overriding `usave`; that's legal
-                    continue
-                if is_integer(args[k]) and not contains_val(args[k], v):
+                    pass
+                elif is_integer(args[k]) and not contains_val(args[k], v):
                     raise InvalidArgument(
                         f"Default `{p}` is incompatible with other args as "
                         f"`{k}={v}`, while `{k}={args[k]}` is expected. Perhaps "
                         f"you forgot to override `{p}`?"
                     )
-                args[k] = args.unique(k, candidate=v)
+                else:
+                    args[k] = args.unique(k, candidate=v)
 
         kwargs['args'] = args.reduce_inplace()
 
