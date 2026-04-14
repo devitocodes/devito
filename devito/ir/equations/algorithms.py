@@ -6,14 +6,15 @@ from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
 from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
                           frozendict)
 from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
-                          ConditionalDimension)
+                          ConditionalDimension, MultiStage)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension, Thickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
-__all__ = ['dimension_sort', 'lower_exprs', 'concretize_subdims']
+
+__all__ = ['dimension_sort', 'lower_timestepping', 'lower_exprs', 'concretize_subdims']
 
 
 def dimension_sort(expr):
@@ -93,6 +94,41 @@ def dimension_sort(expr):
     ordering = Ordering(extra, relations=implicit_relations, mode='partial')
 
     return ordering
+
+
+def lower_timestepping(expressions, **kwargs):
+    """
+    Lower high-level time-stepping abstractions.
+
+    Currently this handles MultiStage objects by expanding them into their
+    stage equations.
+    """
+    return _lower_timestepping(expressions, **kwargs)
+
+
+@singledispatch
+def _lower_timestepping(expr, **kwargs):
+    """
+    Default handler for expressions that are not MultiStage.
+    Simply return them in a list.
+    """
+    return [expr]
+
+
+@_lower_timestepping.register(MultiStage)
+def _(expr, **kwargs):
+    """
+    Specialized handler for MultiStage expressions.
+    """
+    return expr._evaluate(**kwargs)
+
+
+@_lower_timestepping.register(Iterable)
+def _(exprs, **kwargs):
+    """
+    Handle iterables of expressions.
+    """
+    return sum([_lower_timestepping(expr, **kwargs) for expr in exprs], [])
 
 
 def lower_exprs(expressions, subs=None, **kwargs):

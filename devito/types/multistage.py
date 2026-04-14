@@ -1,8 +1,8 @@
 from devito.types.equation import Eq
 from devito.types.dense import TimeFunction
 from devito.symbolics import uxreplace
+from devito.tools import as_tuple
 import numpy as np
-from devito.types.array import Array
 from types import MappingProxyType
 
 method_registry = {}
@@ -105,66 +105,34 @@ class MultiStage(Eq):
     """
 
     def __new__(cls, lhs, rhs, degree=None, source=None, optimized_feature=None, **kwargs):
-        # Normalize to lists first lhs and rhs
-        if not isinstance(lhs, (list, tuple)):
-            lhs = [lhs]
-        if not isinstance(rhs, (list, tuple)):
-            rhs = [rhs]
-
-        # Convert to tuples for immutability
-        lhs_tuple = tuple(i.function for i in lhs)
-        rhs_tuple = tuple(rhs)
+        lhs_tuple = tuple(i.function for i in as_tuple(lhs))
+        rhs_tuple = as_tuple(rhs)
 
         obj = super().__new__(cls, lhs_tuple[0], rhs_tuple[0], **kwargs)
 
         # Store all equations as immutable tuples
-        obj._eq = tuple(Eq(lhs, rhs) for lhs, rhs in zip(lhs_tuple, rhs_tuple))
+        obj.eq = tuple(Eq(lhs, rhs) for lhs, rhs in zip(lhs_tuple, rhs_tuple))
         obj._lhs = lhs_tuple
         obj._rhs = rhs_tuple
-        obj._deg = degree
+        obj.deg = degree
         # Convert source to tuple of tuples for immutability
-        obj._src = tuple(tuple(item)
+        obj.src = tuple(tuple(item)
                          for item in source) if source is not None else None
-        obj._t = lhs_tuple[0].grid.time_dim
-        obj._dt = obj._t.spacing
-        obj._optimized_feature = optimized_feature
+        obj.t = lhs_tuple[0].grid.time_dim
+        obj.dt = obj.t.spacing
+        obj.optimized_feature = optimized_feature
 
         return obj
 
     @property
-    def eq(self):
-        """Full tuple of equations"""
-        return self._eq
-
-    @property
     def lhs(self):
-        """Tuple of left-hand sides"""
+        """Tuple-valued left-hand sides for multi-equation systems."""
         return self._lhs
 
     @property
     def rhs(self):
-        """Tuple of right-hand sides"""
+        """Tuple-valued right-hand sides for multi-equation systems."""
         return self._rhs
-
-    @property
-    def deg(self):
-        """Degree parameter (e.g., number of stages)"""
-        return self._deg
-
-    @property
-    def src(self):
-        """Source parameter as tuple of tuples (immutable)"""
-        return self._src
-
-    @property
-    def t(self):
-        """Time (t) parameter"""
-        return self._t
-
-    @property
-    def dt(self):
-        """Time step (dt) parameter"""
-        return self._dt
 
     @property
     def n_eq(self):

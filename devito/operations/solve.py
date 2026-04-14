@@ -62,7 +62,7 @@ def solve(eq, target, method = None, eq_num = 0, **kwargs):
     else:
         sols_temp = sols[0]
 
-    method = kwargs.get("method", None)
+    method = method if method is not None else kwargs.pop('method', None)
     return sols_temp if method is None else resolve_method(method)(target, sols_temp)
 
 

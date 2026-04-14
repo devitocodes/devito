@@ -24,4 +24,3 @@ from .sparse import *  # noqa
 from .tensor import *  # noqa
 
 from .multistage import *  # noqa
-from .multistage_new import *  # noqa

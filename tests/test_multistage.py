@@ -6,10 +6,11 @@ import pickle
 import os
 
 from devito import (Grid, Function, TimeFunction,
-                    Derivative, Operator, solve, Eq, configuration)
+                    Derivative, Operator, Eq, configuration)
+from devito.operations.solve import solve
 from devito.types.multistage import multistage_method, MultiStage
 from devito.ir.support import SymbolRegistry
-from devito.ir.equations import lower_multistage
+from devito.ir.equations import lower_timestepping
 
 configuration['log-level'] = 'DEBUG'
 
@@ -99,7 +100,6 @@ class Test_API:
         # Time integration scheme
         pdes = [solve(system_eqs_rhs[i] - u[i], u[i], method=time_int)
                 for i in range(2)]
-
         assert all(isinstance(i, MultiStage)
                    for i in pdes), "Not all elements are instances of MultiStage"
 
@@ -163,14 +163,14 @@ class Test_lowering:
         sregistry = SymbolRegistry()
 
         # Lower the multistage method - this should not raise an exception
-        lowered_eqs = lower_multistage(pdes, sregistry=sregistry)
+        lowered_eqs = lower_timestepping(pdes, sregistry=sregistry)
 
         # Validate the lowered equations
         assert lowered_eqs is not None, "Lowering returned None"
         assert len(lowered_eqs) > 0, "Lowering returned empty list"
 
 
-class Test_RK:
+class Test_RK_low_order:
 
     @pytest.mark.parametrize('time_int', ['RK44', 'RK32', 'RK97'])
     def test_single_equation_integration(self, time_int):
@@ -398,7 +398,6 @@ class Test_RK:
                 for i in range(len(fun_labels))]
         op = Operator(pdes, subs=grid.spacing_map)
         op(dt=dt0, time=nt)
-
         assert (np.linalg.norm(u[0].data[0, :] - u_multi_stage[0].data[0, :]) / np.linalg.norm(
             u[0].data[0, :])) < 10**-1, "the method is not converging to the solution"
 
@@ -412,7 +411,7 @@ class Test_HORK:
 
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u_multi_stage', 'v_multi_stage']
-        u_multi_stage = [TimeFunction(name=name, grid=grid, space_order=2, time_order=1,
+        u_multi_stage = [TimeFunction(name=name, grid=grid, space_order=2, time_order=0,
                                       dtype=np.float64) for name in fun_labels]
 
         # Source definition
@@ -468,7 +467,7 @@ class Test_HORK:
         # Time integrator solution
         # Define wavefield unknowns: u (displacement) and v (velocity)
         fun_labels = ['u_sol', 'v_sol']
-        u_multi_stage = [TimeFunction(name=name + '_multi_stage', grid=grid, space_order=2, time_order=1,
+        u_multi_stage = [TimeFunction(name=name + '_multi_stage', grid=grid, space_order=2, time_order=0,
                 dtype=np.float64) for name in fun_labels]
         
         # PDE (2D acoustic)
