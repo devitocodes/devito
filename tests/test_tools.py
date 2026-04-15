@@ -7,6 +7,7 @@ from sympy.abc import a, b, c, d, e
 
 from devito import Eq, Operator, switchenv
 from devito.tools import (
+    DefaultFrozenDict,
     CacheInstances, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr, filter_ordered,
     toposort, transitive_closure
 )
@@ -59,6 +60,30 @@ def test_transitive_closure():
     mapper = {a: b, b: c, c: d, f: e}
     mapper = transitive_closure(mapper)
     assert mapper == {a: d, b: d, c: d, f: e}
+
+
+def test_default_frozen_dict():
+    mapper = DefaultFrozenDict({'a': 'b'}, default='c')
+
+    assert mapper['a'] == 'b'
+    assert mapper['d'] == 'c'
+    assert mapper.get('d') is None
+    assert mapper.get('d', 'e') == 'e'
+
+    copied = mapper.copy(c='d')
+    assert copied['c'] == 'd'
+    assert copied['e'] == 'c'
+
+
+def test_default_frozen_dict_factory():
+    mapper = DefaultFrozenDict(default=lambda: [])
+
+    v0 = mapper[a]
+    v1 = mapper[b]
+
+    assert v0 == []
+    assert v1 == []
+    assert v0 is not v1
 
 
 def test_loops_in_transitive_closure():
