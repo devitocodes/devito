@@ -111,9 +111,6 @@ def test_avg_mode(ndim, io):
     with pytest.raises(ValueError):
         # interp_order > space_order
         Function(name="a", grid=grid, interp_order=8, space_order=4)
-    with pytest.raises(ValueError):
-        # interp_order < 1
-        Function(name="a", grid=grid, interp_order=0, space_order=4)
     with pytest.raises(TypeError):
         # interp_order not int
         Function(name="a", grid=grid, interp_order=2.5, space_order=4)
@@ -152,3 +149,19 @@ def test_avg_mode(ndim, io):
     assert sympy.simplify(b_avg.args[0] - expected) == 0
     assert isinstance(b_avg, SafeInv)
     assert b_avg.base == b
+
+
+def test_no_interp():
+    grid = Grid((10, 10))
+    x = grid.dimensions[0]
+    a = Function(name="a", grid=grid, staggered=NODE, interp_order=0)
+    sa = Function(name="as", grid=grid, staggered=x)
+
+    assert a._eval_at(sa) == a
+    assert sa._eval_at(a) == sa._subs(x, x - x.spacing/2)
+    assert (a*sa)._eval_at(sa) == a*sa
+    assert (a + sa)._eval_at(sa) == a + sa
+
+    a_shift = a._subs(x, x + x.spacing / 2)
+    # Should just do nearest grid point, so shift back to original
+    assert a_shift.evaluate == a

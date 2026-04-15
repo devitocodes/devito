@@ -1074,6 +1074,11 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         io = self.interp_order
         retval = self.subs({i.subs(subs): self.indices_ref[d]
                             for d, i in mapper.items()})
+
+        if io == 0:
+            # No interpolation, just substitution (e.g nearest grid point)
+            return retval
+
         if self.is_harmonic:
             retval = retval._inv(retval, safe=self.is_harmonic_safe)
 
