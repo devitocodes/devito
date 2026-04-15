@@ -111,7 +111,7 @@ def stree_build(clusters, profiler=None, **kwargs):
             else:
                 parent = tip
 
-            NodeExprs(exprs, c.ispace, c.dspace, c.ops, c.traffic, parent)
+            NodeExprs(exprs, c.ispace, c.ops, c.traffic, parent)
 
         # Nest within a NodeSection if possible
         if profiler is None or \
