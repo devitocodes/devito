@@ -6,7 +6,7 @@ from devito.finite_differences import IndexDerivative
 from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals, search
 from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, flatten, split
 from devito.types import (
-    Dimension, DimensionTuple, Indirection, ModuloDimension, StencilDimension
+    Dimension, DimensionTuple, Indirection, ModuloDimension, StencilDimension, TensorMove
 )
 
 __all__ = [
@@ -137,7 +137,14 @@ def detect_accesses(exprs):
     """
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
-    for e in retrieve_indexed(exprs, deep=True):
+
+    # Search among the Indexeds (Most accesses typically stem from Indexeds)
+    plain_indexeds = retrieve_indexed(exprs, deep=True)
+
+    # Search among higher order objects, which still represent meaningful accesses
+    high_order_indexeds = [i.indexed for i in search(exprs, TensorMove)]
+
+    for e in (*plain_indexeds, *high_order_indexeds):
         f = e.function
 
         for a, d0 in zip(e.indices, f.dimensions, strict=False):
@@ -164,13 +171,16 @@ def detect_accesses(exprs):
                     d, others = split(dims, lambda i: d0 in i._defines)  # noqa: B023
 
                     if any(i.is_Indexed for i in a.args) or len(d) != 1:
-                        # Case 1) -- with indirect accesses there's not much we can infer
+                        # Case 1) -- with indirect accesses there's not much we
+                        # can infer
                         continue
                     else:
                         # Case 2)
                         d, = d
                         _, o = split(others, lambda i: i.is_Custom)
-                        off = sum(i for i in a.args if i.is_integer or i.free_symbols & o)
+                        off = sum(
+                            i for i in a.args if i.is_integer or i.free_symbols & o
+                        )
                 else:
                     d, = dims
 
