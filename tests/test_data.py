@@ -8,8 +8,10 @@ from devito import (  # noqa
 )
 from devito.data import LEFT, RIGHT, Decomposition, convert_index, loc_data_idx
 from devito.data.allocators import DataReference
+from devito.ir import ccode
 from devito.tools import as_tuple
 from devito.types import Scalar
+from devito.types.misc import TempArray
 
 
 class TestDataBasic:
@@ -335,6 +337,34 @@ class TestMetaData:
         assert u1._size_padding == ((0, 0), (0, 0), (0, 6))  # 6 stems from 16-(3+4+3)
         assert u1._size_nodomain == ((3, 3), (3, 3), (3, 9))
         assert u1.shape_allocated == (10, 10, 16)
+
+    @switchconfig(autopadding=True, platform='bdw')
+    def test_temp_array_smart_padding_no_overshoot(self):
+        mmts = configuration['platform'].max_mem_trans_size(np.float32)
+        halo = 4
+        z_size = 2*mmts - 2*halo
+
+        grid = Grid(shape=(4, 4, z_size))
+        u = Function(name='u', grid=grid, space_order=halo)
+        r = TempArray(name='r', dimensions=grid.dimensions, halo=u.halo, dtype=u.dtype)
+
+        z = grid.dimensions[-1]
+        mapper = {z.symbolic_size: z_size}
+
+        assert r.padding[z][1].subs(mapper) == 0
+        assert r.shape_allocated[-1].subs(mapper) == u.shape_allocated[-1]
+
+    @switchconfig(autopadding=True, platform='bdw')
+    def test_temp_array_smart_padding_codegen_avoids_negative_mod(self):
+        grid = Grid(shape=(4, 4, 592))
+        u = Function(name='u', grid=grid, space_order=0)
+        r = TempArray(name='r', dimensions=grid.dimensions, halo=u.halo, dtype=u.dtype)
+
+        code = ccode(r.shape_allocated[-1])
+
+        assert 'ROUND_UP(' in code
+        assert '(-z_size)' not in code
+        assert 'z_size' in code
 
     def test_w_halo_custom(self):
         grid = Grid(shape=(4, 4))

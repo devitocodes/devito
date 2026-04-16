@@ -220,6 +220,11 @@ class BasePrinter(CodePrinter):
         val = self._print(expr.val)
         return f'SAFEINV({val}, {base})'
 
+    def _print_RoundUp(self, expr):
+        value = self._print(expr.value)
+        step = self._print(expr.step)
+        return f'ROUND_UP({value}, {step})'
+
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""
         args = [f'({self._print(a)})' for a in expr.args]

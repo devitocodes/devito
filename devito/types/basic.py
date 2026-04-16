@@ -921,12 +921,17 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return nopadding
 
         mmts = configuration['platform'].max_mem_trans_size(self.__padding_dtype__)
-        remainder = self._size_nopad[d] % mmts
+
+        snp = self._size_nopad[d]
+        remainder = snp % mmts
         if remainder == 0:
             # Already a multiple of `mmts`, no need to pad
             return nopadding
+        else:
+            from devito.symbolics import RoundUp  # noqa
+            v = RoundUp(snp, mmts) - snp
 
-        dpadding = (0, (mmts - remainder))
+        dpadding = (0, v)
         padding = [(0, 0)]*self.ndim
         padding[self.dimensions.index(d)] = dpadding
 
