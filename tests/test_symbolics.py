@@ -8,7 +8,7 @@ from sympy import And, Expr, Number, Symbol, true
 from devito import (  # noqa
     Abs, Conj, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Imag, Le, Lt, Max, Min,
     Operator, Real, SubDimension, SubDomain, TimeFunction, configuration, cos, norm, sin,
-    solve
+    solve, switchconfig
 )
 from devito.finite_differences.differentiable import Mul, SafeInv, Weights
 from devito.ir import Expression, FindNodes, ccode
@@ -16,8 +16,8 @@ from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromPointer, Cast, DefFunction, FieldFromComposite,
-    FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, Rvalue, SizeOf,
-    VectorAccess, evalrel, pow_to_mul, retrieve_derivatives, retrieve_functions,
+    FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, RoundUp, Rvalue,
+    SizeOf, VectorAccess, evalrel, pow_to_mul, retrieve_derivatives, retrieve_functions,
     retrieve_indexed, uxreplace
 )
 from devito.tools import CustomDtype, as_tuple
@@ -388,6 +388,20 @@ def test_safeinv():
     safeinv = SafeInv(ui, ui)
     v = ui._subs(safeinv, f.indexify())
     assert str(v) == 'u[x, y]'
+
+
+def test_roundup():
+    grid = Grid(shape=(11, 11))
+    u = Function(name='u', grid=grid)
+    a = dSymbol('a', dtype=np.int32)
+
+    expr = RoundUp(a, 16)
+    with switchconfig(platform='bdw', language='openmp'):
+        op = Operator(Eq(u, u + expr))
+
+    assert ccode(expr) == 'ROUND_UP(a, 16)'
+    assert '#define ROUND_UP(a,b)' in str(op)
+    assert 'ROUND_UP(a, 16)' in str(op)
 
 
 def test_def_function():

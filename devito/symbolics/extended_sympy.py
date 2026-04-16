@@ -23,9 +23,9 @@ __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
            'MathFunction', 'InlineIf', 'Reserved', 'ReservedWord', 'Keyword',
-           'String', 'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace',
-           'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
-           'VectorAccess']
+           'String', 'Macro', 'Class', 'MacroArgument', 'RoundUp', 'Deref',
+           'Namespace', 'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin',
+           'ValueLimit', 'VectorAccess']
 
 
 class CondEq(sympy.Eq):
@@ -619,6 +619,49 @@ class MacroArgument(sympy.Symbol):
 
     def __str__(self):
         return f"({self.name})"
+
+    __repr__ = __str__
+
+
+class RoundUp(Function):
+
+    """
+    Symbolic representation of rounding a value up to the next multiple of a
+    given step.
+    """
+
+    def __new__(cls, value, step, **kwargs):
+        value = sympify(value)
+        step = sympify(step)
+
+        if step < 1:
+            raise ValueError("Cannot round up with negative `step`")
+        if not is_integer(step):
+            raise ValueError("`step` must be an integer")
+
+        if value.is_number and step.is_number:
+            remainder = value % step
+            if remainder == 0:
+                return value
+            else:
+                return value + step - remainder
+
+        return super().__new__(cls, value, step, **kwargs)
+
+    @property
+    def value(self):
+        return self.args[0]
+
+    @property
+    def step(self):
+        return self.args[1]
+
+    @property
+    def is_commutative(self):
+        return self.value.is_commutative and self.step.is_commutative
+
+    def __str__(self):
+        return f"ROUND_UP({self.value}, {self.step})"
 
     __repr__ = __str__
 

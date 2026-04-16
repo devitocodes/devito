@@ -407,8 +407,46 @@ class TensorMove(Expr, Reserved, Terminal):
 
     """
     Represent the LOAD/STORE of a multi-dimensional block of data from/to a higher
-    level of the memory hierarchy
+    level of the memory hierarchy.
+
+    Parameters
+    ----------
+    base : IndexedBase
+        The base of the AbstractFunction subject of the TensorMove.
+    tid0 : Dimension
+        A representation of thread(s) issuing the TensorMove.
+    coords : tuple
+        The base address of the TensorMove (one point per Dimension).
     """
+
+    __rargs__ = ('base', 'tid0', 'coords')
+
+    def __new__(cls, base, tid0, coords, **kwargs):
+        return super().__new__(cls, base, tid0, coords)
+
+    @property
+    def base(self):
+        return self.args[0]
+
+    @property
+    def tid0(self):
+        return self.args[1]
+
+    @property
+    def coords(self):
+        return self.args[2]
+
+    @property
+    def function(self):
+        return self.base.function
+
+    @cached_property
+    def indexed(self):
+        return self.function[self.coords]
+
+    @property
+    def ndim(self):
+        return self.function.ndim
 
     func = Reserved._rebuild
 

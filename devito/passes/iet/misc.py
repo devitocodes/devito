@@ -14,7 +14,9 @@ from devito.ir import (
 from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.C import CPrinter
-from devito.symbolics import Cast, ValueLimit, evalrel, has_integer_args, limits_mapper
+from devito.symbolics import (
+    Cast, RoundUp, ValueLimit, evalrel, has_integer_args, limits_mapper
+)
 from devito.tools import Bunch, as_mapper, as_tuple, filter_ordered, split
 from devito.types import FIndexed
 
@@ -253,6 +255,12 @@ def _(expr, langbb, printer):
     return (('SAFEINV(a, b)',
              f'(((a) < {eps}{ext} || ({b}) < {eps}{ext}) ? '
              f'(0.0{ext}) : ((1.0{ext}) / (a)))'),), {}
+
+
+@_lower_macro_math.register(RoundUp)
+def _(expr, langbb, printer):
+    return (('ROUND_UP(a,b)',
+             '((((a)%(b)) == 0) ? (a) : ((a) + (b) - ((a)%(b))))'),), {}
 
 
 @iet_pass
