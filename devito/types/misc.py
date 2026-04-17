@@ -153,18 +153,21 @@ class FIndexed(Indexed, Pickable):
     @property
     def linear_index(self):
         """
-        TODO: Add tests
+        TODO: add tests and documentation, explain why needed etc
         """
         f = self.function
         strides_map = self.strides_map
-        indices = self.indices
-
-        items = [
-            idx * strides_map[d]
-            for idx, d in zip(indices, f.dimensions[1:])
-        ]
-        items.append(indices[-1])
-
+        # Filter out time dimensions to get (dim, index) pairs
+        spatial = [(d, idx) for d, idx in zip(f.dimensions, self.indices)
+                   if not d.is_Time]
+        items = [idx * strides_map[spatial[i + 1][0]]
+                 for i, (d, idx) in enumerate(spatial[:-1])]
+        items.append(spatial[-1][1])
+        # items = [
+        #     idx * strides_map[d]
+        #     for idx, d in zip(indices, f.dimensions[1:])
+        # ]
+        # items.append(indices[-1])
         return sympy.Add(*items, evaluate=False)
 
     func = Pickable._rebuild
