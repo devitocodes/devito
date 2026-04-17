@@ -729,8 +729,9 @@ class ConstrainBC:
     Metadata passed to `SolverExpr` to constrain essential
     boundary conditions using a PetscSection.
     """
-    def __init__(self, target, exprs, arrays):
+    def __init__(self, target, exprs, arrays, time_mapper):
         self.target = target
+        self.time_mapper = time_mapper
         self.arrays = arrays
         self.counter = PetscInt(name=f'count_{target.name}')
         self._make_increment_exprs(as_tuple(exprs))
@@ -790,7 +791,7 @@ class ConstrainBC:
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
             return PointEssentialBC(
-                self.counter, self.target,
+                self.counter, self.target.subs(self.time_mapper),
                 subdomain=expr.subdomain,
                 target=self.target
             )
