@@ -733,7 +733,8 @@ class BaseCallbackBuilder:
         body = body._rebuild(body.body + move_ptrs)
 
         body = self._make_callable_body(
-            body, standalones=struct_definition, stacks=deref_ptrs
+            body, standalones=struct_definition,
+            stacks=deref_ptrs + dereference_funcs(ctx, fields)
         )
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
