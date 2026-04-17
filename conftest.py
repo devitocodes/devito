@@ -467,11 +467,11 @@ def check_array(array, exp_halo, exp_shape, rotate=False):
 
     shape = []
     for i in array.symbolic_shape:
-        if i.is_Number or i.is_Symbol:
-            shape.append(i)
-        else:
-            assert i.is_Add
+        if i.is_Add:
+            # Ensure it's a plain sympy.Add and not a subclass
             shape.append(Add(*i.args))
+        else:
+            shape.append(i)
 
     if rotate:
         exp_shape = (sum(exp_halo[0]) + 1,) + tuple(exp_shape[1:])
