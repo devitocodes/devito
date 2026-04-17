@@ -1,6 +1,6 @@
 from devito.types.equation import PetscEq
 from devito.tools import filter_ordered, as_tuple
-from devito.types import Symbol, SteppingDimension, TimeDimension
+from devito.types import Symbol, SteppingDimension, TimeDimension, Border
 from devito.operations.solve import eval_time_derivatives
 from devito.symbolics import retrieve_functions, retrieve_dimensions
 
@@ -132,7 +132,15 @@ class InjectSolve:
         target, exprs = next(iter(self.target_exprs.items()))
         exprs = as_tuple(exprs)
 
+
+        # TODO: maybe move into a seprate class/method... or at least clean up
+        stagger_bc = _stagger_constrain_bc(target)
+        if stagger_bc is not None:
+            exprs = exprs + (stagger_bc,)
+
         funcs = get_funcs(exprs)
+        funcs = tuple(f for f in funcs if f.function is not target.function)
+        # from IPython import embed; embed()
         self.time_mapper = generate_time_mapper(exprs)
         arrays = self.generate_arrays(target)
 
@@ -147,7 +155,7 @@ class InjectSolve:
         constrain_exprs = self._get_constrain_exprs(exprs)
         constrain_bc = None
         if constrain_exprs:
-            constrain_bc = ConstrainBC(target, constrain_exprs, arrays)
+            constrain_bc = ConstrainBC(target, constrain_exprs, arrays, self.time_mapper)
 
         field_data = FieldData(
             target=target,
@@ -188,11 +196,25 @@ class InjectSolve:
 class InjectMixedSolve(InjectSolve):
 
     def linear_solve_args(self):
+
+        # TODO: again, clean up, or more into separate methods/classes
+        # add documentation
+        augmented = {}
+        for t, e in self.target_exprs.items():
+            stagger_bc = _stagger_constrain_bc(t)
+            te = as_tuple(e)
+            if stagger_bc is not None:
+                te = te + (stagger_bc,)
+            augmented[t] = te
+        self.target_exprs = augmented
+
         exprs = []
         for e in self.target_exprs.values():
             exprs.extend(e)
 
         funcs = get_funcs(exprs)
+        target_set = set(self.target_exprs.keys())
+        funcs = tuple(f for f in funcs if f.function not in target_set)
         self.time_mapper = generate_time_mapper(exprs)
 
         targets = list(self.target_exprs.keys())
@@ -211,7 +233,7 @@ class InjectMixedSolve(InjectSolve):
         for t in targets:
             cexprs = self._get_constrain_exprs(as_tuple(self.target_exprs[t]))
             if cexprs:
-                constrain_bc[t] = ConstrainBC(t, cexprs, arrays)
+                constrain_bc[t] = ConstrainBC(t, cexprs, arrays, self.time_mapper)
         constrain_bc = constrain_bc if constrain_bc else None
 
         all_data = MultipleFieldData(
@@ -225,11 +247,37 @@ class InjectMixedSolve(InjectSolve):
         return targets[0], funcs, all_data
 
 
+def _stagger_constrain_bc(target):
+    """
+    """
+    if target.staggered.on_node:
+        return None
+    grid = target.grid
+    grid_dim_set = set(grid.dimensions)
+    staggered_dims = [d for d, s in zip(target.dimensions, target.staggered)
+                      if s != 0 and d in grid_dim_set]
+    if not staggered_dims:
+        return None
+    dims = {d: 'right' for d in staggered_dims}
+    border = Border(grid, border=1, dims=dims,
+                    name='_stagger_border_%s' % target.name,
+                    corners='nooverlap')
+    # from IPython import embed; embed()
+    from devito import Constant
+    rhs = Constant(name='zero', dtype=target.dtype)
+    return EssentialBC(target, rhs, subdomain=border, constrain=True)
+
+
 def get_funcs(exprs):
+    # funcs = [
+    #     f for e in exprs
+    #     for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
+    # ]
     funcs = [
         f for e in exprs
-        for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
+        for f in retrieve_functions(e.evaluate)
     ]
+    # from IPython import embed; embed()
     return as_tuple(filter_ordered(funcs))
 
 
