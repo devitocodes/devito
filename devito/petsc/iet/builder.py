@@ -71,13 +71,16 @@ class BuilderBase:
             v for v, dim in zip(target.shape_allocated, target.dimensions) if dim.is_Space
         )
         # TODO: Check - VecCreateSeqWithArray
-        local_x = petsc_call('VecCreateMPIWithArray',
-                             [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
+        # local_x = petsc_call('VecCreateMPIWithArray',
+        #                      [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
+        #                       field_from_ptr, Byref(sobjs['xlocal'])])
+        local_x = petsc_call('VecCreateSeqWithArray',
+                             ['PETSC_COMM_SELF', 1, local_size,
                               field_from_ptr, Byref(sobjs['xlocal'])])
 
         # TODO: potentially also need to set the DM and local/global map to xlocal
 
-        get_local_size = petsc_call('VecGetSize',
+        get_local_size = petsc_call('VecGetLocalSize',
                                     [sobjs['xlocal'], Byref(sobjs['localsize'])])
 
         global_b = petsc_call('DMCreateGlobalVector',
