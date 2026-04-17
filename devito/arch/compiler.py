@@ -386,6 +386,14 @@ class Compiler(GCCToolchain):
             # Typically we end up here
             # Make a suite of cache directories based on the soname
             cache_dir.mkdir(parents=True, exist_ok=True)
+
+            # Has the library already been compiled?
+            try:
+                self.load(target)
+                return False, src_file
+            except OSError:
+                # The .so file isn't present, we need to compile it
+                pass
         else:
             # Warning: dropping `code` on the floor in favor to whatever is written
             # within `src_file`
