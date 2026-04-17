@@ -204,6 +204,34 @@ algorithmic and threading changes come later.
    caching groundwork was in place. The essential gain is sparing repeated
    expression rescans during fusion/topofusion legality checks.
 
+   Deferred April 17, 2026 follow-up:
+   while profiling the PRO heavy `velocity_then_stress` compile on the paired
+   OSS/PRO `faster-python-1` worktrees, `minimize_barrier_likelihood`
+   consistently spent about `2.5-2.6 s` inside `fuse(toposort=True)`, with
+   `_build_dag` and `_fusion_hazards` dominating that cost. A trial OSS patch
+   in `Fusion._build_dag` skipped `_fusion_hazards` for unfenced ClusterGroup
+   pairs whose scopes cannot possibly interact
+   (`cg0.scope.writes.keys().isdisjoint(cg1.scope.functions)` and vice versa).
+
+   Measured effect:
+   `_fusion_hazards` calls dropped from about `47k` to about `5.7k`, and the
+   barrier-minimization slice improved by about `0.12-0.17 s`, but the end-to-end
+   heavy compile-time win was noisy and marginal. Focused OSS topofusion/barrier
+   tests passed, but the change was still deferred rather than landed.
+
+   Why deferred:
+   this is exactly the kind of fast path that is easy to justify locally but
+   hard to value globally. The measured win is real but small, and fusion/toposort
+   is regression-prone enough that carrying extra control-flow in this area
+   should require a clearer compile-time payoff.
+
+   If revisited later:
+   keep the prefilter in `_build_dag`, not inside `_fusion_hazards`.
+   Moving it into `_fusion_hazards` would still pay the function-call and
+   memoization overhead that the experiment was specifically avoiding, while
+   `fenced` is a `_build_dag` scheduling concern rather than a property of the
+   pairwise hazard relation itself.
+
 7. Add concurrency inside expression lowering only after the single-threaded
    fast paths are understood.
 
