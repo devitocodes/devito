@@ -930,6 +930,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         else:
             from devito.symbolics import RoundUp  # noqa
             v = RoundUp(snp, mmts) - snp
+            if v.is_Integer:
+                v = int(v)
 
         dpadding = (0, v)
         padding = [(0, 0)]*self.ndim
