@@ -1,7 +1,6 @@
 from devito.types.equation import PetscEq
 from devito.tools import filter_ordered, as_tuple
 from devito.types import Symbol, SteppingDimension, TimeDimension, Border
-from devito.operations.solve import eval_time_derivatives
 from devito.symbolics import retrieve_functions, retrieve_dimensions
 
 from devito.petsc.types import (
@@ -131,7 +130,6 @@ class InjectSolve:
     def linear_solve_args(self):
         target, exprs = next(iter(self.target_exprs.items()))
         exprs = as_tuple(exprs)
-
 
         # TODO: maybe move into a seprate class/method... or at least clean up
         stagger_bc = _stagger_constrain_bc(target)

@@ -73,10 +73,10 @@ def lower_petsc(iet, **kwargs):
     # Protect PETSc solve targets from being dropped by `_drop_if_unwritten`.
     # `lower_petsc` runs before `mpiize`, replacing `PetscMetaData` (an
     # `Expression` subclass whose `.write` reveals the target function) with
-    # `Call` nodes to run the PETSc solver.  Once that happens, `_drop_if_unwritten` can no
-    # longer see the target as written and incorrectly discards its `HaloSpot`. So we
-    # compose `dist-drop-unwritten` with a guard that always returns
-    # False for PETSc targets.
+    # `Call` nodes to run the PETSc solver.  Once that happens,
+    # `_drop_if_unwritten` can no longer see the target as written and
+    # incorrectly discards its `HaloSpot`. So we compose `dist-drop-unwritten`
+    # with a guard that always returns False for PETSc targets.
     options = kwargs['options']
     petsc_targets = {n.write for n in data if n.write is not None}
     if petsc_targets:
@@ -128,12 +128,6 @@ def lower_petsc(iet, **kwargs):
     populate_matrix_context(efuncs)
 
     # Strip HaloSpots from PETSc callback efuncs before returning them.
-    # The callbacks are built via rcompile(..., mpi=False), so HaloSpots
-    # survive in their IETs but are NOT converted to haloupdate calls there.
-    # When the main mpiize pass (mpi=True) later processes these callbacks,
-    # it would convert those HaloSpots into haloupdate calls — which is wrong,
-    # since halo exchanges must only happen in the main kernel.  Strip them here
-    # before they reach mpiize.
     for name, efunc in list(efuncs.items()):
         if isinstance(efunc, PETScCallable):
             halos = FindNodes(HaloSpot).visit(efunc)
@@ -157,10 +151,7 @@ def strip_petsc_callback_halos(iet, **kwargs):
     Remove any HaloSpot nodes that `mpiize` may have injected into PETSc
     callback functions (FormFunction, SetPointBCs, FormRHS, etc.).
 
-    HaloSpots should only appear in the main kernel, never inside PETSc
-    callbacks which run as part of the PETSc solver internals. All
-    PETSc callbacks are instances of `PETScCallable`; the main kernel is
-    not, so we use that to distinguish the two.
+    HaloSpots should only appear in the main kernel.
     """
     if not isinstance(iet, PETScCallable):
         return iet, {}
@@ -205,10 +196,9 @@ def linear_indices(iet, **kwargs):
 
     tracker = Tracker('basic', dtype, kwargs['sregistry'])
 
-    # Exclude SubDomainSet backing functions from linearization: they must
-    # remain as 2D array reads (border[n0][col]), not flat-indexed via a macro.
-    # SubDomainSet subfunctions are identified by having a DefaultDimension
-    # (sds_dim) among their dimensions.
+    # TODO: CLEAN UP this is a hack
+    # Exclude SubDomainSet backing functions from linearization - in SETPOINTBCS
+    # I don't want to linearize the accesses to the SubDomainSet
     indexeds = [
         i for i in FindSymbols('indexeds').visit(iet)
         if not isinstance(i.function, LocalType)

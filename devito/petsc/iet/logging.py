@@ -96,10 +96,7 @@ class PetscLogger:
             # TODO: Perform a PetscCIntCast here?
             for i in output_params:
                 if isinstance(i, KSPType):
-                    # KSPType is `const char*` into KSP-owned memory.  After
-                    # SNESDestroy that pointer is invalid, so we copy the string
-                    # into the inline char buffer in the profiler struct instead
-                    # of storing the raw pointer.
+                    # Copy string otherwise it is invalid after SNESDestroy
                     calls.append(
                         petsc_call('PetscStrncpy', [
                             FieldFromPointer(i._C_symbol, struct),
