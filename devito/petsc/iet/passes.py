@@ -5,10 +5,11 @@ from functools import cached_property
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (
     Transformer, MapNodes, Iteration, CallableBody, List, Call, FindNodes, Section,
-    FindSymbols, DummyExpr, Uxreplace, Dereference
+    FindSymbols, DummyExpr, Uxreplace, Dereference, HaloSpot
 )
 from devito.symbolics import Byref, Macro, Null, FieldFromPointer
 from devito.types.basic import DataSymbol, LocalType
+from devito.types.dimension import DefaultDimension
 from devito.types.misc import FIndexed
 import devito.logger
 from devito.passes.iet.linearization import linearize_accesses, Tracker
@@ -18,7 +19,7 @@ from devito.petsc.types import (
     CallbackUserStruct
 )
 from devito.petsc.types.macros import petsc_func_begin_user
-from devito.petsc.iet.nodes import PetscMetaData, petsc_call
+from devito.petsc.iet.nodes import PetscMetaData, petsc_call, PETScCallable
 from devito.petsc.config import core_metadata, petsc_languages
 from devito.petsc.iet.callbacks import (
     BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context,
@@ -68,7 +69,20 @@ def lower_petsc(iet, **kwargs):
             "but multiple `Grid`s were found."
         )
     grid = unique_grids.pop()
-    devito_mpi = kwargs['options'].get('mpi', False)
+
+    # Protect PETSc solve targets from being dropped by `_drop_if_unwritten`.
+    # `lower_petsc` runs before `mpiize`, replacing `PetscMetaData` (an
+    # `Expression` subclass whose `.write` reveals the target function) with
+    # `Call` nodes to run the PETSc solver.  Once that happens, `_drop_if_unwritten` can no
+    # longer see the target as written and incorrectly discards its `HaloSpot`. So we
+    # compose `dist-drop-unwritten` with a guard that always returns
+    # False for PETSc targets.
+    options = kwargs['options']
+    petsc_targets = {n.write for n in data if n.write is not None}
+    if petsc_targets:
+        options['dist-drop-unwritten'] = lambda f: f not in petsc_targets
+
+    devito_mpi = options.get('mpi', False)
     comm = grid.distributor._obj_comm if devito_mpi else 'PETSC_COMM_WORLD'
 
     # Create core PETSc calls (not specific to each `petscsolve`)
@@ -112,12 +126,52 @@ def lower_petsc(iet, **kwargs):
         ),))
 
     populate_matrix_context(efuncs)
+
+    # Strip HaloSpots from PETSc callback efuncs before returning them.
+    # The callbacks are built via rcompile(..., mpi=False), so HaloSpots
+    # survive in their IETs but are NOT converted to haloupdate calls there.
+    # When the main mpiize pass (mpi=True) later processes these callbacks,
+    # it would convert those HaloSpots into haloupdate calls — which is wrong,
+    # since halo exchanges must only happen in the main kernel.  Strip them here
+    # before they reach mpiize.
+    for name, efunc in list(efuncs.items()):
+        if isinstance(efunc, PETScCallable):
+            halos = FindNodes(HaloSpot).visit(efunc)
+            if halos:
+                mapper = {hs: hs.body for hs in halos}
+                efuncs[name] = Transformer(mapper).visit(efunc)
+
     iet = Transformer(subs).visit(iet)
     body = core + tuple(setup) + iet.body.body + tuple(clear_options)
+    # from IPython import embed; embed()
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
+    # from IPython import embed; embed()
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
     return iet, metadata
+
+
+@iet_pass
+def strip_petsc_callback_halos(iet, **kwargs):
+    """
+    Remove any HaloSpot nodes that `mpiize` may have injected into PETSc
+    callback functions (FormFunction, SetPointBCs, FormRHS, etc.).
+
+    HaloSpots should only appear in the main kernel, never inside PETSc
+    callbacks which run as part of the PETSc solver internals. All
+    PETSc callbacks are instances of `PETScCallable`; the main kernel is
+    not, so we use that to distinguish the two.
+    """
+    if not isinstance(iet, PETScCallable):
+        return iet, {}
+
+    halos = FindNodes(HaloSpot).visit(iet)
+    if not halos:
+        return iet, {}
+
+    # Replace each HaloSpot with its body (unwrap it)
+    mapper = {hs: hs.body for hs in halos}
+    return Transformer(mapper).visit(iet), {}
 
 
 def lower_petsc_symbols(iet, **kwargs):
@@ -134,7 +188,7 @@ def lower_petsc_symbols(iet, **kwargs):
     # Rebuild `MainUserStruct` and update iet accordingly
     rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
 
-    iet = linear_indices(iet, **kwargs)
+    linear_indices(iet, **kwargs)
 
 
 @iet_pass
@@ -151,9 +205,14 @@ def linear_indices(iet, **kwargs):
 
     tracker = Tracker('basic', dtype, kwargs['sregistry'])
 
+    # Exclude SubDomainSet backing functions from linearization: they must
+    # remain as 2D array reads (border[n0][col]), not flat-indexed via a macro.
+    # SubDomainSet subfunctions are identified by having a DefaultDimension
+    # (sds_dim) among their dimensions.
     indexeds = [
         i for i in FindSymbols('indexeds').visit(iet)
         if not isinstance(i.function, LocalType)
+        and not any(isinstance(d, DefaultDimension) for d in i.function.dimensions)
     ]
     candidates = {i.function.name for i in indexeds}
     key = lambda f: f.name in candidates
