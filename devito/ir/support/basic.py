@@ -18,6 +18,7 @@ from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
 from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
                           CriticalRegion, Function, Symbol, Temp, TempArray,
                           TBArray)
+from devito.types.misc import PostIncrementIndex
 
 __all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
 
@@ -409,7 +410,11 @@ class TimedAccess(IterationInstance, AccessMode):
                 #       `self.itintervals=(time, x, y)`, `n=0`
                 continue
             elif not sai and not oai:
-                if self[n] - other[n] == 0:
+                # TODO: temp fix
+                if any(isinstance(i, PostIncrementIndex)
+                       for i in (self[n], other[n])):
+                    ret.append(S.Zero)
+                elif self[n] - other[n] == 0:
                     # E.g., `self=R<a,[4]>` and `other=W<a,[4]>`
                     ret.append(S.Zero)
                 else:
