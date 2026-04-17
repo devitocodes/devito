@@ -634,10 +634,10 @@ class RoundUp(Function):
         value = sympify(value)
         step = sympify(step)
 
-        if step < 1:
-            raise ValueError("Cannot round up with negative `step`")
         if not is_integer(step):
             raise ValueError("`step` must be an integer")
+        if step < 1:
+            raise ValueError("Cannot round up with negative `step`")
 
         if value.is_number and step.is_number:
             remainder = value % step
