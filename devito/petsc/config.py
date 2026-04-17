@@ -79,10 +79,7 @@ def get_petsc_type_mappings():
         petsc_type_to_ctype = {v: k for k, v in printer_mapper.items()}
         # Add other PETSc types
         petsc_type_to_ctype.update({
-            # KSPType is `const char*` into KSP-owned memory.  Using c_char_p
-            # would dereference that pointer when Python reads the struct, which
-            # segfaults after SNESDestroy frees the KSP.  An inline char array
-            # (c_char * N) stores a copy, so it is safe to read at any time.
+            # Store a copy so it doens't segfault after SNESDestroy
             'KSPType': ctypes.c_char * KSPTYPE_MAX_LEN,
             'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
             'KSPNormType': petsc_type_to_ctype['PetscInt'],

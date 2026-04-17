@@ -648,8 +648,7 @@ class BaseCallbackBuilder:
     def _make_constrain_bc(self):
         """
         Constructs the `CountBCs` and `SetPointBCs` efuncs. Works for both
-        single- and multi-field: all fields' expressions are compiled together
-        (clustering may fuse loops) and a single callback is emitted for each.
+        single- and multi-field.
         """
         constrain_bc = self.field_data.constrain_bc
         sobjs = self.solver_objs
@@ -863,10 +862,8 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
 
     def _create_set_point_bc_body_coupled(self, body):
         """
-        Combined SetPointBCs body for all target fields. The body is compiled
-        from all fields' point_bc_exprs together (loops may be fused by
-        clustering). Per-field counter symbols are substituted with the
-        corresponding bcPointsArr[k_iter] after assembly.
+        # TODO : ADD DOCS - MAKE IT CLEARER
+        Combined SetPointBCs body for all target fields.
         """
         linsolve_expr = self.inject_solve.expr.rhs
         objs = self.objs
@@ -892,8 +889,6 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         bcPointsIS = sobjs['bcPointsIS']
         bcCompsIS = sobjs['bcCompsIS']
 
-        # Zero-initialise IS arrays (PetscCalloc1 sets pointers to NULL so
-        # the automatic ISDestroy cleanup is safe even on early exit)
         is_array_mallocs = (
             petsc_call('PetscCalloc1', [nfields, Byref(bcPointsIS._C_symbol)]),
             petsc_call('PetscCalloc1', [nfields, Byref(bcCompsIS._C_symbol)]),
@@ -947,7 +942,6 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
             stacks=(dm_get_local_info,) + derefs
         )
 
-        # Struct substitutions + per-field counter → bcArr[k_iter]
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
                 i in fields if not isinstance(i.function, AbstractFunction)}
         for t in targets:
