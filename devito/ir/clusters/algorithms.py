@@ -10,7 +10,7 @@ from devito.finite_differences.elementary import Max, Min
 from devito.ir.clusters.analysis import analyze
 from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, cluster_pass
-from devito.ir.equations import OpMax, OpMin, identity_mapper
+from devito.ir.equations import OpMax, OpMin, OpMinMax, identity_mapper
 from devito.ir.support import (
     Any, Backward, Forward, IterationSpace, Scope, erange, pull_dims
 )
@@ -531,8 +531,19 @@ def reduction_comms(clusters):
             # The IterationSpace within which the global distributed reduction
             # must be carried out
             ispace = c.ispace.prefix(lambda d: d in var.free_symbols)  # noqa: B023
-            expr = [Eq(var, DistReduce(var, op=op, grid=grid, ispace=ispace))]
-            fifo.append(c.rebuild(exprs=expr, ispace=ispace))
+
+            if op is OpMinMax:
+                # MinMax not natively supported by MPI, so for now we perform two
+                # separate reductions (not optimal, but it will do for now)
+                var0, var1 = var, var._translate()
+                exprs = [
+                    Eq(var0, DistReduce(var0, op=OpMin, grid=grid, ispace=ispace)),
+                    Eq(var1, DistReduce(var1, op=OpMax, grid=grid, ispace=ispace))
+                ]
+            else:
+                exprs = [Eq(var, DistReduce(var, op=op, grid=grid, ispace=ispace))]
+
+            fifo.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         processed.append(c)
 
@@ -547,7 +558,7 @@ def normalize(clusters, sregistry=None, options=None, platform=None, **kwargs):
     if options['mapify-reduce']:
         clusters = normalize_reductions_dense(clusters, sregistry, platform)
     else:
-        clusters = normalize_reductions_minmax(clusters)
+        clusters = normalize_reductions_minmax(clusters, sregistry)
     clusters = normalize_reductions_sparse(clusters, sregistry)
 
     return clusters
@@ -591,7 +602,7 @@ def normalize_nested_indexeds(cluster, sregistry):
 
 
 @cluster_pass(mode='dense')
-def normalize_reductions_minmax(cluster):
+def normalize_reductions_minmax(cluster, sregistry):
     """
     Initialize the reduction variables to their neutral element and use them
     to compute the reduction.
@@ -603,6 +614,7 @@ def normalize_reductions_minmax(cluster):
 
     init = []
     processed = []
+    post = []
     for e in cluster.exprs:
         lhs, rhs = e.args
         f = lhs.function
@@ -623,10 +635,32 @@ def normalize_reductions_minmax(cluster):
 
             processed.append(e.func(lhs, Max(lhs, rhs)))
 
+        elif e.operation is OpMinMax:
+            # NOTE: we need to create two different reduction variables here
+            # (instead of using say `n[0]` and `n[1]` directly) because that's
+            # essentially what OpenMP/OpenACC expect -- two different symbols
+            rmin = Symbol(name=sregistry.make_name(prefix='rmin'), dtype=lhs.dtype)
+            rmax = Symbol(name=sregistry.make_name(prefix='rmax'), dtype=lhs.dtype)
+
+            expr0 = Eq(rmin, limits_mapper[lhs.dtype].max)
+            expr1 = Eq(rmax, limits_mapper[lhs.dtype].min)
+            ispace = cluster.ispace.project(lambda i: i not in dims)
+            init.append(cluster.rebuild(exprs=[expr0, expr1], ispace=ispace))
+
+            processed.extend([
+                e.func(rmin, Min(rmin, rhs), operation=OpMin),
+                e.func(rmax, Max(rmax, rhs), operation=OpMax)
+            ])
+
+            # Copy-back the final result to `lhs` at the end of the reduction
+            expr0 = Eq(lhs, rmin)
+            expr1 = Eq(lhs._translate(), rmax)
+            post.append(cluster.rebuild(exprs=[expr0, expr1], ispace=ispace))
+
         else:
             processed.append(e)
 
-    return init + [cluster.rebuild(processed)]
+    return init + [cluster.rebuild(processed)] + post
 
 
 def normalize_reductions_dense(cluster, sregistry, platform):
@@ -674,19 +708,20 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
         if e.is_Reduction:
             lhs, rhs = e.args
 
+            wf = lhs.function
             try:
-                f = rhs.function
+                rf = rhs.function
             except AttributeError:
-                f = None
+                rf = None
 
-            if lhs.function.is_Array:
+            if wf.is_Array and set(candidates).intersection(wf.dimensions):
                 # Probably a compiler-generated reduction, e.g. via
                 # recursive compilation; it's an Array already, so nothing to do
                 processed.append(e)
             elif rhs in mapper:
                 # Seen this RHS already, so reuse the Array that was created for it
                 processed.append(e.func(lhs, mapper[rhs].indexify()))
-            elif f and f.is_Array and sum(flatten(f._size_nodomain)) == 0:
+            elif rf and rf.is_Array and sum(flatten(rf._size_nodomain)) == 0:
                 # Special case: the RHS is an Array with no halo/padding, meaning
                 # that the written data values are contiguous in memory, hence
                 # we can simply reuse the Array itself as we're already in the
@@ -698,8 +733,9 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
                     grid = cluster.grid
                 except ValueError:
                     grid = None
-                a = mapper[rhs] = Array(name=name, dtype=e.dtype, dimensions=dims,
-                                        grid=grid)
+                a = mapper[rhs] = Array(
+                    name=name, dtype=e.dtype, dimensions=dims, grid=grid
+                )
 
                 # Populate the Array (the "map" part)
                 processed.append(e.func(a.indexify(), rhs, operation=None))

@@ -13,7 +13,7 @@ from sympy import IndexedBase, sympify
 
 from devito.data import FULL
 from devito.ir.cgen import ccode
-from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
+from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin, OpMinMax
 from devito.ir.support import (
     AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
     VECTORIZED, Forward, PrefetchUpdate, Property, WithLock, detect_io
@@ -457,7 +457,7 @@ class Expression(ExprStmt, Node):
     @cached_property
     def write(self):
         """The Function written by the Expression."""
-        return self.expr.lhs.base.function
+        return self.output.base.function
 
     @cached_property
     def dimensions(self):
@@ -467,17 +467,17 @@ class Expression(ExprStmt, Node):
     @property
     def is_scalar(self):
         """True if the LHS is a scalar, False otherwise."""
-        return isinstance(self.expr.lhs, (AbstractSymbol, IndexedBase, LocalObject))
+        return isinstance(self.output, (AbstractSymbol, IndexedBase, LocalObject))
 
     @property
     def is_tensor(self):
         """True if the LHS is an array entry, False otherwise."""
-        return self.expr.lhs.is_Indexed
+        return self.output.is_Indexed
 
     @property
     def is_reduction(self):
         """True if the RHS performs a reduction operation, False otherwise."""
-        return self.operation in (OpInc, OpMin, OpMax)
+        return self.operation in (OpInc, OpMin, OpMax, OpMinMax)
 
     @property
     def is_initializable(self):

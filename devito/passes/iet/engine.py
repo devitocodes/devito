@@ -17,7 +17,7 @@ from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointer, search
 from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
 from devito.types import (
-    Array, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,
+    Array, Auto, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,
     Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData, Symbol,
     Temp, ThreadArray, Wildcard
 )
@@ -658,6 +658,7 @@ def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='ind'))
 
 
+@abstract_object.register(Auto)
 @abstract_object.register(Temp)
 @abstract_object.register(Wildcard)
 def _(i, mapper, sregistry):
