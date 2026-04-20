@@ -137,8 +137,8 @@ class InjectSolve:
             exprs = exprs + (stagger_bc,)
 
         funcs = get_funcs(exprs)
-        # TODO: Double check but this is for data dependencies otherwise the wrong halospots
-        # are generated
+        # TODO: Double check but this is for data dependencies otherwise the
+        # wrong halospots are generated
         funcs = tuple(f for f in funcs if f != target)
         # from IPython import embed; embed()
         self.time_mapper = generate_time_mapper(exprs)
@@ -273,8 +273,9 @@ def get_funcs(exprs):
     #     f for e in exprs
     #     for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
     # ]
-    # TODO: this is expensive, need to rethink, but otherside the initial compilation doesn't see
-    # all "functions" e.g when derivatives are evaluated, so the halospots are not generated correctly.
+    # TODO: this is expensive, need to rethink, but otherside the initial
+    # compilation doesn't see all "functions" e.g the ones generated when derivatives
+    # are evaluated, so the halospots are not generated correctly.
     funcs = [
         f for e in exprs
         for f in retrieve_functions(e.evaluate)
