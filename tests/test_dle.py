@@ -8,7 +8,7 @@ import sympy
 from conftest import _R, assert_blocking, assert_structure, skipif
 from devito import (
     CustomDimension, DefaultDimension, Dimension, Eq, Function, Grid, Inc, Operator,
-    PrecomputedSparseTimeFunction, ReduceMax, ReduceMin, SpaceDimension,
+    PrecomputedSparseTimeFunction, ReduceMax, ReduceMin, ReduceMinMax, SpaceDimension,
     SparseTimeFunction, SubDimension, TimeFunction, configuration, cos, dimensions, info
 )
 from devito.exceptions import InvalidArgument
@@ -998,6 +998,31 @@ class TestNodeParallelism:
         op()
         assert n.data[0] == 26
         assert n.data[1] == 0
+
+    def test_array_minmax_reduction_simultaneous(self):
+        """
+        Test the combined min/max reduction DSL construct.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        i = Dimension(name='i')
+
+        f = Function(name='f', grid=grid)
+        n = Function(name='n', grid=grid, shape=(2,), dimensions=(i,))
+
+        f.data[:] = np.arange(-5, 22).reshape((3, 3, 3))
+
+        eqn = [ReduceMinMax(n[0], f)]
+
+        op = Operator(eqn)
+
+        if 'openmp' in configuration['language']:
+            iterations = FindNodes(Iteration).visit(op)
+            expected = "reduction(min:rmin0) reduction(max:rmax0)"
+            assert expected in iterations[0].pragmas[0].ccode.value
+
+        op()
+        assert n.data[0] == -5
+        assert n.data[1] == 21
 
     def test_incs_no_atomic(self):
         """

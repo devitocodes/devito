@@ -1926,6 +1926,31 @@ class Indexed(sympy.Indexed):
             pass
         return super()._subs(old, new, **hints)
 
+    def _translate(self, mapper=None):
+        """
+        Translate the indices of the current Indexed according to the provided
+        `{Dimension -> offset}` mapper. For example, if the current Indexed is
+        `f[x+1]` and the mapper is `{x: -1}`, then the result of the translation
+        will be `f[x]`.
+
+        If `mapper` is None, then the translation will be unitary increment
+        along the fastest varying Dimension. For example, if the current
+        Indexed is `f[x+1, y+2]`, then the result of the translation will be
+        `f[x+1, y+3]` since `x` is the fastest varying Dimension.
+        """
+        mapper = mapper or {self.dimensions[-1]: 1}
+
+        if any(d not in mapper for d in self.dimensions):
+            raise ValueError(
+                f"Cannot translate {self} with mapper {mapper} since not "
+                "all dimensions are covered"
+            )
+
+        translations = [mapper.get(d, 0) for d in self.dimensions]
+        indices = [sum(i) for i in zip(self.indices, translations, strict=True)]
+
+        return self.base[indices]
+
 
 class IrregularFunctionInterface:
 

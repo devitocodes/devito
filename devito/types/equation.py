@@ -7,7 +7,7 @@ from devito.deprecations import deprecations
 from devito.tools import Pickable, as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
-__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin']
+__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin', 'ReduceMinMax']
 
 
 class Eq(sympy.Eq, Evaluable, Pickable):
@@ -62,8 +62,8 @@ class Eq(sympy.Eq, Evaluable, Pickable):
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims')
 
-    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None, implicit_dims=None,
-                **kwargs):
+    def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None,
+                implicit_dims=None, **kwargs):
         if coefficients is not None:
             _ = deprecations.coeff_warn
         kwargs['evaluate'] = False
@@ -237,3 +237,23 @@ class ReduceMax(Reduction):
 
 class ReduceMin(Reduction):
     pass
+
+
+class ReduceMinMax(Reduction):
+
+    """
+    A coupled min/max Reduction.
+
+    The left-hand side must have room for two components, one for the minimum and
+    one for the maximum; the behaviour is otherwise undefined.
+    The right-hand side is the expression to be reduced.
+    """
+
+    def __new__(cls, lhs, rhs=0, **kwargs):
+        if not lhs.function.is_AbstractFunction:
+            raise ValueError(
+                f"The left-hand side of a {cls.__name__} must be a "
+                "Function of size at least 2"
+            )
+
+        return super().__new__(cls, lhs, rhs=rhs, **kwargs)

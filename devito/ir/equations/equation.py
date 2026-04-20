@@ -11,7 +11,7 @@ from devito.ir.support import (
 )
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
-from devito.types import Eq, Inc, ReduceMax, ReduceMin, relational_min
+from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
 
 __all__ = [
     'ClusterizedEq',
@@ -20,6 +20,7 @@ __all__ = [
     'OpInc',
     'OpMax',
     'OpMin',
+    'OpMinMax',
     'identity_mapper',
 ]
 
@@ -69,7 +70,7 @@ class IREq(sympy.Eq, Pickable):
 
     @property
     def is_Reduction(self):
-        return self.operation in (OpInc, OpMin, OpMax)
+        return self.operation in (OpInc, OpMin, OpMax, OpMinMax)
 
     @property
     def is_Increment(self):
@@ -113,7 +114,8 @@ class Operation(Tag):
         reduction_mapper = {
             Inc: OpInc,
             ReduceMax: OpMax,
-            ReduceMin: OpMin
+            ReduceMin: OpMin,
+            ReduceMinMax: OpMinMax
         }
         try:
             return reduction_mapper[type(expr)]
@@ -130,6 +132,7 @@ class Operation(Tag):
 OpInc = Operation('+')
 OpMax = Operation('max')
 OpMin = Operation('min')
+OpMinMax = Operation('minmax')
 
 
 identity_mapper = {
