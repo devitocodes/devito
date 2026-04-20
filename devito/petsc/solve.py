@@ -137,7 +137,9 @@ class InjectSolve:
             exprs = exprs + (stagger_bc,)
 
         funcs = get_funcs(exprs)
-        funcs = tuple(f for f in funcs if f.function is not target.function)
+        # TODO: Double check but this is for data dependencies otherwise the wrong halospots
+        # are generated
+        funcs = tuple(f for f in funcs if f != target)
         # from IPython import embed; embed()
         self.time_mapper = generate_time_mapper(exprs)
         arrays = self.generate_arrays(target)
@@ -212,7 +214,7 @@ class InjectMixedSolve(InjectSolve):
 
         funcs = get_funcs(exprs)
         target_set = set(self.target_exprs.keys())
-        funcs = tuple(f for f in funcs if f.function not in target_set)
+        funcs = tuple(f for f in funcs if f not in target_set)
         self.time_mapper = generate_time_mapper(exprs)
 
         targets = list(self.target_exprs.keys())
@@ -271,6 +273,8 @@ def get_funcs(exprs):
     #     f for e in exprs
     #     for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
     # ]
+    # TODO: this is expensive, need to rethink, but otherside the initial compilation doesn't see
+    # all "functions" e.g when derivatives are evaluated, so the halospots are not generated correctly.
     funcs = [
         f for e in exprs
         for f in retrieve_functions(e.evaluate)
