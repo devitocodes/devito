@@ -2203,6 +2203,24 @@ class TestCodeGeneration:
         halo_update = tloop.nodes[0].body[0].body[0].body[0]
         assert isinstance(halo_update, HaloUpdateList)
 
+    @pytest.mark.parallel(mode=4)
+    def test_halo_inner_dim(self, mode):
+        grid = Grid((11, 11, 11))
+
+        np.random.seed(0)
+        v = TimeFunction(name="v", grid=grid, space_order=4,
+                         time_order=1, save=Buffer(1))
+        v.data[:] = np.random.randn(*grid.shape)
+        e = TimeFunction(name="dummy", grid=grid, space_order=4, time_order=0)
+
+        eq = [Eq(v.forward, v + 1), Eq(e, v.forward.dydz)]
+
+        op = Operator(eq, opt=('advanced', {'blocklevels': 0}))
+        assert_structure(op, ['txyz', 't', 'txyz', 'txyz'], 'txyzxyzz')
+        op(time=100)
+
+        assert np.isclose(norm(e), 23484.863, rtol=0, atol=1e-1)
+
 
 class TestOperatorAdvanced:
 
@@ -2736,7 +2754,7 @@ class TestOperatorAdvanced:
         assert titer.dim is grid.time_dim
         assert titer.nodes[0].body[0].body[0].is_List
         assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
-        assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
+        assert not titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
 
         op.apply(time=0)
 
@@ -3138,8 +3156,8 @@ class TestOperatorAdvanced:
         # First, check the generated code
         assert_structure(op1, ['t',
                                't,x0_blk0,y0_blk0,x,y,z',
-                               't,x0_blk0,y0_blk0,x,y,z'],
-                         't,x0_blk0,y0_blk0,x,y,z,z')
+                               't,x1_blk0,y1_blk0,x,y,z'],
+                         'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz')
 
         def init(f, v=1):
             f.data[:] = np.indices(grid.shape).sum(axis=0) % (.004*v) + .01

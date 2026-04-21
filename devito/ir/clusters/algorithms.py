@@ -443,7 +443,7 @@ class HaloComms(Queue):
 
         # Construct a representation of the halo accesses
         processed = []
-        for c in clusters:
+        for i, c in enumerate(clusters):
             if c.properties.is_sequential(d) or \
                c in seen:
                 continue
@@ -451,6 +451,10 @@ class HaloComms(Queue):
             hs = HaloScheme(c.exprs, c.ispace)
             if hs.is_void or \
                not d._defines & hs.distributed_aindices:
+                continue
+
+            if any(halo_write(ci, hs) for ci in clusters[:i]):
+                # If there's a halo write before `c`, then we cannot inject the HaloTouch
                 continue
 
             points = set()
@@ -781,3 +785,14 @@ def normalize_reductions_sparse(cluster, sregistry):
             processed.append(e)
 
     return cluster.rebuild(processed)
+
+
+def halo_write(c, hs):
+    loc_vals = hs.loc_values
+
+    for f in hs.fmapper:
+        for a in c.scope.getwrites(f):
+            if set(a.access.indices) & loc_vals:
+                return True
+
+    return False
