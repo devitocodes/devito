@@ -20,7 +20,7 @@ from devito.symbolics import limits_mapper, retrieve_indexed, uxreplace, xreplac
 from devito.tools import (
     DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer, split, timed_pass, toposort
 )
-from devito.types import Array, Eq, Symbol
+from devito.types import Array, Eq, Symbol, Temp
 from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
@@ -639,8 +639,8 @@ def normalize_reductions_minmax(cluster, sregistry):
             # NOTE: we need to create two different reduction variables here
             # (instead of using say `n[0]` and `n[1]` directly) because that's
             # essentially what OpenMP/OpenACC expect -- two different symbols
-            rmin = Symbol(name=sregistry.make_name(prefix='rmin'), dtype=lhs.dtype)
-            rmax = Symbol(name=sregistry.make_name(prefix='rmax'), dtype=lhs.dtype)
+            rmin = Temp(name=sregistry.make_name(prefix='rmin'), dtype=lhs.dtype)
+            rmax = Temp(name=sregistry.make_name(prefix='rmax'), dtype=lhs.dtype)
 
             expr0 = Eq(rmin, limits_mapper[lhs.dtype].max)
             expr1 = Eq(rmax, limits_mapper[lhs.dtype].min)
