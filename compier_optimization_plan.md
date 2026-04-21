@@ -2,7 +2,21 @@
 
 ## Status after current landed caching/reuse, fusion, and derivative-topofuse work
 
-Current measured compile times on April 10, 2026 with PRO `faster-python-1`,
+More recent paired PRO/OSS reruns on April 21, 2026 with PRO
+`faster-python-1` at `b770aaee`, OSS `/home/fl1612/devito-faster-python-1` at
+`30715c026`, `devitopro-cuda:latest`, `--taskset 0-15`, `--deviceid 3`, and
+the two `schedule_infos` probes in
+`devitopro/tests/test_kernelopt_nogil_tmp.py` reproduced the current practical
+checkpoint as:
+
+- `test_profile_eiso_stress_like_schedule_infos`: `5.81-5.83 s`
+- `test_profile_etti_velocity_then_stress_like_schedule_infos`: `25.81-26.21 s`
+
+So the current paired `velocity+stress` checkpoint for this branch family is
+still about `26 s`; the older `32.00 s` value below is now only a historical
+April 10 milestone.
+
+Older measured compile times on April 10, 2026 with PRO `faster-python-1`,
 OSS `faster-python-1`, `devitopro-cuda:latest`, `--taskset 0-15`, and
 `--deviceid 0`:
 
