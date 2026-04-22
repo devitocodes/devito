@@ -453,7 +453,7 @@ class HaloComms(Queue):
                not d._defines & hs.distributed_aindices:
                 continue
 
-            if any(halo_write(ci, hs) for ci in clusters[:i]):
+            if any(_halo_write(ci, hs) for ci in clusters[:i]):
                 # If there's a halo write before `c`, then we cannot inject the HaloTouch
                 continue
 
@@ -787,12 +787,19 @@ def normalize_reductions_sparse(cluster, sregistry):
     return cluster.rebuild(processed)
 
 
-def halo_write(c, hs):
-    loc_vals = hs.loc_values
-
+def _halo_write(c, hs):
+    """
+    Check if the cluster `c` writes into any of the local values read by `hs`.
+    """
     for f in hs.fmapper:
-        for a in c.scope.getwrites(f):
-            if set(a.access.indices) & loc_vals:
-                return True
+        if not any(f.grid.distributor.topology.get(d, 1) > 1
+                   for d in hs.dimensions):
+            # Not distributed halo dimension, write does not impact the halo exchange
+            continue
+
+        if any(set(a.access.indices) & hs.loc_values for a in c.scope.getwrites(f)):
+            # Writing into a local value, which is read by the halo exchange,
+            # creates a write dependency
+            return True
 
     return False

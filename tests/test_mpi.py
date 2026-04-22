@@ -2,7 +2,6 @@ from functools import cached_property
 
 import numpy as np
 import pytest
-from test_dse import TestTTI
 
 from conftest import _R, assert_blocking, assert_structure, body0
 from devito import (
@@ -2216,6 +2215,7 @@ class TestCodeGeneration:
         eq = [Eq(v.forward, v + 1), Eq(e, v.forward.dydz)]
 
         op = Operator(eq, opt=('advanced', {'blocklevels': 0}))
+
         assert_structure(op, ['txyz', 't', 'txyz', 'txyz'], 'txyzxyzz')
         op(time=100)
 
@@ -2754,7 +2754,7 @@ class TestOperatorAdvanced:
         assert titer.dim is grid.time_dim
         assert titer.nodes[0].body[0].body[0].is_List
         assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
-        assert not titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
+        assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
 
         op.apply(time=0)
 
@@ -3156,8 +3156,8 @@ class TestOperatorAdvanced:
         # First, check the generated code
         assert_structure(op1, ['t',
                                't,x0_blk0,y0_blk0,x,y,z',
-                               't,x1_blk0,y1_blk0,x,y,z'],
-                         'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz')
+                               't,x0_blk0,y0_blk0,x,y,z'],
+                         'tx0_blk0y0_blk0xyzz')
 
         def init(f, v=1):
             f.data[:] = np.indices(grid.shape).sum(axis=0) % (.004*v) + .01
@@ -3531,9 +3531,9 @@ class TestElasticLike:
 
 class TestTTIOp:
 
-    @pytest.mark.skipif(TestTTI is None, reason="Requires installing the tests")
     @pytest.mark.parallel(mode=1)
     def test_halo_structure(self, mode):
+        from test_dse import TestTTI
         solver = TestTTI().tti_operator(opt='advanced', space_order=8)
         op = solver.op_fwd(save=False)
 
