@@ -1142,6 +1142,17 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
                     for i, j, k in zip(domain, halo, padding, strict=True))
         return DimensionTuple(*ret, getters=self.dimensions)
 
+    @cached_property
+    def symbolic_strides(self):
+        """
+        The symbolic strides of the object, expressed in number of elements.
+        """
+        strides = [sympy.Mul(*self.symbolic_shape[i+1:], evaluate=False)
+                   for i in range(self.ndim - 1)]
+        strides.append(sympy.S.One)
+
+        return DimensionTuple(*strides, getters=self.dimensions)
+
     @property
     def symbolic_size(self):
         return np.prod(self.symbolic_shape)
