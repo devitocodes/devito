@@ -16,6 +16,76 @@ So the current paired `velocity+stress` checkpoint for this branch family is
 still about `26 s`; the older `32.00 s` value below is now only a historical
 April 10 milestone.
 
+## April 22, 2026 plateau note on the paired PRO/OSS branches
+
+Fresh clean-`HEAD` reruns on April 22, 2026 with PRO `faster-python-1` at
+`b770aaee`, OSS `/home/fl1612/devito-faster-python-1` at `c44c30339`,
+`devitopro-cuda:latest`, `--taskset 0-15`, `--deviceid 3`, and the same
+temporary PRO harness confirm that the practical checkpoint for the current
+pair is still:
+
+- light probe: still about `5.8 s`
+- heavy `test_profile_etti_velocity_then_stress_like_schedule_infos`:
+  still about `25.8-26.0 s` (`25.80 s`, `25.99 s` in fresh reruns)
+
+Latest findings from the PRO-side deep profiling on this same pair:
+
+- isolated `search_rotation` and `search_shm` postponement tweaks were both
+  flat/noisy when rerun independently and were reverted
+- more invasive scheduler and node-caching refactors were also dropped after
+  either code-complexity growth or measurable regressions
+- explicit per-kernel accounting on the heavy benchmark shows the dominant
+  remaining cost is the initial stress kernel lineage, not the velocity kernel:
+  - helper lineage: `0.402522 s`
+  - velocity lineage: `0.585283 s`
+  - stress lineage: `11.393894 s`
+- splitting the first `optimize()` pass by initial kernel yields:
+  - helper (`r0..r5`): `0.315156 s`
+  - velocity (`v_x,v_y,v_z`): `0.426755 s`
+  - stress (`tau_*`): `10.524947 s`
+- the stress-kernel `optimize()` time is currently dominated by:
+  - `action_apply`: `5.570871 s`
+  - `minimize_barrier_likelihood`: `2.337799 s`
+  - `reschedule`: `2.169853 s`
+  - with `68` action steps, `69` schedule calls, and an average per-schedule
+    state of about `229.7` IDG nodes and `30.4` queued actions
+- current IET-side coarse buckets on the heavy probe are still:
+  - `make_parallel ~= 1.99 s`
+  - `place_definitions ~= 0.87 s`
+  - `_place_transfers ~= 0.86 s`
+  - `linearization ~= 0.37 s`
+
+Current interpretation:
+the current pair looks close to a local plateau on this benchmark family. The
+next step should therefore be to move up in benchmark complexity rather than
+keep forcing increasingly marginal scheduler micro-optimizations on the current
+`velocity+stress` case.
+
+First result after moving up in benchmark complexity on the PRO scratch harness:
+
+- new benchmark:
+  `test_profile_etti_velocity_then_stress_like_bitcomp_serial_schedule_infos`
+- construction:
+  extend the current heavy `velocity+stress` operator with one compressed,
+  serialized saved `TimeFunction` per `tau_*` component and an extra
+  `Eq(tau_*save, tau_*.forward)` per component
+- first pinned compile result:
+  - total compile: `30.44 s`
+  - `lowering.Clusters`: `18.74 s`
+  - `optimize_kernels`: `12.55 s`
+  - `lowering.IET`: `9.39 s`
+  - `specializing.IET`: `8.49 s`
+  - main new IET-side buckets:
+    `lower_async_objs ~= 1.29 s`,
+    `place_definitions ~= 1.27 s`,
+    `linearization ~= 1.12 s`,
+    `_place_transfers ~= 0.92 s`
+
+Interpretation:
+the first heavier benchmark does become meaningfully slower, but the extra cost
+lands primarily in IET / serialization-lowering rather than in the already
+stress-dominated `kernelopt` slice.
+
 Older measured compile times on April 10, 2026 with PRO `faster-python-1`,
 OSS `faster-python-1`, `devitopro-cuda:latest`, `--taskset 0-15`, and
 `--deviceid 0`:
