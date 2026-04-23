@@ -60,6 +60,8 @@ class Search:
     def _next(self, expr: Expression) -> Iterable[Expression]:
         if self.deep and expr.is_Indexed:
             return expr.indices
+        elif self.deep and q_dimension(expr):
+            return expr.bound_symbols
         elif q_leaf(expr):
             return ()
         return expr.args

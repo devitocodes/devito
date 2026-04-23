@@ -755,7 +755,7 @@ class TestNodeParallelism:
         ('[Eq(f, 2*f)]', [2, 0, 0], False),
         ('[Eq(u, 2*u)]', [0, 2, 0, 0], False),
         ('[Eq(u, 2*u + f)]', [0, 3, 0, 0, 0, 0, 0], True),
-        ('[Eq(u, 2*u), Eq(f, u.dzr)]', [0, 2, 0, 0, 0], False)
+        ('[Eq(u, 2*u), Eq(f, u.dzr)]', [0, 2, 0, 0, 2, 0, 0], False)
     ])
     def test_collapsing(self, eqns, expected, blocking):
         grid = Grid(shape=(3, 3, 3))

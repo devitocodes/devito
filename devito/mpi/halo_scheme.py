@@ -617,12 +617,11 @@ def classify(exprs, ispace):
                                           f"scheme for `{f}` along Dimension `{d}`")
             elif hl.pop() is STENCIL:
                 halos.append(Halo(d, s))
-            else:
+            elif d._defines & set(ispace.itdims):
                 raw_loc_indices[d].append(s)
 
         loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
                                                     ispace.directions)
-
         mapper[f] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
 
     return mapper

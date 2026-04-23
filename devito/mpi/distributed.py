@@ -261,7 +261,7 @@ class DenseDistributor(AbstractDistributor):
 
     @property
     def topology(self):
-        return self._topology
+        return DimensionTuple(*self._topology, getters=self.dimensions)
 
     @property
     def topology_logical(self):
