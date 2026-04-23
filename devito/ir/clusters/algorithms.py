@@ -442,8 +442,8 @@ class HaloComms(Queue):
         d = prefix[-1].dim
 
         # Construct a representation of the halo accesses
-        processed = []
-        for i, c in enumerate(clusters):
+        processed = list(clusters)
+        for n, c in enumerate(clusters):
             if c.properties.is_sequential(d) or \
                c in seen:
                 continue
@@ -451,10 +451,6 @@ class HaloComms(Queue):
             hs = HaloScheme(c.exprs, c.ispace)
             if hs.is_void or \
                not d._defines & hs.distributed_aindices:
-                continue
-
-            if any(_halo_write(ci, hs) for ci in clusters[:i]):
-                # If there's a halo write before `c`, then we cannot inject the HaloTouch
                 continue
 
             points = set()
@@ -484,10 +480,16 @@ class HaloComms(Queue):
 
             halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)
 
-            processed.append(halo_touch)
-            seen.update({halo_touch, c})
+            # Insert `halo_touch` at the top of the IterationSpace within which
+            # `c` is scheduled
+            index = 0
+            for i in reversed(range(n)):
+                if not processed[i].ispace.is_subset(c.ispace):
+                    index = i + 1
+                    break
+            processed.insert(index, halo_touch)
 
-        processed.extend(clusters)
+            seen.update({halo_touch, c})
 
         return processed
 
@@ -785,21 +787,3 @@ def normalize_reductions_sparse(cluster, sregistry):
             processed.append(e)
 
     return cluster.rebuild(processed)
-
-
-def _halo_write(c, hs):
-    """
-    Check if the cluster `c` writes into any of the local values read by `hs`.
-    """
-    for f in hs.fmapper:
-        if not any(f.grid.distributor.topology.get(d, 1) > 1
-                   for d in hs.dimensions):
-            # Not distributed halo dimension, write does not impact the halo exchange
-            continue
-
-        if any(set(a.access.indices) & hs.loc_values for a in c.scope.getwrites(f)):
-            # Writing into a local value, which is read by the halo exchange,
-            # creates a write dependency
-            return True
-
-    return False

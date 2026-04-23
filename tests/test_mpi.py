@@ -2752,9 +2752,10 @@ class TestOperatorAdvanced:
 
         titer = op.body.body[-1].body[0]
         assert titer.dim is grid.time_dim
-        assert titer.nodes[0].body[0].body[0].is_List
-        assert len(titer.nodes[0].body[0].body[0].body[0].body) == 1
-        assert titer.nodes[0].body[0].body[0].body[0].body[0].is_Call
+        block = titer.nodes[0].body[0].body[1]
+        assert block.is_List
+        assert len(block.body) == 3
+        assert block.body[0].body[0].is_Call
 
         op.apply(time=0)
 
