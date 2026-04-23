@@ -5,7 +5,7 @@ from itertools import product
 from operator import attrgetter
 
 import sympy
-from sympy import Max, Min, S
+from sympy import Max, Min
 
 from devito import configuration
 from devito.data import CENTER, CORE, LEFT, OWNED, RIGHT
@@ -513,31 +513,6 @@ class HaloScheme:
         for f, hse in hs.fmapper.items():
             fmapper[f] = fmapper.get(f, hse).merge(hse)
         return HaloScheme.build(fmapper, self.honored)
-
-    def _is_iter_carried(self, scope):
-        """
-        True if the HaloScheme is iteration-carried, i.e., it induces
-        a halo exchange that requires values from the previous iteration(s); False
-        otherwise.
-        """
-
-        def rule0(dep):
-            # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>`, `d=t` => OK
-            return not any(dep.distance_mapper[d] is S.Infinity for d in dep.cause)
-
-        def rule1(dep, loc_indices):
-            # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>`, `loc_indices={t: t0}` => OK
-            return any(dep.distance_mapper[d] == 0 and
-                       dep.source[d] is not v and
-                       dep.sink[d] is not v
-                       for d, v in loc_indices.items())
-
-        for f, v in self.fmapper.items():
-            for dep in scope.d_flow.project(f):
-                if not rule0(dep) and not rule1(dep, v.loc_indices):
-                    return False
-
-        return True
 
 
 def classify(exprs, ispace):

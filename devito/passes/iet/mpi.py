@@ -206,7 +206,7 @@ def _hoist_invariant(iet):
                 # Ensure there's another HaloScheme that could cover for
                 # us should we get hoisted while still satisfying the
                 # data dependences
-                if hsf1.issubset(hsf0) and hsf1._is_iter_carried(scope):
+                if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
                     hs, hsf = hs1, hsf1
                 elif hsf0.issubset(hsf1) and hs0 is halo_spots[0]:
                     # Special case
@@ -474,6 +474,32 @@ def _check_control_flow(hs0, hs1, cond_mapper):
     return cond0 != cond1
 
 
+def _is_iter_carried(hsf, scope):
+    """
+    True if the provided HaloScheme `hsf` is iteration-carried, i.e., it induces
+    a halo exchange that requires values from the previous iteration(s); False
+    otherwise.
+    """
+
+    def rule0(dep):
+        # E.g., `dep=W<f,[t1, x]> -> R<f,[t0, x-1]>`, `d=t` => OK
+        return not any(dep.distance_mapper[d] is S.Infinity for d in dep.cause)
+
+    def rule1(dep, loc_indices):
+        # E.g., `dep=W<f,[t1, x+1]> -> R<f,[t1, xl+1]>`, `loc_indices={t: t0}` => OK
+        return any(dep.distance_mapper[d] == 0 and
+                   dep.source[d] is not v and
+                   dep.sink[d] is not v
+                   for d, v in loc_indices.items())
+
+    for f, v in hsf.fmapper.items():
+        for dep in scope.d_flow.project(f):
+            if not rule0(dep) and not rule1(dep, v.loc_indices):
+                return False
+
+    return True
+
+
 def _is_mergeable(hsf0, hsf1, scope):
     """
     True if `hsf1` can be merged into `hsf0`, i.e., if they are compatible
@@ -489,7 +515,7 @@ def _is_mergeable(hsf0, hsf1, scope):
         return False
 
     # Finally, check the data dependences would be satisfied
-    return hsf1._is_iter_carried(scope)
+    return _is_iter_carried(hsf1, scope)
 
 
 def _semantical_eq_loc_indices(hsf0, hsf1):
