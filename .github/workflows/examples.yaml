@@ -45,7 +45,7 @@ jobs:
        path: 'data'
 
     - name: Setup conda
-      uses: conda-incubator/setup-miniconda@v3
+      uses: conda-incubator/setup-miniconda@v4
       with:
        activate-environment: devito
        environment-file: environment-dev.yaml
