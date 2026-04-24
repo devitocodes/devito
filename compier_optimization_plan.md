@@ -1,5 +1,13 @@
 # Faster-Python Iteration 1: Temporary OSS Compilation Optimization Plan
 
+Benchmark nomenclature used below:
+
+- `light`: `test_profile_eiso_stress_like_schedule_infos`
+- `heavy`: `test_profile_etti_velocity_then_stress_like_schedule_infos`
+- `heavy_IO`:
+  `test_profile_etti_velocity_then_stress_like_bitcomp_serial_schedule_infos`
+  (the `heavy` operator plus bitcomp compression and serialization)
+
 ## Status after current landed caching/reuse, fusion, and derivative-topofuse work
 
 More recent paired PRO/OSS reruns on April 21, 2026 with PRO
@@ -63,10 +71,10 @@ keep forcing increasingly marginal scheduler micro-optimizations on the current
 
 First result after moving up in benchmark complexity on the PRO scratch harness:
 
-- new benchmark:
+- new `heavy_IO` benchmark:
   `test_profile_etti_velocity_then_stress_like_bitcomp_serial_schedule_infos`
 - construction:
-  extend the current heavy `velocity+stress` operator with one compressed,
+  extend the current `heavy` `velocity+stress` operator with one compressed,
   serialized saved `TimeFunction` per `tau_*` component and an extra
   `Eq(tau_*save, tau_*.forward)` per component
 - first pinned compile result:
@@ -358,3 +366,70 @@ Regression-fix commits such as `cc6ee524a`, `6bc7ea1fd`, `9014e0ad0`, and
 `d8981b0de` are intentionally not part of the ordered list above. They matter
 for keeping iteration 0 green, but they are correctness follow-ups rather than
 the primary optimization ideas to replay in iteration 1.
+
+April 22, 2026 IET / bitcomp+serialization (`heavy_IO`) follow-up:
+
+- New `heavy_IO` PRO scratch benchmark:
+  start from the current `heavy` `velocity_then_stress` case and add one
+  bitcomp+serialized saved `TimeFunction` per `tau_*` component.
+
+- Paired clean baseline:
+  about `30.3-31.2 s` total compile, with `optimize_kernels` still around
+  `12.5-12.7 s` and the extra cost landing primarily in `lowering.IET`
+  (`~9.4-9.7 s`).
+
+- Profiling conclusions:
+  `lower_async_objs` scanning is not the dominant new cost; the more relevant
+  IET-side work is in `update_args` and in the second `place_definitions`
+  pass triggered after `pthreadify`.
+
+- Reverted experiment 1:
+  simplify `engine.py:update_args` by collapsing the separate
+  `FindSymbols('basics')` / `FindSymbols('symbolics')` scans and computing
+  `drop_params` directly by index.
+
+  Result:
+  the compile-time probe looked mildly positive/noisy, but narrow
+  compressed-layer runtime tests failed with the same
+  `nbytes_avail_mapper` / `deviceid=-1` breakage, so this is not safe as-is.
+
+- Reverted experiment 2:
+  after `pthreadify`, rerun `place_definitions` only on callables touched by
+  async lowering rather than across the whole graph.
+
+  Result:
+  this was the strongest local compile-time signal in the new `heavy_IO`
+  benchmark:
+  the second-epoch `place_definitions` visits dropped from `31` to `5`, and
+  the heavy compile moved into roughly the `30.2-30.4 s` band.
+  However, the same compressed-layer runtime tests failed, so the idea was
+  reverted as well.
+
+- Current recommendation:
+  treat the async/definitions area as the right place to look for the new
+  heavier benchmark, but do not carry either of the above optimizations
+  without a stronger correctness story. The paired OSS worktree should stay at
+  clean `HEAD`.
+
+- April 22 late follow-up:
+  a narrower post-`pthreadify` rerun of `place_definitions` does look viable
+  after all. Instead of revisiting the whole graph, the current worktree now
+  reruns the pass only on async-owned callables: the transformed
+  `ThreadCallable`s, the helper callables (`activate*`, `init_sdata*`,
+  `shutdown*`), and callers that reference those helpers. This is implemented
+  by allowing `Graph.apply(..., targets=...)` and passing the selected names
+  from `pthreadify`.
+
+  Validation:
+  the CPU layered async cases
+  `tests/test_layered_funcs.py::TestSerialization::test_diskhost[...]` with
+  `buf-async-degree=1` still pass on the paired worktrees.
+  The higher-degree `buf-async-degree=4` variant remains baseline-red because
+  of the pre-existing `npthreads0` codegen issue, so it is not a useful gate.
+
+  Performance:
+  on the `heavy_IO` bitcomp+serialization benchmark, the second-epoch
+  `place_definitions` visits shrink from `31` down to `5`, and the local IET
+  bucket improves from about `1.80 s` to about `1.57-1.66 s`.
+  End-to-end compile time is a small but repeatable win on the latest paired
+  reruns, moving from roughly `30.54 s` to about `30.24-30.49 s`.
