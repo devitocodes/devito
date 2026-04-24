@@ -1,9 +1,15 @@
 from collections.abc import Callable, Hashable
-from functools import lru_cache, partial
+from functools import lru_cache, partial, wraps
 from itertools import tee
 from typing import TypeVar
 
-__all__ = ['CacheInstances', 'memoized_func', 'memoized_generator', 'memoized_meth']
+__all__ = [
+    'CacheInstances',
+    'memoized_func',
+    'memoized_generator',
+    'memoized_meth',
+    'reuse_if_unchanged'
+]
 
 
 class memoized_func:
@@ -217,3 +223,35 @@ class CacheInstances(metaclass=CacheInstancesMeta):
         Clears all IR instance caches.
         """
         CacheInstancesMeta.clear_caches()
+
+
+def reuse_if_unchanged(fields):
+    """
+    Decorator for wrapper-style constructors that should return the original
+    object when called as ``Cls(existing_obj, **same_metadata)``.
+
+    The wrapped callable is assumed to be a classmethod-like constructor
+    receiving ``cls`` as first argument. The fast path triggers only when:
+
+    * the constructor is called with exactly one positional argument;
+    * that argument is already an exact instance of ``cls``;
+    * any explicitly provided metadata fields are the same objects as the
+      corresponding attributes on the input object.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(cls, *args, **kwargs):
+            if len(args) == 1:
+                input_obj = args[0]
+                if type(input_obj) is cls:
+                    names = getattr(cls, fields) if isinstance(fields, str) else fields
+                    for name in names:
+                        if name in kwargs and kwargs[name] is not getattr(input_obj, name, None):
+                            break
+                    else:
+                        return input_obj
+            return func(cls, *args, **kwargs)
+
+        return wrapper
+
+    return decorator

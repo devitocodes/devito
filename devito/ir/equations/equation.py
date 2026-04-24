@@ -10,7 +10,7 @@ from devito.ir.support import (
     GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
 )
 from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
-from devito.tools import Pickable, Tag, filter_sorted, frozendict
+from devito.tools import Pickable, Tag, filter_sorted, frozendict, reuse_if_unchanged
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
 
 __all__ = [
@@ -359,6 +359,7 @@ class ClusterizedEq(IREq):
     These two properties make a ClusterizedEq suitable for use in a Cluster.
     """
 
+    @reuse_if_unchanged('__rkwargs__')
     def __new__(cls, *args, **kwargs):
         if len(args) == 1:
             # origin: ClusterizedEq(expr, **kwargs)
