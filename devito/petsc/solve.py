@@ -137,10 +137,16 @@ class InjectSolve:
             exprs = exprs + (stagger_bc,)
 
         funcs = get_funcs(exprs)
-        # TODO: Double check but this is for data dependencies otherwise the
-        # wrong halospots are generated
-        funcs = tuple(f for f in funcs if f != target)
-        # from IPython import embed; embed()
+        # TODO: Add MPI tests for this but if not filtered, the wrong halospots
+        # are generated or some halospots are missing...(for implicit)
+        funcs = tuple(
+            f for f in funcs
+            if not (
+                f.function is target.function and
+                any(dim.is_Time and i == j
+                    for dim, i, j in zip(f.dimensions, f.indices, target.indices))
+            )
+        )
         self.time_mapper = generate_time_mapper(exprs)
         arrays = self.generate_arrays(target)
 
