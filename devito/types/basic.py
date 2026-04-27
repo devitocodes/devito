@@ -897,6 +897,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def __padding_dtype__(self):
         v = configuration['autopadding']
+
         if not self.is_autopaddable or not v:
             return None
         try:
@@ -924,6 +925,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         snp = self._size_nopad[d]
         remainder = snp % mmts
+
         if remainder == 0:
             # Already a multiple of `mmts`, no need to pad
             return nopadding

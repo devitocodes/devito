@@ -1291,6 +1291,7 @@ class Function(DiscreteFunction):
 
         else:
             raise TypeError(f"`padding` must be int or {self.ndim}-tuple of ints")
+
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
