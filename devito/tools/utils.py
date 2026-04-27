@@ -1,6 +1,6 @@
 import types
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from functools import reduce, wraps
 from itertools import chain, combinations, groupby, product, zip_longest
 from operator import attrgetter, mul
@@ -10,6 +10,7 @@ import sympy
 
 __all__ = [
     'all_equal',
+    'as_hashable',
     'as_list',
     'as_mapper',
     'as_set',
@@ -85,6 +86,28 @@ def as_tuple(item, type=None, length=None):
     if type and not all(isinstance(i, type) for i in t):
         raise TypeError(f'Items need to be of type {type}')
     return t
+
+
+def as_hashable(item):
+    """
+    Convert common containers into a hashable representation.
+
+    Unknown unhashable objects fall back to identity, avoiding false cache hits.
+    """
+    if isinstance(item, Mapping):
+        items = ((as_hashable(k), as_hashable(v)) for k, v in item.items())
+        return tuple(sorted(items, key=repr))
+    if isinstance(item, (tuple, list)):
+        return tuple(as_hashable(i) for i in item)
+    if isinstance(item, (set, frozenset)):
+        return tuple(sorted((as_hashable(i) for i in item), key=repr))
+
+    try:
+        hash(item)
+    except TypeError:
+        return (type(item), id(item))
+    else:
+        return item
 
 
 def as_mapper(iterable, key=None, get=None):

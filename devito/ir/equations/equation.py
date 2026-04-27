@@ -10,7 +10,9 @@ from devito.ir.support import (
     GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
 )
 from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
-from devito.tools import Pickable, Tag, filter_sorted, frozendict, reuse_if_unchanged
+from devito.tools import (
+    Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
+)
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
 
 __all__ = [
@@ -71,6 +73,10 @@ class IREq(sympy.Eq, Pickable):
     @property
     def operation(self):
         return self._operation
+
+    def _hashable_content(self):
+        return (super()._hashable_content() +
+                tuple(as_hashable(getattr(self, i)) for i in self.__rkwargs__))
 
     @property
     def is_Reduction(self):
