@@ -912,8 +912,30 @@ class IterationSpace(Space):
 
         return IterationSpace(intervals, sub_iterators, directions)
 
-    def translate(self, d, v0=0, v1=None):
-        intervals = self.intervals.translate(d, v0, v1)
+    def translate(self, maybe_dim, v0=0, v1=None):
+        """
+        Translate the IterationSpace along a given set of Dimensions by
+        given offsets.
+
+        This method can be invoked in three different flavours:
+
+            * `ispace.translate(dim, v0, v1)`;
+            * `ispace.translate(dims, v0, v1)`
+              Same as before, but applies the translation to all Dimensions
+              in `dims`;
+            * `ispace.translate({d0: (v0, v1), d1: v2, ...})`
+              This is essentially a shortcut to avoid calling `translate` in
+              a loop at the call site.
+        """
+        if not maybe_dim:
+            return self
+        elif isinstance(maybe_dim, dict):
+            intervals = self.intervals
+            for d, v in maybe_dim.items():
+                intervals = intervals.translate(d, *as_tuple(v))
+        else:
+            intervals = self.intervals.translate(maybe_dim, v0, v1)
+
         return IterationSpace(intervals, self.sub_iterators, self.directions)
 
     def reset(self):
