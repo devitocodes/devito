@@ -6,14 +6,14 @@ from sympy import Expr, Not, S
 
 from devito.ir.iet import (
     Break, Call, Conditional, DummyExpr, EntryFunction, FindNodes, FindSymbols, Iteration,
-    List, Return, Transformer, KernelLaunch, make_callable, retrieve_iteration_tree
+    KernelLaunch, List, Return, Transformer, make_callable
 )
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import CondEq, MathFunction
 from devito.tools import dtype_to_ctype
 from devito.types import Eq, Inc, LocalObject, Symbol
 
-__all__ = ['check_stability', 'check_launch', 'error_mapper']
+__all__ = ['check_launch', 'check_stability', 'error_mapper']
 
 
 def check_stability(graph, options=None, rcompile=None, sregistry=None, **kwargs):
@@ -102,15 +102,15 @@ def _check_stability(iet, wmovs=(), rcompile=None, sregistry=None):
     return iet, {'efuncs': efuncs, 'includes': includes}
 
 
-def check_launch(graph, options={}, **kwargs):
+def check_launch(graph, options=None, **kwargs):
     """
     Insert the CHECK_LAUNCH macro if errctl is set to ensure graceful handling of
     failed kernel launches. This macro should only be inserted if the kernel is
     directly within a loop, as compilation will fail otherwise.
     """
-    if not options.get('errctl', False):
+    if options is None or not options.get('errctl', False):
         return
-    
+
     langbb = kwargs['langbb']
 
     definition = make_launch_macros(langbb)
