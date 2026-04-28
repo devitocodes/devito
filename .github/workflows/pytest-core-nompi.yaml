@@ -25,6 +25,7 @@ jobs:
       DEVITO_ARCH: "${{ matrix.arch }}"
       DEVITO_LANGUAGE: ${{ matrix.language }}
       OMP_NUM_THREADS: 2
+      DEVITO_DEVELOP: 1
 
     strategy:
       # Prevent cancellation if a single workflow fails

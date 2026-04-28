@@ -132,6 +132,24 @@ def test_real():
         assert s.is_imaginary is np.iscomplexobj(dtype(0))
 
 
+@pytest.mark.parametrize('spacing, extent, shape, expected, broken', [
+    ((0.5, 0.5), None, (11, 11), ((0.5, 0.5), (5.0, 5.0)), False),
+    (None, (5.0, 5.0), (11, 11), ((0.5, 0.5), (5.0, 5.0)), False),
+    ((0.5, 0.5), (5.0, 5.0), (11, 11), ((0.5, 0.5), (5.0, 5.0)), False),
+    (None, (.3, .3), (151, 146), ((0.002, 0.002), (.3, .3)), 'spacing'),
+    ((.002, .002), (.3, .3), (151, 146), ((0.002, 0.002), (.3, .3)), False),
+    ((.002, .002), None, (151, 146), ((0.002, 0.002), (.3, .3)), 'extent'),
+    (None, None, (11, 11), ((.1, .1), (1.0, 1.0)), False),
+])
+def test_grid_inputs(spacing, extent, shape, expected, broken):
+    grid = Grid(shape=shape, spacing=spacing, extent=extent)
+    sp, ex = expected
+    sp = np.array(sp).astype(grid.dtype)
+    ex = np.array(ex).astype(grid.dtype)
+    assert np.allclose(grid.spacing, sp, atol=0, rtol=0) is (broken != 'spacing')
+    assert np.allclose(grid.extent, ex, atol=0, rtol=0) is (broken != 'extent')
+
+
 def test_constant():
     c = Constant(name='c')
 

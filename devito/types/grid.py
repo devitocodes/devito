@@ -150,8 +150,8 @@ class Grid(CartesianDiscretization, ArgProvider):
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 time_dimension=None, dtype=np.float32, subdomains=None,
-                 comm=None, topology=None):
+                 spacing=None, time_dimension=None, dtype=np.float32,
+                 subdomains=None, comm=None, topology=None):
         shape = as_tuple(shape)
 
         # Create or pull the SpaceDimensions
@@ -193,9 +193,16 @@ class Grid(CartesianDiscretization, ArgProvider):
             self._topology = None
         self._distributor = Distributor(shape, dimensions, comm, self._topology)
 
-        # The physical extent
-        extent = as_tuple(extent or tuple(1. for _ in self.shape))
-        self._extent = tuple(dtype(e) for e in extent)
+        # The physical extent and grid spacing
+        if spacing is not None:
+            self._spacing = tuple(dtype(s) for s in as_tuple(spacing))
+        else:
+            self._spacing = None
+
+        if extent is not None:
+            self._extent = tuple(dtype(e) for e in as_tuple(extent))
+        else:
+            self._extent = tuple(1. for _ in shape) if spacing is None else None
 
         # The origin of the grid
         origin = as_tuple(origin or tuple(0. for _ in self.shape))
@@ -230,10 +237,13 @@ class Grid(CartesianDiscretization, ArgProvider):
         return 'Grid' + \
             f'[extent={self.extent}, shape={self.shape}, dimensions={self.dimensions}]'
 
-    @property
+    @cached_property
     def extent(self):
         """Physical extent of the domain in m."""
-        return self._extent
+        if self._extent is not None:
+            return self._extent
+        extent = ((np.array(self.shape) - 1)*np.array(self.spacing)).astype(self.dtype)
+        return as_tuple(extent)
 
     @property
     def origin(self):
@@ -293,9 +303,11 @@ class Grid(CartesianDiscretization, ArgProvider):
         """Volume of a single cell e.g  h_x*h_y*h_z in 3D."""
         return prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
 
-    @property
+    @cached_property
     def spacing(self):
         """Spacing between grid points in m."""
+        if self._spacing is not None:
+            return self._spacing
         spacing = (np.array(self.extent) / (np.array(self.shape) - 1)).astype(self.dtype)
         return as_tuple(spacing)
 
