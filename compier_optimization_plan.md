@@ -8,7 +8,51 @@ Benchmark nomenclature used below:
   `test_profile_etti_velocity_then_stress_like_bitcomp_serial_schedule_infos`
   (the `heavy` operator plus bitcomp compression and serialization)
 
-## Status after current landed caching/reuse, fusion, and derivative-topofuse work
+## April 28, 2026 update: impact of the latest two OSS commits
+
+The latest two OSS commits moved the paired PRO/OSS branch beyond the previous
+April 21/22 `~26 s` heavy-compile checkpoint:
+
+- `fc755479d` (`compiler: Split into EqBlock and Cluster`)
+  - split the structural Cluster payload into cached `EqBlock` objects while
+    preserving Cluster identity semantics
+  - made `IREq` hashing/equality include IR metadata via `_hashable_content`,
+    with the reusable `as_hashable` helper, so EqBlock caching does not merge
+    equations that only differ in `ispace`, `conditionals`, `implicit_dims`, or
+    `operation`
+  - measured impact after correctness fixes:
+    - stress-only: about `11.0 s`
+    - heavy `velocity+stress`: about `24.4 s`
+    - heavy `optimize_kernels`: about `11.3-11.4 s`
+  - validation at this point included the targeted EqBlock repros, nearby
+    equation/visitor/CSE tests, and a full OSS suite:
+    `3549 passed, 5 skipped, 4 xfailed, 1 xpassed`
+
+- `771f807ab` (`compiler: Stash hash were essential for compilation performance`)
+  - added `cached_hash`, which stashes immutable-object `__hash__` results in
+    `_mhash`
+  - applied it to the hottest hash sites from the profiling investigation:
+    support-space objects (`Interval`, `IntervalGroup`, `IterationInterval`,
+    `IterationSpace`, `DataSpace`, and `IterationDirection`) plus Cluster queue
+    keys (`Prefix`) and `ClusterGroup`
+  - removed the generic `Space.__hash__` path and made subclasses hash their
+    concrete payloads directly, avoiding shared base/subclass hash-cache
+    ambiguity
+  - measured impact after this commit:
+    - stress-only: `10.45-10.57 s`, with `optimize_kernels 3.30-3.43 s`
+    - heavy `velocity+stress`: `22.82-22.89 s`, with
+      `optimize_kernels 10.43-10.50 s`
+  - validation at this point included `test_lower_clusters.py + test_ir.py`,
+    the four EqBlock/equation repros, and the two benchmark probes above; a
+    full OSS suite has not yet been rerun after this second commit
+
+Current practical checkpoint for the heavy benchmark is therefore now about
+`22.8-22.9 s`, not the older `25.8-26.0 s` plateau. Relative to the previous
+April 22 plateau, the latest two commits are worth roughly `3 s` on the heavy
+compile, with the larger second-step gain coming from cached support-space and
+Cluster queue hashing.
+
+## Historical April 21 status after caching/reuse, fusion, and derivative-topofuse work
 
 More recent paired PRO/OSS reruns on April 21, 2026 with PRO
 `faster-python-1` at `b770aaee`, OSS `/home/fl1612/devito-faster-python-1` at
@@ -20,9 +64,10 @@ checkpoint as:
 - `test_profile_eiso_stress_like_schedule_infos`: `5.81-5.83 s`
 - `test_profile_etti_velocity_then_stress_like_schedule_infos`: `25.81-26.21 s`
 
-So the current paired `velocity+stress` checkpoint for this branch family is
-still about `26 s`; the older `32.00 s` value below is now only a historical
-April 10 milestone.
+At that point, the paired `velocity+stress` checkpoint for this branch family
+was still about `26 s`; the older `32.00 s` value below is only a historical
+April 10 milestone, and the April 28 section above supersedes both numbers for
+the current branch.
 
 ## April 22, 2026 plateau note on the paired PRO/OSS branches
 
@@ -361,6 +406,16 @@ algorithmic and threading changes come later.
    iteration 0 showed that this class of optimization can improve compile-time
    behavior, but it also showed that the semantic risk is high enough that it
    should not be part of the first iteration-1 subset.
+
+   April 28, 2026 landed follow-up:
+   the current branch now extends this bucket with the EqBlock/Cluster split in
+   `fc755479d` and cached immutable-object hashes in `771f807ab`. This is the
+   first object-caching follow-up in a while that clearly moved the main heavy
+   benchmark rather than only shaving noise: the heavy `velocity+stress` probe
+   moved from the previous `25.8-26.0 s` plateau through about `24.4 s` after
+   EqBlock caching, then to `22.8-22.9 s` after cached support-space and
+   Cluster queue hashes. The `cached_hash` result also confirms that repeated
+   hashing was a real compile-time cost, not just profiling noise.
 
 Regression-fix commits such as `cc6ee524a`, `6bc7ea1fd`, `9014e0ad0`, and
 `d8981b0de` are intentionally not part of the ordered list above. They matter
