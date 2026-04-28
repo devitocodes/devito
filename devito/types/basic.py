@@ -1889,10 +1889,9 @@ class Indexed(sympy.Indexed):
     @cached_property
     def free_symbols(self):
         # Make it cached, since it's relatively expensive and called often
-        ret = super().free_symbols
         # Get rid of the IndexedBase label this Indexed stems from
         # as in Devito we can't have it floating around in Eq's
-        ret.discard(self.base.label)
+        ret = {i for i in super().free_symbols if not isinstance(i, IndexedBase)}
         return ret
 
     def compare(self, other):

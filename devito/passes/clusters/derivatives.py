@@ -169,10 +169,10 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     # NOTE: created before recursing so that we ultimately get a sound ordering
     try:
         s = reusables.pop()
-        assert np.can_cast(s.dtype, w.dtype)
+        assert np.can_cast(s.dtype, c.dtype)
     except KeyError:
         name = sregistry.make_name(prefix='r')
-        s = Symbol(name=name, dtype=w.dtype)
+        s = Symbol(name=name, dtype=c.dtype)
 
     # Go inside `expr` and recursively lower any nested IndexDerivatives
     expr, processed = _core(expr, c, ispace1, weights, reusables, mapper, **kwargs)

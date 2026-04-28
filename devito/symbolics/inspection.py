@@ -319,7 +319,10 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
     dtypes = {base} - {None}
     for i in expr.free_symbols:
         with suppress(AttributeError):
-            dtypes.add(i.dtype)
+            # Ignore FD coefficients since they are always FP32
+            from devito.finite_differences.differentiable import Weights, WeightsIndexed
+            if not isinstance(i, (Weights, WeightsIndexed)):
+                dtypes.add(i.dtype)
 
     dtype = infer_dtype(dtypes)
 
