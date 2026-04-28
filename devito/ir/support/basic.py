@@ -14,8 +14,8 @@ from devito.symbolics import (
     retrieve_indexed
 )
 from devito.tools import (
-    CacheInstances, Tag, as_mapper, as_tuple, filter_sorted, flatten, is_integer,
-    memoized_func, memoized_generator, memoized_meth, smart_gt, smart_lt
+    CacheInstances, Tag, as_mapper, as_tuple, cached_hash, filter_sorted, flatten,
+    is_integer, memoized_func, memoized_generator, memoized_meth, smart_gt, smart_lt
 )
 from devito.types import (
     ComponentAccess, CriticalRegion, Dimension, DimensionTuple, Fence, Function, Symbol,
@@ -253,6 +253,7 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
                 self.access == other.access and
                 self.ispace == other.ispace)
 
+    @cached_hash
     def __hash__(self):
         return hash((self.access, self.mode, self.timestamp, self.ispace))
 
