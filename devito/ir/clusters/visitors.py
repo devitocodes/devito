@@ -2,7 +2,7 @@ from collections.abc import Iterable
 from itertools import groupby
 
 from devito.ir.support import IterationSpace, null_ispace
-from devito.tools import flatten, timed_pass
+from devito.tools import cached_hash, flatten, timed_pass
 
 __all__ = ['Queue', 'cluster_pass']
 
@@ -131,6 +131,7 @@ class Prefix(IterationSpace):
                 self.properties == other.properties and
                 self.syncs == other.syncs)
 
+    @cached_hash
     def __hash__(self):
         return hash((self.intervals, self.sub_iterators, self.directions,
                      self.guards, self.properties, self.syncs))
