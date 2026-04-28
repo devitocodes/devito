@@ -272,31 +272,34 @@ class Guards(frozendict):
     def get(self, d, v=true):
         return super().get(d, v)
 
+    def _rebuild(self, mapper):
+        return self if mapper == self else Guards(mapper)
+
     def andg(self, d, guard):
         m = dict(self)
 
         if guard == true:
-            return Guards(m)
+            return self
 
         try:
             m[d] = simplify_and(m[d], guard)
         except KeyError:
             m[d] = guard
 
-        return Guards(m)
+        return self._rebuild(m)
 
     def xandg(self, d, guard):
         m = dict(self)
 
         if guard == true:
-            return Guards(m)
+            return self
 
         try:
             m[d] = And(m[d], guard)
         except KeyError:
             m[d] = guard
 
-        return Guards(m)
+        return self._rebuild(m)
 
     def pairwise_or(self, d, *guards):
         m = dict(self)
@@ -311,17 +314,17 @@ class Guards(frozendict):
         else:
             m[d] = g
 
-        return Guards(m)
+        return self._rebuild(m)
 
     def impose(self, d, guard):
         m = dict(self)
 
         if guard == true:
-            return Guards(m)
+            return self
 
         m[d] = guard
 
-        return Guards(m)
+        return self._rebuild(m)
 
     def popany(self, dims):
         m = dict(self)
@@ -329,12 +332,12 @@ class Guards(frozendict):
         for d in as_tuple(dims):
             m.pop(d, None)
 
-        return Guards(m)
+        return self._rebuild(m)
 
     def filter(self, key):
         m = {d: v for d, v in self.items() if key(d)}
 
-        return Guards(m)
+        return self._rebuild(m)
 
     def as_map(self, d, cls):
         if cls not in (Le, Lt, Ge, Gt):
