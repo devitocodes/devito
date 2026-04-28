@@ -1,5 +1,7 @@
 from hashlib import sha1
 
+from devito.tools.memoization import cached_hash
+
 __all__ = ['Pickable', 'Reconstructable', 'Signer', 'Singleton', 'Stamp', 'Tag']
 
 
@@ -34,6 +36,7 @@ class Tag:
     def __ge__(self, other):
         return self.val >= other.val
 
+    @cached_hash
     def __hash__(self):
         return hash((self.name, self.val))
 
