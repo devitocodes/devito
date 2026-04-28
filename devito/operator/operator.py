@@ -1396,15 +1396,21 @@ class ArgumentsMap(dict):
             visible_device_var, visible_devices = get_visible_devices()
             if visible_devices is None:
                 return logical_deviceid
+            elif len(visible_devices) == 1:
+                # Only one visible device, it's clearly the one we want
+                return visible_devices[0]
+            elif logical_deviceid <= len(visible_devices):
+                # Map the logical device ID to the physical one
+                return visible_devices[logical_deviceid]
             else:
-                try:
-                    return visible_devices[logical_deviceid]
-                except IndexError as e:
-                    errmsg = (f"A deviceid value of {logical_deviceid} is not valid "
-                              f"with {visible_device_var}={visible_devices}. Note that "
-                              "deviceid corresponds to the logical index within the "
-                              "visible devices, not the physical device index.")
-                    raise ValueError(errmsg) from e
+                # Logical device ID is out of bounds, likely from oversubscription
+                # Print a warning and map modulo the number of visible devices
+                deviceid = visible_devices[logical_deviceid % len(visible_devices)]
+                warning(f"Logical device ID {logical_deviceid} is out of bounds "
+                        f"for {len(visible_devices)} visible devices"
+                        f" in {visible_device_var}."
+                        f"Mapping to device ID {deviceid} instead.")
+                return visible_devices[logical_deviceid % len(visible_devices)]
         else:
             return None
 

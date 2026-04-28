@@ -108,7 +108,13 @@ class TestDeviceID:
         assert argmap2._physical_deviceid == 0
 
     @pytest.mark.parallel(mode=2)
-    @pytest.mark.parametrize('visible_devices', ["1,2", "1,0", "0,2,3"])
+    @pytest.mark.parametrize('visible_devices', [
+        "1,2", "1,0", "0,2,3",
+        # Per rank VISIBLE_DEVICE
+        ("1", "0"),
+        # Oversubscribed
+        "1",
+    ])
     def test_visible_devices_mpi(self, visible_devices, mode):
         """
         Test that physical device IDs used for querying memory on a device via
@@ -122,11 +128,18 @@ class TestDeviceID:
 
         eq = Eq(u, u+1)
 
-        with switchenv({'CUDA_VISIBLE_DEVICES': visible_devices}):
+        if isinstance(visible_devices, tuple):
+            cu_device = visible_devices[rank]
+            expected = int(cu_device)
+        else:
+            cu_device = visible_devices
+            devices = visible_devices.split(',')
+            expected = int(devices[rank % len(devices)])
+
+        with switchenv({'CUDA_VISIBLE_DEVICES': cu_device}):
             op1 = Operator(eq)
             argmap1 = op1.arguments()
-            devices = [int(i) for i in visible_devices.split(',')]
-            assert argmap1._physical_deviceid == devices[rank]
+            assert argmap1._physical_deviceid == expected
 
         # In default case, physical deviceid will equal rank
         op2 = Operator(eq)
