@@ -9,7 +9,7 @@ from devito.ir.support.utils import maximum, minimum
 from devito.ir.support.vector import Vector, vmax, vmin
 from devito.tools import (
     CacheInstances, Ordering, Stamp, as_list, as_set, as_tuple, filter_ordered,
-    flatten, frozendict, is_integer, toposort
+    cached_hash, flatten, frozendict, is_integer, toposort
 )
 from devito.types import Dimension, ModuloDimension
 
@@ -53,6 +53,7 @@ class AbstractInterval:
 
     is_compatible = __eq__
 
+    @cached_hash
     def __hash__(self):
         return hash(self.dim.name)
 
@@ -103,6 +104,7 @@ class NullInterval(AbstractInterval, CacheInstances):
     def __repr__(self):
         return f"{self.dim}[Null]{self.stamp}"
 
+    @cached_hash
     def __hash__(self):
         return hash(self.dim)
 
@@ -167,6 +169,7 @@ class Interval(AbstractInterval, CacheInstances):
     def __repr__(self):
         return f"{self.dim}[{self.lower},{self.upper}]{self.stamp}"
 
+    @cached_hash
     def __hash__(self):
         return hash((self.dim, self.offsets))
 
@@ -362,6 +365,7 @@ class IntervalGroup(Ordering, CacheInstances):
     def __contains__(self, d):
         return any(i.dim is d for i in self)
 
+    @cached_hash
     def __hash__(self):
         return hash((tuple(self), self.relations, self.mode))
 
@@ -620,6 +624,7 @@ class IterationDirection:
     def __repr__(self):
         return self._name
 
+    @cached_hash
     def __hash__(self):
         return hash(self._name)
 
@@ -658,6 +663,7 @@ class IterationInterval(Interval):
             return False
         return self.direction is other.direction and super().__eq__(other)
 
+    @cached_hash
     def __hash__(self):
         return hash((self.dim, self.offsets, self.direction))
 
@@ -691,9 +697,6 @@ class Space:
 
     def __eq__(self, other):
         return isinstance(other, Space) and self.intervals == other.intervals
-
-    def __hash__(self):
-        return hash(self.intervals)
 
     def __len__(self):
         return len(self.intervals)
@@ -758,8 +761,9 @@ class DataSpace(Space):
                 self.intervals == other.intervals and
                 self.parts == other.parts)
 
+    @cached_hash
     def __hash__(self):
-        return hash((super().__hash__(), self.parts))
+        return hash((self.intervals, self.parts))
 
     @classmethod
     def union(cls, *others):
@@ -854,8 +858,9 @@ class IterationSpace(Space, CacheInstances):
         """
         return len(self.itintervals) < len(other.itintervals)
 
+    @cached_hash
     def __hash__(self):
-        return hash((super().__hash__(), self.sub_iterators, self.directions))
+        return hash((self.intervals, self.sub_iterators, self.directions))
 
     def __contains__(self, d):
         try:

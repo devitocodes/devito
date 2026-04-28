@@ -14,7 +14,9 @@ from devito.ir.support import (
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
-from devito.tools import CacheInstances, as_tuple, filter_ordered, flatten, infer_dtype
+from devito.tools import (
+    CacheInstances, as_tuple, cached_hash, filter_ordered, flatten, infer_dtype
+)
 from devito.types import (
     CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
     ThreadPoolSync, ThreadWait, WeakFence
@@ -646,6 +648,7 @@ class ClusterGroup(tuple):
     def __ne__(self, other):
         return not self == other
 
+    @cached_hash
     def __hash__(self):
         return hash((tuple(self), self._ispace))
 

@@ -5,11 +5,31 @@ from typing import TypeVar
 
 __all__ = [
     'CacheInstances',
+    'cached_hash',
     'memoized_func',
     'memoized_generator',
     'memoized_meth',
     'reuse_if_unchanged'
 ]
+
+
+def cached_hash(func):
+    """
+    Cache an immutable object's ``__hash__`` return value in ``_mhash``.
+
+    Warning: avoid explicitly calling a superclass' cached ``__hash__`` on a
+    subclass instance, as that would stash the superclass hash in ``_mhash``.
+    """
+    @wraps(func)
+    def wrapper(self):
+        try:
+            return self._mhash
+        except AttributeError:
+            ret = func(self)
+            self._mhash = ret
+            return ret
+
+    return wrapper
 
 
 class memoized_func:
