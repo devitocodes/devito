@@ -9,7 +9,7 @@ from devito import Eq, Operator, switchenv
 from devito.tools import (
     DefaultFrozenDict,
     CacheInstances, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr, filter_ordered,
-    memoized_meth, toposort, transitive_closure
+    memoized_meth, memoized_weak_meth, toposort, transitive_closure
 )
 from devito.types.basic import Symbol
 
@@ -87,6 +87,42 @@ def test_memoized_meth():
     assert obj.f([3]) == [3]
     assert obj.f([3]) == [3]
     assert obj.calls == 4
+
+
+def test_memoized_weak_meth():
+
+    class Root:
+        pass
+
+    class Obj:
+
+        def __init__(self, mode):
+            self.mode = mode
+            self.calls = 0
+
+        @memoized_weak_meth(key=lambda i: i.mode, freeze=tuple, thaw=list)
+        def f(self, root):
+            self.calls += 1
+            return [self.mode]
+
+    root = Root()
+    obj0 = Obj('a')
+    obj1 = Obj('a')
+    obj2 = Obj('b')
+
+    ret = obj0.f(root)
+    ret.append('mutated')
+
+    assert obj1.f(root) == ['a']
+    assert obj0.calls == 1
+    assert obj1.calls == 0
+
+    assert obj2.f(root) == ['b']
+    assert obj2.calls == 1
+
+    assert obj0.f([]) == ['a']
+    assert obj0.f([]) == ['a']
+    assert obj0.calls == 3
 
 
 def test_default_frozen_dict():

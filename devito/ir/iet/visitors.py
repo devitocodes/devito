@@ -28,7 +28,7 @@ from devito.symbolics import (
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
     GenericVisitor, as_tuple, c_restrict_void_p, filter_ordered, filter_sorted, flatten,
-    is_external_ctype, sorted_priority
+    is_external_ctype, memoized_weak_meth, sorted_priority
 )
 from devito.types import (
     ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer
@@ -1115,11 +1115,16 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
     def __init__(self, mode: str = 'symbolics') -> None:
         super().__init__()
 
+        self.mode = mode
         modes = mode.split('|')
         if len(modes) == 1:
             self.rule = self.rules[mode]
         else:
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
+
+    @memoized_weak_meth(key=lambda i: i.mode, freeze=tuple, thaw=list)
+    def visit(self, o, *args, **kwargs):
+        return super().visit(o, *args, **kwargs)
 
     def _post_visit(self, ret):
         return sorted(filter_ordered(ret, key=id), key=str)
@@ -1236,7 +1241,12 @@ class FindApplications(LazyVisitor[ApplicationType, set[ApplicationType], None])
 
     def __init__(self, cls: type[ApplicationType] = Application):
         super().__init__()
+        self.cls = cls
         self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
+
+    @memoized_weak_meth(key=lambda i: i.cls, freeze=frozenset, thaw=set)
+    def visit(self, o, *args, **kwargs):
+        return super().visit(o, *args, **kwargs)
 
     def _post_visit(self, ret):
         return set(ret)

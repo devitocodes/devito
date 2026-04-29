@@ -2,6 +2,7 @@ from collections.abc import Callable, Hashable
 from functools import lru_cache, partial, wraps
 from itertools import tee
 from typing import TypeVar
+from weakref import WeakKeyDictionary
 
 __all__ = [
     'CacheInstances',
@@ -9,6 +10,7 @@ __all__ = [
     'memoized_func',
     'memoized_generator',
     'memoized_meth',
+    'memoized_weak_meth',
     'reuse_if_unchanged'
 ]
 
@@ -185,6 +187,54 @@ class memoized_generator:
         it = cache[key] if key in cache else self.func(*args, **kwargs)
         cache[key], result = tee(it)
         return result
+
+
+def memoized_weak_meth(*, key=None, freeze=None, thaw=None):
+    """
+    Cache a method result against its first argument using weak references.
+
+    This is useful for visitors operating on temporary IR roots: the cache can
+    be shared across short-lived visitor instances without keeping those roots
+    alive. Only calls without extra arguments are cached; all other calls fall
+    back to the wrapped method.
+
+    Parameters
+    ----------
+    key : callable, optional
+        A callable receiving ``self`` and returning a hashable cache partition.
+    freeze : callable, optional
+        Convert the method result before storing it in the cache.
+    thaw : callable, optional
+        Convert the cached value before returning it to the caller.
+    """
+    def decorator(func):
+        caches = {}
+
+        @wraps(func)
+        def wrapper(self, o, *args, **kwargs):
+            if args or kwargs:
+                return func(self, o, *args, **kwargs)
+
+            try:
+                partition = key(self) if key is not None else None
+                cache = caches.setdefault(partition, WeakKeyDictionary())
+                ret = cache[o]
+            except KeyError:
+                ret = func(self, o)
+                if freeze is not None:
+                    ret = freeze(ret)
+                cache[o] = ret
+            except TypeError:
+                return func(self, o)
+
+            if thaw is not None:
+                return thaw(ret)
+
+            return ret
+
+        return wrapper
+
+    return decorator
 
 
 # Describes the type of a subclass of CacheInstances
