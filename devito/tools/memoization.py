@@ -137,11 +137,19 @@ class memoized_meth:
             cache = obj.__cache_meth
         except AttributeError:
             cache = obj.__cache_meth = {}
-        key = (self.func, args[1:], frozenset(kw.items()))
+        if kw:
+            key = (self.func, args[1:], frozenset(kw.items()))
+        else:
+            key = (self.func, args[1:])
+
         try:
             res = cache[key]
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
+        except TypeError:
+            # Uncacheable, e.g. an unhashable item within ``args``.
+            return self.func(*args, **kw)
+
         return res
 
 

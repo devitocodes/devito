@@ -8,7 +8,7 @@ from devito.ir.support import (
 )
 from devito.symbolics import search
 from devito.tools import (
-    DAG, as_tuple, flatten, frozendict, memoized_func, timed_pass
+    DAG, as_tuple, flatten, frozendict, memoized_func, memoized_meth, timed_pass
 )
 
 __all__ = ['fuse']
@@ -130,6 +130,7 @@ class Fusion(Queue):
 
             return obj
 
+    @memoized_meth
     def _key(self, c):
         itintervals = frozenset(c.ispace.itintervals)
         guards = c.guards if any(c.guards) else None
