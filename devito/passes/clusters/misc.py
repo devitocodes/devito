@@ -109,7 +109,7 @@ def optimize_pows(cluster, *args):
     """
     Convert integer powers into Muls, such as ``a**2 => a*a``.
     """
-    return cluster.rebuild(exprs=[pow_to_mul(e) for e in cluster.exprs])
+    return cluster.rebuild(exprs=pow_to_mul(cluster.exprs))
 
 
 class Fission(Queue):
