@@ -19,7 +19,7 @@ from devito.exceptions import CompilationError
 from devito.ir.cgen.printer import get_printer
 from devito.ir.iet.nodes import (
     BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
-    Section
+    Section, _same_as_before as same_as_before
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
@@ -1525,26 +1525,6 @@ class Uxreplace(Transformer):
 # Utils
 
 blankline = c.Line("")
-
-
-def same_as_before(old, new):
-    if old is new:
-        return True
-
-    if isinstance(old, (tuple, list)) and isinstance(new, (tuple, list)):
-        return len(old) == len(new) and all(
-            same_as_before(i, j) for i, j in zip(old, new, strict=True)
-        )
-
-    if type(old) is not type(new):
-        return False
-
-    if isinstance(old, dict):
-        return old.keys() == new.keys() and all(
-            same_as_before(v, new[k]) for k, v in old.items()
-        )
-
-    return False
 
 
 def reuse_if_unchanged(o, *children, **kwargs):
