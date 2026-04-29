@@ -9,7 +9,7 @@ from devito import Eq, Operator, switchenv
 from devito.tools import (
     DefaultFrozenDict,
     CacheInstances, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr, filter_ordered,
-    toposort, transitive_closure
+    memoized_meth, toposort, transitive_closure
 )
 from devito.types.basic import Symbol
 
@@ -60,6 +60,33 @@ def test_transitive_closure():
     mapper = {a: b, b: c, c: d, f: e}
     mapper = transitive_closure(mapper)
     assert mapper == {a: d, b: d, c: d, f: e}
+
+
+def test_memoized_meth():
+
+    class Obj:
+
+        def __init__(self):
+            self.calls = 0
+
+        @memoized_meth
+        def f(self, x=None):
+            self.calls += 1
+            return x
+
+    obj = Obj()
+
+    assert obj.f(1) == 1
+    assert obj.f(1) == 1
+    assert obj.calls == 1
+
+    assert obj.f(x=2) == 2
+    assert obj.f(x=2) == 2
+    assert obj.calls == 2
+
+    assert obj.f([3]) == [3]
+    assert obj.f([3]) == [3]
+    assert obj.calls == 4
 
 
 def test_default_frozen_dict():
