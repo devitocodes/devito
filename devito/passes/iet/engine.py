@@ -15,7 +15,10 @@ from devito.mpi.distributed import MPINeighborhood
 from devito.mpi.routines import Gather, HaloUpdate, HaloWait, MPIMsg, Scatter
 from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointer, search
-from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
+from devito.tools import (
+    DAG, as_hashable, as_tuple, filter_ordered, memoized_func, sorted_priority,
+    timed_pass
+)
 from devito.types import (
     Array, Auto, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,
     Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData, Symbol,
@@ -102,7 +105,7 @@ class Graph(Byproduct):
         A mapper {Iteration -> SyncSpot} describing the Iterations, if any,
         living an asynchronous region, across all Callables in the Graph.
         """
-        dag = create_call_graph(self.root.name, self.efuncs)
+        dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
 
         mapper = MapNodes(SyncSpot, (Iteration, Call)).visit(self.root)
 
@@ -129,7 +132,7 @@ class Graph(Byproduct):
         """
         Apply `func` to all nodes in the Graph. This changes the state of the Graph.
         """
-        dag = create_call_graph(self.root.name, self.efuncs)
+        dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
 
         # Apply `func`
         efuncs = dict(self.efuncs)
@@ -184,7 +187,7 @@ class Graph(Byproduct):
         from nodes to info. Unlike `apply`, `visit` does not change the state
         of the Graph.
         """
-        dag = create_call_graph(self.root.name, self.efuncs)
+        dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
         toposort = dag.topological_sort()
 
         mapper = dict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
@@ -242,11 +245,14 @@ def iet_visit(func):
     return iet_pass((iet_visit, func))
 
 
+@memoized_func(scope='build')
 def create_call_graph(root, efuncs):
     """
     Create a Call graph -- a Direct Acyclic Graph with edges from callees
     to callers.
     """
+    efuncs = dict(efuncs)
+
     dag = DAG(nodes=[root])
     queue = [root]
 
@@ -442,7 +448,7 @@ def reuse_efuncs(root, efuncs, sregistry=None):
     # assuming that `bar0` and `bar1` are compatible, we first process the
     # `bar`'s to obtain `[foo0(u(x)): bar0(u), foo1(u(x)): bar0(u)]`,
     # and finally `foo0(u(x)): bar0(u)`
-    dag = create_call_graph(root.name, efuncs)
+    dag = create_call_graph(root.name, as_hashable(efuncs))
 
     mapper = {}
     for i in dag.topological_sort():
@@ -484,6 +490,7 @@ def reuse_efuncs(root, efuncs, sregistry=None):
     return retval
 
 
+@memoized_func(scope='build')
 def abstract_efunc(efunc):
     """
     Abstract `efunc` applying a set of rules:
@@ -496,7 +503,7 @@ def abstract_efunc(efunc):
     """
     functions = FindSymbols('basics|symbolics|dimensions').visit(efunc)
 
-    mapper = abstract_objects(functions)
+    mapper = abstract_objects(tuple(functions))
 
     efunc = Uxreplace(mapper).visit(efunc)
     efunc = efunc._rebuild(name='foo')
@@ -504,7 +511,8 @@ def abstract_efunc(efunc):
     return efunc
 
 
-def abstract_objects(objects0, sregistry=None):
+@memoized_func(scope='build')
+def abstract_objects(objects0):
     """
     Proxy for `abstract_object`.
     """
@@ -523,7 +531,7 @@ def abstract_objects(objects0, sregistry=None):
 
     # Build abstraction mappings
     mapper = {}
-    sregistry = sregistry or SymbolRegistry()
+    sregistry = SymbolRegistry()
     for i in objects:
         abstract_object(i, mapper, sregistry)
 

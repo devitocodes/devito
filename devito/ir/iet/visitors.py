@@ -1538,17 +1538,6 @@ blankline = c.Line("")
 
 
 def reuse_if_unchanged(o, *children, **kwargs):
-    def same_kwarg(k, v):
-        with suppress(AttributeError):
-            if same_as_before(getattr(o, k), v):
-                return True
-
-        with suppress(KeyError):
-            if same_as_before(o.args[k], v):
-                return True
-
-        return False
-
     if children:
         same_children = all(
             same_as_before(i, j) for i, j in zip(o.children, children, strict=True)
@@ -1556,7 +1545,7 @@ def reuse_if_unchanged(o, *children, **kwargs):
         if not same_children:
             return o._rebuild(*children, **kwargs)
 
-    if kwargs and not all(same_kwarg(k, v) for k, v in kwargs.items()):
+    if kwargs and not all(o._same_arg(k, v) for k, v in kwargs.items()):
         return o._rebuild(*children, **kwargs)
 
     return o
