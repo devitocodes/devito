@@ -6,8 +6,8 @@ from devito import Eq, Function, Grid, Min, Operator, TimeFunction, sin
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (
     Block, Call, Callable, Conditional, Expression, FindApplications, FindNodes,
-    FindSections, FindSymbols, IsPerfectIteration, Iteration, MapNodes, Transformer,
-    Uxreplace, printAST
+    FindSections, FindSymbols, FindWithin, IsPerfectIteration, Iteration, MapNodes,
+    Transformer, Uxreplace, printAST
 )
 from devito.types import Array, SpaceDimension, Symbol
 
@@ -208,6 +208,15 @@ def test_find_sections(exprs, block1, block2, block3):
     assert len(found[0]) == 1
     assert len(found[1]) == 2
     assert len(found[2]) == 1
+
+
+def test_find_within_not_cached_like_findnodes(block3):
+    expr0 = FindWithin(Expression, block3.nodes[0], block3.nodes[1]).visit(block3)
+    expr1 = FindWithin(Expression, block3.nodes[1], block3.nodes[2]).visit(block3)
+
+    assert len(expr0) == 3
+    assert len(expr1) == 3
+    assert expr0 != expr1
 
 
 def test_is_perfect_iteration(block1, block2, block3, block4):
