@@ -488,3 +488,47 @@ April 22, 2026 IET / bitcomp+serialization (`heavy_IO`) follow-up:
   bucket improves from about `1.80 s` to about `1.57-1.66 s`.
   End-to-end compile time is a small but repeatable win on the latest paired
   reruns, moving from roughly `30.54 s` to about `30.24-30.49 s`.
+
+April 30, 2026 IET memoization / no-op rebuild follow-up:
+
+- Baseline before this IET-focused patch series:
+  - `heavy`: `21.99 s`, `21.86 s`, `22.26 s`; average `22.04 s`.
+    `lowering.IET`: `5.55 s`, `5.49 s`, `5.89 s`; average `5.64 s`.
+  - `heavy_IO`: `26.38 s`, `26.42 s`, `26.51 s`; average `26.44 s`.
+    `lowering.IET`: `8.98 s`, `8.96 s`, `9.54 s`; average `9.16 s`.
+
+- Current simplified patch:
+  - memoize public `create_call_graph`, with callers passing
+    `as_hashable(self.efuncs)` / `as_hashable(efuncs)` rather than using a
+    private cached helper;
+  - memoize public `abstract_efunc`;
+  - memoize public `abstract_objects` directly. `rg` across OSS and PRO shows
+    no caller passes an explicit `sregistry`, so the old optional parameter was
+    removed and the function now always uses its local `SymbolRegistry`;
+  - simplify IET `reuse_if_unchanged` by using `Node._same_arg` instead of a
+    duplicate local kwarg comparison helper.
+
+- Dropped follow-up:
+  a generic `memoized_func` key-path optimization was tested but left out of the
+  patch. It appeared mildly positive in one set of runs, but was not necessary
+  for the main IET win and is too broad for this focused change.
+
+- Current measured performance with the simplified patch and unchanged
+  `memoized_func`:
+  - `heavy`: `21.63 s`, `21.53 s`, `21.57 s`; average `21.58 s`.
+  - `heavy_IO`: `25.32 s`, `25.40 s`, `25.35 s`; average `25.36 s`.
+  - net improvement versus the pre-patch reference is about `0.46 s` on
+    `heavy` and about `1.08 s` on `heavy_IO`.
+
+- Validation:
+  targeted OSS IET/tool tests passed:
+  `/app/devitopro/submodules/devito/tests/test_iet.py`,
+  `/app/devitopro/submodules/devito/tests/test_visitors.py`,
+  `/app/devitopro/submodules/devito/tests/test_tools.py` (`72 passed`).
+
+- Interpretation:
+  the durable win is in the IET callable-deduplication/reuse path, especially
+  repeated call-graph creation and repeated abstraction of structurally stable
+  callables. Dropping `abstract_objects` caching regressed `heavy_IO` back to
+  roughly `25.5 s`, so that cache is worth keeping now that the unused
+  `sregistry` parameter has been removed.
