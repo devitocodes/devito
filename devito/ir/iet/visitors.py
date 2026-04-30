@@ -1172,7 +1172,12 @@ class FindNodes(LazyVisitor[Node, list[Node], None]):
     def __init__(self, match: type, mode: str = 'type') -> None:
         super().__init__()
         self.match = match
+        self.mode = mode
         self.rule = self.rules[mode]
+
+    @memoized_weak_meth(key=lambda i: (i.match, i.mode), freeze=tuple, thaw=list)
+    def visit(self, o, *args, **kwargs):
+        return super().visit(o, *args, **kwargs)
 
     def visit_Node(self, o: Node, **kwargs) -> Iterator[Node]:
         if self.rule(self.match, o):
@@ -1193,6 +1198,11 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
         super().__init__(match)
         self.start = start
         self.stop = stop
+
+    def visit(self, o, *args, **kwargs):
+        # `start` and `stop` are part of this visitor's state.
+        return GenericVisitor.visit(self, o, *args, **kwargs)
+
 
     def visit_object(self, o: object, flag: bool = False) -> LazyVisit[Node, bool]:
         yield from ()
