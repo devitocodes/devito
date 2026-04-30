@@ -1331,6 +1331,13 @@ class Transformer(Visitor):
         self.mapper = mapper
         self.nested = nested
 
+    def visit(self, o, *args, **kwargs):
+        # Subclasses may implement mapper-independent transformations.
+        if type(self) is Transformer and not self.mapper:
+            return o
+
+        return super().visit(o, *args, **kwargs)
+
     def transform(self, o, handle, **kwargs):
         if handle is None:
             # None -> drop `o`
@@ -1390,6 +1397,12 @@ class Uxreplace(Transformer):
     mapper : dict
         The substitution rules.
     """
+
+    def visit(self, o, *args, **kwargs):
+        if not self.mapper:
+            return o
+
+        return super().visit(o, *args, **kwargs)
 
     def visit_Expression(self, o):
         return reuse_if_unchanged(o, expr=uxreplace(o.expr, self.mapper))
