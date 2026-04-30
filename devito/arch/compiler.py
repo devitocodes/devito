@@ -116,6 +116,8 @@ def sniff_mpi_distro(mpiexec):
             return 'MPICH'
         elif "Intel(R) MPI" in ver:
             return 'IntelMPI'
+        elif "IBM Spectrum MPI" in ver:
+            return "SpectrumMPI"
     except (CalledProcessError, UnicodeDecodeError):
         pass
     return 'unknown'
@@ -124,13 +126,15 @@ def sniff_mpi_distro(mpiexec):
 @memoized_func
 def sniff_mpi_flags(mpicc='mpicc'):
     mpi_distro = sniff_mpi_distro('mpiexec')
-    if mpi_distro != 'OpenMPI':
+    if mpi_distro in ['OpenMPI', 'SpectrumMPI']:
+        # OpenMPI's CC wrapper, namely mpicc, takes the --showme argument to find out
+        # the flags used for compiling and linking
+        compile_flags = check_output(['mpicc', "--showme:compile"]).decode("utf-8")
+        link_flags = check_output(['mpicc', "--showme:link"]).decode("utf-8")
+    else:
+        # TODO: This can be obtained from MPICH `mpicc -show`
+        # but does not segregate compile and link flags
         raise NotImplementedError("Unable to detect MPI compile and link flags")
-
-    # OpenMPI's CC wrapper, namely mpicc, takes the --showme argument to find out
-    # the flags used for compiling and linking
-    compile_flags = check_output(['mpicc', "--showme:compile"]).decode("utf-8")
-    link_flags = check_output(['mpicc', "--showme:link"]).decode("utf-8")
 
     return compile_flags.split(), link_flags.split()
 
