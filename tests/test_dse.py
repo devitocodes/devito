@@ -9,10 +9,10 @@ from conftest import (  # noqa
     get_params, skipif
 )
 from devito import (  # noqa
-    NODE, Abs, ConditionalDimension, Constant, DefaultDimension, Derivative, Dimension,
-    Eq, Function, Ge, Grid, Inc, Lt, Operator, SparseTimeFunction, SubDimension,
-    TimeFunction, configuration, cos, dimensions, div, exp, first_derivative, floor, grad,
-    norm, sin, solve, sqrt, switchconfig, transpose
+    NODE, Abs, Buffer, ConditionalDimension, Constant, DefaultDimension, Derivative,
+    Dimension, Eq, Function, Ge, Grid, Inc, Lt, Operator, SparseTimeFunction,
+    SubDimension, TimeFunction, configuration, cos, dimensions, div, exp,
+    first_derivative, floor, grad, norm, sin, solve, sqrt, switchconfig, transpose
 )
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.ir import (
@@ -56,6 +56,26 @@ def test_scheduling_after_rewrite():
     )  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
+
+
+def test_scheduling_no_deriv():
+    grid = Grid((11, 11, 11))
+    x, y, z = grid.dimensions
+
+    image_vs = Function(name='image_vs', grid=grid, space_order=1, staggered=NODE)
+    p_back_xy = TimeFunction(name='p_back_xy', grid=grid, staggered=(x, y),
+                             space_order=4, time_order=1, save=Buffer(1))
+
+    eqns = [Eq(image_vs, p_back_xy + image_vs),
+            Eq(p_back_xy.backward, p_back_xy)]
+
+    op = Operator(eqns)
+
+    assert_structure(
+        op,
+        ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
+        'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz'
+    )
 
 
 @pytest.mark.parametrize('expr,expected', [

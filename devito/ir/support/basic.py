@@ -1105,6 +1105,7 @@ class Scope(CacheInstances):
                         continue
 
                     distance = dependence.distance
+
                     try:
                         is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
                     except TypeError:
