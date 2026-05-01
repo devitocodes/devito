@@ -166,18 +166,20 @@ class Injection(UnevaluatedSparseOperation):
 
     __rargs__ = ('field', 'expr', 'implicit_dims') + UnevaluatedSparseOperation.__rargs__
 
-    def __new__(cls, field, expr, implicit_dims, interpolator):
+    def __new__(cls, field, expr, increment, implicit_dims, interpolator):
         obj = super().__new__(cls, interpolator)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.field = field
         obj.expr = expr
+        obj.increment = increment
         obj.implicit_dims = implicit_dims
 
         return obj
 
     def operation(self, **kwargs):
         return self.interpolator._inject(expr=self.expr, field=self.field,
+                                         increment=self.increment,
                                          implicit_dims=self.implicit_dims)
 
     def __repr__(self):
@@ -372,7 +374,7 @@ class WeightedInterpolator(GenericInterpolator):
 
     @check_radius
     @check_coords
-    def inject(self, field, expr, implicit_dims=None):
+    def inject(self, field, expr, increment=True, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -387,7 +389,7 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        return Injection(field, expr, implicit_dims, self)
+        return Injection(field, expr, increment, implicit_dims, self)
 
     def _interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
@@ -439,7 +441,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         return temps + summands + last
 
-    def _inject(self, field, expr, implicit_dims=None):
+    def _inject(self, field, expr, increment=True, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -489,9 +491,10 @@ class WeightedInterpolator(GenericInterpolator):
                                            pos_only=variables, subdomain=subdomain)
 
         # Substitute coordinate base symbols into the interpolation coefficients
-        eqns = [Inc(_field.xreplace(idx_subs),
-                    (self._weights(subdomain=subdomain) * _expr).xreplace(idx_subs),
-                    implicit_dims=implicit_dims)
+        ecls = Inc if increment else Eq
+        eqns = [ecls(_field.xreplace(idx_subs),
+                     (self._weights(subdomain=subdomain) * _expr).xreplace(idx_subs),
+                     implicit_dims=implicit_dims)
                 for (_field, _expr) in zip(fields, _exprs, strict=True)]
 
         return temps + eqns

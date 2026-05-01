@@ -440,6 +440,27 @@ def test_inject(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.1, .9), (.4, .4)]),
+    ((11, 11, 11), [(.1, .9), (.4, .4), (.4, .4)])
+])
+def test_inject_no_incr(shape, coords, npoints=9):
+    a = unit_box(shape=shape)
+    a.data[:] = 2.
+    p = points(a.grid, coords, npoints=npoints)
+
+    p.data[:] = 3.
+    expr = p.inject(a, p, increment=False)
+    op = Operator(expr, subs=a.grid.spacing_map)
+
+    op(a=a)
+
+    indices = [slice(4, 5, 1) for _ in coords]
+    indices[0] = slice(1, -1, 1)
+    # Should be 3 at the points
+    assert np.allclose(a.data[indices], 3, rtol=1.e-5)
+
+
 @pytest.mark.parametrize('shape, coords, nexpr, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1, 1.),
     ((11, 11), [(.05, .95), (.45, .45)], 2, 1.),
