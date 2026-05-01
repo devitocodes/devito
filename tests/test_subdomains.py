@@ -6,7 +6,7 @@ from sympy import sin, tan
 
 from conftest import assert_structure, opts_tiling
 from devito import (
-    Border, ConditionalDimension, Constant, Eq, Function, Grid, Lt, Operator,
+    Border, Buffer, ConditionalDimension, Constant, Eq, Function, Grid, Lt, Operator,
     SparseFunction, SparseTimeFunction, SubDomain, SubDomainSet, TensorFunction,
     TimeFunction, VectorFunction, solve
 )
@@ -227,6 +227,40 @@ class TestSubDomains:
             expr = Operator._lower_exprs([eq0], options={},
                                          sregistry=SymbolRegistry())[0]
         assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
+
+    @pytest.mark.parallel(mode=2)
+    def test_halo_subdomain(self, mode):
+        """
+        Test halo lowering with temporary dimensions and shifted subdomain access.
+        """
+        space_order = 8
+
+        class Interface(SubDomain):
+            name = 'interface'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {
+                    x: ('middle', 0, 0),
+                    y: ('middle', 0, 0),
+                    z: ('middle', space_order//2, 0)
+                }
+
+        grid = Grid(shape=(9, 9, 9), subdomains=(Interface(),))
+        x, y, z = grid.dimensions
+        time = grid.stepping_dim
+        u = TimeFunction(name='u', grid=grid, time_order=1,
+                         space_order=space_order, save=Buffer(1),
+                         is_transient=False)
+
+        equation = Eq(u[time + 1, x, y, z - space_order//2],
+                      u.dxdy + u.dydz +
+                      u[time + 1, x, y, z - space_order//2],
+                      subdomain=grid.subdomains['interface'])
+
+        op = Operator([equation])
+
+        assert_structure(op, ['t', 'txyz', 'txyz'], 'txyzyz')
 
 
 class TestMultiSubDomain:
