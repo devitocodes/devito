@@ -1,4 +1,4 @@
-from ctypes import c_void_p
+from ctypes import POINTER, c_void_p
 
 import cgen
 import numpy as np
@@ -20,6 +20,7 @@ from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
     String
 )
+from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
 from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol
 from devito.types.misc import FunctionMap
@@ -526,6 +527,16 @@ def test_codegen_quality0():
     assert len(foo.parameters) == 3
     assert len(foo1.parameters) == 1
     assert foo1.parameters[0] is a
+
+
+def test_complex_array():
+    grid = Grid(shape=(4, 4, 4))
+    _, y, z = grid.dimensions
+
+    a = Array(name='a', dimensions=grid.dimensions, dtype=POINTER(c_complex))
+
+    assert str(Definition(a)) == \
+        "float _Complex **restrict a_vec __attribute__ ((aligned (64)));"
 
 
 def test_special_array_definition():
