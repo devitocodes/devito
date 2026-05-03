@@ -425,7 +425,7 @@ class WeightedInterpolator(GenericInterpolator):
                                            subdomain=subdomain)
 
         # Accumulate point-wise contributions into a temporary
-        rhs = Symbol(name='sum', dtype=self.sfunction.dtype)
+        rhs = Symbol(name=f'sum{self.sfunction.name}', dtype=self.sfunction.dtype)
         summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
         # Substitute coordinate base symbols into the interpolation coefficients
         weights = self._weights(subdomain=subdomain)

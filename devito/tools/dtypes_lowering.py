@@ -371,4 +371,5 @@ def extract_dtype(expr):
     """Extract the "winning" dtype from an expression"""
     dtypes = {getattr(e, 'dtype', None)
               for e in expr.free_symbols}
+
     return infer_dtype(dtypes - {None})
