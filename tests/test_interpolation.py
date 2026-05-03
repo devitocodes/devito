@@ -7,7 +7,7 @@ from sympy import Float
 from conftest import assert_structure
 from devito import (
     DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction, Operator,
-    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
+    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, Real, SparseFunction,
     SparseTimeFunction, SubDomain, TimeFunction, switchconfig
 )
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
@@ -15,6 +15,11 @@ from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
 from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
+
+
+class SparseFirst(SparseFunction):
+    """ Custom sparse class with the sparse dimension as the first one"""
+    _sparse_position = 0
 
 
 def unit_box(name='a', shape=(11, 11), grid=None, space_order=1):
@@ -698,11 +703,6 @@ def test_sparse_first():
     """
     Tests custom sprase function with sparse dimension as first index.
     """
-
-    class SparseFirst(SparseFunction):
-        """ Custom sparse class with the sparse dimension as the first one"""
-        _sparse_position = 0
-
     dr = Dimension("cd")
     ds = DefaultDimension("ps", default_value=3)
     grid = Grid((11, 11))
@@ -868,6 +868,27 @@ def test_interp_complex(dtype):
     opC()
 
     assert np.isclose(sc.data[0], fc.data[5, 5, 5])
+
+
+@pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+def test_interp_complex_and_real(dtype):
+    grid = Grid((11, 11, 11))
+
+    sc = SparseFunction(name="sc", grid=grid, npoint=1, dtype=dtype)
+    sc.coordinates.data[:] = [.5, .5, .5]
+    scre = SparseFunction(name="sce", grid=grid, npoint=1, coordinates=sc.coordinates)
+
+    fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
+    fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
+    exprs = sc.interpolate(expr=fc) + scre.interpolate(expr=Real(fc))
+    opC = Operator(exprs, name="OpC")
+    opC()
+
+    assert np.isclose(sc.data[0], fc.data[5, 5, 5])
+    assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
+
+    assert_structure(opC, ['p_sc', 'p_sc,rscx,rscy,rscz', 'p_sc,rscex,rscey,rscez'],
+                     'p_sc,rscx,rscy,rscz,rscex,rscey,rscez')
 
 
 class SD0(SubDomain):

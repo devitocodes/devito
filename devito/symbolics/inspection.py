@@ -321,8 +321,8 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
         with suppress(AttributeError):
             dtypes.add(i.dtype)
 
-    if not dtypes:
-        dtypes = {base} - {None}
+    if not dtypes or not np.issubdtype(base, np.complexfloating):
+        dtypes.update({base} - {None})
 
     dtype = infer_dtype(dtypes)
 
