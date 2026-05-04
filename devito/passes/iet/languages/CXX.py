@@ -19,6 +19,9 @@ def std_arith(prefix=''):
         prefix = prefix if prefix.endswith(' ') else f'{prefix} '
     return f"""
 #include <complex>
+#include <type_traits>
+
+// ---- scalar <op> complex<T>  (scalar promoted to T) --------------------
 
 template<typename _Tp, typename _Ti>
 {prefix}std::complex<_Tp> operator * (const _Ti & a, const std::complex<_Tp> & b){{
@@ -32,7 +35,7 @@ template<typename _Tp, typename _Ti>
 
 template<typename _Tp, typename _Ti>
 {prefix}std::complex<_Tp> operator / (const _Ti & a, const std::complex<_Tp> & b){{
-  _Tp denom = b.real() * b.real () + b.imag() * b.imag();
+  _Tp denom = b.real() * b.real() + b.imag() * b.imag();
   return std::complex<_Tp>(b.real() * a / denom, - b.imag() * a / denom);
 }}
 
@@ -53,13 +56,36 @@ template<typename _Tp, typename _Ti>
 
 template<typename _Tp, typename _Ti>
 {prefix}std::complex<_Tp> operator - (const _Ti & a, const std::complex<_Tp> & b){{
-  return std::complex<_Tp>(a = b.real(), b.imag());
+  return std::complex<_Tp>(a - b.real(), -b.imag());
 }}
 
 template<typename _Tp, typename _Ti>
 {prefix}std::complex<_Tp> operator - (const std::complex<_Tp> & b, const _Ti & a){{
   return std::complex<_Tp>(b.real() - a, b.imag());
 }}
+
+// ---- mixed-precision complex<T1> <op> complex<T2> ----------------------
+// Promote both sides to std::complex<common_type_t<T1,T2>> and delegate to
+// the standard library's same-type operator. The enable_if disables the
+// overload when T1 == T2 so we don't collide with std::complex's own ops.
+
+#define _MIXED_COMPLEX_OP(OP) \\
+template<typename _Tp1, typename _Tp2, \\
+         typename _Tr = std::common_type_t<_Tp1, _Tp2>, \\
+         typename = std::enable_if_t<!std::is_same<_Tp1, _Tp2>::value>> \\
+{prefix}std::complex<_Tr> \\
+operator OP (const std::complex<_Tp1> & a, \\
+             const std::complex<_Tp2> & b) {{ \\
+  return std::complex<_Tr>(a.real(), a.imag()) \\
+    OP std::complex<_Tr>(b.real(), b.imag()); \\
+}}
+
+_MIXED_COMPLEX_OP(*)
+_MIXED_COMPLEX_OP(/)
+_MIXED_COMPLEX_OP(+)
+_MIXED_COMPLEX_OP(-)
+
+#undef _MIXED_COMPLEX_OP
 
 """
 
