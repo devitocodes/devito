@@ -588,3 +588,80 @@ follow-ups:
   end-to-end compile-time effect. The dominant open costs are still
   `optimize_kernels`/cluster specialization and, for `heavy_IO`, the IET
   async/definitions path.
+
+May 4, 2026 IET `reuse_efuncs` drill-down:
+
+- The expensive IET buckets in `heavy_IO` (`make_parallel`,
+  `place_definitions`, `_place_transfers`, `lower_async_objs`, and `process`)
+  are mostly paying common `Graph.apply` post-processing cost rather than pass
+  body cost. A temporary graph-phase profile showed:
+  - `Graph.apply` total: about `7.33 s` across `25` calls;
+  - `reuse_efuncs`: about `3.93 s` across `5` calls;
+  - pass bodies: about `2.17 s`;
+  - `update_args`: about `0.85 s`.
+
+- Inside `reuse_efuncs`, the hot path is abstraction/signature generation:
+  - before the new signature cache: `reuse_efuncs ~3.93 s`,
+    `abstract_efunc ~1.91 s`, `_signature ~1.75 s`;
+  - with IET `Node._signature()` memoized per node: `reuse_efuncs` drops to
+    about `3.62-3.69 s`, and `_signature` drops to about `1.41-1.44 s`.
+
+- The tested signature-cache patch was deliberately narrow:
+  IET `Node` overrode `_signature()` with `@memoized_meth` and delegated to
+  `Signer._signature()`, caching the SHA1 signature on the immutable-ish IET
+  node instance without caching the full CIR string.
+
+- Direct multiplicity check on `heavy_IO` showed why the patch is not a
+  meaningful end-to-end win:
+  - `_signature()` calls: `180`;
+  - unique IET nodes: `150`;
+  - repeated calls on the same node: only `30`;
+  - call histogram: `121` nodes called once, `28` nodes called twice, `1` node
+    called three times.
+
+- The remaining `abstract_efunc` body cost is still substantial. A temporary
+  body-level profile of `heavy_IO` showed about `150` misses and `30` hits
+  across the five `reuse_efuncs` calls. Miss cost split roughly as:
+  - `Uxreplace`: `0.63 s`;
+  - `abstract_objects`: `0.63 s`;
+  - `FindSymbols('basics|symbolics|dimensions')`: `0.23 s`.
+
+- Dropped variants:
+  - IET `Node._signature()` memoization was dropped after the multiplicity
+    check. There are not enough repeated calls on the same node to justify even
+    this small cache as a production change;
+  - filtering identity mappings out of `abstract_objects` was slower in
+    practice; `abstract_objects` increased from about `0.63 s` to about
+    `1.62 s` in the instrumented run, because rebuilding the mapper dominated;
+  - returning raw CIR from IET `Node._signature()` instead of the SHA1 digest
+    was also rejected. It retains large strings and made the instrumented
+    profile noisier/worse, without a clear wall-time win.
+
+- Validation and benchmark signal from the rejected signature-cache patch:
+  - targeted OSS IET/visitor tests still pass:
+    `/app/devitopro/submodules/devito/tests/test_iet.py` and
+    `/app/devitopro/submodules/devito/tests/test_visitors.py`
+    (`42 passed`);
+  - the earlier `heavy 22.25 s` combined-run sample was confirmed noisy and
+    should be ignored.
+
+- May 4 rerun, three combined invocations before and after the signature-cache
+  patch, same setup (`devitopro-cuda:latest`, GPU `3`, `taskset 0-15`):
+  - without signature cache:
+    `stress-only 10.02/10.03/10.00 s` (avg `10.02 s`),
+    `heavy 21.29/21.27/21.27 s` (avg `21.28 s`),
+    `heavy_IO 24.80/24.66/24.63 s` (avg `24.70 s`);
+  - with signature cache:
+    `stress-only 10.02/10.03/9.98 s` (avg `10.01 s`),
+    `heavy 21.36/21.40/21.29 s` (avg `21.35 s`),
+    `heavy_IO 24.55/24.49/24.37 s` (avg `24.47 s`).
+
+- Interpretation:
+  memoizing IET node signatures is not worth keeping. The end-to-end signal is
+  neutral for `stress-only`, neutral/slightly negative for `heavy`, and only
+  mildly positive for `heavy_IO` (`~0.23 s`). The direct multiplicity check
+  shows the cache surface is tiny: only `30/180` calls are repeated on the same
+  node. The next meaningful IET win is unlikely to come from the individual
+  pass bodies. It would need to reduce repeated `abstract_efunc` misses, likely
+  by making `reuse_efuncs` more incremental/cache-aware across successive
+  `Graph.apply` calls.
