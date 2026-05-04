@@ -532,3 +532,59 @@ April 30, 2026 IET memoization / no-op rebuild follow-up:
   callables. Dropping `abstract_objects` caching regressed `heavy_IO` back to
   roughly `25.5 s`, so that cache is worth keeping now that the unused
   `sregistry` parameter has been removed.
+
+May 4, 2026 benchmark refresh after the no-op IET transform and visitor-cache
+follow-ups:
+
+- Setup:
+  PRO `faster-python-1` worktree with paired OSS `faster-python-1`, CUDA docker
+  image `devitopro-cuda:latest`, GPU device `3`, launcher pinned with
+  `taskset 0-15`. The three schedule-info probes were run in one pytest-docker
+  invocation.
+
+- `stress-only` (`test_profile_etti_stress_like_schedule_infos`):
+  - total compile: `10.06 s`;
+  - `lowering.Clusters`: `5.52 s`;
+  - `specializing.Clusters`: `4.18 s`;
+  - `optimize_kernels`: `3.39 s`;
+  - `lowering.IET`: `3.23 s`;
+  - `specializing.IET`: `3.00 s`;
+  - IET notable buckets: `make_parallel 1.59 s`,
+    `_place_transfers 0.70 s`, `place_definitions 0.29 s`;
+  - kernelopt `fuse`: `0.60 s`.
+
+- `heavy` velocity+stress
+  (`test_profile_etti_velocity_then_stress_like_schedule_infos`):
+  - total compile: `21.63 s`;
+  - `lowering.Clusters`: `14.69 s`;
+  - `specializing.Clusters`: `11.17 s`;
+  - `optimize_kernels`: `10.08 s`;
+  - `lowering.IET`: `5.02 s`;
+  - `specializing.IET`: `4.43 s`;
+  - IET notable buckets: `make_parallel 1.47 s`,
+    `_place_transfers 1.37 s`, `place_definitions 0.65 s`,
+    `linearization 0.28 s`;
+  - kernelopt `fuse`: `1.82 s`.
+
+- `heavy_IO` velocity+stress plus bitcomp+serialization
+  (`test_profile_etti_velocity_then_stress_like_bitcomp_serial_schedule_infos`):
+  - total compile: `25.26 s`;
+  - `lowering.Clusters`: `15.58 s`;
+  - `specializing.Clusters`: `11.63 s`;
+  - `optimize_kernels`: `10.53 s`;
+  - `lowering.IET`: `7.59 s`;
+  - `specializing.IET`: `6.85 s`;
+  - IET notable buckets: `make_parallel 1.59 s`,
+    `place_definitions 1.52 s`, `lower_async_objs 1.16 s`,
+    `process 0.73 s`, `_place_transfers 0.54 s`,
+    `linearization 0.47 s`;
+  - kernelopt `fuse`: `1.95 s`.
+
+- Interpretation:
+  the three current probes are still in the expected post-IET-cache band:
+  about `10.1 s` for stress-only, `21.5-21.7 s` for `heavy`, and
+  `25.0-25.3 s` for `heavy_IO`. The `FindNodes` visitor cache reduced direct
+  repeated visitor cost in profiling, but it remains a small/noise-level
+  end-to-end compile-time effect. The dominant open costs are still
+  `optimize_kernels`/cluster specialization and, for `heavy_IO`, the IET
+  async/definitions path.
