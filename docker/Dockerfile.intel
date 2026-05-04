@@ -82,7 +82,7 @@ ENV MPICC=mpiicc
 ##############################################################
 FROM oneapi AS icx
 
-RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mpi-devel && \
+RUN apt-get update -y && apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mpi-devel-2021.17 && \
     apt-get clean && apt-get autoclean && apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
