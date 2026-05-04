@@ -484,8 +484,7 @@ class HaloComms(Queue):
             # `c` is scheduled
             index = 0
             for i in reversed(range(n)):
-                if not processed[i].ispace.is_subset(c.ispace) and \
-                   not processed[i].is_sparse:
+                if not processed[i].ispace.is_subset(c.ispace):
                     index = i + 1
                     break
             processed.insert(index, halo_touch)

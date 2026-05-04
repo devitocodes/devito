@@ -887,8 +887,9 @@ def test_interp_complex_and_real(dtype):
     assert np.isclose(sc.data[0], fc.data[5, 5, 5])
     assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
 
-    assert_structure(opC, ['p_sc', 'p_sc,rscx,rscy,rscz', 'p_sc,rscex,rscey,rscez'],
-                     'p_sc,rscx,rscy,rscz,rscex,rscey,rscez')
+    assert_structure(opC, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz',
+                           'p_sc,rp_scx,rp_scy,rp_scz'],
+                     'p_sc,rp_scx,rp_scy,rp_scz,rp_scx,rp_scy,rp_scz')
 
 
 class SD0(SubDomain):
@@ -1010,9 +1011,9 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr1.data, check1))
         assert np.all(np.isclose(sr2.data, check2))
         assert_structure(op,
-                         ['p_sr0', 'p_sr0rsr0xrsr0y', 'p_sr1',
-                          'p_sr1rsr1xrsr1y', 'p_sr2', 'p_sr2rsr2xrsr2y'],
-                         'p_sr0rsr0xrsr0yp_sr1rsr1xrsr1yp_sr2rsr2xrsr2y')
+                         ['p_sr0', 'p_sr0rp_sr0xrp_sr0y', 'p_sr1',
+                          'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
+                         'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
 
     def test_interpolate_subdomain_sinc(self):
         """
@@ -1053,9 +1054,9 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr0.data, sr2.data))
         assert np.all(np.isclose(sr1.data, sr2.data))
         assert_structure(op,
-                         ['p_sr0', 'p_sr0rsr0xrsr0y', 'p_sr1',
-                          'p_sr1rsr1xrsr1y', 'p_sr2', 'p_sr2rsr2xrsr2y'],
-                         'p_sr0rsr0xrsr0yp_sr1rsr1xrsr1yp_sr2rsr2xrsr2y')
+                         ['p_sr0', 'p_sr0rp_sr0xrp_sr0y', 'p_sr1',
+                          'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
+                         'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
 
     def test_inject_subdomain(self):
         """
@@ -1101,8 +1102,8 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(f0.data, check0))
         assert np.all(np.isclose(f1.data, check1))
         assert_structure(op,
-                         ['p_sr0rsr0xrsr0y'],
-                         'p_sr0rsr0xrsr0y')
+                         ['p_sr0rp_sr0xrp_sr0y'],
+                         'p_sr0rp_sr0xrp_sr0y')
 
     def test_inject_subdomain_sinc(self):
         """
@@ -1133,8 +1134,8 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(f0.data, f2.data[:9, -9:]))
         assert np.all(np.isclose(f1.data, f2.data[1:-1, 1:-1]))
         assert_structure(op,
-                         ['p_sr0rsr0xrsr0y'],
-                         'p_sr0rsr0xrsr0y')
+                         ['p_sr0rp_sr0xrp_sr0y'],
+                         'p_sr0rp_sr0xrp_sr0y')
 
     @pytest.mark.xfail(reason="OOB issue")
     @pytest.mark.parallel(mode=4)

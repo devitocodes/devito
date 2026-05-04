@@ -14,9 +14,7 @@ from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
 from devito.tools import Pickable, as_tuple, filter_ordered, flatten, memoized_meth
-from devito.types import (
-    ConditionalDimension, CustomDimension, Eq, Evaluable, Inc, SubFunction, Symbol
-)
+from devito.types import Eq, Evaluable, Inc, SubFunction, Symbol
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -239,13 +237,10 @@ class WeightedInterpolator(GenericInterpolator):
     def _gdims(self):
         return self.grid.dimensions
 
-    @cached_property
+    @property
     def _cdim(self):
         """Base CustomDimensions used to construct _rdim"""
-        parent = self.sfunction._sparse_dim
-        dims = [CustomDimension(f"r{self.sfunction.name}{d.name}",
-                                -self.r+1, self.r, 2*self.r, parent)
-                for d in self._gdims]
+        dims = [self.sfunction._crdim(d) for d in self._gdims]
         return dims
 
     @memoized_meth
@@ -274,8 +269,7 @@ class WeightedInterpolator(GenericInterpolator):
                 rank_populated = subdomain.distributor.rank_populated
                 cond = sympy.And(rank_populated, cond)
 
-            rdims.append(ConditionalDimension(rd.name, rd, condition=cond,
-                                              indirect=True))
+            rdims.append(self.sfunction._cond_rdim(d.root, cond))
 
         return DimensionTuple(*rdims, getters=gdims)
 

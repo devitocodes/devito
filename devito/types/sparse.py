@@ -13,12 +13,13 @@ from devito.operations import (
 )
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (
-    ReducerMap, as_tuple, dtype_to_mpidtype, filter_ordered, flatten, is_integer, prod
+    ReducerMap, as_tuple, dtype_to_mpidtype, filter_ordered, flatten, is_integer,
+    memoized_meth, prod
 )
 from devito.types.basic import Symbol
 from devito.types.dense import DiscreteFunction, SubFunction
 from devito.types.dimension import (
-    ConditionalDimension, DefaultDimension, Dimension, DynamicDimension
+    ConditionalDimension, CustomDimension, DefaultDimension, Dimension, DynamicDimension
 )
 from devito.types.dimension import dimensions as mkdims
 from devito.types.equation import Eq, Inc
@@ -385,6 +386,24 @@ class AbstractSparseFunction(DiscreteFunction):
     @cached_property
     def dist_origin(self):
         return self._dist_origin
+
+    @memoized_meth
+    def _crdim(self, dim):
+        """
+        The CustomDimension associated with the Dimension `dim` for
+        the radius of the interpolation/injection stencil
+        """
+        sname = self._sparse_dim.name
+        return CustomDimension(f"r{sname}{dim.name}", -self.r+1,
+                               self.r, 2*self.r, self._sparse_dim)
+
+    @memoized_meth
+    def _cond_rdim(self, dim, cond):
+        """
+        The interpolation/injection radius dimension with guard bounds
+        """
+        parent = self._crdim(dim)
+        return ConditionalDimension(parent.name, parent, condition=cond, indirect=True)
 
     def interpolate(self, *args, **kwargs):
         """
