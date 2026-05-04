@@ -311,9 +311,9 @@ def test_complex_reduction(dtypeu: np.dtype[np.complexfloating]) -> None:
         op()
 
         if op._options['linearize']:
-            ustr = 'uL0(t1, rsx + posx + 2, rsy + posy + 2)'
+            ustr = 'uL0(t1, rp_sx + posx + 2, rp_sy + posy + 2)'
         else:
-            ustr = 'u[t1][rsx + posx + 2][rsy + posy + 2]'
+            ustr = 'u[t1][rp_sx + posx + 2][rp_sy + posy + 2]'
 
         compiler = configuration['compiler']
         gnu = isinstance(compiler, GNUCompiler) or \

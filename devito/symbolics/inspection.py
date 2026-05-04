@@ -316,10 +316,13 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
     if expr is None:
         return default
 
-    dtypes = {base} - {None}
+    dtypes = set()
     for i in expr.free_symbols:
         with suppress(AttributeError):
             dtypes.add(i.dtype)
+
+    if not dtypes or not np.issubdtype(base, np.complexfloating):
+        dtypes.update({base} - {None})
 
     dtype = infer_dtype(dtypes)
 

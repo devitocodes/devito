@@ -7,7 +7,7 @@ from sympy import Float
 from conftest import assert_structure
 from devito import (
     DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction, Operator,
-    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
+    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, Real, SparseFunction,
     SparseTimeFunction, SubDomain, TimeFunction, switchconfig
 )
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
@@ -15,6 +15,11 @@ from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
 from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
+
+
+class SparseFirst(SparseFunction):
+    """ Custom sparse class with the sparse dimension as the first one"""
+    _sparse_position = 0
 
 
 def unit_box(name='a', shape=(11, 11), grid=None, space_order=1):
@@ -698,11 +703,6 @@ def test_sparse_first():
     """
     Tests custom sprase function with sparse dimension as first index.
     """
-
-    class SparseFirst(SparseFunction):
-        """ Custom sparse class with the sparse dimension as the first one"""
-        _sparse_position = 0
-
     dr = Dimension("cd")
     ds = DefaultDimension("ps", default_value=3)
     grid = Grid((11, 11))
@@ -870,6 +870,28 @@ def test_interp_complex(dtype):
     assert np.isclose(sc.data[0], fc.data[5, 5, 5])
 
 
+@pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+def test_interp_complex_and_real(dtype):
+    grid = Grid((11, 11, 11))
+
+    sc = SparseFunction(name="sc", grid=grid, npoint=1, dtype=dtype)
+    sc.coordinates.data[:] = [.5, .5, .5]
+    scre = SparseFunction(name="sce", grid=grid, npoint=1, coordinates=sc.coordinates)
+
+    fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
+    fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
+    exprs = sc.interpolate(expr=fc) + scre.interpolate(expr=Real(fc))
+    opC = Operator(exprs, name="OpC")
+    opC()
+
+    assert np.isclose(sc.data[0], fc.data[5, 5, 5])
+    assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
+
+    assert_structure(opC, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz',
+                           'p_sc,rp_scx,rp_scy,rp_scz'],
+                     'p_sc,rp_scx,rp_scy,rp_scz,rp_scx,rp_scy,rp_scz')
+
+
 class SD0(SubDomain):
     name = 'sd0'
 
@@ -989,9 +1011,9 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr1.data, check1))
         assert np.all(np.isclose(sr2.data, check2))
         assert_structure(op,
-                         ['p_sr0', 'p_sr0rsr0xrsr0y', 'p_sr1',
-                          'p_sr1rsr1xrsr1y', 'p_sr2', 'p_sr2rsr2xrsr2y'],
-                         'p_sr0rsr0xrsr0yp_sr1rsr1xrsr1yp_sr2rsr2xrsr2y')
+                         ['p_sr0', 'p_sr0rp_sr0xrp_sr0y', 'p_sr1',
+                          'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
+                         'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
 
     def test_interpolate_subdomain_sinc(self):
         """
@@ -1032,9 +1054,9 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr0.data, sr2.data))
         assert np.all(np.isclose(sr1.data, sr2.data))
         assert_structure(op,
-                         ['p_sr0', 'p_sr0rsr0xrsr0y', 'p_sr1',
-                          'p_sr1rsr1xrsr1y', 'p_sr2', 'p_sr2rsr2xrsr2y'],
-                         'p_sr0rsr0xrsr0yp_sr1rsr1xrsr1yp_sr2rsr2xrsr2y')
+                         ['p_sr0', 'p_sr0rp_sr0xrp_sr0y', 'p_sr1',
+                          'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
+                         'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
 
     def test_inject_subdomain(self):
         """
@@ -1080,8 +1102,8 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(f0.data, check0))
         assert np.all(np.isclose(f1.data, check1))
         assert_structure(op,
-                         ['p_sr0rsr0xrsr0y'],
-                         'p_sr0rsr0xrsr0y')
+                         ['p_sr0rp_sr0xrp_sr0y'],
+                         'p_sr0rp_sr0xrp_sr0y')
 
     def test_inject_subdomain_sinc(self):
         """
@@ -1112,8 +1134,8 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(f0.data, f2.data[:9, -9:]))
         assert np.all(np.isclose(f1.data, f2.data[1:-1, 1:-1]))
         assert_structure(op,
-                         ['p_sr0rsr0xrsr0y'],
-                         'p_sr0rsr0xrsr0y')
+                         ['p_sr0rp_sr0xrp_sr0y'],
+                         'p_sr0rp_sr0xrp_sr0y')
 
     @pytest.mark.xfail(reason="OOB issue")
     @pytest.mark.parallel(mode=4)

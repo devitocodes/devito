@@ -314,8 +314,8 @@ class TestBlockingOptRelax:
                                               'openmp': True,
                                               'par-collapse-ncores': 1}))
 
-        assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
-                         't,p_s0_blk0,p_s,rsx,rsy')
+        assert_structure(op, ['t', 't,p_s0_blk0,p_s,rp_sx,rp_sy'],
+                         't,p_s0_blk0,p_s,rp_sx,rp_sy')
 
 
 class TestBlockingParTile:
