@@ -38,7 +38,7 @@ def skipif(items, whole_module=False):
     accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
                      'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc',
                      'noadvisor', 'cpu64-arm', 'cpu64-icpx', 'chkpnt'})
-    accepted.update({'nodevice', 'noomp', 'nointel'})
+    accepted.update({'nodevice', 'noomp'})
     unknown = sorted(set(items) - accepted)
     if unknown:
         raise ValueError(f"Illegal skipif argument(s) `{unknown}`")
@@ -92,11 +92,6 @@ def skipif(items, whole_module=False):
         # Slip if not using openmp
         if i == 'noomp' and 'openmp' not in configuration['language']:
             skipit = "Must use openmp"
-            break
-        # Skip if not using an Intel compiler
-        if i == 'nointel' and \
-           not isinstance(configuration['compiler'], (IntelCompiler, OneapiCompiler)):
-            skipit = "Must use an Intel compiler"
             break
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):

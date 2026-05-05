@@ -894,7 +894,7 @@ class IntelCompiler(Compiler):
             check_output(["mpiicc", f"-cc={self.CC}", "--version"]).decode("utf-8")
             self.MPICC = 'mpiicc'
             self.MPICXX = 'mpicxx'
-        except FileNotFoundError:
+        except (FileNotFoundError, CalledProcessError):
             self.MPICC = 'mpicc'
             self.MPICXX = 'mpicxx'
 

@@ -346,10 +346,18 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
     def _make_guard(self, parregion):
         return parregion
 
+    def _support_uindices(self, uindices):
+        if not uindices:
+            # No secondary indices, so we can apply nested parallelism
+            return True
+        else:
+            # Compiler supports nested parallelism with multiple indices
+            # such as for(int i = 0, j=1; ...)
+            return self._support_nested_parallelism(self.compiler)
+
     def _make_nested_partree(self, partree):
         # Apply heuristic
-        if self.nhyperthreads <= self.nested or \
-           not self._support_nested_parallelism(self.compiler):
+        if self.nhyperthreads <= self.nested:
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,
@@ -371,7 +379,8 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             # within a block)
             candidates = []
             for i in inner:
-                if self.key(i) and any((j.dim.root is i.dim.root) for j in outer):
+                if self.key(i) and any((j.dim.root is i.dim.root) for j in outer) and \
+                   self._support_uindices(i.uindices):
                     candidates.append(i)
                 elif candidates:
                     # If there's at least one candidate but `i` doesn't honor the

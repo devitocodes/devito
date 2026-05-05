@@ -283,10 +283,10 @@ class AbstractOmpizer(PragmaShmTransformer):
         # In case we have a CustomCompiler
         if isinstance(compiler, CustomCompiler):
             compiler = compiler._base()
-        if isinstance(compiler, (IntelCompiler, OneapiCompiler)):  # noqa: SIM103
-            return True
-        else:
-            return False
+        # Only supported by icc (IntelCompiler) but not by
+        # OneAPI's DPC++ compiler (OneapiCompiler) that inherits from IntelCompiler
+        return isinstance(compiler, IntelCompiler) and not \
+            isinstance(compiler, OneapiCompiler)
 
 
 class Ompizer(AbstractOmpizer):
