@@ -2221,6 +2221,35 @@ class TestCodeGeneration:
 
         assert np.isclose(norm(e), 23484.863, rtol=0, atol=1e-1)
 
+    @pytest.mark.parallel(mode=[(1, 'overlap2')])
+    def test_merge_subset_comms_w_overlap(self, mode):
+        grid = Grid(shape=(50, 50, 50))
+
+        f = Function(name='f', grid=grid, space_order=8)
+        g = f.func(name='g')
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=8,
+                         save=Buffer(2))
+
+        eqns = [
+            Eq(f, u.dx),
+            Eq(g, u.dy),
+            Eq(u.forward, u + u.backward + u.laplace + f + g.dx),
+        ]
+
+        op = Operator(eqns)
+
+        op.cfunction
+
+        # Check generated code -- expected one halo exchange for `u` before
+        # the first set of loops within `tloop`, and one halo exchange for `g`
+        # before the second set of loops
+        tloop = get_time_loop(op)
+        body = tloop.nodes[0].body[0].body
+        halo_update0 = body[0].body[0]
+        assert isinstance(halo_update0, HaloUpdateList)
+        halo_update1 = body[1].body[0]
+        assert isinstance(halo_update1, HaloUpdateList)
+
 
 class TestOperatorAdvanced:
 

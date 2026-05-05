@@ -510,7 +510,7 @@ def _is_mergeable(hsf0, hsf1, scope):
         return False
 
     # Ensure `hsf0` and `hsf1` are compatible
-    if hsf0.dimensions != hsf1.dimensions or \
+    if not hsf0.dimensions.issubset(hsf1.dimensions) or \
        not hsf0.functions & hsf1.functions:
         return False
 

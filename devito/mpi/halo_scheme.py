@@ -7,7 +7,6 @@ from operator import attrgetter
 import sympy
 from sympy import Max, Min
 
-from devito import configuration
 from devito.data import CENTER, CORE, LEFT, OWNED, RIGHT
 from devito.ir.support import Forward, Scope
 from devito.symbolics.manipulation import _uxreplace_registry
