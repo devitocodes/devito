@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 from sympy import Expr
 
+from conftest import skipif
 from devito import (
     ConditionalDimension, Constant, DefaultDimension, Dimension, Eq, Function, Grid,
     Operator, SparseFunction, SparseTimeFunction, SubDimension, TensorFunction,
@@ -467,6 +468,7 @@ class TestCaching:
 
         assert hash(grid0) != hash(grid1)
 
+    @skipif('nointel')
     def test_special_symbols(self):
         """
         This test checks the singletonization, through the caching infrastructure,

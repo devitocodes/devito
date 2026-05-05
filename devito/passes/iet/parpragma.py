@@ -54,6 +54,10 @@ class PragmaSimdTransformer(PragmaTransformer):
     def _support_complex_reduction(cls, compiler):
         return False
 
+    @classmethod
+    def _support_nested_parallelism(cls, compiler):
+        return False
+
     @property
     def simd_reg_nbytes(self):
         return self.platform.simd_reg_nbytes
@@ -344,7 +348,8 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
 
     def _make_nested_partree(self, partree):
         # Apply heuristic
-        if self.nhyperthreads <= self.nested:
+        if self.nhyperthreads <= self.nested or \
+           not self._support_nested_parallelism(self.compiler):
             return partree
 
         # Note: there might be multiple sub-trees amenable to nested parallelism,

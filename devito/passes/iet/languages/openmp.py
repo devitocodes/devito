@@ -5,7 +5,9 @@ from packaging.version import Version
 from sympy import And, Ne, Not
 
 from devito.arch import AMDGPUX, INTELGPUX, NVIDIAX, PVC
-from devito.arch.compiler import CustomCompiler, GNUCompiler, NvidiaCompiler
+from devito.arch.compiler import (
+    CustomCompiler, GNUCompiler, IntelCompiler, NvidiaCompiler, OneapiCompiler
+)
 from devito.ir import (
     Call, Conditional, DeviceCall, FindSymbols, List, ParallelBlock, PointerCast, Pragma,
     Prodder, While
@@ -275,6 +277,16 @@ class AbstractOmpizer(PragmaShmTransformer):
         else:
             # Gcc doesn't supports complex reduction
             return not isinstance(compiler, GNUCompiler)
+
+    @classmethod
+    def _support_nested_parallelism(cls, compiler):
+        # In case we have a CustomCompiler
+        if isinstance(compiler, CustomCompiler):
+            compiler = compiler._base()
+        if isinstance(compiler, (IntelCompiler, OneapiCompiler)):  # noqa: SIM103
+            return True
+        else:
+            return False
 
 
 class Ompizer(AbstractOmpizer):
