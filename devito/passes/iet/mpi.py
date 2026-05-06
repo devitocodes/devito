@@ -11,7 +11,9 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
+from devito.symbolics import VectorAccess
 from devito.tools import generator
+from devito.types import TensorMove
 
 __all__ = ['mpiize']
 
@@ -276,15 +278,21 @@ def _mark_overlappable(iet):
     # Analysis
     found = []
     for hs in FindNodes(HaloSpot).visit(iet):
+        # Heuristic: avoid comp/comm overlap for sparse Iteration nests
+        iters = FindNodes(Iteration).visit(hs)
+        if any(i.dim._defines & set(hs.halo_scheme.distributed_aindices) and
+               not i.is_Affine for i in iters):
+            continue
+
+        # Check legality. Comp/comm overlaps is legal only if the OWNED regions
+        # can grow arbitrarily, which means all of the dependencies must be
+        # carried along a non-halo Dimension
         expressions = FindNodes(Expression).visit(hs)
         if not expressions:
             continue
 
         scope = Scope(i.expr for i in expressions)
 
-        # Comp/comm overlaps is legal only if the OWNED regions can grow
-        # arbitrarily, which means all of the dependencies must be carried
-        # along a non-halo Dimension
         for dep in scope.d_all_gen():
             if dep.function in hs.functions:
                 cause = dep.cause & hs.dimensions
@@ -295,20 +303,9 @@ def _mark_overlappable(iet):
                     #     ... = ... f[x, y-1] ...
                     #   for y
                     #     f[x, y] = ...
-                    test = False
                     break
         else:
-            test = True
-
-        # Heuristic: avoid comp/comm overlap for sparse Iteration nests
-        if test:
-            for i in FindNodes(Iteration).visit(hs):
-                if i.dim._defines & set(hs.halo_scheme.distributed_aindices) and \
-                   not i.is_Affine:
-                    test = False
-                    break
-
-        if test:
+            # All good!
             found.append(hs)
 
     # Transform the IET replacing HaloSpots with OverlappableHaloSpots
