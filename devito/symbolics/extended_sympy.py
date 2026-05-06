@@ -119,6 +119,10 @@ class IntDiv(sympy.Expr):
         elif rhs == 1 or rhs is None:
             return lhs
 
+        if is_integer(lhs) and is_integer(rhs):
+            # Both sides are plain integers -- perform the division right away
+            return lhs // rhs
+
         if not is_integer(rhs):
             # Perhaps it's a symbolic RHS -- but we wanna be sure it's of type int
             if not hasattr(rhs, 'dtype'):
@@ -888,6 +892,12 @@ class VectorAccess(Expr, Pickable, BasicWrapperMixin):
 
     """
     Represent a vector access operation at high-level.
+    """
+
+    _expected_alignment = 16
+    """
+    The expected alignment in bytes for the accessed vector. This must be
+    honored by the compiler for correctness.
     """
 
     def __new__(cls, *args, **kwargs):

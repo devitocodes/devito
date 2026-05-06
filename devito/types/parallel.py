@@ -421,6 +421,12 @@ class TensorMove(Expr, Reserved, Terminal):
 
     __rargs__ = ('base', 'tid0', 'coords')
 
+    _expected_alignment = 16
+    """
+    The expected alignment in bytes for the accessed vector. This must be
+    honored by the compiler for correctness.
+    """
+
     def __new__(cls, base, tid0, coords, **kwargs):
         return super().__new__(cls, base, tid0, coords)
 

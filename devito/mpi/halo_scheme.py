@@ -9,6 +9,7 @@ from sympy import Max, Min
 
 from devito.data import CENTER, CORE, LEFT, OWNED, RIGHT
 from devito.ir.support import Forward, Scope
+from devito.symbolics import IntDiv
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (
     EnrichedTuple, Reconstructable, Tag, as_tuple, filter_ordered, filter_sorted, flatten,
@@ -147,6 +148,10 @@ class HaloScheme:
             self._honored[i.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
 
+        # Further constraints on the `omapper` derivation. At construction time
+        # there's none, but lowering passes may change this
+        self._alignment = None
+
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
         return f"HaloScheme<{fnames}>"
@@ -162,7 +167,7 @@ class HaloScheme:
     def __hash__(self):
         return hash((self._mapper.__hash__(), self.honored.__hash__()))
 
-    def _rebuild(self, fmapper=None, honored=None):
+    def _rebuild(self, fmapper=None, honored=None, alignment=None):
         """
         Rebuild a HaloScheme from the provided `fmapper` and `honored`. Reuse
         `self`'s values for the missing arguments.
@@ -176,6 +181,7 @@ class HaloScheme:
 
         obj._mapper = frozendict(fmapper)
         obj._honored = frozendict(honored)
+        obj._alignment = alignment or self._alignment
 
         return obj
 
@@ -248,10 +254,14 @@ class HaloScheme:
     @cached_property
     def omapper(self):
         """
-        Logical decomposition of the DOMAIN region into OWNED and CORE sub-regions.
+        Logical decomposition of the DOMAIN region into OWNED and CORE sub-regions,
+        "cumulative" over all DiscreteFunctions in the HaloScheme.
 
-        This is "cumulative" over all DiscreteFunctions in the HaloScheme; it also
-        takes into account IterationSpace offsets induced by SubDomains/SubDimensions.
+        The computed OMapper takes into account:
+
+            * The offsets induced by SubDomains/SubDimensions ("thickness");
+            * Any data alignment requirement of the underlying expressions
+              (`_alignment` attribute).
 
         Examples
         --------
@@ -373,27 +383,61 @@ class HaloScheme:
 
                 if s is CENTER:
                     where.append((d, CORE, s))
-                    mapper[d] = (d.symbolic_min + osl,
-                                 d.symbolic_max - osr)
+
+                    mapper[d] = (
+                        d.symbolic_min + osl,
+                        d.symbolic_max - osr
+                    )
+
                     if nl != 0:
                         mapper[nl] = (Max(nl - osl, 0),)
                     if nr != 0:
                         mapper[nr] = (Max(nr - osr, 0),)
                 else:
                     where.append((d, OWNED, s))
+
                     if s is LEFT:
-                        mapper[d] = (d.symbolic_min,
-                                     Min(d.symbolic_min + osl - 1, d.symbolic_max - nr))
+                        mapper[d] = (
+                            d.symbolic_min,
+                            Min(d.symbolic_min + osl - 1, d.symbolic_max - nr)
+                        )
+
                         if nl != 0:
                             mapper[nl] = (nl,)
                             mapper[nr] = (0,)
                     else:
-                        mapper[d] = (Max(d.symbolic_max - osr + 1, d.symbolic_min + nl),
-                                     d.symbolic_max)
+                        mapper[d] = (
+                            Max(d.symbolic_max - osr + 1, d.symbolic_min + nl),
+                            d.symbolic_max
+                        )
+
                         if nr != 0:
                             mapper[nl] = (0,)
                             mapper[nr] = (nr,)
+
             processed.append((tuple(where), frozendict(mapper)))
+
+        # Apply the alignment constraints, if any
+        # First, get the fastest varying (contiguous) Dimension, which is the
+        # one that matters for alignment
+        if self._alignment:
+            fvds = {f.dimensions[-1] for f in self.fmapper}
+            if len(fvds) != 1:
+                raise HaloSchemeException(
+                    "Unexpected contiguous Dimensions found while computing the "
+                    f"`omapper`: {fvds}"
+                )
+            fvd = fvds.pop()
+
+            for i, (where, mapper) in enumerate(list(processed)):
+                try:
+                    m, M = mapper[fvd]
+                except KeyError:
+                    continue
+
+                aligned_m = IntDiv(m, self._alignment) * self._alignment
+
+                processed[i] = (where, frozendict({**mapper, fvd: (aligned_m, M)}))
 
         _, core = processed.pop(0)
         owned = processed
