@@ -1494,7 +1494,7 @@ class Uxreplace(Transformer):
     def visit_HaloSpot(self, o):
         hs = o.halo_scheme
         fmapper = {self.mapper.get(k, k): v for k, v in hs.fmapper.items()}
-        halo_scheme = hs.build(fmapper, hs.honored)
+        halo_scheme = hs._rebuild(fmapper=fmapper)
         body = self._visit(o.body)
         return o._rebuild(halo_scheme=halo_scheme, body=body)
 

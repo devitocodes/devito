@@ -136,11 +136,9 @@ class HaloScheme:
         # Derive the halo exchanges
         self._mapper = frozendict(classify(exprs, ispace))
 
-        # Track the IterationSpace offsets induced by SubDomains/SubDimensions.
-        # These should be honored in the derivation of the `omapper`
+        # Track the IterationSpace offsets induced by SubDomains/SubDimensions,
+        # which are honored in the derivation of the `omapper`
         self._honored = {}
-        # SubDimensions are not necessarily included directly in
-        # ispace.dimensions and hence we need to first utilize the `_defines` method
         dims = set().union(*[d._defines for d in ispace.dimensions
                              if d._defines & self.dimensions])
         subdims = [d for d in dims if d.is_Sub and not d.local]
@@ -164,11 +162,21 @@ class HaloScheme:
     def __hash__(self):
         return hash((self._mapper.__hash__(), self.honored.__hash__()))
 
-    @classmethod
-    def build(cls, fmapper, honored):
+    def _rebuild(self, fmapper=None, honored=None):
+        """
+        Rebuild a HaloScheme from the provided `fmapper` and `honored`. Reuse
+        `self`'s values for the missing arguments.
+        """
         obj = object.__new__(HaloScheme)
+
+        if fmapper is None:
+            fmapper = self._mapper
+        if honored is None:
+            honored = self._honored
+
         obj._mapper = frozendict(fmapper)
         obj._honored = frozendict(honored)
+
         return obj
 
     @classmethod
@@ -222,7 +230,7 @@ class HaloScheme:
             for d, v in i.honored.items():
                 honored[d] = honored.get(d, frozenset()) | v
 
-        return HaloScheme.build(fmapper, honored)
+        return i._rebuild(fmapper=fmapper, honored=honored)
 
     @property
     def honored(self):
@@ -482,7 +490,7 @@ class HaloScheme:
         to the provided `functions`.
         """
         fmapper = {f: v for f, v in self.fmapper.items() if f in as_tuple(functions)}
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
     def drop(self, functions):
         """
@@ -490,7 +498,7 @@ class HaloScheme:
         corresponding to the provided `functions`.
         """
         fmapper = {f: v for f, v in self.fmapper.items() if f not in as_tuple(functions)}
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
     def add(self, f, hse):
         """
@@ -502,7 +510,7 @@ class HaloScheme:
         if f in fmapper:
             hse = fmapper[f].union(hse)
         fmapper[f] = hse
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
     def merge(self, hs):
         """
@@ -511,7 +519,7 @@ class HaloScheme:
         fmapper = dict(self.fmapper)
         for f, hse in hs.fmapper.items():
             fmapper[f] = fmapper.get(f, hse).merge(hse)
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
 
 def classify(exprs, ispace):
