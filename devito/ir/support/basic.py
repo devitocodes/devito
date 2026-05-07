@@ -698,6 +698,10 @@ class Dependence(Relation, CacheInstances):
     def is_reduction(self):
         return self.source.is_reduction or self.sink.is_reduction
 
+    @cached_property
+    def as_logical(self):
+        return LogicalDependence(self.source, self.sink)
+
     @memoized_meth
     def is_const(self, dim):
         """
@@ -1105,6 +1109,7 @@ class Scope(CacheInstances):
                         continue
 
                     distance = dependence.distance
+
                     try:
                         is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
                     except TypeError:

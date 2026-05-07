@@ -228,11 +228,12 @@ class Schedule(Queue):
                 # Would break a dependence on storage
                 return False
 
-            if any(dep.is_carried(i) for i in candidates):
+            if any(dep.as_logical.is_carried(i) for i in candidates):
+                # If, from a semantic viewpoint, `i` is a purely sequential
+                # Dimension, give up
                 test0 = dep.is_flow and dep.is_lex_negative
                 test1 = dep.is_anti and dep.is_lex_positive
                 if test0 or test1:
-                    # Would break a data dependence
                     return False
 
             test = test or (bool(dep.cause & candidates) and not dep.is_lex_equal)
