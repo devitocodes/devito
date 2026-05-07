@@ -228,17 +228,11 @@ class Schedule(Queue):
                 # Would break a dependence on storage
                 return False
 
-            if any(dep.is_carried(i) for i in candidates):
+            if any(dep.as_logical.is_carried(i) for i in candidates):
+                # If, from a semantic viewpoint, `i` is a purely sequential
+                # Dimension, give up
                 test0 = dep.is_flow and dep.is_lex_negative
                 test1 = dep.is_anti and dep.is_lex_positive
-                if test0:
-                    # If the same access pair is not a flow under logical distance,
-                    # the dep is a buffer/modulo-aliasing artifact and fission is OK
-                    ldist = dep.source.distance(dep.sink, logical=True)
-                    real_flow = (ldist > 0) or \
-                        (ldist == 0 and dep.sink.lex_ge(dep.source))
-                    if not real_flow:
-                        test0 = real_flow
                 if test0 or test1:
                     return False
 

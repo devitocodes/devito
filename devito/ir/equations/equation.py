@@ -30,6 +30,10 @@ class IREq(sympy.Eq, Pickable):
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation')
 
+    def _hashable_content(self):
+        return (*super()._hashable_content(),
+                *tuple(getattr(self, i) for i in self.__rkwargs__))
+
     @property
     def is_Scalar(self):
         return self.lhs.is_Symbol
@@ -302,7 +306,7 @@ class ClusterizedEq(IREq):
                     setattr(expr, f'_{i}', v)
             else:
                 expr._ispace = kwargs['ispace']
-                expr._conditionals = kwargs.get('conditionals', frozendict())
+                expr._conditionals = kwargs.get('conditionals', {})
                 expr._implicit_dims = input_expr.implicit_dims
                 expr._operation = Operation.detect(input_expr)
         elif len(args) == 2:
@@ -313,6 +317,10 @@ class ClusterizedEq(IREq):
         else:
             raise ValueError(f"Cannot construct ClusterizedEq from args={str(args)} "
                              f"and kwargs={str(kwargs)}")
+
+        # Immutability (and thus hashability, etc)
+        expr._conditionals = frozendict(expr._conditionals)
+
         return expr
 
     func = IREq._rebuild

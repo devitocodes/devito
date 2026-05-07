@@ -2,8 +2,8 @@ import numpy as np
 
 from conftest import assert_structure
 from devito import (
-    Buffer, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, TimeFunction,
-    solve
+    NODE, Buffer, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain,
+    TimeFunction, solve
 )
 from devito.ir.iet import retrieve_iteration_tree
 from devito.ir.support.properties import PARALLEL
@@ -131,7 +131,7 @@ def test_issue_1921():
     assert np.all(g.data == g1.data)
 
 
-def test_buffer1_fissioning():
+def test_buffer1_v0():
     """
     Tests an edge case whereby inability to spot the equivalence of
     `f.forward`/`backward` and `f` when using `Buffer(1)` would cause
@@ -196,3 +196,23 @@ def test_buffer1_fissioning():
     # Two loop nests: free-surface-like and update-like
     assert_structure(op, ['t,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
                      't,x,y,z,x0_blk0,y0_blk0,x,y,z')
+
+
+def test_buffer1_v1():
+    grid = Grid((11, 11, 11))
+    x, y, z = grid.dimensions
+
+    image_vs = Function(name='image_vs', grid=grid, space_order=1, staggered=NODE)
+    p_back_xy = TimeFunction(name='p_back_xy', grid=grid, staggered=(x, y),
+                             space_order=4, time_order=1, save=Buffer(1))
+
+    eqns = [Eq(image_vs, p_back_xy + image_vs),
+            Eq(p_back_xy.backward, p_back_xy)]
+
+    op = Operator(eqns)
+
+    assert_structure(
+        op,
+        ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
+        'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz'
+    )

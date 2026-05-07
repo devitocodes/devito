@@ -278,7 +278,7 @@ def detect_io(exprs, relax=False):
             if rule(f):
                 writes.append(f)
 
-    return filter_sorted(reads), filter_sorted(writes)
+    return tuple(filter_sorted(reads)), tuple(filter_sorted(writes))
 
 
 def pull_dims(exprs, flag=True):
