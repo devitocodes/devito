@@ -150,6 +150,8 @@ class HaloScheme:
 
         # Further constraints on the `omapper` derivation. At construction time
         # there's none, but lowering passes may change this
+        # * `_alignment` may be a positive integer representing the alignment
+        #   requirement, in number of *elements*, of the underlying expressions
         self._alignment = None
 
     def __repr__(self):

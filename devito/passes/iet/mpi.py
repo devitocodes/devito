@@ -319,7 +319,7 @@ def _mark_overlappable(iet):
     for hs in found:
         exprs = [n.expr for n in FindNodes(Expression).visit(hs)]
         objs = search(exprs, (VectorAccess, TensorMove))
-        alignment = max([i._expected_alignment for i in objs], default=None)
+        alignment = max([i._expected_alignment_elems for i in objs], default=None)
 
         hsf = hs.halo_scheme._rebuild(alignment=alignment)
         hs1 = hs._rebuild(halo_scheme=hsf)
