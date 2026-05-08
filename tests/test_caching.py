@@ -9,7 +9,7 @@ from devito import (
     ConditionalDimension, Constant, DefaultDimension, Dimension, Eq, Function, Grid,
     Operator, SparseFunction, SparseTimeFunction, SubDimension, TensorFunction,
     TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, _SymbolCache,
-    clear_cache, solve
+    clear_cache, solve, switchconfig
 )
 from devito.types import (
     DeviceID, LocalObject, NPThreads, NThreadsBase, Object, Scalar, Symbol, ThreadID
@@ -467,6 +467,7 @@ class TestCaching:
 
         assert hash(grid0) != hash(grid1)
 
+    @switchconfig(compiler='icc')
     def test_special_symbols(self):
         """
         This test checks the singletonization, through the caching infrastructure,
