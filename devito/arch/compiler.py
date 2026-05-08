@@ -912,7 +912,7 @@ class IntelKNLCompiler(IntelCompiler):
             warning("Running on Intel KNL without OpenMP is highly discouraged")
 
 
-class OneapiCompiler(IntelCompiler):
+class OneapiCompiler(Compiler):
 
     def __init_finalize__(self, **kwargs):
         IntelCompiler.__init_finalize__(self, **kwargs)
@@ -954,8 +954,6 @@ class OneapiCompiler(IntelCompiler):
 
     def __init_intel_mpi_flags__(self, **kwargs):
         pass
-
-    get_version = Compiler.get_version
 
     def __lookup_cmds__(self):
         # OneAPI HPC ToolKit comes with icpx, which is clang++,

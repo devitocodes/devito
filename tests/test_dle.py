@@ -12,7 +12,7 @@ from devito import (
     SparseTimeFunction, SubDimension, TimeFunction, configuration, cos, dimensions, info,
     switchconfig
 )
-from devito.arch.compiler import IntelCompiler, OneapiCompiler
+from devito.arch.compiler import IntelCompiler
 from devito.exceptions import InvalidArgument
 from devito.ir.iet import (
     Expression, FindNodes, IsPerfectIteration, Iteration, retrieve_iteration_tree
@@ -1489,8 +1489,7 @@ class TestNestedParallelism:
         # Check omp pargams
         assert trees[0][0].pragmas[0].ccode.value == \
             'omp for collapse(2) schedule(dynamic,1)'
-        if isinstance(configuration['compiler'], IntelCompiler) and \
-           not isinstance(configuration['compiler'], OneapiCompiler):
+        if isinstance(configuration['compiler'], IntelCompiler):
             # Supports nested parallelism
             assert trees[0][2].pragmas[0].ccode.value == \
                 'omp parallel for collapse(2) schedule(dynamic,1)'\

@@ -6,7 +6,7 @@ from sympy import And, Ne, Not
 
 from devito.arch import AMDGPUX, INTELGPUX, NVIDIAX, PVC
 from devito.arch.compiler import (
-    CustomCompiler, GNUCompiler, IntelCompiler, NvidiaCompiler, OneapiCompiler
+    CustomCompiler, GNUCompiler, IntelCompiler, NvidiaCompiler
 )
 from devito.ir import (
     Call, Conditional, DeviceCall, FindSymbols, List, ParallelBlock, PointerCast, Pragma,
@@ -283,10 +283,8 @@ class AbstractOmpizer(PragmaShmTransformer):
         # In case we have a CustomCompiler
         if isinstance(compiler, CustomCompiler):
             compiler = compiler._base()
-        # Only supported by icc (IntelCompiler) but not by
-        # OneAPI's DPC++ compiler (OneapiCompiler) that inherits from IntelCompiler
-        return isinstance(compiler, IntelCompiler) and not \
-            isinstance(compiler, OneapiCompiler)
+        # Only supported by icc (IntelCompiler)
+        return isinstance(compiler, IntelCompiler)
 
 
 class Ompizer(AbstractOmpizer):
