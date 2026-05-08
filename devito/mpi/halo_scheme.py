@@ -573,12 +573,6 @@ def classify(exprs, ispace):
     Produce the mapper `Function -> HaloSchemeEntry`, which describes the necessary
     halo exchanges in the given Scope.
     """
-
-    # Some MPI modes require pulling the `loc_indices` from the reads, others
-    # from the writes. It essentially depends on whether the halo exchange is
-    # performed before (reads) or after (writes) the OWNED region is computed
-    loc_indices_from_reads = configuration['mpi'] not in ('dual',)
-
     scope = Scope(exprs)
 
     mapper = {}
@@ -618,7 +612,7 @@ def classify(exprs, ispace):
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
-                elif loc_indices_from_reads:
+                else:
                     v[(d, i[d])] = NONE
 
             # Does `i` actually require a halo exchange?
@@ -626,7 +620,9 @@ def classify(exprs, ispace):
                 continue
 
             # Derive diagonal halo exchanges from the previous analysis
-            combs = list(product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions)))
+            combs = list(
+                product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions))
+            )
             combs.remove((CENTER,)*len(f._dist_dimensions))
             for c in combs:
                 key = (f._dist_dimensions, c)
@@ -651,13 +647,6 @@ def classify(exprs, ispace):
         if not halo_labels:
             continue
 
-        # Augment `halo_labels` with `loc_indices`-related information if necessary
-        if not loc_indices_from_reads:
-            for i in scope.writes.get(f, []):
-                for d in i.findices:
-                    if not f.grid.is_distributed(d):
-                        halo_labels[(d, i[d])].add(NONE)
-
         # Separate halo-exchange Dimensions from `loc_indices`
         raw_loc_indices, halos = defaultdict(list), []
         for (d, s), hl in halo_labels.items():
@@ -666,15 +655,18 @@ def classify(exprs, ispace):
             if not hl:
                 continue
             elif len(hl) > 1:
-                raise HaloSchemeException("Inconsistency found while building a halo "
-                                          f"scheme for `{f}` along Dimension `{d}`")
+                raise HaloSchemeException(
+                    "Inconsistency found while building a halo scheme for "
+                    f"`{f}` along Dimension `{d}`")
             elif hl.pop() is STENCIL:
                 halos.append(Halo(d, s))
             elif d._defines & set(ispace.itdims):
                 raw_loc_indices[d].append(s)
 
-        loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
-                                                    ispace.directions)
+        loc_indices, loc_dirs = process_loc_indices(
+            raw_loc_indices, ispace.directions
+        )
+
         mapper[f] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
 
     return mapper
