@@ -79,8 +79,12 @@ def test_is_param(ndim):
 
 
 @pytest.mark.parametrize('expr, expected', [
-    ('(a*b)._gather_for_diff', 'a.subs({x: x0}) * b'),
-    ('(d*b)._gather_for_diff', 'd.subs({x: x0}) * b'),
+    # NODE has higher _fd_priority than staggered, so a product of factors at
+    # different staggerings is gathered at the cell centre (where coefficients
+    # naturally live). A Derivative inherits the priority of its underlying
+    # function (so `d.dx` represents `d` for the comparison).
+    ('(a*b)._gather_for_diff', 'a * b.subs({x0: x})'),
+    ('(d*b)._gather_for_diff', 'd * b.subs({x0: x})'),
     ('(d.dx*b)._gather_for_diff', 'd.dx * b.subs({x0: x})'),
     ('(b*c)._gather_for_diff', 'b * c.subs({x: x0, y0: y})')])
 def test_gather_for_diff(expr, expected):
@@ -99,9 +103,11 @@ def test_gather_for_diff(expr, expected):
 @pytest.mark.parametrize('expr, expected', [
     ('((a + b).dx._eval_at(a)).is_Add', 'True'),
     ('(a + b).dx._eval_at(a)', 'a.dx + b.dx._eval_at(a)'),
-    ('(a*b).dx._eval_at(a).expr', 'a.subs({x: x0}) * b'),
+    # NODE has higher _fd_priority than staggered, so products are gathered at
+    # the cell centre (with the staggered factor shifted *down* to NODE).
+    ('(a*b).dx._eval_at(a).expr', 'a * b.subs({x0: x})'),
     ('(a * b.dx).dx._eval_at(b).expr._eval_deriv ',
-     'a.subs({x: x0}) * b.dx.evaluate')])
+     'a * b.dx.evaluate')])
 def test_stagg_fd_composite(expr, expected):
     grid = Grid((10, 10))
     x, y = grid.dimensions

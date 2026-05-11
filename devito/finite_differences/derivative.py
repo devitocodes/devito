@@ -89,7 +89,14 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     evaluation are `x0`, `fd_order` and `side`.
     """
 
-    _fd_priority = .9
+    @cached_property
+    def _fd_priority(self):
+        # A Derivative inherits the priority of its underlying expression, so
+        # that `highest_priority(C*v.dx)` and `highest_priority((C*v).dx)`
+        # agree on the gather location and the two gathering paths
+        # (`_gather_for_diff` and `Mul._eval_at(interp_mode='symmetric')`)
+        # produce consistent answers.
+        return getattr(self.expr, '_fd_priority', 0)
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
@@ -472,7 +479,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         return self._rebuild(transpose=adjoint)
 
-    def _eval_at(self, func, mul_first=False, **kwargs):
+    def _eval_at(self, func, interp_mode='direct', **kwargs):
         """
         Evaluates the derivative at the location of `func`. It is necessary for staggered
         setup where one could have Eq(u(x + h_x/2), v(x).dx)) in which case v(x).dx
@@ -525,7 +532,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 return self._rebuild(self.expr, **rkw)
             args = [self.expr.func(*v) for v in mapper.values()]
             args.extend([a for a in self.expr.args if a not in self.expr._args_diff])
-            args = [self._rebuild(a)._eval_at(func, mul_first=mul_first, **kwargs)
+            args = [self._rebuild(a)._eval_at(func, interp_mode=interp_mode, **kwargs)
                     for a in args]
             return self.expr.func(*args)
         elif self.expr.is_Mul:
@@ -597,7 +604,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             res = generic_derivative(expr, self.dims[0], self.fd_order[0],
                                      self.deriv_order[0], weights=self.weights,
                                      side=self.side, matvec=self.transpose,
-                                     x0=x0_deriv, expand=expand)
+                                     x0=self.x0, expand=expand)
 
         # Step 4: Apply substitutions
         for e in self._ppsubs:

@@ -1,4 +1,5 @@
 from collections import ChainMap
+from contextlib import suppress
 from functools import cached_property, singledispatch
 from itertools import product
 
@@ -185,8 +186,10 @@ class Differentiable(sympy.Expr, Evaluable):
         return sorted(coefficients, key=key, reverse=True)[0]
 
     def _eval_at(self, func, **kwargs):
-        return self.func(*[getattr(a, '_eval_at', lambda x, **kw: a)(func, **kwargs)
-                           for a in self.args])
+        return self.func(*[
+            getattr(a, '_eval_at', lambda x, **kw: a)(func, **kwargs)  # noqa: B023
+            for a in self.args  # false positive: lambda is invoked in-place
+        ])
 
     def _subs(self, old, new, **hints):
         if old == self:
@@ -576,9 +579,6 @@ class DifferentiableFunction(DifferentiableOp):
             return super()._fd_priority
         return highest_priority(self)._fd_priority
 
-    def _eval_at(self, func, **kwargs):
-        return self
-
 
 class Add(DifferentiableOp, sympy.Add):
     __sympy_class__ = sympy.Add
@@ -668,67 +668,63 @@ class Mul(DifferentiableOp, sympy.Mul):
             other = self.func(*other)._eval_at(highest_priority(self))
             return self.func(other, *derivs)
 
-    def _eval_at(self, func, mul_first=False, **kwargs):
-        # Dont evaluate mul first
-        if not mul_first:
-            return super()._eval_at(func, mul_first=mul_first)
+    def _eval_at(self, func, interp_mode='direct', **kwargs):
+        """
+        Evaluate a Mul at the location of `func`.
 
-        # Same staggering, no need to interpolate
-        if self.staggered == func.staggered:
-            return self
+        Two modes:
 
-        # Get highest priority function for evaluation
-        func0 = highest_priority(self, ref=func)
+        - `interp_mode='direct'` (default): per-arg evaluation; each factor is
+          independently evaluated at `func`'s location via
+          `Differentiable._eval_at`.
 
-        # Not a basic a*b*c... expression, expand
-        if any(isinstance(f, DifferentiableOp) for f in self.args):
-            return diffify(self._eval_expand_mul())._eval_at(func, mul_first=mul_first)
+        - `interp_mode='symmetric'`: when every Differentiable factor has a
+          staggering different from `func`'s, apply the `I * (a * I^T * b)`
+          form:
 
-        # Split Derivative and Differentiable args
-        derivs, other = split(self.args, lambda e: isinstance(e, sympy.Derivative))
+            1. Pick a `block` location -- the highest-priority factor's
+               staggering (NODE is the highest priority, so coefficient-like
+               NODE factors win, as in the `I * C * I^T` elastic stiffness
+               pattern). Each factor not at the block is brought there via
+               `I^T` (an explicit 0-order FD interpolation operator).
+               Derivatives additionally set `x0` on their own derivative
+               dimensions to `func`'s indices.
+            2. The product is formed at `block`'s location.
+            3. The whole product is interpolated to `func` via `I` (an
+               explicit 0-order FD operator).
 
-        # Evaluate all at highest priority function
-        if derivs:
-            derivs = self.func(*[d._eval_at(func, mul_first=mul_first) for d in derivs])
-        else:
-            derivs = 1
+          When the trigger does not hold (e.g. some factor already matches
+          `func`'s staggering), we fall back to `direct`.
+        """
+        if interp_mode != 'symmetric':
+            return super()._eval_at(func, **kwargs)
 
-        if not other:
-            return derivs
-        expr = self.func(*other)
+        diff_args = [a for a in self.args if isinstance(a, Differentiable)]
+        other_args = [a for a in self.args if not isinstance(a, Differentiable)]
 
-        # Non differentiable expr (e.g., number)
-        if not isinstance(expr, Differentiable):
-            return self.func(derivs, expr)
+        # Symmetric form requires every Differentiable factor to differ from
+        # func; otherwise direct evaluation is cleaner and equivalent.
+        if len(diff_args) < 2 or \
+           any(a.staggered == func.staggered for a in diff_args):
+            return super()._eval_at(func, **kwargs)
 
-        # Evaluate expression at func_args
-        print(f"\nEvaluating expr {expr} at func0 {func0} for func {func} from {self}")
-        expr = Differentiable._eval_at(expr, func0, mul_first=False)
+        block_indices = highest_priority(self).indices_ref
 
-        # Interpolate derivatives at func0
-        x0 = {d: v for d, v in func0.indices_ref.getters.items()
-            if not d.is_Time and v is not func.indices_ref.getters.get(d, d)}
-        if x0 and not derivs == 1:
-            print(f"Interpolating derivs {derivs} x0={derivs.x0} at {x0}")
-            derivs = derivs.diff(*x0.keys(), deriv_order=(0,)*len(x0),
-                                fd_order=(self.interp_order,)*len(x0),
-                                x0=x0)
-        newexpr = self.func(derivs, expr)
-
-        # Finally at func
-        if not func.staggered == func0.staggered:
-            x0_f = {d: v for d, v in func.indices_ref.getters.items()
-                    if not d.is_Time and v is not func0.indices_ref.getters.get(d)}
-            if x0_f:
-                print(f"Final interpolation of derivs {self.func(derivs, expr)} at func {x0_f}")
-                return newexpr.diff(*x0_f.keys(), deriv_order=(0,)*len(x0_f),
-                                    fd_order=(self.interp_order,)*len(x0_f),
-                                    x0=x0_f)
+        # Bring each factor to block's location (I^T where needed)
+        new_factors = list(other_args)
+        for a in diff_args:
+            if isinstance(a, sympy.Derivative):
+                source = _post_x0_indices(a, func)
+                a = a._rebuild(x0={dim: func.indices_ref[dim] for dim in a.dims
+                                   if dim in func.indices_ref.getters})
             else:
-                return newexpr
-        else:
-            # Return the full expression with Derivatives
-            return newexpr
+                source = a.indices_ref
+            new_factors.append(_interp_at(a, source, block_indices,
+                                          self.interp_order))
+
+        # Final I from block's location to func
+        return _interp_at(self.func(*new_factors), block_indices,
+                          func.indices_ref, self.interp_order)
 
 
 class Pow(DifferentiableOp, sympy.Pow):
@@ -1253,6 +1249,63 @@ def diff2sympy(expr):
 evalf_table[Add] = evalf_table[sympy.Add]
 evalf_table[Mul] = evalf_table[sympy.Mul]
 evalf_table[Pow] = evalf_table[sympy.Pow]
+
+
+def _interp_mapper(source, target, dims):
+    """
+    Build a `{dim: target_index}` mapper for dimensions in `dims` where
+    `source[dim]` differs from `target[dim]`.
+
+    `source` and `target` are dict-like `{dim: index_expr}` (e.g. a plain
+    dict or a `DimensionTuple`). Dimensions missing from either side are
+    skipped silently.
+    """
+    mapper = {}
+    for d in dims:
+        try:
+            s = source[d]
+            t = target[d]
+        except (KeyError, IndexError):
+            continue
+        if s is not t:
+            mapper[d] = t
+    return mapper
+
+
+def _interp_at(expr, source, target, interp_order):
+    """
+    Build a symbolic 0-order FD interpolation operator on `expr` that maps
+    values from `source` indices to `target` indices, only on the
+    dimensions where the two locations differ.
+    """
+    if not isinstance(expr, Differentiable):
+        return expr
+
+    mapper = _interp_mapper(source, target, expr.dimensions)
+    if not mapper:
+        return expr
+
+    return expr.diff(*mapper.keys(),
+                     deriv_order=(0,) * len(mapper),
+                     fd_order=(interp_order,) * len(mapper),
+                     x0=mapper)
+
+
+def _post_x0_indices(deriv, func):
+    """
+    Conceptual indices of `deriv` after setting `x0` on its own derivative
+    dimensions to `func`'s indices. Derivative dims take `func`'s indices;
+    other dims keep the underlying expression's natural location (so that
+    `interp_for_fd` does not introduce a spurious second shift).
+    """
+    ref = {}
+    for dim in deriv.dimensions:
+        if dim in deriv.dims and dim in func.indices_ref.getters:
+            ref[dim] = func.indices_ref[dim]
+        else:
+            with suppress(KeyError):
+                ref[dim] = deriv.indices_ref[dim]
+    return ref
 
 
 # Interpolation for finite differences

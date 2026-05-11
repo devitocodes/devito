@@ -125,10 +125,24 @@ class BasicOperator(Operator):
     finite-difference derivatives.
     """
 
-    MUL_FIRST = False
+    INTERP_MODE = 'direct'
     """
-    When evaluating expressions location, prioritize multiplication
-    operations.
+    Interpolation mode used by `Mul._eval_at` when projecting a multi-factor
+    expression onto a target staggered location:
+
+    * `'direct'` (default): each factor is shifted to `func`'s location
+      independently (`Function._eval_at` per arg). Cheapest stencil; the
+      mode to pick unless you need an explicitly self-adjoint discretization.
+
+    * `'symmetric'`: when every factor lives at a staggering different from
+      `func`'s, the symmetric form `I * (a * I^T * b)` is built -- all
+      factors are gathered at the highest-priority "block" location via
+      `I^T`, multiplied there, and the product is interpolated to `func`
+      via `I`. Use this for operators whose continuous form decomposes as
+      `I * A * I^T` (e.g. the elastic stiffness `σ = C ε`).
+
+    See `examples/userapi/08_staggered_interp.ipynb` for the maths and a
+    worked elastic-stiffness example.
     """
 
     DERIV_COLLECT = True
