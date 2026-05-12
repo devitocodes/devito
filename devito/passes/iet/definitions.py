@@ -444,7 +444,7 @@ class DataManager:
 
         return processed, flatten(efuncs)
 
-    @iet_pass
+    @iet_pass(updates_args=True)
     def place_definitions(self, iet, globs=None, **kwargs):
         """
         Create a new IET where all symbols have been declared, allocated, and
@@ -518,7 +518,7 @@ class DataManager:
                      'globals': as_tuple(globs),
                      'includes': as_tuple(sorted(storage.includes))}
 
-    @iet_pass(updates_args=False)
+    @iet_pass
     def place_casts(self, iet, **kwargs):
         """
         Create a new IET with the necessary type casts.
@@ -669,7 +669,7 @@ class DeviceAwareDataManager(DataManager):
 
         return iet, {'efuncs': efuncs}
 
-    @iet_pass(updates_args=False)
+    @iet_pass
     def place_devptr(self, iet, **kwargs):
         """
         Transform `iet` such that device pointers are used in DeviceCalls.

@@ -32,8 +32,8 @@ from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
-    Graph, error_mapper, generate_implicit, generate_macros, is_on_device, lower_dtypes,
-    lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
+    Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
+    lower_dtypes, lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
@@ -521,6 +521,9 @@ class Operator(Callable):
 
         # Target-independent optimizations
         minimize_symbols(graph)
+
+        # Finalize helper signatures after all IET transformations have settled.
+        finalize_args(graph)
 
         return graph.root, graph
 
