@@ -307,7 +307,7 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map.items()]
 
-    def _interp_idx(self, variables, implicit_dims=None, pos_only=(), subdomain=None):
+    def _interp_idx(self, variables, implicit_dims=None, subdomain=None):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -330,16 +330,6 @@ class WeightedInterpolator(GenericInterpolator):
         }
 
         idx_subs = {v: v.subs(subs) for v in variables}
-
-        # Position only replacement, not radius dependent.
-        # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
-        # not vp[posx + rx]
-        idx_subs.update({
-            v: v.subs({
-                k: p
-                for (k, p) in zip(mapper, pos, strict=True)
-            }) for v in pos_only
-        })
 
         return idx_subs, temps
 
@@ -479,8 +469,9 @@ class WeightedInterpolator(GenericInterpolator):
                                               self._rdim(subdomain=subdomain))
 
         # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(fields, implicit_dims=implicit_dims,
-                                           pos_only=variables, subdomain=subdomain)
+        finterp = fields + as_tuple(variables)
+        idx_subs, temps = self._interp_idx(finterp, implicit_dims=implicit_dims,
+                                           subdomain=subdomain)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
