@@ -1,5 +1,4 @@
 from collections import ChainMap
-from contextlib import suppress
 from functools import cached_property, singledispatch
 from itertools import product
 
@@ -16,6 +15,7 @@ except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
+from devito.finite_differences.interpolation import interp_at, post_x0_indices
 from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
@@ -140,10 +140,6 @@ class Differentiable(sympy.Expr, Evaluable):
         elif len(self._args_diff) == 0:
             return DimensionTuple(*self.dimensions, getters=self.dimensions)
         return highest_priority(self).indices_ref
-
-    @cached_property
-    def is_Staggered(self):
-        return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
 
     @cached_property
     def is_TimeDependent(self):
@@ -699,32 +695,31 @@ class Mul(DifferentiableOp, sympy.Mul):
         if interp_mode != 'symmetric':
             return super()._eval_at(func, **kwargs)
 
-        diff_args = [a for a in self.args if isinstance(a, Differentiable)]
-        other_args = [a for a in self.args if not isinstance(a, Differentiable)]
+        diff, other = split(self.args, lambda a: isinstance(a, Differentiable))
 
         # Symmetric form requires every Differentiable factor to differ from
         # func; otherwise direct evaluation is cleaner and equivalent.
-        if len(diff_args) < 2 or \
-           any(a.staggered == func.staggered for a in diff_args):
+        if len(diff) < 2 or \
+           any(a.staggered == func.staggered for a in diff):
             return super()._eval_at(func, **kwargs)
 
         block_indices = highest_priority(self).indices_ref
 
         # Bring each factor to block's location (I^T where needed)
-        new_factors = list(other_args)
-        for a in diff_args:
+        new_factors = list(other)
+        for a in diff:
             if isinstance(a, sympy.Derivative):
-                source = _post_x0_indices(a, func)
+                source = post_x0_indices(a, func)
                 a = a._rebuild(x0={dim: func.indices_ref[dim] for dim in a.dims
                                    if dim in func.indices_ref.getters})
             else:
                 source = a.indices_ref
-            new_factors.append(_interp_at(a, source, block_indices,
-                                          self.interp_order))
+            new_factors.append(interp_at(a, source, block_indices,
+                                         self.interp_order))
 
         # Final I from block's location to func
-        return _interp_at(self.func(*new_factors), block_indices,
-                          func.indices_ref, self.interp_order)
+        return interp_at(self.func(*new_factors), block_indices,
+                         func.indices_ref, self.interp_order)
 
 
 class Pow(DifferentiableOp, sympy.Pow):
@@ -1251,63 +1246,6 @@ evalf_table[Mul] = evalf_table[sympy.Mul]
 evalf_table[Pow] = evalf_table[sympy.Pow]
 
 
-def _interp_mapper(source, target, dims):
-    """
-    Build a `{dim: target_index}` mapper for dimensions in `dims` where
-    `source[dim]` differs from `target[dim]`.
-
-    `source` and `target` are dict-like `{dim: index_expr}` (e.g. a plain
-    dict or a `DimensionTuple`). Dimensions missing from either side are
-    skipped silently.
-    """
-    mapper = {}
-    for d in dims:
-        try:
-            s = source[d]
-            t = target[d]
-        except (KeyError, IndexError):
-            continue
-        if s is not t:
-            mapper[d] = t
-    return mapper
-
-
-def _interp_at(expr, source, target, interp_order):
-    """
-    Build a symbolic 0-order FD interpolation operator on `expr` that maps
-    values from `source` indices to `target` indices, only on the
-    dimensions where the two locations differ.
-    """
-    if not isinstance(expr, Differentiable):
-        return expr
-
-    mapper = _interp_mapper(source, target, expr.dimensions)
-    if not mapper:
-        return expr
-
-    return expr.diff(*mapper.keys(),
-                     deriv_order=(0,) * len(mapper),
-                     fd_order=(interp_order,) * len(mapper),
-                     x0=mapper)
-
-
-def _post_x0_indices(deriv, func):
-    """
-    Conceptual indices of `deriv` after setting `x0` on its own derivative
-    dimensions to `func`'s indices. Derivative dims take `func`'s indices;
-    other dims keep the underlying expression's natural location (so that
-    `interp_for_fd` does not introduce a spurious second shift).
-    """
-    ref = {}
-    for dim in deriv.dimensions:
-        if dim in deriv.dims and dim in func.indices_ref.getters:
-            ref[dim] = func.indices_ref[dim]
-        else:
-            with suppress(KeyError):
-                ref[dim] = deriv.indices_ref[dim]
-    return ref
-
-
 # Interpolation for finite differences
 @singledispatch
 def interp_for_fd(expr, x0, **kwargs):
@@ -1354,7 +1292,7 @@ def _(expr, x0, **kwargs):
 @interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
     x0_expr = {d: v for d, v in x0.items() if v.has(d)
-               and expr.indices[d] is not v}
+               and expr.indices.get(d, v) is not v}
     if x0_expr:
         return expr.subs({expr.indices[d]: v for d, v in x0_expr.items()})
     else:

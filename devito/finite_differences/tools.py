@@ -292,7 +292,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
     o_min = int(np.ceil(mid - r)) + side.val
     o_max = int(np.floor(mid + r)) + side.val
     if o_max == o_min:
-        if dim.is_Time or not expr.is_Staggered:
+        if dim.is_Time or not bool(expr.staggered):
             o_max += 1
         else:
             o_min -= 1

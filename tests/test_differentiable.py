@@ -502,8 +502,7 @@ class TestSymmetricAdjoint:
             eqns.append(Eq(t1[i], sum(C[(i, j)] * e1[j] for j in range(1, 7))))
             eqns.append(Eq(e2[i], sum(C[(i, j)] * t2[j] for j in range(1, 7))))
 
-        Operator(eqns, opt=('advanced',
-                            {'interp-mode': interp_mode})).apply()
+        Operator(eqns, sym_opt={'interp-mode': interp_mode}).apply()
 
         inner_e = sum(float(np.dot(e1[i].data.flatten(),
                                    e2[i].data.flatten()))

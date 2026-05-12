@@ -125,26 +125,6 @@ class BasicOperator(Operator):
     finite-difference derivatives.
     """
 
-    INTERP_MODE = 'direct'
-    """
-    Interpolation mode used by `Mul._eval_at` when projecting a multi-factor
-    expression onto a target staggered location:
-
-    * `'direct'` (default): each factor is shifted to `func`'s location
-      independently (`Function._eval_at` per arg). Cheapest stencil; the
-      mode to pick unless you need an explicitly self-adjoint discretization.
-
-    * `'symmetric'`: when every factor lives at a staggering different from
-      `func`'s, the symmetric form `I * (a * I^T * b)` is built -- all
-      factors are gathered at the highest-priority "block" location via
-      `I^T`, multiplied there, and the product is interpolated to `func`
-      via `I`. Use this for operators whose continuous form decomposes as
-      `I * A * I^T` (e.g. the elastic stiffness `σ = C ε`).
-
-    See `examples/userapi/08_staggered_interp.ipynb` for the maths and a
-    worked elastic-stiffness example.
-    """
-
     DERIV_COLLECT = True
     """
     Factorize finite-difference derivatives exploiting the linearity of the FD
@@ -191,6 +171,30 @@ class BasicOperator(Operator):
     The target language constructor, to be specified by subclasses.
     """
 
+    # ------------------------------------------------------------------
+    # Symbolic-level option defaults (`sym_opt`).
+    # These steer mathematical choices made during expression lowering,
+    # *not* code generation or performance. They are kept separate from
+    # the `opt` options above to keep the two concerns distinct.
+    # ------------------------------------------------------------------
+
+    INTERP_MODE = 'direct'
+    """
+    Default for the `sym_opt={'interp-mode': ...}` option. Controls how
+    a product of fields living at different staggered locations is mapped
+    onto a target location:
+
+    * `'direct'` (default): each factor is interpolated to the target
+      independently. Cheapest stencil.
+    * `'symmetric'`: factors are first gathered at a common "block"
+      location, multiplied there, and the result is interpolated once to
+      the target. Preserves the `I A I^T` matrix structure, so the
+      discrete operator stays self-adjoint when the continuous one is
+      (e.g. the elastic stiffness `sigma = C eps`).
+
+    See `examples/userapi/08_staggered_interp.ipynb` for a worked example.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         # Will be populated with dummy values; this method is actually overridden
@@ -208,12 +212,30 @@ class BasicOperator(Operator):
             )
 
         kwargs['options'].update(o)
+        kwargs['sym_options'] = cls._normalize_sym_kwargs(**kwargs)
 
         return kwargs
 
     @classmethod
+    def _normalize_sym_kwargs(cls, **kwargs):
+        """
+        Fill in defaults and validate keys for the `sym_opt` dict passed to
+        the Operator. Returns the normalized `sym_options` dict.
+        """
+        so = dict(kwargs.get('sym_options', {}))
+        out = {'interp-mode': so.pop('interp-mode', cls.INTERP_MODE)}
+
+        if so:
+            raise InvalidOperator(
+                f'Unrecognized symbolic options: [{", ".join(list(so))}]'
+            )
+
+        return out
+
+    @classmethod
     def _check_kwargs(cls, **kwargs):
         oo = kwargs['options']
+        so = kwargs['sym_options']
 
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
             raise InvalidOperator(f"Unsupported MPI mode `{oo['mpi']}`")
@@ -228,6 +250,9 @@ class BasicOperator(Operator):
 
         if oo['errctl'] not in (None, False, 'basic', 'max'):
             raise InvalidOperator("Illegal `errctl` value")
+
+        if so['interp-mode'] not in ('direct', 'symmetric'):
+            raise InvalidOperator("Illegal `interp-mode` value")
 
     def _autotune(self, args, setup):
         if setup in [False, 'off']:

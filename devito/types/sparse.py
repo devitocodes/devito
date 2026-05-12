@@ -430,7 +430,7 @@ class AbstractSparseFunction(DiscreteFunction):
         parent = self._crdim(dim)
         return ConditionalDimension(parent.name, parent, condition=cond, indirect=True)
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         return self
 
     def interpolate(self, *args, **kwargs):

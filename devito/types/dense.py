@@ -15,7 +15,7 @@ from devito.data.allocators import DataReference
 from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
-from devito.finite_differences.differentiable import _interp_mapper
+from devito.finite_differences.interpolation import interp_mapper
 from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -1128,10 +1128,10 @@ class Function(DiscreteFunction):
             return self
 
         # Dims where self and func indices differ -> {dim: func_idx}
-        diff = _interp_mapper(self.indices_ref, func.indices_ref, self.dimensions)
+        diff = interp_mapper(self.indices_ref, func.indices_ref, self.dimensions)
 
         # Translate into a subs mapper {self_idx: func_idx} aligned on self's dims
-        subs_map = {self.indices_ref[d]: t._subs(func.dimensions[d], d)
+        subs_map = {self.indices_ref[d]: t._subs(func.dimensions.get(d, d), d)
                     for d, t in diff.items()}
 
         return self.subs(subs_map)
@@ -1200,10 +1200,6 @@ class Function(DiscreteFunction):
     def staggered(self):
         """The staggered indices of the object."""
         return self._staggered
-
-    @property
-    def is_Staggered(self):
-        return bool(self.staggered)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):

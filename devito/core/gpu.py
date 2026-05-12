@@ -102,7 +102,6 @@ class DeviceOperatorMixin:
 
         # Code generation options for derivatives
         o['expand'] = oo.pop('expand', cls.EXPAND)
-        o['interp-mode'] = oo.pop('interp-mode', cls.INTERP_MODE)
         o['deriv-collect'] = oo.pop('deriv-collect', cls.DERIV_COLLECT)
         o['deriv-schedule'] = oo.pop('deriv-schedule', cls.DERIV_SCHEDULE)
         o['deriv-unroll'] = oo.pop('deriv-unroll', False)
@@ -122,6 +121,7 @@ class DeviceOperatorMixin:
             )
 
         kwargs['options'].update(o)
+        kwargs['sym_options'] = cls._normalize_sym_kwargs(**kwargs)
 
         return kwargs
 
