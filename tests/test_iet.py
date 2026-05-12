@@ -540,20 +540,20 @@ def test_complex_array():
         "float _Complex **restrict a_vec __attribute__ ((aligned (64)));"
 
 
-def test_iet_pass_skip_update_args(monkeypatch):
+def test_iet_pass_does_not_update_args(monkeypatch):
     x = Symbol(name='x')
     y = Symbol(name='y')
 
     foo = Callable('foo', DummyExpr(x, y), 'void', parameters=(x, y))
     graph = Graph(foo)
 
-    @iet_pass(updates_args=False)
+    @iet_pass
     def inject_expr(iet):
         body = iet.body._rebuild(body=iet.body.body + (DummyExpr(x, x),))
         return iet._rebuild(body=body), {}
 
-    monkeypatch.setattr(iet_engine, 'update_args',
-                        lambda *args, **kwargs: pytest.fail("update_args called"))
+    monkeypatch.setattr(iet_engine, '_update_args',
+                        lambda *args, **kwargs: pytest.fail("_update_args called"))
 
     inject_expr(graph)
 

@@ -46,7 +46,7 @@ def linearize(graph, **kwargs):
     linearization(graph, key=key, tracker=tracker, **kwargs)
 
 
-@iet_pass
+@iet_pass(updates_args=True)
 def linearization(iet, key=None, tracker=None, **kwargs):
     """
     Carry out the actual work of `linearize`.

@@ -28,7 +28,7 @@ from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
 
-__all__ = ['Graph', 'iet_pass', 'iet_visit']
+__all__ = ['Graph', 'finalize_args', 'iet_pass', 'iet_visit']
 
 
 class Byproduct:
@@ -128,10 +128,22 @@ class Graph(Byproduct):
 
         return found
 
-    def apply(self, func, *, updates_args=True, **kwargs):
+    def apply(self, func, *, updates_args=False, **kwargs):
         """
-        Apply `func` to all nodes in the Graph. This changes the state of the Graph.
+        Apply ``func`` to all nodes in the Graph.
+
+        Parameters
+        ----------
+        updates_args : bool, optional
+            If True, reconcile Callable parameters and Call arguments before
+            the graph walk and after each changed node. This is only needed by
+            passes whose transformation logic depends on already-updated
+            signatures while the pass is still running. Otherwise, argument
+            reconciliation is intentionally deferred to ``finalize_args``.
         """
+        if updates_args:
+            _update_args(self)
+
         dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
 
         # Apply `func`
@@ -161,10 +173,8 @@ class Graph(Byproduct):
             efuncs[i] = efunc
             efuncs.update(dict([(i.name, i) for i in new_efuncs]))
 
-            # Update the parameters / arguments lists if the pass may have
-            # introduced or removed objects.
             if updates_args:
-                efuncs = update_args(efunc, efuncs, dag)
+                efuncs = _update_args_efunc(efunc, efuncs, dag)
 
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
@@ -209,7 +219,37 @@ class Graph(Byproduct):
         )
 
 
-def iet_pass(func=None, *, updates_args=True):
+@timed_pass(name='finalize_args')
+def finalize_args(graph):
+    """
+    Finalize Callable parameter lists and Call argument lists across ``graph``.
+
+    IET passes may temporarily leave helper signatures stale while introducing
+    or eliminating symbols. This pass reconciles the whole call graph once,
+    after lowering has settled.
+    """
+    _update_args(graph)
+
+
+def _update_args(graph):
+    dag = create_call_graph(graph.root.name, as_hashable(graph.efuncs))
+
+    efuncs = graph.efuncs
+    for i in dag.topological_sort():
+        efuncs = _update_args_efunc(efuncs[i], efuncs, dag)
+
+    graph.efuncs = efuncs
+
+
+def iet_pass(func=None, *, updates_args=False):
+    """
+    Decorate an IET pass.
+
+    ``updates_args=True`` is an opt-in for passes that must observe up-to-date
+    Callable/Call signatures before and during their own graph walk. Most
+    passes should leave it False and rely on ``finalize_args`` at the end of
+    IET lowering.
+    """
     if func is None:
         return partial(iet_pass, updates_args=updates_args)
 
@@ -702,7 +742,7 @@ def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='nthreads'))
 
 
-def update_args(root, efuncs, dag):
+def _update_args_efunc(root, efuncs, dag):
     """
     Re-derive the parameters of `root` and apply the changes in cascade through
     the `efuncs`.
@@ -800,6 +840,6 @@ def update_args(root, efuncs, dag):
             continue
 
         efuncs[n] = efunc
-        efuncs = update_args(efunc, efuncs, dag)
+        efuncs = _update_args_efunc(efunc, efuncs, dag)
 
     return efuncs
