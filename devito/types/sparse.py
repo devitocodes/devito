@@ -1089,8 +1089,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         return super().interpolate(expr, increment=increment, self_subs=subs,
                                    implicit_dims=implicit_dims)
 
-    def inject(self, field, expr, u_t=None, p_t=None, implicit_dims=None,
-               interp_expr=False):
+    def inject(self, field, expr, u_t=None, p_t=None, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -1115,8 +1114,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if p_t is not None:
             expr = expr.subs({self.time_dim: p_t})
 
-        return super().inject(field, expr, implicit_dims=implicit_dims,
-                              interp_expr=interp_expr)
+        return super().inject(field, expr, implicit_dims=implicit_dims)
 
     @property
     def forward(self):

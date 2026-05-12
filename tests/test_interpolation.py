@@ -11,7 +11,6 @@ from devito import (
     SparseTimeFunction, SubDomain, TimeFunction, switchconfig
 )
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
-from devito.symbolics import retrieve_functions
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
@@ -568,37 +567,6 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
-
-
-def test_inject_interp_expr():
-    """
-    Test that the Function coefficient gets interpolated too.
-    """
-    coords = [(.05, .95), (.45, .45)]
-    a = unit_box(shape=(11, 11))
-    a.data[:] = 0.
-    p = points(a.grid, ranges=coords, npoints=19)
-    m = Function(name='m', grid=a.grid)
-    m.data_with_halo[:] = 1.
-
-    expr = p.inject(a, m, interp_expr=True)
-    op = Operator(expr)
-
-    op(a=a)
-
-    indices = [slice(4, 6, 1) for _ in coords]
-    indices[0] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], 1, rtol=1.e-5)
-
-    # Extract interp expr to check indices
-    e_expr = expr.evaluate
-    funcs = retrieve_functions(e_expr[-1])
-    assert m in {f.function for f in funcs}
-    # All funcs should have the same indices wit radius
-    # includint the coefficient m
-    indices = {f.indices for f in funcs}
-    assert len(indices) == 1
-    assert str(indices.pop()) == '(rp_pointsx + posx, rp_pointsy + posy)'
 
 
 @pytest.mark.parametrize('shape', [(50, 50, 50)])

@@ -164,21 +164,19 @@ class Injection(UnevaluatedSparseOperation):
 
     __rargs__ = ('field', 'expr', 'implicit_dims') + UnevaluatedSparseOperation.__rargs__
 
-    def __new__(cls, field, expr, implicit_dims, interpolator, interp_expr=False):
+    def __new__(cls, field, expr, implicit_dims, interpolator):
         obj = super().__new__(cls, interpolator)
 
         # TODO: unused now, but will be necessary to compute the adjoint
         obj.field = field
         obj.expr = expr
         obj.implicit_dims = implicit_dims
-        obj.interp_expr = interp_expr
 
         return obj
 
     def operation(self, **kwargs):
         return self.interpolator._inject(expr=self.expr, field=self.field,
-                                         implicit_dims=self.implicit_dims,
-                                         interp_expr=self.interp_expr)
+                                         implicit_dims=self.implicit_dims)
 
     def __repr__(self):
         return f"Injection({repr(self.expr)} into {repr(self.field)})"
@@ -309,7 +307,7 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map.items()]
 
-    def _interp_idx(self, variables, implicit_dims=None, pos_only=(), subdomain=None):
+    def _interp_idx(self, variables, implicit_dims=None, subdomain=None):
         """
         Generate interpolation indices for the DiscreteFunctions in ``variables``.
         """
@@ -332,16 +330,6 @@ class WeightedInterpolator(GenericInterpolator):
         }
 
         idx_subs = {v: v.subs(subs) for v in variables}
-
-        # Position only replacement, not radius dependent.
-        # E.g src.inject(vp(x)*src) needs to use vp[posx] at all points
-        # not vp[posx + rx]
-        idx_subs.update({
-            v: v.subs({
-                k: p
-                for (k, p) in zip(mapper, pos, strict=True)
-            }) for v in pos_only
-        })
 
         return idx_subs, temps
 
@@ -368,7 +356,7 @@ class WeightedInterpolator(GenericInterpolator):
 
     @check_radius
     @check_coords
-    def inject(self, field, expr, implicit_dims=None, interp_expr=False):
+    def inject(self, field, expr, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -383,7 +371,7 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        return Injection(field, expr, implicit_dims, self, interp_expr=interp_expr)
+        return Injection(field, expr, implicit_dims, self)
 
     def _interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
@@ -435,7 +423,7 @@ class WeightedInterpolator(GenericInterpolator):
 
         return temps + summands + last
 
-    def _inject(self, field, expr, implicit_dims=None, interp_expr=False):
+    def _inject(self, field, expr, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -481,10 +469,9 @@ class WeightedInterpolator(GenericInterpolator):
                                               self._rdim(subdomain=subdomain))
 
         # List of indirection indices for all adjacent grid points
-        finterp = fields + as_tuple(variables) if interp_expr else fields
-        pos_only = () if interp_expr else variables
+        finterp = fields + as_tuple(variables)
         idx_subs, temps = self._interp_idx(finterp, implicit_dims=implicit_dims,
-                                           pos_only=pos_only, subdomain=subdomain)
+                                           subdomain=subdomain)
 
         # Substitute coordinate base symbols into the interpolation coefficients
         eqns = [Inc(_field.xreplace(idx_subs),
