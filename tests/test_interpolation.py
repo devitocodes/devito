@@ -986,9 +986,15 @@ class TestComplex:
         assert np.isclose(sc.data[0], fc.data[5, 5, 5])
         assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
 
-        assert_structure(opC, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz',
-                               'p_sc,rp_scx,rp_scy,rp_scz'],
-                         'p_sc,rp_scx,rp_scy,rp_scz,rp_scx,rp_scy,rp_scz')
+        # The interpolation iteration nest now lives inside the per-sparse-op
+        # ElementalFunction. Each efunc carries one `p_sc + rp_scx + rp_scy +
+        # rp_scz` nest, and the parent Operator contains only the Calls.
+        interp_sc = opC._func_table['interpolate_sc0'].root
+        interp_sce = opC._func_table['interpolate_sce0'].root
+        assert_structure(interp_sc, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz'],
+                         'p_sc,rp_scx,rp_scy,rp_scz')
+        assert_structure(interp_sce, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz'],
+                         'p_sc,rp_scx,rp_scy,rp_scz')
 
 
 # ---------------------------------------------------------------------------
@@ -1236,10 +1242,15 @@ class TestSubDomainInterpolation:
         assert np.all(np.isclose(sr0.data, check0))
         assert np.all(np.isclose(sr1.data, check1))
         assert np.all(np.isclose(sr2.data, check2))
-        assert_structure(op,
-                         ['p_sr0', 'p_sr0rp_sr0xrp_sr0y', 'p_sr1',
-                          'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
-                         'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
+        # Each sparse op now lives in its own ElementalFunction. Assert
+        # the iteration structure inside each efunc; the parent Operator
+        # just carries the Calls.
+        for name, sf in [('interpolate_sr00', 'sr0'),
+                         ('interpolate_sr10', 'sr1'),
+                         ('interpolate_sr20', 'sr2')]:
+            efunc = op._func_table[name].root
+            assert_structure(efunc, [f'p_{sf}', f'p_{sf},rp_{sf}x,rp_{sf}y'],
+                             f'p_{sf},rp_{sf}x,rp_{sf}y')
 
     def test_interpolate_subdomain_sinc(self, grid, sinc_coords):
         """
@@ -1276,10 +1287,13 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(sr0.data, sr2.data))
         assert np.all(np.isclose(sr1.data, sr2.data))
-        assert_structure(op,
-                         ['p_sr0', 'p_sr0rp_sr0xrp_sr0y', 'p_sr1',
-                          'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
-                         'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
+        # Iterations live inside per-sparse-op ElementalFunctions
+        for name, sf in [('interpolate_sr00', 'sr0'),
+                         ('interpolate_sr10', 'sr1'),
+                         ('interpolate_sr20', 'sr2')]:
+            efunc = op._func_table[name].root
+            assert_structure(efunc, [f'p_{sf}', f'p_{sf},rp_{sf}x,rp_{sf}y'],
+                             f'p_{sf},rp_{sf}x,rp_{sf}y')
 
     def test_inject_subdomain(self, grid, coords):
         """
@@ -1319,9 +1333,11 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(f0.data, check0))
         assert np.all(np.isclose(f1.data, check1))
-        assert_structure(op,
-                         ['p_sr0rp_sr0xrp_sr0y'],
-                         'p_sr0rp_sr0xrp_sr0y')
+        # Each inject lives in its own ElementalFunction
+        for name in ('inject_sr00', 'inject_sr01'):
+            efunc = op._func_table[name].root
+            assert_structure(efunc, ['p_sr0,rp_sr0x,rp_sr0y'],
+                             'p_sr0,rp_sr0x,rp_sr0y')
 
     def test_inject_subdomain_sinc(self, grid, sinc_coords):
         """
@@ -1348,9 +1364,11 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(f0.data, f2.data[:9, -9:]))
         assert np.all(np.isclose(f1.data, f2.data[1:-1, 1:-1]))
-        assert_structure(op,
-                         ['p_sr0rp_sr0xrp_sr0y'],
-                         'p_sr0rp_sr0xrp_sr0y')
+        # Each inject lives in its own ElementalFunction
+        for name in ('inject_sr00', 'inject_sr01', 'inject_sr02'):
+            efunc = op._func_table[name].root
+            assert_structure(efunc, ['p_sr0,rp_sr0x,rp_sr0y'],
+                             'p_sr0,rp_sr0x,rp_sr0y')
 
     @pytest.mark.xfail(reason="OOB issue")
     @pytest.mark.parallel(mode=4)
