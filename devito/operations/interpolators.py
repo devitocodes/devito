@@ -15,8 +15,8 @@ from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
-from devito.tools import Pickable, as_tuple, filter_ordered, flatten, memoized_meth
-from devito.types import Eq, Evaluable, Inc, SubFunction, Symbol
+from devito.tools import as_tuple, filter_ordered, flatten, memoized_meth
+from devito.types import Eq, Inc, SparseEq, SubFunction, Symbol
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -81,33 +81,19 @@ def _extract_subdomain(variables):
     return None
 
 
-class UnevaluatedSparseOperation(sympy.Expr, Evaluable, Pickable):
+class UnevaluatedSparseOperation(SparseEq):
 
     """
-    Represents an Injection or an Interpolation operation performed on a
-    SparseFunction. Evaluates to a list of Eq objects.
+    A SparseEq whose RHS still contains an unevaluated source expression.
 
-    Parameters
-    ----------
-    interpolator : Interpolator
-        Interpolator object that will be used to evaluate the operation.
-    callback : callable
-        A routine generating the symbolic expressions for the operation.
+    `_evaluate` returns the list of Eq objects produced by the interpolator,
+    leaving the original SparseEq behind. Subclasses define which interpolator
+    method to call via `operation`.
     """
-
-    subdomain = None
-    __rargs__ = ('interpolator',)
-
-    def __new__(cls, interpolator):
-        obj = super().__new__(cls)
-
-        obj.interpolator = interpolator
-
-        return obj
 
     def _evaluate(self, **kwargs):
         return_value = self.operation(**kwargs)
-        assert(all(isinstance(i, Eq) for i in return_value))
+        assert all(isinstance(i, Eq) for i in return_value)
         return return_value
 
     @abstractmethod
@@ -128,17 +114,19 @@ class Interpolation(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    __rargs__ = ('expr', 'increment', 'implicit_dims', 'self_subs') + \
-        UnevaluatedSparseOperation.__rargs__
+    __rargs__ = ('expr', 'increment', 'implicit_dims', 'self_subs', 'interpolator')
+    __rkwargs__ = ()
 
     def __new__(cls, expr, increment, implicit_dims, self_subs, interpolator):
-        obj = super().__new__(cls, interpolator)
+        # Synthesise an Eq shape: sfunction (subject to self_subs) <- expr
+        sfunc = interpolator.sfunction
+        lhs = sfunc.subs(self_subs) if self_subs else sfunc
+        obj = super().__new__(cls, lhs, expr, interpolator=interpolator)
 
-        # TODO: unused now, but will be necessary to compute the adjoint
         obj.expr = expr
         obj.increment = increment
         obj.self_subs = self_subs
-        obj.implicit_dims = implicit_dims
+        obj._implicit_dims = as_tuple(implicit_dims)
 
         return obj
 
@@ -146,6 +134,10 @@ class Interpolation(UnevaluatedSparseOperation):
         return self.interpolator._interpolate(expr=self.expr, increment=self.increment,
                                               self_subs=self.self_subs,
                                               implicit_dims=self.implicit_dims)
+
+    @property
+    def implicit_dims(self):
+        return self._implicit_dims
 
     def __repr__(self):
         return (f"Interpolation({repr(self.expr)} into "
@@ -161,21 +153,33 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    __rargs__ = ('field', 'expr', 'implicit_dims') + UnevaluatedSparseOperation.__rargs__
+    __rargs__ = ('field', 'expr', 'implicit_dims', 'interpolator')
+    __rkwargs__ = ()
 
     def __new__(cls, field, expr, implicit_dims, interpolator):
-        obj = super().__new__(cls, interpolator)
+        # Synthesise an Eq shape: field <- field + expr (the += of an injection)
+        # For multi-field injection (`field`/`expr` are tuples) we pick the first
+        # pair purely as a placeholder so the SparseEq has a valid lhs/rhs.
+        fields, exprs = as_tuple(field), as_tuple(expr)
+        if len(exprs) == 1:
+            exprs = tuple(exprs[0] for _ in fields)
+        lhs = fields[0]
+        rhs = fields[0] + exprs[0]
+        obj = super().__new__(cls, lhs, rhs, interpolator=interpolator)
 
-        # TODO: unused now, but will be necessary to compute the adjoint
         obj.field = field
         obj.expr = expr
-        obj.implicit_dims = implicit_dims
+        obj._implicit_dims = as_tuple(implicit_dims)
 
         return obj
 
     def operation(self, **kwargs):
         return self.interpolator._inject(expr=self.expr, field=self.field,
                                          implicit_dims=self.implicit_dims)
+
+    @property
+    def implicit_dims(self):
+        return self._implicit_dims
 
     def __repr__(self):
         return f"Injection({repr(self.expr)} into {repr(self.field)})"

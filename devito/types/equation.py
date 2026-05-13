@@ -7,7 +7,7 @@ from devito.deprecations import deprecations
 from devito.tools import Pickable, as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
-__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin', 'ReduceMinMax']
+__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin', 'ReduceMinMax', 'SparseEq']
 
 
 class Eq(sympy.Eq, Evaluable, Pickable):
@@ -58,6 +58,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
     """
 
     is_Reduction = False
+    is_SparseOperation = False
 
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims')
@@ -257,3 +258,44 @@ class ReduceMinMax(Reduction):
             )
 
         return super().__new__(cls, lhs, rhs=rhs, **kwargs)
+
+
+class SparseEq(Eq):
+
+    """
+    An Eq representing a sparse-grid operation (Interpolation or Injection).
+
+    A SparseEq carries the symbolic shape of a normal Eq (lhs/rhs) so it
+    composes naturally with the rest of the Devito DSL, but it also stores
+    the operation payload (interpolator, kind, increment, ...) used to
+    lower it into a sequence of grid-level equations.
+
+    Subclasses are expected to override `_evaluate` to produce the
+    lowered equation sequence; the default implementation here returns
+    `[self]`, leaving the SparseEq opaque for downstream IR layers that
+    will recognise it via `is_SparseOperation`.
+
+    Parameters
+    ----------
+    lhs : Function or SparseFunction
+        The left-hand side, typically the sink of the operation
+        (the SparseFunction for an interpolation, the grid Function for
+        an injection).
+    rhs : expr-like
+        The right-hand side, typically the source expression.
+    interpolator : Interpolator, optional
+        The Interpolator object responsible for lowering this operation.
+    """
+
+    is_SparseOperation = True
+
+    __rkwargs__ = Eq.__rkwargs__ + ('interpolator',)
+
+    def __new__(cls, lhs, rhs=0, interpolator=None, **kwargs):
+        obj = super().__new__(cls, lhs, rhs=rhs, **kwargs)
+        obj._interpolator = interpolator
+        return obj
+
+    @property
+    def interpolator(self):
+        return self._interpolator

@@ -738,6 +738,79 @@ class TestSinc:
         assert err_lin > 0.01
 
 
+class TestSparseEqShape:
+    """
+    Verify that Interpolation/Injection objects expose the same shape as a
+    regular Eq (isinstance contract, lhs/rhs, implicit_dims, ...).
+    """
+
+    def _setup(self, shape=(11, 11)):
+        a = unit_box(shape=shape)
+        p = points(a.grid, [(.05, .9), (.01, .8)], npoints=3)
+        return a, p
+
+    def test_interpolation_isinstance_eq(self):
+        from devito.operations.interpolators import Interpolation
+        from devito.types import SparseEq
+        a, p = self._setup()
+        op = p.interpolate(a)
+        assert isinstance(op, Interpolation)
+        assert isinstance(op, SparseEq)
+        assert isinstance(op, Eq)
+
+    def test_injection_isinstance_eq(self):
+        from devito.operations.interpolators import Injection
+        from devito.types import SparseEq
+        a, p = self._setup()
+        op = p.inject(a, p)
+        assert isinstance(op, Injection)
+        assert isinstance(op, SparseEq)
+        assert isinstance(op, Eq)
+
+    def test_interpolation_lhs_rhs(self):
+        a, p = self._setup()
+        op = p.interpolate(a)
+        # The synthesised relational shape: sf <- expr
+        assert op.lhs is p or op.lhs == p
+        assert op.rhs is a or op.rhs == a
+
+    def test_injection_lhs_rhs(self):
+        a, p = self._setup()
+        op = p.inject(a, p)
+        # The synthesised relational shape: field <- field + expr
+        assert op.lhs == a
+        assert op.rhs == a + p
+
+    def test_interpolator_attribute(self):
+        from devito.operations.interpolators import WeightedInterpolator
+        a, p = self._setup()
+        iop = p.interpolate(a)
+        jop = p.inject(a, p)
+        assert isinstance(iop.interpolator, WeightedInterpolator)
+        assert isinstance(jop.interpolator, WeightedInterpolator)
+        assert iop.interpolator.sfunction is p
+
+    def test_implicit_dims_preserved(self):
+        from devito import Dimension
+        d = Dimension(name='d_extra')
+        a, p = self._setup()
+        iop = p.interpolate(a, implicit_dims=d)
+        jop = p.inject(a, p, implicit_dims=d)
+        assert d in iop.implicit_dims
+        assert d in jop.implicit_dims
+
+    def test_sparse_op_flag(self):
+        a, p = self._setup()
+        iop = p.interpolate(a)
+        jop = p.inject(a, p)
+        assert iop.is_SparseOperation is True
+        assert jop.is_SparseOperation is True
+        # A plain Eq should not be flagged as a sparse op
+        f = a
+        plain = Eq(f, f + 1)
+        assert plain.is_SparseOperation is False
+
+
 # ---------------------------------------------------------------------------
 # Matrix sparse function interpolation / injection
 # ---------------------------------------------------------------------------
