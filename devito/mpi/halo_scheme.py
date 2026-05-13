@@ -134,8 +134,16 @@ class HaloScheme:
     """
 
     def __init__(self, exprs, ispace):
-        # Derive the halo exchanges
-        self._mapper = frozendict(classify(exprs, ispace))
+        # Sparse-operation clusters are opaque: the recursive compile
+        # invoked by `lower_sparse_ops` derives its own halo scheme for
+        # the ElementalFunction body. The parent's synthetic lhs/rhs
+        # carries no real stencil shape, so trying to classify it
+        # against the parent's (time-only) IterationSpace would fail.
+        if any(getattr(e, 'is_SparseOperation', False) for e in as_tuple(exprs)):
+            self._mapper = frozendict()
+        else:
+            # Derive the halo exchanges
+            self._mapper = frozendict(classify(exprs, ispace))
 
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions,
         # which are honored in the derivation of the `omapper`

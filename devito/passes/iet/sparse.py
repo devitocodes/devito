@@ -84,11 +84,11 @@ def _lower_sparse_ops(iet, rcompile=None, sregistry=None, **kwargs):
 
 def _efunc_prefix(sparse_op):
     """Pick an ElementalFunction name prefix based on the sparse-op kind."""
-    cls = type(sparse_op).__name__
-    if cls == 'Interpolation':
-        return f'interpolate_{sparse_op.interpolator.sfunction.name}'
-    if cls == 'Injection':
-        return f'inject_{sparse_op.interpolator.sfunction.name}'
+    sfname = sparse_op.interpolator.sfunction.name
+    if sparse_op.kind == 'interpolate':
+        return f'interpolate_{sfname}'
+    if sparse_op.kind == 'inject':
+        return f'inject_{sfname}'
     return 'sparse_op'
 
 

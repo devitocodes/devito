@@ -263,39 +263,140 @@ class ReduceMinMax(Reduction):
 class SparseEq(Eq):
 
     """
-    An Eq representing a sparse-grid operation (Interpolation or Injection).
+    An Eq representing a sparse-grid operation (interpolate or inject).
 
-    A SparseEq carries the symbolic shape of a normal Eq (lhs/rhs) so it
-    composes naturally with the rest of the Devito DSL, but it also stores
-    the operation payload (interpolator, kind, increment, ...) used to
-    lower it into a sequence of grid-level equations.
+    SparseEq carries the symbolic shape of a normal Eq (lhs/rhs) so it
+    composes naturally with the rest of the Devito DSL, plus the
+    operation payload (kind, interpolator, source expr, ...) needed to
+    expand it into a sequence of grid-level equations.
 
-    Subclasses are expected to override `_evaluate` to produce the
-    lowered equation sequence; the default implementation here returns
-    `[self]`, leaving the SparseEq opaque for downstream IR layers that
-    will recognise it via `is_SparseOperation`.
+    `_evaluate` returns `[self]`, leaving the SparseEq opaque for the
+    cluster/IET pipeline. The actual expansion happens in the IET pass
+    `lower_sparse_ops`, which calls `operation()` and wraps the result
+    in an ElementalFunction via `rcompile`.
 
     Parameters
     ----------
     lhs : Function or SparseFunction
-        The left-hand side, typically the sink of the operation
-        (the SparseFunction for an interpolation, the grid Function for
-        an injection).
+        Synthetic left-hand side: the SparseFunction for an
+        interpolation, the grid Function (or first of a tuple of
+        fields) for an injection.
     rhs : expr-like
-        The right-hand side, typically the source expression.
-    interpolator : Interpolator, optional
-        The Interpolator object responsible for lowering this operation.
+        Synthetic right-hand side: the user expression for an
+        interpolation, `field + expr` for an injection.
+    interpolator : Interpolator
+        The Interpolator that knows how to expand this operation.
+    kind : str
+        Either ``'interpolate'`` or ``'inject'``.
+    expr : expr-like
+        The unevaluated source expression (carried separately from
+        `rhs` because it may contain Derivatives that should not be
+        indexified by `lower_exprs`).
+    field : Function or tuple of Functions, optional
+        Target field(s) for an injection.
+    increment : bool, optional
+        For an interpolation, emit increments rather than assignments.
+    self_subs : dict, optional
+        Time/sparse-index substitutions to apply to the sink of an
+        interpolation.
+    implicit_dims : Dimension or list of Dimension, optional
+        Dimensions that don't appear in lhs/rhs but should be honoured
+        when scheduling the operation (typically a SteppingDimension
+        pinning the operation inside a parent time loop).
     """
 
     is_SparseOperation = True
 
-    __rkwargs__ = Eq.__rkwargs__ + ('interpolator',)
+    __rkwargs__ = Eq.__rkwargs__ + (
+        'interpolator', 'kind', 'expr', 'field', 'increment', 'self_subs'
+    )
 
-    def __new__(cls, lhs, rhs=0, interpolator=None, **kwargs):
-        obj = super().__new__(cls, lhs, rhs=rhs, **kwargs)
+    def __new__(cls, lhs, rhs=0, *, interpolator=None, kind=None, expr=None,
+                field=None, increment=False, self_subs=None,
+                implicit_dims=None, **kwargs):
+        obj = super().__new__(cls, lhs, rhs=rhs, implicit_dims=implicit_dims,
+                              **kwargs)
         obj._interpolator = interpolator
+        obj._kind = kind
+        obj._expr = expr
+        obj._field = field
+        obj._increment = increment
+        obj._self_subs = self_subs or {}
         return obj
 
     @property
     def interpolator(self):
         return self._interpolator
+
+    @property
+    def kind(self):
+        return self._kind
+
+    @property
+    def expr(self):
+        return self._expr
+
+    @property
+    def field(self):
+        return self._field
+
+    @property
+    def increment(self):
+        return self._increment
+
+    @property
+    def self_subs(self):
+        return self._self_subs
+
+    def _evaluate(self, **kwargs):
+        # Stay atomic at expression lowering time; the IET pass
+        # `lower_sparse_ops` invokes `operation()` later
+        return [self]
+
+    def operation(self):
+        """
+        Expand the sparse operation into its grid-level Eq sequence by
+        dispatching to the interpolator.
+        """
+        if self._kind == 'interpolate':
+            return self._interpolator._interpolate(
+                expr=self._expr, increment=self._increment,
+                self_subs=self._self_subs, implicit_dims=self.implicit_dims
+            )
+        if self._kind == 'inject':
+            return self._interpolator._inject(
+                expr=self._expr, field=self._field,
+                implicit_dims=self.implicit_dims
+            )
+        raise ValueError(f"Unknown SparseEq kind: {self._kind!r}")
+
+    def func(self, *args, **kwargs):
+        # `func` is called by sympy machinery (uxreplace, xreplace, ...)
+        # with `(new_lhs, new_rhs)` to rebuild the relational. Side-step
+        # the standard reconstruction so the operation payload survives.
+        if len(args) == 2 and not kwargs:
+            new = sympy.Eq.__new__(type(self), *args, evaluate=False)
+            new.__dict__.update(self.__dict__)
+            return new
+        return self._rebuild(*args, **kwargs)
+
+    def __add__(self, other):
+        # Allow `list_of_eqs + sparse_eq` and `sparse_eq + sparse_eq` to
+        # produce a flat list — handy when composing user expression
+        # bundles passed to `Operator(...)`.
+        from devito.tools import flatten
+        return flatten([self, other])
+
+    def __radd__(self, other):
+        from devito.tools import flatten
+        return flatten([other, self])
+
+    def __repr__(self):
+        sf = self._interpolator.sfunction if self._interpolator else '?'
+        if self._kind == 'interpolate':
+            return f"Interpolation({self._expr!r} into {sf!r})"
+        if self._kind == 'inject':
+            return f"Injection({self._expr!r} into {self._field!r})"
+        return super().__repr__()
+
+    __str__ = __repr__

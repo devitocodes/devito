@@ -740,8 +740,9 @@ class TestSinc:
 
 class TestSparseEqShape:
     """
-    Verify that Interpolation/Injection objects expose the same shape as a
-    regular Eq (isinstance contract, lhs/rhs, implicit_dims, ...).
+    Verify that the SparseEq objects returned by `interpolate`/`inject`
+    expose the same shape as a regular Eq (isinstance contract, lhs/rhs,
+    implicit_dims, ...).
     """
 
     def _setup(self, shape=(11, 11)):
@@ -750,22 +751,20 @@ class TestSparseEqShape:
         return a, p
 
     def test_interpolation_isinstance_eq(self):
-        from devito.operations.interpolators import Interpolation
         from devito.types import SparseEq
         a, p = self._setup()
         op = p.interpolate(a)
-        assert isinstance(op, Interpolation)
         assert isinstance(op, SparseEq)
         assert isinstance(op, Eq)
+        assert op.kind == 'interpolate'
 
     def test_injection_isinstance_eq(self):
-        from devito.operations.interpolators import Injection
         from devito.types import SparseEq
         a, p = self._setup()
         op = p.inject(a, p)
-        assert isinstance(op, Injection)
         assert isinstance(op, SparseEq)
         assert isinstance(op, Eq)
+        assert op.kind == 'inject'
 
     def test_interpolation_lhs_rhs(self):
         a, p = self._setup()

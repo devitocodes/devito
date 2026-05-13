@@ -15,7 +15,7 @@ from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
-from devito.tools import as_tuple, filter_ordered, flatten, memoized_meth
+from devito.tools import as_tuple, filter_ordered, memoized_meth
 from devito.types import Eq, Inc, SparseEq, SubFunction, Symbol
 from devito.types.utils import DimensionTuple
 
@@ -81,124 +81,33 @@ def _extract_subdomain(variables):
     return None
 
 
-class UnevaluatedSparseOperation(SparseEq):
-
+def _build_interpolation(expr, increment, implicit_dims, self_subs, interpolator):
     """
-    A SparseEq whose RHS still contains an unevaluated source expression.
-
-    `_evaluate` returns the list of Eq objects produced by the interpolator,
-    leaving the original SparseEq behind. Subclasses define which interpolator
-    method to call via `operation`.
+    Construct the SparseEq for an interpolation: `sf <- expr`. The
+    synthetic lhs honours `self_subs` so e.g. `p_t=time+1` is reflected
+    in the data space the cluster builder derives.
     """
-
-    def _evaluate(self, **kwargs):
-        # Keep the SparseEq atomic at the expression lowering stage. The
-        # synthetic Eq shape (set in Step A) carries through the IR; the
-        # actual expansion into grid-level Eq objects is deferred to the
-        # IET pass `lower_sparse_ops`, which wraps the expansion in an
-        # ElementalFunction via rcompile.
-        return [self]
-
-    @abstractmethod
-    def operation(self, **kwargs):
-        """Expand into the list of grid-level Eq objects (called from IET pass)."""
-
-    def func(self, *args, **kwargs):
-        # `func` is called by sympy machinery (uxreplace, xreplace, ...) with
-        # `(new_lhs, new_rhs)` to rebuild the relational. We side-step the
-        # subclass' synthesizing __new__ and build directly via sympy.Eq,
-        # then re-attach the operation payload from `self`.
-        if len(args) == 2:
-            new = sympy.Eq.__new__(type(self), *args, evaluate=False)
-            new.__dict__.update(self.__dict__)
-            return new
-        return self._rebuild(*args, **kwargs)
-
-    def __add__(self, other):
-        return flatten([self, other])
-
-    def __radd__(self, other):
-        return flatten([other, self])
+    sfunc = interpolator.sfunction
+    lhs = sfunc.subs(self_subs) if self_subs else sfunc
+    return SparseEq(lhs, expr, interpolator=interpolator, kind='interpolate',
+                    expr=expr, increment=increment, self_subs=self_subs,
+                    implicit_dims=implicit_dims)
 
 
-class Interpolation(UnevaluatedSparseOperation):
-
+def _build_injection(field, expr, implicit_dims, interpolator):
     """
-    Represents an Interpolation operation performed on a SparseFunction.
-    Evaluates to a list of Eq objects.
+    Construct the SparseEq for an injection: `field <- field + expr`.
+    For a multi-field injection (`field` is a tuple) the synthetic
+    relational uses the first field pair as a placeholder; the full
+    set is preserved in the payload for the IET expansion.
     """
-
-    __rargs__ = ('expr', 'increment', 'implicit_dims', 'self_subs', 'interpolator')
-    __rkwargs__ = ()
-
-    def __new__(cls, expr, increment, implicit_dims, self_subs, interpolator):
-        # Synthesise an Eq shape: sfunction (subject to self_subs) <- expr
-        sfunc = interpolator.sfunction
-        lhs = sfunc.subs(self_subs) if self_subs else sfunc
-        obj = super().__new__(cls, lhs, expr, interpolator=interpolator)
-
-        obj.expr = expr
-        obj.increment = increment
-        obj.self_subs = self_subs
-        obj._implicit_dims = as_tuple(implicit_dims)
-
-        return obj
-
-    def operation(self, **kwargs):
-        return self.interpolator._interpolate(expr=self.expr, increment=self.increment,
-                                              self_subs=self.self_subs,
-                                              implicit_dims=self.implicit_dims)
-
-    @property
-    def implicit_dims(self):
-        return self._implicit_dims
-
-    def __repr__(self):
-        return (f"Interpolation({repr(self.expr)} into "
-                f"{repr(self.interpolator.sfunction)})")
-
-    __str__ = __repr__
-
-
-class Injection(UnevaluatedSparseOperation):
-
-    """
-    Represents an Injection operation performed on a SparseFunction.
-    Evaluates to a list of Eq objects.
-    """
-
-    __rargs__ = ('field', 'expr', 'implicit_dims', 'interpolator')
-    __rkwargs__ = ()
-
-    def __new__(cls, field, expr, implicit_dims, interpolator):
-        # Synthesise an Eq shape: field <- field + expr (the += of an injection)
-        # For multi-field injection (`field`/`expr` are tuples) we pick the first
-        # pair purely as a placeholder so the SparseEq has a valid lhs/rhs.
-        fields, exprs = as_tuple(field), as_tuple(expr)
-        if len(exprs) == 1:
-            exprs = tuple(exprs[0] for _ in fields)
-        lhs = fields[0]
-        rhs = fields[0] + exprs[0]
-        obj = super().__new__(cls, lhs, rhs, interpolator=interpolator)
-
-        obj.field = field
-        obj.expr = expr
-        obj._implicit_dims = as_tuple(implicit_dims)
-
-        return obj
-
-    def operation(self, **kwargs):
-        return self.interpolator._inject(expr=self.expr, field=self.field,
-                                         implicit_dims=self.implicit_dims)
-
-    @property
-    def implicit_dims(self):
-        return self._implicit_dims
-
-    def __repr__(self):
-        return f"Injection({repr(self.expr)} into {repr(self.field)})"
-
-    __str__ = __repr__
+    fields, exprs = as_tuple(field), as_tuple(expr)
+    if len(exprs) == 1:
+        exprs = tuple(exprs[0] for _ in fields)
+    lhs = fields[0]
+    rhs = fields[0] + exprs[0]
+    return SparseEq(lhs, rhs, interpolator=interpolator, kind='inject',
+                    expr=expr, field=field, implicit_dims=implicit_dims)
 
 
 class GenericInterpolator(ABC):
@@ -388,7 +297,7 @@ class WeightedInterpolator(GenericInterpolator):
         """
         if self_subs is None:
             self_subs = {}
-        return Interpolation(expr, increment, implicit_dims, self_subs, self)
+        return _build_interpolation(expr, increment, implicit_dims, self_subs, self)
 
     @check_radius
     @check_coords
@@ -407,7 +316,7 @@ class WeightedInterpolator(GenericInterpolator):
             injection expression, but that should be honored when constructing
             the operator.
         """
-        return Injection(field, expr, implicit_dims, self)
+        return _build_injection(field, expr, implicit_dims, self)
 
     def _interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """

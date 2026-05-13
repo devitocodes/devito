@@ -376,35 +376,48 @@ class Operator(Callable):
 
         # "True" lowering (indexification, shifting, ...). SparseEq
         # carries an unevaluated source expression on the rhs (e.g.
-        # Derivatives, un-indexified Functions) that we cannot send
-        # through lower_exprs without breaking sympy reconstruction.
-        # We only lower the lhs so the cluster's data space still sees
-        # the write access; the rhs is expanded later by the IET pass
-        # `lower_sparse_ops`.
-        from devito.types import Eq as _Eq
-        new_expressions = []
-        for i in expressions:
-            if i.is_SparseOperation:
-                # Lower just the lhs through the standard pipeline by
-                # routing it through a throwaway Eq
-                tmp = _Eq(i.lhs, 0)
-                tmp = lower_exprs([tmp], **kwargs)[0]
-                tmp = concretize_subdims([tmp], **kwargs)[0]
-                new_expressions.append(i.func(tmp.lhs, i.rhs))
-            else:
-                new_expressions.append(i)
-        sparse_mask = [i.is_SparseOperation for i in new_expressions]
-        regular = [i for i, s in zip(new_expressions, sparse_mask, strict=True)
-                   if not s]
-        regular = lower_exprs(regular, **kwargs)
-        regular = concretize_subdims(regular, **kwargs)
-        regular_iter = iter(regular)
-        expressions = [next(regular_iter) if not s else e
-                       for e, s in zip(new_expressions, sparse_mask, strict=True)]
+        # Derivatives, un-indexified Functions) that lower_exprs cannot
+        # reconstruct, so we lower only the lhs of each SparseEq and
+        # let the IET pass `lower_sparse_ops` expand the rhs later.
+        expressions = [cls._lower_sparse_lhs(i, **kwargs)
+                       if i.is_SparseOperation else i
+                       for i in expressions]
+        regular_idx = [k for k, i in enumerate(expressions)
+                       if not i.is_SparseOperation]
+        if regular_idx:
+            regular = lower_exprs([expressions[k] for k in regular_idx], **kwargs)
+            regular = concretize_subdims(regular, **kwargs)
+            for k, v in zip(regular_idx, regular, strict=True):
+                expressions[k] = v
 
         processed = [LoweredEq(i) for i in expressions]
 
         return processed
+
+    @classmethod
+    def _lower_sparse_lhs(cls, sparse_eq, **kwargs):
+        """
+        Route a SparseEq through the standard expression lowering
+        pipeline so the cluster builder sees its indexed read/write
+        accesses, while sparing any unevaluated Derivatives on the rhs
+        that `lower_exprs` cannot reconstruct.
+
+        The lhs is always lowered. The rhs is lowered too if it
+        contains no Derivative; otherwise it stays as-is and the IET
+        pass `lower_sparse_ops` expands it later via the interpolator.
+        """
+        from devito.symbolics import retrieve_derivatives
+        from devito.types import Eq as DevitoEq
+
+        has_deriv = bool(retrieve_derivatives(sparse_eq.rhs))
+        if has_deriv:
+            tmp = DevitoEq(sparse_eq.lhs, 0)
+        else:
+            tmp = DevitoEq(sparse_eq.lhs, sparse_eq.rhs)
+        tmp = lower_exprs([tmp], **kwargs)[0]
+        tmp = concretize_subdims([tmp], **kwargs)[0]
+        rhs = sparse_eq.rhs if has_deriv else tmp.rhs
+        return sparse_eq.func(tmp.lhs, rhs)
 
     # Compilation -- Cluster level
 

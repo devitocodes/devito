@@ -379,13 +379,12 @@ class LoweredEq(IREq):
         from devito.symbolics import retrieve_functions
 
         sparse_op = input_expr
-        kind = type(sparse_op).__name__
         sfunction = sparse_op.interpolator.sfunction
 
-        if kind == 'Interpolation':
+        if sparse_op.kind == 'interpolate':
             writes = {sfunction}
             reads = set(retrieve_functions(sparse_op.expr)) - writes
-        elif kind == 'Injection':
+        elif sparse_op.kind == 'inject':
             fields = sparse_op.field
             if not isinstance(fields, tuple):
                 fields = (fields,)
