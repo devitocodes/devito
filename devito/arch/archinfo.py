@@ -493,6 +493,39 @@ def get_gpu_info():
     return None
 
 
+def _resolve_uuids_to_indices(uuids):
+    """
+    Map GPU UUID/unique-ID strings to integer device indices.
+    """
+    # (command, pattern) where group(1)=index, group(2)=uuid
+    # nvidia-smi -L output: "GPU 0: <name> (UUID: GPU-xxxx-...)"
+    # rocm-smi --showuniqueid output: "GPU[0]  : Unique ID: 0x<hex>"
+    queries = [
+        (['nvidia-smi', '-L'],           r'GPU\s+(\d+):.*\(UUID:\s*([\w-]+)\)'),
+        (['rocm-smi', '--showuniqueid'], r'GPU\[(\d+)\].*Unique ID:\s*([\w]+)'),
+    ]
+    for cmd, pattern in queries:
+        try:
+            proc = Popen(cmd, stdout=PIPE, stderr=DEVNULL)
+            raw = proc.stdout.read().decode()
+        except OSError:
+            # Command not available
+            continue
+
+        uuid_to_index = {m.group(2): int(m.group(1))
+                         for line in raw.splitlines()
+                         if (m := re.match(pattern, line))}
+        if not uuid_to_index:
+            continue
+
+        try:
+            return tuple(uuid_to_index[u] for u in uuids)
+        except KeyError:
+            continue
+
+    return None
+
+
 def get_visible_devices():
     device_vars = (
         'CUDA_VISIBLE_DEVICES',
@@ -500,16 +533,36 @@ def get_visible_devices():
         'HIP_VISIBLE_DEVICES'
     )
     for v in device_vars:
-        try:
-            return v, tuple(int(i) for i in os.environ[v].split(','))
-        except ValueError:
-            # Visible devices set via UUIDs or other non-integer identifiers.
-            warning("Setting visible devices via UUIDs or other non-integer"
-                    " identifiers is currently unsupported: environment variable"
-                    f" {v}={os.environ[v]} ignored.")
-        except KeyError:
-            # Environment variable not set
+        if v not in os.environ:
             continue
+
+        val = os.environ[v].strip()
+
+        errmsg = f"{v}={os.environ[v]!r} exposes no GPU devices."
+
+        # Empty string or known "no devices" sentinels
+        if not val or val.upper() in ('NODEVFILES',):
+            raise RuntimeError(errmsg)
+
+        entries = [e.strip() for e in val.split(',')]
+
+        # Try integer parsing first
+        with suppress(ValueError):
+            ids = tuple(int(i) for i in entries)
+            # Negative sentinel (e.g. -1) means no devices exposed
+            if len(ids) == 1 and ids[0] < 0:
+                raise RuntimeError(errmsg)
+
+            return v, ids
+
+        # Try UUID → device index resolution
+        ids = _resolve_uuids_to_indices(entries)
+        if ids is not None:
+            return v, ids
+
+        raise RuntimeError(
+            f"Cannot resolve device specifiers in {v}={os.environ[v]!r}."
+        )
 
     return None, None
 

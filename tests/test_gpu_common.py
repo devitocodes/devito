@@ -1,3 +1,6 @@
+import re
+from subprocess import DEVNULL, PIPE, Popen
+
 import cloudpickle as pickle
 import numpy as np
 import pytest
@@ -106,6 +109,48 @@ class TestDeviceID:
         argmap2 = op2.arguments()
         # Default physical deviceid expected to be 0
         assert argmap2._physical_deviceid == 0
+
+    @pytest.mark.parametrize('env_variables', [
+        {"CUDA_VISIBLE_DEVICES": "-1"},
+        {"CUDA_VISIBLE_DEVICES": ""},
+        {"CUDA_VISIBLE_DEVICES": "NoDevFiles"},
+        {"ROCR_VISIBLE_DEVICES": "-1"},
+    ])
+    def test_no_visible_devices(self, env_variables):
+        """Accessing _physical_deviceid when no devices are exposed should raise."""
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        with switchenv(env_variables):
+            op = Operator(Eq(u, u+1))
+            argmap = op.arguments()
+            with pytest.raises(RuntimeError):
+                _ = argmap._physical_deviceid
+
+    def test_visible_devices_uuid(self):
+        # Query GPU 0's UUID independently of _resolve_uuids_to_indices
+        try:
+            proc = Popen(['nvidia-smi', '-L'], stdout=PIPE, stderr=DEVNULL)
+            output = proc.stdout.read().decode()
+        except OSError:
+            pytest.skip("nvidia-smi not available")
+
+        uuid = None
+        for line in output.splitlines():
+            m = re.match(r'GPU\s+0:.*\(UUID:\s*([\w-]+)\)', line)
+            if m:
+                uuid = m.group(1)
+                break
+
+        if uuid is None:
+            pytest.skip("No GPU 0 UUID found in nvidia-smi output")
+
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+        with switchenv({'CUDA_VISIBLE_DEVICES': uuid}):
+            op = Operator(Eq(u, u+1))
+            argmap = op.arguments()
+            assert argmap._physical_deviceid == 0
 
     @pytest.mark.parallel(mode=2)
     @pytest.mark.parametrize('visible_devices', [
