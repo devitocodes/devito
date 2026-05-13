@@ -374,12 +374,33 @@ class Operator(Callable):
         # A second round of specialization is performed on evaluated expressions
         expressions = cls._specialize_exprs(expressions, **kwargs)
 
-        # "True" lowering (indexification, shifting, ...)
-        expressions = lower_exprs(expressions, **kwargs)
-
-        # Turn user-defined SubDimensions into concrete SubDimensions,
-        # in particular uniqueness across expressions is ensured
-        expressions = concretize_subdims(expressions, **kwargs)
+        # "True" lowering (indexification, shifting, ...). SparseEq
+        # carries an unevaluated source expression on the rhs (e.g.
+        # Derivatives, un-indexified Functions) that we cannot send
+        # through lower_exprs without breaking sympy reconstruction.
+        # We only lower the lhs so the cluster's data space still sees
+        # the write access; the rhs is expanded later by the IET pass
+        # `lower_sparse_ops`.
+        from devito.types import Eq as _Eq
+        new_expressions = []
+        for i in expressions:
+            if i.is_SparseOperation:
+                # Lower just the lhs through the standard pipeline by
+                # routing it through a throwaway Eq
+                tmp = _Eq(i.lhs, 0)
+                tmp = lower_exprs([tmp], **kwargs)[0]
+                tmp = concretize_subdims([tmp], **kwargs)[0]
+                new_expressions.append(i.func(tmp.lhs, i.rhs))
+            else:
+                new_expressions.append(i)
+        sparse_mask = [i.is_SparseOperation for i in new_expressions]
+        regular = [i for i, s in zip(new_expressions, sparse_mask, strict=True)
+                   if not s]
+        regular = lower_exprs(regular, **kwargs)
+        regular = concretize_subdims(regular, **kwargs)
+        regular_iter = iter(regular)
+        expressions = [next(regular_iter) if not s else e
+                       for e, s in zip(new_expressions, sparse_mask, strict=True)]
 
         processed = [LoweredEq(i) for i in expressions]
 

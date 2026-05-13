@@ -92,13 +92,27 @@ class UnevaluatedSparseOperation(SparseEq):
     """
 
     def _evaluate(self, **kwargs):
-        return_value = self.operation(**kwargs)
-        assert all(isinstance(i, Eq) for i in return_value)
-        return return_value
+        # Keep the SparseEq atomic at the expression lowering stage. The
+        # synthetic Eq shape (set in Step A) carries through the IR; the
+        # actual expansion into grid-level Eq objects is deferred to the
+        # IET pass `lower_sparse_ops`, which wraps the expansion in an
+        # ElementalFunction via rcompile.
+        return [self]
 
     @abstractmethod
     def operation(self, **kwargs):
-        pass
+        """Expand into the list of grid-level Eq objects (called from IET pass)."""
+
+    def func(self, *args, **kwargs):
+        # `func` is called by sympy machinery (uxreplace, xreplace, ...) with
+        # `(new_lhs, new_rhs)` to rebuild the relational. We side-step the
+        # subclass' synthesizing __new__ and build directly via sympy.Eq,
+        # then re-attach the operation payload from `self`.
+        if len(args) == 2:
+            new = sympy.Eq.__new__(type(self), *args, evaluate=False)
+            new.__dict__.update(self.__dict__)
+            return new
+        return self._rebuild(*args, **kwargs)
 
     def __add__(self, other):
         return flatten([self, other])

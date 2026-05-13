@@ -11,7 +11,7 @@ from devito.passes.clusters import (
 from devito.passes.equations import collect_derivatives
 from devito.passes.iet import (
     COmpTarget, CTarget, CXXOmpTarget, CXXTarget, avoid_denormals, check_stability,
-    hoist_prodders, linearize, mpiize, relax_incr_dimensions
+    hoist_prodders, linearize, lower_sparse_ops, mpiize, relax_incr_dimensions
 )
 from devito.tools import timed_pass
 
@@ -142,6 +142,10 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
 
+        # Lower sparse operations (Interpolation/Injection) into Calls
+        # to ElementalFunctions before any other IET pass touches them
+        lower_sparse_ops(graph, **kwargs)
+
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
 
@@ -203,6 +207,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
+        # Lower sparse operations (Interpolation/Injection) into Calls
+        # to ElementalFunctions before any other IET pass touches them
+        lower_sparse_ops(graph, **kwargs)
+
         # Flush denormal numbers
         avoid_denormals(graph, **kwargs)
 

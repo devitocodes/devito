@@ -9,3 +9,4 @@ from .instrument import *  # noqa
 from .languages import *  # noqa
 from .errors import *  # noqa
 from .dtypes import *  # noqa
+from .sparse import *  # noqa
