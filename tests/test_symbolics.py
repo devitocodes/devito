@@ -20,7 +20,7 @@ from devito.symbolics import (  # noqa
     SizeOf, VectorAccess, evalrel, pow_to_mul, retrieve_derivatives, retrieve_functions,
     retrieve_indexed, uxreplace
 )
-from devito.tools import CustomDtype, as_tuple
+from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
     Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
 )
@@ -573,6 +573,13 @@ def test_component_access():
     cf2 = cf1.func(*cf1.args)
     assert cf2.index == cf1.index
     assert cf2 == cf1
+
+
+def test_component_access_symbol_printing():
+    acc = dSymbol(name='acc', dtype=dtypes_vector_mapper[(np.float32, 4)])
+    expr = ComponentAccess(acc, 0)
+
+    assert ccode(sympy.Float('1.25')*expr, dtype=expr.dtype) == '1.250F*acc.x'
 
 
 def test_vector_access():
