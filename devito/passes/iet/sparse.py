@@ -1,15 +1,20 @@
 """
 IET pass that lowers SparseOperation expressions (Interpolation/Injection)
-into ElementalFunctions and replaces the synthetic loop nest emitted by the
-expression-lowering pipeline with a single Call.
+into ElementalFunctions and replaces the bare Expression carried through
+the cluster pipeline with a Call.
 
-The synthetic shape carried by a SparseEq through clusterization is
-`lhs <- rhs` (see `devito.operations.interpolators.UnevaluatedSparseOperation`);
-its purpose is purely to anchor data flow for cluster scheduling. The real
-expansion (positions, coefficient temporaries, radius loop, accumulation,
-writeback) lives in `interpolator._interpolate` / `_inject` and is generated
-here on demand, then handed to `rcompile` to obtain a self-contained
-ElementalFunction.
+The SparseEq's LoweredEq carries the time-like Dimensions in its
+IterationSpace, so the cluster builder produces the same outer time
+loop it would produce for any other equation, and the data space sees
+the right reads/writes for halo and argument-bound analysis. The
+radius/sparse-dim iteration belongs to the efunc, which is generated
+by recursively compiling the interpolator-produced equations.
+
+The efunc carries its own `time_m, time_M` loop. The Call site, sitting
+inside the parent's time iteration, collapses that loop to a single
+iteration by passing `time_m=time_M=<parent's current time>`. Buffered
+TimeFunction accesses (`t = time % bs`) are computed inside the efunc
+exactly as the standard pipeline would emit them.
 """
 
 from devito.ir.iet import (
@@ -22,7 +27,7 @@ __all__ = ['lower_sparse_ops']
 
 def lower_sparse_ops(graph, **kwargs):
     """
-    Replace each sparse-operation Section in the IET with a Call to an
+    Replace each sparse-operation Expression in the IET with a Call to an
     ElementalFunction built via `rcompile` from the interpolator-produced
     grid-level Eq list.
     """
@@ -34,9 +39,6 @@ def _lower_sparse_ops(iet, rcompile=None, sregistry=None, **kwargs):
     if not isinstance(iet, EntryFunction):
         return iet, {}
 
-    # Find every bare Expression that represents a sparse operation. The
-    # LoweredEq for a SparseEq has an empty IterationSpace, so the IET
-    # carries it as a single Expression with no enclosing Iteration nest.
     mapper = {}
     efuncs = []
     includes = []
@@ -46,10 +48,8 @@ def _lower_sparse_ops(iet, rcompile=None, sregistry=None, **kwargs):
             continue
         sparse_op = expr.expr.sparse_op
 
-        # Expand into the grid-level Eq sequence
+        # Expand into the grid-level Eq sequence and recursively compile
         eqns = sparse_op.operation()
-
-        # Recursively compile into a self-contained IET
         irs, byproduct = rcompile(eqns)
 
         # Wrap the body in an ElementalFunction
@@ -61,7 +61,18 @@ def _lower_sparse_ops(iet, rcompile=None, sregistry=None, **kwargs):
         efuncs.append(efunc)
         includes.extend(byproduct.includes)
 
-        mapper[expr] = Call(efunc.name, efunc.parameters)
+        # Build the Call. Where the efunc declares `time_m`/`time_M`
+        # bounds for a Dimension that the parent is already iterating,
+        # pass the parent's current loop variable for both so the
+        # efunc loops exactly once per parent iteration.
+        time_roots = _time_root_dims(sparse_op)
+        bound_to_dim = {}
+        for d in time_roots:
+            bound_to_dim[f'{d.name}_m'] = d
+            bound_to_dim[f'{d.name}_M'] = d
+        call_args = [bound_to_dim.get(getattr(p, 'name', None), p)
+                     for p in efunc.parameters]
+        mapper[expr] = Call(efunc.name, call_args)
 
     if not mapper:
         return iet, {}
@@ -79,3 +90,25 @@ def _efunc_prefix(sparse_op):
     if cls == 'Injection':
         return f'inject_{sparse_op.interpolator.sfunction.name}'
     return 'sparse_op'
+
+
+def _time_root_dims(sparse_op):
+    """
+    Root TimeDimensions touched by the sparse op, plus any
+    implicit_dims supplied by the user (typically a SteppingDimension
+    pinning the operation inside the parent's time loop).
+    """
+    from devito.symbolics import retrieve_functions
+    from devito.tools import as_tuple
+    roots = set()
+    sfunc = sparse_op.interpolator.sfunction
+    for d in getattr(sfunc, 'dimensions', ()):
+        if d.is_Time:
+            roots.add(d.root if d.is_Derived else d)
+    for f in retrieve_functions(sparse_op.expr):
+        for d in getattr(f, 'dimensions', ()):
+            if d.is_Time:
+                roots.add(d.root if d.is_Derived else d)
+    for d in as_tuple(sparse_op.implicit_dims):
+        roots.add(d.root if d.is_Derived else d)
+    return roots

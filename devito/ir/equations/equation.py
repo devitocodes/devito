@@ -13,6 +13,8 @@ from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
 from devito.tools import (
     Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
 )
+from devito.symbolics import IntDiv, limits_mapper, uxreplace
+from devito.tools import Pickable, Tag, as_tuple, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
 
 __all__ = [
@@ -57,12 +59,7 @@ class IREq(sympy.Eq, Pickable):
 
     @cached_property
     def dimensions(self):
-        dims = set(self.ispace.dimensions)
-        # SparseEq carries an empty IterationSpace but still touches a set
-        # of Dimensions through its synthetic data accesses; surface them
-        # so the Operator can resolve their argument bounds
-        dims.update(getattr(self, '_sparse_dimensions', ()))
-        return dims
+        return set(self.ispace.dimensions)
 
     @property
     def implicit_dims(self):
@@ -362,17 +359,22 @@ class LoweredEq(IREq):
     @classmethod
     def _build_sparse(cls, input_expr):
         """
-        Construct a LoweredEq for a SparseEq: empty IterationSpace, no
-        conditionals, reads/writes derived at the Function level from
-        the operation payload (field/expr/sfunction). The originating
-        SparseEq is attached as `sparse_op` so that the IET pass
-        `lower_sparse_ops` can later expand it into an ElementalFunction.
+        Construct a LoweredEq for a SparseEq.
 
-        The relational lhs/rhs are deliberately reduced to bare
-        AbstractFunctions, not indexed accesses, so that the cluster
-        builder's `detect_accesses` does not pin any iteration bounds
-        on the parent's data space. The efunc owns all the iteration
-        constraints internally.
+        The parent IterationSpace contains only the time-like Dimensions
+        touched by the sparse op (typically `time`). The efunc emitted
+        by `lower_sparse_ops` consumes the time index as a scalar
+        parameter and owns iteration over the remaining dimensions
+        (`p_sf`, the radius dimensions, ...). Grid dimensions (`x`,
+        `y`, `z`) are not iterated by the parent either: they appear
+        only in the synthetic lhs/rhs, which the cluster builder uses
+        to populate the data space (halo, argument bounds), but the
+        actual grid indexing happens inside the efunc through
+        `posx + rp_x` etc.
+
+        The originating SparseEq is attached as `sparse_op` so that the
+        IET pass `lower_sparse_ops` can later expand it into an
+        ElementalFunction.
         """
         from devito.symbolics import retrieve_functions
 
@@ -402,30 +404,34 @@ class LoweredEq(IREq):
                   if getattr(f, 'is_AbstractFunction', False)
                   or getattr(f, 'is_Input', False)}
 
+        # Outer dimensions the parent must iterate: time-like dimensions
+        # touched by the operation, plus any user-supplied
+        # implicit_dims (typically a SteppingDimension that pins the
+        # operation inside a parent time loop). All canonicalised to
+        # their root. The efunc owns the rest (sparse dim, radius
+        # dims) and recomputes any SteppingDimensions internally.
+        outer_dims = []
+        for f in sorted(writes | reads, key=lambda f: f.name):
+            for d in getattr(f, 'dimensions', ()):
+                if d.is_Time:
+                    root = d.root if d.is_Derived else d
+                    if root not in outer_dims:
+                        outer_dims.append(root)
+        for d in as_tuple(input_expr.implicit_dims):
+            root = d.root if d.is_Derived else d
+            if root not in outer_dims:
+                outer_dims.append(root)
+        ispace = IterationSpace(IntervalGroup([Interval(d) for d in outer_dims]))
+
         expr = sympy.Eq.__new__(cls, sparse_op.lhs, sparse_op.rhs,
                                 evaluate=False)
-        expr._ispace = IterationSpace(IntervalGroup([]))
+        expr._ispace = ispace
         expr._conditionals = frozendict()
         expr._reads = reads
         expr._writes = writes
         expr._implicit_dims = input_expr.implicit_dims
         expr._operation = Operation.detect(input_expr)
         expr._sparse_op = input_expr
-
-        # Surface the function-level Dimensions touched by this sparse op so
-        # the Operator can resolve their runtime values (defaults, bounds)
-        # at argument time. The IterationSpace stays empty: the efunc owns
-        # the iteration, but the parent must still know which Dimensions
-        # are reachable so their `_arg_values` get a chance to tighten
-        # `time_M`, `x_M`, etc. against the data space derived from the
-        # synthetic lhs/rhs.
-        dims = set()
-        for f in writes | reads:
-            for d in getattr(f, 'dimensions', ()):
-                dims.add(d)
-                if d.is_Derived:
-                    dims.update(d._defines)
-        expr._sparse_dimensions = dims
 
         return expr
 
