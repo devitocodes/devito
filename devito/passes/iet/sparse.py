@@ -26,7 +26,7 @@ at the top of the body, so buffered TimeFunction accesses keep working.
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (
     Call, EntryFunction, Expression, FindNodes, Iteration, List, Section, Transformer,
-    make_efunc
+    make_callable
 )
 from devito.passes.iet.engine import iet_pass
 
@@ -71,10 +71,12 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
         efunc_body, _ = _strip_sections(efunc_body)
         efunc_body = _strip_time_iteration(efunc_body)
 
-        # Wrap in an ElementalFunction so the denormals pass (which
-        # skips ElementalFunctions) leaves the body alone
+        # Wrap as a plain Callable. The parent Graph picks it up and
+        # the parent's _specialize_iet passes (MPI, parallelism, GPU
+        # device-pointer / data-transfer setup, linearisation, ...)
+        # process it as a sibling Callable.
         name = sregistry.make_name(prefix=_efunc_prefix(sparse_op))
-        efunc = make_efunc(name, efunc_body)
+        efunc = make_callable(name, efunc_body)
         efuncs.append(efunc)
 
         mapper[expr] = Call(efunc.name, list(efunc.parameters))

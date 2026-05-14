@@ -46,7 +46,10 @@ def avoid_denormals(iet, platform=None, **kwargs):
     except AttributeError:
         return iet, {}
 
-    if iet.is_ElementalFunction:
+    # Denormals only need flushing once at the program entry; sibling
+    # Callables (e.g. ElementalFunctions emitted by lower_sparse_ops)
+    # inherit the SSE state from the caller
+    if not isinstance(iet, EntryFunction):
         return iet, {}
 
     header = (cgen.Comment('Flush denormal numbers to zero in hardware'),
