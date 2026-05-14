@@ -4,7 +4,6 @@ from itertools import chain
 
 import numpy as np
 
-from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (
     PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, DataSpace, Forward, Guards, Interval,
     IntervalGroup, IterationSpace, PrefetchUpdate, Properties, Scope, WaitLock, WithLock,
@@ -43,7 +42,7 @@ class EqBlock(CacheInstances):
 
     def __init__(self, exprs, ispace=null_ispace, guards=None, properties=None,
                  syncs=None, halo_scheme=None):
-        self._exprs = exprs
+        self._exprs = tuple(e.clusterize(ispace=ispace) for e in as_tuple(exprs))
         self._ispace = ispace
         self._guards = guards
         self._syncs = syncs

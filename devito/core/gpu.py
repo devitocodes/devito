@@ -13,7 +13,7 @@ from devito.passes.clusters import (
 from devito.passes.equations import collect_derivatives
 from devito.passes.iet import (
     DeviceAccTarget, DeviceCXXOmpTarget, DeviceOmpTarget, check_stability, hoist_prodders,
-    linearize, lower_sparse_ops, mpiize, pthreadify, relax_incr_dimensions
+    linearize, mpiize, pthreadify, relax_incr_dimensions
 )
 from devito.tools import as_tuple, timed_pass
 
@@ -181,10 +181,6 @@ class DeviceNoopOperator(DeviceOperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
-        # Lower sparse operations into ElementalFunction Calls before any
-        # other IET pass touches them
-        lower_sparse_ops(graph, **kwargs)
-
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
 
@@ -248,10 +244,6 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
-        # Lower sparse operations into ElementalFunction Calls before any
-        # other IET pass touches them
-        lower_sparse_ops(graph, **kwargs)
-
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
 

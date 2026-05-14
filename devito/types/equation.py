@@ -7,7 +7,8 @@ from devito.deprecations import deprecations
 from devito.tools import Pickable, as_tuple, frozendict
 from devito.types.lazy import Evaluable
 
-__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin', 'ReduceMinMax', 'SparseEq']
+__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin', 'ReduceMinMax', 'SparseEq',
+           'SparseInc', 'SparseOpMixin']
 
 
 class Eq(sympy.Eq, Evaluable, Pickable):
@@ -62,6 +63,12 @@ class Eq(sympy.Eq, Evaluable, Pickable):
 
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims')
+
+    # ``lower`` and ``clusterize`` produce the IR counterparts of this
+    # Eq. The implementations live in ``devito.ir.equations`` (which
+    # imports the DSL ``Eq``); to avoid a circular import the IR
+    # module binds them at its own import time. See the bottom of
+    # ``devito.ir.equations.equation``.
 
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None,
                 implicit_dims=None, **kwargs):
@@ -260,69 +267,16 @@ class ReduceMinMax(Reduction):
         return super().__new__(cls, lhs, rhs=rhs, **kwargs)
 
 
-class SparseEq(Eq):
+class SparseOpMixin:
 
     """
-    An Eq representing a sparse-grid operation (interpolate or inject).
-
-    SparseEq carries the symbolic shape of a normal Eq (lhs/rhs) so it
-    composes naturally with the rest of the Devito DSL, plus the
-    operation payload (kind, interpolator, source expr, ...) needed to
-    expand it into a sequence of grid-level equations.
-
-    `_evaluate` returns `[self]`, leaving the SparseEq opaque for the
-    cluster/IET pipeline. The actual expansion happens in the IET pass
-    `lower_sparse_ops`, which calls `operation()` and wraps the result
-    in an ElementalFunction via `rcompile`.
-
-    Parameters
-    ----------
-    lhs : Function or SparseFunction
-        Synthetic left-hand side: the SparseFunction for an
-        interpolation, the grid Function (or first of a tuple of
-        fields) for an injection.
-    rhs : expr-like
-        Synthetic right-hand side: the user expression for an
-        interpolation, `field + expr` for an injection.
-    interpolator : Interpolator
-        The Interpolator that knows how to expand this operation.
-    kind : str
-        Either ``'interpolate'`` or ``'inject'``.
-    expr : expr-like
-        The unevaluated source expression (carried separately from
-        `rhs` because it may contain Derivatives that should not be
-        indexified by `lower_exprs`).
-    field : Function or tuple of Functions, optional
-        Target field(s) for an injection.
-    increment : bool, optional
-        For an interpolation, emit increments rather than assignments.
-    self_subs : dict, optional
-        Time/sparse-index substitutions to apply to the sink of an
-        interpolation.
-    implicit_dims : Dimension or list of Dimension, optional
-        Dimensions that don't appear in lhs/rhs but should be honoured
-        when scheduling the operation (typically a SteppingDimension
-        pinning the operation inside a parent time loop).
+    Mixin tagging an Eq as a sparse-grid operation (interpolate or
+    inject) and exposing the ``interpolator``/``kind`` metadata needed
+    by the IET pass ``lower_sparse_ops`` to materialise the radius
+    nest into an ElementalFunction.
     """
 
     is_SparseOperation = True
-
-    __rkwargs__ = Eq.__rkwargs__ + (
-        'interpolator', 'kind', 'expr', 'field', 'increment', 'self_subs'
-    )
-
-    def __new__(cls, lhs, rhs=0, *, interpolator=None, kind=None, expr=None,
-                field=None, increment=False, self_subs=None,
-                implicit_dims=None, **kwargs):
-        obj = super().__new__(cls, lhs, rhs=rhs, implicit_dims=implicit_dims,
-                              **kwargs)
-        obj._interpolator = interpolator
-        obj._kind = kind
-        obj._expr = expr
-        obj._field = field
-        obj._increment = increment
-        obj._self_subs = self_subs or {}
-        return obj
 
     @property
     def interpolator(self):
@@ -332,58 +286,59 @@ class SparseEq(Eq):
     def kind(self):
         return self._kind
 
-    @property
-    def expr(self):
-        return self._expr
 
-    @property
-    def field(self):
-        return self._field
+class SparseEq(SparseOpMixin, Eq):
 
-    @property
-    def increment(self):
-        return self._increment
+    """
+    An Eq representing a sparse-grid operation (interpolate or inject).
 
-    @property
-    def self_subs(self):
-        return self._self_subs
+    The single synthetic Eq uses the SparseFunction's radius
+    ConditionalDimensions ``rp_*`` (whose parent is the grid Dimension)
+    as indices into the user expression, so the cluster scheduler
+    derives a regular IterationSpace including the radius loops. The
+    cluster pipeline (buffering, halo, snapshotting, ...) treats it
+    like any other Eq; the IET pass ``lower_sparse_ops`` extracts the
+    resulting ``p_*, rp_*`` nest and wraps it in an ElementalFunction,
+    inserting the position/weight temps that drive the radius access.
 
-    def _evaluate(self, **kwargs):
-        # Stay atomic at expression lowering time; the IET pass
-        # `lower_sparse_ops` invokes `operation()` later
-        return [self]
+    Constructing with ``kind='inject'`` returns a ``SparseInc``: an
+    ``Inc`` flavour of ``SparseEq`` whose ``+=`` semantics is required
+    to correctly accumulate contributions from multiple sparse points.
 
-    def operation(self):
-        """
-        Expand the sparse operation into its grid-level Eq sequence by
-        dispatching to the interpolator.
-        """
-        if self._kind == 'interpolate':
-            return self._interpolator._interpolate(
-                expr=self._expr, increment=self._increment,
-                self_subs=self._self_subs, implicit_dims=self.implicit_dims
-            )
-        if self._kind == 'inject':
-            return self._interpolator._inject(
-                expr=self._expr, field=self._field,
-                implicit_dims=self.implicit_dims
-            )
-        raise ValueError(f"Unknown SparseEq kind: {self._kind!r}")
+    Parameters
+    ----------
+    lhs : expr-like
+        ``sf[..., p_*]`` for interpolation, ``field[..., pos+rd, ...]``
+        for injection.
+    rhs : expr-like
+        The user expression with grid Dimensions substituted for the
+        sparse-function's radius ConditionalDimensions; for injection,
+        additionally multiplied by the interpolation weights.
+    interpolator : Interpolator
+        The Interpolator backing the operation.
+    kind : str
+        Either ``'interpolate'`` or ``'inject'``.
+    implicit_dims : Dimension or list of Dimension, optional
+        Dimensions that don't appear in lhs/rhs but should be honoured
+        when scheduling the operation.
+    """
 
-    def func(self, *args, **kwargs):
-        # `func` is called by sympy machinery (uxreplace, xreplace, ...)
-        # with `(new_lhs, new_rhs)` to rebuild the relational. Side-step
-        # the standard reconstruction so the operation payload survives.
-        if len(args) == 2 and not kwargs:
-            new = sympy.Eq.__new__(type(self), *args, evaluate=False)
-            new.__dict__.update(self.__dict__)
-            return new
-        return self._rebuild(*args, **kwargs)
+    __rkwargs__ = Eq.__rkwargs__ + ('interpolator', 'kind')
+
+    def __new__(cls, lhs, rhs=0, *, interpolator=None, kind=None,
+                implicit_dims=None, **kwargs):
+        if cls is SparseEq and kind == 'inject':
+            cls = SparseInc
+        obj = super().__new__(cls, lhs, rhs=rhs, implicit_dims=implicit_dims,
+                              **kwargs)
+        obj._interpolator = interpolator
+        obj._kind = kind
+        return obj
 
     def __add__(self, other):
-        # Allow `list_of_eqs + sparse_eq` and `sparse_eq + sparse_eq` to
-        # produce a flat list — handy when composing user expression
-        # bundles passed to `Operator(...)`.
+        # Allow ``list_of_eqs + sparse_eq`` and ``sparse_eq + sparse_eq``
+        # to produce a flat list — handy when composing user expression
+        # bundles passed to ``Operator(...)``.
         from devito.tools import flatten
         return flatten([self, other])
 
@@ -392,11 +347,18 @@ class SparseEq(Eq):
         return flatten([other, self])
 
     def __repr__(self):
-        sf = self._interpolator.sfunction if self._interpolator else '?'
-        if self._kind == 'interpolate':
-            return f"Interpolation({self._expr!r} into {sf!r})"
-        if self._kind == 'inject':
-            return f"Injection({self._expr!r} into {self._field!r})"
-        return super().__repr__()
+        sf = self._interpolator.sfunction
+        return f"{self._kind.capitalize()}({sf.name})"
 
     __str__ = __repr__
+
+
+class SparseInc(SparseEq, Inc):
+
+    """
+    The ``Inc`` flavour of ``SparseEq``, used for injection: the cluster
+    pipeline must preserve ``+=`` semantics so contributions from
+    distinct sparse points accumulate correctly into the target field.
+    """
+
+    pass

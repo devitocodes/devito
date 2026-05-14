@@ -499,6 +499,9 @@ class BufferDescriptor:
                 raise CompilationError("Unsupported `buffering` over different "
                                        "IterationSpaces")
 
+        if not ispaces:
+            return IterationSpace(Interval(self.dim))
+
         return ispaces.pop()
 
     @cached_property

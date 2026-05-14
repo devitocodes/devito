@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from contextlib import suppress
 from functools import cached_property, wraps
-from itertools import groupby
 
 import numpy as np
 import sympy
@@ -16,7 +15,7 @@ from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
 from devito.tools import as_tuple, filter_ordered, memoized_meth
-from devito.types import Eq, Inc, SparseEq, SubFunction, Symbol
+from devito.types import Eq, Inc, SparseEq, SparseInc, SubFunction, Symbol
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -83,31 +82,37 @@ def _extract_subdomain(variables):
 
 def _build_interpolation(expr, increment, implicit_dims, self_subs, interpolator):
     """
-    Construct the SparseEq for an interpolation: `sf <- expr`. The
-    synthetic lhs honours `self_subs` so e.g. `p_t=time+1` is reflected
-    in the data space the cluster builder derives.
+    Construct the SparseEq for an interpolation: the synthetic Eq is
+    ``Eq(sf[..., p_*], expr[..., rp_*])``; with ``increment`` it is
+    an ``Inc``.
     """
-    sfunc = interpolator.sfunction
-    lhs = sfunc.subs(self_subs) if self_subs else sfunc
-    return SparseEq(lhs, expr, interpolator=interpolator, kind='interpolate',
-                    expr=expr, increment=increment, self_subs=self_subs,
-                    implicit_dims=implicit_dims)
+    eq = interpolator._interpolate(expr=expr, increment=increment,
+                                   self_subs=self_subs,
+                                   implicit_dims=implicit_dims)
+    cls = SparseInc if isinstance(eq, Inc) else SparseEq
+    return cls(eq.lhs, eq.rhs, interpolator=interpolator,
+               kind='interpolate',
+               implicit_dims=eq.implicit_dims)
 
 
 def _build_injection(field, expr, implicit_dims, interpolator):
     """
-    Construct the SparseEq for an injection: `field <- field + expr`.
-    For a multi-field injection (`field` is a tuple) the synthetic
-    relational uses the first field pair as a placeholder; the full
-    set is preserved in the payload for the IET expansion.
+    Construct the SparseEq(s) for an injection: each synthetic Eq is
+    ``Inc(field[..., x, y, ...], weights * expr[..., rp_*])`` produced
+    by ``interpolator._inject``. A multi-field injection expands into
+    one ``SparseEq`` per ``(field, expr)`` pair so each target field is
+    individually visible to the cluster pipeline.
     """
     fields, exprs = as_tuple(field), as_tuple(expr)
     if len(exprs) == 1:
         exprs = tuple(exprs[0] for _ in fields)
-    lhs = fields[0]
-    rhs = fields[0] + exprs[0]
-    return SparseEq(lhs, rhs, interpolator=interpolator, kind='inject',
-                    expr=expr, field=field, implicit_dims=implicit_dims)
+    eqs = []
+    for (f, e) in zip(fields, exprs, strict=True):
+        inc = interpolator._inject(field=f, expr=e, implicit_dims=implicit_dims)
+        eqs.append(SparseEq(inc.lhs, inc.rhs, interpolator=interpolator,
+                            kind='inject',
+                            implicit_dims=inc.implicit_dims))
+    return eqs[0] if len(eqs) == 1 else eqs
 
 
 class GenericInterpolator(ABC):
@@ -192,14 +197,17 @@ class WeightedInterpolator(GenericInterpolator):
         else:
             gdims = self._gdims
 
-        # Make radius dimension conditional to avoid OOB
+        # Make the radius dimensions conditional to avoid OOB accesses.
+        # ``rd ∈ [-r+1, r]`` and the access is ``field[pos + rd]``, so
+        # the OOB guard on ``rd`` reads ``pos + rd ∈ [d_min - r, d_max + r]``.
         rdims = []
-        pos = self.sfunction._position_map(shifts=shifts).values()
+        pos_symbols = self.sfunction._pos_symbols(shifts=shifts)
 
-        for (d, rd, p) in zip(gdims, self._cdim, pos, strict=True):
-            # Add conditional to avoid OOB
-            lb = sympy.And(rd + p >= d.symbolic_min - self.r, evaluate=False)
-            ub = sympy.And(rd + p <= d.symbolic_max + self.r, evaluate=False)
+        for d in gdims:
+            rd = self.sfunction._crdim(d)
+            pos = pos_symbols[d]
+            lb = sympy.And(pos + rd >= d.symbolic_min - self.r, evaluate=False)
+            ub = sympy.And(pos + rd <= d.symbolic_max + self.r, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
 
             # Insert a check to catch cases where interpolation/injection is
@@ -245,38 +253,57 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map(shifts=shifts).items()]
 
-    def _interp_idx(self, variables, implicit_dims=None, subdomain=None,
-                    shifts=None):
+    def _interp_idx(self, variables, subdomain=None, shifts=None):
         """
-        Generate interpolation indices for the DiscreteFunctions in `variables`.
+        Generate the indirect-access index substitutions for the
+        DiscreteFunctions in ``variables``. Each grid Dimension ``x``
+        is replaced with ``pos_x + rd_x``, where ``rd_x`` is the
+        StencilDimension for the radius and ``pos_x`` is the per-point
+        position offset; together they realise the radius-neighbourhood
+        access ``field[pos_x + rd_x, pos_y + rd_y]``.
 
-        `shifts` is a per-Dimension physical offset for the target field's
-        origin: it only affects the integer position symbol via the position
-        map (`pos = floor((c - o - shift)/h)`). The index substitution itself
-        is unchanged — any staggered offset in a field's own symbolic access is
-        absorbed by Devito's normal indexing.
+        ``shifts`` is a per-Dimension physical offset for the target
+        field's origin (e.g. ``h_x/2`` for a field staggered in ``x``);
+        it only affects the integer position symbol via the position
+        map (``pos = floor((c - o - shift)/h)``).
         """
         pos = self.sfunction._position_map(shifts=shifts).values()
-
-        # Temporaries for the position
-        temps = self._positions(implicit_dims, shifts=shifts)
-
-        # Coefficient symbol expression
-        temps.extend(self._coeff_temps(implicit_dims, shifts=shifts))
 
         # Substitution mapper for variables
         mapper = self._rdim(subdomain=subdomain, shifts=shifts).getters
 
         # Index substitution to make in variables
         subs = {
-            ki: c + p
+            ki: p + c
             for ((k, c), p) in zip(mapper.items(), pos, strict=True)
             for ki in {k, k.root}
         }
 
-        idx_subs = {v: v.subs(subs) for v in variables}
+        return {v: v.subs(subs) for v in variables}
 
-        return idx_subs, temps
+    def _sparse_temps(self, kind, expr, field=None, implicit_dims=None):
+        """
+        Position/coefficient temps emitted alongside the radius
+        expansion. ``implicit_dims`` is augmented with the
+        SparseFunction's iteration dimensions (and any dim carried by
+        the operation inputs) so the temps share the radius-nest's
+        iteration space. For injection, ``field``'s staggering drives
+        the position-symbol shifts so the rhs `pos*` symbols match
+        the temps' lhs.
+        """
+        if kind == 'inject':
+            extras = list(as_tuple(field))
+            if expr is not None:
+                extras.extend(retrieve_function_carriers(expr))
+            shifts = self._field_shifts(field) if field is not None else None
+        else:
+            extras = list(retrieve_function_carriers(expr)) \
+                if expr is not None else None
+            shifts = None
+
+        implicit_dims = self._augment_implicit_dims(implicit_dims, extras=extras)
+        return list(self._positions(implicit_dims, shifts=shifts)) + \
+            list(self._coeff_temps(implicit_dims, shifts=shifts))
 
     @check_radius
     @check_coords
@@ -320,121 +347,79 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
-        Generate equations interpolating an arbitrary expression into `self`.
+        Build the synthetic single Eq for an interpolation:
 
-        Parameters
-        ----------
-        expr : expr-like
-            Input expression to interpolate.
-        increment: bool, optional
-            If True, generate increments (Inc) rather than assignments (Eq).
-        implicit_dims : Dimension or list of Dimension, optional
-            An ordered list of Dimensions that do not explicitly appear in the
-            interpolation expression, but that should be honored when constructing
-            the operator.
+            Eq(sf[..., p_*], expr[..., rp_*])         # or Inc when increment=True
+
+        The grid Dimensions inside ``expr`` are substituted for the
+        radius ConditionalDimensions ``rp_*``, whose parent is the
+        original grid Dimension. The cluster scheduler therefore derives
+        an IterationSpace ``(..., p_*, rp_*)``; the IET pass
+        ``lower_sparse_ops`` later wraps that nest in an
+        ElementalFunction and inserts the position/weight temps and
+        accumulator inside it.
         """
-        # Derivatives must be evaluated before the introduction of indirect accesses
-        with suppress(AttributeError):
-            expr = expr._eval_at(self.sfunction).evaluate
+        # Derivatives must be evaluated before the introduction of indirect accesses.
+        # CSE will pick up any shared subexpression.
+        try:
+            _expr = expr._eval_at(self.sfunction).evaluate
+        except AttributeError:
+            _expr = expr
 
         if self_subs is None:
             self_subs = {}
 
-        variables = list(retrieve_function_carriers(expr))
+        variables = list(retrieve_function_carriers(_expr))
         subdomain = _extract_subdomain(variables)
 
-        # Implicit dimensions
         implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
+        idx_subs = self._interp_idx(variables, subdomain=subdomain)
 
-        # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
-                                           subdomain=subdomain)
-
-        # Accumulate point-wise contributions into a temporary
-        rhs = Symbol(name=f'sum{self.sfunction.name}', dtype=self.sfunction.dtype)
-        summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
-        # Substitute coordinate base symbols into the interpolation coefficients
-        weights = self._weights(subdomain=subdomain)
-        summands.extend([Inc(rhs, (weights * expr).xreplace(idx_subs),
-                             implicit_dims=implicit_dims)])
-
-        # Write/Incr `self`
         lhs = self.sfunction.subs(self_subs)
-        ecls = Inc if increment else Eq
-        last = [ecls(lhs, rhs, implicit_dims=implicit_dims)]
+        rhs = _expr.xreplace(idx_subs)
 
-        return temps + summands + last
+        ecls = Inc if increment else Eq
+        return ecls(lhs, rhs, implicit_dims=implicit_dims)
 
     def _inject(self, field, expr, implicit_dims=None):
         """
-        Generate equations injecting an arbitrary expression into a field.
+        Build the synthetic single Inc for an injection:
 
-        Parameters
-        ----------
-        field : Function
-            Input field into which the injection is performed.
-        expr : expr-like
-            Injected expression.
-        implicit_dims : Dimension or list of Dimension, optional
-            An ordered list of Dimensions that do not explicitly appear in the
-            injection expression, but that should be honored when constructing
-            the operator.
+            Inc(field[..., pos_x + rd_x, ...], weights(rd_*) * expr[..., pos + rd_*])
+
+        Both lhs and rhs share the radius-indexed access pattern so the
+        cluster scheduler derives the same ``(..., p_*, rd_*)``
+        IterationSpace whether the operation is interpolation or
+        injection. The IET pass ``lower_sparse_ops`` wraps the resulting
+        nest in an ElementalFunction.
         """
-        # Make iterable to support inject((u, v), expr=expr)
-        # or inject((u, v), expr=(expr1, expr2))
-        fields, exprs = as_tuple(field), as_tuple(expr)
-
-        # Provide either one expr per field or on expr for all fields
-        if len(fields) > 1:
-            if len(exprs) == 1:
-                exprs = tuple(exprs[0] for _ in fields)
-            else:
-                assert len(exprs) == len(fields)
-
-        subdomain = _extract_subdomain(fields)
-
         # Derivatives must be evaluated before the introduction of indirect
         # accesses. Variables are sampled at their own grid location; the
         # position map for the target field carries the staggering so the
         # field's stencil neighbors land on the right indices.
-        with suppress(AttributeError):
-            exprs = tuple(e._eval_at(f).evaluate
-                          for e, f in zip(exprs, fields, strict=True))
+        try:
+            _expr = expr._eval_at(field).evaluate
+        except AttributeError:
+            _expr = expr
 
-        eqns = []
-        temps = []
-        # We need to create one set of equations (temps and and coeffs) per staggering
-        # field in which we inject as the reference index depends on the field's origin
-        for _, g in groupby(zip(fields, exprs, strict=True), lambda f: f[0].staggered):
-            g_fields, g_exprs = zip(*g, strict=True)
-            variables = list(v for e in g_exprs for v in retrieve_function_carriers(e))
+        subdomain = _extract_subdomain((field,))
 
-            implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
+        variables = list(retrieve_function_carriers(_expr))
 
-            # All fields in a single injection share the same staggering by
-            # construction (they are written together at the same indices), so
-            # derive shifts from the first field.
-            shifts = self._field_shifts(g_fields[0])
+        implicit_dims = self._augment_implicit_dims(implicit_dims,
+                                                    (field,) + tuple(variables))
 
-            # Move all temporaries inside inner loop to improve parallelism
-            # Can only be done for inject as interpolation needs a summing temp
-            # that wouldn't allow collapsing
-            implicit_dims = implicit_dims + tuple(r.parent for r in
-                                                  self._rdim(subdomain=subdomain,
-                                                             shifts=shifts))
+        # The reference index depends on the field's origin (staggering).
+        shifts = self._field_shifts(field)
 
-            # List of indirection indices for all adjacent grid points
-            idx_subs, _temps = self._interp_idx(list(g_fields) + variables,
-                                                implicit_dims=implicit_dims,
-                                                subdomain=subdomain, shifts=shifts)
+        idx_subs = self._interp_idx((field,) + tuple(variables),
+                                    subdomain=subdomain, shifts=shifts)
 
-            w = self._weights(subdomain=subdomain, shifts=shifts)
-            temps.extend(_temps)
-            eqns.extend([Inc(f.xreplace(idx_subs), (w * e).xreplace(idx_subs),
-                             implicit_dims=implicit_dims)
-                         for f, e in zip(g_fields, g_exprs, strict=True)])
+        weights = self._weights(subdomain=subdomain, shifts=shifts)
+        lhs = field.xreplace(idx_subs)
+        rhs = (weights * _expr).xreplace(idx_subs)
 
-        return filter_ordered(temps) + eqns
+        return Inc(lhs, rhs, implicit_dims=implicit_dims)
 
 
 class LinearInterpolator(WeightedInterpolator):
@@ -507,7 +492,10 @@ class PrecomputedInterpolator(WeightedInterpolator):
     @memoized_meth
     def _weights(self, subdomain=None, shifts=None):
         ddim, cdim = self.interpolation_coeffs.dimensions[1:]
-        mappers = [{ddim: ri, cdim: rd-rd.parent.symbolic_min}
+        # The radius CustomDim spans ``[-r+1, r]``; the coefficients
+        # table is indexed from 0 to ``2r-1``, so shift by ``r-1``.
+        offset = self.r - 1
+        mappers = [{ddim: ri, cdim: rd + offset}
                    for (ri, rd) in enumerate(self._rdim(subdomain=subdomain,
                                                         shifts=shifts))]
         return Mul(*[self.interpolation_coeffs.subs(mapper)
@@ -544,12 +532,12 @@ of the SincInterpolator that uses i0 (Bessel function).
     def interpolation_coeffs(self):
         coeffs = []
         shape = (self.sfunction.npoint, 2 * self.r)
-        for r in self._cdim:
-            dimensions = (self.sfunction._sparse_dim, r)
-            sf = SubFunction(name=f"wsinc{r.name}", dtype=self.sfunction.dtype,
+        for d in self._gdims:
+            dimensions = (self.sfunction._sparse_dim, self.sfunction._crdim(d))
+            sf = SubFunction(name=f"wsinc{d.name}", dtype=self.sfunction.dtype,
                              shape=shape, dimensions=dimensions,
                              space_order=0, alias=self.sfunction.alias,
-                             parent=None)
+                             parent=self.sfunction)
             coeffs.append(sf)
         return tuple(coeffs)
 

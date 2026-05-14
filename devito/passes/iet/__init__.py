@@ -1,5 +1,6 @@
 from .engine import *  # noqa
 from .misc import *  # noqa
+from .sparse import *  # noqa
 from .orchestration import *  # noqa
 from .mpi import *  # noqa
 from .definitions import *  # noqa
@@ -9,4 +10,3 @@ from .instrument import *  # noqa
 from .languages import *  # noqa
 from .errors import *  # noqa
 from .dtypes import *  # noqa
-from .sparse import *  # noqa

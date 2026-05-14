@@ -1,44 +1,47 @@
 """
-IET pass that lowers SparseOperation expressions (Interpolation/Injection)
-into ElementalFunctions and replaces the bare Expression carried through
-the cluster pipeline with a Call.
+IET pass that lowers sparse-operation expressions (Interpolation/Injection)
+into ElementalFunctions and replaces the iteration nest produced by the
+cluster pipeline with a Call to the resulting efunc.
 
-The SparseEq's LoweredEq carries the time-like Dimensions in its
-IterationSpace, so the cluster builder produces the same outer time
-loop it would produce for any other equation, and the parent's
-argument-bound analysis works against the synthetic indexed lhs/rhs.
+By the time this pass runs, the cluster pipeline has scheduled each
+sparse op into a regular ``(.., p_sf, rd_x, rd_y, ..)`` iteration nest
+with a single inner ``Expression`` carrying the synthetic
+``LoweredSparseEq``. The pass:
 
-The efunc body is built via the IR lowering stages
-(`_lower_exprs` -> `_lower_clusters` -> `_lower_stree` -> `_lower_uiet`),
-without recursing into a full Operator compilation. The resulting
-ElementalFunction is registered with the parent Graph so the parent's
-IET specialisation passes (MPI, OpenMP, linearisation, ...) operate on
-it as a sibling Callable.
-
-After construction the outermost time Iteration is stripped from the
-body: the efunc is called once per parent time step, so iterating
-time inside it would duplicate the iteration. The `uindices` carried
-by the time Iteration (e.g. the SteppingDimension binding
-`t = time % buffer_size`) are converted into scalar Expressions placed
-at the top of the body, so buffered TimeFunction accesses keep working.
+* finds the outermost ``Iteration`` whose Dimension belongs to the
+  sparse op (the SparseFunction's sparse Dimension or a radius
+  Dimension);
+* rewrites the body of the sparse Dimension's ``Iteration`` so the
+  position/coefficient temporaries (``posx``, ``px``, ...) are
+  computed once per sparse point, above the radius loops;
+* for an interpolation, wraps the inner Expression with the scalar
+  accumulator pattern (``acc = 0``; ``acc += weights * rhs`` inside
+  the radius loops; ``sf[p_sf] = acc`` afterwards);
+* for an injection, leaves the inner Expression as the existing
+  weighted ``Inc(field[pos+rd], weights * rhs)``;
+* wraps the resulting sub-tree in an ``ElementalFunction`` and
+  replaces it in the parent IET with a ``Call``.
 """
 
+from collections import OrderedDict
+
 from devito.ir.equations import DummyEq
+from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (
-    Call, EntryFunction, Expression, FindNodes, Iteration, List, Section, Transformer,
+    Call, EntryFunction, Expression, FindNodes, Increment, Iteration, List, Transformer,
     make_callable
 )
 from devito.passes.iet.engine import iet_pass
+from devito.types import Symbol
 
 __all__ = ['lower_sparse_ops']
 
 
 def lower_sparse_ops(graph, **kwargs):
     """
-    Replace each sparse-operation Expression in the IET with a Call to an
-    ElementalFunction built from the interpolator-produced grid-level Eq
-    list. The efunc is constructed directly via the IR lowering stages,
-    without a full recursive Operator compilation.
+    Replace each sparse-op iteration nest in the IET with a Call to an
+    ElementalFunction that materialises the position temporaries and
+    the inner accumulator/increment pattern.
     """
     _lower_sparse_ops(graph, **kwargs)
 
@@ -48,38 +51,35 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
     if not isinstance(iet, EntryFunction):
         return iet, {}
 
+    # The "head" of a sparse op in the IET is the unique Expression
+    # whose lhs is the SparseFunction (interpolation) or the target
+    # field (injection); any auxiliary temporary expressions extracted
+    # from the original SparseEq (e.g. by ``factorize``/``cse``) are
+    # left where they are inside the radius nest.
+    sparse_exprs = [e for e in FindNodes(Expression).visit(iet)
+                    if e.expr.is_SparseOperation and _is_head(e.expr)]
+    if not sparse_exprs:
+        return iet, {}
+
+    # Group head Expressions by their enclosing outer (sparse-Dimension)
+    # Iteration; all such Expressions inside the same outer nest share
+    # one efunc.
+    groups = OrderedDict()
+    for expr in sparse_exprs:
+        nest = _find_outer_iteration(iet, expr)
+        if nest is None:
+            continue
+        groups.setdefault(nest, []).append(expr)
+
     mapper = {}
     efuncs = []
 
-    for expr in FindNodes(Expression).visit(iet):
-        if not expr.expr.is_SparseOperation:
-            continue
-        sparse_op = expr.expr.sparse_op
-
-        # Build the efunc body by running the interpolator-produced
-        # eqns through the IR lowering stages up to (but not
-        # including) IET specialisation. Pass `profiler=None` so the
-        # recursive `profiler.analyze` does not register the efunc's
-        # Sections alongside the parent's.
-        eqns = sparse_op.operation()
-        inner_kwargs = {**kwargs, 'sregistry': sregistry, 'profiler': None}
-        efunc_body = _build_sparse_iet(eqns, **inner_kwargs)
-        # Strip Section wrappers (the profiler shouldn't instrument
-        # inside the efunc) and the outermost time Iteration, since
-        # the parent's time loop already iterates time and the efunc
-        # is called once per time step
-        efunc_body, _ = _strip_sections(efunc_body)
-        efunc_body = _strip_time_iteration(efunc_body)
-
-        # Wrap as a plain Callable. The parent Graph picks it up and
-        # the parent's _specialize_iet passes (MPI, parallelism, GPU
-        # device-pointer / data-transfer setup, linearisation, ...)
-        # process it as a sibling Callable.
-        name = sregistry.make_name(prefix=_efunc_prefix(sparse_op))
-        efunc = make_callable(name, efunc_body)
+    for nest, exprs in groups.items():
+        new_nest = _materialise_nest(nest, exprs)
+        name = sregistry.make_name(prefix=_efunc_prefix(exprs[0].expr))
+        efunc = make_callable(name, new_nest)
         efuncs.append(efunc)
-
-        mapper[expr] = Call(efunc.name, list(efunc.parameters))
+        mapper[nest] = Call(efunc.name, list(efunc.parameters))
 
     if not mapper:
         return iet, {}
@@ -89,62 +89,141 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
     return iet, {'efuncs': efuncs}
 
 
-def _build_sparse_iet(eqns, **kwargs):
+def _is_head(eq):
     """
-    Lower `eqns` through the IR stages up to `iet_build` (no IET
-    specialisation), returning the resulting IET body suitable for
-    wrapping in a Callable.
+    True if ``eq`` is the "head" of its sparse op: the Expression
+    whose lhs is the SparseFunction (interpolation) or a
+    DiscreteFunction grid field (injection), as opposed to an
+    auxiliary scalar temporary extracted from the original SparseEq by
+    a cluster pass.
     """
-    from devito.operator.registry import operator_selector
-    cls = operator_selector(**kwargs)
-    expressions = cls._lower_exprs(eqns, **kwargs)
-    clusters = cls._lower_clusters(expressions, **kwargs)
-    stree = cls._lower_stree(clusters, **kwargs)
-    uiet = cls._lower_uiet(stree, **kwargs)
-    return uiet.body
+    sf = eq.interpolator.sfunction
+    f = eq.lhs.function
+    if eq.kind == 'interpolate':
+        return f is sf
+    # 'inject': head writes into a DiscreteFunction (the grid field),
+    # not into a scalar temporary
+    return f.is_DiscreteFunction and f is not sf
 
 
-def _strip_sections(body):
+def _find_outer_iteration(iet, expr):
     """
-    Replace each Section node in `body` with its inner body. Section
-    wrappers exist for profiling instrumentation, which we don't want
-    inside a per-sparse-point ElementalFunction.
+    Walk up the IET from ``expr`` and return the outermost Iteration
+    whose ``dim.root`` is the SparseFunction's sparse Dimension.
     """
-    sections = FindNodes(Section).visit(body)
-    if not sections:
-        return body, []
-    mapper = {s: List(body=s.body) for s in sections}
-    return Transformer(mapper, nested=True).visit(body), [s.name for s in sections]
+    sparse_dim = expr.expr.interpolator.sfunction._sparse_dim
+    for it in FindNodes(Iteration).visit(iet):
+        if it.dim.root is not sparse_dim:
+            continue
+        if expr in FindNodes(Expression).visit(it):
+            return it
+    return None
 
 
-def _strip_time_iteration(body):
+def _materialise_nest(nest, exprs):
     """
-    Strip the outermost time Iteration from `body`. The efunc is
-    called once per time step from inside the parent's time loop, so
-    iterating time again here would produce nested loops and incorrect
-    accumulation. The Iteration's `uindices` (e.g. the
-    `t = time % buffer_size` SteppingDimension binding) are converted
-    into scalar Expressions placed before the original body; the
-    Iteration's loop variable (e.g. `time`) becomes a free symbol that
-    derive_parameters lifts into the efunc signature.
+    Rewrite the sparse Dimension's Iteration body to compute the
+    position/coefficient temps once per sparse point, then for any
+    interpolation Expression wrap it with the scalar accumulator
+    pattern. Multiple sparse-op Expressions sharing the same outer
+    Iteration are materialised in one pass and reuse the same temps.
     """
-    iterations = FindNodes(Iteration).visit(body)
-    time_iter = next((it for it in iterations if it.dim.is_Time), None)
-    if time_iter is None:
-        return body
-    # Build scalar bindings for each uindex: e.g. `t = time % bs`
-    bindings = []
-    for u in time_iter.uindices:
-        bindings.append(Expression(DummyEq(u, u.symbolic_min)))
-    new_body = List(body=tuple(bindings) + tuple(time_iter.nodes))
-    return Transformer({time_iter: new_body}, nested=True).visit(body)
+    interp = exprs[0].expr.interpolator
+    sample_lse = exprs[0].expr
+
+    # Position + coefficient temporaries as IET Expressions. These are
+    # the same for every Expression in the group, so we emit them once.
+    temps = interp._sparse_temps(
+        sample_lse.kind, _user_expr(sample_lse),
+        field=_user_field(sample_lse),
+        implicit_dims=sample_lse.implicit_dims,
+    )
+    temp_exprs = tuple(Expression(DummyEq(e.lhs, e.rhs))
+                       for e in lower_exprs(temps))
+
+    # For each Expression in the group, build its contribution to the
+    # body (init+inc+write_back for interpolation, just leave in place
+    # for injection).
+    body = []
+    inner = _drop_outer(nest)
+    for expr in exprs:
+        lse = expr.expr
+        if lse.kind == 'interpolate':
+            init, radius_subtree, write_back = _interp_inner_block(
+                inner, expr, lse.interpolator
+            )
+            body.extend([init, radius_subtree, write_back])
+        else:
+            # Injection: the existing radius nest already carries the
+            # weighted Inc; no additional wrapping needed.
+            pass
+    if not body:
+        # Pure-injection nest: use the original radius nest as-is.
+        body = [inner]
+
+    return nest._rebuild(nodes=temp_exprs + tuple(body))
 
 
-def _efunc_prefix(sparse_op):
+def _interp_inner_block(inner, expr, interp):
+    """
+    Build the accumulator/radius/write-back triple for an interpolation:
+
+        ``Eq(acc, 0)``
+        radius_nest with ``Inc(acc, weights * rhs)`` in place of expr
+        ``Eq(sf[p], acc)``     # ``Inc`` when the SparseEq is a SparseInc
+    """
+    eq = expr.expr
+    sf_lhs = eq.lhs
+    rhs = eq.rhs
+
+    acc = Symbol(name=f'sum{interp.sfunction.name}', dtype=sf_lhs.dtype)
+
+    # ``rhs`` is already indexified; only the weights need lowering
+    # (e.g. coefficient Functions are indexed by the radius dim).
+    weights_expr = lower_exprs(_make_eq(acc, interp._weights())).rhs
+    weighted_rhs = weights_expr * rhs
+
+    init = Expression(DummyEq(acc, 0))
+    inc = Increment(DummyEq(acc, weighted_rhs))
+    # Honour the synthetic Eq's flavour: a SparseInc means the user
+    # asked for ``sf[p_*] += sum`` (interpolation with ``increment=True``);
+    # otherwise the standard write is ``sf[p_*] = sum``.
+    write_back_cls = Increment if eq.is_Reduction else Expression
+    write_back = write_back_cls(DummyEq(sf_lhs, acc))
+
+    radius_subtree = Transformer({expr: inc}).visit(inner)
+    return (init, radius_subtree, write_back)
+
+
+def _drop_outer(nest):
+    """
+    Return the sub-IET inside ``nest`` (the Iteration over the sparse
+    Dim) — i.e. the radius nest. ``nest.nodes`` is what runs once per
+    sparse point.
+    """
+    if len(nest.nodes) == 1:
+        return nest.nodes[0]
+    return List(body=nest.nodes)
+
+
+def _make_eq(lhs, rhs):
+    """Helper to wrap a (lhs, rhs) pair as a symbolic Eq for ``lower_exprs``."""
+    from devito.types import Eq
+    return Eq(lhs, rhs)
+
+
+def _efunc_prefix(lse):
     """Pick an ElementalFunction name prefix based on the sparse-op kind."""
-    sfname = sparse_op.interpolator.sfunction.name
-    if sparse_op.kind == 'interpolate':
-        return f'interpolate_{sfname}'
-    if sparse_op.kind == 'inject':
-        return f'inject_{sfname}'
-    return 'sparse_op'
+    return f'{lse.kind}_{lse.interpolator.sfunction.name}'
+
+
+def _user_expr(lse):
+    """The user-side expression to feed ``_sparse_temps`` (rhs of the LSE)."""
+    return lse.rhs
+
+
+def _user_field(lse):
+    """For injection, the destination Function appearing in lhs."""
+    if lse.kind == 'inject':
+        return lse.lhs.function
+    return None

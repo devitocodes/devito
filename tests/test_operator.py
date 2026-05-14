@@ -1943,20 +1943,22 @@ class TestLoopScheduling:
         eqn4 = sf2.interpolate(u2)
 
         # Note: opts disabled only because with OpenMP otherwise there might be more
-        # `trees` than 6
+        # `trees` than 6. Sparse ops are lifted into ElementalFunctions so the
+        # parent kernel only contains the dense `time,x,y` nests plus a `time`
+        # loop wrapping each sparse-op Call.
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 5
-        # Time loop not shared due to the WAR
-        assert trees[0][0].dim is time and trees[0][0] is trees[1][0]  # this IS shared
-        assert trees[1][0] is not trees[3][0]
-        assert trees[3][0].dim is time and trees[3][0] is trees[4][0]  # this IS shared
+        assert len(trees) == 4
+        # Time loop not shared due to the WAR between u1 inject and eqn3
+        assert trees[0][0].dim is time and trees[0][0] is trees[1][0]
+        assert trees[1][0] is not trees[2][0]
+        assert trees[2][0].dim is time and trees[2][0] is trees[3][0]
 
         # Now single, shared time loop expected
         eqn2 = sf1.inject(u1.forward, expr=sf1)
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 5
+        assert len(trees) == 3
         assert all(trees[0][0] is i[0] for i in trees)
 
     def test_scheduling_with_free_dims(self):

@@ -19,7 +19,7 @@ from devito.exceptions import (
     CompilationError, ExecutionError, InvalidArgument, InvalidOperator
 )
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.equations import LoweredEq, concretize_subdims, lower_exprs
+from devito.ir.equations import concretize_subdims, lower_exprs
 from devito.ir.iet import (
     Callable, CInterface, DeviceFunction, EntryFunction, FindSymbols, MetaCall,
     derive_parameters, iet_build
@@ -206,7 +206,10 @@ class Operator(Callable):
 
     @classmethod
     def _sanitize_exprs(cls, expressions, **kwargs):
-        expressions = as_tuple(expressions)
+        # Flatten so callers can mix nested lists (e.g. ``free_surface``
+        # returning a list, or multi-field injections returning one
+        # ``SparseEq`` per field) without having to manually unpack them.
+        expressions = tuple(flatten(as_tuple(expressions)))
 
         for i in expressions:
             if not isinstance(i, Evaluable):
@@ -374,50 +377,13 @@ class Operator(Callable):
         # A second round of specialization is performed on evaluated expressions
         expressions = cls._specialize_exprs(expressions, **kwargs)
 
-        # "True" lowering (indexification, shifting, ...). SparseEq
-        # carries an unevaluated source expression on the rhs (e.g.
-        # Derivatives, un-indexified Functions) that lower_exprs cannot
-        # reconstruct, so we lower only the lhs of each SparseEq and
-        # let the IET pass `lower_sparse_ops` expand the rhs later.
-        expressions = [cls._lower_sparse_lhs(i, **kwargs)
-                       if i.is_SparseOperation else i
-                       for i in expressions]
-        regular_idx = [k for k, i in enumerate(expressions)
-                       if not i.is_SparseOperation]
-        if regular_idx:
-            regular = lower_exprs([expressions[k] for k in regular_idx], **kwargs)
-            regular = concretize_subdims(regular, **kwargs)
-            for k, v in zip(regular_idx, regular, strict=True):
-                expressions[k] = v
+        # "True" lowering (indexification, shifting, ...)
+        expressions = lower_exprs(expressions, **kwargs)
+        expressions = concretize_subdims(expressions, **kwargs)
 
-        processed = [LoweredEq(i) for i in expressions]
+        processed = [i.lower() for i in expressions]
 
         return processed
-
-    @classmethod
-    def _lower_sparse_lhs(cls, sparse_eq, **kwargs):
-        """
-        Route a SparseEq through the standard expression lowering
-        pipeline so the cluster builder sees its indexed read/write
-        accesses, while sparing any unevaluated Derivatives on the rhs
-        that `lower_exprs` cannot reconstruct.
-
-        The lhs is always lowered. The rhs is lowered too if it
-        contains no Derivative; otherwise it stays as-is and the IET
-        pass `lower_sparse_ops` expands it later via the interpolator.
-        """
-        from devito.symbolics import retrieve_derivatives
-        from devito.types import Eq as DevitoEq
-
-        has_deriv = bool(retrieve_derivatives(sparse_eq.rhs))
-        if has_deriv:
-            tmp = DevitoEq(sparse_eq.lhs, 0)
-        else:
-            tmp = DevitoEq(sparse_eq.lhs, sparse_eq.rhs)
-        tmp = lower_exprs([tmp], **kwargs)[0]
-        tmp = concretize_subdims([tmp], **kwargs)[0]
-        rhs = sparse_eq.rhs if has_deriv else tmp.rhs
-        return sparse_eq.func(tmp.lhs, rhs)
 
     # Compilation -- Cluster level
 
@@ -540,6 +506,14 @@ class Operator(Callable):
 
         # Lower IET to a target-specific IET
         graph = Graph(iet, **kwargs)
+
+        # Lower sparse operations (Interpolation/Injection) into Calls to
+        # ElementalFunctions before any backend specialisation runs, so the
+        # efunc and its sibling Callable are picked up by every backend's
+        # ``_specialize_iet`` uniformly.
+        from devito.passes.iet import lower_sparse_ops
+        lower_sparse_ops(graph, **kwargs)
+
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling

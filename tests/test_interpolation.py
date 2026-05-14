@@ -515,19 +515,20 @@ class TestLinear:
         b = Function(name='b', grid=grid, space_order=2, staggered=NODE)
         p = SparseFunction(name="p", grid=grid, nt=10, npoint=1)
 
-        eq = p.inject(v, expr=b * p).evaluate
+        eq = p.inject(v, expr=b * p)
 
-        # We should have
-        # - 3 injection equations v_x, v_y, v_z
-        # The standard 6 on node temps posx, posy, posz, px, py, pz
-        # 2 temps for the staggered in x vx posz_s1, px_s1
-        # 2 temps for the staggered in y vy posz_s1, py_s1
-        # 2 temps for the staggered in z vz posz_s1, pz_s1
-        assert len(eq) == 3 + 6 + 2 + 2 + 2
+        # One SparseEq per vector component (v_x, v_y, v_z); the
+        # position/coefficient temps are now emitted by the IET pass
+        # inside the sparse-op efunc, not on the DSL side.
+        assert isinstance(eq, list)
+        assert len(eq) == 3
 
         op = Operator(eq)
-        # Should be a single loop nest with 3 injections
-        assert_structure(op, ['p_p,rp_px,rp_py,rp_pz'], 'p_prp_pxrp_py,rp_pz')
+        # Single sparse-op efunc with the temps loop and the radius nest
+        # carrying all 3 injections
+        efunc = op._func_table['inject_p0'].root
+        assert_structure(efunc, ['p_p', 'p_p,rp_px,rp_py,rp_pz'],
+                         'p_p,rp_px,rp_py,rp_pz')
 
 # ---------------------------------------------------------------------------
 # Precomputed interpolation / injection
@@ -769,16 +770,24 @@ class TestSparseEqShape:
     def test_interpolation_lhs_rhs(self):
         a, p = self._setup()
         op = p.interpolate(a)
-        # The synthesised relational shape: sf <- expr
-        assert op.lhs is p or op.lhs == p
-        assert op.rhs is a or op.rhs == a
+        # The synthesised relational shape:
+        #   ``sf[..., p_*] <- expr(...)[rd_x, rd_y, ...]``
+        # i.e. lhs is the SparseFunction at its sparse index and rhs is
+        # the user expression with grid Dimensions substituted for the
+        # SparseFunction's radius Dimensions.
+        assert op.lhs.function is p
+        assert op.rhs.function is a
 
     def test_injection_lhs_rhs(self):
         a, p = self._setup()
         op = p.inject(a, p)
-        # The synthesised relational shape: field <- field + expr
-        assert op.lhs == a
-        assert op.rhs == a + p
+        # The synthesised relational shape:
+        #   ``Inc(field[..., pos+rd, ...], weights(rd_*) * expr[..., rd_*])``
+        assert op.lhs.function is a
+        # The rhs is a weighted product carrying ``p`` (the sparse
+        # function being injected) at its sparse index.
+        from devito.symbolics import retrieve_functions
+        assert p in {f.function for f in retrieve_functions(op.rhs)}
 
     def test_interpolator_attribute(self):
         from devito.operations.interpolators import WeightedInterpolator
@@ -985,15 +994,14 @@ class TestComplex:
         assert np.isclose(sc.data[0], fc.data[5, 5, 5])
         assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
 
-        # The interpolation iteration nest now lives inside the per-sparse-op
-        # ElementalFunction. Each efunc carries one `p_sc + rp_scx + rp_scy +
-        # rp_scz` nest, and the parent Operator contains only the Calls.
-        interp_sc = opC._func_table['interpolate_sc0'].root
-        interp_sce = opC._func_table['interpolate_sce0'].root
-        assert_structure(interp_sc, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz'],
-                         'p_sc,rp_scx,rp_scy,rp_scz')
-        assert_structure(interp_sce, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz'],
-                         'p_sc,rp_scx,rp_scy,rp_scz')
+        # The two interpolations share the `p_sc` Dimension (sce reuses
+        # sc's coordinates), so the inlined nest covers both ops within
+        # the same `p_sc + rp_*` iteration tree.
+        assert_structure(
+            opC,
+            ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz'],
+            'p_sc,rp_scx,rp_scy,rp_scz'
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1332,11 +1340,13 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(f0.data, check0))
         assert np.all(np.isclose(f1.data, check1))
-        # Each inject lives in its own ElementalFunction
-        for name in ('inject_sr00', 'inject_sr01'):
-            efunc = op._func_table[name].root
-            assert_structure(efunc, ['p_sr0,rp_sr0x,rp_sr0y'],
-                             'p_sr0,rp_sr0x,rp_sr0y')
+        # Both injects share the `p_sr0` Dimension and fuse into a
+        # single ElementalFunction. The p_sr0 loop contains position
+        # temps and the radius nest with the two subdomain-guarded Incs.
+        efunc = op._func_table['inject_sr00'].root
+        assert_structure(efunc,
+                         ['p_sr0', 'p_sr0,rp_sr0x,rp_sr0y'],
+                         'p_sr0,rp_sr0x,rp_sr0y')
 
     def test_inject_subdomain_sinc(self, grid, sinc_coords):
         """
@@ -1363,11 +1373,11 @@ class TestSubDomainInterpolation:
 
         assert np.all(np.isclose(f0.data, f2.data[:9, -9:]))
         assert np.all(np.isclose(f1.data, f2.data[1:-1, 1:-1]))
-        # Each inject lives in its own ElementalFunction
-        for name in ('inject_sr00', 'inject_sr01', 'inject_sr02'):
-            efunc = op._func_table[name].root
-            assert_structure(efunc, ['p_sr0,rp_sr0x,rp_sr0y'],
-                             'p_sr0,rp_sr0x,rp_sr0y')
+        # The three injects share `p_sr0` and fuse into one ElementalFunction.
+        efunc = op._func_table['inject_sr00'].root
+        assert_structure(efunc,
+                         ['p_sr0', 'p_sr0,rp_sr0x,rp_sr0y'],
+                         'p_sr0,rp_sr0x,rp_sr0y')
 
     @pytest.mark.xfail(reason="OOB issue")
     @pytest.mark.parallel(mode=4)

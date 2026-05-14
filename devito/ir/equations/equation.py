@@ -14,13 +14,17 @@ from devito.tools import (
     Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
 )
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
-from devito.tools import Pickable, Tag, as_tuple, frozendict
-from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
+from devito.tools import Pickable, Tag, frozendict
+from devito.types import (
+    Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, SparseEq, SparseOpMixin, relational_min
+)
 
 __all__ = [
     'ClusterizedEq',
+    'ClusterizedSparseEq',
     'DummyEq',
     'LoweredEq',
+    'LoweredSparseEq',
     'OpInc',
     'OpMax',
     'OpMin',
@@ -32,20 +36,21 @@ __all__ = [
 class IREq(sympy.Eq, Pickable):
 
     __rargs__ = ('lhs', 'rhs')
-    __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation',
-                   'sparse_op')
+    __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation')
+
+    is_SparseOperation = False
+
+    def clusterize(self, **kwargs):
+        """
+        Return the ``ClusterizedEq`` counterpart for this IREq.
+        Subclasses with extra payload (e.g. ``LoweredSparseEq``)
+        override this to return their frozen counterpart.
+        """
+        return ClusterizedEq(self, **kwargs)
 
     def _hashable_content(self):
         return (super()._hashable_content() +
                 tuple(as_hashable(getattr(self, i)) for i in self.__rkwargs__))
-
-    @property
-    def sparse_op(self):
-        return getattr(self, '_sparse_op', None)
-
-    @property
-    def is_SparseOperation(self):
-        return self.sparse_op is not None
 
     @property
     def is_Scalar(self):
@@ -196,16 +201,15 @@ class Operation(Tag):
 
     @classmethod
     def detect(cls, expr):
-        reduction_mapper = {
-            Inc: OpInc,
-            ReduceMax: OpMax,
-            ReduceMin: OpMin,
-            ReduceMinMax: OpMinMax
-        }
-        try:
-            return reduction_mapper[type(expr)]
-        except KeyError:
-            pass
+        reduction_mapper = (
+            (ReduceMinMax, OpMinMax),
+            (ReduceMin, OpMin),
+            (ReduceMax, OpMax),
+            (Inc, OpInc),
+        )
+        for kls, op in reduction_mapper:
+            if isinstance(expr, kls):
+                return op
 
         # NOTE: in the future we might want to track down other kinds
         # of operations here (e.g., memcpy). However, we don't care for
@@ -278,16 +282,6 @@ class LoweredEq(IREq):
             raise ValueError(f"Cannot construct LoweredEq from args={str(args)} "
                              f"and kwargs={str(kwargs)}")
 
-        # SparseEq: emitted as an opaque single-Expression node with an
-        # empty IterationSpace. Reads/writes are derived at the Function
-        # level so the cluster scheduler can order it relative to other
-        # equations, but no iteration nest is materialised in the parent
-        # IET — the IET pass `lower_sparse_ops` then replaces this bare
-        # Expression with a Call to a self-contained ElementalFunction
-        # built from the interpolator's expansion via `rcompile`.
-        if input_expr.is_SparseOperation:
-            return cls._build_sparse(input_expr)
-
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
 
@@ -295,8 +289,9 @@ class LoweredEq(IREq):
         accesses = detect_accesses(expr)
         dimensions = Stencil.union(*accesses.values())
 
-        # Separate out the SubIterators from the main iteration Dimensions, that
-        # is those which define an actual iteration space
+        # Separate out the SubIterators from the main iteration
+        # Dimensions, that is those which define an actual
+        # iteration space
         iterators = {}
         for d in dimensions:
             if d.is_SubIterator:
@@ -343,10 +338,6 @@ class LoweredEq(IREq):
         expr._conditionals = conditionals
         expr._implicit_dims = input_expr.implicit_dims
         expr._operation = Operation.detect(input_expr)
-        # Carry a reference to the originating SparseEq, if any, so the IET
-        # lower_sparse_ops pass can recover the interpolator and expand
-        # the sparse operation into an ElementalFunction
-        expr._sparse_op = input_expr if input_expr.is_SparseOperation else None
 
         return expr
 
@@ -356,83 +347,20 @@ class LoweredEq(IREq):
     def func(self, *args):
         return self._rebuild(*args, evaluate=False)
 
-    @classmethod
-    def _build_sparse(cls, input_expr):
-        """
-        Construct a LoweredEq for a SparseEq.
 
-        The parent IterationSpace contains only the time-like Dimensions
-        touched by the sparse op (typically `time`). The efunc emitted
-        by `lower_sparse_ops` consumes the time index as a scalar
-        parameter and owns iteration over the remaining dimensions
-        (`p_sf`, the radius dimensions, ...). Grid dimensions (`x`,
-        `y`, `z`) are not iterated by the parent either: they appear
-        only in the synthetic lhs/rhs, which the cluster builder uses
-        to populate the data space (halo, argument bounds), but the
-        actual grid indexing happens inside the efunc through
-        `posx + rp_x` etc.
+class LoweredSparseEq(SparseOpMixin, LoweredEq):
 
-        The originating SparseEq is attached as `sparse_op` so that the
-        IET pass `lower_sparse_ops` can later expand it into an
-        ElementalFunction.
-        """
-        from devito.symbolics import retrieve_functions
+    """
+    The IR counterpart of ``SparseEq``: a regular ``LoweredEq`` that
+    also carries the ``interpolator``/``kind`` metadata used by the IET
+    pass ``lower_sparse_ops`` to wrap the resulting ``p_*, rp_*``
+    iteration nest in an ElementalFunction.
+    """
 
-        sparse_op = input_expr
-        sfunction = sparse_op.interpolator.sfunction
+    __rkwargs__ = LoweredEq.__rkwargs__ + ('interpolator', 'kind')
 
-        if sparse_op.kind == 'interpolate':
-            writes = {sfunction}
-            reads = set(retrieve_functions(sparse_op.expr)) - writes
-        elif sparse_op.kind == 'inject':
-            fields = sparse_op.field
-            if not isinstance(fields, tuple):
-                fields = (fields,)
-            writes = set(fields)
-            reads = set(retrieve_functions(sparse_op.expr)) | writes
-        else:
-            writes = {sfunction}
-            reads = set(retrieve_functions(sparse_op.expr))
-
-        # Filter to AbstractFunctions / Inputs so the cluster scheduler
-        # treats them like any other data flow
-        reads = {f for f in reads
-                 if getattr(f, 'is_AbstractFunction', False)
-                 or getattr(f, 'is_Input', False)}
-        writes = {f for f in writes
-                  if getattr(f, 'is_AbstractFunction', False)
-                  or getattr(f, 'is_Input', False)}
-
-        # Outer dimensions the parent must iterate: time-like dimensions
-        # touched by the operation, plus any user-supplied
-        # implicit_dims (typically a SteppingDimension that pins the
-        # operation inside a parent time loop). All canonicalised to
-        # their root. The efunc owns the rest (sparse dim, radius
-        # dims) and recomputes any SteppingDimensions internally.
-        outer_dims = []
-        for f in sorted(writes | reads, key=lambda f: f.name):
-            for d in getattr(f, 'dimensions', ()):
-                if d.is_Time:
-                    root = d.root if d.is_Derived else d
-                    if root not in outer_dims:
-                        outer_dims.append(root)
-        for d in as_tuple(input_expr.implicit_dims):
-            root = d.root if d.is_Derived else d
-            if root not in outer_dims:
-                outer_dims.append(root)
-        ispace = IterationSpace(IntervalGroup([Interval(d) for d in outer_dims]))
-
-        expr = sympy.Eq.__new__(cls, sparse_op.lhs, sparse_op.rhs,
-                                evaluate=False)
-        expr._ispace = ispace
-        expr._conditionals = frozendict()
-        expr._reads = reads
-        expr._writes = writes
-        expr._implicit_dims = input_expr.implicit_dims
-        expr._operation = Operation.detect(input_expr)
-        expr._sparse_op = input_expr
-
-        return expr
+    def clusterize(self, **kwargs):
+        return ClusterizedSparseEq(self, **kwargs)
 
 
 class ClusterizedEq(IREq):
@@ -491,6 +419,21 @@ class ClusterizedEq(IREq):
     func = IREq._rebuild
 
 
+class ClusterizedSparseEq(SparseOpMixin, ClusterizedEq):
+
+    """
+    Frozen counterpart of ``LoweredSparseEq``: the same regular
+    ``ClusterizedEq`` augmented with ``interpolator``/``kind`` so the
+    IET pass ``lower_sparse_ops`` can identify and rewrite the sparse
+    op's iteration nest.
+    """
+
+    __rkwargs__ = ClusterizedEq.__rkwargs__ + ('interpolator', 'kind')
+
+    def clusterize(self, **kwargs):
+        return ClusterizedSparseEq(self, **kwargs)
+
+
 class DummyEq(ClusterizedEq):
 
     """
@@ -510,3 +453,28 @@ class DummyEq(ClusterizedEq):
         else:
             raise ValueError(f"Cannot construct DummyEq from args={str(args)}")
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)
+
+
+# Bind ``lower`` and ``clusterize`` on the DSL ``Eq``/``SparseEq`` to
+# their IR counterparts. The bindings live here (rather than as methods
+# defined on the DSL classes) to keep ``devito.types.equation``
+# independent of ``devito.ir`` and avoid a circular import.
+
+def _eq_lower(self):
+    return LoweredEq(self)
+
+
+def _eq_clusterize(self, **kwargs):
+    return ClusterizedEq(self, **kwargs)
+
+
+def _sparse_eq_lower(self):
+    obj = LoweredSparseEq(self)
+    obj._interpolator = self.interpolator
+    obj._kind = self.kind
+    return obj
+
+
+Eq.lower = _eq_lower
+Eq.clusterize = _eq_clusterize
+SparseEq.lower = _sparse_eq_lower

@@ -394,11 +394,6 @@ class CustomOperator(BasicOperator):
 
         passes_mapper = cls._make_iet_passes_mapper(**kwargs)
 
-        # Always lower sparse operations into ElementalFunction Calls before
-        # any other IET pass touches them
-        from devito.passes.iet import lower_sparse_ops
-        lower_sparse_ops(graph, **kwargs)
-
         # Always attempt `mpi` codegen before anything else to maximize the
         # outcome of the other passes (e.g., shared-memory parallelism benefits
         # from HaloSpot optimization)
