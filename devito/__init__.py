@@ -112,6 +112,10 @@ configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=Fals
 # optimisations.
 configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_compiler)
 
+# Use any GPU present for parameters such as the padding by default. This can be
+# disabled by setting this parameter to `0`, but should not be toggled.
+configuration.add('gpu', 1, [0, 1], preprocessor=bool)
+
 
 # Enable/disable automatic padding for allocated data
 def _preprocess_autopadding(v):
