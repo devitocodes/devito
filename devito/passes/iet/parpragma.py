@@ -294,7 +294,7 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
             prefix = []
         elif nthreads is not None:
             body = self.HostIteration(schedule='static',
-                                      parallel=nthreads is not self.nthreads_nested,
+                                      parallel=nthreads is not self.nthreads,
                                       ncollapsed=ncollapsed, nthreads=nthreads,
                                       **root.args)
             prefix = []
