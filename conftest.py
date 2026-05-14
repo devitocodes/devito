@@ -8,9 +8,9 @@ from sympy import Add
 from sympy.printing import sstr
 
 from devito import Eq, Revolver, configuration  # noqa
-from devito.arch import Arm, Cpu64, Device, get_advisor_path, sniff_mpi_distro
+from devito.arch import Arm, Cpu64, Device, Power, get_advisor_path, sniff_mpi_distro
 from devito.arch.compiler import (
-    IntelCompiler, NvidiaCompiler, OneapiCompiler, compiler_registry
+    GNUCompiler, IntelCompiler, NvidiaCompiler, OneapiCompiler, compiler_registry
 )
 from devito.checkpointing import NoopRevolver
 from devito.finite_differences.differentiable import EvalDerivative
@@ -35,10 +35,19 @@ def skipif(items, whole_module=False):
     items = as_tuple(items)
     # Sanity check
     accepted = set()
-    accepted.update({'device', 'device-C', 'device-openmp', 'device-openacc',
-                     'device-aomp', 'cpu64-icc', 'cpu64-icx', 'cpu64-nvc',
-                     'noadvisor', 'cpu64-arm', 'cpu64-icpx', 'chkpnt'})
-    accepted.update({'nodevice', 'noomp'})
+    accepted.update({
+        # GPU (device-language)
+        'device', 'device-C', 'device-openmp', 'device-openacc', 'device-aomp',
+        # CPU (cpu64-instruction set)
+        'cpu64-icc', 'cpu64-icx', 'cpu64-nvc', 'cpu64-icpx',
+        # CPU (cpu64-architecture)
+        'cpu64-arm',
+        # CPU (cpu64-architecture-compiler)
+        'cpu64-power-gcc',
+        # Miscellaneous
+        'chkpnt'
+    })
+    accepted.update({'noadvisor', 'nodevice', 'noomp'})
     unknown = sorted(set(items) - accepted)
     if unknown:
         raise ValueError(f"Illegal skipif argument(s) `{unknown}`")
@@ -96,6 +105,11 @@ def skipif(items, whole_module=False):
         # Skip if it won't run on Arm
         if i == 'cpu64-arm' and isinstance(configuration['platform'], Arm):
             skipit = "Arm doesn't support x86-specific instructions"
+            break
+        if i == 'cpu64-power-gcc' and \
+                isinstance(configuration['platform'], Power) and \
+                isinstance(configuration['compiler'], GNUCompiler):
+            skipit = "GCC cannot compile these POWER instructions"
             break
         # Skip if pyrevolve not installed
         if i == 'chkpnt' and Revolver is NoopRevolver:
