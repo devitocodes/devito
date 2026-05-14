@@ -134,15 +134,14 @@ class HaloScheme:
     """
 
     def __init__(self, exprs, ispace):
-        # Sparse-operation clusters are opaque: the recursive compile
-        # invoked by `lower_sparse_ops` derives its own halo scheme for
-        # the ElementalFunction body. The parent's synthetic lhs/rhs
-        # carries no real stencil shape, so trying to classify it
-        # against the parent's (time-only) IterationSpace would fail.
+        # Sparse-operation clusters are opaque at the parent level: the
+        # synthetic indexed accesses they carry don't reflect the
+        # indirect grid reads performed inside the ElementalFunction,
+        # so we skip them here. Halo updates for sparse-op grid reads
+        # are a known gap, see `lower_sparse_ops`.
         if any(getattr(e, 'is_SparseOperation', False) for e in as_tuple(exprs)):
             self._mapper = frozendict()
         else:
-            # Derive the halo exchanges
             self._mapper = frozendict(classify(exprs, ispace))
 
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions,

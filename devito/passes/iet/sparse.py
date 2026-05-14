@@ -5,10 +5,15 @@ the cluster pipeline with a Call.
 
 The SparseEq's LoweredEq carries the time-like Dimensions in its
 IterationSpace, so the cluster builder produces the same outer time
-loop it would produce for any other equation, and the data space sees
-the right reads/writes for halo and argument-bound analysis. The
-radius/sparse-dim iteration belongs to the efunc, which is generated
-by recursively compiling the interpolator-produced equations.
+loop it would produce for any other equation, and the parent's
+argument-bound analysis works against the synthetic indexed lhs/rhs.
+
+The efunc body is built directly via the IR lowering stages
+(`_lower_exprs` -> `_lower_clusters` -> `_lower_stree` -> `_lower_uiet`),
+without recursing into a full Operator compilation. The resulting
+Callable is registered with the parent Graph so the parent's IET
+specialisation passes (MPI, OpenMP, linearisation, ...) operate on it
+as a sibling Callable.
 
 The efunc carries its own `time_m, time_M` loop. The Call site, sitting
 inside the parent's time iteration, collapses that loop to a single
@@ -28,43 +33,42 @@ __all__ = ['lower_sparse_ops']
 def lower_sparse_ops(graph, **kwargs):
     """
     Replace each sparse-operation Expression in the IET with a Call to an
-    ElementalFunction built via `rcompile` from the interpolator-produced
-    grid-level Eq list.
+    ElementalFunction built from the interpolator-produced grid-level Eq
+    list. The efunc is constructed directly via the IR lowering stages,
+    without a full recursive Operator compilation.
     """
     _lower_sparse_ops(graph, **kwargs)
 
 
 @iet_pass
-def _lower_sparse_ops(iet, rcompile=None, sregistry=None, **kwargs):
+def _lower_sparse_ops(iet, sregistry=None, **kwargs):
     if not isinstance(iet, EntryFunction):
         return iet, {}
 
     mapper = {}
     efuncs = []
-    includes = []
 
     for expr in FindNodes(Expression).visit(iet):
         if not expr.expr.is_SparseOperation:
             continue
         sparse_op = expr.expr.sparse_op
 
-        # Expand into the grid-level Eq sequence and recursively compile
+        # Build the efunc body by running the interpolator-produced eqns
+        # through the standard IR lowering stages up to (but not
+        # including) IET specialisation
         eqns = sparse_op.operation()
-        irs, byproduct = rcompile(eqns)
+        efunc_body = _build_sparse_iet(eqns, sregistry=sregistry, **kwargs)
 
-        # Wrap the body in an ElementalFunction
+        # Wrap in a Callable; the parent Graph picks it up and runs its
+        # own _specialize_iet on it (MPI, parallelism, linearisation, ...)
         name = sregistry.make_name(prefix=_efunc_prefix(sparse_op))
-        body = irs.iet.body.body
-        efunc = make_callable(name, body)
-
-        efuncs.extend([i.root for i in byproduct.funcs])
+        efunc = make_callable(name, efunc_body)
         efuncs.append(efunc)
-        includes.extend(byproduct.includes)
 
-        # Build the Call. Where the efunc declares `time_m`/`time_M`
-        # bounds for a Dimension that the parent is already iterating,
-        # pass the parent's current loop variable for both so the
-        # efunc loops exactly once per parent iteration.
+        # Collapse the efunc's internal time loop to a single iteration
+        # by passing the parent's current `time` for both `time_m` and
+        # `time_M`. Buffered SteppingDimensions are resolved naturally
+        # from the parent's scope.
         time_roots = _time_root_dims(sparse_op)
         bound_to_dim = {}
         for d in time_roots:
@@ -79,7 +83,22 @@ def _lower_sparse_ops(iet, rcompile=None, sregistry=None, **kwargs):
 
     iet = Transformer(mapper).visit(iet)
 
-    return iet, {'efuncs': efuncs, 'includes': includes}
+    return iet, {'efuncs': efuncs}
+
+
+def _build_sparse_iet(eqns, **kwargs):
+    """
+    Lower `eqns` through the IR stages up to `iet_build` (no IET
+    specialisation), returning the resulting IET body suitable for
+    wrapping in a Callable.
+    """
+    from devito.operator.registry import operator_selector
+    cls = operator_selector(**kwargs)
+    expressions = cls._lower_exprs(eqns, **kwargs)
+    clusters = cls._lower_clusters(expressions, **kwargs)
+    stree = cls._lower_stree(clusters, **kwargs)
+    uiet = cls._lower_uiet(stree, **kwargs)
+    return uiet.body
 
 
 def _efunc_prefix(sparse_op):
