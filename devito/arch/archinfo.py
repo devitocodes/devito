@@ -1008,6 +1008,12 @@ class Device(Platform):
     "warp" in NVidia GPUs and a "wavefront" in AMD GPUs.
     """
 
+    thread_group_slots = None
+    """
+    Number of thread groups issue/execution slots per compute engine (e.g.
+    SM for Nvidia GPUs, CU for AMD GPUs).
+    """
+
     def __init__(self, name, cores_logical=None, cores_physical=None, isa='cpp',
                  max_threads_per_block=1024, max_threads_dimx=1024,
                  max_threads_dimy=1024, max_threads_dimz=64,
@@ -1091,6 +1097,7 @@ class IntelDevice(Device):
 class NvidiaDevice(Device):
 
     thread_group_size = 32
+    thread_group_slots = 4
 
     max_mem_trans_nbytes = 128
 
@@ -1182,6 +1189,7 @@ class Blackwell(Hopper):
 class AmdDevice(Device):
 
     thread_group_size = 64
+    thread_group_slots = 4
 
     max_mem_trans_nbytes = 256
 
