@@ -8,22 +8,25 @@ IterationSpace, so the cluster builder produces the same outer time
 loop it would produce for any other equation, and the parent's
 argument-bound analysis works against the synthetic indexed lhs/rhs.
 
-The efunc body is built directly via the IR lowering stages
+The efunc body is built via the IR lowering stages
 (`_lower_exprs` -> `_lower_clusters` -> `_lower_stree` -> `_lower_uiet`),
 without recursing into a full Operator compilation. The resulting
-Callable is registered with the parent Graph so the parent's IET
-specialisation passes (MPI, OpenMP, linearisation, ...) operate on it
-as a sibling Callable.
+ElementalFunction is registered with the parent Graph so the parent's
+IET specialisation passes (MPI, OpenMP, linearisation, ...) operate on
+it as a sibling Callable.
 
-The efunc carries its own `time_m, time_M` loop. The Call site, sitting
-inside the parent's time iteration, collapses that loop to a single
-iteration by passing `time_m=time_M=<parent's current time>`. Buffered
-TimeFunction accesses (`t = time % bs`) are computed inside the efunc
-exactly as the standard pipeline would emit them.
+After construction the outermost time Iteration is stripped from the
+body: the efunc is called once per parent time step, so iterating
+time inside it would duplicate the iteration. The `uindices` carried
+by the time Iteration (e.g. the SteppingDimension binding
+`t = time % buffer_size`) are converted into scalar Expressions placed
+at the top of the body, so buffered TimeFunction accesses keep working.
 """
 
+from devito.ir.equations import DummyEq
 from devito.ir.iet import (
-    Call, EntryFunction, Expression, FindNodes, Transformer, make_callable
+    Call, EntryFunction, Expression, FindNodes, Iteration, List, Section, Transformer,
+    make_efunc
 )
 from devito.passes.iet.engine import iet_pass
 
@@ -53,30 +56,28 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
             continue
         sparse_op = expr.expr.sparse_op
 
-        # Build the efunc body by running the interpolator-produced eqns
-        # through the standard IR lowering stages up to (but not
-        # including) IET specialisation
+        # Build the efunc body by running the interpolator-produced
+        # eqns through the IR lowering stages up to (but not
+        # including) IET specialisation. Pass `profiler=None` so the
+        # recursive `profiler.analyze` does not register the efunc's
+        # Sections alongside the parent's.
         eqns = sparse_op.operation()
-        efunc_body = _build_sparse_iet(eqns, sregistry=sregistry, **kwargs)
+        inner_kwargs = {**kwargs, 'sregistry': sregistry, 'profiler': None}
+        efunc_body = _build_sparse_iet(eqns, **inner_kwargs)
+        # Strip Section wrappers (the profiler shouldn't instrument
+        # inside the efunc) and the outermost time Iteration, since
+        # the parent's time loop already iterates time and the efunc
+        # is called once per time step
+        efunc_body, _ = _strip_sections(efunc_body)
+        efunc_body = _strip_time_iteration(efunc_body)
 
-        # Wrap in a Callable; the parent Graph picks it up and runs its
-        # own _specialize_iet on it (MPI, parallelism, linearisation, ...)
+        # Wrap in an ElementalFunction so the denormals pass (which
+        # skips ElementalFunctions) leaves the body alone
         name = sregistry.make_name(prefix=_efunc_prefix(sparse_op))
-        efunc = make_callable(name, efunc_body)
+        efunc = make_efunc(name, efunc_body)
         efuncs.append(efunc)
 
-        # Collapse the efunc's internal time loop to a single iteration
-        # by passing the parent's current `time` for both `time_m` and
-        # `time_M`. Buffered SteppingDimensions are resolved naturally
-        # from the parent's scope.
-        time_roots = _time_root_dims(sparse_op)
-        bound_to_dim = {}
-        for d in time_roots:
-            bound_to_dim[f'{d.name}_m'] = d
-            bound_to_dim[f'{d.name}_M'] = d
-        call_args = [bound_to_dim.get(getattr(p, 'name', None), p)
-                     for p in efunc.parameters]
-        mapper[expr] = Call(efunc.name, call_args)
+        mapper[expr] = Call(efunc.name, list(efunc.parameters))
 
     if not mapper:
         return iet, {}
@@ -101,6 +102,42 @@ def _build_sparse_iet(eqns, **kwargs):
     return uiet.body
 
 
+def _strip_sections(body):
+    """
+    Replace each Section node in `body` with its inner body. Section
+    wrappers exist for profiling instrumentation, which we don't want
+    inside a per-sparse-point ElementalFunction.
+    """
+    sections = FindNodes(Section).visit(body)
+    if not sections:
+        return body, []
+    mapper = {s: List(body=s.body) for s in sections}
+    return Transformer(mapper, nested=True).visit(body), [s.name for s in sections]
+
+
+def _strip_time_iteration(body):
+    """
+    Strip the outermost time Iteration from `body`. The efunc is
+    called once per time step from inside the parent's time loop, so
+    iterating time again here would produce nested loops and incorrect
+    accumulation. The Iteration's `uindices` (e.g. the
+    `t = time % buffer_size` SteppingDimension binding) are converted
+    into scalar Expressions placed before the original body; the
+    Iteration's loop variable (e.g. `time`) becomes a free symbol that
+    derive_parameters lifts into the efunc signature.
+    """
+    iterations = FindNodes(Iteration).visit(body)
+    time_iter = next((it for it in iterations if it.dim.is_Time), None)
+    if time_iter is None:
+        return body
+    # Build scalar bindings for each uindex: e.g. `t = time % bs`
+    bindings = []
+    for u in time_iter.uindices:
+        bindings.append(Expression(DummyEq(u, u.symbolic_min)))
+    new_body = List(body=tuple(bindings) + tuple(time_iter.nodes))
+    return Transformer({time_iter: new_body}, nested=True).visit(body)
+
+
 def _efunc_prefix(sparse_op):
     """Pick an ElementalFunction name prefix based on the sparse-op kind."""
     sfname = sparse_op.interpolator.sfunction.name
@@ -109,25 +146,3 @@ def _efunc_prefix(sparse_op):
     if sparse_op.kind == 'inject':
         return f'inject_{sfname}'
     return 'sparse_op'
-
-
-def _time_root_dims(sparse_op):
-    """
-    Root TimeDimensions touched by the sparse op, plus any
-    implicit_dims supplied by the user (typically a SteppingDimension
-    pinning the operation inside the parent's time loop).
-    """
-    from devito.symbolics import retrieve_functions
-    from devito.tools import as_tuple
-    roots = set()
-    sfunc = sparse_op.interpolator.sfunction
-    for d in getattr(sfunc, 'dimensions', ()):
-        if d.is_Time:
-            roots.add(d.root if d.is_Derived else d)
-    for f in retrieve_functions(sparse_op.expr):
-        for d in getattr(f, 'dimensions', ()):
-            if d.is_Time:
-                roots.add(d.root if d.is_Derived else d)
-    for d in as_tuple(sparse_op.implicit_dims):
-        roots.add(d.root if d.is_Derived else d)
-    return roots
