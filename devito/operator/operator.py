@@ -43,6 +43,7 @@ from devito.tools import (
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness
+from devito.warnings import warn
 
 __all__ = ['Operator']
 
@@ -688,8 +689,15 @@ class Operator(Callable):
             p._arg_check(args, self._dspace[p], am=self._access_modes.get(p),
                          **kwargs)
         for d in self.dimensions:
+            try:
+                if d.is_Space and any(self._dspace[d].offsets):
+                    warn(f"Shrinking bounds (`{d.min_name}`, `{d.max_name}`); "
+                         f"some `{d}` points will not be computed. Likely "
+                         "insufficient space_order for the derivatives.")
+            except AttributeError:
+                pass
             if d.is_Derived:
-                d._arg_check(args, self._dspace[p])
+                d._arg_check(args)
 
         # Turn arguments into a format suitable for the generated code
         # E.g., instead of NumPy arrays for Functions, the generated code expects
