@@ -953,8 +953,8 @@ class VectorAccess(AlignedAccess):
         }
         try:
             return mapper[self.function.dtype]
-        except KeyError:
-            raise ValueError(
+        except KeyError as e:
+            raise ValueError from e(
                 f"Unsupported dtype `{self.function.dtype}` for VectorAccess"
             )
 

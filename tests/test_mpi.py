@@ -2238,7 +2238,7 @@ class TestCodeGeneration:
 
         op = Operator(eqns)
 
-        op.cfunction
+        _ = op.cfunction
 
         # Check generated code -- expected one halo exchange for `u` before
         # the first set of loops within `tloop`, and one halo exchange for `g`
