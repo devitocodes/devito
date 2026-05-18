@@ -11,11 +11,10 @@ from ctypes import POINTER, c_void_p
 from functools import cached_property
 
 import numpy as np
-from sympy import Expr
 
 from devito.exceptions import InvalidArgument
 from devito.parameters import configuration
-from devito.symbolics import Reserved, Terminal, search
+from devito.symbolics import AlignedAccess, Terminal, search
 from devito.tools import as_list, as_tuple, is_integer
 from devito.types.array import Array, ArrayObject
 from devito.types.basic import Scalar, Symbol
@@ -403,7 +402,7 @@ class TBArray(Array):
         super().__init_finalize__(*args, **kwargs)
 
 
-class TensorMove(Expr, Reserved, Terminal):
+class TensorMove(AlignedAccess, Terminal):
 
     """
     Represent the LOAD/STORE of a multi-dimensional block of data from/to a higher
@@ -421,12 +420,13 @@ class TensorMove(Expr, Reserved, Terminal):
 
     __rargs__ = ('base', 'tid0', 'coords')
 
+    _expected_alignment = 16
+    """
+    The expected alignment in bytes for the underlying LOAD/STORE operation.
+    """
+
     def __new__(cls, base, tid0, coords, **kwargs):
         return super().__new__(cls, base, tid0, coords)
-
-    @property
-    def base(self):
-        return self.args[0]
 
     @property
     def tid0(self):
@@ -436,10 +436,6 @@ class TensorMove(Expr, Reserved, Terminal):
     def coords(self):
         return self.args[2]
 
-    @property
-    def function(self):
-        return self.base.function
-
     @cached_property
     def indexed(self):
         return self.function[self.coords]
@@ -448,9 +444,5 @@ class TensorMove(Expr, Reserved, Terminal):
     def ndim(self):
         return self.function.ndim
 
-    func = Reserved._rebuild
-
     def _ccode(self, printer):
         return str(self)
-
-    _sympystr = _ccode

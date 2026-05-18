@@ -11,7 +11,9 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
+from devito.symbolics import VectorAccess, search
 from devito.tools import generator
+from devito.types import TensorMove
 
 __all__ = ['mpiize']
 
@@ -276,15 +278,21 @@ def _mark_overlappable(iet):
     # Analysis
     found = []
     for hs in FindNodes(HaloSpot).visit(iet):
-        expressions = FindNodes(Expression).visit(hs)
-        if not expressions:
+        # Heuristic: avoid comp/comm overlap for sparse Iteration nests
+        iters = FindNodes(Iteration).visit(hs)
+        if any(i.dim._defines & set(hs.halo_scheme.distributed_aindices) and
+               not i.is_Affine for i in iters):
             continue
 
-        scope = Scope(i.expr for i in expressions)
+        # Check legality. Comp/comm overlaps is legal only if the OWNED regions
+        # can grow arbitrarily, which means all of the dependencies must be
+        # carried along a non-halo Dimension
+        exprs = FindNodes(Expression).visit(hs)
+        if not exprs:
+            continue
 
-        # Comp/comm overlaps is legal only if the OWNED regions can grow
-        # arbitrarily, which means all of the dependencies must be carried
-        # along a non-halo Dimension
+        scope = Scope([n.expr for n in exprs])
+
         for dep in scope.d_all_gen():
             if dep.function in hs.functions:
                 cause = dep.cause & hs.dimensions
@@ -295,24 +303,30 @@ def _mark_overlappable(iet):
                     #     ... = ... f[x, y-1] ...
                     #   for y
                     #     f[x, y] = ...
-                    test = False
                     break
         else:
-            test = True
-
-        # Heuristic: avoid comp/comm overlap for sparse Iteration nests
-        if test:
-            for i in FindNodes(Iteration).visit(hs):
-                if i.dim._defines & set(hs.halo_scheme.distributed_aindices) and \
-                   not i.is_Affine:
-                    test = False
-                    break
-
-        if test:
+            # All good -- we can perform comp/comm overlap!
             found.append(hs)
 
+    # The underlying `exprs` might have data alignment constraints due to the
+    # presence of objects such as VectorAccess or TensorMove, which expect the
+    # starting address of the data to be aligned to a certain value. Comp/comm
+    # overlap creates multiple iteration spaces (for the core and owned
+    # regions), which might break the alignment contract if we don't play safe
+    # -- imposing these regions start at a carefully rounded-down point, at the
+    # cost of potentially performing a bit of redundant compute
+    mapper = {}
+    for hs in found:
+        exprs = [n.expr for n in FindNodes(Expression).visit(hs)]
+        objs = search(exprs, (VectorAccess, TensorMove))
+        alignment = max([i._expected_alignment_elems for i in objs], default=None)
+
+        hsf = hs.halo_scheme._rebuild(alignment=alignment)
+        hs1 = hs._rebuild(halo_scheme=hsf)
+
+        mapper[hs] = OverlappableHaloSpot(**hs1.args)
+
     # Transform the IET replacing HaloSpots with OverlappableHaloSpots
-    mapper = {hs: OverlappableHaloSpot(**hs.args) for hs in found}
     iet = Transformer(mapper, nested=True).visit(iet)
 
     return iet
@@ -510,7 +524,7 @@ def _is_mergeable(hsf0, hsf1, scope):
         return False
 
     # Ensure `hsf0` and `hsf1` are compatible
-    if hsf0.dimensions != hsf1.dimensions or \
+    if not hsf0.dimensions.issubset(hsf1.dimensions) or \
        not hsf0.functions & hsf1.functions:
         return False
 

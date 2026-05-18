@@ -706,11 +706,20 @@ class Operator(Callable):
 
         return args
 
-    def _postprocess_errors(self, retval):
+    def _postprocess_errors(self, retval, comm=None):
         if retval == 0:
             return
-        elif retval == error_mapper['Stability']:
+
+        # Math errors are not necessarily fatal, but they are a strong indication
+        # of an issue in the generated code, potentially a user-level one
+        if retval == error_mapper['Stability']:
             raise ExecutionError("Detected nan/inf in some output Functions")
+
+        if comm and comm is not MPI.COMM_NULL:
+            # A rank-local Python exception can leave peer ranks blocked inside
+            # generated MPI waits/exchanges. Abort the communicator instead of
+            # risking an indefinite hang.
+            comm.Abort(retval)
         elif retval == error_mapper['KernelLaunch']:
             raise ExecutionError("Kernel launch failed")
         elif retval == error_mapper['KernelLaunchOutOfResources']:
@@ -1008,7 +1017,7 @@ class Operator(Callable):
 
         with self._profiler.timer_on('arguments-postprocess'):
             # Perform error checking
-            self._postprocess_errors(retval)
+            self._postprocess_errors(retval, comm=args.comm)
             # Post-process runtime arguments
             self._postprocess_arguments(args, **kwargs)
 

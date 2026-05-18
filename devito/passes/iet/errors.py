@@ -8,6 +8,7 @@ from devito.ir.iet import (
     Break, Call, Conditional, DummyExpr, EntryFunction, FindNodes, FindSymbols, Iteration,
     KernelLaunch, List, Return, Transformer, make_callable
 )
+from devito.mpi.distributed import MPICommObject
 from devito.passes.iet.engine import iet_pass
 from devito.symbolics import CondEq, MathFunction
 from devito.tools import dtype_to_ctype
@@ -104,27 +105,33 @@ def _check_stability(iet, wmovs=(), rcompile=None, sregistry=None):
 
 def check_launch(graph, options=None, **kwargs):
     """
-    Insert the CHECK_LAUNCH macro if errctl is set to ensure graceful handling of
-    failed kernel launches. This macro should only be inserted if the kernel is
-    directly within a loop, as compilation will fail otherwise.
+    Insert the CHECK_LAUNCH* macros if errctl is set to ensure graceful
+    handling of failed kernel launches. This macro is only inserted if the
+    kernel launch is directly within a loop, as compilation would fail
+    otherwise.
     """
     if options is None or not options.get('errctl', False):
         return
 
     langbb = kwargs['langbb']
 
-    definition = make_launch_macros(langbb)
+    definition = make_launch_macros(langbb, options=options)
     if not definition:
         return
 
-    macro = [langbb['check-launch']]
-
-    _check_launch(graph, definition=definition, macro=macro, **kwargs)
+    _check_launch(graph, definition=definition, options=options, **kwargs)
 
 
 @iet_pass
-def _check_launch(iet, definition=None, macro=None, **kwargs):
+def _check_launch(iet, definition=None, options=None, **kwargs):
     iterations = FindNodes(Iteration).visit(iet)
+
+    if options['mpi'] and \
+       isinstance(iet, EntryFunction) and \
+       any(isinstance(i, MPICommObject) for i in iet.parameters):
+        check = [List(body=c.Statement('CHECK_LAUNCH_RETURN'))]
+    else:
+        check = [List(body=c.Statement('CHECK_LAUNCH'))]
 
     mapper = {}
     for i in iterations:
@@ -135,7 +142,7 @@ def _check_launch(iet, definition=None, macro=None, **kwargs):
         launches = FindNodes(KernelLaunch).visit(i)
 
         for launch in launches:
-            launch_mapper[launch] = List(body=[launch] + macro)
+            launch_mapper[launch] = List(body=[launch] + check)
 
         if launch_mapper:
             mapper[i] = Transformer(launch_mapper).visit(i)
@@ -148,7 +155,7 @@ def _check_launch(iet, definition=None, macro=None, **kwargs):
     return iet, extras
 
 
-def make_launch_macros(langbb):
+def make_launch_macros(langbb, options=None):
     """
     Define macros to check for errors to ensure graceful handling of failed kernel
     launches.
@@ -158,7 +165,20 @@ def make_launch_macros(langbb):
     with contextlib.suppress(NotImplementedError):
         peek = langbb['peek-error']
         success = langbb['error-none']
-        return [('CHECK_LAUNCH', f'if ({peek().name}() != {success}) {{break;}}')]
+
+        headers = [
+            ('CHECK_LAUNCH',
+             f'if ({peek().name}() != {success}) {{break;}}')
+        ]
+
+        if options['mpi']:
+            headers.append(
+                ('CHECK_LAUNCH_RETURN',
+                 f'if ({peek().name}() != {success}) '
+                 f'{{return {error_mapper["KernelLaunch"]};}}')
+            )
+
+        return headers
 
     return []
 

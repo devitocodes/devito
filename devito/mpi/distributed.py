@@ -261,7 +261,7 @@ class DenseDistributor(AbstractDistributor):
 
     @property
     def topology(self):
-        return DimensionTuple(*self._topology, getters=self.dimensions)
+        return self._topology
 
     @property
     def topology_logical(self):
@@ -345,15 +345,21 @@ class Distributor(DenseDistributor):
                 # each other as possible, using an appropriate divisibility
                 # algorithm. Thus, in 3D:
                 # * topology[0] >= topology[1] >= topology[2]
-                # * topology[0] * topology[1] * topology[2] == self._input_comm.size
+                # * topology[0]*topology[1]*topology[2] == self._input_comm.size
+
                 # However, `MPI.Compute_dims` is distro-dependent, so we have
                 # to enforce some properties through our own wrapper (e.g.,
                 # OpenMPI v3 does not guarantee that 9 ranks are arranged into
                 # a 3x3 grid when shape=(9, 9))
-                self._topology = compute_dims(self._input_comm.size, len(shape))
+                self._topology = DimensionTuple(
+                    *compute_dims(self._input_comm.size, len(shape)),
+                    getters=dimensions
+                )
             else:
                 # A custom topology may contain integers or the wildcard '*'
-                self._topology = CustomTopology(topology, self._input_comm)
+                self._topology = CustomTopology(
+                    topology, self._input_comm, getters=dimensions
+                )
 
             if self._input_comm is not input_comm:
                 # By default, Devito arranges processes into a cartesian topology.
@@ -896,7 +902,7 @@ class MPINeighborhood(CompositeObject):
             return self._arg_defaults()
 
 
-class CustomTopology(tuple):
+class CustomTopology(DimensionTuple):
 
     """
     The CustomTopology class provides a mechanism to describe parametric domain
@@ -954,7 +960,7 @@ class CustomTopology(tuple):
         'xy': ('*', '*', 1),
     }
 
-    def __new__(cls, items, input_comm):
+    def __new__(cls, items, input_comm, **kwargs):
         # Keep track of nstars and already defined decompositions
         nstars = items.count('*')
 
@@ -992,10 +998,14 @@ class CustomTopology(tuple):
         # Final check that topology matches the communicator size
         assert np.prod(processed) == input_comm.size
 
-        obj = super().__new__(cls, processed)
+        obj = super().__new__(cls, *processed, **kwargs)
         obj.logical = items
 
         return obj
+
+    def __repr__(self):
+        return (f"CustomTopology(logical={self.logical}, "
+                f"physical={super().__repr__()})")
 
 
 def compute_dims(nprocs, ndim):

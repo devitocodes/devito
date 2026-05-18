@@ -140,7 +140,7 @@ def sync_sections(iet, langbb=None, profiler=None, **kwargs):
         symbols = FindSymbols().visit(tl)
 
         queues = [i for i in symbols if isinstance(i, langbb.AsyncQueue)]
-        unnecessary = any(FindNodes(BusyWait).visit(tl))
+        unnecessary = any(FindNodes((BusyWait, RemainderCall)).visit(tl))
         if queues and not unnecessary:
             waits = tuple(sync(i) for i in queues)
             mapper[tl] = tl._rebuild(body=tl.body + waits)

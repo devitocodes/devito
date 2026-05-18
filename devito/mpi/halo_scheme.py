@@ -7,9 +7,9 @@ from operator import attrgetter
 import sympy
 from sympy import Max, Min
 
-from devito import configuration
 from devito.data import CENTER, CORE, LEFT, OWNED, RIGHT
 from devito.ir.support import Forward, Scope
+from devito.symbolics import IntDiv
 from devito.symbolics.manipulation import _uxreplace_registry
 from devito.tools import (
     EnrichedTuple, Reconstructable, Tag, as_tuple, filter_ordered, filter_sorted, flatten,
@@ -137,11 +137,9 @@ class HaloScheme:
         # Derive the halo exchanges
         self._mapper = frozendict(classify(exprs, ispace))
 
-        # Track the IterationSpace offsets induced by SubDomains/SubDimensions.
-        # These should be honored in the derivation of the `omapper`
+        # Track the IterationSpace offsets induced by SubDomains/SubDimensions,
+        # which are honored in the derivation of the `omapper`
         self._honored = {}
-        # SubDimensions are not necessarily included directly in
-        # ispace.dimensions and hence we need to first utilize the `_defines` method
         dims = set().union(*[d._defines for d in ispace.dimensions
                              if d._defines & self.dimensions])
         subdims = [d for d in dims if d.is_Sub and not d.local]
@@ -149,6 +147,12 @@ class HaloScheme:
             ltk, rtk = i.tkns
             self._honored[i.root] = frozenset([(ltk, rtk)])
         self._honored = frozendict(self._honored)
+
+        # Further constraints on the `omapper` derivation. At construction time
+        # there's none, but lowering passes may change this
+        # * `_alignment` may be a positive integer representing the alignment
+        #   requirement, in number of *elements*, of the underlying expressions
+        self._alignment = None
 
     def __repr__(self):
         fnames = ",".join(i.name for i in set(self._mapper))
@@ -165,11 +169,22 @@ class HaloScheme:
     def __hash__(self):
         return hash((self._mapper.__hash__(), self.honored.__hash__()))
 
-    @classmethod
-    def build(cls, fmapper, honored):
+    def _rebuild(self, fmapper=None, honored=None, alignment=None):
+        """
+        Rebuild a HaloScheme from the provided `fmapper` and `honored`. Reuse
+        `self`'s values for the missing arguments.
+        """
         obj = object.__new__(HaloScheme)
+
+        if fmapper is None:
+            fmapper = self._mapper
+        if honored is None:
+            honored = self._honored
+
         obj._mapper = frozendict(fmapper)
         obj._honored = frozendict(honored)
+        obj._alignment = alignment or self._alignment
+
         return obj
 
     @classmethod
@@ -223,7 +238,7 @@ class HaloScheme:
             for d, v in i.honored.items():
                 honored[d] = honored.get(d, frozenset()) | v
 
-        return HaloScheme.build(fmapper, honored)
+        return i._rebuild(fmapper=fmapper, honored=honored)
 
     @property
     def honored(self):
@@ -241,10 +256,14 @@ class HaloScheme:
     @cached_property
     def omapper(self):
         """
-        Logical decomposition of the DOMAIN region into OWNED and CORE sub-regions.
+        Logical decomposition of the DOMAIN region into OWNED and CORE sub-regions,
+        "cumulative" over all DiscreteFunctions in the HaloScheme.
 
-        This is "cumulative" over all DiscreteFunctions in the HaloScheme; it also
-        takes into account IterationSpace offsets induced by SubDomains/SubDimensions.
+        The computed OMapper takes into account:
+
+            * The offsets induced by SubDomains/SubDimensions ("thickness");
+            * Any data alignment requirement of the underlying expressions
+              (`_alignment` attribute).
 
         Examples
         --------
@@ -366,27 +385,61 @@ class HaloScheme:
 
                 if s is CENTER:
                     where.append((d, CORE, s))
-                    mapper[d] = (d.symbolic_min + osl,
-                                 d.symbolic_max - osr)
+
+                    mapper[d] = (
+                        d.symbolic_min + osl,
+                        d.symbolic_max - osr
+                    )
+
                     if nl != 0:
                         mapper[nl] = (Max(nl - osl, 0),)
                     if nr != 0:
                         mapper[nr] = (Max(nr - osr, 0),)
                 else:
                     where.append((d, OWNED, s))
+
                     if s is LEFT:
-                        mapper[d] = (d.symbolic_min,
-                                     Min(d.symbolic_min + osl - 1, d.symbolic_max - nr))
+                        mapper[d] = (
+                            d.symbolic_min,
+                            Min(d.symbolic_min + osl - 1, d.symbolic_max - nr)
+                        )
+
                         if nl != 0:
                             mapper[nl] = (nl,)
                             mapper[nr] = (0,)
                     else:
-                        mapper[d] = (Max(d.symbolic_max - osr + 1, d.symbolic_min + nl),
-                                     d.symbolic_max)
+                        mapper[d] = (
+                            Max(d.symbolic_max - osr + 1, d.symbolic_min + nl),
+                            d.symbolic_max
+                        )
+
                         if nr != 0:
                             mapper[nl] = (0,)
                             mapper[nr] = (nr,)
+
             processed.append((tuple(where), frozendict(mapper)))
+
+        # Apply the alignment constraints, if any
+        # First, get the fastest varying (contiguous) Dimension, which is the
+        # one that matters for alignment
+        if self._alignment:
+            fvds = {f.dimensions[-1] for f in self.fmapper}
+            if len(fvds) != 1:
+                raise HaloSchemeException(
+                    "Unexpected contiguous Dimensions found while computing the "
+                    f"`omapper`: {fvds}"
+                )
+            fvd = fvds.pop()
+
+            for i, (where, mapper) in enumerate(list(processed)):
+                try:
+                    m, M = mapper[fvd]
+                except KeyError:
+                    continue
+
+                aligned_m = IntDiv(m, self._alignment) * self._alignment
+
+                processed[i] = (where, frozendict({**mapper, fvd: (aligned_m, M)}))
 
         _, core = processed.pop(0)
         owned = processed
@@ -483,7 +536,7 @@ class HaloScheme:
         to the provided `functions`.
         """
         fmapper = {f: v for f, v in self.fmapper.items() if f in as_tuple(functions)}
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
     def drop(self, functions):
         """
@@ -491,7 +544,7 @@ class HaloScheme:
         corresponding to the provided `functions`.
         """
         fmapper = {f: v for f, v in self.fmapper.items() if f not in as_tuple(functions)}
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
     def add(self, f, hse):
         """
@@ -503,7 +556,7 @@ class HaloScheme:
         if f in fmapper:
             hse = fmapper[f].union(hse)
         fmapper[f] = hse
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
     def merge(self, hs):
         """
@@ -512,7 +565,7 @@ class HaloScheme:
         fmapper = dict(self.fmapper)
         for f, hse in hs.fmapper.items():
             fmapper[f] = fmapper.get(f, hse).merge(hse)
-        return HaloScheme.build(fmapper, self.honored)
+        return self._rebuild(fmapper=fmapper)
 
 
 def classify(exprs, ispace):
@@ -520,12 +573,6 @@ def classify(exprs, ispace):
     Produce the mapper `Function -> HaloSchemeEntry`, which describes the necessary
     halo exchanges in the given Scope.
     """
-
-    # Some MPI modes require pulling the `loc_indices` from the reads, others
-    # from the writes. It essentially depends on whether the halo exchange is
-    # performed before (reads) or after (writes) the OWNED region is computed
-    loc_indices_from_reads = configuration['mpi'] not in ('dual',)
-
     scope = Scope(exprs)
 
     mapper = {}
@@ -565,7 +612,7 @@ def classify(exprs, ispace):
                     else:
                         v[(d, LEFT)] = STENCIL
                         v[(d, RIGHT)] = STENCIL
-                elif loc_indices_from_reads:
+                else:
                     v[(d, i[d])] = NONE
 
             # Does `i` actually require a halo exchange?
@@ -573,7 +620,9 @@ def classify(exprs, ispace):
                 continue
 
             # Derive diagonal halo exchanges from the previous analysis
-            combs = list(product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions)))
+            combs = list(
+                product([LEFT, CENTER, RIGHT], repeat=len(f._dist_dimensions))
+            )
             combs.remove((CENTER,)*len(f._dist_dimensions))
             for c in combs:
                 key = (f._dist_dimensions, c)
@@ -598,13 +647,6 @@ def classify(exprs, ispace):
         if not halo_labels:
             continue
 
-        # Augment `halo_labels` with `loc_indices`-related information if necessary
-        if not loc_indices_from_reads:
-            for i in scope.writes.get(f, []):
-                for d in i.findices:
-                    if not f.grid.is_distributed(d):
-                        halo_labels[(d, i[d])].add(NONE)
-
         # Separate halo-exchange Dimensions from `loc_indices`
         raw_loc_indices, halos = defaultdict(list), []
         for (d, s), hl in halo_labels.items():
@@ -613,15 +655,18 @@ def classify(exprs, ispace):
             if not hl:
                 continue
             elif len(hl) > 1:
-                raise HaloSchemeException("Inconsistency found while building a halo "
-                                          f"scheme for `{f}` along Dimension `{d}`")
+                raise HaloSchemeException(
+                    "Inconsistency found while building a halo scheme for "
+                    f"`{f}` along Dimension `{d}`")
             elif hl.pop() is STENCIL:
                 halos.append(Halo(d, s))
             elif d._defines & set(ispace.itdims):
                 raw_loc_indices[d].append(s)
 
-        loc_indices, loc_dirs = process_loc_indices(raw_loc_indices,
-                                                    ispace.directions)
+        loc_indices, loc_dirs = process_loc_indices(
+            raw_loc_indices, ispace.directions
+        )
+
         mapper[f] = HaloSchemeEntry(loc_indices, loc_dirs, halos, dims)
 
     return mapper

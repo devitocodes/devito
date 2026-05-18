@@ -957,36 +957,6 @@ class Diag2HaloExchangeBuilder(Overlap2HaloExchangeBuilder):
         return remainder
 
 
-class DualHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
-
-    """
-    "Dual" of Overlap2HaloExchangeBuilder, as the "remainder" is now the first
-    thing getting computed.
-
-    Generates:
-
-        remainder()
-        haloupdate()
-        compute_core()
-        halowait()
-    """
-
-    def _make_body(self, callcompute, remainder, haloupdates, halowaits):
-        body = []
-
-        assert remainder is not None
-        body.append(self._call_remainder(remainder))
-
-        body.append(HaloUpdateList(body=haloupdates))
-
-        assert callcompute is not None
-        body.append(callcompute)
-
-        body.append(HaloWaitList(body=halowaits))
-
-        return List(body=body)
-
-
 class FullHaloExchangeBuilder(Overlap2HaloExchangeBuilder):
 
     """
@@ -1058,7 +1028,6 @@ mpi_registry = {
     'overlap': OverlapHaloExchangeBuilder,
     'overlap2': Overlap2HaloExchangeBuilder,
     'full': FullHaloExchangeBuilder,
-    'dual': DualHaloExchangeBuilder
 }
 
 
@@ -1115,6 +1084,12 @@ class IrecvCall(Call):
 
     def __init__(self, arguments, **kwargs):
         super().__init__('MPI_Irecv', arguments)
+
+
+class AllreduceCall(Call):
+
+    def __init__(self, arguments, **kwargs):
+        super().__init__('MPI_Allreduce', arguments, **kwargs)
 
 
 class MPICall(Call):
@@ -1424,12 +1399,6 @@ class MPIRegion(CompositeObject):
                     except AttributeError:
                         setattr(entry, a.name, mapper[a][0])
         return values
-
-
-class AllreduceCall(Call):
-
-    def __init__(self, arguments, **kwargs):
-        super().__init__('MPI_Allreduce', arguments, **kwargs)
 
 
 class ReductionBuilder:
