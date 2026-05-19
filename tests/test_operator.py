@@ -38,6 +38,7 @@ from devito.tools import flatten, powerset, timed_region
 from devito.types import (
     Array, Barrier, ConditionalDimension, CustomDimension, Indirection, Scalar, Symbol
 )
+from devito.warnings import DevitoWarning
 
 
 def dimify(dimensions):
@@ -1342,6 +1343,22 @@ class TestApplyArguments:
             assert k in args1
             if isinstance(v, int):
                 assert args1[k] == v
+
+    def test_warn_if_shrunk_spacedim_bounds(self):
+        grid = Grid(shape=(20, 20))
+
+        f = Function(name='f', grid=grid, space_order=0)
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+
+        eq = Eq(u.forward, u + (u*f).laplace)
+
+        op = Operator(eq)
+
+        u.data[:] = 2.
+        f.data[:] = 3.
+
+        with pytest.warns(DevitoWarning, match="Shrinking bounds*"):
+            op.apply(time_M=3)
 
 
 @skipif('device')
