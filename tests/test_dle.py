@@ -180,9 +180,8 @@ def test_cache_blocking_structure_distributed(mode):
     # The sparse inject lives in its own efunc, which sits between the
     # two dense Eq's. Because they can no longer fuse across the
     # sparse-op Call, each dense Eq lands in its own MPI compute efunc.
-    compute_names = sorted(n for n in op._func_table if n.startswith('compute'))
-    bns0, _ = assert_blocking(op._func_table[compute_names[0]].root, {'x0_blk0'})
-    bns1, _ = assert_blocking(op._func_table[compute_names[1]].root, {'x1_blk0'})
+    bns0, _ = assert_blocking(op._func_table['compute0'].root, {'x0_blk0'})
+    bns1, _ = assert_blocking(op._func_table['compute1'].root, {'x1_blk0'})
 
     for blk_dim, bns in [('x0_blk0', bns0), ('x1_blk0', bns1)]:
         iters = FindNodes(Iteration).visit(bns[blk_dim])

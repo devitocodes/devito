@@ -997,8 +997,7 @@ class TestComplex:
         # Both interpolations land in the same sparse-op efunc since they
         # share the `p_sc` Dimension (sce reuses sc's coordinates); two
         # radius nests sit side-by-side inside the single ``p_sc`` loop.
-        [efunc_name] = [n for n in opC._func_table if n.startswith('interpolate_')]
-        efunc = opC._func_table[efunc_name].root
+        efunc = opC._func_table['interpolate_sc0'].root
         assert_structure(
             efunc,
             ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz', 'p_sc,rp_scx,rp_scy,rp_scz'],

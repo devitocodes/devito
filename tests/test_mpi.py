@@ -797,11 +797,10 @@ class TestSparseFunction:
         rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
         op = Operator(eqs + rec)
 
-        # The sparse interp now lowers to a Call into an
-        # ElementalFunction, so the parent carries that Call in
-        # addition to any halo exchanges.
-        calls = FindNodes(Call).visit(op)
-        assert any(c.name.startswith('interpolate_') for c in calls)
+        # Generated code: one halo exchange for ``fs`` and one Call
+        # to the ``interpolate_s0`` ElementalFunction.
+        call_names = [c.name for c in FindNodes(Call).visit(op)]
+        assert call_names == ['haloupdate0', 'interpolate_s0']
 
         op(time_M=10)
         expected = 10*11/2  # n (n+1)/2
@@ -831,10 +830,10 @@ class TestSparseFunction:
 
         op = Operator([Eq(u, 1)] + rec_eq)
 
-        # Expected Calls: one halo exchange + one interpolate efunc.
-        call_names = sorted(c.name for c in FindNodes(Call).visit(op))
-        assert any(n.startswith('haloupdate') for n in call_names)
-        assert any(n.startswith('interpolate_') for n in call_names)
+        # Generated code: one halo exchange for ``u`` and one Call to
+        # the ``interpolate_s0`` ElementalFunction.
+        call_names = [c.name for c in FindNodes(Call).visit(op)]
+        assert call_names == ['haloupdate0', 'interpolate_s0']
 
         op.apply()
         assert np.all(s.data == 1)
@@ -863,10 +862,10 @@ class TestSparseFunction:
 
         op = Operator([Eq(u, 1)] + rec_eq)
 
-        # Expected Calls: one halo exchange + one interpolate efunc.
-        call_names = sorted(c.name for c in FindNodes(Call).visit(op))
-        assert any(n.startswith('haloupdate') for n in call_names)
-        assert any(n.startswith('interpolate_') for n in call_names)
+        # Generated code: one halo exchange for ``u`` and one Call to
+        # the ``interpolate_s0`` ElementalFunction.
+        call_names = [c.name for c in FindNodes(Call).visit(op)]
+        assert call_names == ['haloupdate0', 'interpolate_s0']
 
         op.apply(time_M=5)
         assert np.all(s.data == 1)
