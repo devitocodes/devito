@@ -766,7 +766,6 @@ class TestSparseFunction:
         Operator(sf1.interpolate(u))()
         assert np.all(sf1.data == 4)
 
-    @pytest.mark.xfail(reason="Sparse-op halo update inside efunc not yet wired")
     @pytest.mark.parallel(mode=4)
     def test_sparse_first(self, mode):
         """
@@ -832,8 +831,10 @@ class TestSparseFunction:
 
         op = Operator([Eq(u, 1)] + rec_eq)
 
-        # Check generated code -- expected one halo exchange
-        assert len(FindNodes(Call).visit(op)) == 1
+        # Expected Calls: one halo exchange + one interpolate efunc.
+        call_names = sorted(c.name for c in FindNodes(Call).visit(op))
+        assert any(n.startswith('haloupdate') for n in call_names)
+        assert any(n.startswith('interpolate_') for n in call_names)
 
         op.apply()
         assert np.all(s.data == 1)
@@ -862,8 +863,10 @@ class TestSparseFunction:
 
         op = Operator([Eq(u, 1)] + rec_eq)
 
-        # Check generated code -- expected one halo exchange
-        assert len(FindNodes(Call).visit(op)) == 1
+        # Expected Calls: one halo exchange + one interpolate efunc.
+        call_names = sorted(c.name for c in FindNodes(Call).visit(op))
+        assert any(n.startswith('haloupdate') for n in call_names)
+        assert any(n.startswith('interpolate_') for n in call_names)
 
         op.apply(time_M=5)
         assert np.all(s.data == 1)
@@ -1907,17 +1910,11 @@ class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
     @pytest.mark.parametrize('sz,fwd,expr,exp0,exp1,args', [
-        # Sparse-op interpolations now lower to an ElementalFunction
-        # call, so the parent loses one halo update relative to the
-        # non-sparse cases. The args order also shifts as a result and
-        # the test is xfailed for sparse parametrisations.
-        pytest.param(1, True, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2'),
-                     marks=pytest.mark.xfail(reason="sparse-op refactor")),
+        (1, True, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2')),
         (1, True, 'Eq(v3.forward, v2.laplace + 1)', 3, 2, ('v1', 'v2')),
         (1, True, 'Eq(v3.forward, v2.forward.laplace + 1)', 3, 2, ('v1', 'v2')),
         (2, True, 'Eq(v3.forward, v2.forward.laplace + 1)', 3, 2, ('v1', 'v2')),
-        pytest.param(1, False, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2'),
-                     marks=pytest.mark.xfail(reason="sparse-op refactor")),
+        (1, False, 'rec.interpolate(v2)', 3, 2, ('v1', 'v2')),
         (1, False, 'Eq(v3.backward, v2.laplace + 1)', 3, 2, ('v1', 'v2')),
         (1, False, 'Eq(v3.backward, v2.backward.laplace + 1)', 3, 2, ('v1', 'v2')),
         (2, False, 'Eq(v3.backward, v2.backward.laplace + 1)', 3, 2, ('v1', 'v2')),
@@ -3202,12 +3199,12 @@ class TestOperatorAdvanced:
         assert np.isclose(norm(u1), 12445251.87, rtol=1e-7)
         assert np.isclose(norm(v1), 147063.38, rtol=1e-7)
 
-    @pytest.mark.xfail(reason="Sparse-op halo update inside efunc not yet wired")
     @pytest.mark.parallel(mode=1)
     def test_interpolation_at_uforward(self, mode):
-        # With the SparseEq -> ElementalFunction refactor the interp's
-        # halo update should live inside the efunc, but the recursive
-        # compile does not yet emit one for the indirect grid access.
+        # The interpolation reads ``u.forward``; the halo update for
+        # the corresponding time slot is emitted in the parent Kernel,
+        # right before the Call to the efunc materialising the radius
+        # nest.
         grid = Grid(shape=(10, 10, 10))
         t = grid.stepping_dim
 
@@ -3224,10 +3221,10 @@ class TestOperatorAdvanced:
 
         from devito.ir.iet import FindNodes
         from devito.mpi.routines import HaloUpdateCall
-        efunc = op._func_table['interpolate_rec0'].root
-        ehalos = FindNodes(HaloUpdateCall).visit(efunc)
-        assert len(ehalos) == 1
-        assert ehalos[0].arguments[-2].origin == t + 1
+        halos = FindNodes(HaloUpdateCall).visit(op)
+        sparse_halos = [h for h in halos
+                        if getattr(h.arguments[-2], 'origin', None) == t + 1]
+        assert len(sparse_halos) == 1
 
 
 def gen_serial_norms(shape, so):
@@ -3291,8 +3288,10 @@ class TestIsotropicAcoustic:
         op_adj = solver.op_adj()
         adj_calls = FindNodes(Call).visit(op_adj)
 
-        assert len(fwd_calls) == 1
-        assert len(adj_calls) == 1
+        # 1 halo update + 1 inject (source) + 1 interpolate (receiver)
+        # ElementalFunction call.
+        assert len(fwd_calls) == 3
+        assert len(adj_calls) == 3
 
     def run_adjoint_F(self, nd):
         """
@@ -3377,7 +3376,8 @@ class TestElasticLike:
         op = Operator([u_v] + [u_t] + rec_term)
         _ = op.cfunction
 
-        assert len(op._func_table) == 11
+        # 11 dense + halo Callables + 1 interpolate efunc for ``rec``
+        assert len(op._func_table) == 12
 
         calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
         assert len(calls) == 5

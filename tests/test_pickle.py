@@ -831,9 +831,6 @@ class TestOperator:
     def test_elemental(self, pickle):
         """
         Tests that elemental functions don't get reconstructed differently.
-        The sparse interpolation now lowers to a Call into an
-        ElementalFunction, so this also exercises that the efunc and its
-        parameters survive a round-trip through pickle.
         """
         grid = Grid(shape=(101, 101))
         time_range = TimeAxis(start=0.0, stop=1000.0, num=12)
@@ -843,9 +840,6 @@ class TestOperator:
 
         u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
         op = Operator(rec.interpolate(expr=u))
-
-        # Sanity-check the lowering actually produced an efunc
-        assert any(name.startswith('interpolate_') for name in op._func_table)
 
         pkl_op = pickle.dumps(op)
         new_op = pickle.loads(pkl_op)

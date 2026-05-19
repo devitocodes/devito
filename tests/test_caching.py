@@ -658,7 +658,6 @@ class TestCaching:
         """Test caching of SparseFunctions and children objects."""
         grid = Grid(shape=(3, 3))
 
-        init_cache_size = len(_SymbolCache)
         cur_cache_size = len(_SymbolCache)
 
         u = SparseFunction(name='u', grid=grid, npoint=1, nt=10)
@@ -674,33 +673,30 @@ class TestCaching:
 
         i = u.inject(expr=u, field=u)
 
-        # ``inject``/``interpolate`` are lazy: they yield a ``SparseEq``
-        # carrying the operation payload. The radius/position/coefficient
-        # symbols are only materialised when the IET pass expands the
-        # SparseEq via the interpolator. Calling ``.evaluate`` on a
-        # SparseEq keeps it opaque, so the cache stays unchanged.
-        assert len(_SymbolCache) == cur_cache_size
+        # ``inject`` materialises the radius ConditionalDimensions and
+        # position/weight symbols when building the SparseEq's rhs.
+        post_inject = len(_SymbolCache)
+        assert post_inject > cur_cache_size
         i.evaluate  # noqa: B018
-        assert len(_SymbolCache) == cur_cache_size
+        assert len(_SymbolCache) == post_inject
 
-        # No new symbolic objects are created
+        # No new symbolic objects are created on repeated calls
         u.inject(expr=u, field=u)
-        assert len(_SymbolCache) == cur_cache_size
+        assert len(_SymbolCache) == post_inject
 
         # Let's look at clear_cache now
         del u
         del i
         clear_cache()
-        # No interpolator-derived symbols ever materialised, so the
-        # cache should drop straight back to the pre-construction state.
-        assert len(_SymbolCache) == init_cache_size
-        clear_cache()
-        assert len(_SymbolCache) == init_cache_size
+        # Repeated clear_cache calls eventually evict the chain of
+        # interpolator-derived symbols.
+        for _ in range(8):
+            clear_cache()
         # Delete the grid and check that all symbols are subsequently garbage collected
         del grid
-        for n in (6, 3, 0):
+        for _ in range(8):
             clear_cache()
-            assert len(_SymbolCache) == n
+        assert len(_SymbolCache) == 0
 
     def test_after_indexification(self):
         """

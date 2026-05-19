@@ -994,13 +994,15 @@ class TestComplex:
         assert np.isclose(sc.data[0], fc.data[5, 5, 5])
         assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
 
-        # The two interpolations share the `p_sc` Dimension (sce reuses
-        # sc's coordinates), so the inlined nest covers both ops within
-        # the same `p_sc + rp_*` iteration tree.
+        # Both interpolations land in the same sparse-op efunc since they
+        # share the `p_sc` Dimension (sce reuses sc's coordinates); two
+        # radius nests sit side-by-side inside the single ``p_sc`` loop.
+        [efunc_name] = [n for n in opC._func_table if n.startswith('interpolate_')]
+        efunc = opC._func_table[efunc_name].root
         assert_structure(
-            opC,
-            ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz'],
-            'p_sc,rp_scx,rp_scy,rp_scz'
+            efunc,
+            ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz', 'p_sc,rp_scx,rp_scy,rp_scz'],
+            'p_sc,rp_scx,rp_scy,rp_scz,rp_scx,rp_scy,rp_scz'
         )
 
 

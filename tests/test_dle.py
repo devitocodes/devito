@@ -177,17 +177,21 @@ def test_cache_blocking_structure_distributed(mode):
     op = Operator(eqns)
     _ = op.cfunction
 
-    # The sparse inject lives in its own efunc, so the two dense
-    # Eq's fuse into a single MPI compute efunc.
-    bns0, _ = assert_blocking(op._func_table['compute0'].root, {'x0_blk0'})
+    # The sparse inject lives in its own efunc, which sits between the
+    # two dense Eq's. Because they can no longer fuse across the
+    # sparse-op Call, each dense Eq lands in its own MPI compute efunc.
+    compute_names = sorted(n for n in op._func_table if n.startswith('compute'))
+    bns0, _ = assert_blocking(op._func_table[compute_names[0]].root, {'x0_blk0'})
+    bns1, _ = assert_blocking(op._func_table[compute_names[1]].root, {'x1_blk0'})
 
-    iters = FindNodes(Iteration).visit(bns0['x0_blk0'])
-    assert len(iters) == 5
-    assert iters[0].dim.parent is x
-    assert iters[1].dim.parent is y
-    assert iters[2].dim.parent is iters[0].dim
-    assert iters[3].dim.parent is iters[1].dim
-    assert iters[4].dim is z
+    for blk_dim, bns in [('x0_blk0', bns0), ('x1_blk0', bns1)]:
+        iters = FindNodes(Iteration).visit(bns[blk_dim])
+        assert len(iters) == 5
+        assert iters[0].dim.parent is x
+        assert iters[1].dim.parent is y
+        assert iters[2].dim.parent is iters[0].dim
+        assert iters[3].dim.parent is iters[1].dim
+        assert iters[4].dim is z
 
 
 class TestBlockingOptRelax:
@@ -205,14 +209,16 @@ class TestBlockingOptRelax:
         op = Operator(eqns, opt=('advanced', {'blockrelax': True}))
 
         # The dense `Eq(u.forward, u.dx)` blocks on `x0_blk0` in the
-        # kernel. The sparse injection's nest lives in the
-        # ``inject_src0`` efunc and is not blocked: the efunc body is
-        # materialised by ``lower_sparse_ops`` without invoking the
-        # backend's cluster-level specialisation (no buffering, no
-        # blocking re-entry on the expansion).
+        # kernel; the sparse injection lives in the ``inject_src0``
+        # efunc and is blocked on its outer sparse Dimension as
+        # ``p_src0_blk0``.
         assert_blocking(op, {'x0_blk0'})
         efunc = op._func_table['inject_src0'].root
-        assert_blocking(efunc, set())
+        bns, _ = assert_blocking(efunc, {'p_src0_blk0'})
+        iters = FindNodes(Iteration).visit(bns['p_src0_blk0'])
+        assert len(iters) == 5
+        assert iters[0].dim.is_Block
+        assert iters[1].dim.is_Block
 
     def test_customdim(self):
         grid = Grid(shape=(8, 8, 8))
@@ -320,13 +326,12 @@ class TestBlockingOptRelax:
                                               'par-collapse-ncores': 1}))
 
         # The kernel only carries the time loop around the Call; the
-        # inject efunc holds the ``p_s, rp_sx, rp_sy`` nest. The efunc
-        # body is built without re-entering the backend's cluster
-        # specialisation, so no blocking is applied inside.
+        # inject efunc holds the blocked ``p_s, rp_sx, rp_sy`` nest.
         assert_structure(op, ['t'], 't')
         efunc = op._func_table['inject_s0'].root
-        assert_structure(efunc, ['t', 't,p_s', 't,p_s,rp_sx,rp_sy'],
-                         't,p_s,rp_sx,rp_sy')
+        assert_structure(efunc,
+                         ['p_s0_blk0', 'p_s0_blk0,p_s,rp_sx,rp_sy'],
+                         'p_s0_blk0,p_s,rp_sx,rp_sy')
 
 
 class TestBlockingParTile:
@@ -1118,14 +1123,12 @@ class TestNodeParallelism:
 
         efunc = op._func_table['inject_u0'].root
         sparse_iters = FindNodes(Iteration).visit(efunc)
-        # time[t0] (collapsed by the caller to a single iteration),
-        # then `p_u` and three radius `rp_u*` iterations.
-        assert len(sparse_iters) == 5
-        assert sparse_iters[0].is_Sequential
-        assert all(i.is_ParallelAtomic for i in sparse_iters[1:])
-        assert sparse_iters[1].pragmas[0].ccode.value ==\
+        # ``p_u`` plus the three radius ``rp_u*`` iterations.
+        assert len(sparse_iters) == 4
+        assert all(i.is_ParallelAtomic for i in sparse_iters)
+        assert sparse_iters[0].pragmas[0].ccode.value ==\
             'omp for schedule(dynamic,chunk_size)'
-        assert all(not i.pragmas for i in sparse_iters[2:])
+        assert all(not i.pragmas for i in sparse_iters[1:])
 
     @pytest.mark.parametrize('exprs,simd_level,expected', [
         (['Eq(y.symbolic_max, g[0, x], implicit_dims=(t, x))',
@@ -1248,21 +1251,21 @@ class TestNodeParallelism:
 
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
                                                'par-collapse-ncores': 2000}))
-        # The sparse iteration nest lives in the inject efunc; the
-        # ``time`` Iteration sits at the top (collapsed by the caller).
+        # The sparse iteration nest lives in the inject efunc; ``p_s``
+        # is the outer Iteration and carries the OpenMP pragma.
         efunc = op0._func_table['inject_s0'].root
         iterations = FindNodes(Iteration).visit(efunc)
-        assert 'omp for' in iterations[1].pragmas[0].ccode.value
-        assert 'collapse' not in iterations[1].pragmas[0].ccode.value
+        assert 'omp for' in iterations[0].pragmas[0].ccode.value
+        assert 'collapse' not in iterations[0].pragmas[0].ccode.value
 
         op0 = Operator(eqns, opt=('advanced', {'openmp': True,
                                                'par-collapse-ncores': 1,
                                                'par-collapse-work': 1}))
         efunc = op0._func_table['inject_s0'].root
         iterations = FindNodes(Iteration).visit(efunc)
-        # Position temps are now declared inside the `p_s` loop body,
-        # which prevents OpenMP collapse with the radius loops.
-        assert 'omp for' in iterations[1].pragmas[0].ccode.value
+        # Position temps are declared inside the ``p_s`` loop body, so
+        # OpenMP cannot collapse it with the radius loops.
+        assert 'omp for' in iterations[0].pragmas[0].ccode.value
 
 
 class TestNestedParallelism:
