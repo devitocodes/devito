@@ -19,7 +19,7 @@ from devito.exceptions import (
     CompilationError, ExecutionError, InvalidArgument, InvalidOperator
 )
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.equations import concretize_subdims, lower_exprs
+from devito.ir.equations import concretize_subdims, lower_eq, lower_exprs
 from devito.ir.iet import (
     Callable, CInterface, DeviceFunction, EntryFunction, FindSymbols, MetaCall,
     derive_parameters, iet_build
@@ -381,7 +381,7 @@ class Operator(Callable):
         expressions = lower_exprs(expressions, **kwargs)
         expressions = concretize_subdims(expressions, **kwargs)
 
-        processed = [i.lower() for i in expressions]
+        processed = [lower_eq(i) for i in expressions]
 
         return processed
 
