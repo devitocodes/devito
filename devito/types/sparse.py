@@ -415,15 +415,12 @@ class AbstractSparseFunction(DiscreteFunction):
     @memoized_meth
     def _crdim(self, dim):
         """
-        The radius CustomDimension for the grid Dimension ``dim``: a
-        derived dimension iterating over ``[-r+1, +r]`` whose parent
-        is ``dim``. The per-sparse-point position offset (``pos``) is
-        applied at the access (``field[pos + rd]``) rather than baked
-        into the dim's loop bounds.
+        The CustomDimension associated with the Dimension `dim` for
+        the radius of the interpolation/injection stencil
         """
         sname = self._sparse_dim.name
-        return CustomDimension(f"r{sname}{dim.name}", -self.r + 1,
-                               self.r, 2*self.r, dim)
+        return CustomDimension(f"r{sname}{dim.name}", -self.r+1,
+                               self.r, 2*self.r, self._sparse_dim)
 
     @memoized_meth
     def _cond_rdim(self, dim, cond):

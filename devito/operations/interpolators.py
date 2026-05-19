@@ -84,15 +84,17 @@ def _build_interpolation(expr, increment, implicit_dims, self_subs, interpolator
     """
     Construct the SparseEq for an interpolation: the synthetic Eq is
     ``Eq(sf[..., p_*], expr[..., rp_*])``; with ``increment`` it is
-    an ``Inc``.
+    an ``Inc``. User-supplied ``implicit_dims`` are carried as-is; the
+    SparseFunction's iteration Dimensions are augmented in by
+    ``SparseEq.lower`` so the cluster pipeline sees them.
     """
     eq = interpolator._interpolate(expr=expr, increment=increment,
                                    self_subs=self_subs,
-                                   implicit_dims=implicit_dims)
+                                   implicit_dims=None)
     cls = SparseInc if isinstance(eq, Inc) else SparseEq
     return cls(eq.lhs, eq.rhs, interpolator=interpolator,
                kind='interpolate',
-               implicit_dims=eq.implicit_dims)
+               implicit_dims=implicit_dims)
 
 
 def _build_injection(field, expr, implicit_dims, interpolator):
@@ -101,17 +103,19 @@ def _build_injection(field, expr, implicit_dims, interpolator):
     ``Inc(field[..., x, y, ...], weights * expr[..., rp_*])`` produced
     by ``interpolator._inject``. A multi-field injection expands into
     one ``SparseEq`` per ``(field, expr)`` pair so each target field is
-    individually visible to the cluster pipeline.
+    individually visible to the cluster pipeline. User-supplied
+    ``implicit_dims`` are carried as-is; sparse-function iteration
+    Dimensions are augmented in by ``SparseEq.lower``.
     """
     fields, exprs = as_tuple(field), as_tuple(expr)
     if len(exprs) == 1:
         exprs = tuple(exprs[0] for _ in fields)
     eqs = []
     for (f, e) in zip(fields, exprs, strict=True):
-        inc = interpolator._inject(field=f, expr=e, implicit_dims=implicit_dims)
+        inc = interpolator._inject(field=f, expr=e, implicit_dims=None)
         eqs.append(SparseEq(inc.lhs, inc.rhs, interpolator=interpolator,
                             kind='inject',
-                            implicit_dims=inc.implicit_dims))
+                            implicit_dims=implicit_dims))
     return eqs[0] if len(eqs) == 1 else eqs
 
 
@@ -204,8 +208,12 @@ class WeightedInterpolator(GenericInterpolator):
         pos_symbols = self.sfunction._pos_symbols(shifts=shifts)
 
         for d in gdims:
-            rd = self.sfunction._crdim(d)
-            pos = pos_symbols[d]
+            # The radius CustomDimension is keyed on the grid Dimension
+            # (``d.root``) so a SubDomain-restricted operation reuses
+            # the same ``rp_*`` dim as the full-grid case; only the
+            # bounds carry the SubDomain's symbolic_min/max.
+            rd = self.sfunction._crdim(d.root)
+            pos = pos_symbols[d.root]
             lb = sympy.And(pos + rd >= d.symbolic_min - self.r, evaluate=False)
             ub = sympy.And(pos + rd <= d.symbolic_max + self.r, evaluate=False)
             cond = sympy.And(lb, ub, evaluate=False)
@@ -533,8 +541,9 @@ of the SincInterpolator that uses i0 (Bessel function).
         coeffs = []
         shape = (self.sfunction.npoint, 2 * self.r)
         for d in self._gdims:
-            dimensions = (self.sfunction._sparse_dim, self.sfunction._crdim(d))
-            sf = SubFunction(name=f"wsinc{d.name}", dtype=self.sfunction.dtype,
+            rd = self.sfunction._crdim(d)
+            dimensions = (self.sfunction._sparse_dim, rd)
+            sf = SubFunction(name=f"wsinc{rd.name}", dtype=self.sfunction.dtype,
                              shape=shape, dimensions=dimensions,
                              space_order=0, alias=self.sfunction.alias,
                              parent=self.sfunction)

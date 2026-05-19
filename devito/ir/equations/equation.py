@@ -16,7 +16,7 @@ from devito.tools import (
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import (
-    Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, SparseEq, SparseOpMixin, relational_min
+    Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, SparseOpMixin, relational_min
 )
 
 __all__ = [
@@ -453,28 +453,3 @@ class DummyEq(ClusterizedEq):
         else:
             raise ValueError(f"Cannot construct DummyEq from args={str(args)}")
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)
-
-
-# Bind ``lower`` and ``clusterize`` on the DSL ``Eq``/``SparseEq`` to
-# their IR counterparts. The bindings live here (rather than as methods
-# defined on the DSL classes) to keep ``devito.types.equation``
-# independent of ``devito.ir`` and avoid a circular import.
-
-def _eq_lower(self):
-    return LoweredEq(self)
-
-
-def _eq_clusterize(self, **kwargs):
-    return ClusterizedEq(self, **kwargs)
-
-
-def _sparse_eq_lower(self):
-    obj = LoweredSparseEq(self)
-    obj._interpolator = self.interpolator
-    obj._kind = self.kind
-    return obj
-
-
-Eq.lower = _eq_lower
-Eq.clusterize = _eq_clusterize
-SparseEq.lower = _sparse_eq_lower

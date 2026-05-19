@@ -4,7 +4,7 @@ from functools import cached_property
 import sympy
 
 from devito.deprecations import deprecations
-from devito.tools import Pickable, as_tuple, frozendict
+from devito.tools import Pickable, as_tuple, flatten, frozendict
 from devito.types.lazy import Evaluable
 
 __all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin', 'ReduceMinMax', 'SparseEq',
@@ -64,11 +64,21 @@ class Eq(sympy.Eq, Evaluable, Pickable):
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims')
 
-    # ``lower`` and ``clusterize`` produce the IR counterparts of this
-    # Eq. The implementations live in ``devito.ir.equations`` (which
-    # imports the DSL ``Eq``); to avoid a circular import the IR
-    # module binds them at its own import time. See the bottom of
-    # ``devito.ir.equations.equation``.
+    def lower(self):
+        """
+        Return the ``LoweredEq`` counterpart for this Eq. Subclasses
+        with extra payload (e.g. ``SparseEq``) override this to return
+        the matching IR class.
+        """
+        from devito.ir.equations import LoweredEq
+        return LoweredEq(self)
+
+    def clusterize(self, **kwargs):
+        """
+        Return the ``ClusterizedEq`` counterpart for this Eq.
+        """
+        from devito.ir.equations import ClusterizedEq
+        return ClusterizedEq(self, **kwargs)
 
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None,
                 implicit_dims=None, **kwargs):
@@ -335,15 +345,42 @@ class SparseEq(SparseOpMixin, Eq):
         obj._kind = kind
         return obj
 
+    def lower(self):
+        from devito.ir.equations import LoweredSparseEq
+
+        # Augment implicit_dims with the SparseFunction's own iteration
+        # Dimensions (e.g. ``p_sf`` and any extra SparseFunction dims)
+        # so the cluster scheduler sees them. We deliberately do *not*
+        # include the rhs Function's grid dimensions: SubDomain-derived
+        # SubDimensions would otherwise spuriously appear in the
+        # IterationSpace, and grid Dimensions are already discovered
+        # via the radius ConditionalDimensions in the rhs.
+        interp = self.interpolator
+        sf_dims = tuple(interp.sfunction.dimensions)
+        user = tuple(self.implicit_dims or ())
+        # Ordering follows ``_augment_implicit_dims``: sparse-pos -1
+        # places the sparse Function's dims first; else they go last.
+        if interp.sfunction._sparse_position == -1:
+            augmented = sf_dims + user
+        else:
+            augmented = user + sf_dims
+
+        if augmented != tuple(self.implicit_dims or ()):
+            self = self.func(self.lhs, self.rhs, interpolator=interp,
+                             kind=self.kind, implicit_dims=augmented)
+
+        obj = LoweredSparseEq(self)
+        obj._interpolator = interp
+        obj._kind = self.kind
+        return obj
+
     def __add__(self, other):
         # Allow ``list_of_eqs + sparse_eq`` and ``sparse_eq + sparse_eq``
         # to produce a flat list — handy when composing user expression
         # bundles passed to ``Operator(...)``.
-        from devito.tools import flatten
         return flatten([self, other])
 
     def __radd__(self, other):
-        from devito.tools import flatten
         return flatten([other, self])
 
     def __repr__(self):
