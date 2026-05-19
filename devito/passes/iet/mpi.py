@@ -11,6 +11,7 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.sparse import lower_sparse_ops
 from devito.symbolics import VectorAccess, search
 from devito.tools import generator
 from devito.types import TensorMove
@@ -401,7 +402,6 @@ def mpiize(graph, **kwargs):
     if options['opt-comms']:
         optimize_halospots(graph, **kwargs)
 
-    from devito.passes.iet.sparse import lower_sparse_ops
     lower_sparse_ops(graph, **kwargs)
 
     mpimode = options['mpi']

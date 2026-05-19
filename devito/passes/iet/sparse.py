@@ -37,17 +37,13 @@ from devito.types import Eq, Symbol
 __all__ = ['lower_sparse_ops']
 
 
-def lower_sparse_ops(graph, **kwargs):
+@iet_pass
+def lower_sparse_ops(iet, sregistry=None, **kwargs):
     """
     Replace each sparse-op iteration nest in the IET with a Call to an
     ElementalFunction that materialises the position temporaries and
     the inner accumulator/increment pattern.
     """
-    _lower_sparse_ops(graph, **kwargs)
-
-
-@iet_pass
-def _lower_sparse_ops(iet, sregistry=None, **kwargs):
     if not isinstance(iet, EntryFunction):
         return iet, {}
 
@@ -72,7 +68,7 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
         groups.setdefault(nest, []).append(expr)
 
     # If a sparse-op nest sits inside a HaloSpot whose halo scheme is
-    # void (e.g. the reduction-only halo got dropped by
+    # void (the reduction-only halo got dropped by
     # ``_drop_reduction_halospots``), replace the HaloSpot rather than
     # just the nest so we don't leave behind an empty HaloSpot — the
     # MPI overlap machinery would otherwise try to wrap our Call with
@@ -81,38 +77,20 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
 
     mapper = {}
     efuncs = []
-
     for nest, exprs in groups.items():
         new_nest = _materialise_nest(nest, exprs)
 
-        name = sregistry.make_name(prefix=_efunc_prefix(exprs[0].expr))
-        efunc = make_callable(name, new_nest)
+        lse = exprs[0].expr
+        prefix = f'{lse.kind}_{lse.interpolator.sfunction.name}'
+        efunc = make_callable(sregistry.make_name(prefix=prefix), new_nest)
         efuncs.append(efunc)
 
-        call = Call(efunc.name, list(efunc.parameters))
-        target = parents[nest] or nest
-        mapper[target] = call
+        mapper[parents[nest] or nest] = Call(efunc.name, list(efunc.parameters))
 
     if not mapper:
         return iet, {}
 
-    iet = Transformer(mapper).visit(iet)
-
-    return iet, {'efuncs': efuncs}
-
-
-def _enclosing_void_halospot(iet, nest):
-    """
-    Return the HaloSpot directly wrapping ``nest`` if it carries an
-    empty (void) HaloScheme, otherwise None. Such HaloSpots are leftover
-    after ``_drop_reduction_halospots`` cleared all entries.
-    """
-    for hs in FindNodes(HaloSpot).visit(iet):
-        if not hs.is_void:
-            continue
-        if nest in FindNodes(Iteration).visit(hs):
-            return hs
-    return None
+    return Transformer(mapper).visit(iet), {'efuncs': efuncs}
 
 
 def _is_head(eq):
@@ -127,8 +105,6 @@ def _is_head(eq):
     f = eq.lhs.function
     if eq.kind == 'interpolate':
         return f is sf
-    # 'inject': head writes into a DiscreteFunction (the grid field),
-    # not into a scalar temporary
     return f.is_DiscreteFunction and f is not sf
 
 
@@ -139,10 +115,20 @@ def _find_outer_iteration(iet, expr):
     """
     sparse_dim = expr.expr.interpolator.sfunction._sparse_dim
     for it in FindNodes(Iteration).visit(iet):
-        if it.dim.root is not sparse_dim:
-            continue
-        if expr in FindNodes(Expression).visit(it):
+        if it.dim.root is sparse_dim and expr in FindNodes(Expression).visit(it):
             return it
+    return None
+
+
+def _enclosing_void_halospot(iet, nest):
+    """
+    Return the HaloSpot directly wrapping ``nest`` if it carries an
+    empty (void) HaloScheme, otherwise None. Such HaloSpots are leftover
+    after ``_drop_reduction_halospots`` cleared all entries.
+    """
+    for hs in FindNodes(HaloSpot).visit(iet):
+        if hs.is_void and nest in FindNodes(Iteration).visit(hs):
+            return hs
     return None
 
 
@@ -154,45 +140,38 @@ def _materialise_nest(nest, exprs):
     pattern. Multiple sparse-op Expressions sharing the same outer
     Iteration are materialised in one pass and reuse the same temps.
     """
-    interp = exprs[0].expr.interpolator
-    sample_lse = exprs[0].expr
+    sample = exprs[0].expr
+    interp = sample.interpolator
 
     # Position + coefficient temporaries as IET Expressions. These are
     # the same for every Expression in the group, so we emit them once.
-    temps = interp._sparse_temps(
-        sample_lse.kind, _user_expr(sample_lse),
-        field=_user_field(sample_lse),
-        implicit_dims=sample_lse.implicit_dims,
-    )
+    field = sample.lhs.function if sample.kind == 'inject' else None
+    temps = interp._sparse_temps(sample.kind, sample.rhs, field=field,
+                                 implicit_dims=sample.implicit_dims)
     temp_exprs = tuple(Expression(DummyEq(e.lhs, e.rhs))
                        for e in lower_exprs(temps))
 
-    # For each interpolation Expression in the group, build its
-    # accumulator-wrapped radius nest. Injection Exprs are left where
-    # they are in the radius nest (their Inc is already the right
-    # form); injection Exprs share a single copy of the radius nest.
-    inner = _drop_outer(nest)
+    # The radius nest is what runs once per sparse point. For each
+    # interpolation Expression in the group, build its
+    # accumulator-wrapped copy of the radius nest. Injection Exprs
+    # share a single copy of the radius nest (their ``Inc`` already
+    # carries the right ``weights * rhs`` form).
+    inner = nest.nodes[0] if len(nest.nodes) == 1 else List(body=nest.nodes)
     interp_exprs = [e for e in exprs if e.expr.kind == 'interpolate']
     inject_exprs = [e for e in exprs if e.expr.kind == 'inject']
 
     body = []
     for expr in interp_exprs:
-        # Build the per-interpolation accumulator: substitute siblings
-        # out and replace ``expr`` with the increment in a single
-        # Transformer pass so the radius sub-tree contains only the
-        # head's increment.
-        body.append(_interp_inner_block(inner, expr, expr.expr.interpolator,
-                                        siblings=[e for e in exprs if e is not expr]))
+        siblings = [e for e in exprs if e is not expr]
+        body.append(_interp_inner_block(inner, expr, expr.expr.interpolator, siblings))
     if inject_exprs:
-        # Injections share one radius nest with no interpolation heads.
-        others = {e: None for e in interp_exprs}
-        local_inner = Transformer(others, nested=True).visit(inner) if others else inner
-        body.append(local_inner)
+        drop = {e: None for e in interp_exprs}
+        body.append(Transformer(drop, nested=True).visit(inner) if drop else inner)
 
     return nest._rebuild(nodes=temp_exprs + tuple(body))
 
 
-def _interp_inner_block(inner, expr, interp, siblings=()):
+def _interp_inner_block(inner, expr, interp, siblings):
     """
     Build the accumulator/radius/write-back triple for an interpolation:
 
@@ -232,8 +211,7 @@ def _interp_inner_block(inner, expr, interp, siblings=()):
             for rd in weights.free_symbols
             if getattr(rd, 'is_Conditional', False) and rd.name in rdims_concrete
         })
-    weights_expr = lower_exprs(_make_eq(acc, weights)).rhs
-    weighted_rhs = weights_expr * rhs
+    weighted_rhs = lower_exprs(Eq(acc, weights)).rhs * rhs
 
     init = Expression(DummyEq(acc, 0))
     inc = Increment(DummyEq(acc, weighted_rhs))
@@ -249,15 +227,14 @@ def _interp_inner_block(inner, expr, interp, siblings=()):
 
     radius_root = _find_radius_root(inner, interp.sfunction)
     if radius_root is None or radius_root is inner:
-        # No intermediate Iteration: wrap the whole ``inner`` directly.
         return List(body=(init,
                           Transformer(mapper, nested=True).visit(inner),
                           write_back))
 
     # Wrap the accumulator pattern around just the radius sub-tree,
     # leaving the enclosing non-radius Iterations in place.
-    new_radius = Transformer(mapper, nested=True).visit(radius_root)
-    wrapped = List(body=(init, new_radius, write_back))
+    wrapped = List(body=(init, Transformer(mapper, nested=True).visit(radius_root),
+                         write_back))
     return Transformer({radius_root: wrapped}, nested=True).visit(inner)
 
 
@@ -272,37 +249,4 @@ def _find_radius_root(inner, sfunction):
     for it in FindNodes(Iteration).visit(inner):
         if it.dim.name.startswith(prefix):
             return it
-    return None
-
-
-def _drop_outer(nest):
-    """
-    Return the sub-IET inside ``nest`` (the Iteration over the sparse
-    Dim) — i.e. the radius nest. ``nest.nodes`` is what runs once per
-    sparse point.
-    """
-    if len(nest.nodes) == 1:
-        return nest.nodes[0]
-    return List(body=nest.nodes)
-
-
-def _make_eq(lhs, rhs):
-    """Helper to wrap a (lhs, rhs) pair as a symbolic Eq for ``lower_exprs``."""
-    return Eq(lhs, rhs)
-
-
-def _efunc_prefix(lse):
-    """Pick an ElementalFunction name prefix based on the sparse-op kind."""
-    return f'{lse.kind}_{lse.interpolator.sfunction.name}'
-
-
-def _user_expr(lse):
-    """The user-side expression to feed ``_sparse_temps`` (rhs of the LSE)."""
-    return lse.rhs
-
-
-def _user_field(lse):
-    """For injection, the destination Function appearing in lhs."""
-    if lse.kind == 'inject':
-        return lse.lhs.function
     return None
