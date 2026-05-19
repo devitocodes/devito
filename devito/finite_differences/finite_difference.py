@@ -209,7 +209,9 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         with suppress(AttributeError):
             expr = expr._evaluate(expand=False)
 
-        deriv = DiffDerivative(expr*weights, {dim: indices.free_dim})
+        deriv = DiffDerivative(
+            expr*weights, {dim: indices.free_dim}, deriv_order=deriv_order
+        )
     else:
         terms = []
         for i, c in zip(indices, weights, strict=True):
