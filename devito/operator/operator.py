@@ -504,16 +504,13 @@ class Operator(Callable):
         parameters = derive_parameters(uiet, True)
         iet = EntryFunction(name, uiet, 'int', parameters, ())
 
-        # Lower IET to a target-specific IET
+        # Lower IET to a target-specific IET. Sparse-op lowering
+        # (``lower_sparse_ops``) is now run from inside ``mpiize``,
+        # between the halo-optimisation phase and the halo-exchange
+        # injection, so the reduction heuristic gets a chance to drop
+        # redundant halo exchanges around the sparse-op nest before
+        # the nest is sealed into an ElementalFunction.
         graph = Graph(iet, **kwargs)
-
-        # Lower sparse operations (Interpolation/Injection) into Calls to
-        # ElementalFunctions before any backend specialisation runs, so the
-        # efunc and its sibling Callable are picked up by every backend's
-        # ``_specialize_iet`` uniformly.
-        from devito.passes.iet import lower_sparse_ops
-        lower_sparse_ops(graph, **kwargs)
-
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling

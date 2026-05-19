@@ -28,11 +28,11 @@ from collections import OrderedDict
 from devito.ir.equations import DummyEq
 from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (
-    Call, EntryFunction, Expression, FindNodes, Increment, Iteration, List, Transformer,
-    make_callable
+    Call, EntryFunction, Expression, FindNodes, HaloSpot, Increment, Iteration, List,
+    Transformer, make_callable
 )
 from devito.passes.iet.engine import iet_pass
-from devito.types import Symbol
+from devito.types import Eq, Symbol
 
 __all__ = ['lower_sparse_ops']
 
@@ -71,15 +71,27 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
             continue
         groups.setdefault(nest, []).append(expr)
 
+    # If a sparse-op nest sits inside a HaloSpot whose halo scheme is
+    # void (e.g. the reduction-only halo got dropped by
+    # ``_drop_reduction_halospots``), replace the HaloSpot rather than
+    # just the nest so we don't leave behind an empty HaloSpot — the
+    # MPI overlap machinery would otherwise try to wrap our Call with
+    # its own dynamic-args plumbing.
+    parents = {nest: _enclosing_void_halospot(iet, nest) for nest in groups}
+
     mapper = {}
     efuncs = []
 
     for nest, exprs in groups.items():
         new_nest = _materialise_nest(nest, exprs)
+
         name = sregistry.make_name(prefix=_efunc_prefix(exprs[0].expr))
         efunc = make_callable(name, new_nest)
         efuncs.append(efunc)
-        mapper[nest] = Call(efunc.name, list(efunc.parameters))
+
+        call = Call(efunc.name, list(efunc.parameters))
+        target = parents[nest] or nest
+        mapper[target] = call
 
     if not mapper:
         return iet, {}
@@ -87,6 +99,20 @@ def _lower_sparse_ops(iet, sregistry=None, **kwargs):
     iet = Transformer(mapper).visit(iet)
 
     return iet, {'efuncs': efuncs}
+
+
+def _enclosing_void_halospot(iet, nest):
+    """
+    Return the HaloSpot directly wrapping ``nest`` if it carries an
+    empty (void) HaloScheme, otherwise None. Such HaloSpots are leftover
+    after ``_drop_reduction_halospots`` cleared all entries.
+    """
+    for hs in FindNodes(HaloSpot).visit(iet):
+        if not hs.is_void:
+            continue
+        if nest in FindNodes(Iteration).visit(hs):
+            return hs
+    return None
 
 
 def _is_head(eq):
@@ -141,36 +167,49 @@ def _materialise_nest(nest, exprs):
     temp_exprs = tuple(Expression(DummyEq(e.lhs, e.rhs))
                        for e in lower_exprs(temps))
 
-    # For each Expression in the group, build its contribution to the
-    # body (init+inc+write_back for interpolation, just leave in place
-    # for injection).
-    body = []
+    # For each interpolation Expression in the group, build its
+    # accumulator-wrapped radius nest. Injection Exprs are left where
+    # they are in the radius nest (their Inc is already the right
+    # form); injection Exprs share a single copy of the radius nest.
     inner = _drop_outer(nest)
-    for expr in exprs:
-        lse = expr.expr
-        if lse.kind == 'interpolate':
-            init, radius_subtree, write_back = _interp_inner_block(
-                inner, expr, lse.interpolator
-            )
-            body.extend([init, radius_subtree, write_back])
-        else:
-            # Injection: the existing radius nest already carries the
-            # weighted Inc; no additional wrapping needed.
-            pass
-    if not body:
-        # Pure-injection nest: use the original radius nest as-is.
-        body = [inner]
+    interp_exprs = [e for e in exprs if e.expr.kind == 'interpolate']
+    inject_exprs = [e for e in exprs if e.expr.kind == 'inject']
+
+    body = []
+    for expr in interp_exprs:
+        # Build the per-interpolation accumulator: substitute siblings
+        # out and replace ``expr`` with the increment in a single
+        # Transformer pass so the radius sub-tree contains only the
+        # head's increment.
+        body.append(_interp_inner_block(inner, expr, expr.expr.interpolator,
+                                        siblings=[e for e in exprs if e is not expr]))
+    if inject_exprs:
+        # Injections share one radius nest with no interpolation heads.
+        others = {e: None for e in interp_exprs}
+        local_inner = Transformer(others, nested=True).visit(inner) if others else inner
+        body.append(local_inner)
 
     return nest._rebuild(nodes=temp_exprs + tuple(body))
 
 
-def _interp_inner_block(inner, expr, interp):
+def _interp_inner_block(inner, expr, interp, siblings=()):
     """
     Build the accumulator/radius/write-back triple for an interpolation:
 
         ``Eq(acc, 0)``
         radius_nest with ``Inc(acc, weights * rhs)`` in place of expr
         ``Eq(sf[p], acc)``     # ``Inc`` when the SparseEq is a SparseInc
+
+    ``siblings`` are sparse-op Expression nodes in the same radius nest
+    (e.g. a second interpolation or an injection sharing the outer
+    sparse Iteration) that must be removed from this copy of the nest
+    so the accumulator pattern wraps only ``expr``'s increment.
+
+    Any Iteration between the outer sparse Dimension and the radius
+    Dimensions (e.g. an extra non-grid Dimension on the SparseFunction)
+    is preserved as an enclosing loop around the accumulator pattern,
+    so the write-back ``sf[..., d, p_*]`` sees a fresh accumulator per
+    iteration of ``d``.
     """
     eq = expr.expr
     sf_lhs = eq.lhs
@@ -180,7 +219,20 @@ def _interp_inner_block(inner, expr, interp):
 
     # ``rhs`` is already indexified; only the weights need lowering
     # (e.g. coefficient Functions are indexed by the radius dim).
-    weights_expr = lower_exprs(_make_eq(acc, interp._weights())).rhs
+    # Pull the concretized radius ConditionalDimensions from ``rhs``
+    # so the weights inherit the same (renamed) ``cond`` Thicknesses
+    # and don't leak duplicate ``x_ltkn``/``x_rtkn`` parameters into
+    # the efunc signature.
+    rdims_concrete = {d.name: d for d in rhs.free_symbols
+                      if getattr(d, 'is_Conditional', False)}
+    weights = interp._weights()
+    if rdims_concrete:
+        weights = weights.xreplace({
+            rd: rdims_concrete[rd.name]
+            for rd in weights.free_symbols
+            if getattr(rd, 'is_Conditional', False) and rd.name in rdims_concrete
+        })
+    weights_expr = lower_exprs(_make_eq(acc, weights)).rhs
     weighted_rhs = weights_expr * rhs
 
     init = Expression(DummyEq(acc, 0))
@@ -191,8 +243,36 @@ def _interp_inner_block(inner, expr, interp):
     write_back_cls = Increment if eq.is_Reduction else Expression
     write_back = write_back_cls(DummyEq(sf_lhs, acc))
 
-    radius_subtree = Transformer({expr: inc}).visit(inner)
-    return (init, radius_subtree, write_back)
+    # Single substitution: drop siblings, replace ``expr`` with ``inc``.
+    mapper = {expr: inc}
+    mapper.update({s: None for s in siblings})
+
+    radius_root = _find_radius_root(inner, interp.sfunction)
+    if radius_root is None or radius_root is inner:
+        # No intermediate Iteration: wrap the whole ``inner`` directly.
+        return List(body=(init,
+                          Transformer(mapper, nested=True).visit(inner),
+                          write_back))
+
+    # Wrap the accumulator pattern around just the radius sub-tree,
+    # leaving the enclosing non-radius Iterations in place.
+    new_radius = Transformer(mapper, nested=True).visit(radius_root)
+    wrapped = List(body=(init, new_radius, write_back))
+    return Transformer({radius_root: wrapped}, nested=True).visit(inner)
+
+
+def _find_radius_root(inner, sfunction):
+    """
+    Return the outermost Iteration in ``inner`` over a radius
+    CustomDimension of ``sfunction``, or None if no such Iteration is
+    found. Radius Dimensions are named ``r<sparse_dim_name><dim_name>``
+    (see ``AbstractSparseFunction._crdim``).
+    """
+    prefix = f'r{sfunction._sparse_dim.name}'
+    for it in FindNodes(Iteration).visit(inner):
+        if it.dim.name.startswith(prefix):
+            return it
+    return None
 
 
 def _drop_outer(nest):
@@ -208,7 +288,6 @@ def _drop_outer(nest):
 
 def _make_eq(lhs, rhs):
     """Helper to wrap a (lhs, rhs) pair as a symbolic Eq for ``lower_exprs``."""
-    from devito.types import Eq
     return Eq(lhs, rhs)
 
 
