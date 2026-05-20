@@ -16,7 +16,7 @@ import psutil
 from packaging.version import InvalidVersion, parse
 
 from devito.logger import warning
-from devito.tools import all_equal, as_tuple, memoized_func
+from devito.tools import all_equal, as_tuple, frozendict, memoized_func
 
 __all__ = [  # noqa: RUF022
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
@@ -493,37 +493,31 @@ def get_gpu_info():
     return None
 
 
-def _resolve_uuids_to_indices(uuids):
+@memoized_func
+def _get_uuid_to_index_map():
     """
-    Map GPU UUID/unique-ID strings to integer device indices.
+    Build a frozen mapping from GPU UUID/unique-ID strings to integer device indices.
     """
     # (command, pattern) where group(1)=index, group(2)=uuid
     # nvidia-smi -L output: "GPU 0: <name> (UUID: GPU-xxxx-...)"
     # rocm-smi --showuniqueid output: "GPU[0]  : Unique ID: 0x<hex>"
     queries = [
-        (['nvidia-smi', '-L'],           r'GPU\s+(\d+):.*\(UUID:\s*([\w-]+)\)'),
+        (['nvidia-smi', '-L'], r'GPU\s+(\d+):.*\(UUID:\s*([\w-]+)\)'),
         (['rocm-smi', '--showuniqueid'], r'GPU\[(\d+)\].*Unique ID:\s*([\w]+)'),
     ]
+    mapper = {}
     for cmd, pattern in queries:
         try:
             proc = Popen(cmd, stdout=PIPE, stderr=DEVNULL)
             raw = proc.stdout.read().decode()
         except OSError:
-            # Command not available
             continue
 
-        uuid_to_index = {m.group(2): int(m.group(1))
-                         for line in raw.splitlines()
-                         if (m := re.match(pattern, line))}
-        if not uuid_to_index:
-            continue
+        for line in raw.splitlines():
+            if m := re.match(pattern, line):
+                mapper[m.group(2)] = int(m.group(1))
 
-        try:
-            return tuple(uuid_to_index[u] for u in uuids)
-        except KeyError:
-            continue
-
-    return None
+    return frozendict(mapper)
 
 
 def get_visible_devices():
@@ -556,13 +550,17 @@ def get_visible_devices():
             return v, ids
 
         # Try UUID → device index resolution
-        ids = _resolve_uuids_to_indices(entries)
-        if ids is not None:
+        mapper = _get_uuid_to_index_map()
+        try:
+            ids = tuple(mapper[u] for u in entries)
             return v, ids
+        except KeyError:
+            pass
 
-        raise RuntimeError(
-            f"Cannot resolve device specifiers in {v}={os.environ[v]!r}."
-        )
+        warning("Unresolvable visible devices environment variables encountered:"
+                f" {v}={os.environ[v]} ignored.")
+
+        return None, None
 
     return None, None
 
