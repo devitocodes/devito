@@ -53,8 +53,6 @@ def command_line():
             argv.extend([f'-{p}_{o}', str(v)])
         expected[p] = zip(opt, val)
 
-    if os.environ.get('DEVITO_PYTEST_FLAG', '0') == '2':
-        argv.extend(['-malloc_dump'])
     return argv, expected
 
 
@@ -2815,25 +2813,3 @@ class TestPetscSection:
             f"rank {rank}: expected {expected[rank]}, got {actual}"
 
     # TODO: add 2d and 3d tests
-
-
-# @skipif('petsc')
-# def test_apply_memory():
-
-#     nx = 81
-#     ny = 81
-
-#     grid = Grid(shape=(nx, ny), extent=(2., 2.), dtype=np.float64)
-
-#     u = Function(name='u', grid=grid, dtype=np.float64, space_order=2)
-#     v = Function(name='v', grid=grid, dtype=np.float64, space_order=2)
-
-#     v.data[:] = 5.0
-
-#     eq = Eq(v, u.laplace, subdomain=grid.interior)
-
-#     petsc = petscsolve([eq], u)
-
-#     with switchconfig(language='petsc'):
-#         op = Operator(petsc)
-#         op.apply()
