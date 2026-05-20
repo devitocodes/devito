@@ -557,7 +557,7 @@ def get_visible_devices():
         except KeyError:
             pass
 
-        warning("Unresolvable visible devices environment variables encountered:"
+        warning("Unresolvable visible devices environment variable encountered:"
                 f" {v}={os.environ[v]} ignored.")
 
         return None, None
