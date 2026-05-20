@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+from contextlib import suppress
 from functools import cached_property, wraps
+from itertools import groupby
 
 import numpy as np
 import sympy
@@ -67,12 +69,9 @@ def _extract_subdomain(variables):
     """
     sdms = set()
     for v in variables:
-        try:
+        with suppress(AttributeError):
             if v.grid.is_SubDomain:
                 sdms.add(v.grid)
-        except AttributeError:
-            # Variable not on a grid (Indexed for example)
-            pass
 
     if len(sdms) > 1:
         raise NotImplementedError("Sparse operation on multiple Functions defined on"
@@ -245,19 +244,17 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _field_shifts(self, field):
         """
-        Per-grid-Dimension half-cell shift induced by ``field``'s staggering
-        (e.g. ``h_x/2`` for a field staggered in ``x``). Returns None for
+        Per-grid-Dimension half-cell shift induced by `field`'s staggering
+        (e.g. `h_x/2` for a field staggered in `x`). Returns None for
         unstaggered fields. SubDomain-induced origin offsets are deliberately
         ignored — they are not staggering.
         """
-        try:
-            staggered = field.staggered
-        except AttributeError:
-            return None
-        if not staggered or all(s == 0 for s in staggered):
-            return None
+        staggered = field.staggered
+        if not staggered or staggered.on_node:
+            return ()
         return tuple((d.spacing / 2) if s else 0
-                     for d, s in zip(self._gdims, staggered, strict=True))
+                     for d, s in zip(field.dimensions, staggered, strict=True)
+                     if d.is_Space)
 
     @memoized_meth
     def _rdim(self, subdomain=None, shifts=None):
@@ -295,12 +292,10 @@ class WeightedInterpolator(GenericInterpolator):
             # dimensions of that SubDomain from any extra dimensions found
             edims = []
             for v in extras:
-                try:
+                with suppress(AttributeError):
                     if v.grid.is_SubDomain:
                         edims.extend([d for d in v.grid.dimensions
                                       if d.is_Sub and d.root in self._gdims])
-                except AttributeError:
-                    pass
 
             gdims = filter_ordered(edims + list(self._gdims))
             extra = filter_ordered([i for v in extras for i in v.dimensions
@@ -326,11 +321,11 @@ class WeightedInterpolator(GenericInterpolator):
     def _interp_idx(self, variables, implicit_dims=None, subdomain=None,
                     shifts=None):
         """
-        Generate interpolation indices for the DiscreteFunctions in ``variables``.
+        Generate interpolation indices for the DiscreteFunctions in `variables`.
 
-        ``shifts`` is a per-Dimension physical offset for the target field's
+        `shifts` is a per-Dimension physical offset for the target field's
         origin: it only affects the integer position symbol via the position
-        map (``pos = floor((c - o - shift)/h)``). The index substitution itself
+        map (`pos = floor((c - o - shift)/h)`). The index substitution itself
         is unchanged — any staggered offset in a field's own symbolic access is
         absorbed by Devito's normal indexing.
         """
@@ -360,7 +355,7 @@ class WeightedInterpolator(GenericInterpolator):
     @check_coords
     def interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
-        Generate equations interpolating an arbitrary expression into ``self``.
+        Generate equations interpolating an arbitrary expression into `self`.
 
         Parameters
         ----------
@@ -398,7 +393,7 @@ class WeightedInterpolator(GenericInterpolator):
 
     def _interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
         """
-        Generate equations interpolating an arbitrary expression into ``self``.
+        Generate equations interpolating an arbitrary expression into `self`.
 
         Parameters
         ----------
@@ -412,16 +407,13 @@ class WeightedInterpolator(GenericInterpolator):
             the operator.
         """
         # Derivatives must be evaluated before the introduction of indirect accesses
-        try:
-            _expr = expr._eval_at(self.sfunction).evaluate
-        except AttributeError:
-            # E.g., a generic SymPy expression or a number
-            _expr = expr
+        with suppress(AttributeError):
+            expr = expr._eval_at(self.sfunction).evaluate
 
         if self_subs is None:
             self_subs = {}
 
-        variables = list(retrieve_function_carriers(_expr))
+        variables = list(retrieve_function_carriers(expr))
         subdomain = _extract_subdomain(variables)
 
         # Implicit dimensions
@@ -436,7 +428,7 @@ class WeightedInterpolator(GenericInterpolator):
         summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
         # Substitute coordinate base symbols into the interpolation coefficients
         weights = self._weights(subdomain=subdomain)
-        summands.extend([Inc(rhs, (weights * _expr).xreplace(idx_subs),
+        summands.extend([Inc(rhs, (weights * expr).xreplace(idx_subs),
                              implicit_dims=implicit_dims)])
 
         # Write/Incr `self`
@@ -478,42 +470,44 @@ class WeightedInterpolator(GenericInterpolator):
         # accesses. Variables are sampled at their own grid location; the
         # position map for the target field carries the staggering so the
         # field's stencil neighbors land on the right indices.
-        try:
-            _exprs = tuple(e._eval_at(f).evaluate
-                           for e, f in zip(exprs, fields, strict=True))
-        except AttributeError:
-            # E.g., a generic SymPy expression or a number
-            _exprs = exprs
+        with suppress(AttributeError):
+            exprs = tuple(e._eval_at(f).evaluate
+                          for e, f in zip(exprs, fields, strict=True))
 
-        variables = list(v for e in _exprs for v in retrieve_function_carriers(e))
+        eqns = []
+        temps = []
+        # We need to create one set of equations (temps and and coeffs) per staggering
+        # field in which we inject as the reference index depends on the field's origin
+        for _, g in groupby(zip(fields, exprs, strict=True), lambda f: f[0].staggered):
+            g_fields, g_exprs = zip(*g, strict=True)
+            variables = list(v for e in g_exprs for v in retrieve_function_carriers(e))
 
-        # Implicit dimensions
-        implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
+            implicit_dims = self._augment_implicit_dims(implicit_dims, variables)
 
-        # All fields in a single injection share the same staggering by
-        # construction (they are written together at the same indices), so
-        # derive shifts from the first field.
-        shifts = self._field_shifts(fields[0])
+            # All fields in a single injection share the same staggering by
+            # construction (they are written together at the same indices), so
+            # derive shifts from the first field.
+            shifts = self._field_shifts(g_fields[0])
 
-        # Move all temporaries inside inner loop to improve parallelism
-        # Can only be done for inject as interpolation needs a summing temp
-        # that wouldn't allow collapsing
-        implicit_dims = implicit_dims + tuple(r.parent for r in
-                                              self._rdim(subdomain=subdomain,
-                                                         shifts=shifts))
+            # Move all temporaries inside inner loop to improve parallelism
+            # Can only be done for inject as interpolation needs a summing temp
+            # that wouldn't allow collapsing
+            implicit_dims = implicit_dims + tuple(r.parent for r in
+                                                  self._rdim(subdomain=subdomain,
+                                                             shifts=shifts))
 
-        # List of indirection indices for all adjacent grid points
-        idx_subs, temps = self._interp_idx(list(fields) + variables,
-                                           implicit_dims=implicit_dims,
-                                           subdomain=subdomain, shifts=shifts)
+            # List of indirection indices for all adjacent grid points
+            idx_subs, _temps = self._interp_idx(list(g_fields) + variables,
+                                                implicit_dims=implicit_dims,
+                                                subdomain=subdomain, shifts=shifts)
 
-        eqns = [Inc(_field.xreplace(idx_subs),
-                    (self._weights(subdomain=subdomain, shifts=shifts)
-                     * _expr).xreplace(idx_subs),
-                    implicit_dims=implicit_dims)
-                for _field, _expr in zip(fields, _exprs, strict=True)]
+            w = self._weights(subdomain=subdomain, shifts=shifts)
+            temps.extend(_temps)
+            eqns.extend([Inc(f.xreplace(idx_subs), (w * e).xreplace(idx_subs),
+                             implicit_dims=implicit_dims)
+                         for f, e in zip(g_fields, g_exprs, strict=True)])
 
-        return temps + eqns
+        return filter_ordered(temps) + eqns
 
 
 class LinearInterpolator(WeightedInterpolator):
@@ -540,10 +534,13 @@ class LinearInterpolator(WeightedInterpolator):
     def _point_symbols(self, shifts=None):
         """Symbol for coordinate value in each Dimension of the point."""
         dtype = self.sfunction.coordinates.dtype
-        suffix = self.sfunction._shifts_suffix(shifts)
-        return DimensionTuple(*(Symbol(name=f'p{d}{suffix}', dtype=dtype)
-                                for d in self.grid.dimensions),
-                              getters=self.grid.dimensions)
+        symbols = []
+        for d in self.grid.dimensions:
+            if shifts and shifts[self.grid.dimensions.index(d)] != 0:
+                symbols.append(Symbol(name=f'p{d}_s1', dtype=dtype))
+            else:
+                symbols.append(Symbol(name=f'p{d}', dtype=dtype))
+        return DimensionTuple(*symbols, getters=self.grid.dimensions)
 
     def _coeff_temps(self, implicit_dims, shifts=None):
         # Positions

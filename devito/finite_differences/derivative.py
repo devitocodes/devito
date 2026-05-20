@@ -489,6 +489,9 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         # compare staggering
         if self.expr.staggered == func.staggered and self.expr.is_Function:
             return self
+        # Time derivatives are not affected by space staggering
+        if all(d.is_Time for d in self.dims):
+            return self
 
         # Check if x0's keys come from a DerivedDimension
         x0 = func.indices_ref.getters

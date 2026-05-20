@@ -960,12 +960,12 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         """The indices of the object."""
         return DimensionTuple(*self.args, getters=self.dimensions)
 
-    @property
+    @cached_property
     def indices_ref(self):
         """The reference indices of the object (indices at first creation)."""
         return DimensionTuple(*self.function.indices, getters=self.dimensions)
 
-    @property
+    @cached_property
     def origin(self):
         """
         Origin of the AbstractFunction in term of Dimension

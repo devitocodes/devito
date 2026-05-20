@@ -257,16 +257,17 @@ class AbstractSparseFunction(DiscreteFunction):
     def _sparse_dim(self):
         return self.dimensions[self.sparse_position]
 
-    @property
+    @cached_property
     def indices_ref(self):
-        return DimensionTuple(*self.grid.dimensions,
-                              getters=self.grid.dimensions)
+        getters = (*self.dimensions, *self.grid.dimensions)
+        indices = (*self.dimensions, *self.grid.dimensions)
+        return DimensionTuple(*indices, getters=getters)
 
     @property
     def _grid_map(self):
         return {}
 
-    @property
+    @cached_property
     def origin(self):
         return DimensionTuple(*[0]*len(self.dimensions),
                               getters=self.dimensions)
@@ -368,15 +369,13 @@ class AbstractSparseFunction(DiscreteFunction):
 
     @memoized_meth
     def _pos_symbols(self, shifts=None):
-        suffix = self._shifts_suffix(shifts)
-        return [Symbol(name=f'pos{d}{suffix}', dtype=np.int32)
-                for d in self.grid.dimensions]
-
-    @staticmethod
-    def _shifts_suffix(shifts):
-        if not shifts or all(s == 0 for s in shifts):
-            return ''
-        return '_s' + ''.join('1' if s != 0 else '0' for s in shifts)
+        symbols = []
+        for d in self.grid.dimensions:
+            if shifts and shifts[self.grid.dimensions.index(d)] != 0:
+                symbols.append(Symbol(name=f'pos{d}_s1', dtype=np.int32))
+            else:
+                symbols.append(Symbol(name=f'pos{d}', dtype=np.int32))
+        return symbols
 
     @cached_property
     def _point_increments(self):
@@ -396,8 +395,7 @@ class AbstractSparseFunction(DiscreteFunction):
         coordinates (e.g. ``h_x/2`` for a field staggered in ``x``). If ``shifts``
         is None, only the grid origin is subtracted.
         """
-        if shifts is None:
-            shifts = (0,) * len(self.grid.dimensions)
+        shifts = shifts or (0,) * len(self.grid.dimensions)
         return OrderedDict([
             ((c - o - s)/d.spacing, p)
             for p, c, d, o, s in zip(

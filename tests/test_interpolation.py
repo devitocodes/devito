@@ -8,7 +8,8 @@ from conftest import assert_structure
 from devito import (
     NODE, DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction,
     Operator, PrecomputedSparseFunction, PrecomputedSparseTimeFunction, Real,
-    SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, switchconfig
+    SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, VectorFunction,
+    switchconfig
 )
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
 from devito.tools import as_tuple
@@ -472,7 +473,7 @@ class TestLinear:
                      staggered=staggered)
         a.data.fill(0)
 
-        b = Function(name='b', grid=a.grid, space_order=2,
+        b = Function(name='b', grid=a.grid, space_order=8,
                      staggered=NODE)
         b.data.fill(1)
         b.data[5, 5, 5] = 2
@@ -507,6 +508,26 @@ class TestLinear:
             # All other should be zero so should sum to the interp_val * number of points.
             # Use abs to make sure there is no +- cancellations
             assert np.sum(np.abs(a.data)) == interp_val * 2**(sum(np.array(a.staggered)))
+
+    def test_inject_staggered_mixed(self):
+        grid = Grid((11, 11, 11))
+        v = VectorFunction(name='v', grid=grid, space_order=2)
+        b = Function(name='b', grid=grid, space_order=2, staggered=NODE)
+        p = SparseFunction(name="p", grid=grid, nt=10, npoint=1)
+
+        eq = p.inject(v, expr=b * p).evaluate
+
+        # We should have
+        # - 3 injection equations v_x, v_y, v_z
+        # The standard 6 on node temps posx, posy, posz, px, py, pz
+        # 2 temps for the staggered in x vx posz_s1, px_s1
+        # 2 temps for the staggered in y vy posz_s1, py_s1
+        # 2 temps for the staggered in z vz posz_s1, pz_s1
+        assert len(eq) == 3 + 6 + 2 + 2 + 2
+
+        op = Operator(eq)
+        # Should be a single loop nest with 3 injections
+        assert_structure(op, ['p_p,rp_px,rp_py,rp_pz'], 'p_prp_pxrp_py,rp_pz')
 
 # ---------------------------------------------------------------------------
 # Precomputed interpolation / injection
