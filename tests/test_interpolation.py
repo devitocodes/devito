@@ -6,7 +6,7 @@ from sympy import Float
 
 from conftest import assert_structure
 from devito import (
-    DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction, NODE,
+    NODE, DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction,
     Operator, PrecomputedSparseFunction, PrecomputedSparseTimeFunction, Real,
     SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, switchconfig
 )
@@ -485,21 +485,28 @@ class TestLinear:
         op = Operator(expr)
 
         op()
-        # The expected value is 1 for the NODE case.
-        # For the staggered case, the center point is
-        # shifted left compared to the staggered function
         if stagg == 'NODE':
             assert np.isclose(a.data[5, 5, 5], 2, rtol=1e-6)
             # all other should be zero
             assert np.sum(a.data) == 2
-        elif len(as_tuple(staggered)) == 1:
-            from IPython import embed; embed()
-            # 
-            assert np.isclose(a.data[5, 5, 5], 1, rtol=1e-6)
-        elif len(as_tuple(staggered)) == 2:
-            expected = 0.25
-        elif len(as_tuple(staggered)) == 3:
-            expected = 0.125
+        else:
+            # Bottom corner since the source position is left of the staggered field
+            corner = [5, 5, 5] - np.array(a.staggered)
+            # Indices touched by the interpolation based on staggering
+            slices = [slice(corner[i], 6) for i in range(3)]
+            # Number of points for the interpolation.
+            # Single dim only interpolates between two points,
+            # so 2**(number of staggered dims) is the number of points.
+            npoints = 2**(np.sum(np.array(a.staggered, dtype=np.int32)))
+            # b value at the staggered field from b._eval_at(field)
+            b_val = (1 * (npoints - 1) + 2) / npoints
+            # Then source interpolation. Source at the center of the staggered field,
+            # so all points have the same weight 1/npoints.
+            interp_val = b_val / npoints
+            assert np.allclose(a.data[slices], interp_val, rtol=1e-6)
+            # All other should be zero so should sum to the interp_val * number of points.
+            # Use abs to make sure there is no +- cancellations
+            assert np.sum(np.abs(a.data)) == interp_val * 2**(sum(np.array(a.staggered)))
 
 # ---------------------------------------------------------------------------
 # Precomputed interpolation / injection
@@ -824,7 +831,7 @@ class TestInterpolator:
         grid = Grid(shape=(11,))
         s = SparseFunction(name='src', npoint=1,
                            grid=grid, dtype=dtype)
-        point_symbol = s.interpolator._point_symbols[0]
+        point_symbol = s.interpolator._point_symbols()[0]
 
         assert point_symbol.dtype is expected
 
