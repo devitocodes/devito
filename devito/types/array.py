@@ -653,7 +653,13 @@ class ComponentAccess(Expr, Pickable):
 
     @property
     def dtype(self):
-        return self.function.dtype
+        try:
+            return self.function.c0.dtype
+        except AttributeError:
+            # Vector-component access over a scalar symbol, e.g. a float4 register.
+            if self.function.is_Symbol:
+                return dtypes_vector_mapper.get_base_dtype(self.function.dtype)
+            raise
 
     @cacheit
     def sort_key(self, order=None):
