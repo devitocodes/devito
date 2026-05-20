@@ -23,7 +23,7 @@ from devito.types.dimension import (
 )
 from devito.types.dimension import dimensions as mkdims
 from devito.types.equation import Eq, Inc
-from devito.types.utils import IgnoreDimSort
+from devito.types.utils import DimensionTuple, IgnoreDimSort
 
 __all__ = [
     'MatrixSparseTimeFunction',
@@ -258,6 +258,20 @@ class AbstractSparseFunction(DiscreteFunction):
         return self.dimensions[self.sparse_position]
 
     @property
+    def indices_ref(self):
+        return DimensionTuple(*self.grid.dimensions,
+                              getters=self.grid.dimensions)
+
+    @property
+    def _grid_map(self):
+        return {}
+
+    @property
+    def origin(self):
+        return DimensionTuple(*[0]*len(self.dimensions),
+                              getters=self.dimensions)
+
+    @property
     def _mpitype(self):
         return dtype_to_mpidtype(self.dtype)
 
@@ -404,6 +418,10 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         parent = self._crdim(dim)
         return ConditionalDimension(parent.name, parent, condition=cond, indirect=True)
+
+
+    def _eval_at(self, func):
+        return self
 
     def interpolate(self, *args, **kwargs):
         """

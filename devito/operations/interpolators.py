@@ -390,7 +390,7 @@ class WeightedInterpolator(GenericInterpolator):
         """
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
-            _expr = expr.evaluate
+            _expr = expr._eval_at(self.sfunction).evaluate
         except AttributeError:
             # E.g., a generic SymPy expression or a number
             _expr = expr
@@ -453,7 +453,9 @@ class WeightedInterpolator(GenericInterpolator):
 
         # Derivatives must be evaluated before the introduction of indirect accesses
         try:
-            _exprs = tuple(e.evaluate for e in exprs)
+            # Expr must be evaluated ath the field's location.
+            _exprs = tuple(e._eval_at(f).evaluate
+                           for e, f in zip(exprs, fields, strict=True))
         except AttributeError:
             # E.g., a generic SymPy expression or a number
             _exprs = exprs
