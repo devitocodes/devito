@@ -79,6 +79,11 @@ class BasicOperator(Operator):
     variables (e.g., strides).
     """
 
+    CIRE_FILL_HALO = True
+    """
+    When computing the CIRE-generated temporaries, update the halo regions too.
+    """
+
     SCALAR_MIN_TYPE = np.float16
     """
     Minimum datatype for a scalar arising from a common sub-expression or CIRE temp.

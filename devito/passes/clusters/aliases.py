@@ -117,6 +117,7 @@ class CireTransformer:
         self.opt_ftemps = options['cire-ftemps']
         self.opt_mingain = options['cire-mingain']
         self.opt_minmem = options['cire-minmem']
+        self.opt_fill_halo = options['cire-fill-halo']
         self.opt_min_dtype = options['scalar-min-type']
         self.opt_multisubdomain = True
 
@@ -126,10 +127,17 @@ class CireTransformer:
         for mapper in self._generate(cgroup, exclude):
             # Clusters -> AliasList
             found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
+
+            # Process the AliasList, potentially dropping some candidates
             exprs, aliases = self._choose(found, cgroup, mapper)
 
+            if not aliases:
+                continue
+
             # AliasList -> Schedule
-            schedule = lower_aliases(aliases, meta, self.opt_maxpar)
+            schedule = lower_aliases(
+                aliases, meta, self.opt_maxpar, self.opt_fill_halo
+            )
 
             variants.append(Variant(schedule, exprs))
 
@@ -148,9 +156,10 @@ class CireTransformer:
             schedule = optimize_schedule_rotations(schedule, self.sregistry)
 
         # Schedule -> [Clusters]_k
-        processed, subs = lower_schedule(schedule, meta, self.sregistry,
-                                         self.opt_ftemps, self.opt_min_dtype,
-                                         self.opt_minmem)
+        processed, subs = lower_schedule(
+            schedule, meta, self.sregistry, self.opt_ftemps, self.opt_min_dtype,
+            self.opt_minmem
+        )
 
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
@@ -664,7 +673,7 @@ def collect(extracted, ispace, minstorage):
     return aliases
 
 
-def lower_aliases(aliases, meta, maxpar):
+def lower_aliases(aliases, meta, maxpar, fill_halo):
     """
     Create a Schedule from an AliasList.
     """
@@ -707,8 +716,14 @@ def lower_aliases(aliases, meta, maxpar):
             # use `<1>` as stamp, which is what appears in `ispace`
             interval = interval.lift(i.stamp)
 
-            writeto.append(interval)
-            intervals.append(interval)
+            # If we're not expected to populate halo, we can safely zero-out
+            # the IterationIntervals
+            if fill_halo:
+                intervals.append(interval)
+                writeto.append(interval)
+            else:
+                intervals.append(interval.zero())
+                writeto.append(interval.zero())
 
             if i.dim.is_Block:
                 # Suitable IncrDimensions must be used to avoid OOB accesses.
