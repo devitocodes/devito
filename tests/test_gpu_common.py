@@ -130,8 +130,16 @@ class TestDeviceID:
     def test_visible_devices_uuid(self):
         # Query GPU 0's UUID independently of _get_uuid_to_index_map
         probes = [
-            (['nvidia-smi', '-L'], r'GPU\s+0:.*\(UUID:\s*([\w-]+)\)', 'CUDA_VISIBLE_DEVICES'),
-            (['rocm-smi', '--showuniqueid'], r'GPU\[0\].*Unique ID:\s*([\w]+)',  'ROCR_VISIBLE_DEVICES'),
+            (
+                ['nvidia-smi', '-L'],
+                r'GPU\s+0:.*\(UUID:\s*([\w-]+)\)',
+                'CUDA_VISIBLE_DEVICES'
+            ),
+            (
+                ['rocm-smi', '--showuniqueid'],
+                r'GPU\[0\].*Unique ID:\s*([\w]+)',
+                'ROCR_VISIBLE_DEVICES'
+            ),
         ]
         uuid = env_var = None
         for cmd, pattern, var in probes:
