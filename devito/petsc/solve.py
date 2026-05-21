@@ -137,7 +137,7 @@ class InjectSolve:
         TODO: Cover case where the default "right" staggering is not used.
         """
         self.target_exprs = {
-            t: as_tuple(e) + ((bc,) if (bc := _out_of_domain_bc(t)) else ())
+            t: as_tuple(e) + ((bc,) if (bc := _out_of_domain_bc(t)) is not None else ())
             for t, e in self.target_exprs.items()
         }
 
