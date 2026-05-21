@@ -1158,7 +1158,12 @@ class Operator(Callable):
                 perf(f"{indent*2}+ {n} ran in {fround(v1.time):.2f} s "
                      f"[{fround(v1.time/v.time*100):.2f}%] {metrics}")
 
-        # Emit performance mode and arguments
+        self._emit_perf_args(args)
+
+        return summary
+
+    def _emit_perf_args(self, args):
+        """Emit performance mode and runtime performance arguments."""
         perf_args = {}
         for i in self.input + self.dimensions:
             if not i.is_PerfKnob:
@@ -1175,8 +1180,6 @@ class Operator(Callable):
             perf_args['pthreads'] = self.npthreads
         perf_args = {k: perf_args[k] for k in sorted(perf_args)}
         perf(f"Performance[mode={self._mode}] arguments: {perf_args}")
-
-        return summary
 
     # Pickling support
 
