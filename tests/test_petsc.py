@@ -2278,8 +2278,7 @@ class TestPetscSection:
 
     # TODO: loop bound modification only needs to happen for subdomain 'middle' type
     # so ensure this happens - by construction left and right subdomains do not
-    # cross ranks instead of doing the manual loop bound check - grab the actual
-    # iteration from the generated code I think...?
+    # cross ranks
 
     def _get_loop_bounds(self, shape, so, subdomain):
         grid = Grid(
@@ -2289,9 +2288,11 @@ class TestPetscSection:
         )
 
         u = Function(name='u', grid=grid, space_order=so)
-        v = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
         bc = Function(name='bc', grid=grid, space_order=so)
 
+        # Normally the `EssentialBC` subdomain would not overlap with the main equation's
+        # subdomain but `grid.interior` is reused for simplicity here
         eq = Eq(u, v, subdomain=grid.interior)
         bc = EssentialBC(u, bc, subdomain=subdomain)
 
@@ -2813,3 +2814,139 @@ class TestPetscSection:
             f"rank {rank}: expected {expected[rank]}, got {actual}"
 
     # TODO: add 2d and 3d tests
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_op_apply_1d(self, mode):
+
+        nx = 24
+        so = 2
+        shape = (nx,)
+
+        class Left(SubDomain):
+            name = 'subleft'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+        class Right(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 20, 0)}
+
+        left = Left()
+        right = Right()
+
+        grid = Grid(
+            shape=shape,
+            subdomains=(left, right),
+            dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
+        bc = Function(name='bc', grid=grid, space_order=so)
+
+        eq = Eq(u, v, subdomain=left)
+        bc = EssentialBC(u, bc, subdomain=right)
+
+        solver = petscsolve([eq, bc], u, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+            op.apply()
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_op_apply_2d(self, mode):
+
+        nx = 24
+        ny = 24
+        so = 2
+        shape = (nx, ny)
+
+        class SubTop(SubDomain):
+            name = 'subtop'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('right', 1)}
+        sub1 = SubTop()
+
+        class SubBottom(SubDomain):
+            name = 'subbottom'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('left', 1)}
+        sub2 = SubBottom()
+
+        class SubLeft(SubDomain):
+            name = 'subleft'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 1), y: ('middle', 1, 1)}
+        sub3 = SubLeft()
+
+        class SubRight(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('right', 1), y: ('middle', 1, 1)}
+        sub4 = SubRight()
+
+        grid = Grid(
+            shape=shape,
+            subdomains=(sub1, sub2, sub3, sub4),
+            dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
+        bc = Function(name='bc', grid=grid, space_order=so)
+
+        eq = Eq(u, v, subdomain=grid.interior)
+
+        bc_u_top1 = EssentialBC(u, bc, subdomain=sub1)
+        bc_u_bottom1 = EssentialBC(u, bc, subdomain=sub2)
+        bc_u_left1 = EssentialBC(u, bc, subdomain=sub3)
+        bc_u_right1 = EssentialBC(u, bc, subdomain=sub4)
+
+        # Test constraining all 4 BCs
+        solver1 = petscsolve(
+            [eq, bc_u_top1, bc_u_bottom1, bc_u_left1, bc_u_right1], u, constrain_bcs=True
+        )
+
+        bc_u_left2 = EssentialBC(u, bc, subdomain=sub3, constrain=True)
+        bc_u_right2 = EssentialBC(u, bc, subdomain=sub4, constrain=True)
+
+        # Test constraining only a subset (2 BCs), leaving the other 2
+        # as trivial equations
+        solver2 = petscsolve([eq, bc_u_top1, bc_u_bottom1, bc_u_left2, bc_u_right2], u)
+
+        # Test PetscSection for multi-field solver
+        f = Function(name='f', grid=grid, space_order=2)
+        eqn_v = Eq(-v.laplace, f, subdomain=grid.interior)
+        eqn_u = Eq(-u.laplace, v, subdomain=grid.interior)
+
+        bc_v = [EssentialBC(v, 0., subdomain=sub1)]
+        bc_v += [EssentialBC(v, 0., subdomain=sub2)]
+        bc_v += [EssentialBC(v, 0., subdomain=sub3)]
+        bc_v += [EssentialBC(v, 0., subdomain=sub4)]
+
+        v_eqns = [eqn_v] + bc_v
+        u_eqns = [eqn_u] + [bc_u_top1, bc_u_bottom1, bc_u_left1, bc_u_right1]
+        solver3 = petscsolve({v: v_eqns, u: u_eqns}, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op1 = Operator(solver1)
+            op2 = Operator(solver2)
+            op3 = Operator(solver3)
+            op1.apply()
+            op2.apply()
+            op3.apply()

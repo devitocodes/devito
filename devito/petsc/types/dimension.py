@@ -3,6 +3,8 @@ from devito.types.dimension import Thickness
 
 class SubDimMax(Thickness):
     """
+    Local index of a SubDimension's right global boundary, which may not correspond
+    to a locally owned point. Not used for indexing into data.
     """
     def __init_finalize__(self, *args, **kwargs):
         self._subdim = kwargs.pop('subdim')
@@ -27,6 +29,8 @@ class SubDimMax(Thickness):
 
 class SubDimMin(Thickness):
     """
+    Local index of a SubDimension's left global boundary, which may not correspond
+    to a locally owned point. Not used for indexing into data.
     """
     def __init_finalize__(self, *args, **kwargs):
         self._subdim = kwargs.pop('subdim')
@@ -51,6 +55,8 @@ class SubDimMin(Thickness):
 
 class SpaceDimMax(Thickness):
     """
+    Local index of a SpaceDimension's right global boundary, which may not correspond
+    to a locally owned point. Not used for indexing into data.
     """
     def __init_finalize__(self, *args, **kwargs):
         self._space_dim = kwargs.pop('space_dim')
@@ -72,6 +78,8 @@ class SpaceDimMax(Thickness):
 
 class SpaceDimMin(Thickness):
     """
+    Local index of a SpaceDimension's left global boundary, which may not correspond
+    to a locally owned point. Not used for indexing into data.
     """
     def __init_finalize__(self, *args, **kwargs):
         self._space_dim = kwargs.pop('space_dim')

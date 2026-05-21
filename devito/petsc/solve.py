@@ -1,6 +1,6 @@
 from devito.types.equation import PetscEq
 from devito.tools import filter_ordered, as_tuple
-from devito.types import Symbol, SteppingDimension, TimeDimension, Border
+from devito.types import Symbol, SteppingDimension, TimeDimension, Border, Constant
 from devito.symbolics import retrieve_functions, retrieve_dimensions
 
 from devito.petsc.types import (
@@ -81,8 +81,8 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
         If `True`, ALL `EssentialBC` equations are constrained via a `PetscSection`,
         excluding the corresponding degrees of freedom from the global solver.
         Individual `EssentialBC`s can also be constrained independently by passing
-        ``constrain=True`` to their constructor (e.g.
-        ``EssentialBC(lhs, rhs, subdomain=..., constrain=True)``), regardless of
+        `constrain=True` to their constructor (e.g.
+        `EssentialBC(lhs, rhs, subdomain=..., constrain=True)`), regardless of
         this flag.
 
     Returns
@@ -127,18 +127,30 @@ class InjectSolve:
         )
         return PetscEq(target, linear_solve)
 
+    def _constrain_out_of_domain_nodes(self):
+        """
+        Automatically constrain out-of-domain staggered nodes to zero. Devito does
+        not resize data arrays for staggered fields, so nodes at the staggered
+        boundaries fall outside the computational domain and would otherwise appear
+        as free DOFs in the global solver. These nodes are automatically constrained
+        so they are excluded from the global solver.
+        TODO: Cover case where the default "right" staggering is not used.
+        """
+        self.target_exprs = {
+            t: as_tuple(e) + ((bc,) if (bc := _out_of_domain_bc(t)) else ())
+            for t, e in self.target_exprs.items()
+        }
+
     def linear_solve_args(self):
+        self._constrain_out_of_domain_nodes()
         target, exprs = next(iter(self.target_exprs.items()))
         exprs = as_tuple(exprs)
 
-        # TODO: maybe move into a seprate class/method... or at least clean up
-        stagger_bc = _stagger_constrain_bc(target)
-        if stagger_bc is not None:
-            exprs = exprs + (stagger_bc,)
-
         funcs = get_funcs(exprs)
         # TODO: Add MPI tests for this but if not filtered, the wrong halospots
-        # are generated or some halospots are missing...(for implicit)
+        # are generated or some halospots are missing...(for implicit). Essentially,
+        # we can't include the "target" function in the rhs of the solve expression,
+        # as this will generate antidependencies etc...
         funcs = tuple(
             f for f in funcs
             if not (
@@ -161,7 +173,9 @@ class InjectSolve:
         constrain_exprs = self._get_constrain_exprs(exprs)
         constrain_bc = None
         if constrain_exprs:
-            constrain_bc = ConstrainBC(target, constrain_exprs, arrays, self.time_mapper)
+            constrain_bc = {
+                target: ConstrainBC(target, constrain_exprs, arrays, self.time_mapper)
+            }
 
         field_data = FieldData(
             target=target,
@@ -178,7 +192,7 @@ class InjectSolve:
         """
         Return the subset of `exprs` to be constrained via PetscSection.
         If `constrain_bcs=True`, all `EssentialBC` exprs are returned.
-        Otherwise, only those individually marked with ``constrain=True``.
+        Otherwise, only those individually marked with `constrain=True`.
         """
         if self.constrain_bcs:
             return tuple(e for e in exprs if isinstance(e, EssentialBC))
@@ -202,17 +216,7 @@ class InjectSolve:
 class InjectMixedSolve(InjectSolve):
 
     def linear_solve_args(self):
-
-        # TODO: again, clean up, or more into separate methods/classes
-        # add documentation
-        augmented = {}
-        for t, e in self.target_exprs.items():
-            stagger_bc = _stagger_constrain_bc(t)
-            te = as_tuple(e)
-            if stagger_bc is not None:
-                te = te + (stagger_bc,)
-            augmented[t] = te
-        self.target_exprs = augmented
+        self._constrain_out_of_domain_nodes()
 
         exprs = []
         for e in self.target_exprs.values():
@@ -253,8 +257,12 @@ class InjectMixedSolve(InjectSolve):
         return targets[0], funcs, all_data
 
 
-def _stagger_constrain_bc(target):
+def _out_of_domain_bc(target):
     """
+    Return an EssentialBC pinning out-of-domain staggered boundary nodes to
+    zero, or None if the target has no staggered out-of-domain nodes. Using
+    constrain=True on these BCs ensures that the corresponding DOFs are excluded from the
+    global solver.
     """
     if target.staggered.on_node:
         return None
@@ -268,25 +276,20 @@ def _stagger_constrain_bc(target):
     border = Border(grid, border=1, dims=dims,
                     name='_stagger_border_%s' % target.name,
                     corners='nooverlap')
-    # from IPython import embed; embed()
-    from devito import Constant
     rhs = Constant(name='zero', dtype=target.dtype)
     return EssentialBC(target, rhs, subdomain=border, constrain=True)
 
 
 def get_funcs(exprs):
-    # funcs = [
-    #     f for e in exprs
-    #     for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
-    # ]
-    # TODO: this is expensive, need to rethink, but otherside the initial
-    # compilation doesn't see all "functions" e.g the ones generated when derivatives
-    # are evaluated, so the halospots are not generated correctly.
+    # TODO: expensive — `e.evaluate` is needed so that functions introduced when
+    # derivatives are expanded are visible and their HaloSpots generated correctly,
+    # but this should be revisited.
+    # previously used `retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))` but
+    # it doesn't suffice in parallel...
     funcs = [
         f for e in exprs
         for f in retrieve_functions(e.evaluate)
     ]
-    # from IPython import embed; embed()
     return as_tuple(filter_ordered(funcs))
 
 

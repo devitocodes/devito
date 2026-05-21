@@ -70,10 +70,7 @@ class BuilderBase:
         local_size = math.prod(
             v for v, dim in zip(target.shape_allocated, target.dimensions) if dim.is_Space
         )
-        # TODO: Check - VecCreateSeqWithArray
-        # local_x = petsc_call('VecCreateMPIWithArray',
-        #                      [sobjs['comm'], 1, local_size, 'PETSC_DECIDE',
-        #                       field_from_ptr, Byref(sobjs['xlocal'])])
+        # TODO: Check - VecCreateSeqWithArray vs VecCreateMPIWithArray
         local_x = petsc_call('VecCreateSeqWithArray',
                              ['PETSC_COMM_SELF', 1, local_size,
                               field_from_ptr, Byref(sobjs['xlocal'])])
@@ -139,7 +136,7 @@ class BuilderBase:
 
     def _create_dmda_calls(self, dmda):
         dmda_create = self._create_dmda(dmda)
-        # TODO: probs need to set the dm options prefix the same as snes?
+        # TODO: probably need to set the dm options prefix the same as snes?
         dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
@@ -355,7 +352,7 @@ class ConstrainedBCMixin:
         dmda_create = self._create_dmda(dmda)
 
         # TODO: likely need to set the dm options prefix the same as snes?
-        # likely shouldn't hardcode this option like this.. (should be set in the options
+        # Probably shouldn't hardcode this option.. (should be set in the options
         # callback)
         da_create_section = petsc_call(
             'PetscOptionsSetValue', [Null, String("-da_use_section"), Null]

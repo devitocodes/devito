@@ -53,8 +53,7 @@ def core_metadata():
     }
 
 
-# Maximum number of bytes (including the null terminator) reserved for a
-# KSPType string in the profiler struct.
+# Maximum number of bytes for a KSPType string in the profiler struct.
 KSPTYPE_MAX_LEN = 64
 
 

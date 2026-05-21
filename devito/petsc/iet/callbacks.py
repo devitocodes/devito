@@ -122,7 +122,7 @@ class BaseCallbackBuilder:
         # Make the initial guess callback
         if self.field_data.initial_guess.exprs:
             self._make_initial_guess()
-        # Make the callback used to constrain boundary nodes
+        # Make the callback to constrain boundary nodes
         if self.field_data.constrain_bc:
             self._make_constrain_bc()
         self._make_user_struct_efunc()
@@ -650,14 +650,9 @@ class BaseCallbackBuilder:
         Constructs the `CountBCs` and `SetPointBCs` efuncs. Works for both
         single- and multi-field.
         """
-        constrain_bc = self.field_data.constrain_bc
+        constrain_bc_dict = self.field_data.constrain_bc
         sobjs = self.solver_objs
 
-        # Normalize to dict {target: ConstrainBC}
-        if isinstance(constrain_bc, dict):
-            constrain_bc_dict = constrain_bc
-        else:
-            constrain_bc_dict = {self.field_data.target: constrain_bc}
         targets = list(constrain_bc_dict.keys())
 
         all_increment_exprs = [
@@ -741,136 +736,14 @@ class BaseCallbackBuilder:
         return Uxreplace(subs).visit(body)
 
     def _create_set_point_bc_body(self, body, constrain_bc_dict):
-        """Single-field SetPointBCs body. `constrain_bc_dict` has one entry."""
-        (target, constrain_bc), = constrain_bc_dict.items()
-        tname = target.name
-        linsolve_expr = self.inject_solve.expr.rhs
-        objs = self.objs
-        sobjs = self.solver_objs
-
-        dmda = sobjs['callbackdm']
-        ctx = objs['dummyctx']
-
-        dm_get_local_info = petsc_call(
-            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
-        )
-
-        body = self.time_dependence.uxreplace_time(body)
-
-        fields = get_user_struct_fields(body)
-        self._struct_params.extend(fields)
-
-        dm_get_app_context = petsc_call(
-            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
-        )
-        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(dmda)])
-        is_create_general = petsc_call(
-            'ISCreateGeneral',
-            [petsc_obj_comm, sobjs[f'numBC_{tname}'], sobjs[f'bcPointsArr_{tname}'],
-             'PETSC_OWN_POINTER', Byref(sobjs['bcPointsIS'])]
-        )
-        malloc_bc_points_arr = petsc_call(
-            'PetscMalloc1',
-            [sobjs[f'numBC_{tname}'], Byref(sobjs[f'bcPointsArr_{tname}']._C_symbol)]
-        )
-        malloc_bc_points = petsc_call(
-            'PetscMalloc1', [1, Byref(sobjs['bcPoints']._C_symbol)]
-        )
-        dummy_expr = DummyExpr(sobjs['bcPoints'].indexed[0], sobjs['bcPointsIS'])
-        set_point_bc = petsc_call(
-            'DMDASetPointBC', [dmda, 1, sobjs['bcPoints'], Null]
-        )
-        body = body._rebuild(
-            body=(
-                (malloc_bc_points_arr,)
-                + body.body
-                + (is_create_general, malloc_bc_points, dummy_expr, set_point_bc,)
-            )
-        )
-
-        derefs = dereference_funcs(ctx, fields)
-        standalones = [
-            Definition(ctx),
-            dm_get_app_context,
-            Definition(sobjs[f'k_iter_{tname}'])
-        ]
-        body = self._make_callable_body(
-            body, standalones=standalones, stacks=(dm_get_local_info,) + derefs
-        )
-
-        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for
-                i in fields if not isinstance(i.function, AbstractFunction)}
-        subs[constrain_bc.counter._C_symbol] = \
-            sobjs[f'bcPointsArr_{tname}'].indexed[sobjs[f'k_iter_{tname}']]
-
-        return Uxreplace(subs).visit(body)
-
-    def _make_user_struct_efunc(self):
         """
-        This is the struct initialised inside the main kernel and
-        attached to the DM via DMSetApplicationContext.
+        Generic SetPointBCs body, handles single- and multi-field.
         """
-        mainctx = self.solver_objs['userctx'] = MainUserStruct(
-            name=self.sregistry.make_name(prefix='ctx'),
-            pname=self.sregistry.make_name(prefix='UserCtx'),
-            fields=self.filtered_struct_params,
-            liveness='lazy',
-            modifier=None
-        )
-        body = [
-            DummyExpr(FieldFromPointer(i._C_symbol, mainctx), i._C_symbol)
-            for i in mainctx.callback_fields
-        ]
-        struct_callback_body = self._make_callable_body(body)
-        cb = Callable(
-            self.sregistry.make_name(prefix='PopulateUserContext'),
-            struct_callback_body, self.objs['err'],
-            parameters=[mainctx]
-        )
-        self._efuncs[cb.name] = cb
-        self._user_struct_efunc = cb
-
-    def _uxreplace_efuncs(self):
-        sobjs = self.solver_objs
-        callback_user_struct = CallbackUserStruct(
-            name=sobjs['userctx'].name,
-            pname=sobjs['userctx'].pname,
-            fields=self.filtered_struct_params,
-            liveness='lazy',
-            modifier=' *',
-            parent=sobjs['userctx']
-        )
-        mapper = {}
-        visitor = Uxreplace({self.objs['dummyctx']: callback_user_struct})
-        for k, v in self._efuncs.items():
-            mapper.update({k: visitor.visit(v)})
-        return mapper
-
-
-class CoupledCallbackBuilder(BaseCallbackBuilder):
-    def __init__(self, **kwargs):
-        self._submatrices_callback = None
-        self._destroy_submat_callback = None
-        super().__init__(**kwargs)
-
-    @property
-    def submatrices_callback(self):
-        return self._submatrices_callback
-
-    def _create_set_point_bc_body(self, body, _constrain_bc_dict):
-        return self._create_set_point_bc_body_coupled(body)
-
-    def _create_set_point_bc_body_coupled(self, body):
-        """
-        # TODO : ADD DOCS - MAKE IT CLEARER
-        Combined SetPointBCs body for all target fields.
-        """
-        linsolve_expr = self.inject_solve.expr.rhs
-        objs = self.objs
-        sobjs = self.solver_objs
-        constrain_bc = self.field_data.constrain_bc
-        targets = self.field_data.targets
+        targets = list(constrain_bc_dict.keys())
         nfields = len(targets)
+        linsolve_expr = self.inject_solve.expr.rhs
+        objs = self.objs
+        sobjs = self.solver_objs
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
@@ -946,10 +819,62 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
                 i in fields if not isinstance(i.function, AbstractFunction)}
         for t in targets:
             tname = t.name
-            subs[constrain_bc[t].counter._C_symbol] = \
+            subs[constrain_bc_dict[t].counter._C_symbol] = \
                 sobjs[f'bcPointsArr_{tname}'].indexed[sobjs[f'k_iter_{tname}']]
 
         return Uxreplace(subs).visit(body)
+
+    def _make_user_struct_efunc(self):
+        """
+        This is the struct initialised inside the main kernel and
+        attached to the DM via DMSetApplicationContext.
+        """
+        mainctx = self.solver_objs['userctx'] = MainUserStruct(
+            name=self.sregistry.make_name(prefix='ctx'),
+            pname=self.sregistry.make_name(prefix='UserCtx'),
+            fields=self.filtered_struct_params,
+            liveness='lazy',
+            modifier=None
+        )
+        body = [
+            DummyExpr(FieldFromPointer(i._C_symbol, mainctx), i._C_symbol)
+            for i in mainctx.callback_fields
+        ]
+        struct_callback_body = self._make_callable_body(body)
+        cb = Callable(
+            self.sregistry.make_name(prefix='PopulateUserContext'),
+            struct_callback_body, self.objs['err'],
+            parameters=[mainctx]
+        )
+        self._efuncs[cb.name] = cb
+        self._user_struct_efunc = cb
+
+    def _uxreplace_efuncs(self):
+        sobjs = self.solver_objs
+        callback_user_struct = CallbackUserStruct(
+            name=sobjs['userctx'].name,
+            pname=sobjs['userctx'].pname,
+            fields=self.filtered_struct_params,
+            liveness='lazy',
+            modifier=' *',
+            parent=sobjs['userctx']
+        )
+        mapper = {}
+        visitor = Uxreplace({self.objs['dummyctx']: callback_user_struct})
+        for k, v in self._efuncs.items():
+            mapper.update({k: visitor.visit(v)})
+        return mapper
+
+
+class CoupledCallbackBuilder(BaseCallbackBuilder):
+    def __init__(self, **kwargs):
+        self._submatrices_callback = None
+        self._destroy_submat_callback = None
+        super().__init__(**kwargs)
+
+    @property
+    def submatrices_callback(self):
+        return self._submatrices_callback
 
     @property
     def jacobian(self):
@@ -1175,9 +1100,10 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
         return Uxreplace(subs).visit(formfunc_body)
 
     def _create_destroy_submatrix(self):
-        # Need a special destroy because each submatrix has a manually
-        # PetscMalloc'ed context attached via MatShellSetContext
-
+        """
+        Each submatrix has a PetscMalloc'd context attached via MatShellSetContext
+        that PETSc's default MatDestroy won't free, so we register a custom destroy.
+        """
         objs = self.objs
 
         get_ctx = petsc_call(

@@ -11,10 +11,6 @@ from devito.types.basic import DataSymbol, LocalType
 from devito.petsc.iet.nodes import petsc_call
 
 
-# TODO: unnecessary use of "CALLBACK" types - just create a simple
-# way of destroying or not destroying a certain type
-
-
 class PetscMixin:
     def __init__(self, *args, destroy=True, **kwargs):
         super().__init__(*args, **kwargs)

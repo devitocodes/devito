@@ -137,32 +137,10 @@ def lower_petsc(iet, **kwargs):
 
     iet = Transformer(subs).visit(iet)
     body = core + tuple(setup) + iet.body.body + tuple(clear_options)
-    # from IPython import embed; embed()
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
-    # from IPython import embed; embed()
     metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
     return iet, metadata
-
-
-@iet_pass
-def strip_petsc_callback_halos(iet, **kwargs):
-    """
-    Remove any HaloSpot nodes that `mpiize` may have injected into PETSc
-    callback functions (FormFunction, SetPointBCs, FormRHS, etc.).
-
-    HaloSpots should only appear in the main kernel.
-    """
-    if not isinstance(iet, PETScCallable):
-        return iet, {}
-
-    halos = FindNodes(HaloSpot).visit(iet)
-    if not halos:
-        return iet, {}
-
-    # Replace each HaloSpot with its body (unwrap it)
-    mapper = {hs: hs.body for hs in halos}
-    return Transformer(mapper).visit(iet), {}
 
 
 def lower_petsc_symbols(iet, **kwargs):
@@ -185,6 +163,10 @@ def lower_petsc_symbols(iet, **kwargs):
 @iet_pass
 def linear_indices(iet, **kwargs):
     """
+    Convert multidimensional grid accesses in the callback `SetPointBCs` to flat
+    linear indices. DMDASetPointBC expects BC points as 1D offsets (e.g. i*ny + j),
+    so each u[x, y] access is linearised to its stride expression and written into
+    bcPointsArr.
     """
     if not iet.name.startswith("SetPointBCs"):
         return iet, {}
@@ -196,9 +178,7 @@ def linear_indices(iet, **kwargs):
 
     tracker = Tracker('basic', dtype, kwargs['sregistry'])
 
-    # TODO: CLEAN UP this is a hack
-    # Exclude SubDomainSet backing functions from linearization - in SETPOINTBCS
-    # I don't want to linearize the accesses to the SubDomainSet
+    # TODO: Rethink - bit of a hack to only linearise the relevant index accesses
     indexeds = [
         i for i in FindSymbols('indexeds').visit(iet)
         if not isinstance(i.function, LocalType)

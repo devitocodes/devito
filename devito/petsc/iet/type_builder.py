@@ -10,7 +10,7 @@ from devito.petsc.types import (
     PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct,
     PetscMPIInt, PetscErrorCode, PointerMat, MatReuse,
     DummyArg, NofSubMats, PetscSectionGlobal,
-    PetscSectionLocal, PetscSF, CallbackPetscInt, PointerPetscInt, SingleIS
+    PetscSectionLocal, PetscSF, CallbackPetscInt, PointerPetscInt
 )
 
 
@@ -223,8 +223,8 @@ class ConstrainedBCTypeBuilder(BaseTypeBuilder):
         base_dict[f'k_iter_{tname}'] = PostIncrementIndex(
             name='k_iter', initvalue=0
         )
-        base_dict['bcPointsIS'] = SingleIS(name='bcPointsIS')
-        base_dict['bcPoints'] = PointerIS(name='bcPoints')
+        base_dict['bcPointsIS'] = PointerIS(name='bcPointsIS', nindices=1)
+        base_dict['bcCompsIS'] = PointerIS(name='bcCompsIS', nindices=1)
         return base_dict
 
 

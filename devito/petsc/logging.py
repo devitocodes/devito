@@ -168,9 +168,9 @@ class PetscInfo(CompositeObject):
     def _C_typedecl(self):
         """
         Override generated C struct declaration so that KSPType fields
-        are emitted as ``char name[KSPTYPE_MAX_LEN]`` rather than ``KSPType name``
-        (i.e. ``const char *``).  This avoids a segfault when Python reads the
-        profiler struct after SNESDestroy has freed the KSP.
+        are emitted as `char name[KSPTYPE_MAX_LEN]` rather than `KSPType name`
+        (i.e. `const char *`).  This provides a buffer for PetscStrncpy to copy
+        the type string before SNESDestroy frees the KSP.
         """
         entries = []
         for field in self._fields:

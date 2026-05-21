@@ -128,7 +128,7 @@ class FieldData:
     initial_guess : InitialGuess
         Defines the initial guess for the solution, which satisfies
         essential boundary conditions.
-    constrain_bc : ConstrainBC
+    constrain_bc : dict[target, ConstrainBC] or None
         Defines the metadata for constraining essential boundary conditions i.e
         removing them from the global solve.
     arrays : dict
