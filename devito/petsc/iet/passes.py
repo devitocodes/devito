@@ -70,13 +70,12 @@ def lower_petsc(iet, **kwargs):
         )
     grid = unique_grids.pop()
 
-    # Protect PETSc solve targets from being dropped by `_drop_if_unwritten`.
     # `lower_petsc` runs before `mpiize`, replacing `PetscMetaData` (an
     # `Expression` subclass whose `.write` reveals the target function) with
     # `Call` nodes to run the PETSc solver.  Once that happens,
     # `_drop_if_unwritten` can no longer see the target as written and
     # incorrectly discards its `HaloSpot`. So we compose `dist-drop-unwritten`
-    # with a guard that always returns False for PETSc targets.
+    # with a guard that always returns False for `petsc_targets`.
     options = kwargs['options']
     petsc_targets = {n.write for n in data if n.write is not None}
     if petsc_targets:
@@ -164,9 +163,7 @@ def lower_petsc_symbols(iet, **kwargs):
 def linear_indices(iet, **kwargs):
     """
     Convert multidimensional grid accesses in the callback `SetPointBCs` to flat
-    linear indices. DMDASetPointBC expects BC points as 1D offsets (e.g. i*ny + j),
-    so each u[x, y] access is linearised to its stride expression and written into
-    bcPointsArr.
+    linear indices. DMDASetPointBC expects BC points as 1D offsets (e.g. i*ny + j).
     """
     if not iet.name.startswith("SetPointBCs"):
         return iet, {}

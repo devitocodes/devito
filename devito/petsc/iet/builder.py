@@ -252,12 +252,6 @@ class CoupledBuilder(BuilderBase):
 
         dmda_calls = self._create_dmda_calls(dmda)
 
-        mainctx = sobjs['userctx']
-
-        call_struct_callback = petsc_call(
-            self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
-        )
-
         # TODO: maybe don't need to explictly set this
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
 
@@ -331,7 +325,6 @@ class CoupledBuilder(BuilderBase):
             matvec_operation,
             formfunc_operation,
             snes_set_options,
-            call_struct_callback,
             mat_set_dm,
             create_field_decomp,
             matop_create_submats_op,
@@ -420,7 +413,6 @@ class ConstrainedBCBuilder(ConstrainedBCMixin, BuilderBase):
     pass
 
 
-# TODO: Implement this class properly
 class CoupledConstrainedBCBuilder(ConstrainedBCMixin, CoupledBuilder):
     pass
 

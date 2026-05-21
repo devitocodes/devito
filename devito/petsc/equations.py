@@ -19,6 +19,11 @@ def lower_exprs_petsc(expressions, **kwargs):
 
 def constrain_essential_bcs(expressions, **kwargs):
     """
+    Expand loop bounds for `ConstrainBC` expressions so that each MPI rank
+    iterates over all locally visible constrained points, including those in
+    the halo. PETSc requires each rank to report all constrained nodes in its
+    local data region. The loops are not used for data access — only to
+    identify which local indices are constrained.
     """
     constrain_expressions = [e for e in expressions if isinstance(e, ConstrainBC)]
     if not constrain_expressions:

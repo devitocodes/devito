@@ -697,7 +697,7 @@ class BaseCallbackBuilder:
 
     def _create_count_bc_body(self, body, pairs):
         """
-        Generic CountBCs body. `pairs` is a list of (numBCPtr, counter) tuples,
+        Build the `CountBCs` body. `pairs` is a list of (numBCPtr, counter) tuples,
         one per field. All fields are handled in a single callback body.
         """
         objs = self.objs
@@ -737,7 +737,7 @@ class BaseCallbackBuilder:
 
     def _create_set_point_bc_body(self, body, constrain_bc_dict):
         """
-        Generic SetPointBCs body, handles single- and multi-field.
+        Build the `SetPointBCs` body.
         """
         targets = list(constrain_bc_dict.keys())
         nfields = len(targets)
