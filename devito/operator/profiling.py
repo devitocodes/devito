@@ -19,13 +19,35 @@ from devito.parameters import configuration
 from devito.symbolics import subs_op_args
 from devito.tools import DefaultOrderedDict, flatten
 
-__all__ = ['create_profile']
+__all__ = ['NcuProfiling', 'create_profile']
 
 
 SectionData = namedtuple('SectionData', 'ops sops points traffic itermaps')
 PerfKey = namedtuple('PerfKey', 'name rank')
 PerfInput = namedtuple('PerfInput', 'time ops points traffic sops itershapes')
 PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershapes')
+
+
+class NcuProfiling(str):
+
+    """
+    String-like profiling mode carrying the Operator selected for NCU.
+
+    The string value is ``'ncu'`` so profiler construction can use this object
+    directly as a key into ``profiler_registry``. The selected Operator is kept
+    in ``operator_name``.
+    """
+
+    def __new__(cls, operator_name):
+        if not isinstance(operator_name, str) or not operator_name:
+            raise ValueError("Expected DEVITO_PROFILING=ncu:op_name")
+        if ',' in operator_name:
+            raise ValueError("NCU profiling supports one Operator at a time")
+
+        obj = str.__new__(cls, 'ncu')
+        obj.operator_name = operator_name
+
+        return obj
 
 
 class Profiler:
@@ -532,6 +554,7 @@ profiler_registry = {
     'advanced': AdvancedProfiler,
     'advanced1': AdvancedProfilerVerbose1,
     'advanced2': AdvancedProfilerVerbose2,
+    'ncu': AdvancedProfilerVerbose2,
     'advisor': AdvisorProfiler
 }
 """Profiling levels."""

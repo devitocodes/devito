@@ -42,7 +42,7 @@ from devito.arch import compiler_registry, platform_registry
 from devito.core import *   # noqa
 from devito.logger import logger_registry, _set_log_level  # noqa
 from devito.mpi.routines import mpi_registry
-from devito.operator import profiler_registry, operator_registry
+from devito.operator import NcuProfiling, profiler_registry, operator_registry
 
 # Apply monkey-patching while we wait for our patches to be upstreamed and released
 from devito.mpatches import *  # noqa
@@ -159,8 +159,17 @@ configuration.add('develop-mode', False, [False, True])
 configuration.add('opt', 'advanced', list(operator_registry._accepted), deprecate='dle')
 configuration.add('opt-options', {}, deprecate='dle-options')
 
+
 # Setup Operator profiling
-configuration.add('profiling', 'basic', list(profiler_registry), impacts_jit=False)
+def profiling_preprocessor(i):
+    if isinstance(i, dict):
+        return NcuProfiling(i['ncu'])
+
+    return i
+
+
+configuration.add('profiling', 'basic', list(profiler_registry),
+                  preprocessor=profiling_preprocessor, impacts_jit=False)
 
 # Initialize `configuration`
 init_configuration()

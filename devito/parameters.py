@@ -199,7 +199,14 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
             # Env variable format: 'var=k1:v1;k2:v2:k3:v3:...'
             keys, values = zip(*[i.split(':') for i in items], strict=True)
             # Casting
-            values = [eval(i) for i in values]
+            processed = []
+            for i in values:
+                try:
+                    processed.append(eval(i))
+                except (NameError, SyntaxError):
+                    # Allow unquoted strings as `k:v` values.
+                    processed.append(i)
+            values = processed
         except AttributeError:
             # Env variable format: 'var=v', 'v' is not a string
             keys = [v]

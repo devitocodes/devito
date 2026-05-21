@@ -21,8 +21,9 @@ from devito.tools import all_equal, as_tuple, memoized_func
 __all__ = [  # noqa: RUF022
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
     'get_nvidia_cc', 'get_cuda_path', 'get_cuda_version', 'get_hip_path',
-    'check_cuda_runtime', 'get_m1_llvm_path', 'get_advisor_path', 'Platform',
-    'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power', 'Device',
+    'check_cuda_runtime', 'load_cudart', 'get_m1_llvm_path', 'get_advisor_path',
+    'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
+    'Device',
     'NvidiaDevice', 'AmdDevice', 'IntelDevice',
     # Brand-agnostic
     'ANYCPU', 'ANYGPU',
@@ -646,13 +647,25 @@ def get_m1_llvm_path(language):
 
 
 @memoized_func
-def check_cuda_runtime():
+def load_cudart():
+    """
+    Load the CUDA runtime library.
+    """
     libname = ctypes.util.find_library("cudart")
     if not libname:
+        raise RuntimeError("Unable to find CUDA runtime library `libcudart`")
+
+    return ctypes.CDLL(libname)
+
+
+@memoized_func
+def check_cuda_runtime():
+    try:
+        cuda = load_cudart()
+    except RuntimeError:
         warning("Unable to check compatibility of NVidia driver and runtime")
         return
 
-    cuda = ctypes.CDLL(libname)
     driver_version = ctypes.c_int()
     runtime_version = ctypes.c_int()
 
@@ -1115,11 +1128,10 @@ class NvidiaDevice(Device):
         """
         Get the maximum amount of shared memory per thread block
         """
-        # Load libcudart
-        libname = ctypes.util.find_library("cudart")
-        if not libname:
+        try:
+            lib = load_cudart()
+        except RuntimeError:
             return 64 * 1024  # 64 KB default
-        lib = ctypes.CDLL(libname)
 
         cudaDevAttrMaxSharedMemoryPerBlockOptin = 97
         # get current device
