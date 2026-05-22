@@ -135,9 +135,7 @@ class CireTransformer:
                 continue
 
             # AliasList -> Schedule
-            schedule = lower_aliases(
-                aliases, meta, self.opt_maxpar, self.opt_fill_halo
-            )
+            schedule = lower_aliases(aliases, meta, self.opt_maxpar)
 
             variants.append(Variant(schedule, exprs))
 
@@ -158,7 +156,7 @@ class CireTransformer:
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(
             schedule, meta, self.sregistry, self.opt_ftemps, self.opt_min_dtype,
-            self.opt_minmem
+            self.opt_minmem, self.opt_fill_halo
         )
 
         # [Clusters]_k -> [Clusters]_k (optimization)
@@ -673,7 +671,7 @@ def collect(extracted, ispace, minstorage):
     return aliases
 
 
-def lower_aliases(aliases, meta, maxpar):
+def lower_aliases(aliases, meta, opt_maxpar):
     """
     Create a Schedule from an AliasList.
     """
@@ -703,7 +701,7 @@ def lower_aliases(aliases, meta, maxpar):
 
             if not (readfrom or
                     interval != interval.zero() or
-                    (maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
+                    (opt_maxpar and not meta.properties.is_sequential(i.dim))):
                 # The alias doesn't require a temporary Dimension along i.dim
                 intervals.append(i)
                 continue
@@ -885,7 +883,7 @@ def optimize_schedule_maxpar(schedule):
 
 
 def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
-                   opt_minmem):
+                   opt_minmem, opt_fill_halo):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -953,11 +951,6 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
                        shift=shift)
             expression = Eq(obj[indices], uxreplace(pivot, subs))
 
-            #TODO: writeto => read_from ?
-            #TODO: add read_from?
-            #TODO: if fill_halo, 
-            from IPython import embed; embed()  # noqa: F401
-
             callback = lambda idx: obj[  # noqa: B023
                 [i + s for i, s in zip(idx, shift, strict=True)]  # noqa: B023
             ]
@@ -977,6 +970,10 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             for aliased, indices in zip(aliaseds, indicess, strict=True)
         })
 
+        # If the user doesn't want us to populate the halo, we can spare iterations
+        if not opt_fill_halo:
+            ispace = ispace.zero(readfrom.itdims)
+
         properties = dict(meta.properties)
 
         # Drop or weaken parallelism if necessary
@@ -987,7 +984,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
                 elif d not in readfrom.itdims:
                     properties[d] = normalize_properties(v, {PARALLEL_IF_PVT})
             except KeyError:
-                # Non-dimension key such as (x, y) for diagonal stencil u(x+i hx, y+i hy)
+                # Non-dimension key such as `(x, y)` for diagonal stencils
                 pass
 
         # Track star-shaped stencils for potential future optimization
