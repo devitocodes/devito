@@ -30,8 +30,8 @@ def command_line():
     # Random prefixes to validate command line argument parsing
     prefix = (
         'd17weqroeg', 'riabfodkj5', 'fir8o3lsak',
-        'zwejklqn25', 'qtr2vfvwiu')
-
+        'zwejklqn25', 'qtr2vfvwiu'
+    )
     petsc_option = (
         ('ksp_rtol',),
         ('ksp_rtol', 'ksp_atol'),
@@ -52,6 +52,7 @@ def command_line():
         for o, v in zip(opt, val, strict=True):
             argv.extend([f'-{p}_{o}', str(v)])
         expected[p] = zip(opt, val)
+
     return argv, expected
 
 
@@ -226,9 +227,9 @@ def test_petsc_cast():
     eqn2 = Eq(f2.laplace, 10)
     eqn3 = Eq(f3.laplace, 10)
 
-    petsc1 = petscsolve(eqn1, f1)
-    petsc2 = petscsolve(eqn2, f2)
-    petsc3 = petscsolve(eqn3, f3)
+    petsc1 = petscsolve(eqn1, f1, options_prefix='cast1d')
+    petsc2 = petscsolve(eqn2, f2, options_prefix='cast2d')
+    petsc3 = petscsolve(eqn3, f3, options_prefix='cast3d')
 
     with switchconfig(language='petsc'):
         op1 = Operator(petsc1)
@@ -258,9 +259,9 @@ def test_dmda_create():
     eqn2 = Eq(f2.laplace, 10)
     eqn3 = Eq(f3.laplace, 10)
 
-    petsc1 = petscsolve(eqn1, f1)
-    petsc2 = petscsolve(eqn2, f2)
-    petsc3 = petscsolve(eqn3, f3)
+    petsc1 = petscsolve(eqn1, f1, options_prefix='dmda1d')
+    petsc2 = petscsolve(eqn2, f2, options_prefix='dmda2d')
+    petsc3 = petscsolve(eqn3, f3, options_prefix='dmda3d')
 
     with switchconfig(language='petsc'):
         op1 = Operator(petsc1, opt='noop')
@@ -917,7 +918,7 @@ class TestCoupledLinear:
         # TODO: As noted in the other test, some efuncs are not reused
         # where reuse is possible, investigate.
         assert len(callbacks1) == 12
-        assert len(callbacks2) == 8
+        assert len(callbacks2) == 9
 
         # Check field_data type
         field0 = petsc1.rhs.field_data
@@ -991,16 +992,25 @@ class TestCoupledLinear:
 
         frees = op.body.frees
 
+        n_submats = n_fields*n_fields
+        # Jacobian struct submats
+        for i in range(n_submats):
+            assert str(frees[i]) == f'PetscCall(MatDestroy(&jctx0.submats[{i}]));'
+        assert str(frees[n_submats]) == 'PetscCall(PetscFree(jctx0.submats));'
+
+        offset = n_submats + 1
+
         # IS Destroy calls
         for i in range(n_fields):
-            assert str(frees[i]) == f'PetscCall(ISDestroy(&fields0[{i}]));'
-        assert str(frees[n_fields]) == 'PetscCall(PetscFree(fields0));'
+            assert str(frees[offset + i]) == f'PetscCall(ISDestroy(&fields0[{i}]));'
+        assert str(frees[offset + n_fields]) == 'PetscCall(PetscFree(fields0));'
+
+        offset += n_fields + 1
 
         # DM Destroy calls
         for i in range(n_fields):
-            assert str(frees[n_fields + 1 + i]) == \
-                f'PetscCall(DMDestroy(&subdms0[{i}]));'
-        assert str(frees[n_fields*2 + 1]) == 'PetscCall(PetscFree(subdms0));'
+            assert str(frees[offset + i]) == f'PetscCall(DMDestroy(&subdms0[{i}]));'
+        assert str(frees[offset + n_fields]) == 'PetscCall(PetscFree(subdms0));'
 
     @skipif('petsc')
     def test_dmda_dofs(self):
@@ -1182,7 +1192,7 @@ class TestCoupledLinear:
         ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
          'h_x*(5.0 - 2.5/h_x**2)'),
         ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '2',
-         'h_x*(1 + 1/h_x - 2.0/h_x**2)'),
+         'h_x*(1 - 1/h_x - 2.0/h_x**2)'),
         ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '4',
          'h_x*(1 - 2.5/h_x**2)'),
         ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
@@ -1232,7 +1242,7 @@ class TestCoupledLinear:
         ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
          'h_x*h_y*(5.0 - 2.5/h_y**2 - 2.5/h_x**2)'),
         ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
-         '2', 'h_x*h_y*(1 + 1/h_y - 2.0/h_y**2 + 1/h_x - 2.0/h_x**2)'),
+         '2', 'h_x*h_y*(1 - 1/h_y - 2.0/h_y**2 - 1/h_x - 2.0/h_x**2)'),
         ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
          '4', 'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
         ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
@@ -1283,7 +1293,7 @@ class TestCoupledLinear:
          'h_x*h_y*h_z*(5.0 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
         ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
          'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '2',
-         'h_x*h_y*h_z*(1 + 1/h_z - 2.0/h_z**2 + 1/h_y - 2.0/h_y**2 + ' +
+         'h_x*h_y*h_z*(1 - 1/h_z - 2.0/h_z**2 - 1/h_y - 2.0/h_y**2 - ' +
          '1/h_x - 2.0/h_x**2)'),
         ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
          'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '4',
@@ -1443,7 +1453,7 @@ class TestCoupledLinear:
             '+ r1*a0[ix + 2][iy + 3]))*o0->h_x*o0->h_y;' in str(J00)
 
         # J00 and J11 are semantically identical so check efunc reuse
-        assert len(op._func_table.values()) == 9
+        assert len(op._func_table.values()) == 10
         # J00_MatMult0 is reused (in replace of J11_MatMult0)
         create = op._func_table['MatCreateSubMatrices0'].root
         assert 'MatShellSetOperation(submat_arr[0],' \
@@ -1469,10 +1479,6 @@ class TestMPI:
     def test_laplacian_1d(self, nx, unorm, mode):
         """
         """
-        configuration['compiler'] = 'custom'
-        os.environ['CC'] = 'mpicc'
-        PetscInitialize()
-
         class SubSide(SubDomain):
             def __init__(self, side='left', grid=None):
                 self.side = side
@@ -1687,7 +1693,8 @@ class TestSolverParameters:
         self.eq2 = Eq(self.g.laplace, self.h)
 
     @skipif('petsc')
-    def test_different_solver_params(self):
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_different_solver_params(self, mode):
         # Explicitly set the solver parameters
         solver1 = petscsolve(
             self.eq1, target=self.e, solver_parameters={'ksp_rtol': '1e-10'}
@@ -1708,7 +1715,8 @@ class TestSolverParameters:
             in str(op._func_table['SetPetscOptions1'].root)
 
     @skipif('petsc')
-    def test_options_prefix(self):
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_options_prefix(self, mode):
         solver1 = petscsolve(self.eq1, self.e,
                              solver_parameters={'ksp_rtol': '1e-10'},
                              options_prefix='poisson1')
@@ -1731,7 +1739,8 @@ class TestSolverParameters:
             in str(op._func_table['SetPetscOptions1'].root)
 
     @skipif('petsc')
-    def test_options_no_value(self):
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_options_no_value(self, mode):
         """
         Test solver parameters that do not require a value, such as
         `snes_view` and `ksp_view`.
@@ -2188,6 +2197,30 @@ class TestGetInfo:
         assert entry2['KSPGetType'] == 'cg'
         assert entry2['kspgettype'] == 'cg'
 
+    @skipif('petsc')
+    def test_get_ksp_type_large_grid(self):
+        """
+        Test for no segfault when reading KSPGetType after op.apply().
+        """
+        get_info = ['kspgettype']
+        grid = Grid(shape=(257, 257), dtype=np.float64)
+        e = Function(name='e', grid=grid, space_order=2)
+        f = Function(name='f', grid=grid, space_order=2)
+        eq = Eq(e.laplace, f)
+
+        solver = petscsolve(
+            eq, target=e,
+            solver_parameters={'ksp_type': 'cg'},
+            options_prefix='test_ksp_type',
+            get_info=get_info
+        )
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+            summary = op.apply()
+
+        entry = summary.petsc.get_entry('section0', 'test_ksp_type')
+        assert entry.KSPGetType == 'cg'
+
 
 class TestPrinter:
 
@@ -2208,3 +2241,704 @@ class TestPrinter:
 
         assert 'PETSC_PI' in str(op.ccode)
         assert 'M_PI' not in str(op.ccode)
+
+
+class TestPetscSection:
+    """
+    These tests validate the use of `PetscSection` (from PETSc) to constrain essential
+    boundary nodes by removing them from the linear solver, rather than keeping them in
+    the system as trivial equations.
+
+    Users specify essential boundary conditions via the `EssentialBC` equation,
+    with a specifed `SubDomain`. When `constrain_bcs=True` is passed to `petscsolve`,
+    the Devito compiler generates code that removes these degrees of freedom from
+    the linear system. A PETSc requirement is that each MPI rank identifies ALL
+    constrained nodes within its local data region, including non-owned (halo) nodes.
+
+    To achieve this, the compiler creates new `EssentialBC`-like equations with
+    modified (sub)dimensions (to extend the loop bounds), which are used in two
+    callback functions to constrain the nodes. No non-owned (halo) data is indexed
+    into - the loops are only used to specify the constrained "local" indices
+    on each rank.
+
+    Tests in this class use the following notation:
+    - `x`   : a grid point
+    - `[]`  : the `SubDomain` specified by the `EssentialBC` (the constrained region)
+    - `|`   : an MPI rank boundary
+    """
+    # first test that the loop generated is correct symbolically..
+
+    # TODO: loop bound modification only needs to happen for subdomain 'middle' type
+    # so ensure this happens - by construction left and right subdomains do not
+    # cross ranks
+
+    def _get_loop_bounds(self, shape, so, subdomain):
+        grid = Grid(
+            shape=shape,
+            subdomains=(subdomain,),
+            dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
+        bc = Function(name='bc', grid=grid, space_order=so)
+
+        # Normally the `EssentialBC` subdomain would not overlap with the main equation's
+        # subdomain but `grid.interior` is reused for simplicity here
+        eq = Eq(u, v, subdomain=grid.interior)
+        bc = EssentialBC(u, bc, subdomain=subdomain)
+
+        solver = petscsolve([eq, bc], u, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+
+        args = op.arguments()
+        rank = grid.distributor.myrank
+
+        bounds = []
+        for _, dim in enumerate(grid.dimensions):
+            lb = max(args[f'i{dim.name}_min0'], args[f'{dim.name}_m'] - so)
+            ub = min(args[f'i{dim.name}_max0'], args[f'{dim.name}_M'] + so)
+            bounds.append((lb, ub))
+
+        return rank, tuple(bounds)
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_constrain_indices_1d_left_halo2(self, mode):
+        """halo_size=2, n=24, constrain left side of grid"""
+
+        # 1 rank:
+        #                        0
+        # [x x x x x x x x x x x x x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 19)}
+
+        # 2 ranks:
+        #            0                       1
+        # [x x x x x x x x x x x x|x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 13), 1: (-2, 7)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # [x x x x x x|x x x x x x|x x x x x x|x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 7), 1: (-2, 7), 2: (-2, 7), 3: (-2, 1)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # [x x x x|x x x x|x x x x|x x x x|x x x x]|x x x x
+        # Expected bounds per rank:
+        # {0: (0, 5), 1: (-2, 5), 2: (-2, 5), 3: (-2, 5), 4: (-2, 3), 5: (-2, -1)}
+
+        # 8 ranks:
+        #    0     1     2     3     4     5     6      7
+        # [x x x|x x x|x x x|x x x|x x x|x x x|x x] x|x x x
+        # Expected bounds per rank:
+        # {0: (0, 4), 1: (-2, 4), 2: (-2, 4), 3: (-2, 4), 4: (-2, 4),
+        #  5: (-2, 4), 6: (-2, 1), 7: (-2, -2)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (0, 19),
+            },
+            2: {
+                0: (0, 13),
+                1: (-2, 7),
+            },
+            4: {
+                0: (0, 7),
+                1: (-2, 7),
+                2: (-2, 7),
+                3: (-2, 1),
+            },
+            6: {
+                0: (0, 5),
+                1: (-2, 5),
+                2: (-2, 5),
+                3: (-2, 5),
+                4: (-2, 3),
+                5: (-2, -1)
+            },
+            8: {
+                0: (0, 4),
+                1: (-2, 4),
+                2: (-2, 4),
+                3: (-2, 4),
+                4: (-2, 4),
+                5: (-2, 4),
+                6: (-2, 1),
+                7: (-2, -2)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_indices_1d_left_halo4(self, mode):
+        """halo_size=4, n=24, constrain left side of grid"""
+
+        # 1 rank:
+        #                        0
+        # [x x x x x x x x x x x x x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 19)}
+
+        # 2 ranks:
+        #            0                       1
+        # [x x x x x x x x x x x x|x x x x x x x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 15), 1: (-4, 7)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # [x x x x x x|x x x x x x|x x x x x x|x x] x x x x
+        # Expected bounds per rank:
+        # {0: (0, 9), 1: (-4, 9), 2: (-4, 7), 3: (-4, 1)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # [x x x x|x x x x|x x x x|x x x x|x x x x]|x x x x
+        # Expected bounds per rank:
+        # {0: (0, 7), 1: (-4, 7), 2: (-4, 7), 3: (-4, 7), 4: (-4, 3), 5: (-4, -1)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+        sub = Middle()
+
+        n = 24
+        so = 4
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (0, 19),
+            },
+            2: {
+                0: (0, 15),
+                1: (-4, 7),
+            },
+            4: {
+                0: (0, 9),
+                1: (-4, 9),
+                2: (-4, 7),
+                3: (-4, 1),
+            },
+            6: {
+                0: (0, 7),
+                1: (-4, 7),
+                2: (-4, 7),
+                3: (-4, 7),
+                4: (-4, 3),
+                5: (-4, -1)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_constrain_indices_1d_right_halo2(self, mode):
+        """halo_size=2, n=24, constrain right side of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x [x x x x x x x x x x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 23)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x [x x x x x x x x x|x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 13), 1: (-2, 11)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x [x x x|x x x x x x|x x x x x x|x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 7), 1: (-2, 7), 2: (-2, 7), 3: (-2, 5)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x [x|x x x x|x x x x|x x x x|x x x x|x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 5), 1: (-1, 5), 2: (-2, 5), 3: (-2, 5), 4: (-2, 5), 5: (-2, 3)}
+
+        # 8 ranks:
+        #    0     1     2     3     4     5     6      7
+        # x x x[|x x x|x x x|x x x|x x x|x x x|x x x|x x x]
+        # Expected bounds per rank:
+        # {0: (3, 4), 1: (0, 4), 2: (-2, 4), 3: (-2, 4), 4: (-2, 4),
+        #  5: (-2, 4), 6: (-2, 4), 7: (-2, 2)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 3, 0)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (3, 23),
+            },
+            2: {
+                0: (3, 13),
+                1: (-2, 11),
+            },
+            4: {
+                0: (3, 7),
+                1: (-2, 7),
+                2: (-2, 7),
+                3: (-2, 5),
+            },
+            6: {
+                0: (3, 5),
+                1: (-1, 5),
+                2: (-2, 5),
+                3: (-2, 5),
+                4: (-2, 5),
+                5: (-2, 3)
+            },
+            8: {
+                0: (3, 4),
+                1: (0, 4),
+                2: (-2, 4),
+                3: (-2, 4),
+                4: (-2, 4),
+                5: (-2, 4),
+                6: (-2, 4),
+                7: (-2, 2)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_indices_1d_right_halo4(self, mode):
+        """halo_size=4, n=24, constrain right side of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x [x x x x x x x x x x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 23)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x [x x x x x x x x x|x x x x x x x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 15), 1: (-4, 11)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x [x x x|x x x x x x|x x x x x x|x x x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 9), 1: (-3, 9), 2: (-4, 9), 3: (-4, 5)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x [x|x x x x|x x x x|x x x x|x x x x|x x x x]
+        # Expected bounds per rank:
+        # {0: (3, 7), 1: (-1, 7), 2: (-4, 7), 3: (-4, 7), 4: (-4, 7), 5: (-4, 3)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 3, 0)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (3, 23),
+            },
+            2: {
+                0: (3, 13),
+                1: (-2, 11),
+            },
+            4: {
+                0: (3, 7),
+                1: (-2, 7),
+                2: (-2, 7),
+                3: (-2, 5),
+            },
+            6: {
+                0: (3, 5),
+                1: (-1, 5),
+                2: (-2, 5),
+                3: (-2, 5),
+                4: (-2, 5),
+                5: (-2, 3)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6, 8])
+    def test_constrain_indices_1d_middle_halo2(self, mode):
+        """halo_size=2, n=24, constrain middle of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x x x x x x [x x x x x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 18)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x x x x x x [x x x x|x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 13), 1: (-2, 6)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x x x x|x x [x x x x|x x x x x x|x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 7), 1: (2, 7), 2: (-2, 6), 3: (-2, 0)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x x|x x x x[|x x x x|x x x x|x x x] x|x x x x
+        # Expected bounds per rank:
+        # {0: (8, 5), 1: (4, 5), 2: (0, 5), 3: (-2, 5), 4: (-2, 2), 5: (-2, -2)}
+
+        # 8 ranks:
+        #   0     1     2      3     4     5     6      7
+        # x x x|x x x|x x [x|x x x|x x x|x x x|x] x x|x x x
+        # Expected bounds per rank:
+        # {0: (8, 4), 1: (5, 4), 2: (2, 4), 3: (-1, 4), 4: (-2, 4),
+        #  5: (-2, 3), 6: (-2, 0), 7: (-2, -3)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 8, 5)}
+
+        sub = Middle()
+
+        n = 24
+        so = 2
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (8, 18),
+            },
+            2: {
+                0: (8, 13),
+                1: (-2, 6),
+            },
+            4: {
+                0: (8, 7),
+                1: (2, 7),
+                2: (-2, 6),
+                3: (-2, 0),
+            },
+            6: {
+                0: (8, 5),
+                1: (4, 5),
+                2: (0, 5),
+                3: (-2, 5),
+                4: (-2, 2),
+                5: (-2, -2)
+            },
+            8: {
+                0: (8, 4),
+                1: (5, 4),
+                2: (2, 4),
+                3: (-1, 4),
+                4: (-2, 4),
+                5: (-2, 3),
+                6: (-2, 0),
+                7: (-2, -3)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_indices_1d_middle_halo4(self, mode):
+        """halo_size=4, n=24, constrain middle of grid"""
+
+        # 1 rank:
+        #                        0
+        # x x x x x x x x [x x x x x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 18)}
+
+        # 2 ranks:
+        #            0                       1
+        # x x x x x x x x [x x x x|x x x x x x x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 15), 1: (-4, 6)}
+
+        # 4 ranks:
+        #       0           1           2            3
+        # x x x x x x|x x [x x x x|x x x x x x|x] x x x x x
+        # Expected bounds per rank:
+        # {0: (8, 9), 1: (2, 9), 2: (-4, 6), 3: (-4, 0)}
+
+        # 6 ranks:
+        #     0       1       2       3       4        5
+        # x x x x|x x x x[|x x x x|x x x x|x x x] x|x x x x
+        # Expected bounds per rank:
+        # {0: (8, 7), 1: (4, 7), 2: (0, 7), 3: (-4, 6), 4: (-4, 2), 5: (-4, -2)}
+
+        class Middle(SubDomain):
+            name = 'submiddle'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 8, 5)}
+
+        sub = Middle()
+
+        n = 24
+        so = 4
+
+        rank, bounds = self._get_loop_bounds(
+            shape=(n,),
+            so=so,
+            subdomain=sub
+        )
+        actual = bounds[0]
+
+        expected = {
+            1: {
+                0: (8, 18),
+            },
+            2: {
+                0: (8, 15),
+                1: (-4, 6),
+            },
+            4: {
+                0: (8, 9),
+                1: (2, 9),
+                2: (-4, 6),
+                3: (-4, 0),
+            },
+            6: {
+                0: (8, 7),
+                1: (4, 7),
+                2: (0, 7),
+                3: (-4, 6),
+                4: (-4, 2),
+                5: (-4, -2)
+            }
+        }[mode]
+
+        assert actual == expected[rank], \
+            f"rank {rank}: expected {expected[rank]}, got {actual}"
+
+    # TODO: add 2d and 3d tests
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_op_apply_1d(self, mode):
+
+        nx = 24
+        so = 2
+        shape = (nx,)
+
+        class Left(SubDomain):
+            name = 'subleft'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 0, 4)}
+
+        class Right(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('middle', 20, 0)}
+
+        left = Left()
+        right = Right()
+
+        grid = Grid(
+            shape=shape,
+            subdomains=(left, right),
+            dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
+        bc = Function(name='bc', grid=grid, space_order=so)
+
+        eq = Eq(u, v, subdomain=left)
+        bc = EssentialBC(u, bc, subdomain=right)
+
+        solver = petscsolve([eq, bc], u, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op = Operator(solver)
+            op.apply()
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[1, 2, 4, 6])
+    def test_constrain_op_apply_2d(self, mode):
+
+        nx = 24
+        ny = 24
+        so = 2
+        shape = (nx, ny)
+
+        class SubTop(SubDomain):
+            name = 'subtop'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('right', 1)}
+        sub1 = SubTop()
+
+        class SubBottom(SubDomain):
+            name = 'subbottom'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('left', 1)}
+        sub2 = SubBottom()
+
+        class SubLeft(SubDomain):
+            name = 'subleft'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 1), y: ('middle', 1, 1)}
+        sub3 = SubLeft()
+
+        class SubRight(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('right', 1), y: ('middle', 1, 1)}
+        sub4 = SubRight()
+
+        grid = Grid(
+            shape=shape,
+            subdomains=(sub1, sub2, sub3, sub4),
+            dtype=np.float64
+        )
+
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
+        bc = Function(name='bc', grid=grid, space_order=so)
+
+        eq = Eq(u, v, subdomain=grid.interior)
+
+        bc_u_top1 = EssentialBC(u, bc, subdomain=sub1)
+        bc_u_bottom1 = EssentialBC(u, bc, subdomain=sub2)
+        bc_u_left1 = EssentialBC(u, bc, subdomain=sub3)
+        bc_u_right1 = EssentialBC(u, bc, subdomain=sub4)
+
+        # Test constraining all 4 BCs
+        solver1 = petscsolve(
+            [eq, bc_u_top1, bc_u_bottom1, bc_u_left1, bc_u_right1], u, constrain_bcs=True
+        )
+
+        bc_u_left2 = EssentialBC(u, bc, subdomain=sub3, constrain=True)
+        bc_u_right2 = EssentialBC(u, bc, subdomain=sub4, constrain=True)
+
+        # Test constraining only a subset (2 BCs), leaving the other 2
+        # as trivial equations
+        solver2 = petscsolve([eq, bc_u_top1, bc_u_bottom1, bc_u_left2, bc_u_right2], u)
+
+        # Test PetscSection for multi-field solver
+        f = Function(name='f', grid=grid, space_order=2)
+        eqn_v = Eq(-v.laplace, f, subdomain=grid.interior)
+        eqn_u = Eq(-u.laplace, v, subdomain=grid.interior)
+
+        bc_v = [EssentialBC(v, 0., subdomain=sub1)]
+        bc_v += [EssentialBC(v, 0., subdomain=sub2)]
+        bc_v += [EssentialBC(v, 0., subdomain=sub3)]
+        bc_v += [EssentialBC(v, 0., subdomain=sub4)]
+
+        v_eqns = [eqn_v] + bc_v
+        u_eqns = [eqn_u] + [bc_u_top1, bc_u_bottom1, bc_u_left1, bc_u_right1]
+        solver3 = petscsolve({v: v_eqns, u: u_eqns}, constrain_bcs=True)
+
+        with switchconfig(language='petsc'):
+            op1 = Operator(solver1)
+            op2 = Operator(solver2)
+            op3 = Operator(solver3)
+            op1.apply()
+            op2.apply()
+            op3.apply()

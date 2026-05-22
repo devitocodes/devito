@@ -5,25 +5,34 @@ from functools import cached_property
 from devito.passes.iet.engine import iet_pass
 from devito.ir.iet import (
     Transformer, MapNodes, Iteration, CallableBody, List, Call, FindNodes, Section,
-    FindSymbols, DummyExpr, Uxreplace, Dereference
+    FindSymbols, DummyExpr, Uxreplace, Dereference, HaloSpot
 )
 from devito.symbolics import Byref, Macro, Null, FieldFromPointer
-from devito.types.basic import DataSymbol
+from devito.types.basic import DataSymbol, LocalType
+from devito.types.dimension import DefaultDimension
+from devito.types.misc import FIndexed
 import devito.logger
+from devito.passes.iet.linearization import linearize_accesses, Tracker
 
 from devito.petsc.types import (
     MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct,
     CallbackUserStruct
 )
 from devito.petsc.types.macros import petsc_func_begin_user
-from devito.petsc.iet.nodes import PetscMetaData, petsc_call
+from devito.petsc.iet.nodes import PetscMetaData, petsc_call, PETScCallable
 from devito.petsc.config import core_metadata, petsc_languages
 from devito.petsc.iet.callbacks import (
     BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context,
     get_user_struct_fields
 )
-from devito.petsc.iet.type_builder import BaseTypeBuilder, CoupledTypeBuilder, objs
-from devito.petsc.iet.builder import BuilderBase, CoupledBuilder, make_core_petsc_calls
+from devito.petsc.iet.type_builder import (
+    BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder,
+    CoupledConstrainedBCTypeBuilder, objs
+)
+from devito.petsc.iet.builder import (
+    BuilderBase, CoupledBuilder, ConstrainedBCBuilder, CoupledConstrainedBCBuilder,
+    make_core_petsc_calls
+)
 from devito.petsc.iet.solve import Solve, CoupledSolve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.logging import PetscLogger
@@ -60,7 +69,19 @@ def lower_petsc(iet, **kwargs):
             "but multiple `Grid`s were found."
         )
     grid = unique_grids.pop()
-    devito_mpi = kwargs['options'].get('mpi', False)
+
+    # `lower_petsc` runs before `mpiize`, replacing `PetscMetaData` (an
+    # `Expression` subclass whose `.write` reveals the target function) with
+    # `Call` nodes to run the PETSc solver.  Once that happens,
+    # `_drop_if_unwritten` can no longer see the target as written and
+    # incorrectly discards its `HaloSpot`. So we compose `dist-drop-unwritten`
+    # with a guard that always returns False for `petsc_targets`.
+    options = kwargs['options']
+    petsc_targets = {n.write for n in data if n.write is not None}
+    if petsc_targets:
+        options['dist-drop-unwritten'] = lambda f: f not in petsc_targets
+
+    devito_mpi = options.get('mpi', False)
     comm = grid.distributor._obj_comm if devito_mpi else 'PETSC_COMM_WORLD'
 
     # Create core PETSc calls (not specific to each `petscsolve`)
@@ -70,7 +91,7 @@ def lower_petsc(iet, **kwargs):
     subs = {}
     efuncs = {}
 
-    # Map each `PetscMetaData`` to its Section (for logging)
+    # Map each `PetscMetaData` to its Section (for logging)
     section_mapper = MapNodes(Section, PetscMetaData, 'groupby').visit(iet)
 
     # Prefixes within the same `Operator` should not be duplicated
@@ -104,6 +125,15 @@ def lower_petsc(iet, **kwargs):
         ),))
 
     populate_matrix_context(efuncs)
+
+    # Strip HaloSpots from PETSc callback efuncs before returning them.
+    for name, efunc in list(efuncs.items()):
+        if isinstance(efunc, PETScCallable):
+            halos = FindNodes(HaloSpot).visit(efunc)
+            if halos:
+                mapper = {hs: hs.body for hs in halos}
+                efuncs[name] = Transformer(mapper).visit(efunc)
+
     iet = Transformer(subs).visit(iet)
     body = core + tuple(setup) + iet.body.body + tuple(clear_options)
     body = iet.body._rebuild(body=body)
@@ -125,6 +155,52 @@ def lower_petsc_symbols(iet, **kwargs):
     rebuild_child_user_struct(iet, mapper=callback_struct_mapper)
     # Rebuild `MainUserStruct` and update iet accordingly
     rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
+
+    linear_indices(iet, **kwargs)
+
+
+@iet_pass
+def linear_indices(iet, **kwargs):
+    """
+    Convert multidimensional grid accesses in the callback `SetPointBCs` to flat
+    linear indices. DMDASetPointBC expects BC points as 1D offsets (e.g. i*ny + j).
+    """
+    if not iet.name.startswith("SetPointBCs"):
+        return iet, {}
+
+    if kwargs['options']['index-mode'] == 'int32':
+        dtype = np.int32
+    else:
+        dtype = np.int64
+
+    tracker = Tracker('basic', dtype, kwargs['sregistry'])
+
+    # TODO: Rethink - bit of a hack to only linearise the relevant index accesses
+    indexeds = [
+        i for i in FindSymbols('indexeds').visit(iet)
+        if not isinstance(i.function, LocalType)
+        and not any(isinstance(d, DefaultDimension) for d in i.function.dimensions)
+    ]
+    candidates = {i.function.name for i in indexeds}
+    key = lambda f: f.name in candidates
+
+    iet = linearize_accesses(iet, key0=key, tracker=tracker)
+
+    indexeds = [
+        i for i in FindSymbols('indexeds').visit(iet)
+        if i.function.name in candidates
+    ]
+    mapper_findexeds = {i: linear_index(i) for i in indexeds}
+
+    return Uxreplace(mapper_findexeds).visit(iet), {}
+
+
+def linear_index(i):
+    if isinstance(i, FIndexed):
+        return i.linear_index
+    # 1D case
+    assert len(i.indices) == 1
+    return i.indices[0]
 
 
 @iet_pass
@@ -248,6 +324,7 @@ class BuildSolver:
         self.get_info = inject_solve.expr.rhs.get_info
         self.kwargs = kwargs
         self.coupled = isinstance(inject_solve.expr.rhs.field_data, MultipleFieldData)
+        self.constrain_bc = inject_solve.expr.rhs.field_data.constrain_bc
         self.common_kwargs = {
             'inject_solve': self.inject_solve,
             'objs': self.objs,
@@ -263,11 +340,14 @@ class BuildSolver:
 
     @cached_property
     def type_builder(self):
-        return (
-            CoupledTypeBuilder(**self.common_kwargs)
-            if self.coupled else
-            BaseTypeBuilder(**self.common_kwargs)
-        )
+        if self.coupled and self.constrain_bc:
+            return CoupledConstrainedBCTypeBuilder(**self.common_kwargs)
+        elif self.coupled:
+            return CoupledTypeBuilder(**self.common_kwargs)
+        elif self.constrain_bc:
+            return ConstrainedBCTypeBuilder(**self.common_kwargs)
+        else:
+            return BaseTypeBuilder(**self.common_kwargs)
 
     @cached_property
     def time_dependence(self):
@@ -282,8 +362,14 @@ class BuildSolver:
 
     @cached_property
     def builder(self):
-        return CoupledBuilder(**self.common_kwargs) \
-            if self.coupled else BuilderBase(**self.common_kwargs)
+        if self.coupled and self.constrain_bc:
+            return CoupledConstrainedBCBuilder(**self.common_kwargs)
+        elif self.coupled:
+            return CoupledBuilder(**self.common_kwargs)
+        elif self.constrain_bc:
+            return ConstrainedBCBuilder(**self.common_kwargs)
+        else:
+            return BuilderBase(**self.common_kwargs)
 
     @cached_property
     def solve(self):

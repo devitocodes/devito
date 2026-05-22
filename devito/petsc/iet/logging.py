@@ -6,7 +6,8 @@ from devito.logger import PERF
 from devito.tools import frozendict
 
 from devito.petsc.iet.nodes import petsc_call
-from devito.petsc.logging import petsc_return_variable_dict, PetscInfo
+from devito.petsc.logging import petsc_return_variable_dict, PetscInfo, KSPTYPE_MAX_LEN
+from devito.petsc.types import KSPType
 
 
 class PetscLogger:
@@ -93,10 +94,19 @@ class PetscLogger:
                 petsc_call(return_variable.name, [input] + by_ref_output)
             )
             # TODO: Perform a PetscCIntCast here?
-            exprs = [
-                DummyExpr(FieldFromPointer(i._C_symbol, struct), i._C_symbol)
-                for i in output_params
-            ]
-            calls.extend(exprs)
+            for i in output_params:
+                if isinstance(i, KSPType):
+                    # Copy string otherwise it is invalid after SNESDestroy
+                    calls.append(
+                        petsc_call('PetscStrncpy', [
+                            FieldFromPointer(i._C_symbol, struct),
+                            i._C_symbol,
+                            KSPTYPE_MAX_LEN
+                        ])
+                    )
+                else:
+                    calls.append(
+                        DummyExpr(FieldFromPointer(i._C_symbol, struct), i._C_symbol)
+                    )
 
         return tuple(calls)

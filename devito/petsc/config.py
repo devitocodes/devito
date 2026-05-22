@@ -44,12 +44,17 @@ def core_metadata():
     petsc_lib = tuple([arch / 'lib' for arch in petsc_dir])
 
     return {
-        'includes': ('petscsnes.h', 'petscdmda.h'),
+        # TODO: Only add petscsection header when needed
+        'includes': ('petscsnes.h', 'petscdmda.h', 'petscsection.h'),
         'include_dirs': petsc_include,
         'libs': ('petsc'),
         'lib_dirs': petsc_lib,
         'ldflags': tuple([f"-Wl,-rpath,{lib}" for lib in petsc_lib])
     }
+
+
+# Maximum number of bytes for a KSPType string in the profiler struct.
+KSPTYPE_MAX_LEN = 64
 
 
 def get_petsc_type_mappings():
@@ -73,7 +78,8 @@ def get_petsc_type_mappings():
         petsc_type_to_ctype = {v: k for k, v in printer_mapper.items()}
         # Add other PETSc types
         petsc_type_to_ctype.update({
-            'KSPType': ctypes.c_char_p,
+            # Store a copy so it doens't segfault after SNESDestroy
+            'KSPType': ctypes.c_char * KSPTYPE_MAX_LEN,
             'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
             'KSPNormType': petsc_type_to_ctype['PetscInt'],
         })

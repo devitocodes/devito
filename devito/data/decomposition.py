@@ -450,6 +450,39 @@ class Decomposition(tuple):
         else:
             raise TypeError("Expected 1 arguments, found %d" % len(args))
 
+    def index_glb_to_loc_unsafe(self, glb_idx, rel=True):
+        """
+        Convert a global index to a local index even if not owned.
+        WARNING: Must not be used to index data as there are no guard
+        rails against returning out of bound indices.
+        """
+        if not self.loc_empty:
+            loc_abs_min = self.loc_abs_min - self.glb_min
+            loc_abs_max = self.loc_abs_max - self.glb_min
+            glb_max = self.glb_max - self.glb_min
+        else:
+            loc_abs_min = self.loc_abs_min
+            loc_abs_max = self.loc_abs_max
+            glb_max = self.glb_max
+
+        glb_min = 0
+
+        base = loc_abs_min if rel else 0
+
+        # index_glb_to_loc(index)
+        # -> Base case, empty local subdomain
+        if self.loc_empty:
+            return None
+        # -> Handle negative index
+        if glb_idx < 0:
+            glb_idx = glb_max + glb_idx + 1
+        # -> Do the actual conversion
+        if loc_abs_min <= glb_idx <= loc_abs_max or glb_min <= glb_idx <= glb_max:
+            return glb_idx - base
+        else:
+            # This should raise an exception when used to access a numpy.array
+            return glb_idx
+
     def reshape(self, *args):
         """
         Create a new Decomposition with extended or reduced boundary subdomains.

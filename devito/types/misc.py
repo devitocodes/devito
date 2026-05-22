@@ -150,10 +150,29 @@ class FIndexed(Indexed, Pickable):
 
         return ((define, expr), findexed)
 
-    func = Pickable._rebuild
+    @property
+    def linear_index(self):
+        """
+        The flat 1D index expression for this FIndexed.
+        """
+        f = self.function
+        strides_map = self.strides_map
+        spatial = [(d, idx) for d, idx in zip(f.dimensions, self.indices)
+                   if not d.is_Time]
+        items = [idx * strides_map[spatial[i + 1][0]]
+                 for i, (_, idx) in enumerate(spatial[:-1])]
+        items.append(spatial[-1][1])
+        return sympy.Add(*items, evaluate=False)
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
+
+
+class PostIncrementIndex(LocalObject):
+    """
+    A symbol representing a C post-increment counter (`i++`).
+    """
+    dtype = np.int32
 
 
 class Global(Symbol):

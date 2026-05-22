@@ -1,12 +1,11 @@
 from devito.types.equation import PetscEq
 from devito.tools import filter_ordered, as_tuple
-from devito.types import Symbol, SteppingDimension, TimeDimension
-from devito.operations.solve import eval_time_derivatives
+from devito.types import Symbol, SteppingDimension, TimeDimension, Border, Constant
 from devito.symbolics import retrieve_functions, retrieve_dimensions
 
 from devito.petsc.types import (
     LinearSolverMetaData, PETScArray, DMDALocalInfo, FieldData, MultipleFieldData,
-    Jacobian, Residual, MixedResidual, MixedJacobian, InitialGuess
+    Jacobian, Residual, MixedResidual, MixedJacobian, InitialGuess, ConstrainBC
 )
 from devito.petsc.types.equation import EssentialBC
 from devito.petsc.solver_parameters import (
@@ -18,7 +17,7 @@ __all__ = ['petscsolve']
 
 
 def petscsolve(target_exprs, target=None, solver_parameters=None,
-               options_prefix=None, get_info=[]):
+               options_prefix=None, get_info=[], constrain_bcs=False):
     """
     Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
@@ -78,6 +77,14 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
         - ['kspgetiterationnumber', 'kspgettolerances', 'kspgetconvergedreason',
            'kspgettype', 'kspgetnormtype', 'snesgetiterationnumber']
 
+    constrain_bcs : bool, optional
+        If `True`, ALL `EssentialBC` equations are constrained via a `PetscSection`,
+        excluding the corresponding degrees of freedom from the global solver.
+        Individual `EssentialBC`s can also be constrained independently by passing
+        `constrain=True` to their constructor (e.g.
+        `EssentialBC(lhs, rhs, subdomain=..., constrain=True)`), regardless of
+        this flag.
+
     Returns
     -------
     Eq:
@@ -86,15 +93,15 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
     """
     if target is not None:
         return InjectSolve(solver_parameters, {target: target_exprs},
-                           options_prefix, get_info).build_expr()
+                           options_prefix, get_info, constrain_bcs).build_expr()
     else:
         return InjectMixedSolve(solver_parameters, target_exprs,
-                                options_prefix, get_info).build_expr()
+                                options_prefix, get_info, constrain_bcs).build_expr()
 
 
 class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
-                 get_info=[]):
+                 get_info=[], constrain_bcs=False):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
         self.time_mapper = None
         self.target_exprs = target_exprs
@@ -102,6 +109,7 @@ class InjectSolve:
         self.user_prefix = options_prefix
         self.formatted_prefix = format_options_prefix(options_prefix)
         self.get_info = [f.lower() for f in get_info]
+        self.constrain_bcs = constrain_bcs
 
     def build_expr(self):
         target, funcs, field_data = self.linear_solve_args()
@@ -119,29 +127,76 @@ class InjectSolve:
         )
         return PetscEq(target, linear_solve)
 
+    def _constrain_out_of_domain_nodes(self):
+        """
+        Automatically constrain out-of-domain staggered nodes to zero. Devito does
+        not resize data arrays for staggered fields, so nodes at the staggered
+        boundaries fall outside the computational domain and would otherwise appear
+        as free DOFs in the global solver. These nodes are automatically constrained
+        so they are excluded from the global solver.
+        TODO: Cover case where the default "right" staggering is not used.
+        """
+        self.target_exprs = {
+            t: as_tuple(e) + ((bc,) if (bc := _out_of_domain_bc(t)) is not None else ())
+            for t, e in self.target_exprs.items()
+        }
+
     def linear_solve_args(self):
+        self._constrain_out_of_domain_nodes()
         target, exprs = next(iter(self.target_exprs.items()))
         exprs = as_tuple(exprs)
 
         funcs = get_funcs(exprs)
+        # TODO: Add MPI tests for this but if not filtered, the wrong halospots
+        # are generated or some halospots are missing...(for implicit). Essentially,
+        # we can't include the "target" function in the rhs of the solve expression,
+        # as this will generate antidependencies etc...
+        funcs = tuple(
+            f for f in funcs
+            if not (
+                f.function is target.function and
+                any(dim.is_Time and i == j
+                    for dim, i, j in zip(f.dimensions, f.indices, target.indices))
+            )
+        )
         self.time_mapper = generate_time_mapper(exprs)
         arrays = self.generate_arrays(target)
 
         exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
 
+        # TODO: If constrain_bcs is enabled, essential BC handling may be redundant
+        # (or need adjusting) in the following classes
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
         initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
+
+        constrain_exprs = self._get_constrain_exprs(exprs)
+        constrain_bc = None
+        if constrain_exprs:
+            constrain_bc = {
+                target: ConstrainBC(target, constrain_exprs, arrays, self.time_mapper)
+            }
 
         field_data = FieldData(
             target=target,
             jacobian=jacobian,
             residual=residual,
             initial_guess=initial_guess,
-            arrays=arrays
+            arrays=arrays,
+            constrain_bc=constrain_bc
         )
 
         return target, funcs, field_data
+
+    def _get_constrain_exprs(self, exprs):
+        """
+        Return the subset of `exprs` to be constrained via PetscSection.
+        If `constrain_bcs=True`, all `EssentialBC` exprs are returned.
+        Otherwise, only those individually marked with `constrain=True`.
+        """
+        if self.constrain_bcs:
+            return tuple(e for e in exprs if isinstance(e, EssentialBC))
+        return tuple(e for e in exprs if isinstance(e, EssentialBC) and e.constrain)
 
     def generate_arrays(self, *targets):
         return {
@@ -161,11 +216,15 @@ class InjectSolve:
 class InjectMixedSolve(InjectSolve):
 
     def linear_solve_args(self):
+        self._constrain_out_of_domain_nodes()
+
         exprs = []
         for e in self.target_exprs.values():
             exprs.extend(e)
 
         funcs = get_funcs(exprs)
+        target_set = set(self.target_exprs.keys())
+        funcs = tuple(f for f in funcs if f not in target_set)
         self.time_mapper = generate_time_mapper(exprs)
 
         targets = list(self.target_exprs.keys())
@@ -180,20 +239,56 @@ class InjectMixedSolve(InjectSolve):
             jacobian.target_scaler_mapper
         )
 
+        constrain_bc = {}
+        for t in targets:
+            cexprs = self._get_constrain_exprs(as_tuple(self.target_exprs[t]))
+            if cexprs:
+                constrain_bc[t] = ConstrainBC(t, cexprs, arrays, self.time_mapper)
+        constrain_bc = constrain_bc if constrain_bc else None
+
         all_data = MultipleFieldData(
             targets=targets,
             arrays=arrays,
             jacobian=jacobian,
-            residual=residual
+            residual=residual,
+            constrain_bc=constrain_bc
         )
 
         return targets[0], funcs, all_data
 
 
+def _out_of_domain_bc(target):
+    """
+    Return an EssentialBC pinning out-of-domain staggered boundary nodes to
+    zero, or None if the target has no staggered out-of-domain nodes. Using
+    constrain=True on these BCs ensures that the corresponding DOFs are excluded from the
+    global solver.
+    """
+    if target.staggered.on_node:
+        return None
+    grid = target.grid
+    grid_dim_set = set(grid.dimensions)
+    staggered_dims = [d for d, s in zip(target.dimensions, target.staggered)
+                      if s != 0 and d in grid_dim_set]
+    if not staggered_dims:
+        return None
+    dims = {d: 'right' for d in staggered_dims}
+    border = Border(grid, border=1, dims=dims,
+                    name='_stagger_border_%s' % target.name,
+                    corners='nooverlap')
+    rhs = Constant(name='zero', dtype=target.dtype)
+    return EssentialBC(target, rhs, subdomain=border, constrain=True)
+
+
 def get_funcs(exprs):
+    # TODO: expensive — `e.evaluate` is needed so that functions introduced when
+    # derivatives are expanded are visible and their HaloSpots generated correctly,
+    # but this should be revisited.
+    # previously used `retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))` but
+    # it doesn't suffice in parallel...
     funcs = [
         f for e in exprs
-        for f in retrieve_functions(eval_time_derivatives(e.lhs - e.rhs))
+        for f in retrieve_functions(e.evaluate)
     ]
     return as_tuple(filter_ordered(funcs))
 
