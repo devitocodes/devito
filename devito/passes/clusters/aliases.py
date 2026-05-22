@@ -135,7 +135,9 @@ class CireTransformer:
                 continue
 
             # AliasList -> Schedule
-            schedule = lower_aliases(aliases, meta, self.opt_maxpar)
+            schedule = lower_aliases(
+                aliases, meta, self.opt_maxpar, self.opt_fill_halo
+            )
 
             variants.append(Variant(schedule, exprs))
 
@@ -156,7 +158,7 @@ class CireTransformer:
         # Schedule -> [Clusters]_k
         processed, subs = lower_schedule(
             schedule, meta, self.sregistry, self.opt_ftemps, self.opt_min_dtype,
-            self.opt_minmem, self.opt_fill_halo
+            self.opt_minmem,
         )
 
         # [Clusters]_k -> [Clusters]_k (optimization)
@@ -671,15 +673,17 @@ def collect(extracted, ispace, minstorage):
     return aliases
 
 
-def lower_aliases(aliases, meta, opt_maxpar):
+def lower_aliases(aliases, meta, opt_maxpar, opt_fill_halo):
     """
     Create a Schedule from an AliasList.
     """
     dmapper = {}
     processed = []
     for a in aliases:
-        imapper = {**{i.dim: i for i in a.intervals},
-                   **{i.dim.parent: i for i in a.intervals if i.dim.is_NonlinearDerived}}
+        imapper = {
+            **{i.dim: i for i in a.intervals},
+            **{i.dim.parent: i for i in a.intervals if i.dim.is_NonlinearDerived}
+        }
 
         intervals = []
         readfrom = []
@@ -715,7 +719,13 @@ def lower_aliases(aliases, meta, opt_maxpar):
             interval = interval.lift(i.stamp)
 
             readfrom.append(interval)
-            intervals.append(interval)
+
+            # If the user doesn't want us to populate the halo, we can spare
+            # the halo iterations
+            if opt_fill_halo:
+                intervals.append(interval)
+            else:
+                intervals.append(interval.zero())
 
             if i.dim.is_Block:
                 # Suitable IncrDimensions must be used to avoid OOB accesses.
@@ -860,30 +870,29 @@ def optimize_schedule_rotations(schedule, sregistry):
 
 def optimize_schedule_maxpar(schedule):
     """
-    Bump the IterationSpace' stamp trading fusion for more collapse-parallelism.
+    Bump the IterationSpace' stamp, trading fusion for more collapse-parallelism.
     """
-    key = lambda i: (i.readfrom, i.ispace)
+    key = lambda i: (i.readfrom.itdims, i.ispace)
 
     processed = []
-    for (readfrom0, ispace0), group in groupby(schedule, key=key):
+    for (dims, ispace0), group in groupby(schedule, key=key):
         g = list(group)
 
         stamp = Stamp()
-        dims = readfrom0.itdims
-
-        readfrom = readfrom0.lift(dims, stamp)
         ispace = ispace0.lift(dims, stamp)
 
-        processed.extend([
-            ScheduledAlias(pivot, readfrom, ispace, aliaseds, indicess)
-            for pivot, _, _, aliaseds, indicess in g
-        ])
+        for pivot, readfrom0, _, aliaseds, indicess in g:
+            readfrom = readfrom0.lift(dims, stamp)
+
+            processed.append(
+                ScheduledAlias(pivot, readfrom, ispace, aliaseds, indicess)
+            )
 
     return schedule.rebuild(*processed)
 
 
 def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
-                   opt_minmem, opt_fill_halo):
+                   opt_minmem):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -969,10 +978,6 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             aliased: callback(indices)
             for aliased, indices in zip(aliaseds, indicess, strict=True)
         })
-
-        # If the user doesn't want us to populate the halo, we can spare iterations
-        if not opt_fill_halo:
-            ispace = ispace.zero(readfrom.itdims)
 
         properties = dict(meta.properties)
 
