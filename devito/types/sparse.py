@@ -23,7 +23,7 @@ from devito.types.dimension import (
 )
 from devito.types.dimension import dimensions as mkdims
 from devito.types.equation import Eq, Inc
-from devito.types.utils import IgnoreDimSort
+from devito.types.utils import DimensionTuple, IgnoreDimSort
 
 __all__ = [
     'MatrixSparseTimeFunction',
@@ -257,6 +257,21 @@ class AbstractSparseFunction(DiscreteFunction):
     def _sparse_dim(self):
         return self.dimensions[self.sparse_position]
 
+    @cached_property
+    def indices_ref(self):
+        getters = (*self.dimensions, *self.grid.dimensions)
+        indices = (*self.dimensions, *self.grid.dimensions)
+        return DimensionTuple(*indices, getters=getters)
+
+    @property
+    def _grid_map(self):
+        return {}
+
+    @cached_property
+    def origin(self):
+        return DimensionTuple(*[0]*len(self.dimensions),
+                              getters=self.dimensions)
+
     @property
     def _mpitype(self):
         return dtype_to_mpidtype(self.dtype)
@@ -352,10 +367,15 @@ class AbstractSparseFunction(DiscreteFunction):
         except AttributeError:
             return None
 
-    @cached_property
-    def _pos_symbols(self):
-        return [Symbol(name=f'pos{d}', dtype=np.int32)
-                for d in self.grid.dimensions]
+    @memoized_meth
+    def _pos_symbols(self, shifts=None):
+        symbols = []
+        for d in self.grid.dimensions:
+            if shifts and shifts[self.grid.dimensions.index(d)] != 0:
+                symbols.append(Symbol(name=f'pos{d}_s1', dtype=np.int32))
+            else:
+                symbols.append(Symbol(name=f'pos{d}', dtype=np.int32))
+        return symbols
 
     @cached_property
     def _point_increments(self):
@@ -366,19 +386,24 @@ class AbstractSparseFunction(DiscreteFunction):
     def _point_support(self):
         return np.array(self._point_increments)
 
-    @cached_property
-    def _position_map(self):
+    @memoized_meth
+    def _position_map(self, shifts=None):
         """
-        Symbols map for the physical position of the sparse points relative to the grid
-        origin.
+        Symbols map for the physical position of the sparse points relative to the
+        origin of the target field. ``shifts`` is a tuple, one entry per grid
+        Dimension, of additional physical offsets to subtract from the sparse
+        coordinates (e.g. ``h_x/2`` for a field staggered in ``x``). If ``shifts``
+        is None, only the grid origin is subtracted.
         """
+        shifts = shifts or (0,) * len(self.grid.dimensions)
         return OrderedDict([
-            ((c - o)/d.spacing, p)
-            for p, c, d, o in zip(
-                self._pos_symbols,
+            ((c - o - s)/d.spacing, p)
+            for p, c, d, o, s in zip(
+                self._pos_symbols(shifts=shifts),
                 self._coordinate_symbols,
                 self.grid.dimensions,
                 self.grid.origin_symbols,
+                shifts,
                 strict=True
             )
         ])
@@ -404,6 +429,9 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         parent = self._crdim(dim)
         return ConditionalDimension(parent.name, parent, condition=cond, indirect=True)
+
+    def _eval_at(self, func):
+        return self
 
     def interpolate(self, *args, **kwargs):
         """
@@ -433,7 +461,7 @@ class AbstractSparseFunction(DiscreteFunction):
         conditions = {}
 
         # Position map and temporaries for it
-        pmap = self._position_map
+        pmap = self._position_map()
 
         # Temporaries for the position
         temps = self.interpolator._positions(self.dimensions)
@@ -694,9 +722,6 @@ class AbstractSparseFunction(DiscreteFunction):
                 sf = getattr(self, i) or getattr(key, i)
                 mapper.update(self._dist_subfunc_scatter(sf))
         return mapper
-
-    def _eval_at(self, func):
-        return self
 
     def _halo_exchange(self):
         # no-op for SparseFunctions
@@ -1268,8 +1293,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
             return tuple([self.coordinates._subs(d_dim, i)
                           for i in range(self.grid.dim)])
 
-    @cached_property
-    def _position_map(self):
+    @memoized_meth
+    def _position_map(self, shifts=None):
         """
         Symbol for each grid index according to the coordinates.
 
@@ -1289,12 +1314,12 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                 (self.gridpoints._subs(ddim, di), p)
                 for (di, p) in zip(
                     range(self.grid.dim),
-                    self._pos_symbols,
+                    self._pos_symbols(shifts=shifts),
                     strict=True
                 )
             )
         else:
-            return super()._position_map
+            return super()._position_map(shifts=shifts)
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,

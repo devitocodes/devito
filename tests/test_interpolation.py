@@ -6,11 +6,13 @@ from sympy import Float
 
 from conftest import assert_structure
 from devito import (
-    DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction, Operator,
-    PrecomputedSparseFunction, PrecomputedSparseTimeFunction, Real, SparseFunction,
-    SparseTimeFunction, SubDomain, TimeFunction, switchconfig
+    NODE, DefaultDimension, Dimension, Eq, Function, Grid, MatrixSparseTimeFunction,
+    Operator, PrecomputedSparseFunction, PrecomputedSparseTimeFunction, Real,
+    SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, VectorFunction,
+    switchconfig
 )
 from devito.operations.interpolators import LinearInterpolator, SincInterpolator
+from devito.tools import as_tuple
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
@@ -20,6 +22,11 @@ from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
 class SparseFirst(SparseFunction):
     """ Custom sparse class with the sparse dimension as the first one"""
     _sparse_position = 0
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def unit_box(name='a', shape=(11, 11), grid=None, space_order=1):
@@ -61,24 +68,6 @@ def time_points(grid, ranges, npoints, name='points', nt=10):
     return points
 
 
-def a(shape=(11, 11)):
-    grid = Grid(shape=shape)
-    a = Function(name='a', grid=grid)
-    xarr = np.linspace(0., 1., shape[0])
-    yarr = np.linspace(0., 1., shape[1])
-    a.data[:] = np.meshgrid(xarr, yarr)[1]
-    return a
-
-
-def at(shape=(11, 11)):
-    grid = Grid(shape=shape)
-    a = TimeFunction(name='a', grid=grid)
-    xarr = np.linspace(0., 1., shape[0])
-    yarr = np.linspace(0., 1., shape[1])
-    a.data[:] = np.meshgrid(xarr, yarr)[1]
-    return a
-
-
 def custom_points(grid, ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
@@ -115,781 +104,934 @@ def precompute_linear_interpolation(points, grid, origin, r=2):
     return gridpoints, interpolation_coeffs
 
 
-@pytest.mark.parametrize('r', [2, 4, 6])
-def test_precomputed_interpolation(r):
-    """ Test interpolation with PrecomputedSparseFunction which accepts
-        precomputed values for interpolation coefficients
-    """
-    shape = (101, 101)
-    points = np.array([(.05, .9), (.01, .8), (0.07, 0.84)])
-    origin = (0, 0)
+# Parametrization shared across linear interpolation/injection tests
+SHAPE_COORDS = [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+]
 
-    grid = Grid(shape=shape, origin=origin)
-
-    def init(data):
-        # This is data with halo so need to shift to match the m.data expectations
-        print(grid.spacing)
-        for i in range(data.shape[0]):
-            for j in range(data.shape[1]):
-                data[i, j] = sin(grid.spacing[0]*(i-r)) + sin(grid.spacing[1]*(j-r))
-        return data
-
-    m = Function(name='m', grid=grid, initializer=init, space_order=r)
-
-    gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
-                                                                       grid, origin,
-                                                                       r=r)
-
-    sf = PrecomputedSparseFunction(name='s', grid=grid, r=r, npoint=len(points),
-                                   gridpoints=gridpoints,
-                                   interpolation_coeffs=interpolation_coeffs)
-    eqn = sf.interpolate(m)
-    op = Operator(eqn)
-
-    op()
-    expected_values = [sin(point[0]) + sin(point[1]) for point in points]
-    assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
+SHAPE_COORDS_INJECT = [
+    ((11, 11), [(.05, .95), (.45, .45)], 1.),
+    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
+]
 
 
-@pytest.mark.parametrize('r', [2, 4, 6])
-def test_precomputed_interpolation_time(r):
-    """ Test interpolation with PrecomputedSparseFunction which accepts
-        precomputed values for interpolation coefficients, but this time
-        with a TimeFunction
-    """
-    shape = (101, 101)
-    points = [(.05, .9), (.01, .8), (0.07, 0.84)]
-    origin = (0, 0)
-
-    grid = Grid(shape=shape, origin=origin)
-
-    u = TimeFunction(name='u', grid=grid, space_order=r, save=5)
-    for it in range(5):
-        u.data[it, :] = it
-
-    gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
-                                                                       grid, origin,
-                                                                       r=r)
-
-    sf = PrecomputedSparseTimeFunction(name='s', grid=grid, r=r, npoint=len(points),
-                                       nt=5, gridpoints=gridpoints,
-                                       interpolation_coeffs=interpolation_coeffs)
-
-    assert sf.data.shape == (5, 3)
-
-    eqn = sf.interpolate(u)
-    op = Operator(eqn)
-
-    op(time_m=0, time_M=4)
-
-    for it in range(5):
-        assert np.allclose(sf.data[it, :], it)
+# ---------------------------------------------------------------------------
+# Linear interpolation / injection
+# ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize('r', [2, 4, 6])
-def test_precomputed_injection(r):
-    """Test injection with PrecomputedSparseFunction which accepts
-       precomputed values for interpolation coefficients
-    """
-    shape = (11, 11)
-    coords = [(.05, .95), (.45, .45)]
-    origin = (0, 0)
-    result = 0.25
+class TestLinear:
+    """Tests for the default linear interpolation and injection."""
 
-    m = unit_box(shape=shape, space_order=r)
-    m.data[:] = 0.
+    @pytest.mark.parametrize('shape, coords', SHAPE_COORDS)
+    def test_interpolate(self, shape, coords, npoints=20):
+        """Test generic point interpolation testing the x-coordinate of an
+        arbitrary set of points going across the grid.
+        """
+        a = unit_box(shape=shape)
+        p = points(a.grid, coords, npoints=npoints)
+        xcoords = p.coordinates.data[:, 0]
 
-    gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
-                                                                       m.grid, origin,
-                                                                       r=r)
+        expr = p.interpolate(a)
+        op = Operator(expr)
 
-    sf = PrecomputedSparseFunction(name='s', grid=m.grid, r=r, npoint=len(coords),
-                                   gridpoints=gridpoints,
-                                   interpolation_coeffs=interpolation_coeffs)
+        op(a=a)
+        assert np.allclose(p.data[:], xcoords, rtol=1e-6)
 
-    expr = sf.inject(m, Float(1.))
+    @pytest.mark.parametrize('shape, coords', SHAPE_COORDS)
+    def test_interpolate_cumm(self, shape, coords, npoints=20):
+        """Test generic point interpolation testing the x-coordinate of an
+        arbitrary set of points going across the grid.
+        """
+        a = unit_box(shape=shape)
+        p = points(a.grid, coords, npoints=npoints)
+        xcoords = p.coordinates.data[:, 0]
 
-    op = Operator(expr)
+        p.data[:] = 1.
+        expr = p.interpolate(a, increment=True)
+        op = Operator(expr)
 
-    op()
-    indices = [slice(0, 2, 1), slice(9, 11, 1)]
-    assert np.allclose(m.data[indices], result, rtol=1.e-5)
+        op(a=a)
 
-    indices = [slice(4, 6, 1) for _ in coords]
-    assert np.allclose(m.data[indices], result, rtol=1.e-5)
+        assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
 
+    @pytest.mark.parametrize('shape, coords', SHAPE_COORDS)
+    def test_interpolate_time_shift(self, shape, coords, npoints=20):
+        """Test generic point interpolation testing the x-coordinate of an
+        arbitrary set of points going across the grid.
+        This test verifies the optional time shifting for SparseTimeFunctions
+        """
+        a = unit_box_time(shape=shape)
+        p = time_points(a.grid, coords, npoints=npoints, nt=10)
+        xcoords = p.coordinates.data[:, 0]
 
-@pytest.mark.parametrize('r', [2, 4, 6])
-def test_precomputed_injection_time(r):
-    """Test injection with PrecomputedSparseFunction which accepts
-       precomputed values for interpolation coefficients
-    """
-    shape = (11, 11)
-    coords = [(.05, .95), (.45, .45)]
-    origin = (0, 0)
-    result = 0.25
-    nt = 20
+        p.data[:] = 1.
+        expr = p.interpolate(a, u_t=a.indices[0]+1)
+        op = Operator(expr)
 
-    m = unit_box_time(shape=shape, space_order=r)
-    m.data[:] = 0.
+        op(a=a)
 
-    gridpoints, interpolation_coeffs = precompute_linear_interpolation(coords,
-                                                                       m.grid, origin,
-                                                                       r=r)
+        assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
 
-    sf = PrecomputedSparseTimeFunction(name='s', grid=m.grid, r=r, npoint=len(coords),
-                                       gridpoints=gridpoints, nt=nt,
-                                       interpolation_coeffs=interpolation_coeffs)
-    sf.data.fill(1.)
-    expr = sf.inject(m, sf)
+        p.data[:] = 1.
+        expr = p.interpolate(a, p_t=p.indices[0]+1)
+        op = Operator(expr)
 
-    op = Operator(expr)
+        op(a=a)
 
-    op()
-    for ti in range(2):
-        indices = [slice(0, 2, 1), slice(9, 11, 1)]
-        assert np.allclose(m.data[ti][indices], nt*result/2, rtol=1.e-5)
+        assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
+
+        p.data[:] = 1.
+        expr = p.interpolate(a, u_t=a.indices[0]+1,
+                             p_t=p.indices[0]+1)
+        op = Operator(expr)
+
+        op(a=a)
+
+        assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
+
+    @pytest.mark.parametrize('shape, coords', SHAPE_COORDS)
+    def test_interpolate_array(self, shape, coords, npoints=20):
+        """Test generic point interpolation testing the x-coordinate of an
+        arbitrary set of points going across the grid.
+        """
+        a = unit_box(shape=shape)
+        p = points(a.grid, coords, npoints=npoints)
+        xcoords = p.coordinates.data[:, 0]
+
+        expr = p.interpolate(a)
+        op = Operator(expr)
+
+        op(a=a, points=p.data[:])
+
+        assert np.allclose(p.data[:], xcoords, rtol=1e-6)
+
+    @pytest.mark.parametrize('shape, coords', SHAPE_COORDS)
+    def test_interpolate_custom(self, shape, coords, npoints=20):
+        """Test generic point interpolation testing the x-coordinate of an
+        arbitrary set of points going across the grid.
+        """
+        a = unit_box(shape=shape)
+        p = custom_points(a.grid, coords, npoints=npoints)
+        xcoords = p.coordinates.data[:, 0]
+
+        p.data[:] = 1.
+        expr = p.interpolate(a * p.indices[0])
+        op = Operator(expr)
+
+        op(a=a)
+
+        assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
+        assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
+        assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
+
+    @pytest.mark.parametrize('shape, coords', SHAPE_COORDS)
+    def test_interpolate_indexed(self, shape, coords, npoints=20):
+        """Test generic point interpolation testing the x-coordinate of an
+        arbitrary set of points going across the grid. Unlike other tests,
+        here we interpolate an expression built using the indexed notation.
+        """
+        a = unit_box(shape=shape)
+        p = custom_points(a.grid, coords, npoints=npoints)
+        xcoords = p.coordinates.data[:, 0]
+
+        p.data[:] = 1.
+        expr = p.interpolate(a[a.grid.dimensions] * p.indices[0])
+        op = Operator(expr)
+
+        op(a=a)
+
+        assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
+        assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
+        assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
+
+    def test_interpolation_dx(self):
+        """
+        Test interpolation of a SparseFunction from a Derivative of
+        a Function.
+        """
+        u = unit_box(shape=(11, 11))
+        sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
+        sf1.coordinates.data[0, :] = (0.5, 0.5)
+
+        op = Operator(sf1.interpolate(u.dx))
+
+        assert sf1.data.shape == (1,)
+        u.data[:] = 0.0
+        u.data[5, 5] = 4.0
+        u.data[4, 5] = 2.0
+        u.data[6, 5] = 2.0
+
+        op.apply()
+        # Exactly in the middle of 4 points, only 1 nonzero is 4
+        assert sf1.data[0] == pytest.approx(-20.0)
+
+    @pytest.mark.parametrize('shape, coords, result', SHAPE_COORDS_INJECT)
+    def test_inject(self, shape, coords, result, npoints=19):
+        """Test point injection with a set of points forming a line
+        through the middle of the grid.
+        """
+        a = unit_box(shape=shape)
+        a.data[:] = 0.
+        p = points(a.grid, ranges=coords, npoints=npoints)
+
+        expr = p.inject(a, Float(1.))
+
+        op = Operator(expr)
+
+        op(a=a)
 
         indices = [slice(4, 6, 1) for _ in coords]
-        assert np.allclose(m.data[ti][indices], nt*result/2, rtol=1.e-5)
-
-
-@pytest.mark.parametrize('shape, coords', [
-    ((11, 11), [(.05, .9), (.01, .8)]),
-    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
-])
-def test_interpolate(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
-    arbitrary set of points going across the grid.
-    """
-    a = unit_box(shape=shape)
-    p = points(a.grid, coords, npoints=npoints)
-    xcoords = p.coordinates.data[:, 0]
-
-    expr = p.interpolate(a)
-    op = Operator(expr)
-
-    op(a=a)
-    assert np.allclose(p.data[:], xcoords, rtol=1e-6)
-
-
-@pytest.mark.parametrize('shape, coords', [
-    ((11, 11), [(.05, .9), (.01, .8)]),
-    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
-])
-def test_interpolate_cumm(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
-    arbitrary set of points going across the grid.
-    """
-    a = unit_box(shape=shape)
-    p = points(a.grid, coords, npoints=npoints)
-    xcoords = p.coordinates.data[:, 0]
-
-    p.data[:] = 1.
-    expr = p.interpolate(a, increment=True)
-    op = Operator(expr)
-
-    op(a=a)
-
-    assert np.allclose(p.data[:], xcoords + 1., rtol=1e-6)
-
-
-@pytest.mark.parametrize('shape, coords', [
-    ((11, 11), [(.05, .9), (.01, .8)]),
-    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
-])
-def test_interpolate_time_shift(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
-    arbitrary set of points going across the grid.
-    This test verifies the optional time shifting for SparseTimeFunctions
-    """
-    a = unit_box_time(shape=shape)
-    p = time_points(a.grid, coords, npoints=npoints, nt=10)
-    xcoords = p.coordinates.data[:, 0]
-
-    p.data[:] = 1.
-    expr = p.interpolate(a, u_t=a.indices[0]+1)
-    op = Operator(expr)
-
-    op(a=a)
-
-    assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
-
-    p.data[:] = 1.
-    expr = p.interpolate(a, p_t=p.indices[0]+1)
-    op = Operator(expr)
-
-    op(a=a)
-
-    assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
-
-    p.data[:] = 1.
-    expr = p.interpolate(a, u_t=a.indices[0]+1,
-                         p_t=p.indices[0]+1)
-    op = Operator(expr)
-
-    op(a=a)
-
-    assert np.allclose(p.data[1, :], xcoords, rtol=1e-6)
-
-
-@pytest.mark.parametrize('shape, coords', [
-    ((11, 11), [(.05, .9), (.01, .8)]),
-    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
-])
-def test_interpolate_array(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
-    arbitrary set of points going across the grid.
-    """
-    a = unit_box(shape=shape)
-    p = points(a.grid, coords, npoints=npoints)
-    xcoords = p.coordinates.data[:, 0]
-
-    expr = p.interpolate(a)
-    op = Operator(expr)
-
-    op(a=a, points=p.data[:])
-
-    assert np.allclose(p.data[:], xcoords, rtol=1e-6)
-
-
-@pytest.mark.parametrize('shape, coords', [
-    ((11, 11), [(.05, .9), (.01, .8)]),
-    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
-])
-def test_interpolate_custom(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
-    arbitrary set of points going across the grid.
-    """
-    a = unit_box(shape=shape)
-    p = custom_points(a.grid, coords, npoints=npoints)
-    xcoords = p.coordinates.data[:, 0]
-
-    p.data[:] = 1.
-    expr = p.interpolate(a * p.indices[0])
-    op = Operator(expr)
-
-    op(a=a)
-
-    assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
-    assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
-    assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
-
-
-def test_interpolation_dx():
-    """
-    Test interpolation of a SparseFunction from a Derivative of
-    a Function.
-    """
-    u = unit_box(shape=(11, 11))
-    sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
-    sf1.coordinates.data[0, :] = (0.5, 0.5)
-
-    op = Operator(sf1.interpolate(u.dx))
-
-    assert sf1.data.shape == (1,)
-    u.data[:] = 0.0
-    u.data[5, 5] = 4.0
-    u.data[4, 5] = 2.0
-    u.data[6, 5] = 2.0
-
-    op.apply()
-    # Exactly in the middle of 4 points, only 1 nonzero is 4
-    assert sf1.data[0] == pytest.approx(-20.0)
-
-
-@pytest.mark.parametrize('shape, coords', [
-    ((11, 11), [(.05, .9), (.01, .8)]),
-    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
-])
-def test_interpolate_indexed(shape, coords, npoints=20):
-    """Test generic point interpolation testing the x-coordinate of an
-    arbitrary set of points going across the grid. Unlike other tests,
-    here we interpolate an expression built using the indexed notation.
-    """
-    a = unit_box(shape=shape)
-    p = custom_points(a.grid, coords, npoints=npoints)
-    xcoords = p.coordinates.data[:, 0]
-
-    p.data[:] = 1.
-    expr = p.interpolate(a[a.grid.dimensions] * p.indices[0])
-    op = Operator(expr)
-
-    op(a=a)
-
-    assert np.allclose(p.data[0, :], 0.0 * xcoords, rtol=1e-6)
-    assert np.allclose(p.data[1, :], 1.0 * xcoords, rtol=1e-6)
-    assert np.allclose(p.data[2, :], 2.0 * xcoords, rtol=1e-6)
-
-
-@pytest.mark.parametrize('shape, coords, result', [
-    ((11, 11), [(.05, .95), (.45, .45)], 1.),
-    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
-])
-def test_inject(shape, coords, result, npoints=19):
-    """Test point injection with a set of points forming a line
-    through the middle of the grid.
-    """
-    a = unit_box(shape=shape)
-    a.data[:] = 0.
-    p = points(a.grid, ranges=coords, npoints=npoints)
-
-    expr = p.inject(a, Float(1.))
-
-    op = Operator(expr)
-
-    op(a=a)
-
-    indices = [slice(4, 6, 1) for _ in coords]
-    indices[0] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], result, rtol=1.e-5)
-
-
-@pytest.mark.parametrize('shape, coords, nexpr, result', [
-    ((11, 11), [(.05, .95), (.45, .45)], 1, 1.),
-    ((11, 11), [(.05, .95), (.45, .45)], 2, 1.),
-    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 1, 0.5),
-    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 2, 0.5)
-])
-def test_multi_inject(shape, coords, nexpr, result, npoints=19):
-    """Test point injection with a set of points forming a line
-    through the middle of the grid.
-    """
-    a1 = unit_box(name='a1', shape=shape)
-    a2 = unit_box(name='a2', shape=shape, grid=a1.grid)
-    a1.data[:] = 0.
-    a2.data[:] = 0.
-    p = points(a1.grid, ranges=coords, npoints=npoints)
-
-    iexpr = Float(1.) if nexpr == 1 else (Float(1.), Float(2.))
-    expr = p.inject((a1, a2), iexpr)
-
-    op = Operator(expr)
-
-    op(a1=a1, a2=a2)
-
-    indices = [slice(4, 6, 1) for _ in coords]
-    indices[0] = slice(1, -1, 1)
-    result = (result, result) if nexpr == 1 else (result, 2 * result)
-    for r, a in zip(result, (a1, a2), strict=True):
-        assert np.allclose(a.data[indices], r, rtol=1.e-5)
-
-
-@pytest.mark.parametrize('shape, coords, result', [
-    ((11, 11), [(.05, .95), (.45, .45)], 1.),
-    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
-])
-def test_inject_time_shift(shape, coords, result, npoints=19):
-    """Test generic point injection testing the x-coordinate of an
-    arbitrary set of points going across the grid.
-    This test verifies the optional time shifting for SparseTimeFunctions
-    """
-    a = unit_box_time(shape=shape)
-    a.data[:] = 0.
-    p = time_points(a.grid, ranges=coords, npoints=npoints)
-
-    expr = p.inject(a, Float(1.), u_t=a.indices[0]+1)
-
-    op = Operator(expr)
-
-    op(a=a, time=1)
-
-    indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
-    indices[1] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], result, rtol=1.e-5)
-
-    a.data[:] = 0.
-    expr = p.inject(a, Float(1.), p_t=p.indices[0]+1)
-
-    op = Operator(expr)
-
-    op(a=a, time=1)
-
-    indices = [slice(0, 0, 1)] + [slice(4, 6, 1) for _ in coords]
-    indices[1] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], result, rtol=1.e-5)
-
-    a.data[:] = 0.
-    expr = p.inject(a, Float(1.), u_t=a.indices[0]+1, p_t=p.indices[0]+1)
-
-    op = Operator(expr)
-
-    op(a=a, time=1)
-
-    indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
-    indices[1] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], result, rtol=1.e-5)
-
-
-@pytest.mark.parametrize('shape, coords, result', [
-    ((11, 11), [(.05, .95), (.45, .45)], 1.),
-    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
-])
-def test_inject_array(shape, coords, result, npoints=19):
-    """Test point injection with a set of points forming a line
-    through the middle of the grid.
-    """
-    a = unit_box(shape=shape)
-    a.data[:] = 0.
-    p = points(a.grid, ranges=coords, npoints=npoints)
-    p2 = points(a.grid, ranges=coords, npoints=npoints, name='p2')
-    p2.data[:] = 1.
-    expr = p.inject(a, p)
-
-    op = Operator(expr)
-
-    op(a=a, points=p2.data[:])
-
-    indices = [slice(4, 6, 1) for _ in coords]
-    indices[0] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], result, rtol=1.e-5)
-
-
-@pytest.mark.parametrize('shape, coords, result', [
-    ((11, 11), [(.05, .95), (.45, .45)], 1.),
-    ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
-])
-def test_inject_from_field(shape, coords, result, npoints=19):
-    """Test point injection from a second field along a line
-    through the middle of the grid.
-    """
-    a = unit_box(shape=shape)
-    a.data[:] = 0.
-    b = Function(name='b', grid=a.grid)
-    b.data[:] = 1.
-    p = points(a.grid, ranges=coords, npoints=npoints)
-
-    expr = p.inject(field=a, expr=b)
-    op = Operator(expr)
-
-    op(a=a, b=b)
-
-    indices = [slice(4, 6, 1) for _ in coords]
-    indices[0] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], result, rtol=1.e-5)
-
-
-@pytest.mark.parametrize('shape', [(50, 50, 50)])
-def test_position(shape):
-    t0 = 0.0  # Start time
-    tn = 500.  # Final time
-    nrec = 130  # Number of receivers
-
-    # Create model from preset
-    model = demo_model('constant-isotropic', spacing=[15. for _ in shape],
-                       shape=shape, nbl=10)
-
-    # Derive timestepping from model spacing
-    dt = model.critical_dt
-    time_range = TimeAxis(start=t0, stop=tn, step=dt)
-
-    # Source and receiver geometries
-    src_coordinates = np.empty((1, len(shape)))
-    src_coordinates[0, :] = np.array(model.domain_size) * .5
-    src_coordinates[0, -1] = 30.
-
-    rec_coordinates = np.empty((nrec, len(shape)))
-    rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
-    rec_coordinates[:, 1:] = src_coordinates[0, 1:]
-
-    geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
-                                   t0=t0, tn=tn, src_type='Ricker', f0=0.010)
-    # Create solver object to provide relevant operators
-    solver = AcousticWaveSolver(model, geometry, time_order=2, space_order=4)
-
-    rec, u, _ = solver.forward(save=False)
-
-    # Define source geometry (center of domain, just below surface) with 100. origin
-    src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
-    src.coordinates.data[0, :] = np.array(model.domain_size) * .5 + 100.
-    src.coordinates.data[0, -1] = 130.
-
-    # Define receiver geometry (same as source, but spread across `x, y`)
-    rec2 = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
-    rec2.coordinates.data[:, 0] = np.linspace(100., 100. + model.domain_size[0],
-                                              num=nrec)
-    rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
-
-    ox_g, oy_g, oz_g = tuple(o + 100. for o in model.grid.origin)
-
-    rec1, u1, _ = solver.forward(save=False, src=src, rec=rec2,
-                                 o_x=ox_g, o_y=oy_g, o_z=oz_g)
-
-    assert(np.allclose(rec.data, rec1.data, atol=1e-5))
-
-
-def test_edge_sparse():
-    """
-    Test that interpolation uses the correct point for the edge case
-    where the sparse point is at the origin with non rational grid spacing.
-    Due to round up error the interpolation would use the halo point instead of
-    the point (0, 0) without the factorizaion of the expressions.
-    """
-    grid = Grid(shape=(16, 16), extent=(225., 225.), origin=(25., 35.))
-    u = unit_box(shape=(16, 16), grid=grid)
-    u._data_with_outhalo[:u.space_order, :] = -1
-    u._data_with_outhalo[:, :u.space_order] = -1
-    sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
-    sf1.coordinates.data[0, :] = (25.0, 35.0)
-
-    expr = sf1.interpolate(u)
-    subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing, strict=True)}
-    op = Operator(expr, subs=subs)
-
-    op()
-    assert sf1.data[0] == 0
-
-
-def test_msf_interpolate():
-    """ Test interpolation with MatrixSparseTimeFunction which accepts
-        precomputed values for interpolation coefficients, but this time
-        with a TimeFunction
-    """
-    shape = (101, 101)
-    points = np.array([(.05, .9), (.01, .8), (0.07, 0.84)])
-    origin = (0, 0)
-
-    grid = Grid(shape=shape, origin=origin)
-    r = 2  # Constant for linear interpolation
-    #  because we interpolate across 2 neighbouring points in each dimension
-
-    u = TimeFunction(name='u', grid=grid, space_order=0, save=5)
-    for it in range(5):
-        u.data[it, :] = it
-
-    gridpoints, interpolation_coeffs = precompute_linear_interpolation(points,
-                                                                       grid, origin)
-
-    matrix = scipy.sparse.eye(len(points))
-
-    sf = MatrixSparseTimeFunction(
-        name='s', grid=grid, r=r, matrix=matrix, nt=5
-    )
-
-    sf.gridpoints.data[:] = gridpoints
-    sf.coefficients_x.data[:] = interpolation_coeffs[:, 0, :]
-    sf.coefficients_y.data[:] = interpolation_coeffs[:, 0, :]
-
-    assert sf.data.shape == (5, 3)
-
-    eqn = sf.interpolate(u)
-    op = Operator(eqn)
-
-    sf.manual_scatter()
-    op(time_m=0, time_M=4)
-    sf.manual_gather()
-
-    for it in range(5):
-        assert np.allclose(sf.data[it, :], it)
-
-    # Now test injection
-    u.data[:] = 0
-
-    eqn_inject = sf.inject(field=u, expr=sf)
-    op2 = Operator(eqn_inject)
-    op2(time_m=0, time_M=4)
-
-    # There should be 4 points touched for each source point
-    # (5, 90), (1, 80), (7, 84) and x+1, y+1 for each
-    nzt, nzx, nzy = np.nonzero(u.data)
-    assert np.all(np.unique(nzx) == np.array([1, 2, 5, 6, 7, 8]))
-    assert np.all(np.unique(nzy) == np.array([80, 81, 84, 85, 90, 91]))
-    assert np.all(np.unique(nzt) == np.array([1, 2, 3, 4]))
-    # 12 points x 4 timesteps
-    assert nzt.size == 48
-
-
-def test_sparse_first():
-    """
-    Tests custom sprase function with sparse dimension as first index.
-    """
-    dr = Dimension("cd")
-    ds = DefaultDimension("ps", default_value=3)
-    grid = Grid((11, 11))
-    dims = grid.dimensions
-    s = SparseFirst(name="s", grid=grid, npoint=2, dimensions=(dr, ds), shape=(2, 3),
-                    coordinates=[[.5, .5], [.2, .2]])
-
-    # Check dimensions and shape are correctly initialized
-    assert s.indices[s._sparse_position] == dr
-    assert s.shape == (2, 3)
-    assert s.coordinates.indices[0] == dr
-
-    # Operator
-    u = TimeFunction(name="u", grid=grid, time_order=1)
-    fs = Function(name="fs", grid=grid, dimensions=(*dims, ds), shape=(11, 11, 3))
-
-    eqs = [Eq(u.forward, u+1), Eq(fs, u)]
-    # No time dependence so need the implicit dim
-    rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
-    op = Operator(eqs + rec)
-
-    op(time_M=10)
-    expected = 10*11/2  # n (n+1)/2
-    assert np.allclose(s.data, expected)
-
-
-@switchconfig(safe_math=True)
-def test_inject_function():
-    nt = 11
-
-    grid = Grid(shape=(5, 5))
-    u = TimeFunction(name="u", grid=grid, time_order=2)
-    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
-                             coordinates=[[0.5, 0.5]])
-
-    nfreq = 5
-    freq_dim = DefaultDimension(name="freq", default_value=nfreq)
-    omega = Function(name="omega", dimensions=(freq_dim,), shape=(nfreq,), grid=grid)
-    omega.data.fill(1.)
-
-    inj = src.inject(field=u.forward, expr=omega)
-
-    op = Operator([inj])
-
-    op(time_M=0)
-    assert u.data[1, 2, 2] == nfreq
-    assert np.all(u.data[0] == 0)
-    assert np.all(u.data[2] == 0)
-    for i in [0, 1, 3, 4]:
-        for j in [0, 1, 3, 4]:
-            assert u.data[1, i, j] == 0
-
-
-@pytest.mark.parametrize('r, interp', [(2, 'linear'), (4, 'sinc')])
-def test_interpolation_radius(r, interp):
-    nt = 11
-
-    grid = Grid(shape=(5, 5))
-    u = TimeFunction(name="u", grid=grid, space_order=0)
-    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
-                             r=r, interpolation=interp)
-    try:
-        src.interpolate(u)
-        raise AssertionError('Assert False')
-    except ValueError:
-        assert True
-
-
-def test_interp_default():
-    nt = 3
-    grid = Grid(shape=(5, 5))
-
-    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1)
-    assert isinstance(src.interpolator, LinearInterpolator)
-    assert src.r == 1
-
-    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1, interpolation='sinc')
-    assert isinstance(src.interpolator, SincInterpolator)
-    assert src.r == 4
-
-    src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
-                             interpolation='sinc', r=6)
-    assert isinstance(src.interpolator, SincInterpolator)
-    assert src.r == 6
-
-
-@pytest.mark.parametrize('r, tol', [(2, 0.051), (3, 0.003), (4, 0.008),
-                                    (5, 0.002), (6, 0.0005), (7, 8e-5),
-                                    (8, 6e-5), (9, 5e-5), (10, 4.2e-5)])
-def test_sinc_accuracy(r, tol):
-    so = max(2, r)
-    solver_lin = acoustic_setup(preset='constant-isotropic', shape=(101, 101),
-                                spacing=(10, 10), interpolation='linear', space_order=so)
-    solver_sinc = acoustic_setup(preset='constant-isotropic', shape=(101, 101),
-                                 spacing=(10, 10), interpolation='sinc', r=r,
-                                 space_order=so)
-
-    # On node source
-    s_node = [500, 500]
-    src_n = solver_lin.geometry.src
-    src_n.coordinates.data[:] = s_node
-
-    # Half node src
-    s_mid = [505, 505]
-    src_h = solver_lin.geometry.src
-    src_h.coordinates.data[:] = s_mid
-
-    # On node rec
-    r_node = [750, 750]
-    rec_n = solver_lin.geometry.new_src(name='rec', src_type=None)
-    rec_n.coordinates.data[:] = r_node
-
-    # Half node rec for linear
-    r_mid = [755, 755]
-    rec_hl = solver_lin.geometry.new_src(name='recl', src_type=None)
-    rec_hl.coordinates.data[:] = r_mid
-
-    # Half node rec for sinc
-    r_mid = [755, 755]
-    rec_hs = solver_lin.geometry.new_src(name='recs', src_type=None)
-    rec_hs.coordinates.data[:] = r_mid
-
-    # Reference solution, on node
-    _, un, _ = solver_lin.forward(src=src_n, rec=rec_n)
-    # Linear interp on half node
-    _, ul, _ = solver_lin.forward(src=src_h, rec=rec_hl)
-    # Sinc interp on half node
-    _, us, _ = solver_sinc.forward(src=src_h, rec=rec_hs)
-
-    # Check sinc is more accuracte
-    nref = np.linalg.norm(rec_n.data)
-    err_lin = np.linalg.norm(rec_n.data - rec_hl.data)/nref
-    err_sinc = np.linalg.norm(rec_n.data - rec_hs.data)/nref
-
-    print(f"Error linear: {err_lin}, Error sinc: {err_sinc}")
-    assert np.isclose(err_sinc, 0, rtol=0, atol=tol)
-    assert err_sinc < err_lin
-    assert err_lin > 0.01
-
-
-@pytest.mark.parametrize('dtype, expected', [(np.complex64, np.float32),
-                                             (np.complex128, np.float64)])
-def test_point_symbol_types(dtype, expected):
-    """Test that positions are always real"""
-    grid = Grid(shape=(11,))
-    s = SparseFunction(name='src', npoint=1,
-                       grid=grid, dtype=dtype)
-    point_symbol = s.interpolator._point_symbols[0]
-
-    assert point_symbol.dtype is expected
-
-
-@pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-def test_interp_complex(dtype):
-    grid = Grid((11, 11, 11))
-
-    sc = SparseFunction(name="sc", grid=grid, npoint=1, dtype=dtype)
-    sc.coordinates.data[:] = [.5, .5, .5]
-
-    fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
-    fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
-    opC = Operator([sc.interpolate(expr=fc)], name="OpC")
-    opC()
-
-    assert np.isclose(sc.data[0], fc.data[5, 5, 5])
-
-
-@pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
-def test_interp_complex_and_real(dtype):
-    grid = Grid((11, 11, 11))
-
-    sc = SparseFunction(name="sc", grid=grid, npoint=1, dtype=dtype)
-    sc.coordinates.data[:] = [.5, .5, .5]
-    scre = SparseFunction(name="sce", grid=grid, npoint=1, coordinates=sc.coordinates)
-
-    fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
-    fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
-    exprs = sc.interpolate(expr=fc) + scre.interpolate(expr=Real(fc))
-    opC = Operator(exprs, name="OpC")
-    opC()
-
-    assert np.isclose(sc.data[0], fc.data[5, 5, 5])
-    assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
-
-    assert_structure(opC, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz',
-                           'p_sc,rp_scx,rp_scy,rp_scz'],
-                     'p_sc,rp_scx,rp_scy,rp_scz,rp_scx,rp_scy,rp_scz')
+        indices[0] = slice(1, -1, 1)
+        assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+    @pytest.mark.parametrize('shape, coords, nexpr, result', [
+        ((11, 11), [(.05, .95), (.45, .45)], 1, 1.),
+        ((11, 11), [(.05, .95), (.45, .45)], 2, 1.),
+        ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 1, 0.5),
+        ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 2, 0.5)
+    ])
+    def test_multi_inject(self, shape, coords, nexpr, result, npoints=19):
+        """Test point injection with a set of points forming a line
+        through the middle of the grid.
+        """
+        a1 = unit_box(name='a1', shape=shape)
+        a2 = unit_box(name='a2', shape=shape, grid=a1.grid)
+        a1.data[:] = 0.
+        a2.data[:] = 0.
+        p = points(a1.grid, ranges=coords, npoints=npoints)
+
+        iexpr = Float(1.) if nexpr == 1 else (Float(1.), Float(2.))
+        expr = p.inject((a1, a2), iexpr)
+
+        op = Operator(expr)
+
+        op(a1=a1, a2=a2)
+
+        indices = [slice(4, 6, 1) for _ in coords]
+        indices[0] = slice(1, -1, 1)
+        result = (result, result) if nexpr == 1 else (result, 2 * result)
+        for r, a in zip(result, (a1, a2), strict=True):
+            assert np.allclose(a.data[indices], r, rtol=1.e-5)
+
+    @pytest.mark.parametrize('shape, coords, result', SHAPE_COORDS_INJECT)
+    def test_inject_time_shift(self, shape, coords, result, npoints=19):
+        """Test generic point injection testing the x-coordinate of an
+        arbitrary set of points going across the grid.
+        This test verifies the optional time shifting for SparseTimeFunctions
+        """
+        a = unit_box_time(shape=shape)
+        a.data[:] = 0.
+        p = time_points(a.grid, ranges=coords, npoints=npoints)
+
+        expr = p.inject(a, Float(1.), u_t=a.indices[0]+1)
+
+        op = Operator(expr)
+
+        op(a=a, time=1)
+
+        indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
+        indices[1] = slice(1, -1, 1)
+        assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+        a.data[:] = 0.
+        expr = p.inject(a, Float(1.), p_t=p.indices[0]+1)
+
+        op = Operator(expr)
+
+        op(a=a, time=1)
+
+        indices = [slice(0, 0, 1)] + [slice(4, 6, 1) for _ in coords]
+        indices[1] = slice(1, -1, 1)
+        assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+        a.data[:] = 0.
+        expr = p.inject(a, Float(1.), u_t=a.indices[0]+1, p_t=p.indices[0]+1)
+
+        op = Operator(expr)
+
+        op(a=a, time=1)
+
+        indices = [slice(1, 1, 1)] + [slice(4, 6, 1) for _ in coords]
+        indices[1] = slice(1, -1, 1)
+        assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+    @pytest.mark.parametrize('shape, coords, result', SHAPE_COORDS_INJECT)
+    def test_inject_array(self, shape, coords, result, npoints=19):
+        """Test point injection with a set of points forming a line
+        through the middle of the grid.
+        """
+        a = unit_box(shape=shape)
+        a.data[:] = 0.
+        p = points(a.grid, ranges=coords, npoints=npoints)
+        p2 = points(a.grid, ranges=coords, npoints=npoints, name='p2')
+        p2.data[:] = 1.
+        expr = p.inject(a, p)
+
+        op = Operator(expr)
+
+        op(a=a, points=p2.data[:])
+
+        indices = [slice(4, 6, 1) for _ in coords]
+        indices[0] = slice(1, -1, 1)
+        assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+    @pytest.mark.parametrize('shape, coords, result', SHAPE_COORDS_INJECT)
+    def test_inject_from_field(self, shape, coords, result, npoints=19):
+        """Test point injection from a second field along a line
+        through the middle of the grid.
+        """
+        a = unit_box(shape=shape)
+        a.data[:] = 0.
+        b = Function(name='b', grid=a.grid)
+        b.data[:] = 1.
+        p = points(a.grid, ranges=coords, npoints=npoints)
+
+        expr = p.inject(field=a, expr=b)
+        op = Operator(expr)
+
+        op(a=a, b=b)
+
+        indices = [slice(4, 6, 1) for _ in coords]
+        indices[0] = slice(1, -1, 1)
+        assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+    def test_edge_sparse(self):
+        """
+        Test that interpolation uses the correct point for the edge case
+        where the sparse point is at the origin with non rational grid spacing.
+        Due to round up error the interpolation would use the halo point instead of
+        the point (0, 0) without the factorizaion of the expressions.
+        """
+        grid = Grid(shape=(16, 16), extent=(225., 225.), origin=(25., 35.))
+        u = unit_box(shape=(16, 16), grid=grid)
+        u._data_with_outhalo[:u.space_order, :] = -1
+        u._data_with_outhalo[:, :u.space_order] = -1
+        sf1 = SparseFunction(name='s', grid=u.grid, npoint=1)
+        sf1.coordinates.data[0, :] = (25.0, 35.0)
+
+        expr = sf1.interpolate(u)
+        subs = {d.spacing: v for d, v in zip(u.grid.dimensions, u.grid.spacing,
+                                             strict=True)}
+        op = Operator(expr, subs=subs)
+
+        op()
+        assert sf1.data[0] == 0
+
+    @pytest.mark.parametrize('stagg', [
+        'NODE', 'x', 'y', 'z',
+        '(x, y)', '(x, z)', '(y, z)',
+        '(x, y, z)'
+    ])
+    def test_interpolate_staggered(self, stagg):
+        grid = Grid((11, 11, 11))
+        x, y, z = grid.dimensions  # noqa
+        staggered = eval(stagg)
+        a = Function(name='a', grid=grid, space_order=2,
+                     staggered=staggered)
+        a.data.fill(1)
+        a.data[5, 5, 5] = 2
+
+        p = SparseFunction(name="p", grid=a.grid, nt=10, npoint=1)
+        p.coordinates.data[0, :] = (0.5, 0.5, 0.5)
+
+        expr = p.interpolate(a)
+        op = Operator(expr)
+
+        op()
+        # The expected value is 0.5 for the NODE case.
+        # For the staggered case, the center point is
+        # shifted left compared to the staggered function
+        if stagg == 'NODE':
+            expected = 2
+        elif len(as_tuple(staggered)) == 1:
+            # Staggered in one dimension leads to single
+            # two point interpolation along that dim.
+            # Data is 1 everywhere and 2 at the center so
+            # (.5) * 1 + (.5) * 2 = 1.5
+            expected = 1.5
+        elif len(as_tuple(staggered)) == 2:
+            # Square interpolation with three 1 and one 2
+            expected = 1.25
+        elif len(as_tuple(staggered)) == 3:
+            # Cube interpolation with seven 1 and one 2
+            expected = 1.125
+
+        assert np.allclose(p.data[:], expected, rtol=1e-6)
+
+    @pytest.mark.parametrize('stagg', [
+        'NODE', 'x', 'y', 'z',
+        '(x, y)', '(x, z)', '(y, z)',
+        '(x, y, z)'
+    ])
+    def test_inject_staggered(self, stagg):
+        grid = Grid((11, 11, 11))
+        x, y, z = grid.dimensions  # noqa
+        staggered = eval(stagg)
+        a = Function(name='a', grid=grid, space_order=2,
+                     staggered=staggered)
+        a.data.fill(0)
+
+        b = Function(name='b', grid=a.grid, space_order=8,
+                     staggered=NODE)
+        b.data.fill(1)
+        b.data[5, 5, 5] = 2
+
+        p = SparseFunction(name="p", grid=a.grid, nt=10, npoint=1)
+        p.coordinates.data[0, :] = (0.5, 0.5, 0.5)
+        p.data[:] = 1.
+
+        expr = p.inject(a, expr=b * p)
+        op = Operator(expr)
+
+        op()
+        if stagg == 'NODE':
+            assert np.isclose(a.data[5, 5, 5], 2, rtol=1e-6)
+            # all other should be zero
+            assert np.sum(a.data) == 2
+        else:
+            # Bottom corner since the source position is left of the staggered field
+            corner = [5, 5, 5] - np.array(a.staggered)
+            # Indices touched by the interpolation based on staggering
+            slices = [slice(corner[i], 6) for i in range(3)]
+            # Number of points for the interpolation.
+            # Single dim only interpolates between two points,
+            # so 2**(number of staggered dims) is the number of points.
+            npoints = 2**(np.sum(np.array(a.staggered, dtype=np.int32)))
+            # b value at the staggered field from b._eval_at(field)
+            b_val = (1 * (npoints - 1) + 2) / npoints
+            # Then source interpolation. Source at the center of the staggered field,
+            # so all points have the same weight 1/npoints.
+            interp_val = b_val / npoints
+            assert np.allclose(a.data[slices], interp_val, rtol=1e-6)
+            # All other should be zero so should sum to the interp_val * number of points.
+            # Use abs to make sure there is no +- cancellations
+            assert np.sum(np.abs(a.data)) == interp_val * 2**(sum(np.array(a.staggered)))
+
+    def test_inject_staggered_mixed(self):
+        grid = Grid((11, 11, 11))
+        v = VectorFunction(name='v', grid=grid, space_order=2)
+        b = Function(name='b', grid=grid, space_order=2, staggered=NODE)
+        p = SparseFunction(name="p", grid=grid, nt=10, npoint=1)
+
+        eq = p.inject(v, expr=b * p).evaluate
+
+        # We should have
+        # - 3 injection equations v_x, v_y, v_z
+        # The standard 6 on node temps posx, posy, posz, px, py, pz
+        # 2 temps for the staggered in x vx posz_s1, px_s1
+        # 2 temps for the staggered in y vy posz_s1, py_s1
+        # 2 temps for the staggered in z vz posz_s1, pz_s1
+        assert len(eq) == 3 + 6 + 2 + 2 + 2
+
+        op = Operator(eq)
+        # Should be a single loop nest with 3 injections
+        assert_structure(op, ['p_p,rp_px,rp_py,rp_pz'], 'p_prp_pxrp_py,rp_pz')
+
+# ---------------------------------------------------------------------------
+# Precomputed interpolation / injection
+# ---------------------------------------------------------------------------
+
+
+class TestPrecomputed:
+    """Tests for PrecomputedSparseFunction / PrecomputedSparseTimeFunction."""
+
+    @pytest.fixture
+    def coords(self):
+        return np.array([(.05, .9), (.01, .8), (0.07, 0.84)])
+
+    @pytest.fixture
+    def inject_coords(self):
+        return [(.05, .95), (.45, .45)]
+
+    @pytest.fixture
+    def origin(self):
+        return (0, 0)
+
+    @pytest.mark.parametrize('r', [2, 4, 6])
+    def test_precomputed_interpolation(self, r, coords, origin):
+        """ Test interpolation with PrecomputedSparseFunction which accepts
+            precomputed values for interpolation coefficients
+        """
+        shape = (101, 101)
+        grid = Grid(shape=shape, origin=origin)
+
+        def init(data):
+            # This is data with halo so need to shift to match the m.data expectations
+            print(grid.spacing)
+            for i in range(data.shape[0]):
+                for j in range(data.shape[1]):
+                    data[i, j] = (sin(grid.spacing[0]*(i-r))
+                                  + sin(grid.spacing[1]*(j-r)))
+            return data
+
+        m = Function(name='m', grid=grid, initializer=init, space_order=r)
+
+        gridpoints, interpolation_coeffs = precompute_linear_interpolation(
+            coords, grid, origin, r=r)
+
+        sf = PrecomputedSparseFunction(name='s', grid=grid, r=r, npoint=len(coords),
+                                       gridpoints=gridpoints,
+                                       interpolation_coeffs=interpolation_coeffs)
+        eqn = sf.interpolate(m)
+        op = Operator(eqn)
+
+        op()
+        expected_values = [sin(point[0]) + sin(point[1]) for point in coords]
+        assert(all(np.isclose(sf.data, expected_values, rtol=1e-6)))
+
+    @pytest.mark.parametrize('r', [2, 4, 6])
+    def test_precomputed_interpolation_time(self, r, coords, origin):
+        """ Test interpolation with PrecomputedSparseFunction which accepts
+            precomputed values for interpolation coefficients, but this time
+            with a TimeFunction
+        """
+        shape = (101, 101)
+        grid = Grid(shape=shape, origin=origin)
+
+        u = TimeFunction(name='u', grid=grid, space_order=r, save=5)
+        for it in range(5):
+            u.data[it, :] = it
+
+        gridpoints, interpolation_coeffs = precompute_linear_interpolation(
+            coords, grid, origin, r=r)
+
+        sf = PrecomputedSparseTimeFunction(name='s', grid=grid, r=r,
+                                           npoint=len(coords), nt=5,
+                                           gridpoints=gridpoints,
+                                           interpolation_coeffs=interpolation_coeffs)
+
+        assert sf.data.shape == (5, 3)
+
+        eqn = sf.interpolate(u)
+        op = Operator(eqn)
+
+        op(time_m=0, time_M=4)
+
+        for it in range(5):
+            assert np.allclose(sf.data[it, :], it)
+
+    @pytest.mark.parametrize('r', [2, 4, 6])
+    def test_precomputed_injection(self, r, inject_coords, origin):
+        """Test injection with PrecomputedSparseFunction which accepts
+           precomputed values for interpolation coefficients
+        """
+        shape = (11, 11)
+        result = 0.25
+
+        m = unit_box(shape=shape, space_order=r)
+        m.data[:] = 0.
+
+        gridpoints, interpolation_coeffs = precompute_linear_interpolation(
+            inject_coords, m.grid, origin, r=r)
+
+        sf = PrecomputedSparseFunction(name='s', grid=m.grid, r=r,
+                                       npoint=len(inject_coords),
+                                       gridpoints=gridpoints,
+                                       interpolation_coeffs=interpolation_coeffs)
+
+        expr = sf.inject(m, Float(1.))
+
+        op = Operator(expr)
+
+        op()
+        indices = [slice(0, 2, 1), slice(9, 11, 1)]
+        assert np.allclose(m.data[indices], result, rtol=1.e-5)
+
+        indices = [slice(4, 6, 1) for _ in inject_coords]
+        assert np.allclose(m.data[indices], result, rtol=1.e-5)
+
+    @pytest.mark.parametrize('r', [2, 4, 6])
+    def test_precomputed_injection_time(self, r, inject_coords, origin):
+        """Test injection with PrecomputedSparseFunction which accepts
+           precomputed values for interpolation coefficients
+        """
+        shape = (11, 11)
+        result = 0.25
+        nt = 20
+
+        m = unit_box_time(shape=shape, space_order=r)
+        m.data[:] = 0.
+
+        gridpoints, interpolation_coeffs = precompute_linear_interpolation(
+            inject_coords, m.grid, origin, r=r)
+
+        sf = PrecomputedSparseTimeFunction(name='s', grid=m.grid, r=r,
+                                           npoint=len(inject_coords),
+                                           gridpoints=gridpoints, nt=nt,
+                                           interpolation_coeffs=interpolation_coeffs)
+        sf.data.fill(1.)
+        expr = sf.inject(m, sf)
+
+        op = Operator(expr)
+
+        op()
+        for ti in range(2):
+            indices = [slice(0, 2, 1), slice(9, 11, 1)]
+            assert np.allclose(m.data[ti][indices], nt*result/2, rtol=1.e-5)
+
+            indices = [slice(4, 6, 1) for _ in inject_coords]
+            assert np.allclose(m.data[ti][indices], nt*result/2, rtol=1.e-5)
+
+
+# ---------------------------------------------------------------------------
+# Sinc interpolation
+# ---------------------------------------------------------------------------
+
+
+class TestSinc:
+    """Tests for sinc interpolation."""
+
+    @pytest.mark.parametrize('r, tol', [(2, 0.051), (3, 0.003), (4, 0.008),
+                                        (5, 0.002), (6, 0.0005), (7, 8e-5),
+                                        (8, 6e-5), (9, 5e-5), (10, 4.2e-5)])
+    def test_sinc_accuracy(self, r, tol):
+        so = max(2, r)
+        solver_lin = acoustic_setup(preset='constant-isotropic', shape=(101, 101),
+                                    spacing=(10, 10), interpolation='linear',
+                                    space_order=so)
+        solver_sinc = acoustic_setup(preset='constant-isotropic', shape=(101, 101),
+                                     spacing=(10, 10), interpolation='sinc', r=r,
+                                     space_order=so)
+
+        # On node source
+        s_node = [500, 500]
+        src_n = solver_lin.geometry.src
+        src_n.coordinates.data[:] = s_node
+
+        # Half node src
+        s_mid = [505, 505]
+        src_h = solver_lin.geometry.src
+        src_h.coordinates.data[:] = s_mid
+
+        # On node rec
+        r_node = [750, 750]
+        rec_n = solver_lin.geometry.new_src(name='rec', src_type=None)
+        rec_n.coordinates.data[:] = r_node
+
+        # Half node rec for linear
+        r_mid = [755, 755]
+        rec_hl = solver_lin.geometry.new_src(name='recl', src_type=None)
+        rec_hl.coordinates.data[:] = r_mid
+
+        # Half node rec for sinc
+        r_mid = [755, 755]
+        rec_hs = solver_lin.geometry.new_src(name='recs', src_type=None)
+        rec_hs.coordinates.data[:] = r_mid
+
+        # Reference solution, on node
+        _, un, _ = solver_lin.forward(src=src_n, rec=rec_n)
+        # Linear interp on half node
+        _, ul, _ = solver_lin.forward(src=src_h, rec=rec_hl)
+        # Sinc interp on half node
+        _, us, _ = solver_sinc.forward(src=src_h, rec=rec_hs)
+
+        # Check sinc is more accuracte
+        nref = np.linalg.norm(rec_n.data)
+        err_lin = np.linalg.norm(rec_n.data - rec_hl.data)/nref
+        err_sinc = np.linalg.norm(rec_n.data - rec_hs.data)/nref
+
+        print(f"Error linear: {err_lin}, Error sinc: {err_sinc}")
+        assert np.isclose(err_sinc, 0, rtol=0, atol=tol)
+        assert err_sinc < err_lin
+        assert err_lin > 0.01
+
+
+# ---------------------------------------------------------------------------
+# Matrix sparse function interpolation / injection
+# ---------------------------------------------------------------------------
+
+
+class TestMatrixSparse:
+    """Tests for MatrixSparseTimeFunction interpolation / injection."""
+
+    def test_msf_interpolate(self):
+        """ Test interpolation with MatrixSparseTimeFunction which accepts
+            precomputed values for interpolation coefficients, but this time
+            with a TimeFunction
+        """
+        shape = (101, 101)
+        coords = np.array([(.05, .9), (.01, .8), (0.07, 0.84)])
+        origin = (0, 0)
+
+        grid = Grid(shape=shape, origin=origin)
+        r = 2  # Constant for linear interpolation
+        #  because we interpolate across 2 neighbouring points in each dimension
+
+        u = TimeFunction(name='u', grid=grid, space_order=0, save=5)
+        for it in range(5):
+            u.data[it, :] = it
+
+        gridpoints, interpolation_coeffs = precompute_linear_interpolation(
+            coords, grid, origin)
+
+        matrix = scipy.sparse.eye(len(coords))
+
+        sf = MatrixSparseTimeFunction(
+            name='s', grid=grid, r=r, matrix=matrix, nt=5
+        )
+
+        sf.gridpoints.data[:] = gridpoints
+        sf.coefficients_x.data[:] = interpolation_coeffs[:, 0, :]
+        sf.coefficients_y.data[:] = interpolation_coeffs[:, 0, :]
+
+        assert sf.data.shape == (5, 3)
+
+        eqn = sf.interpolate(u)
+        op = Operator(eqn)
+
+        sf.manual_scatter()
+        op(time_m=0, time_M=4)
+        sf.manual_gather()
+
+        for it in range(5):
+            assert np.allclose(sf.data[it, :], it)
+
+        # Now test injection
+        u.data[:] = 0
+
+        eqn_inject = sf.inject(field=u, expr=sf)
+        op2 = Operator(eqn_inject)
+        op2(time_m=0, time_M=4)
+
+        # There should be 4 points touched for each source point
+        # (5, 90), (1, 80), (7, 84) and x+1, y+1 for each
+        nzt, nzx, nzy = np.nonzero(u.data)
+        assert np.all(np.unique(nzx) == np.array([1, 2, 5, 6, 7, 8]))
+        assert np.all(np.unique(nzy) == np.array([80, 81, 84, 85, 90, 91]))
+        assert np.all(np.unique(nzt) == np.array([1, 2, 3, 4]))
+        # 12 points x 4 timesteps
+        assert nzt.size == 48
+
+
+# ---------------------------------------------------------------------------
+# Interpolator selection / configuration
+# ---------------------------------------------------------------------------
+
+
+class TestInterpolator:
+    """Tests for interpolator selection, radius and dtype handling."""
+
+    @pytest.mark.parametrize('r, interp', [(2, 'linear'), (4, 'sinc')])
+    def test_interpolation_radius(self, r, interp):
+        nt = 11
+
+        grid = Grid(shape=(5, 5))
+        u = TimeFunction(name="u", grid=grid, space_order=0)
+        src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
+                                 r=r, interpolation=interp)
+        try:
+            src.interpolate(u)
+            raise AssertionError('Assert False')
+        except ValueError:
+            assert True
+
+    def test_interp_default(self):
+        nt = 3
+        grid = Grid(shape=(5, 5))
+
+        src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1)
+        assert isinstance(src.interpolator, LinearInterpolator)
+        assert src.r == 1
+
+        src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
+                                 interpolation='sinc')
+        assert isinstance(src.interpolator, SincInterpolator)
+        assert src.r == 4
+
+        src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
+                                 interpolation='sinc', r=6)
+        assert isinstance(src.interpolator, SincInterpolator)
+        assert src.r == 6
+
+    @pytest.mark.parametrize('dtype, expected', [(np.complex64, np.float32),
+                                                 (np.complex128, np.float64)])
+    def test_point_symbol_types(self, dtype, expected):
+        """Test that positions are always real"""
+        grid = Grid(shape=(11,))
+        s = SparseFunction(name='src', npoint=1,
+                           grid=grid, dtype=dtype)
+        point_symbol = s.interpolator._point_symbols()[0]
+
+        assert point_symbol.dtype is expected
+
+    def test_wrong_coords(self):
+        grid = Grid(shape=(11, 11))
+        s = SparseFunction(name='src', npoint=1, grid=grid)
+        s2 = SparseFunction(name='src2', npoint=1, grid=grid)
+        u = Function(name='u', grid=grid)
+
+        with pytest.raises(ValueError) as vinfo:
+            s.inject(u, expr=s2)
+        assert "Interpolation/injection with" in str(vinfo.value)
+
+        with pytest.raises(ValueError) as vinfo:
+            s.interpolate(u + s2)
+        assert "Interpolation/injection with" in str(vinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# Complex-valued interpolation
+# ---------------------------------------------------------------------------
+
+
+class TestComplex:
+    """Tests for interpolation with complex-valued Functions."""
+
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_interp_complex(self, dtype):
+        grid = Grid((11, 11, 11))
+
+        sc = SparseFunction(name="sc", grid=grid, npoint=1, dtype=dtype)
+        sc.coordinates.data[:] = [.5, .5, .5]
+
+        fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
+        fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
+        opC = Operator([sc.interpolate(expr=fc)], name="OpC")
+        opC()
+
+        assert np.isclose(sc.data[0], fc.data[5, 5, 5])
+
+    @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
+    def test_interp_complex_and_real(self, dtype):
+        grid = Grid((11, 11, 11))
+
+        sc = SparseFunction(name="sc", grid=grid, npoint=1, dtype=dtype)
+        sc.coordinates.data[:] = [.5, .5, .5]
+        scre = SparseFunction(name="sce", grid=grid, npoint=1,
+                              coordinates=sc.coordinates)
+
+        fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
+        fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
+        exprs = sc.interpolate(expr=fc) + scre.interpolate(expr=Real(fc))
+        opC = Operator(exprs, name="OpC")
+        opC()
+
+        assert np.isclose(sc.data[0], fc.data[5, 5, 5])
+        assert np.isclose(scre.data[0], fc.data[5, 5, 5].real)
+
+        assert_structure(opC, ['p_sc', 'p_sc,rp_scx,rp_scy,rp_scz',
+                               'p_sc,rp_scx,rp_scy,rp_scz'],
+                         'p_sc,rp_scx,rp_scy,rp_scz,rp_scx,rp_scy,rp_scz')
+
+
+# ---------------------------------------------------------------------------
+# Custom sparse function layouts / acoustic-driven scenarios
+# ---------------------------------------------------------------------------
+
+
+class TestCustom:
+    """Tests for custom SparseFunction layouts and acoustic-driven scenarios."""
+
+    @pytest.mark.parametrize('shape', [(50, 50, 50)])
+    def test_position(self, shape):
+        t0 = 0.0  # Start time
+        tn = 500.  # Final time
+        nrec = 130  # Number of receivers
+
+        # Create model from preset
+        model = demo_model('constant-isotropic', spacing=[15. for _ in shape],
+                           shape=shape, nbl=10)
+
+        # Derive timestepping from model spacing
+        dt = model.critical_dt
+        time_range = TimeAxis(start=t0, stop=tn, step=dt)
+
+        # Source and receiver geometries
+        src_coordinates = np.empty((1, len(shape)))
+        src_coordinates[0, :] = np.array(model.domain_size) * .5
+        src_coordinates[0, -1] = 30.
+
+        rec_coordinates = np.empty((nrec, len(shape)))
+        rec_coordinates[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        rec_coordinates[:, 1:] = src_coordinates[0, 1:]
+
+        geometry = AcquisitionGeometry(model, rec_coordinates, src_coordinates,
+                                       t0=t0, tn=tn, src_type='Ricker', f0=0.010)
+        # Create solver object to provide relevant operators
+        solver = AcousticWaveSolver(model, geometry, time_order=2, space_order=4)
+
+        rec, u, _ = solver.forward(save=False)
+
+        # Define source geometry (center of domain, just below surface) with 100. origin
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time_range=time_range)
+        src.coordinates.data[0, :] = np.array(model.domain_size) * .5 + 100.
+        src.coordinates.data[0, -1] = 130.
+
+        # Define receiver geometry (same as source, but spread across `x, y`)
+        rec2 = Receiver(name='rec', grid=model.grid, time_range=time_range, npoint=nrec)
+        rec2.coordinates.data[:, 0] = np.linspace(100., 100. + model.domain_size[0],
+                                                  num=nrec)
+        rec2.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+        ox_g, oy_g, oz_g = tuple(o + 100. for o in model.grid.origin)
+
+        rec1, u1, _ = solver.forward(save=False, src=src, rec=rec2,
+                                     o_x=ox_g, o_y=oy_g, o_z=oz_g)
+
+        assert(np.allclose(rec.data, rec1.data, atol=1e-5))
+
+    def test_sparse_first(self):
+        """
+        Tests custom sprase function with sparse dimension as first index.
+        """
+        dr = Dimension("cd")
+        ds = DefaultDimension("ps", default_value=3)
+        grid = Grid((11, 11))
+        dims = grid.dimensions
+        s = SparseFirst(name="s", grid=grid, npoint=2, dimensions=(dr, ds),
+                        shape=(2, 3), coordinates=[[.5, .5], [.2, .2]])
+
+        # Check dimensions and shape are correctly initialized
+        assert s.indices[s._sparse_position] == dr
+        assert s.shape == (2, 3)
+        assert s.coordinates.indices[0] == dr
+
+        # Operator
+        u = TimeFunction(name="u", grid=grid, time_order=1)
+        fs = Function(name="fs", grid=grid, dimensions=(*dims, ds), shape=(11, 11, 3))
+
+        eqs = [Eq(u.forward, u+1), Eq(fs, u)]
+        # No time dependence so need the implicit dim
+        rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
+        op = Operator(eqs + rec)
+
+        op(time_M=10)
+        expected = 10*11/2  # n (n+1)/2
+        assert np.allclose(s.data, expected)
+
+    @switchconfig(safe_math=True)
+    def test_inject_function(self):
+        nt = 11
+
+        grid = Grid(shape=(5, 5))
+        u = TimeFunction(name="u", grid=grid, time_order=2)
+        src = SparseTimeFunction(name="src", grid=grid, nt=nt, npoint=1,
+                                 coordinates=[[0.5, 0.5]])
+
+        nfreq = 5
+        freq_dim = DefaultDimension(name="freq", default_value=nfreq)
+        omega = Function(name="omega", dimensions=(freq_dim,), shape=(nfreq,),
+                         grid=grid)
+        omega.data.fill(1.)
+
+        inj = src.inject(field=u.forward, expr=omega)
+
+        op = Operator([inj])
+
+        op(time_M=0)
+        assert u.data[1, 2, 2] == nfreq
+        assert np.all(u.data[0] == 0)
+        assert np.all(u.data[2] == 0)
+        for i in [0, 1, 3, 4]:
+            for j in [0, 1, 3, 4]:
+                assert u.data[1, i, j] == 0
+
+
+# ---------------------------------------------------------------------------
+# SubDomain interpolation / injection
+# ---------------------------------------------------------------------------
 
 
 class SD0(SubDomain):
@@ -962,12 +1104,25 @@ class TestSubDomainInterpolation:
     SubDomains.
     """
 
-    def test_interpolate_subdomain(self):
+    @pytest.fixture
+    def grid(self):
+        return Grid(shape=(11, 11), extent=(10., 10.))
+
+    @pytest.fixture
+    def coords(self):
+        return np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
+                         [0.5, 6.], [7.5, 4.], [5.5, 5.5],
+                         [1.5, 4.5], [7.5, 8.5]])
+
+    @pytest.fixture
+    def sinc_coords(self):
+        return np.array([[2.5, 6.5], [3.5, 4.5], [6., 6.],
+                         [5.5, 4.5], [4.5, 6.]])
+
+    def test_interpolate_subdomain(self, grid, coords):
         """
         Test interpolation off of a Function defined on a SubDomain.
         """
-
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
         sd0 = SD0(grid=grid)
         sd1 = SD1(grid=grid)
 
@@ -984,10 +1139,6 @@ class TestSubDomainInterpolation:
         sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
         sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
         sr2 = SparseFunction(name='sr2', grid=grid, npoint=8)
-
-        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
-                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
-                           [1.5, 4.5], [7.5, 8.5]])
 
         sr0.coordinates.data[:] = coords
         sr1.coordinates.data[:] = coords
@@ -1015,11 +1166,10 @@ class TestSubDomainInterpolation:
                           'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
                          'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
 
-    def test_interpolate_subdomain_sinc(self):
+    def test_interpolate_subdomain_sinc(self, grid, sinc_coords):
         """
         Check that sinc interpolation off a SubDomain works as expected.
         """
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
         sd0 = SD6(grid=grid)
         sd1 = SD7(grid=grid)
 
@@ -1037,11 +1187,9 @@ class TestSubDomainInterpolation:
         sr1 = SparseFunction(name='sr1', grid=grid, npoint=5, interpolation='sinc', r=2)
         sr2 = SparseFunction(name='sr2', grid=grid, npoint=5, interpolation='sinc', r=2)
 
-        coords = np.array([[2.5, 6.5], [3.5, 4.5], [6., 6.], [5.5, 4.5], [4.5, 6.]])
-
-        sr0.coordinates.data[:] = coords
-        sr1.coordinates.data[:] = coords
-        sr2.coordinates.data[:] = coords
+        sr0.coordinates.data[:] = sinc_coords
+        sr1.coordinates.data[:] = sinc_coords
+        sr2.coordinates.data[:] = sinc_coords
 
         rec0 = sr0.interpolate(f0)
         rec1 = sr1.interpolate(f1)
@@ -1058,11 +1206,10 @@ class TestSubDomainInterpolation:
                           'p_sr1rp_sr1xrp_sr1y', 'p_sr2', 'p_sr2rp_sr2xrp_sr2y'],
                          'p_sr0rp_sr0xrp_sr0yp_sr1rp_sr1xrp_sr1yp_sr2rp_sr2xrp_sr2y')
 
-    def test_inject_subdomain(self):
+    def test_inject_subdomain(self, grid, coords):
         """
         Test injection into a Function defined on a SubDomain.
         """
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
         sd0 = SD0(grid=grid)
         sd1 = SD1(grid=grid)
 
@@ -1070,10 +1217,6 @@ class TestSubDomainInterpolation:
         f1 = Function(name='f1', grid=sd1)
 
         sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
-
-        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
-                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
-                           [1.5, 4.5], [7.5, 8.5]])
 
         sr0.coordinates.data[:] = coords
 
@@ -1105,12 +1248,11 @@ class TestSubDomainInterpolation:
                          ['p_sr0rp_sr0xrp_sr0y'],
                          'p_sr0rp_sr0xrp_sr0y')
 
-    def test_inject_subdomain_sinc(self):
+    def test_inject_subdomain_sinc(self, grid, sinc_coords):
         """
         Check sinc injection into a Function defined on a SubDomain functions
         as expected.
         """
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
         sd0 = SD6(grid=grid)
         sd1 = SD7(grid=grid)
 
@@ -1120,9 +1262,7 @@ class TestSubDomainInterpolation:
 
         sr0 = SparseFunction(name='sr0', grid=grid, npoint=5, interpolation='sinc', r=2)
 
-        coords = np.array([[2.5, 6.5], [3.5, 4.5], [6.0, 6.], [5.5, 4.5], [4.5, 6.]])
-
-        sr0.coordinates.data[:] = coords
+        sr0.coordinates.data[:] = sinc_coords
 
         src0 = sr0.inject(f0, Float(1.))
         src1 = sr0.inject(f1, Float(1.))
@@ -1139,12 +1279,10 @@ class TestSubDomainInterpolation:
 
     @pytest.mark.xfail(reason="OOB issue")
     @pytest.mark.parallel(mode=4)
-    def test_interpolate_subdomain_mpi(self, mode):
+    def test_interpolate_subdomain_mpi(self, mode, grid, coords):
         """
         Test interpolation off of a Function defined on a SubDomain with MPI.
         """
-
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
         sd2 = SD2(grid=grid)
         sd3 = SD3(grid=grid)
         sd4 = SD4(grid=grid)
@@ -1165,10 +1303,6 @@ class TestSubDomainInterpolation:
         sr1 = SparseFunction(name='sr1', grid=grid, npoint=8)
         sr2 = SparseFunction(name='sr2', grid=grid, npoint=8)
         sr3 = SparseFunction(name='sr3', grid=grid, npoint=8)
-
-        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
-                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
-                           [1.5, 4.5], [7.5, 8.5]])
 
         sr0.coordinates.data[:] = coords
         sr1.coordinates.data[:] = coords
@@ -1206,12 +1340,10 @@ class TestSubDomainInterpolation:
             assert np.all(np.isclose(sr3.data, [0., 0.]))
 
     @pytest.mark.parallel(mode=4)
-    def test_inject_subdomain_mpi(self, mode):
+    def test_inject_subdomain_mpi(self, mode, grid, coords):
         """
         Test injection into a Function defined on a SubDomain with MPI.
         """
-
-        grid = Grid(shape=(11, 11), extent=(10., 10.))
         sd2 = SD2(grid=grid)
         sd3 = SD3(grid=grid)
         sd4 = SD4(grid=grid)
@@ -1223,10 +1355,6 @@ class TestSubDomainInterpolation:
         f3 = Function(name='f3', grid=sd5)
 
         sr0 = SparseFunction(name='sr0', grid=grid, npoint=8)
-
-        coords = np.array([[2.5, 1.5], [4.5, 2.], [8.5, 4.],
-                           [0.5, 6.], [7.5, 4.], [5.5, 5.5],
-                           [1.5, 4.5], [7.5, 8.5]])
 
         sr0.coordinates.data[:] = coords
 
@@ -1277,18 +1405,3 @@ class TestSubDomainInterpolation:
             assert data1 == None  # noqa
             assert data2 == None  # noqa
             assert data3 == None  # noqa
-
-
-def test_wrong_coords():
-    grid = Grid(shape=(11, 11))
-    s = SparseFunction(name='src', npoint=1, grid=grid)
-    s2 = SparseFunction(name='src2', npoint=1, grid=grid)
-    u = Function(name='u', grid=grid)
-
-    with pytest.raises(ValueError) as vinfo:
-        s.inject(u, expr=s2)
-    assert "Interpolation/injection with" in str(vinfo.value)
-
-    with pytest.raises(ValueError) as vinfo:
-        s.interpolate(u + s2)
-    assert "Interpolation/injection with" in str(vinfo.value)

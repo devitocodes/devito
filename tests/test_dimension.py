@@ -1274,10 +1274,10 @@ class TestConditionalDimension:
 
         radius = 1
         indices = [(INT(floor(i)), INT(floor(i))+radius)
-                   for i in sf._position_map]
+                   for i in sf._position_map()]
         bounds = [i.symbolic_size - radius for i in grid.dimensions]
 
-        eqs = [Eq(p, v) for (v, p) in sf._position_map.items()]
+        eqs = [Eq(p, v) for (v, p) in sf._position_map().items()]
         for e, i in enumerate(product(*indices)):
             args = [j > 0 for j in i]
             args.extend([j < k for j, k in zip(i, bounds, strict=True)])
