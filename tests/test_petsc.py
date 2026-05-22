@@ -1479,10 +1479,6 @@ class TestMPI:
     def test_laplacian_1d(self, nx, unorm, mode):
         """
         """
-        # configuration['compiler'] = 'custom'
-        # os.environ['CC'] = 'mpicc'
-        # PetscInitialize()
-
         class SubSide(SubDomain):
             def __init__(self, side='left', grid=None):
                 self.side = side
@@ -2204,11 +2200,7 @@ class TestGetInfo:
     @skipif('petsc')
     def test_get_ksp_type_large_grid(self):
         """
-        Test for a dangling-pointer segfault when reading KSPGetType
-        after op.apply().  KSPType is ``const char*`` into KSP-owned memory;
-        after SNESDestroy that pointer is invalid.  The crash only appeared
-        reliably on large grids (n=257) because the freed KSP memory must be
-        reclaimed by the heap before Python reads the profiler struct.
+        Test for no segfault when reading KSPGetType after op.apply().
         """
         get_info = ['kspgettype']
         grid = Grid(shape=(257, 257), dtype=np.float64)

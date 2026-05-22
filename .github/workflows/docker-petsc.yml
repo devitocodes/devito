@@ -7,8 +7,6 @@ on:
   push:
     branches:
       - petsc
-      # will be dropped after merge into petsc branch
-      - petscsection
 
 jobs:
   build-and-push:
