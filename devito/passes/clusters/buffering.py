@@ -1,9 +1,9 @@
 from collections import defaultdict, namedtuple
 from functools import cached_property
-from itertools import chain
+from itertools import chain, groupby
 
 import numpy as np
-from sympy import S, simplify
+from sympy import Mod, S, simplify
 
 from devito.exceptions import CompilationError
 from devito.ir import (
@@ -116,7 +116,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     # Then we inject them into the Clusters. This involves creating the
     # initializing Clusters, and replacing the buffered Functions with the buffers
     clusters = InjectBuffers(mapper, sregistry, options).process(clusters)
-
+    print(clusters)
     return clusters
 
 
@@ -142,14 +142,18 @@ class InjectBuffers(Queue):
             return clusters
         d = prefix[-1].dim
 
-        key = lambda f, *args: f in self.mapper
+        def key(f, *args):
+            for (ff, _) in self.mapper:
+                if f == ff:
+                    return True
+            return False
         bfmap = map_buffered_functions(clusters, key)
 
         # A BufferDescriptor is a simple data structure storing additional
         # information about a buffer, harvested from the subset of `clusters`
         # that access it
-        descriptors = {b: BufferDescriptor(f, b, bfmap[f])
-                       for f, b in self.mapper.items()
+        descriptors = {b: BufferDescriptor(f, b, bfmap[f], g)
+                       for (f, g), b in self.mapper.items()
                        if f in bfmap}
 
         # Are we inside the right `d`?
@@ -184,6 +188,8 @@ class InjectBuffers(Queue):
                     continue
                 if c not in v.firstread:
                     continue
+                if not c.guards.get(d) == v.guards.get(d):
+                    continue
 
                 idxf = v.last_idx[c]
                 idxb = mds[(v.xd, idxf)]
@@ -203,7 +209,7 @@ class InjectBuffers(Queue):
                     guards = c.guards
 
                 properties = c.properties.sequentialize(d)
-                if not isinstance(d, BufferDimension):
+                if not isinstance(d, BufferDimension) and c.guards[d].has(Mod):
                     properties = properties.prefetchable(d)
                 # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
                 properties = properties.parallelize(v.bdims).affine(v.bdims)
@@ -226,6 +232,8 @@ class InjectBuffers(Queue):
                 if v.is_readonly:
                     continue
                 if c not in v.lastwrite:
+                    continue
+                if not c.guards.get(d) == v.guards.get(d):
                     continue
 
                 idxf = v.last_idx[c]
@@ -358,15 +366,16 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     xds = {}
     mapper = {}
     for f, clusters in bfmap.items():
-        exprs = flatten(c.exprs for c in clusters)
+        for k, ck in groupby(clusters, key=lambda c: c.guards):
+            exprs = flatten(c.exprs for c in ck)
 
-        bdims = key(f, exprs)
+            bdims = key(f, exprs)
 
-        dims = [d for d in f.dimensions if d not in bdims]
-        if len(dims) != 1:
-            raise CompilationError(f"Unsupported multi-dimensional `buffering` "
-                                   f"required by `{f}`")
-        dim = dims.pop()
+            dims = [d for d in f.dimensions if d not in bdims]
+            if len(dims) != 1:
+                raise CompilationError(f"Unsupported multi-dimensional `buffering` "
+                                    f"required by `{f}`")
+            dim = dims.pop()
 
         if is_buffering(exprs):
             # Multi-level buffering
@@ -391,25 +400,25 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
                 else:
                     size = async_degree
 
-            # A special CustomDimension to use in place of `dim` in the buffer
-            try:
-                xd = xds[(dim, size)]
-            except KeyError:
-                name = sregistry.make_name(prefix='db')
-                xd = xds[(dim, size)] = BufferDimension(name, 0, size-1, size, dim)
-            extra_kwargs = {}
+                # A special CustomDimension to use in place of `dim` in the buffer
+                try:
+                    xd = xds[(dim, size)]
+                except KeyError:
+                    name = sregistry.make_name(prefix='db')
+                    xd = xds[(dim, size)] = BufferDimension(name, 0, size-1, size, dim)
+                extra_kwargs = {}
 
-        # The buffer dimensions
-        dimensions = list(f.dimensions)
-        assert dim in f.dimensions
-        dimensions[dimensions.index(dim)] = xd
+            # The buffer dimensions
+            dimensions = list(f.dimensions)
+            assert dim in f.dimensions
+            dimensions[dimensions.index(dim)] = xd
 
-        # Finally create the actual buffer
-        cls = callback or Array
-        name = sregistry.make_name(prefix=f'{f.name}b')
-        mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                        grid=f.grid, halo=f.halo,
-                        space='mapped', mapped=f, f=f, **extra_kwargs)
+            # Finally create the actual buffer
+            cls = callback or Array
+            name = sregistry.make_name(prefix=f'{f.name}b')
+            mapper[(f, k)] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
+                                 grid=f.grid, halo=f.halo,
+                                 space='mapped', mapped=f, f=f, **extra_kwargs)
 
     return mapper
 
@@ -429,10 +438,11 @@ def map_buffered_functions(clusters, key):
 
 class BufferDescriptor:
 
-    def __init__(self, f, b, clusters):
+    def __init__(self, f, b, clusters, guards):
         self.f = f
         self.b = b
         self.clusters = clusters
+        self.guards = guards
 
         self.xd, = b.find(BufferDimension)
         self.bdims = tuple(d for d in b.dimensions if d is not self.xd)
@@ -673,8 +683,9 @@ def make_mds(descriptors, prefix, sregistry):
         # same strategy is also applied in clusters/algorithms/Stepper
         key = lambda i: -np.inf if i - p == 0 else (i - p)  # noqa: B023
         indices = sorted(v.indices, key=key)
+        v_mds = None
 
-        for i in indices:
+        for k, i in enumerate(indices):
             k = (v.xd, i)
             if k in mds:
                 continue

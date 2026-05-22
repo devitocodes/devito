@@ -320,4 +320,5 @@ def _(expr, s):
 def _(expr, s):
     if isinstance(expr.lhs, sympy.Mod):
         return 0
-    return expr._as_min
+    from devito.symbolics.extended_dtypes import INT
+    return INT(Ge(*expr.args))
