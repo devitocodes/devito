@@ -193,7 +193,7 @@ def memcpy_prefetch(clusters, key0, sregistry):
         if c.properties.is_prefetchable(d._defines):
             _actions_from_update_memcpy(c, d, clusters, actions, sregistry)
         elif d.is_Custom and is_integer(c.ispace[d].size):
-            _actions_from_init(c, d, actions)
+            _actions_from_init(c, d, clusters, actions)
 
     # Attach the computed Actions
     processed = []
@@ -214,7 +214,7 @@ def memcpy_prefetch(clusters, key0, sregistry):
     return processed
 
 
-def _actions_from_init(c, d, actions):
+def _actions_from_init(c, d, clusters, actions):
     e = c.exprs[0]
     function = e.rhs.function
     target = e.lhs.function
