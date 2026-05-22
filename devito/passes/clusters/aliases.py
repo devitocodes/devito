@@ -673,7 +673,7 @@ def collect(extracted, ispace, minstorage):
     return aliases
 
 
-def lower_aliases(aliases, meta, maxpar, fill_halo):
+def lower_aliases(aliases, meta, maxpar):
     """
     Create a Schedule from an AliasList.
     """
@@ -684,7 +684,7 @@ def lower_aliases(aliases, meta, maxpar, fill_halo):
                    **{i.dim.parent: i for i in a.intervals if i.dim.is_NonlinearDerived}}
 
         intervals = []
-        writeto = []
+        readfrom = []
         sub_iterators = {}
         indicess = [[] for _ in a.distances]
         for i in meta.ispace:
@@ -694,14 +694,14 @@ def lower_aliases(aliases, meta, maxpar, fill_halo):
                 if i.dim in a.free_symbols:
                     # Special case: the Dimension appears within the alias but
                     # not as an Indexed index. Then, it needs to be added to
-                    # the `writeto` region too
+                    # the `readfrom` region too
                     interval = i
                 else:
                     # E.g., `x0_blk0` or (`a[y_m+1]` => `y not in imapper`)
                     intervals.append(i)
                     continue
 
-            if not (writeto or
+            if not (readfrom or
                     interval != interval.zero() or
                     (maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
                 # The alias doesn't require a temporary Dimension along i.dim
@@ -716,14 +716,8 @@ def lower_aliases(aliases, meta, maxpar, fill_halo):
             # use `<1>` as stamp, which is what appears in `ispace`
             interval = interval.lift(i.stamp)
 
-            # If we're not expected to populate halo, we can safely zero-out
-            # the IterationIntervals
-            if fill_halo:
-                intervals.append(interval)
-                writeto.append(interval)
-            else:
-                intervals.append(interval.zero())
-                writeto.append(interval.zero())
+            readfrom.append(interval)
+            intervals.append(interval)
 
             if i.dim.is_Block:
                 # Suitable IncrDimensions must be used to avoid OOB accesses.
@@ -743,8 +737,9 @@ def lower_aliases(aliases, meta, maxpar, fill_halo):
                         m = i.dim.symbolic_min - i.dim.parent.symbolic_min
                     else:
                         m = 0
-                    d = dmapper[i.dim] = IncrDimension(f"{i.dim.name}s", i.dim, m,
-                                                       dd.symbolic_size, 1, dd.step)
+                    d = dmapper[i.dim] = IncrDimension(
+                        f"{i.dim.name}s", i.dim, m, dd.symbolic_size, 1, dd.step
+                    )
                 sub_iterators[i.dim] = d
             else:
                 d = i.dim
@@ -758,7 +753,7 @@ def lower_aliases(aliases, meta, maxpar, fill_halo):
                     indices.append(d)
 
         # The alias write-to space
-        writeto = IterationSpace(IntervalGroup(writeto), sub_iterators)
+        readfrom = IterationSpace(IntervalGroup(readfrom), sub_iterators)
 
         # The alias iteration space
         ispace = IterationSpace(IntervalGroup(intervals, meta.ispace.relations),
@@ -767,7 +762,7 @@ def lower_aliases(aliases, meta, maxpar, fill_halo):
         ispace = ispace.augment(sub_iterators)
 
         processed.append(
-            ScheduledAlias(a.pivot, writeto, ispace, a.aliaseds, indicess)
+            ScheduledAlias(a.pivot, readfrom, ispace, a.aliaseds, indicess)
         )
 
     # The [ScheduledAliases] must be ordered so as to reuse as many of the
@@ -790,7 +785,7 @@ def optimize_schedule_rotations(schedule, sregistry):
 
     rmapper = defaultdict(list)
     processed = []
-    for k, group in groupby(schedule, key=lambda i: i.writeto):
+    for k, group in groupby(schedule, key=lambda i: i.readfrom):
         g = list(group)
 
         try:
@@ -838,17 +833,17 @@ def optimize_schedule_rotations(schedule, sregistry):
                 for md, indices in zip(mds, i.indicess, strict=True)
             ]
 
-            # Update `writeto` by switching `d` to `dsi`
+            # Update `readfrom` by switching `d` to `dsi`
             intervals = k.intervals.switch(d, dsi).zero(dsi)
             sub_iterators = dict(k.sub_iterators)
             sub_iterators[d] = dsi
-            writeto = IterationSpace(intervals, sub_iterators)
+            readfrom = IterationSpace(intervals, sub_iterators)
 
             # Transform `alias` by adding `i`
             pivot = i.pivot.xreplace({d: d + cd})
 
             # Extend `ispace` to iterate over rotations
-            d1 = writeto[ridx+1].dim  # Note: we're by construction in-bounds here
+            d1 = readfrom[ridx+1].dim  # Note: we're by construction in-bounds here
             intervals = IntervalGroup(Interval(cd))
             rispace = IterationSpace(intervals, {cd: dsi}, {cd: Forward})
             aispace = i.ispace.zero(d)
@@ -856,7 +851,7 @@ def optimize_schedule_rotations(schedule, sregistry):
             ispace = IterationSpace.union(rispace, aispace, relations={(d, cd, d1)})
 
             processed.append(ScheduledAlias(
-                pivot, writeto, ispace, i.aliaseds, indicess,
+                pivot, readfrom, ispace, i.aliaseds, indicess,
             ))
 
         # Update the rotations mapper
@@ -869,20 +864,20 @@ def optimize_schedule_maxpar(schedule):
     """
     Bump the IterationSpace' stamp trading fusion for more collapse-parallelism.
     """
-    key = lambda i: (i.writeto, i.ispace)
+    key = lambda i: (i.readfrom, i.ispace)
 
     processed = []
-    for (writeto0, ispace0), group in groupby(schedule, key=key):
+    for (readfrom0, ispace0), group in groupby(schedule, key=key):
         g = list(group)
 
         stamp = Stamp()
-        dims = writeto0.itdims
+        dims = readfrom0.itdims
 
-        writeto = writeto0.lift(dims, stamp)
+        readfrom = readfrom0.lift(dims, stamp)
         ispace = ispace0.lift(dims, stamp)
 
         processed.extend([
-            ScheduledAlias(pivot, writeto, ispace, aliaseds, indicess)
+            ScheduledAlias(pivot, readfrom, ispace, aliaseds, indicess)
             for pivot, _, _, aliaseds, indicess in g
         ])
 
@@ -899,14 +894,14 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
 
     clusters = []
     subs = {}
-    for pivot, writeto, ispace, aliaseds, indicess in schedule:
+    for pivot, readfrom, ispace, aliaseds, indicess in schedule:
         name = sregistry.make_name()
         # Infer the dtype for the pivot
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
         # that would creat a temporary `int r = b` leading to erroneous
         # numerical results
 
-        if writeto:
+        if readfrom:
             # The Dimensions defining the shape of Array
             # Note: with SubDimensions, we may have the following situation:
             #
@@ -919,13 +914,13 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             # indices is that it prevents future passes to transform the loop
             # bounds (e.g., MPI's comp/comm overlap does that)
             dimensions = [d.parent if d.is_AbstractSub else d
-                          for d in writeto.itdims]
+                          for d in readfrom.itdims]
 
-            # The minimum halo required along each Dimension depends on `writeto`.
+            # The minimum halo required along each Dimension depends on `readfrom`.
             # The user might suggest to go more relaxed about this via `opt_minmem`,
             # in which case we extend the halo based on the surrounding
             # Functions to minimize support variables such as strides etc
-            min_halo = {i.dim: Size(abs(i.lower), abs(i.upper)) for i in writeto}
+            min_halo = {i.dim: Size(abs(i.lower), abs(i.upper)) for i in readfrom}
 
             functions = [] if opt_minmem else retrieve_functions(pivot)
 
@@ -938,15 +933,15 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
                         continue
                     halo[d] = Size(max(h0.left, h1.left), max(h0.right, h1.right))
 
-            shift = [halo[d].left - min_halo[d].left for d in writeto.itdims]
+            shift = [halo[d].left - min_halo[d].left for d in readfrom.itdims]
             halo = tuple(halo.values())
 
             # The indices used to write into the Array
             indices = []
-            for i, s in zip(writeto, shift, strict=True):
+            for i, s in zip(readfrom, shift, strict=True):
                 try:
                     # E.g., `xs`
-                    sub_iterators = writeto.sub_iterators[i.dim]
+                    sub_iterators = readfrom.sub_iterators[i.dim]
                     assert len(sub_iterators) <= 1
                     indices.append(sub_iterators[0] + s)
                 except (KeyError, IndexError):
@@ -958,12 +953,17 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
                        shift=shift)
             expression = Eq(obj[indices], uxreplace(pivot, subs))
 
+            #TODO: writeto => read_from ?
+            #TODO: add read_from?
+            #TODO: if fill_halo, 
+            from IPython import embed; embed()  # noqa: F401
+
             callback = lambda idx: obj[  # noqa: B023
                 [i + s for i, s in zip(idx, shift, strict=True)]  # noqa: B023
             ]
         else:
             # Degenerate case: scalar expression
-            assert writeto.size == 0
+            assert readfrom.size == 0
 
             dtype = sympy_dtype(pivot, base=meta.dtype, smin=opt_min_dtype)
             obj = Temp(name=name, dtype=dtype, is_const=True)
@@ -984,15 +984,15 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             try:
                 if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                     properties[d] = normalize_properties(v, {SEQUENTIAL})
-                elif d not in writeto.itdims:
+                elif d not in readfrom.itdims:
                     properties[d] = normalize_properties(v, {PARALLEL_IF_PVT})
             except KeyError:
                 # Non-dimension key such as (x, y) for diagonal stencil u(x+i hx, y+i hy)
                 pass
 
         # Track star-shaped stencils for potential future optimization
-        if len(writeto) > 1 and schedule.is_frame:
-            properties[Hyperplane(writeto.itdims)] = {SEPARABLE}
+        if len(readfrom) > 1 and schedule.is_frame:
+            properties[Hyperplane(readfrom.itdims)] = {SEPARABLE}
 
         # Finally, build the alias Cluster
         clusters.append(Cluster(expression, ispace, meta.guards, properties))
@@ -1076,11 +1076,11 @@ def pick_best(variants):
 
             ntemps = 0
             for sa in i.schedule:
-                if len(sa.writeto) < grid.dim:
+                if len(sa.readfrom) < grid.dim:
                     # Tiny temporary, extremely likely to be in cache, hardly
                     # impacting data movement in a significant way
                     ntemps += 0.1
-                elif any(d.is_Block for d in sa.writeto.itdims):
+                elif any(d.is_Block for d in sa.readfrom.itdims):
                     # Cross-loop blocking temporary, likely to be in some level
                     # of cache (but unlikely to be in the fastest level)
                     ntemps += 1
@@ -1414,7 +1414,7 @@ class AliasList:
 
 
 ScheduledAlias = namedtuple('SchedAlias',
-                            'pivot writeto ispace aliaseds indicess')
+                            'pivot readfrom ispace aliaseds indicess')
 
 
 class Schedule(tuple):
