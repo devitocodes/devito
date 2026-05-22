@@ -705,7 +705,7 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_fill_halo):
 
             if not (readfrom or
                     interval != interval.zero() or
-                    (opt_maxpar and not meta.properties.is_sequential(i.dim))):
+                    (opt_maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
                 # The alias doesn't require a temporary Dimension along i.dim
                 intervals.append(i)
                 continue
