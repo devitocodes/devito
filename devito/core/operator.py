@@ -240,6 +240,9 @@ class BasicOperator(Operator):
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
             raise InvalidOperator(f"Unsupported MPI mode `{oo['mpi']}`")
 
+        if oo['cire-maxpar'] not in (False, 'basic', 'compact'):
+            raise InvalidOperator("Illegal `cire-maxpar` value")
+
         if oo['cse-algo'] not in ('basic', 'smartsort', 'advanced'):
             raise InvalidOperator("Illegal `cse-algo` value")
 
