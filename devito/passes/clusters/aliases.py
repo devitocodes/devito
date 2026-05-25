@@ -140,8 +140,10 @@ class CireTransformer:
         schedule, exprs = self._select(variants)
 
         # Schedule -> Schedule (optimization)
-        if self.opt_maxpar:
-            schedule = optimize_schedule_maxpar(schedule)
+        if self.opt_maxpar == 'basic':
+            schedule = optimize_schedule_maxpar_basic(schedule)
+        elif self.opt_maxpar == 'compact':
+            schedule = optimize_schedule_maxpar_compact(schedule)
 
         # Schedule -> Schedule (optimization)
         if self.opt_rotate:
@@ -285,7 +287,7 @@ class CireInvariants(CireTransformerLegacy, Queue):
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
 
-        self.opt_maxpar = True
+        self.opt_maxpar = 'basic'
         self.opt_schedule_strategy = None
 
     def process(self, clusters):
@@ -756,8 +758,11 @@ def lower_aliases(aliases, meta, maxpar):
                                 meta.ispace.directions)
         ispace = ispace.augment(sub_iterators)
 
+        # For now, the guards coincide with the original ones, if any
+        guards = meta.guards
+
         processed.append(
-            ScheduledAlias(a.pivot, writeto, ispace, a.aliaseds, indicess)
+            ScheduledAlias(a.pivot, writeto, ispace, a.aliaseds, indicess, guards)
         )
 
     # The [ScheduledAliases] must be ordered so as to reuse as many of the
@@ -874,7 +879,7 @@ def optimize_schedule_rotations(schedule, sregistry):
             ispace = IterationSpace.union(rispace, aispace, relations={(d, cd, d1)})
 
             processed.append(ScheduledAlias(
-                pivot, writeto, ispace, i.aliaseds, indicess,
+                pivot, writeto, ispace, i.aliaseds, indicess, i.guards
             ))
 
         # Update the rotations mapper
@@ -883,9 +888,11 @@ def optimize_schedule_rotations(schedule, sregistry):
     return schedule.rebuild(*processed, rmapper=rmapper)
 
 
-def optimize_schedule_maxpar(schedule):
+def optimize_schedule_maxpar_basic(schedule):
     """
-    Bump the IterationSpace' stamp trading fusion for more collapse-parallelism.
+    Trade fusion for more collapse-parallelism. This is more conservative than
+    `optimize_schedule_maxpar_compact`, since if two IterationSpaces have
+    different endpoints along the same Dimensions, they won't be fused together.
     """
     key = lambda i: (i.writeto, i.ispace)
 
@@ -900,9 +907,45 @@ def optimize_schedule_maxpar(schedule):
         ispace = ispace0.lift(dims, stamp)
 
         processed.extend([
-            ScheduledAlias(pivot, writeto, ispace, aliaseds, indicess)
-            for pivot, _, _, aliaseds, indicess in g
+            ScheduledAlias(pivot, writeto, ispace, aliaseds, indicess, guards)
+            for pivot, _, _, aliaseds, indicess, guards in g
         ])
+
+    return schedule.rebuild(*processed)
+
+
+def optimize_schedule_maxpar_compact(schedule):
+    """
+    Aggressively trade fusion for more collapse-parallelism. Unlike
+    `optimize_schedule_maxpar_basic`, this will fuse together IterationSpaces with
+    different endpoints along the same Dimensions by introducing guards to
+    preserve the original semantics.
+    """
+    stamp = Stamp()
+
+    # The union IterationSpace will enable maximal fusion
+    ispace_union = IterationSpace.union(*[i.ispace for i in schedule])
+
+    processed = []
+    for pivot, writeto, ispace, aliaseds, indicess, guards in schedule:
+        dims = writeto.itdims
+
+        # Do we need to introduce guards to preserve the original semantics?
+        for d in dims:
+            int0 = ispace[d]
+            int1 = ispace_union[d]
+
+            if int0 != int1:
+                guard = sympy.And(d >= int0.symbolic_min, d <= int0.symbolic_max)
+                guards = guards.xandg(d, guard)
+
+        # This is conceptually identical to what we do for the `basic` mode
+        writeto = writeto.lift(dims, stamp)
+        ispace = ispace_union.lift(dims, stamp)
+
+        processed.append(ScheduledAlias(
+            pivot, writeto, ispace, aliaseds, indicess, guards
+        ))
 
     return schedule.rebuild(*processed)
 
@@ -917,7 +960,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
 
     clusters = []
     subs = {}
-    for pivot, writeto, ispace, aliaseds, indicess in schedule:
+    for pivot, writeto, ispace, aliaseds, indicess, guards in schedule:
         name = sregistry.make_name()
         # Infer the dtype for the pivot
         # This prevents cases such as `floor(a*b)` with `a` and `b` floats
@@ -1013,7 +1056,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             properties[Hyperplane(writeto.itdims)] = {SEPARABLE}
 
         # Finally, build the alias Cluster
-        clusters.append(Cluster(expression, ispace, meta.guards, properties))
+        clusters.append(Cluster(expression, ispace, guards, properties))
 
     return clusters, subs
 
@@ -1432,7 +1475,8 @@ class AliasList:
 
 
 ScheduledAlias = namedtuple('SchedAlias',
-                            'pivot writeto ispace aliaseds indicess')
+                            'pivot writeto ispace aliaseds indicess guards')
+ScheduledAlias.__new__.__defaults__ = (None, None, None, None, None, None)
 
 
 class Schedule(tuple):
