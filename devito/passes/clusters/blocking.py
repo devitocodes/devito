@@ -316,8 +316,6 @@ class AnalyzeSkewing(Queue):
 
 class SynthesizeBlocking(Queue):
 
-    _q_guards_in_key = True
-
     template = "%s%d_blk%s"
 
     def __init__(self, sregistry, options):
@@ -338,6 +336,13 @@ class SynthesizeBlocking(Queue):
         blk_size_gen = BlockSizeGenerator(self.par_tile) if self.par_tile else None
 
         return self._process_fdta(clusters, 1, blk_size_gen=blk_size_gen)
+
+    def _make_key_guards(self, cluster, ispace):
+        # Essentially, this will ensure that loop nests within guards *not*
+        # pertaining to the blockable Dimension are given a dedicated set of
+        # BlockDimensions, e.g. see `test_dimension.py::test_no_fusion_convoluted`
+        return tuple(cluster.guards.get(i.dim) for i in ispace
+                     if not cluster.properties.is_blockable(i.dim))
 
     def _derive_block_dims(self, clusters, prefix, d, blk_size_gen):
         if blk_size_gen is not None:
@@ -397,7 +402,9 @@ class SynthesizeBlocking(Queue):
                 # Use the innermost BlockDimension in place of `d`
                 subs = {d: bd}
                 exprs = [uxreplace(e, subs) for e in c.exprs]
-                guards = {subs.get(i, i): v for i, v in c.guards.items()}
+                guards = {
+                    subs.get(i, i): uxreplace(v, subs) for i, v in c.guards.items()
+                }
 
                 # The new Cluster properties -- TILABLE is dropped after blocking
                 properties = c.properties.drop(d)
