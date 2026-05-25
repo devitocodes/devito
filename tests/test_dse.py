@@ -2163,7 +2163,7 @@ class TestAliases:
     @pytest.mark.parametrize('rotate', [False, True])
     def test_maxpar_option(self, rotate):
         """
-        Test the compiler option `cire-maxpar=True`.
+        Test the compiler option `cire-maxpar='basic'`.
         """
         grid = Grid(shape=(10, 10, 10))
 
@@ -2178,7 +2178,8 @@ class TestAliases:
         eq = Eq(u.forward, f*u.dy.dy)
 
         op0 = Operator(eq, opt='noop')
-        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True, 'cire-rotate': rotate}))
+        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': 'basic',
+                                             'cire-rotate': rotate}))
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
@@ -2247,7 +2248,7 @@ class TestAliases:
 
     def test_maxpar_option_v2(self):
         """
-        Another test for the compiler option `cire-maxpar=True`.
+        Another test for the compiler option `cire-maxpar='basic'`.
         """
         grid = Grid(shape=(10, 10, 10))
 
@@ -2262,7 +2263,7 @@ class TestAliases:
         eq = Eq(u.forward, f*u.dx.dx)
 
         op0 = Operator(eq, opt='noop')
-        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
+        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': 'basic'}))
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
@@ -2278,7 +2279,7 @@ class TestAliases:
 
     def test_maxpar_option_v3(self):
         """
-        Another test for the compiler option `cire-maxpar=True`.
+        Another test for the compiler option `cire-maxpar='basic'`.
         """
         grid = Grid(shape=(10, 10))
 
@@ -2287,7 +2288,7 @@ class TestAliases:
 
         eq = Eq(u.forward, u.dx.dx + v.dx.dy)
 
-        op = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
+        op = Operator(eq, opt=('advanced', {'cire-maxpar': 'basic'}))
 
         # Check code generation
         xs, ys = get_params(op, 'x_size', 'y_size')

@@ -78,7 +78,7 @@ class DeviceOperatorMixin:
         # CIRE
         o['min-storage'] = False
         o['cire-rotate'] = False
-        o['cire-maxpar'] = oo.pop('cire-maxpar', True)
+        o['cire-maxpar'] = oo.pop('cire-maxpar', 'basic')
         o['cire-ftemps'] = oo.pop('cire-ftemps', False)
         o['cire-mingain'] = oo.pop('cire-mingain', cls.CIRE_MINGAIN)
         o['cire-minmem'] = oo.pop('cire-minmem', cls.CIRE_MINMEM)
