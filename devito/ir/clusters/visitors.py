@@ -37,15 +37,7 @@ class Queue:
         assert self._q_ispace_in_key
         ispace = cluster.ispace[:level]
 
-        if self._q_guards_in_key:
-            try:
-                guards = tuple(cluster.guards.get(i.dim) for i in ispace)
-            except AttributeError:
-                # `cluster` is actually a ClusterGroup
-                assert len(cluster.guards) == 1
-                guards = tuple(cluster.guards[0].get(i.dim) for i in ispace)
-        else:
-            guards = None
+        guards = self._make_key_guards(cluster, ispace)
 
         if self._q_properties_in_key:
             properties = cluster.properties.drop(cluster.ispace[level:].itdims)
@@ -67,6 +59,17 @@ class Queue:
         subkey = self._make_key_hook(cluster, level)
 
         return (prefix,) + subkey
+
+    def _make_key_guards(self, cluster, ispace):
+        if not self._q_guards_in_key:
+            return None
+
+        try:
+            return tuple(cluster.guards.get(i.dim) for i in ispace)
+        except AttributeError:
+            # `cluster` is actually a ClusterGroup
+            assert len(cluster.guards) == 1
+            return tuple(cluster.guards[0].get(i.dim) for i in ispace)
 
     def _make_key_hook(self, cluster, level):
         return ()
