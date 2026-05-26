@@ -16,14 +16,22 @@ from devito.tools import (
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import (
-    Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, SparseEq, SparseOpMixin, relational_min
+    Eq, Inc, IncrInterpolation, Injection, InjectionMixin, Interpolation,
+    InterpolationMixin, ReduceMax, ReduceMin, ReduceMinMax, SparseEq, SparseOpMixin,
+    relational_min
 )
 
 __all__ = [
     'ClusterizedEq',
+    'ClusterizedIncrInterpolation',
+    'ClusterizedInjection',
+    'ClusterizedInterpolation',
     'ClusterizedSparseEq',
     'DummyEq',
     'LoweredEq',
+    'LoweredIncrInterpolation',
+    'LoweredInjection',
+    'LoweredInterpolation',
     'LoweredSparseEq',
     'OpInc',
     'OpMax',
@@ -346,12 +354,37 @@ class LoweredSparseEq(SparseOpMixin, LoweredEq):
 
     """
     The IR counterpart of ``SparseEq``: a regular ``LoweredEq`` that
-    also carries the ``interpolator``/``kind`` metadata used by the IET
-    pass ``lower_sparse_ops`` to wrap the resulting ``p_*, rp_*``
-    iteration nest in an ElementalFunction.
+    also carries the ``interpolator`` metadata used by the IET pass
+    ``lower_sparse_ops`` to wrap the resulting ``p_*, rp_*`` iteration
+    nest in an ElementalFunction. Subclassed by
+    ``LoweredInterpolation`` / ``LoweredIncrInterpolation`` /
+    ``LoweredInjection`` for the per-operation polymorphic behaviour.
     """
 
-    __rkwargs__ = LoweredEq.__rkwargs__ + ('interpolator', 'kind')
+    __rkwargs__ = LoweredEq.__rkwargs__ + ('interpolator',)
+
+
+class LoweredInterpolation(InterpolationMixin, LoweredSparseEq):
+    """IR counterpart of ``Interpolation``."""
+    pass
+
+
+class LoweredIncrInterpolation(InterpolationMixin, LoweredSparseEq):
+    """IR counterpart of ``IncrInterpolation``."""
+    pass
+
+
+class LoweredInjection(InjectionMixin, LoweredSparseEq):
+    """IR counterpart of ``Injection``."""
+    pass
+
+
+# Map user-level sparse-op classes to their IR-level counterparts.
+_lowered_sparse_cls = {
+    Interpolation: LoweredInterpolation,
+    IncrInterpolation: LoweredIncrInterpolation,
+    Injection: LoweredInjection,
+}
 
 
 class ClusterizedEq(IREq):
@@ -414,12 +447,35 @@ class ClusterizedSparseEq(SparseOpMixin, ClusterizedEq):
 
     """
     Frozen counterpart of ``LoweredSparseEq``: the same regular
-    ``ClusterizedEq`` augmented with ``interpolator``/``kind`` so the
-    IET pass ``lower_sparse_ops`` can identify and rewrite the sparse
-    op's iteration nest.
+    ``ClusterizedEq`` augmented with ``interpolator`` so the IET pass
+    ``lower_sparse_ops`` can identify and rewrite the sparse op's
+    iteration nest. Subclassed by ``ClusterizedInterpolation`` /
+    ``ClusterizedIncrInterpolation`` / ``ClusterizedInjection``.
     """
 
-    __rkwargs__ = ClusterizedEq.__rkwargs__ + ('interpolator', 'kind')
+    __rkwargs__ = ClusterizedEq.__rkwargs__ + ('interpolator',)
+
+
+class ClusterizedInterpolation(InterpolationMixin, ClusterizedSparseEq):
+    """Frozen counterpart of ``LoweredInterpolation``."""
+    pass
+
+
+class ClusterizedIncrInterpolation(InterpolationMixin, ClusterizedSparseEq):
+    """Frozen counterpart of ``LoweredIncrInterpolation``."""
+    pass
+
+
+class ClusterizedInjection(InjectionMixin, ClusterizedSparseEq):
+    """Frozen counterpart of ``LoweredInjection``."""
+    pass
+
+
+_clusterized_sparse_cls = {
+    LoweredInterpolation: ClusterizedInterpolation,
+    LoweredIncrInterpolation: ClusterizedIncrInterpolation,
+    LoweredInjection: ClusterizedInjection,
+}
 
 
 class DummyEq(ClusterizedEq):
@@ -472,11 +528,11 @@ def _(eq):
 
     if augmented != tuple(eq.implicit_dims or ()):
         eq = eq.func(eq.lhs, eq.rhs, interpolator=interp,
-                     kind=eq.kind, implicit_dims=augmented)
+                     implicit_dims=augmented)
 
-    obj = LoweredSparseEq(eq)
+    lowered_cls = _lowered_sparse_cls[type(eq)]
+    obj = lowered_cls(eq)
     obj._interpolator = interp
-    obj._kind = eq.kind
     return obj
 
 
@@ -491,6 +547,12 @@ def clusterize_eq(eq, **kwargs):
 
 
 @clusterize_eq.register(LoweredSparseEq)
+def _(eq, **kwargs):
+    return _clusterized_sparse_cls[type(eq)](eq, **kwargs)
+
+
 @clusterize_eq.register(ClusterizedSparseEq)
 def _(eq, **kwargs):
-    return ClusterizedSparseEq(eq, **kwargs)
+    # ``eq`` is already clusterized; rebuild via its own class to preserve
+    # the per-operation polymorphic behaviour.
+    return type(eq)(eq, **kwargs)

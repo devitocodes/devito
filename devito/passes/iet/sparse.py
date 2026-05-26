@@ -32,7 +32,7 @@ from devito.ir.iet import (
     Transformer, make_callable
 )
 from devito.passes.iet.engine import iet_pass
-from devito.types import Eq, Symbol
+from devito.types import Eq, InjectionMixin, InterpolationMixin, Symbol
 
 __all__ = ['lower_sparse_ops']
 
@@ -53,7 +53,9 @@ def lower_sparse_ops(iet, sregistry=None, **kwargs):
     # from the original SparseEq (e.g. by ``factorize``/``cse``) are
     # left where they are inside the radius nest.
     sparse_exprs = [e for e in FindNodes(Expression).visit(iet)
-                    if e.expr.is_SparseOperation and _is_head(e.expr)]
+                    if e.expr.is_SparseOperation
+                    and type(e.expr).is_head_eq(e.expr,
+                                                e.expr.interpolator.sfunction)]
     if not sparse_exprs:
         return iet, {}
 
@@ -81,7 +83,7 @@ def lower_sparse_ops(iet, sregistry=None, **kwargs):
         new_nest = _materialise_nest(nest, exprs)
 
         lse = exprs[0].expr
-        prefix = f'{lse.kind}_{lse.interpolator.sfunction.name}'
+        prefix = f'{lse.efunc_prefix}_{lse.interpolator.sfunction.name}'
         efunc = make_callable(sregistry.make_name(prefix=prefix), new_nest)
         efuncs.append(efunc)
 
@@ -91,21 +93,6 @@ def lower_sparse_ops(iet, sregistry=None, **kwargs):
         return iet, {}
 
     return Transformer(mapper).visit(iet), {'efuncs': efuncs}
-
-
-def _is_head(eq):
-    """
-    True if ``eq`` is the "head" of its sparse op: the Expression
-    whose lhs is the SparseFunction (interpolation) or a
-    DiscreteFunction grid field (injection), as opposed to an
-    auxiliary scalar temporary extracted from the original SparseEq by
-    a cluster pass.
-    """
-    sf = eq.interpolator.sfunction
-    f = eq.lhs.function
-    if eq.kind == 'interpolate':
-        return f is sf
-    return f.is_DiscreteFunction and f is not sf
 
 
 def _find_outer_iteration(iet, expr):
@@ -140,16 +127,13 @@ def _materialise_nest(nest, exprs):
     pattern. Multiple sparse-op Expressions sharing the same outer
     Iteration are materialised in one pass and reuse the same temps.
     """
-    sample = exprs[0].expr
-    interp = sample.interpolator
-
     # Position + coefficient temporaries as IET Expressions. These are
     # the same for every Expression in the group, so we emit them once.
-    field = sample.lhs.function if sample.kind == 'inject' else None
-    temps = interp._sparse_temps(sample.kind, sample.rhs, field=field,
-                                 implicit_dims=sample.implicit_dims)
+    # The sample's leaf class (Interpolation/Injection) drives whether
+    # the temps carry staggering shifts.
+    sample = exprs[0].expr
     temp_exprs = tuple(Expression(DummyEq(e.lhs, e.rhs))
-                       for e in lower_exprs(temps))
+                       for e in lower_exprs(sample.sparse_temps()))
 
     # The radius nest is what runs once per sparse point. For each
     # interpolation Expression in the group, build its
@@ -157,8 +141,8 @@ def _materialise_nest(nest, exprs):
     # share a single copy of the radius nest (their ``Inc`` already
     # carries the right ``weights * rhs`` form).
     inner = nest.nodes[0] if len(nest.nodes) == 1 else List(body=nest.nodes)
-    interp_exprs = [e for e in exprs if e.expr.kind == 'interpolate']
-    inject_exprs = [e for e in exprs if e.expr.kind == 'inject']
+    interp_exprs = [e for e in exprs if isinstance(e.expr, InterpolationMixin)]
+    inject_exprs = [e for e in exprs if isinstance(e.expr, InjectionMixin)]
 
     body = []
     for expr in interp_exprs:

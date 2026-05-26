@@ -752,20 +752,20 @@ class TestSparseEqShape:
         return a, p
 
     def test_interpolation_isinstance_eq(self):
-        from devito.types import SparseEq
+        from devito.types import Interpolation, SparseEq
         a, p = self._setup()
         op = p.interpolate(a)
+        assert isinstance(op, Interpolation)
         assert isinstance(op, SparseEq)
         assert isinstance(op, Eq)
-        assert op.kind == 'interpolate'
 
     def test_injection_isinstance_eq(self):
-        from devito.types import SparseEq
+        from devito.types import Injection, SparseEq
         a, p = self._setup()
         op = p.inject(a, p)
+        assert isinstance(op, Injection)
         assert isinstance(op, SparseEq)
         assert isinstance(op, Eq)
-        assert op.kind == 'inject'
 
     def test_interpolation_lhs_rhs(self):
         a, p = self._setup()

@@ -15,7 +15,9 @@ from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
 from devito.tools import as_tuple, filter_ordered, memoized_meth
-from devito.types import Eq, Inc, SparseEq, SparseInc, SubFunction, Symbol
+from devito.types import (
+    Eq, Inc, IncrInterpolation, Injection, Interpolation, SubFunction, Symbol
+)
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
@@ -82,30 +84,29 @@ def _extract_subdomain(variables):
 
 def _build_interpolation(expr, increment, implicit_dims, self_subs, interpolator):
     """
-    Construct the SparseEq for an interpolation: the synthetic Eq is
-    ``Eq(sf[..., p_*], expr[..., rp_*])``; with ``increment`` it is
+    Construct the sparse-op Eq for an interpolation: the synthetic Eq
+    is ``Eq(sf[..., p_*], expr[..., rp_*])``; with ``increment`` it is
     an ``Inc``. User-supplied ``implicit_dims`` are carried as-is; the
     SparseFunction's iteration Dimensions are augmented in by
-    ``SparseEq.lower`` so the cluster pipeline sees them.
+    ``lower_eq`` so the cluster pipeline sees them.
     """
     eq = interpolator._interpolate(expr=expr, increment=increment,
                                    self_subs=self_subs,
                                    implicit_dims=None)
-    cls = SparseInc if isinstance(eq, Inc) else SparseEq
+    cls = IncrInterpolation if isinstance(eq, Inc) else Interpolation
     return cls(eq.lhs, eq.rhs, interpolator=interpolator,
-               kind='interpolate',
                implicit_dims=implicit_dims)
 
 
 def _build_injection(field, expr, implicit_dims, interpolator):
     """
-    Construct the SparseEq(s) for an injection: each synthetic Eq is
-    ``Inc(field[..., x, y, ...], weights * expr[..., rp_*])`` produced
-    by ``interpolator._inject``. A multi-field injection expands into
-    one ``SparseEq`` per ``(field, expr)`` pair so each target field is
-    individually visible to the cluster pipeline. User-supplied
-    ``implicit_dims`` are carried as-is; sparse-function iteration
-    Dimensions are augmented in by ``SparseEq.lower``.
+    Construct the ``Injection``(s) for an injection: each synthetic Eq
+    is ``Inc(field[..., x, y, ...], weights * expr[..., rp_*])``
+    produced by ``interpolator._inject``. A multi-field injection
+    expands into one ``Injection`` per ``(field, expr)`` pair so each
+    target field is individually visible to the cluster pipeline.
+    User-supplied ``implicit_dims`` are carried as-is; sparse-function
+    iteration Dimensions are augmented in by ``lower_eq``.
     """
     fields, exprs = as_tuple(field), as_tuple(expr)
     if len(exprs) == 1:
@@ -113,9 +114,8 @@ def _build_injection(field, expr, implicit_dims, interpolator):
     eqs = []
     for (f, e) in zip(fields, exprs, strict=True):
         inc = interpolator._inject(field=f, expr=e, implicit_dims=None)
-        eqs.append(SparseEq(inc.lhs, inc.rhs, interpolator=interpolator,
-                            kind='inject',
-                            implicit_dims=implicit_dims))
+        eqs.append(Injection(inc.lhs, inc.rhs, interpolator=interpolator,
+                             implicit_dims=implicit_dims))
     return eqs[0] if len(eqs) == 1 else eqs
 
 
@@ -261,6 +261,25 @@ class WeightedInterpolator(GenericInterpolator):
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map(shifts=shifts).items()]
 
+    def sparse_temps(self, rhs, implicit_dims, field=None):
+        """
+        Position/coefficient temps for a sparse op with right-hand side
+        ``rhs``. For an injection, ``field`` drives the per-Dimension
+        shifts so the temps' lhs (``pos*`` symbols) match the rhs of a
+        staggered injection; for an interpolation, ``field`` is None
+        and no shifts are applied.
+        """
+        if field is not None:
+            extras = [field] + list(retrieve_function_carriers(rhs))
+            shifts = self._field_shifts(field)
+        else:
+            extras = list(retrieve_function_carriers(rhs)) or None
+            shifts = None
+
+        implicit_dims = self._augment_implicit_dims(implicit_dims, extras=extras)
+        return list(self._positions(implicit_dims, shifts=shifts)) + \
+            list(self._coeff_temps(implicit_dims, shifts=shifts))
+
     def _interp_idx(self, variables, subdomain=None, shifts=None):
         """
         Generate the indirect-access index substitutions for the
@@ -288,30 +307,6 @@ class WeightedInterpolator(GenericInterpolator):
         }
 
         return {v: v.subs(subs) for v in variables}
-
-    def _sparse_temps(self, kind, expr, field=None, implicit_dims=None):
-        """
-        Position/coefficient temps emitted alongside the radius
-        expansion. ``implicit_dims`` is augmented with the
-        SparseFunction's iteration dimensions (and any dim carried by
-        the operation inputs) so the temps share the radius-nest's
-        iteration space. For injection, ``field``'s staggering drives
-        the position-symbol shifts so the rhs `pos*` symbols match
-        the temps' lhs.
-        """
-        if kind == 'inject':
-            extras = list(as_tuple(field))
-            if expr is not None:
-                extras.extend(retrieve_function_carriers(expr))
-            shifts = self._field_shifts(field) if field is not None else None
-        else:
-            extras = list(retrieve_function_carriers(expr)) \
-                if expr is not None else None
-            shifts = None
-
-        implicit_dims = self._augment_implicit_dims(implicit_dims, extras=extras)
-        return list(self._positions(implicit_dims, shifts=shifts)) + \
-            list(self._coeff_temps(implicit_dims, shifts=shifts))
 
     @check_radius
     @check_coords
