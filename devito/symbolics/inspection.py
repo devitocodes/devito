@@ -1,4 +1,3 @@
-from contextlib import suppress
 from functools import singledispatch
 
 import numpy as np
@@ -318,13 +317,14 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
 
     dtypes = set()
 
-    def inspect_args(e):
-        for arg in e.args:
-            with suppress(AttributeError):
-                dtypes.add(arg.dtype)
-            inspect_args(arg)
+    def inspect(e):
+        try:
+            dtypes.add(e.dtype)
+        except AttributeError:
+            for arg in e.args:
+                inspect(arg)
 
-    inspect_args(expr)
+    inspect(expr)
 
     if not dtypes or not np.issubdtype(base, np.complexfloating):
         dtypes.update({base} - {None})
