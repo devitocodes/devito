@@ -2,11 +2,10 @@ from functools import singledispatch
 
 import sympy
 
-from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.derivative import Derivative
-from devito.types.equation import Eq
+from devito.finite_differences.differentiable import Mul
 from devito.symbolics import retrieve_functions
-
+from devito.types.equation import Eq
 
 __all__ = ['separate_eqn', 'generate_targets', 'centre_stencil']
 

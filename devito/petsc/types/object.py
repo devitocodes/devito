@@ -1,14 +1,13 @@
 from ctypes import POINTER, c_char
 
-from devito.tools import CustomDtype, dtype_to_ctype, as_tuple, CustomIntType
-from devito.types import (
-    LocalObject, LocalCompositeObject, ModuloDimension, TimeDimension, ArrayObject,
-    CustomDimension, Scalar
-)
-from devito.symbolics import Byref, cast, FieldFromComposite
-from devito.types.basic import DataSymbol, LocalType
-
 from devito.petsc.iet.nodes import petsc_call
+from devito.symbolics import Byref, FieldFromComposite, cast
+from devito.tools import CustomDtype, CustomIntType, as_tuple, dtype_to_ctype
+from devito.types import (
+    ArrayObject, CustomDimension, LocalCompositeObject, LocalObject, ModuloDimension,
+    Scalar, TimeDimension
+)
+from devito.types.basic import DataSymbol, LocalType
 
 
 class PetscMixin:
@@ -307,6 +306,8 @@ class SubMatrixStruct(PETScStruct):
 
 class PETScArrayObject(PetscMixin, ArrayObject, LocalType):
     _data_alignment = False
+    _symbol_prefix = 'a'
+    initvalue = None
 
     def __init_finalize__(self, *args, **kwargs):
         self._nindices = kwargs.pop('nindices', 1)

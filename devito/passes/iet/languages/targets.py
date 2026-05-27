@@ -1,5 +1,7 @@
 from devito.passes.iet.instrument import instrument
-from devito.passes.iet.languages.C import CDataManager, COrchestrator, CPrinter, PetscCPrinter
+from devito.passes.iet.languages.C import (
+    CDataManager, COrchestrator, CPrinter, PetscCPrinter
+)
 from devito.passes.iet.languages.CXX import CXXDataManager, CXXOrchestrator, CXXPrinter
 from devito.passes.iet.languages.openacc import (
     AccOrchestrator, AccPrinter, DeviceAccDataManager, DeviceAccizer

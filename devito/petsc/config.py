@@ -1,9 +1,9 @@
-import os
 import ctypes
+import os
 from pathlib import Path
 
 try:
-    from petsctools import get_petscvariables, MissingPetscException
+    from petsctools import MissingPetscException, get_petscvariables
     petsc_variables = get_petscvariables()
 except ImportError:
     petsc_variables = {}

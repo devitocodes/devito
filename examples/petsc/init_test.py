@@ -1,6 +1,8 @@
 import os
-from devito.petsc.initialize import PetscInitialize
+
 from devito import configuration
+from devito.petsc.initialize import PetscInitialize
+
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
 

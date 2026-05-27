@@ -1,12 +1,14 @@
 import os
+
 import numpy as np
 
-from devito import (Grid, TimeFunction, Constant, Eq,
-                    Operator, SubDomain, switchconfig, configuration)
-from devito.symbolics import retrieve_functions, INT
-
-from devito.petsc import petscsolve, EssentialBC
+from devito import (
+    Constant, Eq, Grid, Operator, SubDomain, TimeFunction, configuration, switchconfig
+)
+from devito.petsc import EssentialBC, petscsolve
 from devito.petsc.initialize import PetscInitialize
+from devito.symbolics import INT, retrieve_functions
+
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
 

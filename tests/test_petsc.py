@@ -1,27 +1,28 @@
-import pytest
-
-import numpy as np
 import os
 import re
+
+import numpy as np
+import pytest
 import sympy as sp
 
 from conftest import skipif
-from devito import (Grid, Function, TimeFunction, Eq, Operator,
-                    configuration, norm, switchconfig, SubDomain, sin)
+from devito import (
+    Eq, Function, Grid, Operator, SubDomain, TimeFunction, configuration, norm, sin,
+    switchconfig
+)
+from devito.ir.iet import Call, ElementalFunction, FindNodes, retrieve_iteration_tree
 from devito.operator.profiling import PerformanceSummary
-from devito.ir.iet import (Call, ElementalFunction,
-                           FindNodes, retrieve_iteration_tree)
-from devito.types import Constant, LocalCompositeObject
 from devito.passes.iet.languages.C import CDataManager
-from devito.petsc.types import (DM, Mat, Vec, PetscMPIInt, KSP,
-                                PC, KSPConvergedReason, PETScArray,
-                                FieldData, MultipleFieldData,
-                                SubMatrixBlock)
-from devito.petsc.solve import petscsolve, EssentialBC
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.initialize import PetscInitialize
 from devito.petsc.logging import PetscSummary
+from devito.petsc.solve import EssentialBC, petscsolve
 from devito.petsc.solver_parameters import linear_solve_defaults
+from devito.petsc.types import (
+    DM, KSP, PC, FieldData, KSPConvergedReason, Mat, MultipleFieldData, PETScArray,
+    PetscMPIInt, SubMatrixBlock, Vec
+)
+from devito.types import Constant, LocalCompositeObject
 
 
 @pytest.fixture(scope='session')

@@ -1,12 +1,12 @@
 import math
 from functools import cached_property
 
-from devito.ir.iet import DummyExpr, BlankLine
-from devito.symbolics import (Byref, FieldFromPointer, VOID,
-                              FieldFromComposite, Null, String)
-
+from devito.ir.iet import BlankLine, DummyExpr
 from devito.petsc.iet.nodes import (
     FormFunctionCallback, MatShellSetOp, PETScCall, petsc_call
+)
+from devito.symbolics import (
+    VOID, Byref, FieldFromComposite, FieldFromPointer, Null, String
 )
 
 

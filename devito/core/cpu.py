@@ -10,12 +10,11 @@ from devito.passes.clusters import (
 )
 from devito.passes.equations import collect_derivatives
 from devito.passes.iet import (
-    COmpTarget, CTarget, CXXOmpTarget, CXXTarget, avoid_denormals, check_stability,
-    hoist_prodders, linearize, mpiize, relax_incr_dimensions, PetscTarget
+    COmpTarget, CTarget, CXXOmpTarget, CXXTarget, PetscTarget, avoid_denormals,
+    check_stability, hoist_prodders, linearize, mpiize, relax_incr_dimensions
 )
-from devito.tools import timed_pass
-
 from devito.petsc.iet.passes import lower_petsc_symbols
+from devito.tools import timed_pass
 
 __all__ = [
     'Cpu64AdvCOperator',

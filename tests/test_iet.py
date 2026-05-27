@@ -10,15 +10,14 @@ from devito import (  # noqa
 )
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
-    Call, Callable, Callback, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List, Switch,
-    Transformer, filter_iterations, make_efunc, retrieve_iteration_tree
+    Call, Callable, Callback, CGen, Conditional, Definition, Dereference, DeviceCall,
+    DummyExpr, ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda,
+    List, Switch, Transformer, filter_iterations, make_efunc, retrieve_iteration_tree
 )
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
-    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
-    String
+    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype

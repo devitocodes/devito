@@ -1,18 +1,18 @@
-import sympy
-from itertools import chain
 from functools import cached_property
+from itertools import chain
 
-from devito.tools import Reconstructable, sympy_mutex, as_tuple, frozendict
-from devito.tools.dtypes_lowering import dtype_mapper
-from devito.symbolics.extraction import separate_eqn, generate_targets, centre_stencil
-from devito.types.equation import Eq
+import sympy
+
 from devito.operations.solve import eval_time_derivatives
-
 from devito.petsc.config import petsc_variables
-from devito.petsc.types.object import PetscInt
 from devito.petsc.types.equation import (
-    EssentialBC, ZeroRow, ZeroColumn, NoOfEssentialBC, PointEssentialBC
+    EssentialBC, NoOfEssentialBC, PointEssentialBC, ZeroColumn, ZeroRow
 )
+from devito.petsc.types.object import PetscInt
+from devito.symbolics.extraction import centre_stencil, generate_targets, separate_eqn
+from devito.tools import Reconstructable, as_tuple, frozendict, sympy_mutex
+from devito.tools.dtypes_lowering import dtype_mapper
+from devito.types.equation import Eq
 
 
 class MetaData(sympy.Function, Reconstructable):

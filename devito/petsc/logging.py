@@ -5,12 +5,11 @@ from functools import cached_property
 
 from cgen import Struct, Value
 
-from devito.types import CompositeObject
-
+from devito.petsc.config import KSPTYPE_MAX_LEN, petsc_type_to_ctype
 from devito.petsc.types import (
-    PetscInt, PetscScalar, KSPType, KSPConvergedReason, KSPNormType
+    KSPConvergedReason, KSPNormType, KSPType, PetscInt, PetscScalar
 )
-from devito.petsc.config import petsc_type_to_ctype, KSPTYPE_MAX_LEN
+from devito.types import CompositeObject
 
 
 class PetscEntry:

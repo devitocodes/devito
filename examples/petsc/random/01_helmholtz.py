@@ -1,11 +1,12 @@
 import os
+
 import numpy as np
 
-from devito.symbolics import retrieve_functions, INT
-from devito import (configuration, Operator, Eq, Grid, Function,
-                    SubDomain, switchconfig)
+from devito import Eq, Function, Grid, Operator, SubDomain, configuration, switchconfig
 from devito.petsc import petscsolve
 from devito.petsc.initialize import PetscInitialize
+from devito.symbolics import INT, retrieve_functions
+
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
 

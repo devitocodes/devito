@@ -1,17 +1,15 @@
 import numpy as np
 
+from devito.petsc.types import (
+    DM, KSP, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct, Mat, MatReuse,
+    NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt, PetscSectionGlobal,
+    PetscSectionLocal, PetscSF, PointerDM, PointerIS, PointerMat, PointerPetscInt,
+    StartPtr, SubMatrixStruct, Vec, VecScatter
+)
 from devito.symbolics import String
+from devito.tools import frozendict
 from devito.types import Symbol
 from devito.types.misc import PostIncrementIndex
-from devito.tools import frozendict
-
-from devito.petsc.types import (
-    PetscBundle, DM, Mat, Vec, KSP, PC, SNES, PetscInt, StartPtr,
-    PointerIS, PointerDM, VecScatter, JacobianStruct, SubMatrixStruct,
-    PetscMPIInt, PetscErrorCode, PointerMat, MatReuse,
-    DummyArg, NofSubMats, PetscSectionGlobal,
-    PetscSectionLocal, PetscSF, CallbackPetscInt, PointerPetscInt
-)
 
 
 class BaseTypeBuilder:

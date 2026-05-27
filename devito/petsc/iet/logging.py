@@ -1,13 +1,12 @@
 from functools import cached_property
 
-from devito.symbolics import Byref, FieldFromPointer
 from devito.ir.iet import DummyExpr
 from devito.logger import PERF
-from devito.tools import frozendict
-
 from devito.petsc.iet.nodes import petsc_call
-from devito.petsc.logging import petsc_return_variable_dict, PetscInfo, KSPTYPE_MAX_LEN
+from devito.petsc.logging import KSPTYPE_MAX_LEN, PetscInfo, petsc_return_variable_dict
 from devito.petsc.types import KSPType
+from devito.symbolics import Byref, FieldFromPointer
+from devito.tools import frozendict
 
 
 class PetscLogger:

@@ -1,6 +1,5 @@
 from devito.types.equation import Eq, Inc
 
-
 __all__ = ['EssentialBC']
 
 

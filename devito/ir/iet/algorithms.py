@@ -5,9 +5,9 @@ from devito.ir.iet import (
     Section, Switch, SyncSpot
 )
 from devito.ir.support import GuardCaseSwitch, GuardSwitch
-from devito.tools import as_mapper, timed_pass
-from devito.petsc.types import MetaData
 from devito.petsc.iet.nodes import petsc_iet_mapper
+from devito.petsc.types import MetaData
+from devito.tools import as_mapper, timed_pass
 
 __all__ = ['iet_build']
 

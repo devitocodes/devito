@@ -1,9 +1,12 @@
-from devito import *
 import os
+
 import numpy as np
-from examples.seismic.source import DGaussSource, TimeAxis
+
+from devito import *
 from devito.petsc import petscsolve
 from devito.petsc.initialize import PetscInitialize
+from examples.seismic.source import DGaussSource, TimeAxis
+
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
 

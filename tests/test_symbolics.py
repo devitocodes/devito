@@ -15,14 +15,14 @@ from devito.ir import Expression, FindNodes, ccode
 from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
 from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (  # noqa
-    INT, BaseCast, CallFromPointer, Cast, centre_stencil, DefFunction, FieldFromComposite,
+    INT, BaseCast, CallFromPointer, Cast, DefFunction, FieldFromComposite,
     FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, RoundUp, Rvalue,
-    separate_eqn, SizeOf, sympy_dtype, VectorAccess, evalrel, pow_to_mul, retrieve_derivatives,
-    retrieve_functions, retrieve_indexed, uxreplace
+    SizeOf, VectorAccess, centre_stencil, evalrel, pow_to_mul, retrieve_derivatives,
+    retrieve_functions, retrieve_indexed, separate_eqn, sympy_dtype, uxreplace
 )
 from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
-    Array, Bundle, CompositeObject, ComponentAccess, FIndexed, LocalObject, Object,
+    Array, Bundle, ComponentAccess, CompositeObject, FIndexed, LocalObject, Object,
     StencilDimension
 )
 from devito.types import Symbol as dSymbol

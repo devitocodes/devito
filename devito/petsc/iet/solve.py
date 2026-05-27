@@ -1,12 +1,9 @@
 from functools import cached_property
 
-from devito.ir.iet import (
-    BlankLine, FindNodes, retrieve_iteration_tree, filter_iterations
-)
-from devito.symbolics import Byref, Null
-
+from devito.ir.iet import BlankLine, FindNodes, filter_iterations, retrieve_iteration_tree
 from devito.petsc.iet.nodes import PetscMetaData, petsc_call
 from devito.petsc.types.modes import InsertMode, ScatterMode
+from devito.symbolics import Byref, Null
 
 
 class Solve:

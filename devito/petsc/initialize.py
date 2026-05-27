@@ -1,13 +1,12 @@
+import atexit
 import os
 import sys
-from ctypes import POINTER, cast, c_char
-import atexit
+from ctypes import POINTER, c_char, cast
 
 from devito import Operator, switchconfig
+from devito.petsc.types import Finalize, Initialize
 from devito.types import Symbol
 from devito.types.equation import PetscEq
-
-from devito.petsc.types import Initialize, Finalize
 
 global _petsc_initialized
 _petsc_initialized = False

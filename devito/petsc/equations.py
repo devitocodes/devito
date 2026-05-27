@@ -1,12 +1,8 @@
-from devito.symbolics import retrieve_indexed, retrieve_dimensions, uxreplace
-from devito.types.dimension import SpaceDimension, CustomDimension
-from devito import Min, Max
-
+from devito import Max, Min
+from devito.petsc.types.dimension import SpaceDimMax, SpaceDimMin, SubDimMax, SubDimMin
 from devito.petsc.types.equation import ConstrainBC
-from devito.petsc.types.dimension import (
-    SubDimMax, SubDimMin,
-    SpaceDimMax, SpaceDimMin,
-)
+from devito.symbolics import retrieve_dimensions, retrieve_indexed, uxreplace
+from devito.types.dimension import CustomDimension, SpaceDimension
 
 
 def lower_exprs_petsc(expressions, **kwargs):

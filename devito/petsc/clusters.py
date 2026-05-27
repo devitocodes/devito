@@ -1,5 +1,5 @@
-from devito.tools import timed_pass
 from devito.petsc.types import SolverMetaData
+from devito.tools import timed_pass
 
 
 @timed_pass()

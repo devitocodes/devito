@@ -16,9 +16,9 @@ from devito.ir.support import IntervalGroup
 from devito.logger import warning
 from devito.mpi import MPI
 from devito.parameters import configuration
+from devito.petsc.logging import PetscSummary
 from devito.symbolics import subs_op_args
 from devito.tools import DefaultOrderedDict, flatten
-from devito.petsc.logging import PetscSummary
 
 __all__ = ['create_profile']
 

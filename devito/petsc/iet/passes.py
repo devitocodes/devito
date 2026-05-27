@@ -1,41 +1,41 @@
-import cgen as c
-import numpy as np
 from functools import cached_property
 
-from devito.passes.iet.engine import iet_pass
+import cgen as c
+import numpy as np
+
+import devito.logger
 from devito.ir.iet import (
-    Transformer, MapNodes, Iteration, CallableBody, List, Call, FindNodes, Section,
-    FindSymbols, DummyExpr, Uxreplace, Dereference, HaloSpot
+    Call, CallableBody, Dereference, DummyExpr, FindNodes, FindSymbols, HaloSpot,
+    Iteration, List, MapNodes, Section, Transformer, Uxreplace
 )
-from devito.symbolics import Byref, Macro, Null, FieldFromPointer
+from devito.passes.iet.engine import iet_pass
+from devito.passes.iet.linearization import Tracker, linearize_accesses
+from devito.petsc.config import core_metadata, petsc_languages
+from devito.petsc.iet.builder import (
+    BuilderBase, ConstrainedBCBuilder, CoupledBuilder, CoupledConstrainedBCBuilder,
+    make_core_petsc_calls
+)
+from devito.petsc.iet.callbacks import (
+    BaseCallbackBuilder, CoupledCallbackBuilder, get_user_struct_fields,
+    populate_matrix_context
+)
+from devito.petsc.iet.logging import PetscLogger
+from devito.petsc.iet.nodes import PETScCallable, PetscMetaData, petsc_call
+from devito.petsc.iet.solve import CoupledSolve, Solve
+from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
+from devito.petsc.iet.type_builder import (
+    BaseTypeBuilder, ConstrainedBCTypeBuilder, CoupledConstrainedBCTypeBuilder,
+    CoupledTypeBuilder, objs
+)
+from devito.petsc.types import (
+    ArgvSymbol, CallbackUserStruct, Finalize, Initialize, MainUserStruct,
+    MultipleFieldData
+)
+from devito.petsc.types.macros import petsc_func_begin_user
+from devito.symbolics import Byref, FieldFromPointer, Macro, Null
 from devito.types.basic import DataSymbol, LocalType
 from devito.types.dimension import DefaultDimension
 from devito.types.misc import FIndexed
-import devito.logger
-from devito.passes.iet.linearization import linearize_accesses, Tracker
-
-from devito.petsc.types import (
-    MultipleFieldData, Initialize, Finalize, ArgvSymbol, MainUserStruct,
-    CallbackUserStruct
-)
-from devito.petsc.types.macros import petsc_func_begin_user
-from devito.petsc.iet.nodes import PetscMetaData, petsc_call, PETScCallable
-from devito.petsc.config import core_metadata, petsc_languages
-from devito.petsc.iet.callbacks import (
-    BaseCallbackBuilder, CoupledCallbackBuilder, populate_matrix_context,
-    get_user_struct_fields
-)
-from devito.petsc.iet.type_builder import (
-    BaseTypeBuilder, CoupledTypeBuilder, ConstrainedBCTypeBuilder,
-    CoupledConstrainedBCTypeBuilder, objs
-)
-from devito.petsc.iet.builder import (
-    BuilderBase, CoupledBuilder, ConstrainedBCBuilder, CoupledConstrainedBCBuilder,
-    make_core_petsc_calls
-)
-from devito.petsc.iet.solve import Solve, CoupledSolve
-from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
-from devito.petsc.iet.logging import PetscLogger
 
 
 @iet_pass

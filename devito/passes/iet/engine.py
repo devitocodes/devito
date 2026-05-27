@@ -23,9 +23,9 @@ from devito.types import (
     Temp, ThreadArray, Wildcard
 )
 from devito.types.args import ArgProvider
+from devito.types.array import ArrayBasic
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
-from devito.types.array import ArrayBasic
 
 __all__ = ['Graph', 'iet_pass', 'iet_visit']
 

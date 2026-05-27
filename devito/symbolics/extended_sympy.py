@@ -13,8 +13,9 @@ from sympy.logic.boolalg import BooleanFunction
 
 from devito.finite_differences.elementary import Max, Min
 from devito.tools import (  # noqa
-    Bunch, Pickable, as_tuple, ctypes_to_cstr, ctypes_vector_mapper, CustomIntType, double2,
-    double3, double4, dtype_to_ctype, float2, float3, float4, int2, int3, int4, is_integer
+    Bunch, CustomIntType, Pickable, as_tuple, ctypes_to_cstr, ctypes_vector_mapper,
+    double2, double3, double4, dtype_to_ctype, float2, float3, float4, int2, int3, int4,
+    is_integer
 )
 from devito.types import Symbol
 from devito.types.basic import Basic

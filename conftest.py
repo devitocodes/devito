@@ -17,8 +17,8 @@ from devito.finite_differences.differentiable import EvalDerivative
 from devito.ir.iet import (
     FindNodes, FindSymbols, Iteration, ParallelBlock, retrieve_iteration_tree
 )
-from devito.tools import as_tuple
 from devito.petsc.config import PetscOSError, get_petsc_dir
+from devito.tools import as_tuple
 
 try:
     from mpi4py import MPI  # noqa

@@ -23,7 +23,7 @@ from devito.tools import (
     Signer, as_tuple, ctypes_to_cstr, filter_ordered, filter_sorted, flatten
 )
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic, Indexed, Symbol
-from devito.types.object import AbstractObject, LocalObject, LocalCompositeObject
+from devito.types.object import AbstractObject, LocalCompositeObject, LocalObject
 
 __all__ = [
     'AugmentedExpression',

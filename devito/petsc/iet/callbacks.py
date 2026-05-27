@@ -1,26 +1,25 @@
 from collections import OrderedDict
 
 from devito.ir.iet import (
-    Call, FindSymbols, List, Uxreplace, CallableBody, Dereference, DummyExpr,
-    BlankLine, Callable, Iteration, PointerCast, Definition
+    BlankLine, Call, Callable, CallableBody, Definition, Dereference, DummyExpr,
+    FindSymbols, Iteration, List, PointerCast, Uxreplace
 )
-from devito.symbolics import (
-    Byref, FieldFromPointer, IntDiv, Deref, Mod, String, Null, VOID
-)
-from devito.symbolics.unevaluation import Mul
-from devito.types.basic import AbstractFunction
-from devito.types.misc import PostIncrementIndex
-from devito.types import Dimension, Temp, TempArray
-from devito.tools import filter_ordered
 from devito.passes.iet.linearization import Stride
-
-from devito.petsc.iet.nodes import PETScCallable, MatShellSetOp, petsc_call
-from devito.petsc.types import (
-    DMCast, MainUserStruct, CallbackUserStruct, PetscObjectCast, PetscInt
-)
+from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, petsc_call
 from devito.petsc.iet.type_builder import objs
+from devito.petsc.types import (
+    CallbackUserStruct, DMCast, MainUserStruct, PetscInt, PetscObjectCast
+)
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
+from devito.symbolics import (
+    VOID, Byref, Deref, FieldFromPointer, IntDiv, Mod, Null, String
+)
+from devito.symbolics.unevaluation import Mul
+from devito.tools import filter_ordered
+from devito.types import Dimension, Temp, TempArray
+from devito.types.basic import AbstractFunction
+from devito.types.misc import PostIncrementIndex
 
 
 class BaseCallbackBuilder:

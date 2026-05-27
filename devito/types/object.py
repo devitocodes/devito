@@ -1,8 +1,9 @@
 from contextlib import suppress
 from ctypes import byref
+
 import sympy
 
-from devito.tools import Pickable, as_tuple, sympy_mutex, CustomDtype
+from devito.tools import CustomDtype, Pickable, as_tuple, sympy_mutex
 from devito.types.args import ArgProvider
 from devito.types.basic import Basic, LocalType
 from devito.types.caching import Uncached
@@ -240,7 +241,7 @@ class LocalObject(AbstractObject, LocalType):
     @property
     def _C_free_priority(self):
         return float('inf')
-    
+
     def _mem_shared(self):
         return self._scope == 'shared'
 

@@ -1,17 +1,13 @@
-from devito.types.equation import PetscEq
-from devito.tools import filter_ordered, as_tuple
-from devito.types import Symbol, SteppingDimension, TimeDimension, Border, Constant
-from devito.symbolics import retrieve_functions, retrieve_dimensions
-
+from devito.petsc.solver_parameters import format_options_prefix, linear_solver_parameters
 from devito.petsc.types import (
-    LinearSolverMetaData, PETScArray, DMDALocalInfo, FieldData, MultipleFieldData,
-    Jacobian, Residual, MixedResidual, MixedJacobian, InitialGuess, ConstrainBC
+    ConstrainBC, DMDALocalInfo, FieldData, InitialGuess, Jacobian, LinearSolverMetaData,
+    MixedJacobian, MixedResidual, MultipleFieldData, PETScArray, Residual
 )
 from devito.petsc.types.equation import EssentialBC
-from devito.petsc.solver_parameters import (
-    linear_solver_parameters, format_options_prefix
-)
-
+from devito.symbolics import retrieve_dimensions, retrieve_functions
+from devito.tools import as_tuple, filter_ordered
+from devito.types import Border, Constant, SteppingDimension, Symbol, TimeDimension
+from devito.types.equation import PetscEq
 
 __all__ = ['petscsolve']
 

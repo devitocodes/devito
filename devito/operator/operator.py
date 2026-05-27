@@ -35,6 +35,9 @@ from devito.passes import (
     Graph, error_mapper, generate_implicit, generate_macros, is_on_device, lower_dtypes,
     lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
 )
+from devito.petsc.clusters import petsc_preprocess
+from devito.petsc.equations import lower_exprs_petsc
+from devito.petsc.iet.passes import lower_petsc
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
     DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
@@ -43,9 +46,6 @@ from devito.tools import (
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness
-from devito.petsc.iet.passes import lower_petsc
-from devito.petsc.clusters import petsc_preprocess
-from devito.petsc.equations import lower_exprs_petsc
 from devito.warnings import warn
 
 __all__ = ['Operator']

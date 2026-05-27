@@ -317,9 +317,14 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
         return default
 
     dtypes = set()
-    for i in expr.free_symbols:
-        with suppress(AttributeError):
-            dtypes.add(i.dtype)
+
+    def inspect_args(e):
+        for arg in e.args:
+            with suppress(AttributeError):
+                dtypes.add(arg.dtype)
+            inspect_args(arg)
+
+    inspect_args(expr)
 
     if not dtypes or not np.issubdtype(base, np.complexfloating):
         dtypes.update({base} - {None})

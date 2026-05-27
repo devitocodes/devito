@@ -1,5 +1,5 @@
-from devito.ir.iet import Expression, Callback, FixedArgsCallable, Call
 from devito.ir.equations import OpPetsc
+from devito.ir.iet import Call, Callback, Expression, FixedArgsCallable
 
 
 class PetscMetaData(Expression):

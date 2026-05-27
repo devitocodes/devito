@@ -29,8 +29,8 @@ from devito.tools import (
     is_external_ctype, sorted_priority
 )
 from devito.types import (
-    ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer,
-    LocalCompositeObject
+    ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, LocalCompositeObject,
+    Pointer
 )
 from devito.types.basic import AbstractFunction, AbstractSymbol, Basic
 

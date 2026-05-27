@@ -1,10 +1,9 @@
 from functools import cached_property
 
-from devito.ir.iet import Uxreplace, DummyExpr
-from devito.symbolics import FieldFromPointer, cast, FieldFromComposite
-from devito.symbolics.unevaluation import Mul
-
+from devito.ir.iet import DummyExpr, Uxreplace
 from devito.petsc.iet.nodes import petsc_call
+from devito.symbolics import FieldFromComposite, FieldFromPointer, cast
+from devito.symbolics.unevaluation import Mul
 
 
 class TimeBase:

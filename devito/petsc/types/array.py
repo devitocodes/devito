@@ -1,14 +1,14 @@
+from ctypes import POINTER, Structure
+from functools import cached_property
+
 from sympy import Expr
 
-from functools import cached_property
-from ctypes import POINTER, Structure
-
-from devito.types.utils import DimensionTuple
-from devito.types.array import ArrayBasic, Bundle, ComponentAccess
 from devito.finite_differences import Differentiable
-from devito.types.basic import AbstractFunction, IndexedData
-from devito.tools import dtype_to_ctype, as_tuple
 from devito.symbolics import FieldFromComposite
+from devito.tools import as_tuple, dtype_to_ctype
+from devito.types.array import ArrayBasic, Bundle, ComponentAccess
+from devito.types.basic import AbstractFunction, IndexedData
+from devito.types.utils import DimensionTuple
 
 
 class PETScArray(ArrayBasic, Differentiable):
@@ -27,6 +27,8 @@ class PETScArray(ArrayBasic, Differentiable):
     """
 
     _data_alignment = False
+    _symbol_prefix = 'a'
+    initvalue = None
 
     __rkwargs__ = (AbstractFunction.__rkwargs__ +
                    ('target', 'liveness', 'coefficients', 'localinfo'))
