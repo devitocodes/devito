@@ -242,6 +242,7 @@ class LocalObject(AbstractObject, LocalType):
     def _C_free_priority(self):
         return float('inf')
 
+    @property
     def _mem_shared(self):
         return self._scope == 'shared'
 
