@@ -182,6 +182,12 @@ class Operator(Callable):
         cls._check_kwargs(**kwargs)
         expressions = cls._sanitize_exprs(expressions, **kwargs)
 
+        # Hook for retrieval of preexisting operators
+        # TODO: should this emit timing info if an operator is retrieved
+        maybe_op = cls._retrieve_op(expressions, **kwargs)
+        if maybe_op:
+            return maybe_op
+
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             try:
@@ -214,6 +220,10 @@ class Operator(Callable):
                                        "check your equation again")
 
         return expressions
+
+    @classmethod
+    def _retrieve_opt(cls, expressions, **kwargs):
+        return
 
     @classmethod
     def _build(cls, expressions, **kwargs):
