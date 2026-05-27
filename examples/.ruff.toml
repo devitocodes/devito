@@ -1,0 +1,6 @@
+# Extend the `pyproject.toml` file in the parent directory
+extend = "../pyproject.toml"
+
+# Use a different line length for examples only
+# TODO: Shorten line lengths in examples
+line-length = 120

@@ -113,26 +113,26 @@ jobs:
 
       - name: Set per‑runner variables
         run: |
-          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> "$GITHUB_ENV"
 
       - name: Check event name
         run: echo ${{ github.event_name }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           flavor: |
             latest=false
@@ -161,7 +161,7 @@ jobs:
         run: echo "${{ steps.meta.outputs.tags }}"
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./docker/Dockerfile.devito
@@ -178,7 +178,7 @@ jobs:
         run: |
          docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
-           pytest ${{ matrix.test }}
+           pytest -v ${{ matrix.test }}
 
   deploy-devito-manifest:
     needs: deploy-devito
@@ -201,17 +201,17 @@ jobs:
 
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Docker meta
         id: manifest-meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           flavor: |
             latest=false
@@ -246,8 +246,8 @@ jobs:
               refs="$refs devitocodes/devito:${tag}-${arch}"
             done
             echo "Creating manifest for devitocodes/devito:${tag} using:${refs}"
-            docker buildx imagetools create --tag devitocodes/devito:${tag} $refs
-            docker buildx imagetools inspect devitocodes/devito:${tag}
+            docker buildx imagetools create --tag "devitocodes/devito:${tag}" "$refs"
+            docker buildx imagetools inspect "devitocodes/devito:${tag}"
           done
 
   test-devito:
@@ -279,17 +279,17 @@ jobs:
 
     steps:
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Set per‑runner variables
         run: |
-          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> $GITHUB_ENV
+          echo "CONTAINER_NAME=testrun-${{ matrix.tag }}-${RUNNER_NAME// /_}" >> "$GITHUB_ENV"
 
       - name: Run tests against multi-arch image
         run: |
          docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
-           pytest ${{ matrix.test }}
+           pytest -v ${{ matrix.test }}

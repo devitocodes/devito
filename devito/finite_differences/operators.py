@@ -70,7 +70,9 @@ def grad(func, shift=None, order=None, method='FD', side=None, **kwargs):
     try:
         return func.grad(shift=shift, order=order, method=method, side=side, w=w)
     except AttributeError:
-        raise AttributeError("Gradient not supported for class %s" % func.__class__)
+        raise AttributeError(
+            f"Gradient not supported for class {func.__class__}"
+        ) from None
 
 
 def grad45(func, shift=None, order=None):
@@ -116,7 +118,9 @@ def curl(func, shift=None, order=None, method='FD', side=None, **kwargs):
     try:
         return func.curl(shift=shift, order=order, method=method, side=side, w=w)
     except AttributeError:
-        raise AttributeError("Curl only supported for 3D VectorFunction")
+        raise AttributeError(
+            "Curl only supported for 3D VectorFunction"
+        ) from None
 
 
 def curl45(func, shift=None, order=None):

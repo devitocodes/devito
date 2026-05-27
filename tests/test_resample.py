@@ -1,6 +1,6 @@
 import numpy as np
 
-from examples.seismic import TimeAxis, RickerSource, demo_model
+from examples.seismic import RickerSource, TimeAxis, demo_model
 
 
 def test_resample():

@@ -1,25 +1,26 @@
 """
 Utilities to turn SymPy objects into C strings.
 """
+from contextlib import suppress
+from ctypes import _Pointer
+
 import numpy as np
 import sympy
-
 from mpmath.libmp import prec_to_dps, to_str
 from packaging.version import Version
-
 from sympy.core import S
-from sympy.core.numbers import equal_valued, Float
-from sympy.printing.codeprinter import CodePrinter
+from sympy.core.numbers import Float, equal_valued
 from sympy.logic.boolalg import BooleanFunction
+from sympy.printing.codeprinter import CodePrinter
 from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 
 from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
+from devito.tools import ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype
 from devito.types.basic import AbstractFunction
 from devito.types.misc import PostIncrementIndex
-from devito.tools import ctypes_to_cstr, dtype_to_ctype, ctypes_vector_mapper
 
 __all__ = ['BasePrinter', 'ccode']
 
@@ -111,17 +112,21 @@ class BasePrinter(CodePrinter):
         return super().parenthesize(item, level, strict=strict)
 
     def _print_PyCPointerType(self, expr):
-        ctype = f'{self._print_type(expr._type_)}'
+        base_type, nstart = expr, 0
+        while issubclass(base_type, _Pointer):
+            base_type = base_type._type_
+            nstart += 1
+
+        ctype = f'{self._print_type(base_type)}'
+        stars = '*' * nstart
         if ctype.endswith('*'):
-            return f'{ctype}*'
+            return f'{ctype}{stars}'
         else:
-            return f'{ctype} *'
+            return f'{ctype} {stars}'
 
     def _print_type(self, expr):
-        try:
+        with suppress(TypeError):
             expr = dtype_to_ctype(expr)
-        except TypeError:
-            pass
         try:
             return self.type_mappings[expr]
         except KeyError:
@@ -228,6 +233,11 @@ class BasePrinter(CodePrinter):
         val = self._print(expr.val)
         return f'SAFEINV({val}, {base})'
 
+    def _print_RoundUp(self, expr):
+        value = self._print(expr.value)
+        step = self._print(expr.step)
+        return f'ROUND_UP({value}, {step})'
+
     def _print_Mod(self, expr):
         """Print a Mod as a C-like %-based operation."""
         args = [f'({self._print(a)})' for a in expr.args]
@@ -289,6 +299,13 @@ class BasePrinter(CodePrinter):
 
     def _print_BitwiseBinaryOp(self, expr):
         arg0, arg1 = expr.args
+
+        prec = precedence(expr)
+        if not arg0.is_Atom:
+            arg0 = self.parenthesize(arg0, prec)
+        if not arg1.is_Atom:
+            arg1 = self.parenthesize(arg1, prec)
+
         return f'{self._print(arg0)} {expr.op} {self._print(arg1)}'
 
     def _print_Add(self, expr, order=None):
@@ -316,10 +333,7 @@ class BasePrinter(CodePrinter):
         """Print a Float in C-like scientific notation."""
         prec = expr._prec
 
-        if prec < 5:
-            dps = 0
-        else:
-            dps = prec_to_dps(expr._prec)
+        dps = 0 if prec < 5 else prec_to_dps(expr._prec)
 
         if self._settings["full_prec"] is True:
             strip = False
@@ -426,7 +440,7 @@ class BasePrinter(CodePrinter):
 
 
 # Lifted from SymPy so that we go through our own `_print_math_func`
-for k in ('exp log sin cos tan ceiling floor').split():
+for k in ['exp', 'log', 'sin', 'cos', 'tan', 'ceiling', 'floor']:
     setattr(BasePrinter, f'_print_{k}', BasePrinter._print_math_func)
 
 
@@ -438,7 +452,7 @@ PRECEDENCE_VALUES['InlineIf'] = 1
 # Sympy 1.11 has introduced a bug in `_print_Add`, so we enforce here
 # to always use the correct one from our printer
 if Version(sympy.__version__) >= Version("1.11"):
-    setattr(sympy.printing.str.StrPrinter, '_print_Add', BasePrinter._print_Add)
+    sympy.printing.str.StrPrinter._print_Add = BasePrinter._print_Add
 
 
 def ccode(expr, printer=None, **settings):

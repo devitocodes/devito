@@ -2,31 +2,37 @@ import ctypes
 import pickle as pickle0
 
 import cloudpickle as pickle1
-import pytest
 import numpy as np
+import pytest
 from sympy import Symbol
 
-from devito import (Constant, Eq, Function, TimeFunction, SparseFunction, Grid,
-                    Dimension, SubDimension, ConditionalDimension, IncrDimension,
-                    TimeDimension, SteppingDimension, Operator, MPI, Min, solve,
-                    PrecomputedSparseTimeFunction, SubDomain)
-from devito.ir import Backward, Forward, GuardFactor, GuardBound, GuardBoundNext
+from devito import (
+    MPI, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, IncrDimension,
+    Min, Operator, PrecomputedSparseTimeFunction, SparseFunction, SteppingDimension,
+    SubDimension, SubDomain, TimeDimension, TimeFunction, solve
+)
 from devito.data import LEFT, OWNED
-from devito.finite_differences.tools import direct, transpose, left, right, centered
+from devito.finite_differences.tools import centered, direct, left, right, transpose
+from devito.ir import Backward, Forward, GuardBound, GuardBoundNext, GuardFactor
 from devito.mpi.halo_scheme import Halo
-from devito.mpi.routines import (MPIStatusObject, MPIMsgEnriched, MPIRequestObject,
-                                 MPIRegion)
-from devito.types import (Array, CustomDimension, Symbol as dSymbol, Scalar,
-                          PointerArray, Lock, PThreadArray, SharedData, Timer,
-                          DeviceID, NPThreads, ThreadID, TempFunction, Indirection,
-                          FIndexed, ComponentAccess, DefaultDimension)
-from devito.types.basic import BoundSymbol, AbstractSymbol
+from devito.mpi.routines import (
+    MPIMsgEnriched, MPIRegion, MPIRequestObject, MPIStatusObject
+)
+from devito.symbolics import (
+    CallFromPointer, Cast, DefFunction, FieldFromPointer, IntDiv, ListInitializer, SizeOf,
+    pow_to_mul
+)
 from devito.tools import EnrichedTuple
-from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
-                              CallFromPointer, DefFunction, Cast, SizeOf,
-                              pow_to_mul)
-from examples.seismic import (demo_model, AcquisitionGeometry,
-                              TimeAxis, RickerSource, Receiver)
+from devito.types import (
+    Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
+    Indirection, Lock, NPThreads, PointerArray, PThreadArray, Scalar, SharedData
+)
+from devito.types import Symbol as dSymbol
+from devito.types import TempFunction, ThreadID, Timer
+from devito.types.basic import AbstractSymbol, BoundSymbol
+from examples.seismic import (
+    AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
+)
 
 
 class SparseFirst(SparseFunction):
@@ -239,10 +245,7 @@ class TestBasic:
                             interpolation=interp)
         u = Function(name='u', grid=grid, space_order=4)
 
-        if op == 'inject':
-            expr = sf.inject(u, sf)
-        else:
-            expr = sf.interpolate(u)
+        expr = sf.inject(u, sf) if op == 'inject' else sf.interpolate(u)
 
         pkl_expr = pickle.dumps(expr)
         new_expr = pickle.loads(pkl_expr)
@@ -385,8 +388,8 @@ class TestBasic:
         pkl_lock = pickle.dumps(lock)
         new_lock = pickle.loads(pkl_lock)
 
-        lock.name == new_lock.name
-        new_lock.dimensions[0].symbolic_size == ld.symbolic_size
+        assert lock.name == new_lock.name
+        assert new_lock.dimensions[0].symbolic_size == ld.symbolic_size
 
     def test_p_thread_array(self, pickle):
         a = PThreadArray(name='threads', npthreads=4)
@@ -637,7 +640,7 @@ class TestBasic:
         assert new_eq.implicit_dims[0].name == 'xs'
         assert new_eq.implicit_dims[0].factor == 4
 
-    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct truct'])
+    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct my_struct'])
     def test_Cast(self, pickle, typ):
         a = Symbol('a')
         un = Cast(a, dtype=typ)
@@ -647,7 +650,7 @@ class TestBasic:
 
         assert un == new_un
 
-    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct truct'])
+    @pytest.mark.parametrize('typ', [ctypes.c_float, 'struct my_struct'])
     def test_SizeOf(self, pickle, typ):
         un = SizeOf(typ)
 
@@ -680,7 +683,7 @@ class TestAdvanced:
                                coordinates=[(0.,), (1.,), (2.,)])
 
         # Plain `pickle` doesn't support pickling of dynamic classes
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             pickle0.dumps(msf)
 
         # But `cloudpickle` does
@@ -770,7 +773,7 @@ class TestOperator:
     def test_operator_function_w_preallocation(self, pickle):
         grid = Grid(shape=(3, 3, 3))
         f = Function(name='f', grid=grid)
-        f.data
+        _ = f.data
 
         op = Operator(Eq(f, f + 1))
         op.apply()
@@ -801,7 +804,7 @@ class TestOperator:
     def test_operator_timefunction_w_preallocation(self, pickle):
         grid = Grid(shape=(3, 3, 3))
         f = TimeFunction(name='f', grid=grid, save=3)
-        f.data
+        _ = f.data
 
         op = Operator(Eq(f.forward, f + 1))
         op.apply(time=0)
@@ -846,8 +849,8 @@ class TestOperator:
         pkl_op = pickle.dumps(op)
         new_op = pickle.loads(pkl_op)
 
-        op.cfunction
-        new_op.cfunction
+        _ = op.cfunction
+        _ = new_op.cfunction
 
         assert str(op) == str(new_op)
 
@@ -947,7 +950,11 @@ class TestOperator:
         assert obj.key == new_obj.key
         assert obj.name == new_obj.name
         assert len(new_obj.arguments) == 2
-        assert all(d0.name == d1.name for d0, d1 in zip(obj.arguments, new_obj.arguments))
+        assert all(
+            d0.name == d1.name for d0, d1 in zip(
+                obj.arguments, new_obj.arguments, strict=True
+            )
+        )
         assert all(new_obj.arguments[i] is new_obj.owned[i][0][0][0]  # `x` and `y`
                    for i in range(2))
         assert new_obj.owned[0][0][0][1] is new_obj.owned[1][0][0][1]  # `OWNED`
@@ -1011,7 +1018,7 @@ class TestOperator:
         pkl_origin = pickle.dumps(model.grid.origin_symbols)
         new_origin = pickle.loads(pkl_origin)
 
-        for a, b in zip(model.grid.origin_symbols, new_origin):
+        for a, b in zip(model.grid.origin_symbols, new_origin, strict=True):
             assert a.compare(b) == 0
 
         # Test Class TimeDimension pickling
@@ -1034,7 +1041,7 @@ class TestOperator:
 
         assert model.grid.extent == new_grid.extent
         assert model.grid.shape == new_grid.shape
-        for a, b in zip(model.grid.dimensions, new_grid.dimensions):
+        for a, b in zip(model.grid.dimensions, new_grid.dimensions, strict=True):
             assert a.compare(b) == 0
 
         ricker = RickerSource(name='src', grid=model.grid, f0=f0, time_range=time_range)
@@ -1070,7 +1077,9 @@ class TestOperator:
         op_fwd = Operator(eqn, subs=subs)
 
         tmp_pickle_op_fn = "tmp_operator.pickle"
-        pickle.dump(op_fwd, open(tmp_pickle_op_fn, "wb"))
-        op_new = pickle.load(open(tmp_pickle_op_fn, "rb"))
+        with open(tmp_pickle_op_fn, "wb") as fh:
+            pickle.dump(op_fwd, fh)
+        with open(tmp_pickle_op_fn, "rb") as fh:
+            op_new = pickle.load(fh)
 
         assert str(op_fwd) == str(op_new)

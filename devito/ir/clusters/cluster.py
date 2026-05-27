@@ -1,22 +1,23 @@
-from itertools import chain
+from contextlib import suppress
 from functools import cached_property
+from itertools import chain
 
 import numpy as np
 
 from devito.ir.equations import ClusterizedEq
 from devito.ir.support import (
-    PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, Forward, Interval, IntervalGroup,
-    IterationSpace, DataSpace, Guards, Properties, Scope, WaitLock, WithLock,
-    PrefetchUpdate, detect_accesses, detect_io, normalize_properties,
-    tailor_properties, update_properties, normalize_syncs, minimum, maximum,
-    null_ispace
+    PARALLEL, PARALLEL_IF_PVT, BaseGuardBoundNext, DataSpace, Forward, Guards, Interval,
+    IntervalGroup, IterationSpace, PrefetchUpdate, Properties, Scope, WaitLock, WithLock,
+    detect_accesses, detect_io, maximum, minimum, normalize_properties, normalize_syncs,
+    null_ispace, tailor_properties, update_properties
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import (
-    Fence, WeakFence, CriticalRegion, ThreadPoolSync, ThreadCommit, ThreadWait
+    CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
+    ThreadPoolSync, ThreadWait, WeakFence
 )
 
 __all__ = ["Cluster", "ClusterGroup"]
@@ -61,7 +62,7 @@ class Cluster:
         self._halo_scheme = halo_scheme
 
     def __repr__(self):
-        return "Cluster([%s])" % ('\n' + ' '*9).join('%s' % i for i in self.exprs)
+        return "Cluster([{}])".format(('\n' + ' '*9).join(f'{i}' for i in self.exprs))
 
     @classmethod
     def from_clusters(cls, *clusters):
@@ -97,9 +98,11 @@ class Cluster:
 
         try:
             syncs = normalize_syncs(*[c.syncs for c in clusters])
-        except ValueError:
-            raise ValueError("Cannot build a Cluster from Clusters with "
-                             "non-compatible synchronization operations")
+        except ValueError as e:
+            raise ValueError(
+                "Cannot build a Cluster from Clusters with "
+                "non-compatible synchronization operations"
+            ) from e
 
         halo_scheme = HaloScheme.union([c.halo_scheme for c in clusters])
 
@@ -170,15 +173,34 @@ class Cluster:
         return set().union(*[i._defines for i in self.ispace.dimensions])
 
     @cached_property
+    def exprs_dimensions(self):
+        """
+        The Dimensions that appear explicitly in the Cluster expressions.
+        """
+        dims_explicit = {i for i in self.free_symbols if i.is_Dimension}
+        dims_implicit = {d for e in self.exprs for d in e.implicit_dims}
+        return dims_explicit | dims_implicit
+
+    @cached_property
+    def guards_dimensions(self):
+        """
+        The Dimensions that appear explicitly in the Cluster guards.
+        """
+        syms_guards = {d for e in self.guards.values() for d in e.free_symbols}
+        dims_guards = {i for i in syms_guards if i.is_Dimension}
+        return dims_guards
+
+    @cached_property
     def used_dimensions(self):
         """
-        The Dimensions that *actually* appear among the expressions in ``self``.
-        These do not necessarily coincide the IterationSpace Dimensions; for
-        example, reduction or redundant (i.e., invariant) Dimensions won't
-        appear in an expression.
+        All the Dimensions that appear explicitly either within the expressions
+        or the guards.
+
+        Note that, in some cases, some of the IterationSpace Dimensions might
+        not appear here among the used Dimensions -- for example, reduction or
+        redundant (i.e., invariant) Dimensions.
         """
-        idims = set.union(*[set(e.implicit_dims) for e in self.exprs])
-        return {i for i in self.free_symbols if i.is_Dimension} | idims
+        return self.exprs_dimensions | self.guards_dimensions
 
     @cached_property
     def dist_dimensions(self):
@@ -187,10 +209,8 @@ class Cluster:
         """
         ret = set()
         for f in self.functions:
-            try:
+            with suppress(AttributeError):
                 ret.update(f._dist_dimensions)
-            except AttributeError:
-                pass
         return frozenset(ret)
 
     @cached_property
@@ -284,6 +304,10 @@ class Cluster:
         return self._is_type(WeakFence)
 
     @cached_property
+    def is_phase_marker(self):
+        return self._is_type(PhaseMarker)
+
+    @cached_property
     def is_critical_region(self):
         return self._is_type(CriticalRegion)
 
@@ -292,12 +316,45 @@ class Cluster:
         return self._is_type(ThreadPoolSync)
 
     @cached_property
+    def is_shm_write(self):
+        return all(w._mem_shared for w in self.scope.writes)
+
+    @cached_property
     def is_thread_commit(self):
         return self._is_type(ThreadCommit)
 
     @cached_property
+    def is_thread_arrive(self):
+        return self._is_type(ThreadArrive)
+
+    @cached_property
     def is_thread_wait(self):
         return self._is_type(ThreadWait)
+
+    @cached_property
+    def is_thread_sync(self):
+        return self.is_thread_pool_sync or self.is_thread_wait
+
+    @cached_property
+    def is_word_move(self):
+        return (self._is_type(Indexed) and
+                all(e.rhs.function._mem_heap for e in self.exprs))
+
+    @cached_property
+    def is_tensor_move(self):
+        return self._is_type(TensorMove)
+
+    @cached_property
+    def is_word_move_to_mem_shared(self):
+        return self.is_word_move and self.is_shm_write
+
+    @cached_property
+    def is_tensor_move_to_mem_shared(self):
+        return self.is_tensor_move and self.is_shm_write
+
+    @cached_property
+    def is_glb_load_to_mem_shared(self):
+        return self.is_word_move_to_mem_shared or self.is_tensor_move_to_mem_shared
 
     @cached_property
     def is_async(self):
@@ -397,10 +454,7 @@ class Cluster:
         oobs = set()
         for f, v in parts.items():
             for i in v:
-                if i.dim.is_Sub:
-                    d = i.dim.parent
-                else:
-                    d = i.dim
+                d = i.dim.parent if i.dim.is_Sub else i.dim
                 try:
                     if i.lower < 0 or \
                        i.upper > f._size_nodomain[d].left + f._size_halo[d].right:
@@ -430,7 +484,7 @@ class Cluster:
     @cached_property
     def traffic(self):
         """
-        The Cluster compulsary traffic (number of reads/writes), as a mapper
+        The Cluster compulsory traffic (number of reads/writes), as a mapper
         from Functions to IntervalGroups.
 
         Notes
@@ -540,6 +594,10 @@ class ClusterGroup(tuple):
     @property
     def is_halo_touch(self):
         return all(i.is_halo_touch for i in self)
+
+    @cached_property
+    def is_glb_load_to_mem_shared(self):
+        return all(i.is_glb_load_to_mem_shared for i in self)
 
     @cached_property
     def dtype(self):

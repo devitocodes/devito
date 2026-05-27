@@ -1,9 +1,11 @@
-import pytest
 import numpy as np
+import pytest
 
 from conftest import assert_blocking
-from devito import Grid, Dimension, Eq, Function, TimeFunction, Operator, norm, Min # noqa
-from devito.ir import Expression, Iteration, FindNodes
+from devito import (  # noqa
+    Dimension, Eq, Function, Grid, Min, Operator, TimeFunction, norm
+)
+from devito.ir import Expression, FindNodes, Iteration
 
 
 class TestCodeGenSkewing:

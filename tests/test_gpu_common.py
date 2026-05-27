@@ -1,24 +1,23 @@
 import cloudpickle as pickle
-
-import pytest
 import numpy as np
-import sympy
+import pytest
 import scipy.sparse
+import sympy
 
-from conftest import assert_structure
-from devito import (Constant, Eq, Inc, Grid, Function, ConditionalDimension,
-                    Dimension, MatrixSparseTimeFunction, SparseTimeFunction,
-                    SubDimension, SubDomain, SubDomainSet, TimeFunction, exp,
-                    Operator, configuration, switchconfig, TensorTimeFunction,
-                    Buffer, assign, switchenv)
-from devito.arch import get_gpu_info, get_cpu_info, Device, Cpu64
+from conftest import assert_structure, skipif
+from devito import (
+    Buffer, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, Inc,
+    MatrixSparseTimeFunction, Operator, SparseTimeFunction, SubDimension, SubDomain,
+    SubDomainSet, TensorTimeFunction, TimeFunction, assign, configuration, exp,
+    switchconfig, switchenv
+)
+from devito.arch import Cpu64, Device, get_cpu_info, get_gpu_info
 from devito.exceptions import InvalidArgument
-from devito.ir import (Conditional, Expression, Section, FindNodes, FindSymbols,
-                       retrieve_iteration_tree)
+from devito.ir import (
+    Conditional, Expression, FindNodes, FindSymbols, Section, retrieve_iteration_tree
+)
 from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol
-
-from conftest import skipif
 
 pytestmark = skipif(['nodevice'], whole_module=True)
 
@@ -109,7 +108,13 @@ class TestDeviceID:
         assert argmap2._physical_deviceid == 0
 
     @pytest.mark.parallel(mode=2)
-    @pytest.mark.parametrize('visible_devices', ["1,2", "1,0", "0,2,3"])
+    @pytest.mark.parametrize('visible_devices', [
+        "1,2", "1,0", "0,2,3",
+        # Per rank VISIBLE_DEVICE
+        ("1", "0"),
+        # Oversubscribed
+        "1",
+    ])
     def test_visible_devices_mpi(self, visible_devices, mode):
         """
         Test that physical device IDs used for querying memory on a device via
@@ -123,11 +128,18 @@ class TestDeviceID:
 
         eq = Eq(u, u+1)
 
-        with switchenv({'CUDA_VISIBLE_DEVICES': visible_devices}):
+        if isinstance(visible_devices, tuple):
+            cu_device = visible_devices[rank]
+            expected = int(cu_device)
+        else:
+            cu_device = visible_devices
+            devices = visible_devices.split(',')
+            expected = int(devices[rank % len(devices)])
+
+        with switchenv({'CUDA_VISIBLE_DEVICES': cu_device}):
             op1 = Operator(eq)
             argmap1 = op1.arguments()
-            devices = [int(i) for i in visible_devices.split(',')]
-            assert argmap1._physical_deviceid == devices[rank]
+            assert argmap1._physical_deviceid == expected
 
         # In default case, physical deviceid will equal rank
         op2 = Operator(eq)
@@ -159,7 +171,7 @@ class TestDeviceID:
     def test_deviceid_per_rank(self, mode):
         """
         Test that Device IDs set by the user on a per-rank basis do not
-        get modifed.
+        get modified.
         """
         # Reversed order to ensure it is different to default
         user_set_deviceids = (1, 0)
@@ -510,7 +522,7 @@ class TestStreaming:
         # a host Function
         piters = FindNodes(OmpIteration).visit(op)
         assert len(piters) == 1
-        assert type(piters.pop()) == OmpIteration
+        assert isinstance(piters.pop(), OmpIteration)
 
     def test_tasking_multi_output(self):
         nt = 10
@@ -1313,7 +1325,7 @@ class TestStreaming:
 
     def test_streaming_split_noleak(self):
         """
-        Make sure the helper pthreads leak no memory in the target langauge runtime.
+        Make sure the helper pthreads leak no memory in the target language runtime.
         """
         nt = 1000
         grid = Grid(shape=(20, 20, 20))

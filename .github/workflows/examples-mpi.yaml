@@ -14,8 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the main branch
+  # Trigger the workflow on push or pull request, but only for the main branch
   push:
     branches:
       - main
@@ -65,7 +64,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install -e .[extras,mpi,tests]
+        pip install -e ".[extras,mpi,tests]"
         python3 scripts/clear_devito_cache.py
 
     - name: Test mpi notebooks
@@ -74,15 +73,17 @@ jobs:
         ipcluster start --profile=mpi --engines=mpi -n 4 --daemonize
         # A few seconds to ensure workers are ready
         sleep 10
-        py.test --nbval examples/mpi
+        pytest -v --nbval examples/mpi
         ipcluster stop --profile=mpi
 
     - name: Test seismic examples
       run: |
-        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/tti/tti_example.py
-        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/elastic/elastic_example.py
-        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/viscoacoustic/viscoacoustic_example.py
-        mpirun ${{ matrix.mpiarg }} pytest examples/seismic/viscoelastic/viscoelastic_example.py
+        mpirun ${{ matrix.mpiarg }} \
+          pytest -v \
+            examples/seismic/tti/tti_example.py \
+            examples/seismic/elastic/elastic_example.py \
+            examples/seismic/viscoacoustic/viscoacoustic_example.py \
+            examples/seismic/viscoelastic/viscoelastic_example.py
 
     - name: Test fwi examples with mpi
       run: |

@@ -1,6 +1,8 @@
 from functools import cached_property
-from scipy import interpolate
+
 import numpy as np
+from scipy import interpolate
+
 try:
     import matplotlib.pyplot as plt
 except:
@@ -8,8 +10,16 @@ except:
 
 from devito.types import SparseTimeFunction
 
-__all__ = ['PointSource', 'Receiver', 'Shot', 'WaveletSource',
-           'RickerSource', 'GaborSource', 'DGaussSource', 'TimeAxis']
+__all__ = [
+    'DGaussSource',
+    'GaborSource',
+    'PointSource',
+    'Receiver',
+    'RickerSource',
+    'Shot',
+    'TimeAxis',
+    'WaveletSource',
+]
 
 
 class TimeAxis:
@@ -53,7 +63,9 @@ class TimeAxis:
             else:
                 raise ValueError("Only three of start, step, num and stop may be set")
         except:
-            raise ValueError("Three of args start, step, num and stop may be set")
+            raise ValueError(
+                "Three of args start, step, num and stop may be set"
+            ) from None
 
         if not isinstance(num, int):
             raise TypeError("input argument must be of type int")
@@ -64,8 +76,8 @@ class TimeAxis:
         self.num = int(num)
 
     def __str__(self):
-        return "TimeAxis: start=%g, stop=%g, step=%g, num=%g" % \
-               (self.start, self.stop, self.step, self.num)
+        return f'TimeAxis: start={self.start:g}, stop={self.stop:g}, ' + \
+            f'step={self.step:g}, num={self.num:g}'
 
     def _rebuild(self):
         return TimeAxis(start=self.start, stop=self.stop, num=self.num)

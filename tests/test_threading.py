@@ -1,8 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
-from devito import Operator, TimeFunction, Grid, Eq
-from devito.logger import info
-import numpy as np
 from threading import current_thread
+
+import numpy as np
+
+from devito import Eq, Grid, Operator, TimeFunction
+from devito.logger import info
 
 
 def test_concurrent_executing_operators():
@@ -14,7 +16,7 @@ def test_concurrent_executing_operators():
     op = Operator(Eq(u.forward, u + 1))
 
     # this forces the compile
-    op.cfunction
+    _ = op.cfunction
 
     def do_run(op):
         # choose a new size
@@ -40,7 +42,7 @@ def test_concurrent_executing_operators():
 
     info("Running operator in threadpool")
     futures = []
-    for i in range(1000):
+    for _ in range(1000):
         futures.append(tpe.submit(do_run, op))
 
     # Get results - exceptions will be raised here if there are any

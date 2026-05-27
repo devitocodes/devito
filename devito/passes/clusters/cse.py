@@ -1,9 +1,10 @@
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from functools import cached_property, singledispatch
 
 import numpy as np
 import sympy
 from sympy import Add, Function, Indexed, Mul, Pow
+
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
@@ -12,10 +13,9 @@ except ImportError:
 
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
-from devito.symbolics import estimate_cost, q_leaf, q_terminal
-from devito.symbolics.search import search
+from devito.symbolics import Reserved, estimate_cost, q_leaf, q_terminal, search
 from devito.symbolics.manipulation import _uxreplace
-from devito.tools import DAG, as_list, as_tuple, frozendict, extract_dtype
+from devito.tools import DAG, as_list, as_tuple, extract_dtype, frozendict
 from devito.types import Eq, Symbol, Temp
 
 __all__ = ['cse']
@@ -33,6 +33,24 @@ class CTemp(Temp):
 def retrieve_ctemps(exprs, mode='all'):
     """Shorthand to retrieve the CTemps in `exprs`"""
     return search(exprs, lambda expr: isinstance(expr, CTemp), mode, 'dfs')
+
+
+def cse_dtype(exprdtype, cdtype):
+    """
+    Return the dtype of a CSE temporary given the dtype of the expression to be
+    captured and the cluster's dtype.
+    """
+    if np.issubdtype(cdtype, np.floating) and np.issubdtype(exprdtype, np.integer):
+        # Integer expression and floating-point cluster: promote to the floating point
+        # np.promote_types upcast integers (e.g int32 -> Float64) so we
+        # need to ensure that the promoted type is not larger than the cluster's dtype
+        return cdtype
+
+    if np.issubdtype(cdtype, np.complexfloating):
+        return np.promote_types(exprdtype, cdtype(0).real.__class__).type
+    else:
+        # Real cluster, can safely promote to the largest precision
+        return np.promote_types(exprdtype, cdtype).type
 
 
 @cluster_pass
@@ -85,8 +103,9 @@ def cse(cluster, sregistry=None, options=None, **kwargs):
     if cluster.is_fence:
         return cluster
 
-    make_dtype = lambda e: np.promote_types(e.dtype, dtype).type
-    make = lambda e: CTemp(name=sregistry.make_name(), dtype=make_dtype(e))
+    def make(e):
+        edtype = cse_dtype(e.dtype, dtype)
+        return CTemp(name=sregistry.make_name(), dtype=edtype)
 
     exprs = _cse(cluster, make, min_cost=min_cost, mode=mode)
 
@@ -352,10 +371,7 @@ def catch(exprs, mode):
 
     candidates = []
     for k, v in mapper.items():
-        if mode in ('basic', 'smartsort'):
-            sources = [i for i in v if i == k.expr]
-        else:
-            sources = v
+        sources = [i for i in v if i == k.expr] if mode in ('basic', 'smartsort') else v
 
         if len(sources) > 1:
             candidates.append(Candidate(k.expr, k.conditionals, sources))
@@ -401,6 +417,7 @@ def _(expr):
 
 @_catch.register(Indexed)
 @_catch.register(Symbol)
+@_catch.register(Reserved)
 def _(expr):
     """
     Handler for objects preventing CSE to propagate through their arguments.

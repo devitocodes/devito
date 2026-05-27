@@ -4,10 +4,14 @@ from anytree import findall
 from sympy import And
 
 from devito.ir.clusters import Cluster
-from devito.ir.stree.tree import (ScheduleTree, NodeIteration, NodeConditional,
-                                  NodeSync, NodeExprs, NodeSection, NodeHalo)
-from devito.ir.support import (SEQUENTIAL, Any, Interval, IterationInterval,
-                               IterationSpace, normalize_properties, normalize_syncs)
+from devito.ir.stree.tree import (
+    NodeConditional, NodeExprs, NodeHalo, NodeIteration, NodeSection, NodeSync,
+    ScheduleTree
+)
+from devito.ir.support import (
+    SEQUENTIAL, Any, Interval, IterationInterval, IterationSpace, normalize_properties,
+    normalize_syncs
+)
 from devito.mpi.halo_scheme import HaloScheme
 from devito.tools import Bunch, DefaultOrderedDict, as_mapper
 
@@ -42,7 +46,7 @@ def stree_build(clusters, profiler=None, **kwargs):
             maybe_reusable = []
 
         index = 0
-        for it0, it1 in zip(c.itintervals, maybe_reusable):
+        for it0, it1 in zip(c.itintervals, maybe_reusable, strict=False):
             if it0 != it1:
                 break
 
@@ -117,7 +121,7 @@ def stree_build(clusters, profiler=None, **kwargs):
         candidates = tuple(reversed(tip.ancestors[1:] + (tip,)))
 
         if not any(i.is_Iteration and i.dim.is_Time for i in candidates) and \
-           not candidates[-1] is stree:
+           candidates[-1] is not stree:
             attach_section(candidates[-1])
             continue
 
@@ -200,7 +204,9 @@ def preprocess(clusters, options=None, **kwargs):
 
             syncs = normalize_syncs(*[c1.syncs for c1 in found])
             if syncs:
-                ispace = c.ispace.prefix(lambda d: d._defines.intersection(syncs))
+                ispace = c.ispace.prefix(
+                    lambda d: d._defines.intersection(syncs)  # noqa: B023
+                )
                 processed.append(c.rebuild(exprs=[], ispace=ispace, syncs=syncs))
 
             if all(c1.ispace.is_subset(c.ispace) for c1 in found):
@@ -222,11 +228,8 @@ def preprocess(clusters, options=None, **kwargs):
                 processed.append(c)
 
     # Sanity check!
-    try:
-        assert not queue
-    except AssertionError:
-        if options['mpi']:
-            raise RuntimeError("Unsupported MPI for the given equations")
+    if queue and options['mpi']:
+        raise RuntimeError("Unsupported MPI for the given equations")
 
     return processed
 
@@ -286,7 +289,7 @@ def reuse_section(candidate, section):
     # * Same set of iteration Dimensions
     key = lambda i: i.interval.promote(lambda d: d.is_Block).dim
     test00 = len(iters0) == len(iters1)
-    test01 = all(key(i) is key(j) for i, j in zip(iters0, iters1))
+    test01 = all(key(i) is key(j) for i, j in zip(iters0, iters1, strict=False))
 
     # * All subtrees use at least one local SubDimension (i.e., BCs)
     key = lambda iters: any(i.dim.is_Sub and i.dim.local for i in iters)

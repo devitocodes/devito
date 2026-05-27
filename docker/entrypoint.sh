@@ -9,7 +9,7 @@ if [[ "$DEVITO_PLATFORM" = "nvidiaX" ]]; then
 fi
 
 if [[ "$DEVITO_ARCH" = "icx" || "$DEVITO_ARCH" = "icc" ]]; then
-    echo "Initializing oneapi environement"
+    echo "Initializing oneapi environment"
     source /opt/intel/oneapi/setvars.sh intel64
 fi
 

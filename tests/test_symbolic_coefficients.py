@@ -1,9 +1,10 @@
 import numpy as np
-import sympy as sp
 import pytest
+import sympy as sp
 
-from devito import (Grid, Function, TimeFunction, Eq,
-                    Dimension, solve, Operator, div, grad, laplace)
+from devito import (
+    Dimension, Eq, Function, Grid, Operator, TimeFunction, div, grad, laplace, solve
+)
 from devito.finite_differences import Differentiable
 from devito.finite_differences.coefficients import Coefficient, Substitutions
 from devito.finite_differences.finite_difference import _PRECISION
@@ -240,10 +241,7 @@ class TestSC:
         """Check compatibility of custom coefficients and TimeFunctions"""
         grid = Grid(shape=(11,), extent=(10.,))
         x = grid.dimensions[0]
-        if stagger:
-            staggered = x
-        else:
-            staggered = None
+        staggered = x if stagger else None
 
         f = TimeFunction(name='f', grid=grid, space_order=2, staggered=staggered)
         g = TimeFunction(name='g', grid=grid, space_order=2, staggered=staggered)

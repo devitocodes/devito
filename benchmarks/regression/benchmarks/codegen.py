@@ -1,6 +1,5 @@
 from examples.seismic.tti.tti_example import tti_setup
 
-
 repeat = 3
 
 

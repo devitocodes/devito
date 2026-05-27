@@ -1,7 +1,7 @@
 import pytest
 
-from devito import switchconfig, configuration
-from devito.arch.compiler import sniff_compiler_version, compiler_registry, GNUCompiler
+from devito import configuration, switchconfig
+from devito.arch.compiler import GNUCompiler, compiler_registry, sniff_compiler_version
 
 
 @pytest.mark.parametrize("cc", [

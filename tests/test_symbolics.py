@@ -1,28 +1,31 @@
 from ctypes import c_void_p
 
-import sympy
-import pytest
 import numpy as np
-
+import pytest
+import sympy
 from sympy import And, Expr, Number, Symbol, true
-from devito import (Constant, Dimension, Grid, Function, solve, TimeFunction, Eq,  # noqa
-                    Operator, SubDimension, norm, Le, Ge, Gt, Lt, Abs, sin, cos,
-                    Min, Max, Real, Imag, Conj, SubDomain, configuration)
-from devito.finite_differences.differentiable import SafeInv, Weights, Mul
-from devito.ir import Expression, FindNodes, ccode
-from devito.ir.support.guards import GuardExpr, simplify_and, pairwise_or
-from devito.mpi.halo_scheme import HaloTouch
-from devito.symbolics import (
-    retrieve_functions, retrieve_indexed, evalrel, CallFromPointer, Cast, # noqa
-    DefFunction, FieldFromPointer, INT, FieldFromComposite, IntDiv, Namespace,
-    Rvalue, ReservedWord, ListInitializer, uxreplace, pow_to_mul,
-    retrieve_derivatives, BaseCast, SizeOf, VectorAccess, separate_eqn,
-    centre_stencil, sympy_dtype
+
+from devito import (  # noqa
+    Abs, Conj, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Imag, Le, Lt, Max, Min,
+    Operator, Real, SubDimension, SubDomain, TimeFunction, configuration, cos, norm, sin,
+    solve, switchconfig
 )
-from devito.tools import as_tuple, CustomDtype
-from devito.types import (Array, Bundle, FIndexed, LocalObject, Object,
-                          ComponentAccess, StencilDimension, Symbol as dSymbol,
-                          CompositeObject)
+from devito.finite_differences.differentiable import Mul, SafeInv, Weights
+from devito.ir import Expression, FindNodes, ccode
+from devito.ir.support.guards import GuardExpr, pairwise_or, simplify_and
+from devito.mpi.halo_scheme import HaloTouch
+from devito.symbolics import (  # noqa
+    INT, BaseCast, CallFromPointer, Cast, centre_stencil, DefFunction, FieldFromComposite,
+    FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, RoundUp, Rvalue,
+    separate_eqn, SizeOf, sympy_dtype, VectorAccess, evalrel, pow_to_mul, retrieve_derivatives,
+    retrieve_functions, retrieve_indexed, uxreplace
+)
+from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
+from devito.types import (
+    Array, Bundle, CompositeObject, ComponentAccess, FIndexed, LocalObject, Object,
+    StencilDimension
+)
+from devito.types import Symbol as dSymbol
 from devito.types.basic import AbstractSymbol
 
 
@@ -56,8 +59,8 @@ def test_func_of_indices():
 
 
 @pytest.mark.parametrize('dtype,expected', [
-    (np.float32, "float r0 = 1.0F/h_x;"),
-    (np.float64, "double r0 = 1.0/h_x;")
+    (np.float32, "const float r0 = 1.0F/h_x;"),
+    (np.float64, "const double r0 = 1.0/h_x;")
 ])
 def test_floatification_issue_1627(dtype, expected):
     """
@@ -128,6 +131,24 @@ def test_real():
         s = dSymbol(name='s', dtype=dtype)
         assert s.is_real is not np.iscomplexobj(dtype(0))
         assert s.is_imaginary is np.iscomplexobj(dtype(0))
+
+
+@pytest.mark.parametrize('spacing, extent, shape, expected, broken', [
+    ((0.5, 0.5), None, (11, 11), ((0.5, 0.5), (5.0, 5.0)), False),
+    (None, (5.0, 5.0), (11, 11), ((0.5, 0.5), (5.0, 5.0)), False),
+    ((0.5, 0.5), (5.0, 5.0), (11, 11), ((0.5, 0.5), (5.0, 5.0)), False),
+    (None, (.3, .3), (151, 146), ((0.002, 0.002), (.3, .3)), 'spacing'),
+    ((.002, .002), (.3, .3), (151, 146), ((0.002, 0.002), (.3, .3)), False),
+    ((.002, .002), None, (151, 146), ((0.002, 0.002), (.3, .3)), 'extent'),
+    (None, None, (11, 11), ((.1, .1), (1.0, 1.0)), False),
+])
+def test_grid_inputs(spacing, extent, shape, expected, broken):
+    grid = Grid(shape=shape, spacing=spacing, extent=extent)
+    sp, ex = expected
+    sp = np.array(sp).astype(grid.dtype)
+    ex = np.array(ex).astype(grid.dtype)
+    assert np.allclose(grid.spacing, sp, atol=0, rtol=0) is (broken != 'spacing')
+    assert np.allclose(grid.extent, ex, atol=0, rtol=0) is (broken != 'extent')
 
 
 def test_constant():
@@ -214,7 +235,7 @@ def test_bundle():
     fg = Bundle(name='fg', components=(f, g))
 
     # Test reconstruction
-    fg._rebuild().components == fg.components
+    assert fg._rebuild().components == fg.components
 
 
 def test_call_from_pointer():
@@ -402,6 +423,20 @@ def test_safeinv():
     assert str(v) == 'u[x, y]'
 
 
+def test_roundup():
+    grid = Grid(shape=(11, 11))
+    u = Function(name='u', grid=grid)
+    a = dSymbol('a', dtype=np.int32)
+
+    expr = RoundUp(a, 16)
+    with switchconfig(platform='bdw', language='openmp'):
+        op = Operator(Eq(u, u + expr))
+
+    assert ccode(expr) == 'ROUND_UP(a, 16)'
+    assert '#define ROUND_UP(a,b)' in str(op)
+    assert 'ROUND_UP(a, 16)' in str(op)
+
+
 def test_def_function():
     foo0 = DefFunction('foo', arguments=['a', 'b'], template=['int'])
     foo1 = DefFunction('foo', arguments=['a', 'b'], template=['int'])
@@ -438,6 +473,31 @@ def test_namespace():
 
     # Free symbols
     assert not ns0.free_symbols
+
+
+def test_list_initializer():
+    # Legacy interface
+    init0 = ListInitializer((1, 2, 3))
+    assert str(init0) == '{1, 2, 3}'
+
+    init1 = ListInitializer(1, 2, 3)
+    assert str(init1) == '{1, 2, 3}'
+
+    # Test hashing and equality
+    assert init0 == init1
+    assert hash(init0) == hash(init1)
+    init2 = ListInitializer(1, 2)
+    assert init0 != init2
+    assert hash(init0) != hash(init2)
+    assert hash(init0) == hash(init1)
+
+    # Reconstruction
+    assert init0 == init0._rebuild()
+    assert init1 == init1._rebuild()
+    assert str(init1._rebuild(4, 5)) == '{4, 5}'
+
+    # Accept `evaluate` but gently ignore it
+    assert str(ListInitializer((1, 2), evaluate=True)) == '{1, 2}'
 
 
 def test_rvalue():
@@ -528,6 +588,13 @@ def test_component_access():
     cf2 = cf1.func(*cf1.args)
     assert cf2.index == cf1.index
     assert cf2 == cf1
+
+
+def test_component_access_symbol_printing():
+    acc = dSymbol(name='acc', dtype=dtypes_vector_mapper[(np.float32, 4)])
+    expr = ComponentAccess(acc, 0)
+
+    assert ccode(sympy.Float('1.25')*expr, dtype=expr.dtype) == '1.250F*acc.x'
 
 
 def test_vector_access():
@@ -893,7 +960,7 @@ class TestUxreplace:
 
         w_sub = uxreplace(w_lowered, {h_x: Number(3)})
 
-        assert np.isclose(w_sub, -0.003935689)
+        assert np.isclose(float(w_sub), -0.003935689)
         assert not w_sub.is_Mul
         assert w_sub.is_Number
 
@@ -1066,7 +1133,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_relations_w_complex_assumptions(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=True)  # noqa
         b = Symbol('b', positive=True)  # noqa
         c = Symbol('c', positive=True)  # noqa
@@ -1107,7 +1174,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_relations_w_complex_assumptions_II(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=False)  # noqa
         b = Symbol('b', positive=False)  # noqa
         c = Symbol('c', positive=True)  # noqa
@@ -1126,7 +1193,7 @@ class TestRelationsWithAssumptions:
     ])
     def test_assumptions(self, op, expr, assumptions, expected):
         """
-        Tests evalmin/evalmax with multiple args and assumtpions"""
+        Tests evalmin/evalmax with multiple args and assumptions"""
         a = Symbol('a', positive=False)
         b = Symbol('b', positive=False)
         c = Symbol('c', positive=True)

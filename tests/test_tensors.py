@@ -1,12 +1,11 @@
 import numpy as np
-import sympy
-from sympy import Rational, Matrix
-
 import pytest
+import sympy
+from sympy import Matrix, Rational
 
-from devito import VectorFunction, TensorFunction, VectorTimeFunction, TensorTimeFunction
 from devito import (
-    Grid, Function, TimeFunction, Dimension, Eq, div, grad, curl, laplace, diag
+    Dimension, Eq, Function, Grid, TensorFunction, TensorTimeFunction, TimeFunction,
+    VectorFunction, VectorTimeFunction, curl, diag, div, grad, laplace
 )
 from devito.symbolics import retrieve_derivatives
 from devito.types import NODE
@@ -179,8 +178,8 @@ def test_transpose_vs_T(func1):
     f4 = f1.dx.transpose(inner=False)
     # inner=True is the same as T
     assert f3 == f2
-    # inner=False doesn't tranpose inner derivatives
-    for f4i, f2i in zip(f4, f2):
+    # inner=False doesn't transpose inner derivatives
+    for f4i, f2i in zip(f4, f2, strict=True):
         assert f4i == f2i.T
 
 
@@ -189,7 +188,7 @@ def test_transpose_vs_T(func1):
 def test_tensor_fd(func1):
     grid = Grid(tuple([5]*3))
     f1 = func1(name="f1", grid=grid)
-    assert np.all([f.dx == f2 for f, f2 in zip(f1, f1.dx)])
+    assert np.all([f.dx == f2 for f, f2 in zip(f1, f1.dx, strict=True)])
 
 
 @pytest.mark.parametrize('func1, symm, diag, expected',
@@ -230,8 +229,8 @@ def test_sympy_matrix(func1):
     sympy_f1 = f1.as_mutable()
     vec = sympy.Matrix(3, 1, np.random.rand(3))
     mat = sympy.Matrix(3, 3, np.random.rand(3, 3).ravel())
-    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1))
-    assert all(sp - dp == 0 for sp, dp in zip(f1 * vec, sympy_f1 * vec))
+    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1, strict=True))
+    assert all(sp - dp == 0 for sp, dp in zip(f1 * vec, sympy_f1 * vec, strict=True))
 
 
 @pytest.mark.parametrize('func1', [VectorFunction, VectorTimeFunction])
@@ -242,7 +241,7 @@ def test_sympy_vector(func1):
     sympy_f1 = f1.as_mutable()
     mat = sympy.Matrix(3, 3, np.random.rand(3, 3).ravel())
 
-    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1))
+    assert all(sp - dp == 0 for sp, dp in zip(mat * f1, mat * sympy_f1, strict=True))
 
 
 @pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction])
@@ -253,7 +252,7 @@ def test_non_devito_tens(func1):
     f1 = func1(name="f1", grid=grid, components=comps)
     f2 = func1(name="f2", grid=grid)
 
-    assert f1.T == f1
+    assert f1 == f1.T
     assert isinstance(f1.T, sympy.ImmutableDenseMatrix)
     # No devito object in the matrix components, should return a pure sympy Matrix
     assert ~isinstance(f1.T, func1)
@@ -275,7 +274,7 @@ def test_partial_devito_tens(func1):
 
     f1 = func1(name="f1", grid=grid, components=comps)
 
-    assert f1.T == f1
+    assert f1 == f1.T
     assert isinstance(f1.T, func1)
     # Should have original grid
     assert f1[0, 2].grid == grid
@@ -301,7 +300,7 @@ def test_shifted_grad_of_vector(shift, ndim):
             for j, d in enumerate(grid.dimensions):
                 x0 = (None if shift is None else d + shift[i][j] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ge = getattr(f[i], 'd%s' % d.name)(x0=x0, fd_order=order)
+                ge = getattr(f[i], f'd{d.name}')(x0=x0, fd_order=order)
                 ref.append(ge.evaluate)
 
         for i, d in enumerate(gf):
@@ -318,7 +317,7 @@ def test_shifted_div_of_vector(shift, ndim):
         for i, d in enumerate(grid.dimensions):
             x0 = (None if shift is None else d + shift[i] * d.spacing if
                   type(shift) is tuple else d + shift * d.spacing)
-            ref += getattr(v[i], 'd%s' % d.name)(x0=x0, fd_order=order)
+            ref += getattr(v[i], f'd{d.name}')(x0=x0, fd_order=order)
 
         assert df == ref.evaluate
 
@@ -332,12 +331,12 @@ def test_shifted_div_of_tensor(shift, ndim):
         df = div(f, shift=shift, order=order).evaluate
 
         ref = []
-        for i, a in enumerate(grid.dimensions):
+        for i, _ in enumerate(grid.dimensions):
             elems = []
             for j, d in reversed(list(enumerate(grid.dimensions))):
                 x0 = (None if shift is None else d + shift[i][j] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ge = getattr(f[i, j], 'd%s' % d.name)(x0=x0, fd_order=order)
+                ge = getattr(f[i, j], f'd{d.name}')(x0=x0, fd_order=order)
                 elems.append(ge.evaluate)
             ref.append(sum(elems))
 
@@ -370,7 +369,7 @@ def test_shifted_lap_of_vector(shift, ndim):
     assert v.laplacian() == v.laplace
     for order in [None, 2]:
         df = v.laplacian(shift=shift, order=order)
-        for (vi, dfvi) in zip(v, df):
+        for (vi, dfvi) in zip(v, df, strict=True):
             ref = vi.laplacian(shift=shift, order=order)
             assert dfvi == ref
 
@@ -389,7 +388,7 @@ def test_shifted_lap_of_tensor(shift, ndim):
             for i, d in enumerate(v.space_dimensions):
                 x0 = (None if shift is None else d + shift[i][j] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ref += getattr(v[j, i], 'd%s2' % d.name)(x0=x0, fd_order=order)
+                ref += getattr(v[j, i], f'd{d.name}2')(x0=x0, fd_order=order)
             assert df[j] == ref
 
 
@@ -399,10 +398,10 @@ def test_basic_arithmetic():
 
     # Scalar operations
     t1 = tau + 1
-    assert all(t1i == ti + 1 for (t1i, ti) in zip(t1, tau))
+    assert all(t1i == ti + 1 for (t1i, ti) in zip(t1, tau, strict=True))
 
     t1 = tau * 2
-    assert all(t1i == ti * 2 for (t1i, ti) in zip(t1, tau))
+    assert all(t1i == ti * 2 for (t1i, ti) in zip(t1, tau, strict=True))
 
 
 def test_custom_coeffs_vector():
@@ -431,7 +430,7 @@ def test_custom_coeffs_tensor():
     c = [10, 10, 10]
 
     dtau = div(tau, weights=c)
-    for i, d in enumerate(grid.dimensions):
+    for i, _ in enumerate(grid.dimensions):
         assert dtau[i] == tau[i, 0].dx(w=c) + tau[i, 1].dy(w=c) + tau[i, 2].dz(w=c)
         assert list(dtau[i].args[0].weights) == c
 
@@ -452,7 +451,7 @@ def test_custom_coeffs_tensor_basic(func):
     c = [10, 20, 30]
 
     df = f.dx(w=c)
-    for (fi, dfi) in zip(f.values(), df.values()):
+    for (fi, dfi) in zip(f.values(), df.values(), strict=True):
         assert dfi == fi.dx(w=c)
         assert list(dfi.weights) == c
 
@@ -466,7 +465,7 @@ def test_rebuild(func1):
     assert f1.grid == f2.grid
     assert f2.name == 'f2'
 
-    for (i, j) in zip(f1.flat(), f2.flat()):
+    for (i, j) in zip(f1.flat(), f2.flat(), strict=True):
         assert j.name == i.name.replace('f1', 'f2')
         assert j.grid == i.grid
         assert j.dimensions == i.dimensions
@@ -478,7 +477,7 @@ def test_rebuild(func1):
     assert f3.grid == grid
     assert f3.name == f1.name
 
-    for (i, j) in zip(f1.flat(), f3.flat()):
+    for (i, j) in zip(f1.flat(), f3.flat(), strict=True):
         assert j.name == i.name
         assert j.grid == i.grid
         assert j.dimensions == tuple(new_dims)

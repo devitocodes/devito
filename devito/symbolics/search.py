@@ -5,13 +5,21 @@ from typing import Any, Literal
 import numpy as np
 import sympy
 
-from devito.symbolics.queries import (q_indexed, q_function, q_terminal, q_leaf,
-                                      q_symbol, q_dimension, q_derivative)
+from devito.symbolics.queries import (
+    q_derivative, q_dimension, q_function, q_indexed, q_leaf, q_symbol, q_terminal
+)
 from devito.tools import as_tuple
 
-__all__ = ['retrieve_indexed', 'retrieve_functions', 'retrieve_function_carriers',
-           'retrieve_terminals', 'retrieve_symbols', 'retrieve_dimensions',
-           'retrieve_derivatives', 'search']
+__all__ = [
+    'retrieve_derivatives',
+    'retrieve_dimensions',
+    'retrieve_function_carriers',
+    'retrieve_functions',
+    'retrieve_indexed',
+    'retrieve_symbols',
+    'retrieve_terminals',
+    'search',
+]
 
 
 Expression = sympy.Basic | np.number | int | float
@@ -52,6 +60,8 @@ class Search:
     def _next(self, expr: Expression) -> Iterable[Expression]:
         if self.deep and expr.is_Indexed:
             return expr.indices
+        elif self.deep and q_dimension(expr):
+            return expr.bound_symbols
         elif q_leaf(expr):
             return ()
         return expr.args
@@ -88,7 +98,7 @@ class Search:
 
 
 def search(exprs: Expression | Iterable[Expression],
-           query: type | Callable[[Any], bool],
+           query: type | tuple[type, ...] | Callable[[Any], bool],
            mode: Mode = 'unique',
            visit: Literal['dfs', 'bfs', 'bfs_first_hit'] = 'dfs',
            deep: bool = False) -> List | set[Expression]:
@@ -96,7 +106,7 @@ def search(exprs: Expression | Iterable[Expression],
 
     assert mode in ('all', 'unique'), "Unknown mode"
 
-    if isinstance(query, type):
+    if isinstance(query, (type, tuple)):
         Q = lambda obj: isinstance(obj, query)
     else:
         Q = query
@@ -156,7 +166,7 @@ def retrieve_function_carriers(exprs, mode='all'):
     # Filter off Indexeds not carrying a DiscreteFunction
     for i in list(retval):
         try:
-            i.function
+            _ = i.function
         except AttributeError:
             retval.remove(i)
     return retval

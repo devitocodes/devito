@@ -1,11 +1,13 @@
 from functools import reduce
 
-import pytest
 import numpy as np
+import pytest
 
 from conftest import skipif
-from devito import (Grid, TimeFunction, Operator, Function, Eq, switchconfig, Constant,
-                    Revolver, CheckpointOperator, DevitoCheckpoint)
+from devito import (
+    CheckpointOperator, Constant, DevitoCheckpoint, Eq, Function, Grid, Operator,
+    Revolver, TimeFunction, switchconfig
+)
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 
 

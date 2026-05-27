@@ -2,20 +2,40 @@ from ctypes import c_double, c_void_p
 
 import numpy as np
 import sympy
+
 try:
     from sympy.core.core import ordering_of_classes
 except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.types import Array, CompositeObject, Indexed, Symbol, LocalObject
-from devito.types.basic import IndexedData
 from devito.tools import CustomDtype, Pickable, as_tuple, frozendict
+from devito.types import Array, CompositeObject, Indexed, LocalObject, Symbol
+from devito.types.basic import IndexedData
 
-__all__ = ['Timer', 'Pointer', 'VolatileInt', 'FIndexed', 'Wildcard', 'Fence',
-           'Global', 'Hyperplane', 'Indirection', 'Temp', 'TempArray', 'Jump',
-           'nop', 'WeakFence', 'CriticalRegion', 'Auto', 'AutoRef', 'auto',
-           'size_t']
+__all__ = [
+    'Auto',
+    'AutoRef',
+    'CriticalRegion',
+    'FIndexed',
+    'Fence',
+    'FunctionMap',
+    'Global',
+    'Hyperplane',
+    'Indirection',
+    'Jump',
+    'PhaseMarker',
+    'Pointer',
+    'Temp',
+    'TempArray',
+    'Timer',
+    'VolatileInt',
+    'WeakFence',
+    'Wildcard',
+    'auto',
+    'nop',
+    'size_t',
+]
 
 
 class Timer(CompositeObject):
@@ -91,7 +111,7 @@ class FIndexed(Indexed, Pickable):
         return obj
 
     def __repr__(self):
-        return "%s(%s)" % (self.name, ", ".join(str(i) for i in self.indices))
+        return "{}({})".format(self.name, ", ".join(str(i) for i in self.indices))
 
     __str__ = __repr__
 
@@ -138,7 +158,10 @@ class FIndexed(Indexed, Pickable):
         macroargnames = [d.name for d in f.dimensions]
         macroargs = [MacroArgument(i) for i in macroargnames]
 
-        items = [m*strides_map[d] for m, d in zip(macroargs, f.dimensions[1:])]
+        items = [
+            m*strides_map[d]
+            for m, d in zip(macroargs, f.dimensions[1:], strict=False)
+        ]
         items.append(MacroArgument(f.dimensions[-1].name))
 
         define = DefFunction(pname, macroargnames)
@@ -329,6 +352,17 @@ class WeakFence(sympy.Function, Fence):
     pass
 
 
+class PhaseMarker(WeakFence):
+
+    """
+    A special WeakFence acting as a marker to logically separate different compute phases.
+    Thus, statements in different phases will not be reordered across the marker upon
+    topological sorting.
+    """
+
+    pass
+
+
 class CriticalRegion(sympy.Function, Fence):
 
     """
@@ -346,7 +380,7 @@ class CriticalRegion(sympy.Function, Fence):
         * Equations within a critical sequence cannot be moved outside of
           the opening and closing CriticalRegions.
             * However, internal rearrangements are possible
-        * An asynchronous operation initiated within the critial sequence must
+        * An asynchronous operation initiated within the critical sequence must
           terminate before re-entering the opening CriticalRegion.
     """
 
@@ -357,8 +391,10 @@ class CriticalRegion(sympy.Function, Fence):
         self.opening = opening
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__,
-                           'OPEN' if self.opening else 'CLOSE')
+        return "{}({})".format(
+            self.__class__.__name__,
+            'OPEN' if self.opening else 'CLOSE'
+        )
 
     __str__ = __repr__
 
@@ -375,6 +411,30 @@ nop = sympy.Function('NOP')
 A wildcard for use in the RHS of Eqs that encode some kind of semantics
 (e.g., a synchronization operation) but no computation.
 """
+
+
+class FunctionMap(LocalObject):
+
+    """
+    Wrap a Function in a LocalObject.
+    """
+
+    __rargs__ = ('name', 'tensor')
+
+    def __init__(self, name, tensor, **kwargs):
+        super().__init__(name, **kwargs)
+        self.tensor = tensor
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.tensor,)
+
+    @property
+    def free_symbols(self):
+        """
+        The free symbols of a FunctionMap are the free symbols of the
+        underlying Function.
+        """
+        return super().free_symbols | {self.tensor}
 
 
 # *** C/CXX support types

@@ -1,8 +1,9 @@
-import sympy as sp
 import numpy as np
+import sympy as sp
 
-from devito import (Eq, Operator, VectorTimeFunction, TimeFunction, Function, NODE,
-                    div, grad, solve)
+from devito import (
+    NODE, Eq, Function, Operator, TimeFunction, VectorTimeFunction, div, grad, solve
+)
 
 
 def src_rec(p, model, geometry, **kwargs):
@@ -236,7 +237,7 @@ def kv_1st_order(model, geometry, p, **kwargs):
         return [u_v, u_p]
     else:
         # Particle velocity
-        # Becaue v is a Vector, `.T` applies a standard matrix transpose
+        # Because v is a Vector, `.T` applies a standard matrix transpose
         # so we need to do the derivative transpose by hand with `-*.dtl`
         pde_v = -v.dtl - grad(rho * p)
         u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
@@ -345,7 +346,7 @@ def maxwell_1st_order(model, geometry, p, **kwargs):
 
     else:
         # Particle velocity
-        # Becaue v is a Vector, `.T` applies a standard matrix transpose
+        # Because v is a Vector, `.T` applies a standard matrix transpose
         # so we need to do the derivative transpose by hand with `-*.dtl`
         pde_v = -v.dtl - grad(rho * p)
         u_v = Eq(v.backward, damp * solve(pde_v, v.backward))
@@ -611,7 +612,7 @@ def GradientOperator(model, geometry, space_order=4, kernel='sls', time_order=2,
     eq_kernel = kernels[kernel]
     eqn = eq_kernel(model, geometry, pa, forward=False, save=False, **kwargs)
 
-    if time_order == 1:
+    if time_order == 1:  # noqa: SIM108
         gradient_update = Eq(grad, grad - p.dt * pa)
     else:
         gradient_update = Eq(grad, grad + p.dt * pa.dt)

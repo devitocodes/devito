@@ -4,23 +4,34 @@ from devito.core.operator import CoreOperator, CustomOperator, ParTile
 from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import stream_dimensions
+from devito.passes.clusters import (
+    Lift, blocking, buffering, cire, cse, factorize, fission, fuse, optimize_hyperplanes,
+    optimize_pows
+)
 from devito.passes.equations import collect_derivatives
-from devito.passes.clusters import (Lift, blocking, buffering, cire, cse,
-                                    factorize, fission, fuse, optimize_pows,
-                                    optimize_hyperplanes)
-from devito.passes.iet import (CTarget, CXXTarget, COmpTarget, CXXOmpTarget,
-                               avoid_denormals, linearize,
-                               mpiize, hoist_prodders, relax_incr_dimensions,
-                               check_stability, PetscTarget)
+from devito.passes.iet import (
+    COmpTarget, CTarget, CXXOmpTarget, CXXTarget, avoid_denormals, check_stability,
+    hoist_prodders, linearize, mpiize, relax_incr_dimensions, PetscTarget
+)
 from devito.tools import timed_pass
 
 from devito.petsc.iet.passes import lower_petsc_symbols
 
-__all__ = ['Cpu64NoopCOperator', 'Cpu64NoopOmpOperator', 'Cpu64AdvCOperator',
-           'Cpu64AdvOmpOperator', 'Cpu64FsgCOperator', 'Cpu64FsgOmpOperator',
-           'Cpu64CustomOperator', 'Cpu64CustomCXXOperator', 'Cpu64AdvCXXOperator',
-           'Cpu64AdvCXXOmpOperator', 'Cpu64FsgCXXOperator', 'Cpu64FsgCXXOmpOperator',
-           'Cpu64NoopPetscOperator']
+__all__ = [
+    'Cpu64AdvCOperator',
+    'Cpu64AdvCXXOmpOperator',
+    'Cpu64AdvCXXOperator',
+    'Cpu64AdvOmpOperator',
+    'Cpu64CustomCXXOperator',
+    'Cpu64CustomOperator',
+    'Cpu64FsgCOperator',
+    'Cpu64FsgCXXOmpOperator',
+    'Cpu64FsgCXXOperator',
+    'Cpu64FsgOmpOperator',
+    'Cpu64NoopCOperator',
+    'Cpu64NoopOmpOperator',
+    'Cpu64NoopPetscOperator',
+]
 
 
 class Cpu64OperatorMixin:
@@ -98,8 +109,9 @@ class Cpu64OperatorMixin:
         oo.pop('gpu-create', None)
 
         if oo:
-            raise InvalidOperator("Unrecognized optimization options: [%s]"
-                                  % ", ".join(list(oo)))
+            raise InvalidOperator(
+                f'Unrecognized optimization options: [{", ".join(list(oo))}]'
+            )
 
         kwargs['options'].update(o)
 
@@ -131,18 +143,15 @@ class Cpu64NoopOperator(Cpu64OperatorMixin, CoreOperator):
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
         options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
 
         # Distributed-memory parallelism
         mpiize(graph, **kwargs)
 
         # Shared-memory parallelism
         if options['openmp']:
-            parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+            parizer = cls._Target.Parizer(**kwargs)
             parizer.make_parallel(graph)
-            parizer.initialize(graph, options=options)
+            parizer.initialize(graph)
 
         # Symbol definitions
         cls._Target.DataManager(**kwargs).process(graph)
@@ -199,11 +208,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
     @classmethod
     @timed_pass(name='specializing.IET')
     def _specialize_iet(cls, graph, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
-
         # Flush denormal numbers
         avoid_denormals(graph, **kwargs)
 
@@ -214,10 +218,10 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         relax_incr_dimensions(graph, **kwargs)
 
         # Parallelism
-        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+        parizer = cls._Target.Parizer(**kwargs)
         parizer.make_simd(graph)
         parizer.make_parallel(graph)
-        parizer.initialize(graph, options=options)
+        parizer.initialize(graph)
 
         # Misc optimizations
         hoist_prodders(graph)
@@ -297,12 +301,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
 
     @classmethod
     def _make_iet_passes_mapper(cls, **kwargs):
-        options = kwargs['options']
-        platform = kwargs['platform']
-        compiler = kwargs['compiler']
-        sregistry = kwargs['sregistry']
-
-        parizer = cls._Target.Parizer(sregistry, options, platform, compiler)
+        parizer = cls._Target.Parizer(**kwargs)
 
         return {
             'denormals': partial(avoid_denormals, **kwargs),
@@ -313,7 +312,7 @@ class Cpu64CustomOperator(Cpu64OperatorMixin, CustomOperator):
             'linearize': partial(linearize, **kwargs),
             'simd': partial(parizer.make_simd),
             'prodders': hoist_prodders,
-            'init': partial(parizer.initialize, options=options)
+            'init': partial(parizer.initialize)
         }
 
     _known_passes = (

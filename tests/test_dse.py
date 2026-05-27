@@ -2,31 +2,35 @@ from functools import cached_property
 
 import numpy as np
 import pytest
-
 from sympy import Mul  # noqa
 
-from conftest import (skipif, EVAL, _R, assert_structure, assert_blocking,  # noqa
-                      get_params, get_arrays, check_array)
-from devito import (NODE, Eq, Inc, Constant, Function, TimeFunction,  # noqa
-                    SparseTimeFunction, Dimension, SubDimension,
-                    ConditionalDimension, DefaultDimension, Grid, Operator,
-                    norm, grad, div, dimensions, switchconfig, configuration,
-                    first_derivative, solve, transpose, Abs, cos, exp,
-                    sin, sqrt, floor, Ge, Lt, Derivative)
+from conftest import (  # noqa
+    _R, EVAL, assert_blocking, assert_structure, body0, check_array, get_arrays,
+    get_params, skipif
+)
+from devito import (  # noqa
+    NODE, Abs, ConditionalDimension, Constant, DefaultDimension, Derivative, Dimension,
+    Eq, Function, Ge, Grid, Inc, Lt, Operator, SparseTimeFunction, SubDimension,
+    TimeFunction, configuration, cos, dimensions, div, exp, first_derivative, floor, grad,
+    norm, sin, solve, sqrt, switchconfig, transpose
+)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.ir import (Conditional, DummyEq, Expression, Iteration, FindNodes,
-                       FindSymbols, ParallelIteration, retrieve_iteration_tree)
+from devito.ir import (
+    Conditional, DummyEq, Expression, FindNodes, FindSymbols, Iteration,
+    ParallelIteration, retrieve_iteration_tree
+)
 from devito.passes.clusters.aliases import collect
 from devito.passes.clusters.factorization import collect_nested
 from devito.passes.iet.parpragma import VExpanded
-from devito.symbolics import (INT, FLOAT, DefFunction, FieldFromPointer,  # noqa
-                              IndexedPointer, Keyword, SizeOf, estimate_cost,
-                              pow_to_mul, indexify)
+from devito.symbolics import (  # noqa
+    FLOAT, INT, DefFunction, FieldFromPointer, IndexedPointer, Keyword, SizeOf,
+    estimate_cost, indexify, pow_to_mul
+)
 from devito.tools import as_tuple
-from devito.types import Scalar, Symbol, PrecomputedSparseTimeFunction
-
+from devito.types import PrecomputedSparseTimeFunction, Scalar, Symbol
+from devito.types.misc import Temp
+from examples.seismic import AcquisitionGeometry, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import demo_model, AcquisitionGeometry
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
@@ -47,7 +51,9 @@ def test_scheduling_after_rewrite():
     trees = retrieve_iteration_tree(op)
 
     # Check loop nest structure
-    assert all(i.dim is j for i, j in zip(trees[0], grid.dimensions))  # time invariant
+    assert all(
+        i.dim is j for i, j in zip(trees[0], grid.dimensions, strict=True)
+    )  # time invariant
     assert trees[1].root.dim is grid.time_dim
     assert all(trees[1].root.dim is tree.root.dim for tree in trees[1:])
 
@@ -342,8 +348,8 @@ class TestLifting:
         trees = retrieve_iteration_tree(op)
 
         assert len(trees) == 3
-        assert_structure(op, ['t', 't,x,y', 't,x,y'], 'txyxy')
-        assert trees[0].dimensions == [time]
+        assert_structure(op, ['t,x,y', 't', 't,x,y'], 'txyxy')
+        assert trees[1].dimensions == [time]
 
 
 class TestAliases:
@@ -700,8 +706,8 @@ class TestAliases:
             Operator(eqn, opt=('advanced-fsg', {'openmp': True, 'min-storage': True}))
         except InvalidOperator:
             assert True
-        except:
-            assert False
+        except Exception as e:
+            raise AssertionError('Assert False') from e
 
         # Check that `cire-rotate=True` has no effect in this code has there's
         # no blocking
@@ -2129,7 +2135,7 @@ class TestAliases:
             # Also check against expected operation count to make sure
             # all redundancies have been detected correctly
             for i, expected in enumerate(as_tuple(exp_ops[n])):
-                assert summary[('section%d' % i, None)].ops == expected
+                assert summary[(f'section{i}', None)].ops == expected
 
     def test_derivatives_from_different_levels(self):
         """
@@ -2323,10 +2329,7 @@ class TestAliases:
                                              'cire-rotate': rotate, 'min-storage': True}))
 
         # Check code generation
-        if 'openmp' in configuration['language']:
-            prefix = ['t']
-        else:
-            prefix = []
+        prefix = ['t'] if 'openmp' in configuration['language'] else []
         if rotate:
             assert_structure(
                 op1,
@@ -2549,9 +2552,10 @@ class TestAliases:
         eqn = Eq(u, u - (cos(time_sub * factor * f) * uf))
 
         op = Operator(eqn, opt='advanced')
+
         assert_structure(op, ['t', 't,fd', 't,fd,x,y'], 't,fd,x,y')
         # Make sure it compiles
-        op.cfunction
+        _ = op.cfunction
 
         # Check hoisting for time invariant
         eqn = Eq(u, u - (cos(time_sub * factor * f) * sin(g) * uf))
@@ -2559,7 +2563,7 @@ class TestAliases:
         op = Operator(eqn, opt='advanced')
         assert_structure(op, ['x,y', 't', 't,fd', 't,fd,x,y'], 'x,y,t,fd,x,y')
         # Make sure it compiles
-        op.cfunction
+        _ = op.cfunction
 
     def test_hoisting_pow_one(self):
         """
@@ -2606,7 +2610,7 @@ class TestAliases:
         # it behaves as if it were one
         mock_custom_deriv = u.dx.dy.evaluate
 
-        # This symbolic operation -- creating an Add between an arbitray object
+        # This symbolic operation -- creating an Add between an arbitrary object
         # and an EvalDerivative -- caused the EvalDerivative to be prematurely
         # simplified being flatten into an Add
         expr0 = u.dt - mock_custom_deriv
@@ -2675,13 +2679,197 @@ class TestAliases:
 
         op = Operator(eqn, opt=('advanced', {'openmp': False}))
 
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(
             op,
             ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
             'tx0_blk0y0_blk0xyzyz'
         )
+
+    def test_split_cond(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+        # Each guard should have its own alias for cos(time)
+        assert 'float r0 = cos(time);' in str(body0(op))
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 2
+
+    def test_split_cond_multi_alias(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time) + sin(time), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(time) - sin(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+        # Each guard should have its own aliases for cos(time) and sin(time)
+        assert 'const float r0 = sin(time) + cos(time)' in str(body0(op))
+        assert 'const float r1 = cos(time);' in str(body0(op))
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 3
+
+    def test_multi_cond_no_split(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(time), implicit_dims=ct)
+        # Not hoisting the init would have this equation split the time
+        # loop to initialize the alias for sin(time)
+        eq1 = Eq(u.forward, u.forward + sin(time), implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward - sin(time), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        assert_structure(
+            op,
+            ['t', 't,x,y', 't,x,y', 't,x,y'],
+            'txyxyxy'
+        )
+
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 3
+
+    def test_alias_with_conditional(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        eq0 = Eq(u.forward, u + cos(ct), implicit_dims=ct)
+        eq1 = Eq(u.forward, u.forward + 1, implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward + cos(ct), implicit_dims=ct)
+
+        op = Operator([eq0, eq1, eq2])
+        op(time=5)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+
+        # Each guard should have its own alias for cos(time/ctf)
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 2
+
+    def test_scalar_alias_interp(self):
+        grid = Grid(shape=(11, 11))
+        time = grid.time_dim
+
+        t_sub = ConditionalDimension(name='t_sub', parent=time, factor=3)
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        s = SparseTimeFunction(name='s', grid=grid, npoint=1, nt=100)
+
+        eq = Eq(f.forward, f.laplace + .002)
+
+        rec = s.interpolate(expr=f, implicit_dims=t_sub)
+
+        op = Operator(rec + [eq])
+
+        op.apply(time_M=3)
+
+        assert np.isclose(norm(f), 254292.75, atol=0, rtol=1e-5)
+        assert np.isclose(norm(s), 191.44644, atol=0, rtol=1e-4)
+
+    def test_scalar_with_cond_access(self):
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct3', parent=time, condition=Ge(time, 2))
+        ct2 = ConditionalDimension(name='ct2', parent=time, factor=4)
+
+        f1 = TimeFunction(name='f1', grid=grid, save=10, time_order=0,
+                          dimensions=(ct,), time_dim=ct, shape=(10,))
+        f1.data[:] = np.arange(10)
+
+        eq0 = Eq(u.forward, u + cos(f1))
+        eq1 = Eq(u.forward, u.forward + sin(time), implicit_dims=ct2)
+        eq2 = Eq(u.forward, u.forward - sin(f1))
+
+        op = Operator([eq0, eq1, eq2])
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 3
+
+        # # Each guard should have its own alias for cos/sin(f1[time-2])
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 3
+
+        assert_structure(
+            op,
+            ['t', 't,x,y', 't,x,y', 't,x,y'],
+            'txyxyxy'
+        )
+
+        # This would segfault without the right placement of the alias
+        op.apply(time_M=12)
+
+    def test_scalar_with_cond_tinvariant(self):
+        grid = Grid((10, 10))
+        time = grid.time_dim
+        dt = time.spacing
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+
+        eq0 = Eq(u.forward, u / dt + 1)
+        eq1 = Eq(u.forward, u.forward + 1/dt**2, implicit_dims=ct)
+
+        op = Operator([eq0, eq1])
+        op(time=5, dt=1)
+
+        cond = FindNodes(Conditional).visit(op)
+        assert len(cond) == 1
+        # One for each 1/dt 1/dt**2
+        scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(scalars) == 2
+
+        assert_structure(
+            op,
+            ['t,x,y', 't', 't,x,y'],
+            'txyxy'
+        )
+
+        # Both aliases should be hoisted outside the time loop
+        assert str(body0(op).body[0]) == 'const float r0 = 1.0F/dt;'
+        assert not body0(op).body[0].ispace
+        assert str(body0(op).body[1]) == 'const float r1 = 1.0F/(dt*dt);'
+        assert not body0(op).body[1].ispace
 
 
 class TestIsoAcoustic:
@@ -2742,7 +2930,7 @@ class TestTTI:
 
     @cached_property
     def model(self):
-        # TTI layered model for the tti test, no need for a smooth interace
+        # TTI layered model for the tti test, no need for a smooth interface
         # bewtween the two layer as the compilation passes are tested, not the
         # physical prettiness of the result -- which ultimately saves time
         return demo_model('layers-tti', nlayers=3, nbl=10, space_order=8,

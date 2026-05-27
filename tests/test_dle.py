@@ -1,26 +1,32 @@
 from functools import reduce
 from operator import mul
 
-import sympy
 import numpy as np
 import pytest
+import sympy
 
-from conftest import assert_structure, assert_blocking, _R, skipif
-from devito import (Grid, Function, TimeFunction, SparseTimeFunction, SpaceDimension,
-                    CustomDimension, Dimension, DefaultDimension, SubDimension,
-                    PrecomputedSparseTimeFunction, Eq, Inc, ReduceMin, ReduceMax,
-                    Operator, configuration, dimensions, info, cos)
+from conftest import _R, assert_blocking, assert_structure, skipif
+from devito import (
+    CustomDimension, DefaultDimension, Dimension, Eq, Function, Grid, Inc, Operator,
+    PrecomputedSparseTimeFunction, ReduceMax, ReduceMin, ReduceMinMax, SpaceDimension,
+    SparseTimeFunction, SubDimension, TimeFunction, configuration, cos, dimensions, info,
+    switchconfig
+)
+from devito.arch.compiler import IntelCompiler
 from devito.exceptions import InvalidArgument
-from devito.ir.iet import (Iteration, FindNodes, IsPerfectIteration,
-                           retrieve_iteration_tree, Expression)
+from devito.ir.iet import (
+    Expression, FindNodes, IsPerfectIteration, Iteration, retrieve_iteration_tree
+)
 from devito.passes.iet.languages.openmp import Ompizer, OmpRegion
 from devito.tools import as_tuple
 from devito.types import Barrier, Scalar, Symbol
 
 
 def get_blocksizes(op, opt, grid, blockshape, level=0):
-    blocksizes = {'%s0_blk%d_size' % (d, level): v
-                  for d, v in zip(grid.dimensions, blockshape)}
+    blocksizes = {
+        f'{d}0_blk{level}_size': v
+        for d, v in zip(grid.dimensions, blockshape, strict=False)
+    }
     blocksizes = {k: v for k, v in blocksizes.items() if k in op._known_arguments}
     # Sanity check
     if grid.dim == 1 or len(blockshape) == 0:
@@ -169,7 +175,7 @@ def test_cache_blocking_structure_distributed(mode):
     eqns += [Eq(U.forward, U.dx + u.forward)]
 
     op = Operator(eqns)
-    op.cfunction
+    _ = op.cfunction
 
     bns0, _ = assert_blocking(op._func_table['compute0'].root, {'x0_blk0'})
     bns1, _ = assert_blocking(op._func_table['compute2'].root, {'x1_blk0'})
@@ -250,10 +256,10 @@ class TestBlockingOptRelax:
         eqns = [Eq(damp, 0.)]
         for d in damp.dimensions:
             # Left
-            dl = SubDimension.left(name='%sl' % d.name, parent=d, thickness=nbl)
+            dl = SubDimension.left(name=f'{d.name}l', parent=d, thickness=nbl)
             eqns.extend([Inc(damp.subs({d: dl}), 1.)])
             # right
-            dr = SubDimension.right(name='%sr' % d.name, parent=d, thickness=nbl)
+            dr = SubDimension.right(name=f'{d.name}r', parent=d, thickness=nbl)
             eqns.extend([Inc(damp.subs({d: dr}), 1.)])
 
         op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
@@ -310,8 +316,8 @@ class TestBlockingOptRelax:
                                               'openmp': True,
                                               'par-collapse-ncores': 1}))
 
-        assert_structure(op, ['t', 't,p_s0_blk0,p_s,rsx,rsy'],
-                         't,p_s0_blk0,p_s,rsx,rsy')
+        assert_structure(op, ['t', 't,p_s0_blk0,p_s,rp_sx,rp_sy'],
+                         't,p_s0_blk0,p_s,rp_sx,rp_sy')
 
 
 class TestBlockingParTile:
@@ -338,11 +344,11 @@ class TestBlockingParTile:
 
         bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
         assert len(bns) == len(expected)
-        for root, v in zip(bns.values(), expected):
+        for root, v in zip(bns.values(), expected, strict=True):
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
             assert len(iters) == len(v)
-            assert all(i.step == j for i, j in zip(iters, v))
+            assert all(i.step == j for i, j in zip(iters, v, strict=True))
 
     def test_structure_2p5D(self):
         grid = Grid(shape=(80, 80, 80))
@@ -394,7 +400,7 @@ class TestBlockingParTile:
         iters = FindNodes(Iteration).visit(root)
         iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
         assert len(iters) == 3
-        assert all(i.step == j for i, j in zip(iters, par_tile))
+        assert all(i.step == j for i, j in zip(iters, par_tile, strict=True))
 
     def test_custom_rule1(self):
         grid = Grid(shape=(8, 8, 8))
@@ -424,7 +430,7 @@ class TestBlockingParTile:
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
             assert len(iters) == 3
-            assert all(i.step == j for i, j in zip(iters, par_tile))
+            assert all(i.step == j for i, j in zip(iters, par_tile, strict=True))
 
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
@@ -506,8 +512,8 @@ def test_cache_blocking_hierarchical(blockshape0, blockshape1, exception):
         assert np.allclose(wo_blocking, w_blocking, rtol=1e-12)
     except InvalidArgument:
         assert exception
-    except:
-        assert False
+    except Exception as e:
+        raise AssertionError('Assert False') from e
 
 
 @pytest.mark.parametrize("blockinner", [False, True])
@@ -531,7 +537,7 @@ def test_cache_blocking_imperfect_nest(blockinner):
     trees = retrieve_iteration_tree(bns['x0_blk0'])
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
-    assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4]))
+    assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4], strict=True))
     assert trees[0][4] is not trees[1][4]
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
@@ -579,7 +585,7 @@ def test_cache_blocking_imperfect_nest_v2(blockinner):
     trees = retrieve_iteration_tree(bns['x0_blk0'])
     assert len(trees) == 2
     assert len(trees[0]) == len(trees[1])
-    assert all(i is j for i, j in zip(trees[0][:2], trees[1][:2]))
+    assert all(i is j for i, j in zip(trees[0][:2], trees[1][:2], strict=True))
     assert trees[0][2] is not trees[1][2]
     assert trees[0].root.dim.is_Block
     assert trees[1].root.dim.is_Block
@@ -708,7 +714,7 @@ class TestNodeParallelism:
         assert len(iterations) == len(expected)
 
         # Check for presence of pragma omp
-        for i, j in zip(iterations, expected):
+        for i, j in zip(iterations, expected, strict=True):
             pragmas = i.pragmas
             if j is True:
                 assert len(pragmas) == 1
@@ -751,7 +757,7 @@ class TestNodeParallelism:
         ('[Eq(f, 2*f)]', [2, 0, 0], False),
         ('[Eq(u, 2*u)]', [0, 2, 0, 0], False),
         ('[Eq(u, 2*u + f)]', [0, 3, 0, 0, 0, 0, 0], True),
-        ('[Eq(u, 2*u), Eq(f, u.dzr)]', [0, 2, 0, 0, 0], False)
+        ('[Eq(u, 2*u), Eq(f, u.dzr)]', [0, 2, 0, 0, 2, 0, 0], False)
     ])
     def test_collapsing(self, eqns, expected, blocking):
         grid = Grid(shape=(3, 3, 3))
@@ -774,11 +780,11 @@ class TestNodeParallelism:
         assert len(iterations) == len(expected)
 
         # Check for presence of pragma omp + collapse clause
-        for i, j in zip(iterations, expected):
+        for i, j in zip(iterations, expected, strict=True):
             if j > 0:
                 assert len(i.pragmas) == 1
                 pragma = i.pragmas[0]
-                assert 'omp for collapse(%d)' % j in pragma.ccode.value
+                assert f'omp for collapse({j})' in pragma.ccode.value
             else:
                 for k in i.pragmas:
                     assert 'omp for collapse' not in k.ccode.value
@@ -995,6 +1001,31 @@ class TestNodeParallelism:
         assert n.data[0] == 26
         assert n.data[1] == 0
 
+    def test_array_minmax_reduction_simultaneous(self):
+        """
+        Test the combined min/max reduction DSL construct.
+        """
+        grid = Grid(shape=(3, 3, 3))
+        i = Dimension(name='i')
+
+        f = Function(name='f', grid=grid)
+        n = Function(name='n', grid=grid, shape=(2,), dimensions=(i,))
+
+        f.data[:] = np.arange(-5, 22).reshape((3, 3, 3))
+
+        eqn = [ReduceMinMax(n[0], f)]
+
+        op = Operator(eqn)
+
+        if 'openmp' in configuration['language']:
+            iterations = FindNodes(Iteration).visit(op)
+            expected = "reduction(min:rmin0) reduction(max:rmax0)"
+            assert expected in iterations[0].pragmas[0].ccode.value
+
+        op()
+        assert n.data[0] == -5
+        assert n.data[1] == 21
+
     def test_incs_no_atomic(self):
         """
         Test that `Inc`'s don't get a `#pragma omp atomic` if performing
@@ -1008,7 +1039,7 @@ class TestNodeParallelism:
         u = TimeFunction(name='u', grid=grid)
         v = TimeFunction(name='v', grid=grid)
 
-        # Format: u(t, x, nastyness) += 1
+        # Format: u(t, x, nastiness) += 1
         uf = u[t, x, f, z]
 
         # All loops get collapsed, but the `y` and `z` loops are PARALLEL_IF_ATOMIC,
@@ -1268,6 +1299,7 @@ class TestNestedParallelism:
             ('omp parallel for collapse(2) schedule(dynamic,1) '
              'num_threads(nthreads_nested)')
 
+    @switchconfig(compiler='icc')
     def test_multiple_subnests_v0(self):
         grid = Grid(shape=(3, 3, 3))
         x, y, z = grid.dimensions
@@ -1300,6 +1332,7 @@ class TestNestedParallelism:
             ('omp parallel for collapse(2) schedule(dynamic,1) '
              'num_threads(nthreads_nested)')
 
+    @switchconfig(compiler='icc')
     def test_multiple_subnests_v1(self):
         """
         Unlike ``test_multiple_subnestes_v0``, now we use the ``cire-rotate=True``
@@ -1432,3 +1465,42 @@ class TestNestedParallelism:
 
         assert iterations[1].pragmas[0].ccode.value ==\
             "".join([ompfor_string, scheduling_string])
+
+    def test_nested_parallelism_support(self):
+        grid = Grid(shape=(10, 10, 10))
+
+        f = Function(name='f', grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+        v1 = TimeFunction(name="v1", grid=grid, space_order=4)
+
+        f.data_with_halo[:] = 0.5
+        v.data_with_halo[:] = 1.
+        v1.data_with_halo[:] = 1.
+
+        eqn = Eq(v.forward, (v.dx * (1 + 2*f) * f).dx)
+        op = Operator(eqn, opt=('advanced', {'openmp': True,
+                                             'par-collapse-ncores': 1,
+                                             'par-nested': 0}))
+
+        bns, _ = assert_blocking(op, {'x0_blk0'})
+        trees = retrieve_iteration_tree(bns['x0_blk0'])
+        assert len(trees) == 2
+
+        # Check omp pargams
+        assert trees[0][0].pragmas[0].ccode.value == \
+            'omp for collapse(2) schedule(dynamic,1)'
+        if isinstance(configuration['compiler'], IntelCompiler):
+            # Supports nested parallelism
+            assert trees[0][2].pragmas[0].ccode.value == \
+                'omp parallel for collapse(2) schedule(dynamic,1)'\
+                ' num_threads(nthreads_nested)'
+            assert trees[1][2].pragmas[0].ccode.value == \
+                'omp parallel for collapse(2) schedule(static,1)'\
+                ' num_threads(nthreads_nested)'
+        else:
+            # Most compiler don't support nested parallelism
+            assert not trees[0][2].pragmas
+            assert not trees[1][2].pragmas
+
+        # Should compile properly
+        op.cfunction  # noqa: B018

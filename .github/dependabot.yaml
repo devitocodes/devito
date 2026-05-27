@@ -9,6 +9,8 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "daily"
+    # Use the widen strategy to update requirements to avoid lower bound bump
+    versioning-strategy: "widen"
     # Add assignees
     assignees:
       - "mloubout"

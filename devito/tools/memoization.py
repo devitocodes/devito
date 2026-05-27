@@ -3,7 +3,7 @@ from functools import lru_cache, partial
 from itertools import tee
 from typing import TypeVar
 
-__all__ = ['memoized_func', 'memoized_meth', 'memoized_generator', 'CacheInstances']
+__all__ = ['CacheInstances', 'memoized_func', 'memoized_generator', 'memoized_meth']
 
 
 class memoized_func:
@@ -142,15 +142,18 @@ class CacheInstancesMeta(type):
     def __init__(cls: type[InstanceType], *args) -> None:  # type: ignore
         super().__init__(*args)
 
-        # Register the cached type
+        # Register the cached type and eagerly create its cache, bound to its
+        # own constructor. Eager initialisation avoids a bug where a subclass
+        # would inherit (and reuse) a parent's cache via MRO lookup if the
+        # parent happened to be instantiated first.
         CacheInstancesMeta._cached_types.add(cls)
+        maxsize = cls._instance_cache_size
+        cls._instance_cache = lru_cache(maxsize=maxsize)(
+            super().__call__
+        )
 
     def __call__(cls: type[InstanceType],  # type: ignore
                  *args, **kwargs) -> InstanceType:
-        if cls._instance_cache is None:
-            maxsize = cls._instance_cache_size
-            cls._instance_cache = lru_cache(maxsize=maxsize)(super().__call__)
-
         args, kwargs = cls._preprocess_args(*args, **kwargs)
         return cls._instance_cache(*args, **kwargs)
 

@@ -30,7 +30,7 @@ def is_on_device(obj, gpu_fit):
              if isinstance(f, TimeFunction) and is_integer(f.save)]
 
     if 'all-fallback' in gpu_fit and fsave:
-        warning("TimeFunction %s assumed to fit the GPU memory" % fsave)
+        warning(f"TimeFunction {fsave} assumed to fit the GPU memory")
         return True
 
     return all(f in gpu_fit for f in fsave)

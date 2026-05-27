@@ -1,11 +1,9 @@
 import numpy as np
 
+from devito import Function, smooth
 from devito.logger import info
-from devito import smooth, Function
-
-from examples.seismic import setup_geometry, Model, seismic_args
-from examples.seismic.self_adjoint import (setup_w_over_q,
-                                           SaIsoAcousticWaveSolver)
+from examples.seismic import Model, seismic_args, setup_geometry
+from examples.seismic.self_adjoint import SaIsoAcousticWaveSolver, setup_w_over_q
 
 
 def acoustic_sa_setup(shape=(50, 50, 50), spacing=(10.0, 10.0, 10.0),

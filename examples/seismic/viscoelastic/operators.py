@@ -1,7 +1,8 @@
 import sympy as sp
 
-from devito import (Eq, Operator, VectorTimeFunction, TensorTimeFunction,
-                    div, grad, diag, solve)
+from devito import (
+    Eq, Operator, TensorTimeFunction, VectorTimeFunction, diag, div, grad, solve
+)
 from examples.seismic.elastic import src_rec
 
 

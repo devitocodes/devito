@@ -2,6 +2,8 @@
 Extended SymPy hierarchy.
 """
 import re
+from contextlib import suppress
+from functools import cached_property
 
 import numpy as np
 import sympy
@@ -9,22 +11,22 @@ from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
 from sympy.logic.boolalg import BooleanFunction
 
-from devito.finite_differences.elementary import Min, Max
-from devito.tools import (Pickable, Bunch, as_tuple, is_integer, float2,  # noqa
-                          float3, float4, double2, double3, double4, int2, int3,
-                          int4, dtype_to_ctype, ctypes_to_cstr, ctypes_vector_mapper,
-                          ctypes_to_cstr, CustomIntType)
+from devito.finite_differences.elementary import Max, Min
+from devito.tools import (  # noqa
+    Bunch, Pickable, as_tuple, ctypes_to_cstr, ctypes_vector_mapper, CustomIntType, double2,
+    double3, double4, dtype_to_ctype, float2, float3, float4, int2, int3, int4, is_integer
+)
 from devito.types import Symbol
 from devito.types.basic import Basic
 
 __all__ = ['CondEq', 'CondNe', 'BitwiseNot', 'BitwiseXor', 'BitwiseAnd',  # noqa
-           'LeftShift', 'RightShift', 'IntDiv', 'CallFromPointer',
+           'LeftShift', 'RightShift', 'IntDiv', 'Terminal', 'CallFromPointer',
            'CallFromComposite', 'FieldFromPointer', 'FieldFromComposite',
            'ListInitializer', 'Byref', 'IndexedPointer', 'Cast', 'DefFunction',
-           'MathFunction', 'InlineIf', 'ReservedWord', 'Keyword', 'String',
-           'Macro', 'Class', 'MacroArgument', 'Deref', 'Namespace', 'Rvalue',
-           'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin', 'ValueLimit',
-           'VectorAccess', 'Mod']
+           'MathFunction', 'InlineIf', 'Reserved', 'ReservedWord', 'Keyword',
+           'String', 'Macro', 'Class', 'MacroArgument', 'Mod', 'RoundUp', 'Deref',
+           'Namespace', 'Rvalue', 'Null', 'SizeOf', 'rfunc', 'BasicWrapperMixin',
+           'ValueLimit', 'AlignedAccess', 'VectorAccess']
 
 
 class CondEq(sympy.Eq):
@@ -118,6 +120,10 @@ class IntDiv(sympy.Expr):
         elif rhs == 1 or rhs is None:
             return lhs
 
+        if is_integer(lhs) and is_integer(rhs):
+            # Both sides are plain integers -- perform the division right away
+            return lhs // rhs
+
         if not is_integer(rhs):
             # Perhaps it's a symbolic RHS -- but we wanna be sure it's of type int
             if not hasattr(rhs, 'dtype'):
@@ -174,6 +180,16 @@ class Mod(sympy.Expr):
     __repr__ = __str__
 
 
+class Terminal:
+
+    """
+    Abstract base class for special SymPy objects that can only appear as
+    leaves (that is nodes with no children/arguments) in an expression.
+    """
+
+    pass
+
+
 class BasicWrapperMixin:
 
     """
@@ -215,7 +231,7 @@ class BasicWrapperMixin:
         return str(self)
 
 
-class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
+class CallFromPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
 
     """
     Symbolic representation of the C notation ``pointer->call(params)``.
@@ -242,8 +258,8 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             else:
                 try:
                     _params.append(Number(p))
-                except TypeError:
-                    raise ValueError("`params` must be Expr, numbers or str")
+                except TypeError as e:
+                    raise ValueError("`params` must be Expr, numbers or str") from e
         params = Tuple(*_params)
 
         obj = sympy.Expr.__new__(cls, call, pointer, params)
@@ -284,7 +300,7 @@ class CallFromPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class CallFromComposite(CallFromPointer, Pickable):
+class CallFromComposite(CallFromPointer):
 
     """
     Symbolic representation of the C notation ``composite.call(params)``.
@@ -297,7 +313,7 @@ class CallFromComposite(CallFromPointer, Pickable):
     __repr__ = __str__
 
 
-class FieldFromPointer(CallFromPointer, Pickable):
+class FieldFromPointer(CallFromPointer):
 
     """
     Symbolic representation of the C notation ``pointer->field``.
@@ -322,7 +338,7 @@ class FieldFromPointer(CallFromPointer, Pickable):
     __repr__ = __str__
 
 
-class FieldFromComposite(CallFromPointer, Pickable):
+class FieldFromComposite(CallFromPointer):
 
     """
     Symbolic representation of the C notation ``composite.field``,
@@ -354,16 +370,20 @@ class ListInitializer(sympy.Expr, Pickable):
     Symbolic representation of the C++ list initializer notation ``{a, b, ...}``.
     """
 
-    __rargs__ = ('params',)
+    __rargs__ = ('*params',)
     __rkwargs__ = ('dtype',)
 
-    def __new__(cls, params, dtype=None):
+    def __new__(cls, *params, dtype=None, evaluate=False):
+        # Legacy API: allow a single list/tuple as argument
+        if len(params) == 1 and isinstance(params[0], (list, tuple, np.ndarray)):
+            params = params[0]
+
         args = []
         for p in as_tuple(params):
             try:
                 args.append(sympify(p))
-            except sympy.SympifyError:
-                raise ValueError(f"Illegal param `{p}`")
+            except sympy.SympifyError as e:
+                raise ValueError(f"Illegal param `{p}`") from e
         obj = sympy.Expr.__new__(cls, *args)
 
         obj.params = tuple(args)
@@ -384,7 +404,7 @@ class ListInitializer(sympy.Expr, Pickable):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
+class UnaryOp(Expr, Pickable, BasicWrapperMixin):
 
     """
     Symbolic representation of a unary C operator.
@@ -399,11 +419,8 @@ class UnaryOp(sympy.Expr, Pickable, BasicWrapperMixin):
             # If an AbstractFunction, pull the underlying Symbol
             base = base.indexed.label
         except AttributeError:
-            if isinstance(base, str):
-                base = Symbol(base)
-            else:
-                # Fallback: go plain sympy
-                base = sympify(base)
+            # Fallback: go plain sympy
+            base = Symbol(base) if isinstance(base, str) else sympify(base)
 
         obj = sympy.Expr.__new__(cls, base)
         obj._base = base
@@ -508,10 +525,8 @@ class Cast(UnaryOp):
     @property
     def _C_ctype(self):
         ctype = ctypes_vector_mapper.get(self.dtype, self.dtype)
-        try:
+        with suppress(TypeError):
             ctype = dtype_to_ctype(ctype)
-        except TypeError:
-            pass
         return ctype
 
     @property
@@ -522,7 +537,7 @@ class Cast(UnaryOp):
         return f"{self._op}{self.base}"
 
 
-class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
+class IndexedPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
 
     """
     Symbolic representation of the C notation ``symbol[...]``
@@ -539,7 +554,7 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
             base = base.indexed.label
         except AttributeError:
             if not isinstance(base, sympy.Basic):
-                raise ValueError("`base` must be of type sympy.Basic")
+                raise ValueError("`base` must be of type sympy.Basic") from None
 
         index = Tuple(*[sympify(i) for i in as_tuple(index)])
 
@@ -569,7 +584,17 @@ class IndexedPointer(sympy.Expr, Pickable, BasicWrapperMixin):
     __reduce_ex__ = Pickable.__reduce_ex__
 
 
-class ReservedWord(sympy.Atom, Pickable):
+class Reserved(Pickable):
+
+    """
+    A base class for all reserved words used throughout the lowering process,
+    including the final stage of code generation itself.
+    """
+
+    pass
+
+
+class ReservedWord(sympy.Atom, Reserved):
 
     """
     A `ReservedWord` carries a value that has special meaning in the
@@ -635,6 +660,49 @@ class MacroArgument(sympy.Symbol):
 
     def __str__(self):
         return f"({self.name})"
+
+    __repr__ = __str__
+
+
+class RoundUp(Function):
+
+    """
+    Symbolic representation of rounding a value up to the next multiple of a
+    given step.
+    """
+
+    def __new__(cls, value, step, **kwargs):
+        value = sympify(value)
+        step = sympify(step)
+
+        if not is_integer(step):
+            raise ValueError("`step` must be an integer")
+        if step < 1:
+            raise ValueError("Cannot round up with negative `step`")
+
+        if value.is_number and step.is_number:
+            remainder = value % step
+            if remainder == 0:
+                return value
+            else:
+                return value + step - remainder
+
+        return super().__new__(cls, value, step, **kwargs)
+
+    @property
+    def value(self):
+        return self.args[0]
+
+    @property
+    def step(self):
+        return self.args[1]
+
+    @property
+    def is_commutative(self):
+        return self.value.is_commutative and self.step.is_commutative
+
+    def __str__(self):
+        return f"ROUND_UP({self.value}, {self.step})"
 
     __repr__ = __str__
 
@@ -710,10 +778,7 @@ class DefFunction(Function, Pickable):
         return self._template
 
     def __str__(self):
-        if self.template:
-            template = f"<{','.join(str(i) for i in self.template)}>"
-        else:
-            template = ''
+        template = f"<{','.join(str(i) for i in self.template)}>" if self.template else ''
         arguments = ', '.join(str(i) for i in self.arguments)
         return f"{self.name}{template}({arguments})"
 
@@ -860,7 +925,44 @@ class Rvalue(sympy.Expr, Pickable):
     __repr__ = __str__
 
 
-class VectorAccess(Expr, Pickable, BasicWrapperMixin):
+class AlignedAccess(Expr, Reserved, BasicWrapperMixin):
+
+    """
+    Abstract base class for an aligned access operation, that is an access to a
+    memory location that is guaranteed to be aligned to a certain byte
+    boundary.
+    """
+
+    @property
+    def _expected_alignment(self):
+        """
+        The expected alignment in bytes for the underlying LOAD/STORE operation.
+
+        To be implemented by subclasses.
+        """
+        raise NotImplementedError
+
+    @property
+    def _expected_alignment_elems(self):
+        """
+        The expected alignment in number of elements for the underlying
+        LOAD/STORE operation.
+        """
+        return self._expected_alignment // self.dtype().itemsize
+
+    @property
+    def base(self):
+        return self.args[0]
+
+    func = Reserved._rebuild
+
+    @cacheit
+    def sort_key(self, order=None):
+        # Ensure that the AlignedAccess is sorted as the base
+        return self.base.sort_key(order=order)
+
+
+class VectorAccess(AlignedAccess):
 
     """
     Represent a vector access operation at high-level.
@@ -874,20 +976,27 @@ class VectorAccess(Expr, Pickable, BasicWrapperMixin):
 
     __repr__ = __str__
 
-    func = Pickable._rebuild
-
-    @property
-    def base(self):
-        return self.args[0]
+    @cached_property
+    def _expected_alignment(self):
+        """
+        The expected alignment in bytes for the underlying LOAD/STORE operation.
+        """
+        mapper = {
+            # dtype==float => lowered with float4 => 4*4=16 bytes alignment;
+            np.float32: 16,
+            # dtype==half  => lowered with float2 => 2*4=8 bytes alignment;
+            np.float16: 8
+        }
+        try:
+            return mapper[self.function.dtype]
+        except KeyError as e:
+            raise ValueError from e(
+                f"Unsupported dtype `{self.function.dtype}` for VectorAccess"
+            )
 
     @property
     def indices(self):
         return self.base.indices
-
-    @cacheit
-    def sort_key(self, order=None):
-        # Ensure that the VectorAccess is sorted as the base
-        return self.base.sort_key(order=order)
 
 
 # Some other utility objects

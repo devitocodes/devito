@@ -1,0 +1,144 @@
+# Workflow information:
+#  - OpenACC/OpenMP on NVIDIA runs on runners labeled `nvidiagpu`
+#  - OpenMP on AMD runs on runners labeled `amdgpu`
+#  - Respect CUDA_VISIBLE_DEVICES for NVIDIA jobs by passing it AND restricting Docker with --gpus "device=…"
+#  - Tag images and container names to avoid cross-runner races and maximize cache reuse
+
+name: CI-gpu
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RESOURCE_GROUP: CI-gpu
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Run GPU tests"
+
+jobs:
+  test-gpu-docker:
+    name: ${{ matrix.name }}
+    runs-on:
+      - self-hosted
+      - ${{ matrix.runner_label }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [pytest-gpu-acc-nvidia, pytest-gpu-omp-amd]
+        test_examples: ["examples/seismic/tti/tti_example.py examples/seismic/acoustic/acoustic_example.py examples/seismic/viscoacoustic/viscoacoustic_example.py examples/seismic/viscoelastic/viscoelastic_example.py examples/seismic/elastic/elastic_example.py"]
+
+        include:
+        # -------------------- NVIDIA job --------------------
+        - name: pytest-gpu-acc-nvidia
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/test_operator.py::TestEstimateMemory"
+          base: "devitocodes/bases:nvidia-nvc12"
+          runner_label: nvidiagpu
+          test_drive_cmd: "nvidia-smi"
+          # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
+          # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
+          dockerflags: --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+
+        # -------------------- AMD job -----------------------
+        - name: pytest-gpu-omp-amd
+          test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py tests/test_operator.py::TestEstimateMemory"
+          runner_label: amdgpu
+          base: "devitocodes/bases:amd"
+          test_drive_cmd: "rocm-smi"
+          # Passes through required /dev nodes etc.
+          dockerflags: >-
+            --network=host
+            --device=/dev/kfd --device=/dev/dri
+            --ipc=host
+            --group-add video --group-add "$(getent group render | cut -d: -f3)"
+            --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
+
+    steps:
+    - name: Checkout devito
+      uses: actions/checkout@v6
+
+    - id: build
+      name: Build docker image
+      uses: ./.github/actions/docker-build
+      with:
+        file: docker/Dockerfile.devito
+        tag: ${{ matrix.name }}
+        base: ${{ matrix.base }}
+
+    - name: Probe GPU
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        command: ${{ matrix.test_drive_cmd }}
+
+    - name: Test with pytest
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        env: |
+          CI=true
+          CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
+          DEVITO_LOGGING=DEBUG
+          PYTHONFAULTHANDLER=1
+        command: |
+          pytest \
+            -vvv \
+            --capture=no \
+            --showlocals \
+            --log-cli-level=DEBUG \
+            -o log_cli=true \
+            --full-trace \
+            --durations=10 \
+            --cov \
+            --cov-config=.coveragerc \
+            --cov-report=xml \
+            ${{ matrix.test_files }}
+
+    - name: Test examples
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        command: |
+          pytest \
+            -v \
+            ${{ matrix.test_examples }}
+
+    - name: Test examples with MPI
+      uses: ./.github/actions/docker-run
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}
+        args: ${{ matrix.dockerflags }}
+        env: |
+          CI=true
+          DEVITO_LOGGING=DEBUG
+          DEVITO_MPI=1
+        command: |
+          mpiexec -n 2 \
+            pytest \
+              -v \
+              ${{ matrix.test_examples }}
+
+    - name: Cleanup docker image
+      if: always()
+      uses: ./.github/actions/docker-clean
+      with:
+        uid: ${{ steps.build.outputs.unique }}
+        tag: ${{ matrix.name }}

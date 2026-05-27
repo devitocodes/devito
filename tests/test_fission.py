@@ -1,8 +1,12 @@
 import numpy as np
 
 from conftest import assert_structure
-from devito import (Eq, Inc, Grid, Function, TimeFunction, SubDimension, SubDomain,
-                    Operator, solve)
+from devito import (
+    NODE, Buffer, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain,
+    TimeFunction, solve
+)
+from devito.ir.iet import retrieve_iteration_tree
+from devito.ir.support.properties import PARALLEL
 
 
 def test_issue_1725():
@@ -38,7 +42,7 @@ def test_issue_1725():
 
 def test_nofission_as_unprofitable():
     """
-    Test there's no fission if no increase in number of collapsable loops.
+    Test there's no fission if no increase in number of collapsible loops.
     """
     grid = Grid(shape=(20, 20))
     x, y = grid.dimensions
@@ -78,7 +82,7 @@ def test_nofission_as_illegal():
 
 def test_fission_partial():
     """
-    Test there's no fission if no increase in number of collapsable loops.
+    Test there's no fission if no increase in number of collapsible loops.
     """
     grid = Grid(shape=(20, 20))
     x, y = grid.dimensions
@@ -125,3 +129,90 @@ def test_issue_1921():
     op1.apply(time_m=1, time_M=5, g=g1)
 
     assert np.all(g.data == g1.data)
+
+
+def test_buffer1_v0():
+    """
+    Tests an edge case whereby inability to spot the equivalence of
+    `f.forward`/`backward` and `f` when using `Buffer(1)` would cause
+    data dependance analysis to incorrectly determine that `x` and `y`
+    loops should be sequential.
+    """
+    so = 2
+
+    class SD0(SubDomain):
+        name = 'sd0'
+
+        def __init__(self, so, **kwargs):
+            self.so = so
+            super().__init__(**kwargs)
+
+        def define(self, dimensions):
+            map_d = {d: d for d in dimensions}
+            map_d[dimensions[-1]] = ('left', self.so)
+            return map_d
+
+    grid = Grid(shape=(101, 101, 101))
+    z = grid.dimensions[-1]
+
+    sd0 = SD0(so, grid=grid)
+    iz = sd0.dimensions[-1]
+
+    f0 = TimeFunction(name='f0', grid=grid,
+                      space_order=so, save=Buffer(1))
+    f1 = TimeFunction(name='f1', grid=grid,
+                      space_order=so, save=Buffer(1))
+
+    f2 = TimeFunction(name='f2', grid=grid,
+                      space_order=so, save=Buffer(1))
+    f3 = TimeFunction(name='f3', grid=grid,
+                      space_order=so, save=Buffer(1))
+
+    # Free-surface like conditions plus derivative creates a dependence
+    eq0 = Eq(f0.backward.subs(z, iz-so), -f0.backward.subs(z, so-iz))
+    eq1 = Eq(f1.backward.subs(z, iz-so), -f1.backward.subs(z, so-iz))
+
+    eq2 = Eq(f2, f0.dx + f2)
+    eq3 = Eq(f3, f1.dy + f3)
+
+    eqs = [eq0, eq1, eq2, eq3]
+
+    op = Operator(eqs)
+
+    trees = retrieve_iteration_tree(op)
+
+    # If the equivalence of f0.backward and f0 are not spotted by the
+    # compiler, data dependence analysis will determine x and y loops
+    # to be sequential.
+    for tree in trees:
+        for i in range(1, 3):
+            assert PARALLEL in tree[i].properties
+
+    # If parallelisation failed, then there will also be no blocking on
+    # x and y
+    assert 'x0_blk0_size' in str(op.parameters)
+    assert 'y0_blk0_size' in str(op.parameters)
+
+    # Two loop nests: free-surface-like and update-like
+    assert_structure(op, ['t,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
+                     't,x,y,z,x0_blk0,y0_blk0,x,y,z')
+
+
+def test_buffer1_v1():
+    grid = Grid((11, 11, 11))
+    x, y, z = grid.dimensions
+
+    image_vs = Function(name='image_vs', grid=grid, space_order=1, staggered=NODE)
+    p_back_xy = TimeFunction(name='p_back_xy', grid=grid, staggered=(x, y),
+                             space_order=4, time_order=1, save=Buffer(1))
+
+    eqns = [Eq(image_vs, p_back_xy + image_vs),
+            Eq(p_back_xy.backward, p_back_xy)]
+
+    op = Operator(eqns)
+
+    assert_structure(
+        op,
+        ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
+        'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz'
+    )

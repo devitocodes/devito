@@ -1,14 +1,14 @@
+from contextlib import suppress
 from ctypes import byref
 import sympy
 
 from devito.tools import Pickable, as_tuple, sympy_mutex, CustomDtype
 from devito.types.args import ArgProvider
-from devito.types.caching import Uncached
 from devito.types.basic import Basic, LocalType
+from devito.types.caching import Uncached
 from devito.types.utils import CtypesFactory
 
-
-__all__ = ['Object', 'LocalObject', 'CompositeObject', 'LocalCompositeObject']
+__all__ = ['CompositeObject', 'LocalCompositeObject', 'LocalObject', 'Object']
 
 
 class AbstractObject(Basic, sympy.Basic, Pickable):
@@ -178,10 +178,10 @@ class LocalObject(AbstractObject, LocalType):
     """
 
     __rargs__ = ('name',)
-    __rkwargs__ = ('cargs', 'initvalue', 'liveness', 'is_global')
+    __rkwargs__ = ('cargs', 'initvalue', 'liveness', 'scope')
 
     def __init__(self, name, cargs=None, initvalue=None, liveness='lazy',
-                 is_global=False, **kwargs):
+                 scope='stack', **kwargs):
         self.name = name
         self.cargs = as_tuple(cargs)
 
@@ -193,27 +193,26 @@ class LocalObject(AbstractObject, LocalType):
         assert liveness in ['eager', 'lazy']
         self._liveness = liveness
 
-        self._is_global = is_global
+        assert scope in ['stack', 'shared', 'global']
+        self._scope = scope
 
     def _hashable_content(self):
         return (super()._hashable_content() +
                 self.cargs +
-                (self.initvalue, self.liveness, self.is_global))
+                (self.initvalue, self.liveness, self.scope))
 
     @property
-    def is_global(self):
-        return self._is_global
+    def scope(self):
+        return self._scope
 
     @property
     def free_symbols(self):
         ret = set()
         ret.update(super().free_symbols)
         for i in self.cargs:
-            try:
+            with suppress(AttributeError):
+                # AttributeError with pure integers
                 ret.update(i.free_symbols)
-            except AttributeError:
-                # E.g., pure integers
-                pass
         return ret
 
     @property
@@ -241,10 +240,13 @@ class LocalObject(AbstractObject, LocalType):
     @property
     def _C_free_priority(self):
         return float('inf')
+    
+    def _mem_shared(self):
+        return self._scope == 'shared'
 
     @property
     def _mem_global(self):
-        return self._is_global
+        return self._scope == 'global'
 
 
 class LocalCompositeObject(CompositeObject, LocalType):

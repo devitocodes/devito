@@ -1,21 +1,24 @@
 import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
-from devito.ir import (Call, DeviceCall, DummyExpr, EntryFunction, List, Block,
-                       ParallelTree, Pragma, Return, FindSymbols, make_callable)
-from devito.passes import needs_transfer, is_on_device
+from devito.ir import (
+    Block, Call, DeviceCall, DummyExpr, EntryFunction, FindSymbols, List, ParallelTree,
+    Pragma, Return, make_callable
+)
+from devito.passes import is_on_device, needs_transfer
 from devito.passes.iet.definitions import DeviceAwareDataManager
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.orchestration import Orchestrator
-from devito.passes.iet.parpragma import (PragmaDeviceAwareTransformer, PragmaLangBB,
-                                         PragmaIteration, PragmaTransfer)
 from devito.passes.iet.languages.CXX import CXXBB, CXXPrinter
-from devito.passes.iet.languages.openmp import OmpRegion, OmpIteration
+from devito.passes.iet.languages.openmp import OmpIteration, OmpRegion
+from devito.passes.iet.orchestration import Orchestrator
+from devito.passes.iet.parpragma import (
+    PragmaDeviceAwareTransformer, PragmaIteration, PragmaLangBB, PragmaTransfer
+)
 from devito.symbolics import FieldFromPointer, Macro, cast
-from devito.tools import filter_ordered, UnboundTuple
+from devito.tools import UnboundTuple, filter_ordered
 from devito.types import Symbol
 
-__all__ = ['DeviceAccizer', 'DeviceAccDataManager', 'AccOrchestrator']
+__all__ = ['AccOrchestrator', 'DeviceAccDataManager', 'DeviceAccizer']
 
 
 class DeviceAccIteration(PragmaIteration):
@@ -30,9 +33,9 @@ class DeviceAccIteration(PragmaIteration):
 
         if tile:
             stile = [str(tile[i]) for i in range(ncollapsed)]
-            clauses.append('tile(%s)' % ','.join(stile))
+            clauses.append('tile({})'.format(','.join(stile)))
         elif ncollapsed > 1:
-            clauses.append('collapse(%d)' % ncollapsed)
+            clauses.append(f'collapse({ncollapsed})')
 
         if reduction:
             clauses.append(cls._make_clause_reduction_from_imask(reduction))
@@ -46,10 +49,10 @@ class DeviceAccIteration(PragmaIteration):
         # The NVC 20.7 and 20.9 compilers have a bug which triggers data movement for
         # indirectly indexed arrays (e.g., a[b[i]]) unless a present clause is used
         if presents:
-            clauses.append("present(%s)" % ",".join(presents))
+            clauses.append("present({})".format(",".join(presents)))
 
         if deviceptrs:
-            clauses.append("deviceptr(%s)" % ",".join(deviceptrs))
+            clauses.append("deviceptr({})".format(",".join(deviceptrs)))
 
         return clauses
 
@@ -167,11 +170,11 @@ class DeviceAccizer(PragmaDeviceAwareTransformer):
     def _make_partree(self, candidates, nthreads=None):
         assert candidates
 
-        root, collapsable = self._select_candidates(candidates)
-        ncollapsable = len(collapsable) + 1
+        root, collapsible = self._select_candidates(candidates)
+        ncollapsable = len(collapsible) + 1
 
         if self._is_offloadable(root) and \
-           all(i.is_Affine for i in [root] + collapsable) and \
+           all(i.is_Affine for i in [root] + collapsible) and \
            self.par_tile:
             tile = self.par_tile.nextitem()
             assert isinstance(tile, UnboundTuple)

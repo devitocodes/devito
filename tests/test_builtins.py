@@ -1,17 +1,19 @@
-import pytest
 import numpy as np
+import pytest
 from scipy.ndimage import gaussian_filter
+
 try:
     from scipy.datasets import ascent
 except ImportError:
     from scipy.misc import ascent
 
-from devito import ConditionalDimension, Grid, Function, TimeFunction, switchconfig
-from devito.builtins import (assign, norm, gaussian_smooth, initialize_function,
-                             inner, mmin, mmax, sum, sumall)
+from devito import ConditionalDimension, Function, Grid, TimeFunction, switchconfig
+from devito.builtins import (
+    assign, gaussian_smooth, initialize_function, inner, mmax, mmin, norm, sum, sumall
+)
 from devito.data import LEFT, RIGHT
 from devito.tools import as_tuple
-from devito.types import SubDomain, SparseTimeFunction
+from devito.types import SparseTimeFunction, SubDomain
 
 
 class TestAssign:
@@ -110,7 +112,7 @@ class TestAssign:
         stop = loc_shape*(loc_coords+1)
 
         slices = []
-        for i, j in zip(start, stop):
+        for i, j in zip(start, stop, strict=True):
             slices.append(slice(i, j, 1))
         slices = as_tuple(slices)
         assert np.all(a[slices] - np.array(g.data[:]) == 0)
@@ -192,7 +194,7 @@ class TestGaussianSmooth:
         stop = loc_shape*(loc_coords+1)
 
         slices = []
-        for i, j in zip(start, stop):
+        for i, j in zip(start, stop, strict=True):
             slices.append(slice(i, j, 1))
         slices = as_tuple(slices)
         assert np.all(sp_smoothed[slices] - np.array(dv_smoothed.data[:]) == 0)

@@ -1,16 +1,28 @@
 from collections import defaultdict, namedtuple
+from contextlib import suppress
 from itertools import product
 
 from devito.finite_differences import IndexDerivative
-from devito.symbolics import (CallFromPointer, retrieve_indexed, retrieve_terminals,
-                              search)
-from devito.tools import DefaultOrderedDict, as_tuple, flatten, filter_sorted, split
-from devito.types import (Dimension, DimensionTuple, Indirection, ModuloDimension,
-                          StencilDimension)
+from devito.symbolics import CallFromPointer, retrieve_indexed, retrieve_terminals, search
+from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, flatten, split
+from devito.types import (
+    Dimension, DimensionTuple, Indirection, ModuloDimension, StencilDimension, TensorMove
+)
 
-__all__ = ['AccessMode', 'Stencil', 'IMask', 'detect_accesses', 'detect_io',
-           'pull_dims', 'unbounded', 'minimum', 'maximum', 'minmax_index',
-           'extrema', 'erange']
+__all__ = [
+    'AccessMode',
+    'IMask',
+    'Stencil',
+    'detect_accesses',
+    'detect_io',
+    'erange',
+    'extrema',
+    'maximum',
+    'minimum',
+    'minmax_index',
+    'pull_dims',
+    'unbounded',
+]
 
 
 class AccessMode:
@@ -125,10 +137,17 @@ def detect_accesses(exprs):
     """
     # Compute M : F -> S
     mapper = defaultdict(Stencil)
-    for e in retrieve_indexed(exprs, deep=True):
+
+    # Search among the Indexeds (Most accesses typically stem from Indexeds)
+    plain_indexeds = retrieve_indexed(exprs, deep=True)
+
+    # Search among higher order objects, which still represent meaningful accesses
+    high_order_indexeds = [i.indexed for i in search(exprs, TensorMove)]
+
+    for e in (*plain_indexeds, *high_order_indexeds):
         f = e.function
 
-        for a, d0 in zip(e.indices, f.dimensions):
+        for a, d0 in zip(e.indices, f.dimensions, strict=False):
             if isinstance(a, Indirection):
                 a = a.mapped
 
@@ -149,16 +168,19 @@ def detect_accesses(exprs):
                     # accesses (e.g., a[b[x, y] + 1, y]) or 2) as a result of
                     # skewing-based optimizations, such as time skewing (e.g.,
                     # `x - time + 1`) or CIRE rotation (e.g., `x + xx - 4`)
-                    d, others = split(dims, lambda i: d0 in i._defines)
+                    d, others = split(dims, lambda i: d0 in i._defines)  # noqa: B023
 
                     if any(i.is_Indexed for i in a.args) or len(d) != 1:
-                        # Case 1) -- with indirect accesses there's not much we can infer
+                        # Case 1) -- with indirect accesses there's not much we
+                        # can infer
                         continue
                     else:
                         # Case 2)
                         d, = d
                         _, o = split(others, lambda i: i.is_Custom)
-                        off = sum(i for i in a.args if i.is_integer or i.free_symbols & o)
+                        off = sum(
+                            i for i in a.args if i.is_integer or i.free_symbols & o
+                        )
                 else:
                     d, = dims
 
@@ -186,11 +208,9 @@ def detect_accesses(exprs):
     other_dims = set()
     for e in as_tuple(exprs):
         other_dims.update(i for i in e.free_symbols if isinstance(i, Dimension))
-        try:
+        with suppress(AttributeError):
+            # Unless not a types.Eq
             other_dims.update(e.implicit_dims or {})
-        except AttributeError:
-            # Not a types.Eq
-            pass
     other_dims = filter_sorted(other_dims)
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
@@ -232,10 +252,8 @@ def detect_io(exprs, relax=False):
     terminals = flatten(retrieve_terminals(i, deep=True) for i in roots)
     for i in terminals:
         candidates = set(i.free_symbols)
-        try:
+        with suppress(AttributeError):
             candidates.update({i.function})
-        except AttributeError:
-            pass
         for j in candidates:
             try:
                 if rule(j):
@@ -260,7 +278,7 @@ def detect_io(exprs, relax=False):
             if rule(f):
                 writes.append(f)
 
-    return filter_sorted(reads), filter_sorted(writes)
+    return tuple(filter_sorted(reads)), tuple(filter_sorted(writes))
 
 
 def pull_dims(exprs, flag=True):
@@ -357,10 +375,8 @@ def minmax_index(expr, d):
     """
     indices = set()
     for i in retrieve_indexed(expr):
-        try:
+        with suppress(KeyError):
             indices.add(i.indices[d])
-        except KeyError:
-            pass
 
     return Extrema(min(minimum(i) for i in indices),
                    max(maximum(i) for i in indices))
@@ -377,6 +393,6 @@ def erange(expr):
 
     sdims = [d for d in udims if d.is_Stencil]
     ranges = [i.range for i in sdims]
-    mappers = [dict(zip(sdims, i)) for i in product(*ranges)]
+    mappers = [dict(zip(sdims, i, strict=True)) for i in product(*ranges)]
 
     return tuple(expr.subs(m) for m in mappers)

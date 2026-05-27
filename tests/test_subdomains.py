@@ -1,14 +1,16 @@
-import pytest
-import numpy as np
 from math import floor
 
+import numpy as np
+import pytest
 from sympy import sin, tan
 
-from conftest import opts_tiling, assert_structure
-from devito import (ConditionalDimension, Constant, Grid, Function, TimeFunction,
-                    Eq, solve, Operator, SubDomain, SubDomainSet, Lt, SparseFunction,
-                    SparseTimeFunction, VectorFunction, TensorFunction, Border)
-from devito.ir import FindNodes, FindSymbols, Expression, Iteration, SymbolRegistry
+from conftest import assert_structure, opts_tiling
+from devito import (
+    Border, Buffer, ConditionalDimension, Constant, Eq, Function, Grid, Lt, Operator,
+    SparseFunction, SparseTimeFunction, SubDomain, SubDomainSet, TensorFunction,
+    TimeFunction, VectorFunction, solve
+)
+from devito.ir import Expression, FindNodes, FindSymbols, Iteration, SymbolRegistry
 from devito.tools import timed_region
 
 
@@ -226,6 +228,40 @@ class TestSubDomains:
                                          sregistry=SymbolRegistry())[0]
         assert str(expr.rhs) == 'ix*f[ix + 1, iy + 1] + iy'
 
+    @pytest.mark.parallel(mode=2)
+    def test_halo_subdomain(self, mode):
+        """
+        Test halo lowering with temporary dimensions and shifted subdomain access.
+        """
+        space_order = 8
+
+        class Interface(SubDomain):
+            name = 'interface'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {
+                    x: ('middle', 0, 0),
+                    y: ('middle', 0, 0),
+                    z: ('middle', space_order//2, 0)
+                }
+
+        grid = Grid(shape=(9, 9, 9), subdomains=(Interface(),))
+        x, y, z = grid.dimensions
+        time = grid.stepping_dim
+        u = TimeFunction(name='u', grid=grid, time_order=1,
+                         space_order=space_order, save=Buffer(1),
+                         is_transient=False)
+
+        equation = Eq(u[time + 1, x, y, z - space_order//2],
+                      u.dxdy + u.dydz +
+                      u[time + 1, x, y, z - space_order//2],
+                      subdomain=grid.subdomains['interface'])
+
+        op = Operator([equation])
+
+        assert_structure(op, ['t', 'txyz', 'txyz'], 'txyzyz')
+
 
 class TestMultiSubDomain:
 
@@ -375,14 +411,14 @@ class TestMultiSubDomain:
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
-        bounds_ym = int(1)
+        bounds_ym = 1
         bounds_yM = int(Ny/2+1)
         bounds1 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
         bounds_ym = int(Ny/2+1)
-        bounds_yM = int(1)
+        bounds_yM = 1
         bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
@@ -474,14 +510,14 @@ class TestMultiSubDomain:
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
-        bounds_ym = int(1)
+        bounds_ym = 1
         bounds_yM = int(Ny/2+1)
         bounds1 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         bounds_xm = np.array([1, Nx/2+1], dtype=np.int32)
         bounds_xM = np.array([Nx/2+1, 1], dtype=np.int32)
         bounds_ym = int(Ny/2+1)
-        bounds_yM = int(1)
+        bounds_yM = 1
         bounds2 = (bounds_xm, bounds_xM, bounds_ym, bounds_yM)
 
         grid = Grid(extent=(Nx, Ny), shape=(Nx, Ny))
@@ -534,13 +570,13 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['x,y', 't,n0', 't,n0,x,y'], 'x,y,t,n0,x,y')
 
     def test_issue_1761_b(self):
         """
-        Follow-up issue emerged after patching #1761. The thicknesses assigments
+        Follow-up issue emerged after patching #1761. The thicknesses assignments
         were missing before the third equation.
 
         Further improvements have enabled fusing the third equation with the first
@@ -570,7 +606,7 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op,
                          ['x,y', 't,n0', 't,n0,x,y', 't,n1', 't,n1,x,y'],
@@ -605,7 +641,7 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['x,y', 't,n0', 't,n0,x,y',
                               't,n1', 't,n1,x,y', 't,n0', 't,n0,x,y'],
@@ -631,7 +667,7 @@ class TestMultiSubDomain:
         op = Operator(eqn)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t,n0', 't,n0,x,y', 't,n0,x,y'],
                          't,n0,x,y,x,y')
@@ -658,7 +694,7 @@ class TestMultiSubDomain:
         op = Operator(eqns)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t', 't,n0', 't,n0,x,y', 't,n0', 't,n0,x,y'],
                          't,n0,x,y,n0,x,y')
@@ -678,7 +714,7 @@ class TestMultiSubDomain:
         op = Operator(eqn)
 
         # Make sure it jit-compiles
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t,n0', 't,n0,x0_blk0,y0_blk0,x,y,z'],
                          't,n0,x0_blk0,y0_blk0,x,y,z')
@@ -1525,7 +1561,7 @@ class TestSubDomainFunctionsParallel:
         assert np.count_nonzero(g.data) == f.data.size
 
         shape = []
-        for i, s in zip(f._distributor.subdomain_interval, slices):
+        for i, s in zip(f._distributor.subdomain_interval, slices, strict=True):
             if i is None:
                 shape.append(s.stop - s.start)
             else:

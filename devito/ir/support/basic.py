@@ -1,25 +1,28 @@
-from collections.abc import Iterable
-from itertools import chain, product
+from collections.abc import Callable, Iterable
+from contextlib import suppress
 from functools import cached_property
-from typing import Callable
+from itertools import chain, product
 
-from sympy import S, Expr
 import sympy
+from sympy import Expr, S
 
 from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
-from devito.symbolics import (compare_ops, retrieve_indexed, retrieve_terminals,
-                              q_constant, q_comp_acc, q_affine, q_routine, search,
-                              uxreplace)
-from devito.tools import (Tag, as_mapper, as_tuple, is_integer, filter_sorted,
-                          flatten, memoized_meth, memoized_generator, smart_gt,
-                          smart_lt, CacheInstances)
-from devito.types import (ComponentAccess, Dimension, DimensionTuple, Fence,
-                          CriticalRegion, Function, Symbol, Temp, TempArray,
-                          TBArray)
+from devito.symbolics import (
+    compare_ops, q_affine, q_comp_acc, q_constant, q_routine, retrieve_indexed,
+    retrieve_terminals, search, uxreplace
+)
+from devito.tools import (
+    CacheInstances, Tag, as_mapper, as_tuple, filter_sorted, flatten, is_integer,
+    memoized_generator, memoized_meth, smart_gt, smart_lt
+)
+from devito.types import (
+    ComponentAccess, CriticalRegion, Dimension, DimensionTuple, Fence, Function, Symbol,
+    TBArray, Temp, TempArray
+)
 
-__all__ = ['IterationInstance', 'TimedAccess', 'Scope', 'ExprGeometry']
+__all__ = ['ExprGeometry', 'IterationInstance', 'Scope', 'TimedAccess']
 
 
 class IndexMode(Tag):
@@ -88,7 +91,7 @@ class IterationInstance(LabeledVector):
         except AttributeError:
             # E.g., `access` is a FieldFromComposite rather than an Indexed
             indices = (S.Infinity,)*len(findices)
-        return super().__new__(cls, list(zip(findices, indices)))
+        return super().__new__(cls, list(zip(findices, indices, strict=False)))
 
     def __hash__(self):
         return super().__hash__()
@@ -96,7 +99,7 @@ class IterationInstance(LabeledVector):
     @cached_property
     def index_mode(self):
         retval = []
-        for i, fi in zip(self, self.findices):
+        for i, fi in zip(self, self.findices, strict=True):
             dims = {j for j in i.free_symbols if isinstance(j, Dimension)}
             if len(dims) == 0 and q_constant(i):
                 retval.append(AFFINE)
@@ -106,11 +109,8 @@ class IterationInstance(LabeledVector):
             # q_affine -- ultimately it should get quicker!
 
             sdims = {d for d in dims if d.is_Stencil}
-            if dims == sdims:
-                candidates = sdims
-            else:
-                # E.g. `x + i0 + i1` -> `candidates = {x}`
-                candidates = dims - sdims
+            # E.g. `x + i0 + i1` -> `candidates = {x}`
+            candidates = sdims if dims == sdims else dims - sdims
 
             if len(candidates) == 1:
                 candidate = candidates.pop()
@@ -128,7 +128,7 @@ class IterationInstance(LabeledVector):
     @cached_property
     def aindices(self):
         retval = []
-        for i, fi in zip(self, self.findices):
+        for i, _ in zip(self, self.findices, strict=True):
             dims = set(d.root if d.indirect else d for d in i.atoms(Dimension))
             sdims = {d for d in dims if d.is_Stencil}
             candidates = dims - sdims
@@ -147,12 +147,12 @@ class IterationInstance(LabeledVector):
 
     @cached_property
     def index_map(self):
-        return dict(zip(self.aindices, self.findices))
+        return dict(zip(self.aindices, self.findices, strict=True))
 
     @cached_property
     def defined_findices_affine(self):
         ret = set()
-        for fi, im in zip(self.findices, self.index_mode):
+        for fi, im in zip(self.findices, self.index_mode, strict=True):
             if im is AFFINE:
                 ret.update(fi._defines)
         return ret
@@ -160,7 +160,7 @@ class IterationInstance(LabeledVector):
     @cached_property
     def defined_findices_irregular(self):
         ret = set()
-        for fi, im in zip(self.findices, self.index_mode):
+        for fi, im in zip(self.findices, self.index_mode, strict=True):
             if im is IRREGULAR:
                 ret.update(fi._defines)
         return ret
@@ -320,7 +320,7 @@ class TimedAccess(IterationInstance, AccessMode):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
-    def distance(self, other):
+    def distance(self, other, logical=False):
         """
         Compute the distance from ``self`` to ``other``.
 
@@ -328,6 +328,9 @@ class TimedAccess(IterationInstance, AccessMode):
         ----------
         other : TimedAccess
             The TimedAccess w.r.t. which the distance is computed.
+        logical : bool
+            Compute a logical distance rather than true distance (i.e. ignoring
+            degenerating indices created by size 1 buffers etc).
         """
         if isinstance(self.access, ComponentAccess) and \
            isinstance(other.access, ComponentAccess) and \
@@ -336,7 +339,7 @@ class TimedAccess(IterationInstance, AccessMode):
             return Vector(S.ImaginaryUnit)
 
         ret = []
-        for sit, oit in zip(self.itintervals, other.itintervals):
+        for sit, oit in zip(self.itintervals, other.itintervals, strict=False):
             n = len(ret)
 
             try:
@@ -383,9 +386,8 @@ class TimedAccess(IterationInstance, AccessMode):
 
                 # Case 3: `self` and `other` have some special form such that
                 # it's provable that they never intersect
-                if sai and sit == oit:
-                    if disjoint_test(self[n], other[n], sai, sit):
-                        return Vector(S.ImaginaryUnit)
+                if sai and sit == oit and disjoint_test(self[n], other[n], sai, sit):
+                    return Vector(S.ImaginaryUnit)
 
             # Compute the distance along the current IterationInterval
             if self.function._mem_shared:
@@ -393,7 +395,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 # objects falls back to zero, as any other value would be
                 # nonsensical
                 ret.append(S.Zero)
-            elif degenerating_dimensions(sai, oai):
+            elif degenerating_indices(self[n], other[n], self.function, logical=logical):
                 # Special case: `sai` and `oai` may be different symbolic objects
                 # but they can be proved to systematically generate the same value
                 ret.append(S.Zero)
@@ -439,7 +441,7 @@ class TimedAccess(IterationInstance, AccessMode):
 
         # It still could be an imaginary dependence, e.g. `a[3] -> a[4]` or, more
         # nasty, `a[i+1, 3] -> a[i, 4]`
-        for i, j in zip(self[n:], other[n:]):
+        for i, j in zip(self[n:], other[n:], strict=False):
             if i == j:
                 ret.append(S.Zero)
             else:
@@ -559,6 +561,10 @@ class Relation:
     def findices(self):
         return self.source.findices
 
+    @property
+    def timestamp(self):
+        return max(self.source.timestamp, self.sink.timestamp)
+
     @cached_property
     def distance(self):
         return self.source.distance(self.sink)
@@ -570,7 +576,7 @@ class Relation:
     @cached_property
     def distance_mapper(self):
         retval = {}
-        for i, j in zip(self.findices, self.distance):
+        for i, j in zip(self.findices, self.distance, strict=False):
             for d in i._defines:
                 retval[d] = j
         return retval
@@ -592,7 +598,7 @@ class Relation:
     @cached_property
     def is_lex_positive(self):
         """
-        True if the source preceeds the sink, False otherwise.
+        True if the source precedes the sink, False otherwise.
         """
         return self.source.timestamp < self.sink.timestamp
 
@@ -611,7 +617,7 @@ class Relation:
     @cached_property
     def is_lex_negative(self):
         """
-        True if the sink preceeds the source, False otherwise.
+        True if the sink precedes the source, False otherwise.
         """
         return self.source.timestamp > self.sink.timestamp
 
@@ -644,7 +650,7 @@ class Dependence(Relation, CacheInstances):
     @cached_property
     def cause(self):
         """Return the findex causing the dependence."""
-        for i, j in zip(self.findices, self.distance):
+        for i, j in zip(self.findices, self.distance, strict=False):
             try:
                 if j > 0:
                     return i._defines
@@ -691,6 +697,10 @@ class Dependence(Relation, CacheInstances):
     @cached_property
     def is_reduction(self):
         return self.source.is_reduction or self.sink.is_reduction
+
+    @cached_property
+    def as_logical(self):
+        return LogicalDependence(self.source, self.sink)
 
     @memoized_meth
     def is_const(self, dim):
@@ -776,11 +786,18 @@ class Dependence(Relation, CacheInstances):
         cause the access of the same memory location, False otherwise.
         """
         for d in self.findices:
-            if d._defines & set(as_tuple(dims)):
+            if d._defines & set(as_tuple(dims)):  # noqa: SIM102
                 if any(i.is_NonlinearDerived for i in d._defines) or \
                    self.is_const(d):
                     return True
         return False
+
+
+class LogicalDependence(Dependence):
+
+    @cached_property
+    def distance(self):
+        return self.source.distance(self.sink, logical=True)
 
 
 class DependenceGroup(set):
@@ -861,16 +878,12 @@ class Scope(CacheInstances):
         for i, e in enumerate(self.exprs):
             terminals = retrieve_accesses(e.lhs)
             if q_routine(e.rhs):
-                try:
+                with suppress(AttributeError):
+                    # Everything except: foreign routines, such as `cos` or `sin` etc.
                     terminals.update(e.rhs.writes)
-                except AttributeError:
-                    # E.g., foreign routines, such as `cos` or `sin`
-                    pass
+
             for j in terminals:
-                if e.is_Reduction:
-                    mode = 'WR'
-                else:
-                    mode = 'W'
+                mode = 'WR' if e.is_Reduction else 'W'
                 yield TimedAccess(j, mode, i, e.ispace)
 
         # Objects altering the control flow (e.g., synchronization barriers,
@@ -908,15 +921,10 @@ class Scope(CacheInstances):
         for i, e in enumerate(self.exprs):
             # Reads
             terminals = retrieve_accesses(e.rhs, deep=True)
-            try:
+            with suppress(AttributeError):
                 terminals.update(retrieve_accesses(e.lhs.indices))
-            except AttributeError:
-                pass
             for j in terminals:
-                if j.function is e.lhs.function and e.is_Reduction:
-                    mode = 'RR'
-                else:
-                    mode = 'R'
+                mode = 'RR' if j.function is e.lhs.function and e.is_Reduction else 'R'
                 yield TimedAccess(j, mode, i, e.ispace)
 
             # If a reduction, we got one implicit read
@@ -946,7 +954,7 @@ class Scope(CacheInstances):
     @memoized_generator
     def reads_synchro_gen(self):
         """
-        Generate all reads due to syncronization operations. These may be explicit
+        Generate all reads due to synchronization operations. These may be explicit
         or implicit.
         """
         # Objects altering the control flow (e.g., synchronization barriers,
@@ -975,7 +983,7 @@ class Scope(CacheInstances):
         """
         Generate all read accesses.
         """
-        # NOTE: The reason to keep the explicit and implict reads separated
+        # NOTE: The reason to keep the explicit and implicit reads separated
         # is efficiency. Sometimes we wish to extract all reads to a given
         # AbstractFunction, and we know that by construction these can't
         # appear among the implicit reads
@@ -1064,7 +1072,7 @@ class Scope(CacheInstances):
             shifted = f"{chr(10) if shifted else ''}{shifted}"
             writes[i] = f'\033[1;37;31m{first + shifted}\033[0m'
         return "\n".join([out.format(i.name, w, '', r)
-                          for i, r, w in zip(tracked, reads, writes)])
+                          for i, r, w in zip(tracked, reads, writes, strict=True)])
 
     @cached_property
     def accesses(self):
@@ -1101,6 +1109,7 @@ class Scope(CacheInstances):
                         continue
 
                     distance = dependence.distance
+
                     try:
                         is_flow = distance > 0 or (r.lex_ge(w) and distance == 0)
                     except TypeError:
@@ -1117,7 +1126,7 @@ class Scope(CacheInstances):
         return DependenceGroup(self.d_flow_gen())
 
     @memoized_generator
-    def d_anti_gen(self):
+    def d_anti_gen(self, depcls=Dependence):
         """Generate the anti (or "write-after-read") dependences."""
         for k, v in self.writes.items():
             for w in v:
@@ -1125,12 +1134,13 @@ class Scope(CacheInstances):
                     if any(not rule(r, w) for rule in self.rules):
                         continue
 
-                    dependence = Dependence(r, w)
+                    dependence = depcls(r, w)
 
                     if dependence.is_imaginary:
                         continue
 
                     distance = dependence.distance
+
                     try:
                         is_anti = distance > 0 or (r.lex_lt(w) and distance == 0)
                     except TypeError:
@@ -1145,6 +1155,14 @@ class Scope(CacheInstances):
     def d_anti(self):
         """Anti (or "write-after-read") dependences."""
         return DependenceGroup(self.d_anti_gen())
+
+    @cached_property
+    def d_anti_logical(self):
+        """
+        Anti (or "write-after-read") dependences using logical rather than true
+        distances.
+        """
+        return DependenceGroup(self.d_anti_gen(depcls=LogicalDependence))
 
     @memoized_generator
     def d_output_gen(self):
@@ -1252,7 +1270,7 @@ class ExprGeometry:
         for ii in self.iinstances:
             base = []
             offset = []
-            for e, fi, ai in zip(ii, ii.findices, ii.aindices):
+            for e, fi, ai in zip(ii, ii.findices, ii.aindices, strict=True):
                 if ai is None:
                     base.append((fi, e))
                 else:
@@ -1322,9 +1340,8 @@ class ExprGeometry:
                     return {}
                 v = distance.pop()
 
-                if not d._defines & dims:
-                    if v != 0:
-                        return {}
+                if not d._defines & dims and v != 0:
+                    return {}
 
                 distances[d] = v
 
@@ -1349,7 +1366,7 @@ class ExprGeometry:
     @cached_property
     def aindices(self):
         try:
-            return tuple(zip(*self.Toffsets))[0]
+            return tuple(zip(*self.Toffsets, strict=True))[0]
         except IndexError:
             return ()
 
@@ -1375,7 +1392,7 @@ def retrieve_accesses(exprs, **kwargs):
     if not compaccs:
         return retrieve_terminals(exprs, **kwargs)
 
-    subs = {i: Symbol('dummy%d' % n) for n, i in enumerate(compaccs)}
+    subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
     exprs1 = uxreplace(exprs, subs)
 
     return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())
@@ -1432,17 +1449,34 @@ def disjoint_test(e0, e1, d, it):
     return not bool(i0.intersect(i1))
 
 
-def degenerating_dimensions(d0, d1):
+def degenerating_indices(i0, i1, function, logical=False):
     """
-    True if `d0` and `d1` are Dimensions that are possibly symbolically
+    True if `i0` and `i1` are indices that are possibly symbolically
     different, but they can be proved to systematically degenerate to the
     same value, False otherwise.
     """
     # Case 1: ModuloDimensions of size 1
     try:
-        if d0.is_Modulo and d1.is_Modulo and d0.modulo == d1.modulo == 1:
+        if i0.is_Modulo and i1.is_Modulo and i0.modulo == i1.modulo == 1:
             return True
     except AttributeError:
         pass
+
+    # Case 2: SteppingDimension corresponding to buffer of size 1
+    # Extract dimension from both IndexAccessFunctions -> d0, d1
+    # Skipped if doing a purely logical check
+    if not logical:
+        try:
+            d0 = i0.d
+        except AttributeError:
+            d0 = i0
+        try:
+            d1 = i1.d
+        except AttributeError:
+            d1 = i1
+
+        with suppress(AttributeError):
+            if d0 is d1 and d0.is_Stepping and function._size_domain[d0] == 1:
+                return True
 
     return False

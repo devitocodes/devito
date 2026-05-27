@@ -7,8 +7,13 @@ from devito.arch import Device
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 
-__all__ = ['make_retval', 'nbl_to_padsize', 'pad_outhalo', 'abstract_args',
-           'check_builtins_args']
+__all__ = [
+    'abstract_args',
+    'check_builtins_args',
+    'make_retval',
+    'nbl_to_padsize',
+    'pad_outhalo',
+]
 
 
 accumulator_mapper = {
@@ -104,7 +109,7 @@ def pad_outhalo(function):
             function._data_with_outhalo._local[tuple(slices)] \
                 = function._data_with_outhalo._local[tuple(slices_d)]
         if h.left == 0 and h.right == 0:
-            # Need to access it so that that worker is not blocking exectution since
+            # Need to access it so that that worker is not blocking execution since
             # _data_with_outhalo requires communication
             function._data_with_outhalo._local[0] = function._data_with_outhalo._local[0]
 

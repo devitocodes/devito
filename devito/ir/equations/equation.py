@@ -3,24 +3,38 @@ from functools import cached_property
 import numpy as np
 import sympy
 
-from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.support import (GuardFactor, Interval, IntervalGroup, IterationSpace,
-                               Stencil, detect_io, detect_accesses)
+from devito.ir.equations.algorithms import dimension_sort, lower_exprs
+from devito.ir.support import (
+    GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses,
+    detect_io
+)
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
-from devito.types import (Eq, Inc, ReduceMax, ReduceMin,
-                          relational_min)
+from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
 from devito.types.equation import PetscEq
 
-__all__ = ['LoweredEq', 'ClusterizedEq', 'DummyEq', 'OpInc', 'OpMin', 'OpMax',
-           'identity_mapper', 'OpPetsc']
+__all__ = [
+    'ClusterizedEq',
+    'DummyEq',
+    'LoweredEq',
+    'OpInc',
+    'OpMax',
+    'OpMin',
+    'OpMinMax',
+    'OpPetsc',
+    'identity_mapper',
+]
 
 
 class IREq(sympy.Eq, Pickable):
 
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation')
+
+    def _hashable_content(self):
+        return (*super()._hashable_content(),
+                *tuple(getattr(self, i) for i in self.__rkwargs__))
 
     @property
     def is_Scalar(self):
@@ -62,7 +76,7 @@ class IREq(sympy.Eq, Pickable):
 
     @property
     def is_Reduction(self):
-        return self.operation in (OpInc, OpMin, OpMax)
+        return self.operation in (OpInc, OpMin, OpMax, OpMinMax)
 
     @property
     def is_Increment(self):
@@ -85,9 +99,11 @@ class IREq(sympy.Eq, Pickable):
         if not self.is_Reduction:
             return super().__repr__()
         elif self.operation is OpInc:
-            return '%s += %s' % (self.lhs, self.rhs)
+            return f'Inc({self.lhs}, {self.rhs})'
         else:
-            return '%s = %s(%s)' % (self.lhs, self.operation, self.rhs)
+            return f'Eq({self.lhs}, {self.operation}({self.rhs}))'
+
+    __str__ = __repr__
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -105,7 +121,8 @@ class Operation(Tag):
             Inc: OpInc,
             ReduceMax: OpMax,
             ReduceMin: OpMin,
-            PetscEq: OpPetsc
+            PetscEq: OpPetsc,
+            ReduceMinMax: OpMinMax
         }
 
         for expr_type, op in reduction_mapper.items():
@@ -123,6 +140,7 @@ OpInc = Operation('+')
 OpMax = Operation('max')
 OpMin = Operation('min')
 OpPetsc = Operation('solve')
+OpMinMax = Operation('minmax')
 
 
 identity_mapper = {
@@ -169,7 +187,7 @@ class LoweredEq(IREq):
             input_expr = args[0]
             expr = sympy.Eq.__new__(cls, *input_expr.args, evaluate=False)
             for i in cls.__rkwargs__:
-                setattr(expr, '_%s' % i, kwargs.get(i) or getattr(input_expr, i))
+                setattr(expr, f'_{i}', kwargs.get(i) or getattr(input_expr, i))
             return expr
         elif len(args) == 1 and isinstance(args[0], Eq):
             # origin: LoweredEq(devito.Eq)
@@ -177,11 +195,11 @@ class LoweredEq(IREq):
         elif len(args) == 2:
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)
             for i in cls.__rkwargs__:
-                setattr(expr, '_%s' % i, kwargs.pop(i))
+                setattr(expr, f'_{i}', kwargs.pop(i))
             return expr
         else:
-            raise ValueError("Cannot construct LoweredEq from args=%s "
-                             "and kwargs=%s" % (str(args), str(kwargs)))
+            raise ValueError(f"Cannot construct LoweredEq from args={str(args)} "
+                             f"and kwargs={str(kwargs)}")
 
         # Well-defined dimension ordering
         ordering = dimension_sort(expr)
@@ -218,7 +236,7 @@ class LoweredEq(IREq):
             else:
                 cond = diff2sympy(lower_exprs(d.condition))
                 if d._factor is not None:
-                    cond = sympy.And(cond, GuardFactor(d))
+                    cond = d.relation(cond, GuardFactor(d))
                 conditionals[d] = cond
             # Replace dimension with index
             index = d.index
@@ -289,20 +307,24 @@ class ClusterizedEq(IREq):
                         v = kwargs[i]
                     except KeyError:
                         v = getattr(input_expr, i, None)
-                    setattr(expr, '_%s' % i, v)
+                    setattr(expr, f'_{i}', v)
             else:
                 expr._ispace = kwargs['ispace']
-                expr._conditionals = kwargs.get('conditionals', frozendict())
+                expr._conditionals = kwargs.get('conditionals', {})
                 expr._implicit_dims = input_expr.implicit_dims
                 expr._operation = Operation.detect(input_expr)
         elif len(args) == 2:
             # origin: ClusterizedEq(lhs, rhs, **kwargs)
             expr = sympy.Eq.__new__(cls, *args, evaluate=False)
             for i in cls.__rkwargs__:
-                setattr(expr, '_%s' % i, kwargs.pop(i))
+                setattr(expr, f'_{i}', kwargs.pop(i))
         else:
-            raise ValueError("Cannot construct ClusterizedEq from args=%s "
-                             "and kwargs=%s" % (str(args), str(kwargs)))
+            raise ValueError(f"Cannot construct ClusterizedEq from args={str(args)} "
+                             f"and kwargs={str(kwargs)}")
+
+        # Immutability (and thus hashability, etc)
+        expr._conditionals = frozendict(expr._conditionals)
+
         return expr
 
     func = IREq._rebuild
@@ -325,5 +347,5 @@ class DummyEq(ClusterizedEq):
         elif len(args) == 2:
             obj = LoweredEq(Eq(*args, evaluate=False))
         else:
-            raise ValueError("Cannot construct DummyEq from args=%s" % str(args))
+            raise ValueError(f"Cannot construct DummyEq from args={str(args)}")
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)

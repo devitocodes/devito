@@ -1,5 +1,5 @@
-from devito import Eq, Operator, Function, TimeFunction, Inc, solve, sign
-from devito.symbolics import retrieve_functions, INT, retrieve_derivatives
+from devito import Eq, Function, Inc, Operator, TimeFunction, sign, solve
+from devito.symbolics import INT, retrieve_derivatives, retrieve_functions
 
 
 def freesurface(model, eq):

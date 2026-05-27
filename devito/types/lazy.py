@@ -23,7 +23,10 @@ class Evaluable(Reconstructable):
             if maybe_evaluable.args:
                 args = [Evaluable._evaluate_maybe_nested(i, **kwargs)
                         for i in maybe_evaluable.args]
-                evaluate = not all(i is j for i, j in zip(args, maybe_evaluable.args))
+                evaluate = not all(
+                    i is j
+                    for i, j in zip(args, maybe_evaluable.args, strict=True)
+                )
                 try:
                     return maybe_evaluable.func(*args, evaluate=evaluate)
                 except TypeError:
@@ -52,7 +55,7 @@ class Evaluable(Reconstructable):
         property `evaluate`.
         """
         args = self._evaluate_args(**kwargs)
-        evaluate = not all(i is j for i, j in zip(args, self.args))
+        evaluate = not all(i is j for i, j in zip(args, self.args, strict=True))
         return self.func(*args, evaluate=evaluate)
 
     @cached_property

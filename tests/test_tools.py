@@ -1,14 +1,15 @@
 import os
+import time
+
 import numpy as np
 import pytest
 from sympy.abc import a, b, c, d, e
 
-import time
-
-from devito import Operator, Eq, switchenv
-from devito.tools import (UnboundedMultiTuple, ctypes_to_cstr, toposort,
-                          filter_ordered, transitive_closure, UnboundTuple,
-                          CacheInstances)
+from devito import Eq, Operator, switchenv
+from devito.tools import (
+    CacheInstances, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr, filter_ordered,
+    toposort, transitive_closure
+)
 from devito.types.basic import Symbol
 
 

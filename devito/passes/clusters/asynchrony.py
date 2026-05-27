@@ -2,14 +2,16 @@ from collections import defaultdict
 
 from sympy import true
 
-from devito.ir import (Forward, Backward, GuardBoundNext, WaitLock, WithLock, SyncArray,
-                       PrefetchUpdate, ReleaseLock, Queue, normalize_syncs)
+from devito.ir import (
+    Backward, Forward, GuardBoundNext, PrefetchUpdate, Queue, ReleaseLock, SyncArray,
+    WaitLock, WithLock, normalize_syncs
+)
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
 from devito.symbolics import IntDiv, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock
 
-__all__ = ['tasking', 'memcpy_prefetch']
+__all__ = ['memcpy_prefetch', 'tasking']
 
 
 def async_trigger(c, dims):
@@ -247,10 +249,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     else:
         assert tindex0.is_Modulo
         mapper = {(i.offset % i.modulo): i for i in c.sub_iterators[pd]}
-        if direction is Forward:
-            toffset = tindex0.offset + 1
-        else:
-            toffset = tindex0.offset - 1
+        toffset = tindex0.offset + 1 if direction is Forward else tindex0.offset - 1
         try:
             tindex = mapper[toffset % tindex0.modulo]
         except KeyError:
@@ -269,10 +268,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     # Turn `c` into a prefetch Cluster `pc`
     expr = uxreplace(e, {tindex0: tindex, fetch: findex})
 
-    if tindex is not tindex0:
-        ispace = c.ispace.augment({pd: tindex})
-    else:
-        ispace = c.ispace
+    ispace = c.ispace.augment({pd: tindex}) if tindex is not tindex0 else c.ispace
 
     guard0 = c.guards.get(d, true)._subs(fetch, findex)
     guard1 = GuardBoundNext(function.indices[d], direction)

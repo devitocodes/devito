@@ -1,13 +1,59 @@
+from dataclasses import dataclass
 from functools import cached_property
+from itertools import chain
 
 from devito.ir.iet.nodes import Call, Callable, FixedArgsCallable
 from devito.ir.iet.utils import derive_parameters
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 
-__all__ = ['ElementalFunction', 'ElementalCall', 'make_efunc', 'make_callable',
-           'EntryFunction', 'AsyncCallable', 'AsyncCall', 'ThreadCallable',
-           'DeviceFunction', 'DeviceCall', 'KernelLaunch', 'CommCallable']
+__all__ = [
+    'AsyncCall',
+    'AsyncCallable',
+    'CommCallable',
+    'DeviceCall',
+    'DeviceFunction',
+    'EFuncMeta',
+    'ElementalCall',
+    'ElementalFunction',
+    'EntryFunction',
+    'KernelLaunch',
+    'ThreadCallable',
+    'make_callable',
+    'make_efunc',
+]
+
+
+@dataclass(frozen=True)
+class EFuncMeta:
+
+    body: object = None
+    efuncs: tuple = ()
+    includes: tuple = ()
+    namespaces: tuple = ()
+    libs: tuple = ()
+
+    @classmethod
+    def compose(cls, *items):
+        items = tuple(items)
+
+        if not items:
+            return cls()
+
+        return cls(
+            body=items[-1].body,
+            efuncs=tuple(chain.from_iterable(i.efuncs for i in items)),
+            includes=tuple(chain.from_iterable(i.includes for i in items)),
+            namespaces=tuple(chain.from_iterable(i.namespaces for i in items)),
+            libs=tuple(chain.from_iterable(i.libs for i in items))
+        )
+
+    def __iter__(self):
+        yield self.body
+        yield self.efuncs
+        yield self.includes
+        yield self.namespaces
+        yield self.libs
 
 
 # ElementalFunction machinery
@@ -25,12 +71,14 @@ class ElementalCall(Call):
 
             # Sanity check
             if k not in self._mapper:
-                raise ValueError("`k` is not a dynamic parameter" % k)
+                raise ValueError("`k` is not a dynamic parameter")
             if len(self._mapper[k]) != len(tv):
-                raise ValueError("Expected %d values for dynamic parameter `%s`, given %d"
-                                 % (len(self._mapper[k]), k, len(tv)))
+                raise ValueError(
+                    f'Expected {len(self._mapper[k])} values for dynamic parameter '
+                    f'`{k}`, given {len(tv)}'
+                )
             # Create the argument list
-            for i, j in zip(self._mapper[k], tv):
+            for i, j in zip(self._mapper[k], tv, strict=True):
                 arguments[i] = j if incr is False else (arguments[i] + j)
 
         super().__init__(name, arguments, retobj, is_indirect)
@@ -205,8 +253,10 @@ class KernelLaunch(DeviceCall):
         self.stream = stream
 
     def __repr__(self):
-        return 'Launch[%s]<<<(%s)>>>' % (self.name,
-                                         ','.join(str(i.name) for i in self.writes))
+        return 'Launch[{}]<<<({})>>>'.format(
+            self.name,
+            ','.join(str(i.name) for i in self.writes)
+        )
 
     @cached_property
     def functions(self):

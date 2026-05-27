@@ -1,14 +1,17 @@
 import numpy as np
 import pytest
-from sympy import sympify, simplify, diff, Float, Symbol
+from sympy import Float, Symbol, diff, simplify, sympify
 
-from devito import (Grid, Function, TimeFunction, Eq, Operator, NODE, cos, sin,
-                    ConditionalDimension, left, right, centered, div, grad,
-                    curl, laplace, VectorFunction, TensorFunction)
+from conftest import assert_structure
+from devito import (
+    NODE, ConditionalDimension, Eq, Function, Grid, Operator, TensorFunction,
+    TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl, div, grad,
+    laplace, left, right, sin
+)
 from devito.finite_differences import Derivative, Differentiable, diffify
-from devito.finite_differences.differentiable import (Add, EvalDerivative, IndexSum,
-                                                      IndexDerivative, Weights,
-                                                      DiffDerivative)
+from devito.finite_differences.differentiable import (
+    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights, interp_for_fd
+)
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 from devito.warnings import DevitoWarning
@@ -110,7 +113,7 @@ class TestFD:
             expr = getattr(expr, d)
         assert(expr.__str__() == expected)
         # Make sure the FD evaluation executes
-        expr.evaluate
+        _ = expr.evaluate
 
     @pytest.mark.parametrize('expr,expected', [
         ('u.dx + u.dy', 'Derivative(u, x) + Derivative(u, y)'),
@@ -301,7 +304,7 @@ class TestFD:
         Dpolynome = diff(polynome)
         Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx_s], np.float32)
         # FD derivative, symbolic
-        u_deriv = getattr(u, 'dx45')
+        u_deriv = u.dx45
         # Compute numerical FD
         stencil = Eq(du, u_deriv)
         op = Operator(stencil, subs={d.spacing: dx for d in grid.dimensions})
@@ -538,11 +541,11 @@ class TestFD:
             assert getattr(g, fd)
 
         for d in grid.dimensions:
-            assert 'd%s' % d.name in f._fd
-            assert 'd%s' % d.name in g._fd
+            assert f'd{d.name}' in f._fd
+            assert f'd{d.name}' in g._fd
             for o in range(2, min(7, so+1)):
-                assert 'd%s%s' % (d.name, o) in f._fd
-                assert 'd%s%s' % (d.name, o) in g._fd
+                assert f'd{d.name}{o}' in f._fd
+                assert f'd{d.name}{o}' in g._fd
 
     def test_shortcuts_mixed(self):
         grid = Grid(shape=(10,))
@@ -609,7 +612,7 @@ class TestFD:
             for i, d in enumerate(grid.dimensions):
                 x0 = (None if shift is None else d + shift[i] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                ref += getattr(f, 'd%s' % d.name)(x0=x0, fd_order=order)
+                ref += getattr(f, f'd{d.name}')(x0=x0, fd_order=order)
             assert df == ref.evaluate
 
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
@@ -619,10 +622,10 @@ class TestFD:
         f = Function(name="f", grid=grid, space_order=4)
         for order in [None, 2]:
             g = grad(f, shift=shift, order=order).evaluate
-            for i, (d, gi) in enumerate(zip(grid.dimensions, g)):
+            for i, (d, gi) in enumerate(zip(grid.dimensions, g, strict=True)):
                 x0 = (None if shift is None else d + shift[i] * d.spacing if
                       type(shift) is tuple else d + shift * d.spacing)
-                gk = getattr(f, 'd%s' % d.name)(x0=x0, fd_order=order).evaluate
+                gk = getattr(f, f'd{d.name}')(x0=x0, fd_order=order).evaluate
                 assert gi == gk
 
     @pytest.mark.parametrize('side', [left, right, centered])
@@ -919,11 +922,22 @@ class TestFD:
         assert simplify(eq0.evaluate.rhs - expect0) == 0
 
         # Expects to evaluate c11 and txy at xp then the derivative at yp
-        expect1 = (c11._subs(x, xp).evaluate * txx._subs(x, xp).evaluate).dy.evaluate
+        expect1 = (interp_for_fd((c11 * txx), {x: xp}).evaluate).dy.evaluate
         assert simplify(eq1.evaluate.rhs - expect1) == 0
 
         # Addition should apply the same logic as above for each term
         assert simplify(eq2.evaluate.rhs - (expect1 + expect0)) == 0
+
+    def test_unexpand_space_interp_w_saved_timefunc(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        tau = TensorTimeFunction(name="tau", grid=grid, save=10)
+
+        eq = Eq(tau[0, 1], tau[2, 2])
+
+        op = Operator(eq, opt=('advanced', {'expand': False}))
+
+        assert_structure(op, ['t,x,y,z', 't,x,y,z,i1', 't,x,y,z,i1,i0'])
 
 
 class TestTwoStageEvaluation:
@@ -1168,7 +1182,7 @@ class TestTwoStageEvaluation:
         v = grad(f)._evaluate(expand=False)
 
         assert all(isinstance(i, IndexDerivative) for i in v)
-        assert all(zip([Add(*i.args) for i in grad(f).evaluate], v.evaluate))
+        assert all(zip([Add(*i.args) for i in grad(f).evaluate], v.evaluate, strict=True))
 
     def test_laplacian_opt(self):
         grid = Grid(shape=(4, 4))
@@ -1176,7 +1190,7 @@ class TestTwoStageEvaluation:
 
         assert f.laplacian() == f.laplace
         df = f.laplacian(order=2, shift=.5)
-        for (v, d) in zip(df.args, grid.dimensions):
+        for (v, d) in zip(df.args, grid.dimensions, strict=True):
             assert v.dims[0] == d
             assert v.fd_order == (2,)
             assert v.deriv_order == (2,)

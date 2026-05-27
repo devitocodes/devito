@@ -1,12 +1,13 @@
 from itertools import product
 
-import sympy
-import pytest
 import numpy as np
+import pytest
+import sympy
 
-from devito import Function, Grid, Differentiable, NODE
-from devito.finite_differences.differentiable import (Add, Mul, Pow, diffify,
-                                                      interp_for_fd, SafeInv)
+from devito import NODE, Differentiable, Function, Grid
+from devito.finite_differences.differentiable import (
+    Add, Mul, Pow, SafeInv, diffify, interp_for_fd
+)
 
 
 def test_differentiable():
@@ -110,9 +111,6 @@ def test_avg_mode(ndim, io):
     with pytest.raises(ValueError):
         # interp_order > space_order
         Function(name="a", grid=grid, interp_order=8, space_order=4)
-    with pytest.raises(ValueError):
-        # interp_order < 1
-        Function(name="a", grid=grid, interp_order=0, space_order=4)
     with pytest.raises(TypeError):
         # interp_order not int
         Function(name="a", grid=grid, interp_order=2.5, space_order=4)
@@ -134,15 +132,36 @@ def test_avg_mode(ndim, io):
     vars = ['i', 'j', 'k'][:ndim]
     rule = ','.join(vars) + '->' + ''.join(vars)
     ndcoeffs = np.einsum(rule, *([coeffs]*ndim))
-    args = [{d: d + i * d.spacing for d, i in zip(grid.dimensions, s)} for s in all_shift]
+    args = [
+        {d: d + i * d.spacing for d, i in zip(grid.dimensions, s, strict=True)}
+        for s in all_shift
+    ]
 
     # Default is arithmetic average
-    expected = sum(c * a.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args))
+    expected = sum(
+        c * a.subs(arg) for c, arg in zip(ndcoeffs.flatten(), args, strict=True)
+    )
     assert sympy.simplify(a_avg - expected) == 0
 
     # Harmonic average, h(a[.5]) = 1/(.5/a[0] + .5/a[1])
     expected = (sum(c * SafeInv(b.subs(arg), b.subs(arg))
-                    for c, arg in zip(ndcoeffs.flatten(), args)))
+                    for c, arg in zip(ndcoeffs.flatten(), args, strict=True)))
     assert sympy.simplify(b_avg.args[0] - expected) == 0
     assert isinstance(b_avg, SafeInv)
     assert b_avg.base == b
+
+
+def test_no_interp():
+    grid = Grid((10, 10))
+    x = grid.dimensions[0]
+    a = Function(name="a", grid=grid, staggered=NODE, interp_order=0)
+    sa = Function(name="as", grid=grid, staggered=x)
+
+    assert a._eval_at(sa) == a
+    assert sa._eval_at(a) == sa._subs(x, x - x.spacing/2)
+    assert (a*sa)._eval_at(sa) == a*sa
+    assert (a + sa)._eval_at(sa) == a + sa
+
+    a_shift = a._subs(x, x + x.spacing / 2)
+    # Should just do nearest grid point, so shift back to original
+    assert a_shift.evaluate == a

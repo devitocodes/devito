@@ -1,10 +1,12 @@
 from itertools import groupby
 
-from devito.ir.iet import (BusyWait, Iteration, Section, TimedList,
-                           FindNodes, FindSymbols, MapNodes, Transformer)
-from devito.mpi.routines import (HaloUpdateCall, HaloWaitCall, MPICall, MPIList,
-                                 HaloUpdateList, HaloWaitList, RemainderCall,
-                                 ComputeCall)
+from devito.ir.iet import (
+    BusyWait, FindNodes, FindSymbols, Iteration, MapNodes, Section, TimedList, Transformer
+)
+from devito.mpi.routines import (
+    ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
+    MPIList, RemainderCall
+)
 from devito.passes.iet.engine import iet_pass
 from devito.types import TempArray, TempFunction, Timer
 
@@ -12,7 +14,7 @@ __all__ = ['instrument']
 
 
 def instrument(graph, **kwargs):
-    profiler = kwargs['profiler']
+    profiler = kwargs.get('profiler')
     if profiler is None:
         return
 
@@ -138,7 +140,7 @@ def sync_sections(iet, langbb=None, profiler=None, **kwargs):
         symbols = FindSymbols().visit(tl)
 
         queues = [i for i in symbols if isinstance(i, langbb.AsyncQueue)]
-        unnecessary = any(FindNodes(BusyWait).visit(tl))
+        unnecessary = any(FindNodes((BusyWait, RemainderCall)).visit(tl))
         if queues and not unnecessary:
             waits = tuple(sync(i) for i in queues)
             mapper[tl] = tl._rebuild(body=tl.body + waits)

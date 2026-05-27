@@ -1,13 +1,14 @@
+from contextlib import suppress
+
 import numpy as np
-try:
+
+with suppress(ImportError):
     import pytest
-except ImportError:
-    pass
 
 from devito import norm
 from devito.logger import info
+from examples.seismic import demo_model, seismic_args, setup_geometry
 from examples.seismic.viscoelastic import ViscoelasticWaveSolver
-from examples.seismic import demo_model, setup_geometry, seismic_args
 
 
 def viscoelastic_setup(shape=(50, 50), spacing=(15.0, 15.0), tn=500., space_order=4,

@@ -1,9 +1,9 @@
 from functools import singledispatch
 
-from sympy import S
 import numpy as np
+from sympy import S
 
-from devito.finite_differences import IndexDerivative
+from devito.finite_differences import IndexDerivative, Weights
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
 from devito.passes.clusters.misc import fuse
 from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, uxreplace
@@ -48,10 +48,7 @@ def _lower_index_derivatives(clusters, **kwargs):
         for e in c.exprs:
             # Optimization 1: if the LHS is already a Symbol, then surely it's
             # usable as a temporary for one of the IndexDerivatives inside `e`
-            if e.lhs.is_Symbol and e.operation is None:
-                reusable = {e.lhs}
-            else:
-                reusable = set()
+            reusable = {e.lhs} if e.lhs.is_Symbol and e.operation is None else set()
 
             expr, v = _core(e, c, c.ispace, weights, reusable, mapper, **kwargs)
 
@@ -94,41 +91,55 @@ def _core(expr, c, ispace, weights, reusables, mapper, **kwargs):
 
 
 @_core.register(Symbol)
-@_core.register(Indexed)
 @_core.register(BasicWrapperMixin)
 def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     return expr, []
+
+
+@_core.register(Indexed)
+def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
+    if not isinstance(expr.function, Weights):
+        return expr, []
+
+    # Lower or reuse a previously lowered Weights array
+    sregistry = kwargs['sregistry']
+    subs_user = kwargs['subs']
+
+    w0 = expr.function
+    k = tuple(w0.weights)
+    try:
+        w = weights[k]
+    except KeyError:
+        name = sregistry.make_name(prefix='w')
+        dtype = infer_dtype([w0.dtype, c.dtype])  # At least np.float32
+        initvalue = tuple(i.subs(subs_user) for i in k)
+        w = weights[k] = w0._rebuild(name=name, dtype=dtype, initvalue=initvalue)
+
+    rebuilt = expr._subs(w0.indexed, w.indexed)
+
+    return rebuilt, []
 
 
 @_core.register(IndexDerivative)
 def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     sregistry = kwargs['sregistry']
     options = kwargs['options']
-    subs_user = kwargs['subs']
 
     try:
         cbk0 = deriv_schedule_registry[options['deriv-schedule']]
         cbk1 = deriv_unroll_registry[options['deriv-unroll']]
     except KeyError:
-        raise ValueError("Unknown derivative lowering mode")
+        raise ValueError("Unknown derivative lowering mode") from None
 
     # Lower the IndexDerivative
     init, ideriv = cbk0(expr)
 
     # Create the concrete Weights array, or reuse an already existing one
     # if possible
-    name = sregistry.make_name(prefix='w')
-    w0 = ideriv.weights.function
-    dtype = infer_dtype([w0.dtype, c.dtype])  # At least np.float32
-    k = tuple(w0.weights)
-    try:
-        w = weights[k]
-    except KeyError:
-        initvalue = tuple(i.subs(subs_user) for i in k)
-        w = weights[k] = w0._rebuild(name=name, dtype=dtype, initvalue=initvalue)
+    w, _ = _core(ideriv.weights, c, ispace, weights, reusables, mapper, **kwargs)
 
     # Replace the abstract Weights array with the concrete one
-    subs = {w0.indexed: w.indexed}
+    subs = {ideriv.weights.base: w.base}
     init = uxreplace(init, subs)
     ideriv = uxreplace(ideriv, subs)
 
@@ -155,13 +166,13 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     ispace1 = IterationSpace.union(ispace, ispace0, relations=extra)
 
     # The Symbol that will hold the result of the IndexDerivative computation
-    # NOTE: created before recurring so that we ultimately get a sound ordering
+    # NOTE: created before recursing so that we ultimately get a sound ordering
     try:
         s = reusables.pop()
-        assert np.can_cast(s.dtype, dtype)
+        assert np.can_cast(s.dtype, w.dtype)
     except KeyError:
         name = sregistry.make_name(prefix='r')
-        s = Symbol(name=name, dtype=dtype)
+        s = Symbol(name=name, dtype=w.dtype)
 
     # Go inside `expr` and recursively lower any nested IndexDerivatives
     expr, processed = _core(expr, c, ispace1, weights, reusables, mapper, **kwargs)
@@ -241,7 +252,8 @@ class CDE(Queue):
                 else:
                     exprs.append(uxreplace(e, {**subs0, **subs}))
 
-            processed.append(c.rebuild(exprs=exprs))
+            if exprs:
+                processed.append(c.rebuild(exprs=exprs))
 
         seen.update(processed)
 

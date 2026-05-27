@@ -45,15 +45,16 @@ class OperatorRegistry(OrderedDict, metaclass=Singleton):
             mode = 'custom'
 
         if language not in OperatorRegistry._languages:
-            raise ValueError("Unknown language `%s`" % language)
+            raise ValueError(f"Unknown language `{language}`")
 
         for cls in platform._mro():
             for (p, m, l), kls in self.items():
                 if issubclass(p, cls) and m == mode and l == language:
                     return kls
 
-        raise InvalidOperator("Cannot compile an Operator for `%s`"
-                              % str((platform, mode, language)))
+        raise InvalidOperator(
+            f'Cannot compile an Operator for `{str((platform, mode, language))}`'
+        )
 
 
 operator_registry = OperatorRegistry()

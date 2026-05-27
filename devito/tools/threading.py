@@ -1,6 +1,6 @@
 import threading
 
-__all__ = ['sympy_mutex', 'safe_dict_copy']
+__all__ = ['safe_dict_copy', 'sympy_mutex']
 
 
 sympy_mutex = threading.RLock()
