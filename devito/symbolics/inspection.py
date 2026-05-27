@@ -319,8 +319,12 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
 
     def inspect(e):
         try:
-            dtypes.add(e.dtype)
+            dtype = e.dtype
         except AttributeError:
+            dtype = None
+        if dtype is not None:
+            dtypes.add(dtype)
+        else:
             for arg in e.args:
                 inspect(arg)
 
