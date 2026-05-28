@@ -208,6 +208,57 @@ class Data(np.ndarray):
     def __str__(self):
         return super(Data, self._local).__str__()
 
+    def transpose(self, *axes):
+        """
+        Return a view of ``self`` with permuted axes.
+
+        Overridden so that ``_decomposition``, ``_modulo`` (and the convenience
+        flag ``_is_distributed``) are permuted to match the new axis ordering,
+        rather than copied verbatim from ``self`` as ``__array_finalize__``
+        would otherwise leave them. Without this, a subsequent slice on the
+        transposed view (e.g. ``f.data.T[::2, ::2]``) is computed against the
+        wrong per-axis decomposition and silently returns a wrong-shaped
+        result (see issue #2187).
+        """
+        # Accept the same axis-spec forms as ``numpy.ndarray.transpose``:
+        # no args, a single ``None``, a single tuple/list, or per-arg.
+        if len(axes) == 1:
+            axes = as_tuple(axes[0])
+        new_order = (
+            tuple(range(self.ndim - 1, -1, -1)) if not axes
+            else tuple(ax % self.ndim for ax in axes)
+        )
+
+        ret = super().transpose(*axes)
+        ret._decomposition = tuple(self._decomposition[i] for i in new_order)
+        ret._modulo = tuple(self._modulo[i] for i in new_order)
+        ret._is_distributed = any(d is not None for d in ret._decomposition)
+        return ret
+
+    def swapaxes(self, axis1, axis2):
+        """
+        Return a view of ``self`` with ``axis1`` and ``axis2`` swapped, with
+        ``_decomposition`` / ``_modulo`` swapped in the same way (see
+        :meth:`transpose`).
+        """
+        axis1 = axis1 % self.ndim
+        axis2 = axis2 % self.ndim
+        ret = super().swapaxes(axis1, axis2)
+        order = list(range(self.ndim))
+        order[axis1], order[axis2] = order[axis2], order[axis1]
+        ret._decomposition = tuple(self._decomposition[i] for i in order)
+        ret._modulo = tuple(self._modulo[i] for i in order)
+        ret._is_distributed = any(d is not None for d in ret._decomposition)
+        return ret
+
+    @property
+    def T(self):
+        """
+        The transposed array. Overridden so the C-level ``ndarray.T`` shortcut
+        also permutes the per-axis metadata (see :meth:`transpose`).
+        """
+        return self.transpose()
+
     @_check_idx
     def __getitem__(self, glb_idx, comm_type, gather_rank=None):
         loc_idx = self._index_glb_to_loc(glb_idx)

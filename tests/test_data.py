@@ -211,6 +211,78 @@ class TestDataBasic:
         sf.data[1:-1, 0] = np.arange(8)
         assert np.all(sf.data[1:-1, 0] == np.arange(8))
 
+    def test_slice_after_transpose(self):
+        """
+        Slicing a ``Data`` view that has been transposed (via ``.T``,
+        ``transpose`` or ``swapaxes``) must use the new axis ordering for
+        per-axis metadata. Previously the metadata was copied verbatim from
+        the un-transposed array, so a subsequent slice was computed against
+        the wrong decomposition and silently returned a wrong-shaped result
+        (see issue #2187).
+        """
+        grid = Grid(shape=(4, 6))
+        f = Function(name='f', grid=grid)
+        f.data[:] = np.arange(24).reshape((4, 6)).astype(np.float32)
+        ref = np.array(f.data)
+
+        # ``.T`` (C-level shortcut) then slice
+        assert np.array_equal(f.data.T[::2, ::2], ref.T[::2, ::2])
+
+        # Equivalent: slice then ``.T``
+        assert np.array_equal(f.data[::2, ::2].T, ref[::2, ::2].T)
+
+        # Explicit ``transpose`` call -- same behavior as ``.T``
+        assert np.array_equal(f.data.transpose()[::2, ::2],
+                              ref.transpose()[::2, ::2])
+
+        # ``swapaxes`` between non-conforming dims
+        assert np.array_equal(f.data.swapaxes(0, 1)[::2, ::2],
+                              ref.swapaxes(0, 1)[::2, ::2])
+
+        # 3D transpose with an explicit axis order, then per-axis slice
+        grid3 = Grid(shape=(2, 4, 6))
+        g = Function(name='g3', grid=grid3)
+        g.data[:] = np.arange(48).reshape((2, 4, 6)).astype(np.float32)
+        ref3 = np.array(g.data)
+
+        assert np.array_equal(g.data.T[::2, ::2, ::2], ref3.T[::2, ::2, ::2])
+        assert np.array_equal(g.data.transpose((1, 0, 2))[::2, ::1, ::3],
+                              ref3.transpose((1, 0, 2))[::2, ::1, ::3])
+
+    def test_transpose_permutes_data_metadata(self):
+        """
+        After a transpose-like operation, ``_decomposition`` and ``_modulo``
+        must be permuted to match the new axis order so that subsequent
+        ``__getitem__`` translations use the right per-axis ranges.
+        """
+        grid = Grid(shape=(4, 6))
+        f = Function(name='f', grid=grid)
+
+        original_decomp = f.data._decomposition
+        assert len(original_decomp) == 2
+
+        # ``.T`` reverses everything
+        tdata = f.data.T
+        assert tdata._decomposition == original_decomp[::-1]
+        assert tdata._modulo == f.data._modulo[::-1]
+
+        # ``transpose()`` with no args == ``.T``
+        tdata2 = f.data.transpose()
+        assert tdata2._decomposition == original_decomp[::-1]
+
+        # ``swapaxes`` swaps the two named axes
+        sdata = f.data.swapaxes(0, 1)
+        assert sdata._decomposition == (original_decomp[1], original_decomp[0])
+
+        # Explicit axis-order
+        grid3 = Grid(shape=(2, 4, 6))
+        g = Function(name='g3', grid=grid3)
+        gdec = g.data._decomposition
+        perm = g.data.transpose((1, 2, 0))
+        assert perm._decomposition == (gdec[1], gdec[2], gdec[0])
+        assert perm._modulo == (g.data._modulo[1], g.data._modulo[2],
+                                g.data._modulo[0])
+
     @pytest.mark.parallel(mode=1)
     def test_indexing_into_sparse_subfunc_singlempi(self, mode):
         grid = Grid(shape=(4, 4))
