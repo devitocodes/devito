@@ -764,10 +764,10 @@ def test_multi_cond_v0():
     ntmod = (nt - 1) * factor + 1
 
     ct1 = ConditionalDimension(name="ct1", parent=grid.time_dim,
-                               factor=factor, relation=Or)
+                               factor=factor)
     ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
                                  condition=CondEq(grid.time_dim, ntmod - 2),
-                                 relation=Or)
+                                 relation='strict')
 
     f = TimeFunction(grid=grid, name='f', time_order=0,
                      space_order=0, save=nt, time_dim=ct1)
@@ -776,6 +776,7 @@ def test_multi_cond_v0():
     eqs = [Eq(T, grid.time_dim)]
     # This saves
     # - All subsampled times since ct1 is the dimension of f
+    eqs.append(Eq(f, T))
     # - The last time step (ntmod - 2) through ctend (since it's set as ct1 or ctend)
     eqs.append(Eq(f, T, implicit_dims=ctend))
 
@@ -839,11 +840,11 @@ def test_buffering_multi_cond(factor):
     # conditional dimension for the last sample in the operator
     ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
                                  condition=CondEq(grid.time_dim, ntmod - 2),
-                                 relation=Or)
+                                 relation='strict')
 
     eqs.append(Eq(f, T))  # this to save times from 0 to nt - 2
     # this to save the last time sample nt - 1
-    eqs.append(Eq(f.forward, T+1, implicit_dims=ctend))
+    eqs.append(Eq(f, T+1, implicit_dims=ctend))
 
     # run operator with serialization
     op = Operator(eqs, opt='buffering')
@@ -855,8 +856,7 @@ def test_buffering_multi_cond(factor):
                          space_order=0, time_dim=ct0, save=nt)
 
     eq_all = [Eq(f_all, f)]
-    eq_all.append(Eq(f_all.forward, f.forward, implicit_dims=ctend))
+    eq_all.append(Eq(f_all, f, implicit_dims=ctend))
     op_all = Operator(eq_all, opt='buffering')
     op_all.apply(time_m=0, time_M=ntmod-2)
-
     assert np.allclose(f_all.data[:, 11, 11], factor * np.arange(nt))

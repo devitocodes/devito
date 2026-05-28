@@ -1,17 +1,72 @@
 from collections import defaultdict
+from functools import singledispatch
 
-from sympy import true
+from sympy import Expr, Mod, true
 
 from devito.ir import (
     Backward, Forward, GuardBoundNext, PrefetchUpdate, Queue, ReleaseLock, SyncArray,
     WaitLock, WithLock, normalize_syncs
 )
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
-from devito.symbolics import IntDiv, uxreplace
+from devito.symbolics import IntDiv, retrieve_terminals, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
-from devito.types import CustomDimension, Lock
+from devito.types import CustomDimension, Lock, VirtualDimension
 
 __all__ = ['memcpy_prefetch', 'tasking']
+
+
+@singledispatch
+def next_index(expr, dim, dir):
+    return expr._subs(dim, dim + dir)
+
+
+@next_index.register(Expr)
+def _(expr, dim, dir):
+    if not expr.args:
+        return expr._subs(dim, dim + dir)
+    return expr.func(*[next_index(a, dim, dir) for a in expr.args])
+
+
+@next_index.register(IntDiv)
+def _(expr, dim, dir):
+    """
+    Handle forward and backward fetches separately to handle non-canonical index
+    expressions of the form:
+
+        t//factor + cond(t)
+
+    where ``cond(t)`` is a piecewise correction term.
+
+    The forward fetch advances to the next coarse-grained slot while evaluating
+    the correction at the next time point:
+
+        t//factor + cond(t)
+            -> (t//factor + 1) + cond(t + 1)
+
+    The backward fetch is not, in general, the inverse transformation obtained by
+    replacing ``+1`` with ``-1``. The correction may already be applied at the
+    current time point, causing the forward and backward fetches to be asymmetric.
+
+    For example, with ``factor=2`` and ``cond(t) := (t == a)``, the index at
+    ``t=a=3`` is:
+
+        3//2 + 1 = 2
+
+    while the previous index is:
+
+        2//2 + 0 = 1
+
+    A symmetric backward transformation would instead yield:
+
+        3//2 - 1 + 0 = 0
+    """
+    if expr.lhs._defines & dim._defines:
+        if dir == 1:
+            return expr + dir
+        else:
+            return expr._subs(dim, dim + dir)
+    else:
+        return expr
 
 
 def async_trigger(c, dims):
@@ -78,7 +133,12 @@ class Tasking(Queue):
             d = self.key0(c0)
             if d is not dim:
                 continue
-
+            g = c0.guards.get(d)
+            if g is not None and (not g.has(Mod) and d in retrieve_terminals(g)) \
+                    and not wraps_memcpy(c0):
+                # Explicit compute guards need no pipeline; memcpy clusters
+                # still need WithLock for the copy-back sync
+                continue
             protected = self._schedule_waitlocks(c0, d, clusters, locks, syncs)
             self._schedule_withlocks(c0, d, protected, locks, syncs)
 
@@ -181,6 +241,7 @@ def memcpy_prefetch(clusters, key0, sregistry):
     """
     _, key = keys(key0)
     actions = defaultdict(Actions)
+    bounds = {}
 
     for c in clusters:
         d = key(c)
@@ -191,9 +252,12 @@ def memcpy_prefetch(clusters, key0, sregistry):
             continue
 
         if c.properties.is_prefetchable(d._defines):
-            _actions_from_update_memcpy(c, d, clusters, actions, sregistry)
+            _actions_from_update_memcpy(c, d, clusters, actions, sregistry, bounds)
         elif d.is_Custom and is_integer(c.ispace[d].size):
-            _actions_from_init(c, d, clusters, actions)
+            _actions_from_init(c, d, actions)
+        else:
+            # Explicit memcpy: no prefetch, just a sync device update
+            _actions_from_sync(c, d, actions)
 
     # Attach the computed Actions
     processed = []
@@ -214,7 +278,7 @@ def memcpy_prefetch(clusters, key0, sregistry):
     return processed
 
 
-def _actions_from_init(c, d, clusters, actions):
+def _actions_from_init(c, d, actions):
     e = c.exprs[0]
     function = e.rhs.function
     target = e.lhs.function
@@ -230,7 +294,21 @@ def _actions_from_init(c, d, clusters, actions):
     )
 
 
-def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
+def _actions_from_sync(c, d, actions):
+    """Emit a SyncArray so the device buffer is updated after the host fill."""
+    e = c.exprs[0]
+    function = e.rhs.function
+    target = e.lhs.function
+
+    tindex = e.lhs.indices[d]
+    findex = e.rhs.indices[d]
+
+    actions[c].syncs[d].append(
+        SyncArray(None, target, tindex, function, findex, d, 1)
+    )
+
+
+def _actions_from_update_memcpy(c, d, clusters, actions, sregistry, bounds):
     pd = d.root  # E.g., `vd -> time`
     direction = c.ispace[pd].direction
 
@@ -240,7 +318,15 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
 
     fetch = e.rhs.indices[d]
     fshift = {Forward: 1, Backward: -1}.get(direction, 0)
-    findex = fetch + fshift if fetch.find(IntDiv) else fetch._subs(pd, pd + fshift)
+    findex = next_index(fetch, pd, fshift)
+
+    # Maximum allowed access along d
+    if function.dimensions[d].is_Conditional:
+        nslot = function.dimension_shape[d]
+        v = function.dimensions[d].symbolic_factor
+        fd_max = bounds.setdefault(d, v * (nslot - 1))
+    else:
+        fd_max = bounds.setdefault(d, function.dimension_shape[d] - 1)
 
     # If fetching into e.g. `ub[t1]` we might need to prefetch into e.g. `ub[t0]`
     tindex0 = e.lhs.indices[d]
@@ -271,8 +357,17 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     ispace = c.ispace.augment({pd: tindex}) if tindex is not tindex0 else c.ispace
 
     guard0 = c.guards.get(d, true)._subs(fetch, findex)
-    guard1 = GuardBoundNext(function.indices[d], direction)
-    guards = c.guards.impose(d, guard0 & guard1)
+    guard1 = GuardBoundNext(function.indices[d], e.rhs.indices[d], direction,
+                            d_min=0, d_max=fd_max)
+
+    # First guard1 then if guard1 is valid we can safely evaluate guard0
+    # that will have valid indices into f
+    vdnext = VirtualDimension(name=f'vdnext_{d.name}', parent=pd)
+    ispace = ispace.insert(pd, vdnext)
+    # Check valid tindex first
+    guards = c.guards.impose(d, guard1)
+    # THen check valid access
+    guards = guards.impose(vdnext, guard0)
 
     syncs = {d: [
         ReleaseLock(handle, target),

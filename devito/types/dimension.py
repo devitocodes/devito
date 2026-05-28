@@ -912,6 +912,45 @@ class ConditionalDimension(DerivedDimension):
           }
         }
 
+    A ConditionalDimension may also be combined with other ConditionalDimensions
+    appearing in the same equation (for instance via ``implicit_dims``). The
+    ``relation`` argument controls how the individual conditions are merged:
+
+    * ``And`` (default): all conditions must hold (mutually exclusive merging).
+    * ``Or``: any one condition is enough for the if-branch to fire.
+    * ``'strict'``: this condition takes precedence over every other condition
+      attached to the same equation. At most one strict condition is allowed
+      per equation.
+
+    The example below sets every even ``x`` index to 1 via subsampling, and
+    additionally forces the right ``x`` edge to be written by combining the two
+    conditions with ``Or``.
+
+    >>> from sympy import Or
+    >>> from devito import Grid, CondEq
+    >>> grid = Grid(shape=(10, 10))
+    >>> x, y = grid.dimensions
+    >>> c_even = ConditionalDimension(name='ceven', parent=x, factor=2, relation=Or)
+    >>> c_edge = ConditionalDimension(name='cedge', parent=x,
+    ...                               condition=CondEq(x, x.symbolic_max),
+    ...                               relation=Or)
+    >>> f = Function(name='f', grid=grid, dimensions=(c_even, y),
+    ...              shape=(5, 10), space_order=0)
+    >>> op = Operator(Eq(f, 1, implicit_dims=c_edge))
+
+    The Operator generates the following for-loop (pseudocode), where the two
+    ``Or`` conditions are fused into a single guard.
+
+    .. code-block:: C
+
+        for (int x = x_m; x <= x_M; x += 1) {
+          if (x == x_M || x%cevenf == 0) {
+            for (int y = y_m; y <= y_M; y += 1) {
+              f[x / cevenf][y] = 1;
+            }
+          }
+        }
+
     """
 
     is_NonlinearDerived = True
