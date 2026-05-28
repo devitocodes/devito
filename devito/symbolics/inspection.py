@@ -315,20 +315,16 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
     if expr is None:
         return default
 
+    def inspect_args(e):
+        for arg in e.args:
+            dtype = getattr(arg, "dtype", None)
+            if dtype is not None:
+                dtypes.add(dtype)
+            else:
+                inspect_args(arg)
+
     dtypes = set()
-
-    def inspect(e):
-        try:
-            dtype = e.dtype
-        except AttributeError:
-            dtype = None
-        if dtype is not None:
-            dtypes.add(dtype)
-        else:
-            for arg in e.args:
-                inspect(arg)
-
-    inspect(expr)
+    inspect_args(expr)
 
     if not dtypes or not np.issubdtype(base, np.complexfloating):
         dtypes.update({base} - {None})
