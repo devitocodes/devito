@@ -20,7 +20,7 @@ class PetscLogger:
         self.sobjs = kwargs.get('solver_objs')
         self.sreg = kwargs.get('sregistry')
         self.section_mapper = kwargs.get('section_mapper', {})
-        self.inject_solve = kwargs.get('inject_solve', None)
+        self.inject_solve = kwargs.get('inject_solve')
 
         if level <= PERF:
             funcs = [

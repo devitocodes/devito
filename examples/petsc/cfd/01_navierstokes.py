@@ -133,9 +133,8 @@ def neumann_bottom(eq, subdomain):
     for f in funcs:
         # Get the y index
         yind = f.indices[-1]
-        if (yind - y).as_coeff_Mul()[0] < 0:
-            if f.name == 'pn1':
-                mapper.update({f: f.subs({yind: INT(abs(yind))})})
+        if (yind - y).as_coeff_Mul()[0] < 0 and f.name == 'pn1':
+            mapper.update({f: f.subs({yind: INT(abs(yind))})})
 
     return Eq(lhs.subs(mapper), rhs.subs(mapper), subdomain=subdomain)
 
@@ -177,12 +176,11 @@ def neumann_left(eq, subdomain):
     for f in funcs:
         # Get the x index
         xind = f.indices[-2]
-        if (xind - x).as_coeff_Mul()[0] < 0:
+        if (xind - x).as_coeff_Mul()[0] < 0 and f.name == 'pn1':
             # Symmetric mirror
             # Substitute where index is negative for +ve
             # where index is positive
-            if f.name == 'pn1':
-                mapper.update({f: f.subs({xind: INT(abs(xind))})})
+            mapper.update({f: f.subs({xind: INT(abs(xind))})})
 
     return Eq(lhs.subs(mapper), rhs.subs(mapper), subdomain=subdomain)
 

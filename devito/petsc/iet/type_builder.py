@@ -149,7 +149,7 @@ class CoupledTypeBuilder(BaseTypeBuilder):
         )
 
         # Build the bundle mapper
-        for f_arr, x_arr in zip(f_components, x_components):
+        for f_arr, x_arr in zip(f_components, x_components, strict=True):
             bundle_mapper[f_arr.base] = fbundle
             bundle_mapper[x_arr.base] = xbundle
 

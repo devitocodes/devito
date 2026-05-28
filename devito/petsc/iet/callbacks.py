@@ -28,8 +28,8 @@ class BaseCallbackBuilder:
     """
     def __init__(self, **kwargs):
 
-        self.rcompile = kwargs.get('rcompile', None)
-        self.sregistry = kwargs.get('sregistry', None)
+        self.rcompile = kwargs.get('rcompile')
+        self.sregistry = kwargs.get('sregistry')
         self.options = kwargs.get('options', {})
         self.concretize_mapper = kwargs.get('concretize_mapper', {})
         self.time_dependence = kwargs.get('time_dependence')
@@ -148,7 +148,7 @@ class BaseCallbackBuilder:
         """
         Create two callbacks: one to set PETSc options and one
         to clear them.
-        Options are only set/cleared if they were not specifed via
+        Options are only set/cleared if they were not specified via
         command line arguments.
         """
         params = self.solver_parameters
@@ -574,7 +574,7 @@ class BaseCallbackBuilder:
         sobjs = self.solver_objs
         objs = self.objs
 
-        # Compile initital guess `eqns` into an IET via recursive compilation
+        # Compile initial guess `eqns` into an IET via recursive compilation
         irs, _ = self.rcompile(
             exprs, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
@@ -1335,7 +1335,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
 
 
 def populate_matrix_context(efuncs):
-    if not objs['dummyefunc'] in efuncs.values():
+    if objs['dummyefunc'] not in efuncs.values():
         return
 
     subdms_expr = DummyExpr(

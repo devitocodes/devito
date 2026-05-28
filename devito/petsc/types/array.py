@@ -40,7 +40,7 @@ class PETScArray(ArrayBasic, Differentiable):
         self._dimensions = kwargs['dimensions'] = self._target.space_dimensions
         super().__init_finalize__(*args, **kwargs)
         self._coefficients = self._target.coefficients
-        self._localinfo = kwargs.get('localinfo', None)
+        self._localinfo = kwargs.get('localinfo')
 
     @property
     def ndim(self):
@@ -55,10 +55,7 @@ class PETScArray(ArrayBasic, Differentiable):
         target = kwargs['target']
         dimensions = tuple(target.space_dimensions)
         target_indices = tuple(target.indices[d] for d in target.space_dimensions)
-        if args:
-            indices = args
-        else:
-            indices = target_indices
+        indices = args or target_indices
         return as_tuple(dimensions), as_tuple(indices)
 
     def __halo_setup__(self, **kwargs):
@@ -122,7 +119,7 @@ class PETScArray(ArrayBasic, Differentiable):
     @property
     def symbolic_shape(self):
         field_from_composites = [
-            FieldFromComposite('g%sm' % d.name, self.localinfo) for d in self.dimensions]
+            FieldFromComposite(f'g{d.name}m', self.localinfo) for d in self.dimensions]
         # Reverse it since DMDA is setup backwards to Devito dimensions.
         return DimensionTuple(*field_from_composites[::-1], getters=self.dimensions)
 

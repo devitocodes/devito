@@ -80,7 +80,7 @@ class TimeDependent(TimeBase):
 
     def target_time(self, target):
         target_time = [
-            i for i, d in zip(target.indices, target.dimensions)
+            i for i, d in zip(target.indices, target.dimensions, strict=True)
             if d.is_Time
         ]
         assert len(target_time) == 1

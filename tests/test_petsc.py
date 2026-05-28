@@ -52,7 +52,7 @@ def command_line():
     for p, opt, val in zip(prefix, petsc_option, value, strict=True):
         for o, v in zip(opt, val, strict=True):
             argv.extend([f'-{p}_{o}', str(v)])
-        expected[p] = zip(opt, val)
+        expected[p] = zip(opt, val, strict=True)
 
     return argv, expected
 
@@ -118,10 +118,10 @@ def test_petsc_subs():
     eqn = Eq(f1, f2.laplace)
     eqn_subs = eqn.subs(f2, arr)
 
-    assert str(eqn) == 'Eq(f1(x, y), Derivative(f2(x, y), (x, 2))' +  \
+    assert str(eqn) == 'Eq(f1(x, y), Derivative(f2(x, y), (x, 2))' + \
         ' + Derivative(f2(x, y), (y, 2)))'
 
-    assert str(eqn_subs) == 'Eq(f1(x, y), Derivative(arr(x, y), (x, 2))' +  \
+    assert str(eqn_subs) == 'Eq(f1(x, y), Derivative(arr(x, y), (x, 2))' + \
         ' + Derivative(arr(x, y), (y, 2)))'
 
     assert str(eqn_subs.rhs.evaluate) == '-2.0*arr(x, y)/h_x**2' + \
@@ -299,13 +299,13 @@ class TestStruct:
         ccode, hcode = op.cinterface(force=True)
 
         dirname = op._compiler.get_jit_dir()
-        assert os.path.isfile(os.path.join(dirname, "%s.c" % name))
-        assert os.path.isfile(os.path.join(dirname, "%s.h" % name))
+        assert os.path.isfile(os.path.join(dirname, f"{name}.c"))
+        assert os.path.isfile(os.path.join(dirname, f"{name}.h"))
 
         ccode = str(ccode)
         hcode = str(hcode)
 
-        assert 'include "%s.h"' % name in ccode
+        assert f'include "{name}.h"' in ccode
 
         # The public `struct UserCtx` only appears in the header file
         assert 'struct UserCtx0\n{' not in ccode
@@ -650,7 +650,7 @@ class TestTimeLoop:
         assert 'ctx0->t0' in rhs
         assert 'ctx0->time' in rhs
 
-        # Check the ouput is as expected given two time steps have been
+        # Check the output is as expected given two time steps have been
         # executed (time_M=1)
         assert np.all(u.data[1] == 1.)
         assert np.all(u.data[0] == 3.)
@@ -986,7 +986,9 @@ class TestCoupledLinear:
         *solved_funcs, h = functions
 
         equations = [Eq(func.laplace, h) for func in solved_funcs]
-        petsc = petscsolve({func: [eq] for func, eq in zip(solved_funcs, equations)})
+        petsc = petscsolve(
+            {func: [eq] for func, eq in zip(solved_funcs, equations, strict=True)}
+        )
 
         with switchconfig(language='petsc'):
             op = Operator(petsc, opt='noop')
@@ -1644,7 +1646,7 @@ class TestLogging:
         petsc_summary = summary.petsc
 
         # Check that the prefix is correctly set in the PetscSummary
-        key_strings = [f"{key.name}:{key.options_prefix}" for key in petsc_summary.keys()]
+        key_strings = [f"{key.name}:{key.options_prefix}" for key in petsc_summary]
         assert set(key_strings) == {"section0:pde1", "section1:pde2"}
 
     @skipif('petsc')
@@ -1815,9 +1817,8 @@ class TestSolverParameters:
             self.eq2, target=self.g, options_prefix='poisson',
             solver_parameters={'ksp_rtol': '1e-12'}
         )
-        with switchconfig(language='petsc'):
-            with pytest.raises(ValueError):
-                Operator([solver1, solver2])
+        with switchconfig(language='petsc'), pytest.raises(ValueError):
+            Operator([solver1, solver2])
 
     @skipif('petsc')
     @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
@@ -1858,7 +1859,7 @@ class TestSolverParameters:
     @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
     def test_command_line_priority_tols_1(self, command_line, log_level):
         """
-        Test solver tolerances specifed via the command line
+        Test solver tolerances specified via the command line
         take precedence over those specified in the defaults.
         """
         prefix = 'd17weqroeg'
@@ -1900,7 +1901,7 @@ class TestSolverParameters:
     @pytest.mark.parametrize('log_level', ['PERF', 'DEBUG'])
     def test_command_line_priority_tols3(self, command_line, log_level):
         """
-        Test solver tolerances specifed via the command line
+        Test solver tolerances specified via the command line
         take precedence over those specified by the `solver_parameters` dict.
         """
         prefix = 'fir8o3lsak'
@@ -1958,7 +1959,7 @@ class TestSolverParameters:
         entry = petsc_summary.get_entry('section0', prefix)
         for _, val in expected[prefix]:
             assert entry.KSPGetType == val
-            assert not entry.KSPGetType == params['ksp_type']
+            assert entry.KSPGetType != params['ksp_type']
 
     @skipif('petsc')
     def test_command_line_priority_ccode(self, command_line):
@@ -2002,7 +2003,7 @@ class TestSolverParameters:
         assert f'PetscOptionsClearValue(NULL,"-{prefix}_ksp_type"));' \
             not in clear_options_callback
 
-        # Check that options specifed by the `linear_solver_defaults`
+        # Check that options specified by the `linear_solver_defaults`
         # are still set and cleared
         assert f'PetscOptionsSetValue(NULL,"-{prefix}_ksp_atol",' \
             in set_options_callback
@@ -2251,7 +2252,7 @@ class TestPetscSection:
     the system as trivial equations.
 
     Users specify essential boundary conditions via the `EssentialBC` equation,
-    with a specifed `SubDomain`. When `constrain_bcs=True` is passed to `petscsolve`,
+    with a specified `SubDomain`. When `constrain_bcs=True` is passed to `petscsolve`,
     the Devito compiler generates code that removes these degrees of freedom from
     the linear system. A PETSc requirement is that each MPI rank identifies ALL
     constrained nodes within its local data region, including non-owned (halo) nodes.

@@ -13,7 +13,7 @@ __all__ = ['petscsolve']
 
 
 def petscsolve(target_exprs, target=None, solver_parameters=None,
-               options_prefix=None, get_info=[], constrain_bcs=False):
+               options_prefix=None, get_info=None, constrain_bcs=False):
     """
     Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
@@ -97,14 +97,14 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
 
 class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
-                 get_info=[], constrain_bcs=False):
+                 get_info=None, constrain_bcs=False):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
         self.time_mapper = None
         self.target_exprs = target_exprs
         # The original options prefix provided by the user
         self.user_prefix = options_prefix
         self.formatted_prefix = format_options_prefix(options_prefix)
-        self.get_info = [f.lower() for f in get_info]
+        self.get_info = [f.lower() for f in (get_info or [])]
         self.constrain_bcs = constrain_bcs
 
     def build_expr(self):
@@ -152,7 +152,8 @@ class InjectSolve:
             if not (
                 f.function is target.function and
                 any(dim.is_Time and i == j
-                    for dim, i, j in zip(f.dimensions, f.indices, target.indices))
+                    for dim, i, j in
+                    zip(f.dimensions, f.indices, target.indices, strict=True))
             )
         )
         self.time_mapper = generate_time_mapper(exprs)
@@ -264,13 +265,13 @@ def _out_of_domain_bc(target):
         return None
     grid = target.grid
     grid_dim_set = set(grid.dimensions)
-    staggered_dims = [d for d, s in zip(target.dimensions, target.staggered)
+    staggered_dims = [d for d, s in zip(target.dimensions, target.staggered, strict=True)
                       if s != 0 and d in grid_dim_set]
     if not staggered_dims:
         return None
     dims = {d: 'right' for d in staggered_dims}
     border = Border(grid, border=1, dims=dims,
-                    name='_stagger_border_%s' % target.name,
+                    name=f'_stagger_border_{target.name}',
                     corners='nooverlap')
     rhs = Constant(name='zero', dtype=target.dtype)
     return EssentialBC(target, rhs, subdomain=border, constrain=True)
@@ -314,11 +315,11 @@ def generate_time_mapper(exprs):
     time_indices.extend(list({
         i if isinstance(d, SteppingDimension) else d
         for f in funcs
-        for i, d in zip(f.indices, f.dimensions)
+        for i, d in zip(f.indices, f.dimensions, strict=True)
         if d.is_Time
     }))
-    tau_symbs = [Symbol('tau%d' % i) for i in range(len(time_indices))]
-    return dict(zip(time_indices, tau_symbs))
+    tau_symbs = [Symbol(f'tau{i}') for i in range(len(time_indices))]
+    return dict(zip(time_indices, tau_symbs, strict=True))
 
 
 localinfo = DMDALocalInfo(name='info', liveness='eager')

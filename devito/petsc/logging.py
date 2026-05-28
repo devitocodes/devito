@@ -77,7 +77,7 @@ class PetscSummary(dict):
             petsc_return_variable_dict[f].name for f in petscinfo.query_functions
         ]
         values = [getattr(petscinfo, c) for c in funcs]
-        return PetscEntry(**{k: v for k, v in zip(funcs, values)})
+        return PetscEntry(**{k: v for k, v in zip(funcs, values, strict=True)})
 
     def _add_properties(self):
         """
@@ -174,7 +174,7 @@ class PetscInfo(CompositeObject):
         entries = []
         for field in self._fields:
             if str(field.dtype) == 'KSPType':
-                entries.append(Value('char', '%s[%d]' % (field.name, KSPTYPE_MAX_LEN)))
+                entries.append(Value('char', f'{field.name}[{KSPTYPE_MAX_LEN}]'))
             else:
                 entries.append(Value(str(field.dtype), field.name))
         return Struct(self.dtype._type_.__name__, entries)

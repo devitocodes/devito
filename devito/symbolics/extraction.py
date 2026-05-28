@@ -7,7 +7,7 @@ from devito.finite_differences.differentiable import Mul
 from devito.symbolics import retrieve_functions
 from devito.types.equation import Eq
 
-__all__ = ['separate_eqn', 'generate_targets', 'centre_stencil']
+__all__ = ['centre_stencil', 'generate_targets', 'separate_eqn']
 
 
 def separate_eqn(eqn, target):
@@ -53,7 +53,7 @@ def _(expr, targets):
     if not any(expr.has(t) for t in targets):
         return (expr, 0)
 
-    args_b, args_F = zip(*(remove_targets(a, targets) for a in expr.args))
+    args_b, args_F = zip(*(remove_targets(a, targets) for a in expr.args), strict=True)
     return (expr.func(*args_b, evaluate=False), expr.func(*args_F, evaluate=False))
 
 
@@ -63,7 +63,7 @@ def _(expr, targets):
         return (expr, 0)
 
     args_b, args_F = zip(*[remove_targets(a, targets) if any(a.has(t) for t in targets)
-                           else (a, a) for a in expr.args])
+                           else (a, a) for a in expr.args], strict=True)
     return (expr.func(*args_b, evaluate=False), expr.func(*args_F, evaluate=False))
 
 

@@ -180,7 +180,7 @@ class FIndexed(Indexed, Pickable):
         """
         f = self.function
         strides_map = self.strides_map
-        spatial = [(d, idx) for d, idx in zip(f.dimensions, self.indices)
+        spatial = [(d, idx) for d, idx in zip(f.dimensions, self.indices, strict=True)
                    if not d.is_Time]
         items = [idx * strides_map[spatial[i + 1][0]]
                  for i, (_, idx) in enumerate(spatial[:-1])]

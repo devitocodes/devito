@@ -140,7 +140,7 @@ def test_callback_cgen():
         def callback_form(self):
             param_types = ', '.join([str(t) for t in
                                      self.param_types])
-            return "(%s (*)(%s))%s" % (self.retval, param_types, self.name)
+            return f"({self.retval} (*)({param_types})){self.name}"
 
     a = Symbol('a')
     b = Symbol('b')

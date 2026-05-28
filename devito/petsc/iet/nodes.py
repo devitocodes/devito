@@ -18,13 +18,13 @@ class MatShellSetOp(Callback):
     @property
     def callback_form(self):
         param_types_str = ', '.join([str(t) for t in self.param_types])
-        return "(%s (*)(%s))%s" % (self.retval, param_types_str, self.name)
+        return f"({self.retval} (*)({param_types_str})){self.name}"
 
 
 class FormFunctionCallback(Callback):
     @property
     def callback_form(self):
-        return "%s" % self.name
+        return f'{self.name}'
 
 
 class PETScCall(Call):

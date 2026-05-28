@@ -176,7 +176,7 @@ class Mod(sympy.Expr):
         return obj
 
     def __str__(self):
-        return "Mod(%s, %s)" % (self.lhs, self.rhs)
+        return f"Mod({self.lhs}, {self.rhs})"
 
     __repr__ = __str__
 

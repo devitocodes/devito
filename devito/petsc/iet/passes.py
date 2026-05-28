@@ -168,10 +168,7 @@ def linear_indices(iet, **kwargs):
     if not iet.name.startswith("SetPointBCs"):
         return iet, {}
 
-    if kwargs['options']['index-mode'] == 'int32':
-        dtype = np.int32
-    else:
-        dtype = np.int64
+    dtype = np.int32 if kwargs['options']['index-mode'] == 'int32' else np.int64
 
     tracker = Tracker('basic', dtype, kwargs['sregistry'])
 

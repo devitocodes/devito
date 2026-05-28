@@ -818,6 +818,6 @@ def targets_to_arrays(array, targets):
         tuple(f.indices[d] for d in f.space_dimensions) for f in targets
     ]
     array_targets = [
-        array.subs(dict(zip(array.indices, i))) for i in space_indices
+        array.subs(dict(zip(array.indices, i, strict=True))) for i in space_indices
     ]
-    return frozendict(zip(targets, array_targets))
+    return frozendict(zip(targets, array_targets, strict=True))

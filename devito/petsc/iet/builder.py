@@ -68,7 +68,8 @@ class BuilderBase:
         )
 
         local_size = math.prod(
-            v for v, dim in zip(target.shape_allocated, target.dimensions) if dim.is_Space
+            v for v, dim in zip(target.shape_allocated, target.dimensions, strict=True)
+            if dim.is_Space
         )
         # TODO: Check - VecCreateSeqWithArray vs VecCreateMPIWithArray
         local_x = petsc_call('VecCreateSeqWithArray',
@@ -104,7 +105,7 @@ class BuilderBase:
 
         dmda_calls = self._create_dmda_calls(dmda)
 
-        # TODO: maybe don't need to explictly set this
+        # TODO: maybe don't need to explicitly set this
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
 
         base_setup = dmda_calls + (
@@ -252,7 +253,7 @@ class CoupledBuilder(BuilderBase):
 
         dmda_calls = self._create_dmda_calls(dmda)
 
-        # TODO: maybe don't need to explictly set this
+        # TODO: maybe don't need to explicitly set this
         mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
 
         create_field_decomp = petsc_call(
@@ -299,7 +300,8 @@ class CoupledBuilder(BuilderBase):
         for t in targets:
             target_xloc = sobjs[f'xlocal{t.name}']
             local_size = math.prod(
-                v for v, dim in zip(t.shape_allocated, t.dimensions) if dim.is_Space
+                v for v, dim in zip(t.shape_allocated, t.dimensions, strict=True)
+                if dim.is_Space
             )
             field_from_ptr = FieldFromPointer(
                 t.function._C_field_data, t.function._C_symbol

@@ -78,7 +78,7 @@ def get_petsc_type_mappings():
         petsc_type_to_ctype = {v: k for k, v in printer_mapper.items()}
         # Add other PETSc types
         petsc_type_to_ctype.update({
-            # Store a copy so it doens't segfault after SNESDestroy
+            # Store a copy so it doesn't segfault after SNESDestroy
             'KSPType': ctypes.c_char * KSPTYPE_MAX_LEN,
             'KSPConvergedReason': petsc_type_to_ctype['PetscInt'],
             'KSPNormType': petsc_type_to_ctype['PetscInt'],
