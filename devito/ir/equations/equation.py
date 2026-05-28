@@ -5,19 +5,15 @@ import numpy as np
 import sympy
 
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.equations.algorithms import dimension_sort, lower_exprs
+from devito.ir.equations.algorithms import dimension_sort, generate_conditionals
 from devito.ir.support import (
-    GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
+    Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
 )
-from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
+from devito.symbolics import limits_mapper, retrieve_accesses
 from devito.tools import (
     Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
 )
-from devito.symbolics import IntDiv, limits_mapper, uxreplace
-from devito.tools import Pickable, Tag, frozendict
-from devito.types import (
-    Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min, relational_shift
-)
+from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax
 
 __all__ = [
     'ClusterizedEq',
@@ -296,44 +292,7 @@ class LoweredEq(IREq):
                                   relations=ordering.relations, mode='partial')
         ispace = IterationSpace(intervals, iterators)
 
-        # Construct the conditionals
-        conditionals = {}
-        for d in ordering:
-            if not d.is_Conditional:
-                continue
-            if d.condition is None:
-                conditionals[d] = GuardFactor(d)
-            else:
-                cond = diff2sympy(lower_exprs(d.condition))
-                if d._factor is not None:
-                    cond = d.relation(cond, GuardFactor(d))
-                conditionals[d] = cond
-
-        # Replace the ConditionalDimensions in `expr`
-        for d, cond in conditionals.items():
-            # Replace dimension with index
-            index = d.index
-            index = index - relational_min(cond, d.parent)
-            shift = relational_shift(cond, d.parent)
-            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
-
-        # Merge conditionals when possible. E.g if we have an implicit_dim
-        # and there is a dimension with the same parent, we ca merged
-        # its condition
-        for d in input_expr.implicit_dims:
-            if d not in conditionals:
-                continue
-            for cd in dict(conditionals):
-                if cd.parent == d.parent and cd != d:
-                    cond = conditionals.pop(d)
-                    mode = cd.relation and d.relation
-                    if issubclass(mode, sympy.Or):
-                        conditionals[d] = cond
-                        conditionals.pop(cd)
-                    else:
-                        conditionals[cd] = mode(cond, conditionals[cd])
-                    break
-
+        expr, conditionals = generate_conditionals(expr, input_expr, ordering)
         # Lower all Differentiable operations into SymPy operations
         rhs = diff2sympy(expr.rhs)
 

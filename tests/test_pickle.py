@@ -526,7 +526,7 @@ class TestBasic:
         cd = ConditionalDimension(name='cd', parent=d, factor=4)
 
         for i in [d, cd]:
-            gbn = GuardBoundNext(i, direction)
+            gbn = GuardBoundNext(i, i + 1, direction)
 
             pkl_gbn = pickle.dumps(gbn)
             new_gbn = pickle.loads(pkl_gbn)

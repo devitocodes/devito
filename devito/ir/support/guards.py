@@ -13,7 +13,8 @@ from sympy import And, Expr, Ge, Gt, Le, Lt, Mul, true
 from sympy.logic.boolalg import BooleanFunction
 
 from devito.ir.support.space import Forward, IterationDirection
-from devito.symbolics import CondEq, CondNe, search
+from devito.symbolics import CondEq, CondNe, IntDiv, search
+from devito.symbolics.manipulation import _uxreplace_handle, _uxreplace_registry
 from devito.tools import Pickable, as_tuple, frozendict, split
 from devito.types import Dimension, LocalObject
 
@@ -29,6 +30,34 @@ __all__ = [
     'GuardSwitch',
     'Guards',
 ]
+
+
+@singledispatch
+def bound_index(expr, dim, dir):
+    if dir == Forward:
+        return expr._subs(dim, dim + 1)
+    else:
+        return expr._subs(dim, dim - 1)
+
+
+@bound_index.register(Expr)
+def _(expr, dim, dir):
+    if not expr.args:
+        if dir == Forward:
+            return expr._subs(dim, dim + 1)
+        else:
+            return expr._subs(dim, dim - 1)
+    return expr.func(*[bound_index(a, dim, dir) for a in expr.args])
+
+
+@bound_index.register(IntDiv)
+def _(expr, dim, dir):
+    v = dim.symbolic_factor
+    p0 = dim.root
+    if dir == Forward:
+        return Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
+    else:
+        return (p0 - 1) - abs(p0 - 1) % v
 
 
 class AbstractGuard:
@@ -138,37 +167,29 @@ class BaseGuardBoundNext(Guard, Pickable):
     given `direction`.
     """
 
-    __rargs__ = ('d', 'direction')
+    __rargs__ = ('d', 'index', 'direction')
+    __rkwargs__ = ('d_min', 'd_max')
 
-    def __new__(cls, d, direction, **kwargs):
+    def __new__(cls, d, index, direction,
+                d_min=None, d_max=None, **kwargs):
         assert isinstance(d, Dimension)
         assert isinstance(direction, IterationDirection)
 
+        # Always take the next index in the iteration direction
+        next_index = bound_index(index, d, direction)
+
+        # The direction might be forward but accessing c - d
+        # making the access backward w.r.t
+        # Update direction according to access direction for valid guard
+        if index.has(-d):
+            direction = -direction
+
         if direction == Forward:
-            p0 = d.root
-            p1 = d.root.symbolic_max
-
-            if d.is_Conditional:
-                v = d.symbolic_factor
-                # Round `p0 + 1` up to the nearest multiple of `v`
-                p0 = Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
-            else:
-                p0 = p0 + 1
-
+            p0 = next_index
+            p1 = d_max or d.root.symbolic_max
         else:
-            p0 = d.root.symbolic_min
-            p1 = d.root
-
-            if d.is_Conditional:
-                v = d.symbolic_factor
-                # Round `p1 - 1` down to the nearest sub-multiple of `v`
-                # NOTE: we use ABS to make sure we handle negative values properly.
-                # Once `p1 - 1` is negative (e.g. `iteration=time - 1` and `time=0`),
-                # as long as we get a negative number, rather than 0 and even if it's
-                # not `-v`, we're good
-                p1 = (p1 - 1) - abs(p1 - 1) % v
-            else:
-                p1 = p1 - 1
+            p0 = d_min if d_min is not None else d.root.symbolic_min
+            p1 = next_index
 
         try:
             if cls.__base__._eval_relation(p0, p1) is true:
@@ -180,12 +201,15 @@ class BaseGuardBoundNext(Guard, Pickable):
 
         obj.d = d
         obj.direction = direction
+        obj.index = index
+        obj.d_min = d_min
+        obj.d_max = d_max
 
         return obj
 
     @property
     def _args_rebuild(self):
-        return (self.d, self.direction)
+        return (self.d, self.index, self.direction)
 
 
 class GuardBoundNextLe(BaseGuardBoundNext, Le):
@@ -569,3 +593,11 @@ def pairwise_or(*guards):
             pass
 
     return guard
+
+
+_uxreplace_registry.register(BaseGuardBoundNext)
+
+
+@_uxreplace_handle.register(BaseGuardBoundNext)
+def _(expr, args, kwargs):
+    return expr.func(expr.d, expr.index, expr.direction, **kwargs)

@@ -3,7 +3,8 @@ from functools import cached_property
 from itertools import chain, groupby
 
 import numpy as np
-from sympy import Mod, S, simplify
+from sympy import Eq as SympyEq
+from sympy import Mod, Ne, S, simplify
 
 from devito.exceptions import CompilationError
 from devito.ir import (
@@ -116,8 +117,18 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     # Then we inject them into the Clusters. This involves creating the
     # initializing Clusters, and replacing the buffered Functions with the buffers
     clusters = InjectBuffers(mapper, sregistry, options).process(clusters)
-    print(clusters)
+
     return clusters
+
+
+def _explicit_guard(g, d):
+    """True if `g` pins `d` to a single value via `Eq(d, K)` or `Ne(d, K)`."""
+    if g is None:
+        return False
+    for a in [g] + list(g.args):
+        if isinstance(a, (SympyEq, Ne)) and a.has(d) and not a.has(Mod):
+            return True
+    return False
 
 
 class InjectBuffers(Queue):
@@ -142,22 +153,22 @@ class InjectBuffers(Queue):
             return clusters
         d = prefix[-1].dim
 
-        def key(f, *args):
-            for (ff, _) in self.mapper:
-                if f == ff:
-                    return True
-            return False
+        key = lambda f, *args: any(f == ff for ff, _ in self.mapper)
         bfmap = map_buffered_functions(clusters, key)
 
         # A BufferDescriptor is a simple data structure storing additional
         # information about a buffer, harvested from the subset of `clusters`
         # that access it
-        descriptors = {b: BufferDescriptor(f, b, bfmap[f], g)
-                       for (f, g), b in self.mapper.items()
-                       if f in bfmap}
+        descriptors = {}
+        for (f, g), b in self.mapper.items():
+            if f in bfmap:
+                fc = [c for c in bfmap[f] if c.guards == g]
+                descriptors.setdefault(b, []).append(BufferDescriptor(f, b, fc, g))
 
         # Are we inside the right `d`?
-        descriptors = {b: v for b, v in descriptors.items() if d in v.itdims}
+        descriptors = {b: [vi for vi in v if d in vi.itdims]
+                       for b, v in descriptors.items()}
+        descriptors = {b: v for b, v in descriptors.items() if v}
 
         if not descriptors:
             return clusters
@@ -172,23 +183,28 @@ class InjectBuffers(Queue):
         # Substitution rules to replace buffered Functions with buffers
         # E.g., `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`
         subs = {}
-        for b, v in descriptors.items():
-            accesses = chain(*[c.scope[v.f] for c in v.clusters])
-            index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
-            for a in accesses:
-                subs[a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
+        for b, vb in descriptors.items():
+            for v in vb:
+                for c in v.clusters:
+                    if c.guards.get(d) != v.guards.get(d):
+                        continue
+                    subs.setdefault(c, {})
+                    accesses = c.scope[v.f]
+                    index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
+                    for a in accesses:
+                        subs[c][a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
 
         processed = []
         for c in clusters:
             # If a buffer is read but never written, then we need to add
             # an Eq to step through the next slot
             # E.g., `ub[0, x] = usave[time+2, x]`
-            for _, v in descriptors.items():
+            for v in chain.from_iterable(descriptors.values()):
                 if not v.is_readonly:
                     continue
                 if c not in v.firstread:
                     continue
-                if not c.guards.get(d) == v.guards.get(d):
+                if c.guards.get(d) != v.guards.get(d):
                     continue
 
                 idxf = v.last_idx[c]
@@ -209,7 +225,8 @@ class InjectBuffers(Queue):
                     guards = c.guards
 
                 properties = c.properties.sequentialize(d)
-                if not isinstance(d, BufferDimension) and c.guards[d].has(Mod):
+                if not isinstance(d, BufferDimension) and \
+                        not _explicit_guard(c.guards.get(d, None), d):
                     properties = properties.prefetchable(d)
                 # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
                 properties = properties.parallelize(v.bdims).affine(v.bdims)
@@ -219,7 +236,7 @@ class InjectBuffers(Queue):
                 processed.append(Cluster(expr, ispace, guards, properties, syncs))
 
             # Substitute the buffered Functions with the buffers
-            exprs = [uxreplace(e, subs) for e in c.exprs]
+            exprs = [uxreplace(e, subs.get(c, {})) for e in c.exprs]
             ispace = c.ispace.augment(subiters)
             properties = c.properties.sequentialize(d)
             processed.append(
@@ -228,12 +245,12 @@ class InjectBuffers(Queue):
 
             # Append the copy-back if `c` is the last-write of some buffers
             # E.g., `usave[time+1, x] = ub[t1, x]`
-            for _, v in descriptors.items():
+            for v in chain.from_iterable(descriptors.values()):
                 if v.is_readonly:
                     continue
                 if c not in v.lastwrite:
                     continue
-                if not c.guards.get(d) == v.guards.get(d):
+                if c.guards.get(d) != v.guards.get(d):
                     continue
 
                 idxf = v.last_idx[c]
@@ -269,36 +286,37 @@ class InjectBuffers(Queue):
         return init + processed
 
     def _optimize(self, clusters, descriptors):
-        for b, v in descriptors.items():
-            if v.is_writeonly:
-                # `b` might be written by multiple, potentially mutually
-                # exclusive, equations. For example, two equations that have or
-                # will have complementary guards, hence only one will be
-                # executed. In such a case, we can split the equations over
-                # separate IterationSpaces
-                key0 = lambda: Stamp()
-            elif v.is_readonly:
-                # `b` is read multiple times -- this could just be the case of
-                # coupled equations, so we more cautiously perform a
-                # "buffer-wise" splitting of the IterationSpaces (i.e., only
-                # relevant if there are at least two read-only buffers)
-                stamp = Stamp()
-                key0 = lambda: stamp  # noqa: B023
-            else:
-                continue
-
-            processed = []
-            for c in clusters:
-                if b not in c.functions:
-                    processed.append(c)
+        for b, vb in descriptors.items():
+            for v in vb:
+                if v.is_writeonly:
+                    # `b` might be written by multiple, potentially mutually
+                    # exclusive, equations. For example, two equations that have or
+                    # will have complementary guards, hence only one will be
+                    # executed. In such a case, we can split the equations over
+                    # separate IterationSpaces
+                    key0 = lambda: Stamp()
+                elif v.is_readonly:
+                    # `b` is read multiple times -- this could just be the case of
+                    # coupled equations, so we more cautiously perform a
+                    # "buffer-wise" splitting of the IterationSpaces (i.e., only
+                    # relevant if there are at least two read-only buffers)
+                    stamp = Stamp()
+                    key0 = lambda: stamp  # noqa: B023
+                else:
                     continue
 
-                key1 = lambda d: not d._defines & v.dim._defines  # noqa: B023
-                dims = c.ispace.project(key1).itdims
-                ispace = c.ispace.lift(dims, key0())
-                processed.append(c.rebuild(ispace=ispace))
+                processed = []
+                for c in clusters:
+                    if b not in c.functions:
+                        processed.append(c)
+                        continue
 
-            clusters = processed
+                    key1 = lambda d: not d._defines & v.dim._defines  # noqa: B023
+                    dims = c.ispace.project(key1).itdims
+                    ispace = c.ispace.lift(dims, key0())
+                    processed.append(c.rebuild(ispace=ispace))
+
+                clusters = processed
 
         return clusters
 
@@ -307,9 +325,9 @@ class InjectBuffers(Queue):
         Reuse existing Buffers for buffering candidates.
         """
         buf_reuse = self.options['buf-reuse']
-
         if callable(buf_reuse):
-            cbk = lambda v: [i for i in v if buf_reuse(descriptors[i])]
+            cbk = lambda v: [i for i in v for di in descriptors[i]
+                             if buf_reuse(di)]
         else:
             cbk = lambda v: v
 
@@ -362,65 +380,86 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     # Sort for deterministic code generation
     bfmap = {i: bfmap[i] for i in sorted(bfmap, key=lambda i: i.name)}
 
-    # {buffered Function -> Buffer}
-    xds = {}
-    mapper = {}
-    for f, clusters in bfmap.items():
-        for k, ck in groupby(clusters, key=lambda c: c.guards):
-            exprs = flatten(c.exprs for c in ck)
-
-            bdims = key(f, exprs)
-
-            dims = [d for d in f.dimensions if d not in bdims]
-            if len(dims) != 1:
-                raise CompilationError(f"Unsupported multi-dimensional `buffering` "
-                                    f"required by `{f}`")
-            dim = dims.pop()
+    def make_buffer(f, dim, k, ck):
+        exprs = flatten(c.exprs for c in ck)
 
         if is_buffering(exprs):
-            # Multi-level buffering
-            # NOTE: a bit rudimentary (we could go through the exprs one by one
-            # instead), but it's much shorter this way
             buffers = [f for f in retrieve_functions(exprs) if f.is_Array]
             assert len(buffers) == 1, "Unexpected form of multi-level buffering"
             buffer, = buffers
             xd = buffer.indices[dim]
-            # The new buffer is derived from `buffer`, so it inherits its padding policy
             extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
         else:
-            size = infer_buffer_size(f, dim, clusters)
-
+            size = infer_buffer_size(f, dim, ck)
             if async_degree is not None:
                 if async_degree < size:
                     warning(
                         'Ignoring provided asynchronous degree as it would be '
-                        f'too small for the required buffer (provided {async_degree}, '
-                        f'but need at least {size} for `{f.name}`)'
+                        'too small for the required buffer (provided '
+                        f'{async_degree}, but need at least {size} for `{f.name}`)'
                     )
                 else:
                     size = async_degree
+            try:
+                xd = xds[(dim, size, k)]
+            except KeyError:
+                name = sregistry.make_name(prefix='db')
+                xd = xds[(dim, size, k)] = \
+                    BufferDimension(name, 0, size-1, size, dim)
+            extra_kwargs = {}
 
-                # A special CustomDimension to use in place of `dim` in the buffer
-                try:
-                    xd = xds[(dim, size)]
-                except KeyError:
-                    name = sregistry.make_name(prefix='db')
-                    xd = xds[(dim, size)] = BufferDimension(name, 0, size-1, size, dim)
-                extra_kwargs = {}
+        dimensions = list(f.dimensions)
+        assert dim in f.dimensions
+        dimensions[dimensions.index(dim)] = xd
 
-            # The buffer dimensions
-            dimensions = list(f.dimensions)
-            assert dim in f.dimensions
-            dimensions[dimensions.index(dim)] = xd
+        cls = callback or Array
+        name = sregistry.make_name(prefix=f'{f.name}b')
+        return cls(name=name, dimensions=dimensions, dtype=f.dtype,
+                   grid=f.grid, halo=f.halo,
+                   space='mapped', mapped=f, f=f, **extra_kwargs)
 
-            # Finally create the actual buffer
-            cls = callback or Array
-            name = sregistry.make_name(prefix=f'{f.name}b')
-            mapper[(f, k)] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                                 grid=f.grid, halo=f.halo,
-                                 space='mapped', mapped=f, f=f, **extra_kwargs)
+    # {buffered Function -> Buffer}
+    xds = {}
+    mapper = {}
+    extras = {}
+    for f, clusters in bfmap.items():
+        for k, ck in groupby(clusters, key=lambda c: c.guards):
+            ck = list(ck)
+
+            dim = _buffer_dim(f, key, ck)
+            if k and not dim._defines & k.keys():
+                # k doesn't constrain dim; defer and try to alias later
+                extras.setdefault(f, []).append((k, ck))
+                continue
+
+            mapper[(f, k)] = make_buffer(f, dim, k, ck)
+
+    # Alias deferred entries to an existing f-buffer; create one if none
+    for f, deferred in extras.items():
+        reusable = [mapper[(ff, kk)] for (ff, kk) in mapper if ff == f]
+        for k, ck in deferred:
+            buf = next((b for b in reusable
+                        if k.keys() & set(b.dimensions)), None)
+            if buf is None and reusable:
+                buf = reusable[0]
+            if buf is None:
+                dim = _buffer_dim(f, key, ck)
+                buf = make_buffer(f, dim, k, ck)
+                reusable.append(buf)
+            mapper[(f, k)] = buf
 
     return mapper
+
+
+def _buffer_dim(f, key, ck):
+    """The single Dimension of `f` along which to buffer."""
+    exprs = flatten(c.exprs for c in ck)
+    bdims = key(f, exprs)
+    dims = [d for d in f.dimensions if d not in bdims]
+    if len(dims) != 1:
+        raise CompilationError(f"Unsupported multi-dimensional `buffering` "
+                               f"required by `{f}`")
+    return dims.pop()
 
 
 def map_buffered_functions(clusters, key):
@@ -452,7 +491,7 @@ class BufferDescriptor:
         self.indices = extract_indices(f, self.dim, clusters)
 
     def __repr__(self):
-        return f"Descriptor[{self.f} -> {self.b}]"
+        return f"Descriptor[{self.f} -> {self.b}], {self.guards}"
 
     @property
     def size(self):
@@ -654,9 +693,21 @@ class BufferDescriptor:
             p, offset = offset_from_centre(d, self.indices)
 
             if self.is_forward_buffering:
-                v = p._subs(d.root, d.root.symbolic_min) - offset + self.xd
+                root_bound = d.root.symbolic_min
             else:
-                v = p._subs(d.root, d.root.symbolic_max) - offset + self.xd
+                root_bound = d.root.symbolic_max
+
+            if d.is_Conditional:
+                # The kernel first fires not at the loop bound but at the first
+                # multiple of `d.symbolic_factor` on the correct side of it. Round
+                # towards the loop body so `init_array0` seeds the slots actually
+                # read by the first firing.
+                v = d.symbolic_factor
+                if self.is_forward_buffering:
+                    root_bound = IntDiv(root_bound + v - 1, v) * v
+                else:
+                    root_bound = IntDiv(root_bound, v) * v
+            v = p._subs(d.root, root_bound) - offset + self.xd
 
         return Map(v % self.xd.symbolic_size, v)
 
@@ -667,7 +718,7 @@ def make_mds(descriptors, prefix, sregistry):
     inspecting all buffers so that ModuloDimensions are reused when possible.
     """
     mds = defaultdict(int)
-    for v in descriptors.values():
+    for v in chain.from_iterable(descriptors.values()):
         size = v.xd.symbolic_size
 
         if size == 1:
@@ -683,7 +734,6 @@ def make_mds(descriptors, prefix, sregistry):
         # same strategy is also applied in clusters/algorithms/Stepper
         key = lambda i: -np.inf if i - p == 0 else (i - p)  # noqa: B023
         indices = sorted(v.indices, key=key)
-        v_mds = None
 
         for k, i in enumerate(indices):
             k = (v.xd, i)
@@ -710,42 +760,42 @@ def init_buffers(descriptors, options):
     init_onwrite = options['buf-init-onwrite']
 
     init = []
-    for b, v in descriptors.items():
-        f = v.f
+    for b, vb in descriptors.items():
+        for v in vb:
+            f = v.f
 
-        if v.is_read:
-            # Special case: avoid initialization in the case of double (or
-            # multiple) buffering because it's completely unnecessary
-            if v.is_double_buffering:
+            if v.is_read:
+                # Special case: avoid initialization in the case of double (or
+                # multiple) buffering because it's completely unnecessary
+                if v.is_double_buffering:
+                    continue
+                lhs = b.indexify()._subs(v.xd, v.first_idx.b)
+                rhs = f.indexify()._subs(v.dim, v.first_idx.f)
+
+            elif v.is_write and init_onwrite(f):
+                lhs = b.indexify()
+                rhs = S.Zero
+
+            else:
                 continue
 
-            lhs = b.indexify()._subs(v.xd, v.first_idx.b)
-            rhs = f.indexify()._subs(v.dim, v.first_idx.f)
+            expr = Eq(lhs, rhs)
+            expr = lower_exprs(expr)
 
-        elif v.is_write and init_onwrite(f):
-            lhs = b.indexify()
-            rhs = S.Zero
+            ispace = v.write_to
 
-        else:
-            continue
+            guards = {}
+            guards[None] = GuardBound(v.dim.root.symbolic_min, v.dim.root.symbolic_max)
+            if v.is_read:
+                guards[v.xd] = GuardBound(0, v.first_idx.f)
 
-        expr = Eq(lhs, rhs)
-        expr = lower_exprs(expr)
+            properties = Properties()
+            properties = properties.affine(ispace.itdims)
+            properties = properties.parallelize(ispace.itdims)
 
-        ispace = v.write_to
+            syncs = {None: [InitArray(None, b)]}
 
-        guards = {}
-        guards[None] = GuardBound(v.dim.root.symbolic_min, v.dim.root.symbolic_max)
-        if v.is_read:
-            guards[v.xd] = GuardBound(0, v.first_idx.f)
-
-        properties = Properties()
-        properties = properties.affine(ispace.itdims)
-        properties = properties.parallelize(ispace.itdims)
-
-        syncs = {None: [InitArray(None, b)]}
-
-        init.append(Cluster(expr, ispace, guards, properties, syncs))
+            init.append(Cluster(expr, ispace, guards, properties, syncs))
 
     return init
 
