@@ -28,7 +28,7 @@ RUN python3 -m venv /venv && \
 RUN rm -rf /app/devito/.git
 
 # Copy Devito from petsc branch
-ADD . /app/devito
+COPY . /app/devito
 
 # Remove git files
 RUN rm -rf /app/devito/.git
@@ -37,7 +37,7 @@ RUN rm -rf /app/devito/.git
 RUN eval "$MPI4PY_FLAGS /venv/bin/pip install --no-cache-dir --verbose -r /app/devito/requirements-mpi.txt"
 
 # Install Devito with petsc requirements
-RUN /venv/bin/pip install --no-cache-dir -e /app/devito[extras,tests,petsc] && rm -rf ~/.cache/pip
+RUN /venv/bin/pip install --no-cache-dir -e "/app/devito[extras,tests,petsc]" && rm -rf ~/.cache/pip
 
 ENV PETSC_DIR="/opt/petsc/petsc"
 ENV PETSC_ARCH="devito_build"
