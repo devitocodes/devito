@@ -320,5 +320,12 @@ def _(expr, s):
 def _(expr, s):
     if isinstance(expr.lhs, sympy.Mod):
         return 0
-    from devito.symbolics.extended_dtypes import INT
-    return INT(Ge(*expr.args))
+
+    try:
+        # Not a stepping dimension, no shift
+        assert not expr.lhs.is_Time
+        return 0
+    except (AttributeError, AssertionError):
+        # Stepping dimension (time), requires shift
+        from devito.symbolics.extended_dtypes import INT
+        return INT(Ge(*expr.args))

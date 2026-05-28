@@ -326,6 +326,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             getters=self.dimensions
         )
 
+    dimension_shape = symbolic_shape
+
     @property
     def size_global(self):
         """
