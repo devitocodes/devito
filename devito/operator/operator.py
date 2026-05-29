@@ -33,7 +33,8 @@ from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
     Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
-    lower_dtypes, lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
+    lower_dtypes, lower_index_derivatives, lower_sparse_ops, minimize_symbols,
+    optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
@@ -504,13 +505,12 @@ class Operator(Callable):
         parameters = derive_parameters(uiet, True)
         iet = EntryFunction(name, uiet, 'int', parameters, ())
 
-        # Lower IET to a target-specific IET. Sparse-op lowering
-        # (``lower_sparse_ops``) is now run from inside ``mpiize``,
-        # between the halo-optimisation phase and the halo-exchange
-        # injection, so the reduction heuristic gets a chance to drop
-        # redundant halo exchanges around the sparse-op nest before
-        # the nest is sealed into an ElementalFunction.
+        # Materialise the sparse-op iteration nests into ElementalFunctions
+        # before target specialisation, so the position/coefficient temps
+        # the IET pass emits are visible to downstream passes (e.g. the
+        # data-transfer placement on device).
         graph = Graph(iet, **kwargs)
+        lower_sparse_ops(graph, **kwargs)
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling

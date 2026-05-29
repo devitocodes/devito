@@ -11,7 +11,6 @@ from devito.ir.support import PARALLEL, Scope
 from devito.mpi.reduction_scheme import DistReduce
 from devito.mpi.routines import HaloExchangeBuilder, ReductionBuilder
 from devito.passes.iet.engine import iet_pass
-from devito.passes.iet.sparse import lower_sparse_ops
 from devito.symbolics import VectorAccess, search
 from devito.tools import generator
 from devito.types import TensorMove
@@ -389,11 +388,6 @@ def mpiize(graph, **kwargs):
     Perform three IET passes:
 
         * Optimization of halo exchanges
-        * Lower sparse operations (Interpolation/Injection) into Calls
-          to ElementalFunctions. This runs after halo optimisation so
-          the reduction heuristic gets a chance to drop redundant halo
-          exchanges around the sparse-op nest before it is sealed into
-          an efunc.
         * Injection of code for halo exchanges
         * Injection of code for reductions
     """
@@ -401,8 +395,6 @@ def mpiize(graph, **kwargs):
 
     if options['opt-comms']:
         optimize_halospots(graph, **kwargs)
-
-    lower_sparse_ops(graph, **kwargs)
 
     mpimode = options['mpi']
     if mpimode:
