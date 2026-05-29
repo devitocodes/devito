@@ -17,7 +17,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (
     DeviceAwareMixin, LangBB, LangTransformer, ShmTransformer, make_sections_from_imask
 )
-from devito.symbolics import INT, LONG
+from devito.symbolics import INT, as_long
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
@@ -450,25 +450,6 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
         return self._make_parallel(graph, sync_mapper=graph.sync_mapper)
 
 
-def _avoid_overflow(expr):
-    """
-    The bounds of a host-device transfer section may be a product of the
-    Function's per-dimension sizes (e.g. ``size[0]*size[1]*size[2]``), as
-    happens when the transferred data is flattened (linearized). These sizes
-    are 32-bit C ints, so for a sufficiently large Function (more than ~2**31
-    elements) the product overflows `int` before it is used as an array bound,
-    producing a bogus transfer size (see issue #2777). Cast each factor of the
-    product to a 64-bit integer so the multiplication is carried out in 64-bit
-    arithmetic. A cast on the whole product would be too late (the overflow
-    would already have happened), hence each factor is cast individually.
-    Non-product bounds (a single size, an offset, a constant) cannot overflow
-    and are left untouched.
-    """
-    if getattr(expr, 'is_Mul', False):
-        return expr.func(*[LONG(a) for a in expr.args])
-    return expr
-
-
 class PragmaTransfer(Pragma, Transfer):
 
     """
@@ -510,8 +491,17 @@ class PragmaTransfer(Pragma, Transfer):
 
     @cached_property
     def _generate(self):
-        # Stringify sections
-        sections = ''.join([f'[{ccode(_avoid_overflow(i))}:{ccode(_avoid_overflow(j))}]'
+        # Stringify sections. When a transfer is linearized, the section size
+        # is a product of the Function's 32-bit per-dimension sizes (e.g.
+        # `size[0]*size[1]*size[2]`); for a Function with more than ~2**31
+        # elements this product overflows `int` before being used as an array
+        # bound, producing a bogus transfer size (#2777). Promote such products
+        # to 64-bit with `as_long` so the multiplication is carried out in
+        # 64-bit arithmetic. Non-product bounds (a single size, an offset, a
+        # constant) cannot overflow and are left untouched.
+        def cast(e):
+            return as_long(e) if getattr(e, 'is_Mul', False) else e
+        sections = ''.join([f'[{ccode(cast(i))}:{ccode(cast(j))}]'
                             for i, j in self.sections])
         arguments = [ccode(i) for i in self.arguments]
         return self.pragma % (self.function.name, sections, *arguments)
