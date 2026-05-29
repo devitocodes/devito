@@ -54,14 +54,14 @@ class TestCodeGeneration:
         assert trees[0][1].pragmas[0].ccode.value ==\
             'omp target teams distribute parallel for collapse(3)'
         assert op.body.maps[0].ccode.value ==\
-            ('omp target enter data map(to: u[0:(long)(u_vec->size[0])*'
-             '(long)(u_vec->size[1])*(long)(u_vec->size[2])*(long)(u_vec->size[3])])')
+            ('omp target enter data map(to: u[0:(long)(u_vec->size[3])*'
+             '(long)(u_vec->size[2])*(long)(u_vec->size[1])*(long)(u_vec->size[0])])')
         assert op.body.unmaps[0].ccode.value ==\
-            ('omp target update from(u[0:(long)(u_vec->size[0])*'
-             '(long)(u_vec->size[1])*(long)(u_vec->size[2])*(long)(u_vec->size[3])])')
+            ('omp target update from(u[0:(long)(u_vec->size[3])*'
+             '(long)(u_vec->size[2])*(long)(u_vec->size[1])*(long)(u_vec->size[0])])')
         assert op.body.unmaps[1].ccode.value ==\
-            ('omp target exit data map(release: u[0:(long)(u_vec->size[0])*'
-             '(long)(u_vec->size[1])*(long)(u_vec->size[2])*(long)(u_vec->size[3])]) '
+            ('omp target exit data map(release: u[0:(long)(u_vec->size[3])*'
+             '(long)(u_vec->size[2])*(long)(u_vec->size[1])*(long)(u_vec->size[0])]) '
              'if(devicerm)')
 
         # Currently, advanced-fsg mode == advanced mode
@@ -127,16 +127,16 @@ class TestCodeGeneration:
         for i, f in enumerate([u, v]):
             assert op.body.maps[i].ccode.value ==\
                 (f'omp target enter data map(to: {f.name}'
-                 f'[0:(long)({f.name}_vec->size[0])*(long)({f.name}_vec->size[1])*'
-                 f'(long)({f.name}_vec->size[2])*(long)({f.name}_vec->size[3])])')
+                 f'[0:(long)({f.name}_vec->size[3])*(long)({f.name}_vec->size[2])*'
+                 f'(long)({f.name}_vec->size[1])*(long)({f.name}_vec->size[0])])')
             assert op.body.unmaps[2*i + 0].ccode.value ==\
                 (f'omp target update from({f.name}'
-                 f'[0:(long)({f.name}_vec->size[0])*(long)({f.name}_vec->size[1])*'
-                 f'(long)({f.name}_vec->size[2])*(long)({f.name}_vec->size[3])])')
+                 f'[0:(long)({f.name}_vec->size[3])*(long)({f.name}_vec->size[2])*'
+                 f'(long)({f.name}_vec->size[1])*(long)({f.name}_vec->size[0])])')
             assert op.body.unmaps[2*i + 1].ccode.value ==\
                 (f'omp target exit data map(release: {f.name}'
-                 f'[0:(long)({f.name}_vec->size[0])*(long)({f.name}_vec->size[1])*'
-                 f'(long)({f.name}_vec->size[2])*(long)({f.name}_vec->size[3])]) '
+                 f'[0:(long)({f.name}_vec->size[3])*(long)({f.name}_vec->size[2])*'
+                 f'(long)({f.name}_vec->size[1])*(long)({f.name}_vec->size[0])]) '
                  'if(devicerm)')
 
     def test_multiple_loops(self):
