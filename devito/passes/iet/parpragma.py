@@ -130,6 +130,16 @@ class PragmaSimdTransformer(PragmaTransformer):
                 if any(i.is_Indexed for i in reductions):
                     continue
 
+            # A scalar reduction in the loop body (e.g. ``acc += ...`` with
+            # ``acc`` a Symbol, as emitted by the interpolation accumulator
+            # pattern) is a cross-iteration dependence the SIMD pragma alone
+            # can't express -- it would need a ``reduction(+:acc)`` clause,
+            # which we don't emit here. Without it, ``_Complex`` accumulators
+            # are miscompiled by some gcc releases.
+            exprs = FindNodes(Expression).visit(candidate)
+            if any(e.is_reduction and not e.output.is_Indexed for e in exprs):
+                continue
+
             # Add SIMD pragma
             simd = self._make_simd_pragma(candidate)
             pragmas = candidate.pragmas + simd

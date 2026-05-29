@@ -69,13 +69,16 @@ def lower_sparse_ops(iet, sregistry=None, **kwargs):
             continue
         groups.setdefault(nest, []).append(expr)
 
-    # If a sparse-op nest sits inside a HaloSpot whose halo scheme is
-    # void (the reduction-only halo got dropped by
-    # ``_drop_reduction_halospots``), replace the HaloSpot rather than
-    # just the nest so we don't leave behind an empty HaloSpot — the
-    # MPI overlap machinery would otherwise try to wrap our Call with
-    # its own dynamic-args plumbing.
-    parents = {nest: _enclosing_void_halospot(iet, nest) for nest in groups}
+    # ``lower_sparse_ops`` runs before ``optimize_halospots``, so the
+    # halo-exchange optimiser hasn't yet had a chance to drop the
+    # reduction-only halo entries that the IR scheduler put around an
+    # injection nest (e.g. an entry for ``u`` at ``loc_indices={time:
+    # time+1}`` wrapping ``u[time+1] += ...``). Once the nest becomes a
+    # Call those expressions are no longer visible to
+    # ``_drop_reduction_halospots``, so we shed those entries here -- and
+    # if that empties the HaloSpot, replace it whole so the MPI overlap
+    # machinery doesn't wrap our Call with stale dynamic-args plumbing.
+    parents = {nest: _enclosing_halospot(iet, nest) for nest in groups}
 
     mapper = {}
     efuncs = []
@@ -87,7 +90,26 @@ def lower_sparse_ops(iet, sregistry=None, **kwargs):
         efunc = make_callable(sregistry.make_name(prefix=prefix), new_nest)
         efuncs.append(efunc)
 
-        mapper[parents[nest] or nest] = Call(efunc.name, list(efunc.parameters))
+        call = Call(efunc.name, list(efunc.parameters))
+        parent = parents[nest]
+        if parent is None:
+            mapper[nest] = call
+            continue
+
+        # Drop fields that the (now-opaque) Call only writes/increments,
+        # since the wrapping HaloSpot's purpose was to ensure read-side
+        # coherency for them and the read no longer exists at the IET
+        # level. Interpolation reads its target field, so its entries
+        # stay.
+        reduced = {e.expr.lhs.function for e in exprs
+                   if isinstance(e.expr, InjectionMixin)}
+        hs = parent.halo_scheme.drop(reduced) if reduced else parent.halo_scheme
+        if hs.is_void:
+            mapper[parent] = call
+        elif hs is parent.halo_scheme:
+            mapper[nest] = call
+        else:
+            mapper[parent] = parent._rebuild(halo_scheme=hs, body=call)
 
     if not mapper:
         return iet, {}
@@ -107,14 +129,12 @@ def _find_outer_iteration(iet, expr):
     return None
 
 
-def _enclosing_void_halospot(iet, nest):
+def _enclosing_halospot(iet, nest):
     """
-    Return the HaloSpot directly wrapping ``nest`` if it carries an
-    empty (void) HaloScheme, otherwise None. Such HaloSpots are leftover
-    after ``_drop_reduction_halospots`` cleared all entries.
+    Return the HaloSpot directly wrapping ``nest``, if any.
     """
     for hs in FindNodes(HaloSpot).visit(iet):
-        if hs.is_void and nest in FindNodes(Iteration).visit(hs):
+        if nest in FindNodes(Iteration).visit(hs):
             return hs
     return None
 

@@ -214,7 +214,12 @@ class BasePrinter(CodePrinter):
         suffix = self.func_literal(expr)
         base = self._print(expr.base)
         if equal_valued(expr.exp, -1):
-            return self._print_Float(Float(1.0)) + '/' + \
+            # Pick the literal precision from this Pow's dtype rather than
+            # the printer default, so e.g. ``Pow(DOUBLE(h), -1)`` emits
+            # ``1.0/(double)h`` not ``1.0F/(double)h``. This branch only
+            # fires when the surrounding Mul printer chose not to group
+            # the Pow into a denominator (e.g. lone reciprocal).
+            return f'1.0{self.prec_literal(expr)}/' + \
                 self.parenthesize(expr.base, PREC)
         elif equal_valued(expr.exp, 0.5):
             return f'{self.ns(expr)}sqrt{suffix}({base})'

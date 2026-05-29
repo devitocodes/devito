@@ -14,6 +14,7 @@ from devito.finite_differences.differentiable import Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
+from devito.symbolics.extended_dtypes import DOUBLE
 from devito.tools import as_tuple, filter_ordered, memoized_meth
 from devito.types import (
     Eq, Inc, IncrInterpolation, Injection, Interpolation, SubFunction, Symbol
@@ -257,9 +258,44 @@ class WeightedInterpolator(GenericInterpolator):
     def _coeff_temps(self, implicit_dims, shifts=None):
         return []
 
+    @memoized_meth
+    def _raw_pos_symbols(self, shifts=None):
+        """
+        Per-Dimension Symbol holding the unrounded grid-relative position
+        ``(coord - origin - shift)/h``. Both the integer position
+        (``floor(...)``) and the linear-interp fractional part
+        (``... - floor(...)``) reuse this Symbol so the divide-and-shift
+        expression is emitted only once per sparse point.
+        """
+        dtype = self.sfunction.coordinates.dtype
+        symbols = []
+        for d, s in zip(self.grid.dimensions,
+                        shifts or (0,) * len(self.grid.dimensions),
+                        strict=True):
+            suffix = '_s1' if s != 0 else ''
+            symbols.append(Symbol(name=f'rpos{d}{suffix}', dtype=dtype))
+        return DimensionTuple(*symbols, getters=self.grid.dimensions)
+
     def _positions(self, implicit_dims, shifts=None):
-        return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
-                for k, v in self.sfunction._position_map(shifts=shifts).items()]
+        # The ``(coord - origin)/h`` subtract is the only step that can lose
+        # precision to catastrophic cancellation when ``coord`` and ``origin``
+        # are large and close to each other (e.g. an origin-shifted survey).
+        # Promote ``origin`` and ``h`` to float64 so the subtract and divide
+        # happen in double precision in C (one cast operand promotes the
+        # whole expression); the result narrows to the field dtype on store
+        # to ``rpos*`` so downstream ``floor`` / fractional math stays in
+        # the field dtype.
+        rposs = self._raw_pos_symbols(shifts=shifts)
+        subs = {o: DOUBLE(o) for o in self.grid.origin_symbols}
+        subs.update({d.spacing: DOUBLE(d.spacing) for d in self._gdims})
+        return [Eq(rposs[d], k.xreplace(subs), implicit_dims=implicit_dims)
+                for d, k in zip(self._gdims,
+                                self.sfunction._position_map(shifts=shifts),
+                                strict=True)] + \
+               [Eq(v, INT(floor(rposs[d])), implicit_dims=implicit_dims)
+                for d, v in zip(self._gdims,
+                                self.sfunction._position_map(shifts=shifts).values(),
+                                strict=True)]
 
     def sparse_temps(self, rhs, implicit_dims, field=None):
         """
@@ -458,13 +494,14 @@ class LinearInterpolator(WeightedInterpolator):
         return DimensionTuple(*symbols, getters=self.grid.dimensions)
 
     def _coeff_temps(self, implicit_dims, shifts=None):
-        # Positions
-        pmap = self.sfunction._position_map(shifts=shifts)
+        # The fractional part of the unrounded position; reuse the
+        # ``rpos*`` Symbols emitted by ``_positions`` rather than the full
+        # ``(c - o)/h`` expression so the divide is computed only once.
+        rposs = self._raw_pos_symbols(shifts=shifts)
         psyms = self._point_symbols(shifts)
-        poseq = [Eq(psyms[d], pos - floor(pos),
-                    implicit_dims=implicit_dims)
-                 for (d, pos) in zip(self._gdims, pmap.keys(), strict=True)]
-        return poseq
+        return [Eq(psyms[d], rposs[d] - floor(rposs[d]),
+                   implicit_dims=implicit_dims)
+                for d in self._gdims]
 
 
 class PrecomputedInterpolator(WeightedInterpolator):
