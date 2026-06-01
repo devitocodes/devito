@@ -11,8 +11,9 @@ from devito.finite_differences.differentiable import EvalDerivative, IndexDeriva
 from devito.symbolics.extended_dtypes import LONG
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
-from devito.symbolics.search import (retrieve_functions, retrieve_indexed,
-                                     retrieve_terminals)
+from devito.symbolics.search import (
+    retrieve_functions, retrieve_indexed, retrieve_terminals
+)
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
 from devito.symbolics.unevaluation import Pow as UnevalPow
