@@ -579,7 +579,7 @@ def test_component_access_symbol_printing():
     acc = dSymbol(name='acc', dtype=dtypes_vector_mapper[(np.float32, 4)])
     expr = ComponentAccess(acc, 0)
 
-    assert ccode(sympy.Float('1.25')*expr, dtype=expr.dtype) == '1.250F*acc.x'
+    assert ccode(1.25*expr, dtype=expr.dtype) == '1.250F*acc.x'
 
 
 def test_vector_access():
