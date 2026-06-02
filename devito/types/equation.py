@@ -110,7 +110,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         """
         try:
             lhs = self.lhs._evaluate(**kwargs)
-            rhs = self.rhs._eval_at(self.lhs)._evaluate(**kwargs)
+            rhs = self.rhs._eval_at(self.lhs, **kwargs)._evaluate(**kwargs)
         except AttributeError:
             lhs, rhs = self._evaluate_args(**kwargs)
         eq = self.func(lhs, rhs, subdomain=self.subdomain,

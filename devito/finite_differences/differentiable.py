@@ -15,6 +15,7 @@ except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
+from devito.finite_differences.interpolation import interp_at, post_x0_indices
 from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
@@ -141,10 +142,6 @@ class Differentiable(sympy.Expr, Evaluable):
         return highest_priority(self).indices_ref
 
     @cached_property
-    def is_Staggered(self):
-        return any([getattr(i, 'is_Staggered', False) for i in self._args_diff])
-
-    @cached_property
     def is_TimeDependent(self):
         return any(i.is_Time for i in self.dimensions)
 
@@ -184,13 +181,11 @@ class Differentiable(sympy.Expr, Evaluable):
         key = lambda x: coeff_priority.get(x, -1)
         return sorted(coefficients, key=key, reverse=True)[0]
 
-    def _eval_at(self, func):
-        if not func.is_Staggered:
-            # Cartesian grid, do no waste time
-            return self
+    def _eval_at(self, func, **kwargs):
         return self.func(*[
-            getattr(a, '_eval_at', lambda x: a)(func) for a in self.args  # noqa: B023
-        ])  # false positive
+            getattr(a, '_eval_at', lambda x, **kw: a)(func, **kwargs)  # noqa: B023
+            for a in self.args  # false positive: lambda is invoked in-place
+        ])
 
     def _subs(self, old, new, **hints):
         if old == self:
@@ -669,6 +664,63 @@ class Mul(DifferentiableOp, sympy.Mul):
             other = self.func(*other)._eval_at(highest_priority(self))
             return self.func(other, *derivs)
 
+    def _eval_at(self, func, interp_mode='direct', **kwargs):
+        """
+        Evaluate a Mul at the location of `func`.
+
+        Two modes:
+
+        - `interp_mode='direct'` (default): per-arg evaluation; each factor is
+          independently evaluated at `func`'s location via
+          `Differentiable._eval_at`.
+
+        - `interp_mode='symmetric'`: when every Differentiable factor has a
+          staggering different from `func`'s, apply the `I * (a * I^T * b)`
+          form:
+
+            1. Pick a `block` location -- the highest-priority factor's
+               staggering (NODE is the highest priority, so coefficient-like
+               NODE factors win, as in the `I * C * I^T` elastic stiffness
+               pattern). Each factor not at the block is brought there via
+               `I^T` (an explicit 0-order FD interpolation operator).
+               Derivatives additionally set `x0` on their own derivative
+               dimensions to `func`'s indices.
+            2. The product is formed at `block`'s location.
+            3. The whole product is interpolated to `func` via `I` (an
+               explicit 0-order FD operator).
+
+          When the trigger does not hold (e.g. some factor already matches
+          `func`'s staggering), we fall back to `direct`.
+        """
+        if interp_mode != 'symmetric':
+            return super()._eval_at(func, **kwargs)
+
+        diff, other = split(self.args, lambda a: isinstance(a, Differentiable))
+
+        # Symmetric form requires every Differentiable factor to differ from
+        # func; otherwise direct evaluation is cleaner and equivalent.
+        if len(diff) < 2 or \
+           any(a.staggered == func.staggered for a in diff):
+            return super()._eval_at(func, **kwargs)
+
+        block_indices = highest_priority(self).indices_ref
+
+        # Bring each factor to block's location (I^T where needed)
+        new_factors = list(other)
+        for a in diff:
+            if isinstance(a, sympy.Derivative):
+                source = post_x0_indices(a, func)
+                a = a._rebuild(x0={dim: func.indices_ref[dim] for dim in a.dims
+                                   if dim in func.indices_ref.getters})
+            else:
+                source = a.indices_ref
+            new_factors.append(interp_at(a, source, block_indices,
+                                         self.interp_order))
+
+        # Final I from block's location to func
+        return interp_at(self.func(*new_factors), block_indices,
+                         func.indices_ref, self.interp_order)
+
 
 class Pow(DifferentiableOp, sympy.Pow):
     _fd_priority = 0
@@ -1020,7 +1072,7 @@ class IndexDerivative(IndexSum):
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         # Like EvalDerivative, a DiffDerivative must have already been evaluated
         # at a valid x0 and should not be re-evaluated at a different location
         return self
@@ -1074,7 +1126,7 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         kwargs.pop('is_commutative', None)
         return self.func(*args, **kwargs)
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         # An EvalDerivative must have already been evaluated at a valid x0
         # and should not be re-evaluated at a different location
         return self
@@ -1092,7 +1144,7 @@ class diffify:
 
     Notes
     -----
-    The name "diffify" stems from SymPy's "simpify", which has an analogous task --
+    The name "diffify" stems from SymPy's "simplify", which has an analogous task --
     converting all arguments into SymPy core objects.
     """
 
@@ -1240,7 +1292,7 @@ def _(expr, x0, **kwargs):
 @interp_for_fd.register(AbstractFunction)
 def _(expr, x0, **kwargs):
     x0_expr = {d: v for d, v in x0.items() if v.has(d)
-               and expr.indices[d] is not v}
+               and expr.indices.get(d, v) is not v}
     if x0_expr:
         return expr.subs({expr.indices[d]: v for d, v in x0_expr.items()})
     else:

@@ -170,12 +170,13 @@ class TensorFunction(AbstractTensor):
                 f'{self.__class__!r} object has no attribute {name!r}'
             ) from e
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         """
         Evaluate tensor at func location
         """
         def entries(i, j, func):
-            return getattr(self[i, j], '_eval_at', lambda x: self[i, j])(func[i, j])
+            return getattr(self[i, j], '_eval_at',
+                           lambda x: self[i, j])(func[i, j], **kwargs)
         entry = lambda i, j: entries(i, j, func)
         return self._new(self.rows, self.cols, entry)
 

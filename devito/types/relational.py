@@ -37,7 +37,7 @@ class Le(AbstractRel, sympy.Le):
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
     subdomain : SubDomain, optional
-        To restrict the evalaution of the relation to a particular sub-region in the
+        To restrict the evaluation of the relation to a particular sub-region in the
         computational domain.
 
     Examples
@@ -72,7 +72,7 @@ class Lt(AbstractRel, sympy.Lt):
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
     subdomain : SubDomain, optional
-        To restrict the evalaution of the relation to a particular sub-region in the
+        To restrict the evaluation of the relation to a particular sub-region in the
         computational domain.
 
     Examples
@@ -107,7 +107,7 @@ class Ge(AbstractRel, sympy.Ge):
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
     subdomain : SubDomain, optional
-        To restrict the evalaution of the relation to a particular sub-region in the
+        To restrict the evaluation of the relation to a particular sub-region in the
         computational domain.
 
     Examples
@@ -142,7 +142,7 @@ class Gt(AbstractRel, sympy.Gt):
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
     subdomain : SubDomain, optional
-        To restrict the evalaution of the relation to a particular sub-region in the
+        To restrict the evaluation of the relation to a particular sub-region in the
         computational domain.
 
     Examples
@@ -177,7 +177,7 @@ class Ne(AbstractRel, sympy.Ne):
     rhs : expr-like, optional
         The right-hand side. Defaults to 0.
     subdomain : SubDomain, optional
-        To restrict the evalaution of the relation to a particular sub-region in the
+        To restrict the evaluation of the relation to a particular sub-region in the
         computational domain.
 
     Examples
