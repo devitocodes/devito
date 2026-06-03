@@ -415,12 +415,17 @@ class AbstractSparseFunction(DiscreteFunction):
     @memoized_meth
     def _crdim(self, dim):
         """
-        The CustomDimension associated with the Dimension `dim` for
-        the radius of the interpolation/injection stencil
+        The CustomDimension associated with the grid Dimension ``dim``
+        for the radius of the interpolation/injection stencil. The
+        parent is ``dim`` itself so that ``_defines`` traces back to the
+        grid Dimension the radius slides over -- this is what dependence
+        analysis needs to recognise the implicit reduction over ``rp_*``
+        rather than treating ``rp_*`` as if they were derived from the
+        SparseFunction's sparse Dimension.
         """
         sname = self._sparse_dim.name
         return CustomDimension(f"r{sname}{dim.name}", -self.r+1,
-                               self.r, 2*self.r, self._sparse_dim)
+                               self.r, 2*self.r, dim)
 
     @memoized_meth
     def _cond_rdim(self, dim, cond):

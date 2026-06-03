@@ -34,7 +34,7 @@ class EqBlock(CacheInstances):
     @classmethod
     def _preprocess_args(cls, exprs, ispace=null_ispace, guards=None,
                          properties=None, syncs=None, halo_scheme=None):
-        exprs = tuple(ClusterizedEq(e, ispace=ispace) for e in as_tuple(exprs))
+        exprs = tuple(clusterize_eq(e, ispace=ispace) for e in as_tuple(exprs))
         guards = Guards(guards or {})
         properties = Properties(properties or {})
         syncs = normalize_syncs(syncs or {})

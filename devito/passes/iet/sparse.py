@@ -28,8 +28,8 @@ from collections import OrderedDict
 from devito.ir.equations import DummyEq
 from devito.ir.equations.algorithms import lower_exprs
 from devito.ir.iet import (
-    Call, EntryFunction, Expression, FindNodes, HaloSpot, Increment, Iteration, List,
-    Transformer, make_callable
+    Call, Conditional, EntryFunction, Expression, ExpressionBundle, FindNodes, HaloSpot,
+    Increment, Iteration, List, Transformer, make_callable
 )
 from devito.passes.iet.engine import iet_pass
 from devito.types import Eq, InjectionMixin, InterpolationMixin, Symbol
@@ -91,9 +91,22 @@ def lower_sparse_ops(iet, sregistry=None, **kwargs):
         efuncs.append(efunc)
 
         call = Call(efunc.name, list(efunc.parameters))
+
+        # Any HaloSpot living inside the nest (e.g. around the radius
+        # loops reading a grid Function) becomes invisible once the
+        # nest collapses into an opaque Call. Hoist its halo_scheme out
+        # so the halo exchange still happens at the right point in the
+        # parent IET, sitting next to the Call rather than buried in it.
+        # An injection's lhs is *written* (not read) so its inner halo
+        # entry for that Function is a reduction-only halo that the
+        # caller has nothing to read back -- drop it before hoisting.
+        reduced = {e.expr.lhs.function for e in exprs
+                   if isinstance(e.expr, InjectionMixin)}
+        prelude = _hoisted_halo_prelude(nest, reduced)
+
         parent = parents[nest]
         if parent is None:
-            mapper[nest] = call
+            mapper[nest] = List(body=prelude + (call,)) if prelude else call
             continue
 
         # Drop fields that the (now-opaque) Call only writes/increments,
@@ -120,7 +133,10 @@ def lower_sparse_ops(iet, sregistry=None, **kwargs):
 def _find_outer_iteration(iet, expr):
     """
     Walk up the IET from ``expr`` and return the outermost Iteration
-    whose ``dim.root`` is the SparseFunction's sparse Dimension.
+    whose ``dim.root`` is the SparseFunction's sparse Dimension. This
+    is the entry point of the sparse-op nest in the parent IET; the
+    full nest (including any block Iterations the cluster pipeline
+    wrapped around the sparse loop) gets extracted into the efunc.
     """
     sparse_dim = expr.expr.interpolator.sfunction._sparse_dim
     for it in FindNodes(Iteration).visit(iet):
@@ -139,6 +155,44 @@ def _enclosing_halospot(iet, nest):
     return None
 
 
+def _hoisted_halo_prelude(nest, reduced=None):
+    """
+    Build a tuple of nodes that recreate, outside the sparse nest, any
+    HaloSpots that live inside it. Each hoisted HaloSpot is wrapped in
+    the Iterations from ``nest`` whose dim is referenced by the halo's
+    ``loc_indices`` (e.g. the ``ps`` loop wrapping a halo whose
+    ``loc_indices = {ps}``), so the lowering pipeline that turns the
+    HaloSpot into a halo-exchange Call still sees the indices it needs
+    in scope.
+
+    ``reduced``, when provided, lists Functions whose halo entries
+    should be dropped from the hoisted scheme -- these are the
+    Functions the sparse Call only writes/increments (e.g. an
+    injection's lhs), so the parent never reads them back and the
+    halo update would be redundant.
+    """
+    reduced = reduced or set()
+
+    inner = []
+    for hs in FindNodes(HaloSpot).visit(nest):
+        scheme = hs.halo_scheme.drop(reduced) if reduced else hs.halo_scheme
+        if not scheme.is_void:
+            inner.append(scheme)
+    if not inner:
+        return ()
+
+    iters = FindNodes(Iteration).visit(nest)
+    prelude = []
+    for scheme in inner:
+        loc_dims = set().union(*(d._defines for d in scheme.loc_indices))
+        wrappers = [it for it in iters if it.dim in loc_dims]
+        body = HaloSpot(List(body=[]), scheme)
+        for it in reversed(wrappers):
+            body = it._rebuild(nodes=body)
+        prelude.append(body)
+    return tuple(prelude)
+
+
 def _materialise_nest(nest, exprs):
     """
     Rewrite the sparse Dimension's Iteration body to compute the
@@ -146,6 +200,15 @@ def _materialise_nest(nest, exprs):
     interpolation Expression wrap it with the scalar accumulator
     pattern. Multiple sparse-op Expressions sharing the same outer
     Iteration are materialised in one pass and reuse the same temps.
+
+    ``nest`` is the *outermost* sparse-Dimension Iteration, so that the
+    whole block-Iteration hierarchy (e.g. ``p_rec0_blk0`` -> ``p_rec``
+    on the GPU pipeline) is extracted into the efunc and downstream GPU
+    kernel synthesis can fold the block loops into a thread-grid
+    wrapping the kernel body. The temps and the accumulator pattern,
+    however, must live *inside* the innermost sparse Iteration -- one
+    set per sparse point, sitting beneath any thread-index/OOB-guard
+    prelude that the GPU kernel prep may have inserted.
     """
     # Position + coefficient temporaries as IET Expressions. These are
     # the same for every Expression in the group, so we emit them once.
@@ -155,24 +218,63 @@ def _materialise_nest(nest, exprs):
     temp_exprs = tuple(Expression(DummyEq(e.lhs, e.rhs))
                        for e in lower_exprs(sample.sparse_temps()))
 
-    # The radius nest is what runs once per sparse point. For each
-    # interpolation Expression in the group, build its
-    # accumulator-wrapped copy of the radius nest. Injection Exprs
-    # share a single copy of the radius nest (their ``Inc`` already
-    # carries the right ``weights * rhs`` form).
-    inner = nest.nodes[0] if len(nest.nodes) == 1 else List(body=nest.nodes)
+    # Find the innermost sparse-Dimension Iteration within ``nest`` --
+    # that's where the head Expressions actually live, beneath any block
+    # Iterations that the cluster pipeline wrapped around the sparse
+    # loop.
+    sparse_dim = sample.interpolator.sfunction._sparse_dim
+    inner_iter = nest
+    for it in FindNodes(Iteration).visit(nest):
+        if it.dim.root is sparse_dim and \
+                any(e in FindNodes(Expression).visit(it) for e in exprs):
+            inner_iter = it
+
+    # ``inner_iter`` may carry a GPU kernel prelude (thread-index
+    # ``ExpressionBundle`` and OOB ``Conditional``) that downstream
+    # kernel synthesis expects to find at the top of the block dim's
+    # body. The temps and the accumulator pattern go *after* that
+    # prelude.
+    head, body_nodes = _split_kernel_prelude(inner_iter.nodes)
+
+    radius_nest = body_nodes[0] if len(body_nodes) == 1 else List(body=body_nodes)
     interp_exprs = [e for e in exprs if isinstance(e.expr, InterpolationMixin)]
     inject_exprs = [e for e in exprs if isinstance(e.expr, InjectionMixin)]
 
-    body = []
+    new_body = []
     for expr in interp_exprs:
         siblings = [e for e in exprs if e is not expr]
-        body.append(_interp_inner_block(inner, expr, expr.expr.interpolator, siblings))
+        new_body.append(_interp_inner_block(
+            radius_nest, expr, expr.expr.interpolator, siblings))
     if inject_exprs:
         drop = {e: None for e in interp_exprs}
-        body.append(Transformer(drop, nested=True).visit(inner) if drop else inner)
+        new_body.append(Transformer(drop, nested=True).visit(radius_nest)
+                        if drop else radius_nest)
 
-    return nest._rebuild(nodes=temp_exprs + tuple(body))
+    new_inner_iter = inner_iter._rebuild(
+        nodes=head + temp_exprs + tuple(new_body)
+    )
+    if new_inner_iter is inner_iter:
+        return nest
+    return Transformer({inner_iter: new_inner_iter}, nested=True).visit(nest)
+
+
+def _split_kernel_prelude(nodes):
+    """
+    Split the contents of a sparse-Dimension Iteration into the GPU
+    kernel prelude (the thread-index ``ExpressionBundle`` and the
+    optional OOB ``Conditional``) and the remaining body. On non-cuda
+    pipelines the prelude is empty and the full ``nodes`` tuple is the
+    body.
+    """
+    head = ()
+    body = tuple(nodes)
+    if body and isinstance(body[0], ExpressionBundle):
+        head += (body[0],)
+        body = body[1:]
+        if body and isinstance(body[0], Conditional):
+            head += (body[0],)
+            body = body[1:]
+    return head, body
 
 
 def _interp_inner_block(inner, expr, interp, siblings):
@@ -219,10 +321,15 @@ def _interp_inner_block(inner, expr, interp, siblings):
 
     init = Expression(DummyEq(acc, 0))
     inc = Increment(DummyEq(acc, weighted_rhs))
-    # Honour the synthetic Eq's flavour: a SparseInc means the user
-    # asked for ``sf[p_*] += sum`` (interpolation with ``increment=True``);
-    # otherwise the standard write is ``sf[p_*] = sum``.
-    write_back_cls = Increment if eq.is_Reduction else Expression
+    # Honour the synthetic Eq's flavour: an ``IncrInterpolation`` means
+    # the user asked for ``sf[p_*] += sum`` (interpolation with
+    # ``increment=True``); a plain ``Interpolation`` is just ``sf[p_*] =
+    # sum``. We key off the leaf class' ``is_increment_writeback`` flag
+    # rather than ``is_Reduction`` because both flavours are tagged as
+    # reductions (``OpInc``) for dependence-analysis purposes -- the rhs
+    # is implicitly summed over the radius dims -- but only the
+    # ``IncrInterpolation`` flavour writes back with ``+=``.
+    write_back_cls = Increment if eq.is_increment_writeback else Expression
     write_back = write_back_cls(DummyEq(sf_lhs, acc))
 
     # Single substitution: drop siblings, replace ``expr`` with ``inc``.

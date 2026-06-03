@@ -13,8 +13,6 @@ from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
 from devito.tools import (
     Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
 )
-from devito.symbolics import IntDiv, limits_mapper, uxreplace
-from devito.tools import Pickable, Tag, frozendict
 from devito.types import (
     Eq, Inc, IncrInterpolation, Injection, InjectionMixin, Interpolation,
     InterpolationMixin, ReduceMax, ReduceMin, ReduceMinMax, SparseEq, SparseOpMixin,
@@ -208,6 +206,19 @@ class Operation(Tag):
             (ReduceMin, OpMin),
             (ReduceMax, OpMax),
             (Inc, OpInc),
+            # An ``Interpolation`` looks like a plain ``Eq`` -- ``sf[p_*] =
+            # expr[rp_*]`` -- but the cluster scheduler iterates the rhs
+            # over the radius dims, so values are implicitly summed across
+            # ``rp_*``. Tagging it as ``OpInc`` makes the dependence
+            # analysis treat ``rp_*`` as reduction dims
+            # (``parallel_if_atomic``), which matches the lowered code
+            # (``sumrec += ... ; sf[p_*] = sumrec``) and stops the
+            # blocking heuristic from turning the tiny radius loops into
+            # thread blocks. The actual write-back flavour at ``sf[p_*]``
+            # is keyed off the Eq's class (``is_increment_writeback``) in
+            # ``lower_sparse_ops`` so this tag doesn't accidentally turn
+            # ``Interpolation`` assignments into increments.
+            (InterpolationMixin, OpInc),
         )
         for kls, op in reduction_mapper:
             if isinstance(expr, kls):
@@ -366,12 +377,17 @@ class LoweredSparseEq(SparseOpMixin, LoweredEq):
 
 class LoweredInterpolation(InterpolationMixin, LoweredSparseEq):
     """IR counterpart of ``Interpolation``."""
-    pass
+    # ``sf[p_*] = ...``: the write-back at the sparse position is an
+    # assignment. The Eq is still tagged as a reduction
+    # (``OpInc``/``is_Reduction``) because the rhs is summed over the
+    # radius dims; only the *outer* write-back to ``sf[p_*]`` is plain.
+    is_increment_writeback = False
 
 
 class LoweredIncrInterpolation(InterpolationMixin, LoweredSparseEq):
     """IR counterpart of ``IncrInterpolation``."""
-    pass
+    # ``sf[p_*] += ...``: the user asked for ``interpolate(..., increment=True)``.
+    is_increment_writeback = True
 
 
 class LoweredInjection(InjectionMixin, LoweredSparseEq):
@@ -458,12 +474,12 @@ class ClusterizedSparseEq(SparseOpMixin, ClusterizedEq):
 
 class ClusterizedInterpolation(InterpolationMixin, ClusterizedSparseEq):
     """Frozen counterpart of ``LoweredInterpolation``."""
-    pass
+    is_increment_writeback = False
 
 
 class ClusterizedIncrInterpolation(InterpolationMixin, ClusterizedSparseEq):
     """Frozen counterpart of ``LoweredIncrInterpolation``."""
-    pass
+    is_increment_writeback = True
 
 
 class ClusterizedInjection(InjectionMixin, ClusterizedSparseEq):
