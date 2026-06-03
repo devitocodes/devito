@@ -15,11 +15,11 @@ from devito.symbolics import (
 )
 from devito.tools import (
     CacheInstances, Tag, as_mapper, as_tuple, filter_sorted, flatten, is_integer,
-    memoized_generator, memoized_meth, smart_gt, smart_lt
+    memoized_generator, memoized_meth, smart_gt, smart_lt, split
 )
 from devito.types import (
     ComponentAccess, CriticalRegion, Dimension, DimensionTuple, Fence, Function, Symbol,
-    TBArray, Temp, TempArray
+    TBArray, Temp, TempArray, TensorMove
 )
 
 __all__ = ['ExprGeometry', 'IterationInstance', 'Scope', 'TimedAccess']
@@ -1383,19 +1383,31 @@ def vinf(entries):
 
 def retrieve_accesses(exprs, **kwargs):
     """
-    Like retrieve_terminals, but ensure that if a ComponentAccess is found,
-    the ComponentAccess itself is returned, while the wrapped Indexed is discarded.
+    Similar to `retrieve_terminals`, but with some adjustments:
+
+      * ComponentAccess's are retained, but the wrapped Indexed are discarded;
+      * TensorMove's are upcasted to the logical Indexed they represent.
     """
     kwargs['mode'] = 'unique'
 
     compaccs = search(exprs, ComponentAccess)
-    if not compaccs:
-        return retrieve_terminals(exprs, **kwargs)
 
-    subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
-    exprs1 = uxreplace(exprs, subs)
+    if compaccs:
+        # Handle ComponentAccesses
+        subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
+        exprs1 = uxreplace(exprs, subs)
+        terms1 = retrieve_terminals(exprs1, **kwargs)
 
-    return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())
+        accesses = compaccs | terms1 - set(subs.values())
+    else:
+        accesses = retrieve_terminals(exprs, **kwargs)
+
+    # Handle TensorMoves
+    key = lambda i: isinstance(i, TensorMove)
+    tmovs, other = split(accesses, key)
+    accesses = {i.access for i in tmovs} | other
+
+    return accesses
 
 
 def disjoint_test(e0, e1, d, it):
