@@ -22,6 +22,7 @@ from devito.symbolics import INT, IntDiv, indexify, retrieve_functions
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.basic import Scalar
 from devito.types.dimension import AffineIndexAccessFunction, Thickness
+from devito.types.misc import Temp
 
 
 class TestIndexAccessFunction:
@@ -2130,9 +2131,10 @@ class TestMashup:
         assert exprs[0].write is h
 
         exprs = FindNodes(Expression).visit(bns['x2_blk0'])
-        assert len(exprs) == 2
-        assert exprs[0].write is fsave
-        assert exprs[1].write is gsave
+        assert len(exprs) == 3
+        assert isinstance(exprs[0].expr.lhs, Temp)
+        assert exprs[1].write is fsave
+        assert exprs[2].write is gsave
 
     def test_topofusion_w_subdims_conddims_v2(self):
         """
@@ -2163,9 +2165,10 @@ class TestMashup:
         bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
         assert len(FindNodes(Expression).visit(bns['x0_blk0'])) == 3
         exprs = FindNodes(Expression).visit(bns['x1_blk0'])
-        assert len(exprs) == 2
-        assert exprs[0].write is fsave
-        assert exprs[1].write is gsave
+        assert len(exprs) == 3
+        assert isinstance(exprs[0].expr.lhs, Temp)
+        assert exprs[1].write is fsave
+        assert exprs[2].write is gsave
 
     def test_topofusion_w_subdims_conddims_v3(self):
         """
@@ -2200,9 +2203,10 @@ class TestMashup:
         assert exprs[1].write is g
 
         exprs = FindNodes(Expression).visit(bns['x2_blk0'])
-        assert len(exprs) == 2
-        assert exprs[0].write is fsave
-        assert exprs[1].write is gsave
+        assert len(exprs) == 3
+        assert isinstance(exprs[0].expr.lhs, Temp)
+        assert exprs[1].write is fsave
+        assert exprs[2].write is gsave
 
         # Additional nest due to anti-dependence
         exprs = FindNodes(Expression).visit(bns['x1_blk0'])
