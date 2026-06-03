@@ -916,7 +916,12 @@ class AlignedAccess(Expr, Reserved, BasicWrapperMixin):
 
     @property
     def base(self):
-        return self.args[0]
+        """
+        The IndexedBase of the aligned access.
+
+        To be implemented by subclasses.
+        """
+        raise NotImplementedError
 
     func = Reserved._rebuild
 
@@ -957,6 +962,10 @@ class VectorAccess(AlignedAccess):
             raise ValueError from e(
                 f"Unsupported dtype `{self.function.dtype}` for VectorAccess"
             )
+
+    @property
+    def base(self):
+        return self.args[0]
 
     @property
     def indices(self):
