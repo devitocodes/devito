@@ -9,6 +9,7 @@ import numpy as np
 import sympy
 from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
+from sympy.core.function import Application
 from sympy.logic.boolalg import BooleanFunction
 
 from devito.finite_differences.elementary import Max, Min
@@ -718,7 +719,13 @@ class DefFunction(Function, Pickable):
         if _template:
             args.append(Tuple(*_template))
 
-        obj = Function.__new__(cls, *args)
+        # `Function.__new__` and `Application.__new__` are both cached by
+        # SymPy. DefFunction subclasses may attach reconstruction kwargs as
+        # side attributes after this base constructor returns; going through
+        # the cached route could then alias a previous object and mutate it
+        # during reconstruction. Call Application's uncached constructor
+        # explicitly instead of using super()/Function.__new__.
+        obj = Application.__new__.__wrapped__(cls, *args)
         obj._name = name
         obj._arguments = tuple(_arguments)
         obj._template = tuple(_template)

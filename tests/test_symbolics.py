@@ -934,6 +934,36 @@ class TestUxreplace:
         assert func1.p1 == (g,)
         assert func1.p2 == 'bar'
 
+    def test_custom_def_function_reconstruction_no_aliasing(self):
+
+        class MyDefFunction(DefFunction):
+            __rargs__ = ('name', 'arguments')
+            __rkwargs__ = ('p0',)
+
+            def __new__(cls, name=None, arguments=None, p0=None):
+                obj = super().__new__(cls, name=name, arguments=arguments)
+                obj.p0 = p0
+                return obj
+
+            def _hashable_content(self):
+                return super()._hashable_content() + (self.p0,)
+
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        func0 = MyDefFunction(name='foo', arguments=f.indexify(), p0=f)
+        h0 = hash(func0)
+
+        func1 = func0.func(p0=g)
+
+        assert func1 is not func0
+        assert func1 != func0
+        assert hash(func0) == h0
+        assert func0.p0 is f
+        assert func1.p0 is g
+
     def test_reduce_to_number(self):
         grid = Grid(shape=(4, 4))
         x, _ = grid.dimensions
