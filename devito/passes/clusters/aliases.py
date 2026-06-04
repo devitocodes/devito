@@ -125,13 +125,13 @@ class CireTransformer:
         variants = []
         for mapper in self._generate(cgroup, exclude):
             # Clusters -> AliasList
-            found = collect(mapper.extracted, meta.ispace, self.opt_minstorage)
+            found = collect(mapper.extracted, meta, self.opt_minstorage)
             exprs, aliases = self._choose(found, cgroup, mapper)
 
             # AliasList -> Schedule
             schedule = lower_aliases(aliases, meta, self.opt_maxpar)
 
-            variants.append(Variant(schedule, exprs))
+            variants.append(make_variant(schedule, exprs, mapper))
 
         if not variants:
             return []
@@ -281,8 +281,6 @@ class CireTransformerLegacy(CireTransformer):
 
 
 class CireInvariants(CireTransformerLegacy, Queue):
-
-    _q_guards_in_key = True
 
     def __init__(self, sregistry, options, platform):
         super().__init__(sregistry, options, platform)
@@ -511,7 +509,7 @@ modes = {
 }
 
 
-def collect(extracted, ispace, minstorage):
+def collect(extracted, meta, minstorage):
     """
     Find groups of aliasing expressions.
 
@@ -575,11 +573,11 @@ def collect(extracted, ispace, minstorage):
 
             group.append(u)
             unseen.remove(u)
-        group = Group(group, ispace=ispace)
+        group = Group(group, ispace=meta.ispace)
 
         k = group.dimensions_translated if minstorage else group.dimensions
-
         k = frozenset(d for d in k if not d.is_NonlinearDerived)
+
         mapper.setdefault(k, []).append(group)
 
     aliases = AliasList()
@@ -657,8 +655,9 @@ def collect(extracted, ispace, minstorage):
 
             # Compute the alias score
             na = g.naliases
-            nr = nredundants(ispace, pivot)
+            nr = nredundants(meta.ispace, pivot)
             score = estimate_cost(pivot, True)*((na - 1) + nr)
+
             aliases.add(pivot, aliaseds, list(mapper), distances, score)
 
     return aliases
@@ -728,8 +727,9 @@ def lower_aliases(aliases, meta, maxpar):
                         m = i.dim.symbolic_min - i.dim.parent.symbolic_min
                     else:
                         m = 0
-                    d = dmapper[i.dim] = IncrDimension(f"{i.dim.name}s", i.dim, m,
-                                                       dd.symbolic_size, 1, dd.step)
+                    d = dmapper[i.dim] = IncrDimension(
+                        f"{i.dim.name}s", i.dim, m, dd.symbolic_size, 1, dd.step
+                    )
                 sub_iterators[i.dim] = d
             else:
                 d = i.dim
@@ -744,6 +744,11 @@ def lower_aliases(aliases, meta, maxpar):
 
         # The alias write-to space
         writeto = IterationSpace(IntervalGroup(writeto), sub_iterators)
+
+        # Avoid scalar aliases in the presence of guards, since hoisting them
+        # might cause scope issues (see `test_dse.py::TestAliases::test_split_cond`)
+        if not writeto and meta.guards:
+            continue
 
         # The alias iteration space
         ispace = IterationSpace(IntervalGroup(intervals, meta.ispace.relations),
@@ -762,6 +767,34 @@ def lower_aliases(aliases, meta, maxpar):
     processed = sorted(processed, key=lambda i: cit(meta.ispace, i.ispace))
 
     return Schedule(*processed, dmapper=dmapper, is_frame=aliases.is_frame)
+
+
+def make_variant(schedule, exprs, mapper):
+    """
+    Create a Variant from a Schedule and the corresponding expressions.
+    """
+    # Some aliases may have been discarded along the way, and for
+    # them we reinstate the original sub-expressions
+    retained = flatten(sa.aliaseds for sa in schedule)
+
+    subs = {}
+    for k, v in mapper.items():
+        if v in retained:
+            continue
+        elif isinstance(v, dict):
+            # E.g., `mapper = {u[t0, x+3, y+3] + u[t0, x+3, y+4]:
+            #                  {u[t0, x+3, y+4]: None, u[t0, x+3, y+3]: dummy0}}`
+            try:
+                v1, = [i for i in v.values() if i not in retained]
+            except ValueError:
+                continue
+            subs[v1] = k
+        else:
+            subs[v] = k
+
+    exprs = [uxreplace(e, subs) for e in exprs]
+
+    return Variant(schedule, exprs)
 
 
 def optimize_schedule_rotations(schedule, sregistry):
@@ -1493,7 +1526,7 @@ def nredundants(ispace, expr):
     redundant if it defines an iteration space for `expr` while not appearing
     among its free symbols. Note that the converse isn't generally true: there
     could be a Dimension that does not appear in the free symbols while defining
-    a non-redundant iteration space (e.g., a BlockDimension).
+    a non-redundant iteration space (e.g., a BlockDimension or a reduction).
     """
     iterated = {i.dim for i in ispace}
     used = {i for i in expr.free_symbols if i.is_Dimension}
