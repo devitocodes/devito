@@ -7,6 +7,7 @@ from devito.core.cpu import (
     Cpu64CXXNoopCOperator, Cpu64CXXNoopOmpOperator,
     Cpu64AdvCXXOperator, Cpu64AdvCXXOmpOperator,
     Cpu64FsgCXXOperator, Cpu64FsgCXXOmpOperator,
+    Cpu64NoopPetscOperator, Cpu64AdvPetscOperator,
     Cpu64CustomCXXOmpOperator, Cpu64CustomCOperator
 )
 from devito.core.intel import (
@@ -45,12 +46,14 @@ operator_registry.add(Cpu64NoopOmpOperator, Cpu64, 'noop', 'openmp')
 operator_registry.add(Cpu64NoopOmpOperator, Cpu64, 'noop', 'Copenmp')
 operator_registry.add(Cpu64CXXNoopCOperator, Cpu64, 'noop', 'CXX')
 operator_registry.add(Cpu64CXXNoopOmpOperator, Cpu64, 'noop', 'CXXopenmp')
+operator_registry.add(Cpu64NoopPetscOperator, Cpu64, 'noop', 'petsc')
 
 operator_registry.add(Cpu64AdvCOperator, Cpu64, 'advanced', 'C')
 operator_registry.add(Cpu64AdvOmpOperator, Cpu64, 'advanced', 'openmp')
 operator_registry.add(Cpu64AdvOmpOperator, Cpu64, 'advanced', 'Copenmp')
 operator_registry.add(Cpu64AdvCXXOperator, Cpu64, 'advanced', 'CXX')
 operator_registry.add(Cpu64AdvCXXOmpOperator, Cpu64, 'advanced', 'CXXopenmp')
+operator_registry.add(Cpu64AdvPetscOperator, Cpu64, 'advanced', 'petsc')
 
 operator_registry.add(Cpu64FsgCOperator, Cpu64, 'advanced-fsg', 'C')
 operator_registry.add(Cpu64FsgOmpOperator, Cpu64, 'advanced-fsg', 'openmp')

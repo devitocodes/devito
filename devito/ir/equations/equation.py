@@ -12,6 +12,7 @@ from devito.ir.support import (
 from devito.symbolics import IntDiv, limits_mapper, uxreplace
 from devito.tools import Pickable, Tag, frozendict
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
+from devito.types.equation import PetscEq
 
 __all__ = [
     'ClusterizedEq',
@@ -21,6 +22,7 @@ __all__ = [
     'OpMax',
     'OpMin',
     'OpMinMax',
+    'OpPetsc',
     'identity_mapper',
 ]
 
@@ -119,12 +121,13 @@ class Operation(Tag):
             Inc: OpInc,
             ReduceMax: OpMax,
             ReduceMin: OpMin,
+            PetscEq: OpPetsc,
             ReduceMinMax: OpMinMax
         }
-        try:
-            return reduction_mapper[type(expr)]
-        except KeyError:
-            pass
+
+        for expr_type, op in reduction_mapper.items():
+            if isinstance(expr, expr_type):
+                return op
 
         # NOTE: in the future we might want to track down other kinds
         # of operations here (e.g., memcpy). However, we don't care for
@@ -136,6 +139,7 @@ class Operation(Tag):
 OpInc = Operation('+')
 OpMax = Operation('max')
 OpMin = Operation('min')
+OpPetsc = Operation('solve')
 OpMinMax = Operation('minmax')
 
 

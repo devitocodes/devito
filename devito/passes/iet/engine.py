@@ -5,9 +5,10 @@ from functools import partial, singledispatch, wraps
 import numpy as np
 from sympy import Mul
 
+from devito.finite_differences.differentiable import Differentiable
 from devito.ir.iet import (
     AsyncCallable, Call, EntryFunction, Expression, ExprStmt, FindNodes, FindSymbols,
-    Iteration, MapNodes, MetaCall, SyncSpot, ThreadCallable, Transformer, Uxreplace,
+    FixedArgsCallable, Iteration, MapNodes, MetaCall, SyncSpot, Transformer, Uxreplace,
     derive_parameters
 )
 from devito.ir.support import SymbolRegistry
@@ -22,6 +23,7 @@ from devito.types import (
     Temp, ThreadArray, Wildcard
 )
 from devito.types.args import ArgProvider
+from devito.types.array import ArrayBasic
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
 
@@ -147,6 +149,7 @@ class Graph(Byproduct):
                 compiler.add_include_dirs(as_tuple(metadata.get('include_dirs')))
                 compiler.add_library_dirs(as_tuple(metadata.get('lib_dirs')),
                                           rpath=metadata.get('rpath', False))
+                compiler.add_ldflags(as_tuple(metadata.get('ldflags')))
                 compiler.add_libraries(as_tuple(metadata.get('libs')))
             except KeyError:
                 pass
@@ -513,7 +516,8 @@ def abstract_objects(objects0, sregistry=None):
 
     # Precedence rules make it possible to reconstruct objects that depend on
     # higher priority objects
-    keys = [Bundle, Array, DiscreteFunction, AbstractIncrDimension, BlockDimension]
+    keys = [Bundle, Array, Differentiable, DiscreteFunction,
+            AbstractIncrDimension, BlockDimension]
     priority = {k: i for i, k in enumerate(keys, start=1)}
     objects = sorted_priority(objects, priority)
 
@@ -548,7 +552,7 @@ def _(i, mapper, sregistry):
     })
 
 
-@abstract_object.register(Array)
+@abstract_object.register(ArrayBasic)
 def _(i, mapper, sregistry):
     name = sregistry.make_name(prefix=i._symbol_prefix)
 
@@ -721,12 +725,12 @@ def update_args(root, efuncs, dag):
 
         foo(..., z) : root(x, z)
     """
-    if isinstance(root, ThreadCallable):
+    if isinstance(root, FixedArgsCallable):
         return efuncs
 
     # The parameters/arguments lists may have changed since a pass may have:
     # 1) introduced a new symbol
-    new_params = derive_parameters(root)
+    new_params = derive_parameters(root, drop_locals=True)
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)

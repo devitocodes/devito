@@ -1,0 +1,325 @@
+import numpy as np
+
+from devito.petsc.types import (
+    DM, KSP, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct, Mat, MatReuse,
+    NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt, PetscSectionGlobal,
+    PetscSectionLocal, PetscSF, PointerDM, PointerIS, PointerMat, PointerPetscInt,
+    StartPtr, SubMatrixStruct, Vec, VecScatter
+)
+from devito.symbolics import String
+from devito.tools import frozendict
+from devito.types import Symbol
+from devito.types.misc import PostIncrementIndex
+
+
+class BaseTypeBuilder:
+    """
+    A base class for constructing objects needed for a PETSc solver.
+    Designed to be extended by subclasses, which can override the `_extend_build`
+    method to support specific use cases.
+    """
+    def __init__(self, **kwargs):
+        self.inject_solve = kwargs.get('inject_solve')
+        self.objs = kwargs.get('objs')
+        self.sregistry = kwargs.get('sregistry')
+        self.comm = kwargs.get('comm')
+        self.field_data = self.inject_solve.expr.rhs.field_data
+        self.solver_objs = self._build()
+
+    def _build(self):
+        """
+        # TODO: update docs
+        Constructs the core dictionary of solver objects and allows
+        subclasses to extend or modify it via `_extend_build`.
+        Returns:
+            dict: A dictionary containing the following objects:
+                - 'Jac' (Mat): A matrix representing the jacobian.
+                - 'xglobal' (GlobalVec): The global solution vector.
+                - 'xlocal' (LocalVec): The local solution vector.
+                - 'bglobal': (GlobalVec) Global RHS vector `b`, where `F(x) = b`.
+                - 'blocal': (LocalVec) Local RHS vector `b`, where `F(x) = b`.
+                - 'ksp': (KSP) Krylov solver object that manages the linear solver.
+                - 'pc': (PC) Preconditioner object.
+                - 'snes': (SNES) Nonlinear solver object.
+                - 'localsize' (PetscInt): The local length of the solution vector.
+                - 'dmda' (DM): The DMDA object associated with this solve, linked to
+                   the SNES object via `SNESSetDM`.
+                - 'callbackdm' (DM): The DM object accessed within callback
+                   functions via `SNESGetDM`.
+        """
+        sreg = self.sregistry
+        targets = self.field_data.targets
+
+        snes_name = sreg.make_name(prefix='snes')
+        formatted_prefix = self.inject_solve.expr.rhs.formatted_prefix
+
+        base_dict = {
+            'Jac': Mat(sreg.make_name(prefix='J')),
+            'xglobal': Vec(sreg.make_name(prefix='xglobal')),
+            'xlocal': Vec(sreg.make_name(prefix='xlocal')),
+            'bglobal': Vec(sreg.make_name(prefix='bglobal')),
+            'blocal': Vec(sreg.make_name(prefix='blocal'), destroy=False),
+            'ksp': KSP(sreg.make_name(prefix='ksp')),
+            'pc': PC(sreg.make_name(prefix='pc')),
+            'snes': SNES(snes_name),
+            'localsize': PetscInt(sreg.make_name(prefix='localsize')),
+            'dmda': DM(sreg.make_name(prefix='da'), dofs=len(targets)),
+            'callbackdm': DM(sreg.make_name(prefix='dm'), destroy=False),
+            'snes_prefix': String(formatted_prefix),
+        }
+
+        base_dict['comm'] = self.comm
+        self._target_dependent(base_dict)
+        return self._extend_build(base_dict)
+
+    def _target_dependent(self, base_dict):
+        """
+        '_ptr' (StartPtr): A pointer to the beginning of the solution array
+        that will be updated at each time step.
+        """
+        sreg = self.sregistry
+        target = self.field_data.target
+        base_dict[f'{target.name}_ptr'] = StartPtr(
+            sreg.make_name(prefix=f'{target.name}_ptr'), target.dtype
+        )
+
+    def _extend_build(self, base_dict):
+        """
+        Subclasses can override this method to extend or modify the
+        base dictionary of solver objects.
+        """
+        return base_dict
+
+
+class CoupledTypeBuilder(BaseTypeBuilder):
+    def _extend_build(self, base_dict):
+        sreg = self.sregistry
+        objs = self.objs
+        targets = self.field_data.targets
+        arrays = self.field_data.arrays
+
+        base_dict['fields'] = PointerIS(
+            name=sreg.make_name(prefix='fields'), nindices=len(targets)
+        )
+        base_dict['subdms'] = PointerDM(
+            name=sreg.make_name(prefix='subdms'), nindices=len(targets)
+        )
+        base_dict['nfields'] = PetscInt(sreg.make_name(prefix='nfields'))
+
+        submatrices = self.field_data.jacobian.nonzero_submatrices
+
+        base_dict['jacctx'] = JacobianStruct(
+            name=sreg.make_name(prefix=objs['ljacctx'].name),
+            fields=objs['ljacctx'].fields, no_of_submats=len(targets)*len(targets)
+        )
+
+        for sm in submatrices:
+            name = sm.name
+            base_dict[name] = Mat(name=name)
+            base_dict[f'{name}ctx'] = SubMatrixStruct(
+                name=f'{name}ctx',
+                fields=objs['subctx'].fields,
+            )
+            base_dict[f'{name}X'] = Vec(f'{name}X', destroy=False)
+            base_dict[f'{name}Y'] = Vec(f'{name}Y', destroy=False)
+            base_dict[f'{name}F'] = Vec(f'{name}F', destroy=False)
+
+        # Temporary Vec used in MatCreateSubMatrices to query constrained
+        # global sizes from sub-DMs (works for both constrained and unconstrained).
+        base_dict['tmpvec'] = Vec('tmpvec', destroy=False)
+
+        # Bundle objects/metadata required by the coupled residual callback
+        f_components, x_components = [], []
+        bundle_mapper = {}
+        pname = sreg.make_name(prefix='Field')
+
+        target_indices = {t: i for i, t in enumerate(targets)}
+
+        for t in targets:
+            f_arr = arrays[t]['f']
+            x_arr = arrays[t]['x']
+            f_components.append(f_arr)
+            x_components.append(x_arr)
+
+        fbundle = PetscBundle(
+            name='f_bundle', components=f_components, pname=pname
+        )
+        xbundle = PetscBundle(
+            name='x_bundle', components=x_components, pname=pname
+        )
+
+        # Build the bundle mapper
+        for f_arr, x_arr in zip(f_components, x_components, strict=True):
+            bundle_mapper[f_arr.base] = fbundle
+            bundle_mapper[x_arr.base] = xbundle
+
+        base_dict['bundles'] = {
+            'f': fbundle,
+            'x': xbundle,
+            'bundle_mapper': bundle_mapper,
+            'target_indices': target_indices
+        }
+
+        return base_dict
+
+    def _target_dependent(self, base_dict):
+        sreg = self.sregistry
+        targets = self.field_data.targets
+        for t in targets:
+            name = t.name
+            base_dict[f'{name}_ptr'] = StartPtr(
+                sreg.make_name(prefix=f'{name}_ptr'), t.dtype
+            )
+            base_dict[f'xlocal{name}'] = Vec(
+                sreg.make_name(prefix=f'xlocal{name}'), liveness='eager'
+            )
+            base_dict[f'Fglobal{name}'] = Vec(
+                sreg.make_name(prefix=f'Fglobal{name}'), liveness='eager', destroy=False
+            )
+            base_dict[f'Xglobal{name}'] = Vec(
+                sreg.make_name(prefix=f'Xglobal{name}'), destroy=False
+            )
+            base_dict[f'xglobal{name}'] = Vec(
+                sreg.make_name(prefix=f'xglobal{name}')
+            )
+            base_dict[f'blocal{name}'] = Vec(
+                sreg.make_name(prefix=f'blocal{name}'), liveness='eager', destroy=False
+            )
+            base_dict[f'bglobal{name}'] = Vec(
+                sreg.make_name(prefix=f'bglobal{name}')
+            )
+            base_dict[f'da{name}'] = DM(
+                sreg.make_name(prefix=f'da{name}'), liveness='eager'
+            )
+            base_dict[f'scatter{name}'] = VecScatter(
+                sreg.make_name(prefix=f'scatter{name}')
+            )
+
+
+class ConstrainedBCTypeBuilder(BaseTypeBuilder):
+    def _extend_build(self, base_dict):
+        sreg = self.sregistry
+        base_dict['lsection'] = PetscSectionLocal(
+            name=sreg.make_name(prefix='lsection')
+        )
+        base_dict['gsection'] = PetscSectionGlobal(
+            name=sreg.make_name(prefix='gsection')
+        )
+        base_dict['sf'] = PetscSF(
+            name=sreg.make_name(prefix='sf')
+        )
+        tname = self.field_data.target.name
+        base_dict[f'numBC_{tname}'] = PetscInt(
+            name=sreg.make_name(prefix='numBC'), initvalue=0
+        )
+        base_dict[f'numBCPtr_{tname}'] = CallbackPetscInt(
+            name=sreg.make_name(prefix='numBCPtr'), initvalue=0
+        )
+        base_dict[f'bcPointsArr_{tname}'] = PointerPetscInt(
+            name=sreg.make_name(prefix='bcPointsArr')
+        )
+        base_dict[f'k_iter_{tname}'] = PostIncrementIndex(
+            name='k_iter', initvalue=0
+        )
+        base_dict['bcPointsIS'] = PointerIS(name='bcPointsIS', nindices=1)
+        base_dict['bcCompsIS'] = PointerIS(name='bcCompsIS', nindices=1)
+        return base_dict
+
+
+class CoupledConstrainedBCTypeBuilder(CoupledTypeBuilder):
+    def _extend_build(self, base_dict):
+        base_dict = super()._extend_build(base_dict)
+        sreg = self.sregistry
+        targets = self.field_data.targets
+        nfields = len(targets)
+
+        # Shared section/SF objects
+        base_dict['lsection'] = PetscSectionLocal(
+            name=sreg.make_name(prefix='lsection')
+        )
+        base_dict['gsection'] = PetscSectionGlobal(
+            name=sreg.make_name(prefix='gsection')
+        )
+        base_dict['sf'] = PetscSF(
+            name=sreg.make_name(prefix='sf')
+        )
+
+        # Per-field BC objects
+        for t in targets:
+            tname = t.name
+            base_dict[f'numBC_{tname}'] = PetscInt(
+                name=sreg.make_name(prefix=f'numBC{tname}'), initvalue=0
+            )
+            base_dict[f'numBCPtr_{tname}'] = CallbackPetscInt(
+                name=sreg.make_name(prefix=f'numBCPtr{tname}'), initvalue=0
+            )
+            base_dict[f'bcPointsArr_{tname}'] = PointerPetscInt(
+                name=sreg.make_name(prefix=f'bcPointsArr{tname}')
+            )
+            base_dict[f'k_iter_{tname}'] = PostIncrementIndex(
+                name=sreg.make_name(prefix=f'k{tname}'), initvalue=0
+            )
+
+        # IS arrays for all fields (one entry per field)
+        base_dict['bcPointsIS'] = PointerIS(
+            name='bcPointsIS', nindices=nfields
+        )
+        base_dict['bcCompsIS'] = PointerIS(
+            name='bcCompsIS', nindices=nfields
+        )
+        return base_dict
+
+
+subdms = PointerDM(name='subdms')
+fields = PointerIS(name='fields')
+submats = PointerMat(name='submats')
+rows = PointerIS(name='rows')
+cols = PointerIS(name='cols')
+
+
+# A static dict containing shared symbols and objects that are not
+# unique to each `petscsolve` call.
+# Many of these objects are used as arguments in callback functions to make
+# the C code cleaner and more modular.
+objs = frozendict({
+    'size': PetscMPIInt(name='size'),
+    'err': PetscErrorCode(name='err'),
+    'block': Mat('block', destroy=False),
+    'submat_arr': PointerMat(name='submat_arr'),
+    'subblockrows': PetscInt('subblockrows'),
+    'subblockcols': PetscInt('subblockcols'),
+    'sublocalrows': PetscInt('sublocalrows'),
+    'sublocalcols': PetscInt('sublocalcols'),
+    'rowidx': PetscInt('rowidx'),
+    'colidx': PetscInt('colidx'),
+    'J': Mat('J'),
+    'X': Vec('X'),
+    'xloc': Vec('xloc', destroy=False),
+    'Y': Vec('Y'),
+    'yloc': Vec('yloc', destroy=False),
+    'F': Vec('F'),
+    'floc': Vec('floc', destroy=False),
+    'B': Vec('B'),
+    'nfields': PetscInt('nfields'),
+    'irow': PointerIS(name='irow'),
+    'icol': PointerIS(name='icol'),
+    'nsubmats': NofSubMats('nsubmats', dtype=np.int32),
+    # 'nsubmats': PetscInt('nsubmats'),
+    'matreuse': MatReuse('scall'),
+    'snes': SNES('snes'),
+    'rows': rows,
+    'cols': cols,
+    'Subdms': subdms,
+    'LocalSubdms': PointerDM(name='subdms', destroy=False),
+    'Fields': fields,
+    'LocalFields': PointerIS(name='fields', destroy=False),
+    'Submats': submats,
+    'ljacctx': JacobianStruct(
+        fields=[subdms, fields, submats], modifier=' *', destroy=False
+    ),
+    'subctx': SubMatrixStruct(fields=[rows, cols]),
+    'dummyctx': Symbol('lctx'),
+    'dummyptr': DummyArg('dummy'),
+    'dummyefunc': Symbol('dummyefunc'),
+    'dof': PetscInt('dof'),
+})

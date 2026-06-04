@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
 
-from devito.ir.iet.nodes import Call, Callable
+from devito.ir.iet.nodes import Call, Callable, FixedArgsCallable
 from devito.ir.iet.utils import derive_parameters
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
@@ -179,7 +179,7 @@ class AsyncCall(Call):
     pass
 
 
-class ThreadCallable(Callable):
+class ThreadCallable(FixedArgsCallable):
 
     """
     A Callable executed asynchronously by a thread.

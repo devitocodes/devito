@@ -20,6 +20,7 @@ from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
 from devito.tools import ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype
 from devito.types.basic import AbstractFunction
+from devito.types.misc import PostIncrementIndex
 
 __all__ = ['BasePrinter', 'ccode']
 
@@ -153,8 +154,13 @@ class BasePrinter(CodePrinter):
         --------
         U[t,x,y,z] -> U[t][x][y][z]
         """
-        inds = ''.join(['[' + self._print(x) + ']' for x in expr.indices])
-        return f'{self._print(expr.base.label)}{inds}'
+        inds = []
+        for i in expr.indices:
+            if isinstance(i, PostIncrementIndex):
+                inds.append(f"[{self._print(i)}++]")
+            else:
+                inds.append(f"[{self._print(i)}]")
+        return f"{self._print(expr.base.label)}{''.join(inds)}"
 
     def _print_FIndexed(self, expr):
         """

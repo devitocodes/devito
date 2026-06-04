@@ -10,19 +10,18 @@ from devito import (  # noqa
 )
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
-    Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindSymbols, Iteration, KernelLaunch, Lambda, List, Switch,
-    Transformer, filter_iterations, make_efunc, retrieve_iteration_tree
+    Call, Callable, Callback, CGen, Conditional, Definition, Dereference, DeviceCall,
+    DummyExpr, ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda,
+    List, Switch, Transformer, filter_iterations, make_efunc, retrieve_iteration_tree
 )
 from devito.passes.iet.engine import Graph
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
-    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
-    String
+    FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol
+from devito.types import Array, Constant, CustomDimension, LocalObject, Pointer, Symbol
 from devito.types.misc import FunctionMap
 
 
@@ -132,6 +131,33 @@ def test_find_symbols_nested(mode, expected):
     found = FindSymbols(mode).visit(call)
 
     assert [f.name for f in found] == eval(expected)
+
+
+def test_callback_cgen():
+
+    class FunctionPtr(Callback):
+        @property
+        def callback_form(self):
+            param_types = ', '.join([str(t) for t in
+                                     self.param_types])
+            return f"({self.retval} (*)({param_types})){self.name}"
+
+    a = Symbol('a')
+    b = Symbol('b')
+    foo0 = Callable('foo0', Definition(a), 'void', parameters=[b])
+    foo0_arg = FunctionPtr(foo0.name, foo0.retval, 'int')
+    code0 = CGen().visit(foo0_arg)
+    assert str(code0) == '(void (*)(int))foo0'
+
+    # Test nested calls with a Callback as an argument.
+    call = Call('foo2', [
+        Call('foo1', [foo0_arg])
+    ])
+    code1 = CGen().visit(call)
+    assert str(code1) == 'foo2(foo1((void (*)(int))foo0));'
+
+    callees = FindNodes(Call).visit(call)
+    assert len(callees) == 3
 
 
 def test_list_denesting():
@@ -545,10 +571,10 @@ def test_special_array_definition():
         is_extern = True
         _data_alignment = False
 
-    dim = CustomDimension(name='d', symbolic_size=String(''))
+    dim = CustomDimension(name='d', symbolic_size=Constant(name='size', value=3.0))
     a = MyArray(name='a', dimensions=dim, scope='shared', dtype=np.uint8)
 
-    assert str(Definition(a)) == "extern  unsigned char a[];"
+    assert str(Definition(a)) == "extern  unsigned char a[size];"
 
 
 def test_list_inline():
