@@ -980,7 +980,6 @@ class SizeOf(DefFunction):
     __rargs__ = ('intype', 'stars')
 
     def __new__(cls, intype, stars=None, **kwargs):
-        stars = stars or ''
         if not isinstance(intype, (str, ReservedWord)):
             ctype = dtype_to_ctype(intype)
             for k, v in ctypes_vector_mapper.items():
@@ -990,15 +989,40 @@ class SizeOf(DefFunction):
             else:
                 intype = ctypes_to_cstr(ctype)
 
-        newobj = super().__new__(cls, 'sizeof', arguments=f'{intype}{stars}', **kwargs)
-        newobj.stars = stars
-        newobj.intype = intype
+        stars = stars or ''
+        if not all(c == '*' for c in str(stars)):
+            raise ValueError("`stars` must be a string of zero or more `*` characters")
 
-        return newobj
+        if not isinstance(intype, (str, ReservedWord)):
+            intype = ctypes_vector_mapper[intype].__name__
+
+        return super().__new__(cls, 'sizeof', arguments=(intype, stars), **kwargs)
 
     @property
     def args(self):
-        return super().args[1]
+        return self._arguments
+
+    @property
+    def intype(self):
+        return self.arguments[0]
+
+    @cached_property
+    def ctype(self):
+        for v in ctypes_vector_mapper.values():
+            if str(self.intype) == v.__name__:
+                return v
+        return self.intype
+
+    @property
+    def stars(self):
+        return self.arguments[1]
+
+    def __str__(self):
+        try:
+            intype = ctypes_to_cstr(self.ctype)
+        except TypeError:
+            intype = str(self.ctype)
+        return f"sizeof({intype}{self.stars})"
 
 
 def rfunc(func, item, *args):
