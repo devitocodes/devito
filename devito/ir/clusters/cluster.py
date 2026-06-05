@@ -13,7 +13,7 @@ from devito.ir.support import (
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
-from devito.symbolics import estimate_cost
+from devito.symbolics import estimate_cost, uxreplace
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import (
     CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
@@ -127,6 +127,33 @@ class Cluster:
                               properties=kwargs.get('properties', self.properties),
                               syncs=kwargs.get('syncs', self.syncs),
                               halo_scheme=kwargs.get('halo_scheme', self.halo_scheme))
+
+    def subs(self, mapper, compact=()):
+        """
+        Build a new Cluster applying substitutions rules to `self`.
+        """
+        if not mapper:
+            return self
+
+        if self.halo_scheme:
+            raise NotImplementedError
+
+        key0 = lambda i: i.is_Block
+        subs0 = {d: self.ispace[d].promote(key0).dim for d in compact}
+
+        subs = {**mapper, **subs0}
+        exprs = [uxreplace(e, subs) for e in self.exprs]
+
+        ispace = self.ispace.switch(mapper)
+        key = lambda i: key0(i) and i in flatten(d._defines for d in subs0)
+        ispace = ispace.promote(key, mode='total')
+
+        guards = self.guards.subs(mapper).promote(subs0)
+        properties = self.properties.subs(mapper).promote(subs0)
+        syncs = self.syncs.subs(mapper)
+
+        return self.__class__(exprs=exprs, ispace=ispace, guards=guards,
+                              properties=properties, syncs=syncs)
 
     @property
     def exprs(self):
@@ -590,6 +617,14 @@ class ClusterGroup(tuple):
     def dspace(self):
         """Return the DataSpace of this ClusterGroup."""
         return DataSpace.union(*[i.dspace.reset() for i in self])
+
+    @property
+    def is_dense(self):
+        return all(i.is_dense for i in self)
+
+    @property
+    def is_wild(self):
+        return all(i.is_wild for i in self)
 
     @property
     def is_halo_touch(self):

@@ -39,10 +39,11 @@ VECTORIZED = Property('vector-dim')
 TILABLE = Property('tilable')
 """A fully parallel Dimension that would benefit from tiling (or "blocking")."""
 
-TILABLE_SMALL = Property('tilable*')
+NO_TUNING = Property('notuning')
 """
-Like TILABLE, but it would benefit from relatively small block, since the
-iteration space is likely to be very small.
+A Dimension that would be unlikely to benefit from tuning. For example, the
+underlying iteration space is relatively small, and/or the enclosed expressions
+are not characterized by data reuse, etc.
 """
 
 SKEWABLE = Property('skewable')
@@ -115,7 +116,6 @@ A Dimension along which the shared-memory right-HALO data region is initialized.
 
 # Bundles
 PARALLELS = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
-TILABLES = {TILABLE, TILABLE_SMALL}
 
 
 def normalize_properties(*args):
@@ -253,16 +253,10 @@ class Properties(frozendict):
             m[d] = self.get(d, set()) | {v}
         return Properties(m)
 
-    def block(self, dims, kind='default'):
-        if kind == 'default':
-            p = TILABLE
-        elif kind == 'small':
-            p = TILABLE_SMALL
-        else:
-            raise ValueError
+    def block(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
-            m[d] = set(self.get(d, [])) | {p}
+            m[d] = set(self.get(d, [])) | {TILABLE}
         return Properties(m)
 
     def inbound(self, dims):
@@ -289,6 +283,9 @@ class Properties(frozendict):
                                                  INIT_HALO_LEFT_SHM})
         return properties
 
+    def notune(self, dims):
+        return self.add(dims, NO_TUNING)
+
     def is_parallel(self, dims):
         return any(len(self[d] & {PARALLEL, PARALLEL_INDEP}) > 0
                    for d in as_tuple(dims))
@@ -310,10 +307,7 @@ class Properties(frozendict):
         return any(SEQUENTIAL in self.get(d, ()) for d in as_tuple(dims))
 
     def is_blockable(self, d):
-        return bool(self.get(d, set()) & {TILABLE, TILABLE_SMALL})
-
-    def is_blockable_small(self, d):
-        return TILABLE_SMALL in self.get(d, set())
+        return bool(TILABLE in self.get(d, ()))
 
     def _is_property_any(self, dims, v):
         if dims is None:
@@ -334,6 +328,25 @@ class Properties(frozendict):
 
     def is_halo_init(self, dims=None):
         return self.is_halo_left_init(dims) or self.is_halo_right_init(dims)
+
+    def avoid_tuning(self, dims):
+        return any(NO_TUNING in self.get(d, set()) for d in as_tuple(dims))
+
+    def subs(self, mapper):
+        return Properties({mapper.get(d, d): v for d, v in self.items()})
+
+    def promote(self, subs):
+        m = self
+        for d, pd in subs.items():
+            if pd not in d._defines:
+                raise ValueError(f"Cannot promote {d} to {pd} as {pd} does not "
+                                 f"belong to {d}'s hierarchy")
+
+            v = normalize_properties(*[self.get(i, set()) for i in d._defines])
+
+            m = self.drop(d._defines).add(pd, v)
+
+        return m
 
     @property
     def nblockable(self):
