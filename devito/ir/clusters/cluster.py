@@ -13,7 +13,7 @@ from devito.ir.support import (
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
-from devito.symbolics import estimate_cost
+from devito.symbolics import estimate_cost, uxreplace
 from devito.tools import as_tuple, filter_ordered, flatten, infer_dtype
 from devito.types import (
     CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
@@ -127,6 +127,29 @@ class Cluster:
                               properties=kwargs.get('properties', self.properties),
                               syncs=kwargs.get('syncs', self.syncs),
                               halo_scheme=kwargs.get('halo_scheme', self.halo_scheme))
+
+    def subs(self, mapper):
+        """
+        Build a new Cluster applying the substitutions rules in `mapper` to self.
+        """
+        if not mapper:
+            return self
+
+        if self.halo_scheme:
+            raise NotImplementedError
+
+        exprs = [uxreplace(e, mapper) for e in self.exprs]
+
+        ispace = self.ispace.switch(mapper)
+
+        guards = self.guards.subs(mapper)
+
+        properties = self.properties.subs(mapper)
+
+        syncs = {mapper.get(d, d): v for d, v in self.syncs.items()}
+
+        return self.__class__(exprs=exprs, ispace=ispace, guards=guards,
+                              properties=properties, syncs=syncs)
 
     @property
     def exprs(self):

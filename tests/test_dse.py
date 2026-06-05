@@ -2868,6 +2868,29 @@ class TestAliases:
         assert str(body0(op).body[0]) == 'const float r0 = 1.0F/dt;'
         assert not body0(op).body[0].ispace
 
+    def test_block_temps_false(self):
+        grid = Grid(shape=(34, 45, 50))
+
+        a = Function(name='a', grid=grid, space_order=8)
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        v = u.func(name='v')
+
+        eqn = Eq(v.forward, a.dy.dz*u.dx.dy + v)
+
+        op = Operator(eqn, opt=('advanced', {'openmp': False,
+                                             'cire-block-temps': False,
+                                             'cire-maxpar': 'basic'}))
+
+        # Ensure it executes smoothly
+        op.apply(time_M=3)
+        from IPython import embed; embed()
+
+        assert_structure(
+            op,
+            ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
+            'tx0_blk0y0_blk0xyzx0_blk0y0_blk0xyz'
+        )
+
 
 class TestIsoAcoustic:
 

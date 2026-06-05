@@ -5,6 +5,7 @@ from itertools import groupby
 import numpy as np
 import sympy
 
+from devito.arch import Device
 from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (
@@ -18,8 +19,8 @@ from devito.symbolics import (
     uxreplace
 )
 from devito.tools import (
-    Stamp, as_mapper, as_tuple, flatten, frozendict, generator, is_integer, split,
-    timed_pass
+    Reconstructable, Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
+    is_integer, split, timed_pass
 )
 from devito.types import (
     BlockDimension, CustomDimension, Eq, Hyperplane, IncrDimension, Indexed,
@@ -112,6 +113,7 @@ class CireTransformer:
         self.sregistry = sregistry
         self.platform = platform
 
+        self.opt_block_temps = options['cire-block-temps']
         self.opt_minstorage = options['min-storage']
         self.opt_rotate = options['cire-rotate']
         self.opt_ftemps = options['cire-ftemps']
@@ -129,7 +131,9 @@ class CireTransformer:
             exprs, aliases = self._choose(found, cgroup, mapper)
 
             # AliasList -> Schedule
-            schedule = lower_aliases(aliases, meta, self.opt_maxpar)
+            schedule = lower_aliases(
+                aliases, meta, self.opt_maxpar, self.opt_block_temps
+            )
 
             variants.append(make_variant(schedule, exprs, mapper))
 
@@ -159,8 +163,8 @@ class CireTransformer:
             processed = optimize_clusters_msds(processed)
 
         # [Clusters]_k -> [Clusters]_k (optimization)
-        if self.opt_maxpar:
-            processed = expose_tuning_knobs(processed, meta, self.sregistry)
+        if not self.opt_block_temps:
+            cgroup = expose_tuning_knobs(cgroup, meta, self.sregistry)
 
         # [Clusters]_k -> [Clusters]_{k+n}
         for c in cgroup:
@@ -669,11 +673,12 @@ def collect(extracted, meta, minstorage):
     return aliases
 
 
-def lower_aliases(aliases, meta, maxpar):
+def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
     """
     Create a Schedule from an AliasList.
     """
-    dmapper = {}
+    dmapper = make_blockdim_subiter(meta.ispace.itdims)
+
     processed = []
     for a in aliases:
         imapper = {
@@ -701,7 +706,7 @@ def lower_aliases(aliases, meta, maxpar):
 
             if not (writeto or
                     interval != interval.zero() or
-                    (maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
+                    (opt_maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
                 # The alias doesn't require a temporary Dimension along i.dim
                 intervals.append(i)
                 continue
@@ -715,36 +720,18 @@ def lower_aliases(aliases, meta, maxpar):
             interval = interval.lift(i.stamp)
 
             intervals.append(interval)
-            writeto.append(interval)
 
-            if i.dim.is_Block:
-                # Suitable IncrDimensions must be used to avoid OOB accesses.
-                # E.g., r[xs][ys][z] => both `xs` and `ys` must be initialized such
-                # that all accesses are within bounds. This requires traversing the
-                # hierarchy of BlockDimensions to set `xs` (`ys`) in a way that
-                # consecutive blocks access consecutive regions in `r` (e.g.,
-                # `xs=x0_blk1-x0_blk0` with `blocklevels=2`; `xs=0` with
-                # `blocklevels=1`, that is it degenerates in this case)
-                try:
-                    d = dmapper[i.dim]
-                except KeyError:
-                    dd = i.dim.parent
-                    assert dd.is_Block
-                    if dd.parent.is_Block:
-                        # A BlockDimension in between BlockDimensions
-                        m = i.dim.symbolic_min - i.dim.parent.symbolic_min
-                    else:
-                        m = 0
-                    d = dmapper[i.dim] = IncrDimension(
-                        f"{i.dim.name}s", i.dim, m, dd.symbolic_size, 1, dd.step
-                    )
-                sub_iterators[i.dim] = d
+            if opt_block_temps:
+                sub_iterators.update(dmapper)
+                writeto.append(interval)
             else:
-                d = i.dim
+                writeto.append(interval.relaxed)
+
+            d = sub_iterators.get(i.dim, i.dim)
 
             # Given the iteration `interval`, lower distances to indices
             for distance, indices in zip(a.distances, indicess, strict=True):
-                v = distance[interval.dim] or 0
+                v = distance[i.dim] or 0
                 try:
                     indices.append(d - interval.lower + v)
                 except TypeError:
@@ -884,8 +871,8 @@ def optimize_schedule_rotations(schedule, sregistry):
             aispace = aispace.augment({d: mds + [ii]})
             ispace = IterationSpace.union(rispace, aispace, relations={(d, cd, d1)})
 
-            processed.append(ScheduledAlias(
-                pivot, writeto, ispace, i.aliaseds, indicess, i.guards
+            processed.append(i._rebuild(
+                pivot=pivot, writeto=writeto, ispace=ispace, indicess=indicess
             ))
 
         # Update the rotations mapper
@@ -912,10 +899,7 @@ def optimize_schedule_maxpar_basic(schedule):
         writeto = writeto0.lift(dims, stamp)
         ispace = ispace0.lift(dims, stamp)
 
-        processed.extend([
-            ScheduledAlias(pivot, writeto, ispace, aliaseds, indicess, guards)
-            for pivot, _, _, aliaseds, indicess, guards in g
-        ])
+        processed.extend(i._rebuild(writeto=writeto, ispace=ispace) for i in g)
 
     return schedule.rebuild(*processed)
 
@@ -933,12 +917,14 @@ def optimize_schedule_maxpar_compact(schedule):
     ispace_union = IterationSpace.union(*[i.ispace for i in schedule])
 
     processed = []
-    for pivot, writeto, ispace, aliaseds, indicess, guards in schedule:
-        dims = writeto.itdims
+    #for pivot, writeto, ispace, aliaseds, indicess, guards in schedule:
+    for sa in schedule:
+        dims = sa.writeto.itdims
+        guards = sa.guards
 
         # Do we need to introduce guards to preserve the original semantics?
         for d in dims:
-            int0 = ispace[d]
+            int0 = sa.ispace[d]
             int1 = ispace_union[d]
 
             if int0 != int1:
@@ -946,18 +932,15 @@ def optimize_schedule_maxpar_compact(schedule):
                 guards = guards.xandg(d, guard)
 
         # This is conceptually identical to what we do for the `basic` mode
-        writeto = writeto.lift(dims, stamp)
+        writeto = sa.writeto.lift(dims, stamp)
         ispace = ispace_union.lift(dims, stamp)
 
-        processed.append(ScheduledAlias(
-            pivot, writeto, ispace, aliaseds, indicess, guards
-        ))
+        processed.append(sa._rebuild(writeto=writeto, ispace=ispace, guards=guards))
 
     return schedule.rebuild(*processed)
 
 
-def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
-                   opt_minmem):
+def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype, opt_minmem):
     """
     Turn a Schedule into a sequence of Clusters.
     """
@@ -966,28 +949,12 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
 
     clusters = []
     subs = {}
-    for pivot, writeto, ispace, aliaseds, indicess, guards in schedule:
+    for sa in schedule:
+        pivot, writeto, ispace, aliaseds, indicess, guards = sa
+
         name = sregistry.make_name()
-        # Infer the dtype for the pivot
-        # This prevents cases such as `floor(a*b)` with `a` and `b` floats
-        # that would creat a temporary `int r = b` leading to erroneous
-        # numerical results
 
         if writeto:
-            # The Dimensions defining the shape of Array
-            # Note: with SubDimensions, we may have the following situation:
-            #
-            # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
-            #   r[zi] = ...
-            #
-            # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll
-            # need as much room as in `zi`'s parent to avoid going OOB Aside
-            # from ugly generated code, the reason we do not rather shift the
-            # indices is that it prevents future passes to transform the loop
-            # bounds (e.g., MPI's comp/comm overlap does that)
-            dimensions = [d.parent if d.is_AbstractSub else d
-                          for d in writeto.itdims]
-
             # The minimum halo required along each Dimension depends on `writeto`.
             # The user might suggest to go more relaxed about this via `opt_minmem`,
             # in which case we extend the halo based on the surrounding
@@ -1008,15 +975,18 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype,
             shift = [halo[d].left - min_halo[d].left for d in writeto.itdims]
             halo = tuple(halo.values())
 
-            # The indices used to write into the Array
+            # The dimensions of the Array, which together with `halo`, will define
+            # its shape
+            dimensions = sa.dimensions
+
+            # The indices used to populate the Array
             indices = []
             for i, s in zip(writeto, shift, strict=True):
                 try:
                     # E.g., `xs`
-                    sub_iterators = writeto.sub_iterators[i.dim]
-                    assert len(sub_iterators) <= 1
-                    indices.append(sub_iterators[0] + s)
-                except (KeyError, IndexError):
+                    di, = writeto.sub_iterators[i.dim]
+                    indices.append(di + s)
+                except (KeyError, ValueError):
                     # E.g., `z` -- a non-shifted Dimension
                     indices.append(i.dim - i.lower + s)
 
@@ -1076,21 +1046,23 @@ def optimize_clusters_msds(clusters):
     processed = []
     for c in clusters:
         msds = [d for d in c.ispace.itdims if isinstance(d, MultiSubDimension)]
-
-        if msds:
-            mapper = {d: d.root for d in msds}
-            exprs = [uxreplace(e, mapper) for e in c.exprs]
-
-            ispace = c.ispace.relaxed(msds)
-
-            guards = {mapper.get(d, d): v for d, v in c.guards.items()}
-            properties = {mapper.get(d, d): v for d, v in c.properties.items()}
-            syncs = {mapper.get(d, d): v for d, v in c.syncs.items()}
-
-            processed.append(c.rebuild(exprs=exprs, ispace=ispace, guards=guards,
-                                       properties=properties, syncs=syncs))
-        else:
+        if not msds:
             processed.append(c)
+            continue
+
+        mapper = {d: d.root for d in msds}
+
+        from IPython import embed; embed(header='PRO')
+        exprs = [uxreplace(e, mapper) for e in c.exprs]
+
+        ispace = c.ispace.relaxed(msds)
+
+        guards = {mapper.get(d, d): v for d, v in c.guards.items()}
+        properties = {mapper.get(d, d): v for d, v in c.properties.items()}
+        syncs = {mapper.get(d, d): v for d, v in c.syncs.items()}
+
+        processed.append(c.rebuild(exprs=exprs, ispace=ispace, guards=guards,
+                                   properties=properties, syncs=syncs))
 
     return processed
 
@@ -1103,19 +1075,16 @@ def expose_tuning_knobs(clusters, meta, sregistry):
     # Create the new BlockDimensions
     callback = lambda i: sregistry.make_name(prefix=i)
 
-    subs = {}
+    mapper = {}
     for d in set().union(*[c.used_dimensions for c in clusters]):
         if d.is_Block:
-            subs.update(d._rebuild_hierarchy(callback))
+            mapper.update(d._rebuild_hierarchy(callback))
 
-    if subs:
-        from IPython import embed; embed()
+    if not mapper:
+        return clusters
 
-    processed = []
-    for c in clusters:
-        pass
+    processed = [c.subs(mapper) for c in clusters]
 
-    processed=clusters
     return processed
 
 
@@ -1504,18 +1473,55 @@ class AliasList:
         return all(i.is_frame for i in self._list)
 
 
-ScheduledAlias = namedtuple('SchedAlias',
-                            'pivot writeto ispace aliaseds indicess guards')
-ScheduledAlias.__new__.__defaults__ = (None, None, None, None, None, None)
+class ScheduledAlias(tuple, Reconstructable):
+
+    __rkwargs__ = ('pivot', 'writeto', 'ispace', 'aliaseds', 'indicess', 'guards')
+
+    def __new__(cls, pivot=None, writeto=None, ispace=None, aliaseds=None,
+                indicess=None, guards=None):
+        obj = super().__new__(cls, (pivot, writeto, ispace, aliaseds, indicess, guards))
+
+        assert len(aliaseds) > 0
+        assert len(aliaseds) == len(indicess)
+
+        obj.pivot = pivot
+        obj.writeto = writeto
+        obj.ispace = ispace
+        obj.aliaseds = aliaseds
+        obj.indicess = indicess
+        obj.guards = guards
+
+        return obj
+
+    def __repr__(self):
+        return f"ScheduledAlias<<{self.pivot}>>"
+
+    __str__ = __repr__
+
+    @property
+    def dimensions(self):
+        # Legacy: with SubDimensions, we may have the following situation:
+        #
+        # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
+        #   r[zi] = ...
+        #
+        # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll
+        # need as much room as in `zi`'s parent to avoid going out-of-bounds.
+        # Aside from ugly generated code, the reason we do not rather shift the
+        # indices is that it prevents future passes to transform the loop
+        # bounds (e.g., MPI's comp/comm overlap does that)
+        return tuple(d.parent if d.is_AbstractSub else d for d in self.writeto.itdims)
 
 
 class Schedule(tuple):
 
     def __new__(cls, *items, dmapper=None, rmapper=None, is_frame=False):
         obj = super().__new__(cls, items)
+
         obj.dmapper = dmapper or {}
         obj.rmapper = rmapper or {}
         obj.is_frame = is_frame
+
         return obj
 
     def rebuild(self, *items, dmapper=None, rmapper=None, is_frame=False):
@@ -1664,3 +1670,35 @@ def _(expr):
 @_deindexify.register(Indexed)
 def _(expr):
     return expr.function, {}
+
+
+def make_blockdim_subiter(dimensions):
+    """
+    Create sub-iterators for each BlockDimension with `depth > 1` in `dimensions`,
+    to stay in-bounds when accessing TempArrays in both the producer and consumer
+    iteration spaces.
+
+    For example, in `r[xs][ys][z]`  both `xs` and `ys` must be initialized such
+    that all accesses are within bounds. This requires traversing the hierarchy
+    of BlockDimensions to set `xs` (`ys`) in a way that consecutive blocks access
+    consecutive regions in `r` (e.g., trivially `xs=0` with `blocklevels=1`;
+    `xs=x0_blk1-x0_blk0` with `blocklevels=2`; and so on).
+    """
+    mapper = {}
+    for d in dimensions:
+        if not d.is_Block or d._depth == 1:
+            continue
+
+        pd = d.parent
+
+        if pd.parent.is_Block:
+            # A BlockDimension in between BlockDimensions
+            m = d.symbolic_min - pd.symbolic_min
+        else:
+            m = 0
+
+        mapper[d] = IncrDimension(
+            f"{d.name}s", d, m, pd.symbolic_size, 1, pd.step
+        )
+
+    return mapper

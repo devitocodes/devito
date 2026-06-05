@@ -335,6 +335,9 @@ class Properties(frozendict):
     def is_halo_init(self, dims=None):
         return self.is_halo_left_init(dims) or self.is_halo_right_init(dims)
 
+    def subs(self, mapper):
+        return {mapper.get(d, d): v for d, v in self.items()}
+
     @property
     def nblockable(self):
         return sum([self.is_blockable(d) for d in self])

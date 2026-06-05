@@ -342,6 +342,9 @@ class Guards(frozendict):
 
         return dict(i.args for i in search(self.get(d), cls))
 
+    def subs(self, mapper):
+        return {mapper.get(d, d): v for d, v in self.items()}
+
 
 class GuardExpr(LocalObject, BooleanFunction):
 

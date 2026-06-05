@@ -67,6 +67,7 @@ class Cpu64OperatorMixin:
                                 reduce=oo.pop('par-tile-reduce', None))
 
         # CIRE
+        o['cire-block-temps'] = oo.pop('cire-block-temps', cls.CIRE_BLOCK_TEMPS)
         o['min-storage'] = oo.pop('min-storage', False)
         o['cire-rotate'] = oo.pop('cire-rotate', False)
         o['cire-maxpar'] = oo.pop('cire-maxpar', False)

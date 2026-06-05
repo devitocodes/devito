@@ -58,6 +58,13 @@ class BasicOperator(Operator):
     situations where the performance impact might be detrimental.
     """
 
+    CIRE_BLOCK_TEMPS = True
+    """
+    If an aliasing expression is computed within a blocked loop nest, all CIRE-
+    generated temporaries will inherit the block shape. If set to False, the
+    temporaries shape will systematically be defined by the root Dimensions.
+    """
+
     CIRE_MINGAIN = 10
     """
     Minimum operation count reduction for a redundant expression to be optimized

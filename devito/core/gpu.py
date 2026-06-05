@@ -38,7 +38,9 @@ __all__ = [
 
 class DeviceOperatorMixin:
 
+    # Overrides the default values in the main Operator class
     BLOCK_LEVELS = 0
+    CIRE_BLOCK_TEMPS = False
     MPI_MODES = (True, 'basic',)
 
     GPU_FIT = 'all-fallback'
@@ -76,6 +78,7 @@ class DeviceOperatorMixin:
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
+        o['cire-block-temps'] = oo.pop('cire-block-temps', cls.CIRE_BLOCK_TEMPS)
         o['min-storage'] = False
         o['cire-rotate'] = False
         o['cire-maxpar'] = oo.pop('cire-maxpar', 'basic')
