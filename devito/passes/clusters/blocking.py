@@ -316,6 +316,7 @@ class AnalyzeSkewing(Queue):
 
 class SynthesizeBlocking(Queue):
 
+    #TODO: DROP?
     template = "%s%d_blk%s"
 
     def __init__(self, sregistry, options):

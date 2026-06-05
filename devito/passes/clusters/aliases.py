@@ -22,8 +22,8 @@ from devito.tools import (
     timed_pass
 )
 from devito.types import (
-    CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension, Size,
-    StencilDimension, Symbol, Temp, TempArray, TempFunction
+    BlockDimension, CustomDimension, Eq, Hyperplane, IncrDimension, Indexed,
+    ModuloDimension, Size, StencilDimension, Symbol, Temp, TempArray, TempFunction
 )
 from devito.types.grid import MultiSubDimension
 
@@ -157,6 +157,10 @@ class CireTransformer:
         # [Clusters]_k -> [Clusters]_k (optimization)
         if self.opt_multisubdomain:
             processed = optimize_clusters_msds(processed)
+
+        # [Clusters]_k -> [Clusters]_k (optimization)
+        if self.opt_maxpar:
+            processed = expose_tuning_knobs(processed, meta, self.sregistry)
 
         # [Clusters]_k -> [Clusters]_{k+n}
         for c in cgroup:
@@ -672,8 +676,10 @@ def lower_aliases(aliases, meta, maxpar):
     dmapper = {}
     processed = []
     for a in aliases:
-        imapper = {**{i.dim: i for i in a.intervals},
-                   **{i.dim.parent: i for i in a.intervals if i.dim.is_NonlinearDerived}}
+        imapper = {
+            **{i.dim: i for i in a.intervals},
+            **{i.dim.parent: i for i in a.intervals if i.dim.is_NonlinearDerived}
+        }
 
         intervals = []
         writeto = []
@@ -708,8 +714,8 @@ def lower_aliases(aliases, meta, maxpar):
             # use `<1>` as stamp, which is what appears in `ispace`
             interval = interval.lift(i.stamp)
 
-            writeto.append(interval)
             intervals.append(interval)
+            writeto.append(interval)
 
             if i.dim.is_Block:
                 # Suitable IncrDimensions must be used to avoid OOB accesses.
@@ -748,7 +754,7 @@ def lower_aliases(aliases, meta, maxpar):
         writeto = IterationSpace(IntervalGroup(writeto), sub_iterators)
 
         # Avoid scalar aliases in the presence of guards, since hoisting them
-        # might cause scope issues (see `test_dse.py::TestAliases::test_split_cond`)
+        # might cause issues (see `test_dse.py::TestAliases::test_split_cond`)
         if not writeto and meta.guards:
             continue
 
@@ -1086,6 +1092,30 @@ def optimize_clusters_msds(clusters):
         else:
             processed.append(c)
 
+    return processed
+
+
+def expose_tuning_knobs(clusters, meta, sregistry):
+    """
+    Replace all pre-existing BlockDimensions with fresh ones, to enable
+    separate tuning for the CIRE-generated temporaries.
+    """
+    # Create the new BlockDimensions
+    callback = lambda i: sregistry.make_name(prefix=i)
+
+    subs = {}
+    for d in set().union(*[c.used_dimensions for c in clusters]):
+        if d.is_Block:
+            subs.update(d._rebuild_hierarchy(callback))
+
+    if subs:
+        from IPython import embed; embed()
+
+    processed = []
+    for c in clusters:
+        pass
+
+    processed=clusters
     return processed
 
 
