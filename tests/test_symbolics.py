@@ -1,4 +1,4 @@
-from ctypes import c_void_p
+from ctypes import c_uint64, c_void_p
 
 import numpy as np
 import pytest
@@ -1260,6 +1260,30 @@ def test_print_div():
     b = SizeOf(np.int64)
     cstr = ccode(a / b)
     assert cstr == 'sizeof(int)/sizeof(long)'
+
+
+def test_sizeof():
+    sizeof_ctype = SizeOf(c_uint64)
+    str_pointer0 = SizeOf('float', stars='*')
+    str_pointer1 = SizeOf('float', '*')
+    str_simple = SizeOf('int')
+    complex_size = SizeOf(np.complex64)
+
+    assert sizeof_ctype.arguments == (ReservedWord('unsigned long'), ReservedWord(''))
+    assert str_pointer0.arguments == (ReservedWord('float'), ReservedWord('*'))
+    assert complex_size.arguments == (ReservedWord('c_complex'), ReservedWord(''))
+
+    # Printing
+    assert ccode(sizeof_ctype) == 'sizeof(unsigned long)'
+    assert ccode(str_pointer0) == ccode(str_pointer1) == 'sizeof(float*)'
+    assert ccode(str_simple) == 'sizeof(int)'
+    assert str(complex_size) == 'sizeof(c_complex)'
+    assert ccode(complex_size) == 'sizeof(float _Complex)'
+
+    # Reconstruction
+    assert ccode(str_pointer0.func(*str_pointer0.args)) == 'sizeof(float*)'
+    assert ccode(str_pointer0.func('int', stars='**')) == 'sizeof(int**)'
+    assert ccode(complex_size.func(*complex_size.args)) == 'sizeof(float _Complex)'
 
 
 def test_customdtype_complex():
