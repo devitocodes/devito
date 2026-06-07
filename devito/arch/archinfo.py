@@ -24,7 +24,7 @@ __all__ = [  # noqa: RUF022
     'check_cuda_runtime', 'load_cudart', 'get_m1_llvm_path', 'get_advisor_path',
     'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
     'Device',
-    'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+    'NvidiaDevice', 'AmdDevice', 'IntelDevice', 'AppleDevice',
     # Brand-agnostic
     'ANYCPU', 'ANYGPU',
     # Intel CPUs
@@ -39,7 +39,7 @@ __all__ = [  # noqa: RUF022
     # Other legacy CPUs
     'POWER8', 'POWER9',
     # Generic GPUs
-    'AMDGPUX', 'NVIDIAX', 'INTELGPUX',
+    'AMDGPUX', 'NVIDIAX', 'INTELGPUX', 'APPLEGPUX',
     # Nvidia GPUs
     'VOLTA', 'AMPERE', 'HOPPER', 'BLACKWELL',
     # Intel GPUs
@@ -1107,6 +1107,53 @@ class IntelDevice(Device):
         return ''
 
 
+class AppleDevice(Device):
+
+    thread_group_size = 32
+    thread_group_slots = 4
+
+    max_mem_trans_nbytes = 128
+    max_shm_per_block = 32*1024
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('max_threads_per_block', 1024)
+        kwargs.setdefault('max_threads_dimx', 1024)
+        kwargs.setdefault('max_threads_dimy', 1024)
+        kwargs.setdefault('max_threads_dimz', 1024)
+        super().__init__(*args, **kwargs)
+
+    @property
+    def march(self):
+        return ''
+
+    @cached_property
+    def numa_domains(self):
+        # A single GPU sharing the system memory
+        return 1
+
+    @cached_property
+    def memtotal(self):
+        # Apple GPUs share memory with the CPU, so device memory is system RAM
+        try:
+            from psutil import virtual_memory
+            return virtual_memory().total
+        except ImportError:
+            return None
+
+    def memavail(self, *args, **kwargs):
+        # Unified memory: report the available system RAM
+        try:
+            from psutil import virtual_memory
+            return virtual_memory().available
+        except ImportError:
+            return None
+
+    def supports(self, query, language=None):
+        if language != 'metal':
+            return False
+        return False
+
+
 class NvidiaDevice(Device):
 
     thread_group_size = 32
@@ -1252,6 +1299,7 @@ def node_max_mem_trans_nbytes(platform):
             'NVIDIA': NvidiaDevice,
             'AMD': AmdDevice,
             'INTEL': IntelDevice,
+            'APPLE': AppleDevice,
         }
         try:
             mmtb1 = mapper[gpu_info['vendor']].max_mem_trans_nbytes
@@ -1319,6 +1367,7 @@ PVC = IntelDevice('pvc')  # Legacy codename for MAX GPUs
 INTELGPUMAX = IntelDevice('intelgpuMAX')
 MAX1100 = IntelDevice('max1100')
 MAX1550 = IntelDevice('max1550')
+APPLEGPUX = AppleDevice('applegpuX')
 
 platform_registry = Platform.registry
 platform_registry['cpu64'] = get_platform  # Autodetection
