@@ -177,6 +177,8 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
         queue = sorted(env_vars_mapper.items(), key=lambda i: process_order.index(i[1]))
         unprocessed = OrderedDict([(v, os.environ.get(k, configuration._defaults[v]))
                                    for k, v in queue])
+        if unprocessed.get('compiler') == 'metal':
+            unprocessed['language'] = 'metal'
 
         # Handle deprecated env vars
         mapper = dict(queue)

@@ -15,8 +15,9 @@ from codepy.toolchain import call_capture_output as _call_capture_output
 from packaging.version import Version
 
 from devito.arch import (
-    AMDGPUX, POWER8, POWER9, AppleArm, Cortex, Cpu64, Graviton, IntelDevice, NvidiaArm,
-    NvidiaDevice, check_cuda_runtime, get_cuda_version, get_m1_llvm_path, get_nvidia_cc
+    AMDGPUX, POWER8, POWER9, AppleArm, AppleDevice, Cortex, Cpu64, Graviton,
+    IntelDevice, NvidiaArm, NvidiaDevice, check_cuda_runtime, get_cuda_version,
+    get_m1_llvm_path, get_nvidia_cc
 )
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
@@ -580,6 +581,46 @@ class ClangCompiler(Compiler):
         self.MPICXX = 'mpicxx'
 
 
+class MetalCompiler(ClangCompiler):
+
+    _default_cpp = True
+    _cxxstd = 'c++17'
+
+    def __init_finalize__(self, **kwargs):
+        kwargs['language'] = 'metal'
+        super().__init_finalize__(**kwargs)
+
+        platform = kwargs.pop('platform', configuration['platform'])
+
+        if not isinstance(platform, AppleDevice):
+            warning(f"Expected AppleDevice with MetalCompiler, not {platform}")
+
+        with suppress(ValueError):
+            self.cflags.remove('-march=native')
+
+        with suppress(ValueError):
+            self.libraries.remove('m')
+
+        self.cflags.extend([
+            '-Wno-nan-infinity-disabled',
+            '-Wno-unused-function',
+            '-D__cosf=cosf',
+            '-D__expf=expf',
+            '-D__logf=logf',
+            '-D__sinf=sinf',
+            '-D__tanf=tanf'
+        ])
+        self.ldflags.extend([
+            '-framework', 'Metal',
+            '-framework', 'Foundation',
+            '-framework', 'QuartzCore'
+        ])
+
+        metal_cpp = environ.get('METAL_CPP_HOME')
+        if metal_cpp:
+            self.include_dirs.append(metal_cpp)
+
+
 class CrayCompiler(ClangCompiler):
 
     """HPE Cray's Clang compiler."""
@@ -1104,6 +1145,7 @@ _compiler_registry = {
     'icx': OneapiCompiler,
     'icpx': OneapiCompiler,
     'sycl': SyclCompiler,
+    'metal': MetalCompiler,
     'icc': IntelCompiler,
     'icpc': IntelCompiler,
     'intel-knl': IntelKNLCompiler,
