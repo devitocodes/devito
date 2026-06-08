@@ -2883,12 +2883,11 @@ class TestAliases:
 
         # Ensure it executes smoothly
         op.apply(time_M=3)
-        from IPython import embed; embed()
 
         assert_structure(
             op,
-            ['t,x0_blk0,y0_blk0,x,y,z', 't,x0_blk0,y0_blk0,x,y,z'],
-            'tx0_blk0y0_blk0xyzx0_blk0y0_blk0xyz'
+            ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
+            'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz'
         )
 
 

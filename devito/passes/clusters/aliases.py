@@ -178,8 +178,8 @@ class CireTransformer:
         assert len(exprs) == 0
 
         # [Clusters]_m -> [Clusters]_m (optimization)
-        #if not self.opt_block_temps:
-        #    cgroup = expose_tuning_knobs(cgroup, meta, self.sregistry)
+        if not self.opt_block_temps:
+            rebuilt = expose_tuning_knobs(rebuilt, self.sregistry)
 
         processed.extend(rebuilt)
 
@@ -1059,7 +1059,7 @@ def optimize_clusters_msds(clusters):
     return processed
 
 
-def expose_tuning_knobs(clusters, meta, sregistry):
+def expose_tuning_knobs(clusters, sregistry):
     """
     Replace all pre-existing BlockDimensions with fresh ones, to enable
     separate tuning for the CIRE-generated temporaries.
@@ -1076,7 +1076,6 @@ def expose_tuning_knobs(clusters, meta, sregistry):
         return clusters
 
     processed = [c.subs(mapper) for c in clusters]
-    from IPython import embed; embed()  # noqa: E402
 
     return processed
 
