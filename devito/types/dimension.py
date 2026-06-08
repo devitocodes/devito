@@ -1329,7 +1329,7 @@ class BlockDimension(AbstractIncrDimension):
     is_Block = True
     is_PerfKnob = True
 
-    def _rebuild_hierarchy(self, callback=lambda i: i, step=None):
+    def _rebuild_hierarchy(self, callback=None, step=None):
         if self._depth != 2:
             raise NotImplementedError
 
@@ -1337,11 +1337,20 @@ class BlockDimension(AbstractIncrDimension):
         pp = self.parent.parent
 
         name0 = pp.name
-        base = callback(name0)
-        name1 = callback(f'{base}_blk')
+
+        if callback is None:
+            name1 = self.parent.name
+        else:
+            base = callback(name0)
+            name1 = callback(f'{base}_blk')
 
         bd = self.parent._rebuild(name1, pp, step=step or self.step)
-        d = self._rebuild(name0, bd, self._min.subs(p, bd), self._max.subs(p, bd))
+
+        subs = {p: bd}
+        if step is not None:
+            subs[self.parent.step] = step
+
+        d = self._rebuild(name0, bd, self._min.subs(subs), self._max.subs(subs))
 
         return {self: d, self.parent: bd}
 

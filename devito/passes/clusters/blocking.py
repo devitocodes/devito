@@ -538,7 +538,7 @@ class BlockSizeGenerator:
         elif all(c.properties.is_blockable_small(dims) for c in clusters):
             # Performance heuristics -- use a smaller par-tile
             umt = self.umt_small
-        
+
         else:
             umt = self.umt
 
@@ -628,7 +628,7 @@ def apply_par_tiles(clusters, options, **kwargs):
     """
     if not options['par-tile']:
         return clusters
-    
+
     blk_size_gen = BlockSizeGenerator(options['par-tile'])
 
     key0 = lambda d: d.is_Block and d._depth == 2

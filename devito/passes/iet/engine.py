@@ -625,7 +625,7 @@ def _(i, mapper, sregistry):
         return
 
     callback = lambda i: sregistry.make_name(prefix=i)
-    subs = BlockDimension._rebuild_hierarchy(callback)
+    subs = i._rebuild_hierarchy(callback)
 
     mapper.update(subs)
 
