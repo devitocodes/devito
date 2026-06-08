@@ -162,11 +162,8 @@ class CireTransformer:
         if self.opt_multisubdomain:
             processed = optimize_clusters_msds(processed)
 
-        # [Clusters]_k -> [Clusters]_k (optimization)
-        if not self.opt_block_temps:
-            cgroup = expose_tuning_knobs(cgroup, meta, self.sregistry)
-
-        # [Clusters]_k -> [Clusters]_{k+n}
+        # [Clusters]_m -> [Clusters]_{m}
+        rebuilt = []
         for c in cgroup:
             n = len(c.exprs)
             cexprs, exprs = exprs[:n], exprs[n:]
@@ -176,9 +173,15 @@ class CireTransformer:
             ispace = c.ispace.augment(schedule.dmapper)
             ispace = ispace.augment(schedule.rmapper)
 
-            processed.append(c.rebuild(exprs=cexprs, ispace=ispace))
+            rebuilt.append(c.rebuild(exprs=cexprs, ispace=ispace))
 
         assert len(exprs) == 0
+
+        # [Clusters]_m -> [Clusters]_m (optimization)
+        #if not self.opt_block_temps:
+        #    cgroup = expose_tuning_knobs(cgroup, meta, self.sregistry)
+
+        processed.extend(rebuilt)
 
         return processed
 
@@ -917,21 +920,20 @@ def optimize_schedule_maxpar_compact(schedule):
     ispace_union = IterationSpace.union(*[i.ispace for i in schedule])
 
     processed = []
-    #for pivot, writeto, ispace, aliaseds, indicess, guards in schedule:
     for sa in schedule:
-        dims = sa.writeto.itdims
         guards = sa.guards
 
         # Do we need to introduce guards to preserve the original semantics?
-        for d in dims:
-            int0 = sa.ispace[d]
-            int1 = ispace_union[d]
+        for int0, int1 in zip(sa.ispace, ispace_union, strict=True):
+            assert int0.dim is int1.dim
+            d = int0.dim
 
             if int0 != int1:
                 guard = sympy.And(d >= int0.symbolic_min, d <= int0.symbolic_max)
                 guards = guards.xandg(d, guard)
 
         # This is conceptually identical to what we do for the `basic` mode
+        dims = sa.writeto.itdims
         writeto = sa.writeto.lift(dims, stamp)
         ispace = ispace_union.lift(dims, stamp)
 
@@ -1052,17 +1054,7 @@ def optimize_clusters_msds(clusters):
 
         mapper = {d: d.root for d in msds}
 
-        from IPython import embed; embed(header='PRO')
-        exprs = [uxreplace(e, mapper) for e in c.exprs]
-
-        ispace = c.ispace.relaxed(msds)
-
-        guards = {mapper.get(d, d): v for d, v in c.guards.items()}
-        properties = {mapper.get(d, d): v for d, v in c.properties.items()}
-        syncs = {mapper.get(d, d): v for d, v in c.syncs.items()}
-
-        processed.append(c.rebuild(exprs=exprs, ispace=ispace, guards=guards,
-                                   properties=properties, syncs=syncs))
+        processed.append(c.subs(mapper))
 
     return processed
 
@@ -1479,7 +1471,8 @@ class ScheduledAlias(tuple, Reconstructable):
 
     def __new__(cls, pivot=None, writeto=None, ispace=None, aliaseds=None,
                 indicess=None, guards=None):
-        obj = super().__new__(cls, (pivot, writeto, ispace, aliaseds, indicess, guards))
+        obj = super().__new__(cls, (pivot, writeto, ispace, aliaseds, indicess,
+                                    guards))
 
         assert len(aliaseds) > 0
         assert len(aliaseds) == len(indicess)

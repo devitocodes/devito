@@ -186,6 +186,7 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cire(clusters, 'sops', sregistry, options, platform)
+        from IPython import embed; embed()  # noqa
         clusters = factorize(clusters, **kwargs)
 
         # The previous passes may have created fusion opportunities
