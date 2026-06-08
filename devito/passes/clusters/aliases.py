@@ -1076,6 +1076,7 @@ def expose_tuning_knobs(clusters, meta, sregistry):
         return clusters
 
     processed = [c.subs(mapper) for c in clusters]
+    from IPython import embed; embed()  # noqa: E402
 
     return processed
 
@@ -1667,9 +1668,7 @@ def _(expr):
 
 def make_blockdim_subiter(dimensions):
     """
-    Create sub-iterators for each BlockDimension with `depth > 1` in `dimensions`,
-    to stay in-bounds when accessing TempArrays in both the producer and consumer
-    iteration spaces.
+    Create sub-iterators for the BlockDimension in `dimensions`.
 
     For example, in `r[xs][ys][z]`  both `xs` and `ys` must be initialized such
     that all accesses are within bounds. This requires traversing the hierarchy
@@ -1677,9 +1676,13 @@ def make_blockdim_subiter(dimensions):
     consecutive regions in `r` (e.g., trivially `xs=0` with `blocklevels=1`;
     `xs=x0_blk1-x0_blk0` with `blocklevels=2`; and so on).
     """
+    depth = max([d._depth for d in dimensions if d.is_Block], default=0)
+    if depth <= 1:
+        return {}
+
     mapper = {}
     for d in dimensions:
-        if not d.is_Block or d._depth == 1:
+        if not d.is_Block or d._depth < depth:
             continue
 
         pd = d.parent
