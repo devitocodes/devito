@@ -14,7 +14,7 @@ from devito.tools import (
 )
 from devito.types import BlockDimension
 
-__all__ = ['blocking']
+__all__ = ['blocking', 'apply_par_tiles']
 
 
 def blocking(clusters, sregistry, options):
@@ -347,6 +347,7 @@ class SynthesizeBlocking(Queue):
 
     def _derive_block_dims(self, clusters, prefix, d, blk_size_gen):
         if blk_size_gen is not None:
+            from IPython import embed; embed()
             step = sympify(blk_size_gen.next(prefix, d, clusters))
         else:
             # This will result in a parametric step, e.g. `x0_blk0_size`
@@ -662,3 +663,37 @@ class SynthesizeSkewing(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
+
+
+def apply_par_tiles(clusters, options, **kwargs):
+    if not options['par-tile']:
+        return clusters
+
+    return ApplyParTiles(options).process(clusters)
+
+
+class ApplyParTiles(Queue):
+    """
+    Unfold the par-tile parameter into actual BlockDimension sizes.
+    """
+
+    def __init__(self, options):
+        self.blk_size_gen = BlockSizeGenerator(options['par-tile'])
+
+        super().__init__()
+
+    def process(self, clusters):
+        return self._process_fdta(clusters, 1)
+
+    def callback(self, clusters, prefix):
+        if not prefix:
+            return clusters
+
+        d = prefix[-1].dim
+
+        if not d.is_Block or d._depth < 2:
+            return clusters
+
+        from IPython import embed; embed()
+
+        return clusters
