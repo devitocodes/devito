@@ -312,8 +312,8 @@ class Properties(frozendict):
     def is_blockable(self, d):
         return bool(self.get(d, set()) & {TILABLE, TILABLE_SMALL})
 
-    def is_blockable_small(self, d):
-        return TILABLE_SMALL in self.get(d, set())
+    def is_blockable_small(self, dims):
+        return any(TILABLE_SMALL in self.get(d, set()) for d in as_tuple(dims))
 
     def _is_property_any(self, dims, v):
         if dims is None:
