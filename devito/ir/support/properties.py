@@ -336,7 +336,20 @@ class Properties(frozendict):
         return self.is_halo_left_init(dims) or self.is_halo_right_init(dims)
 
     def subs(self, mapper):
-        return {mapper.get(d, d): v for d, v in self.items()}
+        return Properties({mapper.get(d, d): v for d, v in self.items()})
+
+    def promote(self, subs):
+        m = self
+        for d, pd in subs.items():
+            if pd not in d._defines:
+                raise ValueError(f"Cannot promote {d} to {pd} as {pd} does not "
+                                 f"belong to {d}'s hierarchy")
+
+            v = normalize_properties(*[self.get(i, set()) for i in d._defines])
+
+            m = self.drop(d._defines).add(pd, v)
+
+        return m
 
     @property
     def nblockable(self):

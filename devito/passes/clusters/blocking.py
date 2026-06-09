@@ -632,7 +632,7 @@ def apply_par_tiles(clusters, options, **kwargs):
     blk_size_gen = BlockSizeGenerator(options['par-tile'])
 
     key0 = lambda d: d.is_Block and d._depth == 2
-    key = lambda c: tuple(d for d in c.ispace.itdims if key0(d))
+    key = lambda c: c.ispace.project(key0).itdims
 
     processed = []
     for bdims, group in groupby(clusters, key=key):
@@ -645,11 +645,15 @@ def apply_par_tiles(clusters, options, **kwargs):
         umt = blk_size_gen.schedule(bdims, g)
 
         subs = {}
+        compact = []
         for d in reversed(bdims):
-            step = sympify(umt.next())
+            try:
+                step = sympify(umt.next())
+                subs.update(d._rebuild_hierarchy(step=step))
+            except StopIteration:
+                # No more par-tile sizes available, so we drop the BlockDimensions
+                compact.append(d)
 
-            subs.update(d._rebuild_hierarchy(step=step))
-
-        processed.extend(c.subs(subs) for c in g)
+        processed.extend(c.subs(subs, compact) for c in g)
 
     return processed

@@ -128,9 +128,9 @@ class Cluster:
                               syncs=kwargs.get('syncs', self.syncs),
                               halo_scheme=kwargs.get('halo_scheme', self.halo_scheme))
 
-    def subs(self, mapper):
+    def subs(self, mapper, compact=()):
         """
-        Build a new Cluster applying the substitutions rules in `mapper` to self.
+        Build a new Cluster applying substitutions rules to `self`.
         """
         if not mapper:
             return self
@@ -138,15 +138,19 @@ class Cluster:
         if self.halo_scheme:
             raise NotImplementedError
 
-        exprs = [uxreplace(e, mapper) for e in self.exprs]
+        key0 = lambda i: i.is_Block
+        subs0 = {d: self.ispace[d].promote(key0).dim for d in compact}
+
+        subs = {**mapper, **subs0}
+        exprs = [uxreplace(e, subs) for e in self.exprs]
 
         ispace = self.ispace.switch(mapper)
+        key = lambda i: key0(i) and i in flatten(d._defines for d in subs0)
+        ispace = ispace.promote(key, mode='total')
 
-        guards = self.guards.subs(mapper)
-
-        properties = self.properties.subs(mapper)
-
-        syncs = {mapper.get(d, d): v for d, v in self.syncs.items()}
+        guards = self.guards.subs(mapper).promote(subs0)
+        properties = self.properties.subs(mapper).promote(subs0)
+        syncs = self.syncs.subs(mapper)
 
         return self.__class__(exprs=exprs, ispace=ispace, guards=guards,
                               properties=properties, syncs=syncs)

@@ -478,7 +478,12 @@ class IntervalGroup(Ordering):
 
     def promote(self, cond, mode='unordered'):
         intervals = [i.promote(cond) for i in self]
-        intervals = IntervalGroup(intervals, relations=None, mode=mode)
+
+        if mode == 'total':
+            relations = [filter_ordered(i.dim for i in intervals)]
+        else:
+            relations = None
+        intervals = IntervalGroup(intervals, relations=relations, mode=mode)
 
         # There could be duplicate Dimensions at this point, so we sum up the
         # Intervals defined over the same Dimension to produce a well-defined

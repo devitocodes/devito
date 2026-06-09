@@ -343,7 +343,26 @@ class Guards(frozendict):
         return dict(i.args for i in search(self.get(d), cls))
 
     def subs(self, mapper):
-        return {mapper.get(d, d): v.xreplace(mapper) for d, v in self.items()}
+        m = {mapper.get(d, d): v.xreplace(mapper) for d, v in self.items()}
+
+        return Guards(m)
+
+    def promote(self, subs):
+        m = self
+        for d, v in subs.items():
+            guards = {self.get(i) for i in d._defines} - {true}
+            if len(guards) > 1:
+                raise NotImplementedError(
+                    f"Cannot promote {d} to {v} due to multiple guards: {guards}"
+                )
+            elif len(guards) == 0:
+                continue
+
+            m[d] = guards[0]
+
+        m = m.popany(subs)
+
+        return m
 
 
 class GuardExpr(LocalObject, BooleanFunction):
