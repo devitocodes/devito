@@ -615,6 +615,10 @@ class ClusterGroup(tuple):
         return DataSpace.union(*[i.dspace.reset() for i in self])
 
     @property
+    def is_dense(self):
+        return all(i.is_dense for i in self)
+
+    @property
     def is_halo_touch(self):
         return all(i.is_halo_touch for i in self)
 

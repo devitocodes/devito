@@ -395,10 +395,6 @@ class CireDerivatives(CireTransformerLegacy):
     def process(self, clusters):
         processed = []
         for c in clusters:
-            if not c.is_dense:
-                processed.append(c)
-                continue
-
             # Rule out Dimension-independent dependencies, e.g.:
             # r0 = ...
             # u[x, y] = ... r0*a[x, y] ...
@@ -416,6 +412,9 @@ class CireDerivatives(CireTransformerLegacy):
         return processed
 
     def _generate(self, cgroup, exclude):
+        if not cgroup.is_dense:
+            return
+
         exprs = cgroup.exprs
 
         # E.g., extract `u.dx*a*b` and `u.dx*a*c` from
