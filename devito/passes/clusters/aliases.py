@@ -689,56 +689,64 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
             **{i.dim.parent: i for i in a.intervals if i.dim.is_NonlinearDerived}
         }
 
-        intervals = []
         writeto = []
+        intervals = {}
         sub_iterators = {}
         indicess = [[] for _ in a.distances]
         for i in meta.ispace:
+            d = i.dim
+
             try:
-                interval = imapper[i.dim]
+                interval = imapper[d]
             except KeyError:
-                if i.dim in a.free_symbols:
+                if d in a.free_symbols:
                     # Special case: the Dimension appears within the alias but
                     # not as an Indexed index. Then, it needs to be added to
                     # the `writeto` region too
                     interval = i
                 else:
                     # E.g., `x0_blk0` or (`a[y_m+1]` => `y not in imapper`)
-                    intervals.append(i)
+                    intervals[d] = i
                     continue
 
             if not (writeto or
                     interval != interval.zero() or
-                    (opt_maxpar and SEQUENTIAL not in meta.properties.get(i.dim))):
-                # The alias doesn't require a temporary Dimension along i.dim
-                intervals.append(i)
+                    (opt_maxpar and SEQUENTIAL not in meta.properties.get(d))):
+                # The alias doesn't require a temporary Dimension along `d`
+                intervals[d] = i
                 continue
 
-            assert not i.dim.is_NonlinearDerived
+            assert not d.is_NonlinearDerived
 
-            # `i.dim` is necessarily part of the write-to region, so
-            # we have to adjust the Interval's stamp. For example, consider
-            # `i=x[0,0]<1>` and `interval=x[-4,4]<0>`; here we need to
-            # use `<1>` as stamp, which is what appears in `ispace`
+            # `d` is necessarily part of the write-to region, so we have to
+            # adjust the Interval's stamp. For example, consider `i=x[0,0]<1>`
+            # and `interval=x[-4,4]<0>`; here we need to use `<1>` as stamp,
+            # which is what appears in `ispace`
             interval = interval.lift(i.stamp)
-
-            intervals.append(interval)
 
             if opt_block_temps:
                 sub_iterators.update(dmapper)
                 writeto.append(interval)
+                intervals[d] = interval
+            elif d.is_Block:
+                pd = d.parent
+                writeto.append(interval.relaxed)
+                # The lower/upper bounds belong to the parent BlockDimension
+                intervals[d] = interval.zero()
+                intervals[pd] = interval.switch(pd)
             else:
                 writeto.append(interval.relaxed)
+                intervals[d] = interval
 
-            d = sub_iterators.get(i.dim, i.dim)
+            di = sub_iterators.get(d, d)
 
             # Given the iteration `interval`, lower distances to indices
             for distance, indices in zip(a.distances, indicess, strict=True):
                 v = distance[i.dim] or 0
                 try:
-                    indices.append(d - interval.lower + v)
+                    indices.append(di - interval.lower + v)
                 except TypeError:
-                    indices.append(d)
+                    indices.append(di)
 
         # The alias write-to space
         writeto = IterationSpace(IntervalGroup(writeto), sub_iterators)
@@ -749,9 +757,10 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
             continue
 
         # The alias iteration space
-        ispace = IterationSpace(IntervalGroup(intervals, meta.ispace.relations),
-                                meta.ispace.sub_iterators,
-                                meta.ispace.directions)
+        ispace = IterationSpace(
+            IntervalGroup(intervals.values(), meta.ispace.relations),
+            meta.ispace.sub_iterators, meta.ispace.directions
+        )
         ispace = ispace.augment(sub_iterators)
 
         # For now, the guards coincide with the original ones, if any

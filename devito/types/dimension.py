@@ -1339,25 +1339,23 @@ class BlockDimension(AbstractIncrDimension):
         name0 = pp.name
 
         if callback is None:
-            name1 = self.parent.name
+            name1 = p.name
         else:
             base = callback(name0)
             name1 = callback(f'{base}_blk')
 
-        bd = self.parent._rebuild(name1, pp, step=step or self.step)
+        bd = p._rebuild(name1, pp, step=step or p.step)
 
         subs = {p: bd}
         if step is not None:
-            subs[self.parent.step] = step
+            subs[p.step] = step
 
         d = self._rebuild(
             name0, bd,
             self._min.subs(subs), self._max.subs(subs), size=self.size.subs(subs)
         )
-        if d.parent.name == 'z2_blk0':
-            from IPython import embed; embed(header='PPP')  # noqa
 
-        return {self: d, self.parent: bd}
+        return {self: d, p: bd}
 
     @cached_property
     def _arg_names(self):
