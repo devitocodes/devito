@@ -623,6 +623,10 @@ class ClusterGroup(tuple):
         return all(i.is_dense for i in self)
 
     @property
+    def is_wild(self):
+        return all(i.is_wild for i in self)
+
+    @property
     def is_halo_touch(self):
         return all(i.is_halo_touch for i in self)
 
