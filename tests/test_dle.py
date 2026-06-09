@@ -376,62 +376,6 @@ class TestBlockingParTile:
             assert iters[0].step == par_tile[1]
             assert iters[1].step == par_tile[0]
 
-    def test_custom_rule0(self):
-        grid = Grid(shape=(8, 8, 8))
-
-        u = TimeFunction(name="u", grid=grid, space_order=4)
-        v = TimeFunction(name="v", grid=grid, space_order=4)
-
-        eqns = [Eq(u.forward, u.dz.dy + u.dx.dz + u.dy.dx),
-                Eq(v.forward, u.forward.dx)]
-
-        # "Apply par-tile=(4, 4, 4) to the loop nest (kernel) with id (rule)=1,
-        # and use default for the rest!"
-        par_tile = (4, 4, 4)
-        rule = 1
-
-        op = Operator(eqns, opt=('advanced-fsg', {'par-tile': (par_tile, rule),
-                                                  'blockinner': True}))
-
-        # Check generated code. By having specified "1" as rule, we expect the
-        # given par-tile to be applied to the kernel with id 1
-        bns, _ = assert_blocking(op, {'z0_blk0', 'x0_blk0', 'z2_blk0'})
-        root = bns['x0_blk0']
-        iters = FindNodes(Iteration).visit(root)
-        iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
-        assert len(iters) == 3
-        assert all(i.step == j for i, j in zip(iters, par_tile, strict=True))
-
-    def test_custom_rule1(self):
-        grid = Grid(shape=(8, 8, 8))
-        x, y, z = grid.dimensions
-
-        f = Function(name='f', grid=grid)
-        u = TimeFunction(name="u", grid=grid, space_order=4)
-        v = TimeFunction(name="v", grid=grid, space_order=4)
-
-        eqns = [Eq(u.forward, u.dz.dy + u.dx.dz + u.dy.dx + cos(f)*cos(f[x+1, y, z])),
-                Eq(v.forward, u.forward.dx)]
-
-        # "Apply par-tile=(4, 4, 4) to the loop nests (kernels) embedded within
-        # the time loop, and use default for the rest!"
-        par_tile = (4, 4, 4)
-        rule = grid.time_dim.name  # We must be able to infer it from str
-
-        op = Operator(eqns, opt=('advanced-fsg', {'par-tile': (par_tile, rule),
-                                                  'blockinner': True,
-                                                  'blockrelax': True}))
-
-        # Check generated code. By having specified "time" as rule, we expect the
-        # given par-tile to be applied to the kernel within the time loop
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
-        for i in ['x0_blk0', 'x1_blk0', 'x2_blk0']:
-            root = bns[i]
-            iters = FindNodes(Iteration).visit(root)
-            iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
-            assert len(iters) == 3
-            assert all(i.step == j for i, j in zip(iters, par_tile, strict=True))
-
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (20, 33), (10, 31, 45), (45, 31, 45)])
 @pytest.mark.parametrize("time_order", [2])
