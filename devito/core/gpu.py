@@ -7,8 +7,8 @@ from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import is_on_device, stream_dimensions
 from devito.passes.clusters import (
-    Lift, blocking, buffering, cire, cse, factorize, fission, fuse, memcpy_prefetch,
-    optimize_pows, tasking
+    Lift, apply_par_tiles, blocking, buffering, cire, cse, factorize, fission, fuse,
+    memcpy_prefetch, optimize_pows, tasking
 )
 from devito.passes.equations import collect_derivatives
 from devito.passes.iet import (
@@ -240,6 +240,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Blocking to define thread blocks
         if options['blocklazy']:
             clusters = blocking(clusters, sregistry, options)
+
+        # Unfold the `par-tile`s, if any
+        clusters = apply_par_tiles(clusters, **kwargs)
 
         return clusters
 

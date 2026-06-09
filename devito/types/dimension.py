@@ -1350,7 +1350,12 @@ class BlockDimension(AbstractIncrDimension):
         if step is not None:
             subs[self.parent.step] = step
 
-        d = self._rebuild(name0, bd, self._min.subs(subs), self._max.subs(subs))
+        d = self._rebuild(
+            name0, bd,
+            self._min.subs(subs), self._max.subs(subs), size=self.size.subs(subs)
+        )
+        if d.parent.name == 'z2_blk0':
+            from IPython import embed; embed(header='PPP')  # noqa
 
         return {self: d, self.parent: bd}
 

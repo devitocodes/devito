@@ -32,9 +32,8 @@ from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
-    Graph, apply_par_tiles, error_mapper, generate_implicit, generate_macros,
-    is_on_device, lower_dtypes, lower_index_derivatives, minimize_symbols,
-    optimize_pows, unevaluate
+    Graph, error_mapper, generate_implicit, generate_macros, is_on_device, lower_dtypes,
+    lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
@@ -408,9 +407,6 @@ class Operator(Callable):
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters)
-
-        # Now that all IterationSpaces are in place, unfold the `par-tile`s, if any
-        clusters = apply_par_tiles(clusters, **kwargs)
 
         # Lower all remaining high order symbolic objects
         clusters = lower_index_derivatives(clusters, **kwargs)

@@ -5,8 +5,8 @@ from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import stream_dimensions
 from devito.passes.clusters import (
-    Lift, blocking, buffering, cire, cse, factorize, fission, fuse, optimize_hyperplanes,
-    optimize_pows
+    Lift, apply_par_tiles, blocking, buffering, cire, cse, factorize, fission, fuse,
+    optimize_hyperplanes, optimize_pows
 )
 from devito.passes.equations import collect_derivatives
 from devito.passes.iet import (
@@ -197,6 +197,9 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
         # Blocking to improve data locality
         if options['blocklazy']:
             clusters = blocking(clusters, sregistry, options)
+
+        # Unfold the `par-tile`s, if any
+        clusters = apply_par_tiles(clusters, **kwargs)
 
         return clusters
 
