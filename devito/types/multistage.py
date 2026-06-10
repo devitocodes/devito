@@ -3,73 +3,6 @@ from devito.types.dense import TimeFunction
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
 import numpy as np
-from types import MappingProxyType
-
-method_registry = {}
-
-
-def register_method(cls=None, *, aliases=None):
-    """
-    Register a time integration method class.
-
-    Parameters
-    ----------
-    cls : class, optional
-        The method class to register.
-    aliases : list of str, optional
-        Additional aliases for the method.
-    """
-    def decorator(cls):
-        # Register the class name
-        method_registry[cls.__name__] = cls
-
-        # Register any aliases
-        if aliases:
-            for alias in aliases:
-                method_registry[alias] = cls
-
-        return cls
-
-    if cls is None:
-        # Called as @register_method(aliases=['alias1'])
-        return decorator
-    else:
-        # Called as @register_method
-        return decorator(cls)
-
-
-def resolve_method(method):
-    """
-    Resolve a time integration method by name.
-
-    Parameters
-    ----------
-    method : str
-        Name or alias of the time integration method.
-
-    Returns
-    -------
-    class
-        The method class.
-
-    Raises
-    ------
-    ValueError
-        If the method is not found in the registry.
-    """
-    try:
-        return method_registry[method]
-    except KeyError:
-        available = sorted(method_registry.keys())
-        raise ValueError(
-            f"The time integrator '{method}' is not implemented. "
-            f"Available methods: {available}"
-        )
-
-
-def multistage_method(lhs, rhs, method, degree=None, source=None, optimized_feature=None):
-    method_cls = resolve_method(method)
-    return method_cls(lhs, rhs, degree=degree, source=source, optimized_feature=optimized_feature)
 
 
 class MultiStage(Eq):
@@ -104,12 +37,12 @@ class MultiStage(Eq):
     of update expressions for each stage in the integration process.
     """
 
-    def __new__(cls, lhs, rhs, degree=None, source=None, optimized_feature=None, **kwargs):
+    def __new__(cls, lhs, rhs, degree=None, source=None, optimized_feature=None, *args, **kwargs):
         lhs_tuple = tuple(i.function for i in as_tuple(lhs))
         rhs_tuple = as_tuple(rhs)
 
-        obj = super().__new__(cls, lhs_tuple[0], rhs_tuple[0], **kwargs)
-
+        obj = super().__new__(cls, lhs_tuple[0], rhs_tuple[0], *args, **kwargs)
+    
         # Store all equations as immutable tuples
         obj.eq = tuple(Eq(lhs, rhs) for lhs, rhs in zip(lhs_tuple, rhs_tuple))
         obj._lhs = lhs_tuple
@@ -142,7 +75,6 @@ class MultiStage(Eq):
     def _evaluate(self, **kwargs):
         raise NotImplementedError(
             f"_evaluate() must be implemented in the subclass {self.__class__.__name__}")
-
 
 class TableauRungeKutta(MultiStage):
     """
@@ -201,15 +133,14 @@ class TableauRungeKutta(MultiStage):
 
         Returns
         -------
-        list of Devito Eq objects
-            A list of SymPy Eq objects representing:
+        list of Eq objects
+            A list of Devito Eq objects representing:
             - `s` stage equations of the form `k_i = rhs evaluated at intermediate state`
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
 
         sregistry = kwargs.get('sregistry')
         # Create temporary Arrays to hold each stage
-
         k = []
         for j in range(self.n_eq):
             k_j = []
@@ -241,8 +172,6 @@ class TableauRungeKutta(MultiStage):
 
         return stage_eqs
     
-
-@register_method(aliases=['RK44'])
 class RungeKutta44(TableauRungeKutta):
     """
     Classic 4th-order Runge-Kutta (RK4) time integration method.
@@ -265,7 +194,6 @@ class RungeKutta44(TableauRungeKutta):
     b = (1/6, 1/3, 1/3, 1/6)
     c = (0, 1/2, 1/2, 1)
 
-@register_method(aliases=['RK32'])
 class RungeKutta32(TableauRungeKutta):
     """
     3 stages 2nd-order Runge-Kutta (RK32) time integration method.
@@ -287,7 +215,6 @@ class RungeKutta32(TableauRungeKutta):
     b = (0, 0, 1)
     c = (0, 1/2, 1/2)
 
-@register_method(aliases=['RK97'])
 class RungeKutta97(TableauRungeKutta):
     """
     9 stages 7th-order Runge-Kutta (RK97) time integration method.
@@ -320,7 +247,6 @@ class RungeKutta97(TableauRungeKutta):
          5963949/25894400, 50000000000/599799373173, 28487/712800)
     c = (0, 4/63, 2/21, 1/7, 7/17, 13/24, 7/9, 91/100, 1)
 
-@register_method(aliases=['HORK_EXP'])
 class HighOrderRungeKuttaExponential(MultiStage):
     # In construction
     """
@@ -441,7 +367,7 @@ class HighOrderRungeKuttaExponential(MultiStage):
         Returns
         -------
         list of Eq
-            A list of SymPy Eq objects representing:
+            A list of Devito Eq objects representing:
             - `s` stage equations of the form `k_i = rhs evaluated at intermediate state`
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
@@ -505,5 +431,3 @@ class HighOrderRungeKuttaExponential(MultiStage):
         stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[self.deg-1]) for lhs_j, k_j in zip(self.lhs, k)])
        
         return stage_eqs
-
-method_registry = MappingProxyType(method_registry)
