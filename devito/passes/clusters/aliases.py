@@ -991,14 +991,14 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype, opt_min
 
             # The indices used to populate the Array
             indices = []
-            for i, s in zip(writeto, shift, strict=True):
+            for interval, i, s in zip(writeto, sa.indices, shift, strict=True):
                 try:
                     # E.g., `xs`
-                    di, = writeto.sub_iterators[i.dim]
+                    di, = writeto.sub_iterators[i]
                     indices.append(di + s)
                 except (KeyError, ValueError):
                     # E.g., `z` -- a non-shifted Dimension
-                    indices.append(i.dim - i.lower + s)
+                    indices.append(i - interval.lower + s)
 
             dtype = sympy_dtype(pivot, base=meta.dtype)
             obj = make(name=name, dimensions=dimensions, halo=halo, dtype=dtype,
@@ -1511,7 +1511,15 @@ class ScheduledAlias(tuple, Reconstructable):
         # Aside from ugly generated code, the reason we do not rather shift the
         # indices is that it prevents future passes to transform the loop
         # bounds (e.g., MPI's comp/comm overlap does that)
-        return tuple(d.parent if d.is_AbstractSub else d for d in self.writeto.itdims)
+        return tuple(d.parent if d.is_AbstractSub else d
+                     for d in self.writeto.itdims)
+
+    @property
+    def indices(self):
+        bdims = [d for d in self.ispace.itdims if d.is_Block]
+        depth = max([d._depth for d in bdims], default=0)
+        mapper = {d.root: d for d in bdims if d._depth == depth}
+        return tuple(mapper.get(d.root, d) for d in self.writeto.itdims)
 
 
 class Schedule(tuple):
