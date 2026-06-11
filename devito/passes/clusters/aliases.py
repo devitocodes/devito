@@ -932,13 +932,18 @@ def optimize_schedule_maxpar_compact(schedule):
         guards = sa.guards
 
         # Do we need to introduce guards to preserve the original semantics?
-        for int0, int1 in zip(sa.ispace, ispace_union, strict=True):
-            assert int0.dim is int1.dim
-            d = int0.dim
+        for i in sa.indices:
+            for d in i._defines:
+                try:
+                    int0, int1 = sa.ispace[d], ispace_union[d]
+                except KeyError:
+                    continue
 
-            if int0 != int1:
-                guard = sympy.And(d >= int0.symbolic_min, d <= int0.symbolic_max)
-                guards = guards.xandg(d, guard)
+                if int0 != int1:
+                    guards = guards.xandg(i, sympy.And(
+                        i >= int0.symbolic_min, i <= int0.symbolic_max
+                    ))
+                    break
 
         # This is conceptually identical to what we do for the `basic` mode
         dims = sa.writeto.itdims
