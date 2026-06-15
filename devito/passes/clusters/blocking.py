@@ -5,7 +5,7 @@ from sympy import sympify
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
 from devito.ir.support import (
-    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
+    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SKEWABLE, TILABLE, Interval,
     IntervalGroup, IterationSpace, Scope
 )
 from devito.passes import is_on_device
@@ -207,12 +207,11 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
                     # along more than three dimensions
                     return clusters
 
-                if any(self._has_short_trip_count(i) for i in c.ispace.itdims):
-                    properties = c.properties.block(d, 'small')
-                elif self._has_data_reuse(c):
-                    properties = c.properties.block(d)
-                else:
-                    properties = c.properties.block(d, 'small')
+                properties = c.properties.block(d)
+
+                if any(self._has_short_trip_count(i) for i in c.ispace.itdims) or \
+                   not self._has_data_reuse(c):
+                    properties = properties.notune(d)
 
             elif self._has_data_reuse(c):
                 properties = c.properties.block(d)
@@ -241,7 +240,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             if c.properties.nblockable > 1:
                 processed.append(c)
             else:
-                properties = c.properties.drop(properties=TILABLES)
+                properties = c.properties.drop(properties=TILABLE)
                 processed.append(c.rebuild(properties=properties))
 
         return processed
@@ -398,7 +397,7 @@ class SynthesizeBlocking(Queue):
 
                 # The new Cluster properties -- TILABLE is dropped after blocking
                 properties = c.properties.drop(d)
-                properties = properties.add(block_dims, c.properties[d] - TILABLES)
+                properties = properties.add(block_dims, c.properties[d] - {TILABLE})
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            guards=guards, properties=properties))
@@ -535,7 +534,7 @@ class BlockSizeGenerator:
             else:
                 umt = self.umt_reduce
 
-        elif all(c.properties.is_blockable_small(dims) for c in clusters):
+        elif all(c.properties.avoid_tuning(dims) for c in clusters):
             # Performance heuristics -- use a smaller par-tile
             umt = self.umt_small
 
