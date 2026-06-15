@@ -5,7 +5,6 @@ from itertools import groupby
 import numpy as np
 import sympy
 
-from devito.arch import Device
 from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (
@@ -23,8 +22,8 @@ from devito.tools import (
     is_integer, split, timed_pass
 )
 from devito.types import (
-    BlockDimension, CustomDimension, Eq, Hyperplane, IncrDimension, Indexed,
-    ModuloDimension, Size, StencilDimension, Symbol, Temp, TempArray, TempFunction
+    CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension, Size,
+    StencilDimension, Symbol, Temp, TempArray, TempFunction
 )
 from devito.types.grid import MultiSubDimension
 
