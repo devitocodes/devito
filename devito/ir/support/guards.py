@@ -358,7 +358,10 @@ class Guards(frozendict):
             elif len(guards) == 0:
                 continue
 
-            m[d] = guards[0]
+            guard = guards.pop()
+            guard = guard.xreplace({d: v})
+
+            m = m.impose(v, guard)
 
         m = m.popany(subs)
 
