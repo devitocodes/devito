@@ -222,7 +222,7 @@ class Operator(Callable):
         return expressions
 
     @classmethod
-    def _retrieve_opt(cls, expressions, **kwargs):
+    def _retrieve_op(cls, expressions, **kwargs):
         return
 
     @classmethod
