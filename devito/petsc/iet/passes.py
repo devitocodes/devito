@@ -23,10 +23,7 @@ from devito.petsc.iet.logging import PetscLogger
 from devito.petsc.iet.nodes import PETScCallable, PetscMetaData, petsc_call
 from devito.petsc.iet.solve import CoupledSolve, Solve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
-from devito.petsc.iet.type_builder import (
-    BaseTypeBuilder, ConstrainedBCTypeBuilder, CoupledConstrainedBCTypeBuilder,
-    CoupledTypeBuilder, objs
-)
+from devito.petsc.iet.type_builder import make_type_builder_cls, objs
 from devito.petsc.types import (
     ArgvSymbol, CallbackUserStruct, Finalize, Initialize, MainUserStruct,
     MultipleFieldData
@@ -314,14 +311,20 @@ class BuildSolver:
     """
     def __init__(self, inject_solve, iters, comm, section_mapper, **kwargs):
         self.inject_solve = inject_solve
+        self.solver_metadata = self.inject_solve.expr.rhs
         self.objs = objs
         self.iters = iters
         self.comm = comm
         self.section_mapper = section_mapper
-        self.get_info = inject_solve.expr.rhs.get_info
+        self.get_info = self.solver_metadata.get_info
         self.kwargs = kwargs
-        self.coupled = isinstance(inject_solve.expr.rhs.field_data, MultipleFieldData)
-        self.constrain_bc = inject_solve.expr.rhs.field_data.constrain_bc
+        field_data = self.solver_metadata.field_data
+
+        # Solver properties
+        self.is_coupled = isinstance(field_data, MultipleFieldData)
+        self.is_constrained_bc = bool(field_data.constrain_bc)
+        self.is_multigrid = self.solver_metadata.multigrid_metadata is not None
+
         self.common_kwargs = {
             'inject_solve': self.inject_solve,
             'objs': self.objs,
@@ -337,14 +340,12 @@ class BuildSolver:
 
     @cached_property
     def type_builder(self):
-        if self.coupled and self.constrain_bc:
-            return CoupledConstrainedBCTypeBuilder(**self.common_kwargs)
-        elif self.coupled:
-            return CoupledTypeBuilder(**self.common_kwargs)
-        elif self.constrain_bc:
-            return ConstrainedBCTypeBuilder(**self.common_kwargs)
-        else:
-            return BaseTypeBuilder(**self.common_kwargs)
+        cls = make_type_builder_cls(
+            is_coupled=self.is_coupled,
+            is_multigrid=self.is_multigrid,
+            is_constrained_bc=self.is_constrained_bc,
+        )
+        return cls(**self.common_kwargs)
 
     @cached_property
     def time_dependence(self):
@@ -355,15 +356,15 @@ class BuildSolver:
     @cached_property
     def callback_builder(self):
         return CoupledCallbackBuilder(**self.common_kwargs) \
-            if self.coupled else BaseCallbackBuilder(**self.common_kwargs)
+            if self.is_coupled else BaseCallbackBuilder(**self.common_kwargs)
 
     @cached_property
     def builder(self):
-        if self.coupled and self.constrain_bc:
+        if self.is_coupled and self.is_constrained_bc:
             return CoupledConstrainedBCBuilder(**self.common_kwargs)
-        elif self.coupled:
+        elif self.is_coupled:
             return CoupledBuilder(**self.common_kwargs)
-        elif self.constrain_bc:
+        elif self.is_constrained_bc:
             return ConstrainedBCBuilder(**self.common_kwargs)
         else:
             return BuilderBase(**self.common_kwargs)
@@ -371,7 +372,7 @@ class BuildSolver:
     @cached_property
     def solve(self):
         return CoupledSolve(**self.common_kwargs) \
-            if self.coupled else Solve(**self.common_kwargs)
+            if self.is_coupled else Solve(**self.common_kwargs)
 
     @cached_property
     def logger(self):
@@ -383,3 +384,12 @@ class BuildSolver:
     @cached_property
     def calls(self):
         return List(body=self.solve.calls+self.logger.calls)
+
+    @cached_property
+    def required_headers(self):
+        headers = []
+        if self.is_constrained_bc:
+            headers.append('petscsection.h')
+        if self.is_multigrid:
+            headers.append('petscdmshell.h')
+        return tuple(headers)

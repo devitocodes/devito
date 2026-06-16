@@ -91,8 +91,12 @@ class BaseTypeBuilder:
         return base_dict
 
 
-class CoupledTypeBuilder(BaseTypeBuilder):
+class CoupledTypeBuilderMixin:
+    """
+    Mixin that adds multi-field (coupled) solver objects to `base_dict`.
+    """
     def _extend_build(self, base_dict):
+        base_dict = super()._extend_build(base_dict)
         sreg = self.sregistry
         objs = self.objs
         targets = self.field_data.targets
@@ -196,44 +200,16 @@ class CoupledTypeBuilder(BaseTypeBuilder):
             )
 
 
-class ConstrainedBCTypeBuilder(BaseTypeBuilder):
-    def _extend_build(self, base_dict):
-        sreg = self.sregistry
-        base_dict['lsection'] = PetscSectionLocal(
-            name=sreg.make_name(prefix='lsection')
-        )
-        base_dict['gsection'] = PetscSectionGlobal(
-            name=sreg.make_name(prefix='gsection')
-        )
-        base_dict['sf'] = PetscSF(
-            name=sreg.make_name(prefix='sf')
-        )
-        tname = self.field_data.target.name
-        base_dict[f'numBC_{tname}'] = PetscInt(
-            name=sreg.make_name(prefix='numBC'), initvalue=0
-        )
-        base_dict[f'numBCPtr_{tname}'] = CallbackPetscInt(
-            name=sreg.make_name(prefix='numBCPtr'), initvalue=0
-        )
-        base_dict[f'bcPointsArr_{tname}'] = PointerPetscInt(
-            name=sreg.make_name(prefix='bcPointsArr')
-        )
-        base_dict[f'k_iter_{tname}'] = PostIncrementIndex(
-            name='k_iter', initvalue=0
-        )
-        base_dict['bcPointsIS'] = PointerIS(name='bcPointsIS', nindices=1)
-        base_dict['bcCompsIS'] = PointerIS(name='bcCompsIS', nindices=1)
-        return base_dict
-
-
-class CoupledConstrainedBCTypeBuilder(CoupledTypeBuilder):
+class ConstrainBCTypeBuilderMixin:
+    """
+    Mixin that adds ConstrainBC solver objects to `base_dict`.
+    """
     def _extend_build(self, base_dict):
         base_dict = super()._extend_build(base_dict)
         sreg = self.sregistry
         targets = self.field_data.targets
         nfields = len(targets)
 
-        # Shared section/SF objects
         base_dict['lsection'] = PetscSectionLocal(
             name=sreg.make_name(prefix='lsection')
         )
@@ -244,20 +220,23 @@ class CoupledConstrainedBCTypeBuilder(CoupledTypeBuilder):
             name=sreg.make_name(prefix='sf')
         )
 
-        # Per-field BC objects
         for t in targets:
             tname = t.name
+            tsfx = tname if nfields > 1 else ''
             base_dict[f'numBC_{tname}'] = PetscInt(
-                name=sreg.make_name(prefix=f'numBC{tname}'), initvalue=0
+                name=sreg.make_name(prefix=f'numBC{tsfx}'), initvalue=0
             )
             base_dict[f'numBCPtr_{tname}'] = CallbackPetscInt(
-                name=sreg.make_name(prefix=f'numBCPtr{tname}'), initvalue=0
+                name=sreg.make_name(prefix=f'numBCPtr{tsfx}'), initvalue=0
             )
             base_dict[f'bcPointsArr_{tname}'] = PointerPetscInt(
-                name=sreg.make_name(prefix=f'bcPointsArr{tname}')
+                name=sreg.make_name(prefix=f'bcPointsArr{tsfx}')
+            )
+            k_iter_name = (
+                sreg.make_name(prefix=f'k{tname}') if nfields > 1 else 'k_iter'
             )
             base_dict[f'k_iter_{tname}'] = PostIncrementIndex(
-                name=sreg.make_name(prefix=f'k{tname}'), initvalue=0
+                name=k_iter_name, initvalue=0
             )
 
         # IS arrays for all fields (one entry per field)
@@ -268,6 +247,46 @@ class CoupledConstrainedBCTypeBuilder(CoupledTypeBuilder):
             name='bcCompsIS', nindices=nfields
         )
         return base_dict
+
+
+class MultigridTypeBuilderMixin:
+    """
+    Mixin that adds geometric multigrid solver objects to the base dict.
+    """
+    def _extend_build(self, base_dict):
+        base_dict = super()._extend_build(base_dict)
+        sreg = self.sregistry
+
+        return base_dict
+
+
+def make_type_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
+    """
+    Construct a TypeBuilder class by composing the appropriate mixins
+    for the given solver properties.
+
+    Parameters
+    ----------
+    is_coupled : bool
+    is_multigrid : bool
+    is_constrained_bc : bool
+
+    """
+    mixins = []
+
+    if is_multigrid:
+        mixins.append(MultigridTypeBuilderMixin)
+    if is_coupled:
+        mixins.append(CoupledTypeBuilderMixin)
+    if is_constrained_bc:
+        mixins.append(ConstrainBCTypeBuilderMixin)
+
+    mixins.append(BaseTypeBuilder)
+
+    if len(mixins) == 1:
+        return BaseTypeBuilder
+
+    return type('TypeBuilder', tuple(mixins), {})
 
 
 subdms = PointerDM(name='subdms')

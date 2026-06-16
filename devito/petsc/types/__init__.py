@@ -4,3 +4,4 @@ from .object import *  # noqa
 from .equation import *  # noqa
 from .macros import *  # noqa
 from .modes import *  # noqa
+from .multigrid import *  # noqa

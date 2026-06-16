@@ -37,15 +37,19 @@ def get_petsc_dir():
 
 
 @memoized_func
-def core_metadata():
+def core_metadata(extra_includes=()):
+    """
+    Build PETSc compiler metadata. `extra_includes` is a tuple of
+    solver specific PETSc headers - e.g. the header 'petscdmshell.h' is
+    required for geometric multigrid solvers.
+    """
     petsc_dir = get_petsc_dir()
 
     petsc_include = tuple([arch / 'include' for arch in petsc_dir])
     petsc_lib = tuple([arch / 'lib' for arch in petsc_dir])
 
     return {
-        # TODO: Only add petscsection header when needed
-        'includes': ('petscsnes.h', 'petscdmda.h', 'petscsection.h'),
+        'includes': ('petscsnes.h', 'petscdmda.h') + extra_includes,
         'include_dirs': petsc_include,
         'libs': ('petsc'),
         'lib_dirs': petsc_lib,

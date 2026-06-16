@@ -18,6 +18,16 @@ base_solve_defaults = {
 }
 
 
+# Geometric multigrid solver defaults - check with PETSc defaults
+mg_solve_defaults = {
+    'mg_levels_ksp_type': 'richardson',
+    'mg_levels_pc_type': 'jacobi',
+    'mg_levels_ksp_max_it': 2,
+    'mg_coarse_ksp_type': 'preonly',
+    # TODO: in petsc this is 'lu' but don't currently support explicit matrix assembly
+    'mg_coarse_pc_type': 'none',
+}
+
 # Specific to linear solvers
 linear_solve_defaults = {
     'snes_type': 'ksponly',
@@ -29,6 +39,8 @@ def linear_solver_parameters(solver_parameters):
     # Flatten parameters to support nested dictionaries
     flattened = flatten_parameters(solver_parameters or {})
     processed = linear_solve_defaults.copy()
+    if flattened.get('pc_type') == 'mg':
+        processed.update(mg_solve_defaults)
     processed.update(flattened)
     return processed
 

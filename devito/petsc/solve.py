@@ -1,7 +1,7 @@
 from devito.petsc.solver_parameters import format_options_prefix, linear_solver_parameters
 from devito.petsc.types import (
     ConstrainBC, DMDALocalInfo, FieldData, InitialGuess, Jacobian, LinearSolverMetaData,
-    MixedJacobian, MixedResidual, MultipleFieldData, PETScArray, Residual
+    MixedJacobian, MixedResidual, MultipleFieldData, MultigridMetadata, PETScArray, Residual
 )
 from devito.petsc.types.equation import EssentialBC
 from devito.symbolics import retrieve_dimensions, retrieve_functions
@@ -99,6 +99,7 @@ class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
                  get_info=None, constrain_bcs=False):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
+        # self.use_multigrid = self.solver_parameters.get('pc_type') == 'mg'
         self.time_mapper = None
         self.target_exprs = target_exprs
         # The original options prefix provided by the user
@@ -111,6 +112,11 @@ class InjectSolve:
         target, funcs, field_data = self.linear_solve_args()
         # Placeholder expression for inserting calls to the solver
 
+        # TODO: cover all cases - not only when pc_type is mg?
+        multigrid_metadata = MultigridMetadata(
+            field_data, self.solver_parameters
+        ) if self.solver_parameters.get('pc_type') == 'mg' else None
+
         linear_solve = LinearSolverMetaData(
             funcs,
             solver_parameters=self.solver_parameters,
@@ -119,7 +125,8 @@ class InjectSolve:
             localinfo=localinfo,
             user_prefix=self.user_prefix,
             formatted_prefix=self.formatted_prefix,
-            get_info=self.get_info
+            get_info=self.get_info,
+            multigrid_metadata=multigrid_metadata
         )
         return PetscEq(target, linear_solve)
 

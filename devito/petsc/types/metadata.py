@@ -43,12 +43,12 @@ class SolverMetaData(MetaData):
     __rargs__ = ('expr',)
     __rkwargs__ = ('solver_parameters', 'field_data', 'time_mapper',
                    'localinfo', 'user_prefix', 'formatted_prefix',
-                   'get_info')
+                   'get_info', 'multigrid_metadata')
 
     def __new__(cls, expr, solver_parameters=None,
                 field_data=None, time_mapper=None, localinfo=None,
                 user_prefix=None, formatted_prefix=None,
-                get_info=None, **kwargs):
+                get_info=None, multigrid_metadata=None, **kwargs):
 
         with sympy_mutex:
             if isinstance(expr, tuple):
@@ -63,6 +63,7 @@ class SolverMetaData(MetaData):
         obj.user_prefix = user_prefix
         obj.formatted_prefix = formatted_prefix
         obj.get_info = get_info if get_info is not None else []
+        obj.multigrid_metadata = multigrid_metadata
         return obj
 
     def __repr__(self):

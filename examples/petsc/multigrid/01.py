@@ -91,7 +91,7 @@ petsc = petscsolve(
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
     print(op.ccode)
-    summary = op.apply()
+    # summary = op.apply()
 
 iters = summary.petsc[('section0', 'poisson_1d')].KSPGetIterationNumber
 
