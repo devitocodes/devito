@@ -336,5 +336,11 @@ def test_switchenv():
     # Check a temporary variable is unset inside the context manager
     assert os.environ.get('TEST_VAR') is None
 
+    # Check an existing variable can be temporarily unset inside the context manager
+    with switchenv({'TEST_VAR_UNSET': 'foo'}):
+        with switchenv({'TEST_VAR_UNSET': None}):
+            assert os.environ.get('TEST_VAR_UNSET') is None
+        assert os.environ['TEST_VAR_UNSET'] == 'foo'
+
     # Make sure the switchenv does not persist to verify switchenv works as intended
     assert dict(os.environ) == previous_environ
