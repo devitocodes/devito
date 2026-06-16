@@ -2072,7 +2072,7 @@ class TestConditionalDimension:
 
         op = Operator(eqns, opt=('advanced', {'openmp': True}))
 
-        op.cfunction
+        _ = op.cfunction
 
         assert_structure(op, ['t,x0_blk0,y0_blk0,x,y,z',
                               't,x0_blk0,y0_blk0,x,y',

@@ -1706,7 +1706,7 @@ def make_blockdim_subiter(dimensions):
 
         pd = d.parent
 
-        if pd.parent.is_Block:
+        if pd.parent.is_Block:  # noqa SIM108
             # A BlockDimension in between BlockDimensions
             m = d.symbolic_min - pd.symbolic_min
         else:

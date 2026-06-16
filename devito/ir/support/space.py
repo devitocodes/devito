@@ -910,10 +910,7 @@ class IterationSpace(Space):
         `d1`. Optionally, `d0` could be a mapper, in which case multiple Dimensions
         may be switched.
         """
-        if isinstance(d0, dict):
-            mapper = d0
-        else:
-            mapper = {d0: d1}
+        mapper = d0 if isinstance(d0, dict) else {d0: d1}
 
         intervals = self.intervals
         sub_iterators = dict(self.sub_iterators)

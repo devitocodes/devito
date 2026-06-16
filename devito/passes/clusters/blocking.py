@@ -16,7 +16,7 @@ from devito.tools import (
 )
 from devito.types import BlockDimension
 
-__all__ = ['blocking', 'apply_par_tiles']
+__all__ = ['apply_par_tiles', 'blocking']
 
 
 def blocking(clusters, sregistry, options):
