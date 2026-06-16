@@ -7,7 +7,6 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 import ctypes
 from collections import OrderedDict
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
-from contextlib import suppress
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 
@@ -1202,7 +1201,6 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
     def visit(self, o, *args, **kwargs):
         # `start` and `stop` are part of this visitor's state.
         return GenericVisitor.visit(self, o, *args, **kwargs)
-
 
     def visit_object(self, o: object, flag: bool = False) -> LazyVisit[Node, bool]:
         yield from ()

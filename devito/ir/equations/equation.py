@@ -33,8 +33,8 @@ class IREq(sympy.Eq, Pickable):
     __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation')
 
     def _hashable_content(self):
-        return (*super()._hashable_content(),
-                *tuple(getattr(self, i) for i in self.__rkwargs__))
+        return (super()._hashable_content() +
+                tuple(as_hashable(getattr(self, i)) for i in self.__rkwargs__))
 
     @property
     def is_Scalar(self):
@@ -73,10 +73,6 @@ class IREq(sympy.Eq, Pickable):
     @property
     def operation(self):
         return self._operation
-
-    def _hashable_content(self):
-        return (super()._hashable_content() +
-                tuple(as_hashable(getattr(self, i)) for i in self.__rkwargs__))
 
     @property
     def is_Reduction(self):

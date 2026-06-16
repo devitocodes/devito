@@ -324,7 +324,8 @@ def reuse_if_unchanged(fields):
                 if type(input_obj) is cls:
                     names = getattr(cls, fields) if isinstance(fields, str) else fields
                     for name in names:
-                        if name in kwargs and kwargs[name] is not getattr(input_obj, name, None):
+                        if name in kwargs and \
+                           kwargs[name] is not getattr(input_obj, name, None):
                             break
                     else:
                         return input_obj

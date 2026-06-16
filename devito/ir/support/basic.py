@@ -10,7 +10,7 @@ from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (
-    compare_ops, q_affine, q_comp_acc, q_constant, retrieve_accesses, retrieve_indexed
+    compare_ops, q_affine, q_comp_acc, q_constant, retrieve_indexed
 )
 from devito.tools import (
     CacheInstances, Tag, as_mapper, as_tuple, cached_hash, filter_sorted, flatten,
@@ -1495,6 +1495,7 @@ class ExprGeometry:
 
 def vinf(entries):
     return Vector(*(entries + [S.Infinity]))
+
 
 def disjoint_test(e0, e1, d, it):
     """

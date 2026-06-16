@@ -799,6 +799,7 @@ class DataSpace(Space):
 
         return DataSpace(intervals, parts)
 
+
 class IterationSpace(Space, CacheInstances):
 
     """
