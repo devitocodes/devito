@@ -8,8 +8,8 @@ from sympy import Expr
 from devito.ir.support.utils import maximum, minimum
 from devito.ir.support.vector import Vector, vmax, vmin
 from devito.tools import (
-    CacheInstances, Ordering, Stamp, as_list, as_set, as_tuple, filter_ordered,
-    cached_hash, flatten, frozendict, is_integer, toposort
+    CacheInstances, Ordering, Stamp, as_list, as_set, as_tuple, cached_hash,
+    filter_ordered, flatten, frozendict, is_integer, toposort
 )
 from devito.types import Dimension, ModuloDimension
 

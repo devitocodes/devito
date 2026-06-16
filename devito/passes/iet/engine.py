@@ -16,8 +16,7 @@ from devito.mpi.routines import Gather, HaloUpdate, HaloWait, MPIMsg, Scatter
 from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointer, search
 from devito.tools import (
-    DAG, as_hashable, as_tuple, filter_ordered, memoized_func, sorted_priority,
-    timed_pass
+    DAG, as_hashable, as_tuple, filter_ordered, memoized_func, sorted_priority, timed_pass
 )
 from devito.types import (
     Array, Auto, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,

@@ -7,8 +7,8 @@ from devito import (  # noqa
     Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeFunction,
     switchconfig
 )
-from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.cgen import ccode
+from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import FindNodes, Iteration

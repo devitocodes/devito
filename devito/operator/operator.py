@@ -38,8 +38,8 @@ from devito.passes import (
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
     DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
-    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer,
-    memoized_func, split, timed_pass, timed_region
+    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, memoized_func,
+    split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness

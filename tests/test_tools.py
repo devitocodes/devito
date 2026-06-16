@@ -7,9 +7,8 @@ from sympy.abc import a, b, c, d, e
 
 from devito import Eq, Operator, switchenv
 from devito.tools import (
-    DefaultFrozenDict,
-    CacheInstances, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr, filter_ordered,
-    memoized_meth, memoized_weak_meth, toposort, transitive_closure
+    CacheInstances, DefaultFrozenDict, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr,
+    filter_ordered, memoized_meth, memoized_weak_meth, toposort, transitive_closure
 )
 from devito.types.basic import Symbol
 
@@ -324,6 +323,7 @@ class TestCacheInstances:
 
         assert obj0.value == (1, 2)
         assert obj0 is not obj1
+
 
 def test_switchenv():
     # Save previous environment

@@ -1,9 +1,7 @@
 from itertools import groupby, product
 
 from devito.ir.clusters import Queue, cluster_pass
-from devito.ir.support import (
-    SEPARABLE, SEQUENTIAL, Scope
-)
+from devito.ir.support import SEPARABLE, SEQUENTIAL, Scope
 from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul
 from devito.tools import Stamp, flatten, frozendict, timed_pass
