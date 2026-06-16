@@ -331,7 +331,8 @@ def xreplace_indices(exprs, mapper, key=None):
     replaced = [uxreplace(i, mapper) for i in exprs0]
 
     if isinstance(exprs, Iterable):
-        if len(replaced) == len(exprs0) and all(i is j for i, j in zip(replaced, exprs0)):
+        if len(replaced) == len(exprs0) and \
+           all(i is j for i, j in zip(replaced, exprs0, strict=True)):
             return exprs
         return replaced
     else:
@@ -462,11 +463,13 @@ def reuse_if_untouched(expr, args, evaluate=False):
     args = tuple(args)
 
     if type(expr) is tuple:
-        if len(args) == len(expr) and all(a is b for a, b in zip(expr, args)):
+        if len(args) == len(expr) and \
+           all(a is b for a, b in zip(expr, args, strict=True)):
             return expr
         return args
     elif type(expr) is list:
-        if len(args) == len(expr) and all(a is b for a, b in zip(expr, args)):
+        if len(args) == len(expr) and \
+           all(a is b for a, b in zip(expr, args, strict=True)):
             return expr
         return list(args)
     elif all(a is b for a, b in zip(expr.args, args, strict=False)):

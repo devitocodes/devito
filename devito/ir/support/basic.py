@@ -1277,7 +1277,7 @@ class Scope(CacheInstances):
 
         If ``writes`` is provided, restrict the analysis to those Functions.
         """
-        for k, v in writes.items():
+        for v in writes.values():
             for w1 in v:
                 for w2 in v:
                     if any(not rule(w2, w1) for rule in self.rules):

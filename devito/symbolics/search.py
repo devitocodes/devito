@@ -11,11 +11,11 @@ from devito.symbolics.queries import (
 from devito.tools import as_tuple, memoized_func
 
 __all__ = [
+    'retrieve_accesses',
     'retrieve_derivatives',
     'retrieve_dimensions',
     'retrieve_function_carriers',
     'retrieve_functions',
-    'retrieve_accesses',
     'retrieve_indexed',
     'retrieve_symbols',
     'retrieve_terminals',

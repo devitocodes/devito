@@ -6,7 +6,7 @@ import inspect
 from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 from contextlib import suppress
-from functools import cached_property, lru_cache
+from functools import cache, cached_property
 
 import cgen as c
 from sympy import IndexedBase, sympify
@@ -1646,7 +1646,7 @@ definition of the callable is known or not.
 # *** Utils
 
 
-@lru_cache(maxsize=None)
+@cache
 def _constructor_args(cls):
     """
     Return cached constructor argument names and default values for an IET type.
