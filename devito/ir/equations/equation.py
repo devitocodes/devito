@@ -87,7 +87,7 @@ class IREq(sympy.Eq, Pickable):
         return self.operation is OpInc
 
     @cached_property
-    def _writes(self):
+    def writes(self):
         from devito.symbolics.queries import q_routine
 
         terminals = set(retrieve_accesses(self.lhs))
@@ -97,10 +97,6 @@ class IREq(sympy.Eq, Pickable):
                 terminals.update(self.rhs.writes)
 
         return tuple(terminals)
-
-    @property
-    def writes(self):
-        return self._writes
 
     @cached_property
     def reads_explicit(self):
@@ -119,12 +115,8 @@ class IREq(sympy.Eq, Pickable):
         return tuple(accesses)
 
     @cached_property
-    def _reads(self):
-        return tuple(set(self.reads_explicit) | set(self.reads_conditional))
-
-    @property
     def reads(self):
-        return self._reads
+        return tuple(set(self.reads_explicit) | set(self.reads_conditional))
 
     @cached_property
     def _read_functions(self):
