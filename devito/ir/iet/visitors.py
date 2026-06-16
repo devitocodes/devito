@@ -19,7 +19,7 @@ from devito.exceptions import CompilationError
 from devito.ir.cgen.printer import get_printer
 from devito.ir.iet.nodes import (
     BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
-    Section, _same_as_before as same_as_before
+    Section, _same_as_before
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
@@ -1377,7 +1377,7 @@ class Transformer(Visitor):
         visited = tuple(self._visit(i, **kwargs) for i in o)
         processed = tuple(i for i in visited if i is not None)
 
-        if same_as_before(o, processed):
+        if _same_as_before(o, processed):
             return o
 
         return processed
@@ -1563,7 +1563,7 @@ blankline = c.Line("")
 def reuse_if_unchanged(o, *children, **kwargs):
     if children:
         same_children = all(
-            same_as_before(i, j) for i, j in zip(o.children, children, strict=True)
+            _same_as_before(i, j) for i, j in zip(o.children, children, strict=True)
         )
         if not same_children:
             return o._rebuild(*children, **kwargs)
