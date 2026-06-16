@@ -208,18 +208,18 @@ class Properties(frozendict):
     def dimensions(self):
         return tuple(self)
 
-    def _rebuild(self, mapper):
+    def _reuse_if_untouched(self, mapper):
         return self if mapper == self else Properties(mapper)
 
     def add(self, dims, properties=None):
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = set(self.get(d, [])) | set(as_tuple(properties))
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def filter(self, key):
         m = {d: v for d, v in self.items() if key(d)}
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def drop(self, dims=None, properties=None):
         if dims is None:
@@ -230,7 +230,7 @@ class Properties(frozendict):
                 m.pop(d, None)
             else:
                 m[d] = self[d] - set(as_tuple(properties))
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def parallelize(self, dims):
         m = dict(self)
@@ -239,13 +239,13 @@ class Properties(frozendict):
             v.difference_update({PARALLEL_IF_PVT, PARALLEL_IF_ATOMIC, SEQUENTIAL})
             v.add(PARALLEL)
             m[d] = v
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def affine(self, dims):
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = set(self.get(d, [])) | {AFFINE}
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def sequentialize(self, dims=None):
         if dims is None:
@@ -253,13 +253,13 @@ class Properties(frozendict):
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = normalize_properties(set(self.get(d, [])), {SEQUENTIAL})
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def prefetchable(self, dims, v=PREFETCHABLE):
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = self.get(d, set()) | {v}
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def block(self, dims, kind='default'):
         if kind == 'default':
@@ -271,7 +271,7 @@ class Properties(frozendict):
         m = dict(self)
         for d in as_tuple(dims):
             m[d] = set(self.get(d, [])) | {p}
-        return self._rebuild(m)
+        return self._reuse_if_untouched(m)
 
     def inbound(self, dims):
         return self.add(dims, INBOUND)
