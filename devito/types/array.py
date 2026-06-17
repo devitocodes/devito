@@ -165,7 +165,10 @@ class Array(ArrayBasic):
     def __padding_setup__(self, **kwargs):
         padding = kwargs.get('padding')
         if padding is None:
-            padding = ((0, 0),)*self.ndim
+            if self.is_autopaddable:
+                padding = self.__padding_setup_smart__(**kwargs)
+            else:
+                padding = ((0, 0),)*self.ndim
         elif isinstance(padding, DimensionTuple):
             padding = tuple(padding[d] for d in self.dimensions)
         elif is_integer(padding):
@@ -244,7 +247,7 @@ class MappedArrayMixin:
 
 
 class ArrayMapped(MappedArrayMixin, Array):
-    pass
+    is_autopaddable = True
 
 
 class ArrayObject(ArrayBasic):

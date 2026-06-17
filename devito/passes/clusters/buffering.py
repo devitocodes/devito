@@ -404,12 +404,8 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         # Finally create the actual buffer
         cls = callback or Array
         name = sregistry.make_name(prefix=f'{f.name}b')
-        # We specify the padding to match the input Function's one, so that
-        # the array can be used in place of the Function with valid strides
-        # Plain Array do not track mapped so we default to no padding
-        padding = 0 if cls is Array else f.padding
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                        padding=padding, grid=f.grid, halo=f.halo,
+                        grid=f.grid, halo=f.halo,
                         space='mapped', mapped=f, f=f)
 
     return mapper
