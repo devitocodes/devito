@@ -681,6 +681,10 @@ class TestDataDistributed:
         assert np.all(u.data == 1.)
         assert np.all(u.data._local == 1.)
 
+        u.data_local[:] = 2.
+        assert np.all(u.data == 2.)
+        assert np.all(u.data_local == 2.)
+
         v.data_with_halo[:] = 1.
         assert v.data_with_halo[:].shape == (3, 3)
         assert np.all(v.data_with_halo == 1.)

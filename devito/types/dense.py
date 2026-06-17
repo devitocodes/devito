@@ -524,6 +524,21 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     @_allocate_memory
+    def data_local(self):
+        """
+        The local domain data values, with global indexing disabled.
+
+        Notes
+        -----
+        This accessor behaves like a rank-local numpy.ndarray view under MPI. It
+        is useful when the input data is already distributed according to this
+        object's decomposition.
+        """
+        self._is_halo_dirty = True
+        return self._data._global(self._mask_domain, self._decomposition)._local
+
+    @property
+    @_allocate_memory
     def data_with_halo(self):
         """
         The domain+outhalo data values.

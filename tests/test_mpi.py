@@ -652,6 +652,49 @@ class TestSparseFunction:
         assert sf.local_indices == expectedinds
 
     @pytest.mark.parallel(mode=4)
+    def test_sparse_time_data_initialization_local_vs_global(self, mode):
+        """
+        SparseTimeFunction.data uses global sparse indices, while data._local
+        is the rank-local buffer. This mirrors dense Function.data semantics.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        nt = 3
+        npoint = 8
+        rec = SparseTimeFunction(name="rec", grid=grid, nt=nt, npoint=npoint)
+
+        local_sparse_indices = rec._distributor.glb_numb[0]
+        global_data = np.arange(nt*npoint, dtype=rec.dtype).reshape(nt, npoint)
+        expected_local = global_data[:, local_sparse_indices]
+
+        # A full global, replicated RHS is sliced by Devito for this rank.
+        rec.data[:, :] = global_data[:, :]
+        assert np.all(rec.data_local == expected_local)
+
+        # Individual sparse-column writes use global sparse indices.
+        rec.data_local[:, :] = 0
+        for local_i, global_i in enumerate(local_sparse_indices):
+            rec.data[:, global_i] = expected_local[:, local_i]
+        assert np.all(rec.data_local == expected_local)
+
+        # Already-distributed rank-local buffers should be copied locally.
+        local_data = -expected_local
+        rec.data[rec.local_indices] = local_data[:, :]
+        assert np.all(rec.data_local == local_data)
+        local_indices_data = rec.data_local.copy()
+
+        rec.data_local[:, :] = 0
+        rec.data_local[:, :] = local_data[:, :]
+        assert np.all(rec.data_local == local_indices_data)
+
+        taper = np.arange(1, nt + 1, dtype=rec.dtype)
+        loop_tapered = local_data.copy()
+        for i in range(rec.npoint):
+            loop_tapered[:, i] *= taper[:]
+
+        rec.data_local[:, :] *= taper[:, np.newaxis]
+        assert np.all(rec.data_local == loop_tapered)
+
+    @pytest.mark.parallel(mode=4)
     def test_scatter_gather(self, mode):
         """
         Test scattering and gathering of sparse data from and to a single MPI rank.
