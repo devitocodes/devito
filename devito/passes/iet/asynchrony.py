@@ -38,7 +38,7 @@ def pthreadify(graph, **kwargs):
 AsyncMeta = namedtuple('AsyncMeta', 'sdata threads init shutdown')
 
 
-@iet_pass
+@iet_pass(updates_args=True)
 def lower_async_objs(iet, **kwargs):
     # Different actions depending on the Callable type
     iet, efuncs = _lower_async_objs(iet, **kwargs)
