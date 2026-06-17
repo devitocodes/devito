@@ -308,7 +308,7 @@ class TestBasic:
         d = Dimension(name='d')
 
         a = Array(name='a', dimensions=grid.dimensions, dtype=np.int32,
-                  halo=((1, 1), (2, 2)), padding=((2, 2), (2, 2)),
+                  halo=((1, 1), (2, 2)),
                   space='host', scope='stack')
 
         pkl_a = pickle.dumps(a)
@@ -318,7 +318,7 @@ class TestBasic:
         assert new_a.dimensions[0].name == 'x'
         assert new_a.dimensions[1].name == 'y'
         assert new_a.halo == ((1, 1), (2, 2))
-        assert new_a.padding == ((2, 2), (2, 2))
+        assert new_a.padding == ((0, 0), (0, 0))
         assert new_a.space == 'host'
         assert new_a.scope == 'stack'
 

@@ -376,6 +376,9 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             assert len(buffers) == 1, "Unexpected form of multi-level buffering"
             buffer, = buffers
             xd = buffer.indices[dim]
+            # The new buffer is fed by `buffer`, so it inherits its padding
+            # policy regardless of `f`'s
+            extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
         else:
             size = infer_buffer_size(f, dim, clusters)
 
@@ -395,6 +398,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             except KeyError:
                 name = sregistry.make_name(prefix='db')
                 xd = xds[(dim, size)] = BufferDimension(name, 0, size-1, size, dim)
+            extra_kwargs = {}
 
         # The buffer dimensions
         dimensions = list(f.dimensions)
@@ -406,7 +410,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         name = sregistry.make_name(prefix=f'{f.name}b')
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
                         grid=f.grid, halo=f.halo,
-                        space='mapped', mapped=f, f=f)
+                        space='mapped', mapped=f, f=f, **extra_kwargs)
 
     return mapper
 

@@ -325,7 +325,7 @@ class TestMetaData:
 
     def test_wo_halo_wo_padding(self):
         grid = Grid(shape=(4, 4, 4))
-        u = Function(name='u', grid=grid, space_order=0, padding=0)
+        u = Function(name='u', grid=grid, space_order=0)
 
         assert u.shape == u._shape_with_inhalo == u.shape_allocated
         assert u.shape_with_halo == u._shape_with_inhalo  # W/o MPI, these two coincide
@@ -336,7 +336,7 @@ class TestMetaData:
 
     def test_w_halo_wo_padding(self):
         grid = Grid(shape=(4, 4, 4))
-        u = Function(name='u', grid=grid, space_order=2, padding=0)
+        u = Function(name='u', grid=grid, space_order=2)
 
         assert len(u.shape) == len(u._size_halo.left)
         assert u._size_halo == u._size_owned == ((2, 2), (2, 2), (2, 2))
@@ -349,7 +349,7 @@ class TestMetaData:
 
         # Try with different grid shape and space_order
         grid2 = Grid(shape=(3, 3, 3))
-        u2 = Function(name='u2', grid=grid2, space_order=4, padding=0)
+        u2 = Function(name='u2', grid=grid2, space_order=4)
         assert u2.shape == (3, 3, 3)
         assert u2._offset_domain == (4, 4, 4)
         assert u2._offset_halo == ((0, 7), (0, 7), (0, 7))
@@ -358,57 +358,25 @@ class TestMetaData:
         ) == u2.shape_with_halo
         assert u2.shape_with_halo == (11, 11, 11)
 
-    def test_wo_halo_w_padding(self):
-        grid = Grid(shape=(4, 4, 4))
-        u = Function(name='u', grid=grid, space_order=2, padding=((1, 1), (3, 3), (4, 4)))
-
-        assert tuple(
-            i + j + k for i, (j, k) in zip(u.shape_with_halo, u._padding, strict=True)
-        ) == u.shape_allocated
-        assert u._halo == ((2, 2), (2, 2), (2, 2))
-        assert u._size_padding == ((1, 1), (3, 3), (4, 4))
-        assert u._size_padding.left == u._size_padding.right == (1, 3, 4)
-        assert u._size_nodomain == ((3, 3), (5, 5), (6, 6))
-        assert u._size_nodomain.left == u._size_nodomain.right == (3, 5, 6)
-        assert u._size_nopad == (8, 8, 8)
-        assert u._offset_domain == (3, 5, 6)
-        assert u._offset_halo == ((1, 7), (3, 9), (4, 10))
-        assert u._offset_halo.left == (1, 3, 4)
-        assert u._offset_halo.right == (7, 9, 10)
-        assert u._offset_owned == ((3, 5), (5, 7), (6, 8))
-
-    def test_w_halo_w_padding(self):
-        grid = Grid(shape=(4, 4, 4))
-        u = Function(name='u', grid=grid, space_order=(2, 1, 4),
-                     padding=((1, 1), (2, 2), (3, 3)))
-
-        assert u._size_halo == ((1, 4), (1, 4), (1, 4))
-        assert u._size_owned == ((4, 1), (4, 1), (4, 1))
-        assert u._size_nodomain == ((2, 5), (3, 6), (4, 7))
-        assert u._size_nodomain.left == (2, 3, 4)
-        assert u._size_nodomain.right == (5, 6, 7)
-        assert u._size_nopad == (9, 9, 9)
-        assert u._offset_domain == (2, 3, 4)
-        assert u._offset_halo == ((1, 6), (2, 7), (3, 8))
-        assert u._offset_owned == ((2, 5), (3, 6), (4, 7))
-
-    @switchconfig(autopadding=True, platform='bdw')  # Platform is to fix pad value
+    @switchconfig(autopadding=True, platform='bdw')
     def test_w_halo_w_autopadding(self):
         grid = Grid(shape=(4, 4, 4))
         u0 = Function(name='u0', grid=grid, space_order=0)
         u1 = Function(name='u1', grid=grid, space_order=3)
 
-        assert configuration['platform'].simd_items_per_reg(u1.dtype) == 8
+        mmts = configuration['platform'].max_mem_trans_size(u1.dtype)
 
+        u0_pad = mmts - 4  # RoundUp(4, mmts) - 4
         assert u0._size_halo == ((0, 0), (0, 0), (0, 0))
-        assert u0._size_padding == ((0, 0), (0, 0), (0, 12))
+        assert u0._size_padding == ((0, 0), (0, 0), (0, u0_pad))
         assert u0._size_nodomain == u0._size_padding
-        assert u0.shape_allocated == (4, 4, 16)
+        assert u0.shape_allocated == (4, 4, 4 + u0_pad)
 
+        u1_pad = mmts - 10  # RoundUp(3+4+3, mmts) - (3+4+3)
         assert u1._size_halo == ((3, 3), (3, 3), (3, 3))
-        assert u1._size_padding == ((0, 0), (0, 0), (0, 6))  # 6 stems from 16-(3+4+3)
-        assert u1._size_nodomain == ((3, 3), (3, 3), (3, 9))
-        assert u1.shape_allocated == (10, 10, 16)
+        assert u1._size_padding == ((0, 0), (0, 0), (0, u1_pad))
+        assert u1._size_nodomain == ((3, 3), (3, 3), (3, 3 + u1_pad))
+        assert u1.shape_allocated == (10, 10, 10 + u1_pad)
 
     @switchconfig(autopadding=True, platform='bdw')
     def test_temp_array_smart_padding_no_overshoot(self):
