@@ -16,6 +16,11 @@ def make_core_petsc_calls(objs, comm):
 
 
 class BuilderBase:
+    """
+    Generates the PETSc solver setup calls emitted at the top of the Kernel.
+    The set of calls are accessed via the `calls` property. Extend via mixins
+    that override the relevant hooks to add/modify certain calls.
+    """
     def __init__(self, **kwargs):
         self.inject_solve = kwargs.get('inject_solve')
         self.objs = kwargs.get('objs')
@@ -29,12 +34,58 @@ class BuilderBase:
         return self._setup()
 
     @property
-    def snes_ctx(self):
+    def snes_set_function_context(self):
         """
-        The [optional] context for private data for the function evaluation routine.
+        The context for private data passed to the `SNESSetFunction` routine.
         https://petsc.org/main/manualpages/SNES/SNESSetFunction/
         """
         return VOID(self.solver_objs['dmda'], stars='*')
+
+    def _create_local_x_vector(self):
+        """
+        Create the local solution vector x where F(x) = b. Array space is provided
+        to store the vector values instead of allocating new memory on the PETSc side.
+        """
+        sobjs = self.solver_objs
+        target = self.field_data.target
+        field_from_ptr = FieldFromPointer(
+            target.function._C_field_data, target.function._C_symbol
+        )
+        local_size = math.prod(
+            v for v, dim in zip(target.shape_allocated, target.dimensions, strict=True)
+            if dim.is_Space
+        )
+        # TODO: Check - VecCreateSeqWithArray vs VecCreateMPIWithArray
+        return petsc_call('VecCreateSeqWithArray',
+                          ['PETSC_COMM_SELF', 1, local_size,
+                           field_from_ptr, Byref(sobjs['xlocal'])])
+
+    def _create_global_b_vector(self):
+        """
+        Create the global vector b where F(x) = b.
+        """
+        sobjs = self.solver_objs
+        return petsc_call('DMCreateGlobalVector',
+                          [sobjs['dmda'], Byref(sobjs['bglobal'])])
+    
+    def _mat_set_dm(self):
+        """
+        Set the DM for the Jacobian matrix.
+        """
+        sobjs = self.solver_objs
+        # TODO: maybe don't need to explicitly set this?
+        return petsc_call('MatSetDM', [sobjs['Jac'], sobjs['dmda']])
+    
+    def _mat_shell_set_matop_mult(self):
+        """
+        Set the MATOP_MULT operation for the Jacobian.
+        """
+        sobjs = self.solver_objs
+        matvec = self.callback_builder.main_matvec_efunc
+        return petsc_call(
+            'MatShellSetOperation',
+            [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
+        )
 
     def _setup(self):
         sobjs = self.solver_objs
@@ -62,41 +113,19 @@ class BuilderBase:
         global_x = petsc_call('DMCreateGlobalVector',
                               [dmda, Byref(sobjs['xglobal'])])
 
-        target = self.field_data.target
-        field_from_ptr = FieldFromPointer(
-            target.function._C_field_data, target.function._C_symbol
-        )
-
-        local_size = math.prod(
-            v for v, dim in zip(target.shape_allocated, target.dimensions, strict=True)
-            if dim.is_Space
-        )
-        # TODO: Check - VecCreateSeqWithArray vs VecCreateMPIWithArray
-        local_x = petsc_call('VecCreateSeqWithArray',
-                             ['PETSC_COMM_SELF', 1, local_size,
-                              field_from_ptr, Byref(sobjs['xlocal'])])
-
         # TODO: potentially also need to set the DM and local/global map to xlocal
 
         get_local_size = petsc_call('VecGetLocalSize',
                                     [sobjs['xlocal'], Byref(sobjs['localsize'])])
 
-        global_b = petsc_call('DMCreateGlobalVector',
-                              [dmda, Byref(sobjs['bglobal'])])
-
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
 
-        matvec = self.callback_builder.main_matvec_efunc
-        matvec_operation = petsc_call(
-            'MatShellSetOperation',
-            [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
-        )
         formfunc = self.callback_builder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
             [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
-             self.snes_ctx]
+             self.snes_set_function_context]
         )
 
         snes_set_options = petsc_call(
@@ -104,9 +133,6 @@ class BuilderBase:
         )
 
         dmda_calls = self._create_dmda_calls(dmda)
-
-        # TODO: maybe don't need to explicitly set this
-        mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
 
         base_setup = dmda_calls + (
             snes_create,
@@ -116,15 +142,14 @@ class BuilderBase:
             create_matrix,
             snes_set_jac,
             global_x,
-            local_x,
+            self._create_local_x_vector(),
             get_local_size,
-            global_b,
+            self._create_global_b_vector(),
             snes_get_ksp,
-            matvec_operation,
+            self._mat_shell_set_matop_mult(),
             formfunc_operation,
             snes_set_options,
-            mat_set_dm,
-            BlankLine
+            self._mat_set_dm()
         )
         extended_setup = self._extend_setup()
         return base_setup + extended_setup
@@ -136,26 +161,19 @@ class BuilderBase:
         return ()
 
     def _create_dmda_calls(self, dmda):
-        dmda_create = self._create_dmda(dmda)
-        # TODO: probably need to set the dm options prefix the same as snes?
-        dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
-        dm_setup = petsc_call('DMSetUp', [dmda])
-        dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
         mainctx = self.solver_objs['userctx']
 
         call_struct_callback = petsc_call(
             self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
         )
-
-        calls_set_app_ctx = petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
-
         return (
-            dmda_create,
-            dm_set_from_opts,
-            dm_setup,
-            dm_mat_type,
+            self._create_dmda(dmda),
+            # TODO: probably need to set the dm options prefix the same as snes?
+            petsc_call('DMSetFromOptions', [dmda]),
+            petsc_call('DMSetUp', [dmda]),
+            petsc_call('DMSetMatType', [dmda, 'MATSHELL']),
             call_struct_callback,
-            calls_set_app_ctx
+            petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
         )
 
     def _create_dmda(self, dmda):
@@ -175,7 +193,7 @@ class BuilderBase:
 
         # Global dimensions
         args.extend(list(grid.shape)[::-1])
-        # No.of processors in each dimension
+        # No. of processors in each dimension
         if nspace_dims > 1:
             args.extend(list(grid.distributor.topology)[::-1])
 
@@ -198,67 +216,29 @@ class BuilderBase:
         return dmda
 
 
-class CoupledBuilder(BuilderBase):
-    def _setup(self):
-        # TODO: minimise code duplication with superclass
-        objs = self.objs
+class CoupledBuilderMixin(BuilderBase):
+    """
+    Mixin for multi-field (coupled) solver setup calls emitted at the top
+    of the Kernel.
+    """
+    def _create_local_x_vector(self):
         sobjs = self.solver_objs
-        dmda = sobjs['dmda']
-
-        snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
-
-        snes_options_prefix = petsc_call(
-            'SNESSetOptionsPrefix', [sobjs['snes'], sobjs['snes_prefix']]
-        ) if self.formatted_prefix else None
-
-        set_options = petsc_call(
-            self.callback_builder._set_options_efunc.name, []
+        return petsc_call(
+            'DMCreateLocalVector', [sobjs['dmda'], Byref(sobjs['xlocal'])]
         )
-
-        snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
-
-        create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
-
-        snes_set_jac = petsc_call(
-            'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
-                                sobjs['Jac'], 'MatMFFDComputeJacobian', Null]
-        )
-
-        global_x = petsc_call('DMCreateGlobalVector',
-                              [dmda, Byref(sobjs['xglobal'])])
-
-        local_x = petsc_call('DMCreateLocalVector', [dmda, Byref(sobjs['xlocal'])])
-
-        get_local_size = petsc_call('VecGetSize',
-                                    [sobjs['xlocal'], Byref(sobjs['localsize'])])
-
-        snes_get_ksp = petsc_call('SNESGetKSP',
-                                  [sobjs['snes'], Byref(sobjs['ksp'])])
-
-        matvec = self.callback_builder.main_matvec_efunc
-        matvec_operation = petsc_call(
-            'MatShellSetOperation',
-            [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
-        )
-        formfunc = self.callback_builder._F_efunc
-        formfunc_operation = petsc_call(
-            'SNESSetFunction',
-            [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
-             self.snes_ctx]
-        )
-
-        snes_set_options = petsc_call(
-            'SNESSetFromOptions', [sobjs['snes']]
-        )
-
-        dmda_calls = self._create_dmda_calls(dmda)
-
-        # TODO: maybe don't need to explicitly set this
-        mat_set_dm = petsc_call('MatSetDM', [sobjs['Jac'], dmda])
+    
+    def _create_global_b_vector(self):
+        return None
+    
+    def _extend_setup(self):
+        base = super()._extend_setup()
+        sobjs = self.solver_objs
+        objs = self.objs
+        targets = self.field_data.targets
 
         create_field_decomp = petsc_call(
             'DMCreateFieldDecomposition',
-            [dmda, Byref(sobjs['nfields']), Null, Byref(sobjs['fields']),
+            [sobjs['dmda'], Byref(sobjs['nfields']), Null, Byref(sobjs['fields']),
              Byref(sobjs['subdms'])]
         )
         submat_cb = self.callback_builder.submatrices_callback
@@ -313,32 +293,19 @@ class CoupledBuilder(BuilderBase):
                  field_from_ptr, Byref(target_xloc)]
             ))
 
-        coupled_setup = dmda_calls + (
-            snes_create,
-            snes_options_prefix,
-            set_options,
-            snes_set_dm,
-            create_matrix,
-            snes_set_jac,
-            global_x,
-            local_x,
-            get_local_size,
-            snes_get_ksp,
-            matvec_operation,
-            formfunc_operation,
-            snes_set_options,
-            mat_set_dm,
+        return base + (
             create_field_decomp,
             matop_create_submats_op,
             call_coupled_struct_callback,
             shell_set_ctx,
-            create_submats) + \
-            tuple(deref_dms) + tuple(xglobals) + tuple(xlocals) + (BlankLine,)
-        return coupled_setup
+            create_submats,
+            ) + tuple(deref_dms) + tuple(xglobals) + tuple(xlocals)
 
 
 class ConstrainedBCMixin:
     """
+    Mixin that overrides the DMDA setup calls for solvers with constrained
+    boundary nodes.
     """
     def _create_dmda_calls(self, dmda):
         sobjs = self.solver_objs
@@ -409,15 +376,51 @@ class ConstrainedBCMixin:
             dm_set_global_section,
             dm_create_section_sf
         )
+    
 
+class MultigridBuilderMixin:
+    """
+    Mixin for geometric multigrid solver setup calls emitted at the top
+    of the Kernel.
+    """
+    def _extend_setup(self):
+        return ()
+    
 
-class ConstrainedBCBuilder(ConstrainedBCMixin, BuilderBase):
-    pass
+def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
+    """
+    Construct a Builder class by composing the appropriate mixins
+    for the given solver properties.
 
+    Parameters
+    ----------
+    is_coupled : bool
+    is_multigrid : bool
+    is_constrained_bc : bool
+    """
+    if is_multigrid and is_coupled:
+        raise NotImplementedError(
+            "Multigrid not yet supported for multi-field (coupled) solvers."
+        )
+    # TODO: implement this in this PR
+    if is_multigrid and is_constrained_bc:
+        raise NotImplementedError(
+            "Multigrid not yet supported for solvers with constrained boundary nodes."
+        )
+    
+    mixins = []
+    if is_multigrid:
+        mixins.append(MultigridBuilderMixin)
+    if is_coupled:
+        mixins.append(CoupledBuilderMixin)
+    if is_constrained_bc:
+        mixins.append(ConstrainedBCMixin)
+    mixins.append(BuilderBase)
 
-class CoupledConstrainedBCBuilder(ConstrainedBCMixin, CoupledBuilder):
-    pass
+    if len(mixins) == 1:
+        return BuilderBase
 
+    return type('Builder', tuple(mixins), {})
 
 def petsc_call_mpi(specific_call, call_args):
     return PETScCall('PetscCallMPI', [PETScCall(specific_call, arguments=call_args)])

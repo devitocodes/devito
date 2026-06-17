@@ -99,7 +99,6 @@ class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
                  get_info=None, constrain_bcs=False):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
-        # self.use_multigrid = self.solver_parameters.get('pc_type') == 'mg'
         self.time_mapper = None
         self.target_exprs = target_exprs
         # The original options prefix provided by the user

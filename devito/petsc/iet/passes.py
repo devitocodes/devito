@@ -11,10 +11,8 @@ from devito.ir.iet import (
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.linearization import Tracker, linearize_accesses
 from devito.petsc.config import core_metadata, petsc_languages
-from devito.petsc.iet.builder import (
-    BuilderBase, ConstrainedBCBuilder, CoupledBuilder, CoupledConstrainedBCBuilder,
-    make_core_petsc_calls
-)
+from devito.petsc.iet.builder import make_builder_cls, make_core_petsc_calls
+
 from devito.petsc.iet.callbacks import (
     BaseCallbackBuilder, CoupledCallbackBuilder, get_user_struct_fields,
     populate_matrix_context
@@ -360,14 +358,12 @@ class BuildSolver:
 
     @cached_property
     def builder(self):
-        if self.is_coupled and self.is_constrained_bc:
-            return CoupledConstrainedBCBuilder(**self.common_kwargs)
-        elif self.is_coupled:
-            return CoupledBuilder(**self.common_kwargs)
-        elif self.is_constrained_bc:
-            return ConstrainedBCBuilder(**self.common_kwargs)
-        else:
-            return BuilderBase(**self.common_kwargs)
+        cls = make_builder_cls(
+            is_coupled=self.is_coupled,
+            is_multigrid=self.is_multigrid,
+            is_constrained_bc=self.is_constrained_bc
+        )
+        return cls(**self.common_kwargs)
 
     @cached_property
     def solve(self):
