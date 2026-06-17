@@ -259,8 +259,31 @@ class Data(np.ndarray):
         """
         return self.transpose()
 
+    def _mpi_advanced_1d_target(self, glb_idx, axis):
+        """
+        Return the raw local ndarray addressed by ``glb_idx`` without
+        advanced indexing along ``axis``.
+
+        The MPI advanced-indexing helper code in ``devito.data.utils`` owns
+        the communication pattern; this hook is kept on ``Data`` because only
+        the subclass can bypass its own ``__getitem__`` and obtain a plain
+        ndarray view.
+        """
+        target_idx = list(glb_idx)
+        target_idx[axis] = slice(None)
+        loc_idx = self._index_glb_to_loc(tuple(target_idx))
+        target_axis = sum(not is_integer(i) for i in glb_idx[:axis])
+        return super().__getitem__(loc_idx).view(np.ndarray), target_axis
+
     @_check_idx
     def __getitem__(self, glb_idx, comm_type, gather_rank=None):
+        advanced = mpi_advanced_1d_index(self, glb_idx)
+        if advanced is not None:
+            # Global integer indices may refer to data owned by any rank.
+            return mpi_advanced_1d_get(
+                self, *advanced, target_getter=self._mpi_advanced_1d_target
+            )
+
         loc_idx = self._index_glb_to_loc(glb_idx)
         is_gather = isinstance(gather_rank, int)
         if is_gather and comm_type is gather:
@@ -383,6 +406,17 @@ class Data(np.ndarray):
 
     @_check_idx
     def __setitem__(self, glb_idx, val, comm_type):
+        advanced = mpi_advanced_1d_index(self, glb_idx)
+        if advanced is not None:
+            # ``val`` is rank-local and ordered by the caller's global integer
+            # indices; route entries to their owner ranks.
+            glb_idx, axis, indices, decomposition = advanced
+            mpi_advanced_1d_set(
+                self, glb_idx, val, axis, indices, decomposition,
+                target_getter=self._mpi_advanced_1d_target
+            )
+            return
+
         loc_idx = self._index_glb_to_loc(glb_idx)
 
         if loc_idx is NONLOCAL:
@@ -461,7 +495,8 @@ class Data(np.ndarray):
             raise ValueError(f"Cannot insert obj of type `{type(val)}` into a Data")
 
     def _normalize_index(self, idx):
-        if isinstance(idx, np.ndarray):
+        if isinstance(idx, np.ndarray) or (isinstance(idx, list) and
+                                          index_is_integer_sequence(idx)):
             # Advanced indexing mode
             return (idx,)
         else:

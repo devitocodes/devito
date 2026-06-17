@@ -651,7 +651,7 @@ class TestSparseFunction:
         expectedinds = expectedinds[grid.distributor.myrank]
         assert sf.local_indices == expectedinds
 
-    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parallel(mode=[1, 4])
     def test_sparse_time_data_initialization_local_vs_global(self, mode):
         """
         SparseTimeFunction.data uses global sparse indices, while data._local
@@ -665,6 +665,43 @@ class TestSparseFunction:
         local_sparse_indices = rec._distributor.glb_numb[0]
         global_data = np.arange(nt*npoint, dtype=rec.dtype).reshape(nt, npoint)
         expected_local = global_data[:, local_sparse_indices]
+
+        # Explicit advanced sparse indices label rank-local external data.
+        rank = grid.distributor.myrank
+        trace_index = np.array_split(np.arange(npoint)[::-1],
+                                     grid.distributor.nprocs)[rank]
+        trace_data = global_data[:, trace_index]
+
+        rec.data_local[:, :] = 0
+        rec.data[:, trace_index] = trace_data
+        assert np.all(rec.data_local == expected_local)
+        assert np.all(rec.data[:, trace_index] == trace_data)
+
+        rec.data_local[:, :] = 0
+        rec.data[:, list(trace_index)] = trace_data
+        assert np.all(rec.data_local == expected_local)
+        assert np.all(rec.data[:, list(trace_index)] == trace_data)
+
+        time_window = slice(1, None)
+        window_data = -(global_data[time_window, trace_index] + 1)
+        expected_window = np.zeros_like(expected_local)
+        expected_window[time_window, :] = \
+            -(global_data[time_window, local_sparse_indices] + 1)
+
+        rec.data_local[:, :] = 0
+        rec.data[time_window, trace_index] = window_data
+        assert np.all(rec.data_local == expected_window)
+        assert np.all(rec.data[time_window, trace_index] == window_data)
+
+        itime = 1
+        row_data = global_data[itime, trace_index] + 100
+        expected_row = np.zeros_like(expected_local)
+        expected_row[itime, :] = global_data[itime, local_sparse_indices] + 100
+
+        rec.data_local[:, :] = 0
+        rec.data[itime, trace_index] = row_data
+        assert np.all(rec.data_local == expected_row)
+        assert np.all(rec.data[itime, trace_index] == row_data)
 
         # A full global, replicated RHS is sliced by Devito for this rank.
         rec.data[:, :] = global_data[:, :]
@@ -693,6 +730,68 @@ class TestSparseFunction:
 
         rec.data_local[:, :] *= taper[:, np.newaxis]
         assert np.all(rec.data_local == loop_tapered)
+
+    @pytest.mark.parallel(mode=4)
+    def test_sparse_data_advanced_indexing_empty_ranks(self, mode):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        npoint = 2
+        sf = SparseFunction(name="sf", grid=grid, npoint=npoint)
+
+        global_data = np.arange(npoint, dtype=sf.dtype)
+        local_sparse_indices = sf._distributor.glb_numb[0]
+        expected_local = global_data[local_sparse_indices]
+
+        rank = grid.distributor.myrank
+        point_index = np.array([1, 0]) if rank == 0 else np.empty(0, dtype=np.int64)
+        point_data = global_data[point_index]
+
+        global_coords = np.arange(npoint*grid.dim, dtype=sf.coordinates.dtype)
+        global_coords = global_coords.reshape(npoint, grid.dim)
+        point_coords = global_coords[point_index]
+        sf.coordinates.data[point_index] = point_coords
+        assert np.all(sf.coordinates.data == global_coords[local_sparse_indices])
+        assert np.all(sf.coordinates.data[point_index] == point_coords)
+
+        sf.data[point_index] = point_data
+        assert np.all(sf.data_local == expected_local)
+        assert np.all(sf.data[point_index] == point_data)
+
+        sf.data_local[:] = 0
+        sf.data[list(point_index)] = point_data
+        assert np.all(sf.data_local == expected_local)
+        assert np.all(sf.data[list(point_index)] == point_data)
+
+        negative_index = np.array([-1, 0]) if rank == 0 else \
+            np.empty(0, dtype=np.int64)
+        negative_data = global_data[negative_index]
+        sf.data_local[:] = 0
+        sf.data[negative_index] = negative_data
+        assert np.all(sf.data_local == expected_local)
+        assert np.all(sf.data[negative_index] == negative_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_sparse_data_advanced_indexing_errors(self, mode):
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        npoint = 4
+        sf = SparseFunction(name="sf", grid=grid, npoint=npoint)
+
+        rank = grid.distributor.myrank
+        duplicate_index = np.array([1, 1]) if rank == 0 else \
+            np.empty(0, dtype=np.int64)
+        duplicate_data = np.ones(duplicate_index.size, dtype=sf.dtype)
+
+        with pytest.raises(ValueError, match="Duplicate global indices"):
+            sf.data[duplicate_index] = duplicate_data
+
+        oob_index = np.array([npoint]) if rank == 0 else \
+            np.empty(0, dtype=np.int64)
+        oob_data = np.ones(oob_index.size, dtype=sf.dtype)
+
+        with pytest.raises(ValueError, match="out-of-bounds"):
+            sf.data[oob_index] = oob_data
+
+        with pytest.raises(ValueError, match="out-of-bounds"):
+            sf.data[oob_index]
 
     @pytest.mark.parallel(mode=4)
     def test_scatter_gather(self, mode):
