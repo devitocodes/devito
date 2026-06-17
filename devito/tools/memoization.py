@@ -21,6 +21,8 @@ def cached_hash(func):
 
     Warning: avoid explicitly calling a superclass' cached ``__hash__`` on a
     subclass instance, as that would stash the superclass hash in ``_mhash``.
+
+    Warning: avoid using it on pickled objects.
     """
     @wraps(func)
     def wrapper(self):
