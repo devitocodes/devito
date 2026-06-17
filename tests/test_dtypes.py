@@ -205,9 +205,8 @@ def test_math_functions(dtype: np.dtype[np.inexact],
 
 
 def test_printer_registry() -> None:
-    default = get_printer(CPrinter)
+    default = get_printer(CPrinter, np.float32)
 
-    assert get_printer(CPrinter) is default
     assert get_printer(CPrinter, np.float32) is default
 
     float64 = get_printer(CPrinter, np.float64)

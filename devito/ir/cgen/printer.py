@@ -18,13 +18,12 @@ from devito import configuration
 from devito.arch.compiler import AOMPCompiler
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
-from devito.tools import ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype
+from devito.tools import (
+    ctypes_to_cstr, ctypes_vector_mapper, dtype_to_ctype, memoized_func
+)
 from devito.types.basic import AbstractFunction
 
 __all__ = ['BasePrinter', 'ccode', 'get_printer']
-
-_preset_dtypes = (np.float32, np.float64, np.complex64, np.complex128)
-_printer_registry = {}
 
 
 class BasePrinter(CodePrinter):
@@ -452,22 +451,9 @@ if Version(sympy.__version__) >= Version("1.11"):
     sympy.printing.str.StrPrinter._print_Add = BasePrinter._print_Add
 
 
-def get_printer(printer, dtype=None):
-    try:
-        registry = _printer_registry[printer]
-    except KeyError:
-        default = printer()
-        registry = {None: default, default.dtype: default}
-        for i in _preset_dtypes:
-            registry.setdefault(i, printer(settings={'dtype': i}))
-        _printer_registry[printer] = registry
-
-    try:
-        return registry[dtype]
-    except KeyError:
-        handle = printer(settings={'dtype': dtype})
-        registry[dtype] = handle
-        return handle
+@memoized_func
+def get_printer(printer, dtype):
+    return printer(settings={'dtype': dtype})
 
 
 def ccode(expr, printer=None, dtype=None):
@@ -489,4 +475,5 @@ def ccode(expr, printer=None, dtype=None):
     if printer is None:
         from devito.passes.iet.languages.C import CPrinter
         printer = CPrinter
+    dtype = printer._default_settings['dtype'] if dtype is None else dtype
     return get_printer(printer, dtype).doprint(expr, None)

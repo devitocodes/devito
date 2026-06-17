@@ -257,6 +257,7 @@ class CGen(Visitor):
         self.printer = printer
 
     def ccode(self, expr, dtype=None):
+        dtype = self.printer._default_settings['dtype'] if dtype is None else dtype
         return get_printer(self.printer, dtype).doprint(expr, None)
 
     @property
