@@ -643,6 +643,11 @@ class TestDataDistributed:
     Test Data indexing and manipulation when distributed over a set of MPI processes.
     """
 
+    @staticmethod
+    def _local_global_indices(data, axis=0):
+        rank = data._distributor.myrank
+        return np.asarray(data._decomposition[axis][rank], dtype=np.int64)
+
     @pytest.mark.parallel(mode=4)
     def test_localviews(self, mode):
         grid = Grid(shape=(4, 4))
@@ -1354,6 +1359,119 @@ class TestDataDistributed:
             assert True
         except Exception as e:
             raise AssertionError('Assert False') from e
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_set_get_1d(self, mode):
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        global_data = np.arange(8, dtype=f.dtype)
+        rank = grid.distributor.myrank
+        source_index = np.array_split(np.arange(8)[::-1],
+                                      grid.distributor.nprocs)[rank]
+        source_data = global_data[source_index]
+
+        f.data[:] = 0
+        f.data[source_index] = source_data
+
+        local_index = self._local_global_indices(f.data)
+        assert np.all(f.data_local == global_data[local_index])
+        assert np.all(f.data[source_index] == source_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_list_and_negative_indices(self, mode):
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        index = [-1, 0] if rank == 0 else []
+        values = np.array([70, 10], dtype=f.dtype) if rank == 0 else \
+            np.empty(0, dtype=f.dtype)
+
+        f.data[:] = 0
+        f.data[index] = values
+
+        expected = np.zeros(8, dtype=f.dtype)
+        expected[[-1, 0]] = [70, 10]
+        local_index = self._local_global_indices(f.data)
+        assert np.all(f.data_local == expected[local_index])
+        assert np.all(f.data[index] == values)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_with_slice(self, mode):
+        grid = Grid(shape=(8,))
+        nt = 3
+        f = TimeFunction(name='f', grid=grid, save=nt, time_order=1,
+                         space_order=0, dtype=np.int32)
+
+        global_data = np.arange(nt*8, dtype=f.dtype).reshape(nt, 8)
+        rank = grid.distributor.myrank
+        source_index = np.array_split(np.arange(8)[::-1],
+                                      grid.distributor.nprocs)[rank]
+        time_window = slice(1, None)
+        source_data = global_data[time_window, source_index]
+
+        f.data[:] = 0
+        f.data[time_window, source_index] = source_data
+
+        expected = np.zeros_like(global_data)
+        expected[time_window, :] = global_data[time_window, :]
+        local_index = self._local_global_indices(f.data, axis=1)
+        assert np.all(f.data == expected[:, local_index])
+        assert np.all(f.data[time_window, source_index] == source_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_with_scalar(self, mode):
+        grid = Grid(shape=(8,))
+        nt = 3
+        f = TimeFunction(name='f', grid=grid, save=nt, time_order=1,
+                         space_order=0, dtype=np.int32)
+
+        global_data = np.arange(nt*8, dtype=f.dtype).reshape(nt, 8)
+        rank = grid.distributor.myrank
+        source_index = np.array_split(np.arange(8)[::-1],
+                                      grid.distributor.nprocs)[rank]
+        time_index = 1
+        source_data = global_data[time_index, source_index]
+
+        f.data[:] = 0
+        f.data[time_index, source_index] = source_data
+
+        expected = np.zeros_like(global_data)
+        expected[time_index, :] = global_data[time_index, :]
+        local_index = self._local_global_indices(f.data, axis=1)
+        assert np.all(f.data == expected[:, local_index])
+        assert np.all(f.data[time_index, source_index] == source_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_errors(self, mode):
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        duplicate_index = np.array([1, 1]) if rank == 0 else \
+            np.empty(0, dtype=np.int64)
+        duplicate_data = np.ones(duplicate_index.size, dtype=f.dtype)
+
+        with pytest.raises(ValueError, match="Duplicate global indices"):
+            f.data[duplicate_index] = duplicate_data
+
+        oob_index = np.array([8]) if rank == 0 else np.empty(0, dtype=np.int64)
+        oob_data = np.ones(oob_index.size, dtype=f.dtype)
+
+        with pytest.raises(ValueError, match="out-of-bounds"):
+            f.data[oob_index] = oob_data
+
+        with pytest.raises(ValueError, match="out-of-bounds"):
+            f.data[oob_index]
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_multiple_distributed_dimensions(self, mode):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        with pytest.raises(NotImplementedError, match="single distributed dimension"):
+            f.data[np.array([0, 1]), :]
 
     @pytest.mark.parallel(mode=4)
     def test_misc_setup(self, mode):
