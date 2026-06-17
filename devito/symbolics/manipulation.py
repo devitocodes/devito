@@ -369,7 +369,7 @@ def flatten_args(args, op, ignore=None):
 
 
 def pow_to_mul(expr):
-    if type(expr) in (tuple, list):
+    if isinstance(expr, (tuple, list)):
         return reuse_if_untouched(expr, (pow_to_mul(i) for i in expr))
     elif q_leaf(expr) or isinstance(expr, Basic):
         return expr
@@ -462,16 +462,11 @@ def reuse_if_untouched(expr, args, evaluate=False):
     """
     args = tuple(args)
 
-    if type(expr) is tuple:
+    if isinstance(expr, (tuple, list)):
         if len(args) == len(expr) and \
            all(a is b for a, b in zip(expr, args, strict=True)):
             return expr
-        return args
-    elif type(expr) is list:
-        if len(args) == len(expr) and \
-           all(a is b for a, b in zip(expr, args, strict=True)):
-            return expr
-        return list(args)
+        return type(expr)(args)
     elif all(a is b for a, b in zip(expr.args, args, strict=False)):
         return expr
     else:
