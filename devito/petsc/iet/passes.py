@@ -14,8 +14,7 @@ from devito.petsc.config import core_metadata, petsc_languages
 from devito.petsc.iet.builder import make_builder_cls, make_core_petsc_calls
 
 from devito.petsc.iet.callbacks import (
-    BaseCallbackBuilder, CoupledCallbackBuilder, get_user_struct_fields,
-    populate_matrix_context
+    get_user_struct_fields, make_callback_builder_cls, populate_matrix_context
 )
 from devito.petsc.iet.logging import PetscLogger
 from devito.petsc.iet.nodes import PETScCallable, PetscMetaData, petsc_call
@@ -321,6 +320,10 @@ class BuildSolver:
         # Solver properties
         self.is_coupled = isinstance(field_data, MultipleFieldData)
         self.is_constrained_bc = bool(field_data.constrain_bc)
+        # TODO: support initial guess callback for coupled solvers..
+        self.is_initial_guess = (
+            not self.is_coupled and bool(field_data.initial_guess.exprs)
+        )
         self.is_multigrid = self.solver_metadata.multigrid_metadata is not None
 
         self.common_kwargs = {
@@ -353,8 +356,12 @@ class BuildSolver:
 
     @cached_property
     def callback_builder(self):
-        return CoupledCallbackBuilder(**self.common_kwargs) \
-            if self.is_coupled else BaseCallbackBuilder(**self.common_kwargs)
+        cls = make_callback_builder_cls(
+            is_coupled=self.is_coupled,
+            is_initial_guess=self.is_initial_guess,
+            is_constrained_bc=self.is_constrained_bc,
+        )
+        return cls(**self.common_kwargs)
 
     @cached_property
     def builder(self):

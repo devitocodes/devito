@@ -41,6 +41,12 @@ class BuilderBase:
         """
         return VOID(self.solver_objs['dmda'], stars='*')
 
+    def _solver_dm(self):
+        """
+        DM passed to `SNESSetDM`.
+        """
+        return self.solver_objs['dmda']
+
     def _create_local_x_vector(self):
         """
         Create the local solution vector x where F(x) = b. Array space is provided
@@ -90,6 +96,9 @@ class BuilderBase:
     def _setup(self):
         sobjs = self.solver_objs
         dmda = sobjs['dmda']
+        solver_dm = self._solver_dm()
+
+        dmda_calls = self._create_dmda_calls(dmda)
 
         snes_create = petsc_call('SNESCreate', [sobjs['comm'], Byref(sobjs['snes'])])
 
@@ -101,9 +110,9 @@ class BuilderBase:
             self.callback_builder._set_options_efunc.name, []
         )
 
-        snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], dmda])
+        snes_set_dm = petsc_call('SNESSetDM', [sobjs['snes'], solver_dm])
 
-        create_matrix = petsc_call('DMCreateMatrix', [dmda, Byref(sobjs['Jac'])])
+        create_matrix = petsc_call('DMCreateMatrix', [solver_dm, Byref(sobjs['Jac'])])
 
         snes_set_jac = petsc_call(
             'SNESSetJacobian', [sobjs['snes'], sobjs['Jac'],
@@ -116,7 +125,7 @@ class BuilderBase:
         # TODO: potentially also need to set the DM and local/global map to xlocal
 
         get_local_size = petsc_call('VecGetLocalSize',
-                                    [sobjs['xlocal'], Byref(sobjs['localsize'])])
+                                     [sobjs['xlocal'], Byref(sobjs['localsize'])])
 
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
@@ -128,11 +137,7 @@ class BuilderBase:
              self.snes_set_function_context]
         )
 
-        snes_set_options = petsc_call(
-            'SNESSetFromOptions', [sobjs['snes']]
-        )
-
-        dmda_calls = self._create_dmda_calls(dmda)
+        snes_set_options = petsc_call('SNESSetFromOptions', [sobjs['snes']])
 
         base_setup = dmda_calls + (
             snes_create,
@@ -383,8 +388,12 @@ class MultigridBuilderMixin:
     Mixin for geometric multigrid solver setup calls emitted at the top
     of the Kernel.
     """
-    def _extend_setup(self):
-        return ()
+    def _solver_dm(self):
+        return self.solver_objs['shell']
+    
+    def _mat_set_dm(self):
+        # Set inside CreateMatrix DMShell callback instead.
+        return None
     
 
 def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):

@@ -399,6 +399,14 @@ class NofSubMats(Scalar, LocalType):
     pass
 
 
+class UserCtxArray(PETScArrayObject):
+    """
+    Array of UserCtx structs.
+    """
+    def _C_free_impl(self):
+        return petsc_call('PetscFree', [self.function])
+
+
 FREE_PRIORITY = {
     JacobianStruct: 0,
     PETScArrayObject: 1,

@@ -4,7 +4,7 @@ from devito.petsc.types import (
     DM, KSP, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct, Mat, MatReuse,
     NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt, PetscSectionGlobal,
     PetscSectionLocal, PetscSF, PointerDM, PointerIS, PointerMat, PointerPetscInt,
-    StartPtr, SubMatrixStruct, Vec, VecScatter
+    StartPtr, SubMatrixStruct, Vec, VecScatter, UserCtxArray
 )
 from devito.symbolics import String
 from devito.tools import frozendict
@@ -257,6 +257,12 @@ class MultigridTypeBuilderMixin:
         base_dict = super()._extend_build(base_dict)
         sreg = self.sregistry
 
+        # DMShell wrapping the fine DMDA
+        base_dict['shell'] = DM(sreg.make_name(prefix='shell'))
+
+        base_dict['refine_levels'] = PetscInt(
+            sreg.make_name(prefix='refine_levels')
+            )
         return base_dict
 
 
@@ -270,7 +276,6 @@ def make_type_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
     is_coupled : bool
     is_multigrid : bool
     is_constrained_bc : bool
-
     """
     mixins = []
 
