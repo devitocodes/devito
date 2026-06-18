@@ -1355,14 +1355,19 @@ class MultigridCallbackMixin:
 
 
 
-
-
-
-def make_callback_builder_cls(is_coupled, is_initial_guess, is_constrained_bc):
+def make_callback_builder_cls(is_coupled, is_multigrid, is_initial_guess,
+                              is_constrained_bc):
     """
-    Construct a CallbackBuilder class by composing the appropriate mixins.
+    Build a CallbackBuilder class by composing the appropriate mixins.
     """
+    # TODO: Implement this in this PR
+    if is_multigrid and is_coupled:
+        raise NotImplementedError(
+            "Multigrid not yet supported for multi-field (coupled) solvers."
+        )
     mixins = []
+    if is_multigrid:
+        mixins.append(MultigridCallbackMixin)
     if is_constrained_bc:
         mixins.append(ConstrainedBCCallbackMixin)
     if is_initial_guess:

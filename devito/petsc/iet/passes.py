@@ -358,6 +358,7 @@ class BuildSolver:
     def callback_builder(self):
         cls = make_callback_builder_cls(
             is_coupled=self.is_coupled,
+            is_multigrid=self.is_multigrid,
             is_initial_guess=self.is_initial_guess,
             is_constrained_bc=self.is_constrained_bc,
         )
