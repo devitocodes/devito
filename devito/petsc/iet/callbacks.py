@@ -223,28 +223,27 @@ class BaseCallbackBuilder:
 
         fields = get_user_struct_fields(body)
 
-        mat_get_dm = petsc_call('MatGetDM', [objs['J'], Byref(dmda)])
+        op_dm = self._operational_dm
+        extra_decls, ctx_calls = self._ctx_preamble(dmda, ctx)
 
-        dm_get_app_context = petsc_call(
-            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
-        )
+        mat_get_dm = petsc_call('MatGetDM', [objs['J'], Byref(dmda)])
 
         zero_y_memory = zero_vector(objs['Y']) if jacobian.zero_memory else None
 
         dm_get_local_xvec = petsc_call(
-            'DMGetLocalVector', [dmda, Byref(xlocal)]
+            'DMGetLocalVector', [op_dm, Byref(xlocal)]
         )
 
         global_to_local_begin = petsc_call(
-            'DMGlobalToLocalBegin', [dmda, objs['X'], insert_values, xlocal]
+            'DMGlobalToLocalBegin', [op_dm, objs['X'], insert_values, xlocal]
         )
 
         global_to_local_end = petsc_call('DMGlobalToLocalEnd', [
-            dmda, objs['X'], insert_values, xlocal
+            op_dm, objs['X'], insert_values, xlocal
         ])
 
         dm_get_local_yvec = petsc_call(
-            'DMGetLocalVector', [dmda, Byref(ylocal)]
+            'DMGetLocalVector', [op_dm, Byref(ylocal)]
         )
 
         zero_ylocal_memory = zero_vector(ylocal)
@@ -258,7 +257,7 @@ class BaseCallbackBuilder:
         )
 
         dm_get_local_info = petsc_call(
-            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+            'DMDAGetLocalInfo', [op_dm, Byref(linsolve_expr.localinfo)]
         )
 
         vec_restore_array_y = petsc_call(
@@ -270,19 +269,19 @@ class BaseCallbackBuilder:
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, ylocal, add_values, objs['Y']
+            op_dm, ylocal, add_values, objs['Y']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, ylocal, add_values, objs['Y']
+            op_dm, ylocal, add_values, objs['Y']
         ])
 
         dm_restore_local_xvec = petsc_call(
-            'DMRestoreLocalVector', [dmda, Byref(xlocal)]
+            'DMRestoreLocalVector', [op_dm, Byref(xlocal)]
         )
 
         dm_restore_local_yvec = petsc_call(
-            'DMRestoreLocalVector', [dmda, Byref(ylocal)]
+            'DMRestoreLocalVector', [op_dm, Byref(ylocal)]
         )
 
         # TODO: Some of the calls are placed in the `stacks` argument of the
@@ -319,9 +318,9 @@ class BaseCallbackBuilder:
 
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
-        struct_definition = [
-            Definition(ctx), Definition(dmda), mat_get_dm, dm_get_app_context
-        ]
+        struct_definition = (
+            [Definition(ctx), Definition(dmda)] + extra_decls + [mat_get_dm] + ctx_calls
+        )
 
         body = self._make_callable_body(
             body, standalones=struct_definition, stacks=stacks+derefs
@@ -369,28 +368,26 @@ class BaseCallbackBuilder:
         f_formfunc = arrays[target]['f']
         x_formfunc = arrays[target]['x']
 
-        dm_cast = DummyExpr(dmda, DMCast(objs['dummyptr']), init=True)
-
-        dm_get_app_context = petsc_call(
-            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
-        )
+        op_dm = self._operational_dm
+        dm_init = self._formfunc_dm_init(dmda, objs)
+        extra_decls, ctx_calls = self._ctx_preamble(dmda, ctx)
 
         zero_f_memory = zero_vector(objs['F'])
 
         dm_get_local_xvec = petsc_call(
-            'DMGetLocalVector', [dmda, Byref(objs['xloc'])]
+            'DMGetLocalVector', [op_dm, Byref(objs['xloc'])]
         )
 
         global_to_local_begin = petsc_call(
-            'DMGlobalToLocalBegin', [dmda, objs['X'], insert_values, objs['xloc']]
+            'DMGlobalToLocalBegin', [op_dm, objs['X'], insert_values, objs['xloc']]
         )
 
         global_to_local_end = petsc_call(
-            'DMGlobalToLocalEnd', [dmda, objs['X'], insert_values, objs['xloc']]
+            'DMGlobalToLocalEnd', [op_dm, objs['X'], insert_values, objs['xloc']]
         )
 
         dm_get_local_yvec = petsc_call(
-            'DMGetLocalVector', [dmda, Byref(objs['floc'])]
+            'DMGetLocalVector', [op_dm, Byref(objs['floc'])]
         )
 
         vec_get_array_y = petsc_call(
@@ -402,7 +399,7 @@ class BaseCallbackBuilder:
         )
 
         dm_get_local_info = petsc_call(
-            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+            'DMDAGetLocalInfo', [op_dm, Byref(linsolve_expr.localinfo)]
         )
 
         vec_restore_array_y = petsc_call(
@@ -414,19 +411,19 @@ class BaseCallbackBuilder:
         )
 
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, objs['floc'], add_values, objs['F']
+            op_dm, objs['floc'], add_values, objs['F']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, objs['floc'], add_values, objs['F']
+            op_dm, objs['floc'], add_values, objs['F']
         ])
 
         dm_restore_local_xvec = petsc_call(
-            'DMRestoreLocalVector', [dmda, Byref(objs['xloc'])]
+            'DMRestoreLocalVector', [op_dm, Byref(objs['xloc'])]
         )
 
         dm_restore_local_yvec = petsc_call(
-            'DMRestoreLocalVector', [dmda, Byref(objs['floc'])]
+            'DMRestoreLocalVector', [op_dm, Byref(objs['floc'])]
         )
 
         body = body._rebuild(
@@ -455,7 +452,7 @@ class BaseCallbackBuilder:
 
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
-        struct_definition = [Definition(ctx), dm_cast, dm_get_app_context]
+        struct_definition = [Definition(ctx)] + dm_init + extra_decls + ctx_calls
 
         body = self._make_callable_body(
             body, standalones=struct_definition, stacks=stacks+derefs
@@ -464,6 +461,19 @@ class BaseCallbackBuilder:
         subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
 
         return Uxreplace(subs).visit(body)
+
+    @property
+    def _operational_dm(self):
+        return self.solver_objs['callbackdm']
+
+    def _ctx_preamble(self, callbackdm, ctx):
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [callbackdm, Byref(ctx._C_symbol)]
+        )
+        return [], [dm_get_app_context]
+
+    def _formfunc_dm_init(self, callbackdm, objs):
+        return [DummyExpr(callbackdm, DMCast(objs['dummyptr']), init=True)]
 
     def _make_formrhs(self):
         b_exprs = self.field_data.residual.b_exprs
@@ -493,16 +503,19 @@ class BaseCallbackBuilder:
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
+        op_dm = self._operational_dm
+        extra_decls, ctx_calls = self._ctx_preamble(dmda, ctx)
+
         dm_get_local = petsc_call(
-            'DMGetLocalVector', [dmda, Byref(sobjs['blocal'])]
+            'DMGetLocalVector', [op_dm, Byref(sobjs['blocal'])]
         )
 
         dm_global_to_local_begin = petsc_call(
-            'DMGlobalToLocalBegin', [dmda, objs['B'], insert_values, sobjs['blocal']]
+            'DMGlobalToLocalBegin', [op_dm, objs['B'], insert_values, sobjs['blocal']]
         )
 
         dm_global_to_local_end = petsc_call(
-            'DMGlobalToLocalEnd', [dmda, objs['B'], insert_values, sobjs['blocal']]
+            'DMGlobalToLocalEnd', [op_dm, objs['B'], insert_values, sobjs['blocal']]
         )
 
         b_arr = self.field_data.arrays[target]['b']
@@ -512,7 +525,7 @@ class BaseCallbackBuilder:
         )
 
         dm_get_local_info = petsc_call(
-            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+            'DMDAGetLocalInfo', [op_dm, Byref(linsolve_expr.localinfo)]
         )
 
         body = self.time_dependence.uxreplace_time(body)
@@ -520,16 +533,12 @@ class BaseCallbackBuilder:
         fields = get_user_struct_fields(body)
         self._struct_params.extend(fields)
 
-        dm_get_app_context = petsc_call(
-            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
-        )
-
         dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmda, sobjs['blocal'], insert_values, objs['B']
+            op_dm, sobjs['blocal'], insert_values, objs['B']
         ])
 
         dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmda, sobjs['blocal'], insert_values, objs['B']
+            op_dm, sobjs['blocal'], insert_values, objs['B']
         ])
 
         vec_restore_array = petsc_call(
@@ -537,7 +546,7 @@ class BaseCallbackBuilder:
         )
 
         dm_restore_local_bvec = petsc_call(
-            'DMRestoreLocalVector', [dmda, Byref(sobjs['blocal'])]
+            'DMRestoreLocalVector', [op_dm, Byref(sobjs['blocal'])]
         )
 
         body = body._rebuild(body=body.body + (
@@ -558,7 +567,7 @@ class BaseCallbackBuilder:
 
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
-        struct_definition = [Definition(ctx), dm_get_app_context]
+        struct_definition = [Definition(ctx)] + extra_decls + ctx_calls
 
         body = self._make_callable_body(
             [body], standalones=struct_definition, stacks=stacks+derefs
@@ -645,13 +654,16 @@ class InitialGuessCallbackMixin:
         dmda = sobjs['callbackdm']
         ctx = objs['dummyctx']
 
+        op_dm = self._operational_dm
+        extra_decls, ctx_calls = self._ctx_preamble(dmda, ctx)
+
         x_arr = self.field_data.arrays[target]['x']
 
         vec_get_array = petsc_call(
             'VecGetArray', [objs['xloc'], Byref(x_arr._C_symbol)]
         )
         dm_get_local_info = petsc_call(
-            'DMDAGetLocalInfo', [dmda, Byref(linsolve_expr.localinfo)]
+            'DMDAGetLocalInfo', [op_dm, Byref(linsolve_expr.localinfo)]
         )
 
         body = self.time_dependence.uxreplace_time(body)
@@ -659,9 +671,6 @@ class InitialGuessCallbackMixin:
         fields = get_user_struct_fields(body)
         self._struct_params.extend(fields)
 
-        dm_get_app_context = petsc_call(
-            'DMGetApplicationContext', [dmda, Byref(ctx._C_symbol)]
-        )
         vec_restore_array = petsc_call(
             'VecRestoreArray', [objs['xloc'], Byref(x_arr._C_symbol)]
         )
@@ -669,7 +678,7 @@ class InitialGuessCallbackMixin:
         body = body._rebuild(body=body.body + (vec_restore_array,))
 
         derefs = dereference_funcs(ctx, fields)
-        struct_definition = [Definition(ctx), dm_get_app_context]
+        struct_definition = [Definition(ctx)] + extra_decls + ctx_calls
 
         body = self._make_callable_body(
             body, standalones=struct_definition,
@@ -1327,6 +1336,26 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
 
         body = Uxreplace(subs).visit(body)
         return body
+
+
+class MultigridCallbackMixin:
+    @property
+    def _operational_dm(self):
+        return self.solver_objs['callbackdm']
+
+    def _ctx_preamble(self, callbackdm, ctx):
+        dm_get_app_context = petsc_call(
+            'DMGetApplicationContext', [callbackdm, Byref(ctx._C_symbol)]
+        )
+        return [], [dm_get_app_context]
+
+    def _formfunc_dm_init(self, callbackdm, objs):
+        return [DummyExpr(callbackdm, DMCast(objs['dummyptr']), init=True)]
+    
+
+
+
+
 
 
 def make_callback_builder_cls(is_coupled, is_initial_guess, is_constrained_bc):
