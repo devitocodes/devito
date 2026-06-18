@@ -24,6 +24,9 @@ BREAK = 'break'
 
 @memoized_func(scope='build')
 def _fusion_hazards(scope0, scope1, prefix):
+    """
+    Classify the dependence hazard that would arise from fusing two scopes.
+    """
     scope = Scope.from_scopes(scope0, scope1)
     if scope is None:
         return NO_HAZARD

@@ -218,9 +218,7 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
     """
 
     @classmethod
-    def _preprocess_args(cls, access, mode, timestamp, ispace=None):
-        if ispace is None:
-            ispace = null_ispace
+    def _preprocess_args(cls, access, mode, timestamp, ispace=null_ispace):
         return (access, mode, timestamp, ispace), {}
 
     def __new__(cls, access, mode, timestamp, ispace=None):

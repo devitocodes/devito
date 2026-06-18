@@ -1683,7 +1683,7 @@ def _same_as_before(old, new):
     if type(old) is not type(new):
         return False
 
-    if isinstance(old, dict):
+    if isinstance(old, dict) and isinstance(new, dict):
         return old.keys() == new.keys() and all(
             _same_as_before(v, new[k]) for k, v in old.items()
         )
