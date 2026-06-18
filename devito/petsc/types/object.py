@@ -254,6 +254,22 @@ class MainUserStruct(PETScStruct):
     pass
 
 
+class ShellStruct(PETScStruct):
+    pass
+
+
+class CallbackShellStruct(ShellStruct):
+    __rkwargs__ = PETScStruct.__rkwargs__ + ('parent',)
+
+    def __init__(self, *args, parent=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._parent = parent
+
+    @property
+    def parent(self):
+        return self._parent
+
+
 class CallbackUserStruct(PETScStruct):
     __rkwargs__ = PETScStruct.__rkwargs__ + ('parent',)
 

@@ -6,7 +6,8 @@ from devito.petsc.iet.nodes import (
     FormFunctionCallback, MatShellSetOp, PETScCall, petsc_call
 )
 from devito.symbolics import (
-    VOID, Byref, FieldFromComposite, FieldFromPointer, Null, String
+    VOID, Byref, FieldFromComposite, FieldFromPointer, IndexedPointer,
+    Null, String
 )
 
 
@@ -394,7 +395,57 @@ class MultigridBuilderMixin:
     def _mat_set_dm(self):
         # Set inside CreateMatrix DMShell callback instead.
         return None
-    
+
+    def _create_dmda_calls(self, dmda):
+        multigrid_metadata = self.inject_solve.expr.rhs.multigrid_metadata
+        sobjs = self.solver_objs
+        # Array of structs that carrys grid info (separate context) on each level
+        all_ctx = sobjs['all_ctx']
+        shell_context = sobjs['sctx']
+        shell_dm = sobjs['shell']
+        refine_levels = sobjs['refine_levels']
+        n_levels = multigrid_metadata.n_levels
+
+        # Allocate an array of n_levels UserCtx structs, one per unique MG level
+        malloc_all_ctx = petsc_call('PetscMalloc1', [n_levels, Byref(all_ctx)])
+
+        # Populate each UserCtx struct for each level
+        populate_all_level_contexts = tuple(petsc_call(
+            self.callback_builder.user_struct_efunc.name, [Byref(IndexedPointer(all_ctx, i))]
+        ) for i in range (n_levels))
+
+        # Create fine DMDA as usual
+        dmda_create = self._create_dmda(dmda)
+        dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
+        dm_setup = petsc_call('DMSetUp', [dmda])
+
+        # Wrap the fine DMDA in a DMShell
+        malloc_sctx = petsc_call('PetscMalloc1', [1, Byref(shell_context)])
+        make_shell_ctx = petsc_call(
+            self.callback_builder.make_shell_ctx_efunc.name,
+            [dmda, 0, all_ctx, shell_context]
+        )
+
+        # Call the function that actually creates the DMShell
+
+        get_refine = petsc_call('DMGetRefineLevel', [dmda, Byref(refine_levels)])
+        set_refine = petsc_call('DMSetRefineLevel', [shell_dm, refine_levels])
+
+        return (
+            malloc_all_ctx,
+            # populate ctx calls
+            *populate_all_level_contexts,
+            dmda_create,
+            dm_set_from_opts,
+            dm_setup,
+            malloc_sctx,
+            make_shell_ctx,
+            # acc create dm shell
+            get_refine,
+            set_refine
+        )
+
+
 
 def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
     """

@@ -8,12 +8,15 @@ from devito.passes.iet.linearization import Stride
 from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, petsc_call
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types import (
-    CallbackUserStruct, DMCast, MainUserStruct, PetscInt, PetscObjectCast
+    CallbackShellStruct, CallbackUserStruct, DMCast, MainUserStruct, PetscInt,
+    PetscObjectCast, ShellStruct, UserCtxArray
 )
+
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
 from devito.symbolics import (
-    VOID, Byref, Deref, FieldFromPointer, IntDiv, Mod, Null, String
+    VOID, Byref, Deref, FieldFromPointer, IndexedPointer, IntDiv, Macro, Mod, Null,
+    String
 )
 from devito.symbolics.unevaluation import Mul
 from devito.tools import filter_ordered
@@ -1339,18 +1342,91 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
 
 
 class MultigridCallbackMixin:
+
+    def _make_core(self):
+        super()._make_core()
+        self._make_shell_ctx()
+
+    def _uxreplace_efuncs(self):
+        efuncs = super()._uxreplace_efuncs()
+        sctx = self.solver_objs['sctx']
+        callback_sctx = CallbackShellStruct(
+            name=sctx.name,
+            pname=sctx.pname,
+            fields=[],
+            liveness='lazy',
+            modifier=' *',
+            parent=sctx
+        )
+        visitor = Uxreplace({
+            self.objs['dummysctx']: callback_sctx,
+            self.objs['dummyall_ctx']: self.solver_objs['all_ctx']._C_symbol,
+        })
+        return {k: visitor.visit(v) for k, v in efuncs.items()}
+
+    def _make_user_struct_efunc(self):
+        super()._make_user_struct_efunc()
+        userctx = self.solver_objs['userctx']
+        self.solver_objs['all_ctx'] = UserCtxArray(
+            name=self.sregistry.make_name(prefix='all_ctx'),
+            pname=userctx.pname,
+            fields=[],
+            modifier='*'
+        )
+
+    def _make_shell_ctx(self):
+        """
+        Called at the fine level in the main Kernel, and inside `Coarsen`/
+        `Refine` for each coarser/finer DMDA produced at runtime.
+        """
+        all_ctx = self.solver_objs['all_ctx']
+        da = self.objs['da']
+        level = self.solver_objs['grid_level']
+        sctx = self.solver_objs['sctx'] = ShellStruct(
+            name=self.sregistry.make_name(prefix='sctx'),
+            pname='ShellCtx',
+            fields=[da, level, all_ctx],
+            modifier=' *'
+        )
+        body = [
+            DummyExpr(FieldFromPointer(da, sctx), da),
+            DummyExpr(FieldFromPointer(level, sctx), level),
+            DummyExpr(FieldFromPointer(all_ctx, sctx), all_ctx),
+        ]
+        callable_body = self._make_callable_body(body)
+        cb = self._make_petsc_callable(
+            'MakeShellCtx', callable_body,
+            parameters=(da, level, all_ctx, sctx)
+        )
+        self._make_shell_ctx_efunc = cb
+
+    @property
+    def make_shell_ctx_efunc(self):
+        return self._make_shell_ctx_efunc
+
     @property
     def _operational_dm(self):
-        return self.solver_objs['callbackdm']
+        dummysctx = self.objs['dummysctx']
+        return FieldFromPointer(self.objs['da'], dummysctx)
 
     def _ctx_preamble(self, callbackdm, ctx):
-        dm_get_app_context = petsc_call(
-            'DMGetApplicationContext', [callbackdm, Byref(ctx._C_symbol)]
-        )
-        return [], [dm_get_app_context]
+        dummysctx = self.objs['dummysctx']
+        dummyall_ctx = self.objs['dummyall_ctx']
+        level = self.solver_objs['grid_level']
+        get_shell_ctx = petsc_call('DMShellGetContext', [callbackdm, Byref(dummysctx)])
 
-    def _formfunc_dm_init(self, callbackdm, objs):
-        return [DummyExpr(callbackdm, DMCast(objs['dummyptr']), init=True)]
+        deref_level = FieldFromPointer(level, dummysctx)
+        deref_context = FieldFromPointer(dummyall_ctx, dummysctx)
+
+        ctx_assign = DummyExpr(
+            ctx._C_symbol,
+            Byref(IndexedPointer(deref_context, deref_level))
+        )
+        return [Definition(dummysctx)], [get_shell_ctx, ctx_assign]
+
+    # def _formfunc_dm_init(self, callbackdm, objs):
+    #     return [Definition(callbackdm),
+    #             petsc_call('SNESGetDM', [objs['snes'], Byref(callbackdm)])]
     
 
 

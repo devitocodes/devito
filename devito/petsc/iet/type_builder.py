@@ -263,6 +263,8 @@ class MultigridTypeBuilderMixin:
         base_dict['refine_levels'] = PetscInt(
             sreg.make_name(prefix='refine_levels')
             )
+        
+        base_dict['grid_level'] = PetscInt(name='level')
         return base_dict
 
 
@@ -343,7 +345,10 @@ objs = frozendict({
     ),
     'subctx': SubMatrixStruct(fields=[rows, cols]),
     'dummyctx': Symbol('lctx'),
+    'dummysctx': Symbol('sctx'),
+    'dummyall_ctx': Symbol('all_ctx'),
     'dummyptr': DummyArg('dummy'),
     'dummyefunc': Symbol('dummyefunc'),
     'dof': PetscInt('dof'),
+    'da': DM('da')
 })
