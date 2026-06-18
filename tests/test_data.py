@@ -1398,7 +1398,8 @@ class TestDataDistributed:
         assert np.all(f.data[index] == values)
 
     @pytest.mark.parallel(mode=4)
-    def test_advanced_indexing_with_slice(self, mode):
+    @pytest.mark.parametrize('order', ['C', 'F'])
+    def test_advanced_indexing_with_slice(self, mode, order):
         grid = Grid(shape=(8,))
         nt = 3
         f = TimeFunction(name='f', grid=grid, save=nt, time_order=1,
@@ -1409,7 +1410,12 @@ class TestDataDistributed:
         source_index = np.array_split(np.arange(8)[::-1],
                                       grid.distributor.nprocs)[rank]
         time_window = slice(1, None)
-        source_data = global_data[time_window, source_index]
+        source_data = np.array(global_data[time_window, source_index],
+                               order=order)
+        if order == 'C':
+            assert source_data.flags.c_contiguous
+        else:
+            assert source_data.flags.f_contiguous
 
         f.data[:] = 0
         f.data[time_window, source_index] = source_data

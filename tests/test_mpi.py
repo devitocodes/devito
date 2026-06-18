@@ -652,7 +652,8 @@ class TestSparseFunction:
         assert sf.local_indices == expectedinds
 
     @pytest.mark.parallel(mode=[1, 4])
-    def test_sparse_time_data_advanced_indexing(self, mode):
+    @pytest.mark.parametrize('order', ['C', 'F'])
+    def test_sparse_time_data_advanced_indexing(self, mode, order):
         """
         Rank-local external traces are labeled by global sparse indices.
         """
@@ -668,7 +669,11 @@ class TestSparseFunction:
         rank = grid.distributor.myrank
         trace_index = np.array_split(np.arange(npoint)[::-1],
                                      grid.distributor.nprocs)[rank]
-        trace_data = global_data[:, trace_index]
+        trace_data = np.array(global_data[:, trace_index], order=order)
+        if order == 'C':
+            assert trace_data.flags.c_contiguous
+        else:
+            assert trace_data.flags.f_contiguous
 
         rec.data_local[:, :] = 0
         rec.data[:, trace_index] = trace_data
