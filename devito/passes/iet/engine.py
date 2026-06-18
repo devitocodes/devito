@@ -127,21 +127,14 @@ class Graph(Byproduct):
 
         return found
 
-    def apply(self, func, *, updates_args=False, **kwargs):
+    def apply(self, func, **kwargs):
         """
         Apply ``func`` to all nodes in the Graph.
 
-        Parameters
-        ----------
-        updates_args : bool, optional
-            If True, reconcile Callable parameters and Call arguments before
-            the graph walk and after each changed node. This is only needed by
-            passes whose transformation logic depends on already-updated
-            signatures while the pass is still running. Otherwise, argument
-            reconciliation is intentionally deferred to ``finalize_args``.
+        Callable parameters and Call arguments are reconciled before the graph
+        walk, after each changed node, and after the pass has completed.
         """
-        if updates_args:
-            _update_args(self)
+        _update_args(self)
 
         dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
 
@@ -172,8 +165,7 @@ class Graph(Byproduct):
             efuncs[i] = efunc
             efuncs.update(dict([(i.name, i) for i in new_efuncs]))
 
-            if updates_args:
-                efuncs = _update_args_efunc(efunc, efuncs, dag)
+            efuncs = _update_args_efunc(efunc, efuncs, dag)
 
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
@@ -182,6 +174,7 @@ class Graph(Byproduct):
             efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
+        _update_args(self)
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)
@@ -240,24 +233,19 @@ def _update_args(graph):
     graph.efuncs = efuncs
 
 
-def iet_pass(func=None, *, updates_args=False):
+def iet_pass(func=None):
     """
     Decorate an IET pass.
-
-    ``updates_args=True`` is an opt-in for passes that must observe up-to-date
-    Callable/Call signatures before and during their own graph walk. Most
-    passes should leave it False and rely on ``finalize_args`` at the end of
-    IET lowering.
     """
     if func is None:
-        return partial(iet_pass, updates_args=updates_args)
+        return iet_pass
 
     if isinstance(func, tuple):
         assert len(func) == 2 and func[0] is iet_visit
         call = lambda graph: graph.visit
         func = func[1]
     else:
-        call = lambda graph: partial(graph.apply, updates_args=updates_args)
+        call = lambda graph: graph.apply
 
     @wraps(func)
     def wrapper(*args, **kwargs):

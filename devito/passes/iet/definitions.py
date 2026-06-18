@@ -444,7 +444,7 @@ class DataManager:
 
         return processed, flatten(efuncs)
 
-    @iet_pass(updates_args=True)
+    @iet_pass
     def place_definitions(self, iet, globs=None, **kwargs):
         """
         Create a new IET where all symbols have been declared, allocated, and
