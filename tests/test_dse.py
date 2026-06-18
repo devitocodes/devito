@@ -2890,6 +2890,30 @@ class TestAliases:
             'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz'
         )
 
+    def test_subdims_wo_block_temps(self):
+        grid = Grid(shape=(16, 17, 18))
+
+        damp = Function(name='damp', grid=grid)
+        vp = Function(name='vp', grid=grid)
+        vp.data_with_halo[:] = np.linspace(
+            0.1, 1.1, vp.data_with_halo.size
+        ).reshape(vp.shape_with_halo)
+
+        x, y, z = grid.dimensions
+
+        eqns = [Eq(damp, 0.0)]
+        for d in (x, y, z):
+            dl = SubDimension.left(name=f'{d.name}l', parent=d, thickness=4)
+            pos = Abs((4 - (dl - d.symbolic_min))/4.0)
+            eqns.append(Inc(damp.subs(d, dl),
+                            sin(pos)/(vp.subs(d, dl) + 1.0)))
+
+        op = Operator(eqns, opt=('advanced', {'openmp': True,
+                                              'cire-mingain': 0,
+                                              'cire-block-temps': False}))
+
+        op.apply()
+
 
 class TestIsoAcoustic:
 

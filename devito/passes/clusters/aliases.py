@@ -722,16 +722,20 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
             # which is what appears in `ispace`
             interval = interval.lift(i.stamp)
 
-            if opt_block_temps:
-                sub_iterators.update(dmapper)
-                writeto.append(interval)
-                intervals[d] = interval
-            elif d.is_Block:
-                pd = d.parent
-                writeto.append(interval.relaxed)
-                # The lower/upper bounds belong to the parent BlockDimension
-                intervals[d] = interval.zero()
-                intervals[pd] = interval.switch(pd)
+            # Construct the write-to space, which will define the shape of the
+            # temporary, and the iteration intervals in which it will be
+            # populated
+            if d.is_Block:
+                if opt_block_temps:
+                    sub_iterators.update(dmapper)
+                    writeto.append(interval)
+                    intervals[d] = interval
+                else:
+                    pd = d.parent
+                    writeto.append(interval.relaxed)
+                    # The lower/upper bounds belong to the parent BlockDimension
+                    intervals[d] = interval.zero()
+                    intervals[pd] = interval.switch(pd)
             else:
                 writeto.append(interval.relaxed)
                 intervals[d] = interval
@@ -1505,24 +1509,22 @@ class ScheduledAlias(tuple, Reconstructable):
 
     @property
     def dimensions(self):
-        # Legacy: with SubDimensions, we may have the following situation:
-        #
-        # for zi = z_m + zi_ltkn; zi <= z_M - zi_rtkn; ...
-        #   r[zi] = ...
-        #
-        # Instead of `r[zi - z_m - zi_ltkn]` we have just `r[zi]`, so we'll
-        # need as much room as in `zi`'s parent to avoid going out-of-bounds.
-        # Aside from ugly generated code, the reason we do not rather shift the
-        # indices is that it prevents future passes to transform the loop
-        # bounds (e.g., MPI's comp/comm overlap does that)
-        return tuple(d.parent if d.is_AbstractSub else d
-                     for d in self.writeto.itdims)
+        return self.writeto.itdims
 
     @property
     def indices(self):
+        """
+        The indices used to populate the temporary.
+
+        The write-to space may be relaxed for storage sizing, while the
+        temporary still has to be indexed with the active iteration Dimension.
+        """
         bdims = [d for d in self.ispace.itdims if d.is_Block]
         depth = max([d._depth for d in bdims], default=0)
         mapper = {d.root: d for d in bdims if d._depth == depth}
+
+        mapper.update({d.root: d for d in self.ispace.itdims if d.is_AbstractSub})
+
         return tuple(mapper.get(d.root, d) for d in self.writeto.itdims)
 
 
