@@ -70,7 +70,7 @@ def key1(f, d):
     if f.is_regular:
         # For paddable objects the following holds:
         # `same dim + same halo + same padding_dtype => same (auto-)padding`
-        pad_key = f.__padding_dtype__ if d is f.dimensions[-1] else None
+        pad_key = f.__padding_dtype__ if d in f._padded_dimensions else None
 
         return (d, f._size_halo[d], pad_key)
     else:

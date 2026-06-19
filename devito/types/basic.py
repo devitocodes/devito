@@ -907,36 +907,26 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return np.float32
 
     def __padding_setup_smart__(self, **kwargs):
-        nopadding = ((0, 0),)*self.ndim
+        padding = [(0, 0)]*self.ndim
 
-        if not self.__padding_dtype__:
-            return nopadding
-
-        # The padded Dimension
-        if not self.space_dimensions:
-            return nopadding
-        d = self.space_dimensions[-1]
-
-        # Last space Dimension is not the most inner Dimension
-        if d != self.dimensions[-1]:
-            return nopadding
+        if not self.__padding_dtype__ or not self._padded_dimensions:
+            return tuple(padding)
 
         mmts = configuration['platform'].max_mem_trans_size(self.__padding_dtype__)
 
-        snp = self._size_nopad[d]
-        remainder = snp % mmts
-        if remainder == 0:
-            # Already a multiple of `mmts`, no need to pad
-            return nopadding
-        else:
+        for d in self._padded_dimensions:
+            snp = self._size_nopad[d]
+            remainder = snp % mmts
+            if remainder == 0:
+                # Already a multiple of `mmts`, no need to pad
+                continue
+
             from devito.symbolics import RoundUp  # noqa
             v = RoundUp(snp, mmts) - snp
             if v.is_Integer:
                 v = int(v)
 
-        dpadding = (0, v)
-        padding = [(0, 0)]*self.ndim
-        padding[self.dimensions.index(d)] = dpadding
+            padding[self.dimensions.index(d)] = (0, v)
 
         return tuple(padding)
 
@@ -986,6 +976,18 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
         return DimensionTuple(*self._dimensions, getters=self._dimensions)
+
+    @property
+    def _padded_dimensions(self):
+        try:
+            d = self.space_dimensions[-1]
+        except IndexError:
+            return ()
+
+        if d is self.dimensions[-1]:
+            return (d,)
+        else:
+            return ()
 
     @cached_property
     def space_dimensions(self):

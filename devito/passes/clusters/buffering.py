@@ -376,8 +376,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             assert len(buffers) == 1, "Unexpected form of multi-level buffering"
             buffer, = buffers
             xd = buffer.indices[dim]
-            # The new buffer is fed by `buffer`, so it inherits its padding
-            # policy regardless of `f`'s
+            # The new buffer is derived from `buffer`, so it inherits its padding policy
             extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
         else:
             size = infer_buffer_size(f, dim, clusters)
