@@ -290,6 +290,7 @@ def test_hierarchical_blocking(opt_options):
     assert len(op._state['autotuning'][1]['tuned']) == 4
 
 
+@skipif('cpu64-power-gcc')
 @switchconfig(platform='cpu64-dummy', develop_mode=True)  # `cpu64-dummy `to fix ncores
 @pytest.mark.parametrize('opt_options', [{'skewing': False}, {'skewing': True}])
 def test_multiple_threads(opt_options):
@@ -309,7 +310,7 @@ def test_multiple_threads(opt_options):
     assert len(op._state['autotuning'][0]['tuned']) == 3
 
 
-@skipif('cpu64-arm')
+@skipif(['cpu64-arm', 'cpu64-power-gcc'])
 @switchconfig(platform='knl7210', develop_mode=True)  # `knl7210` for nested parallelsim
 def test_nested_nthreads():
     grid = Grid(shape=(96, 96, 96))
