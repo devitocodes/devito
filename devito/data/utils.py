@@ -9,9 +9,9 @@ __all__ = [
     'convert_index',
     'flip_idx',
     'index_apply_modulo',
+    'index_contains_integer_sequence',
     'index_dist_to_repl',
     'index_handle_oob',
-    'index_contains_integer_sequence',
     'index_is_basic',
     'index_is_integer_sequence',
     'loc_data_idx',
@@ -81,7 +81,7 @@ def index_contains_integer_sequence(idx, ndim):
     """
     if isinstance(idx, list) and index_is_legacy_multidim_basic(idx, ndim):
         return False
-    elif isinstance(idx, np.ndarray) or isinstance(idx, list):
+    elif isinstance(idx, (np.ndarray, list)):
         return index_is_integer_sequence(idx)
     elif isinstance(idx, tuple):
         return any(index_is_integer_sequence(i) for i in idx)
