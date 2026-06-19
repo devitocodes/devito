@@ -50,6 +50,34 @@ def _fusion_hazards(scope0, scope1, prefix):
     return NO_HAZARD
 
 
+class Key(tuple):
+
+    """
+    A "fusion Key" for a Cluster (ClusterGroup) is a hashable tuple such that
+    two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
+    identical.
+
+    A Key contains elements that can logically be split into two groups -- the
+    `strict` and the `weak` components of the Key. Two Clusters (ClusterGroups)
+    having same `strict` but different `weak` parts are, by definition, not
+    fusible; however, since at least their `strict` parts match, they can at
+    least be topologically reordered.
+    """
+
+    def __new__(cls, itintervals, guards, syncs, weak):
+        strict = [itintervals, guards, syncs]
+        obj = super().__new__(cls, strict + weak)
+
+        obj.itintervals = itintervals
+        obj.guards = guards
+        obj.syncs = syncs
+
+        obj.strict = tuple(strict)
+        obj.weak = tuple(weak)
+
+        return obj
+
+
 class Fusion(Queue):
 
     """
@@ -106,33 +134,6 @@ class Fusion(Queue):
         else:
             return [ClusterGroup(processed, prefix)]
 
-    class Key(tuple):
-
-        """
-        A fusion Key for a Cluster (ClusterGroup) is a hashable tuple such that
-        two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
-        identical.
-
-        A Key contains elements that can logically be split into two groups -- the
-        `strict` and the `weak` components of the Key. Two Clusters (ClusterGroups)
-        having same `strict` but different `weak` parts are, by definition, not
-        fusible; however, since at least their `strict` parts match, they can at
-        least be topologically reordered.
-        """
-
-        def __new__(cls, itintervals, guards, syncs, weak):
-            strict = [itintervals, guards, syncs]
-            obj = super().__new__(cls, strict + weak)
-
-            obj.itintervals = itintervals
-            obj.guards = guards
-            obj.syncs = syncs
-
-            obj.strict = tuple(strict)
-            obj.weak = tuple(weak)
-
-            return obj
-
     @memoized_meth
     def _key(self, c):
         itintervals = frozenset(c.ispace.itintervals)
@@ -184,7 +185,7 @@ class Fusion(Queue):
         # Promote adjacency of Clusters with same guard
         weak.append(c.guards)
 
-        key = self.Key(itintervals, guards, syncs, weak)
+        key = Key(itintervals, guards, syncs, weak)
 
         return key
 
