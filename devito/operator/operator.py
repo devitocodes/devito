@@ -68,6 +68,16 @@ class Operator(Callable):
             Symbolic substitutions to be applied to ``expressions``.
         * opt : str
             The performance optimization level. Defaults to ``configuration['opt']``.
+        * sym_opt : dict
+            Symbolic-level options controlling mathematical choices made during
+            expression lowering (e.g. how staggered multi-factor products are
+            interpolated). Distinct from ``opt``, which controls code generation
+            and performance. Accepted keys:
+
+            - ``'interp-mode'`` (``'direct'`` | ``'symmetric'``): selects the
+              interpolation strategy used by ``Mul._eval_at`` when projecting a
+              multi-factor expression onto a target staggered location. See the
+              tutorial at ``examples/userapi/08_staggered_interp.ipynb``.
         * language : str
             The target language for shared-memory parallelism. Defaults to
             ``configuration['language']``.
@@ -235,6 +245,7 @@ class Operator(Callable):
         # Potentially required for lazily allocated Functions
         op._mode = kwargs['mode']
         op._options = kwargs['options']
+        op._sym_options = kwargs['sym_options']
         op._allocator = kwargs['allocator']
         op._platform = kwargs['platform']
 
@@ -342,6 +353,7 @@ class Operator(Callable):
             * Shift indices for domain alignment.
         """
         expand = kwargs['options'].get('expand', True)
+        interp_mode = kwargs.get('sym_options', {}).get('interp-mode', 'direct')
 
         # Specialization is performed on unevaluated expressions
         expressions = cls._specialize_dsl(expressions, **kwargs)
@@ -352,7 +364,8 @@ class Operator(Callable):
         # ModuloDimensions
         if not expand:
             expand = lambda d: d.is_Stepping
-        expressions = flatten([i._evaluate(expand=expand) for i in expressions])
+        expressions = flatten([i._evaluate(expand=expand, interp_mode=interp_mode)
+                               for i in expressions])
 
         # Scalarize the tensor equations, if any
         expressions = [j for i in expressions for j in i._flatten]
@@ -1660,6 +1673,12 @@ def parse_kwargs(**kwargs):
     if mode is None:
         mode = 'noop'
     kwargs['mode'] = mode
+
+    # `sym_opt` -- symbolic-level options (mathematical choices, not codegen)
+    sym_opt = kwargs.pop('sym_opt', None) or {}
+    if not isinstance(sym_opt, (dict, frozendict)):
+        raise InvalidOperator(f"Illegal `sym_opt={str(sym_opt)}`")
+    kwargs['sym_options'] = dict(sym_opt)
 
     # `platform`
     platform = kwargs.get('platform')

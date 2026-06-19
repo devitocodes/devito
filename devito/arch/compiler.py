@@ -297,7 +297,13 @@ class Compiler(GCCToolchain):
         obj
             The loaded shared object.
         """
-        return npct.load_library(str(self.get_jit_dir().joinpath(soname)), '.')
+        try:
+            return npct.load_library(str(self.get_jit_dir().joinpath(soname)), '.')
+        except AttributeError as e:
+            # Some ctypes paths re-wrap dlopen failures, such as a partially
+            # written .so, as AttributeError. Normalize so jit_compile treats
+            # the probe as a cache miss and enters codepy's locked compile path.
+            raise OSError(str(e)) from e
 
     def save_header(self, filename, code):
         """

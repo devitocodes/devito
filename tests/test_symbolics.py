@@ -1,4 +1,4 @@
-from ctypes import c_void_p
+from ctypes import c_uint64, c_void_p
 
 import numpy as np
 import pytest
@@ -934,6 +934,36 @@ class TestUxreplace:
         assert func1.p1 == (g,)
         assert func1.p2 == 'bar'
 
+    def test_custom_def_function_reconstruction_no_aliasing(self):
+
+        class MyDefFunction(DefFunction):
+            __rargs__ = ('name', 'arguments')
+            __rkwargs__ = ('p0',)
+
+            def __new__(cls, name=None, arguments=None, p0=None):
+                obj = super().__new__(cls, name=name, arguments=arguments)
+                obj.p0 = p0
+                return obj
+
+            def _hashable_content(self):
+                return super()._hashable_content() + (self.p0,)
+
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        func0 = MyDefFunction(name='foo', arguments=f.indexify(), p0=f)
+        h0 = hash(func0)
+
+        func1 = func0.func(p0=g)
+
+        assert func1 is not func0
+        assert func1 != func0
+        assert hash(func0) == h0
+        assert func0.p0 is f
+        assert func1.p0 is g
+
     def test_reduce_to_number(self):
         grid = Grid(shape=(4, 4))
         x, _ = grid.dimensions
@@ -1230,6 +1260,30 @@ def test_print_div():
     b = SizeOf(np.int64)
     cstr = ccode(a / b)
     assert cstr == 'sizeof(int)/sizeof(long)'
+
+
+def test_sizeof():
+    sizeof_ctype = SizeOf(c_uint64)
+    str_pointer0 = SizeOf('float', stars='*')
+    str_pointer1 = SizeOf('float', '*')
+    str_simple = SizeOf('int')
+    complex_size = SizeOf(np.complex64)
+
+    assert sizeof_ctype.arguments == (ReservedWord('unsigned long'), ReservedWord(''))
+    assert str_pointer0.arguments == (ReservedWord('float'), ReservedWord('*'))
+    assert complex_size.arguments == (ReservedWord('c_complex'), ReservedWord(''))
+
+    # Printing
+    assert ccode(sizeof_ctype) == 'sizeof(unsigned long)'
+    assert ccode(str_pointer0) == ccode(str_pointer1) == 'sizeof(float*)'
+    assert ccode(str_simple) == 'sizeof(int)'
+    assert str(complex_size) == 'sizeof(c_complex)'
+    assert ccode(complex_size) == 'sizeof(float _Complex)'
+
+    # Reconstruction
+    assert ccode(str_pointer0.func(*str_pointer0.args)) == 'sizeof(float*)'
+    assert ccode(str_pointer0.func('int', stars='**')) == 'sizeof(int**)'
+    assert ccode(complex_size.func(*complex_size.args)) == 'sizeof(float _Complex)'
 
 
 def test_customdtype_complex():

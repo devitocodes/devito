@@ -111,6 +111,7 @@ class Cpu64OperatorMixin:
             )
 
         kwargs['options'].update(o)
+        kwargs['sym_options'] = cls._normalize_sym_kwargs(**kwargs)
 
         return kwargs
 

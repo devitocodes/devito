@@ -19,7 +19,7 @@ from devito.ir import (
     Conditional, DummyEq, Expression, FindNodes, FindSymbols, Iteration,
     ParallelIteration, retrieve_iteration_tree
 )
-from devito.passes.clusters.aliases import collect
+from devito.passes.clusters.aliases import AliasKey, collect
 from devito.passes.clusters.factorization import collect_nested
 from devito.passes.iet.parpragma import VExpanded
 from devito.symbolics import (  # noqa
@@ -423,8 +423,9 @@ class TestAliases:
 
         extracted = {i.rhs: i.lhs for i in exprs}
         ispace = exprs[0].ispace
+        meta = AliasKey(ispace, None, None, None, None)
 
-        aliases = collect(extracted, ispace, False)
+        aliases = collect(extracted, meta, False)
         aliases.filter(lambda a: a.score > 0)
 
         assert len(aliases) == len(expected)
@@ -2553,7 +2554,7 @@ class TestAliases:
 
         op = Operator(eqn, opt='advanced')
 
-        assert_structure(op, ['t', 't,fd', 't,fd,x,y'], 't,fd,x,y')
+        assert_structure(op, ['t', 't,fd,x,y'], 't,fd,x,y')
         # Make sure it compiles
         _ = op.cfunction
 
@@ -2561,7 +2562,7 @@ class TestAliases:
         eqn = Eq(u, u - (cos(time_sub * factor * f) * sin(g) * uf))
 
         op = Operator(eqn, opt='advanced')
-        assert_structure(op, ['x,y', 't', 't,fd', 't,fd,x,y'], 'x,y,t,fd,x,y')
+        assert_structure(op, ['x,y', 't', 't,fd,x,y'], 'x,y,t,fd,x,y')
         # Make sure it compiles
         _ = op.cfunction
 
@@ -2705,10 +2706,9 @@ class TestAliases:
 
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
-        # Each guard should have its own alias for cos(time)
-        assert 'float r0 = cos(time);' in str(body0(op))
+        # No aliases in this case due to guards
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 2
+        assert len(scalars) == 0
 
     def test_split_cond_multi_alias(self):
         grid = Grid((11, 11))
@@ -2728,11 +2728,9 @@ class TestAliases:
 
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
-        # Each guard should have its own aliases for cos(time) and sin(time)
-        assert 'const float r0 = sin(time) + cos(time)' in str(body0(op))
-        assert 'const float r1 = cos(time);' in str(body0(op))
+        # No aliases in this case due to guards
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 3
+        assert len(scalars) == 0
 
     def test_multi_cond_no_split(self):
         grid = Grid((11, 11))
@@ -2758,7 +2756,7 @@ class TestAliases:
         )
 
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 3
+        assert len(scalars) == 0
 
     def test_alias_with_conditional(self):
         grid = Grid((11, 11))
@@ -2779,9 +2777,9 @@ class TestAliases:
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
 
-        # Each guard should have its own alias for cos(time/ctf)
+        # No aliases in this case due to guards
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 2
+        assert len(scalars) == 0
 
     def test_scalar_alias_interp(self):
         grid = Grid(shape=(11, 11))
@@ -2825,9 +2823,9 @@ class TestAliases:
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 3
 
-        # # Each guard should have its own alias for cos/sin(f1[time-2])
+        # The guards prevent some aliases from being hoisted out
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 3
+        assert len(scalars) == 0
 
         assert_structure(
             op,
@@ -2855,9 +2853,9 @@ class TestAliases:
 
         cond = FindNodes(Conditional).visit(op)
         assert len(cond) == 1
-        # One for each 1/dt 1/dt**2
+        # One for 1/dt, while 1/dt**2 ain't hoisted out due to the guard
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
-        assert len(scalars) == 2
+        assert len(scalars) == 1
 
         assert_structure(
             op,
@@ -2865,11 +2863,9 @@ class TestAliases:
             'txyxy'
         )
 
-        # Both aliases should be hoisted outside the time loop
+        # The 1/dt alias should be hoisted outside the time loop
         assert str(body0(op).body[0]) == 'const float r0 = 1.0F/dt;'
         assert not body0(op).body[0].ispace
-        assert str(body0(op).body[1]) == 'const float r1 = 1.0F/(dt*dt);'
-        assert not body0(op).body[1].ispace
 
 
 class TestIsoAcoustic:

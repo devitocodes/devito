@@ -57,6 +57,16 @@ class Staggering(DimensionTuple):
     def on_node(self):
         return not self or all(s == 0 for s in self)
 
+    def __eq__(self, other):
+        # Two empty-or-all-zero Staggerings are equivalent regardless of arity
+        # (a Function declared with `staggered=NODE` and one declared without
+        # both live at the cell centre).
+        if isinstance(other, Staggering) and self.on_node and other.on_node:
+            return True
+        return tuple.__eq__(self, other)
+
+    __hash__ = DimensionTuple.__hash__
+
     @property
     def _ref(self):
         if not self:

@@ -415,7 +415,7 @@ class BasePrinter(CodePrinter):
         return f"{expr.name}{template}({args})"
 
     def _print_SizeOf(self, expr):
-        return f'sizeof({self._print(expr.intype)}{self._print(expr.stars)})'
+        return f'sizeof({self._print(expr.ctype)}{self._print(expr.stars)})'
 
     def _print_MathFunction(self, expr):
         return f"{self.ns(expr)}{self._print_DefFunction(expr)}"

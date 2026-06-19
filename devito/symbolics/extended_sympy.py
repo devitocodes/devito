@@ -9,6 +9,7 @@ import numpy as np
 import sympy
 from sympy import Expr, Function, Number, Tuple, cacheit, sympify
 from sympy.core.decorators import call_highest_priority
+from sympy.core.function import Application
 from sympy.logic.boolalg import BooleanFunction
 
 from devito.finite_differences.elementary import Max, Min
@@ -718,7 +719,13 @@ class DefFunction(Function, Pickable):
         if _template:
             args.append(Tuple(*_template))
 
-        obj = Function.__new__(cls, *args)
+        # `Function.__new__` and `Application.__new__` are both cached by
+        # SymPy. DefFunction subclasses may attach reconstruction kwargs as
+        # side attributes after this base constructor returns; going through
+        # the cached route could then alias a previous object and mutate it
+        # during reconstruction. Call Application's uncached constructor
+        # explicitly instead of using super()/Function.__new__.
+        obj = Application.__new__.__wrapped__(cls, *args)
         obj._name = name
         obj._arguments = tuple(_arguments)
         obj._template = tuple(_template)
@@ -973,7 +980,6 @@ class SizeOf(DefFunction):
     __rargs__ = ('intype', 'stars')
 
     def __new__(cls, intype, stars=None, **kwargs):
-        stars = stars or ''
         if not isinstance(intype, (str, ReservedWord)):
             ctype = dtype_to_ctype(intype)
             for k, v in ctypes_vector_mapper.items():
@@ -983,15 +989,40 @@ class SizeOf(DefFunction):
             else:
                 intype = ctypes_to_cstr(ctype)
 
-        newobj = super().__new__(cls, 'sizeof', arguments=f'{intype}{stars}', **kwargs)
-        newobj.stars = stars
-        newobj.intype = intype
+        stars = stars or ''
+        if not all(c == '*' for c in str(stars)):
+            raise ValueError("`stars` must be a string of zero or more `*` characters")
 
-        return newobj
+        if not isinstance(intype, (str, ReservedWord)):
+            intype = ctypes_vector_mapper[intype].__name__
+
+        return super().__new__(cls, 'sizeof', arguments=(intype, stars), **kwargs)
 
     @property
     def args(self):
-        return super().args[1]
+        return self._arguments
+
+    @property
+    def intype(self):
+        return self.arguments[0]
+
+    @cached_property
+    def ctype(self):
+        for v in ctypes_vector_mapper.values():
+            if str(self.intype) == v.__name__:
+                return v
+        return self.intype
+
+    @property
+    def stars(self):
+        return self.arguments[1]
+
+    def __str__(self):
+        try:
+            intype = ctypes_to_cstr(self.ctype)
+        except TypeError:
+            intype = str(self.ctype)
+        return f"sizeof({intype}{self.stars})"
 
 
 def rfunc(func, item, *args):

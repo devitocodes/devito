@@ -15,6 +15,7 @@ from devito.data.allocators import DataReference
 from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.finite_differences import Differentiable, generate_fd_shortcuts
+from devito.finite_differences.interpolation import interp_mapper
 from devito.finite_differences.tools import fd_weights_registry
 from devito.logger import debug, warning
 from devito.mpi import MPI
@@ -1116,23 +1117,24 @@ class Function(DiscreteFunction):
 
     @cached_property
     def _fd_priority(self):
-        return 1 if self.staggered.on_node else 2
+        # NODE takes precedence: coefficients are conventionally stored at the
+        # cell centre, so when we gather a product onto a single location
+        # (either via _gather_for_diff or symmetric Mul._eval_at), NODE is the
+        # natural one to pick.
+        return 1.2 if self.staggered.on_node else 1.1
 
-    def _eval_at(self, func):
+    def _eval_at(self, func, **kwargs):
         if self.staggered == func.staggered or self.interp_order == 0:
             return self
 
-        mapper = {}
-        for d in self.dimensions:
-            try:
-                if self.indices_ref[d] is not func.indices_ref[d]:
-                    d0 = func.dimensions.get(d, d)
-                    f_idx = func.indices_ref[d]._subs(d0, d)
-                    mapper[self.indices_ref[d]] = f_idx
-            except KeyError:
-                pass
+        # Dims where self and func indices differ -> {dim: func_idx}
+        diff = interp_mapper(self.indices_ref, func.indices_ref, self.dimensions)
 
-        return self.subs(mapper)
+        # Translate into a subs mapper {self_idx: func_idx} aligned on self's dims
+        subs_map = {self.indices_ref[d]: t._subs(func.dimensions.get(d, d), d)
+                    for d, t in diff.items()}
+
+        return self.subs(subs_map)
 
     @classmethod
     def __staggered_setup__(cls, dimensions, staggered=None, **kwargs):
@@ -1198,10 +1200,6 @@ class Function(DiscreteFunction):
     def staggered(self):
         """The staggered indices of the object."""
         return self._staggered
-
-    @property
-    def is_Staggered(self):
-        return bool(self.staggered)
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1546,7 +1544,7 @@ class TimeFunction(Function):
 
     @cached_property
     def _fd_priority(self):
-        return 2.1 if self.staggered.on_node else 2.2
+        return 2.1 if self.staggered.on_node else 2
 
     @property
     def time_order(self):
