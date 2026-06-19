@@ -20,7 +20,7 @@ jobs:
     name: "Lint the codebase"
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Python 3.10
       uses: actions/setup-python@v6
       with:
@@ -46,7 +46,7 @@ jobs:
     name: "Spellcheck everything"
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Set up Python 3.10
       uses: actions/setup-python@v6
       with:
@@ -68,7 +68,7 @@ jobs:
     # #example-error-annotation-on-github-actions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check workflow files
         uses: docker://rhysd/actionlint:latest
         with:
@@ -82,7 +82,7 @@ jobs:
       env:
         HADOLINT_IGNORE: "DL3003,DL3004,DL3005,DL3007,DL3008,DL3009,DL3013,DL3015,DL3042,DL3059,SC2103,SC2046,SC2086"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Lint dockerfiles inside hadolint container
         run: |
           for DOCKERFILE in docker/Dockerfile.*; \
