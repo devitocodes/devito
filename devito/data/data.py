@@ -495,8 +495,9 @@ class Data(np.ndarray):
             raise ValueError(f"Cannot insert obj of type `{type(val)}` into a Data")
 
     def _normalize_index(self, idx):
-        if isinstance(idx, np.ndarray) or (isinstance(idx, list) and
-                                          index_is_integer_sequence(idx)):
+        if isinstance(idx, np.ndarray) or (
+            isinstance(idx, list) and index_contains_integer_sequence(idx, self.ndim)
+        ):
             # Advanced indexing mode
             return (idx,)
         else:

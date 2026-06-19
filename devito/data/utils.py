@@ -1,8 +1,6 @@
 import numpy as np
 
-from devito.tools import (
-    Tag, as_list, as_tuple, dtype_to_mpidtype, is_integer, prod
-)
+from devito.tools import Tag, as_list, as_tuple, dtype_to_mpidtype, is_integer, prod
 
 __all__ = [
     'NONLOCAL',
@@ -13,6 +11,7 @@ __all__ = [
     'index_apply_modulo',
     'index_dist_to_repl',
     'index_handle_oob',
+    'index_contains_integer_sequence',
     'index_is_basic',
     'index_is_integer_sequence',
     'loc_data_idx',
@@ -55,14 +54,34 @@ def index_is_integer_sequence(idx):
             (arr.size == 0 or np.issubdtype(arr.dtype, np.integer)))
 
 
-def _index_has_integer_sequence(idx):
+def index_is_legacy_multidim_basic(idx, ndim):
     """
-    Cheaply reject ordinary basic indexing before normalizing ``idx``.
+    Return True when a top-level Python list is a legacy basic index.
 
-    This keeps the new MPI advanced-indexing path out of the hot path for
+    Historically, Devito accepted expressions such as ``data[[0, 1, 2]]`` as
+    shorthand for ``data[(0, 1, 2)]`` on 3D ``Data`` objects. NumPy treats a
+    plain list of integers as advanced indexing, but changing this top-level
+    Devito behavior would break existing MPI tests and user code. Lists nested
+    inside an index tuple, e.g. ``data[:, [0, 2]]``, remain available for the
+    routed MPI advanced-indexing path.
+    """
+    return (ndim > 1 and isinstance(idx, list) and len(idx) == ndim and
+            all(is_integer(i) for i in idx))
+
+
+def index_contains_integer_sequence(idx, ndim):
+    """
+    Return True if an index expression contains a 1D integer array-like item.
+
+    This is the full-index-expression counterpart to
+    :func:`index_is_integer_sequence`, which checks one index component. It is
+    used to cheaply reject ordinary basic indexing before normalizing ``idx``,
+    keeping the MPI advanced-indexing path out of the hot path for
     scalar/slice-only accesses.
     """
-    if isinstance(idx, np.ndarray) or isinstance(idx, list):
+    if isinstance(idx, list) and index_is_legacy_multidim_basic(idx, ndim):
+        return False
+    elif isinstance(idx, np.ndarray) or isinstance(idx, list):
         return index_is_integer_sequence(idx)
     elif isinstance(idx, tuple):
         return any(index_is_integer_sequence(i) for i in idx)
@@ -85,7 +104,7 @@ def mpi_advanced_1d_index(data, glb_idx):
     dimension. All other dimensions must use basic indexing, i.e. slices or
     scalar integers.
     """
-    if not _index_has_integer_sequence(glb_idx):
+    if not index_contains_integer_sequence(glb_idx, data.ndim):
         return None
 
     if not data._is_decomposed:

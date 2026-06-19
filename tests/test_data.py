@@ -68,6 +68,20 @@ class TestDataBasic:
         assert np.all(u.data[1, :, :, 0] == 0.)
         assert np.all(u.data[1, :, :, -1] == 0.)
 
+    def test_boolean_masking_multidim(self):
+        """Test data access through a multi-dimensional boolean mask."""
+        grid = Grid(shape=(5, 6, 7))
+        u = Function(name='u', grid=grid, space_order=0)
+
+        mask = np.zeros(grid.shape, dtype=bool)
+        mask[1:4, 2:5, 3:6] = True
+
+        u.data[:] = 0
+        u.data[mask] = 1
+
+        assert np.all(u.data[mask] == 1)
+        assert np.all(u.data[~mask] == 0)
+
     def test_negative_step(self):
         """Test slicing with a negative step."""
         grid = Grid(shape=(6, 6, 6))
@@ -1396,6 +1410,32 @@ class TestDataDistributed:
         local_index = self._local_global_indices(f.data)
         assert np.all(f.data_local == expected[local_index])
         assert np.all(f.data[index] == values)
+
+        index = [1] if rank == 0 else []
+        values = np.array([20], dtype=f.dtype) if rank == 0 else \
+            np.empty(0, dtype=f.dtype)
+
+        f.data[:] = 0
+        f.data[index] = values
+
+        expected = np.zeros(8, dtype=f.dtype)
+        expected[1] = 20
+        assert np.all(f.data_local == expected[local_index])
+        assert np.all(f.data[index] == values)
+
+    @pytest.mark.parallel(mode=4)
+    def test_top_level_list_as_basic_multidim_index(self, mode):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        f.data[:] = np.arange(16, dtype=f.dtype).reshape(4, 4)
+
+        # Preserve Devito's legacy interpretation of a top-level list matching
+        # the data rank as a multi-dimensional basic index, not advanced
+        # indexing along the first dimension.
+        assert f.data[[0, 0]] == f.data[0, 0]
+        f.data[[0, 0]] = 99
+        assert f.data[[0, 0]] == f.data[0, 0]
 
     @pytest.mark.parallel(mode=4)
     @pytest.mark.parametrize('order', ['C', 'F'])
