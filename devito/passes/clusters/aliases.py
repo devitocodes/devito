@@ -678,7 +678,7 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
     """
     Create a Schedule from an AliasList.
     """
-    dmapper = make_blockdim_subiter(meta.ispace.itdims)
+    dmapper = SubIterMapper()
 
     processed = []
     for a in aliases:
@@ -727,7 +727,7 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
             # populated
             if d.is_Block:
                 if opt_block_temps:
-                    sub_iterators.update(dmapper)
+                    sub_iterators[d] = dmapper.make(d)
                     writeto.append(interval)
                     intervals[d] = interval
                 else:
@@ -778,7 +778,7 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
     # deterministic code generation
     processed = sorted(processed, key=lambda i: cit(meta.ispace, i.ispace))
 
-    return Schedule(*processed, dmapper=dmapper, is_frame=aliases.is_frame)
+    return Schedule(*processed, dmapper=dict(dmapper), is_frame=aliases.is_frame)
 
 
 def make_variant(schedule, exprs, mapper):
@@ -1687,24 +1687,25 @@ def _(expr):
     return expr.function, {}
 
 
-def make_blockdim_subiter(dimensions):
-    """
-    Create sub-iterators for the BlockDimension in `dimensions`.
+class SubIterMapper(dict):
 
-    For example, in `r[xs][ys][z]`  both `xs` and `ys` must be initialized such
-    that all accesses are within bounds. This requires traversing the hierarchy
-    of BlockDimensions to set `xs` (`ys`) in a way that consecutive blocks access
-    consecutive regions in `r` (e.g., trivially `xs=0` with `blocklevels=1`;
-    `xs=x0_blk1-x0_blk0` with `blocklevels=2`; and so on).
-    """
-    depth = max([d._depth for d in dimensions if d.is_Block], default=0)
-    if depth <= 1:
-        return {}
+    def make(self, d):
+        """
+        Create a sub-iterator for the BlockDimension `d`.
 
-    mapper = {}
-    for d in dimensions:
-        if not d.is_Block or d._depth < depth:
-            continue
+        For example, in `r[xs][ys][z]`  both `xs` and `ys` must be initialized such
+        that all accesses are within bounds. This requires traversing the hierarchy
+        of BlockDimensions to set `xs` (`ys`) in a way that consecutive blocks access
+        consecutive regions in `r` (e.g., trivially `xs=0` with `blocklevels=1`;
+        `xs=x0_blk1-x0_blk0` with `blocklevels=2`; and so on).
+        """
+        if not d.is_Block:
+            raise ValueError(f"Expected BlockDimension, got `{type(d)}`")
+
+        try:
+            return self[d]
+        except KeyError:
+            pass
 
         pd = d.parent
 
@@ -1714,8 +1715,7 @@ def make_blockdim_subiter(dimensions):
         else:
             m = 0
 
-        mapper[d] = IncrDimension(
-            f"{d.name}s", d, m, pd.symbolic_size, 1, pd.step
-        )
+        name = f"{d.name}s"
+        di = self[d] = IncrDimension(name, d, m, pd.symbolic_size, 1, pd.step)
 
-    return mapper
+        return di
