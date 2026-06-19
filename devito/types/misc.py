@@ -267,12 +267,6 @@ class TempArray(Array):
         # for homogeneity reasons
         self._shift = as_tuple(shift)
 
-    def __padding_setup__(self, **kwargs):
-        padding = kwargs.pop('padding', None)
-        if padding is None:
-            padding = self.__padding_setup_smart__(**kwargs)
-        return super().__padding_setup__(padding=padding, **kwargs)
-
     @property
     def shift(self):
         return self._shift

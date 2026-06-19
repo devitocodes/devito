@@ -376,6 +376,8 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             assert len(buffers) == 1, "Unexpected form of multi-level buffering"
             buffer, = buffers
             xd = buffer.indices[dim]
+            # The new buffer is derived from `buffer`, so it inherits its padding policy
+            extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
         else:
             size = infer_buffer_size(f, dim, clusters)
 
@@ -395,6 +397,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             except KeyError:
                 name = sregistry.make_name(prefix='db')
                 xd = xds[(dim, size)] = BufferDimension(name, 0, size-1, size, dim)
+            extra_kwargs = {}
 
         # The buffer dimensions
         dimensions = list(f.dimensions)
@@ -404,13 +407,9 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         # Finally create the actual buffer
         cls = callback or Array
         name = sregistry.make_name(prefix=f'{f.name}b')
-        # We specify the padding to match the input Function's one, so that
-        # the array can be used in place of the Function with valid strides
-        # Plain Array do not track mapped so we default to no padding
-        padding = 0 if cls is Array else f.padding
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                        padding=padding, grid=f.grid, halo=f.halo,
-                        space='mapped', mapped=f, f=f)
+                        grid=f.grid, halo=f.halo,
+                        space='mapped', mapped=f, f=f, **extra_kwargs)
 
     return mapper
 

@@ -1188,23 +1188,21 @@ class TestApplyArguments:
         finally:
             configuration['ignore-unknowns'] = configuration._defaults['ignore-unknowns']
 
-    @pytest.mark.parametrize('so,to,pad,expected', [
-        (0, 1, 0, (2, 4, 4, 4)),
-        (2, 1, 0, (2, 8, 8, 8)),
-        (4, 1, 0, (2, 12, 12, 12)),
-        (4, 3, 0, (4, 12, 12, 12)),
-        (4, 1, 3, (2, 15, 15, 15)),
-        ((2, 5, 2), 1, 0, (2, 11, 11, 11)),
-        ((2, 5, 4), 1, 3, (2, 16, 16, 16)),
+    @pytest.mark.parametrize('so,to,expected', [
+        (0, 1, (2, 4, 4, 4)),
+        (2, 1, (2, 8, 8, 8)),
+        (4, 1, (2, 12, 12, 12)),
+        (4, 3, (4, 12, 12, 12)),
+        ((2, 5, 2), 1, (2, 11, 11, 11)),
     ])
-    def test_function_dataobj(self, so, to, pad, expected):
+    def test_function_dataobj(self, so, to, expected):
         """
         Tests that the C-level structs from DiscreteFunctions are properly
         populated upon application of an Operator.
         """
         grid = Grid(shape=(4, 4, 4))
 
-        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to, padding=pad)
+        u = TimeFunction(name='u', grid=grid, space_order=so, time_order=to)
 
         op = Operator(Eq(u, 1), opt='noop')
 

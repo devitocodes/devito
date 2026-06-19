@@ -70,19 +70,7 @@ def key1(f, d):
     if f.is_regular:
         # For paddable objects the following holds:
         # `same dim + same halo + same padding_dtype => same (auto-)padding`
-        if d is f.dimensions[-1]:
-            # Only the last dimension is padded
-            try:
-                if f.padding == f.mapped.padding:
-                    # Padding set from the mapped Function
-                    # e.g. from buffering or fft temp array
-                    pad_key = f.mapped.__padding_dtype__
-                else:
-                    pad_key = f.__padding_dtype__
-            except AttributeError:
-                pad_key = f.__padding_dtype__
-        else:
-            pad_key = None
+        pad_key = f.__padding_dtype__ if d in f._padded_dimensions else None
 
         return (d, f._size_halo[d], pad_key)
     else:

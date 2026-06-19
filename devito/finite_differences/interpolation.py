@@ -14,6 +14,8 @@ def interp_mapper(source, target, dims):
     """
     mapper = {}
     for d in dims:
+        if d.is_Time:
+            continue
         try:
             s = source[d]
             t = target[d]

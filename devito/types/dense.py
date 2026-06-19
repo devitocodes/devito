@@ -1013,9 +1013,6 @@ class Function(DiscreteFunction):
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
-    padding : int or tuple of ints, optional
-        Allocate extra grid points to maximize data access alignment. When a tuple
-        of ints, one int per Dimension should be provided.
 
     Examples
     --------
@@ -1271,25 +1268,12 @@ class Function(DiscreteFunction):
         return DimensionTuple(*halo, getters=self.dimensions)
 
     def __padding_setup__(self, **kwargs):
-        padding = kwargs.get('padding')
-        if padding is None:
-            if self.is_autopaddable:
-                padding = self.__padding_setup_smart__(**kwargs)
-            else:
-                padding = super().__padding_setup__(**kwargs)
-
-        elif isinstance(padding, DimensionTuple):
-            padding = tuple(padding[d] for d in self.dimensions)
-
-        elif is_integer(padding):
-            padding = tuple((0, padding) if d.is_Space else (0, 0)
-                            for d in self.dimensions)
-
-        elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            padding = tuple((0, i) if is_integer(i) else i for i in padding)
-
+        # `padding=` is never honored: derived from policy to avoid stride
+        # inconsistencies between Functions sharing dimensions/halo
+        if self.is_autopaddable:
+            padding = self.__padding_setup_smart__(**kwargs)
         else:
-            raise TypeError(f"`padding` must be int or {self.ndim}-tuple of ints")
+            return super().__padding_setup__(**kwargs)
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
@@ -1410,9 +1394,6 @@ class TimeFunction(Function):
         Controller for memory allocation. To be used, for example, when one wants
         to take advantage of the memory hierarchy in a NUMA architecture. Refer to
         `default_allocator.__doc__` for more information.
-    padding : int or tuple of ints, optional
-        Allocate extra grid points to maximize data access alignment. When a tuple
-        of ints, one int per Dimension should be provided.
 
     Examples
     --------

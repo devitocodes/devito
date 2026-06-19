@@ -711,7 +711,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     effect if autopadding is disabled, which is the default behavior.
     """
 
-    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'padding', 'ghost',
+    __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'ghost',
                    'alias', 'space', 'function', 'is_transient', 'avg_mode')
 
     __properties__ = ('is_const', 'is_transient')
@@ -743,17 +743,16 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return function
 
         # If dimensions have been replaced, then it is necessary to set `function`
-        # to None. It may also be necessary to remove halo and padding so that
-        # they are rebuilt with the new dimensions
+        # to None. It may also be necessary to remove halo so that it is rebuilt
+        # with the new dimensions
         if function is not None and function.dimensions != dimensions:
             function = kwargs['function'] = None
-            for i in ('halo', 'padding'):
-                if len(kwargs[i]) != len(dimensions):
-                    kwargs.pop(i)
-                else:
-                    # Downcast from DimensionTuple so that the new `dimensions`
-                    # are used down the line
-                    kwargs[i] = tuple(kwargs[i])
+            if len(kwargs['halo']) != len(dimensions):
+                kwargs.pop('halo')
+            else:
+                # Downcast from DimensionTuple so that the new `dimensions`
+                # are used down the line
+                kwargs['halo'] = tuple(kwargs['halo'])
 
         with sympy_mutex:
             # Go straight through Basic, thus bypassing caching and machinery
@@ -890,8 +889,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         halo = tuple(kwargs.get('halo', ((0, 0),)*self.ndim))
         return DimensionTuple(*halo, getters=self.dimensions)
 
-    def __padding_setup__(self, padding=None, **kwargs):
-        padding = tuple(padding or ((0, 0),)*self.ndim)
+    def __padding_setup__(self, **kwargs):
+        # `padding=` is never honored: derived from policy to avoid stride
+        # inconsistencies between Functions sharing dimensions/halo
+        padding = ((0, 0),)*self.ndim
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @cached_property
@@ -906,36 +907,26 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return np.float32
 
     def __padding_setup_smart__(self, **kwargs):
-        nopadding = ((0, 0),)*self.ndim
+        padding = [(0, 0)]*self.ndim
 
-        if not self.__padding_dtype__:
-            return nopadding
-
-        # The padded Dimension
-        if not self.space_dimensions:
-            return nopadding
-        d = self.space_dimensions[-1]
-
-        # Last space Dimension is not the most inner Dimension
-        if d != self.dimensions[-1]:
-            return nopadding
+        if not self.__padding_dtype__ or not self._padded_dimensions:
+            return tuple(padding)
 
         mmts = configuration['platform'].max_mem_trans_size(self.__padding_dtype__)
 
-        snp = self._size_nopad[d]
-        remainder = snp % mmts
-        if remainder == 0:
-            # Already a multiple of `mmts`, no need to pad
-            return nopadding
-        else:
+        for d in self._padded_dimensions:
+            snp = self._size_nopad[d]
+            remainder = snp % mmts
+            if remainder == 0:
+                # Already a multiple of `mmts`, no need to pad
+                continue
+
             from devito.symbolics import RoundUp  # noqa
             v = RoundUp(snp, mmts) - snp
             if v.is_Integer:
                 v = int(v)
 
-        dpadding = (0, v)
-        padding = [(0, 0)]*self.ndim
-        padding[self.dimensions.index(d)] = dpadding
+            padding[self.dimensions.index(d)] = (0, v)
 
         return tuple(padding)
 
@@ -985,6 +976,18 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     def dimensions(self):
         """Tuple of Dimensions representing the object indices."""
         return DimensionTuple(*self._dimensions, getters=self._dimensions)
+
+    @property
+    def _padded_dimensions(self):
+        try:
+            d = self.space_dimensions[-1]
+        except IndexError:
+            return ()
+
+        if d is self.dimensions[-1]:
+            return (d,)
+        else:
+            return ()
 
     @cached_property
     def space_dimensions(self):

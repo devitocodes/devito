@@ -663,6 +663,21 @@ def test_int64_array(order):
         assert f'({2*order} + {long}y_size)*({2*order} + {long}x_size))' in str(op)
 
 
+@switchconfig(autopadding=np.float32)
+def test_mapped_array_symbolic_autopad():
+    grid = Grid(shape=(30, 30))
+    f = Function(name='f', grid=grid, space_order=4)
+
+    a = Array(name='ab', dimensions=grid.dimensions, dtype=f.dtype,
+              grid=grid, halo=f.halo, space='mapped')
+
+    assert type(a).__name__ == 'ArrayMapped'
+    assert a.is_autopaddable
+    pad = a.padding[-1][1]
+    assert not pad.is_Integer
+    assert pad.free_symbols == {grid.dimensions[-1].symbolic_size}
+
+
 def test_cire_n_strides():
     grid = Grid(shape=(4, 4, 4))
 

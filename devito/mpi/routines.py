@@ -367,8 +367,7 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         eqns.extend([Eq(d.symbolic_max, d.symbolic_size - 1) for d in bdims])
 
         vd = CustomDimension(name='vd', symbolic_size=f.ncomp)
-        buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype,
-                    padding=0)
+        buf = Array(name='buf', dimensions=[vd] + bdims, dtype=f.c0.dtype)
 
         mapper = dict(zip(dims, bdims, strict=True))
         findices = [
@@ -410,9 +409,9 @@ class BasicHaloExchangeBuilder(HaloExchangeBuilder):
         bdims = [CustomDimension(name='vd', symbolic_size=f.ncomp)] + dims
 
         bufg = Array(name='bufg', dimensions=bdims, dtype=f.c0.dtype,
-                     padding=0, liveness='eager')
+                     liveness='eager')
         bufs = Array(name='bufs', dimensions=bdims, dtype=f.c0.dtype,
-                     padding=0, liveness='eager')
+                     liveness='eager')
 
         ofsg = [Symbol(name=f'og{d.root}') for d in f.dimensions]
         ofss = [Symbol(name=f'os{d.root}') for d in f.dimensions]

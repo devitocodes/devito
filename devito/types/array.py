@@ -94,8 +94,6 @@ class Array(ArrayBasic):
         to ``np.float32``.
     halo : iterable of 2-tuples, optional
         The halo region of the object.
-    padding : iterable of 2-tuples, optional
-        The padding region of the object.
     liveness : str, optional
         The liveness of the object. Allowed values: 'eager', 'lazy'. Defaults
         to 'lazy'. Used to override `_mem_internal_eager` and `_mem_internal_lazy`.
@@ -163,17 +161,12 @@ class Array(ArrayBasic):
         return kwargs.get('dtype', np.float32)
 
     def __padding_setup__(self, **kwargs):
-        padding = kwargs.get('padding')
-        if padding is None:
-            padding = ((0, 0),)*self.ndim
-        elif isinstance(padding, DimensionTuple):
-            padding = tuple(padding[d] for d in self.dimensions)
-        elif is_integer(padding):
-            padding = tuple((0, padding) for _ in range(self.ndim))
-        elif isinstance(padding, tuple) and len(padding) == self.ndim:
-            padding = tuple((0, i) if is_integer(i) else i for i in padding)
+        # `padding=` is never honored: derived from policy to avoid stride
+        # inconsistencies between Functions sharing dimensions/halo
+        if self.is_autopaddable:
+            padding = self.__padding_setup_smart__(**kwargs)
         else:
-            raise TypeError(f'`padding` must be int or {self.ndim}-tuple of ints')
+            padding = ((0, 0),)*self.ndim
         return DimensionTuple(*padding, getters=self.dimensions)
 
     @property
@@ -244,7 +237,42 @@ class MappedArrayMixin:
 
 
 class ArrayMapped(MappedArrayMixin, Array):
-    pass
+
+    __rkwargs__ = Array.__rkwargs__ + ('mapped', 'is_autopaddable')
+
+    def __init_finalize__(self, *args, **kwargs):
+        self._mapped = kwargs.get('mapped')
+        self._is_autopaddable = kwargs.get('is_autopaddable')
+        super().__init_finalize__(*args, **kwargs)
+
+    @property
+    def mapped(self):
+        return self._mapped
+
+    @property
+    def is_autopaddable(self):
+        if self._is_autopaddable is not None:
+            return self._is_autopaddable
+        if self.mapped is None:
+            return True
+        return self.mapped.is_autopaddable
+
+    @property
+    def __padding_dtype__(self):
+        if not self.is_autopaddable:
+            return None
+        if self.mapped is not None:
+            return self.mapped.__padding_dtype__
+        return super().__padding_dtype__
+
+    @cached_property
+    def _signature(self):
+        # Exclude `mapped` so buf-reuse can dedup buffers across distinct
+        # mapped Functions
+        ret = [type(self), self.indices]
+        attrs = set(self.__rkwargs__) - {'name', 'function', 'mapped'}
+        ret.extend(getattr(self, i) for i in attrs)
+        return frozenset(ret)
 
 
 class ArrayObject(ArrayBasic):
