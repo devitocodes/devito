@@ -7,9 +7,9 @@ from sympy import Mul
 
 from devito.finite_differences.differentiable import Differentiable
 from devito.ir.iet import (
-    AsyncCallable, Call, EntryFunction, Expression, ExprStmt, FindNodes, FindSymbols,
-    FixedArgsCallable, Iteration, MapNodes, MetaCall, SyncSpot, Transformer, Uxreplace,
-    derive_parameters
+    AsyncCallable, Call, Callback, EntryFunction, Expression, ExprStmt, FindNodes,
+    FindSymbols, FixedArgsCallable, Iteration, MapNodes, MetaCall, SyncSpot, Transformer,
+    Uxreplace, derive_parameters
 )
 from devito.ir.support import SymbolRegistry
 from devito.mpi.distributed import MPINeighborhood
@@ -253,15 +253,19 @@ def create_call_graph(root, efuncs):
         caller = queue.pop(0)
         callees = FindNodes(Call).visit(efuncs[caller])
 
-        for callee in filter_ordered([i.name for i in callees]):
-            if callee in efuncs:  # Exclude foreign Calls, e.g., MPI calls
+        for callee in callees:
+            if callee.name in efuncs:  # Exclude foreign Calls, e.g., MPI calls
                 try:
-                    dag.add_node(callee)
-                    queue.append(callee)
+                    dag.add_node(callee.name)
+                    queue.append(callee.name)
                 except KeyError:
                     # `callee` already in `dag`
                     pass
-                dag.add_edge(callee, caller)
+                # Callbacks are function pointer registrations, not actual calls:
+                # discover the referenced efunc but add no ordering edge, or
+                # mutual references create cycles.
+                if not isinstance(callee, Callback):
+                    dag.add_edge(callee.name, caller)
 
     # Sanity check
     assert dag.size == len(efuncs)

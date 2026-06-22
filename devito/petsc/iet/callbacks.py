@@ -15,7 +15,7 @@ from devito.petsc.types import (
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
 from devito.symbolics import (
-    VOID, Byref, Deref, FieldFromPointer, IndexedPointer, IntDiv, Macro, Mod, Null,
+    VOID, Byref, Deref, FieldFromPointer, IndexedPointer, IntDiv, Mod, Null,
     String
 )
 from devito.symbolics.unevaluation import Mul
@@ -1349,8 +1349,8 @@ class MultigridCallbackMixin:
         self._make_create_matrix()
         self._make_create_global_vector()
         self._make_create_local_vector()
-        self._make_dm_shell()
         self._make_refine()
+        self._make_dm_shell()
 
     def _uxreplace_efuncs(self):
         efuncs = super()._uxreplace_efuncs()
@@ -1427,10 +1427,13 @@ class MultigridCallbackMixin:
             petsc_call('DMShellSetCreateMatrix', [Deref(dm_shell_out), PetscCallback(self.make_create_matrix_efunc.name)]),
             petsc_call('DMShellSetCreateGlobalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_global_vector_efunc.name)]),
             petsc_call('DMShellSetCreateLocalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_local_vector_efunc.name)]),
+            petsc_call('DMShellSetRefine', [Deref(dm_shell_out), PetscCallback(self.make_refine_efunc.name)])
         ]
         callable_body = self._make_callable_body(body)
-        cb = self._make_petsc_callable(
-            'UserDMShellCreate', callable_body,
+        cb = PETScCallable(
+            self._dm_shell_create_name,
+            callable_body,
+            retval=self.objs['err'],
             parameters=(shell_context, dm_shell_out)
         )
         self._make_dm_shell_efunc = cb
@@ -1525,6 +1528,10 @@ class MultigridCallbackMixin:
         shellc = self.solver_objs['shellc']
         shellf = self.solver_objs['shellf']
 
+        # Pre-reserve the name so Refine's body can reference UserDMShellCreate
+        # by name before it is built — the two functions mutually reference each other.
+        self._dm_shell_create_name = self.sregistry.make_name(prefix='UserDMShellCreate')
+
         dummysctx = self.objs['dummysctx']
         dafine = self.solver_objs['dafine']
         petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(
@@ -1533,6 +1540,7 @@ class MultigridCallbackMixin:
         body = [
             petsc_call('DMShellGetContext', [shellc, Byref(dummysctx)]),
             petsc_call('DMRefine', [self._operational_dm, petsc_obj_comm, Byref(dafine)]),
+            petsc_call(self._dm_shell_create_name, [petsc_obj_comm, shellf])
         ]
         callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
