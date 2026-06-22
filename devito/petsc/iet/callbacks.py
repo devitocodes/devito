@@ -1352,6 +1352,7 @@ class MultigridCallbackMixin:
         self._make_create_local_vector()
         self._make_refine()
         self._make_coarsen()
+        self._make_interpolation()
         self._make_dm_shell()
 
     def _uxreplace_efuncs(self):
@@ -1437,7 +1438,8 @@ class MultigridCallbackMixin:
             petsc_call('DMShellSetCreateGlobalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_global_vector_efunc.name)]),
             petsc_call('DMShellSetCreateLocalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_local_vector_efunc.name)]),
             petsc_call('DMShellSetRefine', [Deref(dm_shell_out), PetscCallback(self.make_refine_efunc.name)]),
-            petsc_call('DMShellSetCoarsen', [Deref(dm_shell_out), PetscCallback(self.make_coarsen_efunc.name)])
+            petsc_call('DMShellSetCoarsen', [Deref(dm_shell_out), PetscCallback(self.make_coarsen_efunc.name)]),
+            petsc_call('DMShellSetCreateInterpolation', [Deref(dm_shell_out), PetscCallback(self.make_interpolation_efunc.name)])
         ]
         callable_body = self._make_callable_body(body)
         cb = PETScCallable(
@@ -1536,7 +1538,7 @@ class MultigridCallbackMixin:
         """
         """
         shellc = self.solver_objs['shellc']
-        shellf = self.solver_objs['shellf']
+        shellf = self.solver_objs['shellf_ptr']
 
         # Pre-reserve the name so Refine's body can reference UserDMShellCreate
         # by name before it is built — the two functions mutually reference each other.
@@ -1557,9 +1559,8 @@ class MultigridCallbackMixin:
             ]),
             # TODO: Using c.Statement to avoid a cycle in create_call_graph.
             # UserDMShellCreate registers Refine/Coarsen as a function pointer
-            # (Callback), and Refine/Coarsen calls UserDMShellCreate back — a
-            # mutual reference that creates a DAG cycle. The proper fix is cycle
-            # detection in create_call_graph or forward declarations for all efuncs.
+            # (Callback), and Refine/Coarsen calls UserDMShellCreate back - a
+            # mutual reference that creates a DAG cycle.
             c.Statement(
                 f'PetscCall({self._dm_shell_create_name}'
                 f'(PetscObjectComm((PetscObject){shellc.name}),'
@@ -1583,7 +1584,7 @@ class MultigridCallbackMixin:
     def _make_coarsen(self):
         """
         """
-        shellc = self.solver_objs['shellc']
+        shellc = self.solver_objs['shellc_ptr']
         shellf = self.solver_objs['shellf']
         dummysctx = self.objs['dummysctx']
         dacoarse = self.solver_objs['dacoarse']
@@ -1601,12 +1602,12 @@ class MultigridCallbackMixin:
             ]),
             # TODO: Using c.Statement to avoid a cycle in create_call_graph.
             # UserDMShellCreate registers Refine/Coarsen as a function pointer
-            # (Callback), and Refine/Coarsen calls UserDMShellCreate back — a
+            # (Callback), and Refine/Coarsen calls UserDMShellCreate back - a
             # mutual reference that creates a DAG cycle.
             c.Statement(
                 f'PetscCall({self._dm_shell_create_name}'
                 f'(PetscObjectComm((PetscObject){shellc.name}),'
-                f'{sctxnew.name},{shellf.name}))'
+                f'{sctxnew.name},{shellc.name}))'
             )
         ]
         callable_body = self._make_callable_body(
@@ -1614,7 +1615,7 @@ class MultigridCallbackMixin:
         )
         cb = self._make_petsc_callable(
             'Coarsen', callable_body,
-            parameters=(shellc, shellf)
+            parameters=(shellf, shellc)
         )
         self._make_coarsen_efunc = cb
         self._efuncs[cb.name] = cb
@@ -1622,6 +1623,33 @@ class MultigridCallbackMixin:
     @property
     def make_coarsen_efunc(self):
         return self._make_coarsen_efunc
+
+    def _make_interpolation(self):
+        """
+        """
+        shellc = self.solver_objs['shellc']
+        shellf = self.solver_objs['shellf']
+        dummysctx = self.objs['dummysctx']
+        dacoarse = self.solver_objs['dacoarse']
+        sctxnew = self.solver_objs['sctxnew']
+
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellf)])
+        body = [
+            petsc_call('DMShellGetContext', [shellf, Byref(dummysctx)]),
+        ]
+        callable_body = self._make_callable_body(
+            body, standalones=(Definition(sctxnew), Definition(dacoarse))
+        )
+        cb = self._make_petsc_callable(
+            'CreateInterpolation', callable_body,
+            parameters=(shellc, shellf)
+        )
+        self._make_interpolation_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_interpolation_efunc(self):
+        return self._make_interpolation_efunc
 
     @property
     def _operational_dm(self):

@@ -266,8 +266,12 @@ class MultigridTypeBuilderMixin:
         # Output DM * parameters for callbacks
         base_dict['shell_out'] = PointerDMArg(shell_name)
 
-        base_dict['shellf'] = PointerDMArg(sreg.make_name(prefix='shellf'), destroy=False)
-        base_dict['shellc'] = DM(sreg.make_name(prefix='shellc'), destroy=False)
+        shellf_name = sreg.make_name(prefix='shellf')
+        shellc_name = sreg.make_name(prefix='shellc')
+        base_dict['shellf_ptr'] = PointerDMArg(shellf_name, destroy=False)
+        base_dict['shellf'] = DM(shellf_name, destroy=False)
+        base_dict['shellc_ptr'] = PointerDMArg(shellc_name, destroy=False)
+        base_dict['shellc'] = DM(shellc_name, destroy=False)
         base_dict['dmf'] = DM(sreg.make_name(prefix='dmf'), destroy=False)
 
         base_dict['refine_levels'] = PetscInt(sreg.make_name(prefix='refine_levels'))
@@ -277,7 +281,7 @@ class MultigridTypeBuilderMixin:
         base_dict['vec'] = PointerVecArg('x', destroy=False)
 
         base_dict['dafine'] = DM('dafine', destroy=False)
-        base_dict['dacoarse'] = DM('dafine', destroy=False)
+        base_dict['dacoarse'] = DM('dacoarse', destroy=False)
 
         return base_dict
 
