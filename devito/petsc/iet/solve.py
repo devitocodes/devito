@@ -16,6 +16,10 @@ class Solve:
         self.time_dependence = kwargs.get('time_dependence')
         self.calls = self._execute_solve()
 
+    def _callback_dm(self):
+        """DM passed to FormRHS and FormInitialGuess callbacks."""
+        return self.solver_objs['dmda']
+
     def _execute_solve(self):
         """
         Assigns the required time iterators to the struct and executes
@@ -29,14 +33,15 @@ class Solve:
         b_efunc = self.callback_builder._b_efunc
 
         dmda = sobjs['dmda']
+        callback_dm = self._callback_dm()
 
-        rhs_call = petsc_call(b_efunc.name, [sobjs['dmda'], sobjs['bglobal']])
+        rhs_call = petsc_call(b_efunc.name, [callback_dm, sobjs['bglobal']])
 
         vec_place_array = self.time_dependence.place_array(target)
 
         if self.callback_builder._initial_guess_efuncs:
             initguess = self.callback_builder._initial_guess_efuncs[0]
-            initguess_call = petsc_call(initguess.name, [dmda, sobjs['xlocal']])
+            initguess_call = petsc_call(initguess.name, [callback_dm, sobjs['xlocal']])
         else:
             initguess_call = None
 
@@ -145,6 +150,19 @@ class CoupledSolve(Solve):
         snes_solve = (petsc_call('SNESSolve', [sobjs['snes'], Null, xglob]),)
 
         return (struct_assignment,) + pre_solve + snes_solve + post_solve + (BlankLine,)
+
+
+class MultigridSolve(Solve):
+    def _callback_dm(self):
+        return self.solver_objs['shell']
+
+
+def make_solver_cls(is_coupled, is_multigrid):
+    if is_coupled:
+        return CoupledSolve
+    if is_multigrid:
+        return MultigridSolve
+    return Solve
 
 
 insert_values = InsertMode.insert_values

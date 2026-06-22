@@ -392,6 +392,11 @@ class MultigridBuilderMixin:
     def _solver_dm(self):
         return self.solver_objs['shell']
     
+    @property
+    def snes_set_function_context(self):
+        # Context is retrieved from the DM at runtime via DMShellGetContext.
+        return Null
+
     def _mat_set_dm(self):
         # Set inside CreateMatrix DMShell callback instead.
         return None
@@ -439,7 +444,7 @@ class MultigridBuilderMixin:
         )
         make_shell = petsc_call(
             self.callback_builder.make_dm_shell_efunc.name,
-            [sobjs['comm'], shell_context, shell_dm]
+            [sobjs['comm'], shell_context, Byref(shell_dm)]
         )
 
         # Call the function that actually creates the DMShell

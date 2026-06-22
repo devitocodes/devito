@@ -18,7 +18,7 @@ from devito.petsc.iet.callbacks import (
 )
 from devito.petsc.iet.logging import PetscLogger
 from devito.petsc.iet.nodes import MgPopulateCall, PETScCallable, PetscMetaData, petsc_call
-from devito.petsc.iet.solve import CoupledSolve, Solve
+from devito.petsc.iet.solve import make_solver_cls
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.type_builder import make_type_builder_cls, objs
 from devito.petsc.types import (
@@ -406,8 +406,7 @@ class BuildSolver:
 
     @cached_property
     def solve(self):
-        return CoupledSolve(**self.common_kwargs) \
-            if self.is_coupled else Solve(**self.common_kwargs)
+        return make_solver_cls(self.is_coupled, self.is_multigrid)(**self.common_kwargs)
 
     @cached_property
     def logger(self):
