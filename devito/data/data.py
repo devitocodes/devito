@@ -261,13 +261,16 @@ class Data(np.ndarray):
 
     def _mpi_advanced_1d_target(self, glb_idx, axis):
         """
-        Return the raw local ndarray addressed by ``glb_idx`` without
-        advanced indexing along ``axis``.
+        Return a raw local view for MPI advanced-indexing communication.
 
-        The MPI advanced-indexing helper code in ``devito.data.utils`` owns
-        the communication pattern; this hook is kept on ``Data`` because only
-        the subclass can bypass its own ``__getitem__`` and obtain a plain
-        ndarray view.
+        The returned view is indexed by ``glb_idx`` on all dimensions except
+        ``axis``, which is replaced by ``slice(None)`` so the helper code in
+        ``devito.data.utils`` can pack or unpack the requested global integer
+        entries itself. ``target_axis`` is the position of ``axis`` in the
+        returned view after scalar-indexed dimensions have been dropped.
+
+        This hook is kept on ``Data`` because only the subclass can bypass its
+        own ``__getitem__`` and obtain a plain ndarray view.
         """
         target_idx = list(glb_idx)
         target_idx[axis] = slice(None)

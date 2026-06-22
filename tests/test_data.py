@@ -1499,16 +1499,16 @@ class TestDataDistributed:
             np.empty(0, dtype=np.int64)
         duplicate_data = np.ones(duplicate_index.size, dtype=f.dtype)
 
-        with pytest.raises(ValueError, match="Duplicate global indices"):
+        with pytest.raises(ValueError, match="rank 0:.*Duplicate global indices"):
             f.data[duplicate_index] = duplicate_data
 
         oob_index = np.array([8]) if rank == 0 else np.empty(0, dtype=np.int64)
         oob_data = np.ones(oob_index.size, dtype=f.dtype)
 
-        with pytest.raises(ValueError, match="out-of-bounds"):
+        with pytest.raises(ValueError, match="rank 0:.*out-of-bounds"):
             f.data[oob_index] = oob_data
 
-        with pytest.raises(ValueError, match="out-of-bounds"):
+        with pytest.raises(ValueError, match="rank 0:.*out-of-bounds"):
             f.data[oob_index]
 
     @pytest.mark.parallel(mode=4)

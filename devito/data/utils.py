@@ -218,10 +218,15 @@ def mpi_advanced_1d_set(data, glb_idx, val, axis, indices, decomposition,
 
 
 def _mpi_advanced_1d_error(data, error):
-    """Raise the first error reported by any rank, on every rank."""
+    """Raise rank-local advanced-indexing errors on every rank."""
     if data._distributor.nprocs > 1:
         errors = data._distributor.comm.allgather(error)
-        error = next((i for i in errors if i is not None), None)
+        errors = [
+            f"rank {rank}: {msg}"
+            for rank, msg in enumerate(errors)
+            if msg is not None
+        ]
+        error = "; ".join(errors) if errors else None
 
     if error is not None:
         raise ValueError(error)
