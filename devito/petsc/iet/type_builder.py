@@ -277,6 +277,7 @@ class MultigridTypeBuilderMixin:
         base_dict['vec'] = PointerVecArg('x', destroy=False)
 
         base_dict['dafine'] = DM('dafine', destroy=False)
+        base_dict['dacoarse'] = DM('dafine', destroy=False)
 
         return base_dict
 

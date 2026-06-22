@@ -1350,6 +1350,7 @@ class MultigridCallbackMixin:
         self._make_create_global_vector()
         self._make_create_local_vector()
         self._make_refine()
+        self._make_coarsen()
         self._make_dm_shell()
 
     def _uxreplace_efuncs(self):
@@ -1394,6 +1395,13 @@ class MultigridCallbackMixin:
             modifier=' *',
             liveness='lazy'
         )
+        self.solver_objs['sctxnew'] = ShellStruct(
+            name=self.sregistry.make_name(prefix='sctxnew'),
+            pname=sctx.pname,
+            fields=[],
+            modifier=' *',
+            liveness='lazy'
+        )
         body = [
             DummyExpr(FieldFromPointer(da, sctx), da),
             DummyExpr(FieldFromPointer(level, sctx), level),
@@ -1427,7 +1435,8 @@ class MultigridCallbackMixin:
             petsc_call('DMShellSetCreateMatrix', [Deref(dm_shell_out), PetscCallback(self.make_create_matrix_efunc.name)]),
             petsc_call('DMShellSetCreateGlobalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_global_vector_efunc.name)]),
             petsc_call('DMShellSetCreateLocalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_local_vector_efunc.name)]),
-            petsc_call('DMShellSetRefine', [Deref(dm_shell_out), PetscCallback(self.make_refine_efunc.name)])
+            petsc_call('DMShellSetRefine', [Deref(dm_shell_out), PetscCallback(self.make_refine_efunc.name)]),
+            petsc_call('DMShellSetCoarsen', [Deref(dm_shell_out), PetscCallback(self.make_coarsen_efunc.name)])
         ]
         callable_body = self._make_callable_body(body)
         cb = PETScCallable(
@@ -1534,15 +1543,22 @@ class MultigridCallbackMixin:
 
         dummysctx = self.objs['dummysctx']
         dafine = self.solver_objs['dafine']
-        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(
-            self._operational_dm
-        )])
+        sctxnew = self.solver_objs['sctxnew']
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellc)])
         body = [
             petsc_call('DMShellGetContext', [shellc, Byref(dummysctx)]),
             petsc_call('DMRefine', [self._operational_dm, petsc_obj_comm, Byref(dafine)]),
-            petsc_call(self._dm_shell_create_name, [petsc_obj_comm, shellf])
+            petsc_call('PetscMalloc1', [1, Byref(sctxnew)]),
+            petsc_call(self._make_shell_ctx_efunc.name, [
+                dafine, FieldFromPointer(self.solver_objs['grid_level'], dummysctx) - 1,
+                FieldFromPointer(self.solver_objs['all_ctx']._C_symbol, dummysctx),
+                sctxnew
+            ]),
+            petsc_call(self._dm_shell_create_name, [petsc_obj_comm, sctxnew, shellf])
         ]
-        callable_body = self._make_callable_body(body)
+        callable_body = self._make_callable_body(
+            body, standalones=(Definition(sctxnew), Definition(dafine))
+        )
         cb = self._make_petsc_callable(
             'Refine', callable_body,
             parameters=(shellc, shellf)
@@ -1553,6 +1569,41 @@ class MultigridCallbackMixin:
     @property
     def make_refine_efunc(self):
         return self._make_refine_efunc
+    
+    def _make_coarsen(self):
+        """
+        """
+        shellc = self.solver_objs['shellc']
+        shellf = self.solver_objs['shellf']
+        dummysctx = self.objs['dummysctx']
+        dacoarse = self.solver_objs['dacoarse']
+        sctxnew = self.solver_objs['sctxnew']
+
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellf)])
+        body = [
+            petsc_call('DMShellGetContext', [shellf, Byref(dummysctx)]),
+            petsc_call('DMCoarsen', [self._operational_dm, petsc_obj_comm, Byref(dacoarse)]),
+            petsc_call('PetscMalloc1', [1, Byref(sctxnew)]),
+            petsc_call(self._make_shell_ctx_efunc.name, [
+                dacoarse, FieldFromPointer(self.solver_objs['grid_level'], dummysctx) + 1,
+                FieldFromPointer(self.solver_objs['all_ctx']._C_symbol, dummysctx),
+                sctxnew
+            ]),
+            petsc_call(self._dm_shell_create_name, [petsc_obj_comm, sctxnew, shellf])
+        ]
+        callable_body = self._make_callable_body(
+            body, standalones=(Definition(sctxnew), Definition(dacoarse))
+        )
+        cb = self._make_petsc_callable(
+            'Coarsen', callable_body,
+            parameters=(shellc, shellf)
+        )
+        self._make_coarsen_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_coarsen_efunc(self):
+        return self._make_coarsen_efunc
 
     @property
     def _operational_dm(self):
