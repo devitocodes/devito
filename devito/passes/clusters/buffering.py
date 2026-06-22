@@ -377,7 +377,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             buffer, = buffers
             xd = buffer.indices[dim]
             # The new buffer is derived from `buffer`, so it inherits its padding policy
-            extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
+            extra_kwargs = {'is_autopaddable': buffer.is_autopaddable, 'buffer': buffer}
         else:
             size = infer_buffer_size(f, dim, clusters)
 
@@ -405,6 +405,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         dimensions[dimensions.index(dim)] = xd
 
         # Finally create the actual buffer
+        ## Better refactor: stash callback on original `f`
         cls = callback or Array
         name = sregistry.make_name(prefix=f'{f.name}b')
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
