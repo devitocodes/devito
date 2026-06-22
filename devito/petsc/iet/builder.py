@@ -3,7 +3,7 @@ from functools import cached_property
 
 from devito.ir.iet import BlankLine, DummyExpr
 from devito.petsc.iet.nodes import (
-    FormFunctionCallback, MatShellSetOp, PETScCall, petsc_call
+    PetscCallback, MatShellSetOp, PETScCall, petsc_call
 )
 from devito.symbolics import (
     VOID, Byref, FieldFromComposite, FieldFromPointer, IndexedPointer,
@@ -134,7 +134,7 @@ class BuilderBase:
         formfunc = self.callback_builder._F_efunc
         formfunc_operation = petsc_call(
             'SNESSetFunction',
-            [sobjs['snes'], Null, FormFunctionCallback(formfunc.name, void, void),
+            [sobjs['snes'], Null, PetscCallback(formfunc.name, void, void),
              self.snes_set_function_context]
         )
 
@@ -396,6 +396,10 @@ class MultigridBuilderMixin:
         # Set inside CreateMatrix DMShell callback instead.
         return None
 
+    def _mat_shell_set_matop_mult(self):
+        # Set inside CreateMatrix DMShell callback instead.
+        return None
+
     def _create_dmda_calls(self, dmda):
         multigrid_metadata = self.inject_solve.expr.rhs.multigrid_metadata
         sobjs = self.solver_objs
@@ -425,6 +429,10 @@ class MultigridBuilderMixin:
             self.callback_builder.make_shell_ctx_efunc.name,
             [dmda, 0, all_ctx, shell_context]
         )
+        make_shell = petsc_call(
+            self.callback_builder.make_dm_shell_efunc.name,
+            [sobjs['comm'], shell_context, shell_dm]
+        )
 
         # Call the function that actually creates the DMShell
 
@@ -440,7 +448,7 @@ class MultigridBuilderMixin:
             dm_setup,
             malloc_sctx,
             make_shell_ctx,
-            # acc create dm shell
+            make_shell,
             get_refine,
             set_refine
         )

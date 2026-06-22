@@ -21,7 +21,7 @@ class MatShellSetOp(Callback):
         return f"({self.retval} (*)({param_types_str})){self.name}"
 
 
-class FormFunctionCallback(Callback):
+class PetscCallback(Callback):
     @property
     def callback_form(self):
         return f'{self.name}'

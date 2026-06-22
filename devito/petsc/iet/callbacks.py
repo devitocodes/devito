@@ -5,7 +5,7 @@ from devito.ir.iet import (
     FindSymbols, Iteration, List, PointerCast, Uxreplace
 )
 from devito.passes.iet.linearization import Stride
-from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, petsc_call
+from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, petsc_call, PetscCallback
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types import (
     CallbackShellStruct, CallbackUserStruct, DMCast, MainUserStruct, PetscInt,
@@ -1250,7 +1250,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
             [
                 objs['block'],
                 'MATOP_DESTROY',
-                MatShellSetOp(destroy_cb, VOID._dtype, VOID._dtype),
+                MatShellSetOp(destroy_cb, void, void),
             ],
         )
 
@@ -1295,7 +1295,7 @@ class CoupledCallbackBuilder(BaseCallbackBuilder):
                 [
                     objs['submat_arr'].indexed[sb.linear_idx],
                     'MATOP_MULT',
-                    MatShellSetOp(matvec_lookup[sb.name].name, VOID._dtype, VOID._dtype),
+                    MatShellSetOp(matvec_lookup[sb.name].name, void, void),
                 ],
             )
             for sb in nonzero_submats if sb.name in matvec_lookup
@@ -1346,6 +1346,11 @@ class MultigridCallbackMixin:
     def _make_core(self):
         super()._make_core()
         self._make_shell_ctx()
+        self._make_create_matrix()
+        self._make_create_global_vector()
+        self._make_create_local_vector()
+        self._make_dm_shell()
+        self._make_refine()
 
     def _uxreplace_efuncs(self):
         efuncs = super()._uxreplace_efuncs()
@@ -1386,12 +1391,13 @@ class MultigridCallbackMixin:
             name=self.sregistry.make_name(prefix='sctx'),
             pname='ShellCtx',
             fields=[da, level, all_ctx],
-            modifier=' *'
+            modifier=' *',
+            liveness='lazy'
         )
         body = [
             DummyExpr(FieldFromPointer(da, sctx), da),
             DummyExpr(FieldFromPointer(level, sctx), level),
-            DummyExpr(FieldFromPointer(all_ctx, sctx), all_ctx),
+            DummyExpr(FieldFromPointer(all_ctx._C_symbol, sctx), all_ctx._C_symbol),
         ]
         callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
@@ -1399,10 +1405,146 @@ class MultigridCallbackMixin:
             parameters=(da, level, all_ctx, sctx)
         )
         self._make_shell_ctx_efunc = cb
+        self._efuncs[cb.name] = cb
 
     @property
     def make_shell_ctx_efunc(self):
         return self._make_shell_ctx_efunc
+
+    def _make_dm_shell(self):
+        """
+        """
+        sobjs = self.solver_objs
+
+        dm_shell_out = sobjs['shell_out']
+        shell_context = sobjs['sctx']
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(
+            self._operational_dm
+        )])
+        body = [
+            petsc_call('DMShellCreate', [petsc_obj_comm, dm_shell_out]),
+            petsc_call('DMShellSetContext', [Deref(dm_shell_out), shell_context]),
+            petsc_call('DMShellSetCreateMatrix', [Deref(dm_shell_out), PetscCallback(self.make_create_matrix_efunc.name)]),
+            petsc_call('DMShellSetCreateGlobalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_global_vector_efunc.name)]),
+            petsc_call('DMShellSetCreateLocalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_local_vector_efunc.name)]),
+        ]
+        callable_body = self._make_callable_body(body)
+        cb = self._make_petsc_callable(
+            'UserDMShellCreate', callable_body,
+            parameters=(shell_context, dm_shell_out)
+        )
+        self._make_dm_shell_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_dm_shell_efunc(self):
+        return self._make_dm_shell_efunc
+
+    def _make_create_matrix(self):
+        """
+        """
+        sobjs = self.solver_objs
+
+        dm_shell = sobjs['callback_shell']
+        dummysctx = self.objs['dummysctx']
+        mat = sobjs['mat']
+
+        matvec = self.main_matvec_efunc
+
+        body = [
+            petsc_call('DMShellGetContext', [dm_shell, Byref(dummysctx)]),
+            petsc_call('DMSetMatType', [self._operational_dm, 'MATSHELL']),
+            petsc_call('DMCreateMatrix', [self._operational_dm, mat]),
+            petsc_call('MatSetDM', [Deref(mat), dm_shell]),
+            petsc_call(
+                'MatShellSetOperation',
+                [Deref(mat), 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
+        )
+        ]
+        callable_body = self._make_callable_body(body)
+        cb = self._make_petsc_callable(
+            'CreateMatrix', callable_body,
+            parameters=(dm_shell, mat)
+        )
+        self._make_create_matrix_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_create_matrix_efunc(self):
+        return self._make_create_matrix_efunc
+    
+    def _make_create_global_vector(self):
+        """
+        """
+        dm_shell = self.solver_objs['callback_shell']
+        dummysctx = self.objs['dummysctx']
+        vec = self.solver_objs['vec']
+        body = [
+            petsc_call('DMShellGetContext', [dm_shell, Byref(dummysctx)]),
+            petsc_call('DMCreateGlobalVector', [self._operational_dm, vec]),
+            petsc_call('VecSetDM', [Deref(vec), dm_shell])
+        ]
+        callable_body = self._make_callable_body(body)
+        cb = self._make_petsc_callable(
+            'CreateGlobalVector', callable_body,
+            parameters=(dm_shell, vec)
+        )
+        self._make_create_global_vector_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_create_global_vector_efunc(self):
+        return self._make_create_global_vector_efunc
+    
+    def _make_create_local_vector(self):
+        """
+        """
+        dm_shell = self.solver_objs['callback_shell']
+        dummysctx = self.objs['dummysctx']
+        vec = self.solver_objs['vec']
+        body = [
+            petsc_call('DMShellGetContext', [dm_shell, Byref(dummysctx)]),
+            petsc_call('DMCreateLocalVector', [self._operational_dm, vec]),
+            petsc_call('VecSetDM', [Deref(vec), dm_shell])
+        ]
+        callable_body = self._make_callable_body(body)
+        cb = self._make_petsc_callable(
+            'CreateLocalVector', callable_body,
+            parameters=(dm_shell, vec)
+        )
+        self._make_create_local_vector_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_create_local_vector_efunc(self):
+        return self._make_create_local_vector_efunc
+    
+    def _make_refine(self):
+        """
+        """
+        shellc = self.solver_objs['shellc']
+        shellf = self.solver_objs['shellf']
+
+        dummysctx = self.objs['dummysctx']
+        dafine = self.solver_objs['dafine']
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(
+            self._operational_dm
+        )])
+        body = [
+            petsc_call('DMShellGetContext', [shellc, Byref(dummysctx)]),
+            petsc_call('DMRefine', [self._operational_dm, petsc_obj_comm, Byref(dafine)]),
+        ]
+        callable_body = self._make_callable_body(body)
+        cb = self._make_petsc_callable(
+            'Refine', callable_body,
+            parameters=(shellc, shellf)
+        )
+        self._make_refine_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_refine_efunc(self):
+        return self._make_refine_efunc
 
     @property
     def _operational_dm(self):
@@ -1510,3 +1652,4 @@ def get_user_struct_fields(iet):
 
 insert_values = InsertMode.insert_values
 add_values = InsertMode.add_values
+void = VOID._dtype

@@ -65,6 +65,13 @@ class DM(PetscObject):
         return petsc_call('DMDestroy', [Byref(self.function)])
 
 
+class PointerDMArg(DM):
+    """
+    DM output parameter - appears as `DM *` in function signatures.
+    """
+    _C_modifier = ' *'
+
+
 DMCast = cast('DM')
 PetscObjectCast = cast('PetscObject')
 
@@ -77,6 +84,13 @@ class Mat(PetscObject):
 
     def _C_free_impl(self):
         return petsc_call('MatDestroy', [Byref(self.function)])
+    
+
+class PointerMatArg(Mat):
+    """
+    Mat output parameter - appears as `Mat *` in function signatures.
+    """
+    _C_modifier = ' *'
 
 
 class Vec(PetscObject):
@@ -87,6 +101,13 @@ class Vec(PetscObject):
 
     def _C_free_impl(self):
         return petsc_call('VecDestroy', [Byref(self.function)])
+    
+
+class PointerVecArg(Vec):
+    """
+    Vec output parameter - appears as `Vec *` in function signatures.
+    """
+    _C_modifier = ' *'
 
 
 class PetscMPIInt(PetscObject):
@@ -255,7 +276,7 @@ class MainUserStruct(PETScStruct):
 
 
 class ShellStruct(PETScStruct):
-    pass
+    _C_modifier = None
 
 
 class CallbackShellStruct(ShellStruct):

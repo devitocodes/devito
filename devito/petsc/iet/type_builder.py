@@ -3,8 +3,8 @@ import numpy as np
 from devito.petsc.types import (
     DM, KSP, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct, Mat, MatReuse,
     NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt, PetscSectionGlobal,
-    PetscSectionLocal, PetscSF, PointerDM, PointerIS, PointerMat, PointerPetscInt,
-    StartPtr, SubMatrixStruct, Vec, VecScatter, UserCtxArray
+    PetscSectionLocal, PetscSF, PointerDM, PointerDMArg, PointerIS, PointerMat,
+    PointerPetscInt, StartPtr, SubMatrixStruct, Vec, VecScatter, PointerMatArg, PointerVecArg
 )
 from devito.symbolics import String
 from devito.tools import frozendict
@@ -257,14 +257,27 @@ class MultigridTypeBuilderMixin:
         base_dict = super()._extend_build(base_dict)
         sreg = self.sregistry
 
-        # DMShell wrapping the fine DMDA
-        base_dict['shell'] = DM(sreg.make_name(prefix='shell'))
+        # TODO: simplify all the different shell objects here... not needed
 
-        base_dict['refine_levels'] = PetscInt(
-            sreg.make_name(prefix='refine_levels')
-            )
-        
+        # DMShell wrapping the fine DMDA
+        shell_name = sreg.make_name(prefix='shell')
+        base_dict['shell'] = DM(shell_name)
+        base_dict['callback_shell'] = DM(shell_name, destroy=False)
+        # Output DM * parameters for callbacks
+        base_dict['shell_out'] = PointerDMArg(shell_name)
+
+        base_dict['shellf'] = PointerDMArg(sreg.make_name(prefix='shellf'), destroy=False)
+        base_dict['shellc'] = DM(sreg.make_name(prefix='shellc'), destroy=False)
+        base_dict['dmf'] = DM(sreg.make_name(prefix='dmf'), destroy=False)
+
+        base_dict['refine_levels'] = PetscInt(sreg.make_name(prefix='refine_levels'))
         base_dict['grid_level'] = PetscInt(name='level')
+
+        base_dict['mat'] = PointerMatArg('A', destroy=False)
+        base_dict['vec'] = PointerVecArg('x', destroy=False)
+
+        base_dict['dafine'] = DM('dafine', destroy=False)
+
         return base_dict
 
 
