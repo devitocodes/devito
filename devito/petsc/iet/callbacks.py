@@ -1,3 +1,4 @@
+import cgen as c
 from collections import OrderedDict
 
 from devito.ir.iet import (
@@ -1554,7 +1555,16 @@ class MultigridCallbackMixin:
                 FieldFromPointer(self.solver_objs['all_ctx']._C_symbol, dummysctx),
                 sctxnew
             ]),
-            petsc_call(self._dm_shell_create_name, [petsc_obj_comm, sctxnew, shellf])
+            # TODO: Using c.Statement to avoid a cycle in create_call_graph.
+            # UserDMShellCreate registers Refine/Coarsen as a function pointer
+            # (Callback), and Refine/Coarsen calls UserDMShellCreate back — a
+            # mutual reference that creates a DAG cycle. The proper fix is cycle
+            # detection in create_call_graph or forward declarations for all efuncs.
+            c.Statement(
+                f'PetscCall({self._dm_shell_create_name}'
+                f'(PetscObjectComm((PetscObject){shellc.name}),'
+                f'{sctxnew.name},{shellf.name}))'
+            )
         ]
         callable_body = self._make_callable_body(
             body, standalones=(Definition(sctxnew), Definition(dafine))
@@ -1589,7 +1599,15 @@ class MultigridCallbackMixin:
                 FieldFromPointer(self.solver_objs['all_ctx']._C_symbol, dummysctx),
                 sctxnew
             ]),
-            petsc_call(self._dm_shell_create_name, [petsc_obj_comm, sctxnew, shellf])
+            # TODO: Using c.Statement to avoid a cycle in create_call_graph.
+            # UserDMShellCreate registers Refine/Coarsen as a function pointer
+            # (Callback), and Refine/Coarsen calls UserDMShellCreate back — a
+            # mutual reference that creates a DAG cycle.
+            c.Statement(
+                f'PetscCall({self._dm_shell_create_name}'
+                f'(PetscObjectComm((PetscObject){shellc.name}),'
+                f'{sctxnew.name},{shellf.name}))'
+            )
         ]
         callable_body = self._make_callable_body(
             body, standalones=(Definition(sctxnew), Definition(dacoarse))
