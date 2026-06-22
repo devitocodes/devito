@@ -1,3 +1,23 @@
+from devito.symbolics import IntDiv
+from devito.types.dimension import Spacing
+from devito.types.basic import Scalar
+
+
+def scale_param_for_level(param, level):
+    """
+    Scale a parameter to the correct value for a given MG level.
+
+    Rules (factor = 2**level):
+      Spacing   (h_x, h_y, ...)  -> param * factor   (grid spacing coarsens)
+      Scalar _M (x_M, y_M, ...)  -> param // factor  (max index halves)
+      Thickness / Scalar _m / other -> unchanged
+    """
+    factor = 2 ** level
+    if isinstance(param, Spacing):
+        return param * factor
+    elif isinstance(param, Scalar) and param.name.endswith('_M'):
+        return IntDiv(param, factor)
+    return param
 
 
 class MultigridMetadata:

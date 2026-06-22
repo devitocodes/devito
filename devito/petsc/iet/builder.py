@@ -3,7 +3,7 @@ from functools import cached_property
 
 from devito.ir.iet import BlankLine, DummyExpr
 from devito.petsc.iet.nodes import (
-    PetscCallback, MatShellSetOp, PETScCall, petsc_call
+    MgPopulateCall, PetscCallback, MatShellSetOp, PETScCall, petsc_call
 )
 from devito.symbolics import (
     VOID, Byref, FieldFromComposite, FieldFromPointer, IndexedPointer,
@@ -413,10 +413,18 @@ class MultigridBuilderMixin:
         # Allocate an array of n_levels UserCtx structs, one per unique MG level
         malloc_all_ctx = petsc_call('PetscMalloc1', [n_levels, Byref(all_ctx)])
 
-        # Populate each UserCtx struct for each level
-        populate_all_level_contexts = tuple(petsc_call(
-            self.callback_builder.user_struct_efunc.name, [Byref(IndexedPointer(all_ctx, i))]
-        ) for i in range (n_levels))
+        # Populate each UserCtx struct — arguments are finalised later in
+        # fix_mg_populate_calls once lower_petsc_symbols has built the full
+        # parameter list.
+        populate_name = self.callback_builder.user_struct_efunc.name
+        populate_all_level_contexts = tuple(
+            PETScCall('PetscCall', [MgPopulateCall(
+                populate_name,
+                arguments=[Byref(IndexedPointer(all_ctx, i))],
+                level=i
+            )])
+            for i in range(n_levels)
+        )
 
         # Create fine DMDA as usual
         dmda_create = self._create_dmda(dmda)
@@ -452,8 +460,6 @@ class MultigridBuilderMixin:
             get_refine,
             set_refine
         )
-
-
 
 def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
     """

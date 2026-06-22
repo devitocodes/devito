@@ -17,7 +17,7 @@ from devito.petsc.iet.callbacks import (
     get_user_struct_fields, make_callback_builder_cls, populate_matrix_context
 )
 from devito.petsc.iet.logging import PetscLogger
-from devito.petsc.iet.nodes import PETScCallable, PetscMetaData, petsc_call
+from devito.petsc.iet.nodes import MgPopulateCall, PETScCallable, PetscMetaData, petsc_call
 from devito.petsc.iet.solve import CoupledSolve, Solve
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.type_builder import make_type_builder_cls, objs
@@ -26,7 +26,8 @@ from devito.petsc.types import (
     MultipleFieldData
 )
 from devito.petsc.types.macros import petsc_func_begin_user
-from devito.symbolics import Byref, FieldFromPointer, Macro, Null
+from devito.petsc.types.multigrid import scale_param_for_level
+from devito.symbolics import Byref, FieldFromPointer, IndexedPointer, Macro, Null
 from devito.types.basic import DataSymbol, LocalType
 from devito.types.dimension import DefaultDimension
 from devito.types.misc import FIndexed
@@ -151,6 +152,36 @@ def lower_petsc_symbols(iet, **kwargs):
     rebuild_parent_user_struct(iet, mapper=callback_struct_mapper)
 
     linear_indices(iet, **kwargs)
+
+    # Lower multigrid struct symbols on each grid level
+    fix_mg_populate_calls(iet, **kwargs)
+
+
+def fix_mg_populate_calls(graph, **kwargs):
+    """
+    After `lower_petsc_symbols` has finalised `PopulateUserContext`'s parameter
+    list, rebuild each `MgPopulateCall` in the Kernel with correctly scaled
+    arguments for the given grid level.
+    """
+    mg_calls = FindNodes(MgPopulateCall).visit(graph.root)
+    if not mg_calls:
+        return
+
+    populate_efunc = graph.efuncs[mg_calls[0].name]
+    mainctx = populate_efunc.parameters[0]  # MainUserStruct is always first
+
+    mapper = {
+        call: call._rebuild(
+            arguments=[call.arguments[0]] + [
+                scale_param_for_level(f, call.level)
+                for f in mainctx.callback_fields
+            ]
+        )
+        for call in mg_calls
+    }
+
+    root_name = graph.root.name
+    graph.efuncs[root_name] = Transformer(mapper).visit(graph.efuncs[root_name])
 
 
 @iet_pass
