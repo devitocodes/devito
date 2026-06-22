@@ -306,8 +306,12 @@ class CireInvariants(CireTransformerLegacy, Queue):
     def callback(self, clusters, prefix, xtracted=None):
         if not prefix:
             return clusters
+
         p = prefix[-1]
         d = p.dim
+
+        if d.is_Virtual:
+            return clusters
 
         # Rule out extractions that would break data dependencies
         exclude = set().union(*[c.scope.writes for c in clusters])
