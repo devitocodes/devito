@@ -265,6 +265,28 @@ class TestPassesOptional:
         op.apply(time_M=10)
         assert np.all(u.data[1] == 11)
 
+    def test_linearize_transfer_no_overflow(self):
+        # When a transfer is linearized, its size is a product of the
+        # Function's per-dimension sizes (e.g. `size[0]*size[1]*size[2]`).
+        # These are 32-bit C ints, so for a Function with more than ~2**31
+        # elements the product overflows `int` before being used as the
+        # transfer bound, producing a bogus size (issue #2777). Each factor
+        # must be cast to a 64-bit int so the product is computed in 64-bit.
+        grid = Grid(shape=(4, 5, 6))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u + 1), opt=('advanced', {'linearize': True}))
+
+        # The transfer bound is a product of the four `size[i]`, each cast to
+        # `long`; the multiplication is thus carried out in 64-bit arithmetic
+        for transfer in op.body.maps + op.body.unmaps:
+            code = transfer.ccode.value
+            for i in range(4):
+                assert f'(long)(u_vec->size[{i}])' in code
+            # No un-cast `size[i]*` product (which would overflow in 32-bit)
+            assert 'u_vec->size[0]*' not in code
+
 
 class TestPassesEdgeCases:
 
