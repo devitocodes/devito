@@ -1,9 +1,39 @@
 from collections.abc import Callable, Hashable
-from functools import lru_cache, partial
+from functools import lru_cache, partial, wraps
 from itertools import tee
 from typing import TypeVar
+from weakref import WeakKeyDictionary
 
-__all__ = ['CacheInstances', 'memoized_func', 'memoized_generator', 'memoized_meth']
+__all__ = [
+    'CacheInstances',
+    'cached_hash',
+    'memoized_func',
+    'memoized_generator',
+    'memoized_meth',
+    'memoized_weak_meth',
+    'reuse_if_unchanged'
+]
+
+
+def cached_hash(func):
+    """
+    Cache an immutable object's ``__hash__`` return value in ``_mhash``.
+
+    Warning: avoid explicitly calling a superclass' cached ``__hash__`` on a
+    subclass instance, as that would stash the superclass hash in ``_mhash``.
+
+    Warning: avoid using it on pickled objects.
+    """
+    @wraps(func)
+    def wrapper(self):
+        try:
+            return self._mhash
+        except AttributeError:
+            ret = func(self)
+            self._mhash = ret
+            return ret
+
+    return wrapper
 
 
 class memoized_func:
@@ -19,9 +49,22 @@ class memoized_func:
         https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
     """
 
-    def __init__(self, func):
+    # Long-lived caches for process-global helpers, such as arch discovery.
+    _scope_persistent = 'persistent'
+    # Build-scoped caches that may retain compiler inputs during Operator construction.
+    _scope_build = 'build'
+    _scoped_caches = {}
+
+    def __new__(cls, func=None, *, scope=None):
+        if func is None:
+            return lambda f: cls(f, scope=scope)
+        return super().__new__(cls)
+
+    def __init__(self, func, *, scope=None):
         self.func = func
+        self.scope = scope or self._scope_persistent
         self.cache = {}
+        self._scoped_caches.setdefault(self.scope, set()).add(self)
 
     def __call__(self, *args, **kw):
         if not isinstance(args, Hashable):
@@ -43,6 +86,18 @@ class memoized_func:
     def __get__(self, obj, objtype):
         """Support instance methods."""
         return partial(self.__call__, obj)
+
+    def clear(self):
+        self.cache.clear()
+
+    @classmethod
+    def clear_scoped_caches(cls, scope):
+        for cache in cls._scoped_caches.get(scope, ()):
+            cache.clear()
+
+    @classmethod
+    def clear_build_caches(cls):
+        cls.clear_scoped_caches(cls._scope_build)
 
 
 class memoized_meth:
@@ -86,11 +141,19 @@ class memoized_meth:
             cache = obj.__cache_meth
         except AttributeError:
             cache = obj.__cache_meth = {}
-        key = (self.func, args[1:], frozenset(kw.items()))
+        if kw:
+            key = (self.func, args[1:], frozenset(kw.items()))
+        else:
+            key = (self.func, args[1:])
+
         try:
             res = cache[key]
         except KeyError:
             res = cache[key] = self.func(*args, **kw)
+        except TypeError:
+            # Uncacheable, e.g. an unhashable item within ``args``.
+            return self.func(*args, **kw)
+
         return res
 
 
@@ -128,6 +191,54 @@ class memoized_generator:
         return result
 
 
+def memoized_weak_meth(*, key=None, freeze=None, thaw=None):
+    """
+    Cache a method result against its first argument using weak references.
+
+    This is useful for visitors operating on temporary IR roots: the cache can
+    be shared across short-lived visitor instances without keeping those roots
+    alive. Only calls without extra arguments are cached; all other calls fall
+    back to the wrapped method.
+
+    Parameters
+    ----------
+    key : callable, optional
+        A callable receiving ``self`` and returning a hashable cache partition.
+    freeze : callable, optional
+        Convert the method result before storing it in the cache.
+    thaw : callable, optional
+        Convert the cached value before returning it to the caller.
+    """
+    def decorator(func):
+        caches = {}
+
+        @wraps(func)
+        def wrapper(self, o, *args, **kwargs):
+            if args or kwargs:
+                return func(self, o, *args, **kwargs)
+
+            try:
+                partition = key(self) if key is not None else None
+                cache = caches.setdefault(partition, WeakKeyDictionary())
+                ret = cache[o]
+            except KeyError:
+                ret = func(self, o)
+                if freeze is not None:
+                    ret = freeze(ret)
+                cache[o] = ret
+            except TypeError:
+                return func(self, o)
+
+            if thaw is not None:
+                return thaw(ret)
+
+            return ret
+
+        return wrapper
+
+    return decorator
+
+
 # Describes the type of a subclass of CacheInstances
 InstanceType = TypeVar('InstanceType', bound='CacheInstances', covariant=True)
 
@@ -154,6 +265,9 @@ class CacheInstancesMeta(type):
 
     def __call__(cls: type[InstanceType],  # type: ignore
                  *args, **kwargs) -> InstanceType:
+        if cls._instance_cache_size == 0:
+            return super().__call__(*args, **kwargs)
+
         args, kwargs = cls._preprocess_args(*args, **kwargs)
         return cls._instance_cache(*args, **kwargs)
 
@@ -173,7 +287,7 @@ class CacheInstances(metaclass=CacheInstancesMeta):
     """
 
     _instance_cache: Callable | None = None
-    _instance_cache_size: int = 128
+    _instance_cache_size: int = 8192
 
     @classmethod
     def _preprocess_args(cls, *args, **kwargs):
@@ -189,3 +303,36 @@ class CacheInstances(metaclass=CacheInstancesMeta):
         Clears all IR instance caches.
         """
         CacheInstancesMeta.clear_caches()
+
+
+def reuse_if_unchanged(fields):
+    """
+    Decorator for wrapper-style constructors that should return the original
+    object when called as ``Cls(existing_obj, **same_metadata)``.
+
+    The wrapped callable is assumed to be a classmethod-like constructor
+    receiving ``cls`` as first argument. The fast path triggers only when:
+
+    * the constructor is called with exactly one positional argument;
+    * that argument is already an exact instance of ``cls``;
+    * any explicitly provided metadata fields are the same objects as the
+      corresponding attributes on the input object.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(cls, *args, **kwargs):
+            if len(args) == 1:
+                input_obj = args[0]
+                if type(input_obj) is cls:
+                    names = getattr(cls, fields) if isinstance(fields, str) else fields
+                    for name in names:
+                        if name in kwargs and \
+                           kwargs[name] is not getattr(input_obj, name, None):
+                            break
+                    else:
+                        return input_obj
+            return func(cls, *args, **kwargs)
+
+        return wrapper
+
+    return decorator

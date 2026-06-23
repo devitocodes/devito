@@ -32,14 +32,14 @@ from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
-    Graph, error_mapper, generate_implicit, generate_macros, is_on_device, lower_dtypes,
-    lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
+    Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
+    lower_dtypes, lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
     DAG, CacheInstances, MemoryEstimate, OrderedSet, ReducerMap, Signer, as_mapper,
-    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, split,
-    timed_pass, timed_region
+    as_tuple, contains_val, filter_sorted, flatten, frozendict, is_integer, memoized_func,
+    split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
 from devito.types.dimension import Thickness
@@ -184,7 +184,11 @@ class Operator(Callable):
 
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
-            op = cls._build(expressions, **kwargs)
+            try:
+                op = cls._build(expressions, **kwargs)
+            finally:
+                CacheInstances.clear_caches()
+                memoized_func.clear_build_caches()
         op._profiler.py_timers.update(r.timings)
 
         # Emit info about how long it took to perform the lowering
@@ -261,14 +265,11 @@ class Operator(Callable):
         op._state = cls._initialize_state(**kwargs)
 
         # Produced by the various compilation passes
-        op._reads = filter_sorted(flatten(e.reads for e in irs.expressions))
-        op._writes = filter_sorted(flatten(e.writes for e in irs.expressions))
+        op._reads = filter_sorted(flatten(e.read_functions for e in irs.expressions))
+        op._writes = filter_sorted(flatten(e.write_functions for e in irs.expressions))
         op._dimensions = set().union(*[e.dimensions for e in irs.expressions])
         op._dtype, op._dspace = irs.clusters.meta
         op._profiler = profiler
-
-        # Clear build-scoped instance caches
-        CacheInstances.clear_caches()
 
         return op
 
@@ -520,6 +521,9 @@ class Operator(Callable):
 
         # Target-independent optimizations
         minimize_symbols(graph)
+
+        # Finalize helper signatures after all IET transformations have settled.
+        finalize_args(graph)
 
         return graph.root, graph
 
@@ -1422,11 +1426,13 @@ class ArgumentsMap(dict):
         if isinstance(self.platform, Device):
             # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
             logical_deviceid = self.get('deviceid', -1)
+            visible_device_var, visible_devices = get_visible_devices()
             if logical_deviceid < 0:
                 rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
-                logical_deviceid = rank
-
-            visible_device_var, visible_devices = get_visible_devices()
+                if visible_devices is None:
+                    logical_deviceid = rank
+                else:
+                    logical_deviceid = rank % len(visible_devices)
             if visible_devices is None:
                 return logical_deviceid
             elif len(visible_devices) == 1:

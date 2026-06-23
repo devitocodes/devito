@@ -6,8 +6,8 @@ from devito import Eq, Function, Grid, Min, Operator, TimeFunction, sin
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (
     Block, Call, Callable, Conditional, Expression, FindApplications, FindNodes,
-    FindSections, FindSymbols, IsPerfectIteration, Iteration, MapNodes, Transformer,
-    printAST
+    FindSections, FindSymbols, FindWithin, IsPerfectIteration, Iteration, MapNodes,
+    Transformer, Uxreplace, printAST
 )
 from devito.types import Array, SpaceDimension, Symbol
 
@@ -210,6 +210,15 @@ def test_find_sections(exprs, block1, block2, block3):
     assert len(found[2]) == 1
 
 
+def test_find_within_not_cached_like_findnodes(block3):
+    expr0 = FindWithin(Expression, block3.nodes[0], block3.nodes[1]).visit(block3)
+    expr1 = FindWithin(Expression, block3.nodes[1], block3.nodes[2]).visit(block3)
+
+    assert len(expr0) == 3
+    assert len(expr1) == 3
+    assert expr0 != expr1
+
+
 def test_is_perfect_iteration(block1, block2, block3, block4):
     checker = IsPerfectIteration()
 
@@ -247,6 +256,14 @@ def test_transformer_wrap(exprs, block1, block2, block3):
         assert line1 in newcode
         assert line2 in newcode
         assert "a[i] = a[i] + b[i] + 5.0F;" in newcode
+
+
+def test_transformer_reuses_untouched_node(block1):
+    assert Transformer({}).visit(block1) is block1
+
+
+def test_uxreplace_reuses_untouched_node(block1):
+    assert Uxreplace({}).visit(block1) is block1
 
 
 def test_transformer_replace(exprs, block1, block2, block3):

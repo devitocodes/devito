@@ -15,9 +15,10 @@ from sympy import IndexedBase
 from sympy.core.function import Application
 
 from devito.exceptions import CompilationError
+from devito.ir.cgen.printer import get_printer
 from devito.ir.iet.nodes import (
     BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
-    Section
+    Section, _same_as_before
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
@@ -26,7 +27,7 @@ from devito.symbolics import (
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
     GenericVisitor, as_tuple, c_restrict_void_p, filter_ordered, filter_sorted, flatten,
-    is_external_ctype, sorted_priority
+    is_external_ctype, memoized_weak_meth, sorted_priority
 )
 from devito.types import (
     ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer
@@ -255,8 +256,9 @@ class CGen(Visitor):
             printer = CPrinter
         self.printer = printer
 
-    def ccode(self, expr, **kwargs):
-        return self.printer(settings=kwargs).doprint(expr, None)
+    def ccode(self, expr, dtype=None):
+        dtype = self.printer._default_settings['dtype'] if dtype is None else dtype
+        return get_printer(self.printer, dtype).doprint(expr, None)
 
     @property
     def _qualifiers_mapper(self):
@@ -1113,11 +1115,16 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
     def __init__(self, mode: str = 'symbolics') -> None:
         super().__init__()
 
+        self.mode = mode
         modes = mode.split('|')
         if len(modes) == 1:
             self.rule = self.rules[mode]
         else:
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
+
+    @memoized_weak_meth(key=lambda i: i.mode, freeze=tuple, thaw=list)
+    def visit(self, o, *args, **kwargs):
+        return super().visit(o, *args, **kwargs)
 
     def _post_visit(self, ret):
         return sorted(filter_ordered(ret, key=id), key=str)
@@ -1165,7 +1172,12 @@ class FindNodes(LazyVisitor[Node, list[Node], None]):
     def __init__(self, match: type, mode: str = 'type') -> None:
         super().__init__()
         self.match = match
+        self.mode = mode
         self.rule = self.rules[mode]
+
+    @memoized_weak_meth(key=lambda i: (i.match, i.mode), freeze=tuple, thaw=list)
+    def visit(self, o, *args, **kwargs):
+        return super().visit(o, *args, **kwargs)
 
     def visit_Node(self, o: Node, **kwargs) -> Iterator[Node]:
         if self.rule(self.match, o):
@@ -1186,6 +1198,10 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
         super().__init__(match)
         self.start = start
         self.stop = stop
+
+    def visit(self, o, *args, **kwargs):
+        # `start` and `stop` are part of this visitor's state.
+        return GenericVisitor.visit(self, o, *args, **kwargs)
 
     def visit_object(self, o: object, flag: bool = False) -> LazyVisit[Node, bool]:
         yield from ()
@@ -1234,7 +1250,12 @@ class FindApplications(LazyVisitor[ApplicationType, set[ApplicationType], None])
 
     def __init__(self, cls: type[ApplicationType] = Application):
         super().__init__()
+        self.cls = cls
         self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
+
+    @memoized_weak_meth(key=lambda i: i.cls, freeze=frozenset, thaw=set)
+    def visit(self, o, *args, **kwargs):
+        return super().visit(o, *args, **kwargs)
 
     def _post_visit(self, ret):
         return set(ret)
@@ -1319,6 +1340,13 @@ class Transformer(Visitor):
         self.mapper = mapper
         self.nested = nested
 
+    def visit(self, o, *args, **kwargs):
+        # Subclasses may implement mapper-independent transformations.
+        if type(self) is Transformer and not self.mapper:
+            return o
+
+        return super().visit(o, *args, **kwargs)
+
     def transform(self, o, handle, **kwargs):
         if handle is None:
             # None -> drop `o`
@@ -1332,12 +1360,12 @@ class Transformer(Visitor):
             else:
                 children = o.children
             children = (tuple(handle) + children[0],) + tuple(children[1:])
-            return o._rebuild(*children, **o.args_frozen)
+            return reuse_if_unchanged(o, *children, **o.args_frozen)
         else:
             # Replace `o` with `handle`
             if self.nested:
                 children = [self._visit(i, **kwargs) for i in handle.children]
-                return handle._rebuild(*children, **handle.args_frozen)
+                return reuse_if_unchanged(handle, *children, **handle.args_frozen)
             else:
                 return handle
 
@@ -1346,7 +1374,12 @@ class Transformer(Visitor):
 
     def visit_tuple(self, o, **kwargs):
         visited = tuple(self._visit(i, **kwargs) for i in o)
-        return tuple(i for i in visited if i is not None)
+        processed = tuple(i for i in visited if i is not None)
+
+        if _same_as_before(o, processed):
+            return o
+
+        return processed
 
     visit_list = visit_tuple
 
@@ -1357,7 +1390,7 @@ class Transformer(Visitor):
         children = [self._visit(i, **kwargs) for i in o.children]
         if o._traversable and not any(children) and any(o.children):
             return None
-        return o._rebuild(*children, **o.args_frozen)
+        return reuse_if_unchanged(o, *children, **o.args_frozen)
 
     def visit_Operator(self, o, **kwargs):
         raise ValueError("Cannot apply a Transformer visitor to an Operator directly")
@@ -1374,8 +1407,14 @@ class Uxreplace(Transformer):
         The substitution rules.
     """
 
+    def visit(self, o, *args, **kwargs):
+        if not self.mapper:
+            return o
+
+        return super().visit(o, *args, **kwargs)
+
     def visit_Expression(self, o):
-        return o._rebuild(expr=uxreplace(o.expr, self.mapper))
+        return reuse_if_unchanged(o, expr=uxreplace(o.expr, self.mapper))
 
     def _visit_Iteration_common(self, o):
         nodes = self._visit(o.nodes)
@@ -1392,8 +1431,8 @@ class Uxreplace(Transformer):
         nodes, dimension, limits, pragmas, uindices = \
             self._visit_Iteration_common(o)
 
-        return o._rebuild(nodes=nodes, dimension=dimension, limits=limits,
-                          pragmas=pragmas, uindices=uindices)
+        return reuse_if_unchanged(o, nodes=nodes, dimension=dimension, limits=limits,
+                                  pragmas=pragmas, uindices=uindices)
 
     def visit_PragmaIteration(self, o):
         nodes, dimension, limits, pragmas, uindices = \
@@ -1420,7 +1459,7 @@ class Uxreplace(Transformer):
     def visit_Callable(self, o):
         body = self._visit(o.body)
         parameters = [self.mapper.get(i, i) for i in o.parameters]
-        return o._rebuild(body=body, parameters=parameters)
+        return reuse_if_unchanged(o, body=body, parameters=parameters)
 
     def visit_Call(self, o):
         arguments = []
@@ -1431,47 +1470,47 @@ class Uxreplace(Transformer):
                 arguments.append(uxreplace(i, self.mapper))
         if o.retobj is not None:
             retobj = uxreplace(o.retobj, self.mapper)
-            return o._rebuild(arguments=arguments, retobj=retobj)
+            return reuse_if_unchanged(o, arguments=arguments, retobj=retobj)
         else:
-            return o._rebuild(arguments=arguments)
+            return reuse_if_unchanged(o, arguments=arguments)
 
     def visit_Lambda(self, o):
         body = self._visit(o.body)
         parameters = [self.mapper.get(i, i) for i in o.parameters]
-        return o._rebuild(body=body, parameters=parameters)
+        return reuse_if_unchanged(o, body=body, parameters=parameters)
 
     def visit_Conditional(self, o):
         condition = uxreplace(o.condition, self.mapper)
         then_body = self._visit(o.then_body)
         else_body = self._visit(o.else_body)
-        return o._rebuild(condition=condition, then_body=then_body,
-                          else_body=else_body)
+        return reuse_if_unchanged(o, condition=condition, then_body=then_body,
+                                  else_body=else_body)
 
     def visit_Switch(self, o):
         condition = uxreplace(o.condition, self.mapper)
         nodes = self._visit(o.nodes)
         default = self._visit(o.default)
-        return o._rebuild(condition=condition, nodes=nodes, default=default)
+        return reuse_if_unchanged(o, condition=condition, nodes=nodes, default=default)
 
     def visit_PointerCast(self, o):
         function = self.mapper.get(o.function, o.function)
         obj = self.mapper.get(o.obj, o.obj)
-        return o._rebuild(function=function, obj=obj)
+        return reuse_if_unchanged(o, function=function, obj=obj)
 
     def visit_Dereference(self, o):
         pointee = self.mapper.get(o.pointee, o.pointee)
         pointer = self.mapper.get(o.pointer, o.pointer)
-        return o._rebuild(pointee=pointee, pointer=pointer)
+        return reuse_if_unchanged(o, pointee=pointee, pointer=pointer)
 
     def visit_Pragma(self, o):
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
-        return o._rebuild(arguments=arguments)
+        return reuse_if_unchanged(o, arguments=arguments)
 
     def visit_PragmaTransfer(self, o):
         function = uxreplace(o.function, self.mapper)
         arguments = [uxreplace(i, self.mapper) for i in o.arguments]
         if o.imask is None:
-            return o._rebuild(function=function, arguments=arguments)
+            return reuse_if_unchanged(o, function=function, arguments=arguments)
 
         # An `imask` may be None, a list of symbols/numbers, or a list of
         # 2-tuples representing ranges
@@ -1483,25 +1522,26 @@ class Uxreplace(Transformer):
                               uxreplace(j, self.mapper)))
             except TypeError:
                 imask.append(uxreplace(v, self.mapper))
-        return o._rebuild(function=function, imask=imask, arguments=arguments)
+        return reuse_if_unchanged(o, function=function, imask=imask,
+                                  arguments=arguments)
 
     def visit_ParallelTree(self, o):
         prefix = self._visit(o.prefix)
         body = self._visit(o.body)
         nthreads = self.mapper.get(o.nthreads, o.nthreads)
-        return o._rebuild(prefix=prefix, body=body, nthreads=nthreads)
+        return reuse_if_unchanged(o, prefix=prefix, body=body, nthreads=nthreads)
 
     def visit_HaloSpot(self, o):
         hs = o.halo_scheme
         fmapper = {self.mapper.get(k, k): v for k, v in hs.fmapper.items()}
         halo_scheme = hs._rebuild(fmapper=fmapper)
         body = self._visit(o.body)
-        return o._rebuild(halo_scheme=halo_scheme, body=body)
+        return reuse_if_unchanged(o, halo_scheme=halo_scheme, body=body)
 
     def visit_While(self, o, **kwargs):
         condition = uxreplace(o.condition, self.mapper)
         body = self._visit(o.body)
-        return o._rebuild(condition=condition, body=body)
+        return reuse_if_unchanged(o, condition=condition, body=body)
 
     visit_ThreadedProdder = visit_Call
 
@@ -1510,13 +1550,23 @@ class Uxreplace(Transformer):
         grid = self.mapper.get(o.grid, o.grid)
         block = self.mapper.get(o.block, o.block)
         stream = self.mapper.get(o.stream, o.stream)
-        return o._rebuild(grid=grid, block=block, stream=stream,
-                          arguments=arguments)
+        return reuse_if_unchanged(o, grid=grid, block=block, stream=stream,
+                                  arguments=arguments)
 
 
 # Utils
 
 blankline = c.Line("")
+
+
+def reuse_if_unchanged(o, *children, **kwargs):
+    if children and not _same_as_before(o.children, children):
+        return o._rebuild(*children, **kwargs)
+
+    if kwargs:
+        return o._rebuild(*children, **kwargs)
+
+    return o
 
 
 def printAST(node, verbose=True):

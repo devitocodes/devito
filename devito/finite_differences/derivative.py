@@ -6,7 +6,9 @@ from itertools import chain
 
 import sympy
 
-from devito.tools import Pickable, as_mapper, as_tuple, frozendict, is_integer
+from devito.tools import (
+    Pickable, as_mapper, as_tuple, frozendict, is_integer, memoized_func
+)
 from devito.types.dimension import Dimension
 from devito.types.utils import DimensionTuple
 from devito.warnings import warn
@@ -557,6 +559,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     def _eval_deriv(self):
         return self._eval_fd(self.expr)
 
+    @memoized_func(scope='build')
     def _eval_fd(self, expr, **kwargs):
         """
         Evaluate the finite-difference approximation of the Derivative.

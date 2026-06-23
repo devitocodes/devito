@@ -7,8 +7,8 @@ from sympy.abc import a, b, c, d, e
 
 from devito import Eq, Operator, switchenv
 from devito.tools import (
-    CacheInstances, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr, filter_ordered,
-    toposort, transitive_closure
+    CacheInstances, DefaultFrozenDict, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr,
+    filter_ordered, memoized_meth, memoized_weak_meth, toposort, transitive_closure
 )
 from devito.types.basic import Symbol
 
@@ -59,6 +59,93 @@ def test_transitive_closure():
     mapper = {a: b, b: c, c: d, f: e}
     mapper = transitive_closure(mapper)
     assert mapper == {a: d, b: d, c: d, f: e}
+
+
+def test_memoized_meth():
+
+    class Obj:
+
+        def __init__(self):
+            self.calls = 0
+
+        @memoized_meth
+        def f(self, x=None):
+            self.calls += 1
+            return x
+
+    obj = Obj()
+
+    assert obj.f(1) == 1
+    assert obj.f(1) == 1
+    assert obj.calls == 1
+
+    assert obj.f(x=2) == 2
+    assert obj.f(x=2) == 2
+    assert obj.calls == 2
+
+    assert obj.f([3]) == [3]
+    assert obj.f([3]) == [3]
+    assert obj.calls == 4
+
+
+def test_memoized_weak_meth():
+
+    class Root:
+        pass
+
+    class Obj:
+
+        def __init__(self, mode):
+            self.mode = mode
+            self.calls = 0
+
+        @memoized_weak_meth(key=lambda i: i.mode, freeze=tuple, thaw=list)
+        def f(self, root):
+            self.calls += 1
+            return [self.mode]
+
+    root = Root()
+    obj0 = Obj('a')
+    obj1 = Obj('a')
+    obj2 = Obj('b')
+
+    ret = obj0.f(root)
+    ret.append('mutated')
+
+    assert obj1.f(root) == ['a']
+    assert obj0.calls == 1
+    assert obj1.calls == 0
+
+    assert obj2.f(root) == ['b']
+    assert obj2.calls == 1
+
+    assert obj0.f([]) == ['a']
+    assert obj0.f([]) == ['a']
+    assert obj0.calls == 3
+
+
+def test_default_frozen_dict():
+    mapper = DefaultFrozenDict({'a': 'b'}, default='c')
+
+    assert mapper['a'] == 'b'
+    assert mapper['d'] == 'c'
+    assert mapper.get('d') is None
+    assert mapper.get('d', 'e') == 'e'
+
+    copied = mapper.copy(c='d')
+    assert copied['c'] == 'd'
+    assert copied['e'] == 'c'
+
+
+def test_default_frozen_dict_factory():
+    mapper = DefaultFrozenDict(default=lambda: [])
+
+    v0 = mapper[a]
+    v1 = mapper[b]
+
+    assert v0 == []
+    assert v1 == []
+    assert v0 is not v1
 
 
 def test_loops_in_transitive_closure():
@@ -212,6 +299,31 @@ class TestCacheInstances:
         cache_size = Object._instance_cache.cache_info()[-1]
         assert cache_size == 0
 
+    def test_uncached_subclass_bypasses_parent_preprocess(self):
+        """
+        Tests that an uncached subclass does not inherit its parent's
+        preprocessing contract.
+        """
+        class Parent(CacheInstances):
+            @classmethod
+            def _preprocess_args(cls, value):
+                return (value + 1,), {}
+
+            def __init__(self, value: int):
+                self.value = value
+
+        class Child(Parent):
+            _instance_cache_size = 0
+
+            def __init__(self, left: int, right: int):
+                self.value = (left, right)
+
+        obj0 = Child(1, 2)
+        obj1 = Child(1, 2)
+
+        assert obj0.value == (1, 2)
+        assert obj0 is not obj1
+
 
 def test_switchenv():
     # Save previous environment
@@ -223,6 +335,12 @@ def test_switchenv():
 
     # Check a temporary variable is unset inside the context manager
     assert os.environ.get('TEST_VAR') is None
+
+    # Check an existing variable can be temporarily unset inside the context manager
+    with switchenv({'TEST_VAR_UNSET': 'foo'}):
+        with switchenv({'TEST_VAR_UNSET': None}):
+            assert os.environ.get('TEST_VAR_UNSET') is None
+        assert os.environ['TEST_VAR_UNSET'] == 'foo'
 
     # Make sure the switchenv does not persist to verify switchenv works as intended
     assert dict(os.environ) == previous_environ

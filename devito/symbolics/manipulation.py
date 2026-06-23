@@ -64,6 +64,9 @@ def uxreplace(expr, rule):
     Finally, `uxreplace` supports Reconstructable objects, that is, it searches
     for replacement opportunities inside the Reconstructable's `__rkwargs__`.
     """
+    if not rule:
+        return expr
+
     return _uxreplace(expr, rule)[0]
 
 
@@ -129,13 +132,15 @@ def _(iterable, rule):
         ax, flag = _uxreplace(a, rule)
         ret.append(ax)
         changed |= flag
-    return iterable.__class__(ret), changed
+    return (iterable.__class__(ret), True) if changed else (iterable, False)
 
 
 @_uxreplace_dispatch.register(EnrichedTuple)
 def _(iterable, rule):
     retval, changed = _uxreplace_dispatch(tuple(iterable), rule)
-    return iterable.__class__(*retval, getters=iterable.getters), changed
+    if changed:
+        return iterable.__class__(*retval, getters=iterable.getters), True
+    return iterable, False
 
 
 @_uxreplace_dispatch.register(dict)
@@ -146,7 +151,7 @@ def _(mapper, rule):
         vx, flag = _uxreplace_dispatch(v, rule)
         ret[k] = vx
         changed |= flag
-    return ret, changed
+    return (ret, True) if changed else (mapper, False)
 
 
 @singledispatch
@@ -282,10 +287,18 @@ def subs_if_composite(expr, subs):
     Indexed"). Instead, if `subs` consists of just "primitive" expressions, then
     resort to the much faster `uxreplace`.
     """
-    if all(isinstance(i, (Indexed, IndexDerivative)) for i in subs):
+    if not subs:
+        return expr
+
+    if type(expr) is tuple:
+        return reuse_if_untouched(expr, (subs_if_composite(e, subs) for e in expr))
+    elif type(expr) is list:
+        return reuse_if_untouched(expr, [subs_if_composite(e, subs) for e in expr])
+    elif all(isinstance(i, (Indexed, IndexDerivative)) for i in subs):
         return uxreplace(expr, subs)
     else:
-        return expr.subs(subs)
+        processed = expr.subs(subs)
+        return expr if processed == expr else processed
 
 
 def xreplace_indices(exprs, mapper, key=None):
@@ -304,14 +317,26 @@ def xreplace_indices(exprs, mapper, key=None):
         callable, apply the replacement to a symbol S if and only if ``key(S)``
         gives True.
     """
-    handle = flatten(retrieve_indexed(i) for i in as_tuple(exprs))
+    exprs0 = as_tuple(exprs)
+
+    handle = flatten(retrieve_indexed(i) for i in exprs0)
     if isinstance(key, Iterable):
         handle = [i for i in handle if i.base.label in key]
     elif callable(key):
         handle = [i for i in handle if key(i)]
-    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle], strict=True))
-    replaced = [uxreplace(i, mapper) for i in as_tuple(exprs)]
-    return replaced if isinstance(exprs, Iterable) else replaced[0]
+    mapper = {i: v for i in handle if (v := i.xreplace(mapper)) != i}
+    if not mapper:
+        return exprs
+
+    replaced = [uxreplace(i, mapper) for i in exprs0]
+
+    if isinstance(exprs, Iterable):
+        if len(replaced) == len(exprs0) and \
+           all(i is j for i, j in zip(replaced, exprs0, strict=True)):
+            return exprs
+        return replaced
+    else:
+        return replaced[0]
 
 
 def _eval_numbers(expr, args):
@@ -344,7 +369,9 @@ def flatten_args(args, op, ignore=None):
 
 
 def pow_to_mul(expr):
-    if q_leaf(expr) or isinstance(expr, Basic):
+    if isinstance(expr, (tuple, list)):
+        return reuse_if_untouched(expr, (pow_to_mul(i) for i in expr))
+    elif q_leaf(expr) or isinstance(expr, Basic):
         return expr
     elif expr.is_Pow:
         base, exp = expr.as_base_exp()
@@ -359,7 +386,7 @@ def pow_to_mul(expr):
         elif (int(exp) - exp != 0):
             # Fractional powers also remain untouched,
             # but at least we traverse the base looking for other Pows
-            return expr.func(pow_to_mul(base), exp, evaluate=False)
+            return reuse_if_untouched(expr, (pow_to_mul(base), exp), evaluate=False)
         elif exp > 0:
             return UnevalMul(*[pow_to_mul(base)]*int(exp), evaluate=False)
         elif exp < 0:
@@ -383,7 +410,7 @@ def pow_to_mul(expr):
         except ValueError:
             pass
 
-        return expr.func(*args, evaluate=False)
+        return reuse_if_untouched(expr, args, evaluate=False)
 
 
 def indexify(expr):
@@ -429,10 +456,18 @@ def normalize_args(args):
 
 def reuse_if_untouched(expr, args, evaluate=False):
     """
-    Reconstruct `expr` iff any of the provided `args` is different than
-    the corresponding arg in `expr.args`.
+    Reconstruct `expr` iff any of the provided `args` is different from
+    the corresponding arg in `expr.args`, or from the corresponding item
+    for plain tuples/lists.
     """
-    if all(a is b for a, b in zip(expr.args, args, strict=False)):
+    args = tuple(args)
+
+    if isinstance(expr, (tuple, list)):
+        if len(args) == len(expr) and \
+           all(a is b for a, b in zip(expr, args, strict=True)):
+            return expr
+        return type(expr)(args)
+    elif all(a is b for a, b in zip(expr.args, args, strict=False)):
         return expr
     else:
         return expr.func(*args, evaluate=evaluate)

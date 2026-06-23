@@ -1,3 +1,4 @@
+from contextlib import suppress
 from functools import cached_property
 
 import numpy as np
@@ -6,11 +7,12 @@ import sympy
 from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.equations.algorithms import dimension_sort, lower_exprs
 from devito.ir.support import (
-    GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses,
-    detect_io
+    GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
 )
-from devito.symbolics import IntDiv, limits_mapper, uxreplace
-from devito.tools import Pickable, Tag, frozendict
+from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
+from devito.tools import (
+    Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
+)
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
 
 __all__ = [
@@ -31,8 +33,8 @@ class IREq(sympy.Eq, Pickable):
     __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation')
 
     def _hashable_content(self):
-        return (*super()._hashable_content(),
-                *tuple(getattr(self, i) for i in self.__rkwargs__))
+        return (super()._hashable_content() +
+                tuple(as_hashable(getattr(self, i)) for i in self.__rkwargs__))
 
     @property
     def is_Scalar(self):
@@ -79,6 +81,74 @@ class IREq(sympy.Eq, Pickable):
     @property
     def is_Increment(self):
         return self.operation is OpInc
+
+    @cached_property
+    def writes(self):
+        from devito.symbolics.queries import q_routine
+
+        terminals = set(retrieve_accesses(self.lhs))
+        if q_routine(self.rhs):
+            with suppress(AttributeError):
+                # Everything except: foreign routines, such as `cos` or `sin` etc.
+                terminals.update(self.rhs.writes)
+
+        return tuple(terminals)
+
+    @cached_property
+    def reads_explicit(self):
+        terminals = set(retrieve_accesses(self.rhs, deep=True))
+        with suppress(AttributeError):
+            terminals.update(retrieve_accesses(self.lhs.indices))
+
+        return tuple(terminals)
+
+    @cached_property
+    def reads_conditional(self):
+        accesses = []
+        for v in self.conditionals.values():
+            accesses.extend(retrieve_accesses(v))
+
+        return tuple(accesses)
+
+    @cached_property
+    def reads(self):
+        return tuple(set(self.reads_explicit) | set(self.reads_conditional))
+
+    @cached_property
+    def _read_functions(self):
+        found = []
+        for i in self.reads:
+            with suppress(AttributeError):
+                i = i.function
+            found.append(i)
+        return tuple(filter_sorted(found))
+
+    @cached_property
+    def _write_functions(self):
+        found = []
+        for i in self.writes:
+            with suppress(AttributeError):
+                i = i.function
+            found.append(i)
+        return tuple(filter_sorted(found))
+
+    @cached_property
+    def read_functions(self):
+        return tuple(i for i in self._read_functions if i.is_Input)
+
+    @cached_property
+    def write_functions(self):
+        return tuple(i for i in self._write_functions if i.is_Input)
+
+    @cached_property
+    def read_functions_relaxed(self):
+        return tuple(i for i in self._read_functions
+                     if i.is_Input or i.is_AbstractFunction)
+
+    @cached_property
+    def write_functions_relaxed(self):
+        return tuple(i for i in self._write_functions
+                     if i.is_Input or i.is_AbstractFunction)
 
     def apply(self, func):
         """
@@ -175,7 +245,7 @@ class LoweredEq(IREq):
     `LoweredEq.__rkwargs__` must appear in `kwargs`.
     """
 
-    __rkwargs__ = IREq.__rkwargs__ + ('reads', 'writes')
+    __rkwargs__ = IREq.__rkwargs__
 
     def __new__(cls, *args, **kwargs):
         if len(args) == 1 and isinstance(args[0], LoweredEq):
@@ -250,19 +320,10 @@ class LoweredEq(IREq):
 
         expr._ispace = ispace
         expr._conditionals = conditionals
-        expr._reads, expr._writes = detect_io(expr)
         expr._implicit_dims = input_expr.implicit_dims
         expr._operation = Operation.detect(input_expr)
 
         return expr
-
-    @property
-    def reads(self):
-        return self._reads
-
-    @property
-    def writes(self):
-        return self._writes
 
     def xreplace(self, rules):
         return LoweredEq(self.lhs.xreplace(rules), self.rhs.xreplace(rules), **self.state)
@@ -292,6 +353,7 @@ class ClusterizedEq(IREq):
     These two properties make a ClusterizedEq suitable for use in a Cluster.
     """
 
+    @reuse_if_unchanged('__rkwargs__')
     def __new__(cls, *args, **kwargs):
         if len(args) == 1:
             # origin: ClusterizedEq(expr, **kwargs)

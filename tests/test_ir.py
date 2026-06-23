@@ -8,6 +8,7 @@ from devito import (  # noqa
     switchconfig
 )
 from devito.ir.cgen import ccode
+from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import FindNodes, Iteration
@@ -17,7 +18,8 @@ from devito.ir.support.basic import (
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
-    Backward, Forward, Interval, IntervalGroup, IterationSpace, NullInterval
+    Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
+    NullInterval, null_ispace
 )
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
@@ -139,6 +141,12 @@ class TestVectorHierarchy:
         assert v2 < vs3
         assert v2 <= vs3
         assert vs3 > v2
+
+    def test_timedaccess_cached(self, fc, x, y):
+        ta0 = TimedAccess(fc[x, y], 'R', 0)
+        ta1 = TimedAccess(fc[x, y], 'R', 0, null_ispace)
+
+        assert ta0 is ta1
 
     def test_iteration_instance_arithmetic(self, x, y, ii_num, ii_literal):
         """
@@ -358,6 +366,60 @@ class TestSpace:
     @pytest.fixture
     def y(self, grid):
         return grid.dimensions[1]
+
+    def test_null_interval_cache_identity(self, x):
+        i0 = NullInterval(x)
+        i1 = NullInterval(x)
+
+        assert i0 is i1
+
+    def test_interval_cache_identity(self, x):
+        i0 = Interval(x, -2, 2)
+        i1 = Interval(x, -2, 2)
+
+        assert i0 is i1
+
+    def test_iteration_interval_cache_identity(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        i0 = IterationInterval(Interval(x), (xi,), Forward)
+        i1 = IterationInterval(Interval(x), (xi,), Forward)
+
+        assert i0 is i1
+
+    def test_iteration_interval_cache_distinguishes_sub_iterators(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        i0 = IterationInterval(Interval(x), (xi,), Forward)
+        i1 = IterationInterval(Interval(x), (), Forward)
+
+        assert i0 is not i1
+
+    def test_interval_group_cache_identity(self, x, y):
+        ig0 = IntervalGroup([Interval(x, -2, 2), Interval(y, -1, 1)],
+                            relations=((x, y),), mode='partial')
+        ig1 = IntervalGroup((Interval(x, -2, 2), Interval(y, -1, 1)),
+                            relations=((x, y),), mode='partial')
+
+        assert ig0 is ig1
+
+    def test_iteration_space_cache_identity(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        ispace0 = IterationSpace([Interval(x)], {x: (xi,)}, {x: Forward})
+        ispace1 = IterationSpace([Interval(x)], {x: (xi,)}, {x: Forward})
+
+        assert ispace0 is ispace1
+        assert isinstance(ispace0[x], IterationInterval)
+        assert ispace0[x] is ispace1[x]
+
+    def test_iteration_space_cache_distinguishes_sub_iterators(self, x):
+        xi = SubDimension.middle('xi', x, 1, 1)
+
+        ispace0 = IterationSpace([Interval(x)], {x: (xi,)}, {x: Forward})
+        ispace1 = IterationSpace([Interval(x)], directions={x: Forward})
+
+        assert ispace0 is not ispace1
 
     def test_intervals_intersection(self, x, y):
         nullx = NullInterval(x)
@@ -788,6 +850,18 @@ class TestDependenceAnalysis:
         v = scope.d_flow.pop()
         assert v.function is s1
 
+    def test_ireq_function_views_indirect_indices(self):
+        grid = Grid(shape=(4,))
+        x, = grid.dimensions
+
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=grid)
+        a = Function(name='a', grid=grid)
+
+        expr = LoweredEq(Eq(u, f[a[x]]))
+
+        assert set(expr.read_functions) == {f, a}
+
     def test_array_shared(self):
         grid = Grid(shape=(4, 4))
         x, y = grid.dimensions
@@ -1086,6 +1160,25 @@ class TestEquationAlgorithms:
         expr = eval(expr)
 
         assert list(dimension_sort(expr)) == eval(expected)
+
+
+class TestClusterGroup:
+
+    def test_eq_hash_include_ispace(self):
+        grid = Grid(shape=(4,))
+        x, = grid.dimensions
+
+        f = Function(name='f', grid=grid)
+        cluster = Cluster(Eq(f[x], 1))
+
+        ispace0 = IterationSpace([Interval(x, 0, 0)], directions={x: Forward})
+        ispace1 = IterationSpace([Interval(x, 0, 0)], directions={x: Backward})
+
+        cgroup0 = ClusterGroup((cluster,), ispace0)
+        cgroup1 = ClusterGroup((cluster,), ispace1)
+
+        assert cgroup0 != cgroup1
+        assert len({cgroup0, cgroup1}) == 2
 
 
 class TestGuards:

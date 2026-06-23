@@ -286,7 +286,9 @@ class switchconfig(SwitchDecorator):
 
 class switchenv(SwitchDecorator):
     """
-    Temporarily set environment variables from a dictionary
+    Temporarily set environment variables from a dictionary. A value of None
+    unsets the corresponding environment variable for the duration of the
+    context.
 
     Note: This does not propagate any environment variables that change inside
     the context manager, so should be used cautiously.
@@ -296,7 +298,11 @@ class switchenv(SwitchDecorator):
         self.params = params
 
     def __enter__(self):
-        os.environ.update(self.params)
+        for k, v in self.params.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
     def __exit__(self, exc_type, exc_val, traceback):
         os.environ.clear()

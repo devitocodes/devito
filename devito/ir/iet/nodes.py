@@ -6,7 +6,7 @@ import inspect
 from collections import OrderedDict, namedtuple
 from collections.abc import Iterable
 from contextlib import suppress
-from functools import cached_property
+from functools import cache, cached_property
 
 import cgen as c
 from sympy import IndexedBase, sympify
@@ -16,7 +16,7 @@ from devito.ir.cgen import ccode
 from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin, OpMinMax
 from devito.ir.support import (
     AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
-    VECTORIZED, Forward, PrefetchUpdate, Property, WithLock, detect_io
+    VECTORIZED, Forward, PrefetchUpdate, Property, WithLock
 )
 from devito.symbolics import CallFromPointer, ListInitializer
 from devito.tools import (
@@ -102,26 +102,35 @@ class Node(Signer):
 
     def __new__(cls, *args, **kwargs):
         obj = super().__new__(cls)
-        argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
-        try:
-            defaults = dict(
-                zip(argnames[-len(defaultvalues):], defaultvalues, strict=True)
-            )
-        except TypeError:
-            # No default kwarg values
-            defaults = {}
-        obj._args = {k: v for k, v in zip(argnames[1:], args, strict=False)}
+        argnames, defaults = _constructor_args(cls)
+        obj._args = {k: v for k, v in zip(argnames, args, strict=False)}
         obj._args.update(kwargs.items())
-        obj._args.update({k: defaults.get(k) for k in argnames[1:] if k not in obj._args})
+        obj._args.update({k: defaults.get(k) for k in argnames if k not in obj._args})
         return obj
 
     def _rebuild(self, *args, **kwargs):
         """Reconstruct ``self``."""
         handle = self._args.copy()  # Original constructor arguments
         argnames = [i for i in self._traversable if i not in kwargs]
-        handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args, strict=False)]))
-        handle.update(kwargs)
+        updates = OrderedDict([(k, v) for k, v in zip(argnames, args, strict=False)])
+        updates.update(kwargs)
+
+        if updates and all(self._same_arg(k, v) for k, v in updates.items()):
+            return self
+
+        handle.update(updates)
         return type(self)(**handle)
+
+    def _same_arg(self, key, value):
+        with suppress(AttributeError):
+            if _same_as_before(getattr(self, key), value):
+                return True
+
+        with suppress(KeyError):
+            if _same_as_before(self._args[key], value):
+                return True
+
+        return False
 
     @cached_property
     def ccode(self):
@@ -452,7 +461,7 @@ class Expression(ExprStmt, Node):
     @cached_property
     def reads(self):
         """The Functions read by the Expression."""
-        return detect_io(self.expr, relax=True)[0]
+        return self.expr.read_functions_relaxed
 
     @cached_property
     def write(self):
@@ -1558,9 +1567,6 @@ def DummyExpr(*args, init=False):
     return Expression(DummyEq(*args), init=init)
 
 
-BlankLine = CBlankLine()
-
-
 # Nodes required for distributed-memory halo exchange
 
 
@@ -1635,3 +1641,54 @@ Metadata for Callables. ``root`` is a pointer to the callable
 Iteration/Expression tree. ``local`` is a boolean indicating whether the
 definition of the callable is known or not.
 """
+
+
+# *** Utils
+
+
+@cache
+def _constructor_args(cls):
+    """
+    Return cached constructor argument names and default values for an IET type.
+
+    IET node construction records the original constructor arguments in
+    ``_args``. This helper avoids repeating ``inspect.getfullargspec`` for every
+    node instance of the same class.
+    """
+    argnames, _, _, defaultvalues, _, _, _ = inspect.getfullargspec(cls.__init__)
+    if defaultvalues is None:
+        defaults = {}
+    else:
+        defaults = dict(zip(argnames[-len(defaultvalues):], defaultvalues, strict=True))
+
+    return tuple(argnames[1:]), defaults
+
+
+def _same_as_before(old, new):
+    """
+    Return True if ``new`` preserves the object identity structure of ``old``.
+
+    This intentionally does not use equality for arbitrary objects. It only
+    recurses through common containers and otherwise requires object identity,
+    which keeps no-op rebuild detection compatible with IET mapper semantics.
+    """
+    if old is new:
+        return True
+
+    if isinstance(old, (tuple, list)) and isinstance(new, (tuple, list)):
+        return len(old) == len(new) and all(
+            _same_as_before(i, j) for i, j in zip(old, new, strict=True)
+        )
+
+    if type(old) is not type(new):
+        return False
+
+    if isinstance(old, dict) and isinstance(new, dict):
+        return old.keys() == new.keys() and all(
+            _same_as_before(v, new[k]) for k, v in old.items()
+        )
+
+    return False
+
+
+BlankLine = CBlankLine()

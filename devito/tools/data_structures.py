@@ -14,6 +14,7 @@ from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 __all__ = [
     'DAG',
     'Bunch',
+    'DefaultFrozenDict',
     'DefaultOrderedDict',
     'EnrichedTuple',
     'MemoryEstimate',
@@ -670,6 +671,42 @@ class frozendict(Mapping):
                 h ^= hash((key, value))
             self._hash = h
         return self._hash
+
+
+class DefaultFrozenDict(frozendict):
+    """
+    An immutable mapper that returns a configured default value for missing
+    keys when accessed via ``obj[key]``.
+
+    Unlike :class:`collections.defaultdict`, the mapping remains immutable and
+    missing-key access does not mutate internal state. The ``get`` method
+    preserves the standard dictionary semantics, defaulting to ``None`` unless
+    the caller provides an explicit fallback.
+    """
+
+    _sentinel = object()
+
+    def __init__(self, *args, default=_sentinel, **kwargs):
+        self._default = default
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key):
+        try:
+            return self._dict[key]
+        except KeyError:
+            if self._default is self._sentinel:
+                raise
+
+            if callable(self._default):
+                return self._default()
+            else:
+                return self._default
+
+    def get(self, key, default=None):
+        return self._dict.get(key, default)
+
+    def copy(self, **add_or_replace):
+        return self.__class__(self, default=self._default, **add_or_replace)
 
 
 class MemoryEstimate(frozendict):

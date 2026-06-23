@@ -4,7 +4,7 @@ import weakref
 import sympy
 from sympy.core import cache
 
-from devito.tools import safe_dict_copy
+from devito.tools import memoized_func, safe_dict_copy
 
 __all__ = ['CacheManager', 'Cached', 'Uncached', '_SymbolCache']
 
@@ -174,6 +174,10 @@ class CacheManager:
         except AttributeError:
             # SymPy 1.14 and later
             pass
+
+        # Drop compiler-scoped Python memoization that may still hold strong
+        # references to symbolic objects pending collection.
+        memoized_func.clear_build_caches()
 
         # Take a copy of the dictionary so we can safely iterate over it
         # even if another thread is making changes

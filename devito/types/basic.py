@@ -498,6 +498,8 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     @property
     def _C_ctype(self):
+        if self.dtype is None:
+            return CustomDtype('void')
         return dtype_to_ctype(self.dtype)
 
     def _subs(self, old, new, **hints):

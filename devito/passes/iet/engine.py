@@ -15,7 +15,9 @@ from devito.mpi.distributed import MPINeighborhood
 from devito.mpi.routines import Gather, HaloUpdate, HaloWait, MPIMsg, Scatter
 from devito.passes import needs_transfer
 from devito.symbolics import FieldFromComposite, FieldFromPointer, IndexedPointer, search
-from devito.tools import DAG, as_tuple, filter_ordered, sorted_priority, timed_pass
+from devito.tools import (
+    DAG, as_hashable, as_tuple, filter_ordered, memoized_func, sorted_priority, timed_pass
+)
 from devito.types import (
     Array, Auto, Bundle, ComponentAccess, CompositeObject, FunctionMap, IncrDimension,
     Indirection, ModuloDimension, NPThreads, NThreadsBase, Pointer, SharedData, Symbol,
@@ -25,7 +27,7 @@ from devito.types.args import ArgProvider
 from devito.types.dense import DiscreteFunction
 from devito.types.dimension import AbstractIncrDimension, BlockDimension
 
-__all__ = ['Graph', 'iet_pass', 'iet_visit']
+__all__ = ['Graph', 'finalize_args', 'iet_pass', 'iet_visit']
 
 
 class Byproduct:
@@ -102,7 +104,7 @@ class Graph(Byproduct):
         A mapper {Iteration -> SyncSpot} describing the Iterations, if any,
         living an asynchronous region, across all Callables in the Graph.
         """
-        dag = create_call_graph(self.root.name, self.efuncs)
+        dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
 
         mapper = MapNodes(SyncSpot, (Iteration, Call)).visit(self.root)
 
@@ -127,14 +129,20 @@ class Graph(Byproduct):
 
     def apply(self, func, **kwargs):
         """
-        Apply `func` to all nodes in the Graph. This changes the state of the Graph.
+        Apply ``func`` to all nodes in the Graph.
+
+        Callable parameters and Call arguments are reconciled before the graph
+        walk, after each changed node, and after the pass has completed.
         """
-        dag = create_call_graph(self.root.name, self.efuncs)
+        _update_args(self)
+
+        dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
 
         # Apply `func`
         efuncs = dict(self.efuncs)
         for i in dag.topological_sort():
             efunc, metadata = func(efuncs[i], **kwargs)
+            new_efuncs = metadata.get('efuncs', [])
 
             self.includes.extend(as_tuple(metadata.get('includes')))
             self.headers.extend(as_tuple(metadata.get('headers')))
@@ -151,17 +159,13 @@ class Graph(Byproduct):
             except KeyError:
                 pass
 
-            if efunc is efuncs[i]:
+            if efunc is efuncs[i] and not new_efuncs:
                 continue
-
-            new_efuncs = metadata.get('efuncs', [])
 
             efuncs[i] = efunc
             efuncs.update(dict([(i.name, i) for i in new_efuncs]))
 
-            # Update the parameters / arguments lists since `func` may have
-            # introduced or removed objects
-            efuncs = update_args(efunc, efuncs, dag)
+            efuncs = _update_args_efunc(efunc, efuncs, dag)
 
         # Minimize code size
         if len(efuncs) > len(self.efuncs):
@@ -170,6 +174,7 @@ class Graph(Byproduct):
             efuncs = reuse_efuncs(self.root, efuncs, self.sregistry)
 
         self.efuncs = efuncs
+        _update_args(self)
 
         # Uniqueness
         self.includes = filter_ordered(self.includes)
@@ -184,7 +189,7 @@ class Graph(Byproduct):
         from nodes to info. Unlike `apply`, `visit` does not change the state
         of the Graph.
         """
-        dag = create_call_graph(self.root.name, self.efuncs)
+        dag = create_call_graph(self.root.name, as_hashable(self.efuncs))
         toposort = dag.topological_sort()
 
         mapper = dict([(i, func(self.efuncs[i], **kwargs)) for i in toposort])
@@ -206,7 +211,35 @@ class Graph(Byproduct):
         )
 
 
-def iet_pass(func):
+@timed_pass(name='finalize_args')
+def finalize_args(graph):
+    """
+    Finalize Callable parameter lists and Call argument lists across ``graph``.
+
+    IET passes may temporarily leave helper signatures stale while introducing
+    or eliminating symbols. This pass reconciles the whole call graph once,
+    after lowering has settled.
+    """
+    _update_args(graph)
+
+
+def _update_args(graph):
+    dag = create_call_graph(graph.root.name, as_hashable(graph.efuncs))
+
+    efuncs = graph.efuncs
+    for i in dag.topological_sort():
+        efuncs = _update_args_efunc(efuncs[i], efuncs, dag)
+
+    graph.efuncs = efuncs
+
+
+def iet_pass(func=None):
+    """
+    Decorate an IET pass.
+    """
+    if func is None:
+        return iet_pass
+
     if isinstance(func, tuple):
         assert len(func) == 2 and func[0] is iet_visit
         call = lambda graph: graph.visit
@@ -231,6 +264,7 @@ def iet_pass(func):
             # Instance method case
             self, graph = args
             return maybe_timed(call(graph), func.__name__)(partial(func, self), **kwargs)
+
     return wrapper
 
 
@@ -238,11 +272,14 @@ def iet_visit(func):
     return iet_pass((iet_visit, func))
 
 
+@memoized_func(scope='build')
 def create_call_graph(root, efuncs):
     """
     Create a Call graph -- a Direct Acyclic Graph with edges from callees
     to callers.
     """
+    efuncs = dict(efuncs)
+
     dag = DAG(nodes=[root])
     queue = [root]
 
@@ -438,7 +475,7 @@ def reuse_efuncs(root, efuncs, sregistry=None):
     # assuming that `bar0` and `bar1` are compatible, we first process the
     # `bar`'s to obtain `[foo0(u(x)): bar0(u), foo1(u(x)): bar0(u)]`,
     # and finally `foo0(u(x)): bar0(u)`
-    dag = create_call_graph(root.name, efuncs)
+    dag = create_call_graph(root.name, as_hashable(efuncs))
 
     mapper = {}
     for i in dag.topological_sort():
@@ -480,6 +517,7 @@ def reuse_efuncs(root, efuncs, sregistry=None):
     return retval
 
 
+@memoized_func(scope='build')
 def abstract_efunc(efunc):
     """
     Abstract `efunc` applying a set of rules:
@@ -492,7 +530,7 @@ def abstract_efunc(efunc):
     """
     functions = FindSymbols('basics|symbolics|dimensions').visit(efunc)
 
-    mapper = abstract_objects(functions)
+    mapper = abstract_objects(tuple(functions))
 
     efunc = Uxreplace(mapper).visit(efunc)
     efunc = efunc._rebuild(name='foo')
@@ -500,7 +538,8 @@ def abstract_efunc(efunc):
     return efunc
 
 
-def abstract_objects(objects0, sregistry=None):
+@memoized_func(scope='build')
+def abstract_objects(objects0):
     """
     Proxy for `abstract_object`.
     """
@@ -519,7 +558,7 @@ def abstract_objects(objects0, sregistry=None):
 
     # Build abstraction mappings
     mapper = {}
-    sregistry = sregistry or SymbolRegistry()
+    sregistry = SymbolRegistry()
     for i in objects:
         abstract_object(i, mapper, sregistry)
 
@@ -690,7 +729,7 @@ def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='nthreads'))
 
 
-def update_args(root, efuncs, dag):
+def _update_args_efunc(root, efuncs, dag):
     """
     Re-derive the parameters of `root` and apply the changes in cascade through
     the `efuncs`.
@@ -780,6 +819,14 @@ def update_args(root, efuncs, dag):
         mapper = {c: c._rebuild(arguments=_filter(c.arguments))
                   for c in FindNodes(Call).visit(efuncs[n])
                   if c.name == root.name}
-        efuncs[n] = Transformer(mapper).visit(efuncs[n])
+        if not mapper:
+            continue
+
+        efunc = Transformer(mapper).visit(efuncs[n])
+        if efunc is efuncs[n]:
+            continue
+
+        efuncs[n] = efunc
+        efuncs = _update_args_efunc(efunc, efuncs, dag)
 
     return efuncs

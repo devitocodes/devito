@@ -18,7 +18,7 @@ from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromPointer, Cast, DefFunction, FieldFromComposite,
     FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, RoundUp, Rvalue,
     SizeOf, VectorAccess, evalrel, pow_to_mul, retrieve_derivatives, retrieve_functions,
-    retrieve_indexed, uxreplace
+    retrieve_indexed, subs_if_composite, uxreplace, xreplace_indices
 )
 from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
@@ -848,6 +848,18 @@ def test_is_on_grid():
     assert all(uu._grid_map == {} for uu in retrieve_functions(u.subs({x: x0}).evaluate))
 
 
+def test_retrieve_functions_mixed_carriers():
+    grid = Grid((10,))
+    x = grid.dimensions[0]
+
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+
+    expr = f + FIndexed(g.base, x)
+
+    assert retrieve_functions(expr, mode='unique') == {f, g}
+
+
 @pytest.mark.parametrize('expr,expected', [
     ('f[x+2]*g[x+4] + f[x+3]*g[x+5] + f[x+4] + f[x+1]',
      ['f[x+2]', 'g[x+4]', 'f[x+3]', 'g[x+5]', 'f[x+1]', 'f[x+4]']),
@@ -904,6 +916,55 @@ class TestUxreplace:
         g = Function(name='g', grid=grid)  # noqa
 
         assert uxreplace(eval(expr), eval(subs)) == eval(expected)
+
+    def test_uxreplace_reuses_empty_substitution(self):
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid)
+        expr = f.indexify() + 1
+
+        assert uxreplace(expr, {}) is expr
+
+    def test_subs_if_composite_reuses_untouched_sequence(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+
+        exprs = (Eq(f[x, y], f[x, y] + 1),)
+
+        assert subs_if_composite(exprs, {}) is exprs
+        assert subs_if_composite(exprs, {g[x, y]: f[x, y]}) is exprs
+        assert subs_if_composite(exprs, {g[x, y] + 1: f[x, y]}) is exprs
+
+        processed = subs_if_composite(exprs, {f[x, y]: g[x, y]})
+
+        assert processed is not exprs
+        assert processed[0] is not exprs[0]
+
+    def test_pow_to_mul_reuses_untouched_sequence(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+
+        exprs = (Eq(f[x, y], f[x, y] + 1),)
+
+        assert pow_to_mul(exprs) is exprs
+        assert pow_to_mul([exprs[0]])[0] is exprs[0]
+
+        processed = pow_to_mul((Eq(f[x, y], f[x, y]**2),))
+
+        assert processed is not exprs
+
+    def test_xreplace_indices_reuses_untouched_sequence(self):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        z = Dimension(name='z')
+        f = Function(name='f', grid=grid)
+
+        exprs = (Eq(f[x, y], f[x, y] + 1),)
+
+        assert xreplace_indices(exprs, {z: z + 1}) is exprs
+        assert xreplace_indices(exprs, {x: x + 1}) is not exprs
 
     def test_custom_reconstructable(self):
 

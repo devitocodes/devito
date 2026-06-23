@@ -887,7 +887,8 @@ class TestComplex:
         sc.coordinates.data[:] = [.5, .5, .5]
 
         fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
-        fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
+        rng = np.random.RandomState(0)
+        fc.data[:] = rng.randn(*grid.shape) + 1j * rng.randn(*grid.shape)
         opC = Operator([sc.interpolate(expr=fc)], name="OpC")
         opC()
 
@@ -903,7 +904,8 @@ class TestComplex:
                               coordinates=sc.coordinates)
 
         fc = Function(name="fc", grid=grid, npoint=2, dtype=dtype)
-        fc.data[:] = np.random.randn(*grid.shape) + 1j * np.random.randn(*grid.shape)
+        rng = np.random.RandomState(0)
+        fc.data[:] = rng.randn(*grid.shape) + 1j * rng.randn(*grid.shape)
         exprs = sc.interpolate(expr=fc) + scre.interpolate(expr=Real(fc))
         opC = Operator(exprs, name="OpC")
         opC()

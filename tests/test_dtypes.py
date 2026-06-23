@@ -10,7 +10,7 @@ except ImportError:
 from devito import Constant, Eq, Function, Grid, Operator, configuration, exp, log, sin
 from devito.arch.compiler import CustomCompiler, GNUCompiler
 from devito.exceptions import InvalidOperator
-from devito.ir.cgen.printer import BasePrinter
+from devito.ir.cgen.printer import BasePrinter, get_printer
 from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import CBB, CPrinter
 from devito.passes.iet.languages.openacc import AccBB, AccPrinter
@@ -202,6 +202,18 @@ def test_math_functions(dtype: np.dtype[np.inexact],
 
     # Ensure the generated function call has the correct form
     assert call_str in str(op)
+
+
+def test_printer_registry() -> None:
+    default = get_printer(CPrinter, np.float32)
+
+    assert get_printer(CPrinter, np.float32) is default
+
+    float64 = get_printer(CPrinter, np.float64)
+    assert get_printer(CPrinter, np.float64) is float64
+
+    float16 = get_printer(CPrinter, np.float16)
+    assert get_printer(CPrinter, np.float16) is float16
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])

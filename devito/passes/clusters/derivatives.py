@@ -5,8 +5,8 @@ from sympy import S
 
 from devito.finite_differences import IndexDerivative, Weights
 from devito.ir import Backward, Forward, Interval, IterationSpace, Queue
-from devito.passes.clusters.misc import fuse
-from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, uxreplace
+from devito.passes.clusters.fusion import fuse
+from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, search, uxreplace
 from devito.tools import infer_dtype, timed_pass
 from devito.types import Eq, Inc, Indexed, Symbol
 
@@ -15,13 +15,16 @@ __all__ = ['lower_index_derivatives']
 
 @timed_pass()
 def lower_index_derivatives(clusters, mode=None, **kwargs):
+    max_depth = _max_index_derivative_depth(clusters)
     clusters, weights, mapper = _lower_index_derivatives(clusters, **kwargs)
 
     if not weights:
         return clusters
 
     if mode != 'noop':
-        clusters = fuse(clusters, toposort='maximal')
+        for _ in range(max_depth):
+            clusters = fuse(clusters, toposort='nofuse')
+        clusters = fuse(clusters, toposort=False)
 
     # At this point we can detect redundancies induced by inner derivatives that
     # previously were just not detectable via e.g. plain CSE. For example, if
@@ -258,3 +261,16 @@ class CDE(Queue):
         seen.update(processed)
 
         return processed
+
+
+# *** Utils
+
+
+def _max_index_derivative_depth(clusters):
+    max_depth = 0
+
+    for c in clusters:
+        for i in search(c.exprs, IndexDerivative):
+            max_depth = max(max_depth, i.depth)
+
+    return max_depth

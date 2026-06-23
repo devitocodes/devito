@@ -293,17 +293,16 @@ def _mark_overlappable(iet):
 
         scope = Scope([n.expr for n in exprs])
 
-        for dep in scope.d_all_gen():
-            if dep.function in hs.functions:
-                cause = dep.cause & hs.dimensions
-                if any(dep.distance_mapper[d] is S.Infinity for d in cause):
-                    # E.g., dependencies across PARALLEL iterations
-                    # for x
-                    #   for y
-                    #     ... = ... f[x, y-1] ...
-                    #   for y
-                    #     f[x, y] = ...
-                    break
+        for dep in scope.d_all_gen(writes=hs.functions):
+            cause = dep.cause & hs.dimensions
+            if any(dep.distance_mapper[d] is S.Infinity for d in cause):
+                # E.g., dependencies across PARALLEL iterations
+                # for x
+                #   for y
+                #     ... = ... f[x, y-1] ...
+                #   for y
+                #     f[x, y] = ...
+                break
         else:
             # All good -- we can perform comp/comm overlap!
             found.append(hs)
@@ -507,7 +506,7 @@ def _is_iter_carried(hsf, scope):
                    for d, v in loc_indices.items())
 
     for f, v in hsf.fmapper.items():
-        for dep in scope.d_flow.project(f):
+        for dep in scope.d_flow_gen(writes=f):
             if not rule0(dep) and not rule1(dep, v.loc_indices):
                 return False
 

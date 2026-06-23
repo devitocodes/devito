@@ -497,6 +497,7 @@ def get_gpu_info():
 def get_visible_devices():
     device_vars = (
         'CUDA_VISIBLE_DEVICES',
+        'NVIDIA_VISIBLE_DEVICES',
         'ROCR_VISIBLE_DEVICES',
         'HIP_VISIBLE_DEVICES'
     )

@@ -1,6 +1,6 @@
 from collections.abc import Callable, Iterable
 from contextlib import suppress
-from functools import cached_property
+from functools import cached_property, wraps
 from itertools import chain, product
 
 import sympy
@@ -10,12 +10,11 @@ from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (
-    compare_ops, q_affine, q_comp_acc, q_constant, q_routine, retrieve_indexed,
-    retrieve_terminals, search, uxreplace
+    compare_ops, q_affine, q_comp_acc, q_constant, retrieve_indexed
 )
 from devito.tools import (
-    CacheInstances, Tag, as_mapper, as_tuple, filter_sorted, flatten, is_integer,
-    memoized_generator, memoized_meth, smart_gt, smart_lt
+    CacheInstances, Tag, as_mapper, as_tuple, cached_hash, filter_sorted, flatten,
+    is_integer, memoized_func, memoized_generator, memoized_meth, smart_gt, smart_lt
 )
 from devito.types import (
     ComponentAccess, CriticalRegion, Dimension, DimensionTuple, Fence, Function, Symbol,
@@ -200,7 +199,7 @@ class IterationInstance(LabeledVector):
         return self.rank == 0
 
 
-class TimedAccess(IterationInstance, AccessMode):
+class TimedAccess(IterationInstance, AccessMode, CacheInstances):
 
     """
     A TimedAccess ties together an IterationInstance and an AccessMode.
@@ -217,6 +216,10 @@ class TimedAccess(IterationInstance, AccessMode):
     operators for lexicographic ordering of TimedAccess objects, based
     on the values of the index functions and the access mode (read, write).
     """
+
+    @classmethod
+    def _preprocess_args(cls, access, mode, timestamp, ispace=null_ispace):
+        return (access, mode, timestamp, ispace), {}
 
     def __new__(cls, access, mode, timestamp, ispace=None):
         obj = super().__new__(cls, access)
@@ -247,6 +250,7 @@ class TimedAccess(IterationInstance, AccessMode):
                 self.access == other.access and
                 self.ispace == other.ispace)
 
+    @cached_hash
     def __hash__(self):
         return hash((self.access, self.mode, self.timestamp, self.ispace))
 
@@ -320,6 +324,21 @@ class TimedAccess(IterationInstance, AccessMode):
     def lex_lt(self, other):
         return self.timestamp < other.timestamp
 
+    def rebuild(self, **kwargs):
+        access = kwargs.get('access', self.access)
+        mode = kwargs.get('mode', self.mode)
+        timestamp = kwargs.get('timestamp', self.timestamp)
+        ispace = kwargs.get('ispace', self.ispace)
+
+        if access is self.access and \
+           mode is self.mode and \
+           timestamp is self.timestamp and \
+           ispace is self.ispace:
+            return self
+
+        return TimedAccess(access, mode, timestamp, ispace)
+
+    @memoized_meth
     def distance(self, other, logical=False):
         """
         Compute the distance from ``self`` to ``other``.
@@ -853,18 +872,91 @@ class Scope(CacheInstances):
     # Describes a rule for dependencies
     Rule = Callable[[TimedAccess, TimedAccess], bool]
 
+    def normalize_input(func):
+
+        @wraps(func)
+        def wrapper(self, *args, writes=None, **kwargs):
+            mapped = {}
+            for k in as_tuple(writes or self.writes):
+                v = self.getwrites(k)
+                if v:
+                    mapped[k] = v
+            return func(self, *args, writes=mapped, **kwargs)
+
+        return wrapper
+
+    @classmethod
+    @memoized_func(scope='build')
+    def from_scopes(cls, scope0, scope1):
+        """
+        Build a synthetic Scope out of two existing Scopes by reusing their
+        cached reads and writes rather than rediscovering accesses from the
+        underlying expressions.
+
+        This is used to analyze cross-scope dependences cheaply, for example in
+        loop-fusion hazard checks. Return None if the two Scopes cannot induce
+        any cross-scope dependences.
+        """
+        offset = len(scope0.exprs)
+
+        targets = (
+            set(scope0.writes) & scope1.functions
+        ) | (
+            set(scope1.writes) & scope0.functions
+        )
+        if not targets:
+            return None
+
+        def is_cross(source, sink):
+            t0 = source.timestamp
+            t1 = sink.timestamp
+            return t0 < offset <= t1 or t1 < offset <= t0
+
+        reads = {}
+        writes = {}
+
+        for f in targets:
+            shifted = tuple(
+                i.rebuild(timestamp=i.timestamp + offset)
+                for i in scope1.getreads(f)
+            )
+            accesses = scope0.getreads(f)
+            if shifted:
+                accesses = accesses + shifted if accesses else shifted
+            if accesses:
+                reads[f] = accesses
+
+            shifted = tuple(
+                i.rebuild(timestamp=i.timestamp + offset)
+                for i in scope1.getwrites(f)
+            )
+            accesses = scope0.getwrites(f)
+            if shifted:
+                accesses = accesses + shifted if accesses else shifted
+            if accesses:
+                writes[f] = accesses
+
+        return cls((), rules=is_cross, reads=reads.items(), writes=writes.items())
+
     @classmethod
     def _preprocess_args(cls, exprs: Expr | Iterable[Expr],
                          **kwargs) -> tuple[tuple, dict]:
+        for i in ('reads', 'writes'):
+            with suppress(KeyError):
+                kwargs[i] = tuple(kwargs[i])
+
         return (as_tuple(exprs),), kwargs
 
     def __init__(self, exprs: tuple[Expr],
-                 rules: Rule | tuple[Rule] | None = None) -> None:
+                 rules: Rule | tuple[Rule] | None = None,
+                 reads=None, writes=None) -> None:
         """
         A Scope enables data dependence analysis on a totally ordered sequence
         of expressions.
         """
         self.exprs = exprs
+        self._reads = dict(reads) if reads is not None else None
+        self._writes = dict(writes) if writes is not None else None
 
         # A set of rules to drive the collection of dependencies
         self.rules: tuple[Scope.Rule] = as_tuple(rules)  # type: ignore[assignment]
@@ -876,13 +968,7 @@ class Scope(CacheInstances):
         Generate all write accesses.
         """
         for i, e in enumerate(self.exprs):
-            terminals = retrieve_accesses(e.lhs)
-            if q_routine(e.rhs):
-                with suppress(AttributeError):
-                    # Everything except: foreign routines, such as `cos` or `sin` etc.
-                    terminals.update(e.rhs.writes)
-
-            for j in terminals:
+            for j in e.writes:
                 mode = 'WR' if e.is_Reduction else 'W'
                 yield TimedAccess(j, mode, i, e.ispace)
 
@@ -909,7 +995,16 @@ class Scope(CacheInstances):
         """
         Create a mapper from functions to write accesses.
         """
+        if self._writes is not None:
+            return self._writes
+
         return as_mapper(self.writes_gen(), key=lambda i: i.function)
+
+    @cached_property
+    def writes_tensor(self):
+        initialized = frozenset(e.lhs.function for e in self.exprs
+                                if not e.is_Reduction and e.is_scalar)
+        return frozenset(self.writes) - initialized
 
     @memoized_generator
     def reads_explicit_gen(self):
@@ -919,11 +1014,7 @@ class Scope(CacheInstances):
         expressions.
         """
         for i, e in enumerate(self.exprs):
-            # Reads
-            terminals = retrieve_accesses(e.rhs, deep=True)
-            with suppress(AttributeError):
-                terminals.update(retrieve_accesses(e.lhs.indices))
-            for j in terminals:
+            for j in e.reads_explicit:
                 mode = 'RR' if j.function is e.lhs.function and e.is_Reduction else 'R'
                 yield TimedAccess(j, mode, i, e.ispace)
 
@@ -932,9 +1023,8 @@ class Scope(CacheInstances):
                 yield TimedAccess(e.lhs, 'RR', i, e.ispace)
 
             # Look up ConditionalDimensions
-            for v in e.conditionals.values():
-                for j in retrieve_accesses(v):
-                    yield TimedAccess(j, 'R', -1, e.ispace)
+            for j in e.reads_conditional:
+                yield TimedAccess(j, 'R', -1, e.ispace)
 
     @memoized_generator
     def reads_implicit_gen(self):
@@ -1008,21 +1098,22 @@ class Scope(CacheInstances):
         the iteration symbols.
         """
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
-            for i in chain(self.reads_explicit_gen(), self.reads_synchro_gen()):
-                if f is i.function:
-                    for j in extrema(i.access):
-                        yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
+            for i in self.getreads(f):
+                for j in extrema(i.access):
+                    yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
 
         else:
-            for i in self.reads_gen():
-                if f is i.function:
-                    yield i
+            for i in self.getreads(f):
+                yield i
 
     @cached_property
     def reads(self):
         """
         Create a mapper from functions to read accesses.
         """
+        if self._reads is not None:
+            return self._reads
+
         return as_mapper(self.reads_gen(), key=lambda i: i.function)
 
     @cached_property
@@ -1033,9 +1124,9 @@ class Scope(CacheInstances):
         return set(self.reads) - set(self.writes)
 
     @cached_property
-    def initialized(self):
-        return frozenset(e.lhs.function for e in self.exprs
-                         if not e.is_Reduction and e.is_scalar)
+    def has_barrier(self):
+        """True if the Scope contains a fence-like control-flow object."""
+        return any(isinstance(e.rhs, (Fence, CriticalRegion)) for e in self.exprs)
 
     def getreads(self, function):
         return as_tuple(self.reads.get(function))
@@ -1095,11 +1186,17 @@ class Scope(CacheInstances):
                      if a.timestamp in timestamps and a.mode in modes)
 
     @memoized_generator
-    def d_flow_gen(self):
-        """Generate the flow (or "read-after-write") dependences."""
-        for k, v in self.writes.items():
+    @normalize_input
+    def d_flow_gen(self, writes=None):
+        """
+        Generate the flow (or "read-after-write") dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        for k, v in writes.items():
+            reads = tuple(self.reads_smart_gen(k))
             for w in v:
-                for r in self.reads_smart_gen(k):
+                for r in reads:
                     if any(not rule(w, r) for rule in self.rules):
                         continue
 
@@ -1126,11 +1223,17 @@ class Scope(CacheInstances):
         return DependenceGroup(self.d_flow_gen())
 
     @memoized_generator
-    def d_anti_gen(self, depcls=Dependence):
-        """Generate the anti (or "write-after-read") dependences."""
-        for k, v in self.writes.items():
+    @normalize_input
+    def d_anti_gen(self, depcls=Dependence, writes=None):
+        """
+        Generate the anti (or "write-after-read") dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        for k, v in writes.items():
+            reads = tuple(self.reads_smart_gen(k))
             for w in v:
-                for r in self.reads_smart_gen(k):
+                for r in reads:
                     if any(not rule(r, w) for rule in self.rules):
                         continue
 
@@ -1165,11 +1268,16 @@ class Scope(CacheInstances):
         return DependenceGroup(self.d_anti_gen(depcls=LogicalDependence))
 
     @memoized_generator
-    def d_output_gen(self):
-        """Generate the output (or "write-after-write") dependences."""
-        for k, v in self.writes.items():
+    @normalize_input
+    def d_output_gen(self, writes=None):
+        """
+        Generate the output (or "write-after-write") dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        for v in writes.values():
             for w1 in v:
-                for w2 in self.writes.get(k, []):
+                for w2 in v:
                     if any(not rule(w2, w1) for rule in self.rules):
                         continue
 
@@ -1193,9 +1301,15 @@ class Scope(CacheInstances):
         """Output (or "write-after-write") dependences."""
         return DependenceGroup(self.d_output_gen())
 
-    def d_all_gen(self):
-        """Generate all flow, anti and output dependences."""
-        return chain(self.d_flow_gen(), self.d_anti_gen(), self.d_output_gen())
+    def d_all_gen(self, writes=None):
+        """
+        Generate all flow, anti and output dependences.
+
+        If ``writes`` is provided, restrict the analysis to those Functions.
+        """
+        return chain(self.d_flow_gen(writes=writes),
+                     self.d_anti_gen(writes=writes),
+                     self.d_output_gen(writes=writes))
 
     @cached_property
     def d_all(self):
@@ -1379,23 +1493,6 @@ class ExprGeometry:
 
 def vinf(entries):
     return Vector(*(entries + [S.Infinity]))
-
-
-def retrieve_accesses(exprs, **kwargs):
-    """
-    Like retrieve_terminals, but ensure that if a ComponentAccess is found,
-    the ComponentAccess itself is returned, while the wrapped Indexed is discarded.
-    """
-    kwargs['mode'] = 'unique'
-
-    compaccs = search(exprs, ComponentAccess)
-    if not compaccs:
-        return retrieve_terminals(exprs, **kwargs)
-
-    subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
-    exprs1 = uxreplace(exprs, subs)
-
-    return compaccs | retrieve_terminals(exprs1, **kwargs) - set(subs.values())
 
 
 def disjoint_test(e0, e1, d, it):
