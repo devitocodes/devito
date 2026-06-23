@@ -311,9 +311,6 @@ class Properties(frozendict):
         return any({INBOUND, INBOUND_IF_RELAXED}.intersection(self.get(d, set()))
                    for d in as_tuple(dims))
 
-    def is_sequential(self, dims):
-        return any(SEQUENTIAL in self.get(d, ()) for d in as_tuple(dims))
-
     def is_blockable(self, d):
         return bool(TILABLE in self.get(d, ()))
 
@@ -321,6 +318,9 @@ class Properties(frozendict):
         if dims is None:
             dims = list(self)
         return any(v in self.get(d, set()) for d in as_tuple(dims))
+
+    def is_sequential(self, dims=None):
+        return self._is_property_any(dims, SEQUENTIAL)
 
     def is_prefetchable(self, dims=None, v=PREFETCHABLE):
         return self._is_property_any(dims, PREFETCHABLE)
