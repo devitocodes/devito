@@ -1,0 +1,385 @@
+import logging
+
+import numpy as np
+import pytest
+import sympy
+
+from devito import (
+    ConditionalDimension, Dimension, Eq, Function, Grid, Operator, SparseTimeFunction,
+    SubDomain, TensorTimeFunction, TimeFunction, VectorTimeFunction, diag, div, grad,
+    solve, switchconfig
+)
+from devito.ir.iet.visitors import Specializer
+
+
+class TestSpecializer:
+    """Tests for the Specializer transformer"""
+
+    @pytest.mark.parametrize('pre_gen', [True, False])
+    @pytest.mark.parametrize('expand', [True, False])
+    def test_bounds(self, pre_gen, expand):
+        """Test specialization of dimension bounds"""
+        grid = Grid(shape=(11, 11))
+
+        ((x_m, x_M), (y_m, y_M)) = [d.symbolic_extrema for d in grid.dimensions]
+        time_m = grid.time_dim.symbolic_min
+        minima = (x_m, y_m, time_m)
+        maxima = (x_M, y_M)
+
+        def check_op(mapper, operator):
+            for k, v in mapper.items():
+                assert k not in operator.parameters
+                assert k.name not in str(operator.ccode)
+                # Check that the loop bounds are modified correctly
+                if k in minima:
+                    assert f"{k.name.split('_')[0]} = {v}" in str(operator.ccode)
+                elif k in maxima:
+                    assert f"{k.name.split('_')[0]} <= {v}" in str(operator.ccode)
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        h = TimeFunction(name='h', grid=grid)
+
+        eq0 = Eq(f, f + 1)
+        eq1 = Eq(g, f.dx)
+        eq2 = Eq(h.forward, (g + x_m).dy)
+        eq3 = Eq(f, x_M)
+
+        # Check behaviour with expansion since we have a replaced symbol inside a
+        # derivative
+        if expand:
+            kwargs = {'opt': ('advanced', {'expand': True})}
+        else:
+            kwargs = {'opt': ('advanced', {'expand': False})}
+
+        op = Operator([eq0, eq1, eq2, eq3], **kwargs)
+
+        if pre_gen:
+            # Generate C code for the unspecialized Operator - the result should be
+            # the same regardless, but it ensures that the old generated code is
+            # purged and replaced in the specialized Operator
+            _ = op.ccode
+
+        mapper0 = {x_m: sympy.S.Zero}
+        mapper1 = {x_M: sympy.Integer(20), y_m: sympy.S.Zero}
+        mapper2 = {**mapper0, **mapper1}
+        mapper3 = {y_M: sympy.Integer(10), time_m: sympy.Integer(5)}
+
+        mappers = (mapper0, mapper1, mapper2, mapper3)
+        ops = tuple(Specializer(m).visit(op) for m in mappers)
+
+        for m, o in zip(mappers, ops, strict=True):
+            check_op(m, o)
+
+    def test_subdomain(self):
+        """Test that SubDomain thicknesses can be specialized"""
+
+        def check_op(mapper, operator):
+            for k in mapper:
+                assert k not in operator.parameters
+                assert k.name not in str(operator.ccode)
+
+        class SD(SubDomain):
+            name = 'sd'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 1), y: ('right', 2)}
+
+        grid = Grid(shape=(11, 11))
+        sd = SD(grid=grid)
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=sd)
+
+        eqs = [Eq(f, f+1, subdomain=sd),
+               Eq(g, g+1, subdomain=sd)]
+
+        op = Operator(eqs)
+
+        subdims = [d for d in op.dimensions if d.is_Sub]
+        ((xltkn, xrtkn), (_, yrtkn)) = [d.thickness for d in subdims]
+
+        mapper0 = {xltkn: sympy.S.Zero}
+        mapper1 = {xrtkn: sympy.Integer(2), yrtkn: sympy.S.Zero}
+        mapper2 = {**mapper0, **mapper1}
+
+        mappers = (mapper0, mapper1, mapper2)
+        ops = tuple(Specializer(m).visit(op) for m in mappers)
+
+        for m, o in zip(mappers, ops, strict=True):
+            check_op(m, o)
+
+    def test_factor(self):
+        """Test that ConditionalDimensions can have their symbolic factors specialized"""
+        size = 16
+        factor = 4
+        i = Dimension(name='i')
+        ci = ConditionalDimension(name='ci', parent=i, factor=factor)
+
+        g = Function(name='g', shape=(size,), dimensions=(i,))
+        f = Function(name='f', shape=(int(size/factor),), dimensions=(ci,))
+
+        op0 = Operator([Eq(f, g)])
+
+        mapper = {ci.symbolic_factor: sympy.Integer(factor)}
+
+        op1 = Specializer(mapper).visit(op0)
+
+        assert ci.symbolic_factor not in op1.parameters
+        assert ci.symbolic_factor.name not in str(op1.ccode)
+        assert "if ((i)%(4) == 0)" in str(op1.ccode)
+
+    def test_spacing(self):
+        """Test that grid spacings can be specialized"""
+        grid = Grid(shape=(11,))
+        f = Function(name='f', grid=grid)
+
+        op0 = Operator(Eq(f, f.dx))
+
+        mapper = {grid.dimensions[0].spacing: sympy.Float(grid.spacing[0])}
+        op1 = Specializer(mapper).visit(op0)
+
+        assert grid.dimensions[0].spacing not in op1.parameters
+        assert grid.dimensions[0].spacing.name not in str(op1.ccode)
+        assert "/1.0e-1F;" in str(op1.ccode)
+
+    def test_sizes(self):
+        """Test that strides generated for linearization can be specialized"""
+        grid = Grid(shape=(11, 11))
+
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+
+        op0 = Operator(Eq(f.forward, f.dx2),
+                       opt=('advanced', {'expand': True, 'linearize': True}))
+
+        mapper = {f.symbolic_shape[1]: sympy.Integer(11),
+                  f.symbolic_shape[2]: sympy.Integer(11)}
+
+        op1 = Specializer(mapper).visit(op0)
+
+        assert "const int x_fsz0 = 11;" in str(op1.ccode)
+        assert "const int y_fsz0 = 11;" in str(op1.ccode)
+
+    def test_blocking(self):
+        grid = Grid(shape=(11, 11, 11))
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+
+        op0 = Operator(Eq(f.forward, f.laplace))
+
+        block_params = [p for p in op0.parameters if 'blk' in str(p)]
+        mapper = {p: sympy.Integer(32) for p in block_params}
+
+        op1 = Specializer(mapper).visit(op0)
+
+        assert "blk0_size" not in str(op1.ccode)
+        assert "x0_blk0 += 32" in str(op1.ccode)
+        assert "y0_blk0 += 32" in str(op1.ccode)
+
+    def test_apply_basic(self):
+        """
+        Test that a trivial operator runs and returns the same results when
+        specialized.
+        """
+        grid = Grid(shape=(11, 11))
+        ((x_m, x_M), (y_m, y_M)) = [d.symbolic_extrema for d in grid.dimensions]
+        f = Function(name='f', grid=grid, dtype=np.int32)
+
+        op0 = Operator(Eq(f, f+1))
+
+        mapper = {x_m: sympy.Integer(2), x_M: sympy.Integer(7),
+                  y_m: sympy.Integer(3), y_M: sympy.Integer(8)}
+
+        op1 = Specializer(mapper).visit(op0)
+
+        assert op1.cfunction is not op0.cfunction
+
+        op1.apply()
+
+        check = np.array(f.data[:])
+        f.data[:] = 0
+
+        op0.apply(x_m=2, x_M=7, y_m=3, y_M=8)
+
+        assert np.all(check == f.data)
+
+
+class TestApply:
+    """Tests for specialization of operators at apply time"""
+
+    @pytest.mark.parametrize('override', [False, True])
+    def test_basic(self, caplog, override):
+        grid = Grid(shape=(11, 11))
+        f = Function(name='f', grid=grid, dtype=np.int32)
+        op = Operator(Eq(f, f+1))
+
+        specialize = ('x_m', 'x_M')
+
+        kwargs = {}
+        if override:
+            kwargs['x_m'] = 3
+
+        with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
+            op.apply_specialize(specialize=specialize, **kwargs)
+
+            # Ensure that the specialized operator was run
+            assert all(s not in caplog.text for s in specialize)
+            assert "specialization" in caplog.text
+
+        check = np.array(f.data[:])
+        f.data[:] = 0
+        op.apply(**kwargs)
+
+        assert np.all(check == f.data[:])
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('override', [False, True])
+    def test_basic_mpi(self, caplog, mode, override):
+        self.test_basic(caplog, override)
+
+    @pytest.mark.parametrize('specialize',
+                             [('x_m',),
+                              ('y_M',),
+                              ('time_m',),
+                              ('time_m', 'time_M'),
+                              ('x_m', 'y_M'),
+                              ('x_m', 'x_M', 'y_m', 'y_M')])
+    def test_diffusion(self, specialize):
+        grid = Grid(shape=(11, 11))
+
+        dt = 2.5e-5
+
+        f = TimeFunction(name='f', grid=grid, space_order=4)
+        f.data[:, 4:-4, 4:-4] = 1
+
+        op = Operator(Eq(f.forward, f - grid.time_dim.spacing*f.laplace))
+
+        op.apply(t_M=100, dt=dt)
+
+        check = np.array(f.data)
+        f.data[:] = 0
+        f.data[:, 4:-4, 4:-4] = 1
+
+        op.apply_specialize(t_M=100, dt=dt, specialize=specialize)
+
+        assert np.all(np.isclose(check, f.data))
+
+    @pytest.mark.parametrize('specialize',
+                             [('x_m',),
+                              ('y_M',),
+                              ('time_m',),
+                              ('time_m', 'time_M'),
+                              ('x_m', 'y_M'),
+                              ('x_m', 'x_M', 'y_m', 'y_M')])
+    @pytest.mark.parametrize('source', [False, True])
+    def test_acoustic(self, specialize, source):
+        grid = Grid(shape=(101, 101))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=2)
+
+        def gaussian(x, x0=0, sigma=1):
+            return np.exp(-(x - x0)**2 / (2 * sigma**2))
+
+        # Initialise with Gaussian bump
+        def gaussian_bump(x, y, x0=0, y0=0, sigma=1):
+            return gaussian(x, x0=x0, sigma=sigma)*gaussian(y, x0=y0, sigma=sigma)
+
+        x = np.linspace(-grid.extent[0]/2, grid.extent[0]/2, grid.shape[0])
+        y = np.linspace(-grid.extent[1]/2, grid.extent[1]/2, grid.shape[0])
+        xx, yy = np.meshgrid(x, y, indexing='ij')
+
+        u.data[:] = gaussian_bump(xx, yy, sigma=0.05)
+
+        c = 1.
+        m = 1/c**2  # Square slowness
+
+        dt = 0.6*min(grid.spacing)/c
+
+        pde = m * u.dt2 - u.laplace
+        stencil = Eq(u.forward, solve(pde, u.forward))
+
+        if source:
+            src = SparseTimeFunction(name='src', grid=grid, nt=51, npoint=1)
+            src.coordinates.data[:] = np.array(grid.extent)/2
+            src.data[:, 0] = np.sin(np.linspace(0, 2*np.pi, 51))
+
+            src_term = src.inject(field=u.forward, expr=src)
+            op = Operator([stencil] + src_term)
+        else:
+            op = Operator(stencil)
+
+        op.apply(t_M=50, dt=dt)
+
+        # Save and reset result
+        check = np.array(u.data)
+        u.data[:] = gaussian_bump(xx, yy, sigma=0.05)
+
+        op.apply_specialize(t_M=50, dt=dt, specialize=specialize)
+
+        assert np.all(np.isclose(check, u.data))
+
+        if source:
+            assert np.isclose(np.linalg.norm(u.data), 21.698477, atol=1e-4, rtol=0)
+        else:
+            assert np.isclose(np.linalg.norm(u.data), 10.793053, atol=1e-4, rtol=0)
+
+    @pytest.mark.parametrize('specialize',
+                             [('x_m',),
+                              ('y_M',),
+                              ('time_m',),
+                              ('time_m', 'time_M'),
+                              ('x_m', 'y_M'),
+                              ('x_m', 'x_M', 'y_m', 'y_M'),
+                              ('o_x', 'o_y', 'p_src_m', 'p_src_M')])
+    def test_elastic(self, specialize):
+        grid = Grid(shape=(101, 101))
+
+        tau = TensorTimeFunction(name='tau', grid=grid, space_order=4)
+        v = VectorTimeFunction(name='v', grid=grid, space_order=4)
+
+        vp = 1.25
+        vs = 0.75
+        density = 1.
+
+        dt = 0.6*min(grid.spacing)/vp
+
+        mu = vs**2 * density
+        l = (vp**2 * density - 2*mu)
+        b = 1/density
+
+        pde_v = v.dt - b * div(tau)
+        pde_tau = tau.dt - l * diag(div(v.forward)) \
+            - mu * (grad(v.forward) + grad(v.forward).transpose(inner=False))
+
+        u_v = Eq(v.forward, solve(pde_v, v.forward))
+        u_t = Eq(tau.forward, solve(pde_tau, tau.forward))
+
+        src = SparseTimeFunction(name='src', grid=grid, nt=51, npoint=1)
+        src.coordinates.data[:] = np.array(grid.extent)/2
+        src.data[:, 0] = np.sin(np.linspace(0, 2*np.pi, 51))
+
+        src_xx = src.inject(field=tau[0, 0].forward, expr=src)
+        src_yy = src.inject(field=tau[1, 1].forward, expr=src)
+
+        op = Operator([u_v] + [u_t] + src_xx + src_yy)
+
+        op.apply(t_M=50, dt=dt)
+
+        # Save and reset result
+        fields = (tau[0, 0], tau[0, 1], tau[1, 1], v[0], v[1])
+
+        checks = {field.name: np.array(field.data) for field in fields}
+
+        for field in fields:
+            field.data[:] = 0
+
+        op.apply_specialize(t_M=50, dt=dt, specialize=specialize)
+
+        for field in fields:
+            check = checks[field.name]
+            assert np.all(np.isclose(check, field.data))
+
+        norms = (1.333946, 0.4931774, 1.333946, 1.1619346, 1.1619346)
+
+        for field, norm in zip(fields, norms, strict=True):
+            assert np.isclose(np.linalg.norm(field.data), norm, atol=1e-4, rtol=0)
