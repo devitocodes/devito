@@ -112,9 +112,65 @@ class GridTransferEquations:
         so = self.target.space_order
         xc, yf = self.xc, self.yf
 
-        self._prolong_eqs = [Eq(xc, yf)]
+        petsc_letters = ['x', 'y', 'z']
+        ndim = len(dims)
+        xs_f = [
+            FieldFromComposite(f'{petsc_letters[ndim - 1 - i]}s', self.fine_localinfo)
+            for i in range(ndim)
+        ]
+        xs_c = [
+            FieldFromComposite(f'{petsc_letters[ndim - 1 - i]}s', self.coarse_localinfo)
+            for i in range(ndim)
+        ]
 
-        self._restrict_eq = None
+        # Lagrange weights at the midpoint — shared by prolongation and restriction.
+        start = -(so // 2 - 1)
+        pts = list(range(start, start + so))
+        w = finite_diff_weights(0, pts, Rational(1, 2))[-1][-1]
+
+        prolong_eqs = []
+        for flags in iterproduct([0, 1], repeat=ndim):
+            lhs_idx = tuple(
+                2*(d + xsc) - xsf + f
+                for d, xsc, xsf, f in zip(dims, xs_c, xs_f, flags)
+            )
+            lhs = yf[lhs_idx]
+
+            dim_stencils = []
+            for d, f in zip(dims, flags):
+                if f:
+                    dim_stencils.append(list(zip([d + j for j in pts], w)))
+                else:
+                    dim_stencils.append([(d, Integer(1))])
+
+            rhs = Integer(0)
+            for combo in iterproduct(*dim_stencils):
+                weight = Integer(1)
+                idx = []
+                for dim_offset, wi in combo:
+                    weight *= wi
+                    idx.append(dim_offset)
+                rhs = rhs + weight * xc[tuple(idx)]
+
+            prolong_eqs.append(Eq(lhs, rhs))
+        self._prolong_eqs = tuple(prolong_eqs)
+
+        # Restriction: R = P^T — same weights, reversed fine-array indices.
+        rhs = sympy.Integer(0)
+        for flags in iterproduct([0, 1], repeat=ndim):
+            offset_ranges = [pts if f else [0] for f in flags]
+            for offsets in iterproduct(*offset_ranges):
+                weight = sympy.Integer(1)
+                fine_idx = []
+                for d, xsc, xsf, f, j in zip(dims, xs_c, xs_f, flags, offsets):
+                    if f:
+                        weight *= w[pts.index(j)]
+                        fine_idx.append(2*(d + xsc) - xsf - 2*j + 1)
+                    else:
+                        fine_idx.append(2*(d + xsc) - xsf)
+                rhs += weight * yf[tuple(fine_idx)]
+
+        self._restrict_eq = Eq(xc[tuple(dims)], rhs)
 
     @property
     def prolong_eqs(self):

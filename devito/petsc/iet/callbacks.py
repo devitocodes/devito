@@ -2,8 +2,8 @@ import cgen as c
 from collections import OrderedDict
 
 from devito.ir.iet import (
-    BlankLine, Call, Callable, CallableBody, Definition, Dereference, DummyExpr,
-    FindSymbols, Iteration, List, PointerCast, Uxreplace
+    BlankLine, Call, Callable, CallableBody, Conditional, Definition, Dereference,
+    DummyExpr, FindSymbols, Iteration, List, PointerCast, Uxreplace
 )
 from devito.passes.iet.linearization import Stride
 from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, petsc_call, PetscCallback
@@ -875,6 +875,91 @@ class ConstrainedBCCallbackMixin:
         return Uxreplace(subs).visit(body)
 
 
+class GetDiagonalCallbackMixin:
+    """
+    Mixin that adds the `GetDiagonal` callback
+    """
+
+    def _make_optional_callbacks(self):
+        super()._make_optional_callbacks()
+        self._make_get_diagonal()
+
+    def _make_get_diagonal(self):
+        diag_exprs = self.field_data.diagonal.diag_exprs
+        irs, _ = self.rcompile(
+            diag_exprs, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
+        )
+        objs = self.objs
+        body = self._create_get_diagonal_body(List(body=irs.uiet.body))
+        cb = self._make_petsc_callable(
+            'GetDiagonal', body, parameters=(objs['J'], objs['Y'])
+        )
+        self._get_diagonal_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    def _create_get_diagonal_body(self, body):
+        linsolve_expr = self.inject_solve.expr.rhs
+        objs = self.objs
+        sobjs = self.solver_objs
+        target = self.target
+
+        dmda = sobjs['callbackdm']
+        ctx = objs['dummyctx']
+        op_dm = self._operational_dm
+        d_arr = self.field_data.arrays[target]['d']
+
+        body = self.time_dependence.uxreplace_time(body)
+        fields = get_user_struct_fields(body)
+        self._struct_params.extend(fields)
+
+        extra_decls, ctx_calls = self._ctx_preamble(dmda, ctx)
+
+        mat_get_dm = petsc_call('MatGetDM', [objs['J'], Byref(dmda)])
+        dm_get_local_vec = petsc_call('DMGetLocalVector', [op_dm, Byref(objs['yloc'])])
+        zero_diag_local = zero_vector(objs['yloc'])
+        dm_get_local_info = petsc_call(
+            'DMDAGetLocalInfo', [op_dm, Byref(linsolve_expr.localinfo)]
+        )
+        vec_get_array = petsc_call('VecGetArray', [objs['yloc'], Byref(d_arr._C_symbol)])
+        vec_restore_array = petsc_call(
+            'VecRestoreArray', [objs['yloc'], Byref(d_arr._C_symbol)]
+        )
+        dm_local_to_global_begin = petsc_call(
+            'DMLocalToGlobalBegin', [op_dm, objs['yloc'], insert_values, objs['Y']]
+        )
+        dm_local_to_global_end = petsc_call(
+            'DMLocalToGlobalEnd', [op_dm, objs['yloc'], insert_values, objs['Y']]
+        )
+        dm_restore_local_vec = petsc_call(
+            'DMRestoreLocalVector', [op_dm, Byref(objs['yloc'])]
+        )
+
+        body = body._rebuild(body=body.body + (
+            vec_restore_array,
+            dm_local_to_global_begin,
+            dm_local_to_global_end,
+            dm_restore_local_vec,
+        ))
+
+        stacks = (dm_get_local_vec, zero_diag_local, vec_get_array, dm_get_local_info)
+        derefs = dereference_funcs(ctx, fields)
+        struct_definition = (
+            [Definition(ctx), Definition(dmda), Definition(objs['yloc'])]
+            + extra_decls + [mat_get_dm] + ctx_calls
+        )
+
+        body = self._make_callable_body(
+            body, standalones=struct_definition, stacks=stacks + derefs
+        )
+        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, ctx) for i in fields}
+        return Uxreplace(subs).visit(body)
+
+    @property
+    def get_diagonal_efunc(self):
+        return self._get_diagonal_efunc
+
+
 class CoupledCallbackBuilder(BaseCallbackBuilder):
     def __init__(self, **kwargs):
         self._submatrices_callback = None
@@ -1373,12 +1458,14 @@ class MultigridCallbackMixin:
         )
         dmc = self.solver_objs['dmc']
         dmf = self.solver_objs['dmf']
-        self.solver_objs['pctx'] = ProlongCtx(name='pctx', fields=[dmc, dmf, uctx_c, uctx_f])
+        self.solver_objs['pctx'] = ProlongCtx(name='pctx', fields=[dmc, dmf, uctx_c, uctx_f], destroy=False)
         
         self._make_prolongation_matmult()
         # TODO: Change name, make it interpolation_destroy?
         self._make_prolongation_destroy()
         self._make_interpolation()
+        self._make_restriction_matmult()
+        self._make_restriction()
         self._make_dm_shell()
 
     def _uxreplace_efuncs(self):
@@ -1455,7 +1542,7 @@ class MultigridCallbackMixin:
         dm_shell_out = sobjs['shell_out']
         shell_context = sobjs['sctx']
         petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(
-            self._operational_dm
+            FieldFromPointer(self.objs['da'], shell_context)
         )])
         body = [
             petsc_call('DMShellCreate', [petsc_obj_comm, dm_shell_out]),
@@ -1465,7 +1552,8 @@ class MultigridCallbackMixin:
             petsc_call('DMShellSetCreateLocalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_local_vector_efunc.name)]),
             petsc_call('DMShellSetRefine', [Deref(dm_shell_out), PetscCallback(self.make_refine_efunc.name)]),
             petsc_call('DMShellSetCoarsen', [Deref(dm_shell_out), PetscCallback(self.make_coarsen_efunc.name)]),
-            petsc_call('DMShellSetCreateInterpolation', [Deref(dm_shell_out), PetscCallback(self.make_interpolation_efunc.name)])
+            petsc_call('DMShellSetCreateInterpolation', [Deref(dm_shell_out), PetscCallback(self.make_interpolation_efunc.name)]),
+            petsc_call('DMShellSetCreateRestriction', [Deref(dm_shell_out), PetscCallback(self.make_restriction_efunc.name)]),
         ]
         callable_body = self._make_callable_body(body)
         cb = PETScCallable(
@@ -1500,7 +1588,12 @@ class MultigridCallbackMixin:
             petsc_call(
                 'MatShellSetOperation',
                 [Deref(mat), 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
-        )
+            ),
+            petsc_call(
+                'MatShellSetOperation',
+                [Deref(mat), 'MATOP_GET_DIAGONAL',
+                 MatShellSetOp(self.get_diagonal_efunc.name, void, void)]
+            ),
         ]
         callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
@@ -1589,8 +1682,7 @@ class MultigridCallbackMixin:
             # mutual reference that creates a DAG cycle.
             c.Statement(
                 f'PetscCall({self._dm_shell_create_name}'
-                f'(PetscObjectComm((PetscObject){shellc.name}),'
-                f'{sctxnew.name},{shellf.name}))'
+                f'({sctxnew.name},{shellf.name}))'
             )
         ]
         callable_body = self._make_callable_body(
@@ -1598,7 +1690,7 @@ class MultigridCallbackMixin:
         )
         cb = self._make_petsc_callable(
             'Refine', callable_body,
-            parameters=(shellc, shellf)
+            parameters=(shellc, self.solver_objs['mpi_comm'], shellf)
         )
         self._make_refine_efunc = cb
         self._efuncs[cb.name] = cb
@@ -1632,8 +1724,7 @@ class MultigridCallbackMixin:
             # mutual reference that creates a DAG cycle.
             c.Statement(
                 f'PetscCall({self._dm_shell_create_name}'
-                f'(PetscObjectComm((PetscObject){shellc.name}),'
-                f'{sctxnew.name},{shellc.name}))'
+                f'({sctxnew.name},{shellc.name}))'
             )
         ]
         callable_body = self._make_callable_body(
@@ -1641,7 +1732,7 @@ class MultigridCallbackMixin:
         )
         cb = self._make_petsc_callable(
             'Coarsen', callable_body,
-            parameters=(shellf, shellc)
+            parameters=(shellf, self.solver_objs['mpi_comm'], shellc)
         )
         self._make_coarsen_efunc = cb
         self._efuncs[cb.name] = cb
@@ -1671,94 +1762,98 @@ class MultigridCallbackMixin:
     # TODO: do I need to use dummmy structs in case new symbols are generated?
     # TODO: really simplify the structs in all the petsc lowering....
     def _create_prolongation_matvec_body(self, body):
+        sobjs = self.solver_objs
+        objs = self.objs
+        pctx = sobjs['pctx']
+        dmc = FieldFromPointer(sobjs['dmc'], pctx)
+        dmf = FieldFromPointer(sobjs['dmf'], pctx)
+        return self._create_grid_transfer_body(
+            body,
+            read_dm=dmc, read_glob=sobjs['xcoarse'], read_local=objs['xloc'],
+            write_dm=dmf, write_glob=sobjs['yfine'], write_local=objs['yloc'],
+        )
+
+    def _create_restriction_matvec_body(self, body):
+        sobjs = self.solver_objs
+        objs = self.objs
+        pctx = sobjs['pctx']
+        dmc = FieldFromPointer(sobjs['dmc'], pctx)
+        dmf = FieldFromPointer(sobjs['dmf'], pctx)
+        return self._create_grid_transfer_body(
+            body,
+            read_dm=dmf, read_glob=sobjs['yfine'], read_local=objs['yloc'],
+            write_dm=dmc, write_glob=sobjs['xcoarse'], write_local=objs['xloc'],
+            zero_read_local=True,
+        )
+
+    def _create_grid_transfer_body(self, body,
+                                    read_dm, read_glob, read_local,
+                                    write_dm, write_glob, write_local,
+                                    zero_read_local=False,
+                                    scatter_mode=None):
+        """
+        Shared body builder for ProlongationMult and RestrictionMult.
+        """
+        if scatter_mode is None:
+            scatter_mode = insert_values
+
         multigrid_metadata = self.multigrid_metadata.prolongation
         objs = self.objs
         sobjs = self.solver_objs
 
-        # TODO: maybe each vector should have an associated DM..... so in this
-        # case xlocal is associated with dac and ylocal is associated with daf
-        dmda = sobjs['callbackdm']
-        dmc = sobjs['dmc']
-        dmf = sobjs['dmf']
-
         xlocal = objs['xloc']
         ylocal = objs['yloc']
-        target = self.target
-
         pctx = sobjs['pctx']
         uctx_c = sobjs['uctx_c']
-
-        xglob = sobjs['xcoarse']
-        yglob = sobjs['yfine']
-        
         x_matvec = multigrid_metadata.xc
         y_matvec = multigrid_metadata.yf
 
         body = self.time_dependence.uxreplace_time(body)
-
         fields = get_user_struct_fields(body)
 
-        dmc = FieldFromPointer(dmc, pctx)
-        dmf = FieldFromPointer(dmf, pctx)
+        # Always need both coarse and fine DMs for DMDAGetLocalInfo
+        dmc = FieldFromPointer(sobjs['dmc'], pctx)
+        dmf = FieldFromPointer(sobjs['dmf'], pctx)
 
         shell_get_context = petsc_call('MatShellGetContext', [sobjs['mat'], Byref(pctx)])
 
-        dm_get_local_xvec = petsc_call(
-            'DMGetLocalVector', [dmc, Byref(xlocal)]
-        )
-
+        dm_get_local_readvec = petsc_call('DMGetLocalVector', [read_dm, Byref(read_local)])
+        zero_read = zero_vector(read_local)
         global_to_local_begin = petsc_call(
-            'DMGlobalToLocalBegin', [dmc, xglob, insert_values, xlocal]
+            'DMGlobalToLocalBegin', [read_dm, read_glob, insert_values, read_local]
+        )
+        global_to_local_end = petsc_call(
+            'DMGlobalToLocalEnd', [read_dm, read_glob, insert_values, read_local]
         )
 
-        global_to_local_end = petsc_call('DMGlobalToLocalEnd', [
-            dmc, xglob, insert_values, xlocal
-        ])
+        dm_get_local_writevec = petsc_call('DMGetLocalVector', [write_dm, Byref(write_local)])
+        zero_write = zero_vector(write_local)
 
-        dm_get_local_yvec = petsc_call(
-            'DMGetLocalVector', [dmf, Byref(ylocal)]
-        )
-
-        zero_ylocal_memory = zero_vector(ylocal)
-
-        vec_get_array_y = petsc_call(
-            'VecGetArray', [ylocal, Byref(y_matvec._C_symbol)]
-        )
-
-        vec_get_array_x = petsc_call(
-            'VecGetArray', [xlocal, Byref(x_matvec._C_symbol)]
-        )
+        vec_get_array_y = petsc_call('VecGetArray', [ylocal, Byref(y_matvec._C_symbol)])
+        vec_get_array_x = petsc_call('VecGetArray', [xlocal, Byref(x_matvec._C_symbol)])
 
         dm_get_coarse_local_info = petsc_call(
             'DMDAGetLocalInfo', [dmc, Byref(multigrid_metadata.coarse_localinfo)]
         )
-
         dm_get_fine_local_info = petsc_call(
             'DMDAGetLocalInfo', [dmf, Byref(multigrid_metadata.fine_localinfo)]
         )
 
-        vec_restore_array_y = petsc_call(
-            'VecRestoreArray', [ylocal, Byref(y_matvec._C_symbol)]
+        vec_restore_array_y = petsc_call('VecRestoreArray', [ylocal, Byref(y_matvec._C_symbol)])
+        vec_restore_array_x = petsc_call('VecRestoreArray', [xlocal, Byref(x_matvec._C_symbol)])
+
+        dm_local_to_global_begin = petsc_call(
+            'DMLocalToGlobalBegin', [write_dm, write_local, scatter_mode, write_glob]
+        )
+        dm_local_to_global_end = petsc_call(
+            'DMLocalToGlobalEnd', [write_dm, write_local, scatter_mode, write_glob]
         )
 
-        vec_restore_array_x = petsc_call(
-            'VecRestoreArray', [xlocal, Byref(x_matvec._C_symbol)]
+        dm_restore_local_readvec = petsc_call(
+            'DMRestoreLocalVector', [read_dm, Byref(read_local)]
         )
-        # TODO: Should it be INSERT_VALUES or ADD_VALUES?
-        dm_local_to_global_begin = petsc_call('DMLocalToGlobalBegin', [
-            dmf, ylocal, add_values, yglob
-        ])
-
-        dm_local_to_global_end = petsc_call('DMLocalToGlobalEnd', [
-            dmf, ylocal, add_values, yglob
-        ])
-
-        dm_restore_local_xvec = petsc_call(
-            'DMRestoreLocalVector', [dmc, Byref(xlocal)]
-        )
-
-        dm_restore_local_yvec = petsc_call(
-            'DMRestoreLocalVector', [dmf, Byref(ylocal)]
+        dm_restore_local_writevec = petsc_call(
+            'DMRestoreLocalVector', [write_dm, Byref(write_local)]
         )
 
         # TODO: Some of the calls are placed in the `stacks` argument of the
@@ -1767,45 +1862,49 @@ class MultigridCallbackMixin:
         # you avoid having to manually construct the `casts` and can allow
         # Devito to handle their construction. This is a temporary solution and
         # should be revisited
-
         body = body._rebuild(
-            body=body.body +
-            (vec_restore_array_y,
-             vec_restore_array_x,
-             dm_local_to_global_begin,
-             dm_local_to_global_end,
-             dm_restore_local_xvec,
-             dm_restore_local_yvec)
+            body=body.body + (
+                vec_restore_array_y,
+                vec_restore_array_x,
+                dm_local_to_global_begin,
+                dm_local_to_global_end,
+                dm_restore_local_readvec,
+                dm_restore_local_writevec,
+            )
         )
+
+        read_stacks = (zero_read, global_to_local_begin, global_to_local_end) \
+            if zero_read_local else (global_to_local_begin, global_to_local_end)
 
         stacks = (
-            dm_get_local_xvec,
-            global_to_local_begin,
-            global_to_local_end,
-            dm_get_local_yvec,
-            zero_ylocal_memory,
-            vec_get_array_y,
-            vec_get_array_x,
-            dm_get_coarse_local_info,
-            dm_get_fine_local_info
+            (dm_get_local_readvec,)
+            + read_stacks
+            + (
+                dm_get_local_writevec,
+                zero_write,
+                vec_get_array_y,
+                vec_get_array_x,
+                dm_get_coarse_local_info,
+                dm_get_fine_local_info,
+            )
         )
-
         # Dereference function data in struct
         derefs = dereference_funcs(pctx, fields)
-
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
-        struct_definition = (
-            [Definition(pctx), shell_get_context]
-        )
+        struct_definition = [Definition(pctx), shell_get_context]
 
         body = self._make_callable_body(
-            body, standalones=struct_definition, stacks=stacks+derefs
+            body, standalones=struct_definition, stacks=stacks + derefs
         )
         # Replace non-function data with pointer to data in struct
-        subs = {i._C_symbol: FieldFromPointer(i._C_symbol, FieldFromPointer(uctx_c._C_symbol, pctx)) for i in fields}
+        subs = {
+            i._C_symbol: FieldFromPointer(
+                i._C_symbol, FieldFromPointer(uctx_c._C_symbol, pctx)
+            )
+            for i in fields
+        }
         body = Uxreplace(subs).visit(body)
-
         self._struct_params.extend(fields)
         return body
 
@@ -1817,10 +1916,9 @@ class MultigridCallbackMixin:
         """
         """
         pctx = ProlongCtx(name='pctx', fields=[], destroy=True)
-        mat = self.solver_objs['mat_ptr']
+        mat = self.solver_objs['mat']
         body = [
-            petsc_call('DMShellGetContext', [mat, Byref(pctx)]),
-
+            petsc_call('MatShellGetContext', [mat, Byref(pctx)]),
         ]
         callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
@@ -1857,7 +1955,7 @@ class MultigridCallbackMixin:
 
         body = [
             petsc_call('DMShellGetContext', [shellc, Byref(sctxc)]),
-            petsc_call('DMShellGetContext', [shellc, Byref(sctxf)]),
+            petsc_call('DMShellGetContext', [shellf, Byref(sctxf)]),
             petsc_call('PetscMalloc1', [1, Byref(pctx)]),
             DummyExpr(FieldFromPointer(dmc, pctx), FieldFromPointer(da, sctxc)),
             DummyExpr(FieldFromPointer(dmf, pctx), FieldFromPointer(da, sctxf)),
@@ -1868,6 +1966,8 @@ class MultigridCallbackMixin:
             petsc_call('MatCreateShell', [petsc_obj_comm, FieldFromComposite('xm', finfo), FieldFromComposite('xm', cinfo), 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]),
             petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_MULT', MatShellSetOp(self._prolongation_matmult_efunc.name, void, void)]),
             petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_DESTROY', MatShellSetOp(self._prolongation_destroy_efunc.name, void, void)]),
+            # No scaling vector
+            Conditional(vec, DummyExpr(Deref(vec), Null)),
         ]
 
         callable_body = self._make_callable_body(
@@ -1883,6 +1983,92 @@ class MultigridCallbackMixin:
     @property
     def make_interpolation_efunc(self):
         return self._make_interpolation_efunc
+
+    def _make_restriction_matmult(self, prefix='RestrictionMult'):
+        eqns = [self.multigrid_metadata.prolongation.restrict_eq]
+        irs, _ = self.rcompile(
+            eqns, options={'mpi': False}, sregistry=self.sregistry,
+            concretize_mapper=self.concretize_mapper
+        )
+        body = self._create_restriction_matvec_body(List(body=irs.uiet.body))
+        sobjs = self.solver_objs
+        cb = self._make_petsc_callable(
+            prefix, body, parameters=(sobjs['mat'], sobjs['yfine'], sobjs['xcoarse'])
+        )
+        self._restriction_matmult_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def restriction_matmult_efunc(self):
+        return self._restriction_matmult_efunc
+
+    def _make_restriction(self):
+        shellc = self.solver_objs['shellc']
+        shellf = self.solver_objs['shellf']
+        dmc = self.solver_objs['dmc']
+        dmf = self.solver_objs['dmf']
+        da = self.objs['da']
+        all_ctx = self.solver_objs['all_ctx']
+        sctxc = self.solver_objs['sctxc']
+        sctxf = self.solver_objs['sctxf']
+        uctx_c = self.solver_objs['uctx_c']
+        uctx_f = self.solver_objs['uctx_f']
+        pctx = self.solver_objs['pctx']
+        mat = self.solver_objs['mat_ptr']
+        level = self.solver_objs['grid_level']
+        cinfo = self.solver_objs['cinfo']
+        finfo = self.solver_objs['finfo']
+        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellc)])
+
+        body = [
+            petsc_call('DMShellGetContext', [shellc, Byref(sctxc)]),
+            petsc_call('DMShellGetContext', [shellf, Byref(sctxf)]),
+            petsc_call('PetscMalloc1', [1, Byref(pctx)]),
+            DummyExpr(FieldFromPointer(dmc, pctx), FieldFromPointer(da, sctxc)),
+            DummyExpr(FieldFromPointer(dmf, pctx), FieldFromPointer(da, sctxf)),
+            DummyExpr(
+                FieldFromPointer(uctx_c._C_symbol, pctx),
+                FieldFromPointer(
+                    all_ctx.indexed[FieldFromPointer(level, sctxc)], Byref(sctxc)
+                )
+            ),
+            DummyExpr(
+                FieldFromPointer(uctx_f._C_symbol, pctx),
+                FieldFromPointer(
+                    all_ctx.indexed[FieldFromPointer(level, sctxf)], Byref(sctxf)
+                )
+            ),
+            petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmc, pctx), Byref(cinfo)]),
+            petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmf, pctx), Byref(finfo)]),
+            # Restriction mat: rows=coarse local, cols=fine local (transpose of interpolation)
+            petsc_call('MatCreateShell', [
+                petsc_obj_comm,
+                FieldFromComposite('xm', cinfo), FieldFromComposite('xm', finfo),
+                'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat
+            ]),
+            petsc_call('MatShellSetOperation', [
+                Deref(mat), 'MATOP_MULT',
+                MatShellSetOp(self._restriction_matmult_efunc.name, void, void)
+            ]),
+            petsc_call('MatShellSetOperation', [
+                Deref(mat), 'MATOP_DESTROY',
+                MatShellSetOp(self._prolongation_destroy_efunc.name, void, void)
+            ]),
+        ]
+
+        callable_body = self._make_callable_body(
+            body, standalones=(Definition(sctxc), Definition(sctxf))
+        )
+        cb = self._make_petsc_callable(
+            'CreateRestriction', callable_body,
+            parameters=(shellc, shellf, mat)
+        )
+        self._make_restriction_efunc = cb
+        self._efuncs[cb.name] = cb
+
+    @property
+    def make_restriction_efunc(self):
+        return self._make_restriction_efunc
 
     @property
     def _operational_dm(self):
@@ -1904,15 +2090,15 @@ class MultigridCallbackMixin:
         )
         return [Definition(dummysctx)], [get_shell_ctx, ctx_assign]
 
-    # def _formfunc_dm_init(self, callbackdm, objs):
-    #     return [Definition(callbackdm),
-    #             petsc_call('SNESGetDM', [objs['snes'], Byref(callbackdm)])]
+    def _formfunc_dm_init(self, callbackdm, objs):
+        return [Definition(callbackdm),
+                petsc_call('SNESGetDM', [objs['snes'], Byref(callbackdm)])]
     
 
 
 
 def make_callback_builder_cls(is_coupled, is_multigrid, is_initial_guess,
-                              is_constrained_bc):
+                              is_constrained_bc, is_diagonal):
     """
     Build a CallbackBuilder class by composing the appropriate mixins.
     """
@@ -1928,6 +2114,8 @@ def make_callback_builder_cls(is_coupled, is_multigrid, is_initial_guess,
         mixins.append(ConstrainedBCCallbackMixin)
     if is_initial_guess:
         mixins.append(InitialGuessCallbackMixin)
+    if is_diagonal:
+        mixins.append(GetDiagonalCallbackMixin)
     mixins.append(CoupledCallbackBuilder if is_coupled else BaseCallbackBuilder)
 
     if len(mixins) == 1:

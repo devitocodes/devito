@@ -110,6 +110,15 @@ class PointerVecArg(Vec):
     _C_modifier = ' *'
 
 
+class MPIComm(PetscObject):
+    """MPI communicator — passed by PETSc to Refine/Coarsen callbacks."""
+    dtype = CustomDtype('MPI_Comm')
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('destroy', False)
+        super().__init__(*args, **kwargs)
+
+
 class PetscMPIInt(PetscObject):
     """
     PETSc datatype used to represent `int` parameters

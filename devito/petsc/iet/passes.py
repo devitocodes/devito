@@ -104,6 +104,7 @@ def lower_petsc(iet, **kwargs):
     # executed at the end of the Operator.
     clear_options = []
 
+    extra_includes = []
     for iters, (inject_solve,) in inject_solve_mapper.items():
 
         solver = BuildSolver(inject_solve, iters, comm, section_mapper, **kwargs)
@@ -119,6 +120,8 @@ def lower_petsc(iet, **kwargs):
             solver.callback_builder._clear_options_efunc.name, []
         ),))
 
+        extra_includes.extend(solver.required_headers)
+
     populate_matrix_context(efuncs)
 
     # Strip HaloSpots from PETSc callback efuncs before returning them.
@@ -133,7 +136,7 @@ def lower_petsc(iet, **kwargs):
     body = core + tuple(setup) + iet.body.body + tuple(clear_options)
     body = iet.body._rebuild(body=body)
     iet = iet._rebuild(body=body)
-    metadata = {**core_metadata(), 'efuncs': tuple(efuncs.values())}
+    metadata = {**core_metadata(tuple(extra_includes)), 'efuncs': tuple(efuncs.values())}
     return iet, metadata
 
 
@@ -168,18 +171,17 @@ def fix_mg_populate_calls(graph, **kwargs):
         return
 
     populate_efunc = graph.efuncs[mg_calls[0].name]
-    mainctx = populate_efunc.parameters[0]  # MainUserStruct is always first
+    field_params = populate_efunc.parameters[1:]
 
     mapper = {
         call: call._rebuild(
             arguments=[call.arguments[0]] + [
                 scale_param_for_level(f, call.level)
-                for f in mainctx.callback_fields
+                for f in field_params
             ]
         )
         for call in mg_calls
     }
-
     root_name = graph.root.name
     graph.efuncs[root_name] = Transformer(mapper).visit(graph.efuncs[root_name])
 
@@ -356,6 +358,7 @@ class BuildSolver:
             not self.is_coupled and bool(field_data.initial_guess.exprs)
         )
         self.is_multigrid = self.solver_metadata.multigrid_metadata is not None
+        self.is_diagonal = self.solver_metadata.needs_diagonal
 
         self.common_kwargs = {
             'inject_solve': self.inject_solve,
@@ -392,6 +395,7 @@ class BuildSolver:
             is_multigrid=self.is_multigrid,
             is_initial_guess=self.is_initial_guess,
             is_constrained_bc=self.is_constrained_bc,
+            is_diagonal=self.is_diagonal,
         )
         return cls(**self.common_kwargs)
 

@@ -89,6 +89,18 @@ class SolverMetaData(MetaData):
     def grid(self):
         return self.field_data.grid
 
+    @property
+    def needs_diagonal(self):
+        """
+        True when the solver configuration requires `MATOP_GET_DIAGONAL`
+        to be registered on the matrix
+        """
+        p = self.solver_parameters
+        return (
+            p.get('pc_type') == 'jacobi'
+            or p.get('mg_levels_pc_type') == 'jacobi'
+        )
+
     @classmethod
     def eval(cls, *args):
         return None
@@ -136,7 +148,8 @@ class FieldData:
         A dictionary mapping `target` to its corresponding PETScArrays.
     """
     def __init__(self, target=None, jacobian=None, residual=None,
-                 initial_guess=None, constrain_bc=None, arrays=None, **kwargs):
+                 initial_guess=None, constrain_bc=None, arrays=None,
+                 diagonal=None, **kwargs):
         self._target = target
         petsc_precision = dtype_mapper[petsc_variables['PETSC_PRECISION']]
         if self._target.dtype != petsc_precision:
@@ -150,6 +163,7 @@ class FieldData:
         self._initial_guess = initial_guess
         self._constrain_bc = constrain_bc
         self._arrays = arrays
+        self._diagonal = diagonal
 
     @property
     def target(self):
@@ -174,6 +188,10 @@ class FieldData:
     @property
     def arrays(self):
         return self._arrays
+
+    @property
+    def diagonal(self):
+        return self._diagonal
 
     @property
     def space_dimensions(self):
@@ -685,6 +703,38 @@ class MixedResidual(Residual):
                 rhs = rhs.subs(self.time_mapper)*volume
 
         return (Eq(self.arrays[target]['f'], rhs, subdomain=expr.subdomain),)
+
+
+class Diagonal:
+    """
+    """
+
+    def __init__(self, target, matvecs, arrays, scdiag):
+        self.target = target
+        self.matvecs = matvecs
+        self.arrays = arrays
+        self.scdiag = scdiag
+        self._build_exprs()
+
+    def _build_exprs(self):
+        d = self.arrays[self.target]['d']
+        x = self.arrays[self.target]['x']
+
+        diag_exprs = []
+        for m in self.matvecs:
+            if isinstance(m, ZeroRow):
+                diag_exprs.append(Eq(d, self.scdiag, subdomain=m.subdomain))
+            elif isinstance(m, ZeroColumn):
+                pass
+            else:
+                coeff = centre_stencil(m.rhs, x, as_coeff=True)
+                diag_exprs.append(Eq(d, coeff, subdomain=m.subdomain))
+
+        self._diag_exprs = tuple(diag_exprs)
+
+    @property
+    def diag_exprs(self):
+        return self._diag_exprs
 
 
 class InitialGuess:

@@ -1,10 +1,11 @@
 import numpy as np
 
 from devito.petsc.types import (
-    DM, KSP, PC, SNES, CallbackPetscInt, DMDALocalInfo, DummyArg, JacobianStruct, Mat, MatReuse,
-    NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt, PetscSectionGlobal,
-    PetscSectionLocal, PetscSF, PointerDM, PointerDMArg, PointerIS, PointerMat,
-    PointerPetscInt, StartPtr, SubMatrixStruct, Vec, VecScatter, PointerMatArg, PointerVecArg
+    DM, KSP, MPIComm, PC, SNES, CallbackPetscInt, DMDALocalInfo, DummyArg, JacobianStruct,
+    Mat, MatReuse, NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt,
+    PetscSectionGlobal, PetscSectionLocal, PetscSF, PointerDM, PointerDMArg, PointerIS,
+    PointerMat, PointerPetscInt, StartPtr, SubMatrixStruct, Vec, VecScatter, PointerMatArg,
+    PointerVecArg
 )
 from devito.symbolics import String
 from devito.tools import frozendict
@@ -290,6 +291,9 @@ class MultigridTypeBuilderMixin:
 
         base_dict['xcoarse'] = Vec('xc')
         base_dict['yfine'] = Vec('yf')
+
+        # MPI communicator parameter for Refine/Coarsen callbacks
+        base_dict['mpi_comm'] = MPIComm(name='comm')
 
         return base_dict
 

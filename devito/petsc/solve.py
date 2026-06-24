@@ -1,7 +1,8 @@
 from devito.petsc.solver_parameters import format_options_prefix, linear_solver_parameters
 from devito.petsc.types import (
-    ConstrainBC, DMDALocalInfo, FieldData, InitialGuess, Jacobian, LinearSolverMetaData,
-    MixedJacobian, MixedResidual, MultipleFieldData, MultigridMetadata, PETScArray, Residual
+    ConstrainBC, Diagonal, DMDALocalInfo, FieldData, InitialGuess, Jacobian,
+    LinearSolverMetaData, MixedJacobian, MixedResidual, MultipleFieldData,
+    MultigridMetadata, PETScArray, Residual
 )
 from devito.petsc.types.equation import EssentialBC
 from devito.symbolics import retrieve_dimensions, retrieve_functions
@@ -172,6 +173,7 @@ class InjectSolve:
         jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
         residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
         initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
+        diagonal = Diagonal(target, jacobian.matvecs, arrays, jacobian.scdiag)
 
         constrain_exprs = self._get_constrain_exprs(exprs)
         constrain_bc = None
@@ -186,7 +188,8 @@ class InjectSolve:
             residual=residual,
             initial_guess=initial_guess,
             arrays=arrays,
-            constrain_bc=constrain_bc
+            constrain_bc=constrain_bc,
+            diagonal=diagonal,
         )
 
         return target, funcs, field_data
@@ -329,4 +332,4 @@ def generate_time_mapper(exprs):
 
 
 localinfo = DMDALocalInfo(name='info', liveness='eager')
-prefixes = ['y', 'x', 'f', 'b']
+prefixes = ['y', 'x', 'f', 'b', 'd']

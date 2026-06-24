@@ -94,6 +94,19 @@ class BuilderBase:
             [sobjs['Jac'], 'MATOP_MULT', MatShellSetOp(matvec.name, void, void)]
         )
 
+    def _mat_shell_set_matop_get_diagonal(self):
+        """
+        Register MATOP_GET_DIAGONAL on the Jacobian
+        """
+        efunc = getattr(self.callback_builder, 'get_diagonal_efunc', None)
+        if efunc is None:
+            return None
+        sobjs = self.solver_objs
+        return petsc_call(
+            'MatShellSetOperation',
+            [sobjs['Jac'], 'MATOP_GET_DIAGONAL', MatShellSetOp(efunc.name, void, void)]
+        )
+
     def _setup(self):
         sobjs = self.solver_objs
         dmda = sobjs['dmda']
@@ -153,6 +166,7 @@ class BuilderBase:
             self._create_global_b_vector(),
             snes_get_ksp,
             self._mat_shell_set_matop_mult(),
+            self._mat_shell_set_matop_get_diagonal(),
             formfunc_operation,
             snes_set_options,
             self._mat_set_dm()
@@ -398,11 +412,15 @@ class MultigridBuilderMixin:
         return Null
 
     def _mat_set_dm(self):
-        # Set inside CreateMatrix DMShell callback instead.
+        # Set inside CreateMatrix DMShell callback instead
         return None
 
     def _mat_shell_set_matop_mult(self):
-        # Set inside CreateMatrix DMShell callback instead.
+        # Set inside CreateMatrix DMShell callback instead
+        return None
+
+    def _mat_shell_set_matop_get_diagonal(self):
+        # Set inside CreateMatrix DMShell callback instead
         return None
 
     def _create_dmda_calls(self, dmda):
@@ -444,7 +462,7 @@ class MultigridBuilderMixin:
         )
         make_shell = petsc_call(
             self.callback_builder.make_dm_shell_efunc.name,
-            [sobjs['comm'], shell_context, Byref(shell_dm)]
+            [shell_context, Byref(shell_dm)]
         )
 
         # Call the function that actually creates the DMShell
