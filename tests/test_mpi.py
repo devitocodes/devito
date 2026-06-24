@@ -644,6 +644,45 @@ class TestSparseFunction:
         expectedinds = expectedinds[grid.distributor.myrank]
         assert sf.local_indices == expectedinds
 
+    @pytest.mark.parallel(mode=[1, 4])
+    @pytest.mark.parametrize('order', ['C', 'F'])
+    def test_sparse_time_data_advanced_indexing(self, mode, order):
+        """Rank-local external traces labeled by global sparse indices are routed."""
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        nt, npoint = 3, 8
+        rec = SparseTimeFunction(name="rec", grid=grid, nt=nt, npoint=npoint)
+
+        local_sparse = np.arange(npoint)[rec.local_indices[-1]]
+        global_data = np.arange(nt*npoint, dtype=rec.dtype).reshape(nt, npoint)
+        expected_local = global_data[:, local_sparse]
+
+        rank = grid.distributor.myrank
+        trace_index = np.array_split(np.arange(npoint)[::-1],
+                                     grid.distributor.nprocs)[rank]
+        trace_data = np.array(global_data[:, trace_index], order=order)
+
+        rec.data_local[:, :] = 0
+        rec.data[:, trace_index] = trace_data
+        assert np.all(rec.data_local == expected_local)
+        assert np.all(rec.data[:, trace_index] == trace_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_sparse_coordinates_advanced_indexing(self, mode):
+        """Coordinates (a vector payload per point) route the same way."""
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+        npoint = 2
+        sf = SparseFunction(name="sf", grid=grid, npoint=npoint)
+
+        rank = grid.distributor.myrank
+        point_index = np.array([1, 0]) if rank == 0 else np.empty(0, dtype=np.int64)
+        global_coords = np.arange(npoint*grid.dim, dtype=sf.coordinates.dtype)
+        global_coords = global_coords.reshape(npoint, grid.dim)
+
+        sf.coordinates.data[point_index] = global_coords[point_index]
+        local = sf.coordinates.local_indices                 # (sparse slice, dim slice)
+        assert np.all(sf.coordinates.data == global_coords[local])
+        assert np.all(sf.coordinates.data[point_index] == global_coords[point_index])
+
     @pytest.mark.parallel(mode=4)
     def test_scatter_gather(self, mode):
         """

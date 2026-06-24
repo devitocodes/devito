@@ -649,11 +649,208 @@ class TestDataDistributed:
         assert np.all(u.data == 1.)
         assert np.all(u.data._local == 1.)
 
+        u.data_local[:] = 2.
+        assert np.all(u.data == 2.)
+        assert np.all(u.data_local == 2.)
+
         v.data_with_halo[:] = 1.
         assert v.data_with_halo[:].shape == (3, 3)
         assert np.all(v.data_with_halo == 1.)
         assert np.all(v.data_with_halo[:] == 1.)
         assert np.all(v.data_with_halo._local == 1.)
+
+    @pytest.mark.parallel(mode=4)
+    def test_local_indices_roundtrip(self, mode):
+        """
+        The public ``local_indices`` slices map a rank's local data into the
+        global array, enabling the natural no-comm idiom::
+
+            f.data_local[:] = global_array[f.local_indices]
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        nt = 3
+        g = TimeFunction(name='g', grid=grid, save=nt, time_order=1,
+                         space_order=0, dtype=np.int32)
+
+        global_f = np.arange(8, dtype=f.dtype)
+        global_g = np.arange(nt*8, dtype=g.dtype).reshape(nt, 8)
+
+        # Slice the (replicated) global arrays down to this rank's block
+        f.data_local[:] = global_f[f.local_indices]
+        g.data_local[:] = global_g[g.local_indices]      # time axis -> full slice
+
+        assert np.all(f.data == global_f[f.local_indices])
+        assert np.all(g.data == global_g[g.local_indices])
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_set_get_1d(self, mode):
+        """Each rank labels rank-local values with arbitrary global indices."""
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        global_data = np.arange(8, dtype=f.dtype)
+        rank = grid.distributor.myrank
+        source_index = np.array_split(np.arange(8)[::-1],
+                                      grid.distributor.nprocs)[rank]
+        source_data = global_data[source_index]
+
+        f.data[:] = 0
+        f.data[source_index] = source_data
+
+        assert np.all(f.data_local == global_data[f.local_indices])
+        assert np.all(f.data[source_index] == source_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_negative_and_empty(self, mode):
+        """Negative indices normalize; ranks contributing nothing are a no-op."""
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        index = [-1, 0] if rank == 0 else []
+        values = np.array([70, 10], dtype=f.dtype) if rank == 0 else \
+            np.empty(0, dtype=f.dtype)
+
+        f.data[:] = 0
+        f.data[index] = values
+
+        expected = np.zeros(8, dtype=f.dtype)
+        expected[[-1, 0]] = [70, 10]
+        assert np.all(f.data_local == expected[f.local_indices])
+        assert np.all(f.data[index] == values)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('order', ['C', 'F'])
+    def test_advanced_indexing_with_time_window(self, mode, order):
+        """A replicated (time) axis rides along as the exchanged payload."""
+        grid = Grid(shape=(8,))
+        nt = 3
+        f = TimeFunction(name='f', grid=grid, save=nt, time_order=1,
+                         space_order=0, dtype=np.int32)
+
+        global_data = np.arange(nt*8, dtype=f.dtype).reshape(nt, 8)
+        rank = grid.distributor.myrank
+        source_index = np.array_split(np.arange(8)[::-1],
+                                      grid.distributor.nprocs)[rank]
+        time_window = slice(1, None)
+        source_data = np.array(global_data[time_window, source_index], order=order)
+
+        f.data[:] = 0
+        f.data[time_window, source_index] = source_data
+
+        expected = np.zeros_like(global_data)
+        expected[time_window, :] = global_data[time_window, :]
+        assert np.all(f.data == expected[f.local_indices])
+        assert np.all(f.data[time_window, source_index] == source_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_two_distributed_dims(self, mode):
+        """
+        Scatter over two distributed dimensions at once -- the case the previous
+        implementation rejected with NotImplementedError.
+        """
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        global_data = np.arange(16, dtype=f.dtype).reshape(4, 4)
+
+        rank = grid.distributor.myrank
+        points = {0: ([0, 3], [0, 3]), 1: ([1, 2], [3, 0]),
+                  2: ([3, 0], [1, 2]), 3: ([2, 1], [2, 1])}
+        xs, ys = (np.array(p) for p in points[rank])
+        values = global_data[xs, ys]
+
+        f.data[:] = -1
+        f.data[xs, ys] = values
+        assert np.all(f.data[xs, ys] == values)
+
+        # Every assigned global point now holds its global value
+        gathered = np.array(f.data_gather())
+        if rank == 0:
+            for r in range(grid.distributor.nprocs):
+                rx, ry = (np.array(p) for p in points[r])
+                assert np.all(gathered[rx, ry] == global_data[rx, ry])
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_errors(self, mode):
+        """Duplicate and out-of-bounds indices raise consistently on all ranks."""
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        duplicate_index = np.array([1, 1]) if rank == 0 else \
+            np.empty(0, dtype=np.int64)
+
+        with pytest.raises(ValueError, match="rank 0:.*Duplicate global indices"):
+            f.data[duplicate_index] = np.ones(duplicate_index.size, dtype=f.dtype)
+
+        oob_index = np.array([8]) if rank == 0 else np.empty(0, dtype=np.int64)
+        with pytest.raises(ValueError, match="rank 0:.*out-of-bounds"):
+            f.data[oob_index] = np.ones(oob_index.size, dtype=f.dtype)
+        with pytest.raises(ValueError, match="rank 0:.*out-of-bounds"):
+            f.data[oob_index]
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_local_only_no_comm(self, mode):
+        """
+        Case 1: each rank labels rank-local values with its own global indices, so
+        nothing crosses ranks. ``b`` matches the local size; data stays put. The
+        same effect is achievable comm-free via ``data_local`` + ``local_indices``.
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        # This rank's own global indices, as an explicit array
+        local_index = np.arange(*f.local_indices[0].indices(grid.shape[0]))
+        b = np.arange(local_index.size, dtype=f.dtype) + 10*rank
+
+        f.data[:] = 0
+        f.data[local_index] = b              # routed, but resolves to self only
+        assert np.all(f.data_local == b)
+        assert np.all(f.data[local_index] == b)
+
+        # The idiomatic comm-free equivalent
+        g = Function(name='g', grid=grid, space_order=0, dtype=np.int32)
+        g.data_local[:] = b
+        assert np.all(g.data == f.data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_generic_size_crossing_ranks(self, mode):
+        """
+        Case 2: a single rank assigns an arbitrary number of values to global
+        indices spread across every rank; ``len(b)`` differs from the local size.
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        index = np.array([7, 5, 2, 0]) if rank == 0 else np.empty(0, dtype=np.int64)
+        values = np.array([77, 55, 22, 0], dtype=f.dtype) if rank == 0 else \
+            np.empty(0, dtype=f.dtype)
+
+        f.data[:] = -1
+        f.data[index] = values
+
+        expected = np.full(8, -1, dtype=f.dtype)
+        expected[[7, 5, 2, 0]] = [77, 55, 22, 0]
+        assert np.all(f.data_local == expected[f.local_indices])
+        assert np.all(f.data[index] == values)
+
+    @pytest.mark.parallel(mode=4)
+    def test_full_assignment_replicated_rhs(self, mode):
+        """
+        Case 3: ``a.data[:] = b`` with ``b`` the full global array replicated on
+        every rank. Basic indexing, so each rank slices its own piece (no comm).
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        b = np.arange(8, dtype=f.dtype)   # identical (replicated) on all ranks
+        f.data[:] = b
+
+        assert np.all(f.data_local == b[f.local_indices])
+        assert np.all(f.data[:]._local == b[f.local_indices])
 
     @pytest.mark.parallel(mode=4)
     def test_indexing(self, mode):
