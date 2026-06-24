@@ -19,9 +19,8 @@ Unsupported patterns fall back to the legacy path -- no behavior is lost.
 import numpy as np
 
 from devito.data.distributed.layout import Layout
-from devito.data.distributed.plan import _decode, _encode, _group_peers, _resolve_owners
+from devito.data.distributed.plan import _group_peers, _resolve_owners, nbx_push
 from devito.data.distributed.selection import Affine, Selection
-from devito.data.distributed.transport import nbx_exchange
 from devito.mpi import MPI
 
 __all__ = ['redistribute_set']
@@ -98,23 +97,15 @@ def _structured_spec(data, glb_idx, other):
 
 
 def _push(layout, gcoords, values, local):
-    """Push ``values`` (one per global coordinate in ``gcoords``) to owners."""
+    """Push ``values`` (one per global coordinate in ``gcoords``) to owners.
+
+    A structured assignment has exactly one value per distributed point and no
+    replicated payload, so it is :func:`~devito.data.distributed.plan.nbx_push`
+    with ``payload_size == 1`` (``block_offsets == [0]``, ``repl_total == 1``).
+    """
     owners, dist_local, sub = _resolve_owners(None, layout, gcoords)
     peers, _, _ = _group_peers(layout, owners, dist_local, sub, gcoords)
 
-    comm = layout.distributor.comm
     block_offsets = np.zeros(1, dtype=np.int64)   # no replicated payload
-    headers = {r: _encode(1, block_offsets, dist_lin)
-               for r, (_, dist_lin) in peers.items()}
-    payloads = {r: values[rows]
-                for r, (rows, _) in peers.items() if rows.size}
-
-    requests = nbx_exchange(comm, headers, np.int64, tag=43)
-    recv_values = nbx_exchange(comm, payloads, values.dtype, tag=44)
-
-    axes = layout.distributed_axes
-    moved = np.moveaxis(local, axes, range(len(axes)))
-    for src, buf in requests.items():
-        _, dist_lin = _decode(buf)
-        midx = np.unravel_index(dist_lin, moved.shape)
-        moved[midx] = recv_values[src]
+    nbx_push(layout.distributor.comm, layout.distributed_axes, 1, peers,
+             block_offsets, 1, values.reshape(-1, 1), local)
