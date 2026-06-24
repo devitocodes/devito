@@ -202,6 +202,24 @@ class Data(np.ndarray):
         return self._is_distributed and configuration['mpi'] and \
             self._distributor.is_parallel
 
+    def _scattered_exchange(self, glb_idx):
+        """
+        Return an :class:`Exchange` when ``glb_idx`` advanced-indexes a
+        distributed axis (the "unbalanced"/scattered case, where the value is
+        rank-local and ordered by ``glb_idx``), otherwise ``None`` so the caller
+        falls back to the regular (basic-indexing) path.
+        """
+        from devito.data.distributed import cached_exchange
+        from devito.data.distributed.selection import index_has_array
+
+        if not self._is_decomposed or not index_has_array(glb_idx, self.ndim):
+            return None
+        exchange = cached_exchange(self, glb_idx)
+        distributed = {a for a, d in enumerate(self._decomposition) if d is not None}
+        if any(a in distributed for a in exchange._selection.advanced_axes):
+            return exchange
+        return None
+
     def __repr__(self):
         return super(Data, self._local).__repr__()
 
@@ -261,6 +279,10 @@ class Data(np.ndarray):
 
     @_check_idx
     def __getitem__(self, glb_idx, comm_type, gather_rank=None):
+        if gather_rank is None:
+            exchange = self._scattered_exchange(glb_idx)
+            if exchange is not None:
+                return exchange.get()
         loc_idx = self._index_glb_to_loc(glb_idx)
         is_gather = isinstance(gather_rank, int)
         if is_gather and comm_type is gather:
@@ -383,6 +405,11 @@ class Data(np.ndarray):
 
     @_check_idx
     def __setitem__(self, glb_idx, val, comm_type):
+        if not (isinstance(val, Data) and val._is_decomposed):
+            exchange = self._scattered_exchange(glb_idx)
+            if exchange is not None:
+                exchange.put(val)
+                return
         loc_idx = self._index_glb_to_loc(glb_idx)
 
         if loc_idx is NONLOCAL:
