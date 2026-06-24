@@ -2944,3 +2944,395 @@ class TestPetscSection:
             op1.apply()
             op2.apply()
             op3.apply()
+
+
+# TODO: add tests for the new matshell to aij matview
+class TestMatConvertShell:
+    pass
+
+
+class TestMultiGrid1D:
+
+    # TODO:
+    # - add tests for matviewing the interp and restrict matrices
+    # - add parallel tests
+    # - add tests for default pc_mg_levels
+    # - maybe make mg_levels_pc_type jacobi the default pc type for mg?
+    # - also add tests using petscsection i.e removing the essential boundary
+    #   nodes from the global system with multigrid
+    # - add specific tests for the multigrid metadata i.e the grid hierarchy
+    # - maybe add an entirely separate class to test the grid transfers
+    # - test errors raised for invalid grid sizes
+
+    @skipif('petsc')
+    def setup_class(self):
+        """
+        Build the 1D Poisson multigrid operator shared across tests in this class.
+        """
+        class SubLeft(SubDomain):
+            name = 'subleft'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('left', 1)}
+
+        class SubRight(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('right', 1)}
+
+        sub1 = SubLeft()
+        sub2 = SubRight()
+        subdomains = (sub1, sub2)
+
+        self.n_fine = 33
+
+        self.grid = Grid(
+            shape=(self.n_fine,), subdomains=subdomains, dtype=np.float64
+        )
+
+        self.u = Function(name='u', grid=self.grid, space_order=2)
+        self.f = Function(name='f', grid=self.grid, space_order=2)
+        self.bc = Function(name='bc', grid=self.grid, space_order=2)
+
+        eqn = Eq(-self.u.laplace, self.f, subdomain=self.grid.interior)
+
+        X = np.linspace(0, 1., self.n_fine).astype(np.float64)
+        self.f.data[:] = np.float64(np.exp(X))
+
+        self.bc.data[0] = -np.float64(1.0)
+        self.bc.data[-1] = -np.float64(np.exp(1.0))
+
+        bcs = [EssentialBC(self.u, self.bc, subdomain=sub1)]
+        bcs += [EssentialBC(self.u, self.bc, subdomain=sub2)]
+
+        exprs = [eqn] + bcs
+        petsc = petscsolve(
+            exprs, target=self.u,
+            solver_parameters={
+                'ksp_type': 'cg',
+                'pc_type': 'mg',
+                'pc_mg_levels': 3,
+                'snes_type': 'ksponly',
+                'mg_levels_ksp_type': 'chebyshev',
+                'mg_levels_pc_type': 'jacobi',
+                'mg_coarse_ksp_type': 'gmres',
+                'mg_coarse_pc_type': 'none',
+            },
+            options_prefix='mg_poisson_1d',
+        )
+
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            self.op = Operator(petsc)
+
+    @skipif('petsc')
+    def test_1d_run(self):
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            summary = self.op.apply()
+
+        iters = summary.petsc[('section0', 'mg_poisson_1d')].KSPGetIterationNumber
+        assert iters == 5
+
+        # Reference norms from petsc4pdes:
+        # ./fish -fsh_dim 1 -pc_type mg -pc_mg_levels 3 \
+        #   -mg_levels_ksp_type chebyshev -mg_levels_pc_type jacobi \
+        #   -mg_coarse_ksp_type gmres -mg_coarse_pc_type none
+        ref_inf = 2.2219848667903718819616e-05
+        ref_l2 = 1.2361136806086694679523e-05
+
+        X = np.linspace(0, 1., self.n_fine).astype(np.float64)
+        u_exact = Function(name='u_exact_1d', grid=self.grid, space_order=2)
+        u_exact.data[:] = -np.float64(np.exp(X))
+
+        diff = Function(name='diff_1d', grid=self.grid, space_order=2)
+        diff.data[:] = u_exact.data[:] - self.u.data[:]
+
+        inf_norm = np.linalg.norm(diff.data[:].ravel(), ord=np.inf)
+        n_interior = np.prod([s - 1 for s in self.grid.shape])
+        l2_norm = norm(diff) / np.sqrt(n_interior)
+
+        assert np.isclose(inf_norm, ref_inf, rtol=1e-8), \
+            f"inf norm {inf_norm} differs from reference {ref_inf}"
+        assert np.isclose(l2_norm, ref_l2, rtol=1e-8), \
+            f"L2 norm {l2_norm} differs from reference {ref_l2}"
+
+    @skipif('petsc')
+    def test_1d_interpolation(self):
+        # TODO: use the new matview debugging tool to check the interpolation matrix
+        pass
+
+    @skipif('petsc')
+    def test_1d_restriction(self):
+        pass
+
+
+class TestMultiGrid2D:
+
+    @skipif('petsc')
+    def setup_class(self):
+        """
+        Build the 2D Poisson multigrid operator shared across tests in this class.
+        """
+        class SubTop(SubDomain):
+            name = 'subtop'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 1), y: ('right', 1)}
+
+        class SubBottom(SubDomain):
+            name = 'subbottom'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 1), y: ('left', 1)}
+
+        class SubLeft(SubDomain):
+            name = 'subleft'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('left', 1), y: y}
+
+        class SubRight(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('right', 1), y: y}
+
+        sub1 = SubTop()
+        sub2 = SubBottom()
+        sub3 = SubLeft()
+        sub4 = SubRight()
+        subdomains = (sub1, sub2, sub3, sub4)
+
+        self.n_fine = 33
+
+        self.grid = Grid(
+            shape=(self.n_fine, self.n_fine), subdomains=subdomains, dtype=np.float64
+        )
+
+        self.u = Function(name='u', grid=self.grid, space_order=2)
+        self.f = Function(name='f', grid=self.grid, space_order=2)
+        self.bc = Function(name='bc', grid=self.grid, space_order=2)
+
+        eqn = Eq(-self.u.laplace, self.f, subdomain=self.grid.interior)
+
+        tmpx = np.linspace(0, 1., self.n_fine).astype(np.float64)
+        tmpy = np.linspace(0, 1., self.n_fine).astype(np.float64)
+        Y, X = np.meshgrid(tmpx, tmpy)
+
+        self.f.data[:] = X * np.float64(np.exp(Y))
+
+        self.bc.data[0, :] = 0.
+        self.bc.data[-1, :] = -np.exp(tmpy)
+        self.bc.data[:, 0] = -tmpx
+        self.bc.data[:, -1] = -tmpx * np.exp(1)
+
+        bcs = [EssentialBC(self.u, self.bc, subdomain=sub1)]
+        bcs += [EssentialBC(self.u, self.bc, subdomain=sub2)]
+        bcs += [EssentialBC(self.u, self.bc, subdomain=sub3)]
+        bcs += [EssentialBC(self.u, self.bc, subdomain=sub4)]
+
+        exprs = [eqn] + bcs
+        petsc = petscsolve(
+            exprs, target=self.u,
+            solver_parameters={
+                'ksp_type': 'cg',
+                'pc_type': 'mg',
+                'pc_mg_levels': 3,
+                'snes_type': 'ksponly',
+                'mg_levels_ksp_type': 'chebyshev',
+                'mg_levels_pc_type': 'jacobi',
+                'mg_coarse_ksp_type': 'gmres',
+                'mg_coarse_pc_type': 'none',
+            },
+            options_prefix='mg_poisson_2d',
+        )
+
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            self.op = Operator(petsc)
+
+    @skipif('petsc')
+    def test_2d_run(self):
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            summary = self.op.apply()
+
+        iters = summary.petsc[('section0', 'mg_poisson_2d')].KSPGetIterationNumber
+        assert iters == 5
+
+        # Reference norms from petsc4pdes:
+        # ./fish -fsh_dim 2 -pc_type mg -pc_mg_levels 3 \
+        #   -mg_levels_ksp_type chebyshev -mg_levels_pc_type jacobi \
+        #   -mg_coarse_ksp_type gmres -mg_coarse_pc_type none
+        ref_inf = 3.4751640680674711347820e-05
+        ref_l2 = 7.3949586531169601846748e-06
+
+        n = self.n_fine
+        tmpx = np.linspace(0, 1., n).astype(np.float64)
+        tmpy = np.linspace(0, 1., n).astype(np.float64)
+        Y, X = np.meshgrid(tmpx, tmpy)
+
+        u_exact = Function(name='u_exact_2d', grid=self.grid, space_order=2)
+        u_exact.data[:] = -X * np.exp(Y)
+
+        diff = Function(name='diff_2d', grid=self.grid, space_order=2)
+        diff.data[:] = u_exact.data[:] - self.u.data[:]
+
+        inf_norm = np.linalg.norm(diff.data[:].ravel(), ord=np.inf)
+        n_interior = np.prod([s - 1 for s in self.grid.shape])
+        l2_norm = norm(diff) / np.sqrt(n_interior)
+
+        assert np.isclose(inf_norm, ref_inf, rtol=1e-8), \
+            f"inf norm {inf_norm} differs from reference {ref_inf}"
+        assert np.isclose(l2_norm, ref_l2, rtol=1e-8), \
+            f"L2 norm {l2_norm} differs from reference {ref_l2}"
+
+
+class TestMultiGrid3D:
+
+    @skipif('petsc')
+    def setup_class(self):
+        """
+        Build the 3D Poisson multigrid operator shared across tests in this class.
+        """
+        class SubTop(SubDomain):
+            name = 'subtop'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('middle', 1, 1), y: ('middle', 1, 1), z: ('right', 1)}
+
+        class SubBottom(SubDomain):
+            name = 'subbottom'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('middle', 1, 1), y: ('middle', 1, 1), z: ('left', 1)}
+
+        class SubBack(SubDomain):
+            name = 'subback'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('middle', 1, 1), y: ('right', 1), z: z}
+
+        class SubFront(SubDomain):
+            name = 'subfront'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('middle', 1, 1), y: ('left', 1), z: z}
+
+        class SubLeft(SubDomain):
+            name = 'subleft'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('left', 1), y: y, z: z}
+
+        class SubRight(SubDomain):
+            name = 'subright'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('right', 1), y: y, z: z}
+
+        sub1 = SubTop()
+        sub2 = SubBottom()
+        sub3 = SubLeft()
+        sub4 = SubRight()
+        sub5 = SubBack()
+        sub6 = SubFront()
+        subdomains = (sub1, sub2, sub3, sub4, sub5, sub6)
+
+        self.n_fine = 33
+
+        self.grid = Grid(
+            shape=(self.n_fine,) * 3, subdomains=subdomains, dtype=np.float64
+        )
+
+        self.u = Function(name='u', grid=self.grid, space_order=2)
+        self.f = Function(name='f', grid=self.grid, space_order=2)
+        self.bc = Function(name='bc', grid=self.grid, space_order=2)
+
+        eqn = Eq(-self.u.laplace, self.f, subdomain=self.grid.interior)
+
+        n = self.n_fine
+        tmpx = np.linspace(0, 1., n).astype(np.float64)
+        tmpy = np.linspace(0, 1., n).astype(np.float64)
+        tmpz = np.linspace(0, 1., n).astype(np.float64)
+        X, Y, Z = np.meshgrid(tmpx, tmpy, tmpz, indexing='ij')
+        X_Y, Z_Y = np.meshgrid(tmpx, tmpz, indexing='ij')
+        X_Z, Y_Z = np.meshgrid(tmpx, tmpy, indexing='ij')
+        Y_X, Z_X = np.meshgrid(tmpy, tmpz, indexing='ij')
+
+        self.f.data[:] = 2.0 * X * np.exp(Y + Z)
+
+        self.bc.data[0, :, :] = 0.0
+        self.bc.data[-1, :, :] = -np.exp(Y_X + Z_X)
+        self.bc.data[:, 0, :] = -X_Y * np.exp(Z_Y)
+        self.bc.data[:, -1, :] = -X_Y * np.exp(1.0 + Z_Y)
+        self.bc.data[:, :, 0] = -X_Z * np.exp(Y_Z)
+        self.bc.data[:, :, -1] = -X_Z * np.exp(Y_Z + 1.0)
+
+        bcs = [EssentialBC(self.u, self.bc, subdomain=s)
+               for s in (sub1, sub2, sub3, sub4, sub5, sub6)]
+
+        exprs = [eqn] + bcs
+        petsc = petscsolve(
+            exprs, target=self.u,
+            solver_parameters={
+                'ksp_type': 'cg',
+                'pc_type': 'mg',
+                'pc_mg_levels': 3,
+                'snes_type': 'ksponly',
+                'mg_levels_ksp_type': 'chebyshev',
+                'mg_levels_pc_type': 'jacobi',
+                'mg_coarse_ksp_type': 'gmres',
+                'mg_coarse_pc_type': 'none',
+            },
+            options_prefix='mg_poisson_3d',
+        )
+
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            self.op = Operator(petsc)
+
+    @skipif('petsc')
+    def test_3d_run(self):
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            summary = self.op.apply()
+
+        iters = summary.petsc[('section0', 'mg_poisson_3d')].KSPGetIterationNumber
+        assert iters == 6
+
+        # Reference norms from petsc4pdes:
+        # ./fish -fsh_dim 3 -pc_type mg -pc_mg_levels 3 \
+        #   -mg_levels_ksp_type chebyshev -mg_levels_pc_type jacobi \
+        #   -mg_coarse_ksp_type gmres -mg_coarse_pc_type none
+        ref_inf = 6.5010538679466378653160e-05
+        ref_l2 = 9.1548038979605260987479e-06
+
+        n = self.n_fine
+        tmpx = np.linspace(0, 1., n).astype(np.float64)
+        tmpy = np.linspace(0, 1., n).astype(np.float64)
+        tmpz = np.linspace(0, 1., n).astype(np.float64)
+        X, Y, Z = np.meshgrid(tmpx, tmpy, tmpz, indexing='ij')
+
+        u_exact = Function(name='u_exact_3d', grid=self.grid, space_order=2)
+        u_exact.data[:] = -X * np.float64(np.exp(Y + Z))
+
+        diff = Function(name='diff_3d', grid=self.grid, space_order=2)
+        diff.data[:] = u_exact.data[:] - self.u.data[:]
+
+        inf_norm = np.linalg.norm(diff.data[:].ravel(), ord=np.inf)
+        n_interior = np.prod([s - 1 for s in self.grid.shape])
+        l2_norm = norm(diff) / np.sqrt(n_interior)
+
+        assert np.isclose(inf_norm, ref_inf, rtol=1e-8), \
+            f"inf norm {inf_norm} differs from reference {ref_inf}"
+        assert np.isclose(l2_norm, ref_l2, rtol=1e-8), \
+            f"L2 norm {l2_norm} differs from reference {ref_l2}"

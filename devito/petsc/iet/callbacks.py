@@ -1963,7 +1963,10 @@ class MultigridCallbackMixin:
             DummyExpr(FieldFromPointer(uctx_f._C_symbol, pctx), FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxf)], Byref(sctxf))),
             petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmc, pctx), Byref(cinfo)]),
             petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmf, pctx), Byref(finfo)]),
-            petsc_call('MatCreateShell', [petsc_obj_comm, FieldFromComposite('xm', finfo), FieldFromComposite('xm', cinfo), 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]),
+            petsc_call('MatCreateShell', [petsc_obj_comm,
+                _local_dmda_size(finfo, self.field_data.space_dimensions),
+                _local_dmda_size(cinfo, self.field_data.space_dimensions),
+                'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]),
             petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_MULT', MatShellSetOp(self._prolongation_matmult_efunc.name, void, void)]),
             petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_DESTROY', MatShellSetOp(self._prolongation_destroy_efunc.name, void, void)]),
             # No scaling vector
@@ -2043,7 +2046,8 @@ class MultigridCallbackMixin:
             # Restriction mat: rows=coarse local, cols=fine local (transpose of interpolation)
             petsc_call('MatCreateShell', [
                 petsc_obj_comm,
-                FieldFromComposite('xm', cinfo), FieldFromComposite('xm', finfo),
+                _local_dmda_size(cinfo, self.field_data.space_dimensions),
+                _local_dmda_size(finfo, self.field_data.space_dimensions),
                 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat
             ]),
             petsc_call('MatShellSetOperation', [
@@ -2146,6 +2150,17 @@ def populate_matrix_context(efuncs):
         name, body, objs['err'],
         parameters=[objs['ljacctx'], objs['Subdms'], objs['Fields']]
     )
+
+
+def _local_dmda_size(localinfo, space_dimensions):
+    """
+    Product of per-dimension local extents from a DMDALocalInfo.
+    """
+    from functools import reduce
+    from operator import mul
+    petsc_letters = ['x', 'y', 'z']
+    return reduce(mul, [FieldFromComposite(f'{petsc_letters[i]}m', localinfo)
+                        for i in range(len(space_dimensions))])
 
 
 def dereference_funcs(struct, fields):
