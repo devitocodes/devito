@@ -524,6 +524,22 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
 
     @property
     @_allocate_memory
+    def data_local(self):
+        """
+        The local domain data values, with global indexing disabled.
+
+        Notes
+        -----
+        Under MPI this behaves like a rank-local ``numpy.ndarray`` view: indices
+        are local, never global. It is the natural accessor for inspecting or
+        modifying data already laid out according to this object's
+        decomposition, complementing the global, routed ``data[idx]``.
+        """
+        self._is_halo_dirty = True
+        return self._data._global(self._mask_domain, self._decomposition)._local
+
+    @property
+    @_allocate_memory
     def data_with_halo(self):
         """
         The domain+outhalo data values.
@@ -679,8 +695,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @cached_property
     def local_indices(self):
         """
-        Tuple of slices representing the global indices that logically
-        belong to the calling MPI rank.
+        Per-Dimension slices of the global indices that logically belong to the
+        calling MPI rank, as a `DimensionTuple` (so it can be indexed positionally
+        or by Dimension, e.g. `f.local_indices[x]`).
 
         Notes
         -----
@@ -690,12 +707,11 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         decomposition, which is carried by `self.grid`.
         """
         if self._distributor is None:
-            return tuple(slice(0, s) for s in self.shape)
+            slices = (slice(0, s) for s in self.shape)
         else:
-            return tuple(
-                self._distributor.glb_slices.get(d, slice(0, s))
-                for s, d in zip(self.shape, self.dimensions, strict=True)
-            )
+            slices = (self._distributor.glb_slices.get(d, slice(0, s))
+                      for s, d in zip(self.shape, self.dimensions, strict=True))
+        return DimensionTuple(*slices, getters=self.dimensions)
 
     @property
     def initializer(self):
