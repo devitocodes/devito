@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-from functools import wraps
 
 import numpy as np
 
@@ -7,7 +6,7 @@ from devito.data.allocators import ALLOC_ALIGNED
 from devito.data.utils import *
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.tools import Tag, as_list, as_tuple, is_integer
+from devito.tools import as_list, as_tuple, is_integer
 
 __all__ = ['Data']
 
@@ -179,24 +178,6 @@ class Data(np.ndarray):
         retval._decomposition = decomposition
         return retval
 
-    def _check_idx(func):
-        """Flag whether a __setitem__ needs cross-rank communication.
-
-        Plain indexing -- including strided/negative slices -- never moves data:
-        each rank selects the elements it already owns and the result
-        decomposition is induced. The only communicating case is assigning a
-        distributed value into a different decomposition.
-        """
-        @wraps(func)
-        def wrapper(data, *args, **kwargs):
-            if len(args) > 1 and isinstance(args[1], Data) and args[1]._is_decomposed:
-                comm_type = index_by_index
-            else:
-                comm_type = serial
-            kwargs['comm_type'] = comm_type
-            return func(data, *args, **kwargs)
-        return wrapper
-
     @property
     def _is_decomposed(self):
         return self._is_distributed and configuration['mpi'] and \
@@ -209,6 +190,9 @@ class Data(np.ndarray):
         rank-local and ordered by ``glb_idx``), otherwise ``None`` so the caller
         falls back to the regular (basic-indexing) path.
         """
+        # Imported lazily: the redistribution engine depends on `devito.mpi`,
+        # which depends on `devito.types`, which loads `data.py` -- a top-level
+        # import here would be circular (same reason as `dtype_to_mpidtype`).
         from devito.data.distributed import cached_exchange
         from devito.data.distributed.selection import index_has_array
 
@@ -277,8 +261,7 @@ class Data(np.ndarray):
         """
         return self.transpose()
 
-    @_check_idx
-    def __getitem__(self, glb_idx, comm_type):
+    def __getitem__(self, glb_idx):
         exchange = self._scattered_exchange(glb_idx)
         if exchange is not None:
             return exchange.get()
@@ -293,8 +276,7 @@ class Data(np.ndarray):
             self._index_stash = None
             return retval
 
-    @_check_idx
-    def __setitem__(self, glb_idx, val, comm_type):
+    def __setitem__(self, glb_idx, val):
         if not (isinstance(val, Data) and val._is_decomposed):
             exchange = self._scattered_exchange(glb_idx)
             if exchange is not None:
@@ -313,37 +295,35 @@ class Data(np.ndarray):
             else:
                 super().__setitem__(glb_idx, val)
         elif isinstance(val, Data) and val._is_decomposed:
-            if comm_type is index_by_index:
-                from devito.data.distributed import redistribute_set
+            # Lazy import to avoid a circular dependency (see
+            # `_scattered_exchange`).
+            from devito.data.distributed import redistribute_set
 
-                # Structured point-to-point redistribution when supported,
-                # otherwise the legacy broadcast-based fallback.
-                if redistribute_set(self, glb_idx, val):
-                    return
-                glb_idx, val = self._process_args(glb_idx, val)
-                val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
-                                    i in val._decomposition])
-                idx = self._set_global_idx(val, glb_idx, val_idx)
-                comm = self._distributor.comm
-                nprocs = self._distributor.nprocs
-                # Prepare global lists:
-                data_global = []
-                idx_global = []
-                for j in range(nprocs):
-                    data_global.append(comm.bcast(np.array(val), root=j))
-                    idx_global.append(comm.bcast(idx, root=j))
-                # Set the data:
-                for j in range(nprocs):
-                    skip = any(i is None for i in idx_global[j]) \
-                        or data_global[j].size == 0
-                    if not skip:
-                        self.__setitem__(idx_global[j], data_global[j])
-            elif self._is_decomposed:
-                # `val` is decomposed, `self` is decomposed -> local set
-                super().__setitem__(glb_idx, val)
-            else:
-                # `val` is decomposed, `self` is replicated -> gatherall-like
-                raise NotImplementedError
+            # Structured point-to-point redistribution covers the well-defined
+            # cases. The legacy broadcast-based fallback is reached only when a
+            # scalar indexes a distributed axis: `val` then has a rank-dependent
+            # shape (it is owned by some ranks and empty on others), which the
+            # structured engine cannot route, so every rank exchanges its block.
+            if redistribute_set(self, glb_idx, val):
+                return
+            glb_idx, val = self._process_args(glb_idx, val)
+            val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
+                                i in val._decomposition])
+            idx = self._set_global_idx(val, glb_idx, val_idx)
+            comm = self._distributor.comm
+            nprocs = self._distributor.nprocs
+            # Prepare global lists:
+            data_global = []
+            idx_global = []
+            for j in range(nprocs):
+                data_global.append(comm.bcast(np.array(val), root=j))
+                idx_global.append(comm.bcast(idx, root=j))
+            # Set the data:
+            for j in range(nprocs):
+                skip = any(i is None for i in idx_global[j]) \
+                    or data_global[j].size == 0
+                if not skip:
+                    self.__setitem__(idx_global[j], data_global[j])
         elif isinstance(val, np.ndarray):
             if self._is_decomposed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
@@ -402,7 +382,7 @@ class Data(np.ndarray):
             return as_tuple(processed)
 
     def _process_args(self, idx, val):
-        """If comm_type is parallel we need to first retrieve local unflipped data."""
+        """Retrieve local unflipped data for a distributed value assignment."""
         if (len(as_tuple(idx)) < len(val.shape)) and (len(val.shape) <= len(self.shape)):
             idx_processed = as_list(idx)
             for _ in range(len(val.shape)-len(as_tuple(idx))):
@@ -589,9 +569,3 @@ class Data(np.ndarray):
     def reset(self):
         """Set all Data entries to 0."""
         self[:] = 0.0
-
-
-class CommType(Tag):
-    pass
-index_by_index = CommType('index_by_index')  # noqa
-serial = CommType('serial')  # noqa
