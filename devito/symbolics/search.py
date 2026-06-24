@@ -195,6 +195,9 @@ def retrieve_accesses(exprs, **kwargs):
       * ComponentAccess's are retained, but the wrapped Indexed are discarded;
       * TensorMove's are upcasted to the logical Indexed they represent.
     """
+    from .manipulation import uxreplace  # noqa
+    from devito.types import ComponentAccess, Symbol, TensorMove  # noqa
+
     kwargs['mode'] = 'unique'
 
     compaccs = search(exprs, ComponentAccess)
