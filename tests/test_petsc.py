@@ -3067,6 +3067,15 @@ class TestMultiGrid1D:
     def test_1d_restriction(self):
         pass
 
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_1d_run_parallel(self, mode):
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            summary = self.op.apply()
+
+        iters = summary.petsc[('section0', 'mg_poisson_1d')].KSPGetIterationNumber
+        assert iters == 5
+
 
 class TestMultiGrid2D:
 
@@ -3190,6 +3199,15 @@ class TestMultiGrid2D:
             f"inf norm {inf_norm} differs from reference {ref_inf}"
         assert np.isclose(l2_norm, ref_l2, rtol=1e-8), \
             f"L2 norm {l2_norm} differs from reference {ref_l2}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_2d_run_parallel(self, mode):
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            summary = self.op.apply()
+
+        iters = summary.petsc[('section0', 'mg_poisson_2d')].KSPGetIterationNumber
+        assert iters == 5
 
 
 class TestMultiGrid3D:
@@ -3336,3 +3354,12 @@ class TestMultiGrid3D:
             f"inf norm {inf_norm} differs from reference {ref_inf}"
         assert np.isclose(l2_norm, ref_l2, rtol=1e-8), \
             f"L2 norm {l2_norm} differs from reference {ref_l2}"
+
+    @skipif('petsc')
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_3d_run_parallel(self, mode):
+        with switchconfig(language='petsc', log_level='DEBUG'):
+            summary = self.op.apply()
+
+        iters = summary.petsc[('section0', 'mg_poisson_3d')].KSPGetIterationNumber
+        assert iters == 6
