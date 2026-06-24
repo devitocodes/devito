@@ -325,6 +325,14 @@ class Data(np.ndarray):
             else:
                 return None
         elif comm_type is index_by_index or is_gather:
+            if not is_gather:
+                from devito.data.distributed import redistribute_get
+
+                # Structured point-to-point pull (e.g. negative-step slice)
+                # when supported, otherwise the legacy fallback below.
+                result = redistribute_get(self, glb_idx)
+                if result is not None:
+                    return result
             # Retrieve the pertinent local data prior to MPI send/receive operations
             data_idx = loc_data_idx(loc_idx)
             self._index_stash = flip_idx(glb_idx, self._decomposition)
