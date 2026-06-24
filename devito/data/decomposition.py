@@ -555,3 +555,29 @@ class Decomposition(tuple):
         items = [i + nleft for i in items]
 
         return Decomposition(items, self.local)
+
+    def index_decomposition(self, idx):
+        """
+        The decomposition induced by NumPy-indexing this axis with a slice.
+
+        Each subdomain keeps the result positions, in index order, of the global
+        indices it owns. A strided or reversed slice therefore just relabels
+        which rank owns which result index -- indexing never moves data across
+        ranks. Unlike :meth:`reshape` (which adjusts subdomain *boundaries* and
+        is used for halos), this follows exact NumPy slicing semantics.
+
+        Examples
+        --------
+        >>> d = Decomposition([[0, 1, 2, 3], [4, 5, 6, 7]], 0)
+        >>> d.index_decomposition(slice(None, None, -1))
+        Decomposition(<<[4,7]>>, [0,3])
+        >>> d.index_decomposition(slice(None, None, -3))
+        Decomposition(<<[2,2]>>, [0,1])
+        """
+        if self.glb_max is None:
+            return Decomposition([np.array([], dtype=np.int64)]*len(self),
+                                 self.local)
+        size = self.glb_max - self.glb_min + 1
+        selected = np.arange(self.glb_min, self.glb_min + size)[idx]
+        items = [np.nonzero(np.isin(selected, sd))[0] for sd in self]
+        return Decomposition(items, self.local)
