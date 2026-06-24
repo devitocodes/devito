@@ -424,6 +424,12 @@ class Data(np.ndarray):
                 super().__setitem__(glb_idx, val)
         elif isinstance(val, Data) and val._is_decomposed:
             if comm_type is index_by_index:
+                from devito.data.distributed import redistribute_set
+
+                # Structured point-to-point redistribution when supported,
+                # otherwise the legacy broadcast-based fallback.
+                if redistribute_set(self, glb_idx, val):
+                    return
                 glb_idx, val = self._process_args(glb_idx, val)
                 val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
                                     i in val._decomposition])
