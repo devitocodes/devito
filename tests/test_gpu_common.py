@@ -103,7 +103,11 @@ class TestDeviceID:
 
         eq = Eq(u, u+1)
 
-        with switchenv(env_variables):
+        temp_env = dict(env_variables)
+        other = set(self.visible_device_envs) - set(temp_env)
+        temp_env.update({i: None for i in other})
+
+        with switchenv(temp_env):
             op1 = Operator(eq)
             argmap1 = op1.arguments()
             # All variants in parameterisation should yield deviceid 1
