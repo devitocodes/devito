@@ -341,6 +341,17 @@ class SubMatrixStruct(PETScStruct):
     _C_modifier = None
 
 
+class ProlongCtx(PETScStruct):
+    def __init__(self, name='pctx', pname='ProlongCtx', fields=None,
+                 modifier=' *', liveness='lazy', **kwargs):
+        super().__init__(name, pname, fields, modifier, liveness, **kwargs)
+    _C_modifier = None
+
+    def _C_free_impl(self):
+        return petsc_call('PetscFree', [self.function])
+
+
+
 class PETScArrayObject(PetscMixin, ArrayObject, LocalType):
     _data_alignment = False
     _symbol_prefix = 'a'
@@ -446,6 +457,7 @@ class UserCtxArray(PETScArrayObject):
 
 FREE_PRIORITY = {
     JacobianStruct: 0,
+    ProlongCtx: 0,
     PETScArrayObject: 1,
     VecScatter: 2,
     Vec: 3,

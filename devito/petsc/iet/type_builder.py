@@ -1,7 +1,7 @@
 import numpy as np
 
 from devito.petsc.types import (
-    DM, KSP, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct, Mat, MatReuse,
+    DM, KSP, PC, SNES, CallbackPetscInt, DMDALocalInfo, DummyArg, JacobianStruct, Mat, MatReuse,
     NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt, PetscSectionGlobal,
     PetscSectionLocal, PetscSF, PointerDM, PointerDMArg, PointerIS, PointerMat,
     PointerPetscInt, StartPtr, SubMatrixStruct, Vec, VecScatter, PointerMatArg, PointerVecArg
@@ -272,16 +272,24 @@ class MultigridTypeBuilderMixin:
         base_dict['shellf'] = DM(shellf_name, destroy=False)
         base_dict['shellc_ptr'] = PointerDMArg(shellc_name, destroy=False)
         base_dict['shellc'] = DM(shellc_name, destroy=False)
+
+        # Maybe a lot of these objects don't need to be generated from sreg?
         base_dict['dmf'] = DM(sreg.make_name(prefix='dmf'), destroy=False)
+        base_dict['dmc'] = DM(sreg.make_name(prefix='dmc'), destroy=False)
 
         base_dict['refine_levels'] = PetscInt(sreg.make_name(prefix='refine_levels'))
         base_dict['grid_level'] = PetscInt(name='level')
 
-        base_dict['mat'] = PointerMatArg('A', destroy=False)
+        # TODO: likely don't need both of these
+        base_dict['mat_ptr'] = PointerMatArg('A', destroy=False)
+        base_dict['mat'] = Mat('A', destroy=False)
         base_dict['vec'] = PointerVecArg('x', destroy=False)
 
-        base_dict['dafine'] = DM('dafine', destroy=False)
-        base_dict['dacoarse'] = DM('dacoarse', destroy=False)
+        base_dict['cinfo'] = DMDALocalInfo('cinfo')
+        base_dict['finfo'] = DMDALocalInfo('finfo')
+
+        base_dict['xcoarse'] = Vec('xc')
+        base_dict['yfine'] = Vec('yf')
 
         return base_dict
 

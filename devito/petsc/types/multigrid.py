@@ -1,6 +1,12 @@
-from devito.symbolics import IntDiv
-from devito.types.dimension import Spacing
+from itertools import product as iterproduct
+
+import sympy
+from sympy import Integer, Rational, finite_diff_weights
+
+from devito.symbolics import FieldFromComposite, IntDiv
 from devito.types.basic import Scalar
+from devito.types.dimension import Spacing
+from devito.types.equation import Eq
 
 
 def scale_param_for_level(param, level):
@@ -20,6 +26,8 @@ def scale_param_for_level(param, level):
     return param
 
 
+# TODO: Should really be generalised and not just used for `petscsolve`. It shouldn't really
+# be a PETSc object..
 class MultigridMetadata:
     """
     Class to hold metadata for geometric multigrid.
@@ -50,13 +58,14 @@ class MultigridMetadata:
                 f"Grid cannot be uniformly coarsened over {n_levels} levels: {msgs}. "
                 f"Each (n-1) must be divisible by 2^(n_levels-1)={divisor}."
             )
-        
+
         self._n_levels = n_levels
         self._fine_shape = grid.shape
         self._coarse_params = [
             {'shape': tuple((n - 1) // (2 ** i) + 1 for n in grid.shape), 'level': i}
             for i in range(1, n_levels)
         ]
+        self._prolongation = GridTransferEquations(field_data.target)
 
     @property
     def n_levels(self):
@@ -69,3 +78,50 @@ class MultigridMetadata:
     @property
     def coarse_params(self):
         return self._coarse_params
+
+    @property
+    def prolongation(self):
+        return self._prolongation
+
+
+class GridTransferEquations:
+    """
+    """
+
+    def __init__(self, target):
+        # TODO: move imports
+        from devito.petsc.types.array import PETScArray
+        from devito.petsc.types.object import DMDALocalInfo
+
+        self.target = target
+        self.coarse_localinfo = DMDALocalInfo('cinfo')
+        self.fine_localinfo = DMDALocalInfo('finfo')
+
+        self.xc = PETScArray(
+            name='x_' + target.name, target=target,
+            liveness='eager', localinfo=self.coarse_localinfo
+        )
+        self.yf = PETScArray(
+            name='y_' + target.name, target=target,
+            liveness='eager', localinfo=self.fine_localinfo
+        )
+        self._build()
+
+    def _build(self):
+        dims = self.target.space_dimensions
+        so = self.target.space_order
+        xc, yf = self.xc, self.yf
+
+        self._prolong_eqs = [Eq(xc, yf)]
+
+        self._restrict_eq = None
+
+    @property
+    def prolong_eqs(self):
+        """Equations passed to `rcompile` for `ProlongationMult`."""
+        return self._prolong_eqs
+
+    @property
+    def restrict_eq(self):
+        """Equations passed to `rcompile` for `RestrictionMult`."""
+        return self._restrict_eq
