@@ -36,7 +36,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
 
     - name: Checkout devito
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Install dependencies
       run: |
@@ -95,7 +95,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - id: build
       name: Build docker image
