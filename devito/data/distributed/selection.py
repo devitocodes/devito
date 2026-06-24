@@ -15,7 +15,8 @@ import numpy as np
 
 from devito.tools import is_integer
 
-__all__ = ['Affine', 'Explicit', 'Scalar', 'Selection', 'index_has_array']
+__all__ = ['Affine', 'Explicit', 'Scalar', 'Selection', 'index_has_array',
+           'result_dims']
 
 
 def index_has_array(idx, ndim):
@@ -224,6 +225,12 @@ class Selection:
         return len(self.advanced_axes) > 0
 
     @property
+    def result_dims(self):
+        """Tagged result dimensions in order (see module-level ``result_dims``)."""
+        return result_dims(self.selectors, self.advanced_axes,
+                           self.advanced_shape, self.advanced_at_front)
+
+    @property
     def npoints(self):
         """Number of coupled advanced points (1 if there is no advanced group)."""
         out = 1
@@ -247,23 +254,39 @@ def _advanced_at_front(advanced_axes):
     return list(advanced_axes) != contiguous
 
 
-def _result_shape(selectors, advanced_axes, advanced_shape, advanced_at_front):
-    """Assemble the shape of ``data[idx]`` from the per-axis selectors."""
-    result = []
+def result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front):
+    """
+    Ordered result dimensions of ``data[idx]``, each tagged ``('basic', axis)``
+    for a kept slice axis or ``('adv', j)`` for the j-th advanced (broadcast)
+    dimension.
+
+    This is the single definition of NumPy's advanced-index result ordering (the
+    advanced block moves to the front when the advanced axes are separated by a
+    basic index, otherwise it sits in place). Both the result shape and the
+    plan's row/payload layout derive from it, so the ordering lives in one place.
+    """
+    dims = []
+    if advanced_axes and advanced_at_front:
+        dims += [('adv', j) for j in range(len(advanced_shape))]
     inserted = False
-    for s in selectors:
+    for axis, s in enumerate(selectors):
         if isinstance(s, Scalar):
             continue
         elif isinstance(s, Explicit):
             if advanced_at_front:
                 continue
             if not inserted:
-                result.extend(advanced_shape)
+                dims += [('adv', j) for j in range(len(advanced_shape))]
                 inserted = True
         else:
-            result.append(s.size)
-    if advanced_axes and advanced_at_front:
-        result = list(advanced_shape) + result
-    elif advanced_axes and not inserted:
-        result.extend(advanced_shape)
-    return tuple(result)
+            dims.append(('basic', axis))
+    if advanced_axes and not advanced_at_front and not inserted:
+        dims += [('adv', j) for j in range(len(advanced_shape))]
+    return dims
+
+
+def _result_shape(selectors, advanced_axes, advanced_shape, advanced_at_front):
+    """Shape of ``data[idx]``, derived from :func:`result_dims`."""
+    dims = result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front)
+    return tuple(selectors[v].size if kind == 'basic' else advanced_shape[v]
+                 for kind, v in dims)

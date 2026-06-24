@@ -23,12 +23,12 @@ axes) carrying a payload block addressed by the replicated axes.
 
 import numpy as np
 
-from devito.data.distributed.selection import Affine, Explicit, Scalar
+from devito.data.distributed.selection import Affine, Scalar
 from devito.data.distributed.transport import nbx_exchange
 from devito.mpi import MPI
 from devito.tools import prod
 
-__all__ = ['ExchangePlan']
+__all__ = ['ExchangePlan', 'nbx_push']
 
 
 class ExchangePlan:
@@ -64,7 +64,7 @@ class ExchangePlan:
             )
         advanced_distributed = bool(adv_dist)
 
-        dims = _result_dims(selection)
+        dims = selection.result_dims
         is_t = [_dim_is_distributed(d, dist, advanced_distributed) for d in dims]
         t_pos = [i for i, t in enumerate(is_t) if t]
         p_pos = [i for i, t in enumerate(is_t) if not t]
@@ -122,7 +122,7 @@ class ExchangePlan:
         axes = self.layout.distributed_axes
         return np.moveaxis(local, axes, range(len(axes)))
 
-    def _owner_apply(self, moved, dist_lin, block_offsets, payload_size):
+    def _owner_apply(self, moved, dist_lin, block_offsets):
         """Owner-local (row, column) multi-index for a received message."""
         elem = dist_lin[:, None] * self._repl_total + block_offsets[None, :]
         return np.unravel_index(elem.reshape(-1), moved.shape)
@@ -143,7 +143,7 @@ class ExchangePlan:
         replies = {}
         for src, buf in requests.items():
             block_offsets, dist_lin = _decode(buf)
-            midx = self._owner_apply(moved, dist_lin, block_offsets, ps)
+            midx = self._owner_apply(moved, dist_lin, block_offsets)
             replies[src] = np.ascontiguousarray(moved[midx]).reshape(-1)
         payloads = nbx_exchange(comm, replies, dtype, tag=42)
 
@@ -151,35 +151,24 @@ class ExchangePlan:
         for r, (rows, _) in self._peers.items():
             if rows.size:
                 rows_flat[rows] = payloads[r].reshape(rows.size, ps)
-        return self._rows_to_result(rows_flat, dtype)
+        return self._rows_to_result(rows_flat)
 
     # ------------------------------------------------------------------- put
 
     def put(self, local, value):
         """Assign ``data[idx] = value`` (push to owner ranks)."""
         self._raise_on_error(check_dup=True)
-        comm, ps = self.comm, self.payload_size
         rows_flat = self._value_to_rows(value, local.dtype)
-
-        headers = {r: _encode(ps, self._block_offsets, dist_lin)
-                   for r, (_, dist_lin) in self._peers.items()}
-        payloads = {r: rows_flat[rows].reshape(-1)
-                    for r, (rows, _) in self._peers.items() if rows.size}
-        requests = nbx_exchange(comm, headers, np.int64, tag=43)
-        values = nbx_exchange(comm, payloads, local.dtype, tag=44)
-
-        moved = self._moved(local)
-        for src, buf in requests.items():
-            block_offsets, dist_lin = _decode(buf)
-            midx = self._owner_apply(moved, dist_lin, block_offsets, ps)
-            moved[midx] = values[src]
+        nbx_push(self.comm, self.layout.distributed_axes, self._repl_total,
+                 self._peers, self._block_offsets, self.payload_size, rows_flat,
+                 local)
 
     # ------------------------------------------------------- result <-> rows
 
     def _nrows(self):
         return prod(self._t_shape)
 
-    def _rows_to_result(self, rows_flat, dtype):
+    def _rows_to_result(self, rows_flat):
         moved_shape = self._t_shape + self._payload_shape
         moved = rows_flat.reshape(moved_shape)
         result = np.moveaxis(moved, range(len(self._perm)), self._perm)
@@ -193,32 +182,6 @@ class ExchangePlan:
 
 
 # --------------------------------------------------------------------- free fns
-
-
-def _result_dims(selection):
-    """Result dims in order, tagged ('basic', axis) or ('adv', j)."""
-    adv = selection.advanced_axes
-    adv_shape = selection.advanced_shape
-    front = selection.advanced_at_front
-
-    dims = []
-    if adv and front:
-        dims += [('adv', j) for j in range(len(adv_shape))]
-    inserted = False
-    for axis, s in enumerate(selection.selectors):
-        if isinstance(s, Scalar):
-            continue
-        elif isinstance(s, Explicit):
-            if front:
-                continue
-            if not inserted:
-                dims += [('adv', j) for j in range(len(adv_shape))]
-                inserted = True
-        else:
-            dims.append(('basic', axis))
-    if adv and not front and not inserted:
-        dims += [('adv', j) for j in range(len(adv_shape))]
-    return dims
 
 
 def _dim_is_distributed(dim, dist, advanced_distributed):
@@ -344,6 +307,34 @@ def _group_peers(layout, owners, dist_local, sub, gcoords):
             dist_lin = np.zeros(rows.size, dtype=np.int64)
         peers[int(r)] = (rows, np.asarray(dist_lin, dtype=np.int64))
     return peers, oob_error, dup_error
+
+
+def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
+             payload_size, rows_flat, local):
+    """
+    Route ``rows_flat`` to the owner ranks (NBX) and scatter each received
+    payload into ``local`` at its owner-local position.
+
+    This is the single push primitive behind both :meth:`ExchangePlan.put`
+    (advanced/replicated assignment, ``payload_size`` >= 1) and the structured
+    redistribution in :mod:`devito.data.distributed.redistribution` (one value
+    per point, ``payload_size`` == 1). ``rows_flat`` is ``(nrows, payload_size)``
+    in owner-grouped row order; ``block_offsets`` indexes the replicated payload
+    block within an owner's local stride ``repl_total``.
+    """
+    headers = {r: _encode(payload_size, block_offsets, dist_lin)
+               for r, (_, dist_lin) in peers.items()}
+    payloads = {r: rows_flat[rows].reshape(-1)
+                for r, (rows, _) in peers.items() if rows.size}
+    requests = nbx_exchange(comm, headers, np.int64, tag=43)
+    values = nbx_exchange(comm, payloads, rows_flat.dtype, tag=44)
+
+    moved = np.moveaxis(local, distributed_axes, range(len(distributed_axes)))
+    for src, buf in requests.items():
+        offsets, dist_lin = _decode(buf)
+        elem = dist_lin[:, None] * repl_total + offsets[None, :]
+        midx = np.unravel_index(elem.reshape(-1), moved.shape)
+        moved[midx] = values[src]
 
 
 def _encode(payload_size, block_offsets, dist_lin):
