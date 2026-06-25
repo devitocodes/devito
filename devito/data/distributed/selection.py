@@ -173,7 +173,22 @@ class Selection:
 
     @classmethod
     def from_index(cls, idx, shape):
-        """Build a Selection for ``idx`` against a global array of ``shape``."""
+        """
+        Build a Selection for ``idx`` against a global array of ``shape``.
+
+        Parameters
+        ----------
+        idx : index expression
+            Any NumPy index (scalar, slice, integer array, boolean mask, or a
+            tuple thereof, with at most one Ellipsis).
+        shape : tuple of int
+            The global array shape the index is resolved against.
+
+        Returns
+        -------
+        Selection
+            The normalized, layout-independent meaning of ``idx``.
+        """
         ndim = len(shape)
         items = _expand(idx, ndim)
 

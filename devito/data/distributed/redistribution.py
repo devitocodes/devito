@@ -28,17 +28,29 @@ __all__ = ['redistribute_set']
 
 def redistribute_set(data, glb_idx, other):
     """
-    Assign ``data[glb_idx] = other`` (``other`` a distributed ``Data``) via a
-    structured point-to-point redistribution.
+    Assign ``data[glb_idx] = other`` via a structured point-to-point exchange.
 
-    Returns ``True`` when handled, ``False`` when the pattern is not supported
-    yet and the caller should fall back to the legacy path.
+    The structured path is taken only if *every* rank can build it, decided by a
+    single collective ``LAND``. This keeps the choice -- and therefore the
+    communication pattern -- identical on all ranks, which is essential: a value
+    produced by the legacy path (e.g. a reversed slice) may carry decomposition
+    metadata that is not uniformly structured, and a diverging choice would
+    deadlock.
 
-    The structured path is taken only if *every* rank can build it (decided by a
-    single collective). This keeps the choice -- and therefore the communication
-    pattern -- identical on all ranks, which is essential: a value produced by
-    the legacy path (e.g. a reversed slice) may carry decomposition metadata that
-    is not uniformly structured, and a diverging choice would deadlock.
+    Parameters
+    ----------
+    data : Data
+        The MPI-distributed array being assigned into.
+    glb_idx : index expression
+        The global index of the assigned region.
+    other : Data
+        The MPI-distributed value to assign.
+
+    Returns
+    -------
+    bool
+        ``True`` when handled here; ``False`` when the pattern is unsupported and
+        the caller should fall back to the legacy path.
     """
     try:
         spec = _structured_spec(data, glb_idx, other)
@@ -55,10 +67,18 @@ def redistribute_set(data, glb_idx, other):
 
 def _structured_spec(data, glb_idx, other):
     """
-    Build the (layout, per-axis global coords, flat values) for the supported
-    case: ``data`` and ``other`` both fully distributed with matching rank, every
-    axis sliced (no scalars/arrays), and each sliced region matching ``other``'s
-    extent. Anything else returns ``None`` (fall back to legacy).
+    Build the routing spec for the supported structured case.
+
+    The case is: ``data`` and ``other`` both fully distributed with matching
+    rank, every axis sliced (no scalars/arrays), and each sliced region matching
+    ``other``'s extent.
+
+    Returns
+    -------
+    tuple or None
+        ``(layout, gcoords, values)`` for :func:`_push`, or ``None`` when the
+        pattern is unsupported and the caller should fall back to the legacy
+        path.
     """
     decomposition = data._decomposition
     if any(d is None for d in decomposition):
@@ -97,7 +117,8 @@ def _structured_spec(data, glb_idx, other):
 
 
 def _push(layout, gcoords, values, local):
-    """Push ``values`` (one per global coordinate in ``gcoords``) to owners.
+    """
+    Push ``values`` (one per global coordinate in ``gcoords``) to their owners.
 
     A structured assignment has exactly one value per distributed point and no
     replicated payload, so it is :func:`~devito.data.distributed.plan.nbx_push`
