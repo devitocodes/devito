@@ -62,11 +62,12 @@ class _ExchangeKey:
     """
     Hashable, content-addressed key wrapping `(data, idx)` for plan caching.
 
-    NumPy index arrays are unhashable, so the key digests their content (together
-    with the decomposition and shape the plan depends on) and lets
-    `functools.lru_cache` own eviction. Content addressing means a freshly
-    built index array with the same values still hits, and an in-place mutation
-    correctly misses.
+    Generates a signature from the `data` identity and the `idx` content, so that
+    the same plan is reused across calls with the same index expression, even if
+    the `data` object is a different view of the same underlying buffer.
+    The signature does not include the `data` values,
+    but only the `data` metadata (shape, decomposition, distributor)
+    and the `idx` content so that the same plan is reused across calls.
     """
 
     __slots__ = ('data', 'idx', '_sig')
@@ -74,7 +75,7 @@ class _ExchangeKey:
     def __init__(self, data, idx):
         self.data = data
         self.idx = idx
-        self._sig = _signature(data, idx)
+        self._sig = _signature(self.data, self.idx)
 
     def __hash__(self):
         return hash(self._sig)
