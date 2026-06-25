@@ -185,7 +185,7 @@ class Data(np.ndarray):
 
     def _scattered_exchange(self, glb_idx):
         """
-        Return an :class:`Exchange` when ``glb_idx`` advanced-indexes a
+        Return an ``Exchange`` when ``glb_idx`` advanced-indexes a
         distributed axis (the "unbalanced"/scattered case, where the value is
         rank-local and ordered by ``glb_idx``), otherwise ``None`` so the caller
         falls back to the regular (basic-indexing) path.
@@ -241,7 +241,7 @@ class Data(np.ndarray):
         """
         Return a view of ``self`` with ``axis1`` and ``axis2`` swapped, with
         ``_decomposition`` / ``_modulo`` swapped in the same way (see
-        :meth:`transpose`).
+        ``transpose``).
         """
         axis1 = axis1 % self.ndim
         axis2 = axis2 % self.ndim
@@ -257,7 +257,7 @@ class Data(np.ndarray):
     def T(self):
         """
         The transposed array. Overridden so the C-level ``ndarray.T`` shortcut
-        also permutes the per-axis metadata (see :meth:`transpose`).
+        also permutes the per-axis metadata (see ``transpose``).
         """
         return self.transpose()
 

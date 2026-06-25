@@ -2,7 +2,7 @@
 Transport layer for distributed data redistribution.
 
 This module knows nothing about indexing or ``Data``; it only moves contiguous
-buffers between MPI ranks. The single primitive, :func:`nbx_exchange`, performs
+buffers between MPI ranks. The single primitive, ``nbx_exchange``, performs
 a sparse "all-to-some" exchange in which only the ranks that actually share data
 ever communicate. It can be swapped for neighbor collectives or a persistent
 graph communicator without affecting the layers above.

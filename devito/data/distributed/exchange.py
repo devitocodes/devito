@@ -6,7 +6,7 @@ communication. ``get`` pulls ``data[idx]`` and ``put`` assigns ``data[idx] =
 value``. Because the plan is communication-free to build and independent of the
 data *values*, it can be cached and replayed across calls with the same index
 (e.g. sparse injection every timestep), so the steady state is pure
-point-to-point with no re-planning. :func:`cached_exchange` provides that cache;
+point-to-point with no re-planning. ``cached_exchange`` provides that cache;
 ``Data`` uses it so ``data[idx] = value`` is automatically plan-cached.
 """
 
@@ -64,7 +64,7 @@ class _ExchangeKey:
 
     NumPy index arrays are unhashable, so the key digests their content (together
     with the decomposition and shape the plan depends on) and lets
-    :func:`functools.lru_cache` own eviction. Content addressing means a freshly
+    ``functools.lru_cache`` own eviction. Content addressing means a freshly
     built index array with the same values still hits, and an in-place mutation
     correctly misses.
     """
@@ -89,7 +89,7 @@ def _build(key):
 
 
 def cached_exchange(data, idx):
-    """Return a (cached) :class:`Exchange` for ``data[idx]``."""
+    """Return a (cached) ``Exchange`` for ``data[idx]``."""
     return _build(_ExchangeKey(data, idx))
 
 
