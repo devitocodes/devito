@@ -38,11 +38,12 @@ class MgPopulateCall(PETScCall):
     parsing the call's argument list.
     """
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
-                 cast=False, writes=None, templates=None, level=0):
+                 cast=False, writes=None, templates=None, level=0, hierarchy=None):
         super().__init__(name, arguments=arguments, retobj=retobj,
                          is_indirect=is_indirect, cast=cast,
                          writes=writes, templates=templates)
         self.level = level
+        self.hierarchy = hierarchy
 
 
 def petsc_call(specific_call, call_args):

@@ -26,7 +26,9 @@ from devito.petsc.types import (
     MultipleFieldData
 )
 from devito.petsc.types.macros import petsc_func_begin_user
-from devito.petsc.types.multigrid import scale_param_for_level
+from devito.petsc.types.multigrid import coarsen_param, coarsen_thicknesses
+from devito.types.dimension import Thickness
+from devito.types.dimension import CoarseThickness, Thickness
 from devito.symbolics import Byref, FieldFromPointer, IndexedPointer, Macro, Null
 from devito.types.basic import DataSymbol, LocalType
 from devito.types.dimension import DefaultDimension
@@ -165,6 +167,10 @@ def fix_mg_populate_calls(graph, **kwargs):
     After `lower_petsc_symbols` has finalised `PopulateUserContext`'s parameter
     list, rebuild each `MgPopulateCall` in the Kernel with correctly scaled
     arguments for the given grid level.
+
+    For coarse levels, Thicknesses are replaced with CoarseThickness
+    counterparts (via coarsen_thicknesses) whose _arg_values uses the
+    CoarseDistributor for that level.
     """
     mg_calls = FindNodes(MgPopulateCall).visit(graph.root)
     if not mg_calls:
@@ -173,11 +179,17 @@ def fix_mg_populate_calls(graph, **kwargs):
     populate_efunc = graph.efuncs[mg_calls[0].name]
     field_params = populate_efunc.parameters[1:]
 
+    def _param(f, call):
+        if call.level > 0 and call.hierarchy is not None and isinstance(f, Thickness):
+            tkn_map = coarsen_thicknesses(call.hierarchy, call.level)
+            if f.name in tkn_map:
+                return tkn_map[f.name]
+        return coarsen_param(f, call.level)
+
     mapper = {
         call: call._rebuild(
             arguments=[call.arguments[0]] + [
-                scale_param_for_level(f, call.level)
-                for f in field_params
+                _param(f, call) for f in field_params
             ]
         )
         for call in mg_calls

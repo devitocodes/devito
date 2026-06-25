@@ -5,11 +5,11 @@ from sympy import Integer, Rational, finite_diff_weights
 
 from devito.symbolics import FieldFromComposite, IntDiv
 from devito.types.basic import Scalar
-from devito.types.dimension import Spacing
+from devito.types.dimension import CoarseThickness, Spacing
 from devito.types.equation import Eq
 
 
-def scale_param_for_level(param, level):
+def coarsen_param(param, level):
     """
     Scale a parameter to the correct value for a given MG level.
 
@@ -24,6 +24,30 @@ def scale_param_for_level(param, level):
     elif isinstance(param, Scalar) and param.name.endswith('_M'):
         return IntDiv(param, factor)
     return param
+
+
+def coarsen_thicknesses(hierarchy, level):
+    """
+    Return a mapping {Thickness.name: CoarseThickness} for the given coarse level,
+    derived from the fine Grid's subdomain definitions.
+    """
+    coarse_dist = hierarchy.coarse_levels[level - 1].distributor
+    factor = 2 ** level
+    tkn_map = {}
+    for subdomain in hierarchy.fine._subdomains:
+        for d in subdomain.dimensions:
+            if not d.is_Sub:
+                continue
+            for tkn in (d.thickness.left, d.thickness.right):
+                if tkn.value is None or tkn.name in tkn_map:
+                    continue
+                coarse_val = (tkn.value + factor - 1) // factor
+                tkn_map[tkn.name] = CoarseThickness(
+                    name=f'{tkn.name}_l{level}',
+                    root=tkn.root, side=tkn.side, local=tkn.local,
+                    value=coarse_val, distributor=coarse_dist
+                )
+    return tkn_map
 
 
 class MultigridMetadata:

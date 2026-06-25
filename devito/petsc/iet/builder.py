@@ -440,11 +440,13 @@ class MultigridBuilderMixin:
         # fix_mg_populate_calls once lower_petsc_symbols has built the full
         # parameter list.
         populate_name = self.callback_builder.user_struct_efunc.name
+        hierarchy = multigrid_metadata.hierarchy
         populate_all_level_contexts = tuple(
             PETScCall('PetscCall', [MgPopulateCall(
                 populate_name,
                 arguments=[Byref(IndexedPointer(all_ctx, i))],
-                level=i
+                level=i,
+                hierarchy=hierarchy
             )])
             for i in range(n_levels)
         )
