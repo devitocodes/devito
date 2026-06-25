@@ -1,3 +1,6 @@
+import re
+from subprocess import DEVNULL, PIPE, Popen
+
 import cloudpickle as pickle
 import numpy as np
 import pytest
@@ -124,6 +127,62 @@ class TestDeviceID:
 
             argmap2 = op2.arguments()
             assert argmap2._physical_deviceid == 0
+
+    @pytest.mark.parametrize('env_variables', [
+        {"CUDA_VISIBLE_DEVICES": "-1"},
+        {"CUDA_VISIBLE_DEVICES": ""},
+        {"CUDA_VISIBLE_DEVICES": "NoDevFiles"},
+        {"ROCR_VISIBLE_DEVICES": "-1"},
+    ])
+    def test_no_visible_devices(self, env_variables):
+        """Accessing _physical_deviceid when no devices are exposed should raise."""
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        with switchenv(env_variables):
+            op = Operator(Eq(u, u+1))
+            argmap = op.arguments()
+            with pytest.raises(RuntimeError):
+                _ = argmap._physical_deviceid
+
+    def test_visible_devices_uuid(self):
+        # Query GPU 0's UUID independently of _get_uuid_to_index_map
+        probes = [
+            (
+                ['nvidia-smi', '-L'],
+                r'GPU\s+0:.*\(UUID:\s*([\w-]+)\)',
+                'CUDA_VISIBLE_DEVICES'
+            ),
+            (
+                ['rocm-smi', '--showuniqueid'],
+                r'GPU\[0\].*Unique ID:\s*([\w]+)',
+                'ROCR_VISIBLE_DEVICES'
+            ),
+        ]
+        uuid = env_var = None
+        for cmd, pattern, var in probes:
+            try:
+                proc = Popen(cmd, stdout=PIPE, stderr=DEVNULL)
+                output = proc.stdout.read().decode()
+            except OSError:
+                continue
+            for line in output.splitlines():
+                m = re.match(pattern, line)
+                if m:
+                    uuid, env_var = m.group(1), var
+                    break
+            if uuid is not None:
+                break
+
+        if uuid is None:
+            pytest.skip("No GPU 0 UUID found via nvidia-smi or rocm-smi")
+
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+        with switchenv({env_var: uuid}):
+            op = Operator(Eq(u, u+1))
+            argmap = op.arguments()
+            assert argmap._physical_deviceid == 0
 
     @pytest.mark.parallel(mode=2)
     @pytest.mark.parametrize('visible_devices', [
