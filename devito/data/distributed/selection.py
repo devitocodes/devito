@@ -15,7 +15,7 @@ import numpy as np
 
 from devito.tools import is_integer
 
-__all__ = ['Affine', 'Explicit', 'Scalar', 'Selection', 'index_has_array',
+__all__ = ['Affine', 'Explicit', 'IndexScalar', 'Selection', 'index_has_array',
            'result_dims']
 
 
@@ -33,7 +33,7 @@ def index_has_array(idx, ndim):
 
 
 @dataclass(frozen=True)
-class Scalar:
+class IndexScalar:
     """A single global index on one axis. The axis is dropped from the result."""
 
     index: int
@@ -153,7 +153,7 @@ class Selection:
     Attributes
     ----------
     selectors : tuple
-        One ``Scalar``, ``Affine``, or ``Explicit`` per axis.
+        One ``IndexScalar``, ``Affine``, or ``Explicit`` per axis.
     advanced_axes : tuple of int
         The axes indexed by arrays (the single coupled advanced group). Their
         ``Explicit`` coords share one flattened point ordering.
@@ -204,7 +204,7 @@ class Selection:
                 if not 0 <= index < n:
                     raise IndexError(f"index {item} is out of bounds for axis "
                                      f"{axis} with size {n}")
-                selectors[axis] = Scalar(index)
+                selectors[axis] = IndexScalar(index)
             elif isinstance(item, slice):
                 selectors[axis] = Affine(*item.indices(n))
             elif _is_advanced(item):
@@ -285,7 +285,7 @@ def result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front):
         dims += [('adv', j) for j in range(len(advanced_shape))]
     inserted = False
     for axis, s in enumerate(selectors):
-        if isinstance(s, Scalar):
+        if isinstance(s, IndexScalar):
             continue
         elif isinstance(s, Explicit):
             if advanced_at_front:
