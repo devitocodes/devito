@@ -26,28 +26,20 @@ def coarsen_param(param, level):
     return param
 
 
-def coarsen_thicknesses(hierarchy, level):
+def coarsen_thicknesses(tkn, level, coarse_dist):
     """
-    Return a mapping {Thickness.name: CoarseThickness} for the given coarse level,
-    derived from the fine Grid's subdomain definitions.
+    Create a CoarseThickness for a Thickness token at a given coarse level.
+
+    The coarse global value is ceil(tkn.value / 2^level). The CoarseDistributor
+    computes the per-rank local value in _arg_values.
     """
-    coarse_dist = hierarchy.coarse_levels[level - 1].distributor
     factor = 2 ** level
-    tkn_map = {}
-    for subdomain in hierarchy.fine._subdomains:
-        for d in subdomain.dimensions:
-            if not d.is_Sub:
-                continue
-            for tkn in (d.thickness.left, d.thickness.right):
-                if tkn.value is None or tkn.name in tkn_map:
-                    continue
-                coarse_val = (tkn.value + factor - 1) // factor
-                tkn_map[tkn.name] = CoarseThickness(
-                    name=f'{tkn.name}_l{level}',
-                    root=tkn.root, side=tkn.side, local=tkn.local,
-                    value=coarse_val, distributor=coarse_dist
-                )
-    return tkn_map
+    coarse_val = (tkn.value + factor - 1) // factor
+    return CoarseThickness(
+        name=f'{tkn.name}_l{level}',
+        root=tkn.root, side=tkn.side, local=tkn.local,
+        value=coarse_val, distributor=coarse_dist
+    )
 
 
 class MultigridMetadata:

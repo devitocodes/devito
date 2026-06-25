@@ -181,9 +181,8 @@ def fix_mg_populate_calls(graph, **kwargs):
 
     def _param(f, call):
         if call.level > 0 and call.hierarchy is not None and isinstance(f, Thickness):
-            tkn_map = coarsen_thicknesses(call.hierarchy, call.level)
-            if f.name in tkn_map:
-                return tkn_map[f.name]
+            coarse_dist = call.hierarchy.coarse_levels[call.level - 1].distributor
+            return coarsen_thicknesses(f, call.level, coarse_dist)
         return coarsen_param(f, call.level)
 
     mapper = {
