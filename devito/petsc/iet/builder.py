@@ -196,10 +196,11 @@ class BuilderBase:
             petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
         )
 
-    def _create_dmda(self, dmda):
+    def _create_dmda(self, dmda, shape=None):
         sobjs = self.solver_objs
         grid = self.field_data.grid
         nspace_dims = len(grid.dimensions)
+        shape = shape or grid.shape
 
         # MPI communicator
         args = [sobjs['comm']]
@@ -212,13 +213,13 @@ class BuilderBase:
             args.append('DMDA_STENCIL_BOX')
 
         # Global dimensions
-        args.extend(list(grid.shape)[::-1])
+        args.extend(list(shape)[::-1])
         # No. of processors in each dimension
         if nspace_dims > 1:
             args.extend(list(grid.distributor.topology)[::-1])
 
         # Number of degrees of freedom per node
-        args.append(dmda.dofs)
+        args.append(dmda.dofs if hasattr(dmda, 'dofs') else 1)
         # "Stencil width" -> size of overlap
         # TODO: Instead, this probably should be
         # extracted from field_data.target._size_outhalo?
@@ -230,10 +231,7 @@ class BuilderBase:
         # The distributed array object
         args.append(Byref(dmda))
 
-        # The PETSc call used to create the DMDA
-        dmda = petsc_call(f'DMDACreate{nspace_dims}d', args)
-
-        return dmda
+        return petsc_call(f'DMDACreate{nspace_dims}d', args)
 
 
 class CoupledBuilderMixin(BuilderBase):
@@ -429,9 +427,15 @@ class MultigridBuilderMixin:
         # Array of structs that carrys grid info (separate context) on each level
         all_ctx = sobjs['all_ctx']
         shell_context = sobjs['sctx']
+        sctxnew = sobjs['sctxnew']
         shell_dm = sobjs['shell']
         refine_levels = sobjs['refine_levels']
-        n_levels = multigrid_metadata.hierarchy.nlevels
+        all_da = sobjs['all_da']
+        all_shells = sobjs['all_shells']
+        hierarchy = multigrid_metadata.hierarchy
+        n_levels = hierarchy.nlevels
+        make_shell_ctx_name = self.callback_builder.make_shell_ctx_efunc.name
+        make_dm_shell_name = self.callback_builder.make_dm_shell_efunc.name
 
         # Allocate an array of n_levels UserCtx structs, one per unique MG level
         malloc_all_ctx = petsc_call('PetscMalloc1', [n_levels, Byref(all_ctx)])
@@ -439,8 +443,13 @@ class MultigridBuilderMixin:
         # Populate each UserCtx struct — arguments are finalised later in
         # fix_mg_populate_calls once lower_petsc_symbols has built the full
         # parameter list.
+        # NOTE/TODO: data Functions (f_vec, bc_vec) are shared across all levels — coarse
+        # levels receive the same fine-level array pointer. This is correct for
+        # standard PCMG (FormRHS/FormFunction are only called at the fine level).
+        # For FMG, coarse levels need rediscretised data: requires Function support
+        # on SubGrid so Devito can automatically inject fine->coarse at op.apply()
+        # time. See SubGrid TODO comment in devito/types/grid.py.
         populate_name = self.callback_builder.user_struct_efunc.name
-        hierarchy = multigrid_metadata.hierarchy
         populate_all_level_contexts = tuple(
             PETScCall('PetscCall', [MgPopulateCall(
                 populate_name,
@@ -451,39 +460,67 @@ class MultigridBuilderMixin:
             for i in range(n_levels)
         )
 
-        # Create fine DMDA as usual
-        dmda_create = self._create_dmda(dmda)
-        dm_set_from_opts = petsc_call('DMSetFromOptions', [dmda])
-        dm_setup = petsc_call('DMSetUp', [dmda])
+        # Allocate the pre-built DMDA and shell arrays
+        malloc_all_da = petsc_call('PetscMalloc1', [n_levels, Byref(all_da)])
+        malloc_all_shells = petsc_call('PetscMalloc1', [n_levels, Byref(all_shells)])
 
-        # Wrap the fine DMDA in a DMShell
-        malloc_sctx = petsc_call('PetscMalloc1', [1, Byref(shell_context)])
-        make_shell_ctx = petsc_call(
-            self.callback_builder.make_shell_ctx_efunc.name,
-            [dmda, 0, all_ctx, shell_context]
+        # Pre-build all DMDAs: fine at index 0, coarse levels at 1..n_levels-1
+        dmda_creates = [
+            self._create_dmda(IndexedPointer(all_da, 0)),
+            petsc_call('DMSetFromOptions', [IndexedPointer(all_da, 0)]),
+            petsc_call('DMSetUp', [IndexedPointer(all_da, 0)]),
+        ]
+        for i, sublevel in enumerate(hierarchy.coarse_levels, start=1):
+            dmda_creates += [
+                self._create_dmda(IndexedPointer(all_da, i), shape=sublevel.shape),
+                petsc_call('DMSetFromOptions', [IndexedPointer(all_da, i)]),
+                petsc_call('DMSetUp', [IndexedPointer(all_da, i)]),
+            ]
+
+        # Pre-build all shells: for each level, malloc sctx, call MakeShellCtx,
+        # call UserDMShellCreate. Reuse sctxnew for coarse levels (each PetscMalloc1
+        # gives a fresh allocation; the shell stores the pointer).
+        shell_creates = [
+            petsc_call('PetscMalloc1', [1, Byref(shell_context)]),
+            petsc_call(make_shell_ctx_name,
+                       [IndexedPointer(all_da, 0), 0, all_ctx,
+                        all_da, all_shells, shell_context]),
+            petsc_call(make_dm_shell_name,
+                       [shell_context, Byref(IndexedPointer(all_shells, 0))]),
+        ]
+        for i in range(1, n_levels):
+            shell_creates += [
+                petsc_call('PetscMalloc1', [1, Byref(sctxnew)]),
+                petsc_call(make_shell_ctx_name,
+                           [IndexedPointer(all_da, i), i, all_ctx,
+                            all_da, all_shells, sctxnew]),
+                petsc_call(make_dm_shell_name,
+                           [sctxnew, Byref(IndexedPointer(all_shells, i))]),
+            ]
+        from devito.petsc.types.object import DM as DMType
+        sobjs['dmda'] = DMType(dmda.name, dofs=sobjs['dmda'].dofs, destroy=False)
+        sobjs['shell'] = DMType(shell_dm.name, destroy=False)
+        assign_dmda = DummyExpr(sobjs['dmda'], IndexedPointer(all_da, 0))
+        assign_shell = DummyExpr(sobjs['shell'], IndexedPointer(all_shells, 0))
+
+        get_refine = petsc_call(
+            'DMGetRefineLevel', [IndexedPointer(all_da, 0), Byref(refine_levels)]
         )
-        make_shell = petsc_call(
-            self.callback_builder.make_dm_shell_efunc.name,
-            [shell_context, Byref(shell_dm)]
+        set_refine = petsc_call(
+            'DMSetRefineLevel', [IndexedPointer(all_shells, 0), refine_levels]
         )
-
-        # Call the function that actually creates the DMShell
-
-        get_refine = petsc_call('DMGetRefineLevel', [dmda, Byref(refine_levels)])
-        set_refine = petsc_call('DMSetRefineLevel', [shell_dm, refine_levels])
 
         return (
             malloc_all_ctx,
-            # populate ctx calls
             *populate_all_level_contexts,
-            dmda_create,
-            dm_set_from_opts,
-            dm_setup,
-            malloc_sctx,
-            make_shell_ctx,
-            make_shell,
+            malloc_all_da,
+            malloc_all_shells,
+            *dmda_creates,
+            *shell_creates,
+            assign_dmda,
+            assign_shell,
             get_refine,
-            set_refine
+            set_refine,
         )
 
 def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):

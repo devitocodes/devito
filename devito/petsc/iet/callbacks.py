@@ -1,4 +1,3 @@
-import cgen as c
 from collections import OrderedDict
 
 from devito.ir.iet import (
@@ -9,9 +8,8 @@ from devito.passes.iet.linearization import Stride
 from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, petsc_call, PetscCallback
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types import (
-    CallbackShellStruct, CallbackUserStruct, DM, DMCast, DMDALocalInfo,
-    MainUserStruct, PetscInt, PetscObjectCast, ShellStruct, UserCtxArray,
-    ProlongCtx, Vec
+    CallbackShellStruct, CallbackUserStruct, DMCast, MainUserStruct,
+    PetscInt, PetscObjectCast, PointerDM, ShellStruct, UserCtxArray, ProlongCtx
 )
 
 from devito.petsc.types.macros import petsc_func_begin_user
@@ -1497,16 +1495,27 @@ class MultigridCallbackMixin:
 
     def _make_shell_ctx(self):
         """
-        Called at the fine level in the main Kernel, and inside `Coarsen`/
-        `Refine` for each coarser/finer DMDA produced at runtime.
+        Assigns all fields of a ShellCtx struct. Called once per level during
+        Kernel setup when pre-building all DMDAs and shells upfront.
         """
         all_ctx = self.solver_objs['all_ctx']
         da = self.objs['da']
         level = self.solver_objs['grid_level']
+        n_levels = self.multigrid_metadata.hierarchy.nlevels
+
+        all_da = self.solver_objs['all_da'] = PointerDM(
+            name=self.sregistry.make_name(prefix='all_da'),
+            nindices=n_levels
+        )
+        all_shells = self.solver_objs['all_shells'] = PointerDM(
+            name=self.sregistry.make_name(prefix='all_shells'),
+            nindices=n_levels
+        )
+
         sctx = self.solver_objs['sctx'] = ShellStruct(
             name=self.sregistry.make_name(prefix='sctx'),
             pname='ShellCtx',
-            fields=[da, level, all_ctx],
+            fields=[da, level, all_ctx, all_da, all_shells],
             modifier=' *',
             liveness='lazy'
         )
@@ -1521,11 +1530,13 @@ class MultigridCallbackMixin:
             DummyExpr(FieldFromPointer(da, sctx), da),
             DummyExpr(FieldFromPointer(level, sctx), level),
             DummyExpr(FieldFromPointer(all_ctx._C_symbol, sctx), all_ctx._C_symbol),
+            DummyExpr(FieldFromPointer(all_da._C_symbol, sctx), all_da._C_symbol),
+            DummyExpr(FieldFromPointer(all_shells._C_symbol, sctx), all_shells._C_symbol),
         ]
         callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
             'MakeShellCtx', callable_body,
-            parameters=(da, level, all_ctx, sctx)
+            parameters=(da, level, all_ctx, all_da, all_shells, sctx)
         )
         self._make_shell_ctx_efunc = cb
         self._efuncs[cb.name] = cb
@@ -1655,39 +1666,29 @@ class MultigridCallbackMixin:
     
     def _make_refine(self):
         """
+        Trivial: return the pre-built finer shell from sctx->all_shells[level-1].
         """
         shellc = self.solver_objs['shellc']
         shellf = self.solver_objs['shellf_ptr']
+        dummysctx = self.objs['dummysctx']
+        all_shells = self.solver_objs['all_shells']
+        level = self.solver_objs['grid_level']
 
-        # Pre-reserve the name so Refine's body can reference UserDMShellCreate
-        # by name before it is built — the two functions mutually reference each other.
+        # Pre-reserve the name so _make_dm_shell can use it for UserDMShellCreate.
         self._dm_shell_create_name = self.sregistry.make_name(prefix='UserDMShellCreate')
 
-        dummysctx = self.objs['dummysctx']
-        dmf = self.solver_objs['dmf']
-        sctxnew = self.solver_objs['sctxnew']
-        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellc)])
         body = [
             petsc_call('DMShellGetContext', [shellc, Byref(dummysctx)]),
-            petsc_call('DMRefine', [self._operational_dm, petsc_obj_comm, Byref(dmf)]),
-            petsc_call('PetscMalloc1', [1, Byref(sctxnew)]),
-            petsc_call(self._make_shell_ctx_efunc.name, [
-                dmf, FieldFromPointer(self.solver_objs['grid_level'], dummysctx) - 1,
-                FieldFromPointer(self.solver_objs['all_ctx']._C_symbol, dummysctx),
-                sctxnew
-            ]),
-            # TODO: Using c.Statement to avoid a cycle in create_call_graph.
-            # UserDMShellCreate registers Refine/Coarsen as a function pointer
-            # (Callback), and Refine/Coarsen calls UserDMShellCreate back - a
-            # mutual reference that creates a DAG cycle.
-            c.Statement(
-                f'PetscCall({self._dm_shell_create_name}'
-                f'({sctxnew.name},{shellf.name}))'
-            )
+            DummyExpr(
+                Deref(shellf),
+                IndexedPointer(
+                    FieldFromPointer(all_shells._C_symbol, dummysctx),
+                    FieldFromPointer(level, dummysctx) - 1
+                )
+            ),
+            petsc_call('PetscObjectReference', [PetscObjectCast(Deref(shellf))]),
         ]
-        callable_body = self._make_callable_body(
-            body, standalones=(Definition(sctxnew), Definition(dmf))
-        )
+        callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
             'Refine', callable_body,
             parameters=(shellc, self.solver_objs['mpi_comm'], shellf)
@@ -1701,35 +1702,26 @@ class MultigridCallbackMixin:
     
     def _make_coarsen(self):
         """
+        Trivial: return the pre-built coarser shell from sctx->all_shells[level+1].
         """
         shellc = self.solver_objs['shellc_ptr']
         shellf = self.solver_objs['shellf']
         dummysctx = self.objs['dummysctx']
-        dmc = self.solver_objs['dmc']
-        sctxnew = self.solver_objs['sctxnew']
+        all_shells = self.solver_objs['all_shells']
+        level = self.solver_objs['grid_level']
 
-        petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellf)])
         body = [
             petsc_call('DMShellGetContext', [shellf, Byref(dummysctx)]),
-            petsc_call('DMCoarsen', [self._operational_dm, petsc_obj_comm, Byref(dmc)]),
-            petsc_call('PetscMalloc1', [1, Byref(sctxnew)]),
-            petsc_call(self._make_shell_ctx_efunc.name, [
-                dmc, FieldFromPointer(self.solver_objs['grid_level'], dummysctx) + 1,
-                FieldFromPointer(self.solver_objs['all_ctx']._C_symbol, dummysctx),
-                sctxnew
-            ]),
-            # TODO: Using c.Statement to avoid a cycle in create_call_graph.
-            # UserDMShellCreate registers Refine/Coarsen as a function pointer
-            # (Callback), and Refine/Coarsen calls UserDMShellCreate back - a
-            # mutual reference that creates a DAG cycle.
-            c.Statement(
-                f'PetscCall({self._dm_shell_create_name}'
-                f'({sctxnew.name},{shellc.name}))'
-            )
+            DummyExpr(
+                Deref(shellc),
+                IndexedPointer(
+                    FieldFromPointer(all_shells._C_symbol, dummysctx),
+                    FieldFromPointer(level, dummysctx) + 1
+                )
+            ),
+            petsc_call('PetscObjectReference', [PetscObjectCast(Deref(shellc))]),
         ]
-        callable_body = self._make_callable_body(
-            body, standalones=(Definition(sctxnew), Definition(dmc))
-        )
+        callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
             'Coarsen', callable_body,
             parameters=(shellf, self.solver_objs['mpi_comm'], shellc)
