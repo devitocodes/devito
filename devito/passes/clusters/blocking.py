@@ -125,6 +125,17 @@ class AnayzeBlockingBase(Queue):
         # most a few tens of unit, so they wouldn't benefit from blocking
         return is_integer(d.symbolic_size)
 
+    def _is_non_uniform(self, prefix, d):
+        # A non-uniform Dimension is one that is not guaranteed to have the same
+        # bounds and cannot be blocked
+        if not d.is_MultiSub:
+            # MultiSubdimensions are the only ones that can have variable bounds
+            return False
+
+        # Check if the bound of the MultiSubdimension is variable for d
+        p_dims = {d for pd in prefix for d in pd.dim._defines if not d.is_Time}
+        return any(p_dims & set(f.dimensions) for f in d.functions)
+
 
 class AnalyzeBlocking(AnayzeBlockingBase):
 
@@ -134,6 +145,9 @@ class AnalyzeBlocking(AnayzeBlockingBase):
 
         d = prefix[-1].dim
         if self._has_short_trip_count(d):
+            return clusters
+
+        if self._is_non_uniform(prefix[:-1], d):
             return clusters
 
         processed = []
@@ -183,6 +197,9 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
             return clusters
 
         d = prefix[-1].dim
+
+        if self._is_non_uniform(prefix[:-1], d):
+            return clusters
 
         processed = []
         for c in clusters:
@@ -250,6 +267,9 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
 
         d = prefix[-1].dim
         if self._has_short_trip_count(d):
+            return clusters
+
+        if self._is_non_uniform(prefix[:-1], d):
             return clusters
 
         # Pointless if there's no data reuse
