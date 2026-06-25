@@ -33,28 +33,83 @@ __all__ = ['ExchangePlan', 'nbx_push']
 
 class ExchangePlan:
 
+    """
+    The rank-to-rank routing induced by a Selection on a Layout.
+
+    A plan is built once, without communication, and then drives both ``get``
+    (pull ``data[idx]``) and ``put`` (assign ``data[idx] = value``). It maps
+    every routed result element to its owner rank and owner-local offset, and
+    splits the result axes into a "T" (transport) block over the distributed
+    axes and a contiguous "payload" block over the replicated axes, so packing
+    and unpacking are single NumPy fancy-index operations.
+
+    Use :meth:`build` to construct one; the constructor takes the already
+    computed routing tables.
+
+    Parameters
+    ----------
+    layout : Layout
+        Physical placement of the array being indexed.
+    selection : Selection
+        Normalized meaning of the index expression.
+    perm : list of int
+        Permutation taking the result axes to ``(T-dims..., payload-dims...)``.
+    t_shape : tuple of int
+        Shape of the transport block (the distributed result axes).
+    payload_shape : tuple of int
+        Shape of the payload block (the replicated result axes).
+    owners : numpy.ndarray
+        Owner rank of each T row (``-1`` when out of bounds).
+    peers : dict
+        Maps a peer rank to ``(rows, dist_lin)``: the T rows it owns and their
+        owner-local linear offsets over the distributed axes.
+    block_offsets : numpy.ndarray
+        Offset of each payload element within the owner's replicated block.
+    repl_total : int
+        Full replicated stride (product of the replicated axis sizes).
+    oob_error : str or None
+        Message for an out-of-bounds index (checked on get and set).
+    dup_error : str or None
+        Message for a duplicate assignment target (checked on set only).
+    """
+
     def __init__(self, layout, selection, perm, t_shape, payload_shape, owners,
                  peers, block_offsets, repl_total, oob_error, dup_error):
         self.layout = layout
         self.selection = selection
-        self._perm = perm                  # result axes -> (T-dims..., payload-dims...)
+        self._perm = perm
         self._t_shape = t_shape
         self._payload_shape = payload_shape
-        self._owners = owners              # owner rank per T row (-1 if OOB)
-        self._peers = peers                # {rank: (rows, dist_lin)}
-        self._block_offsets = block_offsets  # (payload_size,) within owner repl block
-        self._repl_total = repl_total      # full replicated stride
-        self._oob_error = oob_error        # out-of-bounds index (get and set)
-        self._dup_error = dup_error        # duplicate target (set only)
+        self._owners = owners
+        self._peers = peers
+        self._block_offsets = block_offsets
+        self._repl_total = repl_total
+        self._oob_error = oob_error
+        self._dup_error = dup_error
 
     # ------------------------------------------------------------------ build
 
     @classmethod
     def build(cls, selection, layout):
-        """Plan the exchange for ``data[idx]``; serves both get and set."""
+        """
+        Plan the exchange for ``data[idx]``; the result serves both get and set.
+
+        Parameters
+        ----------
+        selection : Selection
+            Normalized meaning of the index expression.
+        layout : Layout
+            Physical placement of the array being indexed.
+
+        Returns
+        -------
+        ExchangePlan
+            A ready-to-replay plan.
+        """
         dist = set(layout.distributed_axes)
         repl = set(layout.replicated_axes)
 
+        # An advanced group may not straddle a distributed and a replicated axis
         adv_dist = [a for a in selection.advanced_axes if a in dist]
         adv_repl = [a for a in selection.advanced_axes if a in repl]
         if adv_dist and adv_repl:
@@ -64,6 +119,7 @@ class ExchangePlan:
             )
         advanced_distributed = bool(adv_dist)
 
+        # Split the result axes into transport (T) and payload, in result order
         dims = selection.result_dims
         is_t = [_dim_is_distributed(d, dist, advanced_distributed) for d in dims]
         t_pos = [i for i, t in enumerate(is_t) if t]
@@ -75,6 +131,7 @@ class ExchangePlan:
         t_dims = [dims[i] for i in t_pos]
         p_dims = [dims[i] for i in p_pos]
 
+        # Resolve, per T row, the owning rank and its owner-local position
         gcoords = _distributed_coords(selection, layout, t_dims, t_shape)
         owners, dist_local, sub = _resolve_owners(selection, layout, gcoords)
 
@@ -130,15 +187,29 @@ class ExchangePlan:
     # ------------------------------------------------------------------- get
 
     def get(self, local):
-        """Return ``data[idx]`` as a NumPy array (pull from owner ranks)."""
+        """
+        Return ``data[idx]`` as a NumPy array by pulling from the owner ranks.
+
+        Parameters
+        ----------
+        local : numpy.ndarray
+            The caller's rank-local array.
+
+        Returns
+        -------
+        numpy.ndarray
+            The indexed result, in ``selection.result_shape``.
+        """
         self._raise_on_error(check_dup=False)
         comm, ps = self.comm, self.payload_size
         dtype = local.dtype
 
+        # Send each owner the offsets of the elements we want from it...
         headers = {r: _encode(ps, self._block_offsets, dist_lin)
                    for r, (_, dist_lin) in self._peers.items()}
         requests = nbx_exchange(comm, headers, np.int64, tag=41)
 
+        # ...and reply to whoever asked us with the requested values
         moved = self._moved(local)
         replies = {}
         for src, buf in requests.items():
@@ -147,6 +218,7 @@ class ExchangePlan:
             replies[src] = np.ascontiguousarray(moved[midx]).reshape(-1)
         payloads = nbx_exchange(comm, replies, dtype, tag=42)
 
+        # Scatter the received values back into result-row order
         rows_flat = np.zeros((self._nrows(), ps), dtype=dtype)
         for r, (rows, _) in self._peers.items():
             if rows.size:
@@ -156,7 +228,16 @@ class ExchangePlan:
     # ------------------------------------------------------------------- put
 
     def put(self, local, value):
-        """Assign ``data[idx] = value`` (push to owner ranks)."""
+        """
+        Assign ``data[idx] = value`` by pushing to the owner ranks.
+
+        Parameters
+        ----------
+        local : numpy.ndarray
+            The caller's rank-local array (written in place).
+        value : array_like
+            The value to assign, broadcast to ``selection.result_shape``.
+        """
         self._raise_on_error(check_dup=True)
         rows_flat = self._value_to_rows(value, local.dtype)
         nbx_push(self.comm, self.layout.distributed_axes, self._repl_total,
@@ -185,6 +266,7 @@ class ExchangePlan:
 
 
 def _dim_is_distributed(dim, dist, advanced_distributed):
+    """True if a result dimension lands on a distributed (transport) axis."""
     kind, val = dim
     if kind == 'basic':
         return val in dist
@@ -218,7 +300,27 @@ def _distributed_coords(selection, layout, t_dims, t_shape):
 
 
 def _resolve_owners(selection, layout, gcoords):
-    """Owner rank, per-axis local offset, and per-axis sub-rank for each T row."""
+    """
+    Resolve the owner of each transport row from its global coordinates.
+
+    Parameters
+    ----------
+    selection : Selection or None
+        Unused; kept for a uniform call signature with the other planners.
+    layout : Layout
+        Physical placement of the array.
+    gcoords : dict
+        Maps each distributed axis to its global coordinate per T row.
+
+    Returns
+    -------
+    owners : numpy.ndarray
+        Flat owner rank per T row (``-1`` if out of bounds).
+    local : numpy.ndarray
+        Per-axis owner-local offset per T row, shaped ``(naxes, nrows)``.
+    sub : numpy.ndarray
+        Per-axis owner sub-rank per T row, shaped ``(naxes, nrows)``.
+    """
     axes = layout.distributed_axes
     nrows = len(next(iter(gcoords.values()))) if gcoords else 0
 
@@ -279,7 +381,19 @@ def _replicated_block(selection, layout, p_dims, payload_shape):
 
 
 def _group_peers(layout, owners, dist_local, sub, gcoords):
-    """Group T rows by owner, computing the owner-local linear (dist) offset."""
+    """
+    Group transport rows by owner and flag out-of-bounds/duplicate targets.
+
+    Returns
+    -------
+    peers : dict
+        Maps a peer rank to ``(rows, dist_lin)``: the T rows it owns and their
+        owner-local linear offsets over the distributed axes.
+    oob_error : str or None
+        Set when any row addresses an out-of-bounds global index.
+    dup_error : str or None
+        Set when two rows address the same distributed coordinate.
+    """
     axes = layout.distributed_axes
     oob_error = dup_error = None
 
@@ -318,10 +432,28 @@ def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
     This is the single push primitive behind both :meth:`ExchangePlan.put`
     (advanced/replicated assignment, ``payload_size`` >= 1) and the structured
     redistribution in :mod:`devito.data.distributed.redistribution` (one value
-    per point, ``payload_size`` == 1). ``rows_flat`` is ``(nrows, payload_size)``
-    in owner-grouped row order; ``block_offsets`` indexes the replicated payload
-    block within an owner's local stride ``repl_total``.
+    per point, ``payload_size`` == 1).
+
+    Parameters
+    ----------
+    comm : MPI communicator
+        The communicator to push over.
+    distributed_axes : tuple of int
+        The array axes that are MPI-distributed.
+    repl_total : int
+        Full replicated stride (1 when there is no replicated payload).
+    peers : dict
+        Maps a peer rank to ``(rows, dist_lin)`` (see :func:`_group_peers`).
+    block_offsets : numpy.ndarray
+        Offset of each payload element within an owner's replicated block.
+    payload_size : int
+        Number of payload elements per point.
+    rows_flat : numpy.ndarray
+        Values to push, shaped ``(nrows, payload_size)`` in owner-grouped order.
+    local : numpy.ndarray
+        The owner's rank-local array (written in place).
     """
+    # Tell each owner which of its local slots we are about to write...
     headers = {r: _encode(payload_size, block_offsets, dist_lin)
                for r, (_, dist_lin) in peers.items()}
     payloads = {r: rows_flat[rows].reshape(-1)
@@ -329,6 +461,7 @@ def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
     requests = nbx_exchange(comm, headers, np.int64, tag=43)
     values = nbx_exchange(comm, payloads, rows_flat.dtype, tag=44)
 
+    # ...then scatter whatever we received into our own local array
     moved = np.moveaxis(local, distributed_axes, range(len(distributed_axes)))
     for src, buf in requests.items():
         offsets, dist_lin = _decode(buf)
@@ -338,11 +471,12 @@ def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
 
 
 def _encode(payload_size, block_offsets, dist_lin):
-    """Pack a request header: [payload_size, *block_offsets, *dist_lin]."""
+    """Pack a request header as ``[payload_size, *block_offsets, *dist_lin]``."""
     return np.concatenate(([payload_size], block_offsets, dist_lin)).astype(np.int64)
 
 
 def _decode(buf):
+    """Unpack a request header into ``(block_offsets, dist_lin)``."""
     payload_size = int(buf[0])
     block_offsets = buf[1:1 + payload_size]
     dist_lin = buf[1 + payload_size:]
