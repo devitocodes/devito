@@ -1,5 +1,5 @@
 """
-Distributed data redistribution engine.
+Indexing engine for MPI-distributed arrays.
 
 Indexing an MPI-distributed array is treated as a redistribution between layouts.
 The engine is built as four pure layers plus a value object:
