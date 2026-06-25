@@ -748,7 +748,7 @@ def lower_aliases(aliases, meta, opt_maxpar, opt_block_temps):
 
             # Given the iteration `interval`, lower distances to indices
             for distance, indices in zip(a.distances, indicess, strict=True):
-                v = distance[i.dim] or 0
+                v = distance[d] or 0
                 try:
                     indices.append(di - interval.lower + v)
                 except TypeError:
