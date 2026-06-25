@@ -64,6 +64,7 @@ except (RuntimeError, ImportError) as e:
 
 __all__ = [
     'MPI',
+    'CoarseDistributor',
     'CustomTopology',
     'Distributor',
     'SparseDistributor',
@@ -710,6 +711,61 @@ class SubDistributor(DenseDistributor):
         """Constant symbol for a switch indicating that data is allocated on this rank"""
         return Constant(name=f'rank_populated_{self._subdomain_name}', dtype=np.int8,
                         value=int(not self.loc_empty))
+
+
+class CoarseDistributor(DenseDistributor):
+
+    """
+    Distributor for a coarser level of a grid hierarchy.
+
+    Reuses the communicator and topology of the parent Distributor but
+    computes a fresh decomposition for the coarser global shape using
+    np.array_split.
+
+    Parameters
+    ----------
+    shape : tuple of ints
+        The coarse global shape.
+    dimensions : tuple of Dimensions
+        The decomposed Dimensions (shared with the parent Grid).
+    parent : Distributor
+        The fine level Distributor whose comm and topology are reused.
+    """
+
+    def __init__(self, shape, dimensions, parent):
+        super().__init__(shape, dimensions)
+
+        self._parent = parent
+        self._comm = parent.comm
+        self._topology = parent.topology
+
+        self._decomposition = [
+            Decomposition(np.array_split(range(i), j), c)
+            for i, j, c in zip(shape, self.topology, self.mycoords, strict=True)
+        ]
+
+    @property
+    def parent(self):
+        return self._parent
+
+    @cached_property
+    def is_boundary_rank(self):
+        return any(
+            i == 0 or i == j - 1
+            for i, j in zip(self.mycoords, self.topology, strict=True)
+        )
+
+    @cached_property
+    def glb_pos_map(self):
+        ret = {}
+        for d, i, s in zip(self.dimensions, self.mycoords, self.topology, strict=True):
+            v = []
+            if i == 0:
+                v.append(LEFT)
+            if i == s - 1:
+                v.append(RIGHT)
+            ret[d] = tuple(v)
+        return ret
 
 
 def _interval_bounds(interval):
