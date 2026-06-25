@@ -603,6 +603,34 @@ class Thickness(DataSymbol):
         return {self.name: tkn}
 
 
+class CoarseThickness(Thickness):
+    """
+    A Thickness token for a coarse grid level in a multigrid hierarchy.
+
+    Stores a CoarseDistributor directly so _arg_values does not need the
+    fine Grid. It uses self._distributor instead of grid.distributor.
+    """
+
+    __rkwargs__ = Thickness.__rkwargs__ + ('distributor',)
+
+    def __new__(cls, *args, distributor=None, **kwargs):
+        newobj = super().__new__(cls, *args, **kwargs)
+        newobj._distributor = distributor
+        return newobj
+
+    def _arg_values(self, grid=None, **kwargs):
+        rtkn = kwargs.get(self.name, self.value)
+        if self._distributor is not None and rtkn is not None:
+            if self.local:
+                tkn = self._distributor.glb_to_loc(self.root, rtkn - 1, self.side)
+                tkn = tkn + 1 if tkn is not None else 0
+            else:
+                tkn = self._distributor.glb_to_loc(self.root, rtkn, self.side) or 0
+        else:
+            tkn = rtkn or 0
+        return {self.name: tkn}
+
+
 class AbstractSubDimension(DerivedDimension):
 
     """
