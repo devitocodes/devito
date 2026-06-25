@@ -451,6 +451,25 @@ class TestDecomposition:
         assert d.index_glb_to_loc((1, 6), rel=False) == (5, 6)
         assert d.index_glb_to_loc((None, None), rel=False) == (5, 7)
 
+    def test_glb_to_loc_strided_start_in_subdomain(self):
+        """
+        Regression: a strided slice whose start (or, for a negative step, its
+        high end) falls strictly inside the owning subdomain must begin the
+        stride phase at the start, not at the subdomain boundary. Previously the
+        local slice picked spurious leading/trailing elements (e.g. global
+        ``2:8:2`` gave rank 0 local ``[0, 2]`` instead of ``[2]``).
+        """
+        d0 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 0)
+        d2 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        # Positive step, start strictly inside the owning subdomain
+        assert d0.index_glb_to_loc(slice(2, 12, 2)) == slice(2, 3, 2)   # -> [2]
+        assert d2.index_glb_to_loc(slice(6, 12, 2)) == slice(1, 3, 2)   # -> [6]
+
+        # Negative step, high end (the start) strictly inside the subdomain
+        assert d2.index_glb_to_loc(slice(5, 0, -2)) == slice(0, None, -2)   # -> [5]
+        assert d0.index_glb_to_loc(slice(2, None, -2)) == slice(2, None, -2)
+
     def test_glb_to_loc_w_side(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 
@@ -1551,6 +1570,10 @@ class TestDataGather:
         (None, None, -1),
         (None, None, -2),
         (1, 8, 3),
+        # Strided slices whose start falls inside a subdomain (see
+        # TestDecomposition.test_glb_to_loc_strided_start_in_subdomain)
+        (2, 8, 2),
+        (7, 0, -2),
         ((0, 4), None, (2, 1))])
     def test_sliced_gather_2D(self, start, stop, step, mode):
         """ Test gather for various 2D slices."""
@@ -1585,6 +1608,8 @@ class TestDataGather:
         (None, None, -1),
         (None, None, -2),
         (1, 8, 3),
+        (2, 8, 2),
+        (7, 0, -2),
         ((0, 4, 4), None, (2, 1, 1))])
     def test_sliced_gather_3D(self, start, stop, step, mode):
         """ Test gather for various 3D slices."""
