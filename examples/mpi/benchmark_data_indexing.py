@@ -4,10 +4,12 @@ Benchmark the overhead of Devito's ``data[idx]`` get/set over plain NumPy.
 The script runs one of two studies, picked automatically from the MPI launch
 size, each making a single point:
 
-* **Serial** (run without ``mpirun``) -- with MPI off, ``data[idx]`` is a thin
-  wrapper over NumPy indexing. The benchmark shows the overhead is small: a
-  fixed cost plus a low per-point cost (vectorised, with no per-element Python
-  loop), so for realistic operation sizes it stays negligible. ::
+* **Serial** (run without ``mpirun``) -- with MPI off, ``data[idx]`` wraps
+  NumPy indexing. The overhead is a fixed per-call cost (the ``.data`` accessor
+  plus global-index translation), not a per-element one. It is large *relative*
+  to NumPy for a trivial index -- whose NumPy cost is almost nothing -- but, being
+  fixed, it amortises: only a few times NumPy at realistic sizes, and negligible
+  against actual compute. ::
 
       python examples/mpi/benchmark_data_indexing.py
 
@@ -83,7 +85,8 @@ def serial_study(reps):
     print(f"\nSerial overhead of data[idx] = v over NumPy "
           f"(axis={AXIS}, reps={reps})\n")
     header = ('points'.rjust(10) + 'numpy [us]'.rjust(14)
-              + 'devito [us]'.rjust(14) + 'overhead [us]'.rjust(16))
+              + 'devito [us]'.rjust(14) + 'overhead [us]'.rjust(16)
+              + 'ratio'.rjust(9))
     print(header)
     print('-' * len(header))
     for npoint in POINTS:
@@ -95,10 +98,12 @@ def serial_study(reps):
         print(str(npoint).rjust(10)
               + format(t_np * 1e6, '.1f').rjust(14)
               + format(t_dv * 1e6, '.1f').rjust(14)
-              + format((t_dv - t_np) * 1e6, '.1f').rjust(16))
-    print("\noverhead = devito - numpy; a small fixed cost plus a low per-point "
-          "cost (no\nper-element Python loop) -- tens of microseconds at "
-          "realistic sizes.")
+              + format((t_dv - t_np) * 1e6, '.1f').rjust(16)
+              + (format(t_dv / t_np, '.0f') + 'x').rjust(9))
+    print("\noverhead = devito - numpy; a fixed per-call cost (the .data accessor "
+          "and\nglobal-index translation). It is large relative to NumPy for a "
+          "trivial\nindex but, being fixed, amortises to a few x at realistic "
+          "sizes.")
 
 
 def mpi_study(comm, nprocs, reps):
