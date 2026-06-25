@@ -18,7 +18,7 @@ from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
 from devito.symbolics import (
     VOID, Byref, Deref, FieldFromComposite, FieldFromPointer, IndexedPointer,
-    IntDiv, Macro, Mod, Null, String
+    IntDiv, Mod, Null, String
 )
 from devito.symbolics.unevaluation import Mul
 from devito.tools import filter_ordered
@@ -1521,7 +1521,6 @@ class MultigridCallbackMixin:
             DummyExpr(FieldFromPointer(da, sctx), da),
             DummyExpr(FieldFromPointer(level, sctx), level),
             DummyExpr(FieldFromPointer(all_ctx._C_symbol, sctx), all_ctx._C_symbol),
-            *self._make_shell_ctx_thickness_fixup(da, level, all_ctx),
         ]
         callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
@@ -1530,56 +1529,6 @@ class MultigridCallbackMixin:
         )
         self._make_shell_ctx_efunc = cb
         self._efuncs[cb.name] = cb
-
-    def _make_shell_ctx_thickness_fixup(self, da, level, all_ctx):
-        from devito.types.dimension import Thickness
-
-        dims = self.field_data.space_dimensions
-        ndim = len(dims)
-        petsc_letters = ['x', 'y', 'z']
-        dim_to_petsc = {
-            d.name: petsc_letters[ndim - 1 - i] for i, d in enumerate(dims)
-        }
-
-        fixups = []
-        for p in self.filtered_struct_params:
-            if not (isinstance(p, Thickness) and p.value is not None):
-                continue
-            if '_ltkn' in p.name:
-                dim_name, is_ltkn = p.name.partition('_ltkn')[0], True
-            elif '_rtkn' in p.name:
-                dim_name, is_ltkn = p.name.partition('_rtkn')[0], False
-            else:
-                continue
-            if dim_name not in dim_to_petsc:
-                continue
-            fixups.append((p.name, dim_to_petsc[dim_name], is_ltkn, int(p.value)))
-
-        if not fixups:
-            return []
-
-        cinfo = DMDALocalInfo('cinfo')
-        factor = PetscInt(name='factor')
-
-        stmts = [
-            Definition(cinfo),
-            DummyExpr(factor, Macro(f'1 << {level.name}'), init=True),
-            petsc_call('DMDAGetLocalInfo', [da, Byref(cinfo)]),
-        ]
-        for tkn_name, pl, is_ltkn, global_val in fixups:
-            ceil_expr = f'({global_val} + factor - 1) / factor'
-            if is_ltkn:
-                rhs = Macro(f'PetscMax(0, {ceil_expr} - cinfo.{pl}s)')
-            else:
-                rhs = Macro(
-                    f'PetscMax(0, {ceil_expr}'
-                    f' - (cinfo.m{pl} - cinfo.{pl}s - cinfo.{pl}m))'
-                )
-            stmts.append(
-                DummyExpr(FieldFromComposite(tkn_name, all_ctx.indexed[level]), rhs)
-            )
-
-        return stmts
 
     @property
     def make_shell_ctx_efunc(self):
