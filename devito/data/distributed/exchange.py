@@ -1,13 +1,13 @@
 """
 Exchange: the value object tying a Selection and a Layout into a reusable plan.
 
-``Exchange(data, idx)`` builds the routing for one index expression without any
-communication. ``get`` pulls ``data[idx]`` and ``put`` assigns ``data[idx] =
-value``. Because the plan is communication-free to build and independent of the
+`Exchange(data, idx)` builds the routing for one index expression without any
+communication. `get` pulls `data[idx]` and `put` assigns `data[idx] =
+value`. Because the plan is communication-free to build and independent of the
 data *values*, it can be cached and replayed across calls with the same index
 (e.g. sparse injection every timestep), so the steady state is pure
-point-to-point with no re-planning. ``cached_exchange`` provides that cache;
-``Data`` uses it so ``data[idx] = value`` is automatically plan-cached.
+point-to-point with no re-planning. `cached_exchange` provides that cache;
+`Data` uses it so `data[idx] = value` is automatically plan-cached.
 """
 
 from functools import lru_cache
@@ -25,7 +25,7 @@ __all__ = ['Exchange', 'cached_exchange']
 class Exchange:
 
     """
-    A reusable redistribution plan for ``data[idx]`` on distributed ``data``.
+    A reusable redistribution plan for `data[idx]` on distributed `data`.
 
     Parameters
     ----------
@@ -49,22 +49,22 @@ class Exchange:
         self._plan = ExchangePlan.build(self._selection, self._layout)
 
     def get(self):
-        """Return ``data[idx]`` as a NumPy array."""
+        """Return `data[idx]` as a NumPy array."""
         return self._plan.get(np.asarray(self._data))
 
     def put(self, value):
-        """Assign ``data[idx] = value``."""
+        """Assign `data[idx] = value`."""
         self._plan.put(np.asarray(self._data), value)
 
 
 class _ExchangeKey:
 
     """
-    Hashable, content-addressed key wrapping ``(data, idx)`` for plan caching.
+    Hashable, content-addressed key wrapping `(data, idx)` for plan caching.
 
     NumPy index arrays are unhashable, so the key digests their content (together
     with the decomposition and shape the plan depends on) and lets
-    ``functools.lru_cache`` own eviction. Content addressing means a freshly
+    `functools.lru_cache` own eviction. Content addressing means a freshly
     built index array with the same values still hits, and an in-place mutation
     correctly misses.
     """
@@ -89,7 +89,7 @@ def _build(key):
 
 
 def cached_exchange(data, idx):
-    """Return a (cached) ``Exchange`` for ``data[idx]``."""
+    """Return a (cached) `Exchange` for `data[idx]`."""
     return _build(_ExchangeKey(data, idx))
 
 

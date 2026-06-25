@@ -461,7 +461,7 @@ class TestDecomposition:
         high end) falls strictly inside the owning subdomain must begin the
         stride phase at the start, not at the subdomain boundary. Previously the
         local slice picked spurious leading/trailing elements (e.g. global
-        ``2:8:2`` gave rank 0 local ``[0, 2]`` instead of ``[2]``).
+        `2:8:2` gave rank 0 local `[0, 2]` instead of `[2]`).
         """
         d0 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 0)
         d2 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
@@ -635,7 +635,7 @@ ENGINE_SHAPE = (4, 5, 6)
 
 class TestSelection:
 
-    """``Selection`` encodes NumPy indexing semantics, layout-independent."""
+    """`Selection` encodes NumPy indexing semantics, layout-independent."""
 
     @pytest.mark.parametrize('idx', [
         # basic indexing
@@ -695,7 +695,7 @@ class TestSelection:
                                                        ENGINE_SHAPE[0] - 2]
 
     def test_advanced_at_front_detection(self):
-        """Separated advanced axes set ``advanced_at_front``; contiguous don't."""
+        """Separated advanced axes set `advanced_at_front`; contiguous don't."""
         sep = Selection.from_index((np.array([0, 1]), 2, np.array([0, 3])),
                                    ENGINE_SHAPE)
         cont = Selection.from_index((np.array([0, 1]), np.array([0, 3])),
@@ -728,7 +728,7 @@ class TestSelection:
 
 class TestResultDims:
 
-    """``result_dims`` is the single source of result-axis ordering."""
+    """`result_dims` is the single source of result-axis ordering."""
 
     def test_basic_only(self):
         sel = Selection.from_index((2, slice(None), slice(None)), ENGINE_SHAPE)
@@ -746,7 +746,7 @@ class TestResultDims:
         assert sel.result_dims == [('adv', 0), ('basic', 1)]
 
     def test_result_shape_derives_from_dims(self):
-        """``result_shape`` is exactly the sizes of ``result_dims``, in order."""
+        """`result_shape` is exactly the sizes of `result_dims`, in order."""
         sel = Selection.from_index((np.array([0, 1]), slice(1, 4), np.array([0, 3])),
                                    ENGINE_SHAPE)
         sizes = tuple(sel.selectors[v].size if kind == 'basic'
@@ -772,7 +772,7 @@ class TestIndexHasArray:
         ((np.array([0, 1]), slice(None)), 2, True),
         (np.array([0, 1]), 1, True),
         (np.array([True, False]), 1, True),
-        # legacy ``data[[i, j, k]]`` shorthand on an n-D object stays basic
+        # legacy `data[[i, j, k]]` shorthand on an n-D object stays basic
         ([0, 1, 2], 3, False),
         # a genuine 1-D list index on a 1-D object is advanced
         ([0, 1, 2], 1, True),
@@ -805,7 +805,7 @@ class TestLayout:
         assert layout.topology_shape == (4, 4)
 
     def test_single_axis_coord_to_rank(self, decomposition):
-        # Without ``all_coords`` (e.g. a sparse distributor) ranks lay out linearly
+        # Without `all_coords` (e.g. a sparse distributor) ranks lay out linearly
         class _Dist:
             nprocs = 4
         layout = Layout(_Dist(), (decomposition,), (12,))
@@ -897,7 +897,7 @@ class TestDataDistributed:
     @pytest.mark.parallel(mode=4)
     def test_local_indices_roundtrip(self, mode):
         """
-        The public ``local_indices`` slices map a rank's local data into the
+        The public `local_indices` slices map a rank's local data into the
         global array, enabling the natural no-comm idiom::
 
             f.data_local[:] = global_array[f.local_indices]
@@ -1029,8 +1029,8 @@ class TestDataDistributed:
     def test_advanced_indexing_local_only_no_comm(self, mode):
         """
         Case 1: each rank labels rank-local values with its own global indices, so
-        nothing crosses ranks. ``b`` matches the local size; data stays put. The
-        same effect is achievable comm-free via ``data_local`` + ``local_indices``.
+        nothing crosses ranks. `b` matches the local size; data stays put. The
+        same effect is achievable comm-free via `data_local` + `local_indices`.
         """
         grid = Grid(shape=(8,))
         f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
@@ -1054,7 +1054,7 @@ class TestDataDistributed:
     def test_advanced_indexing_generic_size_crossing_ranks(self, mode):
         """
         Case 2: a single rank assigns an arbitrary number of values to global
-        indices spread across every rank; ``len(b)`` differs from the local size.
+        indices spread across every rank; `len(b)` differs from the local size.
         """
         grid = Grid(shape=(8,))
         f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
@@ -1075,7 +1075,7 @@ class TestDataDistributed:
     @pytest.mark.parallel(mode=4)
     def test_full_assignment_replicated_rhs(self, mode):
         """
-        Case 3: ``a.data[:] = b`` with ``b`` the full global array replicated on
+        Case 3: `a.data[:] = b` with `b` the full global array replicated on
         every rank. Basic indexing, so each rank slices its own piece (no comm).
         """
         grid = Grid(shape=(8,))

@@ -1,16 +1,16 @@
 """
 Structured redistribution between distributed arrays (the "structured" quadrant).
 
-``redistribute_set`` assigns ``self[idx] = other`` (``other`` distributed) by
-pushing ``other``'s block into a strided region of ``self``, point-to-point.
+`redistribute_set` assigns `self[idx] = other` (`other` distributed) by
+pushing `other`'s block into a strided region of `self`, point-to-point.
 
 The source-to-destination mapping is derived directly from the index as a
-per-axis affine map (``source_coord = start + k*step``), so it never relies on
-the legacy ``_process_args`` machinery. Both reuse the engine's ``Layout`` and
+per-axis affine map (`source_coord = start + k*step`), so it never relies on
+the legacy `_process_args` machinery. Both reuse the engine's `Layout` and
 owner-resolution/transport.
 
 The structured path is chosen only if *every* rank can build it (a single
-collective ``LAND``). This keeps the communication pattern identical on all ranks
+collective `LAND`). This keeps the communication pattern identical on all ranks
 -- essential, since a value/result with non-uniformly-structured decomposition
 metadata would otherwise make the per-rank choice diverge and deadlock.
 Unsupported patterns fall back to the legacy path -- no behavior is lost.
@@ -28,10 +28,10 @@ __all__ = ['redistribute_set']
 
 def redistribute_set(data, glb_idx, other):
     """
-    Assign ``data[glb_idx] = other`` via a structured point-to-point exchange.
+    Assign `data[glb_idx] = other` via a structured point-to-point exchange.
 
     The structured path is taken only if *every* rank can build it, decided by a
-    single collective ``LAND``. This keeps the choice -- and therefore the
+    single collective `LAND`. This keeps the choice -- and therefore the
     communication pattern -- identical on all ranks, which is essential: a value
     produced by the legacy path (e.g. a reversed slice) may carry decomposition
     metadata that is not uniformly structured, and a diverging choice would
@@ -49,7 +49,7 @@ def redistribute_set(data, glb_idx, other):
     Returns
     -------
     bool
-        ``True`` when handled here; ``False`` when the pattern is unsupported and
+        `True` when handled here; `False` when the pattern is unsupported and
         the caller should fall back to the legacy path.
     """
     try:
@@ -69,14 +69,14 @@ def _structured_spec(data, glb_idx, other):
     """
     Build the routing spec for the supported structured case.
 
-    The case is: ``data`` and ``other`` both fully distributed with matching
+    The case is: `data` and `other` both fully distributed with matching
     rank, every axis sliced (no scalars/arrays), and each sliced region matching
-    ``other``'s extent.
+    `other`'s extent.
 
     Returns
     -------
     tuple or None
-        ``(layout, gcoords, values)`` for ``_push``, or ``None`` when the
+        `(layout, gcoords, values)` for `_push`, or `None` when the
         pattern is unsupported and the caller should fall back to the legacy
         path.
     """
@@ -118,11 +118,11 @@ def _structured_spec(data, glb_idx, other):
 
 def _push(layout, gcoords, values, local):
     """
-    Push ``values`` (one per global coordinate in ``gcoords``) to their owners.
+    Push `values` (one per global coordinate in `gcoords`) to their owners.
 
     A structured assignment has exactly one value per distributed point and no
-    replicated payload, so it is ``nbx_push`` with ``payload_size == 1``
-    (``block_offsets == [0]``, ``repl_total == 1``).
+    replicated payload, so it is `nbx_push` with `payload_size == 1`
+    (`block_offsets == [0]`, `repl_total == 1`).
     """
     owners, dist_local, sub = _resolve_owners(None, layout, gcoords)
     peers, _, _ = _group_peers(layout, owners, dist_local, sub, gcoords)

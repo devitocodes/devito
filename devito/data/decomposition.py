@@ -577,7 +577,7 @@ class Decomposition(tuple):
         Each subdomain keeps the result positions, in index order, of the global
         indices it owns. A strided or reversed slice therefore just relabels
         which rank owns which result index -- indexing never moves data across
-        ranks. Unlike ``reshape`` (which adjusts subdomain *boundaries* and
+        ranks. Unlike `reshape` (which adjusts subdomain *boundaries* and
         is used for halos), this follows exact NumPy slicing semantics.
 
         Examples
