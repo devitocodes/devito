@@ -9,9 +9,9 @@ from devito import (  # noqa
 from devito.data import LEFT, RIGHT, Decomposition, convert_index, loc_data_idx
 from devito.data.allocators import DataReference
 from devito.data.distributed.layout import Layout
-from devito.data.distributed.selection import Affine, Explicit
-from devito.data.distributed.selection import Scalar as IndexScalar
-from devito.data.distributed.selection import Selection, index_has_array, result_dims
+from devito.data.distributed.selection import (
+    Affine, Explicit, IndexScalar, Selection, index_has_array, result_dims
+)
 from devito.ir import ccode
 from devito.tools import as_tuple
 from devito.types import Scalar

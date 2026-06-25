@@ -22,7 +22,7 @@ axes) carrying a payload block addressed by the replicated axes.
 
 import numpy as np
 
-from devito.data.distributed.selection import Affine, Scalar
+from devito.data.distributed.selection import Affine, IndexScalar
 from devito.data.distributed.transport import nbx_exchange
 from devito.mpi import MPI
 from devito.tools import prod
@@ -288,7 +288,7 @@ def _distributed_coords(selection, layout, t_dims, t_shape):
     gcoords = {}
     for axis in layout.distributed_axes:
         s = selection.selectors[axis]
-        if isinstance(s, Scalar):
+        if isinstance(s, IndexScalar):
             gcoords[axis] = np.full(nrows, s.index, dtype=np.int64)
         elif isinstance(s, Affine):
             ri = t_dims.index(('basic', axis))
@@ -368,7 +368,7 @@ def _replicated_block(selection, layout, p_dims, payload_shape):
 
     for axis in layout.replicated_axes:
         s = selection.selectors[axis]
-        if isinstance(s, Scalar):
+        if isinstance(s, IndexScalar):
             coord = np.full(payload_size, s.index, dtype=np.int64)
         elif isinstance(s, Affine):
             ri = p_dims.index(('basic', axis))
