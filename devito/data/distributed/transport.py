@@ -8,6 +8,8 @@ ever communicate. It can be swapped for neighbor collectives or a persistent
 graph communicator without affecting the layers above.
 """
 
+import time
+
 import numpy as np
 
 from devito.mpi import MPI
@@ -83,12 +85,19 @@ def nbx_exchange(comm, sendbufs, dtype, tag=0):
             buf = np.empty(count, dtype=dtype)
             comm.Recv([buf, mpitype], source=src, tag=tag)
             recvd[src] = buf
-        elif barrier is None:
+            # Drain any further ready messages before yielding
+            continue
+        if barrier is None:
             if MPI.Request.Testall(sends):
                 # All my sends were matched -> announce I am done sending
                 barrier = comm.Ibarrier()
         elif barrier.Test():
             # Everyone is done sending and nothing is in flight
             break
+        # Nothing was ready this pass: yield the CPU so co-scheduled ranks can
+        # make progress. Without this the probe loop busy-waits at 100%, which
+        # deadlocks the exchange when ranks are oversubscribed (more ranks than
+        # cores, e.g. the 4-engine ipyparallel cluster on a 2-core CI runner).
+        time.sleep(0)
 
     return recvd
