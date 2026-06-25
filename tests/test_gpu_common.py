@@ -103,6 +103,12 @@ class TestDeviceID:
 
         eq = Eq(u, u+1)
 
+        # Prevent already defined visible-device environment variables
+        # from interfering with the test for example with ROCR_VISIBLE_DEVICES
+        # when running on the nvidia CI
+        env_variables = {**{i: None for i in self.visible_device_envs},
+                         **env_variables}
+
         with switchenv(env_variables):
             op1 = Operator(eq)
             argmap1 = op1.arguments()

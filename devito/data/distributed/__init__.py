@@ -19,4 +19,4 @@ from devito.data.distributed.layout import Layout  # noqa
 from devito.data.distributed.plan import ExchangePlan  # noqa
 from devito.data.distributed.redistribution import redistribute_set  # noqa
 from devito.data.distributed.selection import Selection  # noqa
-from devito.data.distributed.transport import nbx_exchange  # noqa
+from devito.data.distributed.transport import sparse_exchange  # noqa

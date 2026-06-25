@@ -23,11 +23,11 @@ axes) carrying a payload block addressed by the replicated axes.
 import numpy as np
 
 from devito.data.distributed.selection import Affine, IndexScalar
-from devito.data.distributed.transport import nbx_exchange
+from devito.data.distributed.transport import sparse_exchange
 from devito.mpi import MPI
 from devito.tools import prod
 
-__all__ = ['ExchangePlan', 'nbx_push']
+__all__ = ['ExchangePlan', 'sparse_push']
 
 
 class ExchangePlan:
@@ -206,7 +206,7 @@ class ExchangePlan:
         # Send each owner the offsets of the elements we want from it...
         headers = {r: _encode(ps, self._block_offsets, dist_lin)
                    for r, (_, dist_lin) in self._peers.items()}
-        requests = nbx_exchange(comm, headers, np.int64, tag=41)
+        requests = sparse_exchange(comm, headers, np.int64, tag=41)
 
         # ...and reply to whoever asked us with the requested values
         moved = self._moved(local)
@@ -215,7 +215,7 @@ class ExchangePlan:
             block_offsets, dist_lin = _decode(buf)
             midx = self._owner_apply(moved, dist_lin, block_offsets)
             replies[src] = np.ascontiguousarray(moved[midx]).reshape(-1)
-        payloads = nbx_exchange(comm, replies, dtype, tag=42)
+        payloads = sparse_exchange(comm, replies, dtype, tag=42)
 
         # Scatter the received values back into result-row order
         rows_flat = np.zeros((self._nrows(), ps), dtype=dtype)
@@ -239,9 +239,9 @@ class ExchangePlan:
         """
         self._raise_on_error(check_dup=True)
         rows_flat = self._value_to_rows(value, local.dtype)
-        nbx_push(self.comm, self.layout.distributed_axes, self._repl_total,
-                 self._peers, self._block_offsets, self.payload_size, rows_flat,
-                 local)
+        sparse_push(self.comm, self.layout.distributed_axes, self._repl_total,
+                    self._peers, self._block_offsets, self.payload_size,
+                    rows_flat, local)
 
     # ------------------------------------------------------- result <-> rows
 
@@ -422,8 +422,8 @@ def _group_peers(layout, owners, dist_local, sub, gcoords):
     return peers, oob_error, dup_error
 
 
-def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
-             payload_size, rows_flat, local):
+def sparse_push(comm, distributed_axes, repl_total, peers, block_offsets,
+                payload_size, rows_flat, local):
     """
     Route `rows_flat` to the owner ranks (NBX) and scatter each received
     payload into `local` at its owner-local position.
@@ -456,8 +456,8 @@ def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
                for r, (_, dist_lin) in peers.items()}
     payloads = {r: rows_flat[rows].reshape(-1)
                 for r, (rows, _) in peers.items() if rows.size}
-    requests = nbx_exchange(comm, headers, np.int64, tag=43)
-    values = nbx_exchange(comm, payloads, rows_flat.dtype, tag=44)
+    requests = sparse_exchange(comm, headers, np.int64, tag=43)
+    values = sparse_exchange(comm, payloads, rows_flat.dtype, tag=44)
 
     # ...then scatter whatever we received into our own local array
     moved = np.moveaxis(local, distributed_axes, range(len(distributed_axes)))

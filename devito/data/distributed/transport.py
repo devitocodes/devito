@@ -2,10 +2,16 @@
 Transport layer for distributed data redistribution.
 
 This module knows nothing about indexing or `Data`; it only moves contiguous
-buffers between MPI ranks. The single primitive, `nbx_exchange`, performs
-a sparse "all-to-some" exchange in which only the ranks that actually share data
-ever communicate. It can be swapped for neighbor collectives or a persistent
-graph communicator without affecting the layers above.
+buffers between MPI ranks. The single primitive, `sparse_exchange`, performs a
+sparse "all-to-some" exchange in which only the ranks that actually share data
+exchange payloads.
+
+Each rank first learns *how many* peers will send to it via a single small
+`Reduce_scatter_block` over one integer per rank, then posts the point-to-point
+messages and receives exactly that many. This relies only on standard, widely
+portable MPI calls (no synchronous-send / nonblocking-barrier consensus), so it
+behaves uniformly across MPI implementations; the payloads themselves still move
+strictly point-to-point, so no data all-to-all takes place.
 """
 
 import numpy as np
@@ -13,18 +19,18 @@ import numpy as np
 from devito.mpi import MPI
 from devito.tools import dtype_to_mpidtype
 
-__all__ = ['nbx_exchange']
+__all__ = ['sparse_exchange']
 
 
-def nbx_exchange(comm, sendbufs, dtype, tag=0):
+def sparse_exchange(comm, sendbufs, dtype, tag=0):
     """
-    Sparse "all-to-some" exchange via nonblocking consensus (NBX).
+    Sparse "all-to-some" exchange of contiguous buffers.
 
-    Each rank sends a buffer to each peer listed in `sendbufs` and receives
-    from whichever ranks send to it, without any rank needing global knowledge
-    of the communication pattern and without any dense collective. Only ranks
-    that actually exchange data communicate; global termination is detected with
-    a single nonblocking barrier (log-depth).
+    Each rank sends a buffer to each peer listed in `sendbufs` and receives from
+    whichever ranks send to it. The number of incoming messages is discovered
+    with one `Reduce_scatter_block` over a length-`nprocs` 0/1 indicator (a few
+    bytes per rank); only ranks that share data then exchange payloads, strictly
+    point-to-point.
 
     Parameters
     ----------
@@ -44,16 +50,9 @@ def nbx_exchange(comm, sendbufs, dtype, tag=0):
     dict
         Maps each source rank to the 1D buffer received from it. The caller
         reshapes using its known payload shape.
-
-    Notes
-    -----
-    Implements the NBX algorithm (Hoefler et al., "Scalable Communication
-    Protocols for Dynamic Sparse Data Exchange"). Synchronous sends (`Issend`)
-    complete only once matched by a receive, so a rank can enter the nonblocking
-    barrier only after every message it sent has been taken. Once all ranks are
-    in the barrier no message is in flight, so probing can safely stop.
     """
     rank = comm.Get_rank()
+    nprocs = comm.Get_size()
     mpitype = dtype_to_mpidtype(dtype)
 
     recvd = {}
@@ -63,8 +62,18 @@ def nbx_exchange(comm, sendbufs, dtype, tag=0):
     if local is not None and local.size:
         recvd[rank] = np.ravel(np.ascontiguousarray(local))
 
-    # Post synchronous sends to every other peer. The buffers must stay alive
-    # until the matching requests complete, hence `live_bufs`.
+    # Discover how many peers will send to this rank: the column sum of a 0/1
+    # "rank r sends to rank c" matrix, scattered so each rank gets its own count.
+    indicator = np.zeros(nprocs, dtype=np.int32)
+    for peer, buf in sendbufs.items():
+        if peer != rank and buf.size:
+            indicator[peer] = 1
+    incoming = np.zeros(1, dtype=np.int32)
+    comm.Reduce_scatter_block([indicator, MPI.INT], [incoming, MPI.INT],
+                              op=MPI.SUM)
+
+    # Post the point-to-point sends. The buffers must stay alive until the
+    # matching requests complete, hence `live_bufs`.
     sends = []
     live_bufs = []
     for peer, buf in sendbufs.items():
@@ -72,23 +81,17 @@ def nbx_exchange(comm, sendbufs, dtype, tag=0):
             continue
         buf = np.ascontiguousarray(buf)
         live_bufs.append(buf)
-        sends.append(comm.Issend([buf, mpitype], dest=peer, tag=tag))
+        sends.append(comm.Isend([buf, mpitype], dest=peer, tag=tag))
 
-    barrier = None
+    # Receive exactly the expected number of messages, sizing each from its probe
     status = MPI.Status()
-    while True:
-        if comm.Iprobe(source=MPI.ANY_SOURCE, tag=tag, status=status):
-            src = status.Get_source()
-            count = status.Get_count(mpitype)
-            buf = np.empty(count, dtype=dtype)
-            comm.Recv([buf, mpitype], source=src, tag=tag)
-            recvd[src] = buf
-        elif barrier is None:
-            if MPI.Request.Testall(sends):
-                # All my sends were matched -> announce I am done sending
-                barrier = comm.Ibarrier()
-        elif barrier.Test():
-            # Everyone is done sending and nothing is in flight
-            break
+    for _ in range(int(incoming[0])):
+        comm.Probe(source=MPI.ANY_SOURCE, tag=tag, status=status)
+        src = status.Get_source()
+        count = status.Get_count(mpitype)
+        buf = np.empty(count, dtype=dtype)
+        comm.Recv([buf, mpitype], source=src, tag=tag)
+        recvd[src] = buf
 
+    MPI.Request.Waitall(sends)
     return recvd

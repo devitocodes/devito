@@ -19,7 +19,7 @@ Unsupported patterns fall back to the legacy path -- no behavior is lost.
 import numpy as np
 
 from devito.data.distributed.layout import Layout
-from devito.data.distributed.plan import _group_peers, _resolve_owners, nbx_push
+from devito.data.distributed.plan import _group_peers, _resolve_owners, sparse_push
 from devito.data.distributed.selection import Affine, Selection
 from devito.mpi import MPI
 
@@ -121,12 +121,12 @@ def _push(layout, gcoords, values, local):
     Push `values` (one per global coordinate in `gcoords`) to their owners.
 
     A structured assignment has exactly one value per distributed point and no
-    replicated payload, so it is `nbx_push` with `payload_size == 1`
+    replicated payload, so it is `sparse_push` with `payload_size == 1`
     (`block_offsets == [0]`, `repl_total == 1`).
     """
     owners, dist_local, sub = _resolve_owners(None, layout, gcoords)
     peers, _, _ = _group_peers(layout, owners, dist_local, sub, gcoords)
 
     block_offsets = np.zeros(1, dtype=np.int64)   # no replicated payload
-    nbx_push(layout.distributor.comm, layout.distributed_axes, 1, peers,
-             block_offsets, 1, values.reshape(-1, 1), local)
+    sparse_push(layout.distributor.comm, layout.distributed_axes, 1, peers,
+                block_offsets, 1, values.reshape(-1, 1), local)

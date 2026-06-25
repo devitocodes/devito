@@ -44,11 +44,6 @@ jobs:
       DEVITO_ARCH: "gcc"
       CC: "gcc"
       CXX: "g++"
-      # Make OpenMPI yield the CPU while waiting instead of busy-spinning. With
-      # 4 ipyparallel engines contending for cores, the point-to-point routing
-      # in the data notebooks otherwise livelocks under OpenMPI (IntelMPI yields
-      # by default, so it is unaffected and ignores this OMPI_* setting).
-      OMPI_MCA_mpi_yield_when_idle: "1"
 
     steps:
     - name: Checkout devito
