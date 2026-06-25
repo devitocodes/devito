@@ -44,6 +44,11 @@ jobs:
       DEVITO_ARCH: "gcc"
       CC: "gcc"
       CXX: "g++"
+      # Make OpenMPI yield the CPU while waiting instead of busy-spinning. With
+      # 4 ipyparallel engines contending for cores, the point-to-point routing
+      # in the data notebooks otherwise livelocks under OpenMPI (IntelMPI yields
+      # by default, so it is unaffected and ignores this OMPI_* setting).
+      OMPI_MCA_mpi_yield_when_idle: "1"
 
     steps:
     - name: Checkout devito
@@ -71,7 +76,7 @@ jobs:
         ipcluster start --profile=mpi --engines=mpi -n 4 --daemonize
         # A few seconds to ensure workers are ready
         sleep 10
-        pytest -v --nbval examples/mpi
+        pytest -vvv --nbval examples/mpi
         ipcluster stop --profile=mpi
 
     - name: Test seismic examples
