@@ -592,6 +592,27 @@ class Decomposition(tuple):
             return Decomposition([np.array([], dtype=np.int64)]*len(self),
                                  self.local)
         size = self.glb_max - self.glb_min + 1
-        selected = np.arange(self.glb_min, self.glb_min + size)[idx]
-        items = [np.nonzero(np.isin(selected, sd))[0] for sd in self]
+
+        # The global indices selected by `idx`, in result order. For a slice
+        # (the only caller) this is built directly, without materialising the
+        # whole axis.
+        if isinstance(idx, slice):
+            start, stop, step = idx.indices(size)
+            selected = self.glb_min + np.arange(start, stop, step)
+        else:
+            selected = np.arange(self.glb_min, self.glb_min + size)[idx]
+
+        # Bucket the selected indices by owning subdomain. A subdomain is a
+        # contiguous range, so membership is a bounds check in O(len(selected))
+        # -- avoiding an O(axis) `isin` on every slice. A non-contiguous
+        # subdomain (not produced by gridding/slicing) falls back to `isin`.
+        items = []
+        for sd in self:
+            if sd.size == 0:
+                items.append(np.array([], dtype=np.int64))
+            elif sd[-1] - sd[0] + 1 == sd.size:
+                owned = (selected >= sd[0]) & (selected <= sd[-1])
+                items.append(np.nonzero(owned)[0])
+            else:
+                items.append(np.nonzero(np.isin(selected, sd))[0])
         return Decomposition(items, self.local)

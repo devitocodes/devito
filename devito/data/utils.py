@@ -100,6 +100,13 @@ def convert_index(idx, decomposition, mode='glb_to_loc'):
     elif isinstance(idx, (tuple, list)):
         return [decomposition(i, mode=mode) for i in idx]
     elif isinstance(idx, np.ndarray):
+        if mode == 'glb_to_loc' and len(decomposition) == 1 \
+                and not decomposition.loc_empty:
+            # A single (non-distributed) subdomain holds the whole axis, so the
+            # global-to-local map is just a negative-index wrap. Vectorize it
+            # instead of calling `index_glb_to_loc` per element via np.vectorize.
+            n = decomposition.glb_max - decomposition.glb_min + 1
+            return np.where(idx < 0, idx + n, idx).astype(idx.dtype)
         return np.vectorize(lambda i: decomposition(i, mode=mode))(idx).astype(idx.dtype)
     else:
         raise ValueError(f"Cannot convert index of type `{type(idx)}` ")
