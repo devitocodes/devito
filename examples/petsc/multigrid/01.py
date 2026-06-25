@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 from devito import (Grid, Function, Eq, Operator, switchconfig,
-                    configuration, SubDomain, norm)
+                    configuration, SubDomain, norm, GridHierarchy)
 
 from devito.petsc import petscsolve, EssentialBC
 from devito.petsc.initialize import PetscInitialize
@@ -55,6 +55,7 @@ n = 33
 grid = Grid(
     shape=(n,), extent=(Lx,), subdomains=subdomains, dtype=np.float64
 )
+hierarchy = GridHierarchy(grid, nlevels=3)
 
 u = Function(name='u', grid=grid, space_order=2)
 f = Function(name='f', grid=grid, space_order=2)
@@ -75,10 +76,10 @@ bcs += [EssentialBC(u, bc, subdomain=sub2)]
 exprs = [eqn] + bcs
 petsc = petscsolve(
     exprs, target=u,
+    hierarchy=hierarchy,
     solver_parameters={
         'ksp_type': 'cg',
         'pc_type': 'mg',
-        'pc_mg_levels': 3,
         'snes_type': 'ksponly',
         'mg_levels_ksp_type': 'chebyshev',
         'mg_levels_pc_type': 'jacobi',

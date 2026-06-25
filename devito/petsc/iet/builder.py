@@ -431,7 +431,7 @@ class MultigridBuilderMixin:
         shell_context = sobjs['sctx']
         shell_dm = sobjs['shell']
         refine_levels = sobjs['refine_levels']
-        n_levels = multigrid_metadata.n_levels
+        n_levels = multigrid_metadata.hierarchy.nlevels
 
         # Allocate an array of n_levels UserCtx structs, one per unique MG level
         malloc_all_ctx = petsc_call('PetscMalloc1', [n_levels, Byref(all_ctx)])

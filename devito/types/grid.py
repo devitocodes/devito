@@ -233,8 +233,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         for i in self._subdomains:
             i.__subdomain_finalize_legacy__(self)
 
-        self._hierarchy = None
-
     def __repr__(self):
         return 'Grid' + \
             f'[extent={self.extent}, shape={self.shape}, dimensions={self.dimensions}]'
@@ -514,14 +512,27 @@ class GridHierarchy:
         self._fine = fine_grid
         self._nlevels = nlevels
 
+        divisor = 2 ** (nlevels - 1)
+        invalid = [
+            (d, n) for d, n in zip(fine_grid.dimensions, fine_grid.shape)
+            if (n - 1) % divisor != 0
+        ]
+        if invalid:
+            msgs = ', '.join(
+                f"{d}: size {n} ((n-1)={n-1} not divisible by {divisor})"
+                for d, n in invalid
+            )
+            raise ValueError(
+                f"Grid cannot be uniformly coarsened over {nlevels} levels: {msgs}. "
+                f"Each (n-1) must be divisible by 2^(nlevels-1)={divisor}."
+            )
+
         coarse_levels = []
         shape = fine_grid.shape
         for _ in range(nlevels - 1):
             shape = tuple((s - 1) // 2 + 1 for s in shape)
             coarse_levels.append(SubGrid(shape, fine_grid))
         self._coarse_levels = tuple(coarse_levels)
-
-        fine_grid._hierarchy = self
 
     def __repr__(self):
         shapes = ' -> '.join(str(l.shape) for l in self.levels)

@@ -7,8 +7,8 @@ import sympy as sp
 
 from conftest import skipif
 from devito import (
-    Eq, Function, Grid, Operator, SubDomain, TimeFunction, configuration, norm, sin,
-    switchconfig
+    Eq, Function, Grid, GridHierarchy, Operator, SubDomain, TimeFunction,
+    configuration, norm, sin, switchconfig
 )
 from devito.ir.iet import Call, ElementalFunction, FindNodes, retrieve_iteration_tree
 from devito.operator.profiling import PerformanceSummary
@@ -2992,6 +2992,7 @@ class TestMultiGrid1D:
         self.grid = Grid(
             shape=(self.n_fine,), subdomains=subdomains, dtype=np.float64
         )
+        self.hierarchy = GridHierarchy(self.grid, nlevels=3)
 
         self.u = Function(name='u', grid=self.grid, space_order=2)
         self.f = Function(name='f', grid=self.grid, space_order=2)
@@ -3011,10 +3012,10 @@ class TestMultiGrid1D:
         exprs = [eqn] + bcs
         petsc = petscsolve(
             exprs, target=self.u,
+            hierarchy=self.hierarchy,
             solver_parameters={
                 'ksp_type': 'cg',
                 'pc_type': 'mg',
-                'pc_mg_levels': 3,
                 'snes_type': 'ksponly',
                 'mg_levels_ksp_type': 'chebyshev',
                 'mg_levels_pc_type': 'jacobi',
@@ -3123,6 +3124,7 @@ class TestMultiGrid2D:
         self.grid = Grid(
             shape=(self.n_fine, self.n_fine), subdomains=subdomains, dtype=np.float64
         )
+        self.hierarchy = GridHierarchy(self.grid, nlevels=3)
 
         self.u = Function(name='u', grid=self.grid, space_order=2)
         self.f = Function(name='f', grid=self.grid, space_order=2)
@@ -3149,10 +3151,10 @@ class TestMultiGrid2D:
         exprs = [eqn] + bcs
         petsc = petscsolve(
             exprs, target=self.u,
+            hierarchy=self.hierarchy,
             solver_parameters={
                 'ksp_type': 'cg',
                 'pc_type': 'mg',
-                'pc_mg_levels': 3,
                 'snes_type': 'ksponly',
                 'mg_levels_ksp_type': 'chebyshev',
                 'mg_levels_pc_type': 'jacobi',
@@ -3272,6 +3274,7 @@ class TestMultiGrid3D:
         self.grid = Grid(
             shape=(self.n_fine,) * 3, subdomains=subdomains, dtype=np.float64
         )
+        self.hierarchy = GridHierarchy(self.grid, nlevels=3)
 
         self.u = Function(name='u', grid=self.grid, space_order=2)
         self.f = Function(name='f', grid=self.grid, space_order=2)
@@ -3303,10 +3306,10 @@ class TestMultiGrid3D:
         exprs = [eqn] + bcs
         petsc = petscsolve(
             exprs, target=self.u,
+            hierarchy=self.hierarchy,
             solver_parameters={
                 'ksp_type': 'cg',
                 'pc_type': 'mg',
-                'pc_mg_levels': 3,
                 'snes_type': 'ksponly',
                 'mg_levels_ksp_type': 'chebyshev',
                 'mg_levels_pc_type': 'jacobi',

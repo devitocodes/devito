@@ -14,7 +14,8 @@ __all__ = ['petscsolve']
 
 
 def petscsolve(target_exprs, target=None, solver_parameters=None,
-               options_prefix=None, get_info=None, constrain_bcs=False):
+               options_prefix=None, get_info=None, constrain_bcs=False,
+               hierarchy=None):
     """
     Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
@@ -90,7 +91,8 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
     """
     if target is not None:
         return InjectSolve(solver_parameters, {target: target_exprs},
-                           options_prefix, get_info, constrain_bcs).build_expr()
+                           options_prefix, get_info, constrain_bcs,
+                           hierarchy).build_expr()
     else:
         return InjectMixedSolve(solver_parameters, target_exprs,
                                 options_prefix, get_info, constrain_bcs).build_expr()
@@ -98,10 +100,11 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
 
 class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
-                 get_info=None, constrain_bcs=False):
+                 get_info=None, constrain_bcs=False, hierarchy=None):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
         self.time_mapper = None
         self.target_exprs = target_exprs
+        self.hierarchy = hierarchy
         # The original options prefix provided by the user
         self.user_prefix = options_prefix
         self.formatted_prefix = format_options_prefix(options_prefix)
@@ -112,10 +115,25 @@ class InjectSolve:
         target, funcs, field_data = self.linear_solve_args()
         # Placeholder expression for inserting calls to the solver
 
-        # TODO: cover all cases - not only when pc_type is mg?
-        multigrid_metadata = MultigridMetadata(
-            field_data, self.solver_parameters
-        ) if self.solver_parameters.get('pc_type') == 'mg' else None
+        multigrid_metadata = None
+        if self.solver_parameters.get('pc_type') == 'mg':
+            if self.hierarchy is None:
+                raise ValueError(
+                    "pc_type='mg' requires a GridHierarchy. "
+                    "Pass one to petscsolve:\n"
+                    "    hierarchy = GridHierarchy(grid, nlevels=<n>)\n"
+                    "    petscsolve(..., hierarchy=hierarchy)"
+                )
+            # Validate pc_mg_levels if user specified it
+            user_nlevels = self.solver_parameters.get('pc_mg_levels')
+            if user_nlevels is not None and int(user_nlevels) != self.hierarchy.nlevels:
+                raise ValueError(
+                    f"pc_mg_levels={user_nlevels} does not match "
+                    f"GridHierarchy.nlevels={self.hierarchy.nlevels}."
+                )
+            # Derive pc_mg_levels from hierarchy — PETSc needs it
+            self.solver_parameters['pc_mg_levels'] = self.hierarchy.nlevels
+            multigrid_metadata = MultigridMetadata(self.hierarchy, field_data)
 
         linear_solve = LinearSolverMetaData(
             funcs,
