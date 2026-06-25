@@ -1,8 +1,8 @@
 """
 Transport layer for distributed data redistribution.
 
-This module knows nothing about indexing or ``Data``; it only moves contiguous
-buffers between MPI ranks. The single primitive, ``nbx_exchange``, performs
+This module knows nothing about indexing or `Data`; it only moves contiguous
+buffers between MPI ranks. The single primitive, `nbx_exchange`, performs
 a sparse "all-to-some" exchange in which only the ranks that actually share data
 ever communicate. It can be swapped for neighbor collectives or a persistent
 graph communicator without affecting the layers above.
@@ -20,7 +20,7 @@ def nbx_exchange(comm, sendbufs, dtype, tag=0):
     """
     Sparse "all-to-some" exchange via nonblocking consensus (NBX).
 
-    Each rank sends a buffer to each peer listed in ``sendbufs`` and receives
+    Each rank sends a buffer to each peer listed in `sendbufs` and receives
     from whichever ranks send to it, without any rank needing global knowledge
     of the communication pattern and without any dense collective. Only ranks
     that actually exchange data communicate; global termination is detected with
@@ -48,7 +48,7 @@ def nbx_exchange(comm, sendbufs, dtype, tag=0):
     Notes
     -----
     Implements the NBX algorithm (Hoefler et al., "Scalable Communication
-    Protocols for Dynamic Sparse Data Exchange"). Synchronous sends (``Issend``)
+    Protocols for Dynamic Sparse Data Exchange"). Synchronous sends (`Issend`)
     complete only once matched by a receive, so a rank can enter the nonblocking
     barrier only after every message it sent has been taken. Once all ranks are
     in the barrier no message is in flight, so probing can safely stop.

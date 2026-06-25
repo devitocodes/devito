@@ -1,9 +1,9 @@
 """
 Layout layer: where a global coordinate physically lives.
 
-A ``Layout`` wraps a distributor and a per-axis decomposition and answers,
+A `Layout` wraps a distributor and a per-axis decomposition and answers,
 for any axis, "which rank owns global index g, and at what local offset". It is
-the single bridge between the layout-independent ``Selection`` and the
+the single bridge between the layout-independent `Selection` and the
 physical MPI placement, and it is what makes replicated and distributed axes
 look uniform to the planner. All maps are computed locally from replicated
 metadata; no communication happens here.
@@ -29,7 +29,7 @@ class Layout:
         Provides the communicator, topology and rank/coord maps.
     decomposition : tuple
         One entry per array axis: a Decomposition for a distributed axis, or
-        ``None`` for a replicated axis.
+        `None` for a replicated axis.
     global_shape : tuple of int
         The global array shape (full size on every axis).
     """
@@ -61,12 +61,12 @@ class Layout:
         Returns
         -------
         owner : ndarray
-            ``owner[g]`` is the topology sub-rank owning global index ``g`` along
-            this axis (``-1`` if out of bounds).
+            `owner[g]` is the topology sub-rank owning global index `g` along
+            this axis (`-1` if out of bounds).
         local : ndarray
-            ``local[g]`` is the offset of ``g`` within its owner's subdomain.
+            `local[g]` is the offset of `g` within its owner's subdomain.
         sizes : ndarray
-            ``sizes[i]`` is the number of indices owned by sub-rank ``i``.
+            `sizes[i]` is the number of indices owned by sub-rank `i`.
         """
         return self._axis_maps[axis]
 
@@ -98,7 +98,7 @@ class Layout:
     def coord_to_rank(self):
         """Map a topology coordinate tuple (over distributed axes) to a flat rank.
 
-        Grid distributors expose the inverse Cartesian map via ``all_coords``;
+        Grid distributors expose the inverse Cartesian map via `all_coords`;
         single-axis distributors (e.g. sparse) lay ranks out linearly, so the
         sole sub-rank index is the flat rank.
         """

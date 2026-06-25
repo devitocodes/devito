@@ -185,9 +185,9 @@ class Data(np.ndarray):
 
     def _scattered_exchange(self, glb_idx):
         """
-        Return an ``Exchange`` when ``glb_idx`` advanced-indexes a
+        Return an `Exchange` when `glb_idx` advanced-indexes a
         distributed axis (the "unbalanced"/scattered case, where the value is
-        rank-local and ordered by ``glb_idx``), otherwise ``None`` so the caller
+        rank-local and ordered by `glb_idx`), otherwise `None` so the caller
         falls back to the regular (basic-indexing) path.
         """
         # Imported lazily: the redistribution engine depends on `devito.mpi`,
@@ -241,7 +241,7 @@ class Data(np.ndarray):
         """
         Return a view of ``self`` with ``axis1`` and ``axis2`` swapped, with
         ``_decomposition`` / ``_modulo`` swapped in the same way (see
-        ``transpose``).
+        `transpose`).
         """
         axis1 = axis1 % self.ndim
         axis2 = axis2 % self.ndim
@@ -257,7 +257,7 @@ class Data(np.ndarray):
     def T(self):
         """
         The transposed array. Overridden so the C-level ``ndarray.T`` shortcut
-        also permutes the per-axis metadata (see ``transpose``).
+        also permutes the per-axis metadata (see `transpose`).
         """
         return self.transpose()
 
@@ -523,12 +523,12 @@ class Data(np.ndarray):
     def _gather(self, start=None, stop=None, step=1, rank=0):
         """
         Gather (a slice of) the distributed data into a NumPy array on a single
-        rank, returning ``None`` on the others. See the public ``data_gather``
+        rank, returning `None` on the others. See the public `data_gather`
         method of `Function`.
 
         Indexing is local (each rank already holds its induced result block);
         gathering is the explicit collect step -- every rank sends its block and
-        the result indices it owns, and ``rank`` reassembles the global array.
+        the result indices it owns, and `rank` reassembles the global array.
         """
         if not isinstance(rank, int):
             raise TypeError('rank must be passed as an integer value.')

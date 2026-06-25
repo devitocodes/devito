@@ -1,7 +1,7 @@
 """
 Selection layer: the meaning of an index expression, independent of any layout.
 
-A ``Selection`` normalizes an arbitrary NumPy index (scalars, slices,
+A `Selection` normalizes an arbitrary NumPy index (scalars, slices,
 negative steps, integer arrays, boolean masks) into a per-axis list of
 selectors plus the bookkeeping needed to reconstruct the result shape. It is the
 single place that encodes NumPy indexing semantics; it performs no
@@ -21,8 +21,8 @@ __all__ = ['Affine', 'Explicit', 'IndexScalar', 'Selection', 'index_has_array',
 
 def index_has_array(idx, ndim):
     """
-    True if ``idx`` contains an integer/boolean array component (advanced
-    indexing), excluding Devito's legacy ``data[[i, j, k]]`` basic shorthand.
+    True if `idx` contains an integer/boolean array component (advanced
+    indexing), excluding Devito's legacy `data[[i, j, k]]` basic shorthand.
     Used as a cheap gate to keep basic indexing off the routing path.
     """
     if _is_legacy_multidim_basic(idx, ndim):
@@ -64,7 +64,7 @@ class Affine:
 class Explicit:
     """
     Arbitrary global indices on one advanced (array-indexed) axis. The stored
-    ``coords`` are already broadcast against the other advanced axes and
+    `coords` are already broadcast against the other advanced axes and
     flattened, so all advanced axes share a common point ordering.
     """
 
@@ -85,8 +85,8 @@ def _is_advanced(item):
 
 def _is_legacy_multidim_basic(idx, ndim):
     """
-    Devito historically accepts a top-level ``data[[0, 1, 2]]`` on a 3D object as
-    shorthand for ``data[0, 1, 2]`` (basic), rather than NumPy advanced indexing
+    Devito historically accepts a top-level `data[[0, 1, 2]]` on a 3D object as
+    shorthand for `data[0, 1, 2]` (basic), rather than NumPy advanced indexing
     on axis 0. Preserve that for a bare list whose length matches the rank.
     """
     return (ndim > 1 and isinstance(idx, list) and len(idx) == ndim and
@@ -107,10 +107,10 @@ def _axis_span(item):
 
 def _expand(idx, ndim):
     """
-    Expand a raw index into exactly ``ndim`` per-axis components, replacing
+    Expand a raw index into exactly `ndim` per-axis components, replacing
     Ellipsis and padding with full slices. Boolean arrays are converted to their
     equivalent integer coordinate arrays (one per consumed axis) via nonzero.
-    ``np.newaxis`` is not supported on distributed data.
+    `np.newaxis` is not supported on distributed data.
     """
     if isinstance(idx, tuple) or _is_legacy_multidim_basic(idx, ndim):
         items = list(idx)
@@ -153,14 +153,14 @@ class Selection:
     Attributes
     ----------
     selectors : tuple
-        One ``IndexScalar``, ``Affine``, or ``Explicit`` per axis.
+        One `IndexScalar`, `Affine`, or `Explicit` per axis.
     advanced_axes : tuple of int
         The axes indexed by arrays (the single coupled advanced group). Their
-        ``Explicit`` coords share one flattened point ordering.
+        `Explicit` coords share one flattened point ordering.
     advanced_shape : tuple of int
-        Broadcast shape of the advanced index arrays. ``npoints`` is its product.
+        Broadcast shape of the advanced index arrays. `npoints` is its product.
     result_shape : tuple of int
-        Shape of ``data[idx]``.
+        Shape of `data[idx]`.
     """
 
     def __init__(self, selectors, advanced_axes, advanced_shape,
@@ -174,7 +174,7 @@ class Selection:
     @classmethod
     def from_index(cls, idx, shape):
         """
-        Build a Selection for ``idx`` against a global array of ``shape``.
+        Build a Selection for `idx` against a global array of `shape`.
 
         Parameters
         ----------
@@ -187,7 +187,7 @@ class Selection:
         Returns
         -------
         Selection
-            The normalized, layout-independent meaning of ``idx``.
+            The normalized, layout-independent meaning of `idx`.
         """
         ndim = len(shape)
         items = _expand(idx, ndim)
@@ -241,7 +241,7 @@ class Selection:
 
     @property
     def result_dims(self):
-        """Tagged result dimensions in order (see module-level ``result_dims``)."""
+        """Tagged result dimensions in order (see module-level `result_dims`)."""
         return result_dims(self.selectors, self.advanced_axes,
                            self.advanced_shape, self.advanced_at_front)
 
@@ -271,8 +271,8 @@ def _advanced_at_front(advanced_axes):
 
 def result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front):
     """
-    Ordered result dimensions of ``data[idx]``, each tagged ``('basic', axis)``
-    for a kept slice axis or ``('adv', j)`` for the j-th advanced (broadcast)
+    Ordered result dimensions of `data[idx]`, each tagged `('basic', axis)`
+    for a kept slice axis or `('adv', j)` for the j-th advanced (broadcast)
     dimension.
 
     This is the single definition of NumPy's advanced-index result ordering (the
@@ -301,7 +301,7 @@ def result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front):
 
 
 def _result_shape(selectors, advanced_axes, advanced_shape, advanced_at_front):
-    """Shape of ``data[idx]``, derived from ``result_dims``."""
+    """Shape of `data[idx]`, derived from `result_dims`."""
     dims = result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front)
     return tuple(selectors[v].size if kind == 'basic' else advanced_shape[v]
                  for kind, v in dims)
