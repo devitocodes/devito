@@ -88,7 +88,7 @@ def _hoist_redundant_from_conditionals(iet):
         scope = Scope(e.expr for e in FindNodes(Expression).visit(it))
 
         for hs0 in halo_spots:
-            conditions = cond_mapper[hs0]
+            conditions = cond_mapper.get(hs0)
             if not conditions:
                 continue
             condition = conditions[-1]  # Take the innermost Conditional
