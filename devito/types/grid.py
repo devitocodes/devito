@@ -440,11 +440,16 @@ class SubGrid:
     Shares SpaceDimensions, physical extent, and dtype with the parent Grid
     but has a coarser shape and a CoarseDistributor for its MPI partition.
     Not constructed directly by users — created by GridHierarchy.
+
+    TODO: SubGrid should eventually carry coarse SubDimension objects derived
+    from the parent Grid's subdomains (analogous to Grid._subdomains), with
+    CoarseThickness tokens scaled to the coarse level.
     """
 
-    def __init__(self, shape, parent):
+    def __init__(self, shape, parent, level):
         self._shape = as_tuple(shape)
         self._parent = parent
+        self._level = level
         self._distributor = CoarseDistributor(shape, parent.dimensions,
                                               parent.distributor)
 
@@ -476,6 +481,11 @@ class SubGrid:
     @property
     def distributor(self):
         return self._distributor
+
+    @property
+    def level(self):
+        """Coarsening level relative to the fine Grid (1 = first coarse level)."""
+        return self._level
 
     @property
     def parent(self):
@@ -529,9 +539,9 @@ class GridHierarchy:
 
         coarse_levels = []
         shape = fine_grid.shape
-        for _ in range(nlevels - 1):
+        for i in range(nlevels - 1):
             shape = tuple((s - 1) // 2 + 1 for s in shape)
-            coarse_levels.append(SubGrid(shape, fine_grid))
+            coarse_levels.append(SubGrid(shape, fine_grid, level=i + 1))
         self._coarse_levels = tuple(coarse_levels)
 
     def __repr__(self):
