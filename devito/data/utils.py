@@ -124,6 +124,10 @@ def index_handle_oob(idx):
             # A boolean mask, nothing to do
             return idx
         elif idx.ndim == 1:
+            # Only an object array can carry the None sentinels; a plain numeric
+            # index has no out-of-bounds entries to drop, so skip the O(n) copy.
+            if idx.dtype != object:
+                return idx
             return np.delete(idx, np.where(idx == None))  # noqa
         else:
             raise ValueError("Cannot identify OOB accesses when using "
