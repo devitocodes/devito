@@ -6,8 +6,8 @@ pushing ``other``'s block into a strided region of ``self``, point-to-point.
 
 The source-to-destination mapping is derived directly from the index as a
 per-axis affine map (``source_coord = start + k*step``), so it never relies on
-the legacy ``_process_args`` machinery. Both reuse the
-engine's :class:`Layout` and owner-resolution/transport.
+the legacy ``_process_args`` machinery. Both reuse the engine's ``Layout`` and
+owner-resolution/transport.
 
 The structured path is chosen only if *every* rank can build it (a single
 collective ``LAND``). This keeps the communication pattern identical on all ranks
@@ -76,7 +76,7 @@ def _structured_spec(data, glb_idx, other):
     Returns
     -------
     tuple or None
-        ``(layout, gcoords, values)`` for :func:`_push`, or ``None`` when the
+        ``(layout, gcoords, values)`` for ``_push``, or ``None`` when the
         pattern is unsupported and the caller should fall back to the legacy
         path.
     """
@@ -121,8 +121,8 @@ def _push(layout, gcoords, values, local):
     Push ``values`` (one per global coordinate in ``gcoords``) to their owners.
 
     A structured assignment has exactly one value per distributed point and no
-    replicated payload, so it is :func:`~devito.data.distributed.plan.nbx_push`
-    with ``payload_size == 1`` (``block_offsets == [0]``, ``repl_total == 1``).
+    replicated payload, so it is ``nbx_push`` with ``payload_size == 1``
+    (``block_offsets == [0]``, ``repl_total == 1``).
     """
     owners, dist_local, sub = _resolve_owners(None, layout, gcoords)
     peers, _, _ = _group_peers(layout, owners, dist_local, sub, gcoords)

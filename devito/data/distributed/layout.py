@@ -1,9 +1,9 @@
 """
 Layout layer: where a global coordinate physically lives.
 
-A :class:`Layout` wraps a distributor and a per-axis decomposition and answers,
+A ``Layout`` wraps a distributor and a per-axis decomposition and answers,
 for any axis, "which rank owns global index g, and at what local offset". It is
-the single bridge between the layout-independent :class:`Selection` and the
+the single bridge between the layout-independent ``Selection`` and the
 physical MPI placement, and it is what makes replicated and distributed axes
 look uniform to the planner. All maps are computed locally from replicated
 metadata; no communication happens here.

@@ -1,7 +1,7 @@
 """
 Selection layer: the meaning of an index expression, independent of any layout.
 
-A :class:`Selection` normalizes an arbitrary NumPy index (scalars, slices,
+A ``Selection`` normalizes an arbitrary NumPy index (scalars, slices,
 negative steps, integer arrays, boolean masks) into a per-axis list of
 selectors plus the bookkeeping needed to reconstruct the result shape. It is the
 single place that encodes NumPy indexing semantics; it performs no
@@ -153,10 +153,10 @@ class Selection:
     Attributes
     ----------
     selectors : tuple
-        One :class:`Scalar`, :class:`Affine`, or :class:`Explicit` per axis.
+        One ``Scalar``, ``Affine``, or ``Explicit`` per axis.
     advanced_axes : tuple of int
         The axes indexed by arrays (the single coupled advanced group). Their
-        :class:`Explicit` coords share one flattened point ordering.
+        ``Explicit`` coords share one flattened point ordering.
     advanced_shape : tuple of int
         Broadcast shape of the advanced index arrays. ``npoints`` is its product.
     result_shape : tuple of int
@@ -301,7 +301,7 @@ def result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front):
 
 
 def _result_shape(selectors, advanced_axes, advanced_shape, advanced_at_front):
-    """Shape of ``data[idx]``, derived from :func:`result_dims`."""
+    """Shape of ``data[idx]``, derived from ``result_dims``."""
     dims = result_dims(selectors, advanced_axes, advanced_shape, advanced_at_front)
     return tuple(selectors[v].size if kind == 'basic' else advanced_shape[v]
                  for kind, v in dims)

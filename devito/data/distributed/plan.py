@@ -1,12 +1,11 @@
 """
 Plan layer: the rank-to-rank routing induced by a Selection on a Layout.
 
-:class:`ExchangePlan` is a value object built once (no communication) from a
-:class:`~devito.data.distributed.selection.Selection` and a
-:class:`~devito.data.distributed.layout.Layout`. It computes, for every routed
-element, its owner rank and owner-local offset, and arranges the result/value
-array as ``(npoints, payload)`` so packing and unpacking are single NumPy
-fancy-index operations. The same plan drives ``get`` (pull) and ``put`` (push).
+``ExchangePlan`` is a value object built once (no communication) from a
+``Selection`` and a ``Layout``. It computes, for every routed element, its
+owner rank and owner-local offset, and arranges the result/value array as
+``(npoints, payload)`` so packing and unpacking are single NumPy fancy-index
+operations. The same plan drives ``get`` (pull) and ``put`` (push).
 
 Every axis falls in one of four quadrants and is handled uniformly:
 
@@ -43,7 +42,7 @@ class ExchangePlan:
     axes and a contiguous "payload" block over the replicated axes, so packing
     and unpacking are single NumPy fancy-index operations.
 
-    Use :meth:`build` to construct one; the constructor takes the already
+    Use ``build`` to construct one; the constructor takes the already
     computed routing tables.
 
     Parameters
@@ -429,10 +428,9 @@ def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
     Route ``rows_flat`` to the owner ranks (NBX) and scatter each received
     payload into ``local`` at its owner-local position.
 
-    This is the single push primitive behind both :meth:`ExchangePlan.put`
+    This is the single push primitive behind both ``ExchangePlan.put``
     (advanced/replicated assignment, ``payload_size`` >= 1) and the structured
-    redistribution in :mod:`devito.data.distributed.redistribution` (one value
-    per point, ``payload_size`` == 1).
+    redistribution layer (one value per point, ``payload_size`` == 1).
 
     Parameters
     ----------
@@ -443,7 +441,7 @@ def nbx_push(comm, distributed_axes, repl_total, peers, block_offsets,
     repl_total : int
         Full replicated stride (1 when there is no replicated payload).
     peers : dict
-        Maps a peer rank to ``(rows, dist_lin)`` (see :func:`_group_peers`).
+        Maps a peer rank to ``(rows, dist_lin)`` (see ``_group_peers``).
     block_offsets : numpy.ndarray
         Offset of each payload element within an owner's replicated block.
     payload_size : int
