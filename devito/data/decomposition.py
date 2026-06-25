@@ -296,7 +296,14 @@ class Decomposition(tuple):
                         loc_min = loc_abs_min - base \
                             + np.mod(glb_idx.step - np.mod(base, glb_idx.step),
                                      glb_idx.step)
-                    else:  # glb start is given explicitly
+                    elif glb_idx_min >= loc_abs_min:
+                        # The slice starts within this subdomain, so its first
+                        # selected index is the start itself (the stride phase
+                        # begins here, not at loc_abs_min).
+                        loc_min = glb_idx_min - base
+                    else:  # the slice started in an earlier subdomain
+                        # Advance to the first in-stride index at or after this
+                        # subdomain's start.
                         loc_min = loc_abs_min - base \
                             + np.mod(glb_idx.step - np.mod(base - glb_idx.start,
                                                            glb_idx.step), glb_idx.step)
@@ -319,7 +326,14 @@ class Decomposition(tuple):
                         loc_max = top - base \
                             + np.mod(glb_idx.step - np.mod(top - glb_max,
                                                            glb_idx.step), glb_idx.step)
-                    else:
+                    elif glb_idx_max <= loc_abs_max:
+                        # The slice's high end (its start) is within this
+                        # subdomain, so the first selected index is the start
+                        # itself (the stride phase begins here, not at loc_abs_max).
+                        loc_max = glb_idx_max - base
+                    else:  # the slice's high end is in a later subdomain
+                        # Step back to the first in-stride index at or below this
+                        # subdomain's end.
                         loc_max = top - base \
                             + np.mod(glb_idx.step - np.mod(top - glb_idx.start,
                                                            glb_idx.step), glb_idx.step)
