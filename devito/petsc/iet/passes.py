@@ -180,10 +180,13 @@ def fix_mg_populate_calls(graph, **kwargs):
     field_params = populate_efunc.parameters[1:]
 
     def _param(f, call):
-        if call.level > 0 and call.hierarchy is not None and isinstance(f, Thickness):
-            coarse_dist = call.hierarchy.coarse_levels[call.level - 1].distributor
-            return coarsen_thicknesses(f, call.level, coarse_dist)
-        return coarsen_param(f, call.level)
+        if call.level > 0 and call.hierarchy is not None:
+            subgrid = call.hierarchy.coarse_levels[call.level - 1]
+            if isinstance(f, Thickness):
+                return coarsen_thicknesses(f, subgrid.coarsening_depth,
+                                           subgrid.distributor)
+            return coarsen_param(f, subgrid.coarsening_depth)
+        return coarsen_param(f, 0)
 
     mapper = {
         call: call._rebuild(

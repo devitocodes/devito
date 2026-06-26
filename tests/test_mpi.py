@@ -18,7 +18,8 @@ from devito.ir.iet import (
 )
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
-from devito.mpi.distributed import CustomTopology
+from devito.mpi.distributed import CoarseDistributor, CustomTopology
+from devito.types.grid import GridHierarchy
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
 from examples.seismic.acoustic import acoustic_setup
@@ -389,6 +390,35 @@ class TestSubDistributor:
             else:
                 assert lower_bounds[0] == sdi.start
                 assert upper_bounds[-1] == sdi.end
+
+
+class TestCoarseDistributor:
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_partitioning_1d(self, mode):
+        # 3-level hierarchy: levels[0]=(17,) fine, levels[1]=(9,), levels[2]=(5,) coarsest
+        grid = Grid(shape=(17,))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+
+        # First coarse level, coarsening_depth=1
+        sg1 = hierarchy.coarse_levels[0]
+        assert sg1.coarsening_depth == 1
+        expected_l1 = {
+            2: [(5,), (4,)],
+            4: [(3,), (2,), (2,), (2,)],
+        }
+        d1 = sg1.distributor
+        assert d1.shape == expected_l1[d1.nprocs][d1.myrank]
+
+        # Coarsest level, coarsening_depth=2
+        sg2 = hierarchy.coarse_levels[1]
+        assert sg2.coarsening_depth == 2
+        expected_l2 = {
+            2: [(3,), (2,)],
+            4: [(2,), (1,), (1,), (1,)],
+        }
+        d2 = sg2.distributor
+        assert d2.shape == expected_l2[d2.nprocs][d2.myrank]
 
 
 class TestFunction:

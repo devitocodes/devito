@@ -446,10 +446,10 @@ class SubGrid:
     CoarseThickness tokens scaled to the coarse level.
     """
 
-    def __init__(self, shape, parent, level):
+    def __init__(self, shape, parent, coarsening_depth):
         self._shape = as_tuple(shape)
         self._parent = parent
-        self._level = level
+        self._coarsening_depth = coarsening_depth
         self._distributor = CoarseDistributor(shape, parent.dimensions,
                                               parent.distributor)
 
@@ -483,9 +483,9 @@ class SubGrid:
         return self._distributor
 
     @property
-    def level(self):
-        """Coarsening level relative to the fine Grid (1 = first coarse level)."""
-        return self._level
+    def coarsening_depth(self):
+        """Number of factor-2 coarsenings from the fine Grid (1 = one halving, etc.)."""
+        return self._coarsening_depth
 
     @property
     def parent(self):
@@ -501,11 +501,13 @@ class GridHierarchy:
     SubGrid per coarser level. Each SubGrid shares the fine Grid's
     SpaceDimensions and physical extent.
 
+    Levels are numbered starting from 0 for the fine grid:
+    levels[0] = fine Grid, levels[1] = first coarse SubGrid, etc.
+
     Parameters
     ----------
     fine_grid : Grid
-        The finest level. A back-reference ``fine_grid._hierarchy`` is set
-        so that ``petscsolve`` can detect the hierarchy from the target Function.
+        The finest level.
     nlevels : int
         Total number of levels including the fine grid (e.g. nlevels=3
         gives fine -> mid -> coarse).
@@ -541,7 +543,7 @@ class GridHierarchy:
         shape = fine_grid.shape
         for i in range(nlevels - 1):
             shape = tuple((s - 1) // 2 + 1 for s in shape)
-            coarse_levels.append(SubGrid(shape, fine_grid, level=i + 1))
+            coarse_levels.append(SubGrid(shape, fine_grid, coarsening_depth=i + 1))
         self._coarse_levels = tuple(coarse_levels)
 
     def __repr__(self):
@@ -555,7 +557,7 @@ class GridHierarchy:
 
     @property
     def coarse_levels(self):
-        """The coarser SubGrids ordered finest-coarse to coarsest."""
+        """Coarser SubGrids ordered finest-coarse to coarsest."""
         return self._coarse_levels
 
     @property

@@ -9,16 +9,16 @@ from devito.types.dimension import CoarseThickness, Spacing
 from devito.types.equation import Eq
 
 
-def coarsen_param(param, level):
+def coarsen_param(param, coarsening_depth):
     """
-    Scale a parameter to the correct value for a given MG level.
+    Scale a parameter by the coarsening factor 2**coarsening_depth.
 
-    Rules (factor = 2**level):
+    Rules:
       Spacing   (h_x, h_y, ...)  -> param * factor   (grid spacing coarsens)
       Scalar _M (x_M, y_M, ...)  -> param // factor  (max index halves)
       Thickness / Scalar _m / other -> unchanged
     """
-    factor = 2 ** level
+    factor = 2 ** coarsening_depth
     if isinstance(param, Spacing):
         return param * factor
     elif isinstance(param, Scalar) and param.name.endswith('_M'):
@@ -26,17 +26,17 @@ def coarsen_param(param, level):
     return param
 
 
-def coarsen_thicknesses(tkn, level, coarse_dist):
+def coarsen_thicknesses(tkn, coarsening_depth, coarse_dist):
     """
-    Create a CoarseThickness for a Thickness token at a given coarse level.
+    Create a CoarseThickness for a Thickness token at a given coarsening depth.
 
-    The coarse global value is ceil(tkn.value / 2^level). The CoarseDistributor
-    computes the per-rank local value in _arg_values.
+    The coarse global value is ceil(tkn.value / 2^coarsening_depth). The
+    CoarseDistributor computes the per-rank local value in _arg_values.
     """
-    factor = 2 ** level
+    factor = 2 ** coarsening_depth
     coarse_val = (tkn.value + factor - 1) // factor
     return CoarseThickness(
-        name=f'{tkn.name}_l{level}',
+        name=f'{tkn.name}_d{coarsening_depth}',
         root=tkn.root, side=tkn.side, local=tkn.local,
         value=coarse_val, distributor=coarse_dist
     )

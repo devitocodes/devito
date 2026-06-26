@@ -226,6 +226,7 @@ class BuilderBase:
         stencil_width = self.field_data.space_order
 
         args.append(stencil_width)
+        # TODO: pass explicit lc[] partition arrays derived from distributor._decomposition
         args.extend([Null]*nspace_dims)
 
         # The distributed array object
