@@ -627,17 +627,17 @@ def apply_par_tiles(clusters, options, **kwargs):
 
     blk_size_gen = BlockSizeGenerator(options['par-tile'])
 
-    key0 = lambda d: d.is_Block and d._depth == 2
-    key = lambda c: c.ispace.project(key0).itdims
+    key = lambda c: c.ispace.project(lambda d: d.is_Block)
 
     processed = []
-    for bdims, group in groupby(clusters, key=key):
+    for ispace, group in groupby(clusters, key=key):
         g = list(group)
 
-        if not bdims:
+        if not ispace:
             processed.extend(g)
             continue
 
+        bdims = ispace.project(lambda d: d._depth == 2).itdims
         umt = blk_size_gen.schedule(bdims, g)
 
         subs = {}
