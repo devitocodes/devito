@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-from functools import wraps
 
 import numpy as np
 
@@ -7,7 +6,7 @@ from devito.data.allocators import ALLOC_ALIGNED
 from devito.data.utils import *
 from devito.logger import warning
 from devito.parameters import configuration
-from devito.tools import Tag, as_list, as_tuple, is_integer
+from devito.tools import as_list, as_tuple, is_integer
 
 __all__ = ['Data']
 
@@ -129,6 +128,11 @@ class Data(np.ndarray):
                     continue
                 elif dec is None:
                     decomposition.append(None)
+                elif isinstance(i, slice):
+                    # Indexing is local: the induced decomposition follows exact
+                    # NumPy slicing (handles strided/reversed slices), unlike the
+                    # boundary-adjusting `reshape` used for halos.
+                    decomposition.append(dec.index_decomposition(i))
                 else:
                     decomposition.append(dec.reshape(i))
             self._decomposition = tuple(decomposition)
@@ -174,33 +178,31 @@ class Data(np.ndarray):
         retval._decomposition = decomposition
         return retval
 
-    def _check_idx(func):
-        """Check if __getitem__/__setitem__ may require communication across MPI ranks."""
-        @wraps(func)
-        def wrapper(data, *args, **kwargs):
-            glb_idx = args[0]
-            is_gather = isinstance(kwargs.get('gather_rank'), int)
-            if is_gather and all(i == slice(None, None, 1) for i in glb_idx):
-                comm_type = gather
-            elif len(args) > 1 and isinstance(args[1], Data) and args[1]._is_decomposed:
-                comm_type = index_by_index
-            elif data._is_decomposed:
-                for i in as_tuple(glb_idx):
-                    if isinstance(i, slice) and i.step is not None and i.step < 0:
-                        comm_type = index_by_index
-                        break
-                else:
-                    comm_type = serial
-            else:
-                comm_type = serial
-            kwargs['comm_type'] = comm_type
-            return func(data, *args, **kwargs)
-        return wrapper
-
     @property
     def _is_decomposed(self):
         return self._is_distributed and configuration['mpi'] and \
             self._distributor.is_parallel
+
+    def _scattered_exchange(self, glb_idx):
+        """
+        Return an `Exchange` when `glb_idx` advanced-indexes a
+        distributed axis (the "unbalanced"/scattered case, where the value is
+        rank-local and ordered by `glb_idx`), otherwise `None` so the caller
+        falls back to the regular (basic-indexing) path.
+        """
+        # Imported lazily: the redistribution engine depends on `devito.mpi`,
+        # which depends on `devito.types`, which loads `data.py` -- a top-level
+        # import here would be circular (same reason as `dtype_to_mpidtype`).
+        from devito.data.distributed import cached_exchange
+        from devito.data.distributed.selection import index_has_array
+
+        if not self._is_decomposed or not index_has_array(glb_idx, self.ndim):
+            return None
+        exchange = cached_exchange(self, glb_idx)
+        distributed = {a for a, d in enumerate(self._decomposition) if d is not None}
+        if any(a in distributed for a in exchange._selection.advanced_axes):
+            return exchange
+        return None
 
     def __repr__(self):
         return super(Data, self._local).__repr__()
@@ -239,7 +241,7 @@ class Data(np.ndarray):
         """
         Return a view of ``self`` with ``axis1`` and ``axis2`` swapped, with
         ``_decomposition`` / ``_modulo`` swapped in the same way (see
-        :meth:`transpose`).
+        `transpose`).
         """
         axis1 = axis1 % self.ndim
         axis2 = axis2 % self.ndim
@@ -255,123 +257,16 @@ class Data(np.ndarray):
     def T(self):
         """
         The transposed array. Overridden so the C-level ``ndarray.T`` shortcut
-        also permutes the per-axis metadata (see :meth:`transpose`).
+        also permutes the per-axis metadata (see `transpose`).
         """
         return self.transpose()
 
-    @_check_idx
-    def __getitem__(self, glb_idx, comm_type, gather_rank=None):
+    def __getitem__(self, glb_idx):
+        exchange = self._scattered_exchange(glb_idx)
+        if exchange is not None:
+            return exchange.get()
         loc_idx = self._index_glb_to_loc(glb_idx)
-        is_gather = isinstance(gather_rank, int)
-        if is_gather and comm_type is gather:
-            comm = self._distributor.comm
-            rank = comm.Get_rank()
-
-            sendbuf = self.flat[:]
-            sendcounts = np.array(comm.gather(len(sendbuf), gather_rank))
-
-            if rank == gather_rank:
-                recvbuf = np.zeros(sum(sendcounts), dtype=self.dtype.type)
-            else:
-                recvbuf = None
-            comm.Gatherv(sendbuf=sendbuf, recvbuf=(recvbuf, sendcounts), root=gather_rank)
-
-            # Reshape the gathered data to produce the output
-            if rank == gather_rank:
-                if len(self.shape) > len(self._distributor.glb_shape):
-                    glb_shape = list(self._distributor.glb_shape)
-                    for i in range(len(self.shape) - len(self._distributor.glb_shape)):
-                        glb_shape.insert(i, self.shape[i])
-                else:
-                    glb_shape = self._distributor.glb_shape
-                retval = np.zeros(glb_shape, dtype=self.dtype.type)
-                start, stop, step = 0, 0, 1
-                for i, _ in enumerate(sendcounts):
-                    if i > 0:
-                        start += sendcounts[i-1]
-                    stop += sendcounts[i]
-                    data_slice = recvbuf[slice(start, stop, step)]
-                    shape = [r.stop-r.start for r in self._distributor.all_ranges[i]]
-                    idx = [slice(r.start - d.glb_min, r.stop - d.glb_min, r.step)
-                           for r, d in zip(self._distributor.all_ranges[i],
-                                           self._distributor.decomposition, strict=True)]
-                    for j in range(len(self.shape) - len(self._distributor.glb_shape)):
-                        shape.insert(j, glb_shape[j])
-                        idx.insert(j, slice(0, glb_shape[j]+1, 1))
-                    retval[tuple(idx)] = data_slice.reshape(tuple(shape))
-                return retval
-            else:
-                return None
-        elif comm_type is index_by_index or is_gather:
-            # Retrieve the pertinent local data prior to MPI send/receive operations
-            data_idx = loc_data_idx(loc_idx)
-            self._index_stash = flip_idx(glb_idx, self._decomposition)
-            local_val = super().__getitem__(data_idx)
-            self._index_stash = None
-
-            comm = self._distributor.comm
-            rank = comm.Get_rank()
-
-            owners, send, global_si, local_si = \
-                mpi_index_maps(loc_idx, local_val.shape, self._distributor.topology,
-                               self._distributor.all_coords, comm)
-
-            it = np.nditer(owners, flags=['refs_ok', 'multi_index'])
-            if not is_gather:
-                retval = Data(local_val.shape, local_val.dtype.type,
-                              decomposition=local_val._decomposition,
-                              modulo=(False,)*len(local_val.shape),
-                              distributor=local_val._distributor)
-            elif rank == gather_rank:
-                retval = np.zeros(it.shape)
-            else:
-                retval = None
-            # Iterate over each element of data
-            while not it.finished:
-                index = it.multi_index
-                send_rank = gather_rank if is_gather else send[index]
-                if rank == owners[index] and rank == send_rank:
-                    # Current index and destination index are on the same rank
-                    loc_ind = local_si[index]
-                    if is_gather:
-                        loc_ind = local_si[index]
-                        retval[global_si[index]] = local_val.data[loc_ind]
-                    else:
-                        send_ind = local_si[global_si[index]]
-                        retval.data[send_ind] = local_val.data[loc_ind]
-                elif rank == owners[index]:
-                    # Current index is on this rank and hence need to send
-                    # the data to the appropriate rank
-                    loc_ind = local_si[index]
-                    send_rank = gather_rank if is_gather else send[index]
-                    send_ind = global_si[index]
-                    send_val = local_val.data[loc_ind]
-                    reqs = comm.isend([send_ind, send_val], dest=send_rank)
-                    reqs.wait()
-                elif rank == send_rank:
-                    # Current rank is required to receive data from this index
-                    recval = comm.irecv(source=owners[index])
-                    local_dat = recval.wait()
-                    if is_gather:
-                        retval[local_dat[0]] = local_dat[1]
-                    else:
-                        loc_ind = local_si[local_dat[0]]
-                        retval.data[loc_ind] = local_dat[1]
-                else:
-                    pass
-                it.iternext()
-            # Check if dimensions of the view should now be reduced to
-            # be consistent with those of an equivalent NumPy serial view
-            if not is_gather:
-                newshape = tuple(s for s, i in zip(retval.shape, loc_idx, strict=True)
-                                 if type(i) is not np.int64)
-            else:
-                newshape = ()
-            if newshape and (0 not in newshape) and (newshape != retval.shape):
-                return retval._prune_shape(newshape)
-            else:
-                return retval
-        elif loc_idx is NONLOCAL:
+        if loc_idx is NONLOCAL:
             # Caller expects a scalar. However, `glb_idx` doesn't belong to
             # self's data partition, so None is returned
             return None
@@ -381,8 +276,12 @@ class Data(np.ndarray):
             self._index_stash = None
             return retval
 
-    @_check_idx
-    def __setitem__(self, glb_idx, val, comm_type):
+    def __setitem__(self, glb_idx, val):
+        if not (isinstance(val, Data) and val._is_decomposed):
+            exchange = self._scattered_exchange(glb_idx)
+            if exchange is not None:
+                exchange.put(val)
+                return
         loc_idx = self._index_glb_to_loc(glb_idx)
 
         if loc_idx is NONLOCAL:
@@ -396,31 +295,35 @@ class Data(np.ndarray):
             else:
                 super().__setitem__(glb_idx, val)
         elif isinstance(val, Data) and val._is_decomposed:
-            if comm_type is index_by_index:
-                glb_idx, val = self._process_args(glb_idx, val)
-                val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
-                                    i in val._decomposition])
-                idx = self._set_global_idx(val, glb_idx, val_idx)
-                comm = self._distributor.comm
-                nprocs = self._distributor.nprocs
-                # Prepare global lists:
-                data_global = []
-                idx_global = []
-                for j in range(nprocs):
-                    data_global.append(comm.bcast(np.array(val), root=j))
-                    idx_global.append(comm.bcast(idx, root=j))
-                # Set the data:
-                for j in range(nprocs):
-                    skip = any(i is None for i in idx_global[j]) \
-                        or data_global[j].size == 0
-                    if not skip:
-                        self.__setitem__(idx_global[j], data_global[j])
-            elif self._is_decomposed:
-                # `val` is decomposed, `self` is decomposed -> local set
-                super().__setitem__(glb_idx, val)
-            else:
-                # `val` is decomposed, `self` is replicated -> gatherall-like
-                raise NotImplementedError
+            # Lazy import to avoid a circular dependency (see
+            # `_scattered_exchange`).
+            from devito.data.distributed import redistribute_set
+
+            # Structured point-to-point redistribution covers the well-defined
+            # cases. The legacy broadcast-based fallback is reached only when a
+            # scalar indexes a distributed axis: `val` then has a rank-dependent
+            # shape (it is owned by some ranks and empty on others), which the
+            # structured engine cannot route, so every rank exchanges its block.
+            if redistribute_set(self, glb_idx, val):
+                return
+            glb_idx, val = self._process_args(glb_idx, val)
+            val_idx = as_tuple([slice(i.glb_min, i.glb_max+1, 1) for
+                                i in val._decomposition])
+            idx = self._set_global_idx(val, glb_idx, val_idx)
+            comm = self._distributor.comm
+            nprocs = self._distributor.nprocs
+            # Prepare global lists:
+            data_global = []
+            idx_global = []
+            for j in range(nprocs):
+                data_global.append(comm.bcast(np.array(val), root=j))
+                idx_global.append(comm.bcast(idx, root=j))
+            # Set the data:
+            for j in range(nprocs):
+                skip = any(i is None for i in idx_global[j]) \
+                    or data_global[j].size == 0
+                if not skip:
+                    self.__setitem__(idx_global[j], data_global[j])
         elif isinstance(val, np.ndarray):
             if self._is_decomposed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
@@ -479,7 +382,7 @@ class Data(np.ndarray):
             return as_tuple(processed)
 
     def _process_args(self, idx, val):
-        """If comm_type is parallel we need to first retrieve local unflipped data."""
+        """Retrieve local unflipped data for a distributed value assignment."""
         if (len(as_tuple(idx)) < len(val.shape)) and (len(val.shape) <= len(self.shape)):
             idx_processed = as_list(idx)
             for _ in range(len(val.shape)-len(as_tuple(idx))):
@@ -619,36 +522,50 @@ class Data(np.ndarray):
 
     def _gather(self, start=None, stop=None, step=1, rank=0):
         """
-        Method for gathering distributed data into a NumPy array
-        on a single rank. See the public ``data_gather`` method
-        of `Function`.
+        Gather (a slice of) the distributed data into a NumPy array on a single
+        rank, returning `None` on the others. See the public `data_gather`
+        method of `Function`.
+
+        Indexing is local (each rank already holds its induced result block);
+        gathering is the explicit collect step -- every rank sends its block and
+        the result indices it owns, and `rank` reassembles the global array.
         """
         if not isinstance(rank, int):
             raise TypeError('rank must be passed as an integer value.')
 
-        if isinstance(start, int) or start is None:
-            start = [start for _ in self.shape]
-        if isinstance(stop, int) or stop is None:
-            stop = [stop for _ in self.shape]
-        if isinstance(step, int) or step is None:
-            step = [step for _ in self.shape]
-        idx = []
-        for i, j, k in zip(start, stop, step, strict=True):
-            idx.append(slice(i, j, k))
-        idx = tuple(idx)
-        if self._distributor.is_parallel and self._distributor.nprocs > 1:
-            gather_rank = rank
-        else:
-            gather_rank = None
-        return np.array(self.__getitem__(idx, gather_rank=gather_rank))
+        def as_axes(v):
+            return [v]*self.ndim if (v is None or isinstance(v, int)) else list(v)
+        start, stop, step = as_axes(start), as_axes(stop), as_axes(step)
+        idx = tuple(slice(i, j, k) for i, j, k
+                    in zip(start, stop, step, strict=True))
+
+        if not (self._is_decomposed and self._distributor.nprocs > 1):
+            return np.array(self[idx])
+
+        local = self[idx]
+        block = np.ascontiguousarray(np.asarray(local))
+        # Result indices this rank owns, per axis (replicated axis -> full extent)
+        owned = [
+            np.arange(block.shape[ax], dtype=np.int64) if dec is None
+            else np.asarray(dec.loc_abs_numb, dtype=np.int64) - (dec.glb_min or 0)
+            for ax, dec in enumerate(local._decomposition)
+        ]
+
+        comm = self._distributor.comm
+        gathered = comm.gather((block, owned), root=rank)
+        if comm.Get_rank() != rank:
+            return None
+
+        shape = tuple(
+            len(range(*sl.indices(d.size if d is not None else self.shape[ax])))
+            for ax, (sl, d) in enumerate(zip(idx, self._decomposition, strict=True))
+        )
+        out = np.empty(shape, dtype=self.dtype)
+        for blk, idxs in gathered:
+            if blk.size:
+                out[np.ix_(*idxs)] = blk
+        return out
 
     def reset(self):
         """Set all Data entries to 0."""
         self[:] = 0.0
-
-
-class CommType(Tag):
-    pass
-index_by_index = CommType('index_by_index')  # noqa
-serial = CommType('serial')  # noqa
-gather = CommType('gather')  # noqa
