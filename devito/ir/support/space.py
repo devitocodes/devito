@@ -628,6 +628,14 @@ class IterationDirection:
     def __hash__(self):
         return hash(self._name)
 
+    def __neg__(self):
+        if self._name == '++':
+            return Backward
+        elif self._name == '--':
+            return Forward
+        else:
+            return Any
+
 
 Forward = IterationDirection('++')
 """Forward iteration direction ('++')."""
