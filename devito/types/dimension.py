@@ -510,6 +510,16 @@ class DerivedDimension(BasicDimension):
         self.is_Time = parent.is_Time
         self.is_Space = parent.is_Space
 
+    def _rebuild_hierarchy(self, callback):
+        """
+        Recursively rebuild the hierarchy of DerivedDimensions rooted at `self`.
+
+        To be overridden by subclasses, since different DerivedDimensions may
+        have different requirements, and it'd be cumbersome to generalise it
+        all here.
+        """
+        raise NotImplementedError
+
     @property
     def parent(self):
         return self._parent
@@ -1318,6 +1328,34 @@ class BlockDimension(AbstractIncrDimension):
 
     is_Block = True
     is_PerfKnob = True
+
+    def _rebuild_hierarchy(self, callback=None, step=None):
+        if self._depth != 2:
+            raise NotImplementedError
+
+        p = self.parent
+        pp = self.parent.parent
+
+        name0 = pp.name
+
+        if callback is None:
+            name1 = p.name
+        else:
+            base = callback(name0)
+            name1 = callback(f'{base}_blk')
+
+        bd = p._rebuild(name1, pp, step=step or p.step)
+
+        subs = {p: bd}
+        if step is not None:
+            subs[p.step] = step
+
+        d = self._rebuild(
+            name0, bd,
+            self._min.subs(subs), self._max.subs(subs), size=self.size.subs(subs)
+        )
+
+        return {self: d, p: bd}
 
     @cached_property
     def _arg_names(self):

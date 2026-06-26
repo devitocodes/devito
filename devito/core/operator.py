@@ -58,6 +58,13 @@ class BasicOperator(Operator):
     situations where the performance impact might be detrimental.
     """
 
+    CIRE_BLOCK_TEMPS = True
+    """
+    If an aliasing expression is computed within a blocked loop nest, all CIRE-
+    generated temporaries will inherit the block shape. If set to False, the
+    temporaries shape will systematically be defined by the root Dimensions.
+    """
+
     CIRE_MINGAIN = 10
     """
     Minimum operation count reduction for a redundant expression to be optimized
@@ -239,6 +246,9 @@ class BasicOperator(Operator):
 
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
             raise InvalidOperator(f"Unsupported MPI mode `{oo['mpi']}`")
+
+        if oo['cire-maxpar'] not in (False, 'basic', 'compact'):
+            raise InvalidOperator("Illegal `cire-maxpar` value")
 
         if oo['cse-algo'] not in ('basic', 'smartsort', 'advanced'):
             raise InvalidOperator("Illegal `cse-algo` value")

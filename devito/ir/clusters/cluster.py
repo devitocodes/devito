@@ -13,7 +13,7 @@ from devito.ir.support import (
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
-from devito.symbolics import estimate_cost
+from devito.symbolics import estimate_cost, uxreplace
 from devito.tools import (
     CacheInstances, as_tuple, cached_hash, filter_ordered, flatten, infer_dtype
 )
@@ -112,7 +112,7 @@ class EqBlock(CacheInstances):
     @cached_property
     def exprs_dimensions(self):
         """
-        The Dimensions that appear explicitly in the Cluster expressions.
+        The Dimensions that appear explicitly in the expressions.
         """
         dims_explicit = {i for i in self.free_symbols if i.is_Dimension}
         dims_implicit = {d for e in self.exprs for d in e.implicit_dims}
@@ -121,7 +121,7 @@ class EqBlock(CacheInstances):
     @cached_property
     def guards_dimensions(self):
         """
-        The Dimensions that appear explicitly in the Cluster guards.
+        The Dimensions that appear explicitly in the guards.
         """
         syms_guards = {d for e in self.guards.values() for d in e.free_symbols}
         dims_guards = {i for i in syms_guards if i.is_Dimension}
@@ -142,7 +142,7 @@ class EqBlock(CacheInstances):
     @cached_property
     def dist_dimensions(self):
         """
-        The Cluster's distributed Dimensions.
+        The distributed Dimensions.
         """
         ret = set()
         for f in self.functions:
@@ -168,7 +168,7 @@ class EqBlock(CacheInstances):
         elif len(grids) == 1:
             return grids.pop()
         else:
-            raise ValueError("Cluster has no unique Grid")
+            raise ValueError("Multiple Grids detected")
 
     @cached_property
     def is_scalar(self):
@@ -296,7 +296,7 @@ class EqBlock(CacheInstances):
     @cached_property
     def is_async(self):
         """
-        True if an asynchronous Cluster, False otherwise.
+        True if asynchronous, False otherwise.
         """
         return any(isinstance(s, (WithLock, PrefetchUpdate))
                    for s in flatten(self.syncs.values()))
@@ -304,8 +304,8 @@ class EqBlock(CacheInstances):
     @cached_property
     def is_wait(self):
         """
-        True if a Cluster waiting on a lock (that is a special synchronization
-        operation), False otherwise.
+        True if waiting on a lock (that is a special synchronization operation),
+        False otherwise.
         """
         return any(isinstance(s, WaitLock)
                    for s in flatten(self.syncs.values()))
@@ -313,14 +313,10 @@ class EqBlock(CacheInstances):
     @cached_property
     def dtype(self):
         """
-        The arithmetic data type of the Cluster.
+        The arithmetic data type of the enclosed expressions.
 
-        If the Cluster performs floating point arithmetic, then the expressions
-        performing integer arithmetic are ignored, assuming that they are only
-        carrying out array index calculations.
-
-        If two expressions perform calculations with different precision,
-        the data type with highest precision is returned.
+        If two expressions perform calculations with different precision, the data
+        type with highest precision is returned.
         """
         dtypes = set()
         for i in self.exprs:
@@ -336,8 +332,8 @@ class EqBlock(CacheInstances):
     @cached_property
     def dspace(self):
         """
-        Derive the DataSpace of the Cluster from its expressions,
-        IterationSpace, and Guards.
+        The DataSpace deriving from the enclosed expressions, IterationSpace,
+        and Guards.
         """
         accesses = detect_accesses(self.exprs)
 
@@ -421,8 +417,8 @@ class EqBlock(CacheInstances):
     @cached_property
     def traffic(self):
         """
-        The Cluster compulsory traffic (number of reads/writes), as a mapper
-        from Functions to IntervalGroups.
+        The compulsory traffic (number of reads/writes), as a mapper from
+        Functions to IntervalGroups.
 
         Notes
         -----
@@ -509,30 +505,6 @@ class Cluster:
             raise AttributeError(name) from None
         return getattr(block, name)
 
-    @property
-    def exprs(self):
-        return self._block.exprs
-
-    @property
-    def ispace(self):
-        return self._block.ispace
-
-    @property
-    def guards(self):
-        return self._block.guards
-
-    @property
-    def properties(self):
-        return self._block.properties
-
-    @property
-    def syncs(self):
-        return self._block.syncs
-
-    @property
-    def halo_scheme(self):
-        return self._block.halo_scheme
-
     @classmethod
     def from_clusters(cls, *clusters):
         """
@@ -611,6 +583,33 @@ class Cluster:
                               properties=properties,
                               syncs=syncs,
                               halo_scheme=halo_scheme)
+
+    def subs(self, mapper, compact=()):
+        """
+        Build a new Cluster applying substitutions rules to `self`.
+        """
+        if not mapper:
+            return self
+
+        if self.halo_scheme:
+            raise NotImplementedError
+
+        key0 = lambda i: i.is_Block
+        subs0 = {d: self.ispace[d].promote(key0).dim for d in compact}
+
+        subs = {**mapper, **subs0}
+        exprs = [uxreplace(e, subs) for e in self.exprs]
+
+        ispace = self.ispace.switch(mapper)
+        key = lambda i: key0(i) and i in flatten(d._defines for d in subs0)
+        ispace = ispace.promote(key, mode='total')
+
+        guards = self.guards.subs(mapper).promote(subs0)
+        properties = self.properties.subs(mapper).promote(subs0)
+        syncs = self.syncs.subs(mapper)
+
+        return self.__class__(exprs=exprs, ispace=ispace, guards=guards,
+                              properties=properties, syncs=syncs)
 
 
 class ClusterGroup(tuple):
@@ -691,7 +690,15 @@ class ClusterGroup(tuple):
         """Return the DataSpace of this ClusterGroup."""
         return DataSpace.union(*[i.dspace.reset() for i in self])
 
-    @property
+    @cached_property
+    def is_dense(self):
+        return all(i.is_dense for i in self)
+
+    @cached_property
+    def is_wild(self):
+        return all(i.is_wild for i in self)
+
+    @cached_property
     def is_halo_touch(self):
         return all(i.is_halo_touch for i in self)
 

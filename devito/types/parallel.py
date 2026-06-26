@@ -408,25 +408,40 @@ class TensorMove(AlignedAccess, Terminal):
     Represent the LOAD/STORE of a multi-dimensional block of data from/to a higher
     level of the memory hierarchy.
 
+    TensorMoves can move blocks of data of arbitrary size without worrying about
+    potential out-of-bounds (OOB) accesses:
+
+        * if an OOB point is read, the retrieved tensor is filled in with Nans/0s;
+        * attempted writes of OOB points via tensors exceeding the legal data region
+          are automatically discarded.
+
+    Thus, TensorMoves do not require OOB protection with guards.
+
+    However, the coordinates must be greater or equal than 0.
+
     Parameters
     ----------
-    base : IndexedBase
-        The base of the AbstractFunction subject of the TensorMove.
+    access : Indexed
+        The logical Indexed the TensorMove represents.
     tid0 : Dimension
         A representation of thread(s) issuing the TensorMove.
     coords : tuple
         The base address of the TensorMove (one point per Dimension).
     """
 
-    __rargs__ = ('base', 'tid0', 'coords')
+    __rargs__ = ('access', 'tid0', 'coords')
 
     _expected_alignment = 16
     """
     The expected alignment in bytes for the underlying LOAD/STORE operation.
     """
 
-    def __new__(cls, base, tid0, coords, **kwargs):
-        return super().__new__(cls, base, tid0, coords)
+    def __new__(cls, access, tid0, coords, **kwargs):
+        return super().__new__(cls, access, tid0, coords)
+
+    @property
+    def access(self):
+        return self.args[0]
 
     @property
     def tid0(self):
@@ -435,6 +450,14 @@ class TensorMove(AlignedAccess, Terminal):
     @property
     def coords(self):
         return self.args[2]
+
+    @property
+    def function(self):
+        return self.access.function
+
+    @property
+    def base(self):
+        return self.function.base
 
     @cached_property
     def indexed(self):

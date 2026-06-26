@@ -504,7 +504,12 @@ class IntervalGroup(Ordering, CacheInstances):
 
     def promote(self, cond, mode='unordered'):
         intervals = [i.promote(cond) for i in self]
-        intervals = IntervalGroup(intervals, relations=None, mode=mode)
+
+        if mode == 'total':
+            relations = [filter_ordered(i.dim for i in intervals)]
+        else:
+            relations = None
+        intervals = IntervalGroup(intervals, relations=relations, mode=mode)
 
         # There could be duplicate Dimensions at this point, so we sum up the
         # Intervals defined over the same Dimension to produce a well-defined
@@ -937,16 +942,26 @@ class IterationSpace(Space, CacheInstances):
 
         return IterationSpace(self.intervals, items, self.directions)
 
-    def switch(self, d0, d1, direction=None):
-        intervals = self.intervals.switch(d0, d1)
+    def switch(self, d0, d1=None, direction=None):
+        """
+        Construct a new IterationSpace in which the Dimension `d0` is replaced with
+        `d1`. Optionally, `d0` could be a mapper, in which case multiple Dimensions
+        may be switched.
+        """
+        mapper = d0 if isinstance(d0, dict) else {d0: d1}
 
+        intervals = self.intervals
         sub_iterators = dict(self.sub_iterators)
-        sub_iterators.pop(d0, None)
-        sub_iterators[d1] = ()
-
         directions = dict(self.directions)
-        v = directions.pop(d0, None)
-        directions[d1] = direction or v
+
+        for d0, d1 in mapper.items():
+            intervals = intervals.switch(d0, d1)
+
+            sub_iterators.pop(d0, None)
+            sub_iterators[d1] = ()
+
+            v = directions.pop(d0, None)
+            directions[d1] = direction or v
 
         return IterationSpace(intervals, sub_iterators, directions)
 
