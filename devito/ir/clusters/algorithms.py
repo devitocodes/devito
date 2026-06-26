@@ -20,7 +20,7 @@ from devito.symbolics import limits_mapper, retrieve_indexed, uxreplace, xreplac
 from devito.tools import (
     DefaultOrderedDict, Stamp, as_mapper, flatten, is_integer, split, timed_pass, toposort
 )
-from devito.types import Array, Eq, Symbol, Temp
+from devito.types import Array, ConditionalDimension, Eq, Symbol, Temp
 from devito.types.dimension import BOTTOM, ModuloDimension
 
 __all__ = ['clusterize']
@@ -260,11 +260,12 @@ def guard(clusters):
             # the purpose of protecting from OOB accesses
             cds = [d for d in cds if not d.indirect]
             modes = [cd.relation for cd in cds]
-            if modes.count('strict') > 1:
+            strict = ConditionalDimension._STRICT
+            if modes.count(strict) > 1:
                 raise CompilationError("Only one `strict` condition"
                                        "can be used in an equation")
-            elif 'strict' in modes:
-                mode = 'strict'
+            elif strict in modes:
+                mode = strict
             else:
                 mode = sympy.And if sympy.And in modes else sympy.Or
 
@@ -302,7 +303,7 @@ def guard(clusters):
 
             # Combination `mode` is And by default.
             # If all conditions are Or then Or combination `mode` is used.
-            if mode == 'strict':
+            if mode == strict:
                 guards = {d: v[0] for d, v in guards.items()}
             else:
                 guards = {d: mode(*v, evaluate=False) for d, v in guards.items()}
