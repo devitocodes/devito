@@ -46,3 +46,25 @@ class TestGridHierarchy:
     def test_invalid_shape(self):
         with pytest.raises(ValueError):
             GridHierarchy(Grid(shape=(10,)), nlevels=3)
+
+    def test_shapes_2d(self):
+        grid = Grid(shape=(17, 17))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        assert hierarchy.levels[0] is grid
+        assert hierarchy.levels[1].shape == (9, 9)
+        assert hierarchy.levels[2].shape == (5, 5)
+
+    def test_shapes_3d(self):
+        grid = Grid(shape=(17, 17, 17))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        assert hierarchy.levels[0] is grid
+        assert hierarchy.levels[1].shape == (9, 9, 9)
+        assert hierarchy.levels[2].shape == (5, 5, 5)
+
+    def test_shared_properties(self):
+        grid = Grid(shape=(17,))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        for sg in hierarchy.coarse_levels:
+            assert sg.dimensions == grid.dimensions
+            assert sg.extent == grid.extent
+            assert sg.dtype == grid.dtype
