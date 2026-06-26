@@ -32,34 +32,6 @@ __all__ = [
 ]
 
 
-@singledispatch
-def bound_index(expr, dim, dir):
-    if dir == Forward:
-        return expr._subs(dim, dim + 1)
-    else:
-        return expr._subs(dim, dim - 1)
-
-
-@bound_index.register(Expr)
-def _(expr, dim, dir):
-    if not expr.args:
-        if dir == Forward:
-            return expr._subs(dim, dim + 1)
-        else:
-            return expr._subs(dim, dim - 1)
-    return expr.func(*[bound_index(a, dim, dir) for a in expr.args])
-
-
-@bound_index.register(IntDiv)
-def _(expr, dim, dir):
-    v = dim.symbolic_factor
-    p0 = dim.root
-    if dir == Forward:
-        return Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
-    else:
-        return (p0 - 1) - abs(p0 - 1) % v
-
-
 class AbstractGuard:
     pass
 
@@ -176,7 +148,7 @@ class BaseGuardBoundNext(Guard, Pickable):
         assert isinstance(direction, IterationDirection)
 
         # Always take the next index in the iteration direction
-        next_index = bound_index(index, d, direction)
+        next_index = eval_next_index(index, d, direction)
 
         # The direction might be forward but accessing c - d
         # making the access backward w.r.t
@@ -576,3 +548,39 @@ _uxreplace_registry.register(BaseGuardBoundNext)
 @_uxreplace_handle.register(BaseGuardBoundNext)
 def _(expr, args, kwargs):
     return expr.func(expr.d, expr.index, expr.direction, **kwargs)
+
+
+@singledispatch
+def eval_next_index(expr, dim, dir):
+    """
+    Evaluate `expr` at the next iteration point along `dim` in the given
+    `dir`-ection. The "next" point is obtained by substituting `dim` with
+    `dim + 1` for `Forward` and `dim - 1` for `Backward`.
+
+    For `IntDiv` expressions encoding subsampling (`dim.root // factor`),
+    the result is rounded to the next valid coarse-grained slot.
+    """
+    if dir == Forward:
+        return expr._subs(dim, dim + 1)
+    else:
+        return expr._subs(dim, dim - 1)
+
+
+@eval_next_index.register(Expr)
+def _(expr, dim, dir):
+    if not expr.args:
+        if dir == Forward:
+            return expr._subs(dim, dim + 1)
+        else:
+            return expr._subs(dim, dim - 1)
+    return expr.func(*[eval_next_index(a, dim, dir) for a in expr.args])
+
+
+@eval_next_index.register(IntDiv)
+def _(expr, dim, dir):
+    v = dim.symbolic_factor
+    p0 = dim.root
+    if dir == Forward:
+        return Mul((((p0 + 1) + v - 1) / v), v, evaluate=False)
+    else:
+        return (p0 - 1) - abs(p0 - 1) % v

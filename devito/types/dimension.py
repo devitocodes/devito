@@ -956,6 +956,8 @@ class ConditionalDimension(DerivedDimension):
     is_NonlinearDerived = True
     is_Conditional = True
 
+    _STRICT = 'strict'
+
     __rkwargs__ = DerivedDimension.__rkwargs__ + \
         ('factor', 'condition', 'indirect', 'relation')
 
