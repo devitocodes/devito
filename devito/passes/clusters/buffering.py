@@ -121,16 +121,6 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     return clusters
 
 
-def _explicit_guard(g, d):
-    """True if `g` pins `d` to a single value via `Eq(d, K)` or `Ne(d, K)`."""
-    if g is None:
-        return False
-    for a in [g] + list(g.args):
-        if isinstance(a, (SympyEq, Ne)) and a.has(d) and not a.has(Mod):
-            return True
-    return False
-
-
 class InjectBuffers(Queue):
 
     # NOTE: We need to use a Queue because with multi-buffering we will need
@@ -160,10 +150,12 @@ class InjectBuffers(Queue):
         # information about a buffer, harvested from the subset of `clusters`
         # that access it
         descriptors = {}
-        for (f, g), b in self.mapper.items():
+        for (f, guards), b in self.mapper.items():
             if f in bfmap:
-                fc = [c for c in bfmap[f] if c.guards == g]
-                descriptors.setdefault(b, []).append(BufferDescriptor(f, b, fc, g))
+                fc = [c for c in bfmap[f] if c.guards == guards]
+                descriptors.setdefault(b, []).append(
+                    BufferDescriptor(f, b, fc, guards)
+                )
 
         # Are we inside the right `d`?
         descriptors = {b: [vi for vi in v if d in vi.itdims]
@@ -182,13 +174,13 @@ class InjectBuffers(Queue):
 
         # Substitution rules to replace buffered Functions with buffers
         # E.g., `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`
-        subs = {}
+        subs = defaultdict(dict)
         for b, vb in descriptors.items():
             for v in vb:
                 for c in v.clusters:
                     if c.guards.get(d) != v.guards.get(d):
                         continue
-                    subs.setdefault(c, {})
+
                     accesses = c.scope[v.f]
                     index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
                     for a in accesses:
@@ -226,7 +218,7 @@ class InjectBuffers(Queue):
 
                 properties = c.properties.sequentialize(d)
                 if not isinstance(d, BufferDimension) and \
-                        not _explicit_guard(c.guards.get(d, None), d):
+                   not _explicit_guard(c.guards.get(d, None), d):
                     properties = properties.prefetchable(d)
                 # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
                 properties = properties.parallelize(v.bdims).affine(v.bdims)
@@ -380,86 +372,46 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     # Sort for deterministic code generation
     bfmap = {i: bfmap[i] for i in sorted(bfmap, key=lambda i: i.name)}
 
-    def make_buffer(f, dim, k, ck):
-        exprs = flatten(c.exprs for c in ck)
-
-        if is_buffering(exprs):
-            buffers = [f for f in retrieve_functions(exprs) if f.is_Array]
-            assert len(buffers) == 1, "Unexpected form of multi-level buffering"
-            buffer, = buffers
-            xd = buffer.indices[dim]
-            extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
-        else:
-            size = infer_buffer_size(f, dim, ck)
-            if async_degree is not None:
-                if async_degree < size:
-                    warning(
-                        'Ignoring provided asynchronous degree as it would be '
-                        'too small for the required buffer (provided '
-                        f'{async_degree}, but need at least {size} for `{f.name}`)'
-                    )
-                else:
-                    size = async_degree
-            try:
-                xd = xds[(dim, size, k)]
-            except KeyError:
-                name = sregistry.make_name(prefix='db')
-                xd = xds[(dim, size, k)] = \
-                    BufferDimension(name, 0, size-1, size, dim)
-            extra_kwargs = {}
-
-        dimensions = list(f.dimensions)
-        assert dim in f.dimensions
-        dimensions[dimensions.index(dim)] = xd
-
-        cls = callback or Array
-        name = sregistry.make_name(prefix=f'{f.name}b')
-        return cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                   grid=f.grid, halo=f.halo,
-                   space='mapped', mapped=f, f=f, **extra_kwargs)
-
     # {buffered Function -> Buffer}
     xds = {}
     mapper = {}
+    # `extras` holds (guards, ck) pairs for which `guards` does not constrain
+    # the buffered Dimension `dim`; we cannot create a dedicated buffer because
+    # we don't know which slot it should step through. They are "deferred" and
+    # later aliased to an existing buffer for the same Function (e.g., the
+    # explicit `Eq(usave, ...)` written under `time == K` aliases the prefetch
+    # buffer created for the regular `Eq(usave, u)` copy-back)
     extras = {}
     for f, clusters in bfmap.items():
         for k, ck in groupby(clusters, key=lambda c: c.guards):
             ck = list(ck)
 
             dim = _buffer_dim(f, key, ck)
-            if k and not dim._defines & k.keys():
-                # k doesn't constrain dim; defer and try to alias later
+            if k and not dim._defines & set(k):
                 extras.setdefault(f, []).append((k, ck))
                 continue
 
-            mapper[(f, k)] = make_buffer(f, dim, k, ck)
+            mapper[(f, k)] = _make_buffer(
+                f, dim, k, ck, xds, async_degree, sregistry, callback
+            )
 
     # Alias deferred entries to an existing f-buffer; create one if none
     for f, deferred in extras.items():
         reusable = [mapper[(ff, kk)] for (ff, kk) in mapper if ff == f]
         for k, ck in deferred:
             buf = next((b for b in reusable
-                        if k.keys() & set(b.dimensions)), None)
+                        if set(k) & set(b.dimensions)), None)
             if buf is None and reusable:
                 buf = reusable[0]
             if buf is None:
                 dim = _buffer_dim(f, key, ck)
-                buf = make_buffer(f, dim, k, ck)
+                buf = _make_buffer(
+                    f, dim, k, ck, xds, async_degree, sregistry, callback
+                )
                 reusable.append(buf)
             mapper[(f, k)] = buf
 
     return mapper
-
-
-def _buffer_dim(f, key, ck):
-    """The single Dimension of `f` along which to buffer."""
-    exprs = flatten(c.exprs for c in ck)
-    bdims = key(f, exprs)
-    dims = [d for d in f.dimensions if d not in bdims]
-    if len(dims) != 1:
-        raise CompilationError(f"Unsupported multi-dimensional `buffering` "
-                               f"required by `{f}`")
-    return dims.pop()
 
 
 def map_buffered_functions(clusters, key):
@@ -879,3 +831,70 @@ def offset_from_centre(d, indices):
             offset = p - vmin(*[Vector(i) for i in indices])[0]
 
     return p, offset
+
+
+def _buffer_dim(f, key, ck):
+    """The single Dimension of `f` along which to buffer."""
+    exprs = flatten(c.exprs for c in ck)
+    bdims = key(f, exprs)
+    dims = [d for d in f.dimensions if d not in bdims]
+    if len(dims) != 1:
+        raise CompilationError(f"Unsupported multi-dimensional `buffering` "
+                               f"required by `{f}`")
+    return dims.pop()
+
+
+def _make_buffer(f, dim, k, ck, xds, async_degree, sregistry, callback):
+    """Build (or retrieve) the buffer Array for `f` along `dim` under guards `k`."""
+    exprs = flatten(c.exprs for c in ck)
+
+    if is_buffering(exprs):
+        buffers = [f for f in retrieve_functions(exprs) if f.is_Array]
+        assert len(buffers) == 1, "Unexpected form of multi-level buffering"
+        buffer, = buffers
+        xd = buffer.indices[dim]
+        extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
+    else:
+        size = infer_buffer_size(f, dim, ck)
+        if async_degree is not None:
+            if async_degree < size:
+                warning(
+                    'Ignoring provided asynchronous degree as it would be '
+                    'too small for the required buffer (provided '
+                    f'{async_degree}, but need at least {size} for `{f.name}`)'
+                )
+            else:
+                size = async_degree
+        try:
+            xd = xds[(dim, size, k)]
+        except KeyError:
+            name = sregistry.make_name(prefix='db')
+            xd = xds[(dim, size, k)] = \
+                BufferDimension(name, 0, size-1, size, dim)
+        extra_kwargs = {}
+
+    dimensions = list(f.dimensions)
+    assert dim in f.dimensions
+    dimensions[dimensions.index(dim)] = xd
+
+    cls = callback or Array
+    name = sregistry.make_name(prefix=f'{f.name}b')
+    return cls(name=name, dimensions=dimensions, dtype=f.dtype,
+               grid=f.grid, halo=f.halo,
+               space='mapped', mapped=f, f=f, **extra_kwargs)
+
+
+def _explicit_guard(g, d):
+    """
+    True if `g` pins `d` to a single value via a `CondEq(d, K)` or `CondNe(d, K)`
+    (i.e., the `==`/`!=` relations Devito accepts as ConditionalDimension
+    conditions; both subclass SymPy's `Eq`/`Ne`).
+    """
+    if g is None:
+        return False
+
+    for a in [g] + list(g.args):
+        if isinstance(a, (SympyEq, Ne)) and a.has(d) and not a.has(Mod):
+            return True
+
+    return False
