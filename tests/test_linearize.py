@@ -657,10 +657,10 @@ def test_int64_array(order):
     op = Operator(eqs, opt=('advanced', {'linearize': True, 'index-mode': 'int64'}))
     if 'CXX' in configuration['language']:
         long = 'static_cast<long>'
-        assert f'({2*order} + {long}(y_size))*({2*order} + {long}(x_size)))' in str(op)
+        assert f'({long}(x_size) + {2*order})*({long}(y_size) + {2*order})' in str(op)
     else:
         long = '(long)'
-        assert f'({2*order} + {long}y_size)*({2*order} + {long}x_size))' in str(op)
+        assert f'({long}x_size + {2*order})*({long}y_size + {2*order})' in str(op)
 
 
 @switchconfig(autopadding=np.float32)

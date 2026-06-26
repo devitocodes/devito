@@ -4,10 +4,12 @@ from functools import cached_property
 import sympy
 
 from devito.deprecations import deprecations
-from devito.tools import Pickable, as_tuple, frozendict
+from devito.tools import Pickable, as_tuple, flatten, frozendict
 from devito.types.lazy import Evaluable
 
-__all__ = ['Eq', 'Inc', 'ReduceMax', 'ReduceMin', 'ReduceMinMax']
+__all__ = ['Eq', 'Inc', 'IncrInterpolation', 'Injection', 'InjectionMixin',
+           'Interpolation', 'InterpolationMixin', 'ReduceMax', 'ReduceMin',
+           'ReduceMinMax', 'SparseEq', 'SparseInc', 'SparseOpMixin']
 
 
 class Eq(sympy.Eq, Evaluable, Pickable):
@@ -58,6 +60,7 @@ class Eq(sympy.Eq, Evaluable, Pickable):
     """
 
     is_Reduction = False
+    is_SparseOperation = False
 
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims')
@@ -257,3 +260,169 @@ class ReduceMinMax(Reduction):
             )
 
         return super().__new__(cls, lhs, rhs=rhs, **kwargs)
+
+
+class SparseOpMixin:
+
+    """
+    Tagging mixin shared by every sparse-grid operation Eq (whether at
+    the user, IR, or cluster layer). Carries the ``interpolator``
+    metadata needed by the IET pass ``lower_sparse_ops`` to materialise
+    the radius nest into an ElementalFunction; per-operation behaviour
+    (interpolation vs. injection) lives on the leaf classes
+    ``Interpolation`` / ``IncrInterpolation`` / ``Injection`` via
+    ``InterpolationMixin`` / ``InjectionMixin``.
+    """
+
+    is_SparseOperation = True
+
+    @property
+    def interpolator(self):
+        return self._interpolator
+
+
+class InterpolationMixin:
+
+    """
+    Polymorphic behaviour shared by all sparse-op Eqs representing an
+    interpolation ``sf[..., p_*] <- expr[..., rp_*]`` (the default
+    ``Eq`` flavour as ``Interpolation`` and the ``+=`` flavour as
+    ``IncrInterpolation``).
+    """
+
+    efunc_prefix = 'interpolate'
+
+    @property
+    def field(self):
+        # An interpolation writes into the SparseFunction, not into a
+        # grid field, so there is no target field to drive staggering.
+        return None
+
+    @classmethod
+    def is_head_eq(cls, eq, sfunction):
+        # The "head" of an interpolation in the IET is the unique
+        # Expression whose lhs is the SparseFunction.
+        return eq.lhs.function is sfunction
+
+    def sparse_temps(self):
+        """
+        Position/coefficient temps to be emitted alongside the radius
+        nest by the IET pass.
+        """
+        return self.interpolator.sparse_temps(self.rhs, self.implicit_dims)
+
+
+class InjectionMixin:
+
+    """
+    Polymorphic behaviour shared by all sparse-op Eqs representing an
+    injection ``Inc(field[..., pos+rd, ...], weights * rhs)``.
+    """
+
+    efunc_prefix = 'inject'
+
+    @property
+    def field(self):
+        # An injection writes into a grid field — exposed as ``lhs.function``.
+        return self.lhs.function
+
+    @classmethod
+    def is_head_eq(cls, eq, sfunction):
+        # The "head" of an injection in the IET is the unique
+        # Expression whose lhs is a (non-sparse) DiscreteFunction.
+        f = eq.lhs.function
+        return f.is_DiscreteFunction and f is not sfunction
+
+    def sparse_temps(self):
+        """
+        Position/coefficient temps to be emitted alongside the radius
+        nest by the IET pass. The target field drives the per-Dimension
+        shifts so the temps' lhs (``pos*`` symbols) match the rhs of a
+        staggered injection.
+        """
+        return self.interpolator.sparse_temps(self.rhs, self.implicit_dims,
+                                              field=self.field)
+
+
+class SparseEq(SparseOpMixin, Eq):
+
+    """
+    An Eq representing a sparse-grid operation. ``SparseEq`` is the
+    abstract base; instantiate ``Interpolation`` (``sf <- expr``),
+    ``IncrInterpolation`` (``sf += expr``), or ``Injection``
+    (``Inc(field, weights * expr)``) instead.
+
+    The single synthetic Eq uses the SparseFunction's radius
+    ConditionalDimensions ``rp_*`` (whose parent is the grid Dimension)
+    as indices into the user expression, so the cluster scheduler
+    derives a regular IterationSpace including the radius loops. The
+    cluster pipeline (buffering, halo, snapshotting, ...) treats it
+    like any other Eq; the IET pass ``lower_sparse_ops`` extracts the
+    resulting ``p_*, rp_*`` nest and wraps it in an ElementalFunction,
+    inserting the position/weight temps that drive the radius access.
+    """
+
+    __rkwargs__ = Eq.__rkwargs__ + ('interpolator',)
+
+    def __new__(cls, lhs, rhs=0, *, interpolator=None,
+                implicit_dims=None, **kwargs):
+        obj = super().__new__(cls, lhs, rhs=rhs, implicit_dims=implicit_dims,
+                              **kwargs)
+        obj._interpolator = interpolator
+        return obj
+
+    def __add__(self, other):
+        # Allow ``list_of_eqs + sparse_eq`` and ``sparse_eq + sparse_eq``
+        # to produce a flat list — handy when composing user expression
+        # bundles passed to ``Operator(...)``.
+        return flatten([self, other])
+
+    def __radd__(self, other):
+        return flatten([other, self])
+
+    def __repr__(self):
+        sf = self._interpolator.sfunction
+        return f"{type(self).__name__}({sf.name})"
+
+    __str__ = __repr__
+
+
+class SparseInc(SparseEq, Inc):
+
+    """
+    The ``Inc`` flavour of ``SparseEq``. The ``+=`` semantics is
+    required when contributions from multiple sparse points accumulate
+    into the same target cell (injection) or when the user asks for
+    ``sf += interp(expr)``.
+    """
+
+    pass
+
+
+class Interpolation(InterpolationMixin, SparseEq):
+
+    """
+    A standard interpolation ``Eq(sf[..., p_*], expr[..., rp_*])``.
+    """
+
+    pass
+
+
+class IncrInterpolation(InterpolationMixin, SparseInc):
+
+    """
+    An interpolation with ``+=`` semantics: ``Inc(sf[..., p_*],
+    expr[..., rp_*])``. Produced by ``interpolate(..., increment=True)``.
+    """
+
+    pass
+
+
+class Injection(InjectionMixin, SparseInc):
+
+    """
+    An injection ``Inc(field[..., pos+rd, ...], weights(rd_*) *
+    expr[..., rd_*])``.
+    """
+
+    pass

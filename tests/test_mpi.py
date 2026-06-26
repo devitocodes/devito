@@ -797,8 +797,10 @@ class TestSparseFunction:
         rec = s.interpolate(expr=s+fs, implicit_dims=grid.stepping_dim)
         op = Operator(eqs + rec)
 
-        # Check generated code -- expected one halo exchange
-        assert len(FindNodes(Call).visit(op)) == 1
+        # Generated code: one halo exchange for ``fs`` and one Call
+        # to the ``interpolate_s0`` ElementalFunction.
+        call_names = [c.name for c in FindNodes(Call).visit(op)]
+        assert call_names == ['haloupdate0', 'interpolate_s0']
 
         op(time_M=10)
         expected = 10*11/2  # n (n+1)/2
@@ -828,8 +830,10 @@ class TestSparseFunction:
 
         op = Operator([Eq(u, 1)] + rec_eq)
 
-        # Check generated code -- expected one halo exchange
-        assert len(FindNodes(Call).visit(op)) == 1
+        # Generated code: one halo exchange for ``u`` and one Call to
+        # the ``interpolate_s0`` ElementalFunction.
+        call_names = [c.name for c in FindNodes(Call).visit(op)]
+        assert call_names == ['haloupdate0', 'interpolate_s0']
 
         op.apply()
         assert np.all(s.data == 1)
@@ -858,8 +862,10 @@ class TestSparseFunction:
 
         op = Operator([Eq(u, 1)] + rec_eq)
 
-        # Check generated code -- expected one halo exchange
-        assert len(FindNodes(Call).visit(op)) == 1
+        # Generated code: one halo exchange for ``u`` and one Call to
+        # the ``interpolate_s0`` ElementalFunction.
+        call_names = [c.name for c in FindNodes(Call).visit(op)]
+        assert call_names == ['haloupdate0', 'interpolate_s0']
 
         op.apply(time_M=5)
         assert np.all(s.data == 1)
@@ -3194,6 +3200,10 @@ class TestOperatorAdvanced:
 
     @pytest.mark.parallel(mode=1)
     def test_interpolation_at_uforward(self, mode):
+        # The interpolation reads ``u.forward``; the halo update for
+        # the corresponding time slot is emitted in the parent Kernel,
+        # right before the Call to the efunc materialising the radius
+        # nest.
         grid = Grid(shape=(10, 10, 10))
         t = grid.stepping_dim
 
@@ -3208,10 +3218,12 @@ class TestOperatorAdvanced:
 
         _ = op.cfunction
 
-        calls, _ = check_halo_exchanges(op, 2, 1)
-        args = calls[0].arguments
-        assert args[-2].name == 't2'
-        assert args[-2].origin == t + 1
+        from devito.ir.iet import FindNodes
+        from devito.mpi.routines import HaloUpdateCall
+        halos = FindNodes(HaloUpdateCall).visit(op)
+        sparse_halos = [h for h in halos
+                        if getattr(h.arguments[-2], 'origin', None) == t + 1]
+        assert len(sparse_halos) == 1
 
 
 def gen_serial_norms(shape, so):
@@ -3275,8 +3287,10 @@ class TestIsotropicAcoustic:
         op_adj = solver.op_adj()
         adj_calls = FindNodes(Call).visit(op_adj)
 
-        assert len(fwd_calls) == 1
-        assert len(adj_calls) == 1
+        # 1 halo update + 1 inject (source) + 1 interpolate (receiver)
+        # ElementalFunction call.
+        assert len(fwd_calls) == 3
+        assert len(adj_calls) == 3
 
     def run_adjoint_F(self, nd):
         """
@@ -3361,7 +3375,8 @@ class TestElasticLike:
         op = Operator([u_v] + [u_t] + rec_term)
         _ = op.cfunction
 
-        assert len(op._func_table) == 11
+        # 11 dense + halo Callables + 1 interpolate efunc for ``rec``
+        assert len(op._func_table) == 12
 
         calls = [i for i in FindNodes(Call).visit(op) if isinstance(i, HaloUpdateCall)]
         assert len(calls) == 5
@@ -3459,15 +3474,19 @@ class TestElasticLike:
 
         calls = [i for i in FindNodes(Call).visit(op2) if isinstance(i, HaloUpdateCall)]
 
-        assert len(calls) == 5
-        assert len(FindNodes(HaloUpdateCall).visit(body0(op2).body[1].body[0])) == 2
-        assert len(FindNodes(HaloUpdateCall).visit(body0(op2).body[1].body[1])) == 3
+        # The sparse-op efunc lowering hoists the interpolation halos so they
+        # share with the upstream stencil halo for the same Function. The
+        # initial-step halo merges ``v`` with ``v2``; the in-loop halo merges
+        # the same pair, leaving 3 distinct HaloUpdateCalls in total.
+        assert len(calls) == 3
+        assert len(FindNodes(HaloUpdateCall).visit(body0(op2).body[1].body[0])) == 1
+        assert len(FindNodes(HaloUpdateCall).visit(body0(op2).body[1].body[1])) == 2
         assert calls[0].arguments[0] is v
-        assert calls[1].arguments[0] is v2
-        assert calls[2].arguments[0] is tau
-        assert calls[2].arguments[1] is tau2
-        assert calls[3].arguments[0] is v
-        assert calls[4].arguments[0] is v2
+        assert calls[0].arguments[1] is v2
+        assert calls[1].arguments[0] is tau
+        assert calls[1].arguments[1] is tau2
+        assert calls[2].arguments[0] is v
+        assert calls[2].arguments[1] is v2
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_v3(self, mode, setup):
@@ -3494,14 +3513,17 @@ class TestElasticLike:
 
         calls = [i for i in FindNodes(Call).visit(op3) if isinstance(i, HaloUpdateCall)]
 
-        assert len(calls) == 4
+        # The interpolation halo for ``v2.forward`` merges with the in-loop
+        # halo for the same Function, so the per-loop tail collapses to a
+        # single merged ``v``/``v2`` call instead of two separate ones.
+        assert len(calls) == 3
         assert len(FindNodes(HaloUpdateCall).visit(body0(op3).body[1].body[0])) == 1
-        assert len(FindNodes(HaloUpdateCall).visit(body0(op3).body[1].body[1])) == 3
+        assert len(FindNodes(HaloUpdateCall).visit(body0(op3).body[1].body[1])) == 2
         assert calls[0].arguments[0] is v
         assert calls[1].arguments[0] is tau
         assert calls[1].arguments[1] is tau2
         assert calls[2].arguments[0] is v
-        assert calls[3].arguments[0] is v2
+        assert calls[2].arguments[1] is v2
 
     @pytest.mark.parallel(mode=1)
     def test_issue_2448_backward(self, mode):

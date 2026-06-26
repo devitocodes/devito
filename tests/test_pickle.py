@@ -839,12 +839,7 @@ class TestOperator:
         rec = Receiver(name='rec', grid=grid, npoint=nrec, time_range=time_range)
 
         u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
-        rec_term = rec.interpolate(expr=u)
-
-        eq = rec_term.evaluate[2]
-        eq = eq.func(eq.lhs, eq.rhs.args[0])
-
-        op = Operator(eq)
+        op = Operator(rec.interpolate(expr=u))
 
         pkl_op = pickle.dumps(op)
         new_op = pickle.loads(pkl_op)
