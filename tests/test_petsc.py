@@ -3001,67 +3001,101 @@ class TestCoarseSymbols:
 
     @pytest.mark.parallel(mode=[2, 3, 4])
     def test_dim_max_1d(self, mode):
-        # 3-level hierarchy: fine (17,) -> level1 (9,) -> level2 (5,)
+        # 4-level hierarchy: fine (17,) -> (9,) -> (5,) -> (3,)
         grid = Grid(shape=(17,))
-        hierarchy = GridHierarchy(grid, nlevels=3)
+        hierarchy = GridHierarchy(grid, nlevels=4)
         x, = grid.dimensions
 
         # Level 1 — 9 points, np.array_split(range(9), nprocs):
-        #   nprocs=2: [5, 4]       -> x_M = [4, 3]
-        #   nprocs=3: [3, 3, 3]    -> x_M = [2, 2, 2]
-        #   nprocs=4: [3, 2, 2, 2] -> x_M = [2, 1, 1, 1]
+        # nprocs=2: [5, 4]       -> x_M = [4, 3]
+        # nprocs=3: [3, 3, 3]    -> x_M = [2, 2, 2]
+        # nprocs=4: [3, 2, 2, 2] -> x_M = [2, 1, 1, 1]
         expected_l1 = {
             2: [4, 3],
             3: [2, 2, 2],
             4: [2, 1, 1, 1],
         }
-        sg1 = hierarchy.coarse_levels[0]
+        sg1 = hierarchy.levels[1]
         d1 = sg1.distributor
         coarse = sg1.coarse_symbol_for(x.symbolic_max)
         assert coarse._arg_values()[coarse.name] == expected_l1[d1.nprocs][d1.myrank]
 
         # Level 2 — 5 points, np.array_split(range(5), nprocs):
-        #   nprocs=2: [3, 2]       -> x_M = [2, 1]
-        #   nprocs=3: [2, 2, 1]    -> x_M = [1, 1, 0]
-        #   nprocs=4: [2, 1, 1, 1] -> x_M = [1, 0, 0, 0]
+        # nprocs=2: [3, 2]       -> x_M = [2, 1]
+        # nprocs=3: [2, 2, 1]    -> x_M = [1, 1, 0]
+        # nprocs=4: [2, 1, 1, 1] -> x_M = [1, 0, 0, 0]
         expected_l2 = {
             2: [2, 1],
             3: [1, 1, 0],
             4: [1, 0, 0, 0],
         }
-        sg2 = hierarchy.coarse_levels[1]
+        sg2 = hierarchy.levels[2]
         d2 = sg2.distributor
         coarse = sg2.coarse_symbol_for(x.symbolic_max)
         assert coarse._arg_values()[coarse.name] == expected_l2[d2.nprocs][d2.myrank]
 
+        # Level 3 — 3 points, np.array_split(range(3), nprocs):
+        # nprocs=2: [2, 1]          -> x_M = [1, 0]
+        # nprocs=3: [1, 1, 1]       -> x_M = [0, 0, 0]
+        # nprocs=4: [1, 1, 1, 0]    -> x_M = [0, 0, 0, -1]  (rank 3 is empty)
+        expected_l3 = {
+            2: [1, 0],
+            3: [0, 0, 0],
+            4: [0, 0, 0, -1],
+        }
+        sg3 = hierarchy.levels[3]
+        d3 = sg3.distributor
+        coarse = sg3.coarse_symbol_for(x.symbolic_max)
+        assert coarse._arg_values()[coarse.name] == expected_l3[d3.nprocs][d3.myrank]
+
     @pytest.mark.parallel(mode=[2, 3, 4])
     def test_dim_size_1d(self, mode):
-        # Same splits as test_dim_max_1d; x_size = local_size (offset=0, so +1 vs x_M)
+        # 4-level hierarchy: fine (17,) -> (9,) -> (5,) -> (3,)
         grid = Grid(shape=(17,))
-        hierarchy = GridHierarchy(grid, nlevels=3)
+        hierarchy = GridHierarchy(grid, nlevels=4)
         x, = grid.dimensions
 
         # Level 1 — 9 points, np.array_split(range(9), nprocs):
+        # nprocs=2: [5, 4]       -> x_size = [5, 4]
+        # nprocs=3: [3, 3, 3]    -> x_size = [3, 3, 3]
+        # nprocs=4: [3, 2, 2, 2] -> x_size = [3, 2, 2, 2]
         expected_l1 = {
             2: [5, 4],
             3: [3, 3, 3],
             4: [3, 2, 2, 2],
         }
-        sg1 = hierarchy.coarse_levels[0]
+        sg1 = hierarchy.levels[1]
         d1 = sg1.distributor
         coarse = sg1.coarse_symbol_for(x.symbolic_size)
         assert coarse._arg_values()[coarse.name] == expected_l1[d1.nprocs][d1.myrank]
 
         # Level 2 — 5 points, np.array_split(range(5), nprocs):
+        # nprocs=2: [3, 2]       -> x_size = [3, 2]
+        # nprocs=3: [2, 2, 1]    -> x_size = [2, 2, 1]
+        # nprocs=4: [2, 1, 1, 1] -> x_size = [2, 1, 1, 1]
         expected_l2 = {
             2: [3, 2],
             3: [2, 2, 1],
             4: [2, 1, 1, 1],
         }
-        sg2 = hierarchy.coarse_levels[1]
+        sg2 = hierarchy.levels[2]
         d2 = sg2.distributor
         coarse = sg2.coarse_symbol_for(x.symbolic_size)
         assert coarse._arg_values()[coarse.name] == expected_l2[d2.nprocs][d2.myrank]
+
+        # Level 3 — 3 points, np.array_split(range(3), nprocs):
+        # nprocs=2: [2, 1]       -> x_size = [2, 1]
+        # nprocs=3: [1, 1, 1]    -> x_size = [1, 1, 1]
+        # nprocs=4: [1, 1, 1, 0] -> x_size = [1, 1, 1, 0]  (rank 3 is empty)
+        expected_l3 = {
+            2: [2, 1],
+            3: [1, 1, 1],
+            4: [1, 1, 1, 0],
+        }
+        sg3 = hierarchy.levels[3]
+        d3 = sg3.distributor
+        coarse = sg3.coarse_symbol_for(x.symbolic_size)
+        assert coarse._arg_values()[coarse.name] == expected_l3[d3.nprocs][d3.myrank]
 
 
 class TestMultiGrid1D:
