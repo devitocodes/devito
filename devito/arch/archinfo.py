@@ -16,7 +16,7 @@ import psutil
 from packaging.version import InvalidVersion, parse
 
 from devito.logger import warning
-from devito.tools import all_equal, as_tuple, memoized_func
+from devito.tools import all_equal, as_tuple, frozendict, memoized_func
 
 __all__ = [  # noqa: RUF022
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
@@ -855,6 +855,13 @@ class Platform:
         """
         return False
 
+    @cached_property
+    def digest(self):
+        fields = ('brand', 'logical', 'physical')
+        cpuinfo = get_cpu_info()
+        # TODO: Is it necessary to homogenise brand info?
+        return frozendict({k: cpuinfo[k] for k in fields})
+
 
 class Cpu64(Platform):
 
@@ -1092,6 +1099,15 @@ class Device(Platform):
             'max-par-dims': 3,
             'max-block-dims': 3,
         }
+
+    @cached_property
+    def digest(self):
+        fields = ('architecture', 'product', 'vendor')
+        gpuinfo = get_gpu_info()
+        mapper = {k: gpuinfo[k] for k in fields}
+        mapper['mem.total'] = gpuinfo['mem.total']()
+
+        return frozendict(mapper)
 
 
 class IntelDevice(Device):
