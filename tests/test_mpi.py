@@ -19,7 +19,7 @@ from devito.ir.iet import (
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
 from devito.mpi.distributed import CoarseDistributor, CustomTopology
-from devito.types.grid import GridHierarchy
+from devito.petsc.types.multigrid import GridHierarchy
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
 from examples.seismic.acoustic import acoustic_setup
@@ -408,6 +408,8 @@ class TestCoarseDistributor:
             4: [(3,), (2,), (2,), (2,)],
         }
         d1 = sg1.distributor
+        expected_topology = {2: (2,), 4: (4,)}
+        assert grid.distributor.topology == d1.topology == expected_topology[d1.nprocs]
         assert d1.shape == expected_l1[d1.nprocs][d1.myrank]
 
         # Coarsest level, coarsening_depth=2
@@ -418,6 +420,53 @@ class TestCoarseDistributor:
             4: [(2,), (1,), (1,), (1,)],
         }
         d2 = sg2.distributor
+        assert grid.distributor.topology == d2.topology == expected_topology[d2.nprocs]
+        assert d2.shape == expected_l2[d2.nprocs][d2.myrank]
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_partitioning_2d(self, mode):
+        grid = Grid(shape=(17, 17))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+
+        expected_topology = {2: (2, 1), 4: (2, 2)}
+        expected_l1 = {
+            2: [(5, 9), (4, 9)],
+            4: [(5, 5), (5, 4), (4, 5), (4, 4)],
+        }
+        expected_l2 = {
+            2: [(3, 5), (2, 5)],
+            4: [(3, 3), (3, 2), (2, 3), (2, 2)],
+        }
+
+        d1 = hierarchy.coarse_levels[0].distributor
+        assert grid.distributor.topology == d1.topology == expected_topology[d1.nprocs]
+        assert d1.shape == expected_l1[d1.nprocs][d1.myrank]
+
+        d2 = hierarchy.coarse_levels[1].distributor
+        assert grid.distributor.topology == d2.topology == expected_topology[d2.nprocs]
+        assert d2.shape == expected_l2[d2.nprocs][d2.myrank]
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_partitioning_3d(self, mode):
+        grid = Grid(shape=(17, 17, 17))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+
+        expected_topology = {2: (2, 1, 1), 4: (2, 2, 1)}
+        expected_l1 = {
+            2: [(5, 9, 9), (4, 9, 9)],
+            4: [(5, 5, 9), (5, 4, 9), (4, 5, 9), (4, 4, 9)],
+        }
+        expected_l2 = {
+            2: [(3, 5, 5), (2, 5, 5)],
+            4: [(3, 3, 5), (3, 2, 5), (2, 3, 5), (2, 2, 5)],
+        }
+
+        d1 = hierarchy.coarse_levels[0].distributor
+        assert grid.distributor.topology == d1.topology == expected_topology[d1.nprocs]
+        assert d1.shape == expected_l1[d1.nprocs][d1.myrank]
+
+        d2 = hierarchy.coarse_levels[1].distributor
+        assert grid.distributor.topology == d2.topology == expected_topology[d2.nprocs]
         assert d2.shape == expected_l2[d2.nprocs][d2.myrank]
 
 

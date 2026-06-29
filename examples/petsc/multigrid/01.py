@@ -2,9 +2,9 @@ import os
 import numpy as np
 
 from devito import (Grid, Function, Eq, Operator, switchconfig,
-                    configuration, SubDomain, norm, GridHierarchy)
+                    configuration, SubDomain, norm)
 
-from devito.petsc import petscsolve, EssentialBC
+from devito.petsc import petscsolve, EssentialBC, GridHierarchy
 from devito.petsc.initialize import PetscInitialize
 
 import matplotlib.pyplot as plt

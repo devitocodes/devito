@@ -7,9 +7,10 @@ import sympy as sp
 
 from conftest import skipif
 from devito import (
-    Eq, Function, Grid, GridHierarchy, Operator, SubDomain, TimeFunction,
+    Eq, Function, Grid, Operator, SubDomain, TimeFunction,
     configuration, norm, sin, switchconfig
 )
+from devito.petsc.types.multigrid import GridHierarchy, SubGrid
 from devito.ir.iet import Call, ElementalFunction, FindNodes, retrieve_iteration_tree
 from devito.operator.profiling import PerformanceSummary
 from devito.passes.iet.languages.C import CDataManager
@@ -2949,6 +2950,48 @@ class TestPetscSection:
 # TODO: add tests for the new matshell to aij matview
 class TestMatConvertShell:
     pass
+
+
+class TestGridHierarchy:
+
+    def test_shapes_1d(self):
+        grid = Grid(shape=(17,))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        assert hierarchy.levels[0] is grid
+        assert hierarchy.levels[1].shape == (9,)
+        assert hierarchy.levels[2].shape == (5,)
+
+    def test_coarsening_depth(self):
+        grid = Grid(shape=(17,))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        assert hierarchy.coarse_levels[0].coarsening_depth == 1
+        assert hierarchy.coarse_levels[1].coarsening_depth == 2
+
+    def test_invalid_shape(self):
+        with pytest.raises(ValueError):
+            GridHierarchy(Grid(shape=(10,)), nlevels=3)
+
+    def test_shapes_2d(self):
+        grid = Grid(shape=(17, 17))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        assert hierarchy.levels[0] is grid
+        assert hierarchy.levels[1].shape == (9, 9)
+        assert hierarchy.levels[2].shape == (5, 5)
+
+    def test_shapes_3d(self):
+        grid = Grid(shape=(17, 17, 17))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        assert hierarchy.levels[0] is grid
+        assert hierarchy.levels[1].shape == (9, 9, 9)
+        assert hierarchy.levels[2].shape == (5, 5, 5)
+
+    def test_shared_properties(self):
+        grid = Grid(shape=(17,))
+        hierarchy = GridHierarchy(grid, nlevels=3)
+        for sg in hierarchy.coarse_levels:
+            assert sg.dimensions == grid.dimensions
+            assert sg.extent == grid.extent
+            assert sg.dtype == grid.dtype
 
 
 class TestMultiGrid1D:

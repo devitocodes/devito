@@ -9,7 +9,7 @@ from devito import configuration
 from devito.data import CENTER, LEFT, RIGHT
 from devito.deprecations import deprecations
 from devito.logger import warning
-from devito.mpi import MPI, CoarseDistributor, Distributor, SubDistributor
+from devito.mpi import MPI, Distributor, SubDistributor
 from devito.tools import ReducerMap, as_tuple, frozendict
 from devito.types.args import ArgProvider
 from devito.types.basic import Scalar
@@ -20,7 +20,7 @@ from devito.types.dimension import (
 )
 from devito.types.utils import DimensionTuple
 
-__all__ = ['Border', 'Grid', 'GridHierarchy', 'SubDomain', 'SubDomainSet', 'SubGrid']
+__all__ = ['Border', 'Grid', 'SubDomain', 'SubDomainSet']
 
 
 GlobalLocal = namedtuple('GlobalLocal', 'glb loc')
@@ -432,142 +432,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
-class SubGrid:
-
-    """
-    A coarser-level grid in a multigrid hierarchy.
-
-    Shares SpaceDimensions, physical extent, and dtype with the parent Grid
-    but has a coarser shape and a CoarseDistributor for its MPI partition.
-    Not constructed directly by users — created by GridHierarchy.
-
-    TODO: SubGrid should eventually carry coarse SubDimension objects derived
-    from the parent Grid's subdomains (analogous to Grid._subdomains), with
-    CoarseThickness tokens scaled to the coarse level.
-    """
-
-    def __init__(self, shape, parent, coarsening_depth):
-        self._shape = as_tuple(shape)
-        self._parent = parent
-        self._coarsening_depth = coarsening_depth
-        self._distributor = CoarseDistributor(shape, parent.dimensions,
-                                              parent.distributor)
-
-    def __repr__(self):
-        return f'SubGrid[shape={self._shape}, dimensions={self.dimensions}]'
-
-    @property
-    def shape(self):
-        return self._shape
-
-    @property
-    def dimensions(self):
-        return self._parent.dimensions
-
-    @property
-    def dtype(self):
-        return self._parent.dtype
-
-    @property
-    def extent(self):
-        return self._parent.extent
-
-    @cached_property
-    def spacing(self):
-        spacing = (np.array(self.extent) /
-                   (np.array(self._shape) - 1)).astype(self.dtype)
-        return as_tuple(spacing)
-
-    @property
-    def distributor(self):
-        return self._distributor
-
-    @property
-    def coarsening_depth(self):
-        """Number of factor-2 coarsenings from the fine Grid (1 = one halving, etc.)."""
-        return self._coarsening_depth
-
-    @property
-    def parent(self):
-        return self._parent
-
-
-class GridHierarchy:
-
-    """
-    A hierarchy of grids for geometric multigrid.
-
-    Applies successive factor-2 coarsenings to a fine Grid, producing a
-    SubGrid per coarser level. Each SubGrid shares the fine Grid's
-    SpaceDimensions and physical extent.
-
-    Levels are numbered starting from 0 for the fine grid:
-    levels[0] = fine Grid, levels[1] = first coarse SubGrid, etc.
-
-    Parameters
-    ----------
-    fine_grid : Grid
-        The finest level.
-    nlevels : int
-        Total number of levels including the fine grid (e.g. nlevels=3
-        gives fine -> mid -> coarse).
-
-    Examples
-    --------
-    >>> grid = Grid(shape=(33,))
-    >>> h = GridHierarchy(grid, nlevels=3)
-    >>> h.levels
-    (Grid[...shape=(33,)...], SubGrid[shape=(17,)...], SubGrid[shape=(9,)...])
-    """
-
-    def __init__(self, fine_grid, nlevels):
-        self._fine = fine_grid
-        self._nlevels = nlevels
-
-        divisor = 2 ** (nlevels - 1)
-        invalid = [
-            (d, n) for d, n in zip(fine_grid.dimensions, fine_grid.shape)
-            if (n - 1) % divisor != 0
-        ]
-        if invalid:
-            msgs = ', '.join(
-                f"{d}: size {n} ((n-1)={n-1} not divisible by {divisor})"
-                for d, n in invalid
-            )
-            raise ValueError(
-                f"Grid cannot be uniformly coarsened over {nlevels} levels: {msgs}. "
-                f"Each (n-1) must be divisible by 2^(nlevels-1)={divisor}."
-            )
-
-        coarse_levels = []
-        shape = fine_grid.shape
-        for i in range(nlevels - 1):
-            shape = tuple((s - 1) // 2 + 1 for s in shape)
-            coarse_levels.append(SubGrid(shape, fine_grid, coarsening_depth=i + 1))
-        self._coarse_levels = tuple(coarse_levels)
-
-    def __repr__(self):
-        shapes = ' -> '.join(str(l.shape) for l in self.levels)
-        return f'GridHierarchy[{shapes}]'
-
-    @property
-    def fine(self):
-        """The finest Grid."""
-        return self._fine
-
-    @property
-    def coarse_levels(self):
-        """Coarser SubGrids ordered finest-coarse to coarsest."""
-        return self._coarse_levels
-
-    @property
-    def nlevels(self):
-        return self._nlevels
-
-    @property
-    def levels(self):
-        """All levels as a tuple: (fine_grid, subgrid_l1, ..., subgrid_lN)."""
-        return (self._fine,) + self._coarse_levels
 
 
 class AbstractSubDomain(CartesianDiscretization):

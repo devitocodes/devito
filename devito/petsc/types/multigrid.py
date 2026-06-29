@@ -1,45 +1,238 @@
+from functools import cached_property
 from itertools import product as iterproduct
 
+import numpy as np
 import sympy
 from sympy import Integer, Rational, finite_diff_weights
 
-from devito.symbolics import FieldFromComposite, IntDiv
+from devito.mpi import CoarseDistributor
+from devito.symbolics import FieldFromComposite
+from devito.tools import as_tuple
 from devito.types.basic import Scalar
-from devito.types.dimension import CoarseThickness, Spacing
+from devito.types.dimension import Spacing, Thickness
 from devito.types.equation import Eq
 
 
-def coarsen_param(param, coarsening_depth):
+class CoarseGridScalar(Scalar):
     """
-    Scale a parameter by the coarsening factor 2**coarsening_depth.
+    A rank-local dimension scalar for a coarse multigrid level.
 
-    Rules:
-      Spacing   (h_x, h_y, ...)  -> param * factor   (grid spacing coarsens)
-      Scalar _M (x_M, y_M, ...)  -> param // factor  (max index halves)
-      Thickness / Scalar _m / other -> unchanged
+    offset = -1 for *_M symbols, 0 for *_size symbols.
+    is_Input = True so the operator's argument collection calls _arg_values.
     """
-    factor = 2 ** coarsening_depth
-    if isinstance(param, Spacing):
-        return param * factor
-    elif isinstance(param, Scalar) and param.name.endswith('_M'):
-        return IntDiv(param, factor)
-    return param
+
+    is_Input = True
+
+    __rkwargs__ = ('name', 'dtype', 'is_const', 'dim', 'distributor', 'offset')
+
+    def __new__(cls, name, dim=None, distributor=None, offset=0, **kwargs):
+        kwargs.setdefault('dtype', np.int32)
+        kwargs.setdefault('is_const', True)
+        newobj = super().__new__(cls, name, **kwargs)
+        newobj._dim = dim
+        newobj._distributor = distributor
+        newobj._offset = offset
+        return newobj
+
+    def _arg_values(self, **kwargs):
+        return {self.name: self._distributor.shape[self._dim] + self._offset}
 
 
-def coarsen_thicknesses(tkn, coarsening_depth, coarse_dist):
+class CoarseThickness(Thickness):
     """
-    Create a CoarseThickness for a Thickness token at a given coarsening depth.
+    A Thickness token for a coarse grid level in a multigrid hierarchy.
 
-    The coarse global value is ceil(tkn.value / 2^coarsening_depth). The
-    CoarseDistributor computes the per-rank local value in _arg_values.
+    Stores a CoarseDistributor directly so _arg_values does not need the
+    fine Grid. It uses self._distributor instead of grid.distributor.
     """
-    factor = 2 ** coarsening_depth
-    coarse_val = (tkn.value + factor - 1) // factor
-    return CoarseThickness(
-        name=f'{tkn.name}_d{coarsening_depth}',
-        root=tkn.root, side=tkn.side, local=tkn.local,
-        value=coarse_val, distributor=coarse_dist
-    )
+
+    __rkwargs__ = Thickness.__rkwargs__ + ('distributor',)
+
+    def __new__(cls, *args, distributor=None, **kwargs):
+        newobj = super().__new__(cls, *args, **kwargs)
+        newobj._distributor = distributor
+        return newobj
+
+    def _arg_values(self, grid=None, **kwargs):
+        rtkn = kwargs.get(self.name, self.value)
+        if self._distributor is not None and rtkn is not None:
+            if self.local:
+                tkn = self._distributor.glb_to_loc(self.root, rtkn - 1, self.side)
+                tkn = tkn + 1 if tkn is not None else 0
+            else:
+                tkn = self._distributor.glb_to_loc(self.root, rtkn, self.side) or 0
+        else:
+            tkn = rtkn or 0
+        return {self.name: tkn}
+
+
+class SubGrid:
+
+    """
+    A coarser-level grid in a multigrid hierarchy.
+
+    Shares SpaceDimensions, physical extent, and dtype with the parent Grid
+    but has a coarser shape and a CoarseDistributor for its MPI partition.
+    Not constructed directly by users - created by GridHierarchy.
+    """
+
+    def __init__(self, shape, parent, coarsening_depth):
+        self._shape = as_tuple(shape)
+        self._parent = parent
+        self._coarsening_depth = coarsening_depth
+        self._distributor = CoarseDistributor(shape, parent.dimensions,
+                                              parent.distributor)
+        self._coarse_symbol_cache = {}
+
+    def __repr__(self):
+        return f'SubGrid[shape={self._shape}, dimensions={self.dimensions}]'
+
+    @property
+    def shape(self):
+        return self._shape
+
+    @property
+    def dimensions(self):
+        return self._parent.dimensions
+
+    @property
+    def dtype(self):
+        return self._parent.dtype
+
+    @property
+    def extent(self):
+        return self._parent.extent
+
+    @cached_property
+    def spacing(self):
+        spacing = (np.array(self.extent) /
+                   (np.array(self._shape) - 1)).astype(self.dtype)
+        return as_tuple(spacing)
+
+    @property
+    def distributor(self):
+        return self._distributor
+
+    @property
+    def coarsening_depth(self):
+        """Number of factor-2 coarsenings from the fine Grid (1 = one halving, etc.)."""
+        return self._coarsening_depth
+
+    @property
+    def parent(self):
+        return self._parent
+
+    def coarse_symbol_for(self, f):
+        """Return the coarse-level equivalent of fine-grid symbol f."""
+        try:
+            return self._coarse_symbol_cache[f]
+        except KeyError:
+            coarse = self._build_coarse_symbol(f)
+            self._coarse_symbol_cache[f] = coarse
+            return coarse
+
+    def _build_coarse_symbol(self, f):
+        factor = 2 ** self._coarsening_depth
+        if isinstance(f, Thickness):
+            coarse_val = (f.value + factor - 1) // factor
+            return CoarseThickness(
+                name=f'{f.name}_d{self._coarsening_depth}',
+                root=f.root, side=f.side, local=f.local,
+                value=coarse_val, distributor=self._distributor
+            )
+        elif isinstance(f, Spacing):
+            return f * factor
+        elif isinstance(f, Scalar):
+            for dim in self._parent.dimensions:
+                if f.name in (f'{dim.name}_M', f'{dim.name}_size'):
+                    offset = -1 if f.name.endswith('_M') else 0
+                    return CoarseGridScalar(
+                        name=f'{f.name}_d{self._coarsening_depth}',
+                        dim=dim,
+                        distributor=self._distributor,
+                        offset=offset
+                    )
+        return f
+
+
+class GridHierarchy:
+
+    """
+    A hierarchy of grids for geometric multigrid.
+
+    Applies successive factor-2 coarsenings to a fine Grid, producing a
+    SubGrid per coarser level. Each SubGrid shares the fine Grid's
+    SpaceDimensions and physical extent.
+
+    Levels are numbered starting from 0 for the fine grid:
+    levels[0] = fine Grid, levels[1] = first coarse SubGrid, etc.
+
+    Parameters
+    ----------
+    fine_grid : Grid
+        The finest level.
+    nlevels : int
+        Total number of levels including the fine grid (e.g. nlevels=3
+        gives fine -> mid -> coarse).
+
+    Examples
+    --------
+    >>> from devito import Grid
+    >>> from devito.petsc.types.multigrid import GridHierarchy
+    >>> grid = Grid(shape=(33,))
+    >>> h = GridHierarchy(grid, nlevels=3)
+    >>> h.levels
+    (Grid[...shape=(33,)...], SubGrid[shape=(17,)...], SubGrid[shape=(9,)...])
+    """
+
+    def __init__(self, fine_grid, nlevels):
+        self._fine = fine_grid
+        self._nlevels = nlevels
+
+        divisor = 2 ** (nlevels - 1)
+        invalid = [
+            (d, n) for d, n in zip(fine_grid.dimensions, fine_grid.shape)
+            if (n - 1) % divisor != 0
+        ]
+        if invalid:
+            msgs = ', '.join(
+                f"{d}: size {n} ((n-1)={n-1} not divisible by {divisor})"
+                for d, n in invalid
+            )
+            raise ValueError(
+                f"Grid cannot be uniformly coarsened over {nlevels} levels: {msgs}. "
+                f"Each (n-1) must be divisible by 2^(nlevels-1)={divisor}."
+            )
+
+        coarse_levels = []
+        shape = fine_grid.shape
+        for i in range(nlevels - 1):
+            shape = tuple((s - 1) // 2 + 1 for s in shape)
+            coarse_levels.append(SubGrid(shape, fine_grid, coarsening_depth=i + 1))
+        self._coarse_levels = tuple(coarse_levels)
+
+    def __repr__(self):
+        shapes = ' -> '.join(str(l.shape) for l in self.levels)
+        return f'GridHierarchy[{shapes}]'
+
+    @property
+    def fine(self):
+        """The finest Grid."""
+        return self._fine
+
+    @property
+    def coarse_levels(self):
+        """Coarser SubGrids ordered finest-coarse to coarsest."""
+        return self._coarse_levels
+
+    @property
+    def nlevels(self):
+        return self._nlevels
+
+    @property
+    def levels(self):
+        """All levels as a tuple: (fine_grid, subgrid_l1, ..., subgrid_lN)."""
+        return (self._fine,) + self._coarse_levels
 
 
 class MultigridMetadata:

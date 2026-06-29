@@ -26,9 +26,7 @@ from devito.petsc.types import (
     MultipleFieldData
 )
 from devito.petsc.types.macros import petsc_func_begin_user
-from devito.petsc.types.multigrid import coarsen_param, coarsen_thicknesses
-from devito.types.dimension import Thickness
-from devito.types.dimension import CoarseThickness, Thickness
+
 from devito.symbolics import Byref, FieldFromPointer, IndexedPointer, Macro, Null
 from devito.types.basic import DataSymbol, LocalType
 from devito.types.dimension import DefaultDimension
@@ -168,9 +166,9 @@ def fix_mg_populate_calls(graph, **kwargs):
     list, rebuild each `MgPopulateCall` in the Kernel with correctly scaled
     arguments for the given grid level.
 
-    For coarse levels, Thicknesses are replaced with CoarseThickness
-    counterparts (via coarsen_thicknesses) whose _arg_values uses the
-    CoarseDistributor for that level.
+    For coarse levels each symbol is replaced via SubGrid.coarse_symbol_for,
+    which produces CoarseThickness / CoarseGridScalar instances whose
+    _arg_values use the CoarseDistributor for per-rank correct values.
     """
     mg_calls = FindNodes(MgPopulateCall).visit(graph.root)
     if not mg_calls:
@@ -182,11 +180,8 @@ def fix_mg_populate_calls(graph, **kwargs):
     def _param(f, call):
         if call.level > 0 and call.hierarchy is not None:
             subgrid = call.hierarchy.coarse_levels[call.level - 1]
-            if isinstance(f, Thickness):
-                return coarsen_thicknesses(f, subgrid.coarsening_depth,
-                                           subgrid.distributor)
-            return coarsen_param(f, subgrid.coarsening_depth)
-        return coarsen_param(f, 0)
+            return subgrid.coarse_symbol_for(f)
+        return f
 
     mapper = {
         call: call._rebuild(
