@@ -187,7 +187,7 @@ class BuilderBase:
             self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
         )
         return (
-            self._create_dmda(dmda),
+            self._create_dmda(dmda, lc_arrays=self.solver_objs['lc'][0]),
             # TODO: probably need to set the dm options prefix the same as snes?
             petsc_call('DMSetFromOptions', [dmda]),
             petsc_call('DMSetUp', [dmda]),
@@ -196,7 +196,7 @@ class BuilderBase:
             petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
         )
 
-    def _create_dmda(self, dmda, shape=None):
+    def _create_dmda(self, dmda, shape=None, lc_arrays=None):
         sobjs = self.solver_objs
         grid = self.field_data.grid
         nspace_dims = len(grid.dimensions)
@@ -224,10 +224,13 @@ class BuilderBase:
         # TODO: Instead, this probably should be
         # extracted from field_data.target._size_outhalo?
         stencil_width = self.field_data.space_order
-
         args.append(stencil_width)
-        # TODO: pass explicit lc[] partition arrays derived from distributor._decomposition
-        args.extend([Null]*nspace_dims)
+
+        # Per-rank node counts
+        if lc_arrays is not None:
+            args.extend(lc.indexed for lc in lc_arrays)
+        else:
+            args.extend([Null] * nspace_dims)
 
         # The distributed array object
         args.append(Byref(dmda))
@@ -330,7 +333,7 @@ class ConstrainedBCMixin:
         sobjs = self.solver_objs
         mainctx = sobjs['userctx']
 
-        dmda_create = self._create_dmda(dmda)
+        dmda_create = self._create_dmda(dmda, lc_arrays=self.solver_objs['lc'][0])
 
         # TODO: likely need to set the dm options prefix the same as snes?
         # Probably shouldn't hardcode this option.. (should be set in the options
@@ -466,14 +469,16 @@ class MultigridBuilderMixin:
         malloc_all_shells = petsc_call('PetscMalloc1', [n_levels, Byref(all_shells)])
 
         # Pre-build all DMDAs: fine at index 0, coarse levels at 1..n_levels-1
+        lc = self.solver_objs['lc']
         dmda_creates = [
-            self._create_dmda(IndexedPointer(all_da, 0)),
+            self._create_dmda(IndexedPointer(all_da, 0), lc_arrays=lc[0]),
             petsc_call('DMSetFromOptions', [IndexedPointer(all_da, 0)]),
             petsc_call('DMSetUp', [IndexedPointer(all_da, 0)]),
         ]
         for i, sublevel in enumerate(hierarchy.coarse_levels, start=1):
             dmda_creates += [
-                self._create_dmda(IndexedPointer(all_da, i), shape=sublevel.shape),
+                self._create_dmda(IndexedPointer(all_da, i), shape=sublevel.shape,
+                                  lc_arrays=lc[i]),
                 petsc_call('DMSetFromOptions', [IndexedPointer(all_da, i)]),
                 petsc_call('DMSetUp', [IndexedPointer(all_da, i)]),
             ]

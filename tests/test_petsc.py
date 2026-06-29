@@ -271,15 +271,15 @@ def test_dmda_create():
         op3 = Operator(petsc3, opt='noop')
 
     assert 'PetscCall(DMDACreate1d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-        '2,1,2,NULL,&da0));' in str(op1)
+        '2,1,2,lx0,&da0));' in str(op1)
 
     assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-        'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,2,2,1,1,1,4,NULL,NULL,&da0));' \
+        'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,2,2,1,1,1,4,ly0,lx0,&da0));' \
         in str(op2)
 
     assert 'PetscCall(DMDACreate3d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
         'DM_BOUNDARY_GHOSTED,DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,6,5,4' + \
-        ',1,1,1,1,6,NULL,NULL,NULL,&da0));' in str(op3)
+        ',1,1,1,1,6,lz0,ly0,lx0,&da0));' in str(op3)
 
 
 class TestStruct:
@@ -1039,15 +1039,15 @@ class TestCoupledLinear:
 
         # Check the number of dofs in the DMDA for each field
         assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,1,2,NULL,NULL,&da0));' \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,1,2,ly0,lx0,&da0));' \
             in str(op1)
 
         assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,2,2,NULL,NULL,&da0));' \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,2,2,ly0,lx0,&da0));' \
             in str(op2)
 
         assert 'PetscCall(DMDACreate2d(PETSC_COMM_WORLD,DM_BOUNDARY_GHOSTED,' + \
-            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,3,2,NULL,NULL,&da0));' \
+            'DM_BOUNDARY_GHOSTED,DMDA_STENCIL_BOX,11,11,1,1,3,2,ly0,lx0,&da0));' \
             in str(op3)
 
     @skipif('petsc')
@@ -3096,6 +3096,82 @@ class TestCoarseSymbols:
         d3 = sg3.distributor
         coarse = sg3.coarse_symbol_for(x.symbolic_size)
         assert coarse._arg_values()[coarse.name] == expected_l3[d3.nprocs][d3.myrank]
+
+    @pytest.mark.parallel(mode=[2, 3, 4])
+    def test_thickness_1d(self, mode):
+        # Fine grid: 9 points, 2 subdomains: left=3pts, right=2pts
+        # 3-level hierarchy: fine (9,) -> level1 (5,) -> level2 (3,)
+        class LeftSub(SubDomain):
+            name = 'left_sub'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('left', 3)}
+
+        class RightSub(SubDomain):
+            name = 'right_sub'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: ('right', 2)}
+
+        grid = Grid(shape=(9,))
+        left_sub = LeftSub(grid=grid)
+        right_sub = RightSub(grid=grid)
+        hierarchy = GridHierarchy(grid, nlevels=3)
+
+        ltkn = left_sub.dimensions[0].ltkn
+        rtkn = right_sub.dimensions[0].rtkn
+
+        # Level 1: 5-point coarse grid
+        # coarse_ltkn = ceil(3/2^1) = 2, coarse_rtkn = ceil(2/2^1) = 1
+
+        # 5-pt partition: nprocs=2: [3,2], nprocs=3: [2,2,1], nprocs=4: [2,1,1,1]
+
+        # Left thickness (coarse ltkn=2):
+        # nprocs=2: rank0=2, rank1=0
+        # nprocs=3: rank0=2, rank1=0, rank2=0
+        # nprocs=4: rank0=2, rank1=0, rank2=0, rank3=0
+
+        # Right thickness (coarse rtkn=1):
+        # nprocs=2: rank0=0, rank1=1
+        # nprocs=3: rank0=0, rank1=0, rank2=1
+        # nprocs=4: rank0=0, rank1=0, rank2=0, rank3=1
+        sg1 = hierarchy.levels[1]
+        d1 = sg1.distributor
+
+        expected_ltkn_l1 = {2: [2, 0], 3: [2, 0, 0], 4: [2, 0, 0, 0]}
+        expected_rtkn_l1 = {2: [0, 1], 3: [0, 0, 1], 4: [0, 0, 0, 1]}
+
+        coarse_ltkn = sg1.coarse_symbol_for(ltkn)
+        coarse_rtkn = sg1.coarse_symbol_for(rtkn)
+        assert coarse_ltkn._arg_values()[coarse_ltkn.name] == expected_ltkn_l1[d1.nprocs][d1.myrank]
+        assert coarse_rtkn._arg_values()[coarse_rtkn.name] == expected_rtkn_l1[d1.nprocs][d1.myrank]
+
+        # Level 2: 3-point coarsest grid
+        # coarse_ltkn = ceil(3/2^2) = 1, coarse_rtkn = ceil(2/2^2) = 1
+
+        # 3-pt partition: nprocs=2: [2,1], nprocs=3: [1,1,1], nprocs=4: [1,1,1,0]
+
+        # Left thickness (coarse ltkn=1):
+        # nprocs=2: rank0=1, rank1=0
+        # nprocs=3: rank0=1, rank1=0, rank2=0
+        # nprocs=4: rank0=1, rank1=0, rank2=0, rank3=0
+
+        # Right thickness (coarse rtkn=1):
+        # nprocs=2: rank0=0, rank1=1
+        # nprocs=3: rank0=0, rank1=0, rank2=1
+        # nprocs=4: rank0=0, rank1=0, rank2=1, rank3=0  (rank 3 is empty)
+        sg2 = hierarchy.levels[2]
+        d2 = sg2.distributor
+
+        expected_ltkn_l2 = {2: [1, 0], 3: [1, 0, 0], 4: [1, 0, 0, 0]}
+        expected_rtkn_l2 = {2: [0, 1], 3: [0, 0, 1], 4: [0, 0, 1, 0]}
+
+        coarse_ltkn2 = sg2.coarse_symbol_for(ltkn)
+        coarse_rtkn2 = sg2.coarse_symbol_for(rtkn)
+        assert coarse_ltkn2._arg_values()[coarse_ltkn2.name] == expected_ltkn_l2[d2.nprocs][d2.myrank]
+        assert coarse_rtkn2._arg_values()[coarse_rtkn2.name] == expected_rtkn_l2[d2.nprocs][d2.myrank]
 
 
 class TestMultiGrid1D:

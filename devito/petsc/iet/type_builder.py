@@ -9,7 +9,8 @@ from devito.petsc.types import (
 )
 from devito.symbolics import String
 from devito.tools import frozendict
-from devito.types import Symbol
+from devito.types import Array, Symbol
+from devito.types.dimension import CustomDimension
 from devito.types.misc import PostIncrementIndex
 
 
@@ -70,6 +71,7 @@ class BaseTypeBuilder:
         }
 
         base_dict['comm'] = self.comm
+        base_dict['lc'] = [self._make_lc_arrays(self.field_data.grid.distributor)]
         self._target_dependent(base_dict)
         return self._extend_build(base_dict)
 
@@ -83,6 +85,23 @@ class BaseTypeBuilder:
         base_dict[f'{target.name}_ptr'] = StartPtr(
             sreg.make_name(prefix=f'{target.name}_ptr'), target.dtype
         )
+
+    def _make_lc_arrays(self, distributor):
+        """
+        One stack Array per spatial dim with per-rank node counts.
+        """
+        sreg = self.sregistry
+        dims = self.field_data.grid.dimensions
+        arrays = []
+        for dim in reversed(dims):
+            sizes = tuple(len(sub) for sub in distributor.decomposition[dim])
+            d = CustomDimension(name=sreg.make_name(prefix='i'), symbolic_size=len(sizes))
+            arrays.append(Array(
+                name=sreg.make_name(prefix=f'l{dim.name}'),
+                dimensions=(d,), dtype=np.int32,
+                scope='stack', initvalue=sizes
+            ))
+        return arrays
 
     def _extend_build(self, base_dict):
         """
@@ -294,6 +313,10 @@ class MultigridTypeBuilderMixin:
 
         # MPI communicator parameter for Refine/Coarsen callbacks
         base_dict['mpi_comm'] = MPIComm(name='comm')
+
+        hierarchy = self.inject_solve.expr.rhs.multigrid_metadata.hierarchy
+        for sublevel in hierarchy.coarse_levels:
+            base_dict['lc'].append(self._make_lc_arrays(sublevel.distributor))
 
         return base_dict
 
