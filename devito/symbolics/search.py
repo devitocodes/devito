@@ -8,7 +8,7 @@ import sympy
 from devito.symbolics.queries import (
     q_derivative, q_dimension, q_function, q_indexed, q_leaf, q_symbol, q_terminal
 )
-from devito.tools import as_tuple, memoized_func
+from devito.tools import as_tuple, memoized_func, split
 
 __all__ = [
     'retrieve_accesses',
@@ -188,23 +188,37 @@ def retrieve_terminals(exprs, mode='all', deep=False):
 
 
 @memoized_func(scope='build')
-def retrieve_accesses(exprs, deep=False):
+def retrieve_accesses(exprs, **kwargs):
     """
-    Like retrieve_terminals, but ensure that if a ComponentAccess is found,
-    the ComponentAccess itself is returned, while the wrapped Indexed is discarded.
+    Similar to `retrieve_terminals`, but with some adjustments:
+
+      * ComponentAccess's are retained, but the wrapped Indexed are discarded;
+      * TensorMove's are upcasted to the logical Indexed they represent.
     """
-    from devito.symbolics.manipulation import uxreplace
-    from devito.types import ComponentAccess, Symbol
+    from devito.types import ComponentAccess, Symbol, TensorMove  # noqa
+
+    from .manipulation import uxreplace  # noqa
+
+    kwargs['mode'] = 'unique'
 
     compaccs = search(exprs, ComponentAccess)
-    if not compaccs:
-        return frozenset(retrieve_terminals(exprs, mode='unique', deep=deep))
 
-    subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
-    exprs1 = uxreplace(exprs, subs)
+    if compaccs:
+        # Handle ComponentAccesses
+        subs = {i: Symbol(f'dummy{n}') for n, i in enumerate(compaccs)}
+        exprs1 = uxreplace(exprs, subs)
+        terms1 = retrieve_terminals(exprs1, **kwargs)
 
-    return frozenset(compaccs | retrieve_terminals(exprs1, mode='unique', deep=deep) -
-                     set(subs.values()))
+        accesses = compaccs | terms1 - set(subs.values())
+    else:
+        accesses = retrieve_terminals(exprs, **kwargs)
+
+    # Handle TensorMoves
+    key = lambda i: isinstance(i, TensorMove)
+    tmovs, other = split(accesses, key)
+    accesses = {i.access for i in tmovs} | other
+
+    return accesses
 
 
 def retrieve_dimensions(exprs, mode='all', deep=False):

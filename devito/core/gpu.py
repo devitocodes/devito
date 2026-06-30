@@ -7,8 +7,8 @@ from devito.exceptions import InvalidOperator
 from devito.operator.operator import rcompile
 from devito.passes import is_on_device, stream_dimensions
 from devito.passes.clusters import (
-    Lift, blocking, buffering, cire, cse, factorize, fission, fuse, memcpy_prefetch,
-    optimize_pows, tasking
+    Lift, apply_par_tiles, blocking, buffering, cire, cse, factorize, fission, fuse,
+    memcpy_prefetch, optimize_pows, tasking
 )
 from devito.passes.equations import collect_derivatives
 from devito.passes.iet import (
@@ -38,7 +38,9 @@ __all__ = [
 
 class DeviceOperatorMixin:
 
+    # Overrides the default values in the main Operator class
     BLOCK_LEVELS = 0
+    CIRE_BLOCK_TEMPS = False
     MPI_MODES = (True, 'basic',)
 
     GPU_FIT = 'all-fallback'
@@ -76,9 +78,10 @@ class DeviceOperatorMixin:
         o['skewing'] = oo.pop('skewing', False)
 
         # CIRE
+        o['cire-block-temps'] = oo.pop('cire-block-temps', cls.CIRE_BLOCK_TEMPS)
         o['min-storage'] = False
         o['cire-rotate'] = False
-        o['cire-maxpar'] = oo.pop('cire-maxpar', True)
+        o['cire-maxpar'] = oo.pop('cire-maxpar', 'basic')
         o['cire-ftemps'] = oo.pop('cire-ftemps', False)
         o['cire-mingain'] = oo.pop('cire-mingain', cls.CIRE_MINGAIN)
         o['cire-minmem'] = oo.pop('cire-minmem', cls.CIRE_MINMEM)
@@ -238,6 +241,9 @@ class DeviceAdvOperator(DeviceOperatorMixin, CoreOperator):
         # Blocking to define thread blocks
         if options['blocklazy']:
             clusters = blocking(clusters, sregistry, options)
+
+        # Unfold the `par-tile`s, if any
+        clusters = apply_par_tiles(clusters, **kwargs)
 
         return clusters
 

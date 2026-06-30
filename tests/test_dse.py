@@ -2164,7 +2164,7 @@ class TestAliases:
     @pytest.mark.parametrize('rotate', [False, True])
     def test_maxpar_option(self, rotate):
         """
-        Test the compiler option `cire-maxpar=True`.
+        Test the compiler option `cire-maxpar='basic'`.
         """
         grid = Grid(shape=(10, 10, 10))
 
@@ -2179,7 +2179,8 @@ class TestAliases:
         eq = Eq(u.forward, f*u.dy.dy)
 
         op0 = Operator(eq, opt='noop')
-        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True, 'cire-rotate': rotate}))
+        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': 'basic',
+                                             'cire-rotate': rotate}))
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
@@ -2248,7 +2249,7 @@ class TestAliases:
 
     def test_maxpar_option_v2(self):
         """
-        Another test for the compiler option `cire-maxpar=True`.
+        Another test for the compiler option `cire-maxpar='basic'`.
         """
         grid = Grid(shape=(10, 10, 10))
 
@@ -2263,7 +2264,7 @@ class TestAliases:
         eq = Eq(u.forward, f*u.dx.dx)
 
         op0 = Operator(eq, opt='noop')
-        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
+        op1 = Operator(eq, opt=('advanced', {'cire-maxpar': 'basic'}))
 
         # Check code generation
         bns, _ = assert_blocking(op1, {'x0_blk0'})
@@ -2279,7 +2280,7 @@ class TestAliases:
 
     def test_maxpar_option_v3(self):
         """
-        Another test for the compiler option `cire-maxpar=True`.
+        Another test for the compiler option `cire-maxpar='basic'`.
         """
         grid = Grid(shape=(10, 10))
 
@@ -2288,7 +2289,7 @@ class TestAliases:
 
         eq = Eq(u.forward, u.dx.dx + v.dx.dy)
 
-        op = Operator(eq, opt=('advanced', {'cire-maxpar': True}))
+        op = Operator(eq, opt=('advanced', {'cire-maxpar': 'basic'}))
 
         # Check code generation
         xs, ys = get_params(op, 'x_size', 'y_size')
@@ -2866,6 +2867,52 @@ class TestAliases:
         # The 1/dt alias should be hoisted outside the time loop
         assert str(body0(op).body[0]) == 'const float r0 = 1.0F/dt;'
         assert not body0(op).body[0].ispace
+
+    def test_block_temps_false(self):
+        grid = Grid(shape=(34, 45, 50))
+
+        a = Function(name='a', grid=grid, space_order=8)
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        v = u.func(name='v')
+
+        eqn = Eq(v.forward, a.dy.dz*u.dx.dy + v)
+
+        op = Operator(eqn, opt=('advanced', {'openmp': False,
+                                             'cire-block-temps': False,
+                                             'cire-maxpar': 'basic'}))
+
+        # Ensure it executes smoothly
+        op.apply(time_M=3)
+
+        assert_structure(
+            op,
+            ['t,x0_blk0,y0_blk0,x,y,z', 't,x1_blk0,y1_blk0,x,y,z'],
+            'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz'
+        )
+
+    def test_subdims_wo_block_temps(self):
+        grid = Grid(shape=(16, 17, 18))
+
+        damp = Function(name='damp', grid=grid)
+        vp = Function(name='vp', grid=grid)
+        vp.data_with_halo[:] = np.linspace(
+            0.1, 1.1, vp.data_with_halo.size
+        ).reshape(vp.shape_with_halo)
+
+        x, y, z = grid.dimensions
+
+        eqns = [Eq(damp, 0.0)]
+        for d in (x, y, z):
+            dl = SubDimension.left(name=f'{d.name}l', parent=d, thickness=4)
+            pos = Abs((4 - (dl - d.symbolic_min))/4.0)
+            eqns.append(Inc(damp.subs(d, dl),
+                            sin(pos)/(vp.subs(d, dl) + 1.0)))
+
+        op = Operator(eqns, opt=('advanced', {'openmp': True,
+                                              'cire-mingain': 0,
+                                              'cire-block-temps': False}))
+
+        op.apply()
 
 
 class TestIsoAcoustic:

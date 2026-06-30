@@ -2058,6 +2058,27 @@ class TestConditionalDimension:
         for t in range(buffer_size):
             assert np.all(usaved.data[t] == t*factor + bounds[0] - 1)
 
+    def test_blocking_w_guard(self):
+        grid = Grid(shape=(8, 8, 8))
+        x, y, z = grid.dimensions
+
+        u = TimeFunction(name="u", grid=grid, space_order=2)
+        v = u.func(name="v")
+
+        cdim = ConditionalDimension(name="cdim", parent=y, condition=Ge(y, 4))
+
+        eqns = [Eq(u.forward, u.dx + v.dy + 1),
+                Eq(v.forward, v.dx + u.dy + 1, implicit_dims=cdim)]
+
+        op = Operator(eqns, opt=('advanced', {'openmp': True}))
+
+        _ = op.cfunction
+
+        assert_structure(op, ['t,x0_blk0,y0_blk0,x,y,z',
+                              't,x0_blk0,y0_blk0,x,y',
+                              't,x0_blk0,y0_blk0,x,y,z'],
+                         't,x0_blk0,y0_blk0,x,y,z,z')
+
 
 class TestCustomDimension:
 

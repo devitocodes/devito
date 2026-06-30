@@ -1,9 +1,11 @@
+from itertools import groupby
+
 from sympy import sympify
 
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir.clusters import Queue
 from devito.ir.support import (
-    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SKEWABLE, TILABLES, Interval,
+    AFFINE, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SKEWABLE, TILABLE, Interval,
     IntervalGroup, IterationSpace, Scope
 )
 from devito.passes import is_on_device
@@ -14,7 +16,7 @@ from devito.tools import (
 )
 from devito.types import BlockDimension
 
-__all__ = ['blocking']
+__all__ = ['apply_par_tiles', 'blocking']
 
 
 def blocking(clusters, sregistry, options):
@@ -205,12 +207,11 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
                     # along more than three dimensions
                     return clusters
 
-                if any(self._has_short_trip_count(i) for i in c.ispace.itdims):
-                    properties = c.properties.block(d, 'small')
-                elif self._has_data_reuse(c):
-                    properties = c.properties.block(d)
-                else:
-                    properties = c.properties.block(d, 'small')
+                properties = c.properties.block(d)
+
+                if any(self._has_short_trip_count(i) for i in c.ispace.itdims) or \
+                   not self._has_data_reuse(c):
+                    properties = properties.notune(d)
 
             elif self._has_data_reuse(c):
                 properties = c.properties.block(d)
@@ -239,7 +240,7 @@ class AnalyzeHeuristicBlocking(AnayzeBlockingBase):
             if c.properties.nblockable > 1:
                 processed.append(c)
             else:
-                properties = c.properties.drop(properties=TILABLES)
+                properties = c.properties.drop(properties=TILABLE)
                 processed.append(c.rebuild(properties=properties))
 
         return processed
@@ -316,15 +317,10 @@ class AnalyzeSkewing(Queue):
 
 class SynthesizeBlocking(Queue):
 
-    _q_guards_in_key = True
-
-    template = "%s%d_blk%s"
-
     def __init__(self, sregistry, options):
         self.sregistry = sregistry
 
         self.levels = options['blocklevels']
-        self.par_tile = options['par-tile']
 
         # Track the BlockDimensions created so far so that we can reuse them
         # in case of Clusters that are different but share the same number of
@@ -334,30 +330,27 @@ class SynthesizeBlocking(Queue):
         super().__init__()
 
     def process(self, clusters):
-        # A tool to unroll the explicit integer block shapes, should there be any
-        blk_size_gen = BlockSizeGenerator(self.par_tile) if self.par_tile else None
+        return self._process_fdta(clusters, 1)
 
-        return self._process_fdta(clusters, 1, blk_size_gen=blk_size_gen)
+    def _make_key_guards(self, cluster, ispace):
+        # Essentially, this will ensure that loop nests within guards *not*
+        # pertaining to the blockable Dimension are given a dedicated set of
+        # BlockDimensions, e.g. see `test_dimension.py::test_no_fusion_convoluted`
+        return tuple(cluster.guards.get(i.dim) for i in ispace
+                     if not cluster.properties.is_blockable(i.dim))
 
-    def _derive_block_dims(self, clusters, prefix, d, blk_size_gen):
-        if blk_size_gen is not None:
-            step = sympify(blk_size_gen.next(prefix, d, clusters))
-        else:
-            # This will result in a parametric step, e.g. `x0_blk0_size`
-            step = None
-
+    def _derive_block_dims(self, clusters, prefix, d):
         # Can I reuse existing BlockDimensions to avoid a proliferation of steps?
         k = stencil_footprint(clusters, d)
-        if step is None:
-            try:
-                return self.mapper[k]
-            except KeyError:
-                pass
+        try:
+            return self.mapper[k]
+        except KeyError:
+            pass
 
         base = self.sregistry.make_name(prefix=d.root.name)
 
         name = self.sregistry.make_name(prefix=f"{base}_blk")
-        bd = BlockDimension(name, d, d.symbolic_min, d.symbolic_max, step)
+        bd = BlockDimension(name, d, d.symbolic_min, d.symbolic_max)
         step = bd.step
         block_dims = [bd]
 
@@ -373,7 +366,7 @@ class SynthesizeBlocking(Queue):
 
         return retval
 
-    def callback(self, clusters, prefix, blk_size_gen=None):
+    def callback(self, clusters, prefix):
         if not prefix:
             return clusters
 
@@ -383,9 +376,7 @@ class SynthesizeBlocking(Queue):
             return clusters
 
         try:
-            block_dims, bd = self._derive_block_dims(
-                clusters, prefix, d, blk_size_gen
-            )
+            block_dims, bd = self._derive_block_dims(clusters, prefix, d)
         except StopIteration:
             return clusters
 
@@ -397,11 +388,13 @@ class SynthesizeBlocking(Queue):
                 # Use the innermost BlockDimension in place of `d`
                 subs = {d: bd}
                 exprs = [uxreplace(e, subs) for e in c.exprs]
-                guards = {subs.get(i, i): v for i, v in c.guards.items()}
+                guards = {
+                    subs.get(i, i): uxreplace(v, subs) for i, v in c.guards.items()
+                }
 
                 # The new Cluster properties -- TILABLE is dropped after blocking
                 properties = c.properties.drop(d)
-                properties = properties.add(block_dims, c.properties[d] - TILABLES)
+                properties = properties.add(block_dims, c.properties[d] - {TILABLE})
 
                 processed.append(c.rebuild(exprs=exprs, ispace=ispace,
                                            guards=guards, properties=properties))
@@ -501,7 +494,6 @@ class BlockSizeGenerator:
     """
 
     def __init__(self, par_tile):
-        self.tip = -1
         self.umt = par_tile
 
         if par_tile.is_multi:
@@ -530,56 +522,25 @@ class BlockSizeGenerator:
             else:
                 self.umt_reduce = UnboundTuple(*par_tile.default, 1)
 
-    def next(self, prefix, d, clusters):
-        # If a whole new set of Dimensions, move the tip -- this means `clusters`
-        # at `d` represents a new loop nest or kernel
-        x = any(i.dim.is_Block for i in flatten(c.ispace for c in clusters))
-        if not x:
-            self.tip += 1
-
-        # Correctness -- enforce blocking where necessary.
-        # See also issue #276:PRO
-        if any(c.properties.is_parallel_atomic(d) for c in clusters):
+    def schedule(self, dims, clusters):
+        if any(c.properties.is_parallel_atomic(dims) for c in clusters):
+            # Correctness -- enforce blocking where necessary.
+            # See also issue #276:PRO
             if any(c.is_sparse for c in clusters):
-                if not x:
-                    self.umt_sparse.iter()
-                return self.umt_sparse.next()
+                umt = self.umt_sparse
             else:
-                if not x:
-                    self.umt_reduce.iter()
-                return self.umt_reduce.next()
+                umt = self.umt_reduce
 
-        # Performance heuristics -- use a smaller par-tile
-        if all(c.properties.is_blockable_small(d) for c in clusters):
-            if not x:
-                self.umt_small.iter()
-            return self.umt_small.next()
+        elif all(c.properties.avoid_tuning(dims) for c in clusters):
+            # Performance heuristics -- use a smaller par-tile
+            umt = self.umt_small
 
-        # We can't `self.umt.iter()` because we might still want to
-        # fallback to `self.umt_small`
-        item = self.umt.curitem() if x else self.umt.nextitem()
-
-        # Handle user-provided rules
-        # TODO: This is also rudimentary
-        if item.rule is None:
-            umt = self.umt
-        elif is_integer(item.rule):
-            if item.rule == self.tip:
-                umt = self.umt
-            else:
-                umt = self.umt_small
-                if not x:
-                    umt.iter()
         else:
-            if item.rule in {d.name for d in prefix.itdims}:
-                umt = self.umt
-            else:
-                # This is like "pattern unmatched" -- fallback to `umt_small`
-                umt = self.umt_small
-                if not x:
-                    umt.iter()
+            umt = self.umt
 
-        return umt.next()
+        umt.iter()
+
+        return umt
 
 
 class SynthesizeSkewing(Queue):
@@ -654,3 +615,41 @@ class SynthesizeSkewing(Queue):
             processed.append(c.rebuild(exprs=exprs, ispace=ispace))
 
         return processed
+
+
+def apply_par_tiles(clusters, options, **kwargs):
+    """
+    Use the par-tile parameter to replace the symbolic BlockDimension sizes
+    with actual integer numbers representing the block shape.
+    """
+    if not options['par-tile']:
+        return clusters
+
+    blk_size_gen = BlockSizeGenerator(options['par-tile'])
+
+    key = lambda c: c.ispace.project(lambda d: d.is_Block)
+
+    processed = []
+    for ispace, group in groupby(clusters, key=key):
+        g = list(group)
+
+        if not ispace:
+            processed.extend(g)
+            continue
+
+        bdims = ispace.project(lambda d: d._depth == 2).itdims
+        umt = blk_size_gen.schedule(bdims, g)
+
+        subs = {}
+        compact = []
+        for d in reversed(bdims):
+            try:
+                step = sympify(umt.next())
+                subs.update(d._rebuild_hierarchy(step=step))
+            except StopIteration:
+                # No more par-tile sizes available, so we drop the BlockDimensions
+                compact.append(d)
+
+        processed.extend(c.subs(subs, compact) for c in g)
+
+    return processed

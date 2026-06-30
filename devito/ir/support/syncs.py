@@ -175,6 +175,9 @@ class Ops(frozendict):
             m[d] = set(self.get(d, [])) | set(v)
         return Ops(m)
 
+    def subs(self, mapper):
+        return Ops({mapper.get(d, d): v for d, v in self.items()})
+
     def _get_sync(self, cls, dims=None):
         if dims is None:
             dims = list(self)
