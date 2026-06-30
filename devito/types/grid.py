@@ -39,7 +39,8 @@ class CartesianDiscretization:
 
     def __init__(self, shape=None, dimensions=None, dtype=None):
         self._shape = as_tuple(shape)
-        self._dimensions = as_tuple(dimensions)
+        dimensions = as_tuple(dimensions)
+        self._dimensions = DimensionTuple(*dimensions, getters=dimensions)
         self._dtype = dtype
 
     @property
@@ -665,7 +666,7 @@ class SubDomain(AbstractSubDomain):
                     sdshape.append(thickness)
 
         self._shape = tuple(sdshape)
-        self._dimensions = tuple(sub_dimensions)
+        self._dimensions = DimensionTuple(*sub_dimensions, getters=grid.dimensions)
         self._dtype = grid.dtype
 
     @property
@@ -926,7 +927,7 @@ class SubDomainSet(MultiSubDomain):
                 bounds_indices=(2*i, 2*i+1), implicit_dimension=i_dim
             ))
 
-        self._dimensions = tuple(dimensions)
+        self._dimensions = DimensionTuple(*dimensions, getters=grid.dimensions)
         self._subfunction = sd_func
 
     def __subdomain_finalize__(self):
