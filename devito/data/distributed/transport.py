@@ -17,7 +17,7 @@ strictly point-to-point, so no data all-to-all takes place.
 import numpy as np
 
 from devito.mpi import MPI
-from devito.tools import dtype_to_mpidtype
+from devito.tools import mpi4py_mapper
 
 __all__ = ['sparse_exchange']
 
@@ -53,7 +53,15 @@ def sparse_exchange(comm, sendbufs, dtype, tag=0):
     """
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
-    mpitype = dtype_to_mpidtype(dtype)
+
+    # Some MPI builds lack a native datatype for `dtype` (e.g. `float16`); send
+    # over a same-size byte-equivalent wire type and view back on receipt, just
+    # as the halo exchange does via `comm_dtype`. A no-op for mapped-to-self
+    # types. The MPI datatype is left for mpi4py to infer from each buffer (as
+    # the halo exchange's `Sendrecv` does): passing an explicit datatype forces
+    # the `Type_get_extent` count path, which segfaults under some CUDA-aware MPI
+    # builds, whereas buffer-protocol typing is portable.
+    wire = np.dtype(mpi4py_mapper.get(np.dtype(dtype).type, dtype))
 
     recvd = {}
 
@@ -79,19 +87,21 @@ def sparse_exchange(comm, sendbufs, dtype, tag=0):
     for peer, buf in sendbufs.items():
         if peer == rank or buf.size == 0:
             continue
-        buf = np.ascontiguousarray(buf)
+        buf = np.ascontiguousarray(buf).view(wire)
         live_bufs.append(buf)
-        sends.append(comm.Isend([buf, mpitype], dest=peer, tag=tag))
+        sends.append(comm.Isend(buf, dest=peer, tag=tag))
 
-    # Receive exactly the expected number of messages, sizing each from its probe
+    # Receive exactly the expected number of messages, sizing each from its
+    # probe. The byte count (a probe against `MPI.BYTE`) divides by the wire
+    # item size to give the element count.
     status = MPI.Status()
     for _ in range(int(incoming[0])):
         comm.Probe(source=MPI.ANY_SOURCE, tag=tag, status=status)
         src = status.Get_source()
-        count = status.Get_count(mpitype)
-        buf = np.empty(count, dtype=dtype)
-        comm.Recv([buf, mpitype], source=src, tag=tag)
-        recvd[src] = buf
+        count = status.Get_count(MPI.BYTE) // wire.itemsize
+        buf = np.empty(count, dtype=wire)
+        comm.Recv(buf, source=src, tag=tag)
+        recvd[src] = buf.view(dtype)
 
     MPI.Request.Waitall(sends)
     return recvd

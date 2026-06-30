@@ -695,9 +695,8 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
     @cached_property
     def local_indices(self):
         """
-        Per-Dimension slices of the global indices that logically belong to the
-        calling MPI rank, as a `DimensionTuple` (so it can be indexed positionally
-        or by Dimension, e.g. `f.local_indices[x]`).
+        Tuple of slices representing the global indices that logically
+        belong to the calling MPI rank.
 
         Notes
         -----
@@ -707,11 +706,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         decomposition, which is carried by `self.grid`.
         """
         if self._distributor is None:
-            slices = (slice(0, s) for s in self.shape)
-        else:
-            slices = (self._distributor.glb_slices.get(d, slice(0, s))
-                      for s, d in zip(self.shape, self.dimensions, strict=True))
-        return DimensionTuple(*slices, getters=self.dimensions)
+            return tuple(slice(0, s) for s in self.shape)
+        return tuple(self._distributor.glb_slices.get(d, slice(0, s))
+                     for s, d in zip(self.shape, self.dimensions, strict=True))
 
     @property
     def initializer(self):
