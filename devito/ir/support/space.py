@@ -1070,6 +1070,7 @@ class IterationSpace(Space, CacheInstances):
         return self[:self.index(i.dim) + 1]
 
     def suffix(self, key):
+        #TODO DROP
         """
         Return the IterationSpace starting from the last Interval such that
         `key(interval)` is True.

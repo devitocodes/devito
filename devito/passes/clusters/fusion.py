@@ -128,22 +128,22 @@ class Fusion(Queue):
         # beyond `prefix`.
         #TODO
         if self.toposort and prefix:
-            groups = groupby(processed, key=lambda c: c.ispace.suffix(prefix.itdims))
+            groups = groupby(processed, key=lambda c: c.ispace.prefix(prefix.itdims))
 
-            #groups1 = groupby(processed, key=lambda c: c.ispace.suffix(prefix.itdims))
-            #a=[]
-            #for k, group in groups1:
-            #    g = list(group)
-            #    print(g)
-            #    print("----")
-            #    a.append(g)
+            groups1 = groupby(processed, key=lambda c: c.ispace.prefix(prefix.itdims))
+            a=[]
+            for k, group in groups1:
+                g = list(group)
+                print(g)
+                print("----")
+                a.append(g)
 
             #dag = self._build_dag(processed, prefix)
             #mapper = dag.connected_components(enumerated=True)
             #groups = groupby(processed, key=mapper.get)
             #X = 'Cluster([Eq(queue22[qq3], IndexDerivative(s_yz32[i0 + ty + 7, tz]'
             #if X in str(processed):
-            #from IPython import embed; embed()
+            #from IPython import embed; embed(header='XX')
             return [ClusterGroup(tuple(g), prefix) for _, g in groups]
         else:
             return [ClusterGroup(processed, prefix)]
@@ -248,9 +248,8 @@ class Fusion(Queue):
     def _toposort(self, cgroups, prefix):
         # Are there any ClusterGroups that could potentially be topologically
         # reordered? If not, do not waste time
-        counter = Counter(self._key(cg).strict for cg in cgroups)
-        if len(counter.most_common()) == 1 or \
-           not any(v > 1 for it, v in counter.most_common()):
+        counter = Counter(self._key(cg).itintervals for cg in cgroups)
+        if not any(v > 1 for it, v in counter.most_common()):
             return ClusterGroup(cgroups, prefix)
 
         dag = self._build_dag(cgroups, prefix)
@@ -263,6 +262,17 @@ class Fusion(Queue):
             m = {i: self._key(i) for i in queue}
 
             # Process the `strict` part of the key
+            for i in range(len(k.strict), -1, -1):
+                candidates = [e for e, ke in m.items() if ke.strict[:i] == k.strict[:i]]
+                if candidates:
+                    break
+            else:
+                candidates = queue
+
+#            a=prefix
+#            if len(queue) == 2:
+#                from IPython import embed; embed(header='XX')
+
 #            candidates = [i for i in queue if m[i].itintervals == k.itintervals]
 #
 #            compatible = [i for i in candidates if m[i].guards == k.guards]
@@ -270,14 +280,7 @@ class Fusion(Queue):
 #
 #            compatible = [i for i in candidates if m[i].syncs == k.syncs]
 #            candidates = compatible or candidates
-
-            for i in range(len(k.strict), -1, -1):
-                candidates = [e for e, ke in m.items() if ke.strict[:i] == k.strict[:i]]
-                if candidates:
-                    break
-            else:
-                #TODO
-                assert False
+            #from IPython import embed; embed(header='YY')
 
             # Process the `weak` part of the key
             for i in range(len(k.weak), -1, -1):
