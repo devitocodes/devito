@@ -1069,6 +1069,18 @@ class IterationSpace(Space, CacheInstances):
 
         return self[:self.index(i.dim) + 1]
 
+    def suffix(self, key):
+        """
+        Return the IterationSpace starting from the last Interval such that
+        `key(interval)` is True.
+        """
+        try:
+            i = self.project(key)[-1]
+        except IndexError:
+            return null_ispace
+
+        return self[self.index(i.dim):]
+
     def split(self, d):
         """
         Split the IterationSpace into two IterationSpaces, the first

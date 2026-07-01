@@ -53,9 +53,8 @@ def _fusion_hazards(scope0, scope1, prefix):
 class Key(tuple):
 
     """
-    A "fusion Key" for a Cluster (ClusterGroup) is a hashable tuple such that
-    two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
-    identical.
+    A "fusion Key" for a ClusterGroup is a hashable tuple such that two
+    ClusterGroups are topo-fusible if and only if their Key is identical.
 
     A Key contains elements that can logically be split into two groups -- the
     `strict` and the `weak` components of the Key. Two Clusters (ClusterGroups)
@@ -124,25 +123,38 @@ class Fusion(Queue):
                     # iteration Dimensions but different (partial) orderings
                     processed.extend(maybe_fusible)
 
-        # Maximize effectiveness of topo-sorting at next stage by only
-        # grouping together Clusters characterized by data dependencies
+        # Maximize effectiveness of topo-sorting at the next stage by grouping
+        # together only those Clusters characterized by the same IterationSpace
+        # beyond `prefix`.
+        #TODO
         if self.toposort and prefix:
-            dag = self._build_dag(processed, prefix)
-            mapper = dag.connected_components(enumerated=True)
-            groups = groupby(processed, key=mapper.get)
+            groups = groupby(processed, key=lambda c: c.ispace.suffix(prefix.itdims))
+            #a=[]
+            #for k, group in groups:
+            #    g = list(group)
+            #    print(g)
+            #    print("----")
+            #    a.append(g)
+
+            #dag = self._build_dag(processed, prefix)
+            #mapper = dag.connected_components(enumerated=True)
+            #groups = groupby(processed, key=mapper.get)
+            #X = 'Cluster([Eq(queue22[qq3], IndexDerivative(s_yz32[i0 + ty + 7, tz]'
+            #if X in str(processed):
+            #    from IPython import embed; embed(header='PPPP')
             return [ClusterGroup(tuple(g), prefix) for _, g in groups]
         else:
             return [ClusterGroup(processed, prefix)]
 
     @memoized_meth
-    def _key(self, c):
-        itintervals = frozenset(c.ispace.itintervals)
-        guards = c.guards if any(c.guards) else None
+    def _key(self, cg):
+        itintervals = frozenset(cg.ispace.itintervals)
+        guards = cg.guards if any(cg.guards) else None
 
         # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
         # WithLocks, but not with any other SyncOps
         mapper = defaultdict(set)
-        for d, v in c.syncs.items():
+        for d, v in cg.syncs.items():
             for s in v:
                 if isinstance(s, PrefetchUpdate):
                     continue
@@ -164,26 +176,26 @@ class Fusion(Queue):
         syncs = frozendict(mapper)
 
         # Clusters representing HaloTouches should get merged, if possible
-        weak = [c.is_halo_touch]
+        weak = [cg.is_halo_touch]
 
         # If there are writes to thread-shared object, make it part of the key.
         # This will promote fusion of non-adjacent Clusters writing to (some
         # form of) shared memory, which in turn will minimize the number of
         # necessary barriers. Same story for reads from thread-shared objects
         weak.extend([
-            any(f._mem_shared for f in c.scope.writes),
-            any(f._mem_shared for f in c.scope.reads)
+            any(f._mem_shared for f in cg.scope.writes),
+            any(f._mem_shared for f in cg.scope.reads)
         ])
-        weak.append(c.properties.is_core_init())
+        weak.append(cg.properties.is_core_init())
 
         # Prefetchable Clusters should get merged, if possible
-        weak.append(c.is_glb_load_to_mem_shared)
+        weak.append(cg.is_glb_load_to_mem_shared)
 
         # Promoting adjacency of IndexDerivatives will maximize their reuse
-        weak.append(any(search(c.exprs, IndexDerivative)))
+        weak.append(any(search(cg.exprs, IndexDerivative)))
 
         # Promote adjacency of Clusters with same guard
-        weak.append(c.guards)
+        weak.append(cg.guards)
 
         key = Key(itintervals, guards, syncs, weak)
 

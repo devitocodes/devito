@@ -1927,6 +1927,7 @@ class TestConditionalDimension:
                 Eq(a1, 2, implicit_dims=(cd0,))]
 
         op = Operator(eqns, opt=('advanced', {'openmp': True}))
+        op.cfunction
 
         assert_structure(op, ['i,x,y', 'i', 'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
 
