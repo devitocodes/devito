@@ -1441,7 +1441,7 @@ class TestStreaming:
         assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 9 - diff
         # The streaming/buffering cannot be fused since the guards of
         # vas and vasb/vasf are not compatible.
-        assert len(op3._func_table) == 14 - diff
+        assert len(op3._func_table) == 12 - diff
         assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 9 - diff
 
         op0.apply(time_m=15, time_M=35, save_shift=0)

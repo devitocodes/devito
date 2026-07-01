@@ -164,7 +164,7 @@ class InjectBuffers(Queue):
         # Are we inside the right `d`?
         descriptors = {b: [vi for vi in v if d in vi.itdims]
                        for b, v in descriptors.items()}
-        descriptors = {b: v for b, v in descriptors.items() if v}
+        descriptors = Descriptors({b: v for b, v in descriptors.items() if v})
 
         if not descriptors:
             return clusters
@@ -179,23 +179,22 @@ class InjectBuffers(Queue):
         # Substitution rules to replace buffered Functions with buffers
         # E.g., `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`
         subs = defaultdict(dict)
-        for b, vb in descriptors.items():
-            for v in vb:
-                for c in v.clusters:
-                    if c.guards.get(d) != v.guards.get(d):
-                        continue
+        for b, v in descriptors.flat_items():
+            for c in v.clusters:
+                if c.guards.get(d) != v.guards.get(d):
+                    continue
 
-                    accesses = c.scope[v.f]
-                    index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
-                    for a in accesses:
-                        subs[c][a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
+                accesses = c.scope[v.f]
+                index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
+                for a in accesses:
+                    subs[c][a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
 
         processed = []
         for c in clusters:
             # If a buffer is read but never written, then we need to add
             # an Eq to step through the next slot
             # E.g., `ub[0, x] = usave[time+2, x]`
-            for v in chain.from_iterable(descriptors.values()):
+            for v in descriptors.flat_values():
                 if not v.is_readonly:
                     continue
                 if c not in v.firstread:
@@ -241,7 +240,7 @@ class InjectBuffers(Queue):
 
             # Append the copy-back if `c` is the last-write of some buffers
             # E.g., `usave[time+1, x] = ub[t1, x]`
-            for v in chain.from_iterable(descriptors.values()):
+            for v in descriptors.flat_values():
                 if v.is_readonly:
                     continue
                 if c not in v.lastwrite:
@@ -285,38 +284,41 @@ class InjectBuffers(Queue):
 
         stamps = self._make_task_groups(descriptors)
 
-        for b, vb in descriptors.items():
-            for v in vb:
-                if v.is_writeonly:
-                    # `b` might be written by multiple, potentially mutually
-                    # exclusive, equations. For example, two equations that have or
-                    # will have complementary guards, hence only one will be
-                    # executed. In such a case, we can split the equations over
-                    # separate IterationSpaces
-                    key0 = lambda: stamps[b] if npthreads else Stamp()  # noqa: B023
-                elif v.is_readonly:
-                    # `b` is read multiple times -- this could just be the case of
-                    # coupled equations, so we more cautiously perform a
-                    # "buffer-wise" splitting of the IterationSpaces (i.e., only
-                    # relevant if there are at least two read-only buffers)
-                    stamp_fixed = Stamp()
-                    key0 = lambda: stamps[b] if npthreads else stamp_fixed  # noqa: B023
-                else:
+        for b, v in descriptors.flat_items():
+            if v.is_writeonly:
+                # `b` might be written by multiple, potentially mutually
+                # exclusive, equations. For example, two equations that have or
+                # will have complementary guards, hence only one will be
+                # executed. In such a case, we can split the equations over
+                # separate IterationSpaces
+                key0 = lambda: stamps[b] if npthreads else Stamp()  # noqa: B023
+            elif v.is_readonly:
+                # `b` is read multiple times -- this could just be the case of
+                # coupled equations, so we more cautiously perform a
+                # "buffer-wise" splitting of the IterationSpaces (i.e., only
+                # relevant if there are at least two read-only buffers)
+                stamp_fixed = Stamp()
+                key0 = lambda: stamps[b] if npthreads else stamp_fixed  # noqa: B023
+            else:
+                continue
+
+            processed = []
+            for c in clusters:
+                f = v.f if npthreads else b
+                if f not in c.functions:
+                    processed.append(c)
                     continue
 
-                processed = []
-                for c in clusters:
-                    f = v.f if npthreads else b
-                    if f not in c.functions:
-                        processed.append(c)
-                        continue
+                # Lift only along the buffer's own spatial Dimensions, not
+                # unrelated ones (e.g. sparse points of an indirect read)
+                key1 = lambda d: not d._defines & v.dim._defines  # noqa: B023
+                key2 = lambda d: any(d._defines & bd._defines for bd in v.bdims)  # noqa: B023,E501
+                key = lambda d: key1(d) and key2(d)  # noqa: B023
+                dims = c.ispace.project(key).itdims
+                ispace = c.ispace.lift(dims, key0())
+                processed.append(c.rebuild(ispace=ispace))
 
-                    key1 = lambda d: not d._defines & v.dim._defines  # noqa: B023
-                    dims = c.ispace.project(key1).itdims
-                    ispace = c.ispace.lift(dims, key0())
-                    processed.append(c.rebuild(ispace=ispace))
-
-                clusters = processed
+            clusters = processed
 
         return clusters
 
@@ -331,8 +333,8 @@ class InjectBuffers(Queue):
             return stamps
 
         task_sets = (
-            [b for b, v in descriptors.items() if v.is_writeonly],
-            [b for b, v in descriptors.items() if v.is_readonly],
+            [b for b, v in descriptors.items() if any(v.is_writeonly for vb in v)],
+            [b for b, v in descriptors.items() if any(vb.is_readonly for vb in v)],
         )
 
         for tasks in task_sets:
@@ -429,6 +431,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     # {buffered Function -> Buffer}
     xds = {}
     mapper = {}
+
     # `extras` holds (guards, ck) pairs for which `guards` does not constrain
     # the buffered Dimension `dim`; we cannot create a dedicated buffer because
     # we don't know which slot it should step through. They are "deferred" and
@@ -437,30 +440,30 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     # buffer created for the regular `Eq(usave, u)` copy-back)
     extras = {}
     for f, clusters in bfmap.items():
-        for k, ck in groupby(clusters, key=lambda c: c.guards):
-            ck = list(ck)
+        for k, g in groupby(clusters, key=lambda c: c.guards):
+            g = list(g)
 
-            dim = _buffer_dim(f, key, ck)
+            dim = _buffer_dim(f, key, g)
             if k and not dim._defines & set(k):
-                extras.setdefault(f, []).append((k, ck))
+                extras.setdefault(f, []).append((k, g))
                 continue
 
             mapper[(f, k)] = _make_buffer(
-                f, dim, k, ck, xds, async_degree, sregistry, callback
+                f, dim, k, g, xds, async_degree, sregistry, callback
             )
 
     # Alias deferred entries to an existing f-buffer; create one if none
     for f, deferred in extras.items():
-        reusable = [mapper[(ff, kk)] for (ff, kk) in mapper if ff == f]
-        for k, ck in deferred:
+        reusable = [v for (ff, _), v in mapper.items() if ff is f]
+        for k, g in deferred:
             buf = next((b for b in reusable
                         if set(k) & set(b.dimensions)), None)
             if buf is None and reusable:
                 buf = reusable[0]
             if buf is None:
-                dim = _buffer_dim(f, key, ck)
+                dim = _buffer_dim(f, key, g)
                 buf = _make_buffer(
-                    f, dim, k, ck, xds, async_degree, sregistry, callback
+                    f, dim, k, g, xds, async_degree, sregistry, callback
                 )
                 reusable.append(buf)
             mapper[(f, k)] = buf
@@ -519,30 +522,36 @@ class BufferDescriptor:
     def ispace(self):
         # The IterationSpace within which the buffer will be accessed
 
-        # NOTE: The `key` is to avoid Clusters including `f` but not directly
-        # using it in an expression, such as HaloTouch Clusters
-        def key(c):
-            bufferdim = any(i in c.ispace.dimensions for i in self.bdims)
-            xd_only = all(d._defines & self.xd._defines for d in c.ispace.dimensions)
-            return bufferdim or xd_only
-
         ispaces = set()
+        indirect = set()
         for c in self.clusters:
-            if not key(c):
-                continue
-
-            # Skip wild clusters (e.g. HaloTouch Clusters)
+            # Skip wild clusters (e.g. HaloTouch Clusters), which include `f`
+            # but do not directly use it in an expression
             if c.is_wild:
                 continue
 
-            # Iterations space and buffering dims
-            edims = [d for d in self.bdims if d not in c.ispace.dimensions]
-            if not edims:
-                ispaces.add(c.ispace)
-            else:
-                # Add all missing buffering dimensions and reorder to
-                # avoid duplicates with different ordering
-                ispaces.add(c.ispace.insert(self.dim, edims).reorder())
+            bufferdim = any(i in c.ispace.dimensions for i in self.bdims)
+            xd_only = all(d._defines & self.xd._defines for d in c.ispace.dimensions)
+
+            if bufferdim or xd_only:
+                # `c` iterates (at least some of) the buffer's spatial dims
+                edims = [d for d in self.bdims if d not in c.ispace.dimensions]
+                if not edims:
+                    ispaces.add(c.ispace)
+                else:
+                    # Add all missing buffering dimensions and reorder to
+                    # avoid duplicates with different ordering
+                    ispaces.add(c.ispace.insert(self.dim, edims).reorder())
+            elif self.f in c.functions and self.dim.root in c.ispace.dimensions:
+                # `c` accesses `f` indirectly (e.g. interpolation), so it doesn't
+                # iterate `bdims`; span the buffer's own Dimensions instead
+                tispace = c.ispace.project(lambda i: i._defines & self.dim.root._defines)
+                indirect.add(tispace.insert(self.dim, list(self.bdims)))
+
+        # Indirect accessors define the ispace only for a read-only streamed
+        # buffer, where nothing iterates the buffer's own Dimensions directly
+        if not ispaces:
+            ispaces = indirect
 
         if len(ispaces) > 1:
             # Best effort to make buffering work in the presence of multiple
@@ -663,7 +672,11 @@ class BufferDescriptor:
         mapper = {}
         func = vmax if self.is_forward_buffering else vmin
         for c in self.lastwrite + self.firstread:
-            indices = extract_indices(self.f, self.dim, [c])
+            # Consider all Clusters sharing `c`'s guards, so the leading edge is
+            # found even when `f` is accessed at different offsets across them
+            # (e.g. `f` and `f.forward` in separate Eqs)
+            group = [c1 for c1 in self.clusters if c1.guards == c.guards]
+            indices = extract_indices(self.f, self.dim, group)
             idx = func(*[Vector(i) for i in indices])[0]
             mapper[c] = idx
 
@@ -724,7 +737,7 @@ def make_mds(descriptors, prefix, sregistry):
     inspecting all buffers so that ModuloDimensions are reused when possible.
     """
     mds = defaultdict(int)
-    for v in chain.from_iterable(descriptors.values()):
+    for v in descriptors.flat_values():
         size = v.xd.symbolic_size
 
         if size == 1:
@@ -766,42 +779,41 @@ def init_buffers(descriptors, options):
     init_onwrite = options['buf-init-onwrite']
 
     init = []
-    for b, vb in descriptors.items():
-        for v in vb:
-            f = v.f
+    for b, v in descriptors.flat_items():
+        f = v.f
 
-            if v.is_read:
-                # Special case: avoid initialization in the case of double (or
-                # multiple) buffering because it's completely unnecessary
-                if v.is_double_buffering:
-                    continue
-                lhs = b.indexify()._subs(v.xd, v.first_idx.b)
-                rhs = f.indexify()._subs(v.dim, v.first_idx.f)
-
-            elif v.is_write and init_onwrite(f):
-                lhs = b.indexify()
-                rhs = S.Zero
-
-            else:
+        if v.is_read:
+            # Special case: avoid initialization in the case of double (or
+            # multiple) buffering because it's completely unnecessary
+            if v.is_double_buffering:
                 continue
+            lhs = b.indexify()._subs(v.xd, v.first_idx.b)
+            rhs = f.indexify()._subs(v.dim, v.first_idx.f)
 
-            expr = Eq(lhs, rhs)
-            expr = lower_exprs(expr)
+        elif v.is_write and init_onwrite(f):
+            lhs = b.indexify()
+            rhs = S.Zero
 
-            ispace = v.write_to
+        else:
+            continue
 
-            guards = {}
-            guards[None] = GuardBound(v.dim.root.symbolic_min, v.dim.root.symbolic_max)
-            if v.is_read:
-                guards[v.xd] = GuardBound(0, v.first_idx.f)
+        expr = Eq(lhs, rhs)
+        expr = lower_exprs(expr)
 
-            properties = Properties()
-            properties = properties.affine(ispace.itdims)
-            properties = properties.parallelize(ispace.itdims)
+        ispace = v.write_to
 
-            syncs = {None: [InitArray(None, b)]}
+        guards = {}
+        guards[None] = GuardBound(v.dim.root.symbolic_min, v.dim.root.symbolic_max)
+        if v.is_read:
+            guards[v.xd] = GuardBound(0, v.first_idx.f)
 
-            init.append(Cluster(expr, ispace, guards, properties, syncs))
+        properties = Properties()
+        properties = properties.affine(ispace.itdims)
+        properties = properties.parallelize(ispace.itdims)
+
+        syncs = {None: [InitArray(None, b)]}
+
+        init.append(Cluster(expr, ispace, guards, properties, syncs))
 
     return init
 
@@ -952,3 +964,14 @@ def _explicit_guard(g, d):
             return True
 
     return False
+
+
+class Descriptors(dict):
+
+    def flat_items(self):
+        for b, values in super().items():
+            for v in values:
+                yield b, v
+
+    def flat_values(self):
+        return chain.from_iterable(self.values())

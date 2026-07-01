@@ -365,6 +365,9 @@ def generate_conditionals(expr, input_expr, ordering):
                 cond = d.relation(cond, GuardFactor(d))
             conditionals[d] = cond
 
+    if not conditionals and not input_expr.implicit_dims:
+        return expr, conditionals
+
     # Merge conditionals when possible. E.g., if an implicit_dim shares
     # its parent Dimension with another ConditionalDimension, the two
     # conditions can be merged into a single guard.
@@ -372,18 +375,16 @@ def generate_conditionals(expr, input_expr, ordering):
         if d not in conditionals:
             continue
         for cd in list(conditionals):
-            if cd.parent == d.parent and cd is not d:
-                cond = conditionals.pop(d)
+            if cd.parent is d.parent and cd is not d:
                 if d.relation == ConditionalDimension._STRICT:
-                    conditionals[cd] = conditionals[d] = cond
+                    conditionals[cd] = conditionals[d]
                 else:
                     mode = cd.relation and d.relation
-                    conditionals[cd] = mode(cond, conditionals[cd])
+                    conditionals[cd] = mode(conditionals.pop(d), conditionals[cd])
                 break
 
     # Replace the ConditionalDimensions in `expr`
     for d, cond in conditionals.items():
-        # Replace dimension with index
         index = d.index
         if d.condition is not None and expr.has(d):
             index = index - relational_min(cond, d.parent)

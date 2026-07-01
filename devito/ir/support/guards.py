@@ -65,7 +65,14 @@ class GuardFactor(Guard, CondEq, Pickable):
 
     __rargs__ = ('d',)
 
-    def __new__(cls, d, **kwargs):
+    def __new__(cls, *args, **kwargs):
+        if len(args) != 1:
+            # Reconstruction with relational args (e.g. via sympy `_subs`): the
+            # factor semantics no longer hold, so degrade to a plain relational
+            base = CondNe if issubclass(cls, CondNe) else CondEq
+            return base(*args, **kwargs)
+
+        d, = args
         assert d.is_Conditional
 
         obj = super().__new__(cls, d.parent % d.symbolic_factor, 0)
@@ -168,6 +175,11 @@ class BaseGuardBoundNext(Guard, Pickable):
                 return None
         except TypeError:
             pass
+
+        return cls._new(p0, p1, d, index, direction, d_min=d_min, d_max=d_max, **kwargs)
+
+    @classmethod
+    def _new(cls, p0, p1, d, index, direction, d_min=None, d_max=None):
 
         obj = super().__new__(cls, p0, p1, evaluate=False)
 
@@ -572,7 +584,9 @@ _uxreplace_registry.register(BaseGuardBoundNext)
 
 @_uxreplace_handle.register(BaseGuardBoundNext)
 def _(expr, args, kwargs):
-    return expr.func(expr.d, expr.index, expr.direction, **kwargs)
+    p0, p1 = args
+    return expr._new(p0, p1, expr.d, expr.index, expr.direction,
+                     **kwargs)
 
 
 @singledispatch
