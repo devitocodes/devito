@@ -119,63 +119,63 @@ jobs:
             "devitocodes/bases:${TAG_BASE}-arm64"
           docker buildx imagetools inspect "devitocodes/bases:${TAG_BASE}"
 
-  #######################################################
-  ############## Intel OneApi CPU #######################
-  #######################################################
-  deploy-oneapi-bases:
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.intel }}
-    name: "oneapi-base"
-    runs-on: ubuntu-latest
-    env:
-      DOCKER_BUILDKIT: "1"
+  # #######################################################
+  # ############## Intel OneApi CPU #######################
+  # #######################################################
+  # deploy-oneapi-bases:
+  #   if: ${{ github.event_name != 'workflow_dispatch' || inputs.intel }}
+  #   name: "oneapi-base"
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     DOCKER_BUILDKIT: "1"
 
-    steps:
-      - name: Checkout devito
-        uses: actions/checkout@v6
+  #   steps:
+  #     - name: Checkout devito
+  #       uses: actions/checkout@v6
 
-      - name: Check event name
-        run: echo ${{ github.event_name }}
+  #     - name: Check event name
+  #       run: echo ${{ github.event_name }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+  #     - name: Set up QEMU
+  #       uses: docker/setup-qemu-action@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v4
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: ICX image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: "./docker/Dockerfile.intel"
-          push: true
-          target: "icx"
-          build-args: "arch=icx"
-          tags: "devitocodes/bases:cpu-icx"
+  #     - name: Login to DockerHub
+  #       uses: docker/login-action@v4
+  #       with:
+  #         username: ${{ secrets.DOCKER_USERNAME }}
+  #         password: ${{ secrets.DOCKER_PASSWORD }}
+  #     - name: ICX image
+  #       uses: docker/build-push-action@v7
+  #       with:
+  #         context: .
+  #         file: "./docker/Dockerfile.intel"
+  #         push: true
+  #         target: "icx"
+  #         build-args: "arch=icx"
+  #         tags: "devitocodes/bases:cpu-icx"
 
-      - name: SYCL CPU image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: "./docker/Dockerfile.intel"
-          push: true
-          target: "cpu-sycl"
-          build-args: "arch=cpu-sycl"
-          tags: "devitocodes/bases:cpu-sycl"
+  #     - name: SYCL CPU image
+  #       uses: docker/build-push-action@v7
+  #       with:
+  #         context: .
+  #         file: "./docker/Dockerfile.intel"
+  #         push: true
+  #         target: "cpu-sycl"
+  #         build-args: "arch=cpu-sycl"
+  #         tags: "devitocodes/bases:cpu-sycl"
 
-      - name: SYCL GPU image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: "./docker/Dockerfile.intel"
-          push: true
-          target: "gpu-sycl"
-          build-args: "arch=gpu-sycl"
-          tags: "devitocodes/bases:gpu-sycl"
+  #     - name: SYCL GPU image
+  #       uses: docker/build-push-action@v7
+  #       with:
+  #         context: .
+  #         file: "./docker/Dockerfile.intel"
+  #         push: true
+  #         target: "gpu-sycl"
+  #         build-args: "arch=gpu-sycl"
+  #         tags: "devitocodes/bases:gpu-sycl"
 
   #######################################################
   ################### Nvidia nvhpc ######################

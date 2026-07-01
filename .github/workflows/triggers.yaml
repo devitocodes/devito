@@ -22,7 +22,20 @@ jobs:
         repository: devitocodes/devitoproject.org
         event-type: deploy-docs
 
+    # Detect whether the PR merged into main carried the "no-pro-trigger"
+    # label. When present, the pro submodule update is skipped so devitopro
+    # PRs pinned to a specific branch don't have to be closed by hand.
+    - name: Check for no-pro-trigger label
+      id: pro_label
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        skip=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+          --jq 'any(.[].labels[]; .name == "no-pro-trigger")')
+        echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
     - name: Trigger pro submodule update
+      if: steps.pro_label.outputs.skip != 'true'
       uses: peter-evans/repository-dispatch@v4
       with:
         token: ${{ secrets.PRO_SUBMODULE }}
