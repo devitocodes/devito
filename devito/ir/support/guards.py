@@ -65,7 +65,14 @@ class GuardFactor(Guard, CondEq, Pickable):
 
     __rargs__ = ('d',)
 
-    def __new__(cls, d, **kwargs):
+    def __new__(cls, *args, **kwargs):
+        if len(args) != 1:
+            # Reconstruction with relational args (e.g. via sympy `_subs`): the
+            # factor semantics no longer hold, so degrade to a plain relational
+            base = CondNe if issubclass(cls, CondNe) else CondEq
+            return base(*args, **kwargs)
+
+        d, = args
         assert d.is_Conditional
 
         obj = super().__new__(cls, d.parent % d.symbolic_factor, 0)
