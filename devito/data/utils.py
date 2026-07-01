@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito.tools import Tag, as_list, as_tuple, is_integer
+from devito.tools import Tag, as_tuple, is_integer
 
 __all__ = [
     'NONLOCAL',
@@ -13,7 +13,6 @@ __all__ = [
     'index_handle_oob',
     'index_is_basic',
     'loc_data_idx',
-    'mpi_index_maps',
 ]
 
 
@@ -101,6 +100,13 @@ def convert_index(idx, decomposition, mode='glb_to_loc'):
     elif isinstance(idx, (tuple, list)):
         return [decomposition(i, mode=mode) for i in idx]
     elif isinstance(idx, np.ndarray):
+        if mode == 'glb_to_loc' and len(decomposition) == 1 \
+                and not decomposition.loc_empty:
+            # A single (non-distributed) subdomain holds the whole axis, so the
+            # global-to-local map is just a negative-index wrap. Vectorize it
+            # instead of calling `index_glb_to_loc` per element via np.vectorize.
+            n = decomposition.glb_max - decomposition.glb_min + 1
+            return np.where(idx < 0, idx + n, idx).astype(idx.dtype)
         return np.vectorize(lambda i: decomposition(i, mode=mode))(idx).astype(idx.dtype)
     else:
         raise ValueError(f"Cannot convert index of type `{type(idx)}` ")
@@ -118,6 +124,10 @@ def index_handle_oob(idx):
             # A boolean mask, nothing to do
             return idx
         elif idx.ndim == 1:
+            # Only an object array can carry the None sentinels; a plain numeric
+            # index has no out-of-bounds entries to drop, so skip the O(n) copy.
+            if idx.dtype != object:
+                return idx
             return np.delete(idx, np.where(idx == None))  # noqa
         else:
             raise ValueError("Cannot identify OOB accesses when using "
@@ -157,191 +167,6 @@ def loc_data_idx(loc_idx):
         else:
             retval.append(i)
     return as_tuple(retval)
-
-
-def mpi_index_maps(loc_idx, shape, topology, coords, comm):
-    """
-    Generate various data structures used to determine what MPI communication
-    is required. The function creates the following:
-
-    owners: An array of shape ``shape`` where each index signifies the rank on which
-    that data is stored.
-
-    send: An array of shape ``shape`` where each index signifies the rank to which
-    data belonging to that index should be sent.
-
-    global_si: An array of ``shape`` shape where each index contains the global index
-    to which that index should be sent.
-
-    local_si: An array of shape ``shape`` where each index contains the local index
-    (on the destination rank) to which that index should be sent.
-
-    Parameters
-    ----------
-    loc_idx : tuple of slices
-        The coordinates of interest to the current MPI rank.
-    shape: np.array of tuples
-        Array containing the local shape of data to each rank.
-    topology: tuple
-        Topology of the decomposed domain.
-    coords: tuple of tuples
-        The coordinates of each MPI rank in the decomposed domain, ordered
-        based on the MPI rank.
-    comm : MPI communicator
-
-    Examples
-    --------
-    An array is given by A = [[  0,  1,  2,  3],
-                              [  4,  5,  6,  7],
-                              [  8,  9, 10, 11],
-                              [ 12, 13, 14, 15]],
-    which is then distributed over four ranks such that on rank 0:
-
-    A = [[ 0, 1],
-         [ 4, 5]],
-
-    on rank 1:
-
-    A = [[ 2, 3],
-         [ 6, 7]],
-
-    on rank 2:
-
-    A = [[  8,  9],
-         [ 12, 13]],
-
-    on rank 3:
-
-    A = [[ 10, 11],
-         [ 14, 15]].
-
-    Taking the slice A[2:0:-1, 2:0:-1] the expected output (in serial) is
-
-    [[  0,  1,  2,  3],
-     [  4, 10,  9,  7],
-     [  8,  6,  5, 11],
-     [ 12, 13, 14, 15]],
-
-    Hence, in this case the following would be generated:
-
-    owners = [[0, 1],
-              [2, 3]],
-
-    send = [[3, 2],
-            [1, 0]],
-
-    global_si = [[(2, 2), (2, 1)],
-                 [(1, 2), (1, 1)]],
-
-    local_si = [[(0, 0), (0, 1)],
-                [(1, 0), (1, 1)]].
-    """
-
-    nprocs = comm.Get_size()
-
-    # Gather data structures from all ranks in order to produce the
-    # relevant mappings.
-    dat_len = np.zeros(topology, dtype=tuple)
-    for j in range(nprocs):
-        dat_len[coords[j]] = comm.bcast(shape, root=j)
-        if any(k == 0 for k in dat_len[coords[j]]):
-            dat_len[coords[j]] = as_tuple([0]*len(dat_len[coords[j]]))
-
-    # If necessary, add the time index to the `topology` as this will
-    # be required to correctly construct various maps.
-    if len(np.amax(dat_len)) > len(topology):
-        topology = as_list(topology)
-        coords = [as_list(l) for l in coords]
-        for _ in range(len(np.amax(dat_len)) - len(topology)):
-            topology.insert(0, 1)
-            for e in coords:
-                e.insert(0, 0)
-        topology = as_tuple(topology)
-        coords = as_tuple([as_tuple(i) for i in coords])
-    dat_len = dat_len.reshape(topology)
-    dat_len_cum = distributed_data_size(dat_len, coords, topology)
-
-    # This 'transform' will be required to produce the required maps
-    transform = []
-    for i in as_tuple(loc_idx):
-        if isinstance(i, slice):
-            if i.step is not None:
-                transform.append(slice(None, None, np.sign(i.step)))
-            else:
-                transform.append(slice(None, None, None))
-        else:
-            transform.append(slice(0, 1, None))
-    transform = as_tuple(transform)
-
-    global_size = dat_len_cum[coords[-1]]
-
-    indices = np.zeros(global_size, dtype=tuple)
-    global_si = np.zeros(global_size, dtype=tuple)
-    it = np.nditer(indices, flags=['refs_ok', 'multi_index'])
-    while not it.finished:
-        index = it.multi_index
-        indices[index] = index
-        it.iternext()
-    global_si[:] = indices[transform]
-
-    # Create the 'rank' slices
-    rank_slice = []
-    for j in coords:
-        this_rank = []
-        for k in dat_len[j]:
-            this_rank.append(slice(0, k, 1))
-        rank_slice.append(this_rank)
-    # Normalize the slices:
-    n_rank_slice = []
-    for i in range(len(rank_slice)):
-        my_coords = coords[i]
-        if any([j.stop == j.start for j in rank_slice[i]]):
-            n_rank_slice.append(as_tuple([None]*len(rank_slice[i])))
-            continue
-        if i == 0:
-            n_rank_slice.append(as_tuple(rank_slice[i]))
-            continue
-        left_neighbours = []
-        for j in range(len(my_coords)):
-            left_coord = list(my_coords)
-            left_coord[j] -= 1
-            left_neighbours.append(as_tuple(left_coord))
-        left_neighbours = as_tuple(left_neighbours)
-        n_slice = []
-        for j in range(len(my_coords)):
-            if left_neighbours[j][j] < 0:
-                start = 0
-                stop = dat_len_cum[my_coords][j]
-            else:
-                start = dat_len_cum[left_neighbours[j]][j]
-                stop = dat_len_cum[my_coords][j]
-            n_slice.append(slice(start, stop, 1))
-        n_rank_slice.append(as_tuple(n_slice))
-    n_rank_slice = as_tuple(n_rank_slice)
-
-    # Now fill each elements owner:
-    owners = np.zeros(global_size, dtype=np.int32)
-    send = np.zeros(global_size, dtype=np.int32)
-    for i in range(len(n_rank_slice)):
-        if any([j is None for j in n_rank_slice[i]]):
-            continue
-        else:
-            owners[n_rank_slice[i]] = i
-    send[:] = owners[transform]
-
-    # Construct local_si
-    local_si = np.zeros(global_size, dtype=tuple)
-    it = np.nditer(local_si, flags=['refs_ok', 'multi_index'])
-    while not it.finished:
-        index = it.multi_index
-        owner = owners[index]
-        my_slice = n_rank_slice[owner]
-        rnorm_index = []
-        for j, k in zip(my_slice, index, strict=True):
-            rnorm_index.append(k-j.start)
-        local_si[index] = as_tuple(rnorm_index)
-        it.iternext()
-    return owners, send, global_si, local_si
 
 
 def flip_idx(idx, decomposition):
@@ -411,68 +236,3 @@ def flip_idx(idx, decomposition):
         else:
             processed.append(slice(i, i+1, 1))
     return as_tuple(processed)
-
-
-def distributed_data_size(shape, coords, topology):
-    """
-    Compute the cumulative shape of the distributed data (cshape).
-
-    Parameters
-    -----------
-    shape: np.array of tuples
-        Array containing the local shape of data to each rank.
-    coords: tuple of tuples
-        The coordinates of each MPI rank in the decomposed domain, ordered
-        based on the MPI rank.
-    topology: tuple
-        Topology of the decomposed domain.
-
-    Examples
-    --------
-    Given a set of distributed data such that:
-
-    shape = [[ (2, 2), (2, 2)],
-             [ (2, 2), (2, 2)]],
-
-    (that is, there are 4 ranks and the data on each rank has shape (2, 2)).
-    cshape will be returned as
-
-    cshape = [[ (2, 2), (2, 4)],
-              [ (4, 2), (4, 4)]].
-    """
-    cshape = np.zeros(topology, dtype=tuple)
-    for i in range(len(coords)):
-        my_coords = coords[i]
-        if i == 0:
-            cshape[my_coords] = shape[my_coords]
-            continue
-        left_neighbours = []
-        for j in range(len(my_coords)):
-            left_coord = list(my_coords)
-            left_coord[j] -= 1
-            left_neighbours.append(as_tuple(left_coord))
-        left_neighbours = as_tuple(left_neighbours)
-        n_dat = []  # Normalised data size
-        if sum(shape[my_coords]) == 0:
-            prev_dat_len = []
-            for j in left_neighbours:
-                if any(d < 0 for d in j):
-                    pass
-                else:
-                    prev_dat_len.append(cshape[j])
-            func = lambda a, b: max([d[b] for d in a])
-            max_dat_len = []
-            for j in range(len(my_coords)):
-                max_dat_len.append(func(prev_dat_len, j))
-            cshape[my_coords] = as_tuple(max_dat_len)
-        else:
-            for j in range(len(my_coords)):
-                if left_neighbours[j][j] < 0:
-                    c_dat = shape[my_coords][j]
-                    n_dat.append(c_dat)
-                else:
-                    c_dat = shape[my_coords][j]  # Current length
-                    p_dat = cshape[left_neighbours[j]][j]  # Previous length
-                    n_dat.append(c_dat+p_dat)
-            cshape[my_coords] = as_tuple(n_dat)
-    return cshape

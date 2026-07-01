@@ -296,7 +296,14 @@ class Decomposition(tuple):
                         loc_min = loc_abs_min - base \
                             + np.mod(glb_idx.step - np.mod(base, glb_idx.step),
                                      glb_idx.step)
-                    else:  # glb start is given explicitly
+                    elif glb_idx_min >= loc_abs_min:
+                        # The slice starts within this subdomain, so its first
+                        # selected index is the start itself (the stride phase
+                        # begins here, not at loc_abs_min).
+                        loc_min = glb_idx_min - base
+                    else:  # the slice started in an earlier subdomain
+                        # Advance to the first in-stride index at or after this
+                        # subdomain's start.
                         loc_min = loc_abs_min - base \
                             + np.mod(glb_idx.step - np.mod(base - glb_idx.start,
                                                            glb_idx.step), glb_idx.step)
@@ -319,7 +326,14 @@ class Decomposition(tuple):
                         loc_max = top - base \
                             + np.mod(glb_idx.step - np.mod(top - glb_max,
                                                            glb_idx.step), glb_idx.step)
-                    else:
+                    elif glb_idx_max <= loc_abs_max:
+                        # The slice's high end (its start) is within this
+                        # subdomain, so the first selected index is the start
+                        # itself (the stride phase begins here, not at loc_abs_max).
+                        loc_max = glb_idx_max - base
+                    else:  # the slice's high end is in a later subdomain
+                        # Step back to the first in-stride index at or below this
+                        # subdomain's end.
                         loc_max = top - base \
                             + np.mod(glb_idx.step - np.mod(top - glb_idx.start,
                                                            glb_idx.step), glb_idx.step)
@@ -554,4 +568,51 @@ class Decomposition(tuple):
         # Renumbering
         items = [i + nleft for i in items]
 
+        return Decomposition(items, self.local)
+
+    def index_decomposition(self, idx):
+        """
+        The decomposition induced by NumPy-indexing this axis with a slice.
+
+        Each subdomain keeps the result positions, in index order, of the global
+        indices it owns. A strided or reversed slice therefore just relabels
+        which rank owns which result index -- indexing never moves data across
+        ranks. Unlike `reshape` (which adjusts subdomain *boundaries* and
+        is used for halos), this follows exact NumPy slicing semantics.
+
+        Examples
+        --------
+        >>> d = Decomposition([[0, 1, 2, 3], [4, 5, 6, 7]], 0)
+        >>> d.index_decomposition(slice(None, None, -1))
+        Decomposition(<<[4,7]>>, [0,3])
+        >>> d.index_decomposition(slice(None, None, -3))
+        Decomposition(<<[2,2]>>, [0,1])
+        """
+        if self.glb_max is None:
+            return Decomposition([np.array([], dtype=np.int64)]*len(self),
+                                 self.local)
+        size = self.glb_max - self.glb_min + 1
+
+        # The global indices selected by `idx`, in result order. For a slice
+        # (the only caller) this is built directly, without materialising the
+        # whole axis.
+        if isinstance(idx, slice):
+            start, stop, step = idx.indices(size)
+            selected = self.glb_min + np.arange(start, stop, step)
+        else:
+            selected = np.arange(self.glb_min, self.glb_min + size)[idx]
+
+        # Bucket the selected indices by owning subdomain. A subdomain is a
+        # contiguous range, so membership is a bounds check in O(len(selected))
+        # -- avoiding an O(axis) `isin` on every slice. A non-contiguous
+        # subdomain (not produced by gridding/slicing) falls back to `isin`.
+        items = []
+        for sd in self:
+            if sd.size == 0:
+                items.append(np.array([], dtype=np.int64))
+            elif sd[-1] - sd[0] + 1 == sd.size:
+                owned = (selected >= sd[0]) & (selected <= sd[-1])
+                items.append(np.nonzero(owned)[0])
+            else:
+                items.append(np.nonzero(np.isin(selected, sd))[0])
         return Decomposition(items, self.local)

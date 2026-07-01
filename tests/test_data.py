@@ -8,6 +8,10 @@ from devito import (  # noqa
 )
 from devito.data import LEFT, RIGHT, Decomposition, convert_index, loc_data_idx
 from devito.data.allocators import DataReference
+from devito.data.distributed.layout import Layout
+from devito.data.distributed.selection import (
+    Affine, Explicit, IndexScalar, Selection, index_has_array, result_dims
+)
 from devito.ir import ccode
 from devito.tools import as_tuple
 from devito.types import Scalar
@@ -451,6 +455,25 @@ class TestDecomposition:
         assert d.index_glb_to_loc((1, 6), rel=False) == (5, 6)
         assert d.index_glb_to_loc((None, None), rel=False) == (5, 7)
 
+    def test_glb_to_loc_strided_start_in_subdomain(self):
+        """
+        Regression: a strided slice whose start (or, for a negative step, its
+        high end) falls strictly inside the owning subdomain must begin the
+        stride phase at the start, not at the subdomain boundary. Previously the
+        local slice picked spurious leading/trailing elements (e.g. global
+        `2:8:2` gave rank 0 local `[0, 2]` instead of `[2]`).
+        """
+        d0 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 0)
+        d2 = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+        # Positive step, start strictly inside the owning subdomain
+        assert d0.index_glb_to_loc(slice(2, 12, 2)) == slice(2, 3, 2)   # -> [2]
+        assert d2.index_glb_to_loc(slice(6, 12, 2)) == slice(1, 3, 2)   # -> [6]
+
+        # Negative step, high end (the start) strictly inside the subdomain
+        assert d2.index_glb_to_loc(slice(5, 0, -2)) == slice(0, None, -2)   # -> [5]
+        assert d0.index_glb_to_loc(slice(2, None, -2)) == slice(2, None, -2)
+
     def test_glb_to_loc_w_side(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 
@@ -605,11 +628,223 @@ class TestDecomposition:
         assert d.reshape((1, 3, 10, 11, 14)) == Decomposition([[0], [1], [], [2, 3]], 2)
 
 
+# A reference global shape for the serial engine tests below; indices are
+# validated against the NumPy result on an array of this shape.
+ENGINE_SHAPE = (4, 5, 6)
+
+
+class TestSelection:
+
+    """`Selection` encodes NumPy indexing semantics, layout-independent."""
+
+    @pytest.mark.parametrize('idx', [
+        # basic indexing
+        (2,),
+        (slice(None),),
+        (slice(1, 4, 2),),
+        (slice(None, None, -1),),
+        (slice(3, 0, -2),),
+        (slice(None), slice(None), 3),
+        (1, 2, 3),
+        (-1, -2),
+        (slice(-3, -1),),
+        # ellipsis / padding
+        (Ellipsis, 2),
+        (1, Ellipsis),
+        (Ellipsis,),
+        # advanced (array) indexing
+        (np.array([0, 2, 3]),),
+        (np.array([0, 2]), slice(1, 4)),
+        (slice(None), np.array([0, 1, 4])),
+        (np.array([[0, 1], [2, 3]]),),
+        # contiguous advanced axes (stay in place)
+        (np.array([0, 1]), np.array([2, 3])),
+        # advanced axes separated by a basic index (block moves to front)
+        (np.array([0, 1]), 2, np.array([0, 3])),
+        (np.array([0, 1]), slice(None), np.array([0, 3])),
+        # broadcast advanced indices
+        (np.array([[0], [1]]), np.array([0, 2, 4])),
+        # boolean masks
+        (np.array([True, False, True, True]),),
+        (slice(None), np.array([True, False, True, True, False])),
+    ])
+    def test_result_shape_matches_numpy(self, idx):
+        """The induced result shape matches NumPy's for the same index."""
+        ref = np.empty(ENGINE_SHAPE)
+        selection = Selection.from_index(idx, ENGINE_SHAPE)
+        assert selection.result_shape == ref[idx].shape
+
+    def test_selector_types(self):
+        """Each axis is classified as Scalar / Affine / Explicit as expected."""
+        selection = Selection.from_index((2, slice(1, 4), np.array([0, 1])),
+                                         ENGINE_SHAPE)
+        s0, s1, s2 = selection.selectors
+        assert isinstance(s0, IndexScalar) and s0.index == 2
+        assert isinstance(s1, Affine) and (s1.start, s1.stop, s1.step) == (1, 4, 1)
+        assert isinstance(s2, Explicit) and list(s2.coords) == [0, 1]
+
+    def test_negative_scalar_normalized(self):
+        """A negative scalar index is normalized to a non-negative one."""
+        selection = Selection.from_index((-1,), ENGINE_SHAPE)
+        assert selection.selectors[0] == IndexScalar(ENGINE_SHAPE[0] - 1)
+
+    def test_negative_array_normalized(self):
+        """Negative entries in an advanced index are wrapped into range."""
+        selection = Selection.from_index((np.array([-1, -2]),), ENGINE_SHAPE)
+        assert list(selection.selectors[0].coords) == [ENGINE_SHAPE[0] - 1,
+                                                       ENGINE_SHAPE[0] - 2]
+
+    def test_advanced_at_front_detection(self):
+        """Separated advanced axes set `advanced_at_front`; contiguous don't."""
+        sep = Selection.from_index((np.array([0, 1]), 2, np.array([0, 3])),
+                                   ENGINE_SHAPE)
+        cont = Selection.from_index((np.array([0, 1]), np.array([0, 3])),
+                                    ENGINE_SHAPE)
+        assert sep.advanced_at_front is True
+        assert cont.advanced_at_front is False
+
+    def test_npoints_and_is_advanced(self):
+        sel = Selection.from_index((np.array([[0], [1]]), np.array([0, 2, 4])),
+                                   ENGINE_SHAPE)
+        assert sel.is_advanced is True
+        assert sel.advanced_shape == (2, 3)
+        assert sel.npoints == 6
+        basic = Selection.from_index((slice(None),), ENGINE_SHAPE)
+        assert basic.is_advanced is False
+        assert basic.npoints == 1
+
+    def test_scalar_out_of_bounds(self):
+        with pytest.raises(IndexError):
+            Selection.from_index((4,), ENGINE_SHAPE)
+
+    def test_too_many_indices(self):
+        with pytest.raises(IndexError):
+            Selection.from_index((1, 2, 3, 4), ENGINE_SHAPE)
+
+    def test_newaxis_unsupported(self):
+        with pytest.raises(NotImplementedError):
+            Selection.from_index((np.newaxis, slice(None)), ENGINE_SHAPE)
+
+
+class TestResultDims:
+
+    """`result_dims` is the single source of result-axis ordering."""
+
+    def test_basic_only(self):
+        sel = Selection.from_index((2, slice(None), slice(None)), ENGINE_SHAPE)
+        assert sel.result_dims == [('basic', 1), ('basic', 2)]
+
+    def test_contiguous_advanced_in_place(self):
+        sel = Selection.from_index((np.array([0, 1]), np.array([0, 3]), slice(None)),
+                                   ENGINE_SHAPE)
+        # advanced block sits where the (contiguous) advanced axes are
+        assert sel.result_dims == [('adv', 0), ('basic', 2)]
+
+    def test_separated_advanced_moves_to_front(self):
+        sel = Selection.from_index((np.array([0, 1]), slice(None), np.array([0, 3])),
+                                   ENGINE_SHAPE)
+        assert sel.result_dims == [('adv', 0), ('basic', 1)]
+
+    def test_result_shape_derives_from_dims(self):
+        """`result_shape` is exactly the sizes of `result_dims`, in order."""
+        sel = Selection.from_index((np.array([0, 1]), slice(1, 4), np.array([0, 3])),
+                                   ENGINE_SHAPE)
+        sizes = tuple(sel.selectors[v].size if kind == 'basic'
+                      else sel.advanced_shape[v] for kind, v in sel.result_dims)
+        assert sizes == sel.result_shape
+
+    def test_module_and_property_agree(self):
+        sel = Selection.from_index((np.array([0, 1]), 2, np.array([0, 3])),
+                                   ENGINE_SHAPE)
+        assert sel.result_dims == result_dims(
+            sel.selectors, sel.advanced_axes, sel.advanced_shape,
+            sel.advanced_at_front)
+
+
+class TestIndexHasArray:
+
+    """The cheap gate that keeps basic indexing off the routing path."""
+
+    @pytest.mark.parametrize('idx, ndim, expected', [
+        ((slice(None), 2), 2, False),
+        (2, 2, False),
+        (slice(1, 4), 2, False),
+        ((np.array([0, 1]), slice(None)), 2, True),
+        (np.array([0, 1]), 1, True),
+        (np.array([True, False]), 1, True),
+        # legacy `data[[i, j, k]]` shorthand on an n-D object stays basic
+        ([0, 1, 2], 3, False),
+        # a genuine 1-D list index on a 1-D object is advanced
+        ([0, 1, 2], 1, True),
+    ])
+    def test_gate(self, idx, ndim, expected):
+        assert index_has_array(idx, ndim) is expected
+
+
+class TestLayout:
+
+    """Physical placement maps, computed locally from the decomposition."""
+
+    @pytest.fixture
+    def decomposition(self):
+        # 12 indices over 4 sub-ranks, uneven: [0,1,2] [3,4] [5,6,7] [8..11]
+        return Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
+
+    def test_axis_maps(self, decomposition):
+        layout = Layout(None, (decomposition, None), (12, 3))
+        owner, local, sizes = layout.axis_maps(0)
+        assert list(owner) == [0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 3]
+        assert list(local) == [0, 1, 2, 0, 1, 0, 1, 2, 0, 1, 2, 3]
+        assert list(sizes) == [3, 2, 3, 4]
+
+    def test_distributed_and_replicated_axes(self, decomposition):
+        layout = Layout(None, (decomposition, None, decomposition), (12, 3, 12))
+        assert layout.distributed_axes == (0, 2)
+        assert layout.replicated_axes == (1,)
+        assert layout.replicated_size == 3
+        assert layout.topology_shape == (4, 4)
+
+    def test_single_axis_coord_to_rank(self, decomposition):
+        # Without `all_coords` (e.g. a sparse distributor) ranks lay out linearly
+        class _Dist:
+            nprocs = 4
+        layout = Layout(_Dist(), (decomposition,), (12,))
+        assert layout.coord_to_rank == {(0,): 0, (1,): 1, (2,): 2, (3,): 3}
+
+
 class TestDataDistributed:
 
     """
     Test Data indexing and manipulation when distributed over a set of MPI processes.
     """
+
+    @staticmethod
+    def _assert_induced(res, global_result):
+        """
+        Indexing is local: each rank holds exactly the elements of the global
+        numpy result that it already owns (the induced decomposition), with no
+        communication. Verify by reassembling every rank's block, at the result
+        indices it owns, into the full global result.
+        """
+        res_arr = np.array(res)
+        owned = []
+        empty = res_arr.size == 0
+        if not empty:
+            for dec, n in zip(res._decomposition, global_result.shape, strict=True):
+                if dec is None:
+                    owned.append(np.arange(n, dtype=np.int64))
+                else:
+                    owned.append(np.asarray(dec.loc_abs_numb, dtype=np.int64)
+                                 - (dec.glb_min or 0))
+
+        comm = res._distributor.comm
+        gathered = comm.gather((None if empty else res_arr, owned), root=0)
+        if comm.Get_rank() == 0:
+            out = np.full(global_result.shape, -10**9, dtype=global_result.dtype)
+            for blk, idxs in gathered:
+                if blk is not None and blk.size:
+                    out[np.ix_(*idxs)] = blk
+            assert np.array_equal(out, global_result)
 
     @pytest.mark.parallel(mode=4)
     def test_localviews(self, mode):
@@ -649,11 +884,208 @@ class TestDataDistributed:
         assert np.all(u.data == 1.)
         assert np.all(u.data._local == 1.)
 
+        u.data_local[:] = 2.
+        assert np.all(u.data == 2.)
+        assert np.all(u.data_local == 2.)
+
         v.data_with_halo[:] = 1.
         assert v.data_with_halo[:].shape == (3, 3)
         assert np.all(v.data_with_halo == 1.)
         assert np.all(v.data_with_halo[:] == 1.)
         assert np.all(v.data_with_halo._local == 1.)
+
+    @pytest.mark.parallel(mode=4)
+    def test_local_indices_roundtrip(self, mode):
+        """
+        The public `local_indices` slices map a rank's local data into the
+        global array, enabling the natural no-comm idiom::
+
+            f.data_local[:] = global_array[f.local_indices]
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        nt = 3
+        g = TimeFunction(name='g', grid=grid, save=nt, time_order=1,
+                         space_order=0, dtype=np.int32)
+
+        global_f = np.arange(8, dtype=f.dtype)
+        global_g = np.arange(nt*8, dtype=g.dtype).reshape(nt, 8)
+
+        # Slice the (replicated) global arrays down to this rank's block
+        f.data_local[:] = global_f[f.local_indices]
+        g.data_local[:] = global_g[g.local_indices]      # time axis -> full slice
+
+        assert np.all(f.data == global_f[f.local_indices])
+        assert np.all(g.data == global_g[g.local_indices])
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_set_get_1d(self, mode):
+        """Each rank labels rank-local values with arbitrary global indices."""
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        global_data = np.arange(8, dtype=f.dtype)
+        rank = grid.distributor.myrank
+        source_index = np.array_split(np.arange(8)[::-1],
+                                      grid.distributor.nprocs)[rank]
+        source_data = global_data[source_index]
+
+        f.data[:] = 0
+        f.data[source_index] = source_data
+
+        assert np.all(f.data_local == global_data[f.local_indices])
+        assert np.all(f.data[source_index] == source_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_negative_and_empty(self, mode):
+        """Negative indices normalize; ranks contributing nothing are a no-op."""
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        index = [-1, 0] if rank == 0 else []
+        values = np.array([70, 10], dtype=f.dtype) if rank == 0 else \
+            np.empty(0, dtype=f.dtype)
+
+        f.data[:] = 0
+        f.data[index] = values
+
+        expected = np.zeros(8, dtype=f.dtype)
+        expected[[-1, 0]] = [70, 10]
+        assert np.all(f.data_local == expected[f.local_indices])
+        assert np.all(f.data[index] == values)
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('order', ['C', 'F'])
+    def test_advanced_indexing_with_time_window(self, mode, order):
+        """A replicated (time) axis rides along as the exchanged payload."""
+        grid = Grid(shape=(8,))
+        nt = 3
+        f = TimeFunction(name='f', grid=grid, save=nt, time_order=1,
+                         space_order=0, dtype=np.int32)
+
+        global_data = np.arange(nt*8, dtype=f.dtype).reshape(nt, 8)
+        rank = grid.distributor.myrank
+        source_index = np.array_split(np.arange(8)[::-1],
+                                      grid.distributor.nprocs)[rank]
+        time_window = slice(1, None)
+        source_data = np.array(global_data[time_window, source_index], order=order)
+
+        f.data[:] = 0
+        f.data[time_window, source_index] = source_data
+
+        expected = np.zeros_like(global_data)
+        expected[time_window, :] = global_data[time_window, :]
+        assert np.all(f.data == expected[f.local_indices])
+        assert np.all(f.data[time_window, source_index] == source_data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_two_distributed_dims(self, mode):
+        """
+        Scatter over two distributed dimensions at once -- the case the previous
+        implementation rejected with NotImplementedError.
+        """
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        global_data = np.arange(16, dtype=f.dtype).reshape(4, 4)
+
+        rank = grid.distributor.myrank
+        points = {0: ([0, 3], [0, 3]), 1: ([1, 2], [3, 0]),
+                  2: ([3, 0], [1, 2]), 3: ([2, 1], [2, 1])}
+        xs, ys = (np.array(p) for p in points[rank])
+        values = global_data[xs, ys]
+
+        f.data[:] = -1
+        f.data[xs, ys] = values
+        assert np.all(f.data[xs, ys] == values)
+
+        # Every assigned global point now holds its global value
+        gathered = np.array(f.data_gather())
+        if rank == 0:
+            for r in range(grid.distributor.nprocs):
+                rx, ry = (np.array(p) for p in points[r])
+                assert np.all(gathered[rx, ry] == global_data[rx, ry])
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_errors(self, mode):
+        """Duplicate and out-of-bounds indices raise consistently on all ranks."""
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        duplicate_index = np.array([1, 1]) if rank == 0 else \
+            np.empty(0, dtype=np.int64)
+
+        with pytest.raises(ValueError, match="rank 0:.*Duplicate global indices"):
+            f.data[duplicate_index] = np.ones(duplicate_index.size, dtype=f.dtype)
+
+        oob_index = np.array([8]) if rank == 0 else np.empty(0, dtype=np.int64)
+        with pytest.raises(ValueError, match="rank 0:.*out-of-bounds"):
+            f.data[oob_index] = np.ones(oob_index.size, dtype=f.dtype)
+        with pytest.raises(ValueError, match="rank 0:.*out-of-bounds"):
+            f.data[oob_index]
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_local_only_no_comm(self, mode):
+        """
+        Case 1: each rank labels rank-local values with its own global indices, so
+        nothing crosses ranks. `b` matches the local size; data stays put. The
+        same effect is achievable comm-free via `data_local` + `local_indices`.
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        # This rank's own global indices, as an explicit array
+        local_index = np.arange(*f.local_indices[0].indices(grid.shape[0]))
+        b = np.arange(local_index.size, dtype=f.dtype) + 10*rank
+
+        f.data[:] = 0
+        f.data[local_index] = b              # routed, but resolves to self only
+        assert np.all(f.data_local == b)
+        assert np.all(f.data[local_index] == b)
+
+        # The idiomatic comm-free equivalent
+        g = Function(name='g', grid=grid, space_order=0, dtype=np.int32)
+        g.data_local[:] = b
+        assert np.all(g.data == f.data)
+
+    @pytest.mark.parallel(mode=4)
+    def test_advanced_indexing_generic_size_crossing_ranks(self, mode):
+        """
+        Case 2: a single rank assigns an arbitrary number of values to global
+        indices spread across every rank; `len(b)` differs from the local size.
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        rank = grid.distributor.myrank
+        index = np.array([7, 5, 2, 0]) if rank == 0 else np.empty(0, dtype=np.int64)
+        values = np.array([77, 55, 22, 0], dtype=f.dtype) if rank == 0 else \
+            np.empty(0, dtype=f.dtype)
+
+        f.data[:] = -1
+        f.data[index] = values
+
+        expected = np.full(8, -1, dtype=f.dtype)
+        expected[[7, 5, 2, 0]] = [77, 55, 22, 0]
+        assert np.all(f.data_local == expected[f.local_indices])
+        assert np.all(f.data[index] == values)
+
+    @pytest.mark.parallel(mode=4)
+    def test_full_assignment_replicated_rhs(self, mode):
+        """
+        Case 3: `a.data[:] = b` with `b` the full global array replicated on
+        every rank. Basic indexing, so each rank slices its own piece (no comm).
+        """
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+
+        b = np.arange(8, dtype=f.dtype)   # identical (replicated) on all ranks
+        f.data[:] = b
+
+        assert np.all(f.data_local == b[f.local_indices])
+        assert np.all(f.data[:]._local == b[f.local_indices])
 
     @pytest.mark.parallel(mode=4)
     def test_indexing(self, mode):
@@ -740,130 +1172,34 @@ class TestDataDistributed:
 
     @pytest.mark.parallel(mode=4)
     def test_getitem(self, mode):
-        # __getitem__ mpi slicing tests:
+        # __getitem__ MPI slicing: indexing is local, never communicates --
+        # each rank returns exactly the part of the global result it owns.
         grid = Grid(shape=(8, 8))
-        x, y = grid.dimensions
-        glb_pos_map = grid.distributor.glb_pos_map
         f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
-        test_dat = np.arange(64, dtype=np.int32)
-        a = test_dat.reshape(grid.shape)
-
+        a = np.arange(64, dtype=np.int32).reshape(grid.shape)
         f.data[:] = a
 
-        result = np.array(f.data[::-1, ::-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(result[0] == [[63, 62, 61, 60]])
-            assert np.all(result[1] == [[55, 54, 53, 52]])
-            assert np.all(result[2] == [[47, 46, 45, 44]])
-            assert np.all(result[3] == [[39, 38, 37, 36]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(result[0] == [[59, 58, 57, 56]])
-            assert np.all(result[1] == [[51, 50, 49, 48]])
-            assert np.all(result[2] == [[43, 42, 41, 40]])
-            assert np.all(result[3] == [[35, 34, 33, 32]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(result[0] == [[31, 30, 29, 28]])
-            assert np.all(result[1] == [[23, 22, 21, 20]])
-            assert np.all(result[2] == [[15, 14, 13, 12]])
-            assert np.all(result[3] == [[7, 6, 5, 4]])
-        else:
-            assert np.all(result[0] == [[27, 26, 25, 24]])
-            assert np.all(result[1] == [[19, 18, 17, 16]])
-            assert np.all(result[2] == [[11, 10, 9, 8]])
-            assert np.all(result[3] == [[3, 2, 1, 0]])
-
-        result1 = np.array(f.data[5, 6:1:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] \
-                or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert result1.size == 0
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(result1 == [[46, 45]])
-        else:
-            assert np.all(result1 == [[44, 43, 42]])
-
-        result2 = np.array(f.data[6:4:-1, 6:1:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] \
-                or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert result2.size == 0
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(result2[0] == [[54, 53]])
-            assert np.all(result2[1] == [[46, 45]])
-        else:
-            assert np.all(result2[0] == [[52, 51, 50]])
-            assert np.all(result2[1] == [[44, 43, 42]])
-
-        result3 = np.array(f.data[6:4:-1, 2:7])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y] \
-                or LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert result3.size == 0
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(result3[0] == [[50, 51]])
-            assert np.all(result3[1] == [[42, 43]])
-        else:
-            assert np.all(result3[0] == [[52, 53, 54]])
-            assert np.all(result3[1] == [[44, 45, 46]])
-
-        result4 = np.array(f.data[4:2:-1, 6:1:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(result4 == [[38, 37]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(result4 == [[36, 35, 34]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(result4 == [[30, 29]])
-        else:
-            assert np.all(result4 == [[28, 27, 26]])
+        for gslice in [(slice(None, None, -1), slice(None, None, -1)),
+                       (5, slice(6, 1, -1)),
+                       (slice(6, 4, -1), slice(6, 1, -1)),
+                       (slice(6, 4, -1), slice(2, 7)),
+                       (slice(4, 2, -1), slice(6, 1, -1))]:
+            self._assert_induced(f.data[gslice], a[gslice])
 
     @pytest.mark.parallel(mode=4)
     def test_big_steps(self, mode):
-        # Test slicing with a step size > 1
+        # Slicing with |step| > 1 (positive and negative) is local: each rank
+        # returns the part of the global strided result it owns.
         grid = Grid(shape=(8, 8))
-        x, y = grid.dimensions
-        glb_pos_map = grid.distributor.glb_pos_map
         f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
-        test_dat = np.arange(64, dtype=np.int32)
-        a = test_dat.reshape(grid.shape)
-
+        a = np.arange(64, dtype=np.int32).reshape(grid.shape)
         f.data[:] = a
 
-        r0 = np.array(f.data[::3, ::3])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r0 == [[0, 3], [24, 27]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(r0 == [[6], [30]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r0 == [[48, 51]])
-        else:
-            assert np.all(r0 == [[54]])
-
-        r1 = np.array(f.data[1::3, 1::3])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r1 == [[9]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(r1 == [[12, 15]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r1 == [[33], [57]])
-        else:
-            assert np.all(r1 == [[36, 39], [60, 63]])
-
-        r2 = np.array(f.data[::-3, ::-3])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r2 == [[63]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(r2 == [[60, 57]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r2 == [[39], [15]])
-        else:
-            assert np.all(r2 == [[36, 33], [12, 9]])
-
-        r3 = np.array(f.data[6::-3, 6::-3])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r3 == [[54, 51], [30, 27]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(r3 == [[48], [24]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(r3 == [[6, 3]])
-        else:
-            assert np.all(r3 == [[0]])
+        for gslice in [(slice(None, None, 3), slice(None, None, 3)),
+                       (slice(1, None, 3), slice(1, None, 3)),
+                       (slice(None, None, -3), slice(None, None, -3)),
+                       (slice(6, None, -3), slice(6, None, -3))]:
+            self._assert_induced(f.data[gslice], a[gslice])
 
     @pytest.mark.parallel(mode=4)
     def test_setitem(self, mode):
@@ -927,82 +1263,16 @@ class TestDataDistributed:
 
     @pytest.mark.parallel(mode=4)
     def test_hd_slicing(self, mode):
-        # Test higher dimension slices
+        # Higher-dimensional negative-step slicing is local (induced).
         grid = Grid(shape=(4, 4, 4))
-        x, y, z = grid.dimensions
-        glb_pos_map = grid.distributor.glb_pos_map
         t = Function(name='t', grid=grid, space_order=0)
-        dat = np.arange(64, dtype=np.int32)
-        b = dat.reshape(grid.shape)
+        b = np.arange(64, dtype=np.int32).reshape(grid.shape)
         t.data[:] = b
 
-        c = np.array(t.data[::-1, ::-1, ::-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(c[:, :, 0] == [[63, 59],
-                                         [47, 43]])
-            assert np.all(c[:, :, 3] == [[60, 56],
-                                         [44, 40]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(c[:, :, 0] == [[55, 51],
-                                         [39, 35]])
-            assert np.all(c[:, :, 3] == [[52, 48],
-                                         [36, 32]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(c[:, :, 0] == [[31, 27],
-                                         [15, 11]])
-            assert np.all(c[:, :, 3] == [[28, 24],
-                                         [12, 8]])
-        else:
-            assert np.all(c[:, :, 0] == [[23, 19],
-                                         [7, 3]])
-            assert np.all(c[:, :, 3] == [[20, 16],
-                                         [4, 0]])
-
-        d = np.array(t.data[::-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(d[:, :, 1] == [[49, 53],
-                                         [33, 37]])
-            assert np.all(d[:, :, 2] == [[50, 54],
-                                         [34, 38]])
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(d[:, :, 1] == [[57, 61],
-                                         [41, 45]])
-            assert np.all(d[:, :, 2] == [[58, 62],
-                                         [42, 46]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert np.all(d[:, :, 1] == [[17, 21],
-                                         [1, 5]])
-            assert np.all(d[:, :, 2] == [[18, 22],
-                                         [2, 6]])
-        else:
-            assert np.all(d[:, :, 1] == [[25, 29],
-                                         [9, 13]])
-            assert np.all(d[:, :, 2] == [[26, 30],
-                                         [10, 14]])
-
-        e = np.array(t.data[:, 3:2:-1])
-        if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert e.size == 0
-        elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
-            assert np.all(e[:, :, 0] == [[12],
-                                         [28]])
-            assert np.all(e[:, :, 1] == [[13],
-                                         [29]])
-            assert np.all(e[:, :, 2] == [[14],
-                                         [30]])
-            assert np.all(e[:, :, 3] == [[15],
-                                         [31]])
-        elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
-            assert e.size == 0
-        else:
-            assert np.all(e[:, :, 0] == [[44],
-                                         [60]])
-            assert np.all(e[:, :, 1] == [[45],
-                                         [61]])
-            assert np.all(e[:, :, 2] == [[46],
-                                         [62]])
-            assert np.all(e[:, :, 3] == [[47],
-                                         [63]])
+        for gslice in [(slice(None, None, -1),)*3,
+                       (slice(None, None, -1),),
+                       (slice(None), slice(3, 2, -1))]:
+            self._assert_induced(t.data[gslice], b[gslice])
 
     @pytest.mark.parallel(mode=4)
     def test_niche_slicing(self, mode):
@@ -1408,46 +1678,14 @@ class TestDataDistributed:
         (0, slice(None, None, -1), slice(None, None, -1)),
         (slice(0, 1, 1), slice(None, None, -1), slice(None, None, -1))])
     def test_inversions(self, gslice, mode):
-        """ Test index flipping along different axes."""
-        nx = 8
-        ny = 8
-        nz = 8
-        shape0 = (nx, ny)
-        shape1 = (nx, ny, nz)
+        """Index flipping along different axes is local (induced decomposition)."""
         grid = Grid(shape=(8, 8, 8))
         f = Function(name='f', grid=grid)
-        dat = np.arange(64).reshape(shape0)
-        vdat = np.zeros(shape1)
+        vdat = np.zeros((8, 8, 8))
+        vdat[:, :, 0] = np.arange(64).reshape(8, 8)
 
-        f.data[:, :, 0] = dat
-        res = f.data[gslice]
-
-        # construct solution to test res against
-        vdat[:, :, 0] = dat
-        tdat = vdat[gslice]
-        lslice = loc_data_idx(f.data._index_glb_to_loc(gslice))
-        sl = []
-        Null = slice(-1, -2, None)
-        for s, gs, d in zip(lslice, gslice, f._decomposition, strict=True):
-            if type(s) is slice and s == Null:
-                sl.append(s)
-            elif type(gs) is not slice:
-                continue
-            else:
-                try:
-                    start = d.index_loc_to_glb(s.start)
-                    stop = d.index_loc_to_glb(s.stop-1)+1
-                    step = s.step
-                    sl.append(slice(start, stop, step))
-                except TypeError:
-                    sl.append(Null)
-
-        if len(sl) == len(tdat.shape):
-            assert np.all(np.array(res) == tdat[tuple(sl)])
-            assert res.shape == tdat[tuple(sl)].shape
-        else:
-            assert np.all(np.array(res) == vdat[tuple(sl)])
-            assert res.shape == vdat[tuple(sl)].shape
+        f.data[:, :, 0] = vdat[:, :, 0]
+        self._assert_induced(f.data[gslice], vdat[gslice])
 
     @pytest.mark.parallel(mode=4)
     def test_setitem_shorthands(self, mode):
@@ -1520,6 +1758,10 @@ class TestDataGather:
         (None, None, -1),
         (None, None, -2),
         (1, 8, 3),
+        # Strided slices whose start falls inside a subdomain (see
+        # TestDecomposition.test_glb_to_loc_strided_start_in_subdomain)
+        (2, 8, 2),
+        (7, 0, -2),
         ((0, 4), None, (2, 1))])
     def test_sliced_gather_2D(self, start, stop, step, mode):
         """ Test gather for various 2D slices."""
@@ -1554,6 +1796,8 @@ class TestDataGather:
         (None, None, -1),
         (None, None, -2),
         (1, 8, 3),
+        (2, 8, 2),
+        (7, 0, -2),
         ((0, 4, 4), None, (2, 1, 1))])
     def test_sliced_gather_3D(self, start, stop, step, mode):
         """ Test gather for various 3D slices."""
