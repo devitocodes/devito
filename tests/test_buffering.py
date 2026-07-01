@@ -754,7 +754,7 @@ def test_buffer_reuse():
     assert all(np.all(vsave.data[i-1] == i + 1) for i in range(1, nt + 1))
 
 
-def test_multi_cond():
+def test_multi_cond_v0():
     grid = Grid((3, 3))
     nt = 5
 
@@ -764,24 +764,99 @@ def test_multi_cond():
     ntmod = (nt - 1) * factor + 1
 
     ct1 = ConditionalDimension(name="ct1", parent=grid.time_dim,
-                               factor=factor, relation=Or)
+                               factor=factor)
     ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
                                  condition=CondEq(grid.time_dim, ntmod - 2),
-                                 relation=Or)
+                                 relation='strict')
 
     f = TimeFunction(grid=grid, name='f', time_order=0,
                      space_order=0, save=nt, time_dim=ct1)
     T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
 
     eqs = [Eq(T, grid.time_dim)]
-    # this to save times from 0 to nt - 2
+    # This saves
+    # - All subsampled times since ct1 is the dimension of f
     eqs.append(Eq(f, T))
-    # this to save the last time sample nt - 1
-    eqs.append(Eq(f.forward, T+1, implicit_dims=ctend))
+    # - The last time step (ntmod - 2) through ctend (since it's set as ct1 or ctend)
+    eqs.append(Eq(f, T, implicit_dims=ctend))
 
     # run operator with buffering
     op = Operator(eqs, opt='buffering')
     op.apply(time_m=0, time_M=ntmod-2)
 
-    for i in range(nt):
+    for i in range(nt-1):
         assert np.allclose(f.data[i], i*2)
+    assert np.allclose(f.data[nt-1], ntmod - 2)
+
+
+def test_multi_cond_v1():
+    grid = Grid((3, 3))
+    nt = 5
+
+    x, y = grid.dimensions
+
+    factor = 2
+    ntmod = (nt - 1) * factor + 1
+
+    ct1 = ConditionalDimension(name="ct1", parent=grid.time_dim,
+                               factor=factor, relation=Or,
+                               condition=CondEq(grid.time_dim, ntmod - 2))
+
+    f = TimeFunction(grid=grid, name='f', time_order=0,
+                     space_order=0, save=nt, time_dim=ct1)
+    T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
+
+    eqs = [Eq(T, grid.time_dim)]
+    # This saves
+    # - All subsampled times since ct1 is the dimension of f with factor 2
+    # - The last time step (ntmod - 2) since ct1 also has the condition for ntmod - 2
+    eqs.append(Eq(f, T))
+
+    # run operator with buffering
+    op = Operator(eqs, opt='buffering')
+    op.apply(time_m=0, time_M=ntmod-2)
+
+    for i in range(nt-1):
+        assert np.allclose(f.data[i], i*2)
+    assert np.allclose(f.data[nt-1], ntmod - 2)
+
+
+@pytest.mark.parametrize("factor", [1, 2, 3])
+def test_buffering_multi_cond(factor):
+    grid = Grid((16, 16))
+
+    nt = 5
+    ntmod = (nt - 1) * factor + 1
+
+    ct0 = ConditionalDimension(name="ct0", parent=grid.time_dim, factor=factor,
+                               relation=Or)
+    f = TimeFunction(grid=grid, name='f', time_order=0, space_order=0,
+                     time_dim=ct0, save=nt)
+    T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
+
+    eqs = []
+    eqs.append(Eq(T, grid.time_dim))
+
+    # conditional dimension for the last sample in the operator
+    ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
+                                 condition=CondEq(grid.time_dim, ntmod - 2),
+                                 relation='strict')
+
+    eqs.append(Eq(f, T))  # this to save times from 0 to nt - 2
+    # this to save the last time sample nt - 1
+    eqs.append(Eq(f, T+1, implicit_dims=ctend))
+
+    # run operator with serialization
+    op = Operator(eqs, opt='buffering')
+    op.apply(time_m=0, time_M=ntmod-2)
+
+    # Now run backward as well with buffering
+
+    f_all = TimeFunction(grid=grid, name='f_all', time_order=0,
+                         space_order=0, time_dim=ct0, save=nt)
+
+    eq_all = [Eq(f_all, f)]
+    eq_all.append(Eq(f_all, f, implicit_dims=ctend))
+    op_all = Operator(eq_all, opt='buffering')
+    op_all.apply(time_m=0, time_M=ntmod-2)
+    assert np.allclose(f_all.data[:, 11, 11], factor * np.arange(nt))

@@ -1287,6 +1287,7 @@ class TestStreaming:
         assert np.allclose(u.data, 20)
 
         # Again, but with a different shift
+        # We now need to access the last t_sub +2 value
         op.apply(time_m=15, time_M=35, save_shift=-2)
         assert np.allclose(u.data, 20 + 35)
 
@@ -1335,13 +1336,15 @@ class TestStreaming:
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 9 - diff
         assert len(op2._func_table) == 14 - diff
         assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 9 - diff
-        assert len(op3._func_table) == 10 - diff
-        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 8 - diff
+        # The streaming/buffering cannot be fused since the guards of
+        # vas and vasb/vasf are not compatible.
+        assert len(op3._func_table) == 14 - diff
+        assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 9 - diff
 
         op0.apply(time_m=15, time_M=35, save_shift=0)
-        op1.apply(time_m=15, time_M=35, save_shift=0, u=u1)
-        op2.apply(time_m=15, time_M=35, save_shift=0, u=u2)
-        op3.apply(time_m=15, time_M=35, save_shift=0, u=u3)
+        op1.apply(time_m=15, time_M=36, save_shift=0, u=u1)
+        op2.apply(time_m=15, time_M=36, save_shift=0, u=u2)
+        op3.apply(time_m=15, time_M=36, save_shift=0, u=u3)
 
         assert np.all(u.data == u1.data)
         assert np.all(u.data == u2.data)

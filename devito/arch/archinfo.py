@@ -494,13 +494,15 @@ def get_gpu_info():
     return None
 
 
+device_vars = (
+    'CUDA_VISIBLE_DEVICES',
+    'NVIDIA_VISIBLE_DEVICES',
+    'ROCR_VISIBLE_DEVICES',
+    'HIP_VISIBLE_DEVICES'
+)
+
+
 def get_visible_devices():
-    device_vars = (
-        'CUDA_VISIBLE_DEVICES',
-        'NVIDIA_VISIBLE_DEVICES',
-        'ROCR_VISIBLE_DEVICES',
-        'HIP_VISIBLE_DEVICES'
-    )
     for v in device_vars:
         try:
             return v, tuple(int(i) for i in os.environ[v].split(','))

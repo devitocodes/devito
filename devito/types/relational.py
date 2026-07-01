@@ -3,7 +3,8 @@ from functools import singledispatch
 
 import sympy
 
-__all__ = ['Ge', 'Gt', 'Le', 'Lt', 'Ne', 'relational_max', 'relational_min']
+__all__ = ['Ge', 'Gt', 'Le', 'Lt', 'Ne', 'relational_max', 'relational_min',
+           'relational_shift']
 
 
 class AbstractRel:
@@ -291,3 +292,40 @@ def _(expr, s):
         return expr.gts
     else:
         return sympy.S.Infinity
+
+
+def relational_shift(expr, s):
+    """
+    Infer shift incurred by the expression. Generally only
+    applies when a CondEq is used as it adds a single value.
+    """
+    if not expr.has(s):
+        return 0
+
+    return _relational_shift(expr, s)
+
+
+@singledispatch
+def _relational_shift(s, expr):
+    return 0
+
+
+@_relational_shift.register(sympy.Or)
+@_relational_shift.register(sympy.And)
+def _(expr, s):
+    return sum([_relational_shift(e, s) for e in expr.args])
+
+
+@_relational_shift.register(sympy.Eq)
+def _(expr, s):
+    if isinstance(expr.lhs, sympy.Mod):
+        return 0
+
+    try:
+        # Not a stepping dimension, no shift
+        assert not expr.lhs.is_Time
+        return 0
+    except (AttributeError, AssertionError):
+        # Stepping dimension (time), requires shift
+        from devito.symbolics.extended_dtypes import INT
+        return INT(Ge(*expr.args))

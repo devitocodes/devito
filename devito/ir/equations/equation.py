@@ -5,15 +5,15 @@ import numpy as np
 import sympy
 
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.equations.algorithms import dimension_sort, lower_exprs
+from devito.ir.equations.algorithms import dimension_sort, generate_conditionals
 from devito.ir.support import (
-    GuardFactor, Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
+    Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
 )
-from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
+from devito.symbolics import limits_mapper, retrieve_accesses
 from devito.tools import (
     Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
 )
-from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
+from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax
 
 __all__ = [
     'ClusterizedEq',
@@ -292,26 +292,7 @@ class LoweredEq(IREq):
                                   relations=ordering.relations, mode='partial')
         ispace = IterationSpace(intervals, iterators)
 
-        # Construct the conditionals and replace the ConditionalDimensions in `expr`
-        conditionals = {}
-        for d in ordering:
-            if not d.is_Conditional:
-                continue
-            if d.condition is None:
-                conditionals[d] = GuardFactor(d)
-            else:
-                cond = diff2sympy(lower_exprs(d.condition))
-                if d._factor is not None:
-                    cond = d.relation(cond, GuardFactor(d))
-                conditionals[d] = cond
-            # Replace dimension with index
-            index = d.index
-            if d.condition is not None and d in expr.free_symbols:
-                index = index - relational_min(d.condition, d.parent)
-            expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor)})
-
-        conditionals = frozendict(conditionals)
-
+        expr, conditionals = generate_conditionals(expr, input_expr, ordering)
         # Lower all Differentiable operations into SymPy operations
         rhs = diff2sympy(expr.rhs)
 
