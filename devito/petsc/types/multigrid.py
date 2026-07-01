@@ -44,6 +44,15 @@ class GlobalStartScalar(Scalar):
         return {self.name: self._distributor.glb_slices[self._dim].start}
 
 
+class FineGlobalStartScalar(GlobalStartScalar):
+    """
+    Like GlobalStartScalar but always holds the fine-grid global start —
+    it is never coarsened by fix_mg_populate_calls. Every level's UserCtx
+    gets the fine-grid value so callbacks can always access the fine start
+    via ctx->field without special routing.
+    """
+
+
 class CoarseGridScalar(Scalar):
     """
     A rank-local dimension scalar for a coarse multigrid level.
@@ -214,6 +223,8 @@ class SubGrid:
                 name=f'factor_d{self._coarsening_depth}',
                 depth=self._coarsening_depth
             )
+        elif isinstance(f, FineGlobalStartScalar):
+            return f
         elif isinstance(f, GlobalStartScalar):
             return GlobalStartScalar(
                 name=f'{f.root.name}_d{self._coarsening_depth}',
@@ -342,8 +353,8 @@ class MultigridMetadata:
         for d in dims:
             root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
             glb_starts_f.append(
-                GlobalStartScalar(f'{d.name}_m_glb_d0', dim=d,
-                                  distributor=distributor, root=root)
+                FineGlobalStartScalar(f'{d.name}_m_glb_d0', dim=d,
+                                     distributor=distributor, root=root)
             )
             gsc_c_syms.append(
                 GlobalStartScalar(f'{d.name}_m_glb', dim=d,
