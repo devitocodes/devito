@@ -64,7 +64,7 @@ class Key(tuple):
     """
 
     def __new__(cls, itintervals, guards, syncs, weak):
-        strict = [itintervals, guards, syncs]
+        strict = [syncs, guards, itintervals]  #TODO
         obj = super().__new__(cls, strict + weak)
 
         obj.itintervals = itintervals
@@ -83,8 +83,8 @@ class Fusion(Queue):
     Fuse Clusters with compatible IterationSpace.
     """
 
-    _q_guards_in_key = True
-    _q_syncs_in_key = True
+    #_q_guards_in_key = True
+    #_q_syncs_in_key = True
 
     def __init__(self, toposort, options=None):
         options = options or {}
@@ -129,8 +129,10 @@ class Fusion(Queue):
         #TODO
         if self.toposort and prefix:
             groups = groupby(processed, key=lambda c: c.ispace.suffix(prefix.itdims))
+
+            #groups1 = groupby(processed, key=lambda c: c.ispace.suffix(prefix.itdims))
             #a=[]
-            #for k, group in groups:
+            #for k, group in groups1:
             #    g = list(group)
             #    print(g)
             #    print("----")
@@ -141,7 +143,7 @@ class Fusion(Queue):
             #groups = groupby(processed, key=mapper.get)
             #X = 'Cluster([Eq(queue22[qq3], IndexDerivative(s_yz32[i0 + ty + 7, tz]'
             #if X in str(processed):
-            #    from IPython import embed; embed(header='PPPP')
+            #from IPython import embed; embed()
             return [ClusterGroup(tuple(g), prefix) for _, g in groups]
         else:
             return [ClusterGroup(processed, prefix)]
@@ -261,13 +263,21 @@ class Fusion(Queue):
             m = {i: self._key(i) for i in queue}
 
             # Process the `strict` part of the key
-            candidates = [i for i in queue if m[i].itintervals == k.itintervals]
+#            candidates = [i for i in queue if m[i].itintervals == k.itintervals]
+#
+#            compatible = [i for i in candidates if m[i].guards == k.guards]
+#            candidates = compatible or candidates
+#
+#            compatible = [i for i in candidates if m[i].syncs == k.syncs]
+#            candidates = compatible or candidates
 
-            compatible = [i for i in candidates if m[i].guards == k.guards]
-            candidates = compatible or candidates
-
-            compatible = [i for i in candidates if m[i].syncs == k.syncs]
-            candidates = compatible or candidates
+            for i in range(len(k.strict), -1, -1):
+                candidates = [e for e, ke in m.items() if ke.strict[:i] == k.strict[:i]]
+                if candidates:
+                    break
+            else:
+                #TODO
+                assert False
 
             # Process the `weak` part of the key
             for i in range(len(k.weak), -1, -1):

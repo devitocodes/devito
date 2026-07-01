@@ -1927,7 +1927,6 @@ class TestConditionalDimension:
                 Eq(a1, 2, implicit_dims=(cd0,))]
 
         op = Operator(eqns, opt=('advanced', {'openmp': True}))
-        op.cfunction
 
         assert_structure(op, ['i,x,y', 'i', 'i,x,y', 'i,x,y'], 'i,x,y,x,y,x,y')
 
@@ -2140,8 +2139,8 @@ class TestMashup:
 
         op = Operator(eqns)
 
-        # Check generated code -- expect the gsave equation to be scheduled together
-        # in the same loop nest with the fsave equation
+        # Check generated code -- expect the gsave equation to be scheduled
+        # together in the same loop nest with the fsave equation
         bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
         exprs = FindNodes(Expression).visit(bns['x0_blk0'])
         assert len(exprs) == 2
@@ -2149,14 +2148,14 @@ class TestMashup:
         assert exprs[1].write is g
 
         exprs = FindNodes(Expression).visit(bns['x1_blk0'])
-        assert len(exprs) == 1
-        assert exprs[0].write is h
-
-        exprs = FindNodes(Expression).visit(bns['x2_blk0'])
         assert len(exprs) == 3
         assert isinstance(exprs[0].expr.lhs, Temp)
         assert exprs[1].write is fsave
         assert exprs[2].write is gsave
+
+        exprs = FindNodes(Expression).visit(bns['x2_blk0'])
+        assert len(exprs) == 1
+        assert exprs[0].write is h
 
     def test_topofusion_w_subdims_conddims_v2(self):
         """
