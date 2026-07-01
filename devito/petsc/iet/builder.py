@@ -195,7 +195,8 @@ class BuilderBase:
             call_struct_callback,
             petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
         )
-
+    
+    # TODO: Use symbols for DMDA create inputs so code doesn't change when topology changes etc..
     def _create_dmda(self, dmda, shape=None, lc_arrays=None):
         sobjs = self.solver_objs
         grid = self.field_data.grid

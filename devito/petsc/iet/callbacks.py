@@ -22,6 +22,7 @@ from devito.symbolics.unevaluation import Mul
 from devito.tools import filter_ordered
 from devito.types import Dimension, Temp, TempArray
 from devito.types.basic import AbstractFunction
+from devito.petsc.types.multigrid import GlobalStartScalar
 from devito.types.misc import PostIncrementIndex
 
 
@@ -1760,14 +1761,22 @@ class MultigridCallbackMixin:
         dmc = FieldFromPointer(sobjs['dmc'], pctx)
         dmf = FieldFromPointer(sobjs['dmf'], pctx)
 
-        dims = self.field_data.space_dimensions
-        body = Uxreplace({d.symbolic_min: d.symbolic_min - 1
-                          for d in dims}).visit(body)
-        return self._create_grid_transfer_body(
+        body = self._create_grid_transfer_body(
             body,
             read_dm=dmc, read_glob=sobjs['xcoarse'], read_local=objs['xloc'],
             write_dm=dmf, write_glob=sobjs['yfine'], write_local=objs['yloc'],
         )
+
+        # Prolongation loops over fine indices, so remap loop bounds to uctx_f.
+        uctx_c = sobjs['uctx_c']
+        uctx_f = sobjs['uctx_f']
+        subs = {
+            FieldFromPointer(sym, FieldFromPointer(uctx_c._C_symbol, pctx)):
+                FieldFromPointer(sym, FieldFromPointer(uctx_f._C_symbol, pctx))
+            for d in self.field_data.space_dimensions
+            for sym in (d.symbolic_min, d.symbolic_max)
+        }
+        return Uxreplace(subs).visit(body)
 
     def _create_restriction_matvec_body(self, body):
         sobjs = self.solver_objs
@@ -1884,24 +1893,35 @@ class MultigridCallbackMixin:
                 dm_get_fine_local_info,
             )
         )
-        # Dereference function data in struct
-        derefs = dereference_funcs(pctx, fields)
         # Force the struct definition to appear at the very start, since
         # stacks, allocs etc may rely on its information
         struct_definition = [Definition(pctx), shell_get_context]
 
+        derefs = dereference_funcs(pctx, fields)
         body = self._make_callable_body(
             body, standalones=struct_definition, stacks=stacks + derefs
         )
-        # Replace non-function data with pointer to data in struct
-        subs = {
-            i._C_symbol: FieldFromPointer(
-                i._C_symbol, FieldFromPointer(uctx_c._C_symbol, pctx)
-            )
-            for i in fields
-        }
+
+        uctx_f = sobjs['uctx_f']
+        glb_start_syms_f = self.multigrid_metadata.prolongation.glb_start_syms_f
+        subs = {}
+        for i in fields:
+            if isinstance(i, GlobalStartScalar):
+                ptr = uctx_f if i in glb_start_syms_f else uctx_c
+                subs[i._C_symbol] = FieldFromPointer(
+                    i.root, FieldFromPointer(ptr._C_symbol, pctx)
+                )
+                if i in glb_start_syms_f:
+                    self._struct_params.append(
+                        GlobalStartScalar(i.root.name, dim=i._dim,
+                                         distributor=i._distributor, root=i.root)
+                    )
+            else:
+                subs[i._C_symbol] = FieldFromPointer(
+                    i._C_symbol, FieldFromPointer(uctx_c._C_symbol, pctx)
+                )
+                self._struct_params.append(i)
         body = Uxreplace(subs).visit(body)
-        self._struct_params.extend(fields)
         return body
 
     @property

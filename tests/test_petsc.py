@@ -3183,7 +3183,6 @@ class TestMultiGrid1D:
     # - maybe make mg_levels_pc_type jacobi the default pc type for mg?
     # - also add tests using petscsection i.e removing the essential boundary
     #   nodes from the global system with multigrid
-    # - add specific tests for the multigrid metadata i.e the grid hierarchy
     # - maybe add an entirely separate class to test the grid transfers
     # - test errors raised for invalid grid sizes
 

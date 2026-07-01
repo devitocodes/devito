@@ -112,10 +112,9 @@ class InjectSolve:
         self.constrain_bcs = constrain_bcs
 
     def build_expr(self):
-        target, funcs, field_data = self.linear_solve_args()
-        # Placeholder expression for inserting calls to the solver
-
-        multigrid_metadata = None
+        # Build MultigridMetadata first so its symbols are available to
+        # _apply_fine_grid_transform inside linear_solve_args.
+        self._multigrid_metadata = None
         if self.solver_parameters.get('pc_type') == 'mg':
             if self.hierarchy is None:
                 raise ValueError(
@@ -124,16 +123,17 @@ class InjectSolve:
                     "    hierarchy = GridHierarchy(grid, nlevels=<n>)\n"
                     "    petscsolve(..., hierarchy=hierarchy)"
                 )
-            # Validate pc_mg_levels if user specified it
             user_nlevels = self.solver_parameters.get('pc_mg_levels')
             if user_nlevels is not None and int(user_nlevels) != self.hierarchy.nlevels:
                 raise ValueError(
                     f"pc_mg_levels={user_nlevels} does not match "
                     f"GridHierarchy.nlevels={self.hierarchy.nlevels}."
                 )
-            # Derive pc_mg_levels from hierarchy — PETSc needs it
             self.solver_parameters['pc_mg_levels'] = self.hierarchy.nlevels
-            multigrid_metadata = MultigridMetadata(self.hierarchy, field_data)
+            target = next(iter(self.target_exprs.keys()))
+            self._multigrid_metadata = MultigridMetadata(self.hierarchy, target)
+
+        target, funcs, field_data = self.linear_solve_args()
 
         linear_solve = LinearSolverMetaData(
             funcs,
@@ -144,7 +144,7 @@ class InjectSolve:
             user_prefix=self.user_prefix,
             formatted_prefix=self.formatted_prefix,
             get_info=self.get_info,
-            multigrid_metadata=multigrid_metadata
+            multigrid_metadata=self._multigrid_metadata
         )
         return PetscEq(target, linear_solve)
 
@@ -162,10 +162,52 @@ class InjectSolve:
             for t, e in self.target_exprs.items()
         }
 
+    def _apply_fine_grid_transform(self, target, exprs):
+        """
+        When multigrid is active, replace fine-grid Function indices with the
+        level-aware formula: f[factor*(d + gsc_c) - glb_start_syms_f].
+
+        Ensures FormFunction/MatMult callbacks access fine-grid data correctly
+        at any coarse level at runtime.
+        """
+        mg = self._multigrid_metadata
+        fine_grid = self.hierarchy.fine
+        dims = fine_grid.dimensions
+        gsc_c_syms = mg.gsc_c
+        glb_start_syms_f = mg.glb_start_syms_f
+        factor = mg.factor
+
+        fine_funcs = {
+            f for e in exprs
+            for f in retrieve_functions(e.evaluate)
+            if hasattr(f, 'grid') and f.grid is fine_grid
+            and f.function is not target.function
+        }
+        if not fine_funcs:
+            return exprs
+
+        subs = {}
+        for func in fine_funcs:
+            new_func = func
+            for i, d in enumerate(dims):
+                for fdim in func.space_dimensions:
+                    if fdim is d:
+                        new_func = new_func.subs(
+                            d, factor * (d + gsc_c_syms[i]) - glb_start_syms_f[i]
+                        )
+                        break
+            if new_func is not func:
+                subs[func] = new_func
+
+        return tuple(eq.xreplace(subs) for eq in exprs)
+
     def linear_solve_args(self):
         self._constrain_out_of_domain_nodes()
         target, exprs = next(iter(self.target_exprs.items()))
         exprs = as_tuple(exprs)
+
+        if self._multigrid_metadata is not None:
+            exprs = self._apply_fine_grid_transform(target, exprs)
 
         funcs = get_funcs(exprs)
         # TODO: Add MPI tests for this but if not filtered, the wrong halospots

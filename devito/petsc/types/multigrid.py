@@ -6,11 +6,42 @@ import sympy
 from sympy import Integer, Rational, finite_diff_weights
 
 from devito.mpi import CoarseDistributor
-from devito.symbolics import FieldFromComposite
+from devito.symbolics import IntDiv
 from devito.tools import as_tuple
 from devito.types.basic import Scalar
-from devito.types.dimension import Spacing, Thickness
+from devito.types.dimension import ConditionalDimension, Spacing, Thickness
 from devito.types.equation import Eq
+
+
+class GlobalStartScalar(Scalar):
+    """
+    The global index of the first owned point on this MPI rank for a given
+    dimension and grid level.
+
+    Used in prolongation/restriction equations to convert between local and
+    global indices without calling DMDAGetLocalInfo at runtime.
+    _arg_values reads distributor.glb_slices[dim].start.
+    """
+
+    is_Input = True
+
+    __rkwargs__ = ('name', 'dtype', 'is_const', 'dim', 'distributor', 'root')
+
+    def __new__(cls, name, dim=None, distributor=None, root=None, **kwargs):
+        kwargs.setdefault('dtype', np.int32)
+        kwargs.setdefault('is_const', True)
+        newobj = super().__new__(cls, name, **kwargs)
+        newobj._dim = dim
+        newobj._distributor = distributor
+        newobj._root = root
+        return newobj
+
+    @property
+    def root(self):
+        return self._root
+
+    def _arg_values(self, **kwargs):
+        return {self.name: self._distributor.glb_slices[self._dim].start}
 
 
 class CoarseGridScalar(Scalar):
@@ -36,6 +67,30 @@ class CoarseGridScalar(Scalar):
 
     def _arg_values(self, **kwargs):
         return {self.name: self._distributor.shape[self._dim] + self._offset}
+
+
+class CoarseningFactorScalar(Scalar):
+    """
+    The coarsening factor at a given multigrid level relative to the fine grid.
+    """
+
+    is_Input = True
+
+    __rkwargs__ = ('name', 'dtype', 'is_const', 'depth')
+
+    def __new__(cls, name, depth=0, **kwargs):
+        kwargs.setdefault('dtype', np.int32)
+        kwargs.setdefault('is_const', True)
+        newobj = super().__new__(cls, name, **kwargs)
+        newobj._depth = depth
+        return newobj
+
+    @property
+    def depth(self):
+        return self._depth
+
+    def _arg_values(self, **kwargs):
+        return {self.name: 2 ** self._depth}
 
 
 class CoarseThickness(Thickness):
@@ -115,15 +170,27 @@ class SubGrid:
 
     @property
     def coarsening_depth(self):
-        """Number of factor-2 coarsenings from the fine Grid (1 = one halving, etc.)."""
+        """
+        Number of factor-2 coarsenings from the fine Grid (1 = one halving, etc.).
+        """
         return self._coarsening_depth
 
     @property
     def parent(self):
         return self._parent
 
+    @cached_property
+    def factor(self):
+        """Coarsening factor relative to the fine grid: 2^coarsening_depth."""
+        return CoarseningFactorScalar(
+            f'factor_d{self._coarsening_depth}',
+            depth=self._coarsening_depth
+        )
+
     def coarse_symbol_for(self, f):
-        """Return the coarse-level equivalent of fine-grid symbol f."""
+        """
+        Return the coarse-level equivalent of fine-grid symbol f.
+        """
         try:
             return self._coarse_symbol_cache[f]
         except KeyError:
@@ -142,6 +209,18 @@ class SubGrid:
             )
         elif isinstance(f, Spacing):
             return f * factor
+        elif isinstance(f, CoarseningFactorScalar):
+            return CoarseningFactorScalar(
+                name=f'factor_d{self._coarsening_depth}',
+                depth=self._coarsening_depth
+            )
+        elif isinstance(f, GlobalStartScalar):
+            return GlobalStartScalar(
+                name=f'{f.root.name}_d{self._coarsening_depth}',
+                dim=f._dim,
+                distributor=self._distributor,
+                root=f.root,
+            )
         elif isinstance(f, Scalar):
             for dim in self._parent.dimensions:
                 if f.name in (f'{dim.name}_M', f'{dim.name}_size'):
@@ -217,12 +296,16 @@ class GridHierarchy:
 
     @property
     def fine(self):
-        """The finest Grid."""
+        """
+        The finest Grid.
+        """
         return self._fine
 
     @property
     def coarse_levels(self):
-        """Coarser SubGrids ordered finest-coarse to coarsest."""
+        """
+        Coarser SubGrids ordered finest-coarse to coarsest.
+        """
         return self._coarse_levels
 
     @property
@@ -231,7 +314,9 @@ class GridHierarchy:
 
     @property
     def levels(self):
-        """All levels as a tuple: (fine_grid, subgrid_l1, ..., subgrid_lN)."""
+        """
+        All levels as a tuple: (fine_grid, subgrid_l1, ..., subgrid_lN).
+        """
         return (self._fine,) + self._coarse_levels
 
 
@@ -239,11 +324,38 @@ class MultigridMetadata:
     """
     PETSc-specific multigrid metadata: holds the GridHierarchy and the
     prolongation/restriction transfer equations for the target Function.
+
+    Symbols are created once here and shared with GridTransferEquations so
+    that prolongation/restriction and FormFunction/MatMult index transforms
+    reference the same objects.
     """
 
-    def __init__(self, hierarchy, field_data):
+    def __init__(self, hierarchy, target):
         self._hierarchy = hierarchy
-        self._prolongation = GridTransferEquations(field_data.target)
+
+        fine_grid = hierarchy.fine
+        dims = fine_grid.dimensions
+        distributor = fine_grid.distributor
+
+        glb_starts_f = []
+        gsc_c_syms = []
+        for d in dims:
+            root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
+            glb_starts_f.append(
+                GlobalStartScalar(f'{d.name}_m_glb_d0', dim=d,
+                                  distributor=distributor, root=root)
+            )
+            gsc_c_syms.append(
+                GlobalStartScalar(f'{d.name}_m_glb', dim=d,
+                                  distributor=distributor, root=root)
+            )
+
+        self._glb_start_syms_f = tuple(glb_starts_f)
+        self._gsc_c = tuple(gsc_c_syms)
+        self._factor = CoarseningFactorScalar('factor', depth=0)
+        self._prolongation = GridTransferEquations(
+            target, glb_starts_f=self._glb_start_syms_f
+        )
 
     @property
     def hierarchy(self):
@@ -253,12 +365,27 @@ class MultigridMetadata:
     def prolongation(self):
         return self._prolongation
 
+    @property
+    def glb_start_syms_f(self):
+        """Per-dimension fine-level GlobalStartScalars (routed via fine_ctx)."""
+        return self._glb_start_syms_f
+
+    @property
+    def gsc_c(self):
+        """Per-dimension canonical GlobalStartScalars for the current level."""
+        return self._gsc_c
+
+    @property
+    def factor(self):
+        """Canonical CoarseningFactorScalar (2^depth, populated per level)."""
+        return self._factor
+
 
 class GridTransferEquations:
     """
     """
 
-    def __init__(self, target):
+    def __init__(self, target, glb_starts_f=None):
         # TODO: move imports
         from devito.petsc.types.array import PETScArray
         from devito.petsc.types.object import DMDALocalInfo
@@ -275,69 +402,97 @@ class GridTransferEquations:
             name='y_' + target.name, target=target,
             liveness='eager', localinfo=self.fine_localinfo
         )
-        self._build()
+        self._build(glb_starts_f=glb_starts_f)
 
-    def _build(self):
+    def _build(self, fine=0, coarse=1, glb_starts_f=None):
         dims = self.target.space_dimensions
         so = self.target.space_order
         xc, yf = self.xc, self.yf
-
-        petsc_letters = ['x', 'y', 'z']
         ndim = len(dims)
-        xs_f = [
-            FieldFromComposite(f'{petsc_letters[ndim - 1 - i]}s', self.fine_localinfo)
-            for i in range(ndim)
-        ]
-        xs_c = [
-            FieldFromComposite(f'{petsc_letters[ndim - 1 - i]}s', self.coarse_localinfo)
-            for i in range(ndim)
-        ]
+
+        distributor = self.target.grid.distributor
+
+        if glb_starts_f is None:
+            glb_starts_f = []
+            for d in dims:
+                root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
+                glb_starts_f.append(
+                    GlobalStartScalar(f'{d.name}_m_glb_d{fine}', dim=d,
+                                      distributor=distributor, root=root)
+                )
+
+        glb_starts_c = []
+        for i, d in enumerate(dims):
+            glb_starts_c.append(
+                GlobalStartScalar(f'{d.name}_m_glb_d{coarse}', dim=d,
+                                  distributor=distributor, root=glb_starts_f[i].root)
+            )
+
+        self._glb_start_syms_f = tuple(glb_starts_f)
+        self._glb_start_syms_c = tuple(glb_starts_c)
 
         # Lagrange weights at the midpoint — shared by prolongation and restriction.
         start = -(so // 2 - 1)
         pts = list(range(start, start + so))
         w = finite_diff_weights(0, pts, Rational(1, 2))[-1][-1]
 
+        # Prolongation: loop over fine indices. LHS is always yf[dims].
+        # The parity of the global fine index (d + gsf) in each dimension determines
+        # whether the fine point coincides with a coarse point (inject) or lies between
+        # two coarse points (interpolate). A ConditionalDimension gates each of the
+        # 2^ndim parity combinations. Within the conditional, (d + gsf - f) is always
+        # even, so (d + gsf - f) // 2 is an exact integer coarse index.
+        # Ghost coarse reads (local index -1) are handled naturally by the halo — no
+        # loop-bound extension is needed.
         prolong_eqs = []
         for flags in iterproduct([0, 1], repeat=ndim):
-            lhs_idx = tuple(
-                2*(d + xsc) - xsf + f
-                for d, xsc, xsf, f in zip(dims, xs_c, xs_f, flags)
+            conditions = [
+                sympy.Eq(sympy.Mod(d + gsf, 2), f)
+                for d, gsf, f in zip(dims, glb_starts_f, flags)
+            ]
+            condition = (sympy.And(*conditions, evaluate=False)
+                         if ndim > 1 else conditions[0])
+            cd = ConditionalDimension(
+                name='cd' + ''.join(str(f) for f in flags),
+                parent=dims[-1],
+                condition=condition
             )
-            lhs = yf[lhs_idx]
+
+            lhs = yf[tuple(dims)]
 
             dim_stencils = []
-            for d, f in zip(dims, flags):
+            for d, gsc, gsf, f in zip(dims, glb_starts_c, glb_starts_f, flags):
+                i_c = IntDiv(d + gsf - f, 2) - gsc
                 if f:
-                    dim_stencils.append(list(zip([d + j for j in pts], w)))
+                    dim_stencils.append([(i_c + j, wi) for j, wi in zip(pts, w)])
                 else:
-                    dim_stencils.append([(d, Integer(1))])
+                    dim_stencils.append([(i_c, Integer(1))])
 
             rhs = Integer(0)
             for combo in iterproduct(*dim_stencils):
                 weight = Integer(1)
                 idx = []
-                for dim_offset, wi in combo:
+                for i_c_expr, wi in combo:
                     weight *= wi
-                    idx.append(dim_offset)
-                rhs = rhs + weight * xc[tuple(idx)]
+                    idx.append(i_c_expr)
+                rhs += weight * xc[tuple(idx)]
 
-            prolong_eqs.append(Eq(lhs, rhs))
+            prolong_eqs.append(Eq(lhs, rhs, implicit_dims=(cd,)))
         self._prolong_eqs = tuple(prolong_eqs)
 
-        # Restriction: R = P^T — same weights, reversed fine-array indices.
+        # Restriction: R = P^T. Loop over coarse indices — the natural direction.
         rhs = sympy.Integer(0)
         for flags in iterproduct([0, 1], repeat=ndim):
             offset_ranges = [pts if f else [0] for f in flags]
             for offsets in iterproduct(*offset_ranges):
                 weight = sympy.Integer(1)
                 fine_idx = []
-                for d, xsc, xsf, f, j in zip(dims, xs_c, xs_f, flags, offsets):
+                for d, gsc, gsf, f, j in zip(dims, glb_starts_c, glb_starts_f, flags, offsets):
                     if f:
                         weight *= w[pts.index(j)]
-                        fine_idx.append(2*(d + xsc) - xsf - 2*j + 1)
+                        fine_idx.append(2*(d + gsc) - gsf - 2*j + 1)
                     else:
-                        fine_idx.append(2*(d + xsc) - xsf)
+                        fine_idx.append(2*(d + gsc) - gsf)
                 rhs += weight * yf[tuple(fine_idx)]
 
         self._restrict_eq = Eq(xc[tuple(dims)], rhs)
@@ -351,3 +506,13 @@ class GridTransferEquations:
     def restrict_eq(self):
         """Equations passed to `rcompile` for `RestrictionMult`."""
         return self._restrict_eq
+
+    @property
+    def glb_start_syms_f(self):
+        """GlobalStartScalar instances for the fine-level global starts."""
+        return self._glb_start_syms_f
+
+    @property
+    def glb_start_syms_c(self):
+        """GlobalStartScalar instances for the coarse-level global starts."""
+        return self._glb_start_syms_c
