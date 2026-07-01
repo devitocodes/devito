@@ -260,10 +260,11 @@ class Fusion(Queue):
         # next stage by grouping together those Clusters characterized by the same
         # `prefix` IterationSpace.
         if len(counter.most_common()) > 1:
-            key = lambda c: c.ispace.prefix(prefix.itdims)
+            #key = lambda c: c.ispace.prefix(prefix.itdims)
+            key = lambda c: c.ispace
             a=cgroups
             cgroups = [
-                ClusterGroup(tuple(g), prefix) for _, g in groupby(cgroups, key=key)
+                ClusterGroup(tuple(g), k) for k, g in groupby(cgroups, key=key)
             ]
         #if "s_yz6" in str(cgroups):
 
@@ -295,7 +296,6 @@ class Fusion(Queue):
 #
 #            compatible = [i for i in candidates if m[i].syncs == k.syncs]
 #            candidates = compatible or candidates
-#            from IPython import embed; embed(header='XX')
 
             # Process the `weak` part of the key
             for i in range(len(k.weak), -1, -1):
