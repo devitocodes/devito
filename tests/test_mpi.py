@@ -21,6 +21,7 @@ from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
+from devito.types.dimension import ModuloDimension
 from examples.seismic.acoustic import acoustic_setup
 
 
@@ -3249,8 +3250,9 @@ class TestOperatorAdvanced:
 
         calls, _ = check_halo_exchanges(op, 2, 1)
         args = calls[0].arguments
-        assert args[-2].name == 't2'
-        assert args[-2].origin == t + 1
+        t2 = next(filter(lambda a: isinstance(a, ModuloDimension), args))
+        assert t2.name == 't2'
+        assert t2.origin == t + 1
 
 
 def gen_serial_norms(shape, so):
