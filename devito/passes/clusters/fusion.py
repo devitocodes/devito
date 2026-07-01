@@ -83,8 +83,8 @@ class Fusion(Queue):
     Fuse Clusters with compatible IterationSpace.
     """
 
-    #_q_guards_in_key = True
-    #_q_syncs_in_key = True
+    _q_guards_in_key = True
+    _q_syncs_in_key = True
 
     def __init__(self, toposort, options=None):
         options = options or {}
@@ -123,9 +123,9 @@ class Fusion(Queue):
                     # iteration Dimensions but different (partial) orderings
                     processed.extend(maybe_fusible)
 
-        # Maximize effectiveness of topo-sorting at the next stage by grouping
-        # together only those Clusters characterized by the same IterationSpace
-        # beyond `prefix`.
+        # Guarantee *correctness* and maximize *effectiveness* of topo-sorting in the
+        # next stage by grouping together those Clusters characterized by the same
+        # `prefix` IterationSpace.
         #TODO
         if self.toposort and prefix:
             groups = groupby(processed, key=lambda c: c.ispace.prefix(prefix.itdims))
@@ -143,7 +143,8 @@ class Fusion(Queue):
             #groups = groupby(processed, key=mapper.get)
             #X = 'Cluster([Eq(queue22[qq3], IndexDerivative(s_yz32[i0 + ty + 7, tz]'
             #if X in str(processed):
-            #from IPython import embed; embed(header='XX')
+            #if "s_yz0" in str(cgroups):
+            #    from IPython import embed; embed(header='XX')
             return [ClusterGroup(tuple(g), prefix) for _, g in groups]
         else:
             return [ClusterGroup(processed, prefix)]
@@ -280,7 +281,6 @@ class Fusion(Queue):
 #
 #            compatible = [i for i in candidates if m[i].syncs == k.syncs]
 #            candidates = compatible or candidates
-            #from IPython import embed; embed(header='YY')
 
             # Process the `weak` part of the key
             for i in range(len(k.weak), -1, -1):
