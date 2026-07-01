@@ -102,17 +102,25 @@ class TestCodeGeneration:
         op = Operator(eqns, platform='nvidiaX', language='openacc',
                       opt=('advanced', {'par-tile': par_tile}))
 
+        # The injection nest is now wrapped in an ElementalFunction; the
+        # main IET carries the two stencil-style trees, and the injection's
+        # tile pragma lives on the efunc's outer ``p_src`` Iteration. Only
+        # ``p_src`` is collapsed because the hoisted position temporaries
+        # break the C-level perfect nest; the inner ``rp_*`` loops execute
+        # sequentially per thread, which is fine since their atomic update
+        # serializes the field write anyway.
         trees = retrieve_iteration_tree(op)
-        stile = (32, 4, 4, 4) if par_tile != (32, 4, 4, 8) else (32, 4, 4, 8)
-        assert len(trees) == 4
+        assert len(trees) == 3
 
         assert trees[0][1].pragmas[0].ccode.value ==\
             'acc parallel loop tile(32,4,4) present(u)'
         assert trees[1][1].pragmas[0].ccode.value ==\
             'acc parallel loop tile(32,4) present(u)'
-        strtile = ','.join([str(i) for i in stile])
-        assert trees[3][1].pragmas[0].ccode.value ==\
-            f'acc parallel loop tile({strtile}) present(src,src_coords,u)'
+
+        inject = op._func_table['inject_src0'].root
+        inject_trees = retrieve_iteration_tree(inject)
+        assert inject_trees[0][0].pragmas[0].ccode.value ==\
+            'acc parallel loop tile(32) present(src,src_coords,u)'
 
     @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
                                           ((32, 4, 4), (8, 8, 8)),
@@ -132,16 +140,22 @@ class TestCodeGeneration:
         op = Operator(eqns, platform='nvidiaX', language='openacc',
                       opt=('advanced', {'par-tile': par_tile}))
 
+        # The injection nest is now wrapped in an ElementalFunction whose own
+        # ``p_src`` Iteration consumes the first par-tile item, so the
+        # stencil-style trees in the main IET pick up the remaining items.
         trees = retrieve_iteration_tree(op)
-        assert len(trees) == 4
+        assert len(trees) == 3
 
         assert trees[0][1].pragmas[0].ccode.value ==\
-            'acc parallel loop tile(32,4,4) present(u)'
+            'acc parallel loop tile(8,8,8) present(u)'
+        sclause2 = 'collapse(2)' if par_tile[-1] is None else 'tile(8,8)'
         assert trees[1][1].pragmas[0].ccode.value ==\
-            'acc parallel loop tile(8,8) present(u)'
-        sclause = 'collapse(4)' if par_tile[-1] is None else 'tile(8,8,8,8)'
-        assert trees[3][1].pragmas[0].ccode.value ==\
-            f'acc parallel loop {sclause} present(src,src_coords,u)'
+            f'acc parallel loop {sclause2} present(u)'
+
+        inject = op._func_table['inject_src0'].root
+        inject_trees = retrieve_iteration_tree(inject)
+        assert inject_trees[0][0].pragmas[0].ccode.value ==\
+            'acc parallel loop tile(32) present(src,src_coords,u)'
 
     def test_multi_tile_blocking_structure(self):
         grid = Grid(shape=(8, 8, 8))

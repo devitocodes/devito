@@ -134,7 +134,6 @@ class HaloScheme:
     """
 
     def __init__(self, exprs, ispace):
-        # Derive the halo exchanges
         self._mapper = frozendict(classify(exprs, ispace))
 
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions,

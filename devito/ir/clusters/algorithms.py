@@ -477,7 +477,15 @@ class HaloComms(Queue):
             key = lambda i: key0(i) and key1(i)  # noqa: B023
             ispace = c.ispace.project(key)
 
-            properties = c.properties.sequentialize()
+            # Only sequentialize the Dimensions that actually drive the
+            # halo (its ``loc_indices`` and the Dimensions they define).
+            # Sequentialising *every* outer Dimension would also bring
+            # along independent iterators like ``p_rec`` for an
+            # interpolation, vetoing downstream blocking of the real
+            # cluster the HaloTouch sits alongside.
+            relevant = set().union(*(i._defines for i in hs.loc_indices))
+            seq_dims = [d for d in c.properties if d in relevant]
+            properties = c.properties.sequentialize(seq_dims)
 
             halo_touch = c.rebuild(exprs=expr, ispace=ispace, properties=properties)
 

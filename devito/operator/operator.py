@@ -19,7 +19,7 @@ from devito.exceptions import (
     CompilationError, ExecutionError, InvalidArgument, InvalidOperator
 )
 from devito.ir.clusters import ClusterGroup, clusterize
-from devito.ir.equations import LoweredEq, concretize_subdims, lower_exprs
+from devito.ir.equations import concretize_subdims, lower_eq, lower_exprs
 from devito.ir.iet import (
     Callable, CInterface, DeviceFunction, EntryFunction, FindSymbols, MetaCall,
     derive_parameters, iet_build
@@ -33,7 +33,8 @@ from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
     Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
-    lower_dtypes, lower_index_derivatives, minimize_symbols, optimize_pows, unevaluate
+    lower_dtypes, lower_index_derivatives, lower_sparse_ops, minimize_symbols,
+    optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
@@ -206,7 +207,10 @@ class Operator(Callable):
 
     @classmethod
     def _sanitize_exprs(cls, expressions, **kwargs):
-        expressions = as_tuple(expressions)
+        # Flatten so callers can mix nested lists (e.g. ``free_surface``
+        # returning a list, or multi-field injections returning one
+        # ``SparseEq`` per field) without having to manually unpack them.
+        expressions = tuple(flatten(as_tuple(expressions)))
 
         for i in expressions:
             if not isinstance(i, Evaluable):
@@ -376,12 +380,9 @@ class Operator(Callable):
 
         # "True" lowering (indexification, shifting, ...)
         expressions = lower_exprs(expressions, **kwargs)
-
-        # Turn user-defined SubDimensions into concrete SubDimensions,
-        # in particular uniqueness across expressions is ensured
         expressions = concretize_subdims(expressions, **kwargs)
 
-        processed = [LoweredEq(i) for i in expressions]
+        processed = [lower_eq(i) for i in expressions]
 
         return processed
 
@@ -504,8 +505,12 @@ class Operator(Callable):
         parameters = derive_parameters(uiet, True)
         iet = EntryFunction(name, uiet, 'int', parameters, ())
 
-        # Lower IET to a target-specific IET
+        # Materialise the sparse-op iteration nests into ElementalFunctions
+        # before target specialisation, so the position/coefficient temps
+        # the IET pass emits are visible to downstream passes (e.g. the
+        # data-transfer placement on device).
         graph = Graph(iet, **kwargs)
+        lower_sparse_ops(graph, **kwargs)
         graph = cls._specialize_iet(graph, **kwargs)
 
         # Instrument the IET for C-level profiling
