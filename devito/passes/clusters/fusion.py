@@ -130,13 +130,13 @@ class Fusion(Queue):
         if self.toposort and prefix:
             groups = groupby(processed, key=lambda c: c.ispace.prefix(prefix.itdims))
 
-            groups1 = groupby(processed, key=lambda c: c.ispace.prefix(prefix.itdims))
-            a=[]
-            for k, group in groups1:
-                g = list(group)
-                print(g)
-                print("----")
-                a.append(g)
+            #groups1 = groupby(processed, key=lambda c: c.ispace.prefix(prefix.itdims))
+            #a=[]
+            #for k, group in groups1:
+            #    g = list(group)
+            #    print(g)
+            #    print("----")
+            #    a.append(g)
 
             #dag = self._build_dag(processed, prefix)
             #mapper = dag.connected_components(enumerated=True)
