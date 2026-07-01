@@ -8,7 +8,7 @@ from devito.ir import (
     WaitLock, WithLock, normalize_syncs
 )
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
-from devito.symbolics import IntDiv, retrieve_terminals, uxreplace
+from devito.symbolics import IntDiv, retrieve_dimensions, retrieve_terminals, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock, VirtualDimension
 
@@ -330,20 +330,22 @@ def _actions_from_update_memcpy(c, d, bounds, clusters, actions, sregistry):
 
     pc = c.rebuild(exprs=expr, ispace=ispace, guards=guards, syncs=syncs)
 
-    # Since we're turning `e` into a prefetch, we need to:
-    # 1) attach a WaitLock SyncOp to the first Cluster accessing `target`
-    # 2) insert the prefetch Cluster right after the last Cluster accessing `target`
-    # 3) drop the original Cluster performing a memcpy-like fetch
-    n = clusters.index(c)
-    first = None
-    last = None
-    for c1 in clusters[n+1:]:
-        if target in c1.scope.reads:
-            if first is None:
-                first = c1
-            last = c1
-    assert first is not None
-    assert last is not None
+    # Wait before the first, prefetch after the last access to `target`, then
+    # drop the memcpy `c`. `c` may be toposorted amid the readers, so scan them
+    # all; count only reads over the streamed `pd`, not the buffer-init loop.
+    reads = [c1 for c1 in clusters
+             if c1 is not c and target in c1.scope.reads and pd in c1.ispace.itdims]
+    assert reads
+    first = reads[0]
+    last = reads[-1]
+
+    # Advance `last` past its loop nest so the prefetch follows it rather than
+    # splitting it, e.g. severing an interpolation's store from its point loop
+    nest_dims = set(last.ispace.itdims) - set(d._defines)
+    for c1 in clusters[clusters.index(last)+1:]:
+        if not nest_dims & set(c1.ispace.itdims):
+            break
+        last = c1
 
     actions[first].syncs[d].append(WaitLock(handle, target))
     actions[last].insert.append(pc)
@@ -417,7 +419,10 @@ def _(expr, dim, dir):
 
         3//2 - 1 + 0 = 0
     """
-    if expr.lhs._defines & dim._defines:
+    dims = retrieve_dimensions(expr.lhs)
+    assert len(dims) == 1
+    ldim = dims.pop()
+    if ldim._defines & dim._defines:
         if dir == 1:
             return expr + dir
         else:

@@ -365,6 +365,8 @@ def generate_conditionals(expr, input_expr, ordering):
                 cond = d.relation(cond, GuardFactor(d))
             conditionals[d] = cond
 
+    if not conditionals and not input_expr.implicit_dims:
+        return expr, conditionals
     # Merge conditionals when possible. E.g., if an implicit_dim shares
     # its parent Dimension with another ConditionalDimension, the two
     # conditions can be merged into a single guard.

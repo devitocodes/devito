@@ -303,7 +303,11 @@ class InjectBuffers(Queue):
                         processed.append(c)
                         continue
 
-                    key1 = lambda d: not d._defines & v.dim._defines  # noqa: B023
+                    # Lift only along the buffer's own spatial Dimensions, not
+                    # unrelated ones (e.g. sparse points of an indirect read)
+                    key1 = lambda d: (not d._defines & v.dim._defines and  # noqa: B023
+                                      any(d._defines & bd._defines  # noqa: B023
+                                          for bd in v.bdims))  # noqa: B023
                     dims = c.ispace.project(key1).itdims
                     ispace = c.ispace.lift(dims, key0())
                     processed.append(c.rebuild(ispace=ispace))
@@ -465,30 +469,37 @@ class BufferDescriptor:
     def ispace(self):
         # The IterationSpace within which the buffer will be accessed
 
-        # NOTE: The `key` is to avoid Clusters including `f` but not directly
-        # using it in an expression, such as HaloTouch Clusters
-        def key(c):
-            bufferdim = any(i in c.ispace.dimensions for i in self.bdims)
-            xd_only = all(d._defines & self.xd._defines for d in c.ispace.dimensions)
-            return bufferdim or xd_only
-
         ispaces = set()
+        indirect = set()
         for c in self.clusters:
-            if not key(c):
-                continue
-
-            # Skip wild clusters (e.g. HaloTouch Clusters)
+            # Skip wild clusters (e.g. HaloTouch Clusters), which include `f`
+            # but do not directly use it in an expression
             if c.is_wild:
                 continue
 
-            # Iterations space and buffering dims
-            edims = [d for d in self.bdims if d not in c.ispace.dimensions]
-            if not edims:
-                ispaces.add(c.ispace)
-            else:
-                # Add all missing buffering dimensions and reorder to
-                # avoid duplicates with different ordering
-                ispaces.add(c.ispace.insert(self.dim, edims).reorder())
+            bufferdim = any(i in c.ispace.dimensions for i in self.bdims)
+            xd_only = all(d._defines & self.xd._defines for d in c.ispace.dimensions)
+
+            if bufferdim or xd_only:
+                # `c` iterates (at least some of) the buffer's spatial dims
+                edims = [d for d in self.bdims if d not in c.ispace.dimensions]
+                if not edims:
+                    ispaces.add(c.ispace)
+                else:
+                    # Add all missing buffering dimensions and reorder to
+                    # avoid duplicates with different ordering
+                    ispaces.add(c.ispace.insert(self.dim, edims).reorder())
+            elif ((self.f in c.scope.reads or self.f in c.scope.writes) and
+                  self.dim.root in c.ispace.dimensions):
+                # `c` accesses `f` indirectly (e.g. interpolation), so it doesn't
+                # iterate `bdims`; span the buffer's own Dimensions instead
+                tispace = c.ispace.project(lambda i: i._defines & self.dim.root._defines)
+                indirect.add(tispace.insert(self.dim, list(self.bdims)))
+
+        # Indirect accessors define the ispace only for a read-only streamed
+        # buffer, where nothing iterates the buffer's own Dimensions directly
+        if not ispaces:
+            ispaces = indirect
 
         if len(ispaces) > 1:
             # Best effort to make buffering work in the presence of multiple
@@ -609,7 +620,11 @@ class BufferDescriptor:
         mapper = {}
         func = vmax if self.is_forward_buffering else vmin
         for c in self.lastwrite + self.firstread:
-            indices = extract_indices(self.f, self.dim, [c])
+            # Consider all Clusters sharing `c`'s guards, so the leading edge is
+            # found even when `f` is accessed at different offsets across them
+            # (e.g. `f` and `f.forward` in separate Eqs)
+            group = [c1 for c1 in self.clusters if c1.guards == c.guards]
+            indices = extract_indices(self.f, self.dim, group)
             idx = func(*[Vector(i) for i in indices])[0]
             mapper[c] = idx
 
