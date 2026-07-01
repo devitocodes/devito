@@ -123,6 +123,8 @@ class Fusion(Queue):
                     # iteration Dimensions but different (partial) orderings
                     processed.extend(maybe_fusible)
 
+        return [ClusterGroup(c, c.ispace) for c in processed]
+
         # Guarantee *correctness* and maximize *effectiveness* of topo-sorting in the
         # next stage by grouping together those Clusters characterized by the same
         # `prefix` IterationSpace.
@@ -247,11 +249,23 @@ class Fusion(Queue):
         return processed
 
     def _toposort(self, cgroups, prefix):
+        counter = Counter(self._key(cg).itintervals for cg in cgroups)
+
         # Are there any ClusterGroups that could potentially be topologically
         # reordered? If not, do not waste time
-        counter = Counter(self._key(cg).itintervals for cg in cgroups)
         if not any(v > 1 for it, v in counter.most_common()):
             return ClusterGroup(cgroups, prefix)
+
+        # Guarantee *correctness* and maximize *effectiveness* of topo-sorting in the
+        # next stage by grouping together those Clusters characterized by the same
+        # `prefix` IterationSpace.
+        if len(counter.most_common()) > 1:
+            key = lambda c: c.ispace.prefix(prefix.itdims)
+            a=cgroups
+            cgroups = [
+                ClusterGroup(tuple(g), prefix) for _, g in groupby(cgroups, key=key)
+            ]
+        #if "s_yz6" in str(cgroups):
 
         dag = self._build_dag(cgroups, prefix)
 
@@ -281,6 +295,7 @@ class Fusion(Queue):
 #
 #            compatible = [i for i in candidates if m[i].syncs == k.syncs]
 #            candidates = compatible or candidates
+#            from IPython import embed; embed(header='XX')
 
             # Process the `weak` part of the key
             for i in range(len(k.weak), -1, -1):
