@@ -1459,9 +1459,8 @@ class MultigridCallbackMixin:
         dmf = self.solver_objs['dmf']
         self.solver_objs['pctx'] = ProlongCtx(name='pctx', fields=[dmc, dmf, uctx_c, uctx_f], destroy=False)
         
-        self._make_prolongation_matmult()
-        # TODO: Change name, make it interpolation_destroy?
-        self._make_prolongation_destroy()
+        self._make_interpolation_matmult()
+        self._make_interpolation_destroy()
         self._make_interpolation()
         self._make_restriction_matmult()
         self._make_restriction()
@@ -1734,27 +1733,27 @@ class MultigridCallbackMixin:
     def make_coarsen_efunc(self):
         return self._make_coarsen_efunc
 
-    def _make_prolongation_matmult(self, prefix='ProlongationMult'):
-        # grab prolongation equations
-        eqns = self.multigrid_metadata.prolongation.prolong_eqs
+    def _make_interpolation_matmult(self, prefix='InterpolationMult'):
+        # grab interpolation equations
+        eqns = self.multigrid_metadata.interpolation.interp_eqs
         irs, _ = self.rcompile(
             eqns, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
         )
-        body = self._create_prolongation_matvec_body(
+        body = self._create_interpolation_matvec_body(
             List(body=irs.uiet.body),
         )
         sobjs = self.solver_objs
         cb = self._make_petsc_callable(
             prefix, body, parameters=(sobjs['mat'], sobjs['xcoarse'], sobjs['yfine'])
         )
-        self._prolongation_matmult_efunc = cb
+        self._interpolation_matmult_efunc = cb
         self._efuncs[cb.name] = cb
 
     # TODO: there is a lot of overlap here with _make_matvec_body()
     # TODO: do I need to use dummmy structs in case new symbols are generated?
     # TODO: really simplify the structs in all the petsc lowering....
-    def _create_prolongation_matvec_body(self, body):
+    def _create_interpolation_matvec_body(self, body):
         sobjs = self.solver_objs
         objs = self.objs
         pctx = sobjs['pctx']
@@ -1767,7 +1766,7 @@ class MultigridCallbackMixin:
             write_dm=dmf, write_glob=sobjs['yfine'], write_local=objs['yloc'],
         )
 
-        # Prolongation loops over fine indices, so remap loop bounds to uctx_f.
+        # Interpolation loops over fine indices, so remap loop bounds to uctx_f.
         uctx_c = sobjs['uctx_c']
         uctx_f = sobjs['uctx_f']
         subs = {
@@ -1797,12 +1796,12 @@ class MultigridCallbackMixin:
                                     zero_read_local=False,
                                     scatter_mode=None):
         """
-        Shared body builder for ProlongationMult and RestrictionMult.
+        Shared body builder for InterpolationMult and RestrictionMult.
         """
         if scatter_mode is None:
             scatter_mode = insert_values
 
-        multigrid_metadata = self.multigrid_metadata.prolongation
+        multigrid_metadata = self.multigrid_metadata.interpolation
         objs = self.objs
         sobjs = self.solver_objs
 
@@ -1903,7 +1902,7 @@ class MultigridCallbackMixin:
         )
 
         uctx_f = sobjs['uctx_f']
-        glb_start_syms_f = self.multigrid_metadata.prolongation.glb_start_syms_f
+        glb_start_syms_f = self.multigrid_metadata.interpolation.glb_start_syms_f
         subs = {}
         for i in fields:
             if isinstance(i, GlobalStartScalar):
@@ -1925,10 +1924,10 @@ class MultigridCallbackMixin:
         return body
 
     @property
-    def prolongation_matmult_efunc(self):
-        return self._prolongation_matmult_efunc
+    def interpolation_matmult_efunc(self):
+        return self._interpolation_matmult_efunc
 
-    def _make_prolongation_destroy(self):
+    def _make_interpolation_destroy(self):
         """
         """
         pctx = ProlongCtx(name='pctx', fields=[], destroy=True)
@@ -1938,15 +1937,15 @@ class MultigridCallbackMixin:
         ]
         callable_body = self._make_callable_body(body)
         cb = self._make_petsc_callable(
-            'ProlongationDestroy', callable_body,
+            'InterpolationDestroy', callable_body,
             parameters=(mat)
         )
-        self._prolongation_destroy_efunc = cb
+        self._interpolation_destroy_efunc = cb
         self._efuncs[cb.name] = cb
 
     @property
-    def prolongation_destroy_efunc(self):
-        return self._prolongation_destroy_efunc
+    def interpolation_destroy_efunc(self):
+        return self._interpolation_destroy_efunc
 
     def _make_interpolation(self):
         """
@@ -1983,8 +1982,8 @@ class MultigridCallbackMixin:
                 _local_dmda_size(finfo, self.field_data.space_dimensions),
                 _local_dmda_size(cinfo, self.field_data.space_dimensions),
                 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]),
-            petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_MULT', MatShellSetOp(self._prolongation_matmult_efunc.name, void, void)]),
-            petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_DESTROY', MatShellSetOp(self._prolongation_destroy_efunc.name, void, void)]),
+            petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_MULT', MatShellSetOp(self._interpolation_matmult_efunc.name, void, void)]),
+            petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_DESTROY', MatShellSetOp(self._interpolation_destroy_efunc.name, void, void)]),
             # No scaling vector
             Conditional(vec, DummyExpr(Deref(vec), Null)),
         ]
@@ -2004,7 +2003,7 @@ class MultigridCallbackMixin:
         return self._make_interpolation_efunc
 
     def _make_restriction_matmult(self, prefix='RestrictionMult'):
-        eqns = [self.multigrid_metadata.prolongation.restrict_eq]
+        eqns = [self.multigrid_metadata.interpolation.restrict_eq]
         irs, _ = self.rcompile(
             eqns, options={'mpi': False}, sregistry=self.sregistry,
             concretize_mapper=self.concretize_mapper
@@ -2072,7 +2071,7 @@ class MultigridCallbackMixin:
             ]),
             petsc_call('MatShellSetOperation', [
                 Deref(mat), 'MATOP_DESTROY',
-                MatShellSetOp(self._prolongation_destroy_efunc.name, void, void)
+                MatShellSetOp(self._interpolation_destroy_efunc.name, void, void)
             ]),
         ]
 

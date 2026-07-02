@@ -18,7 +18,7 @@ class GlobalStartScalar(Scalar):
     The global index of the first owned point on this MPI rank for a given
     dimension and grid level.
 
-    Used in prolongation/restriction equations to convert between local and
+    Used in interpolation/restriction equations to convert between local and
     global indices without calling DMDAGetLocalInfo at runtime.
     _arg_values reads distributor.glb_slices[dim].start.
     """
@@ -334,10 +334,10 @@ class GridHierarchy:
 class MultigridMetadata:
     """
     PETSc-specific multigrid metadata: holds the GridHierarchy and the
-    prolongation/restriction transfer equations for the target Function.
+    interpolation/restriction transfer equations for the target Function.
 
     Symbols are created once here and shared with GridTransferEquations so
-    that prolongation/restriction and FormFunction/MatMult index transforms
+    that interpolation/restriction and FormFunction/MatMult index transforms
     reference the same objects.
     """
 
@@ -364,7 +364,7 @@ class MultigridMetadata:
         self._glb_start_syms_f = tuple(glb_starts_f)
         self._gsc_c = tuple(gsc_c_syms)
         self._factor = CoarseningFactorScalar('factor', depth=0)
-        self._prolongation = GridTransferEquations(
+        self._interpolation = GridTransferEquations(
             target, glb_starts_f=self._glb_start_syms_f
         )
 
@@ -373,8 +373,8 @@ class MultigridMetadata:
         return self._hierarchy
 
     @property
-    def prolongation(self):
-        return self._prolongation
+    def interpolation(self):
+        return self._interpolation
 
     @property
     def glb_start_syms_f(self):
@@ -442,12 +442,12 @@ class GridTransferEquations:
         self._glb_start_syms_f = tuple(glb_starts_f)
         self._glb_start_syms_c = tuple(glb_starts_c)
 
-        # Lagrange weights at the midpoint — shared by prolongation and restriction.
+        # Lagrange weights at the midpoint — shared by interpolation and restriction.
         start = -(so // 2 - 1)
         pts = list(range(start, start + so))
         w = finite_diff_weights(0, pts, Rational(1, 2))[-1][-1]
 
-        # Prolongation: loop over fine indices. LHS is always yf[dims].
+        # Interpolation: loop over fine indices. LHS is always yf[dims].
         # The parity of the global fine index (d + gsf) in each dimension determines
         # whether the fine point coincides with a coarse point (inject) or lies between
         # two coarse points (interpolate). A ConditionalDimension gates each of the
@@ -455,7 +455,7 @@ class GridTransferEquations:
         # even, so (d + gsf - f) // 2 is an exact integer coarse index.
         # Ghost coarse reads (local index -1) are handled naturally by the halo — no
         # loop-bound extension is needed.
-        prolong_eqs = []
+        interp_eqs = []
         for flags in iterproduct([0, 1], repeat=ndim):
             conditions = [
                 sympy.Eq(sympy.Mod(d + gsf, 2), f)
@@ -488,8 +488,8 @@ class GridTransferEquations:
                     idx.append(i_c_expr)
                 rhs += weight * xc[tuple(idx)]
 
-            prolong_eqs.append(Eq(lhs, rhs, implicit_dims=(cd,)))
-        self._prolong_eqs = tuple(prolong_eqs)
+            interp_eqs.append(Eq(lhs, rhs, implicit_dims=(cd,)))
+        self._interp_eqs = tuple(interp_eqs)
 
         # Restriction: R = P^T. Loop over coarse indices — the natural direction.
         rhs = sympy.Integer(0)
@@ -509,9 +509,9 @@ class GridTransferEquations:
         self._restrict_eq = Eq(xc[tuple(dims)], rhs)
 
     @property
-    def prolong_eqs(self):
-        """Equations passed to `rcompile` for `ProlongationMult`."""
-        return self._prolong_eqs
+    def interp_eqs(self):
+        """Equations passed to `rcompile` for `InterpolationMult`."""
+        return self._interp_eqs
 
     @property
     def restrict_eq(self):
