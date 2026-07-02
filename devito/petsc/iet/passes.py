@@ -22,14 +22,15 @@ from devito.petsc.iet.solve import make_solver_cls
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.type_builder import make_type_builder_cls, objs
 from devito.petsc.types import (
-    ArgvSymbol, CallbackUserStruct, Finalize, Initialize, MainUserStruct,
-    MultipleFieldData
+    ArgvSymbol, CallbackUserStruct, CoarseningFactorScalar, CoarseThickness,
+    Finalize, FineGlobalStartScalar, GlobalStartScalar, Initialize, MainUserStruct,
+    MultipleFieldData, SubGridScalar
 )
 from devito.petsc.types.macros import petsc_func_begin_user
 
 from devito.symbolics import Byref, FieldFromPointer, IndexedPointer, Macro, Null
 from devito.types.basic import DataSymbol, LocalType
-from devito.types.dimension import DefaultDimension
+from devito.types.dimension import DefaultDimension, Thickness
 from devito.types.misc import FIndexed
 
 
@@ -166,9 +167,13 @@ def fix_mg_populate_calls(graph, **kwargs):
     list, rebuild each `MgPopulateCall` in the Kernel with correctly scaled
     arguments for the given grid level.
 
-    For coarse levels each symbol is replaced via SubGrid.coarse_symbol_for,
-    which produces CoarseThickness / CoarseGridScalar instances whose
-    _arg_values use the CoarseDistributor for per-rank correct values.
+    The callback is compiled once against the fine grid's symbols and reused
+    at every level; this rewrites each level's call-site arguments to the
+    coarse-level equivalent. Dimension bounds (`x_M`/`x_size`) and spacing
+    (`h_x`) already have a native per-level symbol on the SubGrid itself
+    (it's a real Grid), so those are used directly. Only Thickness (SubDomain
+    boundary width) needs actual coarsening arithmetic, since it isn't
+    something a Grid generates on its own.
     """
     mg_calls = FindNodes(MgPopulateCall).visit(graph.root)
     if not mg_calls:
@@ -178,9 +183,44 @@ def fix_mg_populate_calls(graph, **kwargs):
     field_params = populate_efunc.parameters[1:]
 
     def _param(f, call):
-        if call.level > 0 and call.hierarchy is not None:
-            subgrid = call.hierarchy.coarse_levels[call.level - 1]
-            return subgrid.coarse_symbol_for(f)
+        if call.level == 0 or call.hierarchy is None:
+            return f
+        subgrid = call.hierarchy.coarse_levels[call.level - 1]
+        # Every level's distributor/Dimensions are keyed by that SubGrid's
+        # own coarse Dimensions, not the fine grid's - map fine -> coarse.
+        coarse_dim_map = dict(zip(subgrid.parent.dimensions, subgrid.dimensions))
+
+        if isinstance(f, Thickness):
+            return _coarse_thickness(f, subgrid, coarse_dim_map)
+        elif isinstance(f, FineGlobalStartScalar):
+            return f
+        elif isinstance(f, GlobalStartScalar):
+            return GlobalStartScalar(
+                name=f'{f.root.name}_d{subgrid.coarsening_depth}',
+                dim=coarse_dim_map[f._dim], distributor=subgrid.distributor,
+                root=f.root,
+            )
+        elif isinstance(f, CoarseningFactorScalar):
+            return CoarseningFactorScalar(
+                name=f'factor_d{subgrid.coarsening_depth}',
+                depth=subgrid.coarsening_depth,
+            )
+
+        for i, (fine_dim, coarse_dim) in enumerate(coarse_dim_map.items()):
+            if f is fine_dim.spacing:
+                return SubGridScalar(coarse_dim.spacing.name,
+                                     value=subgrid.spacing[i],
+                                     dtype=coarse_dim.spacing.dtype)
+            elif f.name == fine_dim.min_name:
+                return SubGridScalar(coarse_dim.min_name, value=0, dtype=np.int32)
+            elif f.name == fine_dim.max_name:
+                return SubGridScalar(coarse_dim.max_name,
+                                     value=subgrid.shape_local[i] - 1,
+                                     dtype=np.int32)
+            elif f.name == fine_dim.size_name:
+                return SubGridScalar(coarse_dim.size_name,
+                                     value=subgrid.shape_local[i],
+                                     dtype=np.int32)
         return f
 
     mapper = {
@@ -193,6 +233,19 @@ def fix_mg_populate_calls(graph, **kwargs):
     }
     root_name = graph.root.name
     graph.efuncs[root_name] = Transformer(mapper).visit(graph.efuncs[root_name])
+
+
+def _coarse_thickness(f, subgrid, coarse_dim_map):
+    """
+    Build the coarse-level Thickness token for a coarse multigrid level.
+    """
+    factor = 2 ** subgrid.coarsening_depth
+    coarse_val = (f.value + factor - 1) // factor
+    return CoarseThickness(
+        name=f'{f.name}_d{subgrid.coarsening_depth}',
+        root=coarse_dim_map[f.root], side=f.side, local=f.local,
+        value=coarse_val, distributor=subgrid.distributor
+    )
 
 
 @iet_pass

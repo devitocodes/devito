@@ -91,7 +91,10 @@ class BaseTypeBuilder:
         One stack Array per spatial dim with per-rank node counts.
         """
         sreg = self.sregistry
-        dims = self.field_data.grid.dimensions
+        # Each level's distributor is keyed by its own Dimensions (the fine
+        # Grid's for the fine level, the SubGrid's own for a coarse level) -
+        # not the fine grid's dims uniformly.
+        dims = distributor.dimensions
         arrays = []
         for dim in reversed(dims):
             sizes = tuple(len(sub) for sub in distributor.decomposition[dim])

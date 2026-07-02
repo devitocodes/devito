@@ -9,11 +9,32 @@ from devito.mpi import CoarseDistributor
 from devito.symbolics import IntDiv
 from devito.tools import as_tuple
 from devito.types.basic import Scalar
-from devito.types.dimension import ConditionalDimension, Spacing, Thickness
+from devito.types.dimension import ConditionalDimension, SpaceDimension, Spacing, Thickness
 from devito.types.equation import Eq
+from devito.types.grid import Grid
 
 
-class GlobalStartScalar(Scalar):
+class CoarseParam:
+    is_Input = True
+
+
+class SubGridScalar(CoarseParam, Scalar):
+    """
+    """
+
+    __rkwargs__ = Scalar.__rkwargs__ + ('value',)
+
+    def __new__(cls, name, value=None, **kwargs):
+        newobj = super().__new__(cls, name, **kwargs)
+        newobj._value = value
+        return newobj
+
+    @property
+    def default_value(self):
+        return self._value
+
+
+class GlobalStartScalar(CoarseParam, Scalar):
     """
     The global index of the first owned point on this MPI rank for a given
     dimension and grid level.
@@ -22,8 +43,6 @@ class GlobalStartScalar(Scalar):
     global indices without calling DMDAGetLocalInfo at runtime.
     _arg_values reads distributor.glb_slices[dim].start.
     """
-
-    is_Input = True
 
     __rkwargs__ = ('name', 'dtype', 'is_const', 'dim', 'distributor', 'root')
 
@@ -53,37 +72,10 @@ class FineGlobalStartScalar(GlobalStartScalar):
     """
 
 
-class CoarseGridScalar(Scalar):
-    """
-    A rank-local dimension scalar for a coarse multigrid level.
-
-    offset = -1 for *_M symbols, 0 for *_size symbols.
-    is_Input = True so the operator's argument collection calls _arg_values.
-    """
-
-    is_Input = True
-
-    __rkwargs__ = ('name', 'dtype', 'is_const', 'dim', 'distributor', 'offset')
-
-    def __new__(cls, name, dim=None, distributor=None, offset=0, **kwargs):
-        kwargs.setdefault('dtype', np.int32)
-        kwargs.setdefault('is_const', True)
-        newobj = super().__new__(cls, name, **kwargs)
-        newobj._dim = dim
-        newobj._distributor = distributor
-        newobj._offset = offset
-        return newobj
-
-    def _arg_values(self, **kwargs):
-        return {self.name: self._distributor.shape[self._dim] + self._offset}
-
-
-class CoarseningFactorScalar(Scalar):
+class CoarseningFactorScalar(CoarseParam, Scalar):
     """
     The coarsening factor at a given multigrid level relative to the fine grid.
     """
-
-    is_Input = True
 
     __rkwargs__ = ('name', 'dtype', 'is_const', 'depth')
 
@@ -130,57 +122,55 @@ class CoarseThickness(Thickness):
         return {self.name: tkn}
 
 
-class SubGrid:
+class SubGrid(Grid):
 
     """
-    A coarser-level grid in a multigrid hierarchy.
+    A coarser level in a GridHierarchy of successively factor-2 coarsened
+    Grids.
 
-    Shares SpaceDimensions, physical extent, and dtype with the parent Grid
-    but has a coarser shape and a CoarseDistributor for its MPI partition.
+    Behaves like an independent Grid - its own per-level SpaceDimensions,
+    spacing, and bounds (e.g. `x_d1_m`, `x_d1_M`) generated the same way a
+    plain Grid generates `x_m`, `x_M` - but reuses the parent Grid's MPI comm
+    and topology via a CoarseDistributor (which computes its own coarse
+    decomposition), and shares the parent's TimeDimension.
+
     Not constructed directly by users - created by GridHierarchy.
     """
 
     def __init__(self, shape, parent, coarsening_depth):
-        self._shape = as_tuple(shape)
+        shape = as_tuple(shape)
+        depth = coarsening_depth
+
+        dimensions = tuple(
+            SpaceDimension(
+                name=f'{d.name}_d{depth}',
+                spacing=Spacing(name=f'{d.spacing.name}_d{depth}',
+                                dtype=parent.dtype, is_const=True)
+            )
+            for d in parent.dimensions
+        )
+
+        super().__init__(
+            shape, extent=parent.extent, dimensions=dimensions,
+            dtype=parent.dtype, time_dimension=parent.time_dim,
+            comm=parent.distributor.comm, topology=parent.distributor.topology,
+        )
+
         self._parent = parent
-        self._coarsening_depth = coarsening_depth
-        self._distributor = CoarseDistributor(shape, parent.dimensions,
-                                              parent.distributor)
-        self._coarse_symbol_cache = {}
+        self._coarsening_depth = depth
+        # Grid.__init__ built a plain Distributor above; replace it with one
+        # that reuses the parent's comm/topology but computes its own coarse
+        # decomposition, keyed by this SubGrid's own Dimensions.
+        self._distributor = CoarseDistributor(shape, dimensions, parent.distributor)
 
     def __repr__(self):
-        return f'SubGrid[shape={self._shape}, dimensions={self.dimensions}]'
-
-    @property
-    def shape(self):
-        return self._shape
-
-    @property
-    def dimensions(self):
-        return self._parent.dimensions
-
-    @property
-    def dtype(self):
-        return self._parent.dtype
-
-    @property
-    def extent(self):
-        return self._parent.extent
-
-    @cached_property
-    def spacing(self):
-        spacing = (np.array(self.extent) /
-                   (np.array(self._shape) - 1)).astype(self.dtype)
-        return as_tuple(spacing)
-
-    @property
-    def distributor(self):
-        return self._distributor
+        return f'SubGrid[shape={self.shape}, dimensions={self.dimensions}]'
 
     @property
     def coarsening_depth(self):
         """
-        Number of factor-2 coarsenings from the fine Grid (1 = one halving, etc.).
+        Number of factor-2 coarsenings from the top-level Grid (1 = one
+        halving, etc.).
         """
         return self._coarsening_depth
 
@@ -188,71 +178,15 @@ class SubGrid:
     def parent(self):
         return self._parent
 
-    @cached_property
-    def factor(self):
-        """Coarsening factor relative to the fine grid: 2^coarsening_depth."""
-        return CoarseningFactorScalar(
-            f'factor_d{self._coarsening_depth}',
-            depth=self._coarsening_depth
-        )
-
-    def coarse_symbol_for(self, f):
-        """
-        Return the coarse-level equivalent of fine-grid symbol f.
-        """
-        try:
-            return self._coarse_symbol_cache[f]
-        except KeyError:
-            coarse = self._build_coarse_symbol(f)
-            self._coarse_symbol_cache[f] = coarse
-            return coarse
-
-    def _build_coarse_symbol(self, f):
-        factor = 2 ** self._coarsening_depth
-        if isinstance(f, Thickness):
-            coarse_val = (f.value + factor - 1) // factor
-            return CoarseThickness(
-                name=f'{f.name}_d{self._coarsening_depth}',
-                root=f.root, side=f.side, local=f.local,
-                value=coarse_val, distributor=self._distributor
-            )
-        elif isinstance(f, Spacing):
-            return f * factor
-        elif isinstance(f, CoarseningFactorScalar):
-            return CoarseningFactorScalar(
-                name=f'factor_d{self._coarsening_depth}',
-                depth=self._coarsening_depth
-            )
-        elif isinstance(f, FineGlobalStartScalar):
-            return f
-        elif isinstance(f, GlobalStartScalar):
-            return GlobalStartScalar(
-                name=f'{f.root.name}_d{self._coarsening_depth}',
-                dim=f._dim,
-                distributor=self._distributor,
-                root=f.root,
-            )
-        elif isinstance(f, Scalar):
-            for dim in self._parent.dimensions:
-                if f.name in (f'{dim.name}_M', f'{dim.name}_size'):
-                    offset = -1 if f.name.endswith('_M') else 0
-                    return CoarseGridScalar(
-                        name=f'{f.name}_d{self._coarsening_depth}',
-                        dim=dim,
-                        distributor=self._distributor,
-                        offset=offset
-                    )
-        return f
-
 
 class GridHierarchy:
 
     """
-    A hierarchy of grids for geometric multigrid.
+    A hierarchy of Grids for multi-resolution numerical methods (e.g.
+    geometric multigrid).
 
     Applies successive factor-2 coarsenings to a fine Grid, producing a
-    SubGrid per coarser level. Each SubGrid shares the fine Grid's
-    SpaceDimensions and physical extent.
+    SubGrid per coarser level.
 
     Levels are numbered starting from 0 for the fine grid:
     levels[0] = fine Grid, levels[1] = first coarse SubGrid, etc.

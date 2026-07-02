@@ -432,8 +432,6 @@ class Grid(CartesianDiscretization, ArgProvider):
         self._distributor = Distributor(self.shape, self.dimensions, MPI.COMM_SELF)
 
 
-
-
 class AbstractSubDomain(CartesianDiscretization):
 
     """
