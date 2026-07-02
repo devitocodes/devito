@@ -66,7 +66,7 @@ jobs:
 
     steps:
     - name: Checkout devito
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - id: build
       name: Build docker image
