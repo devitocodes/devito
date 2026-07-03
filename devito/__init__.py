@@ -112,8 +112,11 @@ configuration.add('jit-backdoor', 0, [0, 1], preprocessor=bool, impacts_jit=Fals
 # optimisations.
 configuration.add('safe-math', 0, [0, 1], preprocessor=bool, callback=reinit_compiler)
 
-# Use any GPU present for parameters such as the padding by default. This can be
-# disabled by setting this parameter to `0`, but should not be toggled.
+# Use any GPU present on the node to set parameters such as the autopadding value.
+# This can be disabled by setting this parameter to `0`, but should not be toggled.
+# By setting the value to zero the user is promising that they will not try to use
+# the GPU at any point during the running of their script, this is useful when
+# iGPUs, APUs or disabled GPUs are present on a node.
 configuration.add('gpu', 1, [0, 1], preprocessor=bool)
 
 
