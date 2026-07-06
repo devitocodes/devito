@@ -135,7 +135,7 @@ class Array(ArrayBasic):
     _symbol_prefix = 'a'
 
     __rkwargs__ = (ArrayBasic.__rkwargs__ +
-                   ('dimensions', 'scope', 'initvalue'))
+                   ('dimensions', 'scope', 'initvalue', 'mapped', 'is_autopaddable'))
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
@@ -147,6 +147,9 @@ class Array(ArrayBasic):
             return AbstractFunction.__new__(cls, *args, **kwargs)
 
     def __init_finalize__(self, *args, **kwargs):
+        self._mapped = kwargs.get('mapped')
+        self._is_autopaddable = kwargs.get('is_autopaddable')
+
         super().__init_finalize__(*args, **kwargs)
 
         self._scope = kwargs.get('scope', 'heap')
@@ -160,10 +163,31 @@ class Array(ArrayBasic):
     def __dtype_setup__(cls, **kwargs):
         return kwargs.get('dtype', np.float32)
 
+    @property
+    def is_autopaddable(self):
+        if self._is_autopaddable is not None:
+            return self._is_autopaddable
+        if self.mapped is None:
+            return True
+        return self.mapped.is_autopaddable
+
+    @property
+    def __padding_dtype__(self):
+        if not self.is_autopaddable:
+            return None
+        if self.mapped is not None:
+            return self.mapped.__padding_dtype__
+        return super().__padding_dtype__
+
     def __padding_setup__(self, **kwargs):
         # `padding=` is never honored: derived from policy to avoid stride
         # inconsistencies between Functions sharing dimensions/halo
-        if self.is_autopaddable:
+        if self.mapped is not None:
+            try:
+                padding = type(self.mapped).__padding_setup_smart__(self, **kwargs)
+            except (ValueError, AttributeError):
+                padding = ((0, 0),)*self.ndim
+        elif self.is_autopaddable:
             padding = self.__padding_setup_smart__(**kwargs)
         else:
             padding = ((0, 0),)*self.ndim
@@ -209,6 +233,18 @@ class Array(ArrayBasic):
     def initvalue(self):
         return self._initvalue
 
+    @property
+    def mapped(self):
+        return self._mapped
+
+    @property
+    def is_autopaddable(self):
+        if self._is_autopaddable is not None:
+            return self._is_autopaddable
+        if self.mapped is None:
+            return True
+        return self.mapped.is_autopaddable
+
     @cached_property
     def free_symbols(self):
         return super().free_symbols - {d for d in self.dimensions if d.is_Default}
@@ -237,33 +273,6 @@ class MappedArrayMixin:
 
 
 class ArrayMapped(MappedArrayMixin, Array):
-
-    __rkwargs__ = Array.__rkwargs__ + ('mapped', 'is_autopaddable')
-
-    def __init_finalize__(self, *args, **kwargs):
-        self._mapped = kwargs.get('mapped')
-        self._is_autopaddable = kwargs.get('is_autopaddable')
-        super().__init_finalize__(*args, **kwargs)
-
-    @property
-    def mapped(self):
-        return self._mapped
-
-    @property
-    def is_autopaddable(self):
-        if self._is_autopaddable is not None:
-            return self._is_autopaddable
-        if self.mapped is None:
-            return True
-        return self.mapped.is_autopaddable
-
-    @property
-    def __padding_dtype__(self):
-        if not self.is_autopaddable:
-            return None
-        if self.mapped is not None:
-            return self.mapped.__padding_dtype__
-        return super().__padding_dtype__
 
     @cached_property
     def _signature(self):
