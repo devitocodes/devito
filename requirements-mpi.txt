@@ -1,2 +1,2 @@
-mpi4py<4.1.2
+mpi4py<4.1.3
 ipyparallel<9.3
