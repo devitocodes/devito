@@ -7,11 +7,12 @@ from sympy import Integer, Rational, finite_diff_weights
 
 from devito.mpi import CoarseDistributor
 from devito.symbolics import IntDiv
-from devito.tools import as_tuple
+from devito.tools import Pickable, as_tuple, flatten
 from devito.types.basic import Scalar
 from devito.types.dimension import ConditionalDimension, SpaceDimension, Spacing, Thickness
 from devito.types.equation import Eq
 from devito.types.grid import Grid
+from devito.types.lazy import Evaluable
 
 
 class CoarseParam:
@@ -178,6 +179,10 @@ class SubGrid(Grid):
     def parent(self):
         return self._parent
 
+    @property
+    def root(self):
+        return self.parent.root
+
 
 class GridHierarchy:
 
@@ -326,6 +331,180 @@ class MultigridMetadata:
         return self._factor
 
 
+def _field_shifts(field):
+    """
+    Per-space-Dimension staggering of `field`, as a tuple of booleans ordered
+    like `field.space_dimensions` (True = staggered by half a cell). This is
+    not a physical distance (cf. WeightedInterpolator._field_shifts in
+    devito/operations/interpolators.py) -- the index math below works in
+    units of a single cell, not physical spacing. `PETScArray.staggered`
+    delegates to its target Function's own staggering, so this is
+    `(False, ...)` for a non-staggered PETSc target, unchanged from today's
+    behaviour.
+    """
+    staggered = field.staggered
+    if not staggered or staggered.on_node:
+        return (False,) * len(field.space_dimensions)
+    return tuple(bool(s) for d, s in zip(field.dimensions, staggered, strict=True)
+                 if d.is_Space)
+
+
+class GridTransfer:
+    """
+    Builds the interpolation and restriction Eqs transferring values between
+    a fine-level and a coarse-level object (anything exposing
+    `.space_dimensions` and supporting explicit tuple indexing, e.g.
+    `Function` or `PETScArray`) related by a single factor-2 coarsening.
+
+    `fine` and `coarse` must have matching per-dimension staggering -- they
+    are assumed to represent the same physical field at two resolutions, not
+    two different staggered variables (e.g. interpolating a multigrid-solved
+    pressure field between levels, never pressure <-> velocity).
+
+    A fine-grid point either coincides with a coarse-grid point or lies at
+    some fixed fractional position between two coarse-grid points, determined
+    at compile time by the parity of its global index and the (matching)
+    staggering. `ConditionalDimension` gates each of the 2**ndim parity
+    combinations; within each, Lagrange interpolation weights (degree `so`)
+    are evaluated at that fractional position. Restriction is the transpose
+    of interpolation.
+
+    `glb_starts_f`/`glb_starts_c` (per-dimension `GlobalStartScalar`s) convert
+    between local and global indices so the parity/offset arithmetic is
+    correct even when `fine` and `coarse` are decomposed independently under
+    MPI. If not supplied, they are built from `fine.grid.distributor` /
+    `coarse.grid.distributor` respectively.
+    """
+
+    def __init__(self, fine, coarse, so=None, glb_starts_f=None, glb_starts_c=None):
+        self.fine = fine
+        self.coarse = coarse
+        self.fine_dims = fine.space_dimensions
+        self.coarse_dims = coarse.space_dimensions
+        self.so = so if so is not None else fine.space_order
+        self.shifts = _field_shifts(fine)
+
+        if glb_starts_f is None:
+            distributor = fine.grid.distributor
+            glb_starts_f = []
+            for d in self.fine_dims:
+                root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
+                glb_starts_f.append(
+                    GlobalStartScalar(f'{d.name}_m_glb_f', dim=d,
+                                      distributor=distributor, root=root)
+                )
+        self.glb_starts_f = tuple(glb_starts_f)
+
+        if glb_starts_c is None:
+            distributor = coarse.grid.distributor
+            glb_starts_c = []
+            for i, d in enumerate(self.coarse_dims):
+                glb_starts_c.append(
+                    GlobalStartScalar(f'{d.name}_m_glb_c', dim=d,
+                                      distributor=distributor,
+                                      root=self.glb_starts_f[i].root)
+                )
+        self.glb_starts_c = tuple(glb_starts_c)
+
+    def _offset_and_frac(self, shift, flag):
+        """
+        For a parity `flag` (0 or 1) and whether this dimension is staggered,
+        return the compile-time integer coarse-index offset and the
+        fractional position (in [0, 1)) at which to evaluate the Lagrange
+        weights. Unstaggered: `frac` is 0 (coincident) or 1/2 (midpoint) --
+        today's only supported case. Staggered (both fine and coarse, by
+        construction): `frac` alternates between two asymmetric values (e.g.
+        1/4, 3/4); there is no exact coincidence.
+        """
+        off = -Rational(1, 2) if shift else 0
+        half = (flag + off) / 2
+        extra = sympy.floor(half)
+        return int(extra), half - extra
+
+    def _weights(self, frac):
+        """
+        Lagrange weights (degree `self.so`) evaluated at fractional position
+        `frac`, over a fixed window of `self.so` points. Evaluating exactly
+        at one of the sample points (`frac=0`) naturally yields weight 1
+        there and 0 elsewhere, so no special-casing of the coincident case is
+        needed.
+        """
+        start = -(self.so // 2 - 1)
+        pts = list(range(start, start + self.so))
+        w = finite_diff_weights(0, pts, frac)[-1][-1]
+        return pts, w
+
+    @cached_property
+    def interp_eqs(self):
+        ndim = len(self.fine_dims)
+        interp_eqs = []
+        for flags in iterproduct([0, 1], repeat=ndim):
+            conditions = [
+                sympy.Eq(sympy.Mod(d + gsf, 2), f)
+                for d, gsf, f in zip(self.fine_dims, self.glb_starts_f, flags)
+            ]
+            condition = (sympy.And(*conditions, evaluate=False)
+                         if ndim > 1 else conditions[0])
+            cd = ConditionalDimension(
+                name='cd' + ''.join(str(f) for f in flags),
+                parent=self.fine_dims[-1],
+                condition=condition
+            )
+
+            lhs = self.fine[tuple(self.fine_dims)]
+
+            dim_stencils = []
+            for d, gsc, gsf, f, shift in zip(self.fine_dims, self.glb_starts_c,
+                                             self.glb_starts_f, flags, self.shifts):
+                extra, frac = self._offset_and_frac(shift, f)
+                i_c = IntDiv(d + gsf - f, 2) - gsc + extra
+                pts, w = self._weights(frac)
+                dim_stencils.append([(i_c + j, wi) for j, wi in zip(pts, w)])
+
+            rhs = Integer(0)
+            for combo in iterproduct(*dim_stencils):
+                weight = Integer(1)
+                idx = []
+                for i_c_expr, wi in combo:
+                    weight *= wi
+                    idx.append(i_c_expr)
+                rhs += weight * self.coarse[tuple(idx)]
+
+            interp_eqs.append(Eq(lhs, rhs, implicit_dims=(cd,)))
+
+        return tuple(interp_eqs)
+
+    @cached_property
+    def restrict_eq(self):
+        # R = P^T. Loop over coarse indices — the natural direction. For each
+        # parity flag `f`, invert the interpolation index relation
+        # `i_c = k + extra(f)` (so `k = i_c - extra(f)`, `gf = 2k + f`) to find
+        # which fine points depend on a given coarse point and with what
+        # weight.
+        ndim = len(self.coarse_dims)
+        rhs = Integer(0)
+        for flags in iterproduct([0, 1], repeat=ndim):
+            dim_stencils = []
+            for d, gsc, gsf, f, shift in zip(self.coarse_dims, self.glb_starts_c,
+                                             self.glb_starts_f, flags, self.shifts):
+                extra, frac = self._offset_and_frac(shift, f)
+                pts, w = self._weights(frac)
+                dim_stencils.append(
+                    [(2*(d + gsc - extra - j) + f - gsf, wi)
+                     for j, wi in zip(pts, w)]
+                )
+
+            for combo in iterproduct(*dim_stencils):
+                weight = Integer(1)
+                fine_idx = []
+                for idx_expr, wi in combo:
+                    weight *= wi
+                    fine_idx.append(idx_expr)
+                rhs += weight * self.fine[tuple(fine_idx)]
+
+        return Eq(self.coarse[tuple(self.coarse_dims)], rhs)
+
+
 class GridTransferEquations:
     """
     """
@@ -352,9 +531,6 @@ class GridTransferEquations:
     def _build(self, fine=0, coarse=1, glb_starts_f=None):
         dims = self.target.space_dimensions
         so = self.target.space_order
-        xc, yf = self.xc, self.yf
-        ndim = len(dims)
-
         distributor = self.target.grid.distributor
 
         if glb_starts_f is None:
@@ -373,74 +549,15 @@ class GridTransferEquations:
                                   distributor=distributor, root=glb_starts_f[i].root)
             )
 
-        self._glb_start_syms_f = tuple(glb_starts_f)
-        self._glb_start_syms_c = tuple(glb_starts_c)
+        transfer = GridTransfer(
+            self.yf, self.xc, so=so,
+            glb_starts_f=tuple(glb_starts_f), glb_starts_c=tuple(glb_starts_c)
+        )
 
-        # Lagrange weights at the midpoint — shared by interpolation and restriction.
-        start = -(so // 2 - 1)
-        pts = list(range(start, start + so))
-        w = finite_diff_weights(0, pts, Rational(1, 2))[-1][-1]
-
-        # Interpolation: loop over fine indices. LHS is always yf[dims].
-        # The parity of the global fine index (d + gsf) in each dimension determines
-        # whether the fine point coincides with a coarse point (inject) or lies between
-        # two coarse points (interpolate). A ConditionalDimension gates each of the
-        # 2^ndim parity combinations. Within the conditional, (d + gsf - f) is always
-        # even, so (d + gsf - f) // 2 is an exact integer coarse index.
-        # Ghost coarse reads (local index -1) are handled naturally by the halo — no
-        # loop-bound extension is needed.
-        interp_eqs = []
-        for flags in iterproduct([0, 1], repeat=ndim):
-            conditions = [
-                sympy.Eq(sympy.Mod(d + gsf, 2), f)
-                for d, gsf, f in zip(dims, glb_starts_f, flags)
-            ]
-            condition = (sympy.And(*conditions, evaluate=False)
-                         if ndim > 1 else conditions[0])
-            cd = ConditionalDimension(
-                name='cd' + ''.join(str(f) for f in flags),
-                parent=dims[-1],
-                condition=condition
-            )
-
-            lhs = yf[tuple(dims)]
-
-            dim_stencils = []
-            for d, gsc, gsf, f in zip(dims, glb_starts_c, glb_starts_f, flags):
-                i_c = IntDiv(d + gsf - f, 2) - gsc
-                if f:
-                    dim_stencils.append([(i_c + j, wi) for j, wi in zip(pts, w)])
-                else:
-                    dim_stencils.append([(i_c, Integer(1))])
-
-            rhs = Integer(0)
-            for combo in iterproduct(*dim_stencils):
-                weight = Integer(1)
-                idx = []
-                for i_c_expr, wi in combo:
-                    weight *= wi
-                    idx.append(i_c_expr)
-                rhs += weight * xc[tuple(idx)]
-
-            interp_eqs.append(Eq(lhs, rhs, implicit_dims=(cd,)))
-        self._interp_eqs = tuple(interp_eqs)
-
-        # Restriction: R = P^T. Loop over coarse indices — the natural direction.
-        rhs = sympy.Integer(0)
-        for flags in iterproduct([0, 1], repeat=ndim):
-            offset_ranges = [pts if f else [0] for f in flags]
-            for offsets in iterproduct(*offset_ranges):
-                weight = sympy.Integer(1)
-                fine_idx = []
-                for d, gsc, gsf, f, j in zip(dims, glb_starts_c, glb_starts_f, flags, offsets):
-                    if f:
-                        weight *= w[pts.index(j)]
-                        fine_idx.append(2*(d + gsc) - gsf - 2*j + 1)
-                    else:
-                        fine_idx.append(2*(d + gsc) - gsf)
-                rhs += weight * yf[tuple(fine_idx)]
-
-        self._restrict_eq = Eq(xc[tuple(dims)], rhs)
+        self._glb_start_syms_f = transfer.glb_starts_f
+        self._glb_start_syms_c = transfer.glb_starts_c
+        self._interp_eqs = transfer.interp_eqs
+        self._restrict_eq = transfer.restrict_eq
 
     @property
     def interp_eqs(self):
@@ -461,3 +578,120 @@ class GridTransferEquations:
     def glb_start_syms_c(self):
         """GlobalStartScalar instances for the coarse-level global starts."""
         return self._glb_start_syms_c
+
+
+class UnevaluatedGridTransfer(sympy.Expr, Evaluable, Pickable):
+    """
+    Evaluates to a list of Eq objects representing a fine/coarse grid
+    transfer. Mirrors UnevaluatedSparseOperation
+    (devito/operations/interpolators.py).
+    """
+
+    __rargs__ = ('transfer',)
+
+    def __new__(cls, transfer):
+        obj = super().__new__(cls)
+        obj.transfer = transfer
+        return obj
+
+    def _evaluate(self, **kwargs):
+        return_value = self.operation(**kwargs)
+        assert all(isinstance(i, Eq) for i in return_value)
+        return return_value
+
+    def __add__(self, other):
+        return flatten([self, other])
+
+    def __radd__(self, other):
+        return flatten([other, self])
+
+
+class GridInterpolation(UnevaluatedGridTransfer):
+    """
+    Represents interpolating a coarse-level object onto a fine-level one.
+    Evaluates to a list of Eq objects.
+    """
+
+    def operation(self, **kwargs):
+        return list(self.transfer.interp_eqs)
+
+    def __repr__(self):
+        return (f"GridInterpolation({repr(self.transfer.coarse)} onto "
+                f"{repr(self.transfer.fine)})")
+
+    __str__ = __repr__
+
+
+class GridRestriction(UnevaluatedGridTransfer):
+    """
+    Represents restricting a fine-level object onto a coarse-level one.
+    Evaluates to a list of Eq objects.
+    """
+
+    def operation(self, **kwargs):
+        return [self.transfer.restrict_eq]
+
+    def __repr__(self):
+        return (f"GridRestriction({repr(self.transfer.fine)} onto "
+                f"{repr(self.transfer.coarse)})")
+
+    __str__ = __repr__
+
+
+def _validate_transfer(fine, coarse):
+    if not isinstance(coarse.grid, SubGrid) or coarse.grid.parent is not fine.grid:
+        raise ValueError(
+            f"`coarse` must be defined on a SubGrid whose parent is `fine`'s "
+            f"Grid; got fine.grid={fine.grid}, coarse.grid={coarse.grid}"
+        )
+    if _field_shifts(fine) != _field_shifts(coarse):
+        raise ValueError(
+            f"`fine` and `coarse` must have matching staggering (they should "
+            f"represent the same physical field at two resolutions); got "
+            f"fine.staggered={getattr(fine, 'staggered', None)}, "
+            f"coarse.staggered={getattr(coarse, 'staggered', None)}"
+        )
+
+
+def interpolate(*, fine, coarse):
+    """
+    Interpolate `coarse` onto `fine`.
+
+    Parameters
+    ----------
+    fine : Function
+        The fine-level Function to interpolate onto (written).
+    coarse : Function
+        The coarse-level Function, defined on a SubGrid whose parent is
+        `fine`'s Grid, to interpolate from (read).
+
+    Returns
+    -------
+    A lazily-evaluated object that expands to a list of Eq objects when
+    passed to Operator (mirrors SparseFunction.interpolate/.inject, e.g.
+    `Operator([Eq(f, f + 1)] + interpolate(fine=fine, coarse=coarse))`).
+    """
+    _validate_transfer(fine, coarse)
+    return GridInterpolation(GridTransfer(fine, coarse))
+
+
+def restrict(*, fine, coarse):
+    """
+    Restrict `fine` onto `coarse`.
+
+    Parameters
+    ----------
+    fine : Function
+        The fine-level Function to restrict from (read).
+    coarse : Function
+        The coarse-level Function to restrict onto (written), defined on a
+        SubGrid whose parent is `fine`'s Grid.
+
+    Returns
+    -------
+    A lazily-evaluated object that expands to a list of Eq objects when
+    passed to Operator (mirrors SparseFunction.interpolate/.inject, e.g.
+    `Operator([Eq(f, f + 1)] + restrict(fine=fine, coarse=coarse))`).
+    """
+    _validate_transfer(fine, coarse)
+    return GridRestriction(GridTransfer(fine, coarse))

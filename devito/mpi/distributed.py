@@ -767,6 +767,31 @@ class CoarseDistributor(DenseDistributor):
             ret[d] = tuple(v)
         return ret
 
+    @property
+    def neighborhood(self):
+        """
+        Like `Distributor.neighborhood`, but for a coarser level of a grid
+        hierarchy. The coarse decomposition covers the entire (coarsened)
+        domain, exactly like a plain `Distributor`, so no SubDomain-style
+        `crosses` check is needed (cf. `SubDistributor.neighborhood`).
+        """
+        shifts = {d: self.comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
+        ret = {}
+        for d, (src, dest) in shifts.items():
+            ret[d] = {}
+            ret[d][LEFT] = src
+            ret[d][RIGHT] = dest
+
+        for i in product([LEFT, CENTER, RIGHT], repeat=self.ndim):
+            neighbor = [c + s.val for c, s in zip(self.mycoords, i, strict=True)]
+
+            if any(c < 0 or c >= s for c, s in zip(neighbor, self.topology, strict=True)):
+                ret[i] = MPI.PROC_NULL
+            else:
+                ret[i] = self.comm.Get_cart_rank(neighbor)
+
+        return ret
+
 
 def _interval_bounds(interval):
     """Extract SubDimension Interval bounds."""

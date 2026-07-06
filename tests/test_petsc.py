@@ -10,11 +10,12 @@ from devito import (
     Eq, Function, Grid, Operator, SubDomain, TimeFunction,
     configuration, norm, sin, switchconfig
 )
-from devito.petsc.types.multigrid import GridHierarchy, SubGrid
+from devito.petsc.types.multigrid import GridHierarchy, SubGrid, interpolate, restrict
 from devito.ir.iet import Call, ElementalFunction, FindNodes, retrieve_iteration_tree
 from devito.operator.profiling import PerformanceSummary
 from devito.passes.iet.languages.C import CDataManager
 from devito.petsc.iet.nodes import Expression
+from devito.petsc.iet.passes import _coarse_thickness
 from devito.petsc.initialize import PetscInitialize
 from devito.petsc.logging import PetscSummary
 from devito.petsc.solve import EssentialBC, petscsolve
@@ -2994,6 +2995,297 @@ class TestGridHierarchy:
             assert sg.dtype == grid.dtype
 
 
+class TestInterpolation:
+    """
+    Tests for `interpolate` (coarse SubGrid Function -> fine Function) via a
+    plain Operator (no PETSc solve).
+    """
+
+    def test_reproduces_constant(self):
+        # Degree-0 polynomial: exact for any interpolation order.
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
+
+        u_coarse.data[:] = 3.
+        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+
+        assert np.allclose(u_fine.data, 3.)
+
+    def test_reproduces_linear(self):
+        # Degree-1 polynomial: exact since space_order=2 is 2-point (linear)
+        # Lagrange interpolation.
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
+
+        u_coarse.data[:] = np.arange(5) * 2.
+        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+
+        assert np.allclose(u_fine.data, np.arange(9))
+
+    def test_reproduces_linear_staggered(self):
+        # fine/coarse both staggered the same way: every fine point lies at
+        # an asymmetric fractional position between two coarse points (no
+        # exact coincidence anywhere), but Lagrange interpolation of a linear
+        # function is still exact regardless of that fractional position.
+        # The left boundary point needs a coarse neighbour that falls in the
+        # (zero-filled) halo, so it's excluded here -- see
+        # test_reproduces_linear_staggered_boundary.
+        grid = Grid(shape=(9,), extent=(8.,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        x, = grid.dimensions
+        xc, = subgrid.dimensions
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2, staggered=x)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2, staggered=xc)
+
+        h_c = 2.
+        u_coarse.data[:] = (np.arange(5) + 0.5) * h_c
+        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+
+        expected = (np.arange(9) + 0.5) * 1.
+        assert np.allclose(u_fine.data[1:], expected[1:])
+
+    def test_reproduces_linear_staggered_boundary(self):
+        # The left boundary fine point needs coarse[-1], which is never
+        # written (halo defaults to 0) -- so the boundary value is *not* the
+        # continuation of the linear function, unlike every interior point.
+        grid = Grid(shape=(9,), extent=(8.,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        x, = grid.dimensions
+        xc, = subgrid.dimensions
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2, staggered=x)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2, staggered=xc)
+
+        h_c = 2.
+        coarse_phys = (np.arange(5) + 0.5) * h_c
+        u_coarse.data[:] = coarse_phys
+        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+
+        assert np.isclose(u_fine.data[0], 0.75 * coarse_phys[0])
+
+    def test_invalid_transfer_raises(self):
+        grid = Grid(shape=(9,))
+        other_grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        u_fine = Function(name='u_fine', grid=grid)
+        u_other = Function(name='u_other', grid=other_grid)
+        u_coarse = Function(name='u_coarse', grid=subgrid)
+
+        # `coarse` not on a SubGrid at all
+        with pytest.raises(ValueError):
+            interpolate(fine=u_fine, coarse=u_other)
+
+        # `coarse` on a SubGrid, but not a coarsening of `fine`'s Grid
+        with pytest.raises(ValueError):
+            interpolate(fine=u_other, coarse=u_coarse)
+
+    def test_mismatched_staggering_raises(self):
+        # fine/coarse must represent the same physical field -- staggering
+        # must match (e.g. never interpolate pressure from a staggered
+        # velocity coarse level).
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        xc, = subgrid.dimensions
+
+        u_fine = Function(name='u_fine', grid=grid)
+        u_coarse = Function(name='u_coarse', grid=subgrid, staggered=xc)
+
+        with pytest.raises(ValueError):
+            interpolate(fine=u_fine, coarse=u_coarse)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_reproduces_linear_staggered_parallel(self, mode):
+        grid = Grid(shape=(9,), extent=(8.,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        x, = grid.dimensions
+        xc, = subgrid.dimensions
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2, staggered=x)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2, staggered=xc)
+
+        h_c = 2.
+        u_coarse.data[:] = (np.arange(5) + 0.5) * h_c
+        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+
+        expected = (np.arange(9) + 0.5) * 1.
+        loc = grid.distributor.glb_slices[x]
+        # boundary point excluded from the exactness check (halo effect, see
+        # test_reproduces_linear_staggered_boundary); only relevant on the
+        # rank owning global index 0.
+        got, exp = u_fine.data[:], expected[loc]
+        if loc.start == 0:
+            got, exp = got[1:], exp[1:]
+        assert np.allclose(got, exp)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_reproduces_linear_parallel(self, mode):
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        x, = grid.dimensions
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
+
+        u_coarse.data[:] = np.arange(5) * 2.
+        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+
+        expected = np.arange(9)
+        loc = grid.distributor.glb_slices[x]
+        assert np.allclose(u_fine.data, expected[loc])
+
+
+class TestRestriction:
+    """
+    Tests for `restrict` (fine Function -> coarse SubGrid Function) via a
+    plain Operator (no PETSc solve).
+    """
+
+    def test_ones_are_not_preserved(self):
+        # `restrict` is the *unnormalized* transpose of `interpolate`
+        # (R = P^T), not an averaging/injection operator, so it does not
+        # preserve constants: interior weights are 1 (coincident point) +
+        # 0.5 + 0.5 (the two neighbours' interpolation contributions) = 2;
+        # at the domain boundary one neighbour read falls into the
+        # (zero-filled) halo, giving 1.5 instead. A grid of 1s is therefore
+        # *expected* to restrict to [1.5, 2, 2, 2, 1.5], not to another grid
+        # of 1s.
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
+
+        u_fine.data[:] = 1.
+        Operator(restrict(fine=u_fine, coarse=u_coarse)).apply()
+
+        expected = np.full(5, 2.)
+        expected[0] = expected[-1] = 1.5
+        assert np.allclose(u_coarse.data, expected)
+
+    def test_is_adjoint_of_interpolate(self):
+        # The defining mathematical property of this restriction scheme:
+        # R = P^T, i.e. <P @ xc, yf> == <xc, R @ yf> for any xc, yf. Checking
+        # this directly (rather than hand-deriving the per-point stencil
+        # formula, which would just re-implement the same arithmetic as the
+        # code under test) verifies the whole weighting scheme is
+        # self-consistent.
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        rng = np.random.default_rng(0)
+        xc = rng.random(5).astype(np.float32)
+        yf = rng.random(9).astype(np.float32)
+
+        u_coarse_in = Function(name='u_coarse_in', grid=subgrid, space_order=2)
+        u_fine_out = Function(name='u_fine_out', grid=grid, space_order=2)
+        u_coarse_in.data[:] = xc
+        Operator(interpolate(fine=u_fine_out, coarse=u_coarse_in)).apply()
+        p_xc = np.array(u_fine_out.data[:])
+
+        u_fine_in = Function(name='u_fine_in', grid=grid, space_order=2)
+        u_coarse_out = Function(name='u_coarse_out', grid=subgrid, space_order=2)
+        u_fine_in.data[:] = yf
+        Operator(restrict(fine=u_fine_in, coarse=u_coarse_out)).apply()
+        r_yf = np.array(u_coarse_out.data[:])
+
+        assert np.isclose(np.dot(p_xc, yf), np.dot(xc, r_yf))
+
+    def test_is_adjoint_of_interpolate_staggered(self):
+        # Same adjoint check, but with fine/coarse both staggered -- this is
+        # the strongest available signal that the restriction-side
+        # generalization for staggered fields is self-consistent, since it
+        # doesn't rely on having hand-derived the restriction stencil
+        # formula correctly.
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        x, = grid.dimensions
+        xc, = subgrid.dimensions
+
+        rng = np.random.default_rng(1)
+        xc_data = rng.random(5).astype(np.float32)
+        yf_data = rng.random(9).astype(np.float32)
+
+        u_coarse_in = Function(name='u_coarse_in', grid=subgrid, space_order=2,
+                               staggered=xc)
+        u_fine_out = Function(name='u_fine_out', grid=grid, space_order=2,
+                              staggered=x)
+        u_coarse_in.data[:] = xc_data
+        Operator(interpolate(fine=u_fine_out, coarse=u_coarse_in)).apply()
+        p_xc = np.array(u_fine_out.data[:])
+
+        u_fine_in = Function(name='u_fine_in', grid=grid, space_order=2,
+                             staggered=x)
+        u_coarse_out = Function(name='u_coarse_out', grid=subgrid, space_order=2,
+                                staggered=xc)
+        u_fine_in.data[:] = yf_data
+        Operator(restrict(fine=u_fine_in, coarse=u_coarse_out)).apply()
+        r_yf = np.array(u_coarse_out.data[:])
+
+        assert np.isclose(np.dot(p_xc, yf_data), np.dot(xc_data, r_yf))
+
+    def test_invalid_transfer_raises(self):
+        grid = Grid(shape=(9,))
+        other_grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        u_fine = Function(name='u_fine', grid=grid)
+        u_other = Function(name='u_other', grid=other_grid)
+        u_coarse = Function(name='u_coarse', grid=subgrid)
+
+        with pytest.raises(ValueError):
+            restrict(fine=u_fine, coarse=u_other)
+
+    def test_mismatched_staggering_raises(self):
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        xc, = subgrid.dimensions
+
+        u_fine = Function(name='u_fine', grid=grid)
+        u_coarse = Function(name='u_coarse', grid=subgrid, staggered=xc)
+
+        with pytest.raises(ValueError):
+            restrict(fine=u_fine, coarse=u_coarse)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_ones_are_not_preserved_parallel(self, mode):
+        grid = Grid(shape=(9,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+        xc, = subgrid.dimensions
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=2)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
+
+        u_fine.data[:] = 1.
+        Operator(restrict(fine=u_fine, coarse=u_coarse)).apply()
+
+        expected = np.full(5, 2.)
+        expected[0] = expected[-1] = 1.5
+        loc = subgrid.distributor.glb_slices[xc]
+        assert np.allclose(u_coarse.data, expected[loc])
+
+
 class TestCoarseSymbols:
     """
     Tests for CoarseGridScalar per-rank correctness.
@@ -3004,7 +3296,6 @@ class TestCoarseSymbols:
         # 4-level hierarchy: fine (17,) -> (9,) -> (5,) -> (3,)
         grid = Grid(shape=(17,))
         hierarchy = GridHierarchy(grid, nlevels=4)
-        x, = grid.dimensions
 
         # Level 1 — 9 points, np.array_split(range(9), nprocs):
         # nprocs=2: [5, 4]       -> x_M = [4, 3]
@@ -3017,8 +3308,9 @@ class TestCoarseSymbols:
         }
         sg1 = hierarchy.levels[1]
         d1 = sg1.distributor
-        coarse = sg1.coarse_symbol_for(x.symbolic_max)
-        assert coarse._arg_values()[coarse.name] == expected_l1[d1.nprocs][d1.myrank]
+        d1dim, = sg1.dimensions
+        args = dict(sg1._arg_defaults())
+        assert args[d1dim.max_name] == expected_l1[d1.nprocs][d1.myrank]
 
         # Level 2 — 5 points, np.array_split(range(5), nprocs):
         # nprocs=2: [3, 2]       -> x_M = [2, 1]
@@ -3031,8 +3323,9 @@ class TestCoarseSymbols:
         }
         sg2 = hierarchy.levels[2]
         d2 = sg2.distributor
-        coarse = sg2.coarse_symbol_for(x.symbolic_max)
-        assert coarse._arg_values()[coarse.name] == expected_l2[d2.nprocs][d2.myrank]
+        d2dim, = sg2.dimensions
+        args = dict(sg2._arg_defaults())
+        assert args[d2dim.max_name] == expected_l2[d2.nprocs][d2.myrank]
 
         # Level 3 — 3 points, np.array_split(range(3), nprocs):
         # nprocs=2: [2, 1]          -> x_M = [1, 0]
@@ -3045,15 +3338,15 @@ class TestCoarseSymbols:
         }
         sg3 = hierarchy.levels[3]
         d3 = sg3.distributor
-        coarse = sg3.coarse_symbol_for(x.symbolic_max)
-        assert coarse._arg_values()[coarse.name] == expected_l3[d3.nprocs][d3.myrank]
+        d3dim, = sg3.dimensions
+        args = dict(sg3._arg_defaults())
+        assert args[d3dim.max_name] == expected_l3[d3.nprocs][d3.myrank]
 
     @pytest.mark.parallel(mode=[2, 3, 4])
     def test_dim_size_1d(self, mode):
         # 4-level hierarchy: fine (17,) -> (9,) -> (5,) -> (3,)
         grid = Grid(shape=(17,))
         hierarchy = GridHierarchy(grid, nlevels=4)
-        x, = grid.dimensions
 
         # Level 1 — 9 points, np.array_split(range(9), nprocs):
         # nprocs=2: [5, 4]       -> x_size = [5, 4]
@@ -3066,8 +3359,9 @@ class TestCoarseSymbols:
         }
         sg1 = hierarchy.levels[1]
         d1 = sg1.distributor
-        coarse = sg1.coarse_symbol_for(x.symbolic_size)
-        assert coarse._arg_values()[coarse.name] == expected_l1[d1.nprocs][d1.myrank]
+        d1dim, = sg1.dimensions
+        args = dict(sg1._arg_defaults())
+        assert args[d1dim.size_name] == expected_l1[d1.nprocs][d1.myrank]
 
         # Level 2 — 5 points, np.array_split(range(5), nprocs):
         # nprocs=2: [3, 2]       -> x_size = [3, 2]
@@ -3080,8 +3374,9 @@ class TestCoarseSymbols:
         }
         sg2 = hierarchy.levels[2]
         d2 = sg2.distributor
-        coarse = sg2.coarse_symbol_for(x.symbolic_size)
-        assert coarse._arg_values()[coarse.name] == expected_l2[d2.nprocs][d2.myrank]
+        d2dim, = sg2.dimensions
+        args = dict(sg2._arg_defaults())
+        assert args[d2dim.size_name] == expected_l2[d2.nprocs][d2.myrank]
 
         # Level 3 — 3 points, np.array_split(range(3), nprocs):
         # nprocs=2: [2, 1]       -> x_size = [2, 1]
@@ -3094,8 +3389,9 @@ class TestCoarseSymbols:
         }
         sg3 = hierarchy.levels[3]
         d3 = sg3.distributor
-        coarse = sg3.coarse_symbol_for(x.symbolic_size)
-        assert coarse._arg_values()[coarse.name] == expected_l3[d3.nprocs][d3.myrank]
+        d3dim, = sg3.dimensions
+        args = dict(sg3._arg_defaults())
+        assert args[d3dim.size_name] == expected_l3[d3.nprocs][d3.myrank]
 
     @pytest.mark.parallel(mode=[2, 3, 4])
     def test_thickness_1d(self, mode):
@@ -3139,12 +3435,13 @@ class TestCoarseSymbols:
         # nprocs=4: rank0=0, rank1=0, rank2=0, rank3=1
         sg1 = hierarchy.levels[1]
         d1 = sg1.distributor
+        coarse_dim_map1 = dict(zip(sg1.parent.dimensions, sg1.dimensions))
 
         expected_ltkn_l1 = {2: [2, 0], 3: [2, 0, 0], 4: [2, 0, 0, 0]}
         expected_rtkn_l1 = {2: [0, 1], 3: [0, 0, 1], 4: [0, 0, 0, 1]}
 
-        coarse_ltkn = sg1.coarse_symbol_for(ltkn)
-        coarse_rtkn = sg1.coarse_symbol_for(rtkn)
+        coarse_ltkn = _coarse_thickness(ltkn, sg1, coarse_dim_map1)
+        coarse_rtkn = _coarse_thickness(rtkn, sg1, coarse_dim_map1)
         assert coarse_ltkn._arg_values()[coarse_ltkn.name] == expected_ltkn_l1[d1.nprocs][d1.myrank]
         assert coarse_rtkn._arg_values()[coarse_rtkn.name] == expected_rtkn_l1[d1.nprocs][d1.myrank]
 
@@ -3164,12 +3461,13 @@ class TestCoarseSymbols:
         # nprocs=4: rank0=0, rank1=0, rank2=1, rank3=0  (rank 3 is empty)
         sg2 = hierarchy.levels[2]
         d2 = sg2.distributor
+        coarse_dim_map2 = dict(zip(sg2.parent.dimensions, sg2.dimensions))
 
         expected_ltkn_l2 = {2: [1, 0], 3: [1, 0, 0], 4: [1, 0, 0, 0]}
         expected_rtkn_l2 = {2: [0, 1], 3: [0, 0, 1], 4: [0, 0, 1, 0]}
 
-        coarse_ltkn2 = sg2.coarse_symbol_for(ltkn)
-        coarse_rtkn2 = sg2.coarse_symbol_for(rtkn)
+        coarse_ltkn2 = _coarse_thickness(ltkn, sg2, coarse_dim_map2)
+        coarse_rtkn2 = _coarse_thickness(rtkn, sg2, coarse_dim_map2)
         assert coarse_ltkn2._arg_values()[coarse_ltkn2.name] == expected_ltkn_l2[d2.nprocs][d2.myrank]
         assert coarse_rtkn2._arg_values()[coarse_rtkn2.name] == expected_rtkn_l2[d2.nprocs][d2.myrank]
 
