@@ -259,11 +259,13 @@ def iet_pass(func=None):
         try:
             # Pure function case
             graph, = args
-            return maybe_timed(call(graph), func.__name__)(func, **kwargs)
+            ietfunc = func
         except ValueError:
             # Instance method case
             self, graph = args
-            return maybe_timed(call(graph), func.__name__)(partial(func, self), **kwargs)
+            ietfunc = partial(func, self)
+
+        return maybe_timed(call(graph), func.__name__)(ietfunc, **kwargs)
 
     return wrapper
 
