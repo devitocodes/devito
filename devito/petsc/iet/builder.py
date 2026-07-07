@@ -16,6 +16,36 @@ def make_core_petsc_calls(objs, comm):
     return call_mpi, BlankLine
 
 
+def make_section_bc_calls(dmda, lsection, gsection, sf, num_bcs,
+                           count_bc_name, set_point_bc_name):
+    """
+    Attach a PetscSection to `dmda`, constraining the points counted/marked
+    by the `CountBCs`/`SetPointBCs` callbacks.
+    """
+    count_bcs = petsc_call(count_bc_name, [dmda] + [Byref(n) for n in num_bcs])
+    set_point_bcs = petsc_call(set_point_bc_name, [dmda] + list(num_bcs))
+
+    get_local_section = petsc_call('DMGetLocalSection', [dmda, Byref(lsection)])
+    get_point_sf = petsc_call('DMGetPointSF', [dmda, Byref(sf)])
+
+    create_global_section = petsc_call(
+        'PetscSectionCreateGlobalSection',
+        [lsection, sf, 'PETSC_TRUE', 'PETSC_FALSE', 'PETSC_FALSE', Byref(gsection)]
+    )
+    dm_set_global_section = petsc_call('DMSetGlobalSection', [dmda, gsection])
+    dm_create_section_sf = petsc_call('DMCreateSectionSF', [dmda, lsection, gsection])
+
+    return (
+        count_bcs,
+        set_point_bcs,
+        get_local_section,
+        get_point_sf,
+        create_global_section,
+        dm_set_global_section,
+        dm_create_section_sf,
+    )
+
+
 class BuilderBase:
     """
     Generates the PETSc solver setup calls emitted at the top of the Kernel.
@@ -346,36 +376,7 @@ class ConstrainedBCMixin:
         dm_setup = petsc_call('DMSetUp', [dmda])
         dm_mat_type = petsc_call('DMSetMatType', [dmda, 'MATSHELL'])
 
-        targets = self.field_data.targets
-        count_bcs = petsc_call(
-            self.callback_builder._count_bc_efunc.name,
-            [dmda] + [Byref(sobjs[f'numBC_{t.name}']) for t in targets]
-        )
-
-        set_point_bcs = petsc_call(
-            self.callback_builder._set_point_bc_efunc.name,
-            [dmda] + [sobjs[f'numBC_{t.name}'] for t in targets]
-        )
-
-        get_local_section = petsc_call(
-            'DMGetLocalSection', [dmda, Byref(sobjs['lsection'])]
-        )
-
-        get_point_sf = petsc_call('DMGetPointSF', [dmda, Byref(sobjs['sf'])])
-
-        create_global_section = petsc_call(
-            'PetscSectionCreateGlobalSection',
-            [sobjs['lsection'], sobjs['sf'], 'PETSC_TRUE', 'PETSC_FALSE', 'PETSC_FALSE',
-             Byref(sobjs['gsection'])]
-        )
-
-        dm_set_global_section = petsc_call(
-            'DMSetGlobalSection', [dmda, sobjs['gsection']]
-        )
-
-        dm_create_section_sf = petsc_call(
-            'DMCreateSectionSF', [dmda, sobjs['lsection'], sobjs['gsection']]
-        )
+        section_bc_calls = self._section_bc_calls(dmda)
 
         call_struct_callback = petsc_call(
             self.callback_builder.user_struct_efunc.name, [Byref(mainctx)]
@@ -391,15 +392,33 @@ class ConstrainedBCMixin:
             dm_mat_type,
             call_struct_callback,
             calls_set_app_ctx,
-            count_bcs,
-            set_point_bcs,
-            get_local_section,
-            get_point_sf,
-            create_global_section,
-            dm_set_global_section,
-            dm_create_section_sf
+        ) + section_bc_calls
+
+    def _section_bc_calls(self, dmda, level=None):
+        """
+        Build the calls that attach a PetscSection to `dmda`, constraining
+        the points counted/marked by the `CountBCs`/`SetPointBCs` callbacks.
+        `level` selects into the per-level section/counter objects when this
+        mixin is composed with `MultigridBuilderMixin`; otherwise (`None`)
+        the single-DM scalar objects are used directly.
+        """
+        sobjs = self.solver_objs
+        targets = self.field_data.targets
+        if level is None:
+            lsection, gsection, sf = sobjs['lsection'], sobjs['gsection'], sobjs['sf']
+            num_bcs = [sobjs[f'numBC_{t.name}'] for t in targets]
+        else:
+            lsection = sobjs['lsection'][level]
+            gsection = sobjs['gsection'][level]
+            sf = sobjs['sf'][level]
+            num_bcs = [sobjs[f'numBC_levels_{t.name}'][level] for t in targets]
+
+        return make_section_bc_calls(
+            dmda, lsection, gsection, sf, num_bcs,
+            self.callback_builder._count_bc_efunc.name,
+            self.callback_builder._set_point_bc_efunc.name,
         )
-    
+
 
 class MultigridBuilderMixin:
     """
@@ -469,20 +488,35 @@ class MultigridBuilderMixin:
         malloc_all_da = petsc_call('PetscMalloc1', [n_levels, Byref(all_da)])
         malloc_all_shells = petsc_call('PetscMalloc1', [n_levels, Byref(all_shells)])
 
-        # Pre-build all DMDAs: fine at index 0, coarse levels at 1..n_levels-1
-        lc = self.solver_objs['lc']
-        dmda_creates = [
-            self._create_dmda(IndexedPointer(all_da, 0), lc_arrays=lc[0]),
-            petsc_call('DMSetFromOptions', [IndexedPointer(all_da, 0)]),
-            petsc_call('DMSetUp', [IndexedPointer(all_da, 0)]),
-        ]
-        for i, sublevel in enumerate(hierarchy.coarse_levels, start=1):
-            dmda_creates += [
-                self._create_dmda(IndexedPointer(all_da, i), shape=sublevel.shape,
-                                  lc_arrays=lc[i]),
+        constrain_bc = self.field_data.constrain_bc
+
+        def _dmda_create_calls(i, shape=None):
+            calls = [
+                self._create_dmda(IndexedPointer(all_da, i), shape=shape, lc_arrays=lc[i]),
                 petsc_call('DMSetFromOptions', [IndexedPointer(all_da, i)]),
                 petsc_call('DMSetUp', [IndexedPointer(all_da, i)]),
             ]
+            if constrain_bc:
+                calls.append(petsc_call(
+                    'DMSetApplicationContext',
+                    [IndexedPointer(all_da, i), Byref(IndexedPointer(all_ctx, i))]
+                ))
+                calls.extend(
+                    self._section_bc_calls(IndexedPointer(all_da, i), level=i)
+                )
+            return calls
+
+        # Pre-build all DMDAs: fine at index 0, coarse levels at 1..n_levels-1
+        lc = self.solver_objs['lc']
+        dmda_creates = _dmda_create_calls(0)
+        for i, sublevel in enumerate(hierarchy.coarse_levels, start=1):
+            dmda_creates += _dmda_create_calls(i, shape=sublevel.shape)
+
+        if constrain_bc:
+            da_use_section = petsc_call(
+                'PetscOptionsSetValue', [Null, String("-da_use_section"), Null]
+            )
+            dmda_creates = [da_use_section] + dmda_creates
 
         # Pre-build all shells: for each level, malloc sctx, call MakeShellCtx,
         # call UserDMShellCreate. Reuse sctxnew for coarse levels (each PetscMalloc1
@@ -545,12 +579,7 @@ def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
         raise NotImplementedError(
             "Multigrid not yet supported for multi-field (coupled) solvers."
         )
-    # TODO: implement this in this PR
-    if is_multigrid and is_constrained_bc:
-        raise NotImplementedError(
-            "Multigrid not yet supported for solvers with constrained boundary nodes."
-        )
-    
+
     mixins = []
     if is_multigrid:
         mixins.append(MultigridBuilderMixin)

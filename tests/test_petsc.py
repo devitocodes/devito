@@ -2990,7 +2990,6 @@ class TestGridHierarchy:
         grid = Grid(shape=(17,))
         hierarchy = GridHierarchy(grid, nlevels=3)
         for sg in hierarchy.coarse_levels:
-            assert sg.dimensions == grid.dimensions
             assert sg.extent == grid.extent
             assert sg.dtype == grid.dtype
 

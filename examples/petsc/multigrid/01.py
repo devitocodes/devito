@@ -86,8 +86,21 @@ petsc = petscsolve(
         'mg_coarse_ksp_type': 'gmres',
         'mg_coarse_pc_type': 'none',
     },
+    constrain_bcs=True,
     options_prefix='poisson_1d',
 )
+
+
+# petsc = petscsolve(
+#     exprs, target=u,
+#     solver_parameters={
+#         'ksp_type': 'cg',
+#         'pc_type': 'none',
+#         'snes_type': 'ksponly',
+#     },
+#     constrain_bcs=True,
+#     options_prefix='poisson_1d',
+# )
 
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')

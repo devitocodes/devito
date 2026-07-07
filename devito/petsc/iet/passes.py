@@ -1,3 +1,4 @@
+from collections import namedtuple
 from functools import cached_property
 
 import cgen as c
@@ -5,8 +6,8 @@ import numpy as np
 
 import devito.logger
 from devito.ir.iet import (
-    Call, CallableBody, Dereference, DummyExpr, FindNodes, FindSymbols, HaloSpot,
-    Iteration, List, MapNodes, Section, Transformer, Uxreplace
+    Call, CallableBody, Dereference, DummyExpr, Expression, FindNodes, FindSymbols,
+    HaloSpot, Iteration, List, MapNodes, Section, Transformer, Uxreplace
 )
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.linearization import Tracker, linearize_accesses
@@ -21,6 +22,8 @@ from devito.petsc.iet.nodes import MgPopulateCall, PETScCallable, PetscMetaData,
 from devito.petsc.iet.solve import make_solver_cls
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.type_builder import make_type_builder_cls, objs
+from devito.petsc.solve import localinfo
+from devito.petsc.types.dimension import SpaceDimMax, SpaceDimMin, SubDimMax, SubDimMin
 from devito.petsc.types import (
     ArgvSymbol, CallbackUserStruct, CoarseningFactorScalar, CoarseThickness,
     Finalize, FineGlobalStartScalar, GlobalStartScalar, Initialize, MainUserStruct,
@@ -28,7 +31,10 @@ from devito.petsc.types import (
 )
 from devito.petsc.types.macros import petsc_func_begin_user
 
-from devito.symbolics import Byref, FieldFromPointer, IndexedPointer, Macro, Null
+from devito.symbolics import (
+    Byref, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, Null
+)
+from devito.tools import filter_ordered
 from devito.types.basic import DataSymbol, LocalType
 from devito.types.dimension import DefaultDimension, Thickness
 from devito.types.misc import FIndexed
@@ -190,7 +196,19 @@ def fix_mg_populate_calls(graph, **kwargs):
         # own coarse Dimensions, not the fine grid's - map fine -> coarse.
         coarse_dim_map = dict(zip(subgrid.parent.dimensions, subgrid.dimensions))
 
-        if isinstance(f, Thickness):
+        if isinstance(f, (SubDimMax, SubDimMin)):
+            return type(f)(
+                f'{f.name}_d{subgrid.coarsening_depth}',
+                subdim=_coarse_subdim(f.subdim, subgrid, coarse_dim_map),
+                distributor=subgrid.distributor,
+            )
+        elif isinstance(f, (SpaceDimMax, SpaceDimMin)):
+            return type(f)(
+                f'{f.name}_d{subgrid.coarsening_depth}',
+                space_dim=coarse_dim_map[f.space_dim],
+                distributor=subgrid.distributor,
+            )
+        elif isinstance(f, Thickness):
             return _coarse_thickness(f, subgrid, coarse_dim_map)
         elif isinstance(f, FineGlobalStartScalar):
             return f
@@ -248,6 +266,28 @@ def _coarse_thickness(f, subgrid, coarse_dim_map):
     )
 
 
+_CoarseSubDim = namedtuple('_CoarseSubDim', ('rtkn', 'ltkn', 'parent', 'dtype'))
+
+
+def _coarse_subdim(subdim, subgrid, coarse_dim_map):
+    """
+    A lightweight stand-in for a coarse-level SubDimension, exposing just the
+    `.rtkn`/`.ltkn`/`.parent`/`.dtype` that `SubDimMax`/`SubDimMin` read - a
+    real coarse SubDimension is never actually built.
+    """
+    def _coarsen(tkn):
+        return tkn if tkn.value is None else _coarse_thickness(
+            tkn, subgrid, coarse_dim_map
+        )
+
+    return _CoarseSubDim(
+        rtkn=_coarsen(subdim.rtkn),
+        ltkn=_coarsen(subdim.ltkn),
+        parent=coarse_dim_map[subdim.parent],
+        dtype=subdim.dtype,
+    )
+
+
 @iet_pass
 def linear_indices(iet, **kwargs):
     """
@@ -269,8 +309,29 @@ def linear_indices(iet, **kwargs):
     ]
     candidates = {i.function.name for i in indexeds}
     key = lambda f: f.name in candidates
+    functions = filter_ordered(i.function for i in indexeds)
 
     iet = linearize_accesses(iet, key0=key, tracker=tracker)
+
+    fsz_vals = {}
+    for f in functions:
+        fields = [
+            FieldFromComposite(f'g{d.name}m', localinfo) for d in f.dimensions
+        ][::-1]
+        for i, d in enumerate(f.dimensions):
+            try:
+                fsz = tracker.get_size(f, d)
+            except KeyError:
+                continue
+            fsz_vals[fsz] = fields[i]
+
+    if fsz_vals:
+        mapper = {
+            e: DummyExpr(e.output, fsz_vals[e.output], init=True)
+            for e in FindNodes(Expression).visit(iet)
+            if e.output in fsz_vals
+        }
+        iet = Transformer(mapper).visit(iet)
 
     indexeds = [
         i for i in FindSymbols('indexeds').visit(iet)

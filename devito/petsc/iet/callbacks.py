@@ -15,7 +15,7 @@ from devito.petsc.types import (
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
 from devito.symbolics import (
-    VOID, Byref, Deref, FieldFromComposite, FieldFromPointer, IndexedPointer,
+    VOID, Byref, Deref, FieldFromPointer, IndexedPointer,
     IntDiv, Mod, Null, String
 )
 from devito.symbolics.unevaluation import Mul
@@ -1964,8 +1964,9 @@ class MultigridCallbackMixin:
         mat = self.solver_objs['mat_ptr']
         vec = self.solver_objs['vec']
         level = self.solver_objs['grid_level']
-        cinfo = self.solver_objs['cinfo']
-        finfo = self.solver_objs['finfo']
+        finesize = self.solver_objs['finesize']
+        coarsesize = self.solver_objs['coarsesize']
+        tmpvec = self.solver_objs['tmpvec']
         petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellc)])
 
         body = [
@@ -1976,11 +1977,10 @@ class MultigridCallbackMixin:
             DummyExpr(FieldFromPointer(dmf, pctx), FieldFromPointer(da, sctxf)),
             DummyExpr(FieldFromPointer(uctx_c._C_symbol, pctx), FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxc)], Byref(sctxc))),
             DummyExpr(FieldFromPointer(uctx_f._C_symbol, pctx), FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxf)], Byref(sctxf))),
-            petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmc, pctx), Byref(cinfo)]),
-            petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmf, pctx), Byref(finfo)]),
+            *_query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
+            *_query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
             petsc_call('MatCreateShell', [petsc_obj_comm,
-                _local_dmda_size(finfo, self.field_data.space_dimensions),
-                _local_dmda_size(cinfo, self.field_data.space_dimensions),
+                finesize, coarsesize,
                 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]),
             petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_MULT', MatShellSetOp(self._interpolation_matmult_efunc.name, void, void)]),
             petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_DESTROY', MatShellSetOp(self._interpolation_destroy_efunc.name, void, void)]),
@@ -2034,8 +2034,9 @@ class MultigridCallbackMixin:
         pctx = self.solver_objs['pctx']
         mat = self.solver_objs['mat_ptr']
         level = self.solver_objs['grid_level']
-        cinfo = self.solver_objs['cinfo']
-        finfo = self.solver_objs['finfo']
+        finesize = self.solver_objs['finesize']
+        coarsesize = self.solver_objs['coarsesize']
+        tmpvec = self.solver_objs['tmpvec']
         petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellc)])
 
         body = [
@@ -2056,13 +2057,12 @@ class MultigridCallbackMixin:
                     all_ctx.indexed[FieldFromPointer(level, sctxf)], Byref(sctxf)
                 )
             ),
-            petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmc, pctx), Byref(cinfo)]),
-            petsc_call('DMDAGetLocalInfo', [FieldFromPointer(dmf, pctx), Byref(finfo)]),
+            *_query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
+            *_query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
             # Restriction mat: rows=coarse local, cols=fine local (transpose of interpolation)
             petsc_call('MatCreateShell', [
                 petsc_obj_comm,
-                _local_dmda_size(cinfo, self.field_data.space_dimensions),
-                _local_dmda_size(finfo, self.field_data.space_dimensions),
+                coarsesize, finesize,
                 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat
             ]),
             petsc_call('MatShellSetOperation', [
@@ -2167,15 +2167,14 @@ def populate_matrix_context(efuncs):
     )
 
 
-def _local_dmda_size(localinfo, space_dimensions):
+def _query_local_size(dm, size, tmpvec):
     """
-    Product of per-dimension local extents from a DMDALocalInfo.
     """
-    from functools import reduce
-    from operator import mul
-    petsc_letters = ['x', 'y', 'z']
-    return reduce(mul, [FieldFromComposite(f'{petsc_letters[i]}m', localinfo)
-                        for i in range(len(space_dimensions))])
+    return (
+        petsc_call('DMGetGlobalVector', [dm, Byref(tmpvec)]),
+        petsc_call('VecGetLocalSize', [tmpvec, Byref(size)]),
+        petsc_call('DMRestoreGlobalVector', [dm, Byref(tmpvec)]),
+    )
 
 
 def dereference_funcs(struct, fields):

@@ -112,6 +112,13 @@ class InjectSolve:
         self.constrain_bcs = constrain_bcs
 
     def build_expr(self):
+        if self.constrain_bcs:
+            target = next(iter(self.target_exprs.keys()))
+            if len(target.grid.dimensions) == 3:
+                raise NotImplementedError(
+                    "constrain_bcs=True is not yet supported on 3D grids."
+                )
+
         # Build MultigridMetadata first so its symbols are available to
         # _apply_fine_grid_transform inside linear_solve_args.
         self._multigrid_metadata = None

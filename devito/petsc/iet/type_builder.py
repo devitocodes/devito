@@ -1,7 +1,7 @@
 import numpy as np
 
 from devito.petsc.types import (
-    DM, KSP, MPIComm, PC, SNES, CallbackPetscInt, DMDALocalInfo, DummyArg, JacobianStruct,
+    DM, KSP, MPIComm, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct,
     Mat, MatReuse, NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt,
     PetscSectionGlobal, PetscSectionLocal, PetscSF, PointerDM, PointerDMArg, PointerIS,
     PointerMat, PointerPetscInt, StartPtr, SubMatrixStruct, Vec, VecScatter, PointerMatArg,
@@ -308,8 +308,9 @@ class MultigridTypeBuilderMixin:
         base_dict['mat'] = Mat('A', destroy=False)
         base_dict['vec'] = PointerVecArg('x', destroy=False)
 
-        base_dict['cinfo'] = DMDALocalInfo('cinfo')
-        base_dict['finfo'] = DMDALocalInfo('finfo')
+        base_dict['finesize'] = PetscInt(sreg.make_name(prefix='finesize'))
+        base_dict['coarsesize'] = PetscInt(sreg.make_name(prefix='coarsesize'))
+        base_dict['tmpvec'] = Vec('tmpvec', destroy=False)
 
         base_dict['xcoarse'] = Vec('xc')
         base_dict['yfine'] = Vec('yf')
@@ -320,6 +321,28 @@ class MultigridTypeBuilderMixin:
         hierarchy = self.inject_solve.expr.rhs.multigrid_metadata.hierarchy
         for sublevel in hierarchy.coarse_levels:
             base_dict['lc'].append(self._make_lc_arrays(sublevel.distributor))
+
+        if self.field_data.constrain_bc:
+            targets = self.field_data.targets
+
+            base_dict['lsection'] = [base_dict['lsection']]
+            base_dict['gsection'] = [base_dict['gsection']]
+            base_dict['sf'] = [base_dict['sf']]
+
+            for _ in hierarchy.coarse_levels:
+                base_dict['lsection'].append(
+                    PetscSectionLocal(name=sreg.make_name(prefix='lsection'))
+                )
+                base_dict['gsection'].append(
+                    PetscSectionGlobal(name=sreg.make_name(prefix='gsection'))
+                )
+                base_dict['sf'].append(PetscSF(name=sreg.make_name(prefix='sf')))
+
+            for t in targets:
+                base_dict[f'numBC_levels_{t.name}'] = [
+                    PetscInt(name=sreg.make_name(prefix='numBC'), initvalue=0)
+                    for _ in range(hierarchy.nlevels)
+                ]
 
         return base_dict
 

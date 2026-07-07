@@ -4,6 +4,7 @@ from devito.types.dimension import Thickness
 class _SubDimBound(Thickness):
     def __init_finalize__(self, *args, **kwargs):
         self._subdim = kwargs.pop('subdim')
+        self._distributor = kwargs.pop('distributor', None)
         self._dtype = self._subdim.dtype
         super().__init_finalize__(*args, **kwargs)
 
@@ -15,6 +16,7 @@ class _SubDimBound(Thickness):
 class _SpaceDimBound(Thickness):
     def __init_finalize__(self, *args, **kwargs):
         self._space_dim = kwargs.pop('space_dim')
+        self._distributor = kwargs.pop('distributor', None)
         self._dtype = self._space_dim.dtype
         super().__init_finalize__(*args, **kwargs)
 
@@ -29,7 +31,7 @@ class SubDimMax(_SubDimBound):
     to a locally owned point. Not used for indexing into data.
     """
     def _arg_values(self, grid=None, **kwargs):
-        dist = grid.distributor
+        dist = self._distributor or grid.distributor
         grtkn = kwargs.get(self.subdim.rtkn.name, self.subdim.rtkn.value)
         decomp = dist.decomposition[self.subdim.parent]
         val = decomp.index_glb_to_loc_unsafe(decomp.glb_max - grtkn)
@@ -42,7 +44,7 @@ class SubDimMin(_SubDimBound):
     to a locally owned point. Not used for indexing into data.
     """
     def _arg_values(self, grid=None, **kwargs):
-        dist = grid.distributor
+        dist = self._distributor or grid.distributor
         gltkn = kwargs.get(self.subdim.ltkn.name, self.subdim.ltkn.value)
         decomp = dist.decomposition[self.subdim.parent]
         val = decomp.index_glb_to_loc_unsafe(decomp.glb_min + gltkn)
@@ -55,7 +57,7 @@ class SpaceDimMax(_SpaceDimBound):
     to a locally owned point. Not used for indexing into data.
     """
     def _arg_values(self, grid=None, **kwargs):
-        dist = grid.distributor
+        dist = self._distributor or grid.distributor
         decomp = dist.decomposition[self.space_dim]
         val = decomp.index_glb_to_loc_unsafe(decomp.glb_max)
         return {self.name: int(val)}
@@ -67,7 +69,7 @@ class SpaceDimMin(_SpaceDimBound):
     to a locally owned point. Not used for indexing into data.
     """
     def _arg_values(self, grid=None, **kwargs):
-        dist = grid.distributor
+        dist = self._distributor or grid.distributor
         decomp = dist.decomposition[self.space_dim]
         val = decomp.index_glb_to_loc_unsafe(decomp.glb_min)
         return {self.name: int(val)}
