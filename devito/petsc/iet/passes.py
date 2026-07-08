@@ -316,9 +316,9 @@ def linear_indices(iet, **kwargs):
     fsz_vals = {}
     for f in functions:
         fields = [
-            FieldFromComposite(f'g{d.name}m', localinfo) for d in f.dimensions
+            FieldFromComposite(f'g{d.name}m', localinfo) for d in f.space_dimensions
         ][::-1]
-        for i, d in enumerate(f.dimensions):
+        for i, d in enumerate(f.space_dimensions):
             try:
                 fsz = tracker.get_size(f, d)
             except KeyError:
