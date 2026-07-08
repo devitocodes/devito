@@ -60,11 +60,23 @@ class Keys(CacheInstances):
     """
 
     def __init__(self, c, fuse_tasks):
+        #TODO. turn into __new__, and return ClusterKeys or ClusterGroupKeys
         self.c = c
         self.fuse_tasks = fuse_tasks
 
+    @property
+    def first(self):
+        #TODO only in ClusterGroupKeys, not in ClusterKeys
+        return self.c[0]
+
+    @property
+    def last(self):
+        #TODO only in ClusterGroupKeys, not in ClusterKeys
+        return self.c[-1]
+
     @cached_property
     def itintervals(self):
+        #TODO just ispace, not itintervals
         return frozenset(self.c.ispace.itintervals)
 
     @cached_property
@@ -130,19 +142,6 @@ class Keys(CacheInstances):
     @cached_property
     def fusion(self):
         return self.strict + self.weak
-
-    #def __new__(cls, itintervals, guards, syncs, weak):
-    #    strict = [itintervals, guards, syncs]
-    #    obj = super().__new__(cls, strict + weak)
-
-    #    obj.itintervals = itintervals
-    #    obj.guards = guards
-    #    obj.syncs = syncs
-
-    #    obj.strict = tuple(strict)
-    #    obj.weak = tuple(weak)
-
-    #    return obj
 
 
 class Fusion(Queue):
@@ -248,6 +247,10 @@ class Fusion(Queue):
         return processed
 
     def _toposort(self, cgroups, prefix):
+        # If not enough ClusterGroups to do anything meaningful, don't waste time
+        if len(cgroups) <= 2:
+            return ClusterGroup(cgroups, prefix)
+
         # Are there any ClusterGroups that could potentially be topologically
         # reordered? If not, do not waste time
         counter = Counter(self._key(cg).strict for cg in cgroups)
@@ -264,14 +267,19 @@ class Fusion(Queue):
             k = self._key(scheduled[-1])
             m = {i: self._key(i) for i in queue}
 
-            # Process the `strict` part of the key
-            candidates = [i for i in queue if m[i].itintervals == k.itintervals]
+            # First of all, ensure we preserve the integrity of the current scope
+            compatible = [i for i in queue if k.last.ispace == m[i].first.ispace]
+            candidates = compatible or queue
 
-            compatible = [i for i in candidates if m[i].guards == k.guards]
+            compatible = [i for i in candidates if k.last.guards == m[i].first.guards]
             candidates = compatible or candidates
 
-            compatible = [i for i in candidates if m[i].syncs == k.syncs]
+            compatible = [i for i in candidates if k.last.syncs == m[i].first.syncs]
             candidates = compatible or candidates
+
+            # If there's no scope to preserve, then we maximize fusion
+            fusible = [i for i in queue if k.itintervals == m[i].itintervals]
+            candidates = candidates or fusible
 
             # Process the `weak` part of the key
             for i in range(len(k.weak), -1, -1):
