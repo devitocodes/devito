@@ -37,7 +37,9 @@ class PETScArray(ArrayBasic, Differentiable):
 
         self._target = kwargs.get('target')
         self._ndim = kwargs['ndim'] = len(self._target.space_dimensions)
-        self._dimensions = kwargs['dimensions'] = self._target.space_dimensions
+        self._dimensions = kwargs['dimensions'] = DimensionTuple(
+            *self._target.space_dimensions, getters=self._target.space_dimensions
+        )
         super().__init_finalize__(*args, **kwargs)
         self._coefficients = self._target.coefficients
         self._localinfo = kwargs.get('localinfo')
