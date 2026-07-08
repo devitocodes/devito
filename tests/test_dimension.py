@@ -2148,14 +2148,14 @@ class TestMashup:
         assert exprs[1].write is g
 
         exprs = FindNodes(Expression).visit(bns['x1_blk0'])
-        assert len(exprs) == 1
-        assert exprs[0].write is h
-
-        exprs = FindNodes(Expression).visit(bns['x2_blk0'])
         assert len(exprs) == 3
         assert isinstance(exprs[0].expr.lhs, Temp)
         assert exprs[1].write is fsave
         assert exprs[2].write is gsave
+
+        exprs = FindNodes(Expression).visit(bns['x2_blk0'])
+        assert len(exprs) == 1
+        assert exprs[0].write is h
 
     def test_topofusion_w_subdims_conddims_v2(self):
         """

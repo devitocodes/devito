@@ -1,4 +1,5 @@
 from collections import Counter, defaultdict
+from functools import cached_property
 from itertools import groupby
 
 from devito.finite_differences import IndexDerivative
@@ -8,7 +9,7 @@ from devito.ir.support import (
 )
 from devito.symbolics import search
 from devito.tools import (
-    DAG, as_tuple, flatten, frozendict, memoized_func, memoized_meth, timed_pass
+    DAG, CacheInstances, as_tuple, flatten, frozendict, memoized_func, timed_pass
 )
 
 __all__ = ['fuse']
@@ -50,110 +51,48 @@ def _fusion_hazards(scope0, scope1, prefix):
     return NO_HAZARD
 
 
-class Key(tuple):
+class Keys(CacheInstances):
 
     """
-    A "fusion Key" for a Cluster (ClusterGroup) is a hashable tuple such that
-    two Clusters (ClusterGroups) are topo-fusible if and only if their Key is
-    identical.
-
-    A Key contains elements that can logically be split into two groups -- the
-    `strict` and the `weak` components of the Key. Two Clusters (ClusterGroups)
-    having same `strict` but different `weak` parts are, by definition, not
-    fusible; however, since at least their `strict` parts match, they can at
-    least be topologically reordered.
+    Provide different kind of keys for Clusters (ClusterGroups) to be used in
+    topological reordering and fusion.
     """
 
-    def __new__(cls, itintervals, guards, syncs, weak):
-        strict = [itintervals, guards, syncs]
-        obj = super().__new__(cls, strict + weak)
+    def __init__(self, c, fuse_tasks):
+        self.c = c
+        self.fuse_tasks = fuse_tasks
 
-        obj.itintervals = itintervals
-        obj.guards = guards
-        obj.syncs = syncs
+    @property
+    def first(self):
+        return self.c[0]
 
-        obj.strict = tuple(strict)
-        obj.weak = tuple(weak)
+    @property
+    def last(self):
+        return self.c[-1]
 
-        return obj
+    @cached_property
+    def itintervals(self):
+        return self.c.ispace.itintervals
 
+    @cached_property
+    def guards(self):
+        return self.c.guards if any(self.c.guards) else None
 
-class Fusion(Queue):
-
-    """
-    Fuse Clusters with compatible IterationSpace.
-    """
-
-    _q_guards_in_key = True
-    _q_syncs_in_key = True
-
-    def __init__(self, toposort, options=None):
-        options = options or {}
-
-        self.toposort = toposort
-        self.fusetasks = options.get('fuse-tasks', False)
-
-        super().__init__()
-
-    def process(self, clusters):
-        cgroups = [ClusterGroup(c, c.ispace) for c in clusters]
-        cgroups = self._process_fdta(cgroups, 1)
-        clusters = ClusterGroup.concatenate(*cgroups)
-        return clusters
-
-    def callback(self, cgroups, prefix):
-        # Toposort to maximize fusion
-        if self.toposort:
-            clusters = self._toposort(cgroups, prefix)
-            if self.toposort == 'nofuse':
-                return [clusters]
-        else:
-            clusters = ClusterGroup(cgroups)
-
-        # Fusion
-        processed = []
-        for _, group in groupby(clusters, key=self._key):
-            g = list(group)
-
-            for maybe_fusible in self._apply_heuristics(g):
-                try:
-                    # Perform fusion
-                    processed.append(Cluster.from_clusters(*maybe_fusible))
-                except ValueError:
-                    # We end up here if, for example, some Clusters have same
-                    # iteration Dimensions but different (partial) orderings
-                    processed.extend(maybe_fusible)
-
-        # Maximize effectiveness of topo-sorting at next stage by only
-        # grouping together Clusters characterized by data dependencies
-        if self.toposort and prefix:
-            dag = self._build_dag(processed, prefix)
-            mapper = dag.connected_components(enumerated=True)
-            groups = groupby(processed, key=mapper.get)
-            return [ClusterGroup(tuple(g), prefix) for _, g in groups]
-        else:
-            return [ClusterGroup(processed, prefix)]
-
-    @memoized_meth
-    def _key(self, c):
-        itintervals = frozenset(c.ispace.itintervals)
-        guards = c.guards if any(c.guards) else None
-
-        # We allow fusing Clusters/ClusterGroups even in presence of WaitLocks and
-        # WithLocks, but not with any other SyncOps
+    @cached_property
+    def syncs(self):
         mapper = defaultdict(set)
-        for d, v in c.syncs.items():
+        for d, v in self.c.syncs.items():
             for s in v:
                 if isinstance(s, PrefetchUpdate):
                     continue
-                elif isinstance(s, WaitLock) and not self.fusetasks:
+                elif isinstance(s, WaitLock) and not self.fuse_tasks:
                     # NOTE: A mix of Clusters w/ and w/o WaitLocks can safely
                     # be fused, as in the worst case scenario the WaitLocks
                     # get "hoisted" above the first Cluster in the sequence
                     continue
                 elif isinstance(s, (InitArray, SyncArray, WaitLock, ReleaseLock)):
                     mapper[d].add(type(s))
-                elif isinstance(s, WithLock) and self.fusetasks:
+                elif isinstance(s, WithLock) and self.fuse_tasks:
                     # NOTE: Different WithLocks aren't fused unless the user
                     # explicitly asks for it
                     mapper[d].add(type(s))
@@ -161,7 +100,15 @@ class Fusion(Queue):
                     mapper[d].add(s)
             if d in mapper:
                 mapper[d] = frozenset(mapper[d])
-        syncs = frozendict(mapper)
+        return frozendict(mapper)
+
+    @cached_property
+    def strict(self):
+        return (self.itintervals, self.guards, self.syncs)
+
+    @cached_property
+    def weak(self):
+        c = self.c
 
         # Clusters representing HaloTouches should get merged, if possible
         weak = [c.is_halo_touch]
@@ -185,9 +132,72 @@ class Fusion(Queue):
         # Promote adjacency of Clusters with same guard
         weak.append(c.guards)
 
-        key = Key(itintervals, guards, syncs, weak)
+        return tuple(weak)
 
-        return key
+    @cached_property
+    def full(self):
+        return self.strict + self.weak
+
+
+class Fusion(Queue):
+
+    """
+    Fuse Clusters with compatible IterationSpace.
+    """
+
+    _q_guards_in_key = True
+    _q_syncs_in_key = True
+
+    def __init__(self, toposort, options=None):
+        options = options or {}
+
+        self.toposort = toposort
+        self.fuse_tasks = options.get('fuse-tasks', False)
+
+        super().__init__()
+
+    def process(self, clusters):
+        cgroups = [ClusterGroup(c, c.ispace) for c in clusters]
+        cgroups = self._process_fdta(cgroups, 1)
+        clusters = ClusterGroup.concatenate(*cgroups)
+        return clusters
+
+    def callback(self, cgroups, prefix):
+        # Toposort to maximize fusion
+        if self.toposort:
+            clusters = self._toposort(cgroups, prefix)
+            if self.toposort == 'nofuse':
+                return [clusters]
+        else:
+            clusters = ClusterGroup(cgroups)
+
+        # Fusion
+        key = lambda c: self._key(c).full
+        processed = []
+        for _, group in groupby(clusters, key=key):
+            g = list(group)
+
+            for maybe_fusible in self._apply_heuristics(g):
+                try:
+                    # Perform fusion
+                    processed.append(Cluster.from_clusters(*maybe_fusible))
+                except ValueError:
+                    # We end up here if, for example, some Clusters have same
+                    # iteration Dimensions but different (partial) orderings
+                    processed.extend(maybe_fusible)
+
+        # Maximize effectiveness of topo-sorting at next stage by only
+        # grouping together Clusters characterized by data dependencies
+        if self.toposort and prefix:
+            dag = self._build_dag(processed, prefix)
+            mapper = dag.connected_components(enumerated=True)
+            groups = groupby(processed, key=mapper.get)
+            return [ClusterGroup(tuple(g), prefix) for _, g in groups]
+        else:
+            return [ClusterGroup(processed, prefix)]
+
+    def _key(self, c):
+        return Keys(c, self.fuse_tasks)
 
     def _apply_heuristics(self, clusters):
         # We know at this point that `clusters` are potentially fusible since
@@ -232,6 +242,10 @@ class Fusion(Queue):
         return processed
 
     def _toposort(self, cgroups, prefix):
+        # If not enough ClusterGroups to do anything meaningful, don't waste time
+        if len(cgroups) <= 2:
+            return ClusterGroup(cgroups, prefix)
+
         # Are there any ClusterGroups that could potentially be topologically
         # reordered? If not, do not waste time
         counter = Counter(self._key(cg).strict for cg in cgroups)
@@ -242,19 +256,23 @@ class Fusion(Queue):
         dag = self._build_dag(cgroups, prefix)
 
         def choose_element(queue, scheduled):
-            if not scheduled:
+            if not scheduled or len(queue) == 1:
                 return queue.pop()
 
             k = self._key(scheduled[-1])
             m = {i: self._key(i) for i in queue}
 
-            # Process the `strict` part of the key
-            candidates = [i for i in queue if m[i].itintervals == k.itintervals]
+            # First of all, ensure we preserve the integrity of the current scope
+            candidates = [i for i in queue if k.last.ispace == m[i].first.ispace]
 
-            compatible = [i for i in candidates if m[i].guards == k.guards]
+            compatible = [i for i in candidates if k.last.guards == m[i].first.guards]
             candidates = compatible or candidates
 
-            compatible = [i for i in candidates if m[i].syncs == k.syncs]
+            # If the current scope is over, we maximize fusion
+            fusible = [i for i in queue if k.itintervals == m[i].itintervals]
+            candidates = candidates or fusible
+
+            compatible = [i for i in candidates if k.syncs == m[i].syncs]
             candidates = compatible or candidates
 
             # Process the `weak` part of the key
