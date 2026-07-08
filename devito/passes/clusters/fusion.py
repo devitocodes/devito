@@ -268,8 +268,7 @@ class Fusion(Queue):
             m = {i: self._key(i) for i in queue}
 
             # First of all, ensure we preserve the integrity of the current scope
-            compatible = [i for i in queue if k.last.ispace == m[i].first.ispace]
-            candidates = compatible or queue
+            candidates = [i for i in queue if k.last.ispace == m[i].first.ispace]
 
             compatible = [i for i in candidates if k.last.guards == m[i].first.guards]
             candidates = compatible or candidates
