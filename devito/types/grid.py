@@ -949,6 +949,10 @@ class SubDomainSet(MultiSubDomain):
     def bounds(self):
         return self._local_bounds
 
+    @property
+    def subfunction(self):
+        return self._subfunction
+
 
 class Border(SubDomainSet):
     """

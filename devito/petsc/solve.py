@@ -341,11 +341,11 @@ def _out_of_domain_bc(target):
         return None
     grid = target.grid
     grid_dim_set = set(grid.dimensions)
-    staggered_dims = [d for d, s in zip(target.dimensions, target.staggered, strict=True)
-                      if s != 0 and d in grid_dim_set]
-    if not staggered_dims:
+    dims = {d: ('right' if s > 0 else 'left')
+            for d, s in zip(target.dimensions, target.staggered, strict=True)
+            if s != 0 and d in grid_dim_set}
+    if not dims:
         return None
-    dims = {d: 'right' for d in staggered_dims}
     border = Border(grid, border=1, dims=dims,
                     name=f'_stagger_border_{target.name}',
                     corners='nooverlap')

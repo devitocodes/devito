@@ -36,7 +36,9 @@ from devito.symbolics import (
 )
 from devito.tools import filter_ordered
 from devito.types.basic import DataSymbol, LocalType
+from devito.types.dense import Function
 from devito.types.dimension import DefaultDimension, Thickness
+from devito.types.grid import Border
 from devito.types.misc import FIndexed
 
 
@@ -208,7 +210,28 @@ def fix_mg_populate_calls(graph, **kwargs):
                 space_dim=coarse_dim_map[f.space_dim],
                 distributor=subgrid.distributor,
             )
+        elif isinstance(f, Function) and f.name.startswith('_stagger_border_'):
+            # Handle Border coarsening
+            target_name = f.name[len('_stagger_border_'):]
+            target = next(t for t in field_params
+                          if getattr(t, 'name', None) == target_name)
+            grid_dim_set = set(subgrid.parent.dimensions)
+            translated_dims = {
+                coarse_dim_map[d]: ('right' if s > 0 else 'left')
+                for d, s in zip(target.dimensions, target.staggered, strict=True)
+                if s != 0 and d in grid_dim_set
+            }
+            coarse_border = Border(
+                subgrid, border=1, dims=translated_dims,
+                name=f'{f.name}_d{subgrid.coarsening_depth}', corners='nooverlap'
+            )
+            return coarse_border.subfunction
         elif isinstance(f, Thickness):
+            if f.root is None:
+                # Identifies a MultiSubDimension's (e.g.
+                # Border's) Thickness - its value is always overwritten 
+                # with a predefined array before being read
+                return f
             return _coarse_thickness(f, subgrid, coarse_dim_map)
         elif isinstance(f, FineGlobalStartScalar):
             return f
