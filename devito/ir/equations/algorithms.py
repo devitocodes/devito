@@ -298,9 +298,10 @@ def _(d, mapper, rebuilt, sregistry):
     tkns = tuple(tkn._rebuild(name=sregistry.make_name(prefix=tkn.name))
                  for tkn in d.thickness)
     kwargs = {'thickness': tkns}
-    fkwargs = {}
+    fkwargs = {'function': None, 'halo': None, 'padding': None}
 
     idim0 = d.implicit_dimension
+    idim1 = None
     if idim0 is not None:
         if idim0 in rebuilt:
             idim1 = rebuilt[idim0]
@@ -309,33 +310,34 @@ def _(d, mapper, rebuilt, sregistry):
             rebuilt[idim0] = idim1 = idim0._rebuild(name=iname)
 
         kwargs['implicit_dimension'] = idim1
-        fkwargs['dimensions'] = (idim1,) + d.functions.dimensions[1:]
 
-    if d.functions in rebuilt:
-        functions = rebuilt[d.functions]
-    else:
-        # Increment every instance of this name after the first encountered
-        fname = sregistry.make_name(prefix=d.functions.name, increment_first=False)
-        # Warn the user if name has been changed, since this will affect overrides
-        if fname != d.functions.name:
-            fkwargs['name'] = fname
-            warning(
-                f"{str(d.functions)} <{id(d.functions)}> renamed as '{fname}'. "
-                "Consider assigning a unique name to {d.functions.name}."
-            )
+    functions = []
+    for f in as_tuple(d.functions):
+        if f in rebuilt:
+            functions.append(rebuilt[f])
+        else:
+            # Increment every instance of this name after the first encountered
+            fname = sregistry.make_name(prefix=f.name, increment_first=False)
+            # Warn the user if name has been changed, since this will affect overrides
+            if fname != f.name:
+                fkwargs['name'] = fname
+                warning(
+                    f"{str(f)} <{id(f)}> renamed as '{fname}'. "
+                    f"Consider assigning a unique name to {f.name}."
+                )
 
-        fkwargs.update({'function': None,
-                        'halo': None,
-                        'padding': None})
+            if idim1 is not None:
+                fkwargs['dimensions'] = (idim1,) + f.dimensions[1:]
+            # Data in MultiSubDimension function may not have been touched at this point,
+            # in which case do not use an allocator, as there is nothing to allocate, and
+            # doing so will petrify the `_data` attribute as None.
+            if f._data is not None:
+                fkwargs.update({'allocator': DataReference(f._data)})
 
-        # Data in MultiSubDimension function may not have been touched at this point,
-        # in which case do not use an allocator, as there is nothing to allocate, and
-        # doing so will petrify the `_data` attribute as None.
-        if d.functions._data is not None:
-            fkwargs.update({'allocator': DataReference(d.functions._data)})
+            rebuilt[f] = f._rebuild(**fkwargs)
+            functions.append(rebuilt[f])
 
-        rebuilt[d.functions] = functions = d.functions._rebuild(**fkwargs)
-
-    kwargs['functions'] = functions
+    kwargs['functions'] = tuple(functions)
 
     mapper[d] = d._rebuild(**kwargs)
+    mapper.update(zip(d.thickness, tkns, strict=True))

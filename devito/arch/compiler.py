@@ -803,7 +803,7 @@ class HipCompiler(Compiler):
     _default_cpp = True
 
     def __init_finalize__(self, **kwargs):
-        self.cflags.append('-Wno-unused-result')
+        self.cflags.extend(['-Wno-unused-result', '-Wno-unused-value'])
 
         if configuration['mpi']:
             # We rather use `hipcc` to compile MPI, but for this we have to
