@@ -1,7 +1,14 @@
+import numpy as np
+
 from devito import Max, Min
+from devito.petsc.types.array import PETScArray
 from devito.petsc.types.dimension import SpaceDimMax, SpaceDimMin, SubDimMax, SubDimMin
-from devito.petsc.types.equation import ConstrainBC
+from devito.petsc.types.equation import CallbackEq, ConstrainBC
+from devito.petsc.types.multigrid import (
+    CoarseningFactorScalar, FineGlobalStartScalar, GlobalStartScalar
+)
 from devito.symbolics import retrieve_dimensions, retrieve_indexed, uxreplace
+from devito.types.basic import Scalar
 from devito.types.dimension import CustomDimension, SpaceDimension
 
 
@@ -10,7 +17,61 @@ def lower_exprs_petsc(expressions, **kwargs):
     # Process `ConstrainBC` equations
     expressions = constrain_essential_bcs(expressions, **kwargs)
 
+    # Remap fine-grid, non-target reads inside multilevel callbacks
+    expressions = lower_multilevel_fine_grid_accesses(expressions, **kwargs)
+
     return expressions
+
+
+def lower_multilevel_fine_grid_accesses(expressions, **kwargs):
+    """
+    """
+    ml_exprs = [e for e in expressions
+                if isinstance(e, CallbackEq) and e.is_multilevel]
+    if not ml_exprs:
+        return expressions
+
+    new_exprs = []
+    for e in expressions:
+        if not (isinstance(e, CallbackEq) and e.is_multilevel):
+            new_exprs.append(e)
+            continue
+
+        target = e.lhs.function.target
+        fine_grid = target.grid
+        distributor = fine_grid.distributor
+
+        factor = CoarseningFactorScalar('factor', depth=0)
+
+        syms = {}
+
+        def _gsc_gsf(d):
+            if d not in syms:
+                root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
+                gsc = GlobalStartScalar(f'{d.name}_m_glb', dim=d,
+                                        distributor=distributor, root=root)
+                gsf = FineGlobalStartScalar(f'{d.name}_m_glb_d0', dim=d,
+                                            distributor=distributor, root=root)
+                syms[d] = (gsc, gsf)
+            return syms[d]
+
+        mapper = {}
+        for i in retrieve_indexed(e):
+            if i.function.grid is not fine_grid or isinstance(i.function, PETScArray):
+                continue
+            dim_map = {}
+            for a in i.indices:
+                for s in a.free_symbols:
+                    root = getattr(s, 'root', s)
+                    if root in fine_grid.dimensions:
+                        gsc, gsf = _gsc_gsf(root)
+                        dim_map[s] = factor * (s + gsc) - gsf
+            if dim_map:
+                mapper[i] = uxreplace(i, dim_map)
+
+        new_exprs.append(uxreplace(e, mapper) if mapper else e)
+
+    return new_exprs
 
 
 def constrain_essential_bcs(expressions, **kwargs):

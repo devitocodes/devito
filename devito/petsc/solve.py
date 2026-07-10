@@ -119,8 +119,6 @@ class InjectSolve:
                     "constrain_bcs=True is not yet supported on 3D grids."
                 )
 
-        # Build MultigridMetadata first so its symbols are available to
-        # _apply_fine_grid_transform inside linear_solve_args.
         self._multigrid_metadata = None
         if self.solver_parameters.get('pc_type') == 'mg':
             if self.hierarchy is None:
@@ -169,52 +167,10 @@ class InjectSolve:
             for t, e in self.target_exprs.items()
         }
 
-    def _apply_fine_grid_transform(self, target, exprs):
-        """
-        When multigrid is active, replace fine-grid Function indices with the
-        level-aware formula: f[factor*(d + gsc_c) - glb_start_syms_f].
-
-        Ensures FormFunction/MatMult callbacks access fine-grid data correctly
-        at any coarse level at runtime.
-        """
-        mg = self._multigrid_metadata
-        fine_grid = self.hierarchy.fine
-        dims = fine_grid.dimensions
-        gsc_c_syms = mg.gsc_c
-        glb_start_syms_f = mg.glb_start_syms_f
-        factor = mg.factor
-
-        fine_funcs = {
-            f for e in exprs
-            for f in retrieve_functions(e.evaluate)
-            if hasattr(f, 'grid') and f.grid is fine_grid
-            and f.function is not target.function
-        }
-        if not fine_funcs:
-            return exprs
-
-        subs = {}
-        for func in fine_funcs:
-            new_func = func
-            for i, d in enumerate(dims):
-                for fdim in func.space_dimensions:
-                    if fdim is d:
-                        new_func = new_func.subs(
-                            d, factor * (d + gsc_c_syms[i]) - glb_start_syms_f[i]
-                        )
-                        break
-            if new_func is not func:
-                subs[func] = new_func
-
-        return tuple(eq.xreplace(subs) for eq in exprs)
-
     def linear_solve_args(self):
         self._constrain_out_of_domain_nodes()
         target, exprs = next(iter(self.target_exprs.items()))
         exprs = as_tuple(exprs)
-
-        if self._multigrid_metadata is not None:
-            exprs = self._apply_fine_grid_transform(target, exprs)
 
         funcs = get_funcs(exprs)
         # TODO: Add MPI tests for this but if not filtered, the wrong halospots
@@ -235,12 +191,24 @@ class InjectSolve:
 
         exprs = sorted(exprs, key=lambda e: not isinstance(e, EssentialBC))
 
+        is_multilevel = self._multigrid_metadata is not None
+
         # TODO: If constrain_bcs is enabled, essential BC handling may be redundant
         # (or need adjusting) in the following classes
-        jacobian = Jacobian(target, exprs, arrays, self.time_mapper)
-        residual = Residual(target, exprs, arrays, self.time_mapper, jacobian.scdiag)
-        initial_guess = InitialGuess(target, exprs, arrays, self.time_mapper)
-        diagonal = Diagonal(target, jacobian.matvecs, arrays, jacobian.scdiag)
+        jacobian = Jacobian(
+            target, exprs, arrays, self.time_mapper, is_multilevel=is_multilevel
+        )
+        residual = Residual(
+            target, exprs, arrays, self.time_mapper, jacobian.scdiag,
+            is_multilevel=is_multilevel
+        )
+        initial_guess = InitialGuess(
+            target, exprs, arrays, self.time_mapper, is_multilevel=is_multilevel
+        )
+        diagonal = Diagonal(
+            target, jacobian.matvecs, arrays, jacobian.scdiag,
+            is_multilevel=is_multilevel
+        )
 
         constrain_exprs = self._get_constrain_exprs(exprs)
         constrain_bc = None
@@ -303,13 +271,15 @@ class InjectMixedSolve(InjectSolve):
         targets = list(self.target_exprs.keys())
         arrays = self.generate_arrays(*targets)
 
+        is_multilevel = self._multigrid_metadata is not None
+
         jacobian = MixedJacobian(
-            self.target_exprs, arrays, self.time_mapper
+            self.target_exprs, arrays, self.time_mapper, is_multilevel=is_multilevel
         )
 
         residual = MixedResidual(
             self.target_exprs, arrays, self.time_mapper,
-            jacobian.target_scaler_mapper
+            jacobian.target_scaler_mapper, is_multilevel=is_multilevel
         )
 
         constrain_bc = {}

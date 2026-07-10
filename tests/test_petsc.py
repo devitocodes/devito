@@ -22,7 +22,7 @@ from devito.petsc.solve import EssentialBC, petscsolve
 from devito.petsc.solver_parameters import linear_solve_defaults
 from devito.petsc.types import (
     DM, KSP, PC, FieldData, KSPConvergedReason, Mat, MultipleFieldData, PETScArray,
-    PetscMPIInt, SubMatrixBlock, Vec
+    PetscMPIInt, SubMatrixBlock, Vec, CallbackEq
 )
 from devito.types import Constant, LocalCompositeObject
 
@@ -1122,10 +1122,10 @@ class TestCoupledLinear:
         assert not j10.matvecs
 
         # Compatible scaling to reduce condition number of jacobian
-        assert str(j00.matvecs[0]) == 'Eq(y_e(x, y),' \
+        assert str(j00.matvecs[0]) == 'CallbackEq(y_e(x, y),' \
             + ' h_x*h_y*(Derivative(x_e(x, y), (x, 2)) + Derivative(x_e(x, y), (y, 2))))'
 
-        assert str(j11.matvecs[0]) == 'Eq(y_g(x, y),' \
+        assert str(j11.matvecs[0]) == 'CallbackEq(y_g(x, y),' \
             + ' h_x*h_y*(Derivative(x_g(x, y), (x, 2)) + Derivative(x_g(x, y), (y, 2))))'
 
         # Check the col_targets
@@ -1135,30 +1135,30 @@ class TestCoupledLinear:
         assert j11.col_target == g
 
     @pytest.mark.parametrize('eq1, eq2, j01_matvec, j10_matvec', [
-        ('Eq(-e.laplace, g)', 'Eq(-g.laplace, e)',
-         'Eq(y_e(x, y), -h_x*h_y*x_g(x, y))',
-         'Eq(y_g(x, y), -h_x*h_y*x_e(x, y))'),
-        ('Eq(-e.laplace, 2.*g)', 'Eq(-g.laplace, 2.*e)',
-         'Eq(y_e(x, y), -2.0*h_x*h_y*x_g(x, y))',
-         'Eq(y_g(x, y), -2.0*h_x*h_y*x_e(x, y))'),
-        ('Eq(-e.laplace, g.dx)', 'Eq(-g.laplace, e.dx)',
-         'Eq(y_e(x, y), -h_x*h_y*Derivative(x_g(x, y), x))',
-         'Eq(y_g(x, y), -h_x*h_y*Derivative(x_e(x, y), x))'),
-        ('Eq(-e.laplace, g.dx + g)', 'Eq(-g.laplace, e.dx + e)',
-         'Eq(y_e(x, y), h_x*h_y*(-x_g(x, y) - Derivative(x_g(x, y), x)))',
-         'Eq(y_g(x, y), h_x*h_y*(-x_e(x, y) - Derivative(x_e(x, y), x)))'),
-        ('Eq(e, g.dx + g)', 'Eq(g, e.dx + e)',
-         'Eq(y_e(x, y), h_x*h_y*(-x_g(x, y) - Derivative(x_g(x, y), x)))',
-         'Eq(y_g(x, y), h_x*h_y*(-x_e(x, y) - Derivative(x_e(x, y), x)))'),
-        ('Eq(e, g.dx + g.dy)', 'Eq(g, e.dx + e.dy)',
-         'Eq(y_e(x, y), h_x*h_y*(-Derivative(x_g(x, y), x) - Derivative(x_g(x, y), y)))',
-         'Eq(y_g(x, y), h_x*h_y*(-Derivative(x_e(x, y), x) - Derivative(x_e(x, y), y)))'),
-        ('Eq(g, -e.laplace)', 'Eq(e, -g.laplace)',
-         'Eq(y_e(x, y), h_x*h_y*x_g(x, y))',
-         'Eq(y_g(x, y), h_x*h_y*x_e(x, y))'),
-        ('Eq(e + g, e.dx + 2.*g.dx)', 'Eq(g + e, g.dx + 2.*e.dx)',
-         'Eq(y_e(x, y), h_x*h_y*(x_g(x, y) - 2.0*Derivative(x_g(x, y), x)))',
-         'Eq(y_g(x, y), h_x*h_y*(x_e(x, y) - 2.0*Derivative(x_e(x, y), x)))'),
+        ('CallbackEq(-e.laplace, g)', 'CallbackEq(-g.laplace, e)',
+         'CallbackEq(y_e(x, y), -h_x*h_y*x_g(x, y))',
+         'CallbackEq(y_g(x, y), -h_x*h_y*x_e(x, y))'),
+        ('CallbackEq(-e.laplace, 2.*g)', 'CallbackEq(-g.laplace, 2.*e)',
+         'CallbackEq(y_e(x, y), -2.0*h_x*h_y*x_g(x, y))',
+         'CallbackEq(y_g(x, y), -2.0*h_x*h_y*x_e(x, y))'),
+        ('CallbackEq(-e.laplace, g.dx)', 'CallbackEq(-g.laplace, e.dx)',
+         'CallbackEq(y_e(x, y), -h_x*h_y*Derivative(x_g(x, y), x))',
+         'CallbackEq(y_g(x, y), -h_x*h_y*Derivative(x_e(x, y), x))'),
+        ('CallbackEq(-e.laplace, g.dx + g)', 'CallbackEq(-g.laplace, e.dx + e)',
+         'CallbackEq(y_e(x, y), h_x*h_y*(-x_g(x, y) - Derivative(x_g(x, y), x)))',
+         'CallbackEq(y_g(x, y), h_x*h_y*(-x_e(x, y) - Derivative(x_e(x, y), x)))'),
+        ('CallbackEq(e, g.dx + g)', 'CallbackEq(g, e.dx + e)',
+         'CallbackEq(y_e(x, y), h_x*h_y*(-x_g(x, y) - Derivative(x_g(x, y), x)))',
+         'CallbackEq(y_g(x, y), h_x*h_y*(-x_e(x, y) - Derivative(x_e(x, y), x)))'),
+        ('CallbackEq(e, g.dx + g.dy)', 'CallbackEq(g, e.dx + e.dy)',
+         'CallbackEq(y_e(x, y), h_x*h_y*(-Derivative(x_g(x, y), x) - Derivative(x_g(x, y), y)))',
+         'CallbackEq(y_g(x, y), h_x*h_y*(-Derivative(x_e(x, y), x) - Derivative(x_e(x, y), y)))'),
+        ('CallbackEq(g, -e.laplace)', 'CallbackEq(e, -g.laplace)',
+         'CallbackEq(y_e(x, y), h_x*h_y*x_g(x, y))',
+         'CallbackEq(y_g(x, y), h_x*h_y*x_e(x, y))'),
+        ('CallbackEq(e + g, e.dx + 2.*g.dx)', 'CallbackEq(g + e, g.dx + 2.*e.dx)',
+         'CallbackEq(y_e(x, y), h_x*h_y*(x_g(x, y) - 2.0*Derivative(x_g(x, y), x)))',
+         'CallbackEq(y_g(x, y), h_x*h_y*(x_e(x, y) - 2.0*Derivative(x_e(x, y), x)))'),
     ])
     @skipif('petsc')
     def test_coupling(self, eq1, eq2, j01_matvec, j10_matvec):
@@ -1188,21 +1188,21 @@ class TestCoupledLinear:
         assert str(j10.matvecs[0]) == j10_matvec
 
     @pytest.mark.parametrize('eq1, eq2, so, scale', [
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2', '-2.0*h_x/h_x**2'),
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4', '-2.5*h_x/h_x**2'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2', 'h_x*(1 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4', 'h_x*(1 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2',
+        ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '2', '-2.0*h_x/h_x**2'),
+        ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '4', '-2.5*h_x/h_x**2'),
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '2', 'h_x*(1 - 2.0/h_x**2)'),
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '4', 'h_x*(1 - 2.5/h_x**2)'),
+        ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '2',
          'h_x*(5.0 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
+        ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '4',
          'h_x*(5.0 - 2.5/h_x**2)'),
-        ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '2',
+        ('CallbackEq(e.dx + e + e.laplace, f)', 'CallbackEq(g.dx + g + g.laplace, h.dx)', '2',
          'h_x*(1 - 1/h_x - 2.0/h_x**2)'),
-        ('Eq(e.dx + e + e.laplace, f)', 'Eq(g.dx + g + g.laplace, h.dx)', '4',
+        ('CallbackEq(e.dx + e + e.laplace, f)', 'CallbackEq(g.dx + g + g.laplace, h.dx)', '4',
          'h_x*(1 - 2.5/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
+        ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '2',
          'h_x*(1 - 4.0/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4',
+        ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '4',
          'h_x*(1 - 5.0/h_x**2)'),
     ])
     @skipif('petsc')
@@ -1234,25 +1234,25 @@ class TestCoupledLinear:
         assert str(j11.scdiag) == scale
 
     @pytest.mark.parametrize('eq1, eq2, so, scale', [
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2',
+        ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '2',
          'h_x*h_y*(-2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4',
+        ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '4',
          'h_x*h_y*(-2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2',
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '2',
          'h_x*h_y*(1 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4',
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '4',
          'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2',
+        ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '2',
          'h_x*h_y*(5.0 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
+        ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '4',
          'h_x*h_y*(5.0 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
+        ('CallbackEq(e.dx + e.dy + e + e.laplace, f)', 'CallbackEq(g.dx + g.dy + g + g.laplace, h)',
          '2', 'h_x*h_y*(1 - 1/h_y - 2.0/h_y**2 - 1/h_x - 2.0/h_x**2)'),
-        ('Eq(e.dx + e.dy + e + e.laplace, f)', 'Eq(g.dx + g.dy + g + g.laplace, h)',
+        ('CallbackEq(e.dx + e.dy + e + e.laplace, f)', 'CallbackEq(g.dx + g.dy + g + g.laplace, h)',
          '4', 'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
+        ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '2',
          'h_x*h_y*(1 - 4.0/h_y**2 - 4.0/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4',
+        ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '4',
          'h_x*h_y*(1 - 5.0/h_y**2 - 5.0/h_x**2)'),
     ])
     @skipif('petsc')
@@ -1284,28 +1284,28 @@ class TestCoupledLinear:
         assert str(j11.scdiag) == scale
 
     @pytest.mark.parametrize('eq1, eq2, so, scale', [
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '2',
+        ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '2',
          'h_x*h_y*h_z*(-2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace, f)', 'Eq(g.laplace, h)', '4',
+        ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '4',
          'h_x*h_y*h_z*(-2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '2',
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '2',
          'h_x*h_y*h_z*(1 - 2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + e, f)', 'Eq(g.laplace + g, h)', '4',
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '4',
          'h_x*h_y*h_z*(1 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '2',
+        ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '2',
          'h_x*h_y*h_z*(5.0 - 2.0/h_z**2 - 2.0/h_y**2 - 2.0/h_x**2)'),
-        ('Eq(e.laplace + 5.*e, f)', 'Eq(g.laplace + 5.*g, h)', '4',
+        ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '4',
          'h_x*h_y*h_z*(5.0 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
-         'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '2',
+        ('CallbackEq(e.dx + e.dy + e.dz + e + e.laplace, f)',
+         'CallbackEq(g.dx + g.dy + g.dz + g + g.laplace, h)', '2',
          'h_x*h_y*h_z*(1 - 1/h_z - 2.0/h_z**2 - 1/h_y - 2.0/h_y**2 - ' +
          '1/h_x - 2.0/h_x**2)'),
-        ('Eq(e.dx + e.dy + e.dz + e + e.laplace, f)',
-         'Eq(g.dx + g.dy + g.dz + g + g.laplace, h)', '4',
+        ('CallbackEq(e.dx + e.dy + e.dz + e + e.laplace, f)',
+         'CallbackEq(g.dx + g.dy + g.dz + g + g.laplace, h)', '4',
          'h_x*h_y*h_z*(1 - 2.5/h_z**2 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '2',
+        ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '2',
          'h_x*h_y*h_z*(1 - 4.0/h_z**2 - 4.0/h_y**2 - 4.0/h_x**2)'),
-        ('Eq(2.*e.laplace + e, f)', 'Eq(2*g.laplace + g, h)', '4',
+        ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '4',
          'h_x*h_y*h_z*(1 - 5.0/h_z**2 - 5.0/h_y**2 - 5.0/h_x**2)'),
     ])
     @skipif('petsc')

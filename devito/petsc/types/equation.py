@@ -1,9 +1,32 @@
 from devito.types.equation import Eq, Inc
 
-__all__ = ['EssentialBC']
+__all__ = ['CallbackEq', 'EssentialBC']
 
 
-class EssentialBC(Eq):
+class CallbackEq(Eq):
+    """
+    An equation built for a Jacobian/Residual/Diagonal/InitialGuess callback
+    body (FormFunction/FormRHS/MatMult/etc).
+
+    When `is_multilevel` is True, the equation stands in for a whole family
+    of per-level equations, collapsed into one by PETSc's callback-sharing
+    model (one C function is registered per callback kind and reused, via
+    runtime ctx-struct arguments, at every multigrid level) - see
+    `lower_exprs_petsc` for where fine-grid reads get remapped accordingly.
+    """
+    __rkwargs__ = Eq.__rkwargs__ + ("is_multilevel",)
+
+    def __new__(cls, *args, is_multilevel=False, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        obj._is_multilevel = is_multilevel
+        return obj
+
+    @property
+    def is_multilevel(self):
+        return self._is_multilevel
+
+
+class EssentialBC(CallbackEq):
     """
     Represents an essential boundary condition for use with `petscsolve`.
 
@@ -23,7 +46,7 @@ class EssentialBC(Eq):
           where `target` is the Function-like object passed to `petscsolve`.
         - SubDomains used for multiple `EssentialBC`s must not overlap.
     """
-    __rkwargs__ = Eq.__rkwargs__ + ("target", "constrain")
+    __rkwargs__ = CallbackEq.__rkwargs__ + ("target", "constrain")
 
     def __new__(cls, *args, target=None, constrain=False, **kwargs):
         obj = super().__new__(cls, *args, **kwargs)

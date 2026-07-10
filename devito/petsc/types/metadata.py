@@ -6,7 +6,7 @@ import sympy
 from devito.operations.solve import eval_time_derivatives
 from devito.petsc.config import petsc_variables
 from devito.petsc.types.equation import (
-    EssentialBC, NoOfEssentialBC, PointEssentialBC, ZeroColumn, ZeroRow
+    CallbackEq, EssentialBC, NoOfEssentialBC, PointEssentialBC, ZeroColumn, ZeroRow
 )
 from devito.petsc.types.object import PetscInt
 from devito.symbolics.extraction import centre_stencil, generate_targets, separate_eqn
@@ -279,9 +279,10 @@ class MultipleFieldData(FieldData):
 
 
 class BaseJacobian:
-    def __init__(self, arrays, target=None):
+    def __init__(self, arrays, target=None, is_multilevel=False):
         self.arrays = arrays
         self.target = target
+        self.is_multilevel = is_multilevel
 
     def _scale_non_bcs(self, matvecs, target=None):
         """
@@ -339,13 +340,19 @@ class BaseJacobian:
         if isinstance(expr, EssentialBC):
             # NOTE: Essential BCs are trivial equations in the solver.
             # See `EssentialBC` for more details.
-            zero_row = ZeroRow(y, x, subdomain=expr.subdomain)
-            zero_column = ZeroColumn(x, 0., subdomain=expr.subdomain)
+            zero_row = ZeroRow(
+                y, x, subdomain=expr.subdomain, is_multilevel=self.is_multilevel
+            )
+            zero_column = ZeroColumn(
+                x, 0., subdomain=expr.subdomain, is_multilevel=self.is_multilevel
+            )
             return (zero_row, zero_column)
         else:
             rhs = F_target.subs(targets_to_arrays(x, targets))
             rhs = rhs.subs(self.time_mapper)
-            return (Eq(y, rhs, subdomain=expr.subdomain),)
+            return (CallbackEq(
+                y, rhs, subdomain=expr.subdomain, is_multilevel=self.is_multilevel
+            ),)
 
 
 class Jacobian(BaseJacobian):
@@ -359,8 +366,8 @@ class Jacobian(BaseJacobian):
     corresponds to a constant coefficient matrix and does not
     require explicit symbolic differentiation.
     """
-    def __init__(self, target, exprs, arrays, time_mapper):
-        super().__init__(arrays=arrays, target=target)
+    def __init__(self, target, exprs, arrays, time_mapper, is_multilevel=False):
+        super().__init__(arrays=arrays, target=target, is_multilevel=is_multilevel)
         self.exprs = exprs
         self.time_mapper = time_mapper
         self._build_matvecs()
@@ -423,8 +430,8 @@ class MixedJacobian(BaseJacobian):
 
     # TODO: pcfieldsplit support for each block
     """
-    def __init__(self, target_exprs, arrays, time_mapper):
-        super().__init__(arrays=arrays, target=None)
+    def __init__(self, target_exprs, arrays, time_mapper, is_multilevel=False):
+        super().__init__(arrays=arrays, target=None, is_multilevel=is_multilevel)
         self.targets = tuple(target_exprs)
         self.time_mapper = time_mapper
         self._submatrices = []
@@ -556,12 +563,13 @@ class Residual:
     References:
         - https://petsc.org/main/manual/snes/
     """
-    def __init__(self, target, exprs, arrays, time_mapper, scdiag):
+    def __init__(self, target, exprs, arrays, time_mapper, scdiag, is_multilevel=False):
         self.target = target
         self.exprs = exprs
         self.arrays = arrays
         self.time_mapper = time_mapper
         self.scdiag = scdiag
+        self.is_multilevel = is_multilevel
         self._build_exprs()
 
     @property
@@ -607,11 +615,13 @@ class Residual:
             # Still included to support Jacobian testing via finite differences.
             rhs = arrays['x'] - eq.rhs
             zero_row = ZeroRow(
-                arrays['f'], rhs.subs(self.time_mapper), subdomain=eq.subdomain
+                arrays['f'], rhs.subs(self.time_mapper), subdomain=eq.subdomain,
+                is_multilevel=self.is_multilevel
             )
             # Move essential boundary condition to the right-hand side
             zero_col = ZeroColumn(
-                arrays['x'], eq.rhs.subs(self.time_mapper), subdomain=eq.subdomain
+                arrays['x'], eq.rhs.subs(self.time_mapper), subdomain=eq.subdomain,
+                is_multilevel=self.is_multilevel
             )
             return (zero_row, zero_col)
 
@@ -621,14 +631,18 @@ class Residual:
             else:
                 rhs = F_target.subs(targets_to_arrays(arrays['x'], targets))
                 rhs = rhs.subs(self.time_mapper) * volume
-        return (Eq(arrays['f'], rhs, subdomain=eq.subdomain),)
+        return (CallbackEq(
+            arrays['f'], rhs, subdomain=eq.subdomain, is_multilevel=self.is_multilevel
+        ),)
 
     def _make_b(self, expr, b):
         b_arr = self.arrays[self.target]['b']
         # TODO: rethink : can likely turn off if user requests to constrain bcs
         rhs = 0. if isinstance(expr, EssentialBC) else b.subs(self.time_mapper)
         rhs = rhs * self.target.grid.symbolic_volume_cell
-        return (Eq(b_arr, rhs, subdomain=expr.subdomain),)
+        return (CallbackEq(
+            b_arr, rhs, subdomain=expr.subdomain, is_multilevel=self.is_multilevel
+        ),)
 
     def _scale_bcs(self, eq, scdiag=None):
         """
@@ -643,11 +657,12 @@ class MixedResidual(Residual):
     Generates the metadata needed to define the nonlinear residual function
     F(targets) = 0 for use with PETSc's SNES interface.
     """
-    def __init__(self, target_exprs, arrays, time_mapper, scdiag):
+    def __init__(self, target_exprs, arrays, time_mapper, scdiag, is_multilevel=False):
         self.targets = tuple(target_exprs.keys())
         self.arrays = arrays
         self.time_mapper = time_mapper
         self.scdiag = scdiag
+        self.is_multilevel = is_multilevel
         self._build_exprs(target_exprs)
 
     @property
@@ -688,10 +703,12 @@ class MixedResidual(Residual):
         if isinstance(expr, EssentialBC):
             rhs = (self.arrays[target]['x'] - expr.rhs)*self.scdiag[target]
             zero_row = ZeroRow(
-                self.arrays[target]['f'], rhs, subdomain=expr.subdomain
+                self.arrays[target]['f'], rhs, subdomain=expr.subdomain,
+                is_multilevel=self.is_multilevel
             )
             zero_col = ZeroColumn(
-                self.arrays[target]['x'], expr.rhs, subdomain=expr.subdomain
+                self.arrays[target]['x'], expr.rhs, subdomain=expr.subdomain,
+                is_multilevel=self.is_multilevel
             )
             return (zero_row, zero_col)
 
@@ -702,18 +719,22 @@ class MixedResidual(Residual):
                 rhs = zeroed.subs(mapper)
                 rhs = rhs.subs(self.time_mapper)*volume
 
-        return (Eq(self.arrays[target]['f'], rhs, subdomain=expr.subdomain),)
+        return (CallbackEq(
+            self.arrays[target]['f'], rhs, subdomain=expr.subdomain,
+            is_multilevel=self.is_multilevel
+        ),)
 
 
 class Diagonal:
     """
     """
 
-    def __init__(self, target, matvecs, arrays, scdiag):
+    def __init__(self, target, matvecs, arrays, scdiag, is_multilevel=False):
         self.target = target
         self.matvecs = matvecs
         self.arrays = arrays
         self.scdiag = scdiag
+        self.is_multilevel = is_multilevel
         self._build_exprs()
 
     def _build_exprs(self):
@@ -723,12 +744,17 @@ class Diagonal:
         diag_exprs = []
         for m in self.matvecs:
             if isinstance(m, ZeroRow):
-                diag_exprs.append(Eq(d, self.scdiag, subdomain=m.subdomain))
+                diag_exprs.append(CallbackEq(
+                    d, self.scdiag, subdomain=m.subdomain,
+                    is_multilevel=self.is_multilevel
+                ))
             elif isinstance(m, ZeroColumn):
                 pass
             else:
                 coeff = centre_stencil(m.rhs, x, as_coeff=True)
-                diag_exprs.append(Eq(d, coeff, subdomain=m.subdomain))
+                diag_exprs.append(CallbackEq(
+                    d, coeff, subdomain=m.subdomain, is_multilevel=self.is_multilevel
+                ))
 
         self._diag_exprs = tuple(diag_exprs)
 
@@ -743,10 +769,11 @@ class InitialGuess:
     symbolic expressions, enforcing the initial guess to satisfy essential
     boundary conditions.
     """
-    def __init__(self, target, exprs, arrays, time_mapper):
+    def __init__(self, target, exprs, arrays, time_mapper, is_multilevel=False):
         self.target = target
         self.arrays = arrays
         self.time_mapper = time_mapper
+        self.is_multilevel = is_multilevel
         self._build_exprs(as_tuple(exprs))
 
     @property
@@ -767,9 +794,9 @@ class InitialGuess:
     def _make_initial_guess(self, expr):
         if isinstance(expr, EssentialBC):
             assert expr.lhs == self.target
-            return Eq(
+            return CallbackEq(
                 self.arrays[self.target]['x'], expr.rhs.subs(self.time_mapper),
-                subdomain=expr.subdomain
+                subdomain=expr.subdomain, is_multilevel=self.is_multilevel
             )
         else:
             return None

@@ -27,7 +27,7 @@ class TimeBase:
     def reset_array(self, target):
         return ()
 
-    def assign_time_iters(self, struct):
+    def assign_time_iters(self, target_struct, fields):
         return []
 
 
@@ -169,28 +169,29 @@ class TimeDependent(TimeBase):
             )
         return super().reset_array(target)
 
-    def assign_time_iters(self, struct):
+    def assign_time_iters(self, target_struct, fields):
         """
-        Assign required time iterators to the struct.
+        Assign required time iterators to `target_struct`.
         These iterators are updated at each timestep in the main kernel
         for use in callback functions.
+
         Examples
         --------
-        >>> struct
+        >>> target_struct
         ctx
-        >>> struct.fields
+        >>> fields
         [h_x, x_M, x_m, f1(t, x), t0, t1]
-        >>> assigned = assign_time_iters(struct)
+        >>> assigned = assign_time_iters(target_struct, fields)
         >>> print(assigned[0])
         ctx.t0 = t0;
         >>> print(assigned[1])
         ctx.t1 = t1;
         """
         to_assign = [
-            f for f in struct.fields if (f.is_Dimension and (f.is_Time or f.is_Modulo))
+            f for f in fields if (f.is_Dimension and (f.is_Time or f.is_Modulo))
         ]
         time_iter_assignments = [
-            DummyExpr(FieldFromComposite(field, struct), field)
+            DummyExpr(FieldFromComposite(field, target_struct), field)
             for field in to_assign
         ]
         return time_iter_assignments

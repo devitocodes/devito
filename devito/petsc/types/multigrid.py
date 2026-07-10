@@ -274,10 +274,6 @@ class MultigridMetadata:
     """
     PETSc-specific multigrid metadata: holds the GridHierarchy and the
     interpolation/restriction transfer equations for the target Function.
-
-    Symbols are created once here and shared with GridTransferEquations so
-    that interpolation/restriction and FormFunction/MatMult index transforms
-    reference the same objects.
     """
 
     def __init__(self, hierarchy, target):
@@ -288,21 +284,14 @@ class MultigridMetadata:
         distributor = fine_grid.distributor
 
         glb_starts_f = []
-        gsc_c_syms = []
         for d in dims:
             root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
             glb_starts_f.append(
                 FineGlobalStartScalar(f'{d.name}_m_glb_d0', dim=d,
                                      distributor=distributor, root=root)
             )
-            gsc_c_syms.append(
-                GlobalStartScalar(f'{d.name}_m_glb', dim=d,
-                                  distributor=distributor, root=root)
-            )
 
         self._glb_start_syms_f = tuple(glb_starts_f)
-        self._gsc_c = tuple(gsc_c_syms)
-        self._factor = CoarseningFactorScalar('factor', depth=0)
         self._interpolation = GridTransferEquations(
             target, glb_starts_f=self._glb_start_syms_f
         )
@@ -319,16 +308,6 @@ class MultigridMetadata:
     def glb_start_syms_f(self):
         """Per-dimension fine-level GlobalStartScalars (routed via fine_ctx)."""
         return self._glb_start_syms_f
-
-    @property
-    def gsc_c(self):
-        """Per-dimension canonical GlobalStartScalars for the current level."""
-        return self._gsc_c
-
-    @property
-    def factor(self):
-        """Canonical CoarseningFactorScalar (2^depth, populated per level)."""
-        return self._factor
 
 
 def _field_shifts(field):

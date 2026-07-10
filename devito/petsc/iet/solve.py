@@ -4,6 +4,7 @@ from devito.ir.iet import BlankLine, FindNodes, filter_iterations, retrieve_iter
 from devito.petsc.iet.nodes import PetscMetaData, petsc_call
 from devito.petsc.types.modes import InsertMode, ScatterMode
 from devito.symbolics import Byref, Null
+from devito.tools import flatten
 
 
 class Solve:
@@ -20,6 +21,12 @@ class Solve:
         """DM passed to FormRHS and FormInitialGuess callbacks."""
         return self.solver_objs['dmda']
 
+    def _struct_assignment(self):
+        """
+        """
+        userctx = self.solver_objs['userctx']
+        return self.time_dependence.assign_time_iters(userctx, userctx.fields)
+
     def _execute_solve(self):
         """
         Assigns the required time iterators to the struct and executes
@@ -28,7 +35,7 @@ class Solve:
         sobjs = self.solver_objs
         target = self.inject_solve.expr.rhs.field_data.target
 
-        struct_assignment = self.time_dependence.assign_time_iters(sobjs['userctx'])
+        struct_assignment = self._struct_assignment()
 
         b_efunc = self.callback_builder._b_efunc
 
@@ -155,6 +162,18 @@ class CoupledSolve(Solve):
 class MultigridSolve(Solve):
     def _callback_dm(self):
         return self.solver_objs['shell']
+
+    def _struct_assignment(self):
+        """
+        """
+        sobjs = self.solver_objs
+        all_ctx = sobjs['all_ctx']
+        fields = sobjs['userctx'].fields
+        n_levels = self.inject_solve.expr.rhs.multigrid_metadata.hierarchy.nlevels
+        return flatten(
+            self.time_dependence.assign_time_iters(all_ctx.indexed[i], fields)
+            for i in range(n_levels)
+        )
 
 
 def make_solver_cls(is_coupled, is_multigrid):
