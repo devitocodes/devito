@@ -26,7 +26,7 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
 dtype_mapper = {
     "int": np.int32,
     "float": np.float32,
-    "double": np.float64
+    "double": np.float64,
 }
 
 
@@ -98,6 +98,9 @@ dtypes_vector_mapper.update(build_dtypes_vector(field_names, counts))
 # Fallbacks
 dtypes_vector_mapper.update({(v, 1): v for v in dtype_mapper.values()})
 
+# Complex
+dtypes_vector_mapper.update({(np.complex64, 1): np.complex64})
+dtypes_vector_mapper.update({(np.complex128, 1): np.complex128})
 
 # *** Custom types escaping both the numpy and ctypes namespaces
 
@@ -238,7 +241,11 @@ class c_restrict_void_p(ctypes.c_void_p):
 
 ctypes_vector_mapper = {}
 for base_name, base_dtype in dtype_mapper.items():
-    base_ctype = dtype_to_ctype(base_dtype)
+    try:
+        base_ctype = dtype_to_ctype(base_dtype)
+    except NotImplementedError:
+        # E.g., np.complex64
+        continue
 
     for count in counts:
         dtype = dtypes_vector_mapper[(base_dtype, count)]
@@ -249,7 +256,6 @@ for base_name, base_dtype in dtype_mapper.items():
                       '_base_dtype': True})
 
         ctypes_vector_mapper[dtype] = ctype
-
 
 # *** ctypes lowering
 
