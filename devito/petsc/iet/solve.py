@@ -102,7 +102,9 @@ class CoupledSolve(Solve):
         sobjs = self.solver_objs
         xglob = sobjs['xglobal']
 
-        struct_assignment = self.time_dependence.assign_time_iters(sobjs['userctx'])
+        struct_assignment = self.time_dependence.assign_time_iters(
+            sobjs['userctx'], sobjs['userctx'].fields
+        )
         targets = self.inject_solve.expr.rhs.field_data.targets
 
         # TODO: optimise the ccode generated here

@@ -617,60 +617,75 @@ class GridRestriction(UnevaluatedGridTransfer):
     __str__ = __repr__
 
 
-def _validate_transfer(fine, coarse):
-    if not isinstance(coarse.grid, SubGrid) or coarse.grid.parent is not fine.grid:
-        raise ValueError(
-            f"`coarse` must be defined on a SubGrid whose parent is `fine`'s "
-            f"Grid; got fine.grid={fine.grid}, coarse.grid={coarse.grid}"
-        )
-    if _field_shifts(fine) != _field_shifts(coarse):
-        raise ValueError(
-            f"`fine` and `coarse` must have matching staggering (they should "
-            f"represent the same physical field at two resolutions); got "
-            f"fine.staggered={getattr(fine, 'staggered', None)}, "
-            f"coarse.staggered={getattr(coarse, 'staggered', None)}"
-        )
-
-
-def interpolate(*, fine, coarse):
+def _validate_transfer(source, target, *, want_finer_target):
     """
-    Interpolate `coarse` onto `fine`.
+    Check that `source` and `target` are adjacent levels (exactly one
+    factor-2 coarsening apart) of the same GridHierarchy, with `target` on
+    the side (finer/coarser) that the calling function name promises, and
+    that they have matching staggering.
+    """
+    source_depth = getattr(source.grid, 'coarsening_depth', 0)
+    target_depth = getattr(target.grid, 'coarsening_depth', 0)
+    expected_target_depth = source_depth - 1 if want_finer_target else source_depth + 1
+
+    if source.grid.root is not target.grid.root or target_depth != expected_target_depth:
+        direction = 'finer' if want_finer_target else 'coarser'
+        raise ValueError(
+            f"`target` must be exactly one factor-2 coarsening {direction} "
+            f"than `source`, in the same GridHierarchy; got "
+            f"source.grid={source.grid} (depth={source_depth}), "
+            f"target.grid={target.grid} (depth={target_depth})"
+        )
+    if _field_shifts(source) != _field_shifts(target):
+        raise ValueError(
+            f"`source` and `target` must have matching staggering (they "
+            f"should represent the same physical field at two resolutions); "
+            f"got source.staggered={getattr(source, 'staggered', None)}, "
+            f"target.staggered={getattr(target, 'staggered', None)}"
+        )
+
+
+def interpolate(source, target):
+    """
+    Interpolate `source` (coarse) onto `target` (fine) -- `target` must be
+    exactly one factor-2 coarsening finer than `source`, in the same
+    GridHierarchy.
 
     Parameters
     ----------
-    fine : Function
+    source : Function
+        The coarse-level Function to interpolate from (read).
+    target : Function
         The fine-level Function to interpolate onto (written).
-    coarse : Function
-        The coarse-level Function, defined on a SubGrid whose parent is
-        `fine`'s Grid, to interpolate from (read).
 
     Returns
     -------
     A lazily-evaluated object that expands to a list of Eq objects when
     passed to Operator (mirrors SparseFunction.interpolate/.inject, e.g.
-    `Operator([Eq(f, f + 1)] + interpolate(fine=fine, coarse=coarse))`).
+    `Operator([Eq(f, f + 1)] + interpolate(source, target))`).
     """
-    _validate_transfer(fine, coarse)
-    return GridInterpolation(GridTransfer(fine, coarse))
+    _validate_transfer(source, target, want_finer_target=True)
+    return GridInterpolation(GridTransfer(target, source))
 
 
-def restrict(*, fine, coarse):
+def restrict(source, target):
     """
-    Restrict `fine` onto `coarse`.
+    Restrict `source` (fine) onto `target` (coarse) -- `target` must be
+    exactly one factor-2 coarsening coarser than `source`, in the same
+    GridHierarchy.
 
     Parameters
     ----------
-    fine : Function
+    source : Function
         The fine-level Function to restrict from (read).
-    coarse : Function
-        The coarse-level Function to restrict onto (written), defined on a
-        SubGrid whose parent is `fine`'s Grid.
+    target : Function
+        The coarse-level Function to restrict onto (written).
 
     Returns
     -------
     A lazily-evaluated object that expands to a list of Eq objects when
     passed to Operator (mirrors SparseFunction.interpolate/.inject, e.g.
-    `Operator([Eq(f, f + 1)] + restrict(fine=fine, coarse=coarse))`).
+    `Operator([Eq(f, f + 1)] + restrict(source, target))`).
     """
-    _validate_transfer(fine, coarse)
-    return GridRestriction(GridTransfer(fine, coarse))
+    _validate_transfer(source, target, want_finer_target=False)
+    return GridRestriction(GridTransfer(source, target))

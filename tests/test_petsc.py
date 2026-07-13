@@ -2994,13 +2994,15 @@ class TestGridHierarchy:
             assert sg.dtype == grid.dtype
 
 
-class TestInterpolation:
+class TestInterpolation1D:
     """
     Tests for `interpolate` (coarse SubGrid Function -> fine Function) via a
-    plain Operator (no PETSc solve).
+    plain Operator. This is a wrapper around the functionality used to generate
+    the interpolation callback for `petscsolve` with geometric multigrid.
     """
 
-    def test_reproduces_constant(self):
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_reproduces_constant(self, mode):
         # Degree-0 polynomial: exact for any interpolation order.
         grid = Grid(shape=(9,))
         hierarchy = GridHierarchy(grid, nlevels=2)
@@ -3010,143 +3012,29 @@ class TestInterpolation:
         u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
 
         u_coarse.data[:] = 3.
-        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+        Operator(interpolate(u_coarse, u_fine)).apply()
 
         assert np.allclose(u_fine.data, 3.)
 
-    def test_reproduces_linear(self):
-        # Degree-1 polynomial: exact since space_order=2 is 2-point (linear)
-        # Lagrange interpolation.
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_reproduces_linear(self, mode):
         grid = Grid(shape=(9,))
+        x, = grid.dimensions
         hierarchy = GridHierarchy(grid, nlevels=2)
         subgrid = hierarchy.coarse_levels[0]
 
         u_fine = Function(name='u_fine', grid=grid, space_order=2)
         u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
 
+        # [0, 2, 4, 6, 8] on coarse grid -> [0, 1, 2, 3, 4, 5, 6, 7, 8] on fine grid
         u_coarse.data[:] = np.arange(5) * 2.
-        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
-
-        assert np.allclose(u_fine.data, np.arange(9))
-
-    def test_reproduces_linear_staggered(self):
-        # fine/coarse both staggered the same way: every fine point lies at
-        # an asymmetric fractional position between two coarse points (no
-        # exact coincidence anywhere), but Lagrange interpolation of a linear
-        # function is still exact regardless of that fractional position.
-        # The left boundary point needs a coarse neighbour that falls in the
-        # (zero-filled) halo, so it's excluded here -- see
-        # test_reproduces_linear_staggered_boundary.
-        grid = Grid(shape=(9,), extent=(8.,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        x, = grid.dimensions
-        xc, = subgrid.dimensions
-
-        u_fine = Function(name='u_fine', grid=grid, space_order=2, staggered=x)
-        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2, staggered=xc)
-
-        h_c = 2.
-        u_coarse.data[:] = (np.arange(5) + 0.5) * h_c
-        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
-
-        expected = (np.arange(9) + 0.5) * 1.
-        assert np.allclose(u_fine.data[1:], expected[1:])
-
-    def test_reproduces_linear_staggered_boundary(self):
-        # The left boundary fine point needs coarse[-1], which is never
-        # written (halo defaults to 0) -- so the boundary value is *not* the
-        # continuation of the linear function, unlike every interior point.
-        grid = Grid(shape=(9,), extent=(8.,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        x, = grid.dimensions
-        xc, = subgrid.dimensions
-
-        u_fine = Function(name='u_fine', grid=grid, space_order=2, staggered=x)
-        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2, staggered=xc)
-
-        h_c = 2.
-        coarse_phys = (np.arange(5) + 0.5) * h_c
-        u_coarse.data[:] = coarse_phys
-        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
-
-        assert np.isclose(u_fine.data[0], 0.75 * coarse_phys[0])
-
-    def test_invalid_transfer_raises(self):
-        grid = Grid(shape=(9,))
-        other_grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-
-        u_fine = Function(name='u_fine', grid=grid)
-        u_other = Function(name='u_other', grid=other_grid)
-        u_coarse = Function(name='u_coarse', grid=subgrid)
-
-        # `coarse` not on a SubGrid at all
-        with pytest.raises(ValueError):
-            interpolate(fine=u_fine, coarse=u_other)
-
-        # `coarse` on a SubGrid, but not a coarsening of `fine`'s Grid
-        with pytest.raises(ValueError):
-            interpolate(fine=u_other, coarse=u_coarse)
-
-    def test_mismatched_staggering_raises(self):
-        # fine/coarse must represent the same physical field -- staggering
-        # must match (e.g. never interpolate pressure from a staggered
-        # velocity coarse level).
-        grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        xc, = subgrid.dimensions
-
-        u_fine = Function(name='u_fine', grid=grid)
-        u_coarse = Function(name='u_coarse', grid=subgrid, staggered=xc)
-
-        with pytest.raises(ValueError):
-            interpolate(fine=u_fine, coarse=u_coarse)
-
-    @pytest.mark.parallel(mode=[2, 4])
-    def test_reproduces_linear_staggered_parallel(self, mode):
-        grid = Grid(shape=(9,), extent=(8.,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        x, = grid.dimensions
-        xc, = subgrid.dimensions
-
-        u_fine = Function(name='u_fine', grid=grid, space_order=2, staggered=x)
-        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2, staggered=xc)
-
-        h_c = 2.
-        u_coarse.data[:] = (np.arange(5) + 0.5) * h_c
-        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
-
-        expected = (np.arange(9) + 0.5) * 1.
-        loc = grid.distributor.glb_slices[x]
-        # boundary point excluded from the exactness check (halo effect, see
-        # test_reproduces_linear_staggered_boundary); only relevant on the
-        # rank owning global index 0.
-        got, exp = u_fine.data[:], expected[loc]
-        if loc.start == 0:
-            got, exp = got[1:], exp[1:]
-        assert np.allclose(got, exp)
-
-    @pytest.mark.parallel(mode=[2, 4])
-    def test_reproduces_linear_parallel(self, mode):
-        grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        x, = grid.dimensions
-
-        u_fine = Function(name='u_fine', grid=grid, space_order=2)
-        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
-
-        u_coarse.data[:] = np.arange(5) * 2.
-        Operator(interpolate(fine=u_fine, coarse=u_coarse)).apply()
+        Operator(interpolate(u_coarse, u_fine)).apply()
 
         expected = np.arange(9)
+        # E.g on rank 0, loc = slice(0, 5, None) so we check u_fine.data against expected[0:5]
         loc = grid.distributor.glb_slices[x]
         assert np.allclose(u_fine.data, expected[loc])
+
 
 
 class TestRestriction:
@@ -3172,7 +3060,7 @@ class TestRestriction:
         u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
 
         u_fine.data[:] = 1.
-        Operator(restrict(fine=u_fine, coarse=u_coarse)).apply()
+        Operator(restrict(u_fine, u_coarse)).apply()
 
         expected = np.full(5, 2.)
         expected[0] = expected[-1] = 1.5
@@ -3196,13 +3084,13 @@ class TestRestriction:
         u_coarse_in = Function(name='u_coarse_in', grid=subgrid, space_order=2)
         u_fine_out = Function(name='u_fine_out', grid=grid, space_order=2)
         u_coarse_in.data[:] = xc
-        Operator(interpolate(fine=u_fine_out, coarse=u_coarse_in)).apply()
+        Operator(interpolate(u_coarse_in, u_fine_out)).apply()
         p_xc = np.array(u_fine_out.data[:])
 
         u_fine_in = Function(name='u_fine_in', grid=grid, space_order=2)
         u_coarse_out = Function(name='u_coarse_out', grid=subgrid, space_order=2)
         u_fine_in.data[:] = yf
-        Operator(restrict(fine=u_fine_in, coarse=u_coarse_out)).apply()
+        Operator(restrict(u_fine_in, u_coarse_out)).apply()
         r_yf = np.array(u_coarse_out.data[:])
 
         assert np.isclose(np.dot(p_xc, yf), np.dot(xc, r_yf))
@@ -3228,7 +3116,7 @@ class TestRestriction:
         u_fine_out = Function(name='u_fine_out', grid=grid, space_order=2,
                               staggered=x)
         u_coarse_in.data[:] = xc_data
-        Operator(interpolate(fine=u_fine_out, coarse=u_coarse_in)).apply()
+        Operator(interpolate(u_coarse_in, u_fine_out)).apply()
         p_xc = np.array(u_fine_out.data[:])
 
         u_fine_in = Function(name='u_fine_in', grid=grid, space_order=2,
@@ -3236,7 +3124,7 @@ class TestRestriction:
         u_coarse_out = Function(name='u_coarse_out', grid=subgrid, space_order=2,
                                 staggered=xc)
         u_fine_in.data[:] = yf_data
-        Operator(restrict(fine=u_fine_in, coarse=u_coarse_out)).apply()
+        Operator(restrict(u_fine_in, u_coarse_out)).apply()
         r_yf = np.array(u_coarse_out.data[:])
 
         assert np.isclose(np.dot(p_xc, yf_data), np.dot(xc_data, r_yf))
@@ -3252,7 +3140,7 @@ class TestRestriction:
         u_coarse = Function(name='u_coarse', grid=subgrid)
 
         with pytest.raises(ValueError):
-            restrict(fine=u_fine, coarse=u_other)
+            restrict(u_fine, u_other)
 
     def test_mismatched_staggering_raises(self):
         grid = Grid(shape=(9,))
@@ -3264,7 +3152,7 @@ class TestRestriction:
         u_coarse = Function(name='u_coarse', grid=subgrid, staggered=xc)
 
         with pytest.raises(ValueError):
-            restrict(fine=u_fine, coarse=u_coarse)
+            restrict(u_fine, u_coarse)
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_ones_are_not_preserved_parallel(self, mode):
@@ -3277,7 +3165,7 @@ class TestRestriction:
         u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
 
         u_fine.data[:] = 1.
-        Operator(restrict(fine=u_fine, coarse=u_coarse)).apply()
+        Operator(restrict(u_fine, u_coarse)).apply()
 
         expected = np.full(5, 2.)
         expected[0] = expected[-1] = 1.5

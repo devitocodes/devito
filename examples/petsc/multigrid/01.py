@@ -7,8 +7,6 @@ from devito import (Grid, Function, Eq, Operator, switchconfig,
 from devito.petsc import petscsolve, EssentialBC, GridHierarchy
 from devito.petsc.initialize import PetscInitialize
 
-import matplotlib.pyplot as plt
-
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
 
@@ -89,18 +87,6 @@ petsc = petscsolve(
     constrain_bcs=True,
     options_prefix='poisson_1d',
 )
-
-
-# petsc = petscsolve(
-#     exprs, target=u,
-#     solver_parameters={
-#         'ksp_type': 'cg',
-#         'pc_type': 'none',
-#         'snes_type': 'ksponly',
-#     },
-#     constrain_bcs=True,
-#     options_prefix='poisson_1d',
-# )
 
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
