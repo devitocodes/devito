@@ -17,6 +17,12 @@ from packaging.version import InvalidVersion, parse
 
 from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
+from devito.warnings import warn
+
+from .commands import (
+    lscpu, lshw, lspci_gpu, nvidia_smi, proc_cpuinfo, rocm_smi, sycl_ls
+)
+
 
 __all__ = [  # noqa: RUF022
     'platform_registry', 'get_cpu_info', 'get_gpu_info', 'get_visible_devices',
@@ -25,6 +31,7 @@ __all__ = [  # noqa: RUF022
     'Platform', 'Cpu64', 'Intel64', 'IntelSkylake', 'Amd', 'Arm', 'Power',
     'Device',
     'NvidiaDevice', 'AmdDevice', 'IntelDevice',
+    'old_get_cpu_info', 'old_get_gpu_info',
     # Brand-agnostic
     'ANYCPU', 'ANYGPU',
     # Intel CPUs
@@ -48,7 +55,7 @@ __all__ = [  # noqa: RUF022
 
 
 @memoized_func
-def get_cpu_info():
+def old_get_cpu_info():
     """Attempt CPU info autodetection."""
 
     # Obtain textual cpu info
@@ -170,7 +177,85 @@ def get_cpu_info():
 
 
 @memoized_func
-def get_gpu_info():
+def get_cpu_info():
+    """Collect CPU information
+
+    This function enriches the output of the `get_cpu_info` function provided by
+    `cpuinfo` by adding the number of physical and logical cores.
+
+    There are numerous workarounds for different platforms where issues have
+    been encountered previously.
+
+    Returns a dictionary with at least the following keys populated:
+    - brand: str, fallback ''
+    - flags: list[str], fallback []
+    - logical: int, fallback 1
+    - physical: int, fallback 1
+    """
+    try:
+        cpu_info = cpuinfo.get_cpu_info()
+    except Exception as e:
+        warn(f'Calling `cpuinfo.get_cpu_info()` raised an exception\n {e !s}')
+        cpu_info = {}
+
+    cpu_info['logical'] = psutil.cpu_count(logical=True)
+    cpu_info['physical'] = psutil.cpu_count(logical=False)
+
+    # At this point on a well behaved system we have everything that we need.
+    # If only life were that simple! We now check what we obtained
+
+    procinfo = proc_cpuinfo()
+    lscpuinfo = lscpu()
+    # brand:
+    if cpu_info.get('brand') is None:
+        for source, key in (
+            (procinfo, 'model name'),
+            (procinfo, 'cpu'),
+            (cpuinfo, 'arch'),
+            (cpuinfo, 'brand_raw'),
+        ):
+            cpu_info['brand'] = source.get(key)
+            if cpu_info.get('brand'):
+                break
+        else:
+            cpu_info['brand'] = ''
+
+    # flags:
+    if cpu_info.get('flags') is None:
+        for source, key in (
+            (procinfo, 'features'),
+            (procinfo, 'flags'),
+        ):
+            cpu_info['flags'] = source.get(key)
+            if cpu_info.get('flags'):
+                break
+        else:
+            cpu_info['flags'] = []
+
+    # logical
+    if cpu_info.get('logical') is None:
+        cpu_info['logical'] = lscpuinfo.get('CPU(s)', 1)
+
+    # physical
+    if cpu_info.get('physical') is None:
+        cpu_info['physical'] = lscpuinfo.get('Core(s) per socket', 1) * lscpuinfo.get('Socket(s)', 1)
+
+    cpu_info[procinfo.pop('command')] = procinfo
+    cpu_info[lscpuinfo.pop('command')] = lscpuinfo
+
+    # This might actually be a bad idea...
+    # ~ # Like gpu_info attach callbacks for memory status
+    # ~ # NOTE: from the psutil docs:
+    # ~ # - The sum of used and available does not necessarily equal total.
+    # ~ # - free doesn’t reflect the actual memory available (use available instead)
+    # ~ cpu_info['mem.free'] = lambda: psutil.virtual_memory().available
+    # ~ cpu_info['mem.used'] = lambda: psutil.virtual_memory().used
+    # ~ cpu_info['mem.total'] = psutil.virtual_memory().total
+    return cpu_info
+
+
+@memoized_func
+def old_get_gpu_info():
     """Attempt GPU info autodetection."""
 
     # Filter out virtual GPUs from a list of GPU dictionaries
@@ -494,6 +579,70 @@ def get_gpu_info():
     return None
 
 
+def homogenise_gpus(gpu_infos):
+    """Parse textual gpu info into a dict
+
+    Run homogeneity checks on a list of GPUs, return GPU with count if
+    homogeneous, otherwise None.
+    """
+    if gpu_infos == []:
+        homogenous = {}
+    else:
+        # Check must ignore physical IDs as they may differ
+        for gpu_info in gpu_infos:
+            gpu_info.pop('physicalid', None)
+
+        if all_equal(gpu_infos):
+            gpu_infos[0]['ncards'] = len(gpu_infos)
+            homogenous = gpu_infos[0]
+        else:
+            warning('Different models of graphics cards detected')
+            homogenous = {'ncards': len(gpu_infos)}
+
+    return homogenous
+
+
+@memoized_func
+def get_gpu_info():
+    """Attempt GPU info autodetection.
+
+    Probe for GPU information in the following order:
+    1. `nvidia-smi`, nvidia cards only
+    2. `rocm-smi`, AMD cards only
+    3. `sycl-ls`, Intel cards only
+    4. `lshw`
+    5. `lspci`, more readable but less detailed than `lshw`
+
+    nvidia and AMD cards allow polling the used and available memory
+
+    Returns a dictionary which is empty or has at least the following keys populated:
+    - physicalid: str
+    - product: str
+    - vendor: str
+    - architecture: str, fallback 'unspecified'
+    """
+
+    for call in [nvidia_smi, rocm_smi, sycl_ls, lshw, lspci_gpu]:
+        try:
+            gpu_info = homogenise_gpus(call())
+            break
+        except (OSError, FileNotFoundError, CalledProcessError):
+            gpu_info = {}
+
+    # Attach callbacks to retrieve instantaneous memory info
+    # Unsure whether this is used or even used to work!
+    if gpu_info['vendor'] == 'NVIDIA':
+        pass
+
+    if gpu_info['vendor'] == 'AMD':
+        pass
+
+    if gpu_info['vendor'] == 'INTEL':
+        pass
+
+    return gpu_info
+
+
 def get_visible_devices():
     device_vars = (
         'CUDA_VISIBLE_DEVICES',
@@ -696,7 +845,7 @@ def check_cuda_runtime():
 
 
 @memoized_func
-def lscpu():
+def old_lscpu():
     try:
         p1 = Popen(['lscpu'], stdout=PIPE, stderr=PIPE)
     except OSError:
