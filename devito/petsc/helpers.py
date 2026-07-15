@@ -1,3 +1,4 @@
+from devito.petsc.types.multigrid import _field_shifts
 from devito.types.equation import Eq
 from devito.types.grid import SubDomain
 
@@ -44,6 +45,8 @@ def mirror_halo(field, dims=None, r_coeff=1):
     if dims is None:
         dims = {d: d for d in field.space_dimensions}
 
+    shifts = dict(zip(field.space_dimensions, _field_shifts(field), strict=True))
+
     eqs = []
     for dim, side_spec in dims.items():
         sides = ('left', 'right') if side_spec is dim else (side_spec,)
@@ -58,12 +61,16 @@ def mirror_halo(field, dims=None, r_coeff=1):
                        if orig is dim)
             m, M = dim.symbolic_min, dim.symbolic_max
 
+            staggered = shifts[dim]
+
             if side == 'left':
+                read_off = (raw - 1) if staggered else raw
                 eqs.append(Eq(field._subs(dim, m - raw),
-                              r_coeff * field._subs(dim, m + raw)))
+                              r_coeff * field._subs(dim, m + read_off)))
             else:
                 k = M - raw
+                read_off = (k - 1) if staggered else k
                 eqs.append(Eq(field._subs(dim, M + k),
-                              r_coeff * field._subs(dim, M - k)))
+                              r_coeff * field._subs(dim, M - read_off)))
 
     return eqs
