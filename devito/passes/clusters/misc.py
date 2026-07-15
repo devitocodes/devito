@@ -1,10 +1,10 @@
 from itertools import groupby, product
 
 from devito.ir.clusters import Queue, cluster_pass
-from devito.ir.support import SEPARABLE, SEQUENTIAL, Scope
+from devito.ir.support import SEPARABLE, Scope
 from devito.passes.clusters.utils import in_critical_region
 from devito.symbolics import pow_to_mul
-from devito.tools import Stamp, flatten, frozendict, timed_pass
+from devito.tools import Stamp, flatten, timed_pass
 from devito.types import Hyperplane
 
 __all__ = ['Lift', 'fission', 'optimize_hyperplanes', 'optimize_pows']
@@ -123,7 +123,7 @@ class Fission(Queue):
         d = prefix[-1].dim
 
         # Do not waste time if definitely illegal
-        if any(SEQUENTIAL in c.properties[d] for c in clusters):
+        if any(c.properties.is_sequential(d) for c in clusters):
             return clusters
 
         # Do not waste time if definitely nothing to do
@@ -136,17 +136,16 @@ class Fission(Queue):
             return clusters
 
         processed = []
-        for (it, guards), g in groupby(clusters, key=lambda c: self._key(c, prefix)):
+        for it, g in groupby(clusters, key=lambda c: self._key(c, prefix)):
             group = list(g)
 
             try:
-                test0 = any(SEQUENTIAL in c.properties[it.dim] for c in group)
+                test0 = any(c.properties.is_sequential(it.dim) for c in group)
             except AttributeError:
-                # `it` is None because `c`'s IterationSpace has no `d` Dimension,
-                # hence `key = (it, guards) = (None, guards)`
+                # `it` is None because `c`'s IterationSpace has no `d` Dimension
                 test0 = True
 
-            if test0 or guards:
+            if test0:
                 # Heuristic: no gain from fissioning if unable to ultimately
                 # increase the number of collapsible iteration spaces, hence give up
                 processed.extend(group)
@@ -161,14 +160,10 @@ class Fission(Queue):
     def _key(self, c, prefix):
         try:
             index = len(prefix)
-            dims = tuple(i.dim for i in prefix)
-
             it = c.ispace[index]
-            guards = frozendict({d: v for d, v in c.guards.items() if d in dims})
-
-            return (it, guards)
+            return it
         except IndexError:
-            return (None, c.guards)
+            return None
 
 
 @timed_pass()
