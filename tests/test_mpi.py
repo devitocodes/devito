@@ -2243,6 +2243,38 @@ class TestCodeGeneration:
         assert isinstance(halo_update, HaloUpdateList)
 
     @pytest.mark.parallel(mode=4)
+    def test_ensure_halo_updates_within_seq_loops(self, mode):
+        n = 30
+        grid = Grid(shape=(n, n))
+
+        x, y = grid.dimensions
+        d = Dimension(name="d")
+
+        a = Function(name="a", grid=grid, space_order=8)
+        b = a.func(name='b')
+
+        g = Function(name="g", grid=grid, space_order=8, dimensions=(x, y, d),
+                     shape=(n, n, 2))
+        h = g.func(name='h')
+
+        eqns = [Eq(a, 0.0),
+                Eq(h, b * g),
+                Inc(a, b * (h.dx + h.dy))]
+
+        op = Operator(eqns, opt=('advanced', {'openmp': True}))
+        _ = op.cfunction
+
+        # Check generated code -- expected one halo exchange within a sequential
+        # `d` loop
+        assert_structure(op, ['x,y', 'x,y,d', 'd', 'x,y,d'], 'xyddxyd')
+        iters = FindNodes(Iteration).visit(op)
+        assert iters[2].dim is d and iters[2].is_Parallel
+        assert iters[3].dim is d and iters[3].is_Sequential
+
+        # Probably unnecessary, but ensures there's no hanging
+        op.apply()
+
+    @pytest.mark.parallel(mode=4)
     def test_halo_inner_dim(self, mode):
         grid = Grid((11, 11, 11))
 

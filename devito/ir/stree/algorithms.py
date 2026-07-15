@@ -218,10 +218,10 @@ def preprocess(clusters, options=None, **kwargs):
                 # dimension requiring a loc-index in the HaloScheme. The compiler
                 # will generate the non-perfect loop nest `t,f ; t,x,y,z,f`, with
                 # the first nest triggering all necessary halo exchanges along `f`
-                mapper = as_mapper(found, lambda c1: c1.ispace)
-                for k, v in mapper.items():
+                mapper = as_mapper(found, lambda c1: (c1.ispace, c1.properties))
+                for v in mapper.values():
                     hs = HaloScheme.union([c1.halo_scheme for c1 in v])
-                    processed.append(c.rebuild(exprs=[], ispace=k, halo_scheme=hs))
+                    processed.append(v[0].rebuild(exprs=[], halo_scheme=hs))
                 processed.append(c)
             else:
                 # Avoid ugly empty loops
