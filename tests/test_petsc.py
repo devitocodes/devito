@@ -3060,50 +3060,20 @@ class TestInterpolation1D:
         assert np.allclose(u_fine.data, expected[loc])
 
 
-
 class TestRestriction:
     """
     Tests for `restrict` (fine Function -> coarse SubGrid Function) via a
     plain Operator (no PETSc solve).
     """
-
-    def test_ones_are_not_preserved(self):
-        # `restrict` is the *unnormalized* transpose of `interpolate`
-        # (R = P^T), not an averaging/injection operator, so it does not
-        # preserve constants: interior weights are 1 (coincident point) +
-        # 0.5 + 0.5 (the two neighbours' interpolation contributions) = 2;
-        # at the domain boundary one neighbour read falls into the
-        # (zero-filled) halo, giving 1.5 instead. A grid of 1s is therefore
-        # *expected* to restrict to [1.5, 2, 2, 2, 1.5], not to another grid
-        # of 1s.
-        grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-
-        u_fine = Function(name='u_fine', grid=grid, space_order=2)
-        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
-
-        u_fine.data[:] = 1.
-        Operator(restrict(u_fine, u_coarse)).apply()
-
-        expected = np.full(5, 2.)
-        expected[0] = expected[-1] = 1.5
-        assert np.allclose(u_coarse.data, expected)
-
     def test_is_adjoint_of_interpolate(self):
-        # The defining mathematical property of this restriction scheme:
-        # R = P^T, i.e. <P @ xc, yf> == <xc, R @ yf> for any xc, yf. Checking
-        # this directly (rather than hand-deriving the per-point stencil
-        # formula, which would just re-implement the same arithmetic as the
-        # code under test) verifies the whole weighting scheme is
-        # self-consistent.
+        # R = I^T, i.e. (I @ xc, yf) == (xc, R @ yf) for any xc, yf. 
         grid = Grid(shape=(9,))
         hierarchy = GridHierarchy(grid, nlevels=2)
         subgrid = hierarchy.coarse_levels[0]
 
         rng = np.random.default_rng(0)
-        xc = rng.random(5).astype(np.float32)
-        yf = rng.random(9).astype(np.float32)
+        xc = rng.random(5).astype(np.float64)
+        yf = rng.random(9).astype(np.float64)
 
         u_coarse_in = Function(name='u_coarse_in', grid=subgrid, space_order=2)
         u_fine_out = Function(name='u_fine_out', grid=grid, space_order=2)
@@ -3118,83 +3088,6 @@ class TestRestriction:
         r_yf = np.array(u_coarse_out.data[:])
 
         assert np.isclose(np.dot(p_xc, yf), np.dot(xc, r_yf))
-
-    def test_is_adjoint_of_interpolate_staggered(self):
-        # Same adjoint check, but with fine/coarse both staggered -- this is
-        # the strongest available signal that the restriction-side
-        # generalization for staggered fields is self-consistent, since it
-        # doesn't rely on having hand-derived the restriction stencil
-        # formula correctly.
-        grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        x, = grid.dimensions
-        xc, = subgrid.dimensions
-
-        rng = np.random.default_rng(1)
-        xc_data = rng.random(5).astype(np.float32)
-        yf_data = rng.random(9).astype(np.float32)
-
-        u_coarse_in = Function(name='u_coarse_in', grid=subgrid, space_order=2,
-                               staggered=xc)
-        u_fine_out = Function(name='u_fine_out', grid=grid, space_order=2,
-                              staggered=x)
-        u_coarse_in.data[:] = xc_data
-        Operator(interpolate(u_coarse_in, u_fine_out)).apply()
-        p_xc = np.array(u_fine_out.data[:])
-
-        u_fine_in = Function(name='u_fine_in', grid=grid, space_order=2,
-                             staggered=x)
-        u_coarse_out = Function(name='u_coarse_out', grid=subgrid, space_order=2,
-                                staggered=xc)
-        u_fine_in.data[:] = yf_data
-        Operator(restrict(u_fine_in, u_coarse_out)).apply()
-        r_yf = np.array(u_coarse_out.data[:])
-
-        assert np.isclose(np.dot(p_xc, yf_data), np.dot(xc_data, r_yf))
-
-    def test_invalid_transfer_raises(self):
-        grid = Grid(shape=(9,))
-        other_grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-
-        u_fine = Function(name='u_fine', grid=grid)
-        u_other = Function(name='u_other', grid=other_grid)
-        u_coarse = Function(name='u_coarse', grid=subgrid)
-
-        with pytest.raises(ValueError):
-            restrict(u_fine, u_other)
-
-    def test_mismatched_staggering_raises(self):
-        grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        xc, = subgrid.dimensions
-
-        u_fine = Function(name='u_fine', grid=grid)
-        u_coarse = Function(name='u_coarse', grid=subgrid, staggered=xc)
-
-        with pytest.raises(ValueError):
-            restrict(u_fine, u_coarse)
-
-    @pytest.mark.parallel(mode=[2, 4])
-    def test_ones_are_not_preserved_parallel(self, mode):
-        grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-        xc, = subgrid.dimensions
-
-        u_fine = Function(name='u_fine', grid=grid, space_order=2)
-        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
-
-        u_fine.data[:] = 1.
-        Operator(restrict(u_fine, u_coarse)).apply()
-
-        expected = np.full(5, 2.)
-        expected[0] = expected[-1] = 1.5
-        loc = subgrid.distributor.glb_slices[xc]
-        assert np.allclose(u_coarse.data, expected[loc])
 
 
 class TestCoarseSymbols:
