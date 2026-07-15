@@ -9,7 +9,8 @@ from devito.mpi import CoarseDistributor
 from devito.symbolics import IntDiv
 from devito.tools import Pickable, as_tuple, flatten
 from devito.types.basic import Scalar
-from devito.types.dimension import ConditionalDimension, SpaceDimension, Spacing, Thickness
+from devito.types.dimension import (ConditionalDimension, CustomDimension,
+                                    SpaceDimension, Spacing, Thickness)
 from devito.types.equation import Eq
 from devito.types.grid import Grid
 from devito.types.lazy import Evaluable
@@ -403,12 +404,10 @@ class GridTransfer:
     def _weights(self, frac):
         """
         Lagrange weights (degree `self.so`) evaluated at fractional position
-        `frac`, over a fixed window of `self.so` points. Evaluating exactly
-        at one of the sample points (`frac=0`) naturally yields weight 1
-        there and 0 elsewhere, so no special-casing of the coincident case is
-        needed.
+        `frac`, over a fixed window of `self.so` points.
         """
         start = -(self.so // 2 - 1)
+        # so=2, pts=[0,1]
         pts = list(range(start, start + self.so))
         w = finite_diff_weights(0, pts, frac)[-1][-1]
         return pts, w
@@ -436,6 +435,7 @@ class GridTransfer:
             for d, gsc, gsf, f, shift in zip(self.fine_dims, self.glb_starts_c,
                                              self.glb_starts_f, flags, self.shifts):
                 extra, frac = self._offset_and_frac(shift, f)
+                # C code 1D : (x+x_m_glb_f)/2) - x_m_glb_c + extra
                 i_c = IntDiv(d + gsf - f, 2) - gsc + extra
                 pts, w = self._weights(frac)
                 dim_stencils.append([(i_c + j, wi) for j, wi in zip(pts, w)])

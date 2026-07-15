@@ -14,6 +14,7 @@ from devito.petsc.types.multigrid import GridHierarchy, SubGrid, interpolate, re
 from devito.ir.iet import Call, ElementalFunction, FindNodes, retrieve_iteration_tree
 from devito.operator.profiling import PerformanceSummary
 from devito.passes.iet.languages.C import CDataManager
+from devito.petsc.helpers import mirror_halo
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.iet.passes import _coarse_thickness
 from devito.petsc.initialize import PetscInitialize
@@ -3003,7 +3004,7 @@ class TestInterpolation1D:
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_reproduces_constant(self, mode):
-        # Degree-0 polynomial: exact for any interpolation order.
+        # Degree-0 polynomial
         grid = Grid(shape=(9,))
         hierarchy = GridHierarchy(grid, nlevels=2)
         subgrid = hierarchy.coarse_levels[0]
@@ -3012,6 +3013,28 @@ class TestInterpolation1D:
         u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
 
         u_coarse.data[:] = 3.
+        _ = u_coarse._data_with_inhalo
+        Operator(interpolate(u_coarse, u_fine)).apply()
+
+        assert np.allclose(u_fine.data, 3.)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('space_order', [4, 6, 8])
+    def test_reproduces_constant_high_order(self, mode, space_order):
+        # Lagrange window overshoots the domain boundary into the coarse
+        # Function's halo. `mirror_halo` populates that halo first -
+        # which may be utilised by the user to implement certain boundary conditions -
+        # and subsequently reflected in the interpolation operator.
+        grid = Grid(shape=(33,))
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=space_order)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=space_order)
+
+        u_coarse.data[:] = 3.
+        Operator(mirror_halo(u_coarse)).apply()
+        _ = u_coarse._data_with_inhalo
         Operator(interpolate(u_coarse, u_fine)).apply()
 
         assert np.allclose(u_fine.data, 3.)
@@ -3028,6 +3051,7 @@ class TestInterpolation1D:
 
         # [0, 2, 4, 6, 8] on coarse grid -> [0, 1, 2, 3, 4, 5, 6, 7, 8] on fine grid
         u_coarse.data[:] = np.arange(5) * 2.
+        _ = u_coarse._data_with_inhalo
         Operator(interpolate(u_coarse, u_fine)).apply()
 
         expected = np.arange(9)
