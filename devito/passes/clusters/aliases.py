@@ -13,6 +13,7 @@ from devito.ir import (
     maximum, minimum, normalize_properties, relax_properties, unbounded, vmax, vmin
 )
 from devito.passes.clusters.cse import _cse
+from devito.passes.clusters.utils import expose_tuning_knobs
 from devito.symbolics import (
     Uxmapper, estimate_cost, retrieve_functions, reuse_if_untouched, search, sympy_dtype,
     uxreplace
@@ -1076,27 +1077,6 @@ def optimize_clusters_msds(clusters):
         mapper = {d: d.root for d in msds}
 
         processed.append(c.subs(mapper))
-
-    return processed
-
-
-def expose_tuning_knobs(clusters, sregistry):
-    """
-    Replace all pre-existing BlockDimensions with fresh ones, to enable
-    separate tuning for the CIRE-generated temporaries.
-    """
-    # Create the new BlockDimensions
-    callback = lambda i: sregistry.make_name(prefix=i)
-
-    mapper = {}
-    for d in set().union(*[c.used_dimensions for c in clusters]):
-        if d.is_Block:
-            mapper.update(d._rebuild_hierarchy(callback))
-
-    if not mapper:
-        return clusters
-
-    processed = [c.subs(mapper) for c in clusters]
 
     return processed
 
