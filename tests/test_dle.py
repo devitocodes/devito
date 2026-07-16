@@ -765,6 +765,37 @@ class TestNodeParallelism:
         assert iterations[2].is_Sequential
         assert iterations[3].is_Sequential
 
+    def test_collapsing_cire_subdomain(self):
+        """
+        Test that CIRE temporaries over a SubDomain retain SIMD parallelism.
+        """
+        grid = Grid(shape=(16, 16, 16))
+
+        u = Function(name='u', grid=grid, space_order=8)
+        out = TimeFunction(name='out', grid=grid, space_order=8)
+        a = Function(name='a', grid=grid)
+        b = Function(name='b', grid=grid)
+        c = Function(name='c', grid=grid)
+
+        eq = Eq(out.forward,
+                a*u.dx.dx + b*u.dy.dy + c*u.dz.dz,
+                subdomain=grid.interior)
+        op = Operator(eq, opt=('advanced', {'blockeager': False,
+                                            'blocklazy': False,
+                                            'cire-mingain': 0,
+                                            'openmp': True,
+                                            'par-collapse-ncores': 1,
+                                            'par-collapse-work': 0}))
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert len(iterations) == 7
+
+        # The CIRE producer should collapse x and y, then vectorize z
+        assert iterations[1].ncollapsed == 2
+        assert iterations[3].is_Vectorized
+
+        assert op.cfunction
+
     def test_scheduling(self):
         """
         Affine iterations -> #pragma omp ... schedule(dynamic,1) ...

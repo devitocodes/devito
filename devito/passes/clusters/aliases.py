@@ -939,7 +939,7 @@ def optimize_schedule_maxpar_compact(schedule):
         guards = sa.guards
 
         # Do we need to introduce guards to preserve the original semantics?
-        for i in sa.indices:
+        for i in sa.active_dims:
             for d in i._defines:
                 try:
                     int0, int1 = sa.ispace[d], ispace_union[d]
@@ -973,6 +973,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype, opt_min
     subs = {}
     for sa in schedule:
         pivot, writeto, ispace, aliaseds, indicess, guards = sa
+        active_dims = sa.active_dims
 
         name = sregistry.make_name()
 
@@ -1003,7 +1004,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype, opt_min
 
             # The indices used to populate the Array
             indices = []
-            for interval, i, s in zip(writeto, sa.indices, shift, strict=True):
+            for interval, i, s in zip(writeto, active_dims, shift, strict=True):
                 try:
                     # E.g., `xs`
                     di, = writeto.sub_iterators[i]
@@ -1043,7 +1044,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype, opt_min
             try:
                 if any(i.is_Modulo for i in ispace.sub_iterators[d]):
                     properties[d] = normalize_properties(v, {SEQUENTIAL})
-                elif d not in writeto.itdims:
+                elif d not in active_dims:
                     properties[d] = normalize_properties(v, {PARALLEL_IF_PVT})
             except KeyError:
                 # Non-dimension key such as (x, y) for diagonal stencil u(x+i hx, y+i hy)
@@ -1051,7 +1052,7 @@ def lower_schedule(schedule, meta, sregistry, opt_ftemps, opt_min_dtype, opt_min
 
         # Track star-shaped stencils for potential future optimization
         if len(writeto) > 1 and schedule.is_frame:
-            properties[Hyperplane(writeto.itdims)] = {SEPARABLE}
+            properties[Hyperplane(active_dims)] = {SEPARABLE}
 
         # Finally, build the alias Cluster
         clusters.append(Cluster(expression, ispace, guards, properties))
@@ -1516,9 +1517,9 @@ class ScheduledAlias(tuple, Reconstructable):
         return self.writeto.itdims
 
     @property
-    def indices(self):
+    def active_dims(self):
         """
-        The indices used to populate the temporary.
+        The active Dimensions used to populate the temporary.
 
         The write-to space may be relaxed for storage sizing, while the
         temporary still has to be indexed with the active iteration Dimension.
