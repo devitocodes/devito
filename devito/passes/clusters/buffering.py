@@ -172,7 +172,12 @@ class InjectBuffers(Queue):
             accesses = chain(*[c.scope[v.f] for c in v.clusters])
             index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
             for a in accesses:
-                subs[a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
+                indices = [index_mapper.get(i, i) for i in a]
+                try:
+                    indices = b._buffer_indices(indices)
+                except AttributeError:
+                    pass
+                subs[a.access] = b.indexed[indices]
 
         processed = []
         for c in clusters:
