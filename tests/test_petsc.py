@@ -14,7 +14,6 @@ from devito.petsc.types.multigrid import GridHierarchy, SubGrid, interpolate, re
 from devito.ir.iet import Call, ElementalFunction, FindNodes, retrieve_iteration_tree
 from devito.operator.profiling import PerformanceSummary
 from devito.passes.iet.languages.C import CDataManager
-from devito.petsc.helpers import mirror_halo
 from devito.petsc.iet.nodes import Expression
 from devito.petsc.iet.passes import _coarse_thickness
 from devito.petsc.initialize import PetscInitialize
@@ -3001,30 +3000,9 @@ class TestInterpolation1D:
     plain Operator. This is a wrapper around the functionality used to generate
     the interpolation callback for `petscsolve` with geometric multigrid.
     """
-
     @pytest.mark.parallel(mode=[2, 4])
-    def test_reproduces_constant(self, mode):
-        # Degree-0 polynomial
-        grid = Grid(shape=(9,))
-        hierarchy = GridHierarchy(grid, nlevels=2)
-        subgrid = hierarchy.coarse_levels[0]
-
-        u_fine = Function(name='u_fine', grid=grid, space_order=2)
-        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=2)
-
-        u_coarse.data[:] = 3.
-        _ = u_coarse._data_with_inhalo
-        Operator(interpolate(u_coarse, u_fine)).apply()
-
-        assert np.allclose(u_fine.data, 3.)
-
-    @pytest.mark.parallel(mode=[2, 4])
-    @pytest.mark.parametrize('space_order', [4, 6, 8])
-    def test_reproduces_constant_high_order(self, mode, space_order):
-        # Lagrange window overshoots the domain boundary into the coarse
-        # Function's halo. `mirror_halo` populates that halo first -
-        # which may be utilised by the user to implement certain boundary conditions -
-        # and subsequently reflected in the interpolation operator.
+    @pytest.mark.parametrize('space_order', [2, 4, 6, 8])
+    def test_reproduces_constant(self, mode, space_order):
         grid = Grid(shape=(33,))
         hierarchy = GridHierarchy(grid, nlevels=2)
         subgrid = hierarchy.coarse_levels[0]
@@ -3032,9 +3010,7 @@ class TestInterpolation1D:
         u_fine = Function(name='u_fine', grid=grid, space_order=space_order)
         u_coarse = Function(name='u_coarse', grid=subgrid, space_order=space_order)
 
-        u_coarse.data[:] = 3.
-        Operator(mirror_halo(u_coarse)).apply()
-        _ = u_coarse._data_with_inhalo
+        u_coarse._data_with_inhalo[:] = 3.
         Operator(interpolate(u_coarse, u_fine)).apply()
 
         assert np.allclose(u_fine.data, 3.)
@@ -3059,6 +3035,44 @@ class TestInterpolation1D:
         loc = grid.distributor.glb_slices[x]
         assert np.allclose(u_fine.data, expected[loc])
 
+    @pytest.mark.parallel(mode=[2, 4])
+    @pytest.mark.parametrize('space_order', [4, 6, 8])
+    def test_reproduces_polynomial_high_order(self, mode, space_order):
+        # An so-point Lagrange stencil is exact for polynomials up to degree
+        # so-1 (interpolation through so samples has zero truncation error
+        # for any polynomial of degree < so)
+
+        degree = space_order - 1
+        n = 33
+        grid = Grid(shape=(n,))
+        x, = grid.dimensions
+        hierarchy = GridHierarchy(grid, nlevels=2)
+        subgrid = hierarchy.coarse_levels[0]
+
+        u_fine = Function(name='u_fine', grid=grid, space_order=space_order)
+        u_coarse = Function(name='u_coarse', grid=subgrid, space_order=space_order)
+
+        def poly(fine_idx):
+            return fine_idx.astype(np.float64) ** degree
+
+        # coarse index k <-> fine index 2k (factor-2 coarsening)
+        u_coarse.data[:] = poly(2 * np.arange(17))
+        _ = u_coarse._data_with_inhalo
+        Operator(interpolate(u_coarse, u_fine)).apply()
+
+        expected = poly(np.arange(n))
+        loc = grid.distributor.glb_slices[x]
+        glb_idx = np.arange(loc.start, loc.stop)
+        # Drop the `space_order`-wide margin around the true global edges: the
+        # coarse Function's discrete data doesn't exist past the true domain
+        # without a BC (same as any other space_order>=4 devito stencil -
+        # devito never auto-populates a halo; the caller supplies BC-consistent
+        # data, usually with `SubDomain`s).
+        keep = (glb_idx >= space_order) & (glb_idx < n - space_order)
+
+        actual = np.array(u_fine.data)
+        assert np.allclose(actual[keep], expected[loc][keep])
+
 
 class TestRestriction:
     """
@@ -3066,7 +3080,7 @@ class TestRestriction:
     plain Operator (no PETSc solve).
     """
     def test_is_adjoint_of_interpolate(self):
-        # R = I^T, i.e. (I @ xc, yf) == (xc, R @ yf) for any xc, yf. 
+        # R = I^T (default), i.e. (I @ xc, yf) == (xc, R @ yf) for any xc, yf.
         grid = Grid(shape=(9,))
         hierarchy = GridHierarchy(grid, nlevels=2)
         subgrid = hierarchy.coarse_levels[0]
