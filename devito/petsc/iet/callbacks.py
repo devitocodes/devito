@@ -1457,8 +1457,11 @@ class MultigridCallbackMixin:
         )
         dmc = self.solver_objs['dmc']
         dmf = self.solver_objs['dmf']
-        self.solver_objs['pctx'] = ProlongCtx(name='pctx', fields=[dmc, dmf, uctx_c, uctx_f], destroy=False)
-        
+        pctx_fields = [dmc, dmf, uctx_c, uctx_f]
+        if self.multigrid_metadata.full_weighting:
+            pctx_fields.append(self.solver_objs['row_sum'])
+        self.solver_objs['pctx'] = ProlongCtx(name='pctx', fields=pctx_fields, destroy=False)
+
         self._make_interpolation_matmult()
         self._make_interpolation_destroy()
         self._make_interpolation()
@@ -1783,18 +1786,25 @@ class MultigridCallbackMixin:
         pctx = sobjs['pctx']
         dmc = FieldFromPointer(sobjs['dmc'], pctx)
         dmf = FieldFromPointer(sobjs['dmf'], pctx)
+        extra_get_restore = ()
+        if self.multigrid_metadata.full_weighting:
+            row_sum_vec = FieldFromPointer(sobjs['row_sum'], pctx)
+            row_sum_array = self.multigrid_metadata.interpolation.row_sum
+            extra_get_restore = ((row_sum_vec, row_sum_array._C_symbol),)
         return self._create_grid_transfer_body(
             body,
             read_dm=dmf, read_glob=sobjs['yfine'], read_local=objs['yloc'],
             write_dm=dmc, write_glob=sobjs['xcoarse'], write_local=objs['xloc'],
             zero_read_local=True,
+            extra_get_restore=extra_get_restore,
         )
 
     def _create_grid_transfer_body(self, body,
                                     read_dm, read_glob, read_local,
                                     write_dm, write_glob, write_local,
                                     zero_read_local=False,
-                                    scatter_mode=None):
+                                    scatter_mode=None,
+                                    extra_get_restore=()):
         """
         Shared body builder for InterpolationMult and RestrictionMult.
         """
@@ -1836,6 +1846,14 @@ class MultigridCallbackMixin:
         vec_get_array_y = petsc_call('VecGetArray', [ylocal, Byref(y_matvec._C_symbol)])
         vec_get_array_x = petsc_call('VecGetArray', [xlocal, Byref(x_matvec._C_symbol)])
 
+        extra_gets = tuple(
+            petsc_call('VecGetArray', [vec, Byref(arr)]) for vec, arr in extra_get_restore
+        )
+        extra_restores = tuple(
+            petsc_call('VecRestoreArray', [vec, Byref(arr)])
+            for vec, arr in extra_get_restore
+        )
+
         dm_get_coarse_local_info = petsc_call(
             'DMDAGetLocalInfo', [dmc, Byref(multigrid_metadata.coarse_localinfo)]
         )
@@ -1870,6 +1888,7 @@ class MultigridCallbackMixin:
             body=body.body + (
                 vec_restore_array_y,
                 vec_restore_array_x,
+            ) + extra_restores + (
                 dm_local_to_global_begin,
                 dm_local_to_global_end,
                 dm_restore_local_readvec,
@@ -1888,6 +1907,7 @@ class MultigridCallbackMixin:
                 zero_write,
                 vec_get_array_y,
                 vec_get_array_x,
+            ) + extra_gets + (
                 dm_get_coarse_local_info,
                 dm_get_fine_local_info,
             )
@@ -2075,6 +2095,12 @@ class MultigridCallbackMixin:
             ]),
         ]
 
+        if self.multigrid_metadata.full_weighting:
+            body += self._make_row_sum(
+                dmc=FieldFromPointer(dmc, pctx), dmf=FieldFromPointer(dmf, pctx),
+                pctx=pctx, mat=mat
+            )
+
         callable_body = self._make_callable_body(
             body, standalones=(Definition(sctxc), Definition(sctxf))
         )
@@ -2084,6 +2110,30 @@ class MultigridCallbackMixin:
         )
         self._make_restriction_efunc = cb
         self._efuncs[cb.name] = cb
+
+    def _make_row_sum(self, dmc, dmf, pctx, mat):
+        """
+        """
+        row_sum = FieldFromPointer(self.solver_objs['row_sum'], pctx)
+        ones_global = self.solver_objs['ones_global']
+        row_sum_global = self.solver_objs['row_sum_global']
+        return [
+            petsc_call('DMCreateLocalVector', [dmc, Byref(row_sum)]),
+            petsc_call('VecSet', [row_sum, 1.0]),
+            petsc_call('DMGetGlobalVector', [dmf, Byref(ones_global)]),
+            petsc_call('VecSet', [ones_global, 1.0]),
+            petsc_call('DMGetGlobalVector', [dmc, Byref(row_sum_global)]),
+            petsc_call('MatMult', [Deref(mat), ones_global, row_sum_global]),
+            zero_vector(row_sum),
+            petsc_call(
+                'DMGlobalToLocalBegin', [dmc, row_sum_global, insert_values, row_sum]
+            ),
+            petsc_call(
+                'DMGlobalToLocalEnd', [dmc, row_sum_global, insert_values, row_sum]
+            ),
+            petsc_call('DMRestoreGlobalVector', [dmf, Byref(ones_global)]),
+            petsc_call('DMRestoreGlobalVector', [dmc, Byref(row_sum_global)]),
+        ]
 
     @property
     def make_restriction_efunc(self):

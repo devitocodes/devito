@@ -48,12 +48,12 @@ def exact(x):
 
 Lx = np.float64(1.)
 
-n = 33
+n = 17
 
 grid = Grid(
     shape=(n,), extent=(Lx,), subdomains=subdomains, dtype=np.float64
 )
-hierarchy = GridHierarchy(grid, nlevels=3)
+hierarchy = GridHierarchy(grid, nlevels=2)
 
 u = Function(name='u', grid=grid, space_order=2)
 f = Function(name='f', grid=grid, space_order=2)
@@ -84,13 +84,14 @@ petsc = petscsolve(
         'mg_coarse_ksp_type': 'gmres',
         'mg_coarse_pc_type': 'none',
     },
-    constrain_bcs=True,
+    constrain_bcs=False,
+    restriction='full_weighting',
     options_prefix='poisson_1d',
 )
 
 with switchconfig(log_level='DEBUG'):
     op = Operator(petsc, language='petsc')
-    print(op.ccode)
+    # print(op.ccode)
     summary = op.apply()
 
 iters = summary.petsc[('section0', 'poisson_1d')].KSPGetIterationNumber

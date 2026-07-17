@@ -15,7 +15,7 @@ __all__ = ['petscsolve']
 
 def petscsolve(target_exprs, target=None, solver_parameters=None,
                options_prefix=None, get_info=None, constrain_bcs=False,
-               hierarchy=None):
+               hierarchy=None, restriction='interpolation_transpose'):
     """
     Returns a symbolic expression representing a linear PETSc solver,
     enriched with all the necessary metadata for execution within an `Operator`.
@@ -83,6 +83,12 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
         `EssentialBC(lhs, rhs, subdomain=..., constrain=True)`), regardless of
         this flag.
 
+    restriction : str, optional
+        Only meaningful with `pc_type='mg'`. Which restriction operator to use
+        between multigrid levels:
+        - 'interpolation_transpose' (default): `R = P^T`
+        - 'full_weighting': column sums of P are used as row scalings
+
     Returns
     -------
     Eq:
@@ -92,7 +98,7 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
     if target is not None:
         return InjectSolve(solver_parameters, {target: target_exprs},
                            options_prefix, get_info, constrain_bcs,
-                           hierarchy).build_expr()
+                           hierarchy, restriction).build_expr()
     else:
         return InjectMixedSolve(solver_parameters, target_exprs,
                                 options_prefix, get_info, constrain_bcs).build_expr()
@@ -100,11 +106,13 @@ def petscsolve(target_exprs, target=None, solver_parameters=None,
 
 class InjectSolve:
     def __init__(self, solver_parameters=None, target_exprs=None, options_prefix=None,
-                 get_info=None, constrain_bcs=False, hierarchy=None):
+                 get_info=None, constrain_bcs=False, hierarchy=None,
+                 restriction='interpolation_transpose'):
         self.solver_parameters = linear_solver_parameters(solver_parameters)
         self.time_mapper = None
         self.target_exprs = target_exprs
         self.hierarchy = hierarchy
+        self.restriction = restriction
         # The original options prefix provided by the user
         self.user_prefix = options_prefix
         self.formatted_prefix = format_options_prefix(options_prefix)
@@ -136,7 +144,9 @@ class InjectSolve:
                 )
             self.solver_parameters['pc_mg_levels'] = self.hierarchy.nlevels
             target = next(iter(self.target_exprs.keys()))
-            self._multigrid_metadata = MultigridMetadata(self.hierarchy, target)
+            self._multigrid_metadata = MultigridMetadata(
+                self.hierarchy, target, restriction=self.restriction
+            )
 
         target, funcs, field_data = self.linear_solve_args()
 

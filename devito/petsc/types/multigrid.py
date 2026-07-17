@@ -271,14 +271,24 @@ class GridHierarchy:
         return (self._fine,) + self._coarse_levels
 
 
+RESTRICTION_TYPES = ('interpolation_transpose', 'full_weighting')
+
+
 class MultigridMetadata:
     """
     PETSc-specific multigrid metadata: holds the GridHierarchy and the
     interpolation/restriction transfer equations for the target Function.
     """
 
-    def __init__(self, hierarchy, target):
+    def __init__(self, hierarchy, target, restriction='interpolation_transpose'):
+        # TODO: extend so that users can provide their own restriction equations
+        if restriction not in RESTRICTION_TYPES:
+            raise ValueError(
+                f"restriction={restriction!r} not recognised; must be one of "
+                f"{RESTRICTION_TYPES}."
+            )
         self._hierarchy = hierarchy
+        self._full_weighting = restriction == 'full_weighting'
 
         fine_grid = hierarchy.fine
         dims = fine_grid.dimensions
@@ -294,12 +304,17 @@ class MultigridMetadata:
 
         self._glb_start_syms_f = tuple(glb_starts_f)
         self._interpolation = GridTransferEquations(
-            target, glb_starts_f=self._glb_start_syms_f
+            target, glb_starts_f=self._glb_start_syms_f,
+            full_weighting=self._full_weighting
         )
 
     @property
     def hierarchy(self):
         return self._hierarchy
+
+    @property
+    def full_weighting(self):
+        return self._full_weighting
 
     @property
     def interpolation(self):
@@ -356,13 +371,15 @@ class GridTransfer:
     `coarse.grid.distributor` respectively.
     """
 
-    def __init__(self, fine, coarse, so=None, glb_starts_f=None, glb_starts_c=None):
+    def __init__(self, fine, coarse, so=None, glb_starts_f=None, glb_starts_c=None,
+                 row_sum=None):
         self.fine = fine
         self.coarse = coarse
         self.fine_dims = fine.space_dimensions
         self.coarse_dims = coarse.space_dimensions
         self.so = so if so is not None else fine.space_order
         self.shifts = _field_shifts(fine)
+        self.row_sum = row_sum
 
         if glb_starts_f is None:
             distributor = fine.grid.distributor
@@ -481,6 +498,9 @@ class GridTransfer:
                     fine_idx.append(idx_expr)
                 rhs += weight * self.fine[tuple(fine_idx)]
 
+        if self.row_sum is not None:
+            rhs = rhs / self.row_sum[tuple(self.coarse_dims)]
+
         return Eq(self.coarse[tuple(self.coarse_dims)], rhs)
 
 
@@ -488,7 +508,7 @@ class GridTransferEquations:
     """
     """
 
-    def __init__(self, target, glb_starts_f=None):
+    def __init__(self, target, glb_starts_f=None, full_weighting=False):
         # TODO: move imports
         from devito.petsc.types.array import PETScArray
         from devito.petsc.types.object import DMDALocalInfo
@@ -505,6 +525,10 @@ class GridTransferEquations:
             name='y_' + target.name, target=target,
             liveness='eager', localinfo=self.fine_localinfo
         )
+        self.row_sum = PETScArray(
+            name='rs_' + target.name, target=target,
+            liveness='eager', localinfo=self.coarse_localinfo
+        ) if full_weighting else None
         self._build(glb_starts_f=glb_starts_f)
 
     def _build(self, fine=0, coarse=1, glb_starts_f=None):
@@ -530,7 +554,8 @@ class GridTransferEquations:
 
         transfer = GridTransfer(
             self.yf, self.xc, so=so,
-            glb_starts_f=tuple(glb_starts_f), glb_starts_c=tuple(glb_starts_c)
+            glb_starts_f=tuple(glb_starts_f), glb_starts_c=tuple(glb_starts_c),
+            row_sum=self.row_sum
         )
 
         self._glb_start_syms_f = transfer.glb_starts_f

@@ -315,10 +315,18 @@ class MultigridTypeBuilderMixin:
         base_dict['xcoarse'] = Vec('xc')
         base_dict['yfine'] = Vec('yf')
 
+        multigrid_metadata = self.inject_solve.expr.rhs.multigrid_metadata
+        if multigrid_metadata.full_weighting:
+            base_dict['row_sum'] = Vec(sreg.make_name(prefix='row_sum'), destroy=False)
+            base_dict['ones_global'] = Vec(sreg.make_name(prefix='ones_g'), destroy=False)
+            base_dict['row_sum_global'] = Vec(
+                sreg.make_name(prefix='row_sum_g'), destroy=False
+            )
+
         # MPI communicator parameter for Refine/Coarsen callbacks
         base_dict['mpi_comm'] = MPIComm(name='comm')
 
-        hierarchy = self.inject_solve.expr.rhs.multigrid_metadata.hierarchy
+        hierarchy = multigrid_metadata.hierarchy
         for sublevel in hierarchy.coarse_levels:
             base_dict['lc'].append(self._make_lc_arrays(sublevel.distributor))
 
