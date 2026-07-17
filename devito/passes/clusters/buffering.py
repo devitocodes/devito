@@ -18,6 +18,7 @@ from devito.tools import (
     timed_pass
 )
 from devito.types import Array, CustomDimension, Eq, ModuloDimension
+from devito.warnings import warn
 
 __all__ = ['buffering']
 
@@ -39,7 +40,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
         The symbol registry, to create unique names for buffers and Dimensions.
     options : dict
         The optimization options.
-        Accepted: ['buf-async-degree'].
+        Accepted: ['buf-async-degree', 'buf-reuse', 'fuse-tasks'].
         * 'buf-async-degree': Specify the size of the buffer. By default, the
           buffer size is the minimal one, inferred from the memory accesses in
           the ``clusters`` themselves. An asynchronous degree equals to `k`
@@ -49,6 +50,9 @@ def buffering(clusters, key, sregistry, options, **kwargs):
           implemented by other passes).
         * 'buf-reuse': If True, the pass will try to reuse existing Buffers for
           different buffered Functions. By default, False.
+        * 'fuse-tasks': If True, fuse all asynchronous tasks. If a positive
+          integer, fuse tasks into balanced groups whose size is at most the
+          supplied value. By default, False.
     **kwargs
         Additional compilation options.
         Accepted: ['opt_init_onwrite', 'opt_buffer'].
@@ -252,15 +256,19 @@ class InjectBuffers(Queue):
                 processed.append(Cluster(expr, ispace, guards, properties, syncs))
 
         # Lift {write,read}-only buffers into separate IterationSpaces
-        if not self.options['fuse-tasks']:
-            processed = self._optimize(processed, descriptors)
+        fuse_tasks = self.options['fuse-tasks']
+        if fuse_tasks is not True:
+            processed = self._optimize(processed, descriptors, fuse_tasks)
 
         if self.options['buf-reuse']:
             init, processed = self._reuse(init, processed, descriptors)
 
         return init + processed
 
-    def _optimize(self, clusters, descriptors):
+    def _optimize(self, clusters, descriptors, fuse_tasks=False):
+        if fuse_tasks:
+            stamps = self._make_task_groups(descriptors, int(fuse_tasks))
+
         for b, v in descriptors.items():
             if v.is_writeonly:
                 # `b` might be written by multiple, potentially mutually
@@ -268,20 +276,25 @@ class InjectBuffers(Queue):
                 # will have complementary guards, hence only one will be
                 # executed. In such a case, we can split the equations over
                 # separate IterationSpaces
-                key0 = lambda: Stamp()
+                if fuse_tasks:
+                    stamp = stamps[b]
+                    key0 = lambda: stamp  # noqa: B023
+                else:
+                    key0 = lambda: Stamp()
             elif v.is_readonly:
                 # `b` is read multiple times -- this could just be the case of
                 # coupled equations, so we more cautiously perform a
                 # "buffer-wise" splitting of the IterationSpaces (i.e., only
                 # relevant if there are at least two read-only buffers)
-                stamp = Stamp()
+                stamp = stamps[b] if fuse_tasks else Stamp()
                 key0 = lambda: stamp  # noqa: B023
             else:
                 continue
 
             processed = []
             for c in clusters:
-                if b not in c.functions:
+                function = v.f if fuse_tasks else b
+                if function not in c.functions:
                     processed.append(c)
                     continue
 
@@ -293,6 +306,37 @@ class InjectBuffers(Queue):
             clusters = processed
 
         return clusters
+
+    def _make_task_groups(self, descriptors, size):
+        stamps = {}
+
+        task_sets = (
+            [b for b, v in descriptors.items() if v.is_writeonly],
+            [b for b, v in descriptors.items() if v.is_readonly],
+        )
+        for tasks in task_sets:
+            if not tasks:
+                continue
+
+            ntasks = len(tasks)
+            ngroups = (ntasks + size - 1) // size
+            base, remainder = divmod(ntasks, ngroups)
+            sizes = (base + 1,) * remainder + (base,) * (ngroups - remainder)
+
+            if ntasks % size:
+                warn(
+                    f"`fuse-tasks={size}` does not make sense for {ntasks} tasks; "
+                    f"using balanced groups of sizes {sizes} instead"
+                )
+
+            start = 0
+            for n in sizes:
+                stamp = Stamp()
+                for b in tasks[start:start + n]:
+                    stamps[b] = stamp
+                start += n
+
+        return stamps
 
     def _reuse(self, init, clusters, descriptors):
         """

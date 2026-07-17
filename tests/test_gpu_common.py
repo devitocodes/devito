@@ -18,6 +18,7 @@ from devito.ir import (
 )
 from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol
+from devito.warnings import DevitoWarning
 
 pytestmark = skipif(['nodevice'], whole_module=True)
 
@@ -678,6 +679,39 @@ class TestStreaming:
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
+    def test_streaming_fuse_groups(self):
+        nt = 4
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        fsaves = [TimeFunction(name=f'fsave{i}', grid=grid, save=nt)
+                  for i in range(9)]
+
+        for i, f in enumerate(fsaves):
+            for t in range(nt):
+                f.data[t, :] = i + t
+
+        eqn = Eq(u.forward, u + sum(fsaves))
+
+        op0 = Operator(eqn, opt=('noop', {'gpu-fit': tuple(fsaves)}))
+        op1 = Operator(
+            eqn,
+            opt=('buffering', 'streaming', 'fuse', 'orchestrate',
+                 {'fuse-tasks': 3})
+        )
+
+        symbols = FindSymbols().visit(op1)
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
+        assert len(threads) == 3
+        assert all(i.size == 1 for i in threads)
+
+        op0.apply(time_M=nt-2)
+
+        u1 = TimeFunction(name='u', grid=grid)
+        op1.apply(time_M=nt-2, u=u1)
+
+        assert np.all(u.data == u1.data)
+
     def test_streaming_fused(self):
         nt = 10
         grid = Grid(shape=(4, 4))
@@ -1001,6 +1035,54 @@ class TestStreaming:
             assert np.all(v.data == v1.data)
             assert np.all(usave.data == usave1.data)
             assert np.all(vsave.data == vsave1.data)
+
+    @pytest.mark.parametrize('fuse_tasks', [3, 4])
+    def test_composite_buffering_tasking_fuse_groups(self, fuse_tasks):
+        nt = 4
+        bundle0 = Bundle()
+        grid = Grid(shape=(4, 4, 4), subdomains=bundle0)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2)
+        fsaves = [TimeFunction(name=f'fsave{i}', grid=grid, save=nt)
+                  for i in range(9)]
+
+        eqns = [Eq(u.forward, u + 1)]
+        eqns.extend(Eq(f, u + i, subdomain=bundle0)
+                    for i, f in enumerate(fsaves))
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': tuple(fsaves)}))
+
+        opt = ('buffering', 'tasking', 'topofuse', 'orchestrate',
+               {'fuse-tasks': fuse_tasks})
+        if fuse_tasks == 4:
+            with pytest.warns(DevitoWarning, match='fuse-tasks=4.*9 tasks'):
+                op1 = Operator(eqns, opt=opt)
+        else:
+            op1 = Operator(eqns, opt=opt)
+
+        symbols = FindSymbols().visit(op1)
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
+        assert len(threads) == 3
+        assert all(i.size == 1 for i in threads)
+
+        tasks = [v.root for k, v in op1._func_table.items()
+                 if k.startswith('copy_to_host')]
+        # The three pthreads reuse the same parameterized task callable
+        task, = tasks
+        writes = {i.write for i in FindNodes(Expression).visit(task)}
+        assert len([i for i in writes if i.is_TimeFunction]) == 3
+
+        op0.apply(time_M=nt-1)
+
+        u1 = TimeFunction(name='u', grid=grid, time_order=2)
+        fsaves1 = [TimeFunction(name=f'fsave{i}', grid=grid, save=nt)
+                   for i in range(9)]
+        kwargs = {f.name: f1 for f, f1 in zip(fsaves, fsaves1)}
+        op1.apply(time_M=nt-1, u=u1, **kwargs)
+
+        assert np.all(u.data == u1.data)
+        assert all(np.all(f.data == f1.data)
+                   for f, f1 in zip(fsaves, fsaves1))
 
     def test_composite_full_0(self):
         nt = 10
