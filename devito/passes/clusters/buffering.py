@@ -40,7 +40,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
         The symbol registry, to create unique names for buffers and Dimensions.
     options : dict
         The optimization options.
-        Accepted: ['buf-async-degree', 'buf-reuse', 'fuse-tasks'].
+        Accepted: ['buf-async-degree', 'buf-reuse', 'npthreads'].
         * 'buf-async-degree': Specify the size of the buffer. By default, the
           buffer size is the minimal one, inferred from the memory accesses in
           the ``clusters`` themselves. An asynchronous degree equals to `k`
@@ -50,9 +50,9 @@ def buffering(clusters, key, sregistry, options, **kwargs):
           implemented by other passes).
         * 'buf-reuse': If True, the pass will try to reuse existing Buffers for
           different buffered Functions. By default, False.
-        * 'fuse-tasks': If True, fuse all asynchronous tasks. If a positive
-          integer, fuse tasks into balanced groups whose size is at most the
-          supplied value. By default, False.
+        * 'npthreads': Number of pthreads for asynchronous tasks. The tasks are
+          divided into this many balanced groups. By default, None, which uses
+          one pthread per task.
     **kwargs
         Additional compilation options.
         Accepted: ['opt_init_onwrite', 'opt_buffer'].
@@ -256,18 +256,16 @@ class InjectBuffers(Queue):
                 processed.append(Cluster(expr, ispace, guards, properties, syncs))
 
         # Lift {write,read}-only buffers into separate IterationSpaces
-        fuse_tasks = self.options['fuse-tasks']
-        if fuse_tasks is not True:
-            processed = self._optimize(processed, descriptors, fuse_tasks)
+        processed = self._optimize(processed, descriptors, self.options['npthreads'])
 
         if self.options['buf-reuse']:
             init, processed = self._reuse(init, processed, descriptors)
 
         return init + processed
 
-    def _optimize(self, clusters, descriptors, fuse_tasks=False):
-        if fuse_tasks:
-            stamps = self._make_task_groups(descriptors, int(fuse_tasks))
+    def _optimize(self, clusters, descriptors, npthreads=None):
+        if npthreads:
+            stamps = self._make_task_groups(descriptors, npthreads)
 
         for b, v in descriptors.items():
             if v.is_writeonly:
@@ -276,7 +274,7 @@ class InjectBuffers(Queue):
                 # will have complementary guards, hence only one will be
                 # executed. In such a case, we can split the equations over
                 # separate IterationSpaces
-                if fuse_tasks:
+                if npthreads:
                     stamp = stamps[b]
                     key0 = lambda: stamp  # noqa: B023
                 else:
@@ -286,14 +284,14 @@ class InjectBuffers(Queue):
                 # coupled equations, so we more cautiously perform a
                 # "buffer-wise" splitting of the IterationSpaces (i.e., only
                 # relevant if there are at least two read-only buffers)
-                stamp = stamps[b] if fuse_tasks else Stamp()
+                stamp = stamps[b] if npthreads else Stamp()
                 key0 = lambda: stamp  # noqa: B023
             else:
                 continue
 
             processed = []
             for c in clusters:
-                function = v.f if fuse_tasks else b
+                function = v.f if npthreads else b
                 if function not in c.functions:
                     processed.append(c)
                     continue
@@ -307,7 +305,8 @@ class InjectBuffers(Queue):
 
         return clusters
 
-    def _make_task_groups(self, descriptors, size):
+    def _make_task_groups(self, descriptors, npthreads):
+        """Assign task buffers to at most ``npthreads`` balanced groups."""
         stamps = {}
 
         task_sets = (
@@ -319,14 +318,14 @@ class InjectBuffers(Queue):
                 continue
 
             ntasks = len(tasks)
-            ngroups = (ntasks + size - 1) // size
+            ngroups = min(npthreads, ntasks)
             base, remainder = divmod(ntasks, ngroups)
             sizes = (base + 1,) * remainder + (base,) * (ngroups - remainder)
 
-            if ntasks % size:
+            if npthreads > ntasks:
                 warn(
-                    f"`fuse-tasks={size}` does not make sense for {ntasks} tasks; "
-                    f"using balanced groups of sizes {sizes} instead"
+                    f"`npthreads={npthreads}` exceeds the {ntasks} available "
+                    f"tasks; using `npthreads={ntasks}` instead"
                 )
 
             start = 0

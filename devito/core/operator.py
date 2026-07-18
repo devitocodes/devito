@@ -247,11 +247,13 @@ class BasicOperator(Operator):
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
             raise InvalidOperator(f"Unsupported MPI mode `{oo['mpi']}`")
 
-        fuse_tasks = oo['fuse-tasks']
-        if not isinstance(fuse_tasks, bool) and \
-           (not is_integer(fuse_tasks) or fuse_tasks <= 0):
+        npthreads = oo['npthreads']
+        if npthreads is not None and (
+            isinstance(npthreads, bool) or
+            not is_integer(npthreads) or npthreads <= 0
+        ):
             raise InvalidOperator(
-                "`fuse-tasks` must be a bool or a positive integer"
+                "`npthreads` must be a positive integer"
             )
 
         if oo['cire-maxpar'] not in (False, 'basic', 'compact'):

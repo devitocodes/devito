@@ -18,7 +18,6 @@ from devito.ir import (
 )
 from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol
-from devito.warnings import DevitoWarning
 
 pytestmark = skipif(['nodevice'], whole_module=True)
 
@@ -497,7 +496,7 @@ class TestStreaming:
                 Eq(v.forward, tmp1, subdomain=bundle0)]
 
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate',
-                                 {'fuse-tasks': True, 'linearize': False}))
+                                 {'npthreads': 1, 'linearize': False}))
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 3
@@ -647,7 +646,7 @@ class TestStreaming:
 
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 14),
-        (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 8),
+        (('buffering', 'streaming', 'fuse', 'orchestrate', {'npthreads': 1}), 8),
     ])
     def test_streaming_two_buffers(self, opt, ntmps):
         nt = 10
@@ -679,7 +678,8 @@ class TestStreaming:
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
 
-    def test_streaming_fuse_groups(self):
+    @pytest.mark.parametrize('npthreads', [1, 3, 4])
+    def test_streaming_fuse_groups(self, npthreads):
         nt = 4
         grid = Grid(shape=(4, 4))
 
@@ -697,13 +697,13 @@ class TestStreaming:
         op1 = Operator(
             eqn,
             opt=('buffering', 'streaming', 'fuse', 'orchestrate',
-                 {'fuse-tasks': 3})
+                 {'npthreads': npthreads})
         )
 
         symbols = FindSymbols().visit(op1)
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
-        assert len(threads) == 3
         assert all(i.size == 1 for i in threads)
+        assert op1.npthreads == npthreads
 
         op0.apply(time_M=nt-2)
 
@@ -995,7 +995,7 @@ class TestStreaming:
                                   {'buf-async-degree': async_degree}))
         op2 = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate',
                                   {'buf-async-degree': async_degree,
-                                   'fuse-tasks': True}))
+                                   'npthreads': 1}))
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
@@ -1036,8 +1036,8 @@ class TestStreaming:
             assert np.all(usave.data == usave1.data)
             assert np.all(vsave.data == vsave1.data)
 
-    @pytest.mark.parametrize('fuse_tasks', [3, 4])
-    def test_composite_buffering_tasking_fuse_groups(self, fuse_tasks):
+    @pytest.mark.parametrize('npthreads', [1, 3, 4])
+    def test_composite_buffering_tasking_fuse_groups(self, npthreads):
         nt = 4
         bundle0 = Bundle()
         grid = Grid(shape=(4, 4, 4), subdomains=bundle0)
@@ -1053,24 +1053,23 @@ class TestStreaming:
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': tuple(fsaves)}))
 
         opt = ('buffering', 'tasking', 'topofuse', 'orchestrate',
-               {'fuse-tasks': fuse_tasks})
-        if fuse_tasks == 4:
-            with pytest.warns(DevitoWarning, match='fuse-tasks=4.*9 tasks'):
-                op1 = Operator(eqns, opt=opt)
-        else:
-            op1 = Operator(eqns, opt=opt)
+               {'npthreads': npthreads})
+        op1 = Operator(eqns, opt=opt)
 
         symbols = FindSymbols().visit(op1)
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
-        assert len(threads) == 3
         assert all(i.size == 1 for i in threads)
+        assert op1.npthreads == npthreads
 
         tasks = [v.root for k, v in op1._func_table.items()
                  if k.startswith('copy_to_host')]
-        # The three pthreads reuse the same parameterized task callable
-        task, = tasks
-        writes = {i.write for i in FindNodes(Expression).visit(task)}
-        assert len([i for i in writes if i.is_TimeFunction]) == 3
+        # Pthreads handling the same number of tasks reuse a Callable
+        widths = []
+        for task in tasks:
+            writes = {i.write for i in FindNodes(Expression).visit(task)}
+            widths.append(len([i for i in writes if i.is_TimeFunction]))
+        expected = {1: [9], 3: [3], 4: [2, 3]}
+        assert sorted(widths) == expected[npthreads]
 
         op0.apply(time_M=nt-1)
 
@@ -1409,7 +1408,7 @@ class TestStreaming:
         op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
         op2 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
         op3 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate',
-                                  {'fuse-tasks': True}))
+                                  {'npthreads': 1}))
 
         # Check generated code
         diff = int(configuration['language'] == 'openmp')
