@@ -655,6 +655,12 @@ class ClusterGroup(tuple):
     def concatenate(cls, *cgroups):
         return list(chain(*cgroups))
 
+    def rebuild(self, **kwargs):
+        clusters = kwargs.get('clusters', self)
+        ispace = kwargs.get('ispace', self.ispace)
+
+        return self.__class__(clusters, ispace=ispace)
+
     @cached_property
     def exprs(self):
         return flatten(c.exprs for c in self)
@@ -662,6 +668,10 @@ class ClusterGroup(tuple):
     @cached_property
     def scope(self):
         return Scope(exprs=self.exprs)
+
+    @cached_property
+    def functions(self):
+        return self.scope.functions
 
     @cached_property
     def ispace(self):
