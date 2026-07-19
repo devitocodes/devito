@@ -321,6 +321,14 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
         with suppress(AttributeError):
             dtypes.add(i.dtype)
 
+    # A ``Cast`` overrides the dtype of the symbol(s) it wraps -- e.g.
+    # ``DOUBLE(o_x)`` is observably double-typed even though ``o_x``
+    # itself is float-typed. Without this, the C printer would pick
+    # float-precision literals (``1.0F``) when emitting a ``Pow(DOUBLE(h),
+    # -1)`` inside a wider expression.
+    for c in expr.atoms(Cast):
+        dtypes.add(c.dtype)
+
     if not dtypes or not np.issubdtype(base, np.complexfloating):
         dtypes.update({base} - {None})
 

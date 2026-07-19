@@ -182,7 +182,12 @@ def preprocess(clusters, options=None, **kwargs):
             continue
 
         else:
-            dims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
+            itdims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
+            # Expand the iteration dims by ``_defines`` so that derived
+            # Dimensions (e.g. ``rp_*`` radius dims with the grid
+            # Dimension as parent) match the halo's distributed indices
+            # of the Dimensions they ultimately iterate over
+            dims = set().union(*[d._defines for d in itdims])
 
             found = []
             for c1 in list(queue):

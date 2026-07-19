@@ -83,16 +83,29 @@ class Graph(Byproduct):
         writes = FindSymbols('writes').visit(iet)
         self.writes_input = frozenset(f for f in writes if f.is_Input)
 
-        # All symbols requiring host-device data transfers when running
-        # on device
-        self.data_movs = rmovs, wmovs = set(), set()
-        gpu_fit = (options or {}).get('gpu-fit', ())
-        for i in FindNodes(ExprStmt).visit(iet):
-            wmovs.update({w for w in i.writes
-                          if needs_transfer(w, gpu_fit)})
-        for i in FindNodes(ExprStmt).visit(iet):
-            rmovs.update({f for f in i.functions
-                          if needs_transfer(f, gpu_fit) and f not in wmovs})
+        self._gpu_fit = (options or {}).get('gpu-fit', ())
+
+    @property
+    def data_movs(self):
+        """
+        ``(reads, writes)`` of symbols requiring host-device data transfers.
+
+        Recomputed on access from the current state of the Graph (root
+        plus every reachable efunc) so passes that introduce ExprStmts
+        after construction — e.g. ``lower_sparse_ops`` materialising the
+        sparse-op position temps inside an efunc — are reflected.
+        """
+        rmovs, wmovs = set(), set()
+        for efunc in self.efuncs.values():
+            for i in FindNodes(ExprStmt).visit(efunc):
+                wmovs.update(w for w in i.writes
+                             if needs_transfer(w, self._gpu_fit))
+        for efunc in self.efuncs.values():
+            for i in FindNodes(ExprStmt).visit(efunc):
+                rmovs.update(f for f in i.functions
+                             if needs_transfer(f, self._gpu_fit)
+                             and f not in wmovs)
+        return rmovs, wmovs
 
     @property
     def root(self):

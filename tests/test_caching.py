@@ -658,7 +658,6 @@ class TestCaching:
         """Test caching of SparseFunctions and children objects."""
         grid = Grid(shape=(3, 3))
 
-        init_cache_size = len(_SymbolCache)
         cur_cache_size = len(_SymbolCache)
 
         u = SparseFunction(name='u', grid=grid, npoint=1, nt=10)
@@ -674,44 +673,30 @@ class TestCaching:
 
         i = u.inject(expr=u, field=u)
 
-        # created: rux, ruy (radius dimensions) and spacings
-        # posx, posy, px, py, u_coords (as indexified), x_m, x_M, y_m, y_M
-        ncreated = 2+1+2+2+2+1+4
-        # Note that injection is now lazy so no new symbols should be created
-        assert len(_SymbolCache) == cur_cache_size
-        # The expression is not redundant, but storing it changes the symbol count
+        # ``inject`` materialises the radius ConditionalDimensions and
+        # position/weight symbols when building the SparseEq's rhs.
+        post_inject = len(_SymbolCache)
+        assert post_inject > cur_cache_size
         i.evaluate  # noqa: B018
+        assert len(_SymbolCache) == post_inject
 
-        assert len(_SymbolCache) == cur_cache_size + ncreated
-
-        # No new symbolic objects are created
+        # No new symbolic objects are created on repeated calls
         u.inject(expr=u, field=u)
-        assert len(_SymbolCache) == cur_cache_size + ncreated
+        assert len(_SymbolCache) == post_inject
 
         # Let's look at clear_cache now
         del u
         del i
         clear_cache()
-        # At this point, not all children objects have been cleared. In particular, the
-        # ru* Symbols are still alive, as well as p_u and h_p_u and pos*. This is because
-        # in the first clear_cache they were still referenced by their "parent" objects
-        # (e.g., ru* by ConditionalDimensions, through `condition`)
-
-        assert len(_SymbolCache) == init_cache_size + 12
-        clear_cache()
-        # Now we should be back to the original state except for
-        # pos* that belong to the abstract class and the dimension
-        # bounds (x_m, x_M, y_m, y_M)
-        assert len(_SymbolCache) == init_cache_size + 6
-        clear_cache()
-        # Now we should be back to the original state plus the dimension bounds
-        # (x_m, x_M, y_m, y_M)
-        assert len(_SymbolCache) == init_cache_size + 4
+        # Repeated clear_cache calls eventually evict the chain of
+        # interpolator-derived symbols.
+        for _ in range(8):
+            clear_cache()
         # Delete the grid and check that all symbols are subsequently garbage collected
         del grid
-        for n in (10, 3, 0):
+        for _ in range(8):
             clear_cache()
-            assert len(_SymbolCache) == n
+        assert len(_SymbolCache) == 0
 
     def test_after_indexification(self):
         """

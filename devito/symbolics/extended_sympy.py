@@ -381,6 +381,8 @@ class UnaryOp(Expr, Pickable, BasicWrapperMixin):
 
     _op = ''
 
+    is_commutative = True
+
     __rargs__ = ('base',)
 
     def __new__(cls, base, **kwargs):

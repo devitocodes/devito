@@ -1625,8 +1625,11 @@ class SubFunction(Function):
             return self._arg_defaults(alias=self)
 
     def _arg_apply(self, *args, **kwargs):
+        # Parent-owned SubFunction data is computed once and read by the
+        # Operator; the parent gathers its own data via its own parameter
+        # entry, so there's nothing for the SubFunction to do here.
         if self._parent is not None:
-            return self._parent._arg_apply(*args, **kwargs)
+            return
         return super()._arg_apply(*args, **kwargs)
 
     @property

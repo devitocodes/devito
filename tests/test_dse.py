@@ -2662,7 +2662,9 @@ class TestAliases:
 
         op = Operator(src.interpolate(u))
 
-        cond = FindNodes(Conditional).visit(op)
+        assert len(FindNodes(Conditional).visit(op)) == 0
+        print(op._func_table)
+        cond = FindNodes(Conditional).visit(op._func_table['interpolate_src0'])
         assert len(cond) == 1
         assert len(cond[0].args['then_body'][0].exprs) == 1
         assert all(e.is_scalar for e in cond[0].args['then_body'][0].exprs)
@@ -2957,12 +2959,12 @@ class TestIsoAcoustic:
         bns, _ = assert_blocking(op1, {'x0_blk0'})  # due to loop blocking
 
         assert summary0[('section0', None)].ops == 55
-        assert summary0[('section1', None)].ops == 44
+        assert summary0[('section1', None)].ops == 17
         assert np.isclose(summary0[('section0', None)].oi, 3.136, atol=0.001)
 
         assert summary1[('section0', None)].ops == 31
-        assert summary1[('section1', None)].ops == 88
-        assert summary1[('section2', None)].ops == 25
+        assert summary1[('section1', None)].ops == 17
+        assert summary1[('section2', None)].ops == 0
         assert np.isclose(summary1[('section0', None)].oi, 1.767, atol=0.001)
 
         assert np.allclose(u0.data, u1.data, atol=10e-5)
@@ -3009,7 +3011,8 @@ class TestTTI:
 
         # Make sure no opts were applied
         op = wavesolver.op_fwd(False)
-        assert len(op._func_table) == 0
+        # Two funcs, one for src, one for rec
+        assert len(op._func_table) == 2
         assert summary[('section0', None)].ops == 753
 
         return v, rec
@@ -3067,7 +3070,7 @@ class TestTTI:
 
         # Run a quick check to be sure MPI-full-mode code was actually generated
         op = tti_agg.op_fwd(False)
-        assert len(op._func_table) == 7
+        assert len(op._func_table) == 9
         assert 'pokempi0' in op._func_table
 
     @switchconfig(profiling='advanced')

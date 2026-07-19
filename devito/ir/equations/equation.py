@@ -1,5 +1,5 @@
 from contextlib import suppress
-from functools import cached_property
+from functools import cached_property, singledispatch
 
 import numpy as np
 import sympy
@@ -13,17 +13,31 @@ from devito.symbolics import IntDiv, limits_mapper, retrieve_accesses, uxreplace
 from devito.tools import (
     Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
 )
-from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax, relational_min
+from devito.types import (
+    Eq, Inc, IncrInterpolation, Injection, InjectionMixin, Interpolation,
+    InterpolationMixin, ReduceMax, ReduceMin, ReduceMinMax, SparseEq, SparseOpMixin,
+    relational_min
+)
 
 __all__ = [
     'ClusterizedEq',
+    'ClusterizedIncrInterpolation',
+    'ClusterizedInjection',
+    'ClusterizedInterpolation',
+    'ClusterizedSparseEq',
     'DummyEq',
     'LoweredEq',
+    'LoweredIncrInterpolation',
+    'LoweredInjection',
+    'LoweredInterpolation',
+    'LoweredSparseEq',
     'OpInc',
     'OpMax',
     'OpMin',
     'OpMinMax',
+    'clusterize_eq',
     'identity_mapper',
+    'lower_eq',
 ]
 
 
@@ -31,6 +45,8 @@ class IREq(sympy.Eq, Pickable):
 
     __rargs__ = ('lhs', 'rhs')
     __rkwargs__ = ('ispace', 'conditionals', 'implicit_dims', 'operation')
+
+    is_SparseOperation = False
 
     def _hashable_content(self):
         return (super()._hashable_content() +
@@ -185,16 +201,28 @@ class Operation(Tag):
 
     @classmethod
     def detect(cls, expr):
-        reduction_mapper = {
-            Inc: OpInc,
-            ReduceMax: OpMax,
-            ReduceMin: OpMin,
-            ReduceMinMax: OpMinMax
-        }
-        try:
-            return reduction_mapper[type(expr)]
-        except KeyError:
-            pass
+        reduction_mapper = (
+            (ReduceMinMax, OpMinMax),
+            (ReduceMin, OpMin),
+            (ReduceMax, OpMax),
+            (Inc, OpInc),
+            # An ``Interpolation`` looks like a plain ``Eq`` -- ``sf[p_*] =
+            # expr[rp_*]`` -- but the cluster scheduler iterates the rhs
+            # over the radius dims, so values are implicitly summed across
+            # ``rp_*``. Tagging it as ``OpInc`` makes the dependence
+            # analysis treat ``rp_*`` as reduction dims
+            # (``parallel_if_atomic``), which matches the lowered code
+            # (``sumrec += ... ; sf[p_*] = sumrec``) and stops the
+            # blocking heuristic from turning the tiny radius loops into
+            # thread blocks. The actual write-back flavour at ``sf[p_*]``
+            # is keyed off the Eq's class (``is_increment_writeback``) in
+            # ``lower_sparse_ops`` so this tag doesn't accidentally turn
+            # ``Interpolation`` assignments into increments.
+            (InterpolationMixin, OpInc),
+        )
+        for kls, op in reduction_mapper:
+            if isinstance(expr, kls):
+                return op
 
         # NOTE: in the future we might want to track down other kinds
         # of operations here (e.g., memcpy). However, we don't care for
@@ -274,8 +302,9 @@ class LoweredEq(IREq):
         accesses = detect_accesses(expr)
         dimensions = Stencil.union(*accesses.values())
 
-        # Separate out the SubIterators from the main iteration Dimensions, that
-        # is those which define an actual iteration space
+        # Separate out the SubIterators from the main iteration
+        # Dimensions, that is those which define an actual
+        # iteration space
         iterators = {}
         for d in dimensions:
             if d.is_SubIterator:
@@ -330,6 +359,48 @@ class LoweredEq(IREq):
 
     def func(self, *args):
         return self._rebuild(*args, evaluate=False)
+
+
+class LoweredSparseEq(SparseOpMixin, LoweredEq):
+
+    """
+    The IR counterpart of ``SparseEq``: a regular ``LoweredEq`` that
+    also carries the ``interpolator`` metadata used by the IET pass
+    ``lower_sparse_ops`` to wrap the resulting ``p_*, rp_*`` iteration
+    nest in an ElementalFunction. Subclassed by
+    ``LoweredInterpolation`` / ``LoweredIncrInterpolation`` /
+    ``LoweredInjection`` for the per-operation polymorphic behaviour.
+    """
+
+    __rkwargs__ = LoweredEq.__rkwargs__ + ('interpolator',)
+
+
+class LoweredInterpolation(InterpolationMixin, LoweredSparseEq):
+    """IR counterpart of ``Interpolation``."""
+    # ``sf[p_*] = ...``: the write-back at the sparse position is an
+    # assignment. The Eq is still tagged as a reduction
+    # (``OpInc``/``is_Reduction``) because the rhs is summed over the
+    # radius dims; only the *outer* write-back to ``sf[p_*]`` is plain.
+    is_increment_writeback = False
+
+
+class LoweredIncrInterpolation(InterpolationMixin, LoweredSparseEq):
+    """IR counterpart of ``IncrInterpolation``."""
+    # ``sf[p_*] += ...``: the user asked for ``interpolate(..., increment=True)``.
+    is_increment_writeback = True
+
+
+class LoweredInjection(InjectionMixin, LoweredSparseEq):
+    """IR counterpart of ``Injection``."""
+    pass
+
+
+# Map user-level sparse-op classes to their IR-level counterparts.
+_lowered_sparse_cls = {
+    Interpolation: LoweredInterpolation,
+    IncrInterpolation: LoweredIncrInterpolation,
+    Injection: LoweredInjection,
+}
 
 
 class ClusterizedEq(IREq):
@@ -388,6 +459,41 @@ class ClusterizedEq(IREq):
     func = IREq._rebuild
 
 
+class ClusterizedSparseEq(SparseOpMixin, ClusterizedEq):
+
+    """
+    Frozen counterpart of ``LoweredSparseEq``: the same regular
+    ``ClusterizedEq`` augmented with ``interpolator`` so the IET pass
+    ``lower_sparse_ops`` can identify and rewrite the sparse op's
+    iteration nest. Subclassed by ``ClusterizedInterpolation`` /
+    ``ClusterizedIncrInterpolation`` / ``ClusterizedInjection``.
+    """
+
+    __rkwargs__ = ClusterizedEq.__rkwargs__ + ('interpolator',)
+
+
+class ClusterizedInterpolation(InterpolationMixin, ClusterizedSparseEq):
+    """Frozen counterpart of ``LoweredInterpolation``."""
+    is_increment_writeback = False
+
+
+class ClusterizedIncrInterpolation(InterpolationMixin, ClusterizedSparseEq):
+    """Frozen counterpart of ``LoweredIncrInterpolation``."""
+    is_increment_writeback = True
+
+
+class ClusterizedInjection(InjectionMixin, ClusterizedSparseEq):
+    """Frozen counterpart of ``LoweredInjection``."""
+    pass
+
+
+_clusterized_sparse_cls = {
+    LoweredInterpolation: ClusterizedInterpolation,
+    LoweredIncrInterpolation: ClusterizedIncrInterpolation,
+    LoweredInjection: ClusterizedInjection,
+}
+
+
 class DummyEq(ClusterizedEq):
 
     """
@@ -407,3 +513,62 @@ class DummyEq(ClusterizedEq):
         else:
             raise ValueError(f"Cannot construct DummyEq from args={str(args)}")
         return ClusterizedEq.__new__(cls, obj, ispace=obj.ispace)
+
+
+@singledispatch
+def lower_eq(eq):
+    """
+    Promote a user-level ``Eq`` to its ``LoweredEq`` counterpart, ready
+    for the cluster pipeline. The dispatch matches the dynamic type of
+    ``eq``; ``SparseEq`` and friends get their own branch.
+    """
+    return LoweredEq(eq)
+
+
+@lower_eq.register(SparseEq)
+def _(eq):
+    # Augment ``implicit_dims`` with the SparseFunction's own iteration
+    # Dimensions (e.g. ``p_sf`` and any extra SparseFunction dims) so
+    # the cluster scheduler sees them. Grid Dimensions reached through
+    # the rhs Function are deliberately *not* added: SubDomain-derived
+    # SubDimensions would otherwise spuriously appear in the
+    # IterationSpace, and grid Dimensions are already discovered via
+    # the radius ConditionalDimensions in the rhs.
+    interp = eq.interpolator
+    sf_dims = tuple(interp.sfunction.dimensions)
+    user = tuple(eq.implicit_dims or ())
+    if interp.sfunction._sparse_position == -1:
+        augmented = sf_dims + user
+    else:
+        augmented = user + sf_dims
+
+    if augmented != tuple(eq.implicit_dims or ()):
+        eq = eq.func(eq.lhs, eq.rhs, interpolator=interp,
+                     implicit_dims=augmented)
+
+    lowered_cls = _lowered_sparse_cls[type(eq)]
+    obj = lowered_cls(eq)
+    obj._interpolator = interp
+    return obj
+
+
+@singledispatch
+def clusterize_eq(eq, **kwargs):
+    """
+    Freeze a ``LoweredEq`` into its ``ClusterizedEq`` counterpart,
+    suitable for use in a ``Cluster``. Subclasses with extra payload
+    (e.g. ``LoweredSparseEq``) dispatch to their frozen counterpart.
+    """
+    return ClusterizedEq(eq, **kwargs)
+
+
+@clusterize_eq.register(LoweredSparseEq)
+def _(eq, **kwargs):
+    return _clusterized_sparse_cls[type(eq)](eq, **kwargs)
+
+
+@clusterize_eq.register(ClusterizedSparseEq)
+def _(eq, **kwargs):
+    # ``eq`` is already clusterized; rebuild via its own class to preserve
+    # the per-operation polymorphic behaviour.
+    return type(eq)(eq, **kwargs)
