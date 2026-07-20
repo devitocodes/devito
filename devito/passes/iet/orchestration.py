@@ -15,7 +15,7 @@ from devito.ir.support import (
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import DAG, as_mapper, as_tuple
+from devito.tools import DAG, as_mapper, as_tuple, flatten
 from devito.types import HostLayer
 
 __init__ = ['Orchestrator']
@@ -151,7 +151,7 @@ class Orchestrator:
                 break
 
             n0 = ordered(sync_spots).pop(0)
-            mapper = as_mapper(n0.sync_ops, lambda i: type(i))
+            mapper = as_mapper(flatten(n0.ops), lambda i: type(i))
 
             subs = {}
             for t in sorted(mapper, key=key):

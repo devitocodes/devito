@@ -1511,18 +1511,20 @@ class BusyWait(While):
 class SyncSpot(List):
 
     """
-    A node representing one or more synchronization operations, e.g., WaitLock,
-    withLock, etc.
+    A node coupling synchronization operations with an IET body.
+
+    `ops` contains either one group applying to the whole `body`, or one group
+    per body item, with `ops[i]` applying to `body[i]`.
     """
 
     is_SyncSpot = True
 
-    def __init__(self, sync_ops, body=None):
+    def __init__(self, ops, body=None):
         super().__init__(body=body)
-        self.sync_ops = sync_ops
+        self.ops = tuple(tuple(i) for i in ops)
 
     def __repr__(self):
-        return f"<SyncSpot ({','.join(str(i) for i in self.sync_ops)})>"
+        return f"<SyncSpot ({','.join(str(i) for i in flatten(self.ops))})>"
 
     @property
     def is_async_op(self):
@@ -1531,11 +1533,11 @@ class SyncSpot(List):
         If False, the SyncSpot may for example represent a wait on a lock.
         """
         return any(isinstance(s, (WithLock, PrefetchUpdate))
-                   for s in self.sync_ops)
+                   for s in flatten(self.ops))
 
     @property
     def functions(self):
-        ret = [(s.lock, s.function, s.target) for s in self.sync_ops]
+        ret = [(s.lock, s.function, s.target) for s in flatten(self.ops)]
         ret = tuple(filter_ordered(f for f in flatten(ret) if f is not None))
         return ret
 

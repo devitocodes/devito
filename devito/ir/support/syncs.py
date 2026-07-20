@@ -27,10 +27,12 @@ __all__ = [
 class SyncOp(Pickable):
 
     __rargs__ = ('handle', 'target')
-    __rkwargs__ = ('tindex', 'function', 'findex', 'dim', 'size', 'origin')
+    __rkwargs__ = (
+        'tindex', 'function', 'findex', 'dim', 'size', 'origin', 'gid'
+    )
 
     def __init__(self, handle, target, tindex=None, function=None, findex=None,
-                 dim=None, size=1, origin=None):
+                 dim=None, size=1, origin=None, gid=None):
         self.handle = handle
         self.target = target
 
@@ -40,6 +42,7 @@ class SyncOp(Pickable):
         self.dim = dim
         self.size = size
         self.origin = origin
+        self.gid = gid
 
     def __eq__(self, other):
         return (type(self) is type(other) and
@@ -50,11 +53,13 @@ class SyncOp(Pickable):
                 self.findex == other.findex and
                 self.dim is other.dim and
                 self.size == other.size and
-                self.origin == other.origin)
+                self.origin == other.origin and
+                self.gid == other.gid)
 
     def __hash__(self):
         return hash((self.__class__, self.handle, self.target, self.tindex,
-                     self.function, self.findex, self.dim, self.size, self.origin))
+                     self.function, self.findex, self.dim, self.size, self.origin,
+                     self.gid))
 
     def __repr__(self):
         return f"{self.__class__.__name__}<{self.handle.name}>"
