@@ -61,6 +61,7 @@ __all__ = [
     'Section',
     'Switch',
     'SyncSpot',
+    'SyncSpotRegion',
     'TimedList',
     'Transfer',
     'Using',
@@ -92,6 +93,7 @@ class Node(Signer):
     is_HaloSpot = False
     is_ExpressionBundle = False
     is_SyncSpot = False
+    is_SyncSpotRegion = False
 
     _traversable = []
     """
@@ -1512,19 +1514,16 @@ class SyncSpot(List):
 
     """
     A node coupling synchronization operations with an IET body.
-
-    `ops` contains either one group applying to the whole `body`, or one group
-    per body item, with `ops[i]` applying to `body[i]`.
     """
 
     is_SyncSpot = True
 
-    def __init__(self, ops, body=None):
+    def __init__(self, sync_ops, body=None):
         super().__init__(body=body)
-        self.ops = tuple(tuple(i) for i in ops)
+        self.sync_ops = sync_ops
 
     def __repr__(self):
-        return f"<SyncSpot ({','.join(str(i) for i in flatten(self.ops))})>"
+        return f"<SyncSpot ({','.join(str(i) for i in self.sync_ops)})>"
 
     @property
     def is_async_op(self):
@@ -1533,13 +1532,35 @@ class SyncSpot(List):
         If False, the SyncSpot may for example represent a wait on a lock.
         """
         return any(isinstance(s, (WithLock, PrefetchUpdate))
-                   for s in flatten(self.ops))
+                   for s in self.sync_ops)
 
     @property
     def functions(self):
-        ret = [(s.lock, s.function, s.target) for s in flatten(self.ops)]
+        ret = [(s.lock, s.function, s.target) for s in self.sync_ops]
         ret = tuple(filter_ordered(f for f in flatten(ret) if f is not None))
         return ret
+
+
+class SyncSpotRegion(List):
+
+    """A sequence of SyncSpots treated as one unit during orchestration."""
+
+    is_SyncSpotRegion = True
+
+    def __init__(self, body):
+        body = as_tuple(body)
+        assert body and all(isinstance(i, SyncSpot) for i in body)
+        super().__init__(body=body)
+
+    @property
+    def sync_spots(self):
+        return self.body
+
+    @cached_property
+    def optype(self):
+        """The common type of the synchronization operations in this region."""
+        optype, = {type(j) for i in self.sync_spots for j in i.sync_ops}
+        return optype
 
 
 class CBlankLine(List):

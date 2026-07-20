@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict, namedtuple
 from contextlib import suppress
 from functools import singledispatch
 
@@ -6,25 +6,32 @@ from sympy import Or
 
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
-    AsyncCall, AsyncCallable, BlankLine, BusyWait, Call, Callable, DummyExpr, FindNodes,
-    List, SyncSpot, Transformer, derive_parameters, make_callable
+    AsyncCall, AsyncCallable, BlankLine, BusyWait, Call, Callable, Conditional,
+    DummyExpr, FindNodes, List, SyncSpot, SyncSpotRegion, Transformer,
+    derive_parameters, make_callable
 )
+from devito.ir.iet.visitors import LazyVisitor
 from devito.ir.support import (
     InitArray, PrefetchUpdate, ReleaseLock, SnapIn, SnapOut, SyncArray, WaitLock, WithLock
 )
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import DAG, as_mapper, as_tuple, flatten
+from devito.tools import DAG, as_mapper
 from devito.types import HostLayer
 
 __init__ = ['Orchestrator']
 
 
+_Task = namedtuple(
+    '_Task', 'spot condition anchor iteration gid task_type sync_ops releases'
+)
+
+
 class Orchestrator:
 
     """
-    Lower the SyncSpot in IET for efficient host-device asynchronous computation.
+    Lower synchronization nodes for efficient host-device asynchronous computation.
     """
 
     langbb = LangBB
@@ -32,8 +39,47 @@ class Orchestrator:
     The language used to implement host-device data movements.
     """
 
-    def __init__(self, sregistry=None, **kwargs):
+    def __init__(self, sregistry=None, options=None, **kwargs):
         self.sregistry = sregistry
+        self.npthreads = (options or {}).get('npthreads')
+
+    def _fuse_tasks(self, iet):
+        """Group compatible task SyncSpots into SyncSpotRegions."""
+        mapper = as_mapper(
+            _FindTasks().visit(iet),
+            lambda task: (task.iteration, task.gid, task.task_type,
+                          isinstance(task.anchor, SyncSpot))
+        )
+
+        insertions = defaultdict(list)
+        subs1 = {}
+
+        for tasks in mapper.values():
+            spots = [SyncSpot(task.sync_ops,
+                              body=Conditional(task.condition.condition,
+                                               task.spot.body))
+                     for task in tasks]
+            insertions[tasks[-1].anchor].append(SyncSpotRegion(spots))
+
+            for task in tasks:
+                subs1[task.spot] = SyncSpot(task.releases)
+
+        if not subs1:
+            return iet
+
+        # These substitutions cannot be merged because a Transformer does not
+        # revisit a replacement, while task spots may be nested below an anchor
+        subs0 = {}
+        for anchor, regions in insertions.items():
+            if isinstance(anchor, SyncSpot):
+                subs0[anchor] = anchor._rebuild(body=anchor.body + tuple(regions))
+            else:
+                subs0[anchor] = List(body=(anchor, *regions))
+
+        iet = Transformer(subs0).visit(iet)
+        iet = Transformer(subs1).visit(iet)
+
+        return iet
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
@@ -53,6 +99,9 @@ class Orchestrator:
         parameters = derive_parameters(pre, ordering='canonical')
         efunc = Callable(name, pre, 'void', parameters, 'static')
 
+        if isinstance(iet, SyncSpot) and not iet.body:
+            iet = List()
+
         iet = List(body=[Call(name, efunc.parameters)] + [iet])
 
         return iet, [efunc]
@@ -60,17 +109,15 @@ class Orchestrator:
     def _make_withlock(self, iet, sync_ops, layer):
         body, prefix = withlock(layer, iet, sync_ops, self.langbb, self.sregistry)
 
-        # Turn `iet` into an AsyncCallable so that subsequent passes know
-        # that we're happy for this Callable to be executed asynchronously
+        return self._make_async_callable(body, prefix)
+
+    def _make_async_callable(self, body, prefix):
         name = self.sregistry.make_name(prefix=prefix)
         body = List(body=body)
         parameters = derive_parameters(body, ordering='canonical')
         efunc = AsyncCallable(name, body, parameters=parameters)
 
-        # The corresponding AsyncCall
-        iet = AsyncCall(name, efunc.parameters)
-
-        return iet, [efunc]
+        return AsyncCall(name, efunc.parameters), [efunc]
 
     def _make_callable(self, name, iet, *args):
         name = self.sregistry.make_name(prefix=name)
@@ -108,23 +155,36 @@ class Orchestrator:
     def _make_prefetchupdate(self, iet, sync_ops, layer):
         body, prefix = prefetchupdate(layer, iet, sync_ops, self.langbb, self.sregistry)
 
-        # Turn `iet` into an AsyncCallable so that subsequent passes know
-        # that we're happy for this Callable to be executed asynchronously
-        name = self.sregistry.make_name(prefix=prefix)
-        body = List(body=body)
-        parameters = derive_parameters(body, ordering='canonical')
-        efunc = AsyncCallable(name, body, parameters=parameters)
+        return self._make_async_callable(body, prefix)
 
-        # The corresponding AsyncCall
-        iet = AsyncCall(name, efunc.parameters)
+    def _make_region(self, iet):
+        """Lower a SyncSpotRegion into one asynchronous callable."""
+        sync_ops = tuple(j for i in iet.sync_spots for j in i.sync_ops)
+        callback = {
+            PrefetchUpdate: prefetchupdate,
+            WithLock: withlock
+        }[iet.optype]
 
-        return iet, [efunc]
+        layers = {infer_layer(i.function) for i in sync_ops}
+        if len(layers) != 1:
+            raise CompilationError("Unsupported streaming case")
+        layer = layers.pop()
+
+        body = []
+        for spot in iet.sync_spots:
+            condition, = spot.body
+            task_body, prefix = callback(
+                layer, List(body=condition.then_body), spot.sync_ops, self.langbb,
+                self.sregistry
+            )
+            body.append(condition._rebuild(then_body=task_body))
+
+        return self._make_async_callable(body, prefix)
 
     @iet_pass
     def process(self, iet):
-        sync_spots = FindNodes(SyncSpot).visit(iet)
-        if not sync_spots:
-            return iet, {}
+        if self.npthreads is not None:
+            iet = self._fuse_tasks(iet)
 
         # The SyncOps are to be processed in a given order
         callbacks = OrderedDict([
@@ -139,19 +199,32 @@ class Orchestrator:
         ])
         key = lambda s: list(callbacks).index(s)
 
+        # A region consumes its immediate SyncSpots as one unit, so lower all
+        # regions before looking for ordinary SyncSpots
+        efuncs = []
+        while True:
+            sync_regions = FindNodes(SyncSpotRegion).visit(iet)
+            if not sync_regions:
+                break
+
+            n0 = ordered(sync_regions).pop(0)
+            n1, v = self._make_region(n0)
+
+            iet = Transformer({n0: n1}).visit(iet)
+            efuncs.extend(v)
+
         # The SyncSpots may be nested, so we compute a topological ordering
         # so that they are processed in a bottom-up fashion. This is necessary
         # because e.g. an inner SyncSpot may generate new objects (e.g., a new
         # Queue), which in turn must be visible to the outer SyncSpot to
         # generate the correct parameters list
-        efuncs = []
         while True:
             sync_spots = FindNodes(SyncSpot).visit(iet)
             if not sync_spots:
                 break
 
             n0 = ordered(sync_spots).pop(0)
-            mapper = as_mapper(flatten(n0.ops), lambda i: type(i))
+            mapper = as_mapper(n0.sync_ops, type)
 
             subs = {}
             for t in sorted(mapper, key=key):
@@ -172,13 +245,51 @@ class Orchestrator:
         return iet, {'efuncs': efuncs}
 
 
-def ordered(sync_spots):
-    dag = DAG(nodes=sync_spots)
-    for n0 in sync_spots:
-        for n1 in as_tuple(FindNodes(SyncSpot).visit(n0.body)):
+def ordered(sync_nodes):
+    dag = DAG(nodes=sync_nodes)
+    for n0 in sync_nodes:
+        for n1 in FindNodes(type(n0)).visit(n0.body):
             dag.add_edge(n1, n0)
 
     return dag.topological_sort()
+
+
+class _FindTasks(LazyVisitor):
+
+    """Find guarded asynchronous SyncSpots and their structural context."""
+
+    def visit_Iteration(self, o, **kwargs):
+        kwargs['iteration'] = o
+        yield from self._visit(o.children, **kwargs)
+
+    def visit_Conditional(self, o, **kwargs):
+        kwargs['condition'] = o
+        yield from self._visit(o.children, **kwargs)
+
+    def visit_SyncSpot(self, o, iteration=None, condition=None, anchor=None):
+        if iteration is not None and condition is not None and not condition.else_body:
+            syncs = as_mapper(o.sync_ops, type)
+            sync_types = set(syncs)
+            for task_type in (PrefetchUpdate, WithLock):
+                if sync_types != {task_type, ReleaseLock}:
+                    continue
+
+                sync_ops = syncs[task_type]
+                gids = {i.gid for i in sync_ops}
+
+                if len(gids) == 1 and None not in gids:
+                    gid, = gids
+                    yield _Task(o, condition, anchor or condition, iteration,
+                                gid, task_type, sync_ops, syncs[ReleaseLock])
+                break
+
+        if any(isinstance(i, SnapOut) for i in o.sync_ops):
+            # Keep composite task calls inside the `SnapOut` scope
+            anchor = o
+
+        yield from self._visit(
+            o.children, iteration=iteration, condition=condition, anchor=anchor
+        )
 
 
 # Task handlers
