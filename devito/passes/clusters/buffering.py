@@ -256,16 +256,17 @@ class InjectBuffers(Queue):
                 processed.append(Cluster(expr, ispace, guards, properties, syncs))
 
         # Lift {write,read}-only buffers into separate IterationSpaces
-        processed = self._optimize(processed, descriptors, self.options['npthreads'])
+        processed = self._optimize(processed, descriptors)
 
-        if self.options['buf-reuse']:
-            init, processed = self._reuse(init, processed, descriptors)
+        # Reuse existing Buffers for buffering candidates, if requested
+        init, processed = self._reuse(init, processed, descriptors)
 
         return init + processed
 
-    def _optimize(self, clusters, descriptors, npthreads=None):
-        if npthreads:
-            stamps = self._make_task_groups(descriptors, npthreads)
+    def _optimize(self, clusters, descriptors):
+        npthreads = self.options['npthreads']
+
+        stamps = self._make_task_groups(descriptors)
 
         for b, v in descriptors.items():
             if v.is_writeonly:
@@ -274,25 +275,22 @@ class InjectBuffers(Queue):
                 # will have complementary guards, hence only one will be
                 # executed. In such a case, we can split the equations over
                 # separate IterationSpaces
-                if npthreads:
-                    stamp = stamps[b]
-                    key0 = lambda: stamp  # noqa: B023
-                else:
-                    key0 = lambda: Stamp()
+                key0 = lambda: stamps[b] if npthreads else Stamp()  # noqa: B023
             elif v.is_readonly:
                 # `b` is read multiple times -- this could just be the case of
                 # coupled equations, so we more cautiously perform a
                 # "buffer-wise" splitting of the IterationSpaces (i.e., only
                 # relevant if there are at least two read-only buffers)
-                stamp = stamps[b] if npthreads else Stamp()
-                key0 = lambda: stamp  # noqa: B023
+                stamp_fixed = Stamp()
+                key0 = lambda: stamps[b] if npthreads else stamp_fixed  # noqa: B023
             else:
                 continue
 
             processed = []
             for c in clusters:
-                function = v.f if npthreads else b
-                if function not in c.functions:
+                f = v.f if npthreads else b
+
+                if f not in c.functions:
                     processed.append(c)
                     continue
 
@@ -305,18 +303,27 @@ class InjectBuffers(Queue):
 
         return clusters
 
-    def _make_task_groups(self, descriptors, npthreads):
-        """Assign task buffers to at most ``npthreads`` balanced groups."""
+    def _make_task_groups(self, descriptors):
+        """
+        Assign task buffers to at most `npthreads` balanced groups.
+        """
+        npthreads = self.options['npthreads']
+
         stamps = {}
+        if not npthreads:
+            return stamps
 
         task_sets = (
             [b for b, v in descriptors.items() if v.is_writeonly],
             [b for b, v in descriptors.items() if v.is_readonly],
         )
+
         for tasks in task_sets:
             if not tasks:
                 continue
 
+            # Calculate the number of groups and their sizes, so that the tasks
+            # are divided into balanced groups
             ntasks = len(tasks)
             ngroups = min(npthreads, ntasks)
             base, remainder = divmod(ntasks, ngroups)
@@ -328,11 +335,12 @@ class InjectBuffers(Queue):
                     f"tasks; using `npthreads={ntasks}` instead"
                 )
 
+            # Create a unique Stamp for each group and assign it to the tasks
+            # in that group
             start = 0
             for n in sizes:
                 stamp = Stamp()
-                for b in tasks[start:start + n]:
-                    stamps[b] = stamp
+                stamps.update({b: stamp for b in tasks[start:start + n]})
                 start += n
 
         return stamps
@@ -342,6 +350,9 @@ class InjectBuffers(Queue):
         Reuse existing Buffers for buffering candidates.
         """
         buf_reuse = self.options['buf-reuse']
+
+        if not buf_reuse:
+            return init, clusters
 
         if callable(buf_reuse):
             cbk = lambda v: [i for i in v if buf_reuse(descriptors[i])]
