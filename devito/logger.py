@@ -93,7 +93,8 @@ def set_log_level(level, comm=None):
     from devito import configuration
 
     if comm is not None and configuration['mpi']:
-        if comm.rank != 0:
+        from devito.mpi.distributed import MPI
+        if comm is not MPI.COMM_NULL and comm.rank != 0:
             logger.removeHandler(stream_handler)
             logger.addHandler(logging.NullHandler())
     else:
