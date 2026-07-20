@@ -1559,7 +1559,8 @@ class SyncSpotRegion(List):
     @cached_property
     def optype(self):
         """The common type of the synchronization operations in this region."""
-        optype, = {type(j) for i in self.sync_spots for j in i.sync_ops}
+        optype, = {type(op) for spot in self.sync_spots
+                   for op in spot.sync_ops}
         return optype
 
 

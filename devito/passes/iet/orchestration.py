@@ -6,9 +6,9 @@ from sympy import Or
 
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
-    AsyncCall, AsyncCallable, BlankLine, BusyWait, Call, Callable, Conditional,
-    DummyExpr, FindNodes, List, SyncSpot, SyncSpotRegion, Transformer,
-    derive_parameters, make_callable
+    AsyncCall, AsyncCallable, BlankLine, BusyWait, Call, Callable, Conditional, DummyExpr,
+    FindNodes, List, SyncSpot, SyncSpotRegion, Transformer, derive_parameters,
+    make_callable
 )
 from devito.ir.iet.visitors import LazyVisitor
 from devito.ir.support import (
@@ -20,11 +20,11 @@ from devito.symbolics import CondEq, CondNe
 from devito.tools import DAG, as_mapper
 from devito.types import HostLayer
 
-__init__ = ['Orchestrator']
+__all__ = ['Orchestrator']
 
 
-_Task = namedtuple(
-    '_Task', 'spot condition anchor iteration gid task_type sync_ops releases'
+TaskMeta = namedtuple(
+    'TaskMeta', 'spot condition anchor iteration gid optype sync_ops releases'
 )
 
 
@@ -45,16 +45,16 @@ class Orchestrator:
 
     def _fuse_tasks(self, iet):
         """Group compatible task SyncSpots into SyncSpotRegions."""
-        mapper = as_mapper(
-            _FindTasks().visit(iet),
-            lambda task: (task.iteration, task.gid, task.task_type,
+        groups = as_mapper(
+            CollectTasks().visit(iet),
+            lambda task: (task.iteration, task.gid, task.optype,
                           isinstance(task.anchor, SyncSpot))
         )
 
         insertions = defaultdict(list)
         subs1 = {}
 
-        for tasks in mapper.values():
+        for tasks in groups.values():
             spots = [SyncSpot(task.sync_ops,
                               body=Conditional(task.condition.condition,
                                                task.spot.body))
@@ -159,7 +159,8 @@ class Orchestrator:
 
     def _make_region(self, iet):
         """Lower a SyncSpotRegion into one asynchronous callable."""
-        sync_ops = tuple(j for i in iet.sync_spots for j in i.sync_ops)
+        sync_ops = tuple(op for spot in iet.sync_spots
+                         for op in spot.sync_ops)
         callback = {
             PrefetchUpdate: prefetchupdate,
             WithLock: withlock
@@ -186,6 +187,17 @@ class Orchestrator:
         if self.npthreads is not None:
             iet = self._fuse_tasks(iet)
 
+        # Lower regions first so their member SyncSpots are not processed
+        # independently by the generic SyncSpot lowering below
+        efuncs = []
+        subs = {}
+        for region in FindNodes(SyncSpotRegion).visit(iet):
+            call, efuncs1 = self._make_region(region)
+            subs[region] = call
+            efuncs.extend(efuncs1)
+
+        iet = Transformer(subs).visit(iet)
+
         # The SyncOps are to be processed in a given order
         callbacks = OrderedDict([
             (WaitLock, self._make_waitlock),
@@ -197,21 +209,7 @@ class Orchestrator:
             (PrefetchUpdate, self._make_prefetchupdate),
             (ReleaseLock, self._make_releaselock),
         ])
-        key = lambda s: list(callbacks).index(s)
-
-        # A region consumes its immediate SyncSpots as one unit, so lower all
-        # regions before looking for ordinary SyncSpots
-        efuncs = []
-        while True:
-            sync_regions = FindNodes(SyncSpotRegion).visit(iet)
-            if not sync_regions:
-                break
-
-            n0 = ordered(sync_regions).pop(0)
-            n1, v = self._make_region(n0)
-
-            iet = Transformer({n0: n1}).visit(iet)
-            efuncs.extend(v)
+        key = tuple(callbacks).index
 
         # The SyncSpots may be nested, so we compute a topological ordering
         # so that they are processed in a bottom-up fashion. This is necessary
@@ -245,18 +243,18 @@ class Orchestrator:
         return iet, {'efuncs': efuncs}
 
 
-def ordered(sync_nodes):
-    dag = DAG(nodes=sync_nodes)
-    for n0 in sync_nodes:
-        for n1 in FindNodes(type(n0)).visit(n0.body):
+def ordered(sync_spots):
+    dag = DAG(nodes=sync_spots)
+    for n0 in sync_spots:
+        for n1 in FindNodes(SyncSpot).visit(n0.body):
             dag.add_edge(n1, n0)
 
     return dag.topological_sort()
 
 
-class _FindTasks(LazyVisitor):
+class CollectTasks(LazyVisitor):
 
-    """Find guarded asynchronous SyncSpots and their structural context."""
+    """Collect guarded asynchronous SyncSpots and their structural metadata."""
 
     def visit_Iteration(self, o, **kwargs):
         kwargs['iteration'] = o
@@ -269,18 +267,18 @@ class _FindTasks(LazyVisitor):
     def visit_SyncSpot(self, o, iteration=None, condition=None, anchor=None):
         if iteration is not None and condition is not None and not condition.else_body:
             syncs = as_mapper(o.sync_ops, type)
-            sync_types = set(syncs)
-            for task_type in (PrefetchUpdate, WithLock):
-                if sync_types != {task_type, ReleaseLock}:
+            optypes = set(syncs)
+            for optype in (PrefetchUpdate, WithLock):
+                if optypes != {optype, ReleaseLock}:
                     continue
 
-                sync_ops = syncs[task_type]
+                sync_ops = syncs[optype]
                 gids = {i.gid for i in sync_ops}
 
                 if len(gids) == 1 and None not in gids:
                     gid, = gids
-                    yield _Task(o, condition, anchor or condition, iteration,
-                                gid, task_type, sync_ops, syncs[ReleaseLock])
+                    yield TaskMeta(o, condition, anchor or condition, iteration,
+                                   gid, optype, sync_ops, syncs[ReleaseLock])
                 break
 
         if any(isinstance(i, SnapOut) for i in o.sync_ops):
