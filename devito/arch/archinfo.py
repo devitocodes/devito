@@ -1246,7 +1246,7 @@ def node_max_mem_trans_nbytes(platform):
 
     if isinstance(platform, Cpu64):
         gpu_info = get_gpu_info()
-        if not configuration['gpu'] or not gpu_info:
+        if configuration['autopadding-mode'] == 'cpu-only' or not gpu_info:
             # This node may simply not have a GPU
             return mmtb0
 

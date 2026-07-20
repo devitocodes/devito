@@ -141,11 +141,11 @@ class Parameters(OrderedDict, Signer):
 
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
+    'DEVITO_AUTOPADDING_MODE': 'autopadding-mode',
     'DEVITO_AUTOTUNING': 'autotuning',
     'DEVITO_DEVELOP': 'develop-mode',
     'DEVITO_DEVICEID': 'deviceid',
     'DEVITO_FIRST_TOUCH': 'first-touch',
-    'DEVITO_GPU': 'gpu',
     'DEVITO_IGNORE_UNKNOWN_PARAMS': 'ignore-unknowns',
     'DEVITO_JIT_BACKDOOR': 'jit-backdoor',
     'DEVITO_LANGUAGE': 'language',
