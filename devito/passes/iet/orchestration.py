@@ -1,14 +1,13 @@
 from collections import OrderedDict, defaultdict, namedtuple
 from contextlib import suppress
-from functools import singledispatch
+from functools import cached_property, singledispatch
 
 from sympy import Or
 
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
     AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, Call, Callable, Conditional,
-    DummyExpr, FindNodes, List, SyncSpot, SyncSpotRegion, Transformer, derive_parameters,
-    make_callable
+    DummyExpr, FindNodes, List, SyncSpot, Transformer, derive_parameters, make_callable
 )
 from devito.ir.iet.visitors import LazyVisitor
 from devito.ir.support import (
@@ -23,7 +22,32 @@ from devito.types import HostLayer
 __all__ = ['Orchestrator']
 
 
-Task = namedtuple('Task', 'spot guard anchor sync_ops releases')
+Task = namedtuple('Task', 'spot guard sync_ops releases')
+
+
+class SyncSpotRegion(List):
+
+    """A sequence of SyncSpots treated as one unit during orchestration."""
+
+    def __init__(self, body):
+        super().__init__(body=body)
+        assert self.body and all(isinstance(i, SyncSpot) for i in self.body)
+
+    @property
+    def sync_spots(self):
+        return self.body
+
+    @cached_property
+    def optype(self):
+        """
+        The type of the synchronization operation in this region.
+        """
+        optypes = {type(op) for spot in self.sync_spots for op in spot.sync_ops}
+        assert len(optypes) == 1, (
+            "Expected a SyncSpotRegion to contain exactly one type of "
+            "synchronization operation"
+        )
+        return optypes.pop()
 
 
 class Orchestrator:
@@ -48,39 +72,29 @@ class Orchestrator:
         if self.npthreads is None:
             return iet
 
-        groups = CollectTasks().visit(iet)
-
         insertions = defaultdict(list)
         subs1 = {}
 
-        for tasks in groups.values():
+        for tasks, anchor in CollectTasks().visit(iet):
+            spots = []
+            for task in tasks:
+                if task.guard is None:
+                    # Preserve a local scope when there is no Conditional
+                    scope = Block(body=task.spot.body)
+                else:
+                    scope = Conditional(task.guard, task.spot.body)
+                spots.append(SyncSpot(task.sync_ops, body=scope))
+
+            insertions[anchor].append(SyncSpotRegion(spots))
             subs1.update({task.spot: SyncSpot(task.releases) for task in tasks})
-
-            # Unguarded tasks form separate groups and can share one SyncSpot
-            if tasks[0].guard is None:
-                sync_ops = tuple(op for task in tasks for op in task.sync_ops)
-                sync_ops += tuple(tasks[-1].releases)
-                # Blocks preserve the local scope of each task body
-                body = [Block(body=task.spot.body) for task in tasks]
-                subs1[tasks[-1].spot] = SyncSpot(sync_ops, body=body)
-                continue
-
-            spots = [SyncSpot(task.sync_ops,
-                              body=Conditional(task.guard, task.spot.body))
-                     for task in tasks]
-            insertions[tasks[-1].anchor].append(SyncSpotRegion(spots))
 
         if not subs1:
             return iet
 
         # These substitutions cannot be merged because a Transformer does not
         # revisit a replacement, while task spots may be nested below an anchor
-        subs0 = {}
-        for anchor, regions in insertions.items():
-            if isinstance(anchor, SyncSpot):
-                subs0[anchor] = anchor._rebuild(body=anchor.body + tuple(regions))
-            else:
-                subs0[anchor] = List(body=(anchor, *regions))
+        subs0 = {anchor: List(body=(anchor, *regions))
+                 for anchor, regions in insertions.items()}
 
         iet = Transformer(subs0).visit(iet)
         iet = Transformer(subs1).visit(iet)
@@ -172,19 +186,22 @@ class Orchestrator:
             WithLock: withlock
         }[iet.optype]
 
-        layers = {infer_layer(i.function) for i in sync_ops}
-        if len(layers) != 1:
-            raise CompilationError("Unsupported streaming case")
-        layer = layers.pop()
+        layer = infer_sync_layer(sync_ops)
 
         body = []
         for spot in iet.sync_spots:
-            condition, = spot.body
+            scope, = spot.body
+            if isinstance(scope, Conditional):
+                task_body = scope.then_body
+            else:
+                assert isinstance(scope, Block)
+                task_body = scope.body
+
             task_body, prefix = callback(
-                layer, List(body=condition.then_body), spot.sync_ops, self.langbb,
+                layer, List(body=task_body), spot.sync_ops, self.langbb,
                 self.sregistry
             )
-            body.append(condition._rebuild(then_body=task_body))
+            body.append(scope._rebuild(task_body))
 
         return self._make_async_callable(body, prefix)
 
@@ -235,10 +252,7 @@ class Orchestrator:
             for t in sorted(mapper, key=key):
                 sync_ops = mapper[t]
 
-                layers = {infer_layer(s.function) for s in sync_ops}
-                if len(layers) != 1:
-                    raise CompilationError("Unsupported streaming case")
-                layer = layers.pop()
+                layer = infer_sync_layer(sync_ops)
 
                 n1, v = callbacks[t](subs.get(n0, n0), sync_ops, layer)
 
@@ -265,9 +279,12 @@ class CollectTasks(LazyVisitor):
 
     def _post_visit(self, ret):
         groups = defaultdict(list)
-        for key, task in ret:
+        anchors = {}
+        for key, task, anchor in ret:
             groups[key].append(task)
-        return groups
+            # Activate the group after its last task in program order
+            anchors[key] = anchor
+        return tuple((tasks, anchors[key]) for key, tasks in groups.items())
 
     def visit_Iteration(self, o, **kwargs):
         kwargs['iteration'] = o
@@ -277,7 +294,8 @@ class CollectTasks(LazyVisitor):
         kwargs['condition'] = o
         yield from self._visit(o.children, **kwargs)
 
-    def visit_SyncSpot(self, o, iteration=None, condition=None, anchor=None):
+    def visit_SyncSpot(self, o, iteration=None, condition=None,
+                       in_snapshot=False):
         if iteration is not None:
             syncs = as_mapper(o.sync_ops, type)
 
@@ -297,20 +315,19 @@ class CollectTasks(LazyVisitor):
 
                 gid, = {i.gid for i in sync_ops}
                 if gid is not None:
-                    task = Task(o, guard, anchor or condition,
-                                sync_ops, syncs[ReleaseLock])
-                    key = (iteration, gid, optype, anchor is not None,
-                           condition is not None)
-                    yield key, task
+                    task = Task(o, guard, sync_ops, syncs[ReleaseLock])
+                    key = (iteration, gid, optype, in_snapshot)
+                    yield key, task, condition or o
 
                 break
 
         if any(isinstance(i, SnapOut) for i in o.sync_ops):
-            # Keep composite task calls inside the `SnapOut` scope
-            anchor = o
+            # Do not mix composite tasks with other compatible groups
+            in_snapshot = True
 
         yield from self._visit(
-            o.children, iteration=iteration, condition=condition, anchor=anchor
+            o.children, iteration=iteration, condition=condition,
+            in_snapshot=in_snapshot
         )
 
 
@@ -325,6 +342,20 @@ def infer_layer(f):
     The layer of the node storage hierarchy in which a Function is found.
     """
     return layer_host
+
+
+def infer_sync_layer(sync_ops):
+    """
+    Infer the unique storage layer used by a sequence of SyncOps.
+    """
+    layers = {infer_layer(i.function) for i in sync_ops}
+    if len(layers) != 1:
+        found = ', '.join(sorted(str(i) for i in layers)) or 'none'
+        raise CompilationError(
+            "Expected synchronization operations to use exactly one storage "
+            f"layer, but found: {found}"
+        )
+    return layers.pop()
 
 
 @singledispatch

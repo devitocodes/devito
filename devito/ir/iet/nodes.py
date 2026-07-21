@@ -61,7 +61,6 @@ __all__ = [
     'Section',
     'Switch',
     'SyncSpot',
-    'SyncSpotRegion',
     'TimedList',
     'Transfer',
     'Using',
@@ -93,7 +92,6 @@ class Node(Signer):
     is_HaloSpot = False
     is_ExpressionBundle = False
     is_SyncSpot = False
-    is_SyncSpotRegion = False
 
     _traversable = []
     """
@@ -1539,29 +1537,6 @@ class SyncSpot(List):
         ret = [(s.lock, s.function, s.target) for s in self.sync_ops]
         ret = tuple(filter_ordered(f for f in flatten(ret) if f is not None))
         return ret
-
-
-class SyncSpotRegion(List):
-
-    """A sequence of SyncSpots treated as one unit during orchestration."""
-
-    is_SyncSpotRegion = True
-
-    def __init__(self, body):
-        body = as_tuple(body)
-        assert body and all(isinstance(i, SyncSpot) for i in body)
-        super().__init__(body=body)
-
-    @property
-    def sync_spots(self):
-        return self.body
-
-    @cached_property
-    def optype(self):
-        """The common type of the synchronization operations in this region."""
-        optype, = {type(op) for spot in self.sync_spots
-                   for op in spot.sync_ops}
-        return optype
 
 
 class CBlankLine(List):

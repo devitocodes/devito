@@ -1076,12 +1076,12 @@ class TestStreaming:
         u1 = TimeFunction(name='u', grid=grid, time_order=2)
         fsaves1 = [TimeFunction(name=f'fsave{i}', grid=grid, save=nt)
                    for i in range(9)]
-        kwargs = {f.name: f1 for f, f1 in zip(fsaves, fsaves1)}
+        kwargs = {f.name: f1 for f, f1 in zip(fsaves, fsaves1, strict=True)}
         op1.apply(time_M=nt-1, u=u1, **kwargs)
 
         assert np.all(u.data == u1.data)
         assert all(np.all(f.data == f1.data)
-                   for f, f1 in zip(fsaves, fsaves1))
+                   for f, f1 in zip(fsaves, fsaves1, strict=True))
 
     def test_composite_full_0(self):
         nt = 10

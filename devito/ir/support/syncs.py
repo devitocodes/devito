@@ -26,6 +26,35 @@ __all__ = [
 
 class SyncOp(Pickable):
 
+    """
+    Metadata for a synchronization operation attached to a `Cluster` or `SyncSpot`.
+
+    Parameters
+    ----------
+    handle : object
+        The symbolic object identifying or controlling the operation, such as
+        an entry in a `Lock`. May be None when no handle is required.
+    target : AbstractFunction
+        The `Function` whose access is synchronized. For buffered data movements,
+        this is the compiler-generated buffer.
+    tindex : Expr, optional
+        The index into `target` involved in the operation.
+    function : AbstractFunction, optional
+        The original `Function` represented by a compiler-generated `target`. It
+        is the source of a `SyncCopyIn` and the destination of a `SyncCopyOut`.
+    findex : Expr, optional
+        The index into `function` corresponding to `tindex`.
+    dim : Dimension, optional
+        The `Dimension` along which `tindex` and `findex` are defined.
+    size : int, optional
+        The extent associated with the operation along `dim`. Defaults to 1.
+    origin : Indexed, optional
+        The original `Indexed` access from which the operation was derived.
+    gid : Stamp, optional
+        The `Stamp` identifying the asynchronous task group to which the operation
+        belongs.
+    """
+
     __rargs__ = ('handle', 'target')
     __rkwargs__ = (
         'tindex', 'function', 'findex', 'dim', 'size', 'origin', 'gid'
