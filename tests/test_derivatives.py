@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import sympy
 from sympy import Float, Symbol, diff, simplify, sympify
 
 from conftest import assert_structure
@@ -16,7 +17,7 @@ from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 from devito.warnings import DevitoWarning
 
-_PRECISION = 9
+from devito.finite_differences.finite_difference import _PRECISION  # noqa
 
 
 def x(grid):
@@ -423,15 +424,15 @@ class TestFD:
 
     @pytest.mark.parametrize('so, expected', [
         (2, 'u(x)/h_x - u(x - h_x)/h_x'),
-        (4, '1.125*u(x)/h_x + 0.0416666667*u(x - 2*h_x)/h_x - '
-            '1.125*u(x - h_x)/h_x - 0.0416666667*u(x + h_x)/h_x'),
+        (4, '1.125*u(x)/h_x + 0.041666666666666667*u(x - 2*h_x)/h_x - '
+            '1.125*u(x - h_x)/h_x - 0.041666666666666667*u(x + h_x)/h_x'),
         (6, '1.171875*u(x)/h_x - 0.0046875*u(x - 3*h_x)/h_x + '
-            '0.0651041667*u(x - 2*h_x)/h_x - 1.171875*u(x - h_x)/h_x - '
-            '0.0651041667*u(x + h_x)/h_x + 0.0046875*u(x + 2*h_x)/h_x'),
-        (8, '1.19628906*u(x)/h_x + 0.000697544643*u(x - 4*h_x)/h_x - '
-            '0.0095703125*u(x - 3*h_x)/h_x + 0.0797526042*u(x - 2*h_x)/h_x - '
-            '1.19628906*u(x - h_x)/h_x - 0.0797526042*u(x + h_x)/h_x + '
-            '0.0095703125*u(x + 2*h_x)/h_x - 0.000697544643*u(x + 3*h_x)/h_x')])
+            '0.065104166666666667*u(x - 2*h_x)/h_x - 1.171875*u(x - h_x)/h_x - '
+            '0.065104166666666667*u(x + h_x)/h_x + 0.0046875*u(x + 2*h_x)/h_x'),
+        (8, '1.1962890625*u(x)/h_x + 0.00069754464285714286*u(x - 4*h_x)/h_x - '
+            '0.0095703125*u(x - 3*h_x)/h_x + 0.079752604166666667*u(x - 2*h_x)/h_x - '
+            '1.1962890625*u(x - h_x)/h_x - 0.079752604166666667*u(x + h_x)/h_x + '
+            '0.0095703125*u(x + 2*h_x)/h_x - 0.00069754464285714286*u(x + 3*h_x)/h_x')])
     def test_fd_new_x0(self, so, expected):
         grid = Grid((10,))
         x = grid.dimensions[0]
@@ -560,10 +561,10 @@ class TestFD:
 
         f = TimeFunction(name='f', grid=grid, space_order=4)
 
-        assert str(f.dx.T.evaluate) == ("-0.0833333333*f(t, x - 2*h_x, y)/h_x "
-                                        "+ 0.666666667*f(t, x - h_x, y)/h_x "
-                                        "- 0.666666667*f(t, x + h_x, y)/h_x "
-                                        "+ 0.0833333333*f(t, x + 2*h_x, y)/h_x")
+        assert str(f.dx.T.evaluate) == ("-0.083333333333333333*f(t, x - 2*h_x, y)/h_x "
+                                        "+ 0.66666666666666667*f(t, x - h_x, y)/h_x "
+                                        "- 0.66666666666666667*f(t, x + h_x, y)/h_x "
+                                        "+ 0.083333333333333333*f(t, x + 2*h_x, y)/h_x")
 
     @pytest.mark.parametrize('so', [2, 4, 8, 12])
     @pytest.mark.parametrize('ndim', [1, 2])
@@ -1461,3 +1462,39 @@ class TestDimension:
         assert Derivative(self.x, self.t)
         assert Derivative(self.x, self.y, self.t)
         assert Derivative(self.x, (self.x, 0))
+
+
+class TestCoefficientPrecision:
+
+    """
+    _PRECISION must round-trip every FD weight to its exact rational value as an
+    IEEE-754 double: the C literal the printer emits is parsed by the compiler to
+    the nearest double, so >= 17 significant digits makes the truncation sub-ULP.
+    With the previous _PRECISION = 9 the order-8 weight 8/315 was emitted as
+    2.53968254e-2 -- a ~1.7e-10 relative coefficient error that silently floored
+    fp64 cross-implementation checks (issue #2976).
+    """
+
+    @pytest.mark.parametrize('p, q', [
+        (-205, 72), (8, 5), (-1, 5), (8, 315), (-1, 560),  # 8th-order d2 weights
+        (-49, 18), (3, 2), (-3, 20), (1, 90),              # 6th-order d2 weights
+        (9, 8), (-1, 24),                                  # 4th-order staggered d1
+    ])
+    def test_fd_weight_literal_roundtrips_fp64(self, p, q):
+        w = sympy.Rational(p, q)
+        emitted = float(sympy.sympify(w).evalf(_PRECISION))
+        exact = p / q
+        assert emitted == exact, (
+            f"{p}/{q}: evalf(_PRECISION={_PRECISION}) -> {emitted!r} != {exact!r} "
+            f"(rel err {abs(emitted - exact) / abs(exact):.3e})")
+
+    def test_evaluated_derivative_floats_roundtrip_fp64(self):
+        grid = Grid(shape=(11, 11))
+        u = Function(name='u_prec', grid=grid, space_order=8)
+        floats = u.dx2.evaluate.atoms(sympy.Float)
+        assert floats, "expected Float weights in the evaluated derivative"
+        for f in floats:
+            r = sympy.nsimplify(f, rational=True, tolerance=1e-8, full=True)
+            assert float(f) == float(r), (
+                f"weight {f} does not round-trip to its rational {r} "
+                f"(rel err {abs(float(f) - float(r)) / abs(float(r)):.3e})")
