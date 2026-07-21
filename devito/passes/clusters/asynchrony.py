@@ -45,14 +45,15 @@ def keys(key0):
     return task_key, memcpy_key
 
 
-def _task_gid(ispace, d):
-    """Return the group ID carried by the non-trigger Intervals."""
+def make_gid(ispace, d):
+    """
+    Make a group ID from the stamps carried by the non-trigger Intervals.
+    """
     gids = {i.stamp for i in ispace if not i.dim._defines & d._defines}
     if len(gids) != 1:
         return None
-
-    gid, = gids
-    return gid
+    else:
+        return gids.pop()
 
 
 @timed_pass(name='tasking')
@@ -157,7 +158,7 @@ class Tasking(Queue):
         return protected
 
     def _schedule_withlocks(self, c0, d, protected, locks, syncs):
-        gid = _task_gid(c0.ispace, d)
+        gid = make_gid(c0.ispace, d)
 
         for target in protected:
             lock = locks[target]
@@ -286,7 +287,7 @@ def _actions_from_update_memcpy(c, d, clusters, actions, sregistry):
     guard1 = GuardBoundNext(function.indices[d], direction)
     guards = c.guards.impose(d, guard0 & guard1)
 
-    gid = _task_gid(ispace, d)
+    gid = make_gid(ispace, d)
 
     syncs = {d: [
         ReleaseLock(handle, target),

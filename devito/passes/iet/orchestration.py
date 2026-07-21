@@ -23,9 +23,7 @@ from devito.types import HostLayer
 __all__ = ['Orchestrator']
 
 
-TaskMeta = namedtuple(
-    'TaskMeta', 'spot condition anchor iteration gid optype sync_ops releases'
-)
+Task = namedtuple('Task', 'spot guard anchor sync_ops releases')
 
 
 class Orchestrator:
@@ -44,25 +42,24 @@ class Orchestrator:
         self.npthreads = (options or {}).get('npthreads')
 
     def _fuse_tasks(self, iet):
-        """Group compatible task SyncSpots into SyncSpotRegions."""
-        groups = as_mapper(
-            CollectTasks().visit(iet),
-            lambda task: (task.iteration, task.gid, task.optype,
-                          isinstance(task.anchor, SyncSpot))
-        )
+        """
+        Group compatible task SyncSpots into SyncSpotRegions.
+        """
+        if self.npthreads is None:
+            return iet
+
+        groups = CollectTasks().visit(iet)
 
         insertions = defaultdict(list)
         subs1 = {}
 
         for tasks in groups.values():
             spots = [SyncSpot(task.sync_ops,
-                              body=Conditional(task.condition.condition,
-                                               task.spot.body))
+                              body=Conditional(task.guard, task.spot.body))
                      for task in tasks]
-            insertions[tasks[-1].anchor].append(SyncSpotRegion(spots))
 
-            for task in tasks:
-                subs1[task.spot] = SyncSpot(task.releases)
+            insertions[tasks[-1].anchor].append(SyncSpotRegion(spots))
+            subs1.update({task.spot: SyncSpot(task.releases) for task in tasks})
 
         if not subs1:
             return iet
@@ -184,8 +181,9 @@ class Orchestrator:
 
     @iet_pass
     def process(self, iet):
-        if self.npthreads is not None:
-            iet = self._fuse_tasks(iet)
+        # Group compatible task SyncSpots into SyncSpotRegions, if requested
+        # by the user
+        iet = self._fuse_tasks(iet)
 
         # Lower regions first so their member SyncSpots are not processed
         # independently by the generic SyncSpot lowering below
@@ -254,7 +252,13 @@ def ordered(sync_spots):
 
 class CollectTasks(LazyVisitor):
 
-    """Collect guarded asynchronous SyncSpots and their structural metadata."""
+    """Collect and group guarded asynchronous SyncSpots."""
+
+    def _post_visit(self, ret):
+        groups = defaultdict(list)
+        for key, task in ret:
+            groups[key].append(task)
+        return groups
 
     def visit_Iteration(self, o, **kwargs):
         kwargs['iteration'] = o
@@ -265,20 +269,26 @@ class CollectTasks(LazyVisitor):
         yield from self._visit(o.children, **kwargs)
 
     def visit_SyncSpot(self, o, iteration=None, condition=None, anchor=None):
-        if iteration is not None and condition is not None and not condition.else_body:
+        if iteration is not None and condition is not None:
             syncs = as_mapper(o.sync_ops, type)
+
             optypes = set(syncs)
             for optype in (PrefetchUpdate, WithLock):
                 if optypes != {optype, ReleaseLock}:
                     continue
 
-                sync_ops = syncs[optype]
-                gids = {i.gid for i in sync_ops}
+                # Task SyncSpots inherit a guard without an `else` branch from
+                # the originating Cluster
+                assert not condition.else_body
 
-                if len(gids) == 1 and None not in gids:
-                    gid, = gids
-                    yield TaskMeta(o, condition, anchor or condition, iteration,
-                                   gid, optype, sync_ops, syncs[ReleaseLock])
+                sync_ops = syncs[optype]
+
+                gid, = {i.gid for i in sync_ops}
+                if gid is not None:
+                    task = Task(o, condition.condition, anchor or condition,
+                                sync_ops, syncs[ReleaseLock])
+                    yield (iteration, gid, optype, anchor is not None), task
+
                 break
 
         if any(isinstance(i, SnapOut) for i in o.sync_ops):
