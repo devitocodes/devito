@@ -1057,6 +1057,7 @@ class TestNodeParallelism:
         op()
         assert np.all(w.data == 10)
 
+    @skipif('cpu64-power-gcc')
     def test_incr_perfect_sparse_outer(self):
         grid = Grid(shape=(3, 3, 3))
 

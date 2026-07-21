@@ -128,6 +128,13 @@ configuration.add('autopadding', False,  # noqa: E305
                   [False, True, 0, 1, np.float16, np.float32, np.float64],
                   preprocessor=_preprocess_autopadding)
 
+# Use any GPU present on the node to set parameters such as the autopadding
+# value. This can be disabled by setting this parameter to , but should not be
+# toggled. By setting the value to 'cpu-only' the user is promising that they
+# will not try to use the GPU at any point during the running of their script,
+# this is useful when iGPUs, APUs or disabled GPUs are present on a node.
+configuration.add('autopadding-mode', None, [None, 'cpu-only'])
+
 # Select target device
 configuration.add('deviceid', -1, preprocessor=int, impacts_jit=False)
 

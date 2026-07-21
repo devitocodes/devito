@@ -15,6 +15,7 @@ import numpy as np
 import psutil
 from packaging.version import InvalidVersion, parse
 
+from devito import configuration
 from devito.logger import warning
 from devito.tools import all_equal, as_tuple, memoized_func
 
@@ -1245,7 +1246,7 @@ def node_max_mem_trans_nbytes(platform):
 
     if isinstance(platform, Cpu64):
         gpu_info = get_gpu_info()
-        if not gpu_info:
+        if configuration['autopadding-mode'] == 'cpu-only' or not gpu_info:
             # This node may simply not have a GPU
             return mmtb0
 

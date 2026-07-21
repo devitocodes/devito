@@ -362,7 +362,9 @@ class TestMetaData:
         ) == u2.shape_with_halo
         assert u2.shape_with_halo == (11, 11, 11)
 
-    @switchconfig(autopadding=True, platform='bdw')
+    # Platform is used to fix the pad value
+    # GPU is disabled to prevent GPU pad value from being used
+    @switchconfig(autopadding_mode='cpu-only', autopadding=True, platform='bdw')
     def test_w_halo_w_autopadding(self):
         grid = Grid(shape=(4, 4, 4))
         u0 = Function(name='u0', grid=grid, space_order=0)
