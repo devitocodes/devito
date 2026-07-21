@@ -298,6 +298,13 @@ class switchenv(SwitchDecorator):
         self.params = params
 
     def __enter__(self):
+        # Prevent having multiple conflicting device vars, e.g
+        # switching CUDA_VISIBLE_DEVICES but having NVIDIA_VISIBLE_DEVICES set.
+        from devito.arch.archinfo import device_vars
+        if any(k in device_vars for k in self.params):
+            for dk in device_vars:
+                os.environ.pop(dk, None)
+
         for k, v in self.params.items():
             if v is None:
                 os.environ.pop(k, None)

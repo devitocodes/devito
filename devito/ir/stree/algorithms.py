@@ -169,7 +169,15 @@ def preprocess(clusters, options=None, **kwargs):
     for c in clusters:
         if c.is_halo_touch:
             hs = HaloScheme.union(e.rhs.halo_scheme for e in c.exprs)
-            queue.append(c.rebuild(exprs=[], halo_scheme=hs))
+            # Peel syncs (e.g. a WaitLock) off, they must survive an unbound halo.
+            # Restrict the IterationSpace to the syncs' prefix so we don't carry
+            # inner Dimensions (e.g. a layer's VirtualDimension) that have no
+            # content left, which would yield empty guarded/iteration nodes
+            if c.syncs:
+                key = lambda d: any(d in s._defines for s in c.syncs)  # noqa: B023
+                ispace = c.ispace.prefix(key)
+                processed.append(c.rebuild(exprs=[], ispace=ispace))
+            queue.append(c.rebuild(exprs=[], syncs={}, halo_scheme=hs))
 
         elif c.is_dist_reduce:
             processed.append(c)

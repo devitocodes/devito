@@ -2,14 +2,19 @@ from collections.abc import Iterable
 from functools import singledispatch
 
 from devito.data.allocators import DataReference
+from devito.finite_differences.differentiable import diff2sympy
+from devito.ir.support import GuardFactor
 from devito.logger import warning
 from devito.symbolics import (
-    retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
+    IntDiv, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
 )
 from devito.tools import (
     Ordering, as_tuple, filter_ordered, filter_sorted, flatten, frozendict
 )
-from devito.types import ConditionalDimension, Dimension, Eq, IgnoreDimSort, SubDimension
+from devito.types import (
+    ConditionalDimension, Dimension, Eq, IgnoreDimSort, SubDimension, relational_min,
+    relational_shift
+)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension, Thickness
@@ -339,3 +344,52 @@ def _(d, mapper, rebuilt, sregistry):
     kwargs['functions'] = functions
 
     mapper[d] = d._rebuild(**kwargs)
+
+
+def generate_conditionals(expr, input_expr, ordering):
+    """
+    Generate the conditionals for the given expression,
+    based on the input expression and the ordering of dimensions.
+    """
+    # Construct the conditionals
+    conditionals = {}
+    for d in ordering:
+        if not d.is_Conditional:
+            continue
+
+        if d.condition is None:
+            conditionals[d] = GuardFactor(d)
+        else:
+            cond = diff2sympy(lower_exprs(d.condition))
+            if d._factor is not None:
+                cond = d.relation(cond, GuardFactor(d))
+            conditionals[d] = cond
+
+    if not conditionals and not input_expr.implicit_dims:
+        return expr, conditionals
+    # Merge conditionals when possible. E.g., if an implicit_dim shares
+    # its parent Dimension with another ConditionalDimension, the two
+    # conditions can be merged into a single guard.
+    for d in input_expr.implicit_dims:
+        if d not in conditionals:
+            continue
+        for cd in list(conditionals):
+            if cd.parent == d.parent and cd is not d:
+                cond = conditionals.pop(d)
+                if d.relation == ConditionalDimension._STRICT:
+                    conditionals[cd] = conditionals[d] = cond
+                else:
+                    mode = cd.relation and d.relation
+                    conditionals[cd] = mode(cond, conditionals[cd])
+                break
+
+    # Replace the ConditionalDimensions in `expr`
+    for d, cond in conditionals.items():
+        # Replace dimension with index
+        index = d.index
+        if d.condition is not None and expr.has(d):
+            index = index - relational_min(cond, d.parent)
+        shift = relational_shift(cond, d.parent)
+        expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
+
+    return expr, conditionals
