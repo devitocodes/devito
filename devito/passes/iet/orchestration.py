@@ -6,8 +6,8 @@ from sympy import Or
 
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
-    AsyncCall, AsyncCallable, BlankLine, BusyWait, Call, Callable, Conditional, DummyExpr,
-    FindNodes, List, SyncSpot, SyncSpotRegion, Transformer, derive_parameters,
+    AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, Call, Callable, Conditional,
+    DummyExpr, FindNodes, List, SyncSpot, SyncSpotRegion, Transformer, derive_parameters,
     make_callable
 )
 from devito.ir.iet.visitors import LazyVisitor
@@ -54,12 +54,21 @@ class Orchestrator:
         subs1 = {}
 
         for tasks in groups.values():
+            subs1.update({task.spot: SyncSpot(task.releases) for task in tasks})
+
+            # Unguarded tasks form separate groups and can share one SyncSpot
+            if tasks[0].guard is None:
+                sync_ops = tuple(op for task in tasks for op in task.sync_ops)
+                sync_ops += tuple(tasks[-1].releases)
+                # Blocks preserve the local scope of each task body
+                body = [Block(body=task.spot.body) for task in tasks]
+                subs1[tasks[-1].spot] = SyncSpot(sync_ops, body=body)
+                continue
+
             spots = [SyncSpot(task.sync_ops,
                               body=Conditional(task.guard, task.spot.body))
                      for task in tasks]
-
             insertions[tasks[-1].anchor].append(SyncSpotRegion(spots))
-            subs1.update({task.spot: SyncSpot(task.releases) for task in tasks})
 
         if not subs1:
             return iet
@@ -252,7 +261,7 @@ def ordered(sync_spots):
 
 class CollectTasks(LazyVisitor):
 
-    """Collect and group guarded asynchronous SyncSpots."""
+    """Collect and group compatible asynchronous SyncSpots."""
 
     def _post_visit(self, ret):
         groups = defaultdict(list)
@@ -269,7 +278,7 @@ class CollectTasks(LazyVisitor):
         yield from self._visit(o.children, **kwargs)
 
     def visit_SyncSpot(self, o, iteration=None, condition=None, anchor=None):
-        if iteration is not None and condition is not None:
+        if iteration is not None:
             syncs = as_mapper(o.sync_ops, type)
 
             optypes = set(syncs)
@@ -277,17 +286,22 @@ class CollectTasks(LazyVisitor):
                 if optypes != {optype, ReleaseLock}:
                     continue
 
-                # Task SyncSpots inherit a guard without an `else` branch from
-                # the originating Cluster
-                assert not condition.else_body
+                guard = None
+                if condition is not None:
+                    # Task SyncSpots inherit a guard without an `else` branch
+                    # from the originating Cluster
+                    assert not condition.else_body
+                    guard = condition.condition
 
                 sync_ops = syncs[optype]
 
                 gid, = {i.gid for i in sync_ops}
                 if gid is not None:
-                    task = Task(o, condition.condition, anchor or condition,
+                    task = Task(o, guard, anchor or condition,
                                 sync_ops, syncs[ReleaseLock])
-                    yield (iteration, gid, optype, anchor is not None), task
+                    key = (iteration, gid, optype, anchor is not None,
+                           condition is not None)
+                    yield key, task
 
                 break
 
