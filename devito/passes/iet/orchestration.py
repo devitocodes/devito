@@ -1,4 +1,4 @@
-from collections import OrderedDict, defaultdict, namedtuple
+from collections import defaultdict, namedtuple
 from contextlib import suppress
 from functools import cached_property, singledispatch
 
@@ -7,7 +7,7 @@ from sympy import Or
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
     AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, Call, Callable, Conditional,
-    DummyExpr, FindNodes, List, SyncSpot, Transformer, derive_parameters, make_callable
+    DummyExpr, List, SyncSpot, Transformer, derive_parameters, make_callable
 )
 from devito.ir.iet.visitors import LazyVisitor
 from devito.ir.support import (
@@ -16,38 +16,14 @@ from devito.ir.support import (
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import LangBB
 from devito.symbolics import CondEq, CondNe
-from devito.tools import DAG, as_mapper
+from devito.tools import as_mapper
 from devito.types import HostLayer
 
 __all__ = ['Orchestrator']
 
 
-Task = namedtuple('Task', 'spot guard sync_ops releases')
-
-
-class SyncSpotRegion(List):
-
-    """A sequence of SyncSpots treated as one unit during orchestration."""
-
-    def __init__(self, body):
-        super().__init__(body=body)
-        assert self.body and all(isinstance(i, SyncSpot) for i in self.body)
-
-    @property
-    def sync_spots(self):
-        return self.body
-
-    @cached_property
-    def optype(self):
-        """
-        The type of the synchronization operation in this region.
-        """
-        optypes = {type(op) for spot in self.sync_spots for op in spot.sync_ops}
-        assert len(optypes) == 1, (
-            "Expected a SyncSpotRegion to contain exactly one type of "
-            "synchronization operation"
-        )
-        return optypes.pop()
+Task = namedtuple('Task', 'spot guard sync_ops')
+TaskGroupKey = namedtuple('TaskGroupKey', 'iteration gid optype in_snapshot')
 
 
 class Orchestrator:
@@ -64,42 +40,6 @@ class Orchestrator:
     def __init__(self, sregistry=None, options=None, **kwargs):
         self.sregistry = sregistry
         self.npthreads = (options or {}).get('npthreads')
-
-    def _fuse_tasks(self, iet):
-        """
-        Group compatible task SyncSpots into SyncSpotRegions.
-        """
-        if self.npthreads is None:
-            return iet
-
-        insertions = defaultdict(list)
-        subs1 = {}
-
-        for tasks, anchor in CollectTasks().visit(iet):
-            spots = []
-            for task in tasks:
-                if task.guard is None:
-                    # Preserve a local scope when there is no Conditional
-                    scope = Block(body=task.spot.body)
-                else:
-                    scope = Conditional(task.guard, task.spot.body)
-                spots.append(SyncSpot(task.sync_ops, body=scope))
-
-            insertions[anchor].append(SyncSpotRegion(spots))
-            subs1.update({task.spot: SyncSpot(task.releases) for task in tasks})
-
-        if not subs1:
-            return iet
-
-        # These substitutions cannot be merged because a Transformer does not
-        # revisit a replacement, while task spots may be nested below an anchor
-        subs0 = {anchor: List(body=(anchor, *regions))
-                 for anchor, regions in insertions.items()}
-
-        iet = Transformer(subs0).visit(iet)
-        iet = Transformer(subs1).visit(iet)
-
-        return iet
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
@@ -126,8 +66,14 @@ class Orchestrator:
 
         return iet, [efunc]
 
-    def _make_withlock(self, iet, sync_ops, layer):
-        body, prefix = withlock(layer, iet, sync_ops, self.langbb, self.sregistry)
+    def _make_withlock(self, iet, sync_ops, layer, wrap=True):
+        return self._make_async_task(withlock, iet, sync_ops, layer, wrap)
+
+    def _make_async_task(self, callback, iet, sync_ops, layer, wrap):
+        body, prefix = callback(layer, iet, sync_ops, self.langbb, self.sregistry)
+
+        if not wrap:
+            return body, prefix
 
         return self._make_async_callable(body, prefix)
 
@@ -172,105 +118,32 @@ class Orchestrator:
 
         return iet, []
 
-    def _make_prefetchupdate(self, iet, sync_ops, layer):
-        body, prefix = prefetchupdate(layer, iet, sync_ops, self.langbb, self.sregistry)
-
-        return self._make_async_callable(body, prefix)
-
-    def _make_region(self, iet):
-        """Lower a SyncSpotRegion into one asynchronous callable."""
-        sync_ops = tuple(op for spot in iet.sync_spots
-                         for op in spot.sync_ops)
-        callback = {
-            PrefetchUpdate: prefetchupdate,
-            WithLock: withlock
-        }[iet.optype]
-
-        layer = infer_sync_layer(sync_ops)
-
-        body = []
-        for spot in iet.sync_spots:
-            scope, = spot.body
-            if isinstance(scope, Conditional):
-                task_body = scope.then_body
-            else:
-                assert isinstance(scope, Block)
-                task_body = scope.body
-
-            task_body, prefix = callback(
-                layer, List(body=task_body), spot.sync_ops, self.langbb,
-                self.sregistry
-            )
-            body.append(scope._rebuild(task_body))
-
-        return self._make_async_callable(body, prefix)
+    def _make_prefetchupdate(self, iet, sync_ops, layer, wrap=True):
+        return self._make_async_task(prefetchupdate, iet, sync_ops, layer, wrap)
 
     @iet_pass
     def process(self, iet):
-        # Group compatible task SyncSpots into SyncSpotRegions, if requested
-        # by the user
-        iet = self._fuse_tasks(iet)
-
-        # Lower regions first so their member SyncSpots are not processed
-        # independently by the generic SyncSpot lowering below
-        efuncs = []
-        subs = {}
-        for region in FindNodes(SyncSpotRegion).visit(iet):
-            call, efuncs1 = self._make_region(region)
-            subs[region] = call
-            efuncs.extend(efuncs1)
-
-        iet = Transformer(subs).visit(iet)
-
         # The SyncOps are to be processed in a given order
-        callbacks = OrderedDict([
-            (WaitLock, self._make_waitlock),
-            (WithLock, self._make_withlock),
-            (SyncArray, self._make_syncarray),
-            (InitArray, self._make_initarray),
-            (SnapOut, self._make_snapout),
-            (SnapIn, self._make_snapin),
-            (PrefetchUpdate, self._make_prefetchupdate),
-            (ReleaseLock, self._make_releaselock),
-        ])
-        key = tuple(callbacks).index
+        callbacks = {
+            WaitLock: self._make_waitlock,
+            WithLock: self._make_withlock,
+            SyncArray: self._make_syncarray,
+            InitArray: self._make_initarray,
+            SnapOut: self._make_snapout,
+            SnapIn: self._make_snapin,
+            PrefetchUpdate: self._make_prefetchupdate,
+            ReleaseLock: self._make_releaselock,
+            AsyncCallable: self._make_async_callable
+        }
 
-        # The SyncSpots may be nested, so we compute a topological ordering
-        # so that they are processed in a bottom-up fashion. This is necessary
-        # because e.g. an inner SyncSpot may generate new objects (e.g., a new
-        # Queue), which in turn must be visible to the outer SyncSpot to
-        # generate the correct parameters list
-        while True:
-            sync_spots = FindNodes(SyncSpot).visit(iet)
-            if not sync_spots:
-                break
+        # Collect the task groups to lower atomically, if any
+        task_groups = CollectTasks().visit(iet) if self.npthreads else ()
 
-            n0 = ordered(sync_spots).pop(0)
-            mapper = as_mapper(n0.sync_ops, type)
+        # Lower the SyncSpots in a single bottom-up traversal, atomically lowering
+        lowerer = LowerSyncSpots(callbacks, task_groups)
+        iet = lowerer.visit(iet)
 
-            subs = {}
-            for t in sorted(mapper, key=key):
-                sync_ops = mapper[t]
-
-                layer = infer_sync_layer(sync_ops)
-
-                n1, v = callbacks[t](subs.get(n0, n0), sync_ops, layer)
-
-                subs[n0] = n1
-                efuncs.extend(v)
-
-            iet = Transformer(subs).visit(iet)
-
-        return iet, {'efuncs': efuncs}
-
-
-def ordered(sync_spots):
-    dag = DAG(nodes=sync_spots)
-    for n0 in sync_spots:
-        for n1 in FindNodes(SyncSpot).visit(n0.body):
-            dag.add_edge(n1, n0)
-
-    return dag.topological_sort()
+        return iet, {'efuncs': lowerer.efuncs}
 
 
 class CollectTasks(LazyVisitor):
@@ -284,7 +157,8 @@ class CollectTasks(LazyVisitor):
             groups[key].append(task)
             # Activate the group after its last task in program order
             anchors[key] = anchor
-        return tuple((tasks, anchors[key]) for key, tasks in groups.items())
+        return tuple((tasks, anchors[key], key.optype)
+                     for key, tasks in groups.items())
 
     def visit_Iteration(self, o, **kwargs):
         kwargs['iteration'] = o
@@ -315,8 +189,8 @@ class CollectTasks(LazyVisitor):
 
                 gid, = {i.gid for i in sync_ops}
                 if gid is not None:
-                    task = Task(o, guard, sync_ops, syncs[ReleaseLock])
-                    key = (iteration, gid, optype, in_snapshot)
+                    task = Task(o, guard, sync_ops)
+                    key = TaskGroupKey(iteration, gid, optype, in_snapshot)
                     yield key, task, condition or o
 
                 break
@@ -329,6 +203,117 @@ class CollectTasks(LazyVisitor):
             o.children, iteration=iteration, condition=condition,
             in_snapshot=in_snapshot
         )
+
+
+class LowerSyncSpots(Transformer):
+
+    """
+    Lower `SyncSpot`s in a single bottom-up traversal.
+
+    Compatible task `SyncSpot`s are lowered atomically into one asynchronous
+    callable when their final anchor is reached. All other `SyncSpot`s are
+    lowered individually.
+
+    Parameters
+    ----------
+    callbacks : mapping
+        The callbacks used to lower `SyncOp`s and create asynchronous callables.
+    task_groups : iterable
+        The task groups to lower atomically.
+    """
+
+    def __init__(self, callbacks, task_groups):
+        super().__init__({})
+
+        self._callbacks = callbacks
+
+        self._task_bodies = {}
+        self._anchors = defaultdict(list)
+        for tasks, anchor, optype in task_groups:
+            self._task_bodies.update((task.spot, None) for task in tasks)
+            self._anchors[anchor].append((tasks, optype))
+
+        self._efuncs = []
+
+    @property
+    def efuncs(self):
+        return self._efuncs
+
+    @cached_property
+    def _priority(self):
+        return tuple(self._callbacks).index
+
+    def visit_Node(self, o, **kwargs):
+        iet = super().visit_Node(o, **kwargs)
+        return self._lower_task_groups(o, iet)
+
+    def visit_SyncSpot(self, o, **kwargs):
+        body = self._visit(o.body, **kwargs)
+
+        if o in self._task_bodies:
+            # Retain the task body until the group's final anchor is visited
+            self._task_bodies[o] = body
+            releases = tuple(i for i in o.sync_ops
+                             if isinstance(i, ReleaseLock))
+            iet = self._lower(SyncSpot(releases), releases)
+        else:
+            iet = self._lower(o._rebuild(body=body), o.sync_ops)
+
+        return self._lower_task_groups(o, iet)
+
+    def _lower(self, iet, sync_ops):
+        mapper = as_mapper(sync_ops, type)
+        for optype in sorted(mapper, key=self._priority):
+            sync_ops = mapper[optype]
+            layer = infer_sync_layer(sync_ops)
+
+            iet, efuncs = self._callbacks[optype](iet, sync_ops, layer)
+            self._efuncs.extend(efuncs)
+
+        return iet
+
+    def _lower_task_groups(self, o, iet):
+        """
+        Lower the task groups activated after `o`.
+
+        Examples
+        --------
+        A group of three guarded tasks is lowered schematically to::
+
+            AsyncCall(
+                if guard0: task0
+                if guard1: task1
+                if guard2: task2
+            )
+
+        The call is inserted after `o`; each task retains its own guard.
+        """
+        calls = []
+        for tasks, optype in self._anchors.get(o, ()):
+            sync_ops = tuple(op for task in tasks for op in task.sync_ops)
+            layer = infer_sync_layer(sync_ops)
+
+            body = []
+            for task in tasks:
+                task_body, prefix = self._callbacks[optype](
+                    List(body=self._task_bodies.pop(task.spot)),
+                    task.sync_ops, layer, wrap=False
+                )
+                if task.guard is None:
+                    # Preserve the local scope of an unguarded task body
+                    scope = Block(body=task_body)
+                else:
+                    scope = Conditional(task.guard, task_body)
+                body.append(scope)
+
+            call, efuncs = self._callbacks[AsyncCallable](body, prefix)
+            calls.append(call)
+            self._efuncs.extend(efuncs)
+
+        if calls:
+            iet = List(body=(iet, *calls))
+
+        return iet
 
 
 # Task handlers
