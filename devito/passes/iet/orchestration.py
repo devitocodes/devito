@@ -9,7 +9,7 @@ from devito.ir.iet import (
     AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, Call, Callable, Conditional,
     DummyExpr, List, SyncSpot, Transformer, derive_parameters, make_callable
 )
-from devito.ir.iet.visitors import LazyVisitor
+from devito.ir.iet.visitors import Visitor
 from devito.ir.support import (
     InitArray, PrefetchUpdate, ReleaseLock, SnapIn, SnapOut, SyncArray, WaitLock, WithLock
 )
@@ -123,7 +123,6 @@ class Orchestrator:
 
     @iet_pass
     def process(self, iet):
-        # The SyncOps are to be processed in a given order
         callbacks = {
             WaitLock: self._make_waitlock,
             WithLock: self._make_withlock,
@@ -136,8 +135,10 @@ class Orchestrator:
             AsyncCallable: self._make_async_callable
         }
 
-        # Collect the task groups to lower atomically, if any
-        task_groups = CollectTasks().visit(iet) if self.npthreads else ()
+        # Collect the compatible asynchronous task groups, if any
+        task_groups = TaskGroups()
+        if self.npthreads:
+            CollectTasks(task_groups).visit(iet)
 
         # Lower the SyncSpots in a single bottom-up traversal, atomically lowering
         lowerer = LowerSyncSpots(callbacks, task_groups)
@@ -146,27 +147,75 @@ class Orchestrator:
         return iet, {'efuncs': lowerer.efuncs}
 
 
-class CollectTasks(LazyVisitor):
+class TaskGroups:
+
+    """
+    A collection of compatible asynchronous task groups.
+
+    Tasks are grouped by their enclosing iteration, group ID, synchronization
+    operation type, and snapshot scope. A group is activated after the last
+    anchor registered for it.
+
+    Examples
+    --------
+    Two `WithLock` tasks with the same grouping metadata are collected into one
+    group, activated after `anchor1`::
+
+        groups = TaskGroups()
+        groups.add(task0, anchor0, iteration, gid, WithLock, False)
+        groups.add(task1, anchor1, iteration, gid, WithLock, False)
+
+        groups.sync_spots == {task0.spot, task1.spot}
+        groups.by_anchor[anchor1] == [([task0, task1], WithLock)]
+    """
+
+    def __init__(self):
+        self._groups = defaultdict(list)
+        self._anchors = {}
+        self._sync_spots = set()
+
+    def add(self, task, anchor, iteration, gid, optype, in_snapshot):
+        key = TaskGroupKey(iteration, gid, optype, in_snapshot)
+        self._groups[key].append(task)
+        self._anchors[key] = anchor
+        self._sync_spots.add(task.spot)
+
+    @property
+    def sync_spots(self):
+        return self._sync_spots
+
+    @property
+    def by_anchor(self):
+        mapper = defaultdict(list)
+        for key, tasks in self._groups.items():
+            mapper[self._anchors[key]].append((tasks, key.optype))
+        return mapper
+
+
+class CollectTasks(Visitor):
 
     """Collect and group compatible asynchronous SyncSpots."""
 
-    def _post_visit(self, ret):
-        groups = defaultdict(list)
-        anchors = {}
-        for key, task, anchor in ret:
-            groups[key].append(task)
-            # Activate the group after its last task in program order
-            anchors[key] = anchor
-        return tuple((tasks, anchors[key], key.optype)
-                     for key, tasks in groups.items())
+    def __init__(self, task_groups):
+        super().__init__()
+        self._task_groups = task_groups
+
+    def visit_object(self, o, **kwargs):
+        pass
+
+    def visit_tuple(self, o, **kwargs):
+        for i in o:
+            self._visit(i, **kwargs)
+
+    visit_list = visit_tuple
 
     def visit_Iteration(self, o, **kwargs):
         kwargs['iteration'] = o
-        yield from self._visit(o.children, **kwargs)
+        self._visit(o.children, **kwargs)
 
     def visit_Conditional(self, o, **kwargs):
         kwargs['condition'] = o
-        yield from self._visit(o.children, **kwargs)
+        self._visit(o.children, **kwargs)
 
     def visit_SyncSpot(self, o, iteration=None, condition=None,
                        in_snapshot=False):
@@ -190,8 +239,9 @@ class CollectTasks(LazyVisitor):
                 gid, = {i.gid for i in sync_ops}
                 if gid is not None:
                     task = Task(o, guard, sync_ops)
-                    key = TaskGroupKey(iteration, gid, optype, in_snapshot)
-                    yield key, task, condition or o
+                    self._task_groups.add(
+                        task, condition or o, iteration, gid, optype, in_snapshot
+                    )
 
                 break
 
@@ -199,7 +249,7 @@ class CollectTasks(LazyVisitor):
             # Do not mix composite tasks with other compatible groups
             in_snapshot = True
 
-        yield from self._visit(
+        self._visit(
             o.children, iteration=iteration, condition=condition,
             in_snapshot=in_snapshot
         )
@@ -218,7 +268,7 @@ class LowerSyncSpots(Transformer):
     ----------
     callbacks : mapping
         The callbacks used to lower `SyncOp`s and create asynchronous callables.
-    task_groups : iterable
+    task_groups : TaskGroups
         The task groups to lower atomically.
     """
 
@@ -227,11 +277,8 @@ class LowerSyncSpots(Transformer):
 
         self._callbacks = callbacks
 
-        self._task_bodies = {}
-        self._anchors = defaultdict(list)
-        for tasks, anchor, optype in task_groups:
-            self._task_bodies.update((task.spot, None) for task in tasks)
-            self._anchors[anchor].append((tasks, optype))
+        self._task_bodies = dict.fromkeys(task_groups.sync_spots)
+        self._task_groups = task_groups.by_anchor
 
         self._efuncs = []
 
@@ -289,7 +336,7 @@ class LowerSyncSpots(Transformer):
         The call is inserted after `o`; each task retains its own guard.
         """
         calls = []
-        for tasks, optype in self._anchors.get(o, ()):
+        for tasks, optype in self._task_groups.get(o, ()):
             sync_ops = tuple(op for task in tasks for op in task.sync_ops)
             layer = infer_sync_layer(sync_ops)
 
