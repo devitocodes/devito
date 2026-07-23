@@ -132,7 +132,8 @@ class Fission(Queue):
 
         # Analyze and abort if fissioning would break a dependence
         scope = Scope(flatten(c.exprs for c in clusters))
-        if any(d._defines & dep.cause or dep.is_reduce(d) for dep in scope.d_all_gen()):
+        if any(d._defines & dep.cause or dep.is_reduce(d) or dep.is_local
+               for dep in scope.d_all_gen()):
             return clusters
 
         processed = []
