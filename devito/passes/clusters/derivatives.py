@@ -9,7 +9,7 @@ from devito.passes.clusters.fusion import fuse
 from devito.symbolics import BasicWrapperMixin, reuse_if_untouched, search, uxreplace
 from devito.symbolics.inspection import sympy_dtype
 from devito.tools import infer_dtype, timed_pass
-from devito.types import Eq, Inc, Indexed, Symbol
+from devito.types import Eq, Inc, Indexed, Symbol, Temp
 
 __all__ = ['lower_index_derivatives']
 
@@ -169,7 +169,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     extra = (ispace.itdims + ispace0.itdims,)
     ispace1 = IterationSpace.union(ispace, ispace0, relations=extra)
 
-    # The Symbol that will hold the result of the IndexDerivative computation
+    # The temporary that will hold the result of the IndexDerivative computation
     # NOTE: created before recursing so that we ultimately get a sound ordering
     dtype = sympy_dtype(ideriv)
     try:
@@ -177,7 +177,7 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
         assert np.can_cast(s.dtype, dtype)
     except KeyError:
         name = sregistry.make_name(prefix='r')
-        s = Symbol(name=name, dtype=dtype)
+        s = Temp(name=name, dtype=dtype)
 
     # Go inside `expr` and recursively lower any nested IndexDerivatives
     expr, processed = _core(expr, c, ispace1, weights, reusables, mapper, **kwargs)

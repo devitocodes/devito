@@ -10,10 +10,25 @@ from devito.arch.compiler import OneapiCompiler
 from devito.finite_differences import Weights
 from devito.ir import Expression, FindNodes, FindSymbols
 from devito.parameters import configuration, switchconfig
-from devito.types import Dimension, Symbol
+from devito.types import Dimension, Symbol, Temp
 
 
 class TestLoopScheduling:
+
+    def test_index_derivative_temp(self):
+        grid = Grid(shape=(10, 10))
+
+        u = Function(name='u', grid=grid, space_order=4)
+        v = Function(name='v', grid=grid)
+
+        op = Operator(Eq(v, u.dx2),
+                      opt=('advanced', {'expand': False}))
+
+        temporaries = [
+            i for i in FindSymbols().visit(op) if i.name.startswith('r')
+        ]
+        assert len(temporaries) == 1
+        assert isinstance(temporaries[0], Temp)
 
     def test_backward_dt2(self):
         grid = Grid(shape=(4, 4))

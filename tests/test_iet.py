@@ -11,10 +11,11 @@ from devito import (  # noqa
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindSymbols, Iteration, KernelLaunch, Lambda, List, Switch,
-    Transformer, filter_iterations, make_efunc, retrieve_iteration_tree
+    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
+    Switch, Transformer, filter_iterations, make_callable, make_efunc,
+    retrieve_iteration_tree
 )
-from devito.passes.iet.engine import Graph
+from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
@@ -527,6 +528,28 @@ def test_codegen_quality0():
     assert len(foo.parameters) == 3
     assert len(foo1.parameters) == 1
     assert foo1.parameters[0] is a
+
+
+def test_reuse_efuncs_natural_numbering():
+
+    def make_foo(name, start):
+        pointers = [Pointer(name=f'p{i}') for i in range(start, start + 3)]
+        return make_callable(name, Call('bar', pointers))
+
+    foo0 = make_foo('foo0', 0)
+    foo1 = make_foo('foo1', 9)
+
+    root = make_callable('root', List(body=[
+        Call(foo0.name, foo0.parameters),
+        Call(foo1.name, foo1.parameters)
+    ]))
+    efuncs = {i.name: i for i in (root, foo0, foo1)}
+
+    efuncs = reuse_efuncs(root, efuncs)
+
+    assert set(efuncs) == {'root', 'foo0'}
+    calls = FindNodes(Call).visit(efuncs[root.name])
+    assert [i.name for i in calls] == ['foo0', 'foo0']
 
 
 def test_complex_array():

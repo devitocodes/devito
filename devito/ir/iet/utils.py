@@ -2,7 +2,7 @@ import numpy as np
 
 from devito.ir.iet import FindSections, FindSymbols
 from devito.symbolics import Keyword, Macro
-from devito.tools import filter_ordered
+from devito.tools import filter_ordered, natural_sort_key
 from devito.types import Global
 
 __all__ = [
@@ -37,6 +37,10 @@ class IterationTree(tuple):
     def __getitem__(self, key):
         ret = super().__getitem__(key)
         return IterationTree(ret) if isinstance(key, slice) else ret
+
+
+def _canonical_parameter_key(parameter):
+    return str(type(parameter)), natural_sort_key(parameter.name)
 
 
 def retrieve_iteration_tree(node, mode='normal'):
@@ -138,7 +142,7 @@ def derive_parameters(iet, drop_locals=False, ordering='default'):
     # amount of tests and examples; plus, it might break compatibility those
     # using devito as a library-generator to be embedded within legacy codes
     if ordering == 'canonical':
-        parameters = sorted(parameters, key=lambda p: str(type(p)))
+        parameters = sorted(parameters, key=_canonical_parameter_key)
 
     return parameters
 
