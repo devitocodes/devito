@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from contextlib import suppress
 
+import sympy
 from sympy import sympify
 
 from devito.logger import warning
@@ -22,9 +23,38 @@ __all__ = [
     'transpose',
 ]
 
-# Number of digits for FD coefficients to avoid roundup errors and non-deterministic
-# code generation
-_PRECISION = 9
+# Number of digits for FD coefficients. 17 significant digits is the minimum that
+# round-trips an IEEE-754 double exactly, so the C literals the printer emits parse
+# back to the exact rational weight (sub-ULP); evalf is deterministic, so code
+# generation stays deterministic. (The previous value, 9, truncated the weights at
+# ~1.7e-10 relative -- see issue #2976.)
+_PRECISION = 17
+
+
+def _canonicalize_weight(w):
+    """Render a weight's numeric atoms as canonical fixed-precision Floats.
+
+    Taylor weights are mathematically rational, but depending on the route a
+    stencil is built through (e.g. a float ``x0`` shift) they can arrive as
+    binary-float approximations that differ in the last ULP between routes,
+    which would make otherwise-identical stencils compare unequal. Recover the
+    nearby rational when one exists within 5e-14 relative (float-route Fornberg
+    recursions accumulate ~1e-14 relative error; an arbitrary float far from a
+    small rational maps to a rational of the same double value, so
+    non-rational user-supplied coefficients are value-preserved), then render
+    at ``_PRECISION`` so the emitted C literal round-trips the intended double
+    exactly.
+    """
+    def _canon(a):
+        try:
+            r = sympy.Rational(a).limit_denominator(10**12)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return a
+        if a == 0 or abs(float(r) - float(a)) <= 5e-14 * abs(float(a)):
+            return r
+        return a
+
+    return w.replace(lambda a: a.is_Float, _canon).evalf(_PRECISION)
 
 
 @check_input
@@ -168,23 +198,32 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
                                    x0=x0, nweights=nweights)
     # Finite difference weights corresponding to the indices. Computed via the
     # `coefficients` method (`taylor` or `symbolic`)
+    computed_weights = False
     if weights is None:
         weights = fd_weights_registry[coefficients](expr, deriv_order, indices, x0)
         _, wdim, _ = process_weights(weights, expr, dim)
+        computed_weights = coefficients == 'taylor'
     elif isinstance(weights, Iterable) and len(weights) != len(indices):
         warning(f"Number of weights ({len(weights)}) does not match "
                 f"number of indices ({len(indices)}), reverting to Taylor")
         scale = False
         wdim = None
         weights = fd_weights_registry['taylor'](expr, deriv_order, indices, x0)
+        computed_weights = True
 
     # Did fd_weights_registry return a new Function/Expression instead of a values?
     if wdim is not None:
         weights = [weights._subs(wdim, i) for i in range(len(indices))]
 
-    # Enforce fixed precision FD coefficients to avoid variations in results
+    # Enforce fixed precision FD coefficients to avoid variations in results.
+    # Taylor-computed weights are additionally canonicalized (rational
+    # recovery) so route-dependent float error cannot make identical stencils
+    # compare unequal; user-supplied weights are rendered as-is.
     scale = dim.spacing**(-deriv_order) if scale else 1
-    weights = [sympify(scale * w).evalf(_PRECISION) for w in weights]
+    if computed_weights:
+        weights = [_canonicalize_weight(sympify(scale * w)) for w in weights]
+    else:
+        weights = [sympify(scale * w).evalf(_PRECISION) for w in weights]
 
     # Transpose the FD, if necessary
     if matvec == transpose:
