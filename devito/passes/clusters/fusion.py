@@ -152,7 +152,7 @@ class Fusion(Queue):
         options = options or {}
 
         self.toposort = toposort
-        self.fuse_tasks = options.get('fuse-tasks', False)
+        self.fuse_tasks = options.get('npthreads') is not None
 
         super().__init__()
 

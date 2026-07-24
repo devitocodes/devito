@@ -61,8 +61,8 @@ class DeviceOperatorMixin:
         o['buf-async-degree'] = oo.pop('buf-async-degree', None)
         o['buf-reuse'] = oo.pop('buf-reuse', None)
 
-        # Fusion
-        o['fuse-tasks'] = oo.pop('fuse-tasks', False)
+        # Tasking
+        o['npthreads'] = oo.pop('npthreads', None)
 
         # Flops minimization
         o['cse-min-cost'] = oo.pop('cse-min-cost', cls.CSE_MIN_COST)

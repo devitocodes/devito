@@ -496,7 +496,7 @@ class TestStreaming:
                 Eq(v.forward, tmp1, subdomain=bundle0)]
 
         op = Operator(eqns, opt=('tasking', 'fuse', 'orchestrate',
-                                 {'fuse-tasks': True, 'linearize': False}))
+                                 {'npthreads': 1, 'linearize': False}))
 
         # Check generated code
         assert len(retrieve_iteration_tree(op)) == 3
@@ -646,7 +646,7 @@ class TestStreaming:
 
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 14),
-        (('buffering', 'streaming', 'fuse', 'orchestrate', {'fuse-tasks': True}), 8),
+        (('buffering', 'streaming', 'fuse', 'orchestrate', {'npthreads': 1}), 8),
     ])
     def test_streaming_two_buffers(self, opt, ntmps):
         nt = 10
@@ -677,6 +677,40 @@ class TestStreaming:
 
         assert np.all(u.data[0] == 56)
         assert np.all(u.data[1] == 72)
+
+    @pytest.mark.parametrize('npthreads', [1, 3, 4])
+    def test_streaming_fuse_groups(self, npthreads):
+        nt = 4
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        fsaves = [TimeFunction(name=f'fsave{i}', grid=grid, save=nt)
+                  for i in range(9)]
+
+        for i, f in enumerate(fsaves):
+            for t in range(nt):
+                f.data[t, :] = i + t
+
+        eqn = Eq(u.forward, u + sum(fsaves))
+
+        op0 = Operator(eqn, opt=('noop', {'gpu-fit': tuple(fsaves)}))
+        op1 = Operator(
+            eqn,
+            opt=('buffering', 'streaming', 'fuse', 'orchestrate',
+                 {'npthreads': npthreads})
+        )
+
+        symbols = FindSymbols().visit(op1)
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
+        assert all(i.size == 1 for i in threads)
+        assert op1.npthreads == npthreads
+
+        op0.apply(time_M=nt-2)
+
+        u1 = TimeFunction(name='u', grid=grid)
+        op1.apply(time_M=nt-2, u=u1)
+
+        assert np.all(u.data == u1.data)
 
     def test_streaming_fused(self):
         nt = 10
@@ -961,7 +995,7 @@ class TestStreaming:
                                   {'buf-async-degree': async_degree}))
         op2 = Operator(eqns, opt=('buffering', 'tasking', 'topofuse', 'orchestrate',
                                   {'buf-async-degree': async_degree,
-                                   'fuse-tasks': True}))
+                                   'npthreads': 1}))
 
         # Check generated code -- thanks to buffering only expect 1 lock!
         assert len(retrieve_iteration_tree(op0)) == 2
@@ -1001,6 +1035,53 @@ class TestStreaming:
             assert np.all(v.data == v1.data)
             assert np.all(usave.data == usave1.data)
             assert np.all(vsave.data == vsave1.data)
+
+    @pytest.mark.parametrize('npthreads', [1, 3, 4])
+    def test_composite_buffering_tasking_fuse_groups(self, npthreads):
+        nt = 4
+        bundle0 = Bundle()
+        grid = Grid(shape=(4, 4, 4), subdomains=bundle0)
+
+        u = TimeFunction(name='u', grid=grid, time_order=2)
+        fsaves = [TimeFunction(name=f'fsave{i}', grid=grid, save=nt)
+                  for i in range(9)]
+
+        eqns = [Eq(u.forward, u + 1)]
+        eqns.extend(Eq(f, u + i, subdomain=bundle0)
+                    for i, f in enumerate(fsaves))
+
+        op0 = Operator(eqns, opt=('noop', {'gpu-fit': tuple(fsaves)}))
+
+        opt = ('buffering', 'tasking', 'topofuse', 'orchestrate',
+               {'npthreads': npthreads})
+        op1 = Operator(eqns, opt=opt)
+
+        symbols = FindSymbols().visit(op1)
+        threads = [i for i in symbols if isinstance(i, PThreadArray)]
+        assert all(i.size == 1 for i in threads)
+        assert op1.npthreads == npthreads
+
+        tasks = [v.root for k, v in op1._func_table.items()
+                 if k.startswith('copy_to_host')]
+        # Pthreads handling the same number of tasks reuse a Callable
+        widths = []
+        for task in tasks:
+            writes = {i.write for i in FindNodes(Expression).visit(task)}
+            widths.append(len([i for i in writes if i.is_TimeFunction]))
+        expected = {1: [9], 3: [3], 4: [2, 3]}
+        assert sorted(widths) == expected[npthreads]
+
+        op0.apply(time_M=nt-1)
+
+        u1 = TimeFunction(name='u', grid=grid, time_order=2)
+        fsaves1 = [TimeFunction(name=f'fsave{i}', grid=grid, save=nt)
+                   for i in range(9)]
+        kwargs = {f.name: f1 for f, f1 in zip(fsaves, fsaves1, strict=True)}
+        op1.apply(time_M=nt-1, u=u1, **kwargs)
+
+        assert np.all(u.data == u1.data)
+        assert all(np.all(f.data == f1.data)
+                   for f, f1 in zip(fsaves, fsaves1, strict=True))
 
     def test_composite_full_0(self):
         nt = 10
@@ -1327,7 +1408,7 @@ class TestStreaming:
         op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
         op2 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate'))
         op3 = Operator(eqns, opt=('buffering', 'streaming', 'fuse', 'orchestrate',
-                                  {'fuse-tasks': True}))
+                                  {'npthreads': 1}))
 
         # Check generated code
         diff = int(configuration['language'] == 'openmp')

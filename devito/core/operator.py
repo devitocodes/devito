@@ -247,6 +247,15 @@ class BasicOperator(Operator):
         if oo['mpi'] and oo['mpi'] not in cls.MPI_MODES:
             raise InvalidOperator(f"Unsupported MPI mode `{oo['mpi']}`")
 
+        npthreads = oo['npthreads']
+        if npthreads is not None and (
+            isinstance(npthreads, bool) or
+            not is_integer(npthreads) or npthreads <= 0
+        ):
+            raise InvalidOperator(
+                "`npthreads` must be a positive integer"
+            )
+
         if oo['cire-maxpar'] not in (False, 'basic', 'compact'):
             raise InvalidOperator("Illegal `cire-maxpar` value")
 

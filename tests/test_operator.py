@@ -135,6 +135,12 @@ class TestOperatorSetup:
         except InvalidOperator:
             assert True
 
+        # `npthreads` is a direct count, not a boolean switch
+        for npthreads in (False, True, 0, -1, 1.5):
+            with pytest.raises(InvalidOperator, match='positive integer'):
+                Operator(Eq(u, u + 1),
+                         opt=('advanced', {'npthreads': npthreads}))
+
     def test_compiler_uniqueness(self):
         grid = Grid(shape=(3, 3, 3))
 

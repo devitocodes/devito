@@ -1511,8 +1511,7 @@ class BusyWait(While):
 class SyncSpot(List):
 
     """
-    A node representing one or more synchronization operations, e.g., WaitLock,
-    withLock, etc.
+    A node coupling synchronization operations with an IET body.
     """
 
     is_SyncSpot = True

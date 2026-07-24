@@ -26,11 +26,42 @@ __all__ = [
 
 class SyncOp(Pickable):
 
+    """
+    Metadata for a synchronization operation attached to a `Cluster` or `SyncSpot`.
+
+    Parameters
+    ----------
+    handle : object
+        The symbolic object identifying or controlling the operation, such as
+        an entry in a `Lock`. May be None when no handle is required.
+    target : AbstractFunction
+        The `Function` whose access is synchronized. For buffered data movements,
+        this is the compiler-generated buffer.
+    tindex : Expr, optional
+        The index into `target` involved in the operation.
+    function : AbstractFunction, optional
+        The original `Function` represented by a compiler-generated `target`. It
+        is the source of a `SyncCopyIn` and the destination of a `SyncCopyOut`.
+    findex : Expr, optional
+        The index into `function` corresponding to `tindex`.
+    dim : Dimension, optional
+        The `Dimension` along which `tindex` and `findex` are defined.
+    size : int, optional
+        The extent associated with the operation along `dim`. Defaults to 1.
+    origin : Indexed, optional
+        The original `Indexed` access from which the operation was derived.
+    gid : Stamp, optional
+        The `Stamp` identifying the asynchronous task group to which the operation
+        belongs.
+    """
+
     __rargs__ = ('handle', 'target')
-    __rkwargs__ = ('tindex', 'function', 'findex', 'dim', 'size', 'origin')
+    __rkwargs__ = (
+        'tindex', 'function', 'findex', 'dim', 'size', 'origin', 'gid'
+    )
 
     def __init__(self, handle, target, tindex=None, function=None, findex=None,
-                 dim=None, size=1, origin=None):
+                 dim=None, size=1, origin=None, gid=None):
         self.handle = handle
         self.target = target
 
@@ -40,6 +71,7 @@ class SyncOp(Pickable):
         self.dim = dim
         self.size = size
         self.origin = origin
+        self.gid = gid
 
     def __eq__(self, other):
         return (type(self) is type(other) and
@@ -50,11 +82,13 @@ class SyncOp(Pickable):
                 self.findex == other.findex and
                 self.dim is other.dim and
                 self.size == other.size and
-                self.origin == other.origin)
+                self.origin == other.origin and
+                self.gid == other.gid)
 
     def __hash__(self):
         return hash((self.__class__, self.handle, self.target, self.tindex,
-                     self.function, self.findex, self.dim, self.size, self.origin))
+                     self.function, self.findex, self.dim, self.size, self.origin,
+                     self.gid))
 
     def __repr__(self):
         return f"{self.__class__.__name__}<{self.handle.name}>"
