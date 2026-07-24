@@ -80,6 +80,25 @@ def test_nofission_as_illegal():
     assert_structure(op, ['t,x,y', 't,x,y'], 't,x,y,y')
 
 
+def test_nofission_local_scalar_dependence():
+    """
+    Test there's no fission across a local scalar dependence.
+    """
+    grid = Grid(shape=(3, 3))
+    time = grid.time_dim
+    x, y = grid.dimensions
+
+    g = Function(name='g', grid=grid, dtype=np.int32, space_order=0)
+    h = Function(name='h', grid=grid, space_order=0)
+
+    eqns = [Eq(y.symbolic_max, g[x, 0], implicit_dims=(time, x)),
+            Eq(h, y, implicit_dims=(time, x, y))]
+
+    op = Operator(eqns, opt='fission')
+
+    assert_structure(op, ['t,x', 't,x,y'], 't,x,y')
+
+
 def test_fission_partial():
     """
     Test there's no fission if no increase in number of collapsible loops.
