@@ -249,6 +249,14 @@ class EqBlock(CacheInstances):
         return self._is_type(CriticalRegion)
 
     @cached_property
+    def is_thread_rendezvous(self):
+        """
+        True if it contains a synchronization point at which all participating
+        threads must arrive before any may proceed.
+        """
+        return self.is_thread_pool_sync and not self.is_thread_wait
+
+    @cached_property
     def is_thread_pool_sync(self):
         return self._is_type(ThreadPoolSync)
 
