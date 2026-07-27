@@ -27,7 +27,7 @@ from devito.symbolics import (
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
     GenericVisitor, as_tuple, c_restrict_void_p, filter_ordered, filter_sorted, flatten,
-    is_external_ctype, memoized_weak_meth, sorted_priority
+    is_external_ctype, memoized_weak_meth, natural_sort_key
 )
 from devito.types import (
     ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer
@@ -1127,7 +1127,7 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         return super().visit(o, *args, **kwargs)
 
     def _post_visit(self, ret):
-        return sorted(filter_ordered(ret, key=id), key=str)
+        return sorted(filter_ordered(ret, key=id), key=natural_sort_key)
 
     def visit_Node(self, o: Node) -> Iterator[Any]:
         yield from self._visit(o.children)
@@ -1656,14 +1656,4 @@ class TemplateDecl(c.Template):
 
 
 def sorted_efuncs(efuncs):
-    from devito.ir.iet.efunc import (
-        CommCallable, DeviceFunction, ElementalFunction, ThreadCallable
-    )
-
-    priority = {
-        DeviceFunction: 3,
-        ThreadCallable: 2,
-        ElementalFunction: 1,
-        CommCallable: 1
-    }
-    return sorted_priority(efuncs, priority)
+    return sorted(efuncs, key=lambda i: natural_sort_key(i.name))

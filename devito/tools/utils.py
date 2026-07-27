@@ -1,3 +1,4 @@
+import re
 import types
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping
@@ -27,6 +28,7 @@ __all__ = [
     'invert',
     'is_integer',
     'is_number',
+    'natural_sort_key',
     'powerset',
     'pprint',
     'prod',
@@ -39,6 +41,16 @@ __all__ = [
     'sweep',
     'transitive_closure',
 ]
+
+
+def natural_sort_key(value):
+    """
+    Return a key that sorts embedded decimal numbers numerically.
+    """
+    return tuple(
+        (part.isdigit(), int(part) if part.isdigit() else part)
+        for part in re.split(r'(\d+)', str(value))
+    )
 
 
 def prod(iterable, initial=1):

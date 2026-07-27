@@ -141,7 +141,7 @@ class Orchestrator:
             CollectTasks(task_groups).visit(iet)
 
         # Lower the SyncSpots in a single bottom-up traversal, atomically lowering
-        lowerer = LowerSyncSpots(callbacks, task_groups)
+        lowerer = LowerSyncSpots(callbacks, task_groups, self.sregistry)
         iet = lowerer.visit(iet)
 
         return iet, {'efuncs': lowerer.efuncs}
@@ -217,8 +217,7 @@ class CollectTasks(Visitor):
         kwargs['condition'] = o
         self._visit(o.children, **kwargs)
 
-    def visit_SyncSpot(self, o, iteration=None, condition=None,
-                       in_snapshot=False):
+    def visit_SyncSpot(self, o, iteration=None, condition=None, snapshot=None):
         if iteration is not None:
             syncs = as_mapper(o.sync_ops, type)
 
@@ -240,18 +239,19 @@ class CollectTasks(Visitor):
                 if gid is not None:
                     task = Task(o, guard, sync_ops)
                     self._task_groups.add(
-                        task, condition or o, iteration, gid, optype, in_snapshot
+                        task, snapshot or condition or o, iteration, gid, optype,
+                        snapshot is not None
                     )
 
                 break
 
         if any(isinstance(i, SnapOut) for i in o.sync_ops):
             # Do not mix composite tasks with other compatible groups
-            in_snapshot = True
+            snapshot = o
 
         self._visit(
             o.children, iteration=iteration, condition=condition,
-            in_snapshot=in_snapshot
+            snapshot=snapshot
         )
 
 
@@ -272,10 +272,11 @@ class LowerSyncSpots(Transformer):
         The task groups to lower atomically.
     """
 
-    def __init__(self, callbacks, task_groups):
+    def __init__(self, callbacks, task_groups, sregistry):
         super().__init__({})
 
         self._callbacks = callbacks
+        self._sregistry = sregistry
 
         self._task_bodies = dict.fromkeys(task_groups.sync_spots)
         self._task_groups = task_groups.by_anchor
@@ -346,6 +347,13 @@ class LowerSyncSpots(Transformer):
                     List(body=self._task_bodies.pop(task.spot)),
                     task.sync_ops, layer, wrap=False
                 )
+
+                if len(tasks) > 1:
+                    name = self._sregistry.make_name(prefix=f'{prefix}_body')
+                    efunc = make_callable(name, task_body)
+                    self._efuncs.append(efunc)
+                    task_body = Call(name, efunc.parameters)
+
                 if task.guard is None:
                     # Preserve the local scope of an unguarded task body
                     scope = Block(body=task_body)

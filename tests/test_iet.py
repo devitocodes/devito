@@ -11,10 +11,12 @@ from devito import (  # noqa
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindSymbols, Iteration, KernelLaunch, Lambda, List, Switch,
-    Transformer, filter_iterations, make_efunc, retrieve_iteration_tree
+    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
+    Switch, Transformer, filter_iterations, make_callable, make_efunc,
+    retrieve_iteration_tree
 )
-from devito.passes.iet.engine import Graph
+from devito.ir.iet.visitors import sorted_efuncs
+from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
@@ -22,7 +24,7 @@ from devito.symbolics import (
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol
+from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol, Temp
 from devito.types.misc import FunctionMap
 
 
@@ -132,6 +134,15 @@ def test_find_symbols_nested(mode, expected):
     found = FindSymbols(mode).visit(call)
 
     assert [f.name for f in found] == eval(expected)
+
+
+def test_find_symbols_natural_numbering():
+    temporaries = [Temp(name=f'r{i}') for i in range(12)]
+    call = Call('foo', temporaries[::-1])
+
+    found = FindSymbols('basics').visit(call)
+
+    assert [i.name for i in found] == [i.name for i in temporaries]
 
 
 def test_list_denesting():
@@ -527,6 +538,37 @@ def test_codegen_quality0():
     assert len(foo.parameters) == 3
     assert len(foo1.parameters) == 1
     assert foo1.parameters[0] is a
+
+
+def test_reuse_efuncs_natural_numbering():
+
+    def make_foo(name, start):
+        pointers = [Pointer(name=f'p{i}') for i in range(start, start + 3)]
+        return make_callable(name, Call('bar', pointers))
+
+    foo0 = make_foo('foo0', 0)
+    foo1 = make_foo('foo1', 9)
+
+    root = make_callable('root', List(body=[
+        Call(foo0.name, foo0.parameters),
+        Call(foo1.name, foo1.parameters)
+    ]))
+    efuncs = {i.name: i for i in (root, foo0, foo1)}
+
+    efuncs = reuse_efuncs(root, efuncs)
+
+    assert set(efuncs) == {'root', 'foo0'}
+    calls = FindNodes(Call).visit(efuncs[root.name])
+    assert [i.name for i in calls] == ['foo0', 'foo0']
+
+
+def test_sorted_efuncs_natural_numbering():
+    names = ['kernel3', 'foo0', 'kernel11', 'kernel1', 'kernel2']
+    efuncs = [make_callable(name, List()) for name in names]
+
+    assert [i.name for i in sorted_efuncs(efuncs)] == [
+        'foo0', 'kernel1', 'kernel2', 'kernel3', 'kernel11'
+    ]
 
 
 def test_complex_array():
