@@ -347,7 +347,8 @@ class LowerSyncSpots(Transformer):
                     List(body=self._task_bodies.pop(task.spot)),
                     task.sync_ops, layer, wrap=False
                 )
-                if optype is WithLock and len(tasks) > 1:
+
+                if len(tasks) > 1:
                     name = self._sregistry.make_name(prefix=f'{prefix}_body')
                     efunc = make_callable(name, task_body)
                     self._efuncs.append(efunc)
