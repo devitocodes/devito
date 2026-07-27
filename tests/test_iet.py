@@ -15,6 +15,7 @@ from devito.ir.iet import (
     Switch, Transformer, filter_iterations, make_callable, make_efunc,
     retrieve_iteration_tree
 )
+from devito.ir.iet.visitors import sorted_efuncs
 from devito.passes.iet.engine import Graph, reuse_efuncs
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
@@ -559,6 +560,15 @@ def test_reuse_efuncs_natural_numbering():
     assert set(efuncs) == {'root', 'foo0'}
     calls = FindNodes(Call).visit(efuncs[root.name])
     assert [i.name for i in calls] == ['foo0', 'foo0']
+
+
+def test_sorted_efuncs_natural_numbering():
+    names = ['kernel3', 'foo0', 'kernel11', 'kernel1', 'kernel2']
+    efuncs = [make_callable(name, List()) for name in names]
+
+    assert [i.name for i in sorted_efuncs(efuncs)] == [
+        'foo0', 'kernel1', 'kernel2', 'kernel3', 'kernel11'
+    ]
 
 
 def test_complex_array():
