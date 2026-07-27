@@ -23,7 +23,7 @@ from devito.symbolics import (
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol
+from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol, Temp
 from devito.types.misc import FunctionMap
 
 
@@ -133,6 +133,15 @@ def test_find_symbols_nested(mode, expected):
     found = FindSymbols(mode).visit(call)
 
     assert [f.name for f in found] == eval(expected)
+
+
+def test_find_symbols_natural_numbering():
+    temporaries = [Temp(name=f'r{i}') for i in range(12)]
+    call = Call('foo', temporaries[::-1])
+
+    found = FindSymbols('basics').visit(call)
+
+    assert [i.name for i in found] == [i.name for i in temporaries]
 
 
 def test_list_denesting():
