@@ -13,24 +13,24 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.linearization import Tracker, linearize_accesses
 from devito.petsc.config import core_metadata, petsc_languages
 from devito.petsc.iet.builder import make_builder_cls, make_core_petsc_calls
-
 from devito.petsc.iet.callbacks import (
     get_user_struct_fields, make_callback_builder_cls, populate_matrix_context
 )
 from devito.petsc.iet.logging import PetscLogger
-from devito.petsc.iet.nodes import MgPopulateCall, PETScCallable, PetscMetaData, petsc_call
+from devito.petsc.iet.nodes import (
+    MgPopulateCall, PETScCallable, PetscMetaData, petsc_call
+)
 from devito.petsc.iet.solve import make_solver_cls
 from devito.petsc.iet.time_dependence import TimeDependent, TimeIndependent
 from devito.petsc.iet.type_builder import make_type_builder_cls, objs
 from devito.petsc.solve import localinfo
-from devito.petsc.types.dimension import SpaceDimMax, SpaceDimMin, SubDimMax, SubDimMin
 from devito.petsc.types import (
-    ArgvSymbol, CallbackUserStruct, CoarseningFactorScalar, CoarseThickness,
-    Finalize, FineGlobalStartScalar, GlobalStartScalar, Initialize, MainUserStruct,
+    ArgvSymbol, CallbackUserStruct, CoarseningFactorScalar, CoarseThickness, Finalize,
+    FineGlobalStartScalar, GlobalStartScalar, Initialize, MainUserStruct,
     MultipleFieldData, SubGridScalar
 )
+from devito.petsc.types.dimension import SpaceDimMax, SpaceDimMin, SubDimMax, SubDimMin
 from devito.petsc.types.macros import petsc_func_begin_user
-
 from devito.symbolics import (
     Byref, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, Null
 )
