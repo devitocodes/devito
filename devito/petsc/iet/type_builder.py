@@ -1,11 +1,11 @@
 import numpy as np
 
 from devito.petsc.types import (
-    DM, KSP, MPIComm, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct,
-    Mat, MatReuse, NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt,
-    PetscSectionGlobal, PetscSectionLocal, PetscSF, PointerDM, PointerDMArg, PointerIS,
-    PointerMat, PointerPetscInt, StartPtr, SubMatrixStruct, Vec, VecScatter, PointerMatArg,
-    PointerVecArg
+    DM, KSP, PC, SNES, CallbackPetscInt, DummyArg, JacobianStruct, Mat, MatReuse, MPIComm,
+    NofSubMats, PetscBundle, PetscErrorCode, PetscInt, PetscMPIInt, PetscSectionGlobal,
+    PetscSectionLocal, PetscSF, PointerDM, PointerDMArg, PointerIS, PointerMat,
+    PointerMatArg, PointerPetscInt, PointerVecArg, StartPtr, SubMatrixStruct, Vec,
+    VecScatter
 )
 from devito.symbolics import String
 from devito.tools import frozendict
