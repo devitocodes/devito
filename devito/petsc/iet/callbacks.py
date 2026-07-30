@@ -5,24 +5,22 @@ from devito.ir.iet import (
     DummyExpr, FindSymbols, Iteration, List, PointerCast, Uxreplace
 )
 from devito.passes.iet.linearization import Stride
-from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, petsc_call, PetscCallback
+from devito.petsc.iet.nodes import MatShellSetOp, PETScCallable, PetscCallback, petsc_call
 from devito.petsc.iet.type_builder import objs
 from devito.petsc.types import (
-    CallbackShellStruct, CallbackUserStruct, DMCast, MainUserStruct,
-    PetscInt, PetscObjectCast, PointerDM, ShellStruct, UserCtxArray, ProlongCtx
+    CallbackShellStruct, CallbackUserStruct, DMCast, MainUserStruct, PetscInt,
+    PetscObjectCast, PointerDM, ProlongCtx, ShellStruct, UserCtxArray
 )
-
 from devito.petsc.types.macros import petsc_func_begin_user
 from devito.petsc.types.modes import InsertMode
+from devito.petsc.types.multigrid import GlobalStartScalar
 from devito.symbolics import (
-    VOID, Byref, Deref, FieldFromPointer, IndexedPointer,
-    IntDiv, Mod, Null, String
+    VOID, Byref, Deref, FieldFromPointer, IndexedPointer, IntDiv, Mod, Null, String
 )
 from devito.symbolics.unevaluation import Mul
 from devito.tools import filter_ordered
 from devito.types import Dimension, Temp, TempArray
 from devito.types.basic import AbstractFunction
-from devito.petsc.types.multigrid import GlobalStartScalar
 from devito.types.misc import PostIncrementIndex
 
 
