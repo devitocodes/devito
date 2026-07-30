@@ -3,11 +3,10 @@ from functools import cached_property
 
 from devito.ir.iet import BlankLine, DummyExpr
 from devito.petsc.iet.nodes import (
-    MgPopulateCall, PetscCallback, MatShellSetOp, PETScCall, petsc_call
+    MatShellSetOp, MgPopulateCall, PETScCall, PetscCallback, petsc_call
 )
 from devito.symbolics import (
-    VOID, Byref, FieldFromComposite, FieldFromPointer, IndexedPointer,
-    Null, String
+    VOID, Byref, FieldFromComposite, FieldFromPointer, IndexedPointer, Null, String
 )
 
 
