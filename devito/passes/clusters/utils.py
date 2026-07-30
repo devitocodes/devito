@@ -2,7 +2,8 @@ from devito.ir import Cluster
 from devito.tools import as_tuple
 from devito.types import CriticalRegion, Eq, Symbol
 
-__all__ = ['in_critical_region', 'is_memcpy', 'make_critical_sequence']
+__all__ = ['expose_tuning_knobs', 'in_critical_region', 'is_memcpy',
+           'make_critical_sequence']
 
 
 def is_memcpy(expr):
@@ -50,3 +51,24 @@ def in_critical_region(cluster, clusters):
         elif c.is_critical_region:
             maybe_found = c
     return None
+
+
+def expose_tuning_knobs(clusters, sregistry):
+    """
+    Replace all pre-existing BlockDimensions with fresh ones, to enable
+    separate tuning for the CIRE-generated temporaries.
+    """
+    # Create the new BlockDimensions
+    callback = lambda i: sregistry.make_name(prefix=i)
+
+    mapper = {}
+    for d in set().union(*[c.used_dimensions for c in clusters]):
+        if d.is_Block:
+            mapper.update(d._rebuild_hierarchy(callback))
+
+    if not mapper:
+        return clusters
+
+    processed = [c.subs(mapper) for c in clusters]
+
+    return processed

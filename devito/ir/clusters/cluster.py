@@ -249,6 +249,14 @@ class EqBlock(CacheInstances):
         return self._is_type(CriticalRegion)
 
     @cached_property
+    def is_thread_rendezvous(self):
+        """
+        True if it contains a synchronization point at which all participating
+        threads must arrive before any may proceed.
+        """
+        return self.is_thread_pool_sync and not self.is_thread_wait
+
+    @cached_property
     def is_thread_pool_sync(self):
         return self._is_type(ThreadPoolSync)
 
@@ -655,6 +663,12 @@ class ClusterGroup(tuple):
     def concatenate(cls, *cgroups):
         return list(chain(*cgroups))
 
+    def rebuild(self, **kwargs):
+        clusters = kwargs.get('clusters', self)
+        ispace = kwargs.get('ispace', self.ispace)
+
+        return self.__class__(clusters, ispace=ispace)
+
     @cached_property
     def exprs(self):
         return flatten(c.exprs for c in self)
@@ -662,6 +676,10 @@ class ClusterGroup(tuple):
     @cached_property
     def scope(self):
         return Scope(exprs=self.exprs)
+
+    @cached_property
+    def functions(self):
+        return self.scope.functions
 
     @cached_property
     def ispace(self):
