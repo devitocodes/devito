@@ -19,8 +19,8 @@ from devito.ir.iet import (
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
 from devito.mpi.distributed import CoarseDistributor, CustomTopology
-from devito.petsc.types.multigrid import GridHierarchy
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
+from devito.petsc.types.multigrid import GridHierarchy
 from devito.tools import Bunch
 from examples.seismic.acoustic import acoustic_setup
 
