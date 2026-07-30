@@ -1,8 +1,8 @@
 from devito.petsc.solver_parameters import format_options_prefix, linear_solver_parameters
 from devito.petsc.types import (
     ConstrainBC, Diagonal, DMDALocalInfo, FieldData, InitialGuess, Jacobian,
-    LinearSolverMetaData, MixedJacobian, MixedResidual, MultipleFieldData,
-    MultigridMetadata, PETScArray, Residual
+    LinearSolverMetaData, MixedJacobian, MixedResidual, MultigridMetadata,
+    MultipleFieldData, PETScArray, Residual
 )
 from devito.petsc.types.equation import EssentialBC
 from devito.symbolics import retrieve_dimensions, retrieve_functions
