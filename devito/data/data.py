@@ -324,7 +324,7 @@ class Data(np.ndarray):
                     or data_global[j].size == 0
                 if not skip:
                     self.__setitem__(idx_global[j], data_global[j])
-        elif isinstance(val, np.ndarray):
+        elif isinstance(val, np.ndarray) or is_windowed(val):
             if self._is_decomposed:
                 # `val` is replicated, `self` is decomposed -> `val` gets decomposed
                 glb_idx = self._normalize_index(glb_idx)
@@ -342,7 +342,7 @@ class Data(np.ndarray):
                 # * they are equal, or
                 # * one of them is 1
                 # Conceptually, below we apply the same rule
-                val_idx = val_idx[len(val_idx)-val.ndim:]
+                val_idx = val_idx[len(val_idx)-len(val.shape):]
                 processed = []
                 # Handle step size > 1
                 for i, j in zip(glb_idx, val_idx, strict=False):
@@ -352,8 +352,13 @@ class Data(np.ndarray):
                     else:
                         processed.append(j)
                 val_idx = as_tuple(processed)
-                val = val[val_idx]
-            super().__setitem__(glb_idx, val)
+            elif is_windowed(val):
+                # Read all of it, there is no decomposition to restrict it to
+                val_idx = tuple(slice(0, s) for s in val.shape)
+            else:
+                val_idx = None
+
+            super().__setitem__(glb_idx, val if val_idx is None else val[val_idx])
         elif isinstance(val, Iterable):
             if self._is_decomposed:
                 raise NotImplementedError("With MPI, data can only be set "

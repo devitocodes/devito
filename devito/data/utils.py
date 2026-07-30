@@ -12,8 +12,20 @@ __all__ = [
     'index_dist_to_repl',
     'index_handle_oob',
     'index_is_basic',
+    'is_windowed',
     'loc_data_idx',
 ]
+
+
+def is_windowed(val):
+    """
+    Whether `val` provides its values by window rather than from memory, such
+    as a memory mapped array, an HDF5 dataset or any object exposing a `shape`
+    and slicing. Such a value is only read where it is assigned, so with MPI a
+    rank never reads more of it than the part it owns.
+    """
+    return (not isinstance(val, np.ndarray) and hasattr(val, 'shape')
+            and hasattr(val, '__getitem__'))
 
 
 class Index(Tag):

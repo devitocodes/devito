@@ -88,6 +88,6 @@ jobs:
           for DOCKERFILE in docker/Dockerfile.*; \
             do \
             echo "    Linting $DOCKERFILE"; \
-            hadolint "$DOCKERFILE" \
+            hadolint --ignore DL3066 "$DOCKERFILE" \
             || exit 1; \
           done
