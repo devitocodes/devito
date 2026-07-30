@@ -292,6 +292,7 @@ def _coarse_thickness(f, subgrid, coarse_dim_map):
 _CoarseSubDim = namedtuple('_CoarseSubDim', ('rtkn', 'ltkn', 'parent', 'dtype'))
 
 
+# TODO: rethink the coarse SubDim implementation - it is a bit of a hack
 def _coarse_subdim(subdim, subgrid, coarse_dim_map):
     """
     A lightweight stand-in for a coarse-level SubDimension, exposing just the

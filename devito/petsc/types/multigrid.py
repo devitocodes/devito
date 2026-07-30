@@ -328,14 +328,6 @@ class MultigridMetadata:
 
 def _field_shifts(field):
     """
-    Per-space-Dimension staggering of `field`, as a tuple of booleans ordered
-    like `field.space_dimensions` (True = staggered by half a cell). This is
-    not a physical distance (cf. WeightedInterpolator._field_shifts in
-    devito/operations/interpolators.py) -- the index math below works in
-    units of a single cell, not physical spacing. `PETScArray.staggered`
-    delegates to its target Function's own staggering, so this is
-    `(False, ...)` for a non-staggered PETSc target, unchanged from today's
-    behaviour.
     """
     staggered = field.staggered
     if not staggered or staggered.on_node:
@@ -347,28 +339,10 @@ def _field_shifts(field):
 class GridTransfer:
     """
     Builds the interpolation and restriction Eqs transferring values between
-    a fine-level and a coarse-level object (anything exposing
-    `.space_dimensions` and supporting explicit tuple indexing, e.g.
-    `Function` or `PETScArray`) related by a single factor-2 coarsening.
-
-    `fine` and `coarse` must have matching per-dimension staggering -- they
-    are assumed to represent the same physical field at two resolutions, not
-    two different staggered variables (e.g. interpolating a multigrid-solved
-    pressure field between levels, never pressure <-> velocity).
+    a fine-level and a coarse-level object.
 
     A fine-grid point either coincides with a coarse-grid point or lies at
-    some fixed fractional position between two coarse-grid points, determined
-    at compile time by the parity of its global index and the (matching)
-    staggering. `ConditionalDimension` gates each of the 2**ndim parity
-    combinations; within each, Lagrange interpolation weights (degree `so`)
-    are evaluated at that fractional position. Restriction is the transpose
-    of interpolation.
-
-    `glb_starts_f`/`glb_starts_c` (per-dimension `GlobalStartScalar`s) convert
-    between local and global indices so the parity/offset arithmetic is
-    correct even when `fine` and `coarse` are decomposed independently under
-    MPI. If not supplied, they are built from `fine.grid.distributor` /
-    `coarse.grid.distributor` respectively.
+    some fixed fractional position between two coarse-grid points.
     """
 
     def __init__(self, fine, coarse, so=None, glb_starts_f=None, glb_starts_c=None,
@@ -408,7 +382,7 @@ class GridTransfer:
         For a parity `flag` (0 or 1) and whether this dimension is staggered,
         return the compile-time integer coarse-index offset and the
         fractional position (in [0, 1)) at which to evaluate the Lagrange
-        weights. Unstaggered: `frac` is 0 (coincident) or 1/2 (midpoint) --
+        weights. Unstaggered: `frac` is 0 (coincident) or 1/2 (midpoint) -
         today's only supported case. Staggered (both fine and coarse, by
         construction): `frac` alternates between two asymmetric values (e.g.
         1/4, 3/4); there is no exact coincidence.
@@ -472,7 +446,7 @@ class GridTransfer:
 
     @cached_property
     def restrict_eq(self):
-        # R = P^T. Loop over coarse indices — the natural direction. For each
+        # R = P^T. Loop over coarse indices. For each
         # parity flag `f`, invert the interpolation index relation
         # `i_c = k + extra(f)` (so `k = i_c - extra(f)`, `gf = 2k + f`) to find
         # which fine points depend on a given coarse point and with what
@@ -642,37 +616,9 @@ class GridRestriction(UnevaluatedGridTransfer):
     __str__ = __repr__
 
 
-def _validate_transfer(source, target, *, want_finer_target):
-    """
-    Check that `source` and `target` are adjacent levels (exactly one
-    factor-2 coarsening apart) of the same GridHierarchy, with `target` on
-    the side (finer/coarser) that the calling function name promises, and
-    that they have matching staggering.
-    """
-    source_depth = getattr(source.grid, 'coarsening_depth', 0)
-    target_depth = getattr(target.grid, 'coarsening_depth', 0)
-    expected_target_depth = source_depth - 1 if want_finer_target else source_depth + 1
-
-    if source.grid.root is not target.grid.root or target_depth != expected_target_depth:
-        direction = 'finer' if want_finer_target else 'coarser'
-        raise ValueError(
-            f"`target` must be exactly one factor-2 coarsening {direction} "
-            f"than `source`, in the same GridHierarchy; got "
-            f"source.grid={source.grid} (depth={source_depth}), "
-            f"target.grid={target.grid} (depth={target_depth})"
-        )
-    if _field_shifts(source) != _field_shifts(target):
-        raise ValueError(
-            f"`source` and `target` must have matching staggering (they "
-            f"should represent the same physical field at two resolutions); "
-            f"got source.staggered={getattr(source, 'staggered', None)}, "
-            f"target.staggered={getattr(target, 'staggered', None)}"
-        )
-
-
 def interpolate(source, target):
     """
-    Interpolate `source` (coarse) onto `target` (fine) -- `target` must be
+    Interpolate `source` (coarse) onto `target` (fine) - `target` must be
     exactly one factor-2 coarsening finer than `source`, in the same
     GridHierarchy.
 
@@ -689,7 +635,6 @@ def interpolate(source, target):
     passed to Operator (mirrors SparseFunction.interpolate/.inject, e.g.
     `Operator([Eq(f, f + 1)] + interpolate(source, target))`).
     """
-    _validate_transfer(source, target, want_finer_target=True)
     return GridInterpolation(GridTransfer(target, source))
 
 
@@ -712,5 +657,4 @@ def restrict(source, target):
     passed to Operator (mirrors SparseFunction.interpolate/.inject, e.g.
     `Operator([Eq(f, f + 1)] + restrict(source, target))`).
     """
-    _validate_transfer(source, target, want_finer_target=False)
     return GridRestriction(GridTransfer(source, target))

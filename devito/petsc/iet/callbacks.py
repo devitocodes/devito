@@ -1997,8 +1997,8 @@ class MultigridCallbackMixin:
             DummyExpr(FieldFromPointer(dmf, pctx), FieldFromPointer(da, sctxf)),
             DummyExpr(FieldFromPointer(uctx_c._C_symbol, pctx), FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxc)], Byref(sctxc))),
             DummyExpr(FieldFromPointer(uctx_f._C_symbol, pctx), FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxf)], Byref(sctxf))),
-            *_query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
-            *_query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
+            *query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
+            *query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
             petsc_call('MatCreateShell', [petsc_obj_comm,
                 finesize, coarsesize,
                 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]),
@@ -2077,8 +2077,8 @@ class MultigridCallbackMixin:
                     all_ctx.indexed[FieldFromPointer(level, sctxf)], Byref(sctxf)
                 )
             ),
-            *_query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
-            *_query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
+            *query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
+            *query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
             # Restriction mat: rows=coarse local, cols=fine local (transpose of interpolation)
             petsc_call('MatCreateShell', [
                 petsc_obj_comm,
@@ -2217,7 +2217,7 @@ def populate_matrix_context(efuncs):
     )
 
 
-def _query_local_size(dm, size, tmpvec):
+def query_local_size(dm, size, tmpvec):
     """
     """
     return (

@@ -770,10 +770,7 @@ class CoarseDistributor(DenseDistributor):
     @property
     def neighborhood(self):
         """
-        Like `Distributor.neighborhood`, but for a coarser level of a grid
-        hierarchy. The coarse decomposition covers the entire (coarsened)
-        domain, exactly like a plain `Distributor`, so no SubDomain-style
-        `crosses` check is needed (cf. `SubDistributor.neighborhood`).
+        TODO: Same as `Distributor.neighborhood` - minimise code duplication
         """
         shifts = {d: self.comm.Shift(i, 1) for i, d in enumerate(self.dimensions)}
         ret = {}
