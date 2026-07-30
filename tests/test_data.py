@@ -1736,6 +1736,75 @@ class TestDataDistributed:
             assert np.all(result[3] == [[3, 2, 1, 0]])
 
 
+class Windowed:
+
+    """
+    A value read by window rather than held in memory, e.g. a memory mapped
+    array, an HDF5 dataset or a file reader. Records the windows it is read
+    with, so that a test can check what was needed.
+    """
+
+    def __init__(self, array):
+        self.array = array
+        self.shape = array.shape
+        self.reads = []
+
+    def __getitem__(self, window):
+        self.reads.append(window)
+        return self.array[window]
+
+
+class TestWindowedInsertion:
+
+    """
+    Test assigning a value that is read by window, which every rank does for
+    the part of it that it owns.
+    """
+
+    def test_insertion(self):
+        grid = Grid(shape=(6, 4))
+        f = Function(name='f', grid=grid, space_order=0)
+        glb = np.arange(24, dtype=grid.dtype).reshape(6, 4)
+
+        source = Windowed(glb)
+        f.data[:] = source
+
+        assert np.all(f.data == glb)
+        assert len(source.reads) == 1
+
+    @pytest.mark.parallel(mode=4)
+    def test_insertion_parallel(self, mode):
+        grid = Grid(shape=(6, 4))
+        f = Function(name='f', grid=grid, space_order=0)
+        g = Function(name='g', grid=grid, space_order=0)
+        glb = np.arange(24, dtype=grid.dtype).reshape(6, 4)
+
+        source = Windowed(glb)
+        f.data[:] = source
+        g.data[:] = glb
+
+        # Only the part owned by this rank was read, and it is what was set
+        assert np.all(f.data_local == g.data_local)
+        assert len(source.reads) == 1
+        assert glb[source.reads[0]].shape == f.data_local.shape
+
+    @pytest.mark.parallel(mode=4)
+    def test_insertion_subsection(self, mode):
+        grid = Grid(shape=(8, 8))
+        f = Function(name='f', grid=grid, space_order=0)
+        glb = np.arange(36, dtype=grid.dtype).reshape(6, 6)
+
+        source = Windowed(glb)
+        f.data[:] = 0.
+        f.data[1:7, 1:7] = source
+
+        expected = np.zeros(grid.shape, dtype=grid.dtype)
+        expected[1:7, 1:7] = glb
+        gathered = f.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.all(gathered == expected)
+
+
 class TestDataGather:
 
     @pytest.mark.parallel(mode=4)
