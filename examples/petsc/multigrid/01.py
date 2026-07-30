@@ -11,7 +11,6 @@ from devito.petsc.initialize import PetscInitialize
 configuration['compiler'] = 'custom'
 os.environ['CC'] = 'mpicc'
 
-
 # 1D test
 # Solving -u.laplace = f(x)
 # Dirichlet BCs: u(0) = -1, u(1) = -e
@@ -19,6 +18,7 @@ os.environ['CC'] = 'mpicc'
 # ref - https://github.com/bueler/p4pdes/blob/master/c/ch6/fish.c
 
 PetscInitialize()
+
 
 # Subdomains to implement BCs
 class SubLeft(SubDomain):
@@ -112,4 +112,3 @@ print(f"Infinity norm of error: {infinity_norm}")
 n_interior = np.prod([s - 1 for s in grid.shape])
 discrete_l2_norm = norm(diff) / np.sqrt(n_interior)
 print(f"Discrete L2 norm of error: {discrete_l2_norm}")
-    

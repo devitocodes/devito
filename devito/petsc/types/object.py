@@ -84,7 +84,7 @@ class Mat(PetscObject):
 
     def _C_free_impl(self):
         return petsc_call('MatDestroy', [Byref(self.function)])
-    
+
 
 class PointerMatArg(Mat):
     """
@@ -101,7 +101,7 @@ class Vec(PetscObject):
 
     def _C_free_impl(self):
         return petsc_call('VecDestroy', [Byref(self.function)])
-    
+
 
 class PointerVecArg(Vec):
     """
@@ -358,7 +358,6 @@ class ProlongCtx(PETScStruct):
 
     def _C_free_impl(self):
         return petsc_call('PetscFree', [self.function])
-
 
 
 class PETScArrayObject(PetscMixin, ArrayObject, LocalType):

@@ -25,6 +25,7 @@ def lower_exprs_petsc(expressions, **kwargs):
 
 def lower_multilevel_fine_grid_accesses(expressions, **kwargs):
     """
+    TODO: improve, quite hacky and ugly code
     """
     ml_exprs = [e for e in expressions
                 if isinstance(e, CallbackEq) and e.is_multilevel]
@@ -45,16 +46,6 @@ def lower_multilevel_fine_grid_accesses(expressions, **kwargs):
 
         syms = {}
 
-        def _gsc_gsf(d):
-            if d not in syms:
-                root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
-                gsc = GlobalStartScalar(f'{d.name}_m_glb', dim=d,
-                                        distributor=distributor, root=root)
-                gsf = FineGlobalStartScalar(f'{d.name}_m_glb_d0', dim=d,
-                                            distributor=distributor, root=root)
-                syms[d] = (gsc, gsf)
-            return syms[d]
-
         mapper = {}
         for i in retrieve_indexed(e):
             if i.function.grid is not fine_grid or isinstance(i.function, PETScArray):
@@ -64,7 +55,18 @@ def lower_multilevel_fine_grid_accesses(expressions, **kwargs):
                 for s in a.free_symbols:
                     root = getattr(s, 'root', s)
                     if root in fine_grid.dimensions:
-                        gsc, gsf = _gsc_gsf(root)
+                        if root not in syms:
+                            root_scalar = Scalar(name=f'{root.name}_m_glb',
+                                                 dtype=np.int32, is_const=True)
+                            gsc = GlobalStartScalar(f'{root.name}_m_glb', dim=root,
+                                                    distributor=distributor,
+                                                    root=root_scalar)
+                            gsf = FineGlobalStartScalar(f'{root.name}_m_glb_d0',
+                                                        dim=root,
+                                                        distributor=distributor,
+                                                        root=root_scalar)
+                            syms[root] = (gsc, gsf)
+                        gsc, gsf = syms[root]
                         dim_map[s] = factor * (s + gsc) - gsf
             if dim_map:
                 mapper[i] = uxreplace(i, dim_map)

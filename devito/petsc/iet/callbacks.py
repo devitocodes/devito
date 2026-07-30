@@ -1458,7 +1458,9 @@ class MultigridCallbackMixin:
         pctx_fields = [dmc, dmf, uctx_c, uctx_f]
         if self.multigrid_metadata.full_weighting:
             pctx_fields.append(self.solver_objs['row_sum'])
-        self.solver_objs['pctx'] = ProlongCtx(name='pctx', fields=pctx_fields, destroy=False)
+        self.solver_objs['pctx'] = ProlongCtx(
+            name='pctx', fields=pctx_fields, destroy=False
+        )
 
         self._make_interpolation_matmult()
         self._make_interpolation_destroy()
@@ -1559,13 +1561,36 @@ class MultigridCallbackMixin:
         body = [
             petsc_call('DMShellCreate', [petsc_obj_comm, dm_shell_out]),
             petsc_call('DMShellSetContext', [Deref(dm_shell_out), shell_context]),
-            petsc_call('DMShellSetCreateMatrix', [Deref(dm_shell_out), PetscCallback(self.make_create_matrix_efunc.name)]),
-            petsc_call('DMShellSetCreateGlobalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_global_vector_efunc.name)]),
-            petsc_call('DMShellSetCreateLocalVector', [Deref(dm_shell_out), PetscCallback(self.make_create_local_vector_efunc.name)]),
-            petsc_call('DMShellSetRefine', [Deref(dm_shell_out), PetscCallback(self.make_refine_efunc.name)]),
-            petsc_call('DMShellSetCoarsen', [Deref(dm_shell_out), PetscCallback(self.make_coarsen_efunc.name)]),
-            petsc_call('DMShellSetCreateInterpolation', [Deref(dm_shell_out), PetscCallback(self.make_interpolation_efunc.name)]),
-            petsc_call('DMShellSetCreateRestriction', [Deref(dm_shell_out), PetscCallback(self.make_restriction_efunc.name)]),
+            petsc_call(
+                'DMShellSetCreateMatrix',
+                [Deref(dm_shell_out), PetscCallback(self.make_create_matrix_efunc.name)]
+            ),
+            petsc_call(
+                'DMShellSetCreateGlobalVector',
+                [Deref(dm_shell_out),
+                 PetscCallback(self.make_create_global_vector_efunc.name)]
+            ),
+            petsc_call(
+                'DMShellSetCreateLocalVector',
+                [Deref(dm_shell_out),
+                 PetscCallback(self.make_create_local_vector_efunc.name)]
+            ),
+            petsc_call(
+                'DMShellSetRefine',
+                [Deref(dm_shell_out), PetscCallback(self.make_refine_efunc.name)]
+            ),
+            petsc_call(
+                'DMShellSetCoarsen',
+                [Deref(dm_shell_out), PetscCallback(self.make_coarsen_efunc.name)]
+            ),
+            petsc_call(
+                'DMShellSetCreateInterpolation',
+                [Deref(dm_shell_out), PetscCallback(self.make_interpolation_efunc.name)]
+            ),
+            petsc_call(
+                'DMShellSetCreateRestriction',
+                [Deref(dm_shell_out), PetscCallback(self.make_restriction_efunc.name)]
+            ),
         ]
         callable_body = self._make_callable_body(body)
         cb = PETScCallable(
@@ -1618,7 +1643,7 @@ class MultigridCallbackMixin:
     @property
     def make_create_matrix_efunc(self):
         return self._make_create_matrix_efunc
-    
+
     def _make_create_global_vector(self):
         """
         """
@@ -1641,7 +1666,7 @@ class MultigridCallbackMixin:
     @property
     def make_create_global_vector_efunc(self):
         return self._make_create_global_vector_efunc
-    
+
     def _make_create_local_vector(self):
         """
         """
@@ -1664,7 +1689,7 @@ class MultigridCallbackMixin:
     @property
     def make_create_local_vector_efunc(self):
         return self._make_create_local_vector_efunc
-    
+
     def _make_refine(self):
         """
         Trivial: return the pre-built finer shell from sctx->all_shells[level-1].
@@ -1700,7 +1725,7 @@ class MultigridCallbackMixin:
     @property
     def make_refine_efunc(self):
         return self._make_refine_efunc
-    
+
     def _make_coarsen(self):
         """
         Trivial: return the pre-built coarser shell from sctx->all_shells[level+1].
@@ -1797,12 +1822,11 @@ class MultigridCallbackMixin:
             extra_get_restore=extra_get_restore,
         )
 
-    def _create_grid_transfer_body(self, body,
-                                    read_dm, read_glob, read_local,
-                                    write_dm, write_glob, write_local,
-                                    zero_read_local=False,
-                                    scatter_mode=None,
-                                    extra_get_restore=()):
+    # TODO: clean up args......
+    def _create_grid_transfer_body(self, body, read_dm, read_glob,
+                                   read_local, write_dm, write_glob,
+                                   write_local, zero_read_local=False,
+                                   scatter_mode=None, extra_get_restore=()):
         """
         Shared body builder for InterpolationMult and RestrictionMult.
         """
@@ -1829,7 +1853,9 @@ class MultigridCallbackMixin:
 
         shell_get_context = petsc_call('MatShellGetContext', [sobjs['mat'], Byref(pctx)])
 
-        dm_get_local_readvec = petsc_call('DMGetLocalVector', [read_dm, Byref(read_local)])
+        dm_get_local_readvec = petsc_call(
+            'DMGetLocalVector', [read_dm, Byref(read_local)]
+        )
         zero_read = zero_vector(read_local)
         global_to_local_begin = petsc_call(
             'DMGlobalToLocalBegin', [read_dm, read_glob, insert_values, read_local]
@@ -1838,7 +1864,9 @@ class MultigridCallbackMixin:
             'DMGlobalToLocalEnd', [read_dm, read_glob, insert_values, read_local]
         )
 
-        dm_get_local_writevec = petsc_call('DMGetLocalVector', [write_dm, Byref(write_local)])
+        dm_get_local_writevec = petsc_call(
+            'DMGetLocalVector', [write_dm, Byref(write_local)]
+        )
         zero_write = zero_vector(write_local)
 
         vec_get_array_y = petsc_call('VecGetArray', [ylocal, Byref(y_matvec._C_symbol)])
@@ -1859,8 +1887,12 @@ class MultigridCallbackMixin:
             'DMDAGetLocalInfo', [dmf, Byref(multigrid_metadata.fine_localinfo)]
         )
 
-        vec_restore_array_y = petsc_call('VecRestoreArray', [ylocal, Byref(y_matvec._C_symbol)])
-        vec_restore_array_x = petsc_call('VecRestoreArray', [xlocal, Byref(x_matvec._C_symbol)])
+        vec_restore_array_y = petsc_call(
+            'VecRestoreArray', [ylocal, Byref(y_matvec._C_symbol)]
+        )
+        vec_restore_array_x = petsc_call(
+            'VecRestoreArray', [xlocal, Byref(x_matvec._C_symbol)]
+        )
 
         dm_local_to_global_begin = petsc_call(
             'DMLocalToGlobalBegin', [write_dm, write_local, scatter_mode, write_glob]
@@ -1931,7 +1963,7 @@ class MultigridCallbackMixin:
                 if i in glb_start_syms_f:
                     self._struct_params.append(
                         GlobalStartScalar(i.root.name, dim=i._dim,
-                                         distributor=i._distributor, root=i.root)
+                                          distributor=i._distributor, root=i.root)
                     )
             else:
                 subs[i._C_symbol] = FieldFromPointer(
@@ -1982,10 +2014,12 @@ class MultigridCallbackMixin:
         mat = self.solver_objs['mat_ptr']
         vec = self.solver_objs['vec']
         level = self.solver_objs['grid_level']
-        finesize = self.solver_objs['finesize']
-        coarsesize = self.solver_objs['coarsesize']
+        fsize = self.solver_objs['finesize']
+        csize = self.solver_objs['coarsesize']
         tmpvec = self.solver_objs['tmpvec']
         petsc_obj_comm = Call('PetscObjectComm', arguments=[PetscObjectCast(shellc)])
+        matmult_name = self._interpolation_matmult_efunc.name
+        destroy_name = self._interpolation_destroy_efunc.name
 
         body = [
             petsc_call('DMShellGetContext', [shellc, Byref(sctxc)]),
@@ -1993,15 +2027,30 @@ class MultigridCallbackMixin:
             petsc_call('PetscMalloc1', [1, Byref(pctx)]),
             DummyExpr(FieldFromPointer(dmc, pctx), FieldFromPointer(da, sctxc)),
             DummyExpr(FieldFromPointer(dmf, pctx), FieldFromPointer(da, sctxf)),
-            DummyExpr(FieldFromPointer(uctx_c._C_symbol, pctx), FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxc)], Byref(sctxc))),
-            DummyExpr(FieldFromPointer(uctx_f._C_symbol, pctx), FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxf)], Byref(sctxf))),
-            *query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
-            *query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
-            petsc_call('MatCreateShell', [petsc_obj_comm,
-                finesize, coarsesize,
-                'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]),
-            petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_MULT', MatShellSetOp(self._interpolation_matmult_efunc.name, void, void)]),
-            petsc_call('MatShellSetOperation', [Deref(mat), 'MATOP_DESTROY', MatShellSetOp(self._interpolation_destroy_efunc.name, void, void)]),
+            DummyExpr(
+                FieldFromPointer(uctx_c._C_symbol, pctx),
+                FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxc)],
+                                 Byref(sctxc))
+            ),
+            DummyExpr(
+                FieldFromPointer(uctx_f._C_symbol, pctx),
+                FieldFromPointer(all_ctx.indexed[FieldFromPointer(level, sctxf)],
+                                 Byref(sctxf))
+            ),
+            *query_local_size(FieldFromPointer(dmf, pctx), fsize, tmpvec),
+            *query_local_size(FieldFromPointer(dmc, pctx), csize, tmpvec),
+            petsc_call(
+                'MatCreateShell',
+                [petsc_obj_comm, fsize, csize, 'PETSC_DECIDE', 'PETSC_DECIDE', pctx, mat]
+            ),
+            petsc_call(
+                'MatShellSetOperation',
+                [Deref(mat), 'MATOP_MULT', MatShellSetOp(matmult_name, void, void)]
+            ),
+            petsc_call(
+                'MatShellSetOperation',
+                [Deref(mat), 'MATOP_DESTROY', MatShellSetOp(destroy_name, void, void)]
+            ),
             # No scaling vector
             Conditional(vec, DummyExpr(Deref(vec), Null)),
         ]
@@ -2077,7 +2126,8 @@ class MultigridCallbackMixin:
             ),
             *query_local_size(FieldFromPointer(dmc, pctx), coarsesize, tmpvec),
             *query_local_size(FieldFromPointer(dmf, pctx), finesize, tmpvec),
-            # Restriction mat: rows=coarse local, cols=fine local (transpose of interpolation)
+            # Restriction mat: rows=coarse local, cols=fine local
+            # (transpose of interpolation)
             petsc_call('MatCreateShell', [
                 petsc_obj_comm,
                 coarsesize, finesize,
@@ -2160,8 +2210,6 @@ class MultigridCallbackMixin:
     def _formfunc_dm_init(self, callbackdm, objs):
         return [Definition(callbackdm),
                 petsc_call('SNESGetDM', [objs['snes'], Byref(callbackdm)])]
-    
-
 
 
 def make_callback_builder_cls(is_coupled, is_multigrid, is_initial_guess,

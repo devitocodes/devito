@@ -19,11 +19,11 @@ from devito.petsc.initialize import PetscInitialize
 from devito.petsc.logging import PetscSummary
 from devito.petsc.solve import EssentialBC, petscsolve
 from devito.petsc.solver_parameters import linear_solve_defaults
-from devito.petsc.types import (
+from devito.petsc.types import (  # noqa
     DM, KSP, PC, CallbackEq, FieldData, KSPConvergedReason, Mat, MultipleFieldData,
     PETScArray, PetscMPIInt, SubMatrixBlock, Vec
 )
-from devito.petsc.types.multigrid import GridHierarchy, SubGrid, interpolate, restrict
+from devito.petsc.types.multigrid import GridHierarchy, interpolate, restrict
 from devito.types import Constant, LocalCompositeObject
 
 
@@ -1151,8 +1151,10 @@ class TestCoupledLinear:
          'CallbackEq(y_e(x, y), h_x*h_y*(-x_g(x, y) - Derivative(x_g(x, y), x)))',
          'CallbackEq(y_g(x, y), h_x*h_y*(-x_e(x, y) - Derivative(x_e(x, y), x)))'),
         ('CallbackEq(e, g.dx + g.dy)', 'CallbackEq(g, e.dx + e.dy)',
-         'CallbackEq(y_e(x, y), h_x*h_y*(-Derivative(x_g(x, y), x) - Derivative(x_g(x, y), y)))',
-         'CallbackEq(y_g(x, y), h_x*h_y*(-Derivative(x_e(x, y), x) - Derivative(x_e(x, y), y)))'),
+         'CallbackEq(y_e(x, y), h_x*h_y*(-Derivative(x_g(x, y), x) '
+         '- Derivative(x_g(x, y), y)))',
+         'CallbackEq(y_g(x, y), h_x*h_y*(-Derivative(x_e(x, y), x) '
+         '- Derivative(x_e(x, y), y)))'),
         ('CallbackEq(g, -e.laplace)', 'CallbackEq(e, -g.laplace)',
          'CallbackEq(y_e(x, y), h_x*h_y*x_g(x, y))',
          'CallbackEq(y_g(x, y), h_x*h_y*x_e(x, y))'),
@@ -1190,16 +1192,18 @@ class TestCoupledLinear:
     @pytest.mark.parametrize('eq1, eq2, so, scale', [
         ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '2', '-2.0*h_x/h_x**2'),
         ('CallbackEq(e.laplace, f)', 'CallbackEq(g.laplace, h)', '4', '-2.5*h_x/h_x**2'),
-        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '2', 'h_x*(1 - 2.0/h_x**2)'),
-        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '4', 'h_x*(1 - 2.5/h_x**2)'),
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '2',
+         'h_x*(1 - 2.0/h_x**2)'),
+        ('CallbackEq(e.laplace + e, f)', 'CallbackEq(g.laplace + g, h)', '4',
+         'h_x*(1 - 2.5/h_x**2)'),
         ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '2',
          'h_x*(5.0 - 2.0/h_x**2)'),
         ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '4',
          'h_x*(5.0 - 2.5/h_x**2)'),
-        ('CallbackEq(e.dx + e + e.laplace, f)', 'CallbackEq(g.dx + g + g.laplace, h.dx)', '2',
-         'h_x*(1 - 1/h_x - 2.0/h_x**2)'),
-        ('CallbackEq(e.dx + e + e.laplace, f)', 'CallbackEq(g.dx + g + g.laplace, h.dx)', '4',
-         'h_x*(1 - 2.5/h_x**2)'),
+        ('CallbackEq(e.dx + e + e.laplace, f)', 'CallbackEq(g.dx + g + g.laplace, h.dx)',
+         '2', 'h_x*(1 - 1/h_x - 2.0/h_x**2)'),
+        ('CallbackEq(e.dx + e + e.laplace, f)', 'CallbackEq(g.dx + g + g.laplace, h.dx)',
+         '4', 'h_x*(1 - 2.5/h_x**2)'),
         ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '2',
          'h_x*(1 - 4.0/h_x**2)'),
         ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '4',
@@ -1246,10 +1250,12 @@ class TestCoupledLinear:
          'h_x*h_y*(5.0 - 2.0/h_y**2 - 2.0/h_x**2)'),
         ('CallbackEq(e.laplace + 5.*e, f)', 'CallbackEq(g.laplace + 5.*g, h)', '4',
          'h_x*h_y*(5.0 - 2.5/h_y**2 - 2.5/h_x**2)'),
-        ('CallbackEq(e.dx + e.dy + e + e.laplace, f)', 'CallbackEq(g.dx + g.dy + g + g.laplace, h)',
+        ('CallbackEq(e.dx + e.dy + e + e.laplace, f)',
+         'CallbackEq(g.dx + g.dy + g + g.laplace, h)',
          '2', 'h_x*h_y*(1 - 1/h_y - 2.0/h_y**2 - 1/h_x - 2.0/h_x**2)'),
-        ('CallbackEq(e.dx + e.dy + e + e.laplace, f)', 'CallbackEq(g.dx + g.dy + g + g.laplace, h)',
-         '4', 'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
+        ('CallbackEq(e.dx + e.dy + e + e.laplace, f)',
+         'CallbackEq(g.dx + g.dy + g + g.laplace, h)', '4',
+         'h_x*h_y*(1 - 2.5/h_y**2 - 2.5/h_x**2)'),
         ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '2',
          'h_x*h_y*(1 - 4.0/h_y**2 - 4.0/h_x**2)'),
         ('CallbackEq(2.*e.laplace + e, f)', 'CallbackEq(2*g.laplace + g, h)', '4',
@@ -3031,7 +3037,8 @@ class TestInterpolation1D:
         Operator(interpolate(u_coarse, u_fine)).apply()
 
         expected = np.arange(9)
-        # E.g on rank 0, loc = slice(0, 5, None) so we check u_fine.data against expected[0:5]
+        # E.g on rank 0, loc = slice(0, 5, None) so we check u_fine.data
+        # against expected[0:5]
         loc = grid.distributor.glb_slices[x]
         assert np.allclose(u_fine.data, expected[loc])
 
@@ -3253,15 +3260,17 @@ class TestCoarseSymbols:
         # nprocs=4: rank0=0, rank1=0, rank2=0, rank3=1
         sg1 = hierarchy.levels[1]
         d1 = sg1.distributor
-        coarse_dim_map1 = dict(zip(sg1.parent.dimensions, sg1.dimensions))
+        coarse_dim_map1 = dict(zip(sg1.parent.dimensions, sg1.dimensions, strict=True))
 
         expected_ltkn_l1 = {2: [2, 0], 3: [2, 0, 0], 4: [2, 0, 0, 0]}
         expected_rtkn_l1 = {2: [0, 1], 3: [0, 0, 1], 4: [0, 0, 0, 1]}
 
         coarse_ltkn = _coarse_thickness(ltkn, sg1, coarse_dim_map1)
         coarse_rtkn = _coarse_thickness(rtkn, sg1, coarse_dim_map1)
-        assert coarse_ltkn._arg_values()[coarse_ltkn.name] == expected_ltkn_l1[d1.nprocs][d1.myrank]
-        assert coarse_rtkn._arg_values()[coarse_rtkn.name] == expected_rtkn_l1[d1.nprocs][d1.myrank]
+        assert coarse_ltkn._arg_values()[coarse_ltkn.name] == \
+            expected_ltkn_l1[d1.nprocs][d1.myrank]
+        assert coarse_rtkn._arg_values()[coarse_rtkn.name] == \
+            expected_rtkn_l1[d1.nprocs][d1.myrank]
 
         # Level 2: 3-point coarsest grid
         # coarse_ltkn = ceil(3/2^2) = 1, coarse_rtkn = ceil(2/2^2) = 1
@@ -3279,15 +3288,17 @@ class TestCoarseSymbols:
         # nprocs=4: rank0=0, rank1=0, rank2=1, rank3=0  (rank 3 is empty)
         sg2 = hierarchy.levels[2]
         d2 = sg2.distributor
-        coarse_dim_map2 = dict(zip(sg2.parent.dimensions, sg2.dimensions))
+        coarse_dim_map2 = dict(zip(sg2.parent.dimensions, sg2.dimensions, strict=True))
 
         expected_ltkn_l2 = {2: [1, 0], 3: [1, 0, 0], 4: [1, 0, 0, 0]}
         expected_rtkn_l2 = {2: [0, 1], 3: [0, 0, 1], 4: [0, 0, 1, 0]}
 
         coarse_ltkn2 = _coarse_thickness(ltkn, sg2, coarse_dim_map2)
         coarse_rtkn2 = _coarse_thickness(rtkn, sg2, coarse_dim_map2)
-        assert coarse_ltkn2._arg_values()[coarse_ltkn2.name] == expected_ltkn_l2[d2.nprocs][d2.myrank]
-        assert coarse_rtkn2._arg_values()[coarse_rtkn2.name] == expected_rtkn_l2[d2.nprocs][d2.myrank]
+        assert coarse_ltkn2._arg_values()[coarse_ltkn2.name] == \
+            expected_ltkn_l2[d2.nprocs][d2.myrank]
+        assert coarse_rtkn2._arg_values()[coarse_rtkn2.name] == \
+            expected_rtkn_l2[d2.nprocs][d2.myrank]
 
 
 class TestMultiGrid1D:

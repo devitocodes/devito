@@ -57,8 +57,10 @@ def mirror_halo(field, dims=None, r_coeff=1):
                 continue
 
             sub = _MirrorSubDomain(field.grid, dim, side, thickness + 1)
-            raw = next(sd for orig, sd in zip(field.space_dimensions, sub.dimensions)
-                       if orig is dim)
+            raw = next(
+                sd for orig, sd in zip(field.space_dimensions, sub.dimensions,
+                                       strict=True) if orig is dim
+            )
             m, M = dim.symbolic_min, dim.symbolic_max
 
             staggered = shifts[dim]

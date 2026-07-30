@@ -16,7 +16,7 @@ def make_core_petsc_calls(objs, comm):
 
 
 def make_section_bc_calls(dmda, lsection, gsection, sf, num_bcs,
-                           count_bc_name, set_point_bc_name):
+                          count_bc_name, set_point_bc_name):
     """
     Attach a PetscSection to `dmda`, constraining the points counted/marked
     by the `CountBCs`/`SetPointBCs` callbacks.
@@ -103,7 +103,7 @@ class BuilderBase:
         sobjs = self.solver_objs
         return petsc_call('DMCreateGlobalVector',
                           [sobjs['dmda'], Byref(sobjs['bglobal'])])
-    
+
     def _mat_set_dm(self):
         """
         Set the DM for the Jacobian matrix.
@@ -111,7 +111,7 @@ class BuilderBase:
         sobjs = self.solver_objs
         # TODO: maybe don't need to explicitly set this?
         return petsc_call('MatSetDM', [sobjs['Jac'], sobjs['dmda']])
-    
+
     def _mat_shell_set_matop_mult(self):
         """
         Set the MATOP_MULT operation for the Jacobian.
@@ -168,7 +168,7 @@ class BuilderBase:
         # TODO: potentially also need to set the DM and local/global map to xlocal
 
         get_local_size = petsc_call('VecGetLocalSize',
-                                     [sobjs['xlocal'], Byref(sobjs['localsize'])])
+                                    [sobjs['xlocal'], Byref(sobjs['localsize'])])
 
         snes_get_ksp = petsc_call('SNESGetKSP',
                                   [sobjs['snes'], Byref(sobjs['ksp'])])
@@ -224,8 +224,9 @@ class BuilderBase:
             call_struct_callback,
             petsc_call('DMSetApplicationContext', [dmda, Byref(mainctx)])
         )
-    
-    # TODO: Use symbols for DMDA create inputs so code doesn't change when topology changes etc..
+
+    # TODO: Use symbols for DMDA create inputs so code doesn't change when
+    # topology changes etc..
     def _create_dmda(self, dmda, shape=None, lc_arrays=None):
         sobjs = self.solver_objs
         grid = self.field_data.grid
@@ -278,10 +279,10 @@ class CoupledBuilderMixin(BuilderBase):
         return petsc_call(
             'DMCreateLocalVector', [sobjs['dmda'], Byref(sobjs['xlocal'])]
         )
-    
+
     def _create_global_b_vector(self):
         return None
-    
+
     def _extend_setup(self):
         base = super()._extend_setup()
         sobjs = self.solver_objs
@@ -351,7 +352,7 @@ class CoupledBuilderMixin(BuilderBase):
             call_coupled_struct_callback,
             shell_set_ctx,
             create_submats,
-            ) + tuple(deref_dms) + tuple(xglobals) + tuple(xlocals)
+        ) + tuple(deref_dms) + tuple(xglobals) + tuple(xlocals)
 
 
 class ConstrainedBCMixin:
@@ -426,7 +427,7 @@ class MultigridBuilderMixin:
     """
     def _solver_dm(self):
         return self.solver_objs['shell']
-    
+
     @property
     def snes_set_function_context(self):
         # Context is retrieved from the DM at runtime via DMShellGetContext.
@@ -491,7 +492,9 @@ class MultigridBuilderMixin:
 
         def _dmda_create_calls(i, shape=None):
             calls = [
-                self._create_dmda(IndexedPointer(all_da, i), shape=shape, lc_arrays=lc[i]),
+                self._create_dmda(
+                    IndexedPointer(all_da, i), shape=shape, lc_arrays=lc[i]
+                ),
                 petsc_call('DMSetFromOptions', [IndexedPointer(all_da, i)]),
                 petsc_call('DMSetUp', [IndexedPointer(all_da, i)]),
             ]
@@ -563,6 +566,7 @@ class MultigridBuilderMixin:
             set_refine,
         )
 
+
 def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
     """
     Construct a Builder class by composing the appropriate mixins
@@ -592,6 +596,7 @@ def make_builder_cls(is_coupled, is_multigrid, is_constrained_bc):
         return BuilderBase
 
     return type('Builder', tuple(mixins), {})
+
 
 def petsc_call_mpi(specific_call, call_args):
     return PETScCall('PetscCallMPI', [PETScCall(specific_call, arguments=call_args)])

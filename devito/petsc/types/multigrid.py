@@ -10,7 +10,7 @@ from devito.symbolics import IntDiv
 from devito.tools import Pickable, as_tuple, flatten
 from devito.types.basic import Scalar
 from devito.types.dimension import (
-    ConditionalDimension, CustomDimension, SpaceDimension, Spacing, Thickness
+    ConditionalDimension, SpaceDimension, Spacing, Thickness
 )
 from devito.types.equation import Eq
 from devito.types.grid import Grid
@@ -222,7 +222,7 @@ class GridHierarchy:
 
         divisor = 2 ** (nlevels - 1)
         invalid = [
-            (d, n) for d, n in zip(fine_grid.dimensions, fine_grid.shape)
+            (d, n) for d, n in zip(fine_grid.dimensions, fine_grid.shape, strict=True)
             if (n - 1) % divisor != 0
         ]
         if invalid:
@@ -300,7 +300,7 @@ class MultigridMetadata:
             root = Scalar(name=f'{d.name}_m_glb', dtype=np.int32, is_const=True)
             glb_starts_f.append(
                 FineGlobalStartScalar(f'{d.name}_m_glb_d0', dim=d,
-                                     distributor=distributor, root=root)
+                                      distributor=distributor, root=root)
             )
 
         self._glb_start_syms_f = tuple(glb_starts_f)
@@ -411,7 +411,8 @@ class GridTransfer:
         for flags in iterproduct([0, 1], repeat=ndim):
             conditions = [
                 sympy.Eq(sympy.Mod(d + gsf, 2), f)
-                for d, gsf, f in zip(self.fine_dims, self.glb_starts_f, flags)
+                for d, gsf, f in zip(self.fine_dims, self.glb_starts_f, flags,
+                                     strict=True)
             ]
             condition = (sympy.And(*conditions, evaluate=False)
                          if ndim > 1 else conditions[0])
@@ -425,12 +426,13 @@ class GridTransfer:
 
             dim_stencils = []
             for d, gsc, gsf, f, shift in zip(self.fine_dims, self.glb_starts_c,
-                                             self.glb_starts_f, flags, self.shifts):
+                                             self.glb_starts_f, flags, self.shifts,
+                                             strict=True):
                 extra, frac = self._offset_and_frac(shift, f)
                 # C code 1D : (x+x_m_glb_f)/2) - x_m_glb_c + extra
                 i_c = IntDiv(d + gsf - f, 2) - gsc + extra
                 pts, w = self._weights(frac)
-                dim_stencils.append([(i_c + j, wi) for j, wi in zip(pts, w)])
+                dim_stencils.append([(i_c + j, wi) for j, wi in zip(pts, w, strict=True)])
 
             rhs = Integer(0)
             for combo in iterproduct(*dim_stencils):
@@ -457,12 +459,13 @@ class GridTransfer:
         for flags in iterproduct([0, 1], repeat=ndim):
             dim_stencils = []
             for d, gsc, gsf, f, shift in zip(self.coarse_dims, self.glb_starts_c,
-                                             self.glb_starts_f, flags, self.shifts):
+                                             self.glb_starts_f, flags, self.shifts,
+                                             strict=True):
                 extra, frac = self._offset_and_frac(shift, f)
                 pts, w = self._weights(frac)
                 dim_stencils.append(
                     [(2*(d + gsc - extra - j) + f - gsf, wi)
-                     for j, wi in zip(pts, w)]
+                     for j, wi in zip(pts, w, strict=True)]
                 )
 
             for combo in iterproduct(*dim_stencils):

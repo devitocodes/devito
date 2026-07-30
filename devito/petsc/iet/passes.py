@@ -31,9 +31,7 @@ from devito.petsc.types import (
 )
 from devito.petsc.types.dimension import SpaceDimMax, SpaceDimMin, SubDimMax, SubDimMin
 from devito.petsc.types.macros import petsc_func_begin_user
-from devito.symbolics import (
-    Byref, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, Null
-)
+from devito.symbolics import Byref, FieldFromComposite, FieldFromPointer, Macro, Null
 from devito.tools import filter_ordered
 from devito.types.basic import DataSymbol, LocalType
 from devito.types.dense import Function
@@ -196,7 +194,9 @@ def fix_mg_populate_calls(graph, **kwargs):
         subgrid = call.hierarchy.coarse_levels[call.level - 1]
         # Every level's distributor/Dimensions are keyed by that SubGrid's
         # own coarse Dimensions, not the fine grid's - map fine -> coarse.
-        coarse_dim_map = dict(zip(subgrid.parent.dimensions, subgrid.dimensions))
+        coarse_dim_map = dict(
+            zip(subgrid.parent.dimensions, subgrid.dimensions, strict=True)
+        )
 
         if isinstance(f, (SubDimMax, SubDimMin)):
             return type(f)(
@@ -229,7 +229,7 @@ def fix_mg_populate_calls(graph, **kwargs):
         elif isinstance(f, Thickness):
             if f.root is None:
                 # Identifies a MultiSubDimension's (e.g.
-                # Border's) Thickness - its value is always overwritten 
+                # Border's) Thickness - its value is always overwritten
                 # with a predefined array before being read
                 return f
             return _coarse_thickness(f, subgrid, coarse_dim_map)
