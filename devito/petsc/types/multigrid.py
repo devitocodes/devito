@@ -9,8 +9,9 @@ from devito.mpi import CoarseDistributor
 from devito.symbolics import IntDiv
 from devito.tools import Pickable, as_tuple, flatten
 from devito.types.basic import Scalar
-from devito.types.dimension import (ConditionalDimension, CustomDimension,
-                                    SpaceDimension, Spacing, Thickness)
+from devito.types.dimension import (
+    ConditionalDimension, CustomDimension, SpaceDimension, Spacing, Thickness
+)
 from devito.types.equation import Eq
 from devito.types.grid import Grid
 from devito.types.lazy import Evaluable
