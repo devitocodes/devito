@@ -568,6 +568,49 @@ class HaloScheme:
         return self._rebuild(fmapper=fmapper)
 
 
+def _is_local_reflection(read, writes, d):
+    """
+    True if, along Dimension `d`, `read` accesses the exact same (symbolic)
+    index as some write to the same Function within the same Scope.
+
+    Such an access can never require a halo exchange along `d`, regardless
+    of whether the shared index expression is affine in a symbolic (e.g.
+    SubDomain-thickness-driven) offset that `TimedAccess.touched_halo` cannot
+    resolve at compile time: whatever `read` needs was necessarily just
+    produced, at the exact same local index, by the coinciding write -- on
+    the same rank -- so no data ever has to cross a rank boundary for this
+    specific access along this specific Dimension. This is the common shape
+    of a self-referencing update such as `Eq(f.forward, f)` or
+    `Eq(f.forward, a*f.backward + ...)`, where the read and write differ
+    only in a non-distributed (e.g. time) index.
+
+    Note this is checked independently per Dimension, mirroring how
+    `touched_halo` itself is evaluated per Dimension -- a read may coincide
+    with a write along one axis while genuinely requiring a halo exchange
+    along another (e.g. a derivative). Only the axes that provably coincide
+    are ever downgraded.
+
+    TODO(pending review): downgrading a spurious STENCIL flag to IDENTITY
+    here is narrowly correct about data movement, but has been observed to
+    have a real side effect *beyond* this Function's own HaloSchemeEntry:
+    the (data-movement-wise spurious) STENCIL flag this replaces also causes
+    a `HaloTouch` bookkeeping insertion in `HaloComms.callback` (devito/ir/
+    clusters/algorithms.py), which incidentally acts as a cluster-scheduling
+    anchor keeping unrelated Functions' halo exchanges apart. Removing it
+    can therefore change how `HaloComms`'s prefix-based cluster bucketing
+    groups *other* Functions' halo requirements downstream -- see
+    `test_avoid_merging_if_diff_functions` and
+    `test_touched_halo_same_index_no_exchange` in tests/test_mpi.py, where
+    fixing this blind spot for one access causes two previously-separate
+    Functions' halo exchanges to be batched into a single Call. It is not
+    yet established whether such batching is safe in general, or whether
+    the prior separation was itself only an accidental consequence of this
+    same blind spot. Needs review before this fix can be considered
+    complete rather than merely locally correct.
+    """
+    return any(sympy.simplify(read[d] - w[d]) == 0 for w in writes if d in w.findices)
+
+
 def classify(exprs, ispace):
     """
     Produce the mapper `Function -> HaloSchemeEntry`, which describes the necessary
@@ -579,6 +622,8 @@ def classify(exprs, ispace):
     for f, r in scope.reads.items():
         if not f.is_DiscreteFunction or f.grid is None:
             continue
+
+        writes = scope.writes.get(f, ())
 
         # In the case of custom topologies, we ignore the Dimensions that aren't
         # practically subjected to domain decomposition
@@ -601,6 +646,15 @@ def classify(exprs, ispace):
             for d in i.findices:
                 if f.grid.is_distributed(d):
                     if d in ignored:
+                        v[(d, LEFT)] = IDENTITY
+                        v[(d, RIGHT)] = IDENTITY
+                    elif _is_local_reflection(i, writes, d):
+                        # `i` coincides, along `d`, with a write to `f` in the
+                        # same Scope -- it can never touch the halo along
+                        # this Dimension (see `_is_local_reflection`'s
+                        # docstring), regardless of what `touched_halo` would
+                        # conservatively conclude for an unresolvable
+                        # symbolic offset.
                         v[(d, LEFT)] = IDENTITY
                         v[(d, RIGHT)] = IDENTITY
                     elif i.affine(d):

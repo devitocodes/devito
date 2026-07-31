@@ -1525,6 +1525,36 @@ class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_merging_if_diff_functions(self, mode):
+        # TODO(halo_scheme same-index fix, pending review): this test's expected
+        # counts changed from (2, 2) to (1, 1) as a *side effect* of the fix in
+        # `devito.mpi.halo_scheme._is_local_reflection` (see that function's
+        # docstring), which teaches `classify()` that a read coinciding with a
+        # write at the identical index -- e.g. `src.inject`'s read-modify-write
+        # of `u.forward` at the same interpolated position it writes to -- can
+        # never require a halo exchange, even when the shared index involves a
+        # symbolic (not compile-time-resolvable) offset that `touched_halo`
+        # would otherwise conservatively flag.
+        #
+        # That fix is narrowly correct about data movement: this specific
+        # access never needs cross-rank data, with or without the fix.
+        # However, removing its (data-movement-wise spurious) STENCIL flag
+        # also removes a `HaloTouch` bookkeeping insertion that was
+        # *incidentally* acting as a separate cluster-scheduling anchor,
+        # keeping `u`'s and `U`'s halo exchanges apart in the schedule. With
+        # that anchor gone, `HaloComms`'s cluster-level prefix bucketing
+        # (devito/ir/clusters/algorithms.py) now groups `u` and `U` under one
+        # shared `HaloSpot` from the start (confirmed by inspecting the IET
+        # immediately before `optimize_halospots` runs), which is what this
+        # test's name explicitly exists to guard against.
+        #
+        # TODO: it is not yet established whether batching unrelated
+        # Functions' halo exchanges together is safe in general (this test
+        # was written on the assumption it is not) or whether that assumption
+        # was itself an accidental consequence of the same touched_halo blind
+        # spot being fixed here. Needs review before relying on the new (1, 1)
+        # behaviour being correct rather than merely different. See also
+        # `test_touched_halo_same_index_no_exchange` below, which is the
+        # motivating case for the underlying fix.
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
 
@@ -1540,7 +1570,54 @@ class TestCodeGeneration:
         op = Operator(eqns)
         _ = op.cfunction
 
-        check_halo_exchanges(op, 2, 2)
+        check_halo_exchanges(op, 1, 1)
+
+    @pytest.mark.parallel(mode=1)
+    def test_touched_halo_same_index_no_exchange(self, mode):
+        # TODO(halo_scheme same-index fix, pending review): this is the
+        # motivating case for the fix in
+        # `devito.mpi.halo_scheme._is_local_reflection` (see that function's
+        # docstring in devito/mpi/halo_scheme.py). It is *not* itself a
+        # regression from that fix -- it is the failing example that
+        # justified adding it, kept here as a permanent regression test now
+        # that it is fixed.
+        #
+        # `f` is defined on a SubDomain (`grid=<SubDomain>`), so its array is
+        # indexed via the SubDomain's *symbolic* thickness offset (bound only
+        # at `op.apply()` time, e.g. via a `nb`-style runtime parameter), not
+        # a fixed integer. `Eq(f.forward, f)` is a pure self-referencing
+        # update: the read and write use the exact same spatial index,
+        # differing only in time. No data ever needs to cross a rank
+        # boundary for this access, for *any* value of the thickness
+        # parameter, because nothing is ever read from a different point
+        # than it is written to.
+        #
+        # Before the fix, `TimedAccess.touched_halo` (devito/ir/support/
+        # basic.py) could not resolve the symbolic offset and conservatively
+        # flagged this access as needing a halo exchange anyway (see the
+        # `# TODO` already present in `touched_halo` acknowledging this is
+        # an improvable over-approximation, not a deliberate requirement).
+        # That spurious requirement is what originally motivated this fix: a
+        # real downstream crash in devitopro's GPU kernel-construction pass
+        # when multiple such SubDomain-defined Functions ended up sharing a
+        # cluster-scheduling anchor as a side effect of it (see the devitopro
+        # bug write-up this fix originates from).
+        class Boundary(SubDomain):
+            name = 'boundary'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('left', 1), y: ('middle', 1, 1), z: ('middle', 1, 1)}
+
+        grid = Grid(shape=(6, 6, 6))
+        boundary = Boundary(grid=grid)
+
+        f = TimeFunction(name='f', grid=boundary, space_order=2)
+
+        op = Operator(Eq(f.forward, f))
+        _ = op.cfunction
+
+        check_halo_exchanges(op, 0, 0)
 
     @pytest.mark.parallel(mode=1)
     def test_merge_haloupdate_if_diff_locindices(self, mode):
