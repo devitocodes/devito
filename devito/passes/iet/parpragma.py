@@ -17,7 +17,7 @@ from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.langbase import (
     DeviceAwareMixin, LangBB, LangTransformer, ShmTransformer, make_sections_from_imask
 )
-from devito.symbolics import INT
+from devito.symbolics import INT, as_long
 from devito.tools import as_tuple, flatten, is_integer, prod
 from devito.types import Symbol
 
@@ -491,8 +491,18 @@ class PragmaTransfer(Pragma, Transfer):
 
     @cached_property
     def _generate(self):
-        # Stringify sections
-        sections = ''.join([f'[{ccode(i)}:{ccode(j)}]'
+        # Stringify sections. When a transfer is linearized, the section size
+        # is a product of the Function's 32-bit per-dimension sizes (e.g.
+        # `size[0]*size[1]*size[2]`); for a Function with more than ~2**31
+        # elements this product overflows `int` before being used as an array
+        # bound, producing a bogus transfer size (#2777). Promote such products
+        # to 64-bit with `as_long` so the multiplication is carried out in
+        # 64-bit arithmetic. Non-product bounds (a single size, an offset, a
+        # constant) cannot overflow and are left untouched so that the
+        # generated code doesn't change where the cast serves no purpose.
+        def cast(e):
+            return as_long(e) if getattr(e, 'is_Mul', False) else e
+        sections = ''.join([f'[{ccode(cast(i))}:{ccode(cast(j))}]'
                             for i, j in self.sections])
         arguments = [ccode(i) for i in self.arguments]
         return self.pragma % (self.function.name, sections, *arguments)
