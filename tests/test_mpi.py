@@ -1526,11 +1526,10 @@ class TestCodeGeneration:
     @pytest.mark.parallel(mode=1)
     def test_avoid_merging_if_diff_functions(self, mode):
         # TODO(halo_scheme same-index fix, pending review): this test's expected
-        # counts changed from (2, 2) to (1, 1) as a *side effect* of the fix in
-        # `devito.mpi.halo_scheme._is_local_reflection` (see that function's
+        # counts changed from (2, 2) to (1, 1) as a *side effect* of the modification
+        # in `devito.mpi.halo_scheme._is_local_reflection` (see that function's
         # docstring), which teaches `classify()` that a read coinciding with a
-        # write at the identical index -- e.g. `src.inject`'s read-modify-write
-        # of `u.forward` at the same interpolated position it writes to -- can
+        # write at the identical index -- e.g. `Eq(f.forward, f)` -- can
         # never require a halo exchange, even when the shared index involves a
         # symbolic (not compile-time-resolvable) offset that `touched_halo`
         # would otherwise conservatively flag.
