@@ -950,7 +950,9 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         for i, s in zip(self.dimensions, data.shape, strict=True):
             i._arg_check(args, s, intervals[i])
 
-        if args.options['index-mode'] == 'int32' and \
+        # SparseTimeFunctions use int64 indexing regardless of index mode
+        if not self.is_SparseTimeFunction and \
+           args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
            self.is_regular and \
            data.size - 1 >= np.iinfo(np.int32).max:

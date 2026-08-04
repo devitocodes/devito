@@ -149,6 +149,18 @@ def test_interpolation_enforcing_int64_indexing():
     assert 'long p_src_stride0' in str(op)  # for `src`
 
 
+def test_interpolation_enforcing_int64_indexing_v2():
+    grid = Grid(shape=(4, 4))
+
+    # Too many elements for int32 (1e10), but should not trigger any errors, as
+    # will be indexed with int64
+    rec = SparseTimeFunction(name='rec', grid=grid, npoint=int(1e6), nt=int(1e4))
+    u = TimeFunction(name="u", grid=grid, time_order=2)
+
+    Operator(rec.interpolate(expr=u.forward),
+             opt=('advanced', {'linearize': True, 'index-mode': 'int32'}))
+
+
 def test_interpolation_msf():
     grid = Grid(shape=(4, 4))
 
