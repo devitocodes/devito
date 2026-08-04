@@ -950,16 +950,6 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
         for i, s in zip(self.dimensions, data.shape, strict=True):
             i._arg_check(args, s, intervals[i])
 
-        if args.options['index-mode'] == 'int32' and \
-           args.options['linearize'] and \
-           self.is_regular and \
-           data.size - 1 >= np.iinfo(np.int32).max:
-            raise InvalidArgument(f"`{self.name}`, with its {data.size} elements, is too "
-                                  "big for int32 pointer arithmetic. Consider using the "
-                                  "'index-mode=int64' option, the save=Buffer(..) "
-                                  "API (TimeFunction only), or domain "
-                                  "decomposition via MPI")
-
     def _arg_finalize(self, args, alias=None):
         key = alias or self
         return {key.name: self._C_make_dataobj(alias=key, **args)}
@@ -1340,6 +1330,28 @@ class Function(DiscreteFunction):
         """
         tot = self.sum(p, dims)
         return tot / len(tot.args)
+
+    def _arg_check(self, args, intervals, **kwargs):
+        """
+        Check that `args` contains legal runtime values bound to `self`.
+
+        Raises
+        ------
+        InvalidArgument
+            If an incompatibility is detected.
+        """
+        data = args[self.name]
+
+        if args.options['index-mode'] == 'int32' and \
+           args.options['linearize'] and \
+           data.size - 1 >= np.iinfo(np.int32).max:
+            raise InvalidArgument(f"`{self.name}`, with its {data.size} elements, is too "
+                                  "big for int32 pointer arithmetic. Consider using the "
+                                  "'index-mode=int64' option, the save=Buffer(..) "
+                                  "API (TimeFunction only), or domain "
+                                  "decomposition via MPI")
+
+        return super()._arg_check(args, intervals, **kwargs)
 
 
 class TimeFunction(Function):
