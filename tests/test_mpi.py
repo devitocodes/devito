@@ -1330,8 +1330,6 @@ class TestCodeGeneration:
 
         op = Operator(eqns)
 
-        print(op.ccode)
-
         assert len(op._func_table) == 4
 
         # There are exactly two halo exchange calls in the Operator body

@@ -10,7 +10,7 @@ from devito.ir.support.space import Backward, null_ispace
 from devito.ir.support.utils import AccessMode, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (
-    compare_ops, q_affine, q_comp_acc, q_constant, retrieve_indexed
+    compare_ops, q_affine, q_comp_acc, q_constant, retrieve_indexed, search
 )
 from devito.tools import (
     CacheInstances, Tag, as_mapper, as_tuple, cached_hash, filter_sorted, flatten,
@@ -518,15 +518,15 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
         size_nodomain_left = self.function._size_nodomain[findex].left
 
         # Symbolic thicknesses may appear in indices for Functions defined on SubDomains
-        # These are used to offset the loop index values to correctly index into the reduced
-        # array allocated on the SubDomain. As such, they do not represent a shift of index
-        # on the physical grid and can (and should) be zeroed for the purpose of determining
-        # if the halo is touched.
-        tkns_subs = {tkn: 0 for tkn in self[findex].free_symbols if isinstance(tkn, Thickness)}
-        findex_wo_thickness = self[findex].subs(tkns_subs) if tkns_subs else self[findex]
+        # These are used to offset the loop index values to correctly index into the
+        # reduced array allocated on the SubDomain. As such, they do not represent a
+        # shift of index on the physical grid and can (and should) be zeroed for the
+        # purpose of determining if the halo is touched.
+        tkns_subs = {tkn: 0 for tkn in search(self[findex], Thickness)}
+        findex_wo_thickness = self[findex].subs(tkns_subs)
 
         try:
-            touch_halo_left = bool(m + (findex_wo_thickness - d) > size_nodomain_left)
+            touch_halo_left = bool(m + (findex_wo_thickness - d) < size_nodomain_left)
         except TypeError:
             # Two reasons we might end up here:
             # * `d` is a constant integer
