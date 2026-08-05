@@ -2323,6 +2323,28 @@ class TestCodeGeneration:
         halo_update1 = body[1].body[0]
         assert isinstance(halo_update1, HaloUpdateList)
 
+    @pytest.mark.parallel(mode=1)
+    def test_function_on_subdomain_no_exchange(self, mode):
+
+        class Boundary(SubDomain):
+            name = 'boundary'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('left', 1), y: ('middle', 1, 1), z: ('right', 1)}
+
+        grid = Grid(shape=(6, 6, 6))
+        boundary = Boundary(grid=grid)
+
+        f = TimeFunction(name='f', grid=boundary, space_order=2)
+
+        op = Operator(Eq(f.forward, f))
+        _ = op.cfunction
+
+        # Halo should not be considered touched, despite symbolic offsets in indices due
+        # to Function on SubDomain
+        check_halo_exchanges(op, 0, 0)
+
 
 class TestOperatorAdvanced:
 
