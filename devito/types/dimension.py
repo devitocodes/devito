@@ -602,6 +602,14 @@ class Thickness(DataSymbol):
                 if self.value is not None:
                     tkn = grid.distributor.glb_to_loc(self.root, rtkn-1, self.side)
                     tkn = tkn+1 if tkn is not None else 0
+                    # The `+1` assumes `glb_to_loc` returned a local index. When the
+                    # offset lies beyond this rank -- i.e. the rank sits wholly inside
+                    # the boundary region -- it saturates and returns a count already,
+                    # so the `+1` overshoots and the boundary loop runs one point past
+                    # the rank. Clamping is a no-op in the index case.
+                    decomp = grid.distributor.decomposition[self.root]
+                    if not decomp.loc_empty:
+                        tkn = min(tkn, decomp.loc_abs_max - decomp.loc_abs_min + 1)
                 else:
                     tkn = 0
             else:

@@ -1235,6 +1235,25 @@ class TestCodeGeneration:
         calls = FindNodes(Call).visit(op)
         assert len(calls) == 1
 
+    @pytest.mark.parallel(mode=4)
+    def test_subdimension_thickness_localisation(self, mode):
+        # A rank lying entirely inside the boundary layer used to be handed a
+        # localised thickness of `local_extent + 1`, because
+        # `index_glb_to_loc(offset, side)` saturates to a *count* while
+        # `_arg_values` unconditionally added 1 to turn an *index* into a count.
+        # The generated boundary loop then ran one point past the rank's extent.
+        grid = Grid(shape=(64, 64, 64), topology=(4, 1, 1))
+        x = grid.dimensions[0]
+        decomp = grid.distributor.decomposition[x]
+        local_extent = decomp.loc_abs_max - decomp.loc_abs_min + 1
+
+        # thickness 20 > local extent 16, so ranks 0 and 3 sit wholly inside
+        for name, ctor in [('xl', SubDimension.left), ('xr', SubDimension.right)]:
+            sd = ctor(name=name, parent=x, thickness=20)
+            for tkn in sd.thickness:
+                for v in tkn._arg_values(grid=grid).values():
+                    assert v <= local_extent
+
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_with_local_customdim(self, mode):
         grid = Grid(shape=(10, 10))
