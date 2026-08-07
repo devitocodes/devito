@@ -146,9 +146,13 @@ class Decomposition(tuple):
               relative local index if ``I`` belongs to the local subdomain,
               ``None`` otherwise.
             * int, DataSide. Given ``O`` and ``S``, respectively a global
-              offset and a side, return the relative local offset. This
-              can be ``None`` if the local subdomain doesn't intersect with the
-              region defined by the given global offset.
+              offset and a side, return the corresponding relative local index
+              (``rel=True``, the default). If the offset covers the local
+              subdomain entirely, this is the subdomain's last index -- never a
+              count. This can be ``None`` if the local subdomain doesn't
+              intersect with the region defined by the given global offset.
+              The ``rel=False`` behaviour of this two-argument form is not
+              well-defined and no caller relies on it.
             * (int, int).  Given global ``(min, max)``, return ``(min', max')``
               representing the corresponding relative local min/max. If the
               input doesn't intersect with the local subdomain, then ``min'``
@@ -353,12 +357,24 @@ class Decomposition(tuple):
             if self.loc_empty:
                 return None
             abs_ofs, side = args
+            # Both branches below return an *index* in the same frame as `base`
+            # -- relative when `rel`, absolute otherwise. In particular the
+            # saturating case, where the offset covers this subdomain entirely,
+            # returns the last index of the subdomain and NOT a count: callers
+            # convert to a count themselves.
+            #
+            # The old returns, `top + 1` and `glb_max - base + 1`, were not
+            # indices at all: they sat one past the end, outside the valid local
+            # index range, on every subdomain including the first. On the LEFT
+            # they also mixed frames, `top` being absolute while `rel_ofs` is
+            # relative to `base`, so the overshoot grew with the subdomain's
+            # offset rather than staying at one.
             if side == LEFT:
                 rel_ofs = glb_min + abs_ofs - base
                 if abs_ofs >= base and abs_ofs <= top:
                     return rel_ofs
                 elif abs_ofs > top:
-                    return top + 1
+                    return top - base
                 else:
                     return None
             else:
@@ -366,7 +382,7 @@ class Decomposition(tuple):
                 if abs_ofs >= glb_max - top and abs_ofs <= glb_max - base:
                     return rel_ofs
                 elif abs_ofs > glb_max - base:
-                    return glb_max - base + 1
+                    return top - base
                 else:
                     return None
         else:

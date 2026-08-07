@@ -1254,6 +1254,38 @@ class TestCodeGeneration:
                 for v in tkn._arg_values(grid=grid).values():
                     assert v <= local_extent
 
+    @pytest.mark.parallel(mode=4)
+    def test_subdimension_middle_thickness_localisation(self, mode):
+        # Companion to the test above, and the regression it guards against.
+        # `middle` localises through the same saturating conversion, but consumed
+        # the result directly as a count while `left`/`right` converted an index
+        # and added one. Once the saturating branch was made to return an index,
+        # the two conventions disagreed and a wholly-covered rank lost a point
+        # off each end.
+        grid = Grid(shape=(64, 64, 64), topology=(4, 1, 1))
+        x = grid.dimensions[0]
+        decomp = grid.distributor.decomposition[x]
+        local_extent = decomp.loc_abs_max - decomp.loc_abs_min + 1
+
+        # 20 either side of a 64-point dimension split 4 ways. Rank 0 lies wholly
+        # inside the left band and rank 3 wholly inside the right, so each takes
+        # its full extent; ranks 1 and 2 keep the 4-point remainder on one side
+        # and nothing on the other. The regression showed up as 15 for the
+        # wholly-covered ranks.
+        sd = SubDimension.middle(name='xm', parent=x, thickness_left=20,
+                                 thickness_right=20)
+        got = {}
+        for tkn in sd.thickness:
+            got.update(tkn._arg_values(grid=grid))
+        left, right = (got[t.name] for t in sd.thickness)
+
+        expected = {0: (local_extent, 0), 1: (4, 0),
+                    2: (0, 4), 3: (0, local_extent)}
+        assert (left, right) == expected[grid.distributor.myrank], \
+            f"rank {grid.distributor.myrank}: localised middle thicknesses " \
+            f"{(left, right)}, expected {expected[grid.distributor.myrank]}"
+        assert left + right <= local_extent
+
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_with_local_customdim(self, mode):
         grid = Grid(shape=(10, 10))

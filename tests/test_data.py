@@ -489,6 +489,41 @@ class TestDecomposition:
         assert d.index_glb_to_loc(2, LEFT) is None
         assert d.index_glb_to_loc(3, RIGHT) is None
 
+        # Saturating case: the offset covers this subdomain entirely. The result
+        # is still an index in the same frame as the in-range results above --
+        # here the subdomain's last relative index, 2 -- and not a count.
+        assert d.index_glb_to_loc(8, LEFT) == 2
+        assert d.index_glb_to_loc(11, LEFT) == 2
+        assert d.index_glb_to_loc(7, RIGHT) == 2
+        assert d.index_glb_to_loc(11, RIGHT) == 2
+
+    def test_glb_to_loc_w_side_is_always_an_index(self):
+        """
+        `index_glb_to_loc(offset, side)` must return an index, never a count, on
+        every subdomain and for both sides.
+
+        The saturating branch used to return `loc_abs_max + 1` (LEFT) and
+        `glb_max - loc_abs_min + 1` (RIGHT). Neither is an index: both sit one
+        past the end of the valid local range, on every subdomain including the
+        first. The LEFT form additionally mixes frames -- `loc_abs_max` is
+        absolute while the in-range result is relative to `loc_abs_min` -- so
+        its overshoot grows with the subdomain's offset instead of staying at
+        one. It reached `Thickness._arg_values`, which adds 1 to turn the index
+        into a count, as a boundary loop running past the end of the rank's data.
+        """
+        parts = [list(range(i, i + 16)) for i in range(0, 64, 16)]
+        for r in range(len(parts)):
+            d = Decomposition(parts, r)
+            extent = d.loc_abs_max - d.loc_abs_min + 1
+            for side in (LEFT, RIGHT):
+                for ofs in range(64):
+                    v = d.index_glb_to_loc(ofs, side)
+                    if v is None:
+                        continue
+                    assert 0 <= v < extent, \
+                        f"rank {r} {side} offset {ofs}: {v} not an index in " \
+                        f"[0, {extent})"
+
     def test_loc_to_glb_index_conversions(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 
