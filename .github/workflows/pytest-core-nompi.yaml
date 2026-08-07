@@ -39,7 +39,7 @@ jobs:
            pytest-ubuntu-py311-gcc10-noomp,
            pytest-ubuntu-py311-gcc11-cxxnoomp,
            pytest-ubuntu-py312-gcc12-cxxomp,
-           pytest-ubuntu-py312-gcc13-omp,
+           pytest-ubuntu-py314-gcc13-omp,
            pytest-ubuntu-py313-gcc14-omp
         ]
         set: [base, adjoint]
@@ -73,8 +73,8 @@ jobs:
           language: "C"
           sympy: "1.14"
 
-        - name: pytest-ubuntu-py312-gcc13-omp
-          python-version: '3.12'
+        - name: pytest-ubuntu-py314-gcc13-omp
+          python-version: '3.14'
           os: ubuntu-24.04
           arch: "gcc-13"
           language: "openmp"
@@ -134,7 +134,7 @@ jobs:
           fi
       id: set-tests
 
-    - name: Set pip flags for latest python (3.12)
+    - name: Set pip flags for Python 3.12+
       run: |
           ver="${{ matrix.python-version }}"
           major=${ver%%.*}
