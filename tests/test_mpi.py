@@ -19,7 +19,10 @@ from devito.ir.iet import (
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
-from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
+from devito.mpi.routines import (
+    ComputeCall, Gather, HaloUpdateCall, HaloUpdateList, MPICall, MPIMsgBasic2,
+    MPIMsgEnrichedBasic2, Scatter
+)
 from devito.tools import Bunch
 from devito.types.dimension import ModuloDimension
 from examples.seismic.acoustic import acoustic_setup
@@ -969,8 +972,9 @@ class TestOperatorSimple:
         else:
             assert np.all(f.data_ro_domain[-1, :-time_M] == 31.)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
-                                (4, 'overlap2'), (4, 'diag2'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'basic3'),
+                                (4, 'diag'), (4, 'overlap'), (4, 'overlap2'),
+                                (4, 'diag2'), (4, 'full')])
     def test_trivial_eq_2d(self, mode):
         grid = Grid(shape=(8, 8,))
         x, y = grid.dimensions
@@ -1005,8 +1009,9 @@ class TestOperatorSimple:
             assert np.all(f.data_ro_domain[0, :-1, -1:] == side)
             assert np.all(f.data_ro_domain[0, -1:, :-1] == side)
 
-    @pytest.mark.parallel(mode=[(8, 'basic'), (8, 'diag'), (8, 'overlap'),
-                                (8, 'overlap2'), (8, 'diag2'), (8, 'full')])
+    @pytest.mark.parallel(mode=[(8, 'basic2'), (8, 'basic3'), (8, 'diag'),
+                                (8, 'overlap'), (8, 'overlap2'), (8, 'diag2'),
+                                (8, 'full')])
     def test_trivial_eq_3d(self, mode):
         grid = Grid(shape=(8, 8, 8))
         x, y, z = grid.dimensions
@@ -1046,6 +1051,61 @@ class TestOperatorSimple:
             assert np.all(f.data_ro_domain[[0] + i] == face)
         # 4) interior
         assert np.all(f.data_ro_domain[0, 1:-1, 1:-1, 1:-1] == interior)
+
+    @pytest.mark.parallel(mode=[(4, 'basic2'), (4, 'basic3')])
+    def test_trivial_eq_2d_bundled(self, mode):
+        """
+        Like `test_trivial_eq_2d`, but with two same-pattern TimeFunctions,
+        forcing `_make_bundles` to pack them into a single Bag and exchanged
+        through one `haloupdate()` call. `basic2`/`basic3`'s
+        pre-allocated-buffer message classes (`MPIMsgBasic2`,
+        `MPIMsgEnrichedBasic2`) were written before Bundle/Bag support
+        existed, so this is the regression test for that interaction.
+        """
+        grid = Grid(shape=(8, 8,))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+
+        f = TimeFunction(name='f', grid=grid, space_order=1)
+        g = TimeFunction(name='g', grid=grid, space_order=1)
+        f.data_with_halo[:] = 1.
+        g.data_with_halo[:] = 2.
+
+        eqns = [Eq(f.forward, f[t, x-1, y] + f[t, x+1, y] + f[t, x, y-1] + f[t, x, y+1]),
+                Eq(g.forward, g[t, x-1, y] + g[t, x+1, y] + g[t, x, y-1] + g[t, x, y+1])]
+        op = Operator(eqns)
+        op.apply(time=1)
+
+        # `f` and `g` share the same halo pattern, so they must have been
+        # bundled into a single 2-component exchange
+        calls = FindNodes(Call).visit(op)
+        assert len(calls) == 1
+        assert calls[0].ncomps == 2
+
+        # Expected computed values -- same reasoning as `test_trivial_eq_2d`;
+        # the recurrence is linear and homogeneous, so `g`'s values (seeded
+        # at 2. instead of `f`'s 1.) are exactly double `f`'s
+        corner, side, interior = 10., 13., 16.
+
+        glb_pos_map = f.grid.distributor.glb_pos_map
+        for k, mult in ((f, 1.), (g, 2.)):
+            assert np.all(k.data_ro_domain[0, 1:-1, 1:-1] == interior*mult)
+            if LEFT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+                assert k.data_ro_domain[0, 0, 0] == corner*mult
+                assert np.all(k.data_ro_domain[0, 1:, :1] == side*mult)
+                assert np.all(k.data_ro_domain[0, :1, 1:] == side*mult)
+            elif LEFT in glb_pos_map[x] and RIGHT in glb_pos_map[y]:
+                assert k.data_ro_domain[0, 0, -1] == corner*mult
+                assert np.all(k.data_ro_domain[0, :1, :-1] == side*mult)
+                assert np.all(k.data_ro_domain[0, 1:, -1:] == side*mult)
+            elif RIGHT in glb_pos_map[x] and LEFT in glb_pos_map[y]:
+                assert k.data_ro_domain[0, -1, 0] == corner*mult
+                assert np.all(k.data_ro_domain[0, -1:, 1:] == side*mult)
+                assert np.all(k.data_ro_domain[0, :-1, :1] == side*mult)
+            else:
+                assert k.data_ro_domain[0, -1, -1] == corner*mult
+                assert np.all(k.data_ro_domain[0, :-1, -1:] == side*mult)
+                assert np.all(k.data_ro_domain[0, -1:, :-1] == side*mult)
 
     @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag')])
     def test_multiple_eqs_funcs(self, mode):
@@ -1798,6 +1858,92 @@ class TestCodeGeneration:
             # W/o OpenMP, it's a different story
             assert call._single_thread
 
+    def test_basic2_msg_fields(self):
+        """
+        `MPIMsgEnrichedBasic2` must carry exactly `MPIMsgBasic2`'s fields
+        plus the `MPIMsgEnriched`-style rank/offset/components extras --
+        no more, no less. This is a plain class-level check (no MPI
+        needed): it's the fields list, not runtime behaviour.
+        """
+        basic2_fields = {name for name, _ in MPIMsgBasic2.fields}
+        enriched_fields = {name for name, _ in MPIMsgEnrichedBasic2.fields}
+
+        assert basic2_fields == {'bufs', 'bufg', 'sizes', 'rrecv', 'rsend'}
+        assert enriched_fields == basic2_fields | {
+            'ofss', 'ofsg', 'fromrank', 'torank', 'components'
+        }
+
+    @pytest.mark.parallel(mode=[(1, 'basic2')])
+    def test_basic2_comm_scheme(self, mode):
+        """
+        Check the shape of the code generated by `basic2`: one `sendrecv()`
+        call per (dimension, side) pair -- 4 here, since both `x` and `y`
+        need a halo update -- each indexing its own slot of the
+        pre-allocated `msg` buffer array in `haloid` order, and each
+        `sendrecv()` doing Irecv -> (guarded) gather -> Isend -> Wait send
+        -> Wait recv -> (guarded) scatter, exactly as `basic` does except
+        with `msg`-backed buffers instead of ad-hoc stack Arrays.
+        """
+        grid = Grid(shape=(4, 4))
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        eqn = Eq(f.forward, f.dx2 + f.dy2 + 1.)
+        op = Operator(eqn)
+
+        haloupdate = op._func_table['haloupdate0'].root
+        calls = FindNodes(Call).visit(haloupdate)
+        assert [i.name for i in calls] == ['sendrecv0']*4
+        # Each call indexes its own slot of `msg`, in haloid order
+        assert [str(i.arguments[-1]) for i in calls] == [
+            '&(msg0[0])', '&(msg0[1])', '&(msg0[2])', '&(msg0[3])'
+        ]
+
+        sendrecv = op._func_table['sendrecv0'].root
+        body = sendrecv.body.body[0].body
+        assert [type(i).__name__ for i in body] == [
+            'IrecvCall', 'Conditional', 'IsendCall', 'Call', 'Call', 'Conditional'
+        ]
+        recv, gather_cond, send, waitsend, waitrecv, scatter_cond = body
+        assert isinstance(gather_cond.then_body[0], Gather)
+        assert isinstance(scatter_cond.then_body[0], Scatter)
+        assert waitsend.name == waitrecv.name == 'MPI_Wait'
+
+    @pytest.mark.parallel(mode=[(1, 'basic3')])
+    def test_basic3_comm_scheme(self, mode):
+        """
+        Unlike `basic2`, `basic3` collapses the `2*ndim` unrolled
+        `sendrecv()` calls into a single `Iteration` loop over `msg`,
+        reading `torank`/`fromrank`/`ofsg`/`ofss` directly off the struct
+        instead of recomputing them via `MPINeighborhood`/symbolic offsets
+        at each call site -- there is no separate `sendrecv()` Callable at
+        all, the same way `Overlap2HaloExchangeBuilder` has none either.
+        """
+        grid = Grid(shape=(4, 4))
+        f = TimeFunction(name='f', grid=grid, space_order=2)
+        eqn = Eq(f.forward, f.dx2 + f.dy2 + 1.)
+        op = Operator(eqn)
+
+        assert 'sendrecv0' not in op._func_table
+        assert set(op._func_table) == {'gather0', 'scatter0', 'haloupdate0'}
+
+        haloupdate = op._func_table['haloupdate0'].root
+        trees = retrieve_iteration_tree(haloupdate)
+        assert len(trees) == 1
+        loop = trees[0][0]
+        assert loop.dim.name == 'i'
+        assert 'ncomms' in str(loop.limits[1])
+
+        body = loop.nodes
+        assert [type(i).__name__ for i in body] == [
+            'IrecvCall', 'Conditional', 'IsendCall', 'Call', 'Call', 'Conditional'
+        ]
+        recv, gather_cond, send, waitsend, waitrecv, scatter_cond = body
+        assert isinstance(gather_cond.then_body[0], Gather)
+        assert isinstance(scatter_cond.then_body[0], Scatter)
+        assert waitsend.name == waitrecv.name == 'MPI_Wait'
+        # torank/fromrank/sizes are all read straight off `msg[i]`
+        assert 'msg0[i].fromrank' in str(recv.arguments[3])
+        assert 'msg0[i].torank' in str(send.arguments[3])
+
     @pytest.mark.parallel(mode=[(1, 'diag2')])
     def test_diag2_quality(self, mode):
         grid = Grid(shape=(10, 10, 10))
@@ -1817,11 +1963,13 @@ class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=[
         (1, 'basic'),
+        (1, 'basic2'),
         (1, 'diag'),
         (1, 'overlap'),
         (1, 'overlap2'),
         (1, 'diag2'),
         (1, 'full'),
+        (1, 'basic3'),
     ])
     def test_min_code_size(self, mode):
         grid = Grid(shape=(10, 10, 10))
@@ -1843,6 +1991,18 @@ class TestCodeGeneration:
             assert len(calls) == 1
             assert calls[0].name == 'haloupdate0'
             assert calls[0].ncomps == 2
+        elif configuration['mpi'] in ('basic2',):
+            assert len(op._func_table) == 4  # gather, scatter, sendrecv, haloupdate
+            assert len(calls) == 1  # haloupdate
+            assert calls[0].name == 'haloupdate0'
+            assert 'haloupdate1' not in op._func_table
+        elif configuration['mpi'] in ('basic3',):
+            # No separate `sendrecv`: the unrolled per-peer Calls collapse
+            # into a single `Iteration` loop directly inside `haloupdate0`
+            assert len(op._func_table) == 3  # gather, scatter, haloupdate
+            assert len(calls) == 1  # haloupdate
+            assert calls[0].name == 'haloupdate0'
+            assert 'haloupdate1' not in op._func_table
         elif configuration['mpi'] in ('overlap'):
             assert len(op._func_table) == 8
             assert len(calls) == 4  # haloupdate, compute, halowait, remainder
@@ -2781,7 +2941,7 @@ class TestOperatorAdvanced:
         if not glb_pos_map[x] and not glb_pos_map[y]:
             assert np.all(u.data_ro_domain[1] == 3)
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'overlap'), (4, 'full')])
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'basic2'), (4, 'overlap'), (4, 'full')])
     def test_coupled_eqs_mixed_dims(self, mode):
         """
         Test an Operator that computes coupled equations over partly disjoint sets
@@ -2936,7 +3096,7 @@ class TestOperatorAdvanced:
         assert dims[0].is_Modulo
         assert dims[0].origin is t
 
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap2')])
+    @pytest.mark.parallel(mode=[(4, 'basic2'), (4, 'diag2'), (4, 'overlap2')])
     def test_cire(self, mode):
         """
         Check correctness when the DSE extracts aliases and places them
@@ -3418,7 +3578,7 @@ class TestIsotropicAcoustic:
         assert np.isclose((term1 - term2)/term1, 0., rtol=1.e-10)
 
     @pytest.mark.parametrize('nd', [1, 2, 3])
-    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag'), (4, 'overlap'),
+    @pytest.mark.parallel(mode=[(4, 'basic2'), (4, 'diag'), (4, 'overlap'),
                                 (4, 'overlap2'), (4, 'full')])
     def test_adjoint_F(self, nd, mode):
         self.run_adjoint_F(nd)
