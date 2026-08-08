@@ -38,7 +38,7 @@ class Tag:
         return hash((self.name, self.val))
 
     def __str__(self):
-        ret = self.name if self.val is None else f"{self.name}[{str(self.val)}]"
+        ret = self.name if self.val is None else f"{self.name}({self.val!r})"
         return ret
 
     __repr__ = __str__
