@@ -16,7 +16,17 @@ __all__ = ['int2', 'int3', 'int4', 'float2', 'float3', 'float4', 'double2',  # n
            'dtype_to_cstr', 'dtype_to_ctype', 'infer_datasize', 'dtype_to_mpitype',
            'dtype_len', 'ctypes_to_cstr', 'c_restrict_void_p', 'ctypes_vector_mapper',
            'is_external_ctype', 'infer_dtype', 'extract_dtype', 'CustomDtype',
-           'mpi4py_mapper']
+           'mpi4py_mapper', 'as_fp64_decimal']
+
+
+def as_fp64_decimal(v):
+    """
+    fp64 value of ``v`` matching its shortest round-tripping decimal.
+    For an `np.float32` this recovers the decimal the user wrote (e.g.
+    ``np.float32(0.1)`` -> ``0.1`` exact in fp64) rather than the widened
+    fp32 bit pattern (``0.10000000149...``).
+    """
+    return np.float64(np.format_float_positional(v, unique=True, trim='0'))
 
 
 # *** Custom np.dtypes

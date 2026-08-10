@@ -760,8 +760,12 @@ class AbstractSparseFunction(DiscreteFunction):
                 values = new._arg_defaults(alias=self,
                                            estimate_memory=estimate_memory).reduce_all()
             else:
-                # We've been provided a pure-data replacement (array)
-                values = {}
+                # Pure-data replacement (ndarray). Re-derive full defaults so
+                # any interpolator-owned SubFunctions get rebuilt alongside
+                # the scattered data.
+                values = self._arg_defaults(
+                    alias=self, estimate_memory=estimate_memory
+                ).reduce_all()
                 for k, v in self._dist_scatter(data=new).items():
                     values[k.name] = v
                     for i, s in zip(k.indices, v.shape, strict=True):
@@ -995,12 +999,29 @@ class SparseFunction(AbstractSparseFunction):
         defaults = super()._arg_defaults(alias=alias, estimate_memory=estimate_memory)
         if estimate_memory:
             return defaults
-
         key = alias or self
         coords = defaults.get(key.coordinates.name, key.coordinates.data)
         defaults.update(key.interpolator._arg_defaults(coords=coords,
                                                        sfunc=key))
         return defaults
+
+    def _arg_values(self, estimate_memory=False, **kwargs):
+        values = super()._arg_values(estimate_memory=estimate_memory, **kwargs)
+        if estimate_memory:
+            return values
+
+        # Resolve the runtime grid origin (honours `o_x`/`o_y`/... overrides)
+        # and hand it to the interpolator so tables reflect the actual frame
+        # of reference used by the kernel.
+        onames = [o.name for o in self.grid.origin_symbols]
+        origin = tuple(kwargs.get(n, o) for n, o in
+                       zip(onames, self.grid.origin, strict=True))
+        coords = values.get(self.coordinates.name, self.coordinates.data)
+        values.update(self.interpolator._arg_defaults(
+            coords=coords, sfunc=self, origin=origin
+        ))
+
+        return values
 
 
 class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):

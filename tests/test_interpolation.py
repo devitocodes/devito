@@ -517,13 +517,8 @@ class TestLinear:
 
         eq = p.inject(v, expr=b * p).evaluate
 
-        # We should have
-        # - 3 injection equations v_x, v_y, v_z
-        # The standard 6 on node temps posx, posy, posz, px, py, pz
-        # 2 temps for the staggered in x vx posz_s1, px_s1
-        # 2 temps for the staggered in y vy posz_s1, py_s1
-        # 2 temps for the staggered in z vz posz_s1, pz_s1
-        assert len(eq) == 3 + 6 + 2 + 2 + 2
+        # 3 injection eqs + 3 position lookups per staggered field: 3 + 3*3
+        assert len(eq) == 3 + 3 * 3
 
         op = Operator(eq)
         # Should be a single loop nest with 3 injections
@@ -848,13 +843,11 @@ class TestInterpolator:
     @pytest.mark.parametrize('dtype, expected', [(np.complex64, np.float32),
                                                  (np.complex128, np.float64)])
     def test_point_symbol_types(self, dtype, expected):
-        """Test that positions are always real"""
+        """Interpolation weights must be real even for complex sparse fields."""
         grid = Grid(shape=(11,))
         s = SparseFunction(name='src', npoint=1,
                            grid=grid, dtype=dtype)
-        point_symbol = s.interpolator._point_symbols()[0]
-
-        assert point_symbol.dtype is expected
+        assert s.interpolator._coeffs()[0].dtype is expected
 
     def test_wrong_coords(self):
         grid = Grid(shape=(11, 11))
@@ -869,6 +862,30 @@ class TestInterpolator:
         with pytest.raises(ValueError) as vinfo:
             s.interpolate(u + s2)
         assert "Interpolation/injection with" in str(vinfo.value)
+
+    def test_position_map_fp64(self):
+        """
+        Coord-based sparse interpolation must not do `(c-o)/h` and `floor(...)`
+        in the generated kernel: on fp32 that can push points across a cell
+        boundary. Gridpoints and coefficients are precomputed in fp64 on the
+        host and the kernel only indexes those tables.
+        """
+        grid = Grid(shape=(30, 30), extent=(2.9, 2.9))
+        assert grid.dtype is np.float32
+
+        sf = SparseTimeFunction(name='sf', grid=grid, npoint=1, nt=2)
+        u = TimeFunction(name='u', grid=grid, space_order=2, time_order=1)
+        sf.coordinates.data[0, :] = 0.6999999990000001
+        sf.data[:] = 1.0
+
+        op = Operator(sf.inject(field=u.forward, expr=sf))
+        code = str(op)
+        assert 'floor' not in code
+        assert 'o_x' not in code and 'o_y' not in code
+
+        op.apply(time_M=0)
+        assert u.data[1, 7, 7] > 0.99
+        assert u.data[1, 8, 8] == 0.0
 
 
 # ---------------------------------------------------------------------------

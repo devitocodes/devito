@@ -1627,14 +1627,16 @@ class SubFunction(Function):
     def _halo_exchange(self):
         return
 
-    def _arg_values(self, **kwargs):
+    def _arg_values(self, estimate_memory=False, **kwargs):
         if self._parent is not None and self.parent.name not in kwargs:
-            return self._parent._arg_defaults(alias=self._parent).reduce_all()
+            return self._parent._arg_defaults(
+                alias=self._parent, estimate_memory=estimate_memory
+            ).reduce_all()
         elif self.name in kwargs:
             raise RuntimeError(f"`{self.name}` is a SubFunction, so it can't be assigned "
                                "a value dynamically")
         else:
-            return self._arg_defaults(alias=self)
+            return self._arg_defaults(alias=self, estimate_memory=estimate_memory)
 
     def _arg_apply(self, *args, **kwargs):
         if self._parent is not None:
