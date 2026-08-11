@@ -34,7 +34,7 @@ from devito.ir.iet import (
 from devito.ir.support import Any, Backward, Forward
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import ListInitializer, indexify, retrieve_indexed
-from devito.tools import flatten, powerset, timed_region
+from devito.tools import as_fp64_decimal, flatten, powerset, timed_region
 from devito.types import (
     Array, Barrier, ConditionalDimension, CustomDimension, Indirection, Scalar, Symbol
 )
@@ -819,11 +819,13 @@ class TestApplyArguments:
         s.coordinates.data[:, 2] = np.arange(2., 5.)
         op = Operator(s.interpolate(f))
 
+        # Note: coord-based SparseFunctions no longer emit `s_coords` in the
+        # compiled kernel; positions and coefficients are precomputed on the
+        # host and passed as `gps`/`ws{d}` tables.
         expected = {
-            's': s, 's_coords': s.coordinates,
+            's': s,
             # Default dimensions of the sparse data
             'p_s_size': 3, 'p_s_m': 0, 'p_s_M': 2,
-            'd_size': 3, 'd_m': 0, 'd_M': 2,
             'time_size': 4, 'time_m': 0, 'time_M': 3,
         }
         self.verify_arguments(op.arguments(), expected)
@@ -1049,9 +1051,15 @@ class TestApplyArguments:
         # whether the override picks up the original coordinates or the changed ones
 
         args = op.arguments(src1=src2, time=0)
-        arg_name = src1.coordinates._arg_names[0]
-        assert(np.array_equal(src2.coordinates._C_as_ndarray(args[arg_name]),
-                              np.asarray((new_coords,))))
+        # Coord-based sparse functions no longer emit `s_coords` in the
+        # kernel; check the precomputed cell indices (`gp*`) instead.
+        gp = src1.interpolator._gridpoints()
+        spacing = np.array([as_fp64_decimal(h) for h in grid.spacing])
+        origin = np.array([as_fp64_decimal(o) for o in grid.origin])
+        expected = np.floor(
+            (np.asarray(new_coords, dtype=np.float64) - origin) / spacing
+        ).astype(np.int32)
+        assert np.array_equal(gp._C_as_ndarray(args[gp.name]).ravel(), expected)
 
     def test_override_sparse_data_default_dim(self):
         """
@@ -1073,9 +1081,13 @@ class TestApplyArguments:
         # whether the override picks up the original coordinates or the changed ones
 
         args = op.arguments(src1=src2, t=0)
-        arg_name = src1.coordinates._arg_names[0]
-        assert(np.array_equal(src2.coordinates._C_as_ndarray(args[arg_name]),
-                              np.asarray((new_coords,))))
+        gp = src1.interpolator._gridpoints()
+        spacing = np.array([as_fp64_decimal(h) for h in grid.spacing])
+        origin = np.array([as_fp64_decimal(o) for o in grid.origin])
+        expected = np.floor(
+            (np.asarray(new_coords, dtype=np.float64) - origin) / spacing
+        ).astype(np.int32)
+        assert np.array_equal(gp._C_as_ndarray(args[gp.name]).ravel(), expected)
 
     def test_argument_derivation_order(self, nt=100):
         """ Ensure the precedence order of arguments is respected
@@ -2244,7 +2256,11 @@ class TestEstimateMemory:
             summary = op.estimate_memory()
             assert "Allocating" not in caplog.text
 
-            check = self.sum_sizes((f, src, src.coordinates))
+            # Coord-based sparse functions ship precomputed gridpoints/coeffs
+            # tables as operator inputs (built on the host from `coordinates`).
+            tables = (src.interpolator._gridpoints(),) + \
+                src.interpolator._coeffs()
+            check = self.sum_sizes((f, src, *tables))
             self.parse_output(summary, check)
 
     @pytest.mark.parametrize('save', [None, Buffer(3), 10])
@@ -2278,7 +2294,11 @@ class TestEstimateMemory:
             summary = op.estimate_memory()
             assert "Allocating" not in caplog.text
 
-            check = self.sum_sizes((f, g, src0, src0.coordinates, src1, src1.coordinates))
+            tables = ((src0.interpolator._gridpoints(),) +
+                      src0.interpolator._coeffs() +
+                      (src1.interpolator._gridpoints(),) +
+                      src1.interpolator._coeffs())
+            check = self.sum_sizes((f, g, src0, src1, *tables))
             self.parse_output(summary, check)
 
     @pytest.mark.parametrize('override', [True, False])
@@ -2357,17 +2377,24 @@ class TestEstimateMemory:
         with switchconfig(log_level='DEBUG'), caplog.at_level(logging.DEBUG):
             op = Operator([eq0, eq1] + s0_term + st0_term)
 
+            # Interpolator-owned tables are baked in from the *original*
+            # sparse functions and don't get re-sized by overrides.
+            tables = ((s0.interpolator._gridpoints(),) +
+                      s0.interpolator._coeffs() +
+                      (st0.interpolator._gridpoints(),) +
+                      st0.interpolator._coeffs())
+
             # Apply overrides for the check
             summary0 = op.estimate_memory(f0=f1, tf0=tf1, s0=s1, st0=st1)
 
-            check0 = self.sum_sizes((f1, tf1, s1, s1.coordinates, st1, st1.coordinates))
+            check0 = self.sum_sizes((f1, tf1, s1, st1, *tables))
             self.parse_output(summary0, check0)
 
             # Check with a second set of overrides
             summary1 = op.estimate_memory(f0=f2, tf0=tf2, s0=s2, st0=st2)
             assert "Allocating" not in caplog.text
 
-            check1 = self.sum_sizes((f2, tf2, s2, s2.coordinates, st2, st2.coordinates))
+            check1 = self.sum_sizes((f2, tf2, s2, st2, *tables))
             self.parse_output(summary1, check1)
 
     def test_device(self, caplog):

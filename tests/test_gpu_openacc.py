@@ -111,8 +111,9 @@ class TestCodeGeneration:
         assert trees[1][1].pragmas[0].ccode.value ==\
             'acc parallel loop tile(32,4) present(u)'
         strtile = ','.join([str(i) for i in stile])
+        pres = 'src,src_gp,src_wx,src_wy,src_wz,u'
         assert trees[3][1].pragmas[0].ccode.value ==\
-            f'acc parallel loop tile({strtile}) present(src,src_coords,u)'
+            f'acc parallel loop tile({strtile}) present({pres})'
 
     @pytest.mark.parametrize('par_tile', [((32, 4, 4), (8, 8)), ((32, 4), (8, 8)),
                                           ((32, 4, 4), (8, 8, 8)),
@@ -141,7 +142,7 @@ class TestCodeGeneration:
             'acc parallel loop tile(8,8) present(u)'
         sclause = 'collapse(4)' if par_tile[-1] is None else 'tile(8,8,8,8)'
         assert trees[3][1].pragmas[0].ccode.value ==\
-            f'acc parallel loop {sclause} present(src,src_coords,u)'
+            f'acc parallel loop {sclause} present(src,src_gp,src_wx,src_wy,src_wz,u)'
 
     def test_multi_tile_blocking_structure(self):
         grid = Grid(shape=(8, 8, 8))

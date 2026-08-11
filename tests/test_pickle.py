@@ -841,7 +841,7 @@ class TestOperator:
         u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
         rec_term = rec.interpolate(expr=u)
 
-        eq = rec_term.evaluate[2]
+        eq = rec_term.evaluate[3]
         eq = eq.func(eq.lhs, eq.rhs.args[0])
 
         op = Operator(eq)
