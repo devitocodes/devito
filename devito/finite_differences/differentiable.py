@@ -15,7 +15,9 @@ except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.finite_differences.interpolation import interp_at, post_x0_indices
+from devito.finite_differences.interpolation import (
+    interp_at, interp_mapper, post_x0_indices
+)
 from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
@@ -487,8 +489,15 @@ class Differentiable(sympy.Expr, Evaluable):
             return all(i in self.free_symbols for i in patterns)
 
 
-def highest_priority(diff_op):
-    if not diff_op._args_diff:
+def highest_priority(diff_op, candidates=None):
+    """
+    The Function whose location a product should be evaluated at.
+
+    `candidates` restricts the choice to a subset of the operands; without it
+    the whole expression's differentiable arguments are considered.
+    """
+    args_diff = diff_op._args_diff if candidates is None else tuple(candidates)
+    if not args_diff:
         return diff_op
 
     # We want to get the object with highest priority
@@ -496,7 +505,7 @@ def highest_priority(diff_op):
     # set of dimensions is used when multiple ones with the same
     # priority appear
     prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
-    prio_func = sorted(diff_op._args_diff, key=prio, reverse=True)[0]
+    prio_func = sorted(args_diff, key=prio, reverse=True)[0]
 
     # The highest priority must be a Function
     if not isinstance(prio_func, AbstractFunction):
@@ -664,6 +673,27 @@ class Mul(DifferentiableOp, sympy.Mul):
             other = self.func(*other)._eval_at(highest_priority(self))
             return self.func(other, *derivs)
 
+    @classmethod
+    def _off_func(cls, a, func):
+        """
+        Whether evaluating `a` at `func`'s location takes an interpolation.
+
+        A derivative is where its `x0` puts it, not where the field it
+        differentiates lives: `div(v)` of a staggered velocity lands on the
+        node, and reading its operand's staggering instead would re-associate a
+        product that is already node-centred and interpolate it for nothing.
+        A composite is off only if one of its own operands is, which is what
+        makes a sum of derivatives -- a divergence, a trace -- read as the
+        node-centred quantity it is.
+        """
+        if isinstance(a, sympy.Derivative):
+            source = post_x0_indices(a, func)
+        elif isinstance(a, AbstractFunction) or not getattr(a, '_args_diff', ()):
+            source = a.indices_ref
+        else:
+            return any(cls._off_func(i, func) for i in a._args_diff)
+        return bool(interp_mapper(source, func.indices_ref, a.dimensions))
+
     def _eval_at(self, func, interp_mode='direct', **kwargs):
         """
         Evaluate a Mul at the location of `func`.
@@ -674,36 +704,52 @@ class Mul(DifferentiableOp, sympy.Mul):
           independently evaluated at `func`'s location via
           `Differentiable._eval_at`.
 
-        - `interp_mode='symmetric'`: when every Differentiable factor has a
-          staggering different from `func`'s, apply the `I * (a * I^T * b)`
-          form:
+        - `interp_mode='symmetric'`: the product is formed *away* from `func`
+          and closed with a single interpolation, the `I * (a * I^T * b)` form:
 
-            1. Pick a `block` location -- the highest-priority factor's
-               staggering (NODE is the highest priority, so coefficient-like
-               NODE factors win, as in the `I * C * I^T` elastic stiffness
-               pattern). Each factor not at the block is brought there via
-               `I^T` (an explicit 0-order FD interpolation operator).
-               Derivatives additionally set `x0` on their own derivative
-               dimensions to `func`'s indices.
+            1. Pick a `block` location -- the highest-priority staggering
+               among the factors that are not already at `func`'s (NODE is the
+               highest priority, so coefficient-like NODE factors win, as in
+               the `I * C * I^T` elastic stiffness pattern). Each factor not at
+               the block is brought there via `I^T` (an explicit 0-order FD
+               interpolation operator). Derivatives additionally set `x0` on
+               their own derivative dimensions to `func`'s indices.
             2. The product is formed at `block`'s location.
             3. The whole product is interpolated to `func` via `I` (an
                explicit 0-order FD operator).
 
-          When the trigger does not hold (e.g. some factor already matches
-          `func`'s staggering), we fall back to `direct`.
+          It takes *two* factors away from `func` to have something to
+          re-associate. With one, the single interpolation `direct` puts on it
+          is already the transpose-consistent form -- it is what makes the
+          `i, j` entry of a stiffness matrix the transpose of its `j, i` entry
+          -- so we fall back. With two, `direct` would interpolate each of them
+          separately, and `I(a)*I(b)` is not `I(a*b)`: the discretized operator
+          stops being the transpose of itself, which is invisible in a forward
+          simulation and shows up as a first-order gradient in an adjoint one.
+
+          Which factors count is the other half of it. A derivative is where
+          its `x0` puts it, not where its operand lives, so a product around a
+          `div(v)` of a staggered velocity -- node-centred however its operands
+          are staggered -- is left alone rather than re-associated onto the
+          operands' location, which would replace a compact stencil with an
+          interpolated one twice as wide.
         """
         if interp_mode != 'symmetric':
             return super()._eval_at(func, **kwargs)
 
         diff, other = split(self.args, lambda a: isinstance(a, Differentiable))
 
-        # Symmetric form requires every Differentiable factor to differ from
-        # func; otherwise direct evaluation is cleaner and equivalent.
-        if len(diff) < 2 or \
-           any(a.staggered == func.staggered for a in diff):
-            return super()._eval_at(func, **kwargs)
+        # A single factor cannot be re-associated, and with everything already
+        # on `func` there is no interpolation to place.  The mode still has to
+        # travel down: a product that cannot itself be re-associated is
+        # routinely wrapped around one that can (a `dt` scaling, a sum of
+        # per-component contractions), and dropping the mode here would silently
+        # evaluate all of that in `direct`.
+        off_func = [a for a in diff if self._off_func(a, func)]
+        if len(off_func) < 2:
+            return super()._eval_at(func, interp_mode=interp_mode, **kwargs)
 
-        block_indices = highest_priority(self).indices_ref
+        block_indices = highest_priority(self, candidates=off_func).indices_ref
 
         # Bring each factor to block's location (I^T where needed)
         new_factors = list(other)
