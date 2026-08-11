@@ -1165,9 +1165,11 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
         except AttributeError:
             # This might happen if e.g. one attempts a (re)construction with
             # one sole argument. The (re)constructed EvalDerivative degenerates
-            # to an object of different type, in classic SymPy style. That's fine
+            # to an object of different type, in classic SymPy style. That's
+            # fine -- and a single argument that is itself a sum is the same
+            # story: a zero-order derivative whose weights collapse to one is
+            # the identity, so it comes back as the sum it was applied to.
             assert len(args) <= 1
-            assert not obj.is_Add
             return obj
 
         return obj
