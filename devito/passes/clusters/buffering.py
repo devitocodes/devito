@@ -1,4 +1,5 @@
 from collections import defaultdict, namedtuple
+from contextlib import suppress
 from functools import cached_property
 from itertools import chain
 
@@ -176,7 +177,10 @@ class InjectBuffers(Queue):
             accesses = chain(*[c.scope[v.f] for c in v.clusters])
             index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
             for a in accesses:
-                subs[a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
+                indices = [index_mapper.get(i, i) for i in a]
+                with suppress(AttributeError):
+                    indices = b._buffer_indices(indices)
+                subs[a.access] = b.indexed[indices]
 
         processed = []
         for c in clusters:
@@ -431,7 +435,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             buffer, = buffers
             xd = buffer.indices[dim]
             # The new buffer is derived from `buffer`, so it inherits its padding policy
-            extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
+            extra_kwargs = {'is_autopaddable': buffer.is_autopaddable, 'buffer': buffer}
         else:
             size = infer_buffer_size(f, dim, clusters)
 
@@ -459,6 +463,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
         dimensions[dimensions.index(dim)] = xd
 
         # Finally create the actual buffer
+        # FIXME: A better refactor would stash callback on the original `f`
         cls = callback or Array
         name = sregistry.make_name(prefix=f'{f.name}b')
         mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
