@@ -1,7 +1,10 @@
+import warnings
+
 import numpy as np
 import pytest
 import sympy
 from sympy import Matrix, Rational
+from sympy.utilities.exceptions import SymPyDeprecationWarning
 
 from devito import (
     Dimension, Eq, Function, Grid, TensorFunction, TensorTimeFunction, TimeFunction,
@@ -508,6 +511,41 @@ def test_diag(func1):
     else:
         assert all(f2[i, j] == 0 for i in range(3) for j in range(3) if i != j)
         assert all(f2[i, i] == f1 for i in range(3))
+
+
+@pytest.mark.parametrize('func1', [Function, TimeFunction, VectorFunction,
+                                   VectorTimeFunction])
+def test_diag_sympified_zeros(func1):
+    """The zeros filling a diagonal tensor must be `Expr`, not plain `int`."""
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SymPyDeprecationWarning)
+        f2 = diag(div(f1) if isinstance(f1, (VectorFunction,
+                                             VectorTimeFunction)) else f1)
+
+    assert all(isinstance(c, sympy.Expr) for c in f2.flat())
+
+
+def test_non_expr_components():
+    """
+    A tensor may legitimately hold non-`Expr` components, which sympy deprecates
+    for plain Matrices. None of the construction or arithmetic paths must warn.
+    """
+    grid = Grid(tuple([5]*3))
+    f1 = Function(name="f1", grid=grid)
+    # `S.true` is `Basic` but not `Expr`, as e.g. a serialization string would be
+    comps = [[f1 if i == j else sympy.S.true for i in range(3)] for j in range(3)]
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SymPyDeprecationWarning)
+        # Construction, from a flat list of components...
+        f2 = TensorFunction(name="f2", grid=grid, components=comps)
+        # ...and from a dok, on rebuild
+        assert isinstance(f2.T, TensorFunction)
+        # Scalar multiplication, which unifies the scalar with the components
+        assert isinstance(f1 * TensorFunction(name="f3", grid=grid), TensorFunction)
 
 
 @pytest.mark.parametrize('func1', [TensorFunction, VectorFunction])
