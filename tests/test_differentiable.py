@@ -6,7 +6,7 @@ import sympy
 
 from devito import NODE, Differentiable, Eq, Function, Grid, Operator
 from devito.finite_differences.differentiable import (
-    Add, Mul, Pow, SafeInv, diffify, interp_for_fd
+    Add, EvalDerivative, Mul, Pow, SafeInv, diffify, interp_for_fd
 )
 
 
@@ -534,3 +534,122 @@ class TestSymmetricAdjoint:
             f'<e1, C*t2> = {inner_e!r}, <C*e1, t2> = {inner_t!r} '
             f'(rel diff {rel:.3e})'
         )
+
+
+class TestPerEquationInterpMode:
+    """
+    `Eq(..., interp_mode=...)` overrides the Operator's `sym_opt`.
+
+    An Operator generally wants one mode for all of it -- `'direct'`, which
+    keeps finite-difference stencils compact -- while a single equation in it
+    needs the other. Accumulating a gradient alongside the propagation it is
+    the adjoint of is the case this exists for: the stencils have to stay
+    compact and the accumulation has to be an exact transpose.
+    """
+
+    @staticmethod
+    def _setup():
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        return (grid,
+                Function(name='g', grid=grid, space_order=4, staggered=NODE),
+                Function(name='a', grid=grid, space_order=4, staggered=(x, y)),
+                Function(name='b', grid=grid, space_order=4, staggered=(x, y)))
+
+    @staticmethod
+    def _lowered(eq, mode):
+        return str(Operator([eq], sym_opt={'interp-mode': mode}))
+
+    def test_equation_overrides_operator(self):
+        """Either mode can be asked for on one equation of an Operator."""
+        _, g, a, b = self._setup()
+        direct = self._lowered(Eq(g, a * b), 'direct')
+        symmetric = self._lowered(Eq(g, a * b), 'symmetric')
+        assert direct != symmetric
+
+        # An Operator in 'direct' with the equation asking for 'symmetric'
+        assert self._lowered(Eq(g, a * b, interp_mode='symmetric'),
+                             'direct') == symmetric
+        # ... and the other way round
+        assert self._lowered(Eq(g, a * b, interp_mode='direct'),
+                             'symmetric') == direct
+
+    def test_mode_survives_a_wrapper(self):
+        """
+        The mode reaches a product wrapped in one that cannot be re-associated.
+
+        A `dt` scaling or a sum of per-component contractions is exactly such a
+        wrapper, and dropping the mode there evaluates everything under it in
+        `'direct'` while reporting that `'symmetric'` was asked for.
+        """
+        grid, g, a, b = self._setup()
+        dt = grid.stepping_dim.spacing
+        bare = self._lowered(Eq(g, a * b, interp_mode='symmetric'), 'direct')
+        scaled = self._lowered(Eq(g, dt * (a * b), interp_mode='symmetric'),
+                               'direct')
+        # the scaling is the only difference; the placement must not change
+        assert scaled.count('a[') == bare.count('a[')
+        assert scaled.count('b[') == bare.count('b[')
+        assert scaled != self._lowered(Eq(g, dt * (a * b)), 'direct')
+
+
+class TestSymmetricPlacement:
+    """
+    What `'symmetric'` re-associates, and what it deliberately leaves alone.
+    """
+
+    @staticmethod
+    def _both(eq):
+        return (str(Operator([eq], sym_opt={'interp-mode': 'direct'})),
+                str(Operator([eq], sym_opt={'interp-mode': 'symmetric'})))
+
+    def test_node_coefficient_does_not_block_it(self):
+        """
+        A node-centred coefficient beside staggered operands is the norm for a
+        gradient -- the accumulator is node-centred and so is the model
+        parameter it belongs to -- so it must not stop the product being formed
+        where the operands are.
+        """
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        g = Function(name='g', grid=grid, space_order=4, staggered=NODE)
+        c = Function(name='c', grid=grid, space_order=4, staggered=NODE)
+        u = Function(name='u', grid=grid, space_order=4, staggered=(x, y))
+        v = Function(name='v', grid=grid, space_order=4, staggered=(x, y))
+        direct, symmetric = self._both(Eq(g, c * u * v))
+        assert direct != symmetric
+
+    def test_a_derivative_on_the_target_is_left_alone(self):
+        """
+        `div(v)` of a staggered velocity lands on the node.
+
+        Re-associating a product around it would replace its compact stencil
+        with an interpolated one twice as wide -- a different and much more
+        dispersive discretization, not a re-association of the same one.
+        """
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        g = Function(name='g', grid=grid, space_order=4, staggered=NODE)
+        c = Function(name='c', grid=grid, space_order=4, staggered=NODE)
+        vx = Function(name='vx', grid=grid, space_order=4, staggered=x)
+        vy = Function(name='vy', grid=grid, space_order=4, staggered=y)
+        # vx.dx and vy.dy both land on the node, so does their sum
+        direct, symmetric = self._both(Eq(g, c * (vx.dx + vy.dy)))
+        assert direct == symmetric
+
+    def test_degenerate_interpolation_of_a_sum(self):
+        """
+        A zero-order derivative whose weights collapse to one is the identity.
+
+        It rebuilds as whatever it was applied to, and when that is a sum --
+        the engineering shear strain of a staggered velocity, say -- the
+        rebuild used to assert rather than accept the degenerate result. It is
+        reachable through the symmetric placement of a stiffness contraction.
+        """
+        grid = Grid((11, 11))
+        x, y = grid.dimensions
+        vx = Function(name='vx', grid=grid, space_order=4, staggered=x)
+        vy = Function(name='vy', grid=grid, space_order=4, staggered=y)
+        shear = vx.dy + vy.dx
+        # the identity rebuild: one argument, and it is the sum itself
+        assert EvalDerivative(shear, base=shear) == shear

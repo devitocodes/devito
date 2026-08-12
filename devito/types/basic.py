@@ -1,7 +1,7 @@
 import abc
 import inspect
 import warnings
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from ctypes import POINTER, Structure, _Pointer, c_char, c_char_p
 from functools import cached_property, reduce
 from operator import mul
@@ -1471,6 +1471,22 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return args, kwargs
 
 
+@contextmanager
+def ignore_non_expr_deprecation():
+    """
+    Suppress sympy's deprecation of non-`Expr` entries in a Matrix.
+
+    A Devito tensor is a Matrix of Devito objects, some of which are legitimately
+    not `Expr` (for example a serialization string), so the deprecation does not
+    apply to us. Sympy emits it from `_dod_to_DomainMatrix`, reached whenever a
+    tensor is built from components, and from `_unify_element_sympy`, reached on
+    scalar multiplication, so both are wrapped in this.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=SymPyDeprecationWarning)
+        yield
+
+
 class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
 
     """
@@ -1563,23 +1579,29 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
         return []
 
     @classmethod
-    def _sympify(self, arg):
+    def _sympify(cls, arg):
         # This is used internally by sympy to process arguments at rebuilt. And since
-        # some of our properties are non-sympyfiable we need to have a fallback
+        # some of our properties are non-sympyfiable we need to have a fallback.
+        # `strict` so that strings are left alone rather than parsed into Symbols,
+        # while plain numbers are turned into `Expr` as sympy expects (a Matrix
+        # holding non-`Expr` entries, such as a plain `int` 0, is deprecated)
         try:
-            # Pure sympy object
-            return arg._sympy_()
-        except AttributeError:
+            return sympy.sympify(arg, strict=True)
+        except sympy.SympifyError:
             return arg
 
     @classmethod
-    def _eval_from_dok(cls, rows, cols, dok):
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=SymPyDeprecationWarning
-            )
-            return super()._eval_from_dok(rows, cols, dok)
+    def _dod_to_DomainMatrix(cls, rows, cols, dod, types):
+        # Entry point of every matrix construction, from either a flat list
+        # (`_new`) or a dok (`_eval_from_dok`)
+        with ignore_non_expr_deprecation():
+            return super()._dod_to_DomainMatrix(rows, cols, dod, types)
+
+    @classmethod
+    def _unify_element_sympy(cls, rep, element):
+        # Entry point of scalar multiplication, e.g. `lam * tau`
+        with ignore_non_expr_deprecation():
+            return super()._unify_element_sympy(rep, element)
 
     @property
     def grid(self):

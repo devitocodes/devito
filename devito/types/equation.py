@@ -36,6 +36,15 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         An ordered list of Dimensions that do not explicitly appear in either the
         left-hand side or in the right-hand side, but that should be honored when
         constructing an Operator.
+    interp_mode : str, optional, default=None
+        Overrides the Operator's `sym_opt={'interp-mode': ...}` for this
+        equation only. An Operator generally wants one mode -- `'direct'`, which
+        keeps finite-difference stencils compact -- while a single equation in
+        it may need `'symmetric'`, which re-associates a product of staggered
+        operands so that the discretized operator is the transpose of itself.
+        A gradient accumulated alongside the propagation it is the adjoint of is
+        the typical case: the stencils must stay compact, but the accumulation
+        has to be an exact transpose or the gradient degrades to first order.
 
     Examples
     --------
@@ -60,10 +69,10 @@ class Eq(sympy.Eq, Evaluable, Pickable):
     is_Reduction = False
 
     __rargs__ = ('lhs', 'rhs')
-    __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims')
+    __rkwargs__ = ('subdomain', 'coefficients', 'implicit_dims', 'interp_mode')
 
     def __new__(cls, lhs, rhs=0, subdomain=None, coefficients=None,
-                implicit_dims=None, **kwargs):
+                implicit_dims=None, interp_mode=None, **kwargs):
         if coefficients is not None:
             _ = deprecations.coeff_warn
         kwargs['evaluate'] = False
@@ -76,8 +85,14 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         obj._subdomain = subdomain
         obj._substitutions = coefficients
         obj._implicit_dims = as_tuple(implicit_dims)
+        obj._interp_mode = interp_mode
 
         return obj
+
+    @property
+    def interp_mode(self):
+        """Per-equation override of the Operator's `interp-mode`, or None."""
+        return self._interp_mode
 
     @classmethod
     def _apply_coeffs(cls, expr, coefficients):
@@ -108,6 +123,8 @@ class Eq(sympy.Eq, Evaluable, Pickable):
 
         The RHS of the Equation is evaluated at the indices of the LHS if required.
         """
+        if self._interp_mode is not None:
+            kwargs['interp_mode'] = self._interp_mode
         try:
             lhs = self.lhs._evaluate(**kwargs)
             rhs = self.rhs._eval_at(self.lhs, **kwargs)._evaluate(**kwargs)
@@ -115,7 +132,8 @@ class Eq(sympy.Eq, Evaluable, Pickable):
             lhs, rhs = self._evaluate_args(**kwargs)
         eq = self.func(lhs, rhs, subdomain=self.subdomain,
                        coefficients=self.substitutions,
-                       implicit_dims=self._implicit_dims)
+                       implicit_dims=self._implicit_dims,
+                       interp_mode=self._interp_mode)
 
         return eq
 
