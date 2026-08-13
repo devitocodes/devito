@@ -12,6 +12,7 @@ from devito import (
 )
 from devito.symbolics import retrieve_derivatives
 from devito.types import NODE
+from devito.types.utils import Staggering
 
 
 def dimify(dimensions):
@@ -526,6 +527,25 @@ def test_diag_sympified_zeros(func1):
                                              VectorTimeFunction)) else f1)
 
     assert all(isinstance(c, sympy.Expr) for c in f2.flat())
+
+
+@pytest.mark.parametrize('func1', [TensorFunction, TensorTimeFunction,
+                                   VectorFunction, VectorTimeFunction])
+def test_staggered_attribute_roundtrip(func1):
+    """
+    Accessing an attribute rebuilds the tensor component-wise, which must not
+    sympify a `Staggering` away, otherwise it can no longer be fed back as the
+    `staggered` kwarg.
+    """
+    grid = Grid(tuple([5]*3))
+    f1 = func1(name="f1", grid=grid, time_order=1)
+
+    stagg = f1.staggered
+    assert all(isinstance(s, Staggering) for s in stagg.flat())
+
+    f2 = func1(name="f2", grid=grid, time_order=1, staggered=stagg)
+    assert all(c1.staggered == c2.staggered
+               for c1, c2 in zip(f1.flat(), f2.flat(), strict=True))
 
 
 def test_non_expr_components():

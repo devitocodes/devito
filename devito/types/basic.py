@@ -4,6 +4,7 @@ import warnings
 from contextlib import contextmanager, suppress
 from ctypes import POINTER, Structure, _Pointer, c_char, c_char_p
 from functools import cached_property, reduce
+from numbers import Number
 from operator import mul
 
 import numpy as np
@@ -1539,7 +1540,10 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
             # Filter grid and dimensions
             grid, dimensions = newobj._infer_dims()
             if grid is None and dimensions is None:
-                return sympy.ImmutableDenseMatrix(*args)
+                # Downgrade to a plain Matrix, reusing the representation rather
+                # than rebuilding from `args`, as the latter would sympify the
+                # entries with sympy's `sympify` instead of `cls._sympify`
+                return sympy.ImmutableDenseMatrix._fromrep(newobj._rep)
             # Initialized with constructed object
             newobj.__init_finalize__(newobj.rows, newobj.cols, newobj.flat(),
                                      grid=grid, dimensions=dimensions)
@@ -1581,13 +1585,18 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
     @classmethod
     def _sympify(cls, arg):
         # This is used internally by sympy to process arguments at rebuilt. And since
-        # some of our properties are non-sympyfiable we need to have a fallback.
-        # `strict` so that strings are left alone rather than parsed into Symbols,
-        # while plain numbers are turned into `Expr` as sympy expects (a Matrix
-        # holding non-`Expr` entries, such as a plain `int` 0, is deprecated)
+        # some of our properties are non-sympyfiable we need to have a fallback
+        if isinstance(arg, Number):
+            # Plain numbers must be sympified, as sympy assigns the `EXRAW` domain
+            # to a Matrix holding non-`Expr` entries such as a plain `int` 0
+            return sympy.sympify(arg)
         try:
-            return sympy.sympify(arg, strict=True)
-        except sympy.SympifyError:
+            # Pure sympy object
+            return arg._sympy_()
+        except AttributeError:
+            # Anything else, such as a `Staggering`, is passed through untouched.
+            # Note that sympifying is not an option here, as it would convert
+            # away the type, `Staggering` being a `tuple` for example
             return arg
 
     @classmethod

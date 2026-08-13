@@ -1008,9 +1008,9 @@ class SparseFunction(AbstractSparseFunction):
         if estimate_memory:
             return defaults
         key = alias or self
-        coords = defaults.get(key.coordinates.name, key.coordinates.data)
+        coords = defaults.get(key.coordinates.name, self.coordinates.data)
         defaults.update(key.interpolator._arg_defaults(coords=coords,
-                                                       sfunc=key))
+                                                       sfunc=self))
         return defaults
 
     def _arg_values(self, estimate_memory=False, **kwargs):
@@ -1018,10 +1018,14 @@ class SparseFunction(AbstractSparseFunction):
         if estimate_memory:
             return values
 
-        # Resolve the runtime grid origin (honours `o_x`/`o_y`/... overrides)
-        # and hand it to the interpolator so tables reflect the actual frame
-        # of reference used by the kernel.
+        # `super` has already tabulated through `_arg_defaults`, in the frame
+        # of whichever object supplied the runtime values.  Only an explicit
+        # `o_x`/`o_y`/... override moves that frame again, and the tables then
+        # have to be rebuilt against it.
         onames = [o.name for o in self.grid.origin_symbols]
+        if not any(n in kwargs for n in onames):
+            return values
+
         origin = tuple(kwargs.get(n, o) for n, o in
                        zip(onames, self.grid.origin, strict=True))
         coords = values.get(self.coordinates.name, self.coordinates.data)

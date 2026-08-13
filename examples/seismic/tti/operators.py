@@ -62,7 +62,7 @@ def trig_func(model):
     return costheta, sintheta
 
 
-def Gzz_centered(model, field):
+def Gzz_centered(model, field, b=None):
     """
     3D rotated second order derivative in the direction z.
 
@@ -72,12 +72,17 @@ def Gzz_centered(model, field):
         Physical parameters model structure.
     field : Function
         Input for which the derivative is computed.
+    b : Function, optional
+        Buoyancy to build the operator with, defaulting to the model's. Since
+        the operator is linear in it, passing a perturbation here gives the
+        derivative of the operator with respect to the buoyancy in that
+        direction.
 
     Returns
     -------
     Rotated second order derivative w.r.t. z.
     """
-    b = getattr(model, 'b', 1)
+    b = getattr(model, 'b', 1) if b is None else b
     costheta, sintheta, cosphi, sinphi = trig_func(model)
 
     order1 = field.space_order // 2
@@ -99,7 +104,7 @@ def Gzz_centered(model, field):
     return Gzz
 
 
-def Gzz_centered_2d(model, field):
+def Gzz_centered_2d(model, field, b=None):
     """
     2D rotated second order derivative in the direction z.
 
@@ -109,12 +114,17 @@ def Gzz_centered_2d(model, field):
         Physical parameters model structure.
     field : Function
         Input for which the derivative is computed.
+    b : Function, optional
+        Buoyancy to build the operator with, defaulting to the model's. Since
+        the operator is linear in it, passing a perturbation here gives the
+        derivative of the operator with respect to the buoyancy in that
+        direction.
 
     Returns
     -------
     Rotated second order derivative w.r.t. z.
     """
-    b = getattr(model, 'b', 1)
+    b = getattr(model, 'b', 1) if b is None else b
     costheta, sintheta = trig_func(model)
 
     order1 = field.space_order // 2
@@ -133,7 +143,7 @@ def Gzz_centered_2d(model, field):
 
 
 # Centered case produces directly Gxx + Gyy
-def Gh_centered(model, field):
+def Gh_centered(model, field, b=None):
     """
     Sum of the 3D rotated second order derivative in the direction x and y.
     As the Laplacian is rotation invariant, it is computed as the conventional
@@ -146,13 +156,19 @@ def Gh_centered(model, field):
         Physical parameters model structure.
     field : Function
         Input field.
+    b : Function, optional
+        Buoyancy to build the operator with, defaulting to the model's. See
+        :func:`Gzz_centered`.
 
     Returns
     -------
     Sum of the 3D rotated second order derivative in the direction x and y.
     """
-    Gzz = Gzz_centered(model, field) if model.dim == 3 else Gzz_centered_2d(model, field)
-    b = getattr(model, 'b', None)
+    b = getattr(model, 'b', None) if b is None else b
+    if model.dim == 3:  # noqa: SIM108
+        Gzz = Gzz_centered(model, field, b=b)
+    else:
+        Gzz = Gzz_centered_2d(model, field, b=b)
     if b is not None:
         _diff = lambda f, d: getattr(f, f'd{d.name}')
         so = field.space_order // 2

@@ -1077,6 +1077,37 @@ class TestCustom:
 
         assert(np.allclose(rec.data, rec1.data, atol=1e-5))
 
+    @pytest.mark.parametrize('interpolation,r', [('linear', 1), ('sinc', 4)])
+    def test_position_override_grid(self, interpolation, r):
+        """
+        Inject through an Operator built on a grid whose origin differs from
+        the one it is applied to, as when an Operator compiled against one
+        model is applied to another. The point must land where the runtime
+        origin puts it, not the compile-time one.
+        """
+        shape, spacing, coord = (41, 41), (10., 10.), 120.
+        extent = tuple((s - 1) * h for s, h in zip(shape, spacing, strict=True))
+        kw = dict(interpolation=interpolation, r=r)
+
+        def setup(origin):
+            grid = Grid(shape=shape, extent=extent, origin=origin)
+            u = TimeFunction(name='u', grid=grid, space_order=8)
+            src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=2, **kw)
+            src.coordinates.data[0, :] = coord
+            src.data[:] = 1.
+            return u, src
+
+        u_build, src_build = setup((0., 0.))
+        op = Operator(src_build.inject(field=u_build.forward, expr=src_build))
+
+        shift = -100.
+        u, src = setup((shift, shift))
+        op.apply(time_M=0, u=u, src=src)
+
+        expected = tuple(int((coord - shift) / h) for h in spacing)
+        peak = np.unravel_index(np.argmax(np.abs(u.data)), u.data.shape)[1:]
+        assert peak == expected
+
     def test_sparse_first(self):
         """
         Tests custom sprase function with sparse dimension as first index.

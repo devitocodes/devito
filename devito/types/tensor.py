@@ -24,12 +24,15 @@ def staggering(stagg, i, j, d, dims):
     if stagg is None:
         # No input
         return NODE if i == j else (d, dims[j])
+    elif isinstance(stagg, MatrixBase):
+        # From rebuild/tensor property. Indexed as a sympy Matrix. Note that this
+        # may be a plain Matrix rather than an AbstractTensor, as rebuilding a
+        # tensor component-wise downgrades it when the components aren't Devito
+        # objects, which is the case for a Matrix of `Staggering`
+        return stagg[i, j]
     elif isinstance(stagg, (tuple, list)):
         # User input as list or tuple
         return stagg[i][j]
-    elif isinstance(stagg, AbstractTensor):
-        # From rebuild/tensor property. Indexed as a sympy Matrix
-        return stagg[i, j]
 
 
 class TensorFunction(AbstractTensor):
