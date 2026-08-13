@@ -13,7 +13,9 @@ except ImportError:
 
 from devito.finite_differences.differentiable import IndexDerivative
 from devito.ir import Cluster, Scope, cluster_pass
-from devito.symbolics import Reserved, estimate_cost, q_leaf, q_terminal, search
+from devito.symbolics import (
+    DefFunction, Reserved, estimate_cost, q_leaf, q_terminal, search
+)
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import DAG, as_list, as_tuple, extract_dtype, frozendict
 from devito.types import Eq, Symbol, Temp
@@ -462,3 +464,14 @@ def _(expr):
     mapper[Candidate(expr)].append(expr)
 
     return mapper
+
+
+@_catch.register(DefFunction)
+def _(expr):
+    """
+    Handler for opaque C-level calls (e.g. `make_float4(...)`). Their return
+    dtype is invisible to `extract_dtype` -- capturing one would bind it to a
+    temporary of the wrong type (`float r0 = make_float4(...)`) -- and they
+    are not guaranteed to be pure, so they are left untouched.
+    """
+    return {}
