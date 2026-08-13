@@ -21,7 +21,8 @@ from devito.tools import (
 from devito.types import CustomDimension, Eq, Evaluable, Inc, SubFunction, Symbol
 from devito.types.utils import DimensionTuple
 
-__all__ = ['LinearInterpolator', 'PrecomputedInterpolator', 'SincInterpolator']
+__all__ = ['LinearInterpolator', 'NearestInterpolator',
+           'PrecomputedInterpolator', 'SincInterpolator']
 
 
 def check_radius(func):
@@ -163,7 +164,8 @@ class Injection(UnevaluatedSparseOperation):
     Evaluates to a list of Eq objects.
     """
 
-    __rargs__ = ('field', 'expr', 'implicit_dims') + UnevaluatedSparseOperation.__rargs__
+    __rargs__ = ('field', 'expr', 'increment', 'implicit_dims') + \
+        UnevaluatedSparseOperation.__rargs__
 
     def __new__(cls, field, expr, increment, implicit_dims, interpolator):
         obj = super().__new__(cls, interpolator)
@@ -355,6 +357,20 @@ class WeightedInterpolator(GenericInterpolator):
 
         return idx_subs, temps
 
+    def _local_accumulator(self, expr, idx_subs, implicit_dims=None, subdomain=None):
+        """
+        Generate a local accumulator for the interpolation/injection operation.
+        """
+        # Accumulate point-wise contributions into a temporary
+        rhs = Symbol(name=f'sum{self.sfunction.name}', dtype=self.sfunction.dtype)
+        summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
+        # Substitute coordinate base symbols into the interpolation coefficients
+        weights = self._weights(subdomain=subdomain)
+        summands.extend([Inc(rhs, (weights * expr).xreplace(idx_subs),
+                             implicit_dims=implicit_dims)])
+
+        return summands, rhs
+
     @check_radius
     @check_coords
     def interpolate(self, expr, increment=False, self_subs=None, implicit_dims=None):
@@ -427,14 +443,10 @@ class WeightedInterpolator(GenericInterpolator):
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
                                            subdomain=subdomain)
 
-        # Accumulate point-wise contributions into a temporary
-        rhs = Symbol(name=f'sum{self.sfunction.name}', dtype=self.sfunction.dtype)
-        summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
-        # Substitute coordinate base symbols into the interpolation coefficients
-        weights = self._weights(subdomain=subdomain)
-        summands.extend([Inc(rhs, (weights * expr).xreplace(idx_subs),
-                             implicit_dims=implicit_dims)])
-
+        # Local scalar for accumulation over radius
+        summands, rhs = self._local_accumulator(expr, idx_subs,
+                                                implicit_dims=implicit_dims,
+                                                subdomain=subdomain)
         # Write/Incr `self`
         lhs = self.sfunction.subs(self_subs)
         ecls = Inc if increment else Eq
@@ -496,9 +508,10 @@ class WeightedInterpolator(GenericInterpolator):
             # Move all temporaries inside inner loop to improve parallelism
             # Can only be done for inject as interpolation needs a summing temp
             # that wouldn't allow collapsing
-            implicit_dims = implicit_dims + tuple(r.parent for r in
-                                                  self._rdim(subdomain=subdomain,
-                                                             shifts=shifts))
+            with suppress(AttributeError):
+                implicit_dims = implicit_dims + tuple(r.parent for r in
+                                                      self._rdim(subdomain=subdomain,
+                                                                 shifts=shifts))
 
             # List of indirection indices for all adjacent grid points
             idx_subs, _temps = self._interp_idx(list(g_fields) + variables,
@@ -714,6 +727,36 @@ class LinearInterpolator(WeightedInterpolator):
                     args.update(d._arg_defaults(_min=0, size=s))
 
         return args
+
+
+class NearestInterpolator(LinearInterpolator):
+    """
+    Nearest neighbor interpolation scheme.
+
+    Gridpoints and per-dim `(1-frac, frac)` weights are precomputed on the
+    host in fp64 (see `_arg_defaults`) and passed to the kernel as int32/fp
+    SubFunctions. The generated C only indexes those tables and never sees
+    `(c-o)/h` or `floor` on fp32.
+    """
+
+    _name = 'nearest'
+
+    def _local_accumulator(self, expr, idx_subs, implicit_dims=None, subdomain=None):
+        return [], expr.xreplace(idx_subs)
+
+    @memoized_meth
+    def _rdim(self, subdomain=None, shifts=None):
+        return DimensionTuple(*[0 for _ in self._cdim], getters=self._gdims)
+
+    @memoized_meth
+    def _weights(self, subdomain=None, shifts=None):
+        return sympy.S.One
+
+    def _gridpoints(self, shifts=None):
+        return self._generate_coeffs(tuple(shifts) if shifts else None)[0]
+
+    def _coeffs(self, shifts=None):
+        return []
 
 
 class PrecomputedInterpolator(WeightedInterpolator):

@@ -9,7 +9,7 @@ import sympy
 from devito.finite_differences import generate_fd_shortcuts
 from devito.mpi import MPI, SparseDistributor
 from devito.operations import (
-    LinearInterpolator, PrecomputedInterpolator, SincInterpolator
+    LinearInterpolator, NearestInterpolator, PrecomputedInterpolator, SincInterpolator
 )
 from devito.symbolics import indexify, retrieve_function_carriers
 from devito.tools import (
@@ -34,8 +34,9 @@ __all__ = [
 ]
 
 
-_interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator}
-_default_radius = {'linear': 1, 'sinc': 4}
+_interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator,
+                  'nearest': NearestInterpolator}
+_default_radius = {'linear': 1, 'sinc': 4, 'nearest': 0}
 
 
 class SparseSubFunction(SubFunction):
@@ -380,6 +381,8 @@ class AbstractSparseFunction(DiscreteFunction):
     @cached_property
     def _point_increments(self):
         """Index increments in each Dimension for each point symbol."""
+        if self.r == 0:
+            return ((0,) * self.grid.dim,)
         return tuple(product(range(-self.r+1, self.r+1), repeat=self.grid.dim))
 
     @cached_property
@@ -439,11 +442,14 @@ class AbstractSparseFunction(DiscreteFunction):
         """
         return self.interpolator.interpolate(*args, **kwargs)
 
-    def inject(self, *args, **kwargs):
+    def inject(self, *args, increment=True, **kwargs):
         """
         Implement an injection operation from a sparse point onto the grid
         """
-        return self.interpolator.inject(*args, **kwargs)
+        if not increment and self.interpolation != 'nearest':
+            raise ValueError("Assignment injection is only supported"
+                             "for nearest-neighbor interpolation")
+        return self.interpolator.inject(*args, increment=increment, **kwargs)
 
     def guard(self, expr=None):
         """
@@ -982,6 +988,8 @@ class SparseFunction(AbstractSparseFunction):
                 raise ValueError("'sinc' interpolator requires a radius of at most 10")
         elif interpolation == 'linear' and self._radius != 1:
             self._radius = 1
+        elif interpolation == 'nearest':
+            self._radius = 0
 
     @cached_property
     def _coordinate_symbols(self):
@@ -1135,7 +1143,7 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         return super().interpolate(expr, increment=increment, self_subs=subs,
                                    implicit_dims=implicit_dims)
 
-    def inject(self, field, expr, u_t=None, p_t=None, implicit_dims=None):
+    def inject(self, field, expr, increment=True, u_t=None, p_t=None, implicit_dims=None):
         """
         Generate equations injecting an arbitrary expression into a field.
 
@@ -1153,6 +1161,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
             An ordered list of Dimensions that do not explicitly appear in the
             injection expression, but that should be honored when constructing
             the operator.
+        increment: bool, optional
+            If Flalse, generate assignment (Eq) rather than increment (Inc).
         """
         # Apply optional time symbol substitutions to field and expr
         if u_t is not None:
@@ -1160,7 +1170,8 @@ class SparseTimeFunction(AbstractSparseTimeFunction, SparseFunction):
         if p_t is not None:
             expr = expr.subs({self.time_dim: p_t})
 
-        return super().inject(field, expr, implicit_dims=implicit_dims)
+        return super().inject(field, expr, increment=increment,
+                              implicit_dims=implicit_dims)
 
     @property
     def forward(self):

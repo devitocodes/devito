@@ -11,7 +11,9 @@ from devito import (
     SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, VectorFunction,
     switchconfig
 )
-from devito.operations.interpolators import LinearInterpolator, SincInterpolator
+from devito.operations.interpolators import (
+    LinearInterpolator, SincInterpolator, _cell_indices
+)
 from devito.tools import as_tuple
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
@@ -48,11 +50,12 @@ def unit_box_time(name='a', shape=(11, 11), space_order=1):
     return a
 
 
-def points(grid, ranges, npoints, name='points'):
+def points(grid, ranges, npoints, name='points', interpolation='linear'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = SparseFunction(name=name, grid=grid, npoint=npoints)
+    points = SparseFunction(name=name, grid=grid, npoint=npoints,
+                            interpolation=interpolation)
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
@@ -523,6 +526,89 @@ class TestLinear:
         op = Operator(eq)
         # Should be a single loop nest with 3 injections
         assert_structure(op, ['p_p,rp_px,rp_py,rp_pz'], 'p_prp_pxrp_py,rp_pz')
+
+    def test_assign_not_supported(self):
+        grid = Grid((11, 11, 11))
+        a = Function(name='a', grid=grid, space_order=2)
+        p = SparseFunction(name="p", grid=grid, nt=10, npoint=1)
+
+        with pytest.raises(ValueError):
+            p.inject(a, expr=1., increment=False)
+
+
+# ---------------------------------------------------------------------------
+# Nearest interpolation / injection
+# ---------------------------------------------------------------------------
+
+
+class TestNearest:
+
+    """Tests for NearestSparseFunction / NearestSparseTimeFunction."""
+
+    @pytest.mark.parametrize('shape, coords', SHAPE_COORDS)
+    def test_nearest_interpolation(self, shape, coords, npoints=20):
+        """Test interpolation with NearestSparseFunction which uses nearest
+           neighbour interpolation.
+        """
+        a = unit_box(shape=shape)
+        p = points(a.grid, ranges=coords, npoints=npoints, interpolation='nearest')
+        # nearest grdpoint
+        xcoords = _cell_indices(p.coordinates.data, a.grid, None,
+                                a.grid.spacing, a.grid.origin)[:, 0] * a.grid.spacing[0]
+
+        expr = p.interpolate(a)
+        op = Operator(expr)
+
+        op(a=a)
+        assert np.allclose(p.data[:], xcoords, rtol=1e-6)
+
+    @pytest.mark.parametrize('shape, coords, result', SHAPE_COORDS_INJECT)
+    def test_nearest_injection(self, shape, coords, result, npoints=19):
+        """Test injection with NearestSparseFunction which uses nearest
+           neighbour injection.
+        """
+        a = unit_box(shape=shape)
+        a.data[:] = 0.
+        p = points(a.grid, ranges=coords, npoints=npoints, interpolation='nearest')
+
+        expr = p.inject(a, Float(1.))
+
+        op = Operator(expr)
+
+        op(a=a)
+
+        d64 = np.array([.1]*a.grid.dim, dtype=np.float64)
+        o64 = np.array([0]*a.grid.dim, dtype=np.float64)
+        indices = _cell_indices(p.coordinates.data, a.grid, None,
+                                d64, o64)
+        pos, pcount = np.unique(indices, return_counts=True, axis=0)
+
+        assert np.sum(a.data) == npoints
+        for p, pc in zip(pos, pcount, strict=True):
+            assert a.data[tuple(p)] == pc
+
+    @pytest.mark.parametrize('shape, coords, result', SHAPE_COORDS_INJECT)
+    def test_nearest_injection_assign(self, shape, coords, result, npoints=19):
+        a = unit_box(shape=shape)
+        a.data[:] = 0.
+        p = points(a.grid, ranges=coords, npoints=npoints, interpolation='nearest')
+
+        expr = p.inject(a, Float(1.), increment=False)
+
+        op = Operator(expr)
+
+        op(a=a)
+
+        d64 = np.array([.1]*a.grid.dim, dtype=np.float64)
+        o64 = np.array([0]*a.grid.dim, dtype=np.float64)
+        indices = _cell_indices(p.coordinates.data, a.grid, None,
+                                d64, o64)
+        pos, _ = np.unique(indices, return_counts=True, axis=0)
+
+        assert np.sum(a.data) == len(pos)
+        for i in indices:
+            assert a.data[tuple(i)] == 1
+
 
 # ---------------------------------------------------------------------------
 # Precomputed interpolation / injection
