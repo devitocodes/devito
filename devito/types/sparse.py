@@ -1020,13 +1020,22 @@ class SparseFunction(AbstractSparseFunction):
 
         # Resolve the runtime grid origin (honours `o_x`/`o_y`/... overrides)
         # and hand it to the interpolator so tables reflect the actual frame
-        # of reference used by the kernel.
-        onames = [o.name for o in self.grid.origin_symbols]
+        # of reference used by the kernel.  A runtime override may carry its
+        # own Grid -- an Operator compiled on one model and applied to another
+        # overrides every symbol, ours included -- and the kernel then runs in
+        # *that* frame.  The coordinates below already come from the override,
+        # so the origin has to as well; reading it off `self` tabulates real
+        # coordinates against the compile-time frame and places every point
+        # off by the difference between the two origins.
+        key = kwargs.get(self.name, self)
+        if not isinstance(key, AbstractSparseFunction):
+            key = self
+        onames = [o.name for o in key.grid.origin_symbols]
         origin = tuple(kwargs.get(n, o) for n, o in
-                       zip(onames, self.grid.origin, strict=True))
-        coords = values.get(self.coordinates.name, self.coordinates.data)
+                       zip(onames, key.grid.origin, strict=True))
+        coords = values.get(self.coordinates.name, key.coordinates.data)
         values.update(self.interpolator._arg_defaults(
-            coords=coords, sfunc=self, origin=origin
+            coords=coords, sfunc=key, origin=origin
         ))
 
         return values
