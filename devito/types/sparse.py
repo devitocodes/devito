@@ -1007,12 +1007,6 @@ class SparseFunction(AbstractSparseFunction):
         defaults = super()._arg_defaults(alias=alias, estimate_memory=estimate_memory)
         if estimate_memory:
             return defaults
-        # `alias` names the symbols the Operator was compiled with, while
-        # `self` carries the data and the Grid the kernel actually runs in.
-        # The two differ when an Operator built against one model is applied
-        # to another, and tabulated data belongs to the latter's frame of
-        # reference: tabulating `self`'s coordinates against `alias`'s origin
-        # displaces every point by the difference between the two.
         key = alias or self
         coords = defaults.get(key.coordinates.name, self.coordinates.data)
         defaults.update(key.interpolator._arg_defaults(coords=coords,
