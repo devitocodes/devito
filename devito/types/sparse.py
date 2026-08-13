@@ -1007,10 +1007,16 @@ class SparseFunction(AbstractSparseFunction):
         defaults = super()._arg_defaults(alias=alias, estimate_memory=estimate_memory)
         if estimate_memory:
             return defaults
+        # `alias` names the symbols the Operator was compiled with, while
+        # `self` carries the data and the Grid the kernel actually runs in.
+        # The two differ when an Operator built against one model is applied
+        # to another, and tabulated data belongs to the latter's frame of
+        # reference: tabulating `self`'s coordinates against `alias`'s origin
+        # displaces every point by the difference between the two.
         key = alias or self
-        coords = defaults.get(key.coordinates.name, key.coordinates.data)
+        coords = defaults.get(key.coordinates.name, self.coordinates.data)
         defaults.update(key.interpolator._arg_defaults(coords=coords,
-                                                       sfunc=key))
+                                                       sfunc=self))
         return defaults
 
     def _arg_values(self, estimate_memory=False, **kwargs):
@@ -1018,24 +1024,19 @@ class SparseFunction(AbstractSparseFunction):
         if estimate_memory:
             return values
 
-        # Resolve the runtime grid origin (honours `o_x`/`o_y`/... overrides)
-        # and hand it to the interpolator so tables reflect the actual frame
-        # of reference used by the kernel.  A runtime override may carry its
-        # own Grid -- an Operator compiled on one model and applied to another
-        # overrides every symbol, ours included -- and the kernel then runs in
-        # *that* frame.  The coordinates below already come from the override,
-        # so the origin has to as well; reading it off `self` tabulates real
-        # coordinates against the compile-time frame and places every point
-        # off by the difference between the two origins.
-        key = kwargs.get(self.name, self)
-        if not isinstance(key, AbstractSparseFunction):
-            key = self
-        onames = [o.name for o in key.grid.origin_symbols]
+        # `super` has already tabulated through `_arg_defaults`, in the frame
+        # of whichever object supplied the runtime values.  Only an explicit
+        # `o_x`/`o_y`/... override moves that frame again, and the tables then
+        # have to be rebuilt against it.
+        onames = [o.name for o in self.grid.origin_symbols]
+        if not any(n in kwargs for n in onames):
+            return values
+
         origin = tuple(kwargs.get(n, o) for n, o in
-                       zip(onames, key.grid.origin, strict=True))
-        coords = values.get(self.coordinates.name, key.coordinates.data)
+                       zip(onames, self.grid.origin, strict=True))
+        coords = values.get(self.coordinates.name, self.coordinates.data)
         values.update(self.interpolator._arg_defaults(
-            coords=coords, sfunc=key, origin=origin
+            coords=coords, sfunc=self, origin=origin
         ))
 
         return values
