@@ -280,6 +280,15 @@ class Guards(frozendict):
     def get(self, d, v=true):
         return super().get(d, v)
 
+    def has(self, d, cls):
+        """
+        True if the guard registered for `d` contains an instance of `cls`.
+        """
+        g = super().get(d)
+        if g is None:
+            return False
+        return g.has(cls)
+
     def _reuse_if_untouched(self, mapper):
         return self if mapper == self else Guards(mapper)
 

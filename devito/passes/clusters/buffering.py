@@ -4,12 +4,12 @@ from itertools import chain, groupby
 
 import numpy as np
 from sympy import Eq as SympyEq
-from sympy import Mod, Ne, S, simplify
+from sympy import Ne, S, simplify
 
 from devito.exceptions import CompilationError
 from devito.ir import (
-    Backward, Cluster, Forward, GuardBound, InitArray, Interval, IntervalGroup,
-    IterationSpace, Properties, Queue, Vector, lower_exprs, vmax, vmin
+    Backward, Cluster, Forward, GuardBound, GuardFactor, InitArray, Interval,
+    IntervalGroup, IterationSpace, Properties, Queue, Vector, lower_exprs, vmax, vmin
 )
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
@@ -333,7 +333,7 @@ class InjectBuffers(Queue):
             return stamps
 
         task_sets = (
-            [b for b, v in descriptors.items() if any(v.is_writeonly for vb in v)],
+            [b for b, v in descriptors.items() if any(vb.is_writeonly for vb in v)],
             [b for b, v in descriptors.items() if any(vb.is_readonly for vb in v)],
         )
 
@@ -440,10 +440,10 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     # buffer created for the regular `Eq(usave, u)` copy-back)
     extras = {}
     for f, clusters in bfmap.items():
+        dim = f.hdim
         for k, g in groupby(clusters, key=lambda c: c.guards):
             g = list(g)
 
-            dim = _buffer_dim(f, key, g)
             if k and not dim._defines & set(k):
                 extras.setdefault(f, []).append((k, g))
                 continue
@@ -461,9 +461,8 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             if buf is None and reusable:
                 buf = reusable[0]
             if buf is None:
-                dim = _buffer_dim(f, key, g)
                 buf = _make_buffer(
-                    f, dim, k, g, xds, async_degree, sregistry, callback
+                    f, f.hdim, k, g, xds, async_degree, sregistry, callback
                 )
                 reusable.append(buf)
             mapper[(f, k)] = buf
@@ -899,17 +898,6 @@ def offset_from_centre(d, indices):
     return p, offset
 
 
-def _buffer_dim(f, key, ck):
-    """The single Dimension of `f` along which to buffer."""
-    exprs = flatten(c.exprs for c in ck)
-    bdims = key(f, exprs)
-    dims = [d for d in f.dimensions if d not in bdims]
-    if len(dims) != 1:
-        raise CompilationError(f"Unsupported multi-dimensional `buffering` "
-                               f"required by `{f}`")
-    return dims.pop()
-
-
 def _make_buffer(f, dim, k, ck, xds, async_degree, sregistry, callback):
     """Build (or retrieve) the buffer Array for `f` along `dim` under guards `k`."""
     exprs = flatten(c.exprs for c in ck)
@@ -954,13 +942,15 @@ def _explicit_guard(g, d):
     """
     True if `g` pins `d` to a single value via a `CondEq(d, K)` or `CondNe(d, K)`
     (i.e., the `==`/`!=` relations Devito accepts as ConditionalDimension
-    conditions; both subclass SymPy's `Eq`/`Ne`).
+    conditions; both subclass SymPy's `Eq`/`Ne`) -- as opposed to a subsampling
+    `GuardFactor`.
     """
     if g is None:
         return False
 
     for a in [g] + list(g.args):
-        if isinstance(a, (SympyEq, Ne)) and a.has(d) and not a.has(Mod):
+        if isinstance(a, (SympyEq, Ne)) and a.has(d) and \
+                not isinstance(a, GuardFactor):
             return True
 
     return False

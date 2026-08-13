@@ -1,14 +1,14 @@
 from collections import defaultdict
 from functools import singledispatch
 
-from sympy import Expr, Mod, true
+from sympy import Expr, true
 
 from devito.ir import (
-    Backward, Forward, GuardBoundNext, PrefetchUpdate, Queue, ReleaseLock, SyncArray,
-    WaitLock, WithLock, normalize_syncs
+    Backward, Forward, GuardBoundNext, GuardFactor, PrefetchUpdate, Queue, ReleaseLock,
+    SyncArray, WaitLock, WithLock, normalize_syncs
 )
 from devito.passes.clusters.utils import in_critical_region, is_memcpy
-from devito.symbolics import IntDiv, retrieve_dimensions, retrieve_terminals, uxreplace
+from devito.symbolics import IntDiv, retrieve_dimensions, uxreplace
 from devito.tools import OrderedSet, is_integer, timed_pass
 from devito.types import CustomDimension, Lock, VirtualDimension
 
@@ -90,16 +90,13 @@ class Tasking(Queue):
             d = self.key0(c0)
             if d is not dim:
                 continue
-            g = c0.guards.get(d)
             # Explicit compute guards need no pipeline; memcpy clusters
-            # still need WithLock for the copy-back sync
-            if g is not None and not wraps_memcpy(c0):
-                # An "explicit" guard is a plain reference to `d` (e.g., `d == K`)
-                # without subsampling -- subsampling guards (containing `Mod`)
-                # still require the standard async pipeline
-                explicit = not g.has(Mod) and d in retrieve_terminals(g)
-                if explicit:
-                    continue
+            # still need WithLock for the copy-back sync. An "explicit"
+            # guard is a plain relation on `d` (e.g., `d == K`); subsampling
+            # guards (GuardFactor) still require the standard async pipeline
+            if d in c0.guards and not wraps_memcpy(c0) \
+                    and not c0.guards.has(d, GuardFactor):
+                continue
             protected = self._schedule_waitlocks(c0, d, clusters, locks, syncs)
             self._schedule_withlocks(c0, d, protected, locks, syncs)
 

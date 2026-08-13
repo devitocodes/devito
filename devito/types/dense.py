@@ -1595,6 +1595,19 @@ class TimeFunction(Function):
         return self._time_size
 
     @property
+    def hyperplanes_dimension(self):
+        """
+        The Dimension along which the TimeFunction is sliced into hyperplanes;
+        for a TimeFunction, this is simply `time_dim`.
+        """
+        return self.time_dim
+
+    @property
+    def hdim(self):
+        """Shortcut for `hyperplanes_dimension`."""
+        return self.hyperplanes_dimension
+
+    @property
     def _time_buffering(self):
         return not is_integer(self.save)
 
