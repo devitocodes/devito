@@ -376,7 +376,7 @@ def generate_conditionals(expr, input_expr, ordering):
             continue
         for cd in list(conditionals):
             if cd.parent is d.parent and cd is not d:
-                if d.relation == ConditionalDimension._STRICT:
+                if d.relation == ConditionalDimension.STRICT:
                     conditionals[cd] = conditionals[d]
                 else:
                     mode = cd.relation and d.relation

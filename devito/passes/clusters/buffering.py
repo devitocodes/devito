@@ -153,13 +153,11 @@ class InjectBuffers(Queue):
         # A BufferDescriptor is a simple data structure storing additional
         # information about a buffer, harvested from the subset of `clusters`
         # that access it
-        descriptors = {}
+        descriptors = defaultdict(list)
         for (f, guards), b in self.mapper.items():
             if f in bfmap:
                 fc = [c for c in bfmap[f] if c.guards == guards]
-                descriptors.setdefault(b, []).append(
-                    BufferDescriptor(f, b, fc, guards)
-                )
+                descriptors[b].append(BufferDescriptor(f, b, fc, guards))
 
         # Are we inside the right `d`?
         descriptors = {b: [vi for vi in v if d in vi.itdims]
@@ -178,16 +176,7 @@ class InjectBuffers(Queue):
 
         # Substitution rules to replace buffered Functions with buffers
         # E.g., `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`
-        subs = defaultdict(dict)
-        for b, v in descriptors.flat_items():
-            for c in v.clusters:
-                if c.guards.get(d) != v.guards.get(d):
-                    continue
-
-                accesses = c.scope[v.f]
-                index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
-                for a in accesses:
-                    subs[c][a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
+        subs = make_buffer_subs(descriptors, mds, d)
 
         processed = []
         for c in clusters:
@@ -220,8 +209,7 @@ class InjectBuffers(Queue):
                     guards = c.guards
 
                 properties = c.properties.sequentialize(d)
-                if not isinstance(d, BufferDimension) and \
-                   not _explicit_guard(c.guards.get(d, None), d):
+                if not _explicit_guard(c.guards.get(d, None), d):
                     properties = properties.prefetchable(d)
                 # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
                 properties = properties.parallelize(v.bdims).affine(v.bdims)
@@ -439,6 +427,7 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     # explicit `Eq(usave, ...)` written under `time == K` aliases the prefetch
     # buffer created for the regular `Eq(usave, u)` copy-back)
     extras = {}
+    groups = {}
     for f, clusters in bfmap.items():
         dim = f.hdim
         for k, g in groupby(clusters, key=lambda c: c.guards):
@@ -448,24 +437,50 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
                 extras.setdefault(f, []).append((k, g))
                 continue
 
-            mapper[(f, k)] = _make_buffer(
+            mapper[(f, k)] = _select_buffer(
                 f, dim, k, g, xds, async_degree, sregistry, callback
             )
+            groups[(f, k)] = g
 
-    # Alias deferred entries to an existing f-buffer; create one if none
+    # Alias deferred entries to a compatible f-buffer; create one if none fits
     for f, deferred in extras.items():
-        reusable = [v for (ff, _), v in mapper.items() if ff is f]
         for k, g in deferred:
-            buf = next((b for b in reusable
+            # {candidate buffer -> Clusters already mapped to it}
+            by_buf = defaultdict(list)
+            for (ff, kk), b in mapper.items():
+                if ff is f:
+                    by_buf[b].extend(groups[(f, kk)])
+
+            # A buffer materializing one of the guard Dimensions is
+            # semantically tied to the condition, hence the natural host
+            buf = next((b for b in by_buf
                         if set(k) & set(b.dimensions)), None)
-            if buf is None and reusable:
-                buf = reusable[0]
+
             if buf is None:
-                buf = _make_buffer(
+                # In multi-level buffering, deferred Clusters copying to or
+                # from the same underlying buffer as an already-mapped group
+                # are stages of the same transfer pipeline, hence they must
+                # share the same buffer
+                target = _underlying_buffer(g)
+                if target is not None:
+                    buf = next((b for b, cg in by_buf.items()
+                                if _underlying_buffer(cg) is target), None)
+
+            if buf is None:
+                # Otherwise alias a buffer whose slots can accommodate the
+                # indices accessed by the deferred Clusters without any
+                # modulo-induced slot collision
+                buf = next((b for b, cg in by_buf.items()
+                            if _fits_buffer(f, cg + g, b)), None)
+
+            if buf is None:
+                # No compatible buffer; create a dedicated one
+                buf = _select_buffer(
                     f, f.hdim, k, g, xds, async_degree, sregistry, callback
                 )
-                reusable.append(buf)
+
             mapper[(f, k)] = buf
+            groups[(f, k)] = g
 
     return mapper
 
@@ -548,7 +563,9 @@ class BufferDescriptor:
                 indirect.add(tispace.insert(self.dim, list(self.bdims)))
 
         # Indirect accessors define the ispace only for a read-only streamed
-        # buffer, where nothing iterates the buffer's own Dimensions directly
+        # buffer, where nothing iterates the buffer's own Dimensions directly.
+        # If direct accessors exist, they are authoritative; the fabricated
+        # indirect ispaces would otherwise clash with them (e.g., `x*` vs `x++`)
         if not ispaces:
             ispaces = indirect
 
@@ -855,6 +872,40 @@ def infer_buffer_size(f, dim, clusters):
     return simplify(size)
 
 
+def _underlying_buffer(clusters):
+    """
+    The Array being copied to or from if the given Clusters represent a level
+    of multi-level buffering, None otherwise.
+    """
+    exprs = flatten(c.exprs for c in clusters)
+
+    if exprs and is_buffering(exprs):
+        buffers = {f for f in retrieve_functions(exprs) if f.is_Array}
+        if len(buffers) == 1:
+            return buffers.pop()
+
+    return None
+
+
+def _fits_buffer(f, clusters, b):
+    """
+    True if the accesses to `f` in the given Clusters span no more slots than
+    available in the buffer `b`, False otherwise. Since slots are stepped
+    through with modulo arithmetic, a fitting span guarantees that no two
+    distinct indices collide on the same slot.
+    """
+    xd, = b.find(BufferDimension)
+
+    try:
+        required = infer_buffer_size(f, f.hdim, clusters)
+        return bool(required <= xd.symbolic_size)
+    except TypeError:
+        # Symbolically incomparable indices or sizes (e.g., accesses through
+        # foreign Dimensions such as `f[db0 + time_M]` vs `f[time]`);
+        # conservatively assume no fit
+        return False
+
+
 def offset_from_centre(d, indices):
     if d in indices:
         p = d
@@ -898,9 +949,9 @@ def offset_from_centre(d, indices):
     return p, offset
 
 
-def _make_buffer(f, dim, k, ck, xds, async_degree, sregistry, callback):
-    """Build (or retrieve) the buffer Array for `f` along `dim` under guards `k`."""
-    exprs = flatten(c.exprs for c in ck)
+def _select_buffer(f, dim, guard, cgroup, xds, async_degree, sregistry, callback):
+    """Build or retrieve the buffer Array for `f` along `dim` under guards `k`."""
+    exprs = flatten(c.exprs for c in cgroup)
 
     if is_buffering(exprs):
         buffers = [f for f in retrieve_functions(exprs) if f.is_Array]
@@ -909,7 +960,7 @@ def _make_buffer(f, dim, k, ck, xds, async_degree, sregistry, callback):
         xd = buffer.indices[dim]
         extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
     else:
-        size = infer_buffer_size(f, dim, ck)
+        size = infer_buffer_size(f, dim, cgroup)
         if async_degree is not None:
             if async_degree < size:
                 warning(
@@ -920,10 +971,10 @@ def _make_buffer(f, dim, k, ck, xds, async_degree, sregistry, callback):
             else:
                 size = async_degree
         try:
-            xd = xds[(dim, size, k)]
+            xd = xds[(dim, size, guard)]
         except KeyError:
             name = sregistry.make_name(prefix='db')
-            xd = xds[(dim, size, k)] = \
+            xd = xds[(dim, size, guard)] = \
                 BufferDimension(name, 0, size-1, size, dim)
         extra_kwargs = {}
 
@@ -933,9 +984,27 @@ def _make_buffer(f, dim, k, ck, xds, async_degree, sregistry, callback):
 
     cls = callback or Array
     name = sregistry.make_name(prefix=f'{f.name}b')
-    return cls(name=name, dimensions=dimensions, dtype=f.dtype,
-               grid=f.grid, halo=f.halo,
-               space='mapped', mapped=f, f=f, **extra_kwargs)
+    return cls(name=name, dimensions=dimensions, dtype=f.dtype, grid=f.grid,
+               halo=f.halo, space='mapped', mapped=f, f=f, **extra_kwargs)
+
+
+def make_buffer_subs(descriptors, mds, d):
+    """
+    Buffer substitution rules to replace buffered Functions with buffers. E.g.,
+    `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`.
+    """
+    subs = defaultdict(dict)
+    for b, v in descriptors.flat_items():
+        for c in v.clusters:
+            if c.guards.get(d) != v.guards.get(d):
+                continue
+
+            accesses = c.scope[v.f]
+            index_mapper = {i: mds[(v.xd, i)] for i in v.indices}
+            for a in accesses:
+                subs[c][a.access] = b.indexed[[index_mapper.get(i, i) for i in a]]
+
+    return subs
 
 
 def _explicit_guard(g, d):
@@ -945,6 +1014,9 @@ def _explicit_guard(g, d):
     conditions; both subclass SymPy's `Eq`/`Ne`) -- as opposed to a subsampling
     `GuardFactor`.
     """
+    if isinstance(d, BufferDimension):
+        return True
+
     if g is None:
         return False
 

@@ -90,12 +90,14 @@ class Tasking(Queue):
             d = self.key0(c0)
             if d is not dim:
                 continue
+
             # Explicit compute guards need no pipeline; memcpy clusters
             # still need WithLock for the copy-back sync. An "explicit"
             # guard is a plain relation on `d` (e.g., `d == K`); subsampling
             # guards (GuardFactor) still require the standard async pipeline
-            if d in c0.guards and not wraps_memcpy(c0) \
-                    and not c0.guards.has(d, GuardFactor):
+            if d in c0.guards and \
+               not wraps_memcpy(c0) and \
+               not c0.guards.has(d, GuardFactor):
                 continue
             protected = self._schedule_waitlocks(c0, d, clusters, locks, syncs)
             self._schedule_withlocks(c0, d, protected, locks, syncs)

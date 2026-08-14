@@ -260,7 +260,7 @@ def guard(clusters):
             # the purpose of protecting from OOB accesses
             cds = [d for d in cds if not d.indirect]
             modes = [cd.relation for cd in cds]
-            strict = ConditionalDimension._STRICT
+            strict = ConditionalDimension.STRICT
             if modes.count(strict) > 1:
                 raise CompilationError("Only one `strict` condition"
                                        "can be used in an equation")
