@@ -11,7 +11,7 @@ from devito.finite_differences.differentiable import diffify
 from devito.ir import Conditional, DummyEq, FindNodes, FindSymbols
 from devito.ir.support import generator
 from devito.passes.clusters.cse import CTemp, _cse
-from devito.symbolics import indexify
+from devito.symbolics import DefFunction, indexify
 from devito.types import Array, Symbol, Temp
 
 
@@ -129,6 +129,29 @@ def test_temp_order():
     assert type(args[0]) is Symbol
     assert type(args[1]) is Temp
     assert type(args[2]) is CTemp
+
+
+def test_deffunction_not_captured():
+    """
+    Opaque C-level calls (DefFunction) must not be CSE-captured: their return
+    dtype is invisible to the type inference (e.g. `make_float4` returns a
+    `float4`, but `extract_dtype` only sees the `float` arguments), so binding
+    one to a temporary declares it with the wrong type and the generated code
+    does not compile.
+    """
+    t0 = Symbol(name='t0', dtype=np.float32)
+    t1 = Symbol(name='t1', dtype=np.float32)
+    a = CTemp(name='a', dtype=np.float32)
+    b = CTemp(name='b', dtype=np.float32)
+    call = DefFunction('make_float4', (t0 + t1, t0 + t1, t0, t1))
+    exprs = [DummyEq(a, call), DummyEq(b, call)]
+
+    counter = generator()
+    make = lambda _: CTemp(name=f'r{counter()}')
+    processed = _cse(exprs, make)
+
+    # The two calls are left in place, uncaptured
+    assert processed == exprs
 
 
 def test_w_conditionals():
