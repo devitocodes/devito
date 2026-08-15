@@ -12,6 +12,7 @@ from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import FindNodes, Iteration
+from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Scope, TimedAccess, Vector, mocksym0,
     mocksym1
@@ -1165,6 +1166,26 @@ class TestEquationAlgorithms:
         expr = eval(expr)
 
         assert list(dimension_sort(expr)) == eval(expected)
+
+
+class TestCluster:
+
+    def test_from_clusters_mixed_dtypes(self):
+        grid = Grid(shape=(4,))
+        x, = grid.dimensions
+
+        f = Function(name='f', grid=grid, dtype=np.float32)
+        g = Function(name='g', grid=grid, dtype=np.float64)
+
+        ispace = IterationSpace([Interval(x)])
+        clusters = (Cluster(Eq(f, 1), ispace=ispace),
+                    Cluster(Eq(g, 1), ispace=ispace))
+
+        with pytest.raises(ValueError, match="non-homogeneous data types"):
+            Cluster.from_clusters(*clusters)
+
+        stree = stree_build(clusters)
+        assert len([i for i in stree.visit() if i.is_Iteration]) == 1
 
 
 class TestClusterGroup:

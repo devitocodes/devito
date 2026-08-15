@@ -531,6 +531,9 @@ class Cluster:
         if not all(root.guards == c.guards for c in clusters):
             raise ValueError("Cannot build a Cluster from Clusters with "
                              "non-homogeneous guards")
+        if not all(root.dtype == c.dtype for c in clusters):
+            raise ValueError("Cannot build a Cluster from Clusters with "
+                             "non-homogeneous data types")
 
         writes = set().union(*[c.scope.writes for c in clusters])
         reads = set().union(*[c.scope.reads for c in clusters])
