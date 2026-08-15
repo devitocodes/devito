@@ -2,7 +2,6 @@ import sympy
 from packaging.version import Version
 
 from devito.finite_differences.differentiable import DifferentiableFunction, diffify
-from devito.types.lazy import Evaluable
 
 
 class factorial(DifferentiableFunction, sympy.factorial):
@@ -89,13 +88,13 @@ def root(x):
     return diffify(sympy.root(x))
 
 
-class Min(sympy.Min, Evaluable):
+class Min(sympy.Min, DifferentiableFunction):
 
     def _evaluate(self, **kwargs):
         return self.func(*self._evaluate_args(**kwargs), evaluate=False)
 
 
-class Max(sympy.Max, Evaluable):
+class Max(sympy.Max, DifferentiableFunction):
 
     def _evaluate(self, **kwargs):
         return self.func(*self._evaluate_args(**kwargs), evaluate=False)

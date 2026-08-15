@@ -1,3 +1,6 @@
+from sympy import S
+
+
 def div(func, shift=None, order=None, method='FD', side=None, **kwargs):
     """
     Divergence of the input Function.
@@ -194,6 +197,6 @@ def diag(func, size=None):
     to = getattr(func, 'time_order', 0)
 
     tens_func = TensorTimeFunction if func.is_TimeDependent else TensorFunction
-    comps = [[func if i == j else 0 for i in range(dim)] for j in range(dim)]
+    comps = [[func if i == j else S.Zero for i in range(dim)] for j in range(dim)]
     return tens_func(name='diag', grid=func.grid, space_order=func.space_order,
                      components=comps, time_order=to, diagonal=True)

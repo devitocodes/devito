@@ -11,7 +11,7 @@ from devito.data import LEFT, RIGHT
 from devito.deprecations import deprecations
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
-from devito.tools import Pickable, is_integer, is_number, memoized_meth
+from devito.tools import Pickable, as_tuple, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import DataSymbol, Scalar, Symbol
 from devito.types.constant import Constant
@@ -833,7 +833,7 @@ class MultiSubDimension(AbstractSubDimension):
                           bounds_indices=None, implicit_dimension=None):
 
         super().__init_finalize__(name, parent, thickness)
-        self.functions = functions
+        self.functions = as_tuple(functions)
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
 

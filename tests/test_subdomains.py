@@ -727,7 +727,7 @@ class TestMultiSubDomain:
         # Check that the correct number of thickness expressions are generated
         sdsexprs = [i.expr for i in FindNodes(Expression).visit(op)
                     if i.expr.rhs.is_Indexed
-                    and i.expr.rhs.function is xi.functions]
+                    and i.expr.rhs.function in xi.functions]
         # The thickness expressions Eq(x_ltkn0, dummy[n0][0]), ...
         # should be scheduled once per dimension
         assert len(sdsexprs) == 6

@@ -183,12 +183,14 @@ class LowerImplicitMSD(LowerMSD):
             if not mapper:
                 continue
 
-            found[d.functions].clusters.append(c)
-            found[d.functions].mapper = reduce(found[d.functions].mapper,
-                                               mapper, {dim}, prefix)
+            for df in d.functions:
+                found[df].clusters.append(c)
+                found[df].mapper = reduce(found[df].mapper,
+                                          mapper, {dim}, prefix)
 
         # Turn the reduced mapper into a list of equations
         processed = []
+
         for bunch in found.values():
             exprs = make_implicit_exprs(bunch.mapper)
 
@@ -226,7 +228,8 @@ def _lower_msd(dim, cluster):
 def _(dim, cluster):
     i_dim = dim.implicit_dimension
     mapper = {
-        tkn: dim.functions[i_dim, mM]
+        tkn: f[i_dim, mM]
+        for f in dim.functions
         for tkn, mM in zip(dim.tkns, dim.bounds_indices, strict=True)
     }
     return mapper, i_dim
