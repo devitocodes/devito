@@ -50,6 +50,12 @@ class DimensionTuple(EnrichedTuple):
                 return self.getters[d]
         raise KeyError
 
+    def dindex(self, dim):
+        for d in self.getters:
+            if d._defines & dim._defines:
+                return list(self.getters).index(d)
+        raise KeyError
+
 
 class Staggering(DimensionTuple):
 

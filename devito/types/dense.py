@@ -326,6 +326,12 @@ class DiscreteFunction(AbstractFunction, ArgProvider, Differentiable):
             getters=self.dimensions
         )
 
+    # `dimension_shape` exposes the per-Dimension symbolic size. For dense
+    # Functions it coincides with `symbolic_shape`; the alias exists because
+    # sparse/enriched/compressed Functions only carry a flat `size` (in nbytes)
+    # and override this with a per-Dimension breakdown
+    dimension_shape = symbolic_shape
+
     @property
     def size_global(self):
         """
@@ -1587,6 +1593,19 @@ class TimeFunction(Function):
     @property
     def time_size(self):
         return self._time_size
+
+    @property
+    def hyperplanes_dimension(self):
+        """
+        The Dimension along which the TimeFunction is sliced into hyperplanes;
+        for a TimeFunction, this is simply `time_dim`.
+        """
+        return self.time_dim
+
+    @property
+    def hdim(self):
+        """Shortcut for `hyperplanes_dimension`."""
+        return self.hyperplanes_dimension
 
     @property
     def _time_buffering(self):

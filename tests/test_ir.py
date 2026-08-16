@@ -18,7 +18,7 @@ from devito.ir.support.basic import (
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
-    Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
+    Any, Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
     NullInterval, null_ispace
 )
 from devito.symbolics import DefFunction, FieldFromPointer
@@ -592,6 +592,11 @@ class TestSpace:
 
         assert len(ispace) == 1
         assert ispace.intervals == ig
+
+    def test_direction_neg(self):
+        assert -Forward == Backward
+        assert -Backward == Forward
+        assert -Any == Any
 
 
 class TestDependenceAnalysis:

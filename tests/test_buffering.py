@@ -4,8 +4,8 @@ from sympy import Or
 
 from conftest import skipif
 from devito import (
-    CondEq, ConditionalDimension, Constant, Eq, Grid, Operator, SubDimension, SubDomain,
-    TimeFunction, configuration, switchconfig
+    CondEq, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, Operator,
+    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, switchconfig
 )
 from devito.arch.archinfo import AppleArm
 from devito.exceptions import CompilationError
@@ -609,6 +609,42 @@ def test_multi_access():
     assert np.all(w.data == w1.data)
 
 
+def test_stencil_w_interp():
+    """
+    MFE for a buffered Function accessed both by a stencil Cluster, which
+    iterates the spatial Dimensions with a definite direction, and indirectly
+    via interpolation, which does not iterate them at all. The inferred buffer
+    IterationSpaces differ in the spatial directions only (`x++` vs `x*`),
+    which must not prevent buffering.
+    """
+    grid = Grid(shape=(8, 8))
+    nt = 6
+
+    u = TimeFunction(name='u', grid=grid, space_order=2, save=nt)
+    u1 = TimeFunction(name='u', grid=grid, space_order=2, save=nt)
+
+    rec = SparseTimeFunction(name='rec', grid=grid, npoint=1, nt=nt)
+    rec.coordinates.data[:] = .5
+    rec1 = SparseTimeFunction(name='rec', grid=grid, npoint=1, nt=nt,
+                              coordinates=rec.coordinates.data)
+
+    eqns0 = [Eq(u.forward, u + u.laplace + 1.)] + rec.interpolate(expr=u)
+    eqns1 = [Eq(u1.forward, u1 + u1.laplace + 1.)] + rec1.interpolate(expr=u1)
+
+    op0 = Operator(eqns0, opt='noop')
+    op1 = Operator(eqns1, opt='buffering')
+
+    # Check generated code -- expecting one buffer for `u`
+    buffers = [i for i in FindSymbols().visit(op1.body) if i.is_Array and i._mem_heap]
+    assert len(buffers) == 1
+
+    op0.apply(time_M=nt-2)
+    op1.apply(time_M=nt-2)
+
+    assert np.all(u.data == u1.data)
+    assert np.all(rec.data == rec1.data)
+
+
 def test_issue_1901():
     grid = Grid(shape=(2, 2))
     time = grid.time_dim
@@ -754,7 +790,7 @@ def test_buffer_reuse():
     assert all(np.all(vsave.data[i-1] == i + 1) for i in range(1, nt + 1))
 
 
-def test_multi_cond():
+def test_multi_cond_v0():
     grid = Grid((3, 3))
     nt = 5
 
@@ -764,24 +800,168 @@ def test_multi_cond():
     ntmod = (nt - 1) * factor + 1
 
     ct1 = ConditionalDimension(name="ct1", parent=grid.time_dim,
-                               factor=factor, relation=Or)
+                               factor=factor)
     ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
                                  condition=CondEq(grid.time_dim, ntmod - 2),
-                                 relation=Or)
+                                 relation='strict')
 
     f = TimeFunction(grid=grid, name='f', time_order=0,
                      space_order=0, save=nt, time_dim=ct1)
     T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
 
     eqs = [Eq(T, grid.time_dim)]
-    # this to save times from 0 to nt - 2
+    # This saves
+    # - All subsampled times since ct1 is the dimension of f
     eqs.append(Eq(f, T))
-    # this to save the last time sample nt - 1
-    eqs.append(Eq(f.forward, T+1, implicit_dims=ctend))
+    # - The last time step (ntmod - 2) through ctend (since it's set as ct1 or ctend)
+    eqs.append(Eq(f, T, implicit_dims=ctend))
 
     # run operator with buffering
     op = Operator(eqs, opt='buffering')
     op.apply(time_m=0, time_M=ntmod-2)
 
-    for i in range(nt):
+    for i in range(nt-1):
         assert np.allclose(f.data[i], i*2)
+    assert np.allclose(f.data[nt-1], ntmod - 2)
+
+
+def test_multi_cond_v1():
+    grid = Grid((3, 3))
+    nt = 5
+
+    x, y = grid.dimensions
+
+    factor = 2
+    ntmod = (nt - 1) * factor + 1
+
+    ct1 = ConditionalDimension(name="ct1", parent=grid.time_dim,
+                               factor=factor, relation=Or,
+                               condition=CondEq(grid.time_dim, ntmod - 2))
+
+    f = TimeFunction(grid=grid, name='f', time_order=0,
+                     space_order=0, save=nt, time_dim=ct1)
+    T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
+
+    eqs = [Eq(T, grid.time_dim)]
+    # This saves
+    # - All subsampled times since ct1 is the dimension of f with factor 2
+    # - The last time step (ntmod - 2) since ct1 also has the condition for ntmod - 2
+    eqs.append(Eq(f, T))
+
+    # run operator with buffering
+    op = Operator(eqs, opt='buffering')
+    op.apply(time_m=0, time_M=ntmod-2)
+
+    for i in range(nt-1):
+        assert np.allclose(f.data[i], i*2)
+    assert np.allclose(f.data[nt-1], ntmod - 2)
+
+
+def test_deferred_guard_aliasing():
+    """
+    A write to `f` guarded by a Dimension foreign to `f`. The guard does not
+    constrain `f`'s stepping Dimension, so no dedicated buffer can be created;
+    the write accesses `f[time]`, which fits the main buffer's slots, hence it
+    must alias it rather than get a buffer of its own.
+    """
+    grid = Grid(shape=(5, 5))
+    nt = 5
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+    e = Dimension('e')
+    g = Function(name='g', dimensions=(e,), shape=(3,), dtype=np.float32)
+    g.data[:] = 100.
+    ce = ConditionalDimension(name='ce', parent=e, condition=CondEq(e, 1))
+
+    eqs = [Eq(T, grid.time_dim),
+           Eq(f, T),
+           Eq(f, g + T, implicit_dims=ce)]
+
+    op = Operator(eqs, opt='buffering')
+
+    # The guarded write accesses `f[time]`, covered by the main buffer,
+    # so it gets aliased to it and no extra buffer is created
+    buffers = [i for i in FindSymbols().visit(op.body) if i.is_Array and i._mem_heap]
+    assert len(buffers) == 1
+
+    op.apply(time_m=0, time_M=nt-1)
+    assert np.allclose(f.data[:, 1, 1], 100. + np.arange(nt))
+
+
+def test_deferred_guard_no_fit():
+    """
+    Like `test_deferred_guard_aliasing`, but the guarded write accesses
+    `f[time+1]`, which cannot be hosted by the main buffer (size 1, holding
+    `f[time]` only) without a slot collision; a dedicated buffer must be
+    created instead.
+    """
+    grid = Grid(shape=(5, 5))
+    nt = 5
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+    e = Dimension('e')
+    g = Function(name='g', dimensions=(e,), shape=(3,), dtype=np.float32)
+    g.data[:] = 100.
+    ce = ConditionalDimension(name='ce', parent=e, condition=CondEq(e, 1))
+
+    eqs = [Eq(T, grid.time_dim),
+           Eq(f, T),
+           Eq(f.forward, g + T, implicit_dims=ce)]
+
+    op = Operator(eqs, opt='buffering')
+
+    # `f[time+1]` does not fit the main buffer's slots, so the guarded
+    # write gets a dedicated buffer
+    buffers = [i for i in FindSymbols().visit(op.body) if i.is_Array and i._mem_heap]
+    assert len(buffers) == 2
+
+    op.apply(time_m=0, time_M=nt-2)
+    # `f[t]` is overwritten by the main stream at iteration `t` for t < nt-1,
+    # while `f[nt-1]` retains the value of the guarded write at `t = nt-2`
+    expected = np.append(np.arange(nt-1), 100. + nt - 2)
+    assert np.allclose(f.data[:, 1, 1], expected)
+
+
+@pytest.mark.parametrize("factor", [1, 2, 3])
+def test_buffering_multi_cond(factor):
+    grid = Grid((16, 16))
+
+    nt = 5
+    ntmod = (nt - 1) * factor + 1
+
+    ct0 = ConditionalDimension(name="ct0", parent=grid.time_dim, factor=factor,
+                               relation=Or)
+    f = TimeFunction(grid=grid, name='f', time_order=0, space_order=0,
+                     time_dim=ct0, save=nt)
+    T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
+
+    eqs = []
+    eqs.append(Eq(T, grid.time_dim))
+
+    # conditional dimension for the last sample in the operator
+    ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
+                                 condition=CondEq(grid.time_dim, ntmod - 2),
+                                 relation='strict')
+
+    eqs.append(Eq(f, T))  # this to save times from 0 to nt - 2
+    # this to save the last time sample nt - 1
+    eqs.append(Eq(f, T+1, implicit_dims=ctend))
+
+    # run operator with serialization
+    op = Operator(eqs, opt='buffering')
+    op.apply(time_m=0, time_M=ntmod-2)
+
+    # Now run backward as well with buffering
+
+    f_all = TimeFunction(grid=grid, name='f_all', time_order=0,
+                         space_order=0, time_dim=ct0, save=nt)
+
+    eq_all = [Eq(f_all, f)]
+    eq_all.append(Eq(f_all, f, implicit_dims=ctend))
+    op_all = Operator(eq_all, opt='buffering')
+    op_all.apply(time_m=0, time_M=ntmod-2)
+    assert np.allclose(f_all.data[:, 11, 11], factor * np.arange(nt))
