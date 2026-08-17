@@ -2541,6 +2541,30 @@ class TestOperatorAdvanced:
 
         assert np.all(sf.data == [1.5, 2.5, 2.5, 3.5][grid.distributor.myrank])
 
+    @pytest.mark.parallel(mode=4)
+    def test_interpolation_sinc(self, mode):
+        """
+        Sinc interpolation reads both its gridpoints and its weights from
+        host-tabulated SubFunctions, whose local size is that of the scattered
+        coordinates rather than the global `npoint`.
+        """
+        grid = Grid(shape=(4, 4), extent=(3.0, 3.0))
+
+        f = Function(name='f', grid=grid, space_order=2)
+        f.data[:] = np.array([[1, 1, 1, 1], [2, 2, 2, 2],
+                              [3, 3, 3, 3], [4, 4, 4, 4]])
+
+        # On-node points, for which the windowed sinc weights are a delta
+        coords = np.array([(1.0, 1.0), (1.0, 2.0), (2.0, 1.0), (2.0, 2.0)])
+        sf = SparseFunction(name='sf', grid=grid, npoint=len(coords),
+                            coordinates=coords, interpolation='sinc', r=2)
+        sf.data[:] = 0.
+
+        op = Operator(sf.interpolate(expr=f))
+        op.apply()
+
+        assert np.allclose(sf.data, [2., 2., 3., 3.][grid.distributor.myrank])
+
     @pytest.mark.parallel(mode=2)
     def test_subsampling(self, mode):
         grid = Grid(shape=(40,))
