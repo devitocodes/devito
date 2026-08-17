@@ -818,6 +818,81 @@ class TestSinc:
         assert err_sinc < err_lin
         assert err_lin > 0.01
 
+    def test_sinc_position_tabulated(self):
+        """
+        Sinc must read its gridpoints from the fp64 host-tabulated table rather
+        than recomputing `floor((c - o)/h)` in the kernel, so that the cell it
+        indexes is the one its weights were computed for.
+        """
+        grid = Grid(shape=(30, 30), extent=(2.9, 2.9))
+        assert grid.dtype is np.float32
+
+        sf = SparseTimeFunction(name='sf', grid=grid, npoint=1, nt=2,
+                                interpolation='sinc', r=2)
+        u = TimeFunction(name='u', grid=grid, space_order=4, time_order=1)
+        sf.coordinates.data[0, :] = 0.6999999990000001
+        sf.data[:] = 1.0
+
+        op = Operator(sf.inject(field=u.forward, expr=sf))
+        code = str(op)
+        assert 'floor' not in code
+        assert 'o_x' not in code and 'o_y' not in code
+
+        op.apply(time_M=0)
+        # fp64 `floor(0.6999999990000001/0.1)` is 6, so the stencil spans 5:9
+        assert np.all(u.data[1, :5, :] == 0.0)
+        assert np.all(u.data[1, 9:, :] == 0.0)
+        assert np.argmax(np.abs(u.data[1])) == 7 * u.data.shape[2] + 7
+
+    def test_sinc_origin(self):
+        """
+        The sinc weights must be tabulated from the same origin-corrected
+        position as the gridpoints, so injecting at `c` on a grid with origin
+        `0` matches injecting at `c + shift` on a grid with origin `shift`.
+        """
+        shape, spacing, coord = (41, 41), (10., 10.), 133.
+        extent = tuple((s - 1) * h for s, h in zip(shape, spacing, strict=True))
+
+        def run(origin):
+            grid = Grid(shape=shape, extent=extent, origin=origin)
+            u = TimeFunction(name='u', grid=grid, space_order=8)
+            src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=2,
+                                     interpolation='sinc', r=4)
+            src.coordinates.data[0, :] = coord + origin[0]
+            src.data[:] = 1.
+            Operator(src.inject(field=u.forward, expr=src)).apply(time_M=0)
+            return u.data[1]
+
+        assert np.allclose(run((0., 0.)), run((-25., -25.)), rtol=1e-6)
+
+    @pytest.mark.parametrize('stagg', ['x', 'y', '(x, y)'])
+    def test_sinc_staggered_weights(self, stagg):
+        """
+        Injection into a staggered field must use the weights of the half-cell
+        shifted position, i.e. be equivalent to injecting into an unstaggered
+        field with the coordinates shifted by the same half cell.
+        """
+        grid = Grid(shape=(21, 21), extent=(20., 20.))
+        x, y = grid.dimensions  # noqa
+        staggered = as_tuple(eval(stagg))
+        coord = (9.3, 11.7)
+
+        def run(stagg, shift):
+            a = Function(name='a', grid=grid, space_order=8, staggered=stagg)
+            p = SparseFunction(name='p', grid=grid, npoint=1,
+                               interpolation='sinc', r=3)
+            p.coordinates.data[0, :] = [c - s
+                                        for c, s in zip(coord, shift, strict=True)]
+            p.data[:] = 1.
+            Operator(p.inject(a, expr=p)).apply()
+            return np.array(a.data)
+
+        shift = [h/2 if d in staggered else 0
+                 for d, h in zip(grid.dimensions, grid.spacing, strict=True)]
+        assert np.allclose(run(staggered, [0, 0]), run(NODE, shift), rtol=1e-6)
+        # Sanity check: the shift is what makes the two match
+        assert not np.allclose(run(staggered, [0, 0]), run(NODE, [0, 0]))
+
 
 # ---------------------------------------------------------------------------
 # Matrix sparse function interpolation / injection

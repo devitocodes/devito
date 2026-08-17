@@ -219,12 +219,22 @@ class WeightedInterpolator(GenericInterpolator):
     Represent an Interpolation operation on a SparseFunction that is separable
     in space, meaning the coefficients are defined for each Dimension separately
     and multiplied at a given point: `w[x, y] = wx[x] * wy[y]`
+
+    The base cell index of each sparse point, and (for the coordinate-based
+    schemes) the interpolation weights, are tabulated on the host in fp64 by
+    `_arg_defaults` and handed to the kernel as int32/fp SubFunctions, so the
+    generated C never computes `floor((c - o)/h)` on fp32.
     """
 
     _name = 'weighted'
 
-    def __init__(self, sfunction):
+    def __init__(self, sfunction, shifts=()):
         self.sfunction = sfunction
+        # Every shift set the interpolator has been asked to produce tables
+        # for. Persisted with the parent SparseFunction via `__rkwargs__` so
+        # a pickled/rebuilt interpolator (decoupled workers) knows which
+        # tables to emit in `_arg_defaults`.
+        self._shifts_used = set(tuple(s) if s else None for s in shifts)
 
     @property
     def grid(self):
@@ -233,6 +243,14 @@ class WeightedInterpolator(GenericInterpolator):
     @property
     def r(self):
         return self.sfunction.r
+
+    @cached_property
+    def _coeff_dtype(self):
+        # Weights are real even for complex-valued sparse fields.
+        dtype = np.dtype(self.sfunction.dtype)
+        if np.issubdtype(dtype, np.complexfloating):
+            return np.finfo(dtype).dtype.type
+        return dtype.type
 
     @memoized_meth
     def _weights(self, subdomain=None, shifts=None):
@@ -320,9 +338,87 @@ class WeightedInterpolator(GenericInterpolator):
     def _coeff_temps(self, implicit_dims, shifts=None):
         return []
 
-    def _positions(self, implicit_dims, shifts=None):
+    @memoized_meth
+    def _generate_gridpoints(self, key):
+        """
+        Create the `(npoint, ndim)` int32 table of base cell indices for a
+        given shift set. `key` is either None (plain, non-staggered) or a
+        tuple of per-dim shifts.
+        """
+        # Record that the caller has emitted a table for this shift set, so
+        # `_arg_defaults` can regenerate it on the fly.
+        self._shifts_used.add(key)
+
+        name = f'{self.sfunction.name}_gp{_shift_tag(as_list(key))}'
+        sfdim = self.sfunction._sparse_dim
+        ddim = CustomDimension(f'{name}d', 0, self.grid.dim - 1,
+                               self.grid.dim, sfdim)
+        return Gridpoints(name=name, dtype=np.int32,
+                          shape=(self.sfunction.npoint, self.grid.dim),
+                          dimensions=(sfdim, ddim), space_order=0,
+                          alias=self.sfunction.alias,
+                          parent=self.sfunction)
+
+    def _gridpoints(self, shifts=None):
+        return self._generate_gridpoints(tuple(shifts) if shifts else None)
+
+    def _coeffs(self, shifts=None):
+        """The per-Dimension weight SubFunctions for a given shift set."""
+        return ()
+
+    def _floor_positions(self, implicit_dims, shifts=None):
+        """
+        Position temporaries computed in the kernel as `floor((c - o - s)/h)`.
+        Only for schemes whose tables aren't tabulated on the host.
+        """
         return [Eq(v, INT(floor(k)), implicit_dims=implicit_dims)
                 for k, v in self.sfunction._position_map(shifts=shifts).items()]
+
+    def _positions(self, implicit_dims, shifts=None):
+        gp = self._gridpoints(shifts=shifts)
+        ddim = gp.dimensions[-1]
+        return [Eq(p, gp._subs(ddim, di), implicit_dims=implicit_dims)
+                for (di, p) in enumerate(
+                    self.sfunction._pos_symbols(shifts=shifts))]
+
+    def _coeff_data(self, coords, grid, shifts, spacing, origin):
+        """
+        Mapper `M : weight SubFunction -> tabulated data` for one shift set.
+        """
+        return {}
+
+    def _arg_defaults(self, coords=None, sfunc=None, origin=None):
+        """
+        Fill the gridpoints/weights tables from the already-scattered `coords`
+        handed in by `SparseFunction._arg_defaults`. The tables are regenerated
+        from the persisted shift set, so a pickled/rebuilt interpolator
+        (decoupled workers) still emits data for every table the operator was
+        compiled with.
+        """
+        if coords is None or sfunc is None:
+            raise ValueError("No coordinates or sparse function provided")
+
+        # Fp64 grid geometry -- avoids fp32 rounding on cell boundaries.
+        grid = sfunc.grid
+        spacing = np.array([as_fp64_decimal(h) for h in grid.spacing])
+        origin = np.array([as_fp64_decimal(o)
+                           for o in (origin or grid.origin)])
+
+        args = {}
+        for key in self._shifts_used or {None}:
+            shifts = as_list(key)
+            gp = self._gridpoints(shifts=key)
+
+            tables = {gp: _cell_indices(coords, grid, shifts, spacing, origin)}
+            tables.update(self._coeff_data(coords, grid, shifts, spacing, origin))
+
+            for f, data in tables.items():
+                args[f.name] = data
+                # Bounds for each table's dimensions, matching the computed data
+                for d, s in zip(f.dimensions, data.shape, strict=True):
+                    args.update(d._arg_defaults(_min=0, size=s))
+
+        return args
 
     def _interp_idx(self, variables, implicit_dims=None, subdomain=None,
                     shifts=None):
@@ -546,12 +642,11 @@ def _shift_values(shifts, grid, spacing):
 
 class _HostTable(SubFunction):
     """SubFunction populated on the host by the parent interpolator's
-    `_arg_defaults` from the already-scattered coordinates, exactly the way
-    sinc's precomputed weights are populated.
+    `_arg_defaults` from the already-scattered coordinates.
 
     `parent` links the table to its SparseFunction so the base
     `SubFunction._arg_values` routing triggers `SparseFunction._arg_defaults`
-    -> `LinearInterpolator._arg_defaults`. The link is *not* preserved by
+    -> `WeightedInterpolator._arg_defaults`. The link is *not* preserved by
     pickle (parent is not in `__rkwargs__`) so decoupled workers don't ship
     the sfunction back through every table."""
 
@@ -564,7 +659,7 @@ class Gridpoints(_HostTable):
 
 
 class Coeffs(_HostTable):
-    """Per-dim `(1 - frac, frac)` interpolation weights, shape ``(npoint, 2)``."""
+    """Per-dim interpolation weights, shape ``(npoint, 2*r)``."""
 
 
 def _resolved_geometry(grid, kwargs):
@@ -591,15 +686,35 @@ def _cell_indices(coords, grid, shifts, spacing, origin):
                                     origin)).astype(np.int32)
 
 
+def _cell_fractions(coords, grid, shifts, j, spacing, origin):
+    """Fractional cell offset along dim `j` from the base index returned by
+    `_cell_indices`, in fp64."""
+    pos = _positions_fp64(coords, grid, shifts, spacing, origin)[:, j]
+    return pos - np.floor(pos)
+
+
 def _linear_weights(coords, grid, shifts, j, dtype, spacing, origin):
     """`(1 - frac, frac)` linear interpolation weights along dim `j`; `frac`
     is the fractional cell offset from the base index returned by
     `_cell_indices`."""
-    pos = _positions_fp64(coords, grid, shifts, spacing, origin)
-    frac = pos[:, j] - np.floor(pos[:, j])
-    data = np.empty((pos.shape[0], 2), dtype=dtype)
+    frac = _cell_fractions(coords, grid, shifts, j, spacing, origin)
+    data = np.empty((frac.size, 2), dtype=dtype)
     data[:, 0] = 1.0 - frac
     data[:, 1] = frac
+    return data
+
+
+def _sinc_weights(coords, grid, shifts, j, dtype, spacing, origin, r, b):
+    """Kaiser windowed sinc weights along dim `j` for the `2*r` grid points
+    surrounding the base index returned by `_cell_indices`. `b` is the Kaiser
+    window parameter for radius `r`."""
+    frac = _cell_fractions(coords, grid, shifts, j, spacing, origin)
+    b0 = i0(b)
+    data = np.zeros((frac.size, 2*r), dtype=dtype)
+    for ri in range(2*r):
+        rpos = ri - r + 1 - frac
+        num = i0(b*np.sqrt(1 - (rpos/r)**2))
+        data[:, ri] = num / b0 * np.sinc(rpos)
     return data
 
 
@@ -615,49 +730,21 @@ class LinearInterpolator(WeightedInterpolator):
 
     _name = 'linear'
 
-    def __init__(self, sfunction, shifts=()):
-        super().__init__(sfunction)
-        # Every shift set the interpolator has been asked to produce tables
-        # for. Persisted with the parent SparseFunction via `__rkwargs__` so
-        # a pickled/rebuilt interpolator (decoupled workers) knows which
-        # tables to emit in `_arg_defaults`.
-        self._shifts_used = set(tuple(s) if s else None for s in shifts)
-
-    @cached_property
-    def _coeff_dtype(self):
-        # Weights are real even for complex-valued sparse fields.
-        dtype = np.dtype(self.sfunction.dtype)
-        if np.issubdtype(dtype, np.complexfloating):
-            return np.finfo(dtype).dtype.type
-        return dtype.type
-
     @memoized_meth
     def _generate_coeffs(self, key):
-        """Create the ``(gridpoints, coeffs_per_dim)`` SubFunction tuple for
-        a given shift set. ``key`` is either ``None`` (plain, non-staggered)
-        or a tuple of per-dim shifts. Mirrors sinc's ``interpolation_coeffs``
-        cached_property but keyed on ``shifts``."""
+        """Create the per-Dimension weight SubFunctions for a given shift set.
+        ``key`` is either ``None`` (plain, non-staggered) or a tuple of per-dim
+        shifts."""
         # Record that the caller has emitted tables for this shift set, so
         # `_arg_defaults` can regenerate them on the fly.
         self._shifts_used.add(key)
 
-        shifts = as_list(key)
-        tag = _shift_tag(shifts)
+        tag = _shift_tag(as_list(key))
         sfname = self.sfunction.name
         sfdim = self.sfunction._sparse_dim
 
-        # Gridpoints: `(npoint, ndim)` int32 base cell index per sparse point.
-        gp_name = f'{sfname}_gp{tag}'
-        ddim = CustomDimension(f'{gp_name}d', 0, self.grid.dim - 1,
-                               self.grid.dim, sfdim)
-        gp = Gridpoints(name=gp_name, dtype=np.int32,
-                        shape=(self.sfunction.npoint, self.grid.dim),
-                        dimensions=(sfdim, ddim), space_order=0,
-                        alias=self.sfunction.alias,
-                        parent=self.sfunction)
-
         # Per-dim linear weights: `(npoint, 2)` holding `(1 - frac, frac)`.
-        coeffs = tuple(
+        return tuple(
             Coeffs(name=f'{sfname}_w{d.name}{tag}',
                    dtype=self._coeff_dtype,
                    shape=(self.sfunction.npoint, 2),
@@ -667,23 +754,8 @@ class LinearInterpolator(WeightedInterpolator):
             for d, r in zip(self._gdims, self._cdim, strict=True)
         )
 
-        return gp, coeffs
-
-    def _gridpoints(self, shifts=None):
-        return self._generate_coeffs(tuple(shifts) if shifts else None)[0]
-
     def _coeffs(self, shifts=None):
-        return self._generate_coeffs(tuple(shifts) if shifts else None)[1]
-
-    def _positions(self, implicit_dims, shifts=None):
-        gp = self._gridpoints(shifts=shifts)
-        ddim = gp.dimensions[-1]
-        return [Eq(p, gp._subs(ddim, di), implicit_dims=implicit_dims)
-                for (di, p) in enumerate(
-                    self.sfunction._pos_symbols(shifts=shifts))]
-
-    def _coeff_temps(self, implicit_dims, shifts=None):
-        return []
+        return self._generate_coeffs(tuple(shifts) if shifts else None)
 
     @memoized_meth
     def _weights(self, subdomain=None, shifts=None):
@@ -694,39 +766,11 @@ class LinearInterpolator(WeightedInterpolator):
             for (rd, w) in zip(rdims, coeffs, strict=True)
         ])
 
-    def _arg_defaults(self, coords=None, sfunc=None, origin=None):
-        """Fill the gridpoints/coeffs tables from the already-scattered
-        ``coords`` handed in by ``SparseFunction._arg_defaults``. Mirrors
-        sinc's `_arg_defaults`: regenerates the tables from the persisted
-        shift set, so a pickled/rebuilt interpolator (decoupled workers)
-        still emits data for every table the operator was compiled with."""
-        if coords is None or sfunc is None:
-            raise ValueError("No coordinates or sparse function provided")
-
-        # Fp64 grid geometry -- avoids fp32 rounding on cell boundaries.
-        grid = sfunc.grid
-        spacing = np.array([as_fp64_decimal(h) for h in grid.spacing])
-        origin = np.array([as_fp64_decimal(o)
-                           for o in (origin or grid.origin)])
-
-        args = {}
-        for key in self._shifts_used or {None}:
-            shifts = as_list(key)
-            gp, coeffs = self._generate_coeffs(key)
-
-            # Tabulated data (int32 cell indices + fp linear weights per dim).
-            args[gp.name] = _cell_indices(coords, grid, shifts, spacing, origin)
-            for i, w in enumerate(coeffs):
-                args[w.name] = _linear_weights(
-                    coords, grid, shifts, i, w.dtype, spacing, origin
-                )
-
-            # Bounds for each table's dimensions, matching the computed data.
-            for f in (gp, *coeffs):
-                for d, s in zip(f.dimensions, args[f.name].shape, strict=True):
-                    args.update(d._arg_defaults(_min=0, size=s))
-
-        return args
+    def _coeff_data(self, coords, grid, shifts, spacing, origin):
+        return {
+            w: _linear_weights(coords, grid, shifts, i, w.dtype, spacing, origin)
+            for i, w in enumerate(self._coeffs(shifts=shifts))
+        }
 
 
 class NearestInterpolator(LinearInterpolator):
@@ -752,11 +796,8 @@ class NearestInterpolator(LinearInterpolator):
     def _weights(self, subdomain=None, shifts=None):
         return sympy.S.One
 
-    def _gridpoints(self, shifts=None):
-        return self._generate_coeffs(tuple(shifts) if shifts else None)[0]
-
     def _coeffs(self, shifts=None):
-        return []
+        return ()
 
 
 class PrecomputedInterpolator(WeightedInterpolator):
@@ -774,11 +815,18 @@ class PrecomputedInterpolator(WeightedInterpolator):
 
     def _positions(self, implicit_dims, shifts=None):
         if self.sfunction.gridpoints_data is None:
-            return super()._positions(implicit_dims, shifts=shifts)
+            # Only the coordinates are known, and the user-provided coefficients
+            # are tied to the cell index the kernel derives from them
+            return self._floor_positions(implicit_dims, shifts=shifts)
         else:
             # No position temp as we have directly the gridpoints
             return[Eq(p, k, implicit_dims=implicit_dims)
                    for (k, p) in self.sfunction._position_map(shifts=shifts).items()]
+
+    def _arg_defaults(self, **kwargs):
+        # Gridpoints and coefficients are user-provided SubFunctions of the
+        # PrecomputedSparseFunction, so there is nothing to tabulate
+        return {}
 
     @property
     def interpolation_coeffs(self):
@@ -794,7 +842,7 @@ class PrecomputedInterpolator(WeightedInterpolator):
                      for mapper in mappers])
 
 
-class SincInterpolator(PrecomputedInterpolator):
+class SincInterpolator(WeightedInterpolator):
     """
     Hicks windowed sinc interpolation scheme.
 
@@ -803,6 +851,9 @@ class SincInterpolator(PrecomputedInterpolator):
 
     https://library.seg.org/doi/10.1190/1.1451454
 
+    Like the linear scheme, the gridpoints and the `2*r` windowed sinc weights
+    per Dimension are tabulated on the host in fp64 (see `_arg_defaults`), so
+    that the weights are always those of the cell the kernel indexes into.
     """
 
     _name = 'sinc'
@@ -812,52 +863,49 @@ class SincInterpolator(PrecomputedInterpolator):
                 4: 4.14, 5: 5.26, 6: 6.40,
                 7: 7.51, 8: 8.56, 9: 9.56, 10: 10.64}
 
-    def __init__(self, sfunction):
+    def __init__(self, sfunction, shifts=()):
         if i0 is np.i0:
             warning("""
 Using `numpy.i0`. We (and numpy) recommend to install scipy to improve the performance
 of the SincInterpolator that uses i0 (Bessel function).
 """)
-        super().__init__(sfunction)
+        super().__init__(sfunction, shifts=shifts)
 
-    @cached_property
-    def interpolation_coeffs(self):
-        coeffs = []
+    @memoized_meth
+    def _generate_coeffs(self, key):
+        """Create the per-Dimension windowed sinc weight SubFunctions for a
+        given shift set. ``key`` is either ``None`` (plain, non-staggered) or
+        a tuple of per-dim shifts."""
+        # Record that the caller has emitted tables for this shift set, so
+        # `_arg_defaults` can regenerate them on the fly.
+        self._shifts_used.add(key)
+
+        tag = _shift_tag(as_list(key))
         shape = (self.sfunction.npoint, 2 * self.r)
-        for r in self._cdim:
-            dimensions = (self.sfunction._sparse_dim, r)
-            sf = SubFunction(name=f"wsinc{r.name}", dtype=self.sfunction.dtype,
-                             shape=shape, dimensions=dimensions,
-                             space_order=0, alias=self.sfunction.alias,
-                             parent=None)
-            coeffs.append(sf)
-        return tuple(coeffs)
+
+        return tuple(
+            Coeffs(name=f'wsinc{r.name}{tag}', dtype=self._coeff_dtype,
+                   shape=shape, dimensions=(self.sfunction._sparse_dim, r),
+                   space_order=0, alias=self.sfunction.alias,
+                   parent=self.sfunction)
+            for r in self._cdim
+        )
+
+    def _coeffs(self, shifts=None):
+        return self._generate_coeffs(tuple(shifts) if shifts else None)
 
     @memoized_meth
     def _weights(self, subdomain=None, shifts=None):
         rdims = self._rdim(subdomain=subdomain, shifts=shifts)
         return Mul(*[
             w._subs(rd, rd-rd.parent.symbolic_min)
-            for (rd, w) in zip(rdims, self.interpolation_coeffs, strict=True)
+            for (rd, w) in zip(rdims, self._coeffs(shifts=shifts), strict=True)
         ])
 
-    def _arg_defaults(self, coords=None, sfunc=None, origin=None):
-        args = {}
+    def _coeff_data(self, coords, grid, shifts, spacing, origin):
         b = self._b_table[self.r]
-        b0 = i0(b)
-        if coords is None or sfunc is None:
-            raise ValueError("No coordinates or sparse function provided")
-        # Coords to indices
-        coords = coords / np.array(sfunc.grid.spacing)
-        coords = coords - np.floor(coords)
-
-        # Precompute sinc
-        for j in range(len(self._gdims)):
-            data = np.zeros((coords.shape[0], 2*self.r), dtype=sfunc.dtype)
-            for ri in range(2*self.r):
-                rpos = ri - self.r + 1 - coords[:, j]
-                num = i0(b*np.sqrt(1 - (rpos/self.r)**2))
-                data[:, ri] = num / b0 * np.sinc(rpos)
-            args[self.interpolation_coeffs[j].name] = data
-
-        return args
+        return {
+            w: _sinc_weights(coords, grid, shifts, i, w.dtype, spacing,
+                             origin, self.r, b)
+            for i, w in enumerate(self._coeffs(shifts=shifts))
+        }
