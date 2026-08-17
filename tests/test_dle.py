@@ -264,7 +264,8 @@ class TestBlockingOptRelax:
 
         op = Operator(eqns, opt=('fission', 'blocking', {'blockrelax': 'device-aware'}))
 
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0', 'x2_blk0',
+                                      'x3_blk0', 'x4_blk0'})
         assert all(IsPerfectIteration().visit(i) for i in bns.values())
         assert all(len(FindNodes(Iteration).visit(i)) == 4 for i in bns.values())
 

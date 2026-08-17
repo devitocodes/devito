@@ -1,3 +1,4 @@
+import contextlib
 from itertools import groupby
 
 from sympy import sympify
@@ -67,7 +68,11 @@ def blocking(clusters, sregistry, options):
         clusters = AnalyzeSkewing().process(clusters)
 
     if options['blocklevels'] > 0:
-        clusters = SynthesizeBlocking(sregistry, options).process(clusters)
+        if options['blockrelax'] == 'device-aware':
+            synthesizer = SynthesizeBlockingDeviceAware(sregistry, options)
+        else:
+            synthesizer = SynthesizeBlocking(sregistry, options)
+        clusters = synthesizer.process(clusters)
 
     if options['skewing']:
         clusters = SynthesizeSkewing(options).process(clusters)
@@ -161,6 +166,14 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
         super().__init__(options)
 
         self.gpu_fit = options.get('gpu-fit', ())
+
+    def _process_fatd(self, clusters, level, prefix=None):
+        processed = []
+        for _, group in groupby(clusters, key=lambda c: c.ispace):
+            g = list(group)
+            processed.extend(Queue._process_fatd(self, g, level, prefix))
+
+        return processed
 
     def _make_key_hook(self, cluster, level):
         return (is_on_device(cluster.functions, self.gpu_fit),)
@@ -315,17 +328,20 @@ class AnalyzeSkewing(Queue):
         return processed
 
 
-class SynthesizeBlocking(Queue):
+class SynthesizeBlockingBase(Queue):
+
+    mapper = None
+    """
+    A mapping from a tuple of (Dimension, number of stencil points) to a tuple
+    of BlockDimensions, so that we can reuse existing BlockDimensions to avoid
+    unnecessary `steps`. Disabled by default, to be enabled in subclasses that
+    need it (e.g., SynthesizeBlocking).
+    """
 
     def __init__(self, sregistry, options):
         self.sregistry = sregistry
 
         self.levels = options['blocklevels']
-
-        # Track the BlockDimensions created so far so that we can reuse them
-        # in case of Clusters that are different but share the same number of
-        # stencil points
-        self.mapper = {}
 
         super().__init__()
 
@@ -340,11 +356,11 @@ class SynthesizeBlocking(Queue):
                      if not cluster.properties.is_blockable(i.dim))
 
     def _derive_block_dims(self, clusters, prefix, d):
-        # Can I reuse existing BlockDimensions to avoid a proliferation of steps?
+        # Can I reuse existing BlockDimensions to avoid unnecessary `steps`?
         k = stencil_footprint(clusters, d)
         try:
             return self.mapper[k]
-        except KeyError:
+        except (KeyError, TypeError):
             pass
 
         base = self.sregistry.make_name(prefix=d.root.name)
@@ -362,7 +378,10 @@ class SynthesizeBlocking(Queue):
         bd = BlockDimension(d.name, bd, bd, bd + bd.step - 1, 1, size=step)
         block_dims.append(bd)
 
-        retval = self.mapper[k] = tuple(block_dims), bd
+        retval = tuple(block_dims), bd
+
+        with contextlib.suppress(TypeError):
+            self.mapper[k] = retval
 
         return retval
 
@@ -400,6 +419,28 @@ class SynthesizeBlocking(Queue):
                                            guards=guards, properties=properties))
             else:
                 processed.append(c)
+
+        return processed
+
+
+class SynthesizeBlocking(SynthesizeBlockingBase):
+
+    def __init__(self, sregistry, options):
+        # Track the BlockDimensions created so far so that we can reuse them
+        # in case of Clusters that are different but share the same number of
+        # stencil points
+        self.mapper = {}
+
+        super().__init__(sregistry, options)
+
+
+class SynthesizeBlockingDeviceAware(SynthesizeBlockingBase):
+
+    def _process_fdta(self, clusters, level, prefix=None):
+        processed = []
+        for _, group in groupby(clusters, key=lambda c: c.ispace):
+            g = list(group)
+            processed.extend(Queue._process_fdta(self, g, level, prefix))
 
         return processed
 
