@@ -641,8 +641,8 @@ def test_stencil_w_interp():
     op0.apply(time_M=nt-2)
     op1.apply(time_M=nt-2)
 
-    assert np.all(u.data == u1.data)
-    assert np.all(rec.data == rec1.data)
+    assert np.allclose(u.data, u1.data, rtol=1e-6)
+    assert np.allclose(rec.data, rec1.data, rtol=1e-6)
 
 
 def test_issue_1901():

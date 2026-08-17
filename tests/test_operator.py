@@ -1447,6 +1447,16 @@ class TestLoopScheduling:
             exprs = FindNodes(Expression).visit(tree[-1])
             assert len(exprs) == 3
 
+    def test_fusion_mixed_dtypes(self):
+        grid = Grid(shape=(4, 4))
+
+        f = Function(name='f', grid=grid, dtype=np.uint16)
+        g = Function(name='g', grid=grid, dtype=np.float32)
+
+        op = Operator([Eq(f, 1), Eq(g, 1)])
+
+        assert_structure(op, ['x,y'], 'x,y')
+
     @pytest.mark.parametrize('exprs,fissioned,shared', [
         # 0) Trivial case
         (('Eq(u, 1)', 'Eq(v, u.dxl)'), '(1,x)', [0]),
