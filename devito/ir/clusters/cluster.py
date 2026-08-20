@@ -411,6 +411,38 @@ class EqBlock(CacheInstances):
         # Dimension-centric view of the data space
         intervals = IntervalGroup.generate('union', *parts.values())
 
+        # A SubIterator such as a ModuloDimension has offsets that are only
+        # meaningful relative to its own bounded, circular iteration (e.g.,
+        # `t -> t+1` always safely wraps around a 2-slot buffer). `promote`
+        # (below) reinterprets such offsets, unchanged, against the parent
+        # Dimension (e.g. `t -> time`) so that e.g. halo/OOB computations
+        # elsewhere still see a `time`-keyed Interval. But when some *other*
+        # Function is natively -- and exactly -- defined over that same
+        # parent Dimension (e.g., a `save`-mode TimeFunction, whose data
+        # space along `time` is precisely its own declared shape), unioning
+        # in a merely-promoted upper offset incorrectly inflates the
+        # native Function's bound, which then propagates into e.g. the
+        # default `time_M` (too small by the promoted offset -- issue
+        # #2235). The upper bound is therefore restricted to only the
+        # natively-defined contributions whenever there is at least one.
+        # The lower bound doesn't need the same treatment: `_arg_values`
+        # only ever tightens it for a genuinely negative offset
+        # (`min(interval.lower, 0)`), which a promoted SubIterator
+        # contributes correctly regardless of the promotion
+        natives = {f: IntervalGroup([i for i in v if i.dim in f.dimensions],
+                                    relations=v.relations, mode=v.mode)
+                   for f, v in parts.items()}
+        natives = {f: v for f, v in natives.items() if v}
+        if natives:
+            native_intervals = IntervalGroup.generate('union', *natives.values())
+            rebuilt = [
+                Interval(i.dim, i.lower, native_intervals[i.dim].upper, i.stamp)
+                if i.dim in native_intervals else i
+                for i in intervals
+            ]
+            intervals = IntervalGroup(rebuilt, relations=intervals.relations,
+                                      mode=intervals.mode)
+
         # E.g., `db0 -> time`, but `xi NOT-> x`
         intervals = intervals.promote(lambda d: not d.is_Sub)
         intervals = intervals.zero(set(intervals.dimensions) - oobs)
