@@ -605,8 +605,17 @@ class Thickness(DataSymbol):
                 else:
                     tkn = 0
             else:
-                # Dimension is of type `middle`
-                tkn = grid.distributor.glb_to_loc(self.root, rtkn, self.side) or 0
+                # Dimension is of type `middle`. Convert as an INDEX -- hence
+                # `rtkn-1` -- and add one to get a count, the same convention as
+                # the left/right branch above. Passing `rtkn` and using the result
+                # directly as a count only worked while the saturating branch of
+                # `index_glb_to_loc` returned a count; it returns an index now, so
+                # both branches must convert the same way.
+                if rtkn:
+                    tkn = grid.distributor.glb_to_loc(self.root, rtkn-1, self.side)
+                    tkn = tkn+1 if tkn is not None else 0
+                else:
+                    tkn = 0
         else:
             tkn = rtkn or 0
 
