@@ -413,11 +413,16 @@ class TestStreaming:
         assert str(sections[0].body[0].body[0].body[0].body[0]) == 'while(lock0[0] == 0);'
         body = op._func_table['release_lock0'].root.body
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2)'
-        assert str(body.body[1]) == 'lock0[0] = 0;'
+        # An acquire fence pairs with the thread's release before the lock is
+        # read back, and a release fence publishes it before the next request
+        assert 'atomic_thread_fence' in str(body.body[1])
+        assert str(body.body[2]) == 'lock0[0] = 0;'
+        assert 'atomic_thread_fence' in str(body.body[3])
         body = op._func_table['activate0'].root.body
         assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'
         assert str(body.body[1]) == 'sdata0[0].time = time;'
-        assert str(body.body[2]) == 'sdata0[0].flag = 2;'
+        assert 'atomic_thread_fence' in str(body.body[2])
+        assert str(body.body[3]) == 'sdata0[0].flag = 2;'
 
         op.apply(time_M=nt-2)
 
@@ -529,12 +534,15 @@ class TestStreaming:
                 'while(lock0[0] == 0 || lock1[0] == 0);')  # Wait-lock
         body = op._func_table['release_lock0'].root.body
         assert str(body.body[0].condition) == 'Ne(lock0[0], 2) | Ne(lock1[0], 2)'
-        assert str(body.body[1]) == 'lock0[0] = 0;'  # Set-lock
-        assert str(body.body[2]) == 'lock1[0] = 0;'  # Set-lock
+        assert 'atomic_thread_fence' in str(body.body[1])
+        assert str(body.body[2]) == 'lock0[0] = 0;'  # Set-lock
+        assert str(body.body[3]) == 'lock1[0] = 0;'  # Set-lock
+        assert 'atomic_thread_fence' in str(body.body[4])
         body = op._func_table['activate0'].root.body
         assert str(body.body[0].condition) == 'Ne(sdata0[0].flag, 1)'  # Wait-thread
         assert str(body.body[1]) == 'sdata0[0].time = time;'
-        assert str(body.body[2]) == 'sdata0[0].flag = 2;'
+        assert 'atomic_thread_fence' in str(body.body[2])
+        assert str(body.body[3]) == 'sdata0[0].flag = 2;'
         assert len(op._func_table) == 5
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 21 if configuration['language'] == 'openacc' else 20  # No `qid` w/ OMP
@@ -597,8 +605,9 @@ class TestStreaming:
         assert str(sections[0].body[0].body[0].body[0].body[0]) ==\
             'while(lock0[t2] == 0);'
         body = op1._func_table['release_lock0'].root.body
+        assert 'atomic_thread_fence' in str(body.body[1])
         for i in range(3):
-            assert 'lock0[t' in str(body.body[1 + i])  # Set-lock
+            assert 'lock0[t' in str(body.body[2 + i])  # Set-lock
         body = op1._func_table['activate0'].root.body
         assert str(body.body[-1]) == 'sdata0[wi0].flag = 2;'
         assert len(op1._func_table) == 5

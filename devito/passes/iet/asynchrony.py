@@ -7,7 +7,7 @@ import cgen as c
 from devito.ir import (
     AsyncCall, AsyncCallable, BlankLine, Call, Callable, Conditional, DummyEq, DummyExpr,
     EntryFunction, FindNodes, FindSymbols, Increment, Iteration, List, PointerCast,
-    Return, ThreadCallable, Transformer, While, make_callable, maybe_alias
+    Return, ThreadCallable, ThreadFence, Transformer, While, make_callable, maybe_alias
 )
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
@@ -86,6 +86,13 @@ def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
                 arguments.append(i)
         activation.extend([DummyExpr(FieldFromComposite(i.base, sdata[d]), i)
                            for i in arguments])
+        # The flag is what publishes the request, so everything the thread will
+        # read on the back of it -- the arguments here, and anything the caller
+        # wrote before, such as a lock released back to the thread -- has to be
+        # visible first.  `volatile` does not order stores, and on a weakly
+        # ordered target this one can be seen before them: the thread then acts
+        # on stale state, and a lock handed over that way is lost.
+        activation.append(ThreadFence('release'))
         activation.append(
             DummyExpr(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 2)
         )
@@ -138,12 +145,17 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     tbase = threads.indexed
 
     # Prepend the SharedData fields available upon thread activation
-    preactions = [DummyExpr(i, FieldFromPointer(i.base, sbase)) for i in ncfields]
+    preactions = [ThreadFence('acquire')]
+    preactions.extend(DummyExpr(i, FieldFromPointer(i.base, sbase))
+                      for i in ncfields)
     preactions.append(BlankLine)
 
     # Append the flag reset
     postactions = [List(body=[
         BlankLine,
+        # Whatever the task produced -- data in a buffer, a lock handed back --
+        # has to be visible before the flag says it is done.
+        ThreadFence('release'),
         DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 1)
     ])]
 

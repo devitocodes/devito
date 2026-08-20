@@ -7,7 +7,7 @@ from sympy import Or
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
     AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, Call, Callable, Conditional,
-    DummyExpr, List, SyncSpot, Transformer, derive_parameters, make_callable
+    DummyExpr, List, SyncSpot, ThreadFence, Transformer, derive_parameters, make_callable
 )
 from devito.ir.iet.visitors import Visitor
 from devito.ir.support import (
@@ -53,7 +53,11 @@ class Orchestrator:
     def _make_releaselock(self, iet, sync_ops, *args):
         pre = []
         pre.append(BusyWait(Or(*[CondNe(s.handle, 2) for s in sync_ops])))
+        pre.append(ThreadFence('acquire'))
         pre.extend(DummyExpr(s.handle, 0) for s in sync_ops)
+        # Hand the lock back before anything that follows can be observed --
+        # in particular before the request that asks the thread to refill it.
+        pre.append(ThreadFence('release'))
 
         name = self.sregistry.make_name(prefix="release_lock")
         parameters = derive_parameters(pre, ordering='canonical')
