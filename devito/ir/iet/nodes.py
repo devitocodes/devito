@@ -18,7 +18,7 @@ from devito.ir.support import (
     AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
     VECTORIZED, Forward, PrefetchUpdate, Property, WithLock
 )
-from devito.symbolics import CallFromPointer, ListInitializer
+from devito.symbolics import CallFromPointer, ListInitializer, Macro
 from devito.tools import (
     Signer, as_tuple, ctypes_to_cstr, filter_ordered, filter_sorted, flatten
 )
@@ -61,6 +61,7 @@ __all__ = [
     'Section',
     'Switch',
     'SyncSpot',
+    'ThreadFence',
     'TimedList',
     'Transfer',
     'Using',
@@ -1300,6 +1301,32 @@ class ExpressionBundle(List):
     @property
     def size(self):
         return self.ispace.size
+
+
+class ThreadFence(Call):
+
+    """
+    A memory fence, ordering a thread's accesses either side of it.
+
+    Threads that hand work to each other through a shared flag need one on both
+    sides of the handshake: a release before the flag that publishes a request
+    or a completion, so everything it stands for is visible first, and an
+    acquire before reading what it stands for.  Without them the two stores can
+    be observed out of order and an update is lost.
+
+    `__atomic_thread_fence` is a compiler builtin, so this renders the same in C
+    and in C++ and needs no header.
+    """
+
+    def __init__(self, order):
+        assert order in ('acquire', 'release')
+        super().__init__('__atomic_thread_fence',
+                         [Macro(f'__ATOMIC_{order.upper()}')])
+        self._order = order
+
+    @property
+    def order(self):
+        return self._order
 
 
 class Prodder(Call):
