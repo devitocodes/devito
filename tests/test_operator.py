@@ -17,8 +17,8 @@ except ImportError:
     from conftest import assert_structure, skipif
 
 from devito import (  # noqa
-    CELL, NODE, Buffer, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Inc, Le, Lt,
-    Operator, SpaceDimension, SparseFunction, SparseTimeFunction, TensorFunction,
+    CELL, NODE, Buffer, CondEq, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Inc, Le,
+    Lt, Operator, SpaceDimension, SparseFunction, SparseTimeFunction, TensorFunction,
     TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, configuration,
     dimensions, div, error, exp, grad, sin, switchconfig
 )
@@ -1975,10 +1975,11 @@ class TestLoopScheduling:
         op = Operator([eqn1] + eqn2 + [eqn3] + eqn4, opt=('noop', {'openmp': False}))
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 5
-        # Time loop not shared due to the WAR
-        assert trees[0][0].dim is time and trees[0][0] is trees[1][0]  # this IS shared
-        assert trees[1][0] is not trees[3][0]
-        assert trees[3][0].dim is time and trees[3][0] is trees[4][0]  # this IS shared
+        # Single, shared time loop despite the WAR: splitting it would run the
+        # injection into `u1[time]` to completion before eqn3 reads
+        # `u1[time + 1]`, reversing the very dependence it stems from
+        assert trees[0][0].dim is time
+        assert all(trees[0][0] is i[0] for i in trees)
 
         # Now single, shared time loop expected
         eqn2 = sf1.inject(u1.forward, expr=sf1)
@@ -1986,6 +1987,72 @@ class TestLoopScheduling:
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 5
         assert all(trees[0][0] is i[0] for i in trees)
+
+    def test_no_time_fission_reversing_war(self):
+        """
+        The time loop must not be split to disambiguate iteration directions
+        when doing so reverses a WAR carried in time.
+        """
+        nt = 6
+        grid = Grid((3, 3))
+        u1 = TimeFunction(name='u1', grid=grid, save=nt + 2, time_order=2)
+        u2 = TimeFunction(name='u2', grid=grid, time_order=2)
+
+        # `Inc(u1, ...)` writes the current time slot, which eqn3 reads one
+        # step ahead as `u1[time + 1]`
+        eqns = [Eq(u1.forward, u1 + 2.0 - u1.backward),
+                Inc(u1, 100.0),
+                Eq(u2.forward, u2 + 2 * u2.backward - u1.dt2)]
+
+        op = Operator(eqns, opt=('noop', {'openmp': False}))
+        assert len({i[0] for i in retrieve_iteration_tree(op)}) == 1
+
+        op.apply(time_m=1, time_M=nt, dt=1.0)
+
+        # Reference: the same equations, in order, one time step at a time
+        r1 = np.zeros((nt + 2, 3, 3), dtype=grid.dtype)
+        r2 = np.zeros((3, 3, 3), dtype=grid.dtype)
+        for t in range(1, nt + 1):
+            r1[t + 1] = r1[t] + 2.0 - r1[t - 1]
+            r1[t] += 100.0
+            tm1, t0, tp1 = (t - 1) % 3, t % 3, (t + 1) % 3
+            r2[tp1] = r2[t0] + 2 * r2[tm1] - (r1[t + 1] - 2 * r1[t] + r1[t - 1])
+
+        assert np.allclose(u1.data, r1)
+        assert np.allclose(u2.data, r2)
+
+    def test_no_time_fission_splitting_temporaries(self):
+        """
+        The time loop must not be split between a sparse function's position
+        temporaries and the accesses that use them.
+        """
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, space_order=2, save=Buffer(2))
+        v = TimeFunction(name='v', grid=grid, space_order=2, save=Buffer(2))
+        sf = SparseTimeFunction(name='sf', grid=grid, npoint=1, nt=10)
+        sf.coordinates.data[:] = 0.5
+
+        # `u` is stepped for `n2` steps, then `v` for `n1`, and so on, with the
+        # two live time slots handed over at each phase boundary
+        n1, n2 = 2, 3
+        mod = time % (n1 + n2)
+        cv = ConditionalDimension(name='cv', parent=time, condition=Lt(mod, n1))
+        cu = ConditionalDimension(name='cu', parent=time, condition=Ge(mod, n1))
+        cuv = ConditionalDimension(name='cuv', parent=time, condition=CondEq(mod, 0))
+        cvu = ConditionalDimension(name='cvu', parent=time, condition=CondEq(mod, n1))
+
+        eqns = ([Eq(u.forward, u.laplace + u, implicit_dims=cu)] +
+                sf.inject(u.forward, expr=sf, implicit_dims=cu) +
+                [Eq(v.forward, v, implicit_dims=cuv), Eq(v, u, implicit_dims=cuv)] +
+                [Eq(v.forward, v.laplace + v, implicit_dims=cv)] +
+                sf.inject(v.forward, expr=sf, implicit_dims=cv) +
+                [Eq(u.forward, v.forward, implicit_dims=cvu),
+                 Eq(u, v, implicit_dims=cvu)])
+
+        # Would raise if a position temporary were left behind in another loop
+        Operator(eqns).cfunction  # noqa B018
 
     def test_scheduling_with_free_dims(self):
         """Tests loop scheduling in presence of free dimensions."""

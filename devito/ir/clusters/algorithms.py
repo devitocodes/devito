@@ -153,8 +153,12 @@ class Schedule(Queue):
         # `scope.d_anti == {}` or because the few anti dependences are not carried
         # in any Dimension. We exploit this observation so that we only compute
         # `d_flow`, which instead may be expensive, when strictly necessary
+        # Note: a Dimension with sub-iterators is SEQUENTIAL (see `Parallelism`),
+        # so its Clusters run interleaved within one loop; scheduling them over
+        # separate IterationSpaces would reorder them
         maybe_break = scope.d_anti.cause & candidates
-        if len(clusters) > 1 and maybe_break:
+        is_sub = any(c.sub_iterators[dim] for c in clusters)
+        if len(clusters) > 1 and maybe_break and not is_sub:
             require_break = scope.d_flow.cause & maybe_break
             if require_break:
                 backlog = [clusters[-1]] + backlog
