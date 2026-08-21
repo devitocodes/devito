@@ -9,8 +9,9 @@ from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (
     PARALLEL_IF_PVT, SEPARABLE, SEQUENTIAL, Cluster, ClusterGroup, ExprGeometry, Forward,
-    Interval, IntervalGroup, IterationSpace, LabeledVector, Queue, Vector, extrema,
-    maximum, minimum, normalize_properties, relax_properties, unbounded, vmax, vmin
+    Interval, IntervalGroup, IterationSpace, LabeledVector, Properties, Queue, Vector,
+    extrema, maximum, minimum, normalize_properties, pull_dims, relax_properties,
+    unbounded, vmax, vmin
 )
 from devito.passes.clusters.cse import _cse
 from devito.passes.clusters.utils import expose_tuning_knobs
@@ -19,8 +20,8 @@ from devito.symbolics import (
     uxreplace
 )
 from devito.tools import (
-    Reconstructable, Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
-    is_integer, split, timed_pass
+    Reconstructable, Stamp, as_mapper, as_tuple, flatten, generator, is_integer, split,
+    timed_pass
 )
 from devito.types import (
     CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension, Size,
@@ -343,7 +344,7 @@ class CireInvariants(CireTransformerLegacy, Queue):
     def _lookup_key(self, c, d):
         ispace = c.ispace.reset()
         intervals = c.ispace.intervals.drop(d).reset()
-        properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
+        properties = Properties({d: relax_properties(v) for d, v in c.properties.items()})
 
         return AliasKey(ispace, intervals, c.dtype, c.guards, properties)
 
@@ -566,7 +567,22 @@ def collect(extracted, meta, minstorage):
         * a[i] + c[i] : because at least one of the operands differs
         * a[i+2] - b[i+2] : because at least one operation differs
         * a[i+2] + b[i] : because the distances along ``i`` differ (+2 and +0)
+
+    An aliasing expression is discarded if it does not span all of the
+    Dimensions its guard reads, since it would then be computed in a loop
+    nest that does not define its guard.
     """
+    # The Dimensions an alias must span for its guard to be evaluated within
+    # the alias' own loops: those the guards read, but for the SEQUENTIAL ones,
+    # along which the guard is evaluated outside of them anyway. Taken at their
+    # root, an alias and a guard not necessarily using the same derived
+    # Dimensions -- the alias' own are pulled with their ancestors below
+    if meta.guards:
+        guard_dims = {d.root for d in meta.guards.dimensions
+                      if not meta.properties.is_sequential(d._defines)}
+    else:
+        guard_dims = set()
+
     # Find the potential aliases
     found = []
     for expr in extracted:
@@ -656,6 +672,13 @@ def collect(extracted, meta, minstorage):
             subs = {i: i.function[[l + v.fromlabel(l, 0) for l in b]]
                     for i, b, v in zip(c.indexeds, c.bases, offsets, strict=True)}
             pivot = uxreplace(c.expr, subs)
+
+            # An alias is scheduled over the Dimensions it spans, but it
+            # inherits its guard as it is, so a guard reading a Dimension the
+            # alias does not span would be evaluated in a loop nest that does
+            # not define it
+            if not guard_dims <= pull_dims(pivot):
+                continue
 
             # Distance of each aliased expression from the basis alias
             aliaseds = []
