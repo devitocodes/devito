@@ -6,13 +6,14 @@ from devito.symbolics import (retrieve_indexed, uxreplace, retrieve_dimensions,
 from devito.tools import (Ordering, as_tuple, flatten, filter_sorted, filter_ordered,
                           frozendict)
 from devito.types import (Dimension, Eq, IgnoreDimSort, SubDimension,
-                          ConditionalDimension, MultiStage)
+                          ConditionalDimension)
 from devito.types.array import Array
 from devito.types.basic import AbstractFunction
 from devito.types.dimension import MultiSubDimension, Thickness
 from devito.data.allocators import DataReference
 from devito.logger import warning
 
+from devito.timestepping.multistage import MultiStage
 
 __all__ = ['dimension_sort', 'lower_timestepping', 'lower_exprs', 'concretize_subdims']
 

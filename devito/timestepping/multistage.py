@@ -51,11 +51,17 @@ class MultiStage(Eq):
         # Convert source to tuple of tuples for immutability
         obj.src = tuple(tuple(item)
                          for item in source) if source is not None else None
-        obj.t = lhs_tuple[0].grid.time_dim
-        obj.dt = obj.t.spacing
         obj.optimized_feature = optimized_feature
 
         return obj
+
+    @property
+    def t(self):
+        return self.lhs[0].grid.time_dim
+
+    @property
+    def dt(self):
+        return self.t.spacing
 
     @property
     def lhs(self):
@@ -71,10 +77,11 @@ class MultiStage(Eq):
     def n_eq(self):
         """Number of equations"""
         return len(self.lhs)
-
+    
     def _evaluate(self, **kwargs):
         raise NotImplementedError(
             f"_evaluate() must be implemented in the subclass {self.__class__.__name__}")
+
 
 class TableauRungeKutta(MultiStage):
     """
@@ -86,42 +93,101 @@ class TableauRungeKutta(MultiStage):
     a series of intermediate stages followed by a final update. Subclasses
     must define `a`, `b`, and `c` as class attributes.
 
-    Parameters
-    ----------
-    a : tuple of tuple of float
-        The coefficient matrix representing stage dependencies.
-    b : tuple of float
-        The weights for the final combination step.
-    c : tuple of float
-        The time shifts for each intermediate stage (often the row sums of `a`).
-
     Attributes
     ----------
     a : tuple[tuple[float, ...], ...]
         Butcher tableau `a` coefficients (stage coupling).
+        The coefficient matrix representing stage dependencies.
     b : tuple[float, ...]
         Butcher tableau `b` coefficients (weights for combining stages).
+        The weights for the final combination step.
     c : tuple[float, ...]
         Butcher tableau `c` coefficients (stage time positions).
+        The time shifts for each intermediate stage (often the row sums of `a`).
     s : int
         Number of stages in the RK method, inferred from `b`.
     """
 
-    CoeffsBC = tuple[float | np.number, ...]
-    CoeffsA = tuple[CoeffsBC, ...]
+    a = None
+    b = None
+    c = None
 
-    def __init__(self, lhs, rhs, a: CoeffsA = None, b: CoeffsBC = None,
-                 c: CoeffsBC = None, **kwargs) -> None:
-        self.a = a if a is not None else getattr(self, 'a', None)
-        self.b = b if b is not None else getattr(self, 'b', None)
-        self.c = c if c is not None else getattr(self, 'c', None)
-
-        if self.a is None or self.b is None or self.c is None:
-            raise ValueError("TableauRungeKutta requires coefficients 'a', 'b', and 'c'.")
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        if any (i is None for i in (cls.a, cls.b, cls.c)):
+            raise ValueError(f"{cls.__name__} must define class attributes of Butcher tableau 'a', 'b', and 'c'.")
 
     @property
     def s(self):
+        # Number of stages in the RK method, inferred from `b`.
         return len(self.b)
+
+    def _build_stage(self, i, k, **kwargs):
+        """Build and return the stage Eq objects for stage index ``i``.
+
+        Default behaviour:
+        - if `i` is not the final stage
+            - compute intermediate states `u_temp` from `a` and current `k` values
+            - compute the stage time `t_shift` from `c`
+            - substitute into RHS and create stage Eqs assigning to `k[*][i]`
+        - if `i` is the final stage, append final-update Eqs
+        """
+
+        # Compute intermediate states `u_temp` for each equation
+        u_temp = []
+        for l in range(self.n_eq):
+            stage_sum = sum(aij * kj for aij, kj in zip(self.a[i][:i], k[l][:i]))
+            u_temp.append(self.lhs[l] + self.dt * stage_sum)
+
+        # Time at this stage
+        t_shift = self.t + self.c[i]
+
+        # Build substitution map and evaluate RHS
+        subs_map = {self.t: t_shift}
+        subs_map.update({self.lhs[m]: u_temp[m] for m in range(self.n_eq)})
+        stage_rhs = [uxreplace(self.rhs[l], subs_map) for l in range(self.n_eq)]
+
+        return [Eq(k[l][i], stage_rhs[l]) for l in range(self.n_eq)]
+
+    def _final_stage(self, k, **kwargs):
+        # Final stage: compute final update(s)
+        u_temp = []
+        for l in range(self.n_eq):
+            weighted_sum = sum(bi * ki for bi, ki in zip(self.b, k[l]))
+            u_temp.append(self.lhs[l] + self.dt * weighted_sum)
+
+        return [Eq(self.lhs[l].forward, u_temp[l]) for l in range(self.n_eq)]
+        
+    def _make_stage_storage(self, fun_prefix, **kwargs):
+        """
+        Create temporary storage for intermediate stages in the multi-stage
+        integration process. This method generates a list of TimeFunction
+        objects to hold the stage values.
+
+        Parameters
+        ----------
+        fun_prefix : str
+            The prefix for the names of the generated TimeFunction objects.
+        **kwargs
+            Additional keyword arguments, such as the symbol registry.
+
+        Returns
+        -------
+        list of TimeFunction
+            A list of TimeFunction objects, one for each equation, to store
+            the intermediate stage values during integration.
+        """
+        sregistry = kwargs.get('sregistry')
+        # Create temporary Arrays to hold each stage
+        k = []
+        for j in range(self.n_eq):
+            k_j = []
+            for _ in range(self.s):
+                k_name = sregistry.make_name(prefix=fun_prefix)
+                k_j.append(TimeFunction(name=k_name, grid=self.lhs[j].grid,
+                                        space_order=self.lhs[j].space_order, time_order=0, dtype=self.lhs[j].dtype))
+            k.append(k_j)
+        return k
 
     def _evaluate(self, **kwargs):
         """
@@ -139,54 +205,20 @@ class TableauRungeKutta(MultiStage):
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
 
-        sregistry = kwargs.get('sregistry')
-        # Create temporary Arrays to hold each stage
-        k = []
-        for j in range(self.n_eq):
-            k_j = []
-            for _ in range(self.s):
-                k_name = sregistry.make_name(prefix="k")
-                k_j.append(TimeFunction(name=k_name, grid=self.lhs[j].grid,
-                                        space_order=self.lhs[j].space_order, time_order=0, dtype=self.lhs[j].dtype))
-            k.append(k_j)
+        k = self._make_stage_storage(fun_prefix="k", **kwargs)
 
         stage_eqs = []
 
         # Build each stage
         for i in range(self.s):
-            u_temp = [self.lhs[l] + self.dt * sum(aij * kj for aij, kj in zip(
-                self.a[i][:i], k[l][:i])) for l in range(self.n_eq)]
-            t_shift = self.t + self.c[i]
-
-            # Evaluate RHS at intermediate value
-            stage_rhs = [uxreplace(self.rhs[l], {**{self.lhs[m]: u_temp[m] for m in range(
-                self.n_eq)}, self.t: t_shift}) for l in range(self.n_eq)]
-            stage_eqs.extend([Eq(k[l][i], stage_rhs[l])
-                             for l in range(self.n_eq)])
-
-        # Final update: u = u + dt * sum(b_i * k_i)
-        u_next = [self.lhs[l] + self.dt *
-                  sum(bi * ki for bi, ki in zip(self.b, k[l])) for l in range(self.n_eq)]
-        stage_eqs.extend([Eq(self.lhs[l].forward, u_next[l])
-                         for l in range(self.n_eq)])
+            stage_eqs.extend(self._build_stage(i, k, **kwargs))
+        stage_eqs.extend(self._final_stage(k, **kwargs))
 
         return stage_eqs
+
     
 class RungeKutta44(TableauRungeKutta):
-    """
-    Classic 4th-order Runge-Kutta (RK4) time integration method.
-
-    This class implements the classic explicit Runge-Kutta method of order 4 (RK44).
-
-    Attributes
-    ----------
-    a : tuple[tuple[float, ...], ...]
-        Coefficients of the `a` matrix for intermediate stage coupling.
-    b : tuple[float, ...]
-        Weights for final combination.
-    c : tuple[float, ...]
-        Time positions of intermediate stages.
-    """
+    """Classic 4th-order explicit Runge-Kutta (RK4)."""
     a = ((0, 0, 0, 0),
          (1/2, 0, 0, 0),
          (0, 1/2, 0, 0),
@@ -194,42 +226,18 @@ class RungeKutta44(TableauRungeKutta):
     b = (1/6, 1/3, 1/3, 1/6)
     c = (0, 1/2, 1/2, 1)
 
+
 class RungeKutta32(TableauRungeKutta):
-    """
-    3 stages 2nd-order Runge-Kutta (RK32) time integration method.
-
-    This class implements the 3-stages explicit Runge-Kutta method of order 2 (RK32).
-
-    Attributes
-    ----------
-    a : list[list[float]]
-        Coefficients of the `a` matrix for intermediate stage coupling.
-    b : list[float]
-        Weights for final combination.
-    c : list[float]
-        Time positions of intermediate stages.
-    """
+    """3-stage, 2nd-order explicit Runge-Kutta (RK32)."""
     a = ((0, 0, 0),
          (1/2, 0, 0),
          (0, 1/2, 0))
     b = (0, 0, 1)
     c = (0, 1/2, 1/2)
 
+
 class RungeKutta97(TableauRungeKutta):
-    """
-    9 stages 7th-order Runge-Kutta (RK97) time integration method.
-
-    This class implements the 9-stages explicit Runge-Kutta method of order 7 (RK97).
-
-    Attributes
-    ----------
-    a : list[list[float]]
-        Coefficients of the `a` matrix for intermediate stage coupling.
-    b : list[float]
-        Weights for final combination.
-    c : list[float]
-        Time positions of intermediate stages.
-    """
+    """9-stage, 7th-order explicit Runge-Kutta (RK97)."""
     a = ((0, 0, 0, 0, 0, 0, 0, 0, 0),
          (4/63, 0, 0, 0, 0, 0, 0, 0, 0),
          (1/42, 1/14, 0, 0, 0, 0, 0, 0, 0),
@@ -247,22 +255,9 @@ class RungeKutta97(TableauRungeKutta):
          5963949/25894400, 50000000000/599799373173, 28487/712800)
     c = (0, 4/63, 2/21, 1/7, 7/17, 13/24, 7/9, 91/100, 1)
 
-class HighOrderRungeKuttaExponential(MultiStage):
-    # In construction
-    """
-    n stages Runge-Kutta (HORK) time integration method.
 
-    This class implements the arbitrary high-order explicit Runge-Kutta method.
-
-    Attributes
-    ----------
-    a : list[list[float]]
-        Coefficients of the `a` matrix for intermediate stage coupling.
-    b : list[float]
-        Weights for final combination.
-    c : list[float]
-        Time positions of intermediate stages.
-    """
+class HORKE(MultiStage):
+    """High-order Runge-Kutta exponential integrator."""
 
     def source_derivatives(self, src_index, **kwargs):
 
@@ -292,7 +287,7 @@ class HighOrderRungeKuttaExponential(MultiStage):
             Array of SSPRK coefficients.
         """
 
-        alpha = [0] * self.deg
+        alpha = np.zeros(self.deg)
         alpha[0] = 1.0  # Initial coefficient
 
         # recurrence relation to compute the HORK coefficients following the formula in Gottlieb and Gottlieb (2002)
@@ -356,6 +351,82 @@ class HighOrderRungeKuttaExponential(MultiStage):
 
         return src_lhs, e_p
 
+
+    def _make_stage_storage(self, fun_prefix, **kwargs):
+        """
+        Create temporary storage for intermediate stages in the multi-stage
+        integration process. This method generates a list of TimeFunction
+        objects to hold the stage values.
+
+        Parameters
+        ----------
+        fun_prefix : str
+            The prefix for the names of the generated TimeFunction objects.
+        **kwargs
+            Additional keyword arguments, such as the symbol registry.
+
+        Returns
+        -------
+        list of TimeFunction
+            A list of TimeFunction objects, one for each equation, to store
+            the intermediate stage values during integration.
+        """
+        sregistry = kwargs.get('sregistry')
+        k = [TimeFunction(name=f'{sregistry.make_name(prefix=fun_prefix)}', grid=self.lhs[i].grid,
+                      space_order=self.lhs[i].space_order, time_order=0, dtype=self.lhs[i].dtype) for i in range(self.n_eq)]
+        return k
+
+    def _init_stage_eqs(self, k, alpha):
+        """Initialize stage equations (copy initial state and apply alpha[0])."""
+        stage_eqs = [Eq(ki, ui) for ki, ui in zip(k, self.lhs)]
+        stage_eqs.extend([Eq(lhs_i.forward, lhs_i * alpha[0]) for lhs_i in self.lhs])
+        return stage_eqs
+
+    def _final_updates(self, k, k_old, alpha, e_p, integration_params, mu):
+        """Perform the final chain of RK updates used by the HORK scheme."""
+        stage_eqs = []
+
+        stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
+        src_lhs, e_p = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
+        stage_eqs.extend([Eq(k_j, k_old_j + mu * self.dt * src_lhs_j)
+                          for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
+
+        stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
+        src_lhs, _ = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
+        stage_eqs.extend([Eq(k_j, k_old_j + mu * self.dt * src_lhs_j)
+                          for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
+
+        # Compute final approximation
+        stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward + k_j * alpha[self.deg - 1])
+                          for lhs_j, k_j in zip(self.lhs, k)])
+
+        return stage_eqs
+
+    def _build_stage(self, i, k, k_old, alpha, e_p, integration_params):
+            """Build and return the equations for one SSPRK stage.
+    
+            Returns a tuple `(stage_eqs, e_p)` where `stage_eqs` is a list of
+            Eq objects to append and `e_p` contains the possibly-updated
+            expansion coefficients.
+            """
+            if i < self.deg - 1:
+                stage_eqs = []
+    
+                # saving stage variables for consistent spatial operator application
+                stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
+    
+                # include source terms approximation in the current stage evaluation
+                src_lhs, e_p = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
+    
+                # update stage equations with source contributions
+                stage_eqs.extend([Eq(k_j, k_old_j + integration_params['mu'] * self.dt * src_lhs_j)
+                                for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
+    
+                # include the last stage to the final approximation with the corresponding alpha coefficient
+                stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward + k_j * alpha[i]) for lhs_j, k_j in zip(self.lhs, k)])
+    
+                return stage_eqs, e_p
+    
     def _evaluate(self, **kwargs):
         """
         Generate the stage-wise equations for a Runge-Kutta time integration method.
@@ -372,13 +443,11 @@ class HighOrderRungeKuttaExponential(MultiStage):
             - 1 final update equation of the form `u.forward = u + dt * sum(b_i * k_i)`
         """
 
-        sregistry = kwargs.get('sregistry')
         # Create a temporary Array for each variable to save the time stages
         # k = [Array(name=f'{sregistry.make_name(prefix='k')}', dimensions=u[i].grid.dimensions, grid=u[i].grid, dtype=u[i].dtype) for i in range(n_eq)]
-        k = [TimeFunction(name=f'{sregistry.make_name(prefix="k")}', grid=self.lhs[i].grid,
-                      space_order=self.lhs[i].space_order, time_order=0, dtype=self.lhs[i].dtype) for i in range(self.n_eq)]
-        k_old = [TimeFunction(name=f'{sregistry.make_name(prefix="k_old")}', grid=self.lhs[i].grid,
-                          space_order=self.lhs[i].space_order, time_order=0, dtype=self.lhs[i].dtype) for i in range(self.n_eq)]
+        k = self._make_stage_storage(fun_prefix="k", **kwargs)
+        k_old = self._make_stage_storage(fun_prefix="k_old", **kwargs)
+                
         # Compute SSPRK coefficients
         mu = 1
         alpha = self.ssprk_alpha(mu=mu)
@@ -397,37 +466,20 @@ class HighOrderRungeKuttaExponential(MultiStage):
         eta = 1
         e_p[-1] = 1 / eta
 
-        stage_eqs = [Eq(ki, ui) for ki, ui in zip(k, self.lhs)]
-        stage_eqs.extend([Eq(lhs_i.forward, lhs_i*alpha[0]) for lhs_i in self.lhs])
-
         # Prepare integration parameters for source inclusion
         integration_params = {'mu': mu, 'src_index': src_index,
-                              'src_deriv': src_deriv, 'n_eq': self.n_eq}
+                                'src_deriv': src_deriv, 'n_eq': self.n_eq}
 
-        # Build each stage
+        # Initialize stage equations
+        stage_eqs = self._init_stage_eqs(k, alpha)
+
+        # Build each stage via helper
         for i in range(1, self.deg - 1):
-            # saving stage variables for consistent spatial operator application
-            stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
+            stage_fragment, e_p = self._build_stage(i, k, k_old, alpha, e_p, integration_params)
+            stage_eqs.extend(stage_fragment)
 
-            # include source terms approximation in the current stage evaluation
-            src_lhs, e_p = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
+        # Final Runge-Kutta updates (delegated)
+        final_fragment = self._final_updates(k, k_old, alpha, e_p, integration_params, mu)
+        stage_eqs.extend(final_fragment)
 
-            # update stage equations with source contributions
-            stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
-
-            # include the last stage to the final approximation with the corresponding alpha coefficient
-            stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[i]) for lhs_j, k_j in zip(self.lhs, k)])
-        
-        # Final Runge-Kutta updates
-        stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
-        src_lhs, e_p = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
-        stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
-        
-        stage_eqs.extend([Eq(k_old_j, k_j) for k_old_j, k_j in zip(k_old, k)])
-        src_lhs, _ = self.source_inclusion(self.lhs, k_old, e_p, **integration_params)
-        stage_eqs.extend([Eq(k_j, k_old_j+mu*self.dt*src_lhs_j) for k_j, k_old_j, src_lhs_j in zip(k, k_old, src_lhs)])
-
-        # Compute final approximation
-        stage_eqs.extend([Eq(lhs_j.forward, lhs_j.forward+k_j*alpha[self.deg-1]) for lhs_j, k_j in zip(self.lhs, k)])
-       
         return stage_eqs

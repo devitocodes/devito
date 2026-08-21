@@ -15,7 +15,7 @@ class SolveError(Exception):
     pass
 
 
-def solve(eq, target, **kwargs):
+def solve(eq, target, method=None, **kwargs):
     """
     Algebraically rearrange an Eq w.r.t. a given symbol.
 
@@ -60,8 +60,10 @@ def solve(eq, target, **kwargs):
     else:
         sols_temp = sols[0]
 
-    method = kwargs.pop('method', None)
-    return sols_temp if method is None else method(target, sols_temp)
+    if method is None:
+        return sols_temp
+    else:
+        return method(target, sols_temp)
 
 
 def linsolve(expr, target, **kwargs):

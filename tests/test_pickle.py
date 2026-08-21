@@ -1,3 +1,4 @@
+import io
 import ctypes
 import pickle as pickle0
 
@@ -28,10 +29,8 @@ from devito.symbolics import (IntDiv, ListInitializer, FieldFromPointer,
 from examples.seismic import (demo_model, AcquisitionGeometry,
                               TimeAxis, RickerSource, Receiver)
 
-import devito.types.multistage as mstage
+from devito.timestepping.multistage import RungeKutta44, RungeKutta32, RungeKutta97
 from devito import Derivative
-import tempfile
-import os
 
 
 class SparseFirst(SparseFunction):
@@ -696,47 +695,26 @@ class TestAdvanced:
         assert new_msf.name == 'msf'
         assert new_msf.npoint == 3
 
-    @pytest.mark.parametrize('time_int', [mstage.RungeKutta44, mstage.RungeKutta32, mstage.RungeKutta97])
-    def test_multistage(self, time_int):
-        # Grid setup
-
-        extent=(10, 10)
-        shape=(3, 3)
-        grid = Grid(origin=(0, 0), extent=extent, shape=shape, dtype=np.float64)
-        x, y = grid.dimensions
-        dt = grid.stepping_dim.spacing
-        t = grid.time_dim
-        dx = extent[0] / (shape[0] - 1)
-
+    @pytest.mark.parametrize('pickle', [pickle0, pickle1])
+    @pytest.mark.parametrize('time_int', [RungeKutta44, RungeKutta32, RungeKutta97])
+    def test_multistage(self, time_int, pickle):
+        
+        grid = Grid(shape=1, dtype=np.float64)
         # Define wavefield unknowns: u (displacement) and v (velocity)
-        fun_labels = ['u', 'v']
-        u = [TimeFunction(name=name, grid=grid, space_order=2,
-                          time_order=1, dtype=np.float64) for name in fun_labels]
-
-        # Source definition
-        src_spatial = Function(name="src_spat", grid=grid,
-                               space_order=2, dtype=np.float64)
-        src_spatial.data[1, 1] = 1
-        src_temporal = (1 - 2 * (t * dt - 1)**2)
+        u = [TimeFunction(name='u', grid=grid, space_order=1, time_order=1, dtype=np.float64)]
 
         # PDE system (2D acoustic)
-        system_eqs_rhs = [u[1] + src_spatial * src_temporal,
-                          Derivative(u[0], (x, 2), fd_order=2)
-                          + Derivative(u[0], (y, 2), fd_order=2)
-                          + src_spatial * src_temporal]
+        eqs_rhs = [u[0] + 1.0]
 
         # Class of the time integration scheme
-        method = time_int(u, system_eqs_rhs)
+        method = time_int(u, eqs_rhs)
         print(f"Testing pickling for {time_int.__name__} method")
         print(method.lhs, method.rhs)
 
-        with tempfile.NamedTemporaryFile(delete=False) as tmpfile:
-            pickle0.dump(method, tmpfile)
-            filename = tmpfile.name
-
-        with open(filename, 'rb') as file:
-            method_saved = pickle0.load(file)
-            os.remove(filename)
+        buffer = io.BytesIO()
+        pickle.dump(method, buffer)
+        buffer.seek(0)
+        method_saved = pickle.load(buffer)
 
         assert str(method) == str(
             method_saved), "Mismatch in PDE after pickling"

@@ -22,5 +22,3 @@ from .dense import * # noqa
 from .relational import *  # noqa
 from .sparse import *  # noqa
 from .tensor import *  # noqa
-
-from .multistage import *  # noqa
