@@ -9,8 +9,9 @@ from devito.exceptions import CompilationError
 from devito.finite_differences import EvalDerivative, IndexDerivative, Weights
 from devito.ir import (
     PARALLEL_IF_PVT, SEPARABLE, SEQUENTIAL, Cluster, ClusterGroup, ExprGeometry, Forward,
-    Interval, IntervalGroup, IterationSpace, LabeledVector, Queue, Vector, extrema,
-    maximum, minimum, normalize_properties, relax_properties, unbounded, vmax, vmin
+    Interval, IntervalGroup, IterationSpace, LabeledVector, Properties, Queue, Vector,
+    extrema, maximum, minimum, normalize_properties, relax_properties, unbounded, vmax,
+    vmin
 )
 from devito.passes.clusters.cse import _cse
 from devito.passes.clusters.utils import expose_tuning_knobs
@@ -19,8 +20,8 @@ from devito.symbolics import (
     uxreplace
 )
 from devito.tools import (
-    Reconstructable, Stamp, as_mapper, as_tuple, flatten, frozendict, generator,
-    is_integer, split, timed_pass
+    Reconstructable, Stamp, as_mapper, as_tuple, flatten, generator, is_integer, split,
+    timed_pass
 )
 from devito.types import (
     CustomDimension, Eq, Hyperplane, IncrDimension, Indexed, ModuloDimension, Size,
@@ -288,6 +289,7 @@ class CireTransformerLegacy(CireTransformer):
                     free_symbols = i.free_symbols
                 if {a.function for a in free_symbols} & exclude:
                     continue
+
                 mapper.add(i, make, terms)
 
         return mapper
@@ -304,6 +306,31 @@ class CireInvariants(CireTransformerLegacy, Queue):
     def process(self, clusters):
         return self._process_fatd(clusters, 1, xtracted=[])
 
+    @classmethod
+    def _make_exclude(cls, clusters, d, p):
+        """
+        The symbols an extraction must not touch.
+        """
+        # Rule out extractions that would break data dependencies
+        exclude = set().union(*[c.scope.writes for c in clusters])
+
+        # Rule out extractions that depend on the Dimension currently investigated,
+        # as they clearly wouldn't be invariants
+        exclude.update({d, *p.sub_iterators})
+
+        # An extraction is hoisted out of `d`, but it inherits its guard as it
+        # is, so it must not be hoisted past any Dimension the guard reads, or
+        # the guard would be evaluated where it is not defined. Excluding those
+        # Dimensions keeps the extraction inside the loops defining them. A
+        # SEQUENTIAL Dimension is exempt, its loop enclosing the extraction's own
+        for c in clusters:
+            exclude.update(
+                i for i in c.guards.dimensions
+                if not c.properties.is_sequential(i._defines)
+            )
+
+        return exclude
+
     def callback(self, clusters, prefix, xtracted=None):
         if not prefix:
             return clusters
@@ -314,12 +341,7 @@ class CireInvariants(CireTransformerLegacy, Queue):
         if d.is_Virtual:
             return clusters
 
-        # Rule out extractions that would break data dependencies
-        exclude = set().union(*[c.scope.writes for c in clusters])
-
-        # Rule out extractions that depend on the Dimension currently investigated,
-        # as they clearly wouldn't be invariants
-        exclude.update({d, *p.sub_iterators})
+        exclude = self._make_exclude(clusters, d, p)
 
         key = lambda c: self._lookup_key(c, d)
         processed = list(clusters)
@@ -343,7 +365,7 @@ class CireInvariants(CireTransformerLegacy, Queue):
     def _lookup_key(self, c, d):
         ispace = c.ispace.reset()
         intervals = c.ispace.intervals.drop(d).reset()
-        properties = frozendict({d: relax_properties(v) for d, v in c.properties.items()})
+        properties = Properties({d: relax_properties(v) for d, v in c.properties.items()})
 
         return AliasKey(ispace, intervals, c.dtype, c.guards, properties)
 
