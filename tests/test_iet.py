@@ -12,7 +12,7 @@ from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
     ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, Transformer, filter_iterations, make_callable, make_efunc,
+    Switch, ThreadFence, Transformer, filter_iterations, make_callable, make_efunc,
     retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
@@ -116,6 +116,23 @@ def test_nested_calls_cgen():
     code = CGen().visit(call)
 
     assert str(code) == 'foo(bar());'
+
+
+def test_thread_fence_cgen():
+    """
+    A fence renders as the builtin, which is valid in C and C++ alike.
+
+    Threads that hand work to each other through a shared flag need one either
+    side of the handshake; without them the stores can be observed out of order
+    and a hand-off is lost.
+    """
+    assert str(CGen().visit(ThreadFence('acquire'))) == \
+        '__atomic_thread_fence(__ATOMIC_ACQUIRE);'
+    assert str(CGen().visit(ThreadFence('release'))) == \
+        '__atomic_thread_fence(__ATOMIC_RELEASE);'
+
+    with pytest.raises(AssertionError):
+        ThreadFence('seq_cst')
 
 
 @pytest.mark.parametrize('mode,expected', [
