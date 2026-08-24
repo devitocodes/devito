@@ -118,14 +118,12 @@ class EqBlock(CacheInstances):
         dims_implicit = {d for e in self.exprs for d in e.implicit_dims}
         return dims_explicit | dims_implicit
 
-    @cached_property
+    @property
     def guards_dimensions(self):
         """
         The Dimensions that appear explicitly in the guards.
         """
-        syms_guards = {d for e in self.guards.values() for d in e.free_symbols}
-        dims_guards = {i for i in syms_guards if i.is_Dimension}
-        return dims_guards
+        return self.guards.dimensions
 
     @cached_property
     def used_dimensions(self):
