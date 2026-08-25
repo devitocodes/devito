@@ -10,7 +10,7 @@ from conftest import (  # noqa
 )
 from devito import (  # noqa
     NODE, Abs, ConditionalDimension, Constant, DefaultDimension, Derivative, Dimension,
-    Eq, Function, Ge, Grid, Inc, Lt, Operator, SparseTimeFunction, SubDimension,
+    Eq, Function, Ge, Grid, Inc, Lt, Max, Operator, SparseTimeFunction, SubDimension,
     TimeFunction, configuration, cos, dimensions, div, exp, first_derivative, floor, grad,
     norm, sin, solve, sqrt, switchconfig, transpose
 )
@@ -2511,6 +2511,43 @@ class TestAliases:
 
         assert len(FindNodes(Conditional).visit(op)) == 1
         assert np.all(u.data[6:] == 1.42)
+
+    def test_no_extraction_guarded_by_unspanned_dimension(self):
+        """
+        An alias is scheduled over the Dimensions it spans, but it inherits its
+        guard as it is. A guard reading a Dimension the alias does not span
+        would then be evaluated in a loop nest that does not define it, giving
+        code that does not compile.
+
+        Here `sin(...)` depends on `y` alone while the condition reads both `x`
+        and `y`, which is what an immersed boundary condition produces.
+        """
+        grid = Grid(shape=(16, 16))
+        x, y = grid.dimensions
+
+        sdf = Function(name='sdf', grid=grid)
+        sdf.data[:] = 1.
+
+        cond = ConditionalDimension(name='inside', parent=y, condition=Ge(sdf, 0))
+
+        u = TimeFunction(name='u', grid=grid, space_order=4)
+        u.data[:] = 1.
+
+        # Expensive enough to be extracted, and `y`-only
+        prof = sin(Max(0., 1. - y)) + sin(Max(0., 1. + y))
+
+        eqn = Eq(u.forward, u.laplace + prof*u, implicit_dims=[cond])
+
+        op = Operator(eqn, opt=('advanced', {'cire-mingain': 0, 'openmp': False}))
+
+        # No temporary may be created over fewer Dimensions than the guard reads
+        for i in FindSymbols().visit(op):
+            if i.is_Array:
+                assert {x, y}.issubset(set(i.dimensions))
+
+        # Used to fail to compile with "'x' undeclared"
+        op.apply(time_M=2)
+        assert np.all(np.isfinite(u.data[:]))
 
     def test_collection_from_conditional(self):
         nt = 10

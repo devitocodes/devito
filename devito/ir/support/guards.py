@@ -5,7 +5,7 @@ of the compiler to express the conditions under which a certain object
 """
 
 from collections import Counter, defaultdict
-from functools import singledispatch
+from functools import cached_property, singledispatch
 from operator import ge, gt, le, lt
 
 import numpy as np
@@ -13,6 +13,7 @@ from sympy import And, Expr, Ge, Gt, Le, Lt, Mul, true
 from sympy.logic.boolalg import BooleanFunction
 
 from devito.ir.support.space import Forward, IterationDirection
+from devito.ir.support.utils import pull_dims
 from devito.symbolics import CondEq, CondNe, IntDiv, search
 from devito.symbolics.manipulation import _uxreplace_handle, _uxreplace_registry
 from devito.tools import Pickable, as_tuple, frozendict, split
@@ -279,6 +280,15 @@ class Guards(frozendict):
 
     def get(self, d, v=true):
         return super().get(d, v)
+
+    @cached_property
+    def dimensions(self):
+        """
+        The Dimensions the guards read, that is those a guarded object must
+        be evaluated within.
+        """
+        return frozenset({d for v in self.values()
+                          for d in pull_dims(v, flag=False)})
 
     def has(self, d, cls):
         """
