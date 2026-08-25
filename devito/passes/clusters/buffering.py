@@ -1,5 +1,4 @@
 from collections import defaultdict, namedtuple
-from contextlib import suppress
 from functools import cached_property
 from itertools import chain, groupby
 
