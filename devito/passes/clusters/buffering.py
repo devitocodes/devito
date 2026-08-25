@@ -474,7 +474,6 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
                 buf = next((b for b, cg in by_buf.items()
                             if _fits_buffer(f, cg + g, b)), None)
 
-<<<<<<< HEAD
             if buf is None:
                 # No compatible buffer; create a dedicated one
                 buf = _select_buffer(
@@ -483,15 +482,6 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
             mapper[(f, k)] = buf
             groups[(f, k)] = g
-=======
-        # Finally create the actual buffer
-        # FIXME: A better refactor would stash callback on the original `f`
-        cls = callback or Array
-        name = sregistry.make_name(prefix=f'{f.name}b')
-        mapper[f] = cls(name=name, dimensions=dimensions, dtype=f.dtype,
-                        grid=f.grid, halo=f.halo,
-                        space='mapped', mapped=f, f=f, **extra_kwargs)
->>>>>>> f4fb4cce1 (lint: Ruff (and flake8))
 
     return mapper
 
