@@ -195,21 +195,40 @@ def preprocess(clusters, options=None, **kwargs):
 
             found = []
             for c1 in list(queue):
-                distributed_aindices = c1.halo_scheme.distributed_aindices
+                # Skip if the halo exchange would end up outside its `loc_indices`
                 h_indices = set().union(*[d._defines for d in c1.halo_scheme.loc_indices])
 
-                # Skip if the halo exchange would end up outside
-                # its iteration space
                 if h_indices and not h_indices & dims:
                     continue
 
-                diff = dims - distributed_aindices
-                intersection = dims & distributed_aindices
+                # TODO TODO TODO
+                dist_aindices = c1.halo_scheme.distributed_aindices
+                dist_defined = c1.halo_scheme.distributed_defined
 
-                if all(c1.guards.get(d) == c.guards.get(d) for d in diff) and \
-                   len(intersection) > 0:
-                    found.append(c1)
-                    queue.remove(c1)
+                # < GARBAGE CURRENTLY >
+                # * main repro: `tests/cpml_mfes/06_minimal_repro.py`
+                # * seems heavily affected: OSS `tests/test_linearize.py::test_interpolation_msf`
+
+                #if any(d._defines & dist_defined for d in dims):
+                #    continue
+                #issubset = dist_aindices.issubset(dims)
+
+                #intersection = dims & dist_aindices
+
+                #if len(intersection) > 0:
+                #    from IPython import embed; embed()
+                #dist_aindices.issubset(dims):
+
+
+                # Ensure the guards are honored
+                diff = dims - dist_aindices
+
+                if not all(c1.guards.get(d) == c.guards.get(d) for d in diff):
+                    continue
+
+                # All good -- we can attach the halo exchange to this Cluster
+                found.append(c1)
+                queue.remove(c1)
 
             syncs = normalize_syncs(*[c1.syncs for c1 in found])
             if syncs:
