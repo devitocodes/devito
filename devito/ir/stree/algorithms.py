@@ -206,6 +206,26 @@ def preprocess(clusters, options=None, **kwargs):
                 diff = dims - distributed_aindices
                 intersection = dims & distributed_aindices
 
+                # FIXME: I think this might be borked with MPI? Might erroneously skip
+                # a halo exchange which is needed for a cluster
+                # Doesn't throw any errors, but I need to logically check this
+
+                # The HaloScheme from a previous cluster cannot be reused in the case
+                # that its `distributed_aindices` contain a SubDimension which is not
+                # found in the current Cluster being inspected but which shares the
+                # same root Dimension as a SubDimension found in the current cluster. 
+                # As such, check that SubDimensions in `distributed_aindices` match
+                # those in `dims` where they share a root Dimension. If not, then
+                # skip this entry in queue.
+                d_by_root = {d.root: d for d in dims if d.is_Sub}
+                conflict = any(
+                    e.is_Sub and d_by_root.get(e.root, e) is not e
+                    for e in distributed_aindices
+                )
+
+                if conflict:
+                    continue
+
                 if all(c1.guards.get(d) == c.guards.get(d) for d in diff) and \
                    len(intersection) > 0:
                     found.append(c1)
