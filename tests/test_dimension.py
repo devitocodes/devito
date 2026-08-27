@@ -257,6 +257,28 @@ class TestBufferedDimension:
         for tree in trees:
             assert tree[0].direction == direction
 
+    def test_default_timeM_with_saved(self):
+        """
+        MFE for issue #2235: the default `time_M`, when a `save`-mode
+        TimeFunction is mixed with a regular (modulo-buffered) one, must
+        come from the `save`-mode Function's own exact bound, not be
+        further shrunk by the other Function's harmless (because
+        circular) `+1` stepping offset.
+        """
+        grid = Grid(shape=(4, 4))
+
+        u = TimeFunction(name='u', grid=grid)
+        usave = TimeFunction(name='usave', grid=grid, save=5)
+
+        eqns = [Eq(u.forward, u + 1),
+                Eq(usave, u)]
+
+        op = Operator(eqns)
+
+        assert op.arguments()['time_M'] == 4
+        op.apply()
+        assert all(np.all(usave.data[i] == i) for i in range(5))
+
 
 class TestSubDimension:
 
