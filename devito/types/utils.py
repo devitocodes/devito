@@ -44,17 +44,21 @@ Offset = namedtuple('Offset', 'left right')
 
 class DimensionTuple(EnrichedTuple):
 
-    def __getitem_hook__(self, dim):
+    def _getter(self, dim):
+        # Exact hit first: a derived Dimension carries its parent in
+        # `_defines`, so an overlap test alone matches the parent's entry.
+        if dim in self.getters:
+            return dim
         for d in self.getters:
             if d._defines & dim._defines:
-                return self.getters[d]
+                return d
         raise KeyError
 
+    def __getitem_hook__(self, dim):
+        return self.getters[self._getter(dim)]
+
     def dindex(self, dim):
-        for d in self.getters:
-            if d._defines & dim._defines:
-                return list(self.getters).index(d)
-        raise KeyError
+        return list(self.getters).index(self._getter(dim))
 
 
 class Staggering(DimensionTuple):
