@@ -1,3 +1,4 @@
+from collections import defaultdict
 from itertools import groupby
 
 from anytree import findall
@@ -206,21 +207,22 @@ def preprocess(clusters, options=None, **kwargs):
                 diff = dims - distributed_aindices
                 intersection = dims & distributed_aindices
 
-                # TODO: Double-check this isn't borked with MPI? Might erroneously skip
-                # a halo exchange which is needed for a cluster
-                # Doesn't throw any errors with the basic test, but I need to logically
-                # check this
-
-                # The HaloScheme from a previous cluster cannot be reused in the case
-                # that its `distributed_aindices` contain a Dimension which is not
-                # found in the current Cluster being inspected but which shares the
-                # same `root` as a Dimension found in the current cluster. 
-                # As such, check that Dimensions in `distributed_aindices` match
-                # those in `dims` where they share a root Dimension. If not, then
-                # skip this entry in queue.
-                d_by_root = {d.root: d for d in dims}
+                # A non-empty `intersection` doesn't guarantee `c1` belongs to
+                # `c`: two SubDomains sharing an axis's (side, thickness) alias
+                # to the same cached SubDimension, so the overlap may be one
+                # incidental axis while the rest belongs to an unrelated
+                # SubDomain. Require instead that, for every root shared
+                # between `dims` and `distributed_aindices`, the latter's
+                # Dimension is exactly one of `dims`'s own for that root (a
+                # root missing from `dims` is still fine, e.g. `t, f`
+                # triggering a halo for `t, x, y, z, f`). `dims` may hold
+                # several Dimensions per root (e.g. a point Dimension plus a
+                # derived radius CustomDimension), hence a set per root below.
+                d_by_root = defaultdict(set)
+                for d in dims:
+                    d_by_root[d.root].add(d)
                 conflict = any(
-                    d_by_root.get(e.root, e) is not e
+                    e.root in d_by_root and e not in d_by_root[e.root]
                     for e in distributed_aindices
                 )
 

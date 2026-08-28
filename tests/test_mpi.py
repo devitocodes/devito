@@ -1670,6 +1670,12 @@ class TestCodeGeneration:
             assert len(calls) == 1
             assert calls[0].arguments[0] is u
 
+    # TODO: Insert a test based off cpml-like reproducer 06 (including the alternative specs)
+    # TODO: This test should both check that the stree/iet doesn't have any halos inserted in inner iterations
+    # TODO: There is possibly already a function in this file or conftest which does this
+    # TODO: It should also check the operator compiles and runs (although it does not need to check resulting
+    # values as they are not physically meaningful).
+
     @pytest.mark.parallel(mode=1)
     def test_conditional_dimension(self, mode):
         """
