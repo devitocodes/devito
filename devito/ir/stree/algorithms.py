@@ -206,9 +206,10 @@ def preprocess(clusters, options=None, **kwargs):
                 diff = dims - distributed_aindices
                 intersection = dims & distributed_aindices
 
-                # FIXME: I think this might be borked with MPI? Might erroneously skip
+                # TODO: Double-check this isn't borked with MPI? Might erroneously skip
                 # a halo exchange which is needed for a cluster
-                # Doesn't throw any errors, but I need to logically check this
+                # Doesn't throw any errors with the basic test, but I need to logically
+                # check this
 
                 # The HaloScheme from a previous cluster cannot be reused in the case
                 # that its `distributed_aindices` contain a SubDimension which is not
