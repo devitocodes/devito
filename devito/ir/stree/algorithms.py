@@ -212,15 +212,15 @@ def preprocess(clusters, options=None, **kwargs):
                 # check this
 
                 # The HaloScheme from a previous cluster cannot be reused in the case
-                # that its `distributed_aindices` contain a SubDimension which is not
+                # that its `distributed_aindices` contain a Dimension which is not
                 # found in the current Cluster being inspected but which shares the
-                # same root Dimension as a SubDimension found in the current cluster. 
-                # As such, check that SubDimensions in `distributed_aindices` match
+                # same `root` as a Dimension found in the current cluster. 
+                # As such, check that Dimensions in `distributed_aindices` match
                 # those in `dims` where they share a root Dimension. If not, then
                 # skip this entry in queue.
-                d_by_root = {d.root: d for d in dims if d.is_Sub}
+                d_by_root = {d.root: d for d in dims}
                 conflict = any(
-                    e.is_Sub and d_by_root.get(e.root, e) is not e
+                    d_by_root.get(e.root, e) is not e
                     for e in distributed_aindices
                 )
 
