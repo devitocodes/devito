@@ -14,7 +14,7 @@ from devito.types.utils import DimensionTuple
 from devito.warnings import warn
 
 from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
-from .finite_difference import cross_derivative, generic_derivative
+from .finite_difference import cross_derivative, generic_derivative, indices_at
 from .rsfd import d45
 from .tools import direct, transpose
 
@@ -575,6 +575,12 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
              shited derivative.
         - 4: Apply substitutions.
         """
+        # Differentiation is linear, and a sum of terms at different staggered
+        # locations must use it: `Add` reports its first argument's location,
+        # so `x0` would shift the other terms off the point they sat at.
+        if expr.is_Add and any(len(indices_at(expr, d)) > 1 for d in self.dims):
+            return expr.func(*[self._eval_fd(a, **kwargs) for a in expr.args])
+
         # Step 1: Evaluate non-derivative x0. We currently enforce a simple 2nd order
         # interpolation to avoid very expensive finite differences on top of it
         x0_deriv = self._filter_dims(self.x0)

@@ -100,6 +100,29 @@ f(x + 2*h_x, y + 2*h_y)*g(x + 2*h_x, y + 2*h_y)/h_x)/h_y
     return expr
 
 
+def indices_at(expr, dim):
+    """
+    The locations `expr`'s terms sit at along `dim`.
+
+    Terms with no location of their own, a scalar say, contribute none.
+    """
+    indices = set()
+    for i in (expr.args if expr.is_Add else (expr,)):
+        try:
+            indices.add(i.indices_ref[dim])
+        except (AttributeError, KeyError, IndexError, TypeError):
+            continue
+    return indices
+
+
+def index_at(expr, dim):
+    """
+    Where `expr` sits along `dim`, or None if it does not say.
+    """
+    indices = indices_at(expr, dim)
+    return indices.pop() if len(indices) == 1 else None
+
+
 @check_input
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
                        coefficients='taylor', expand=True, weights=None, side=None):
@@ -139,8 +162,9 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     if deriv_order == 1 and fd_order == 2 and side is None:
         fd_order = 1
 
-    # Zeroth order derivative is just the expression itself if not shifted
-    if deriv_order == 0 and not x0:
+    # Zeroth order is the identity when `expr` already sits at `x0`, not a
+    # stencil centred there.
+    if deriv_order == 0 and (not x0 or index_at(expr, dim) == x0.get(dim)):
         return expr
 
     # Enforce stable time coefficients
