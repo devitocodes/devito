@@ -7,6 +7,7 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 import ctypes
 from collections import OrderedDict
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
+from contextlib import suppress
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 
@@ -17,8 +18,8 @@ from sympy.core.function import Application
 from devito.exceptions import CompilationError
 from devito.ir.cgen.printer import get_printer
 from devito.ir.iet.nodes import (
-    BlankLine, Call, Expression, ExpressionBundle, Iteration, Lambda, ListMajor, Node,
-    Section, _same_as_before
+    BlankLine, Call, Definition, Expression, ExpressionBundle, Iteration, Lambda,
+    ListMajor, Node, Section, _same_as_before
 )
 from devito.ir.support.space import Backward
 from devito.symbolics import (
@@ -1274,6 +1275,23 @@ class FindApplications(LazyVisitor[ApplicationType, set[ApplicationType], None])
                 yield from i.find(self.match)
             except (AttributeError, TypeError):
                 yield from self._visit(i)
+
+    def visit_Definition(self, o: Definition, **kwargs) -> Iterator[ApplicationType]:
+        # The defined object carries expressions in its constructor arguments
+        # and in its initializer, both of which end up in the generated code
+        f = o.function
+        if f.is_LocalObject:
+            candidates = (*f.cargs, f.initvalue)
+        elif f.is_Array:
+            candidates = as_tuple(f.initvalue)
+        else:
+            return
+
+        for i in candidates:
+            # Not everything in there is a symbolic expression, e.g. a plain
+            # number, a string, or nothing at all
+            with suppress(AttributeError, TypeError):
+                yield from i.find(self.match)
 
 
 class IsPerfectIteration(Visitor):
