@@ -412,6 +412,18 @@ class TestMetaData:
         assert '(-z_size)' not in code
         assert 'z_size' in code
 
+    def test_is_reduction_ready(self):
+        grid = Grid(shape=(4, 4))
+
+        # No halo, no padding -- the DOMAIN spans the whole allocation, so a
+        # reduction may run straight off `r0`
+        r0 = TempArray(name='r0', dimensions=grid.dimensions, dtype=np.float32)
+        assert r0._is_reduction_ready
+
+        r1 = TempArray(name='r1', dimensions=grid.dimensions, dtype=np.float32,
+                       halo=((0, 0), (0, 1)))
+        assert not r1._is_reduction_ready
+
     def test_w_halo_custom(self):
         grid = Grid(shape=(4, 4))
 

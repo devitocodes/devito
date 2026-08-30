@@ -16,7 +16,7 @@ from sympy.utilities.exceptions import SymPyDeprecationWarning
 from devito.data import default_allocator
 from devito.parameters import configuration
 from devito.tools import (
-    CustomDtype, Pickable, as_tuple, dtype_to_ctype, frozendict, memoized_meth,
+    CustomDtype, Pickable, as_tuple, dtype_to_ctype, flatten, frozendict, memoized_meth,
     sympy_mutex
 )
 from devito.types.args import ArgProvider
@@ -1350,6 +1350,14 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         sizes = tuple(Size(i, j) for i, j in np.add(self._halo, self._padding))
 
         return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
+
+    @property
+    def _is_reduction_ready(self):
+        """
+        True if a reduction over `self` may run over the whole allocated data
+        rather than over the DOMAIN alone, False otherwise.
+        """
+        return not sum(flatten(self._size_nodomain))
 
     @cached_property
     def _size_ghost(self):

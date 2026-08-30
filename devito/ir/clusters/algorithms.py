@@ -742,11 +742,10 @@ def _normalize_reductions_dense(cluster, mapper, sregistry, platform):
             elif rhs in mapper:
                 # Seen this RHS already, so reuse the Array that was created for it
                 processed.append(e.func(lhs, mapper[rhs].indexify()))
-            elif rf and rf.is_Array and sum(flatten(rf._size_nodomain)) == 0:
-                # Special case: the RHS is an Array with no halo/padding, meaning
-                # that the written data values are contiguous in memory, hence
-                # we can simply reuse the Array itself as we're already in the
-                # desired memory layout
+            elif rf and rf.is_Array and rf._is_reduction_ready:
+                # Special case: the RHS is an Array whose written data values are
+                # contiguous in memory, hence we can simply reuse the Array
+                # itself as we're already in the desired memory layout
                 processed.append(e)
             else:
                 name = sregistry.make_name()
