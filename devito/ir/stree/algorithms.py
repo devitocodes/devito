@@ -275,7 +275,9 @@ def augment_whole_subtree(cluster, tip, mapper, it):
 
 
 def needs_nodehalo(d, hs):
-    return d and hs and d._defines.intersection(hs.distributed_aindices)
+    if not d or not hs:
+        return False
+    return any(d._defines & i._defines for i in hs.distributed_aindices)
 
 
 def reuse_section(candidate, section):
