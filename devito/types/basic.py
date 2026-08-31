@@ -714,6 +714,12 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     effect if autopadding is disabled, which is the default behavior.
     """
 
+    _is_zero_init = False
+    """
+    Whether the entries outside `self`'s DOMAIN carry meaningful data rather
+    than scratch, in which case the whole allocation must be zeroed upfront.
+    """
+
     __rkwargs__ = ('name', 'dtype', 'grid', 'halo', 'ghost',
                    'alias', 'space', 'function', 'is_transient', 'avg_mode')
 

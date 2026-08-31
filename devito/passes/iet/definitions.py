@@ -20,7 +20,7 @@ from devito.symbolics import (
     VOID, Byref, DefFunction, FieldFromPointer, IndexedPointer, ListInitializer, SizeOf,
     as_long, pow_to_mul, unevaluate
 )
-from devito.tools import as_list, as_mapper, as_tuple, filter_sorted, flatten
+from devito.tools import as_list, as_mapper, as_tuple, filter_sorted, flatten, is_integer
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DeviceMap, DeviceRM, Dimension, Eq, Symbol,
     size_t
@@ -90,6 +90,27 @@ class DataManager:
         self.rcompile = rcompile
         self.sregistry = sregistry
         self.platform = platform
+
+        # Off inside the recursive compilation of a zero-init itself, which
+        # would otherwise ask for a zero-init of its own, ad infinitum
+        self.zero_init = (options or {}).get('zero-init', True)
+
+    def _zero_init(self, obj, storage):
+        """
+        The nodes zeroing `obj` upfront, if it asks for it, plus the efuncs
+        they call, if any.
+        """
+        if not (obj._is_zero_init and self.zero_init):
+            return (), ()
+
+        return self._make_zero_init(obj, storage)
+
+    def _make_zero_init(self, obj, storage):
+        """How to zero `obj`'s whole allocation, padding included."""
+        storage.include(self.langbb['header-memcpy'])
+        nbytes = SizeOf(obj._C_typedata)*as_long(obj.size)
+
+        return (self.langbb['host-memset'](obj._C_symbol, 0, nbytes),), ()
 
     def _alloc_object_on_low_lat_mem(self, site, obj, storage):
         """
@@ -172,11 +193,13 @@ class DataManager:
         memptr = VOID(Byref(obj._C_symbol), '**')
         alignment = obj._data_alignment
         nbytes = SizeOf(obj._C_typedata)*as_long(obj.size)
-        alloc = self.langbb['host-alloc'](memptr, alignment, nbytes)
+        zeroing, efuncs = self._zero_init(obj, storage)
+        allocs = [decl, self.langbb['host-alloc'](memptr, alignment, nbytes),
+                  *zeroing]
 
         free = self.langbb['host-free'](obj._C_symbol)
 
-        storage.update(obj, site, allocs=(decl, alloc), frees=free)
+        storage.update(obj, site, allocs=tuple(allocs), frees=free, efuncs=efuncs)
 
     def _alloc_local_array_on_high_bw_mem(self, site, obj, storage, *args):
         """
@@ -568,7 +591,7 @@ class DeviceAwareDataManager(DataManager):
         self.gpu_create = options['gpu-create']
         self.gpu_place_transfers = options.get('place-transfers')
 
-        super().__init__(**kwargs)
+        super().__init__(options=options, **kwargs)
 
     def _alloc_local_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -579,11 +602,22 @@ class DeviceAwareDataManager(DataManager):
         dofree = self.langbb['device-free']
 
         nbytes = SizeOf(obj._C_typedata)*obj.size
-        init = doalloc(nbytes, deviceid, retobj=obj)
+
+        zeroing, efuncs = self._zero_init(obj, storage)
+        allocs = [doalloc(nbytes, deviceid, retobj=obj), *zeroing]
 
         free = dofree(obj._C_name, deviceid)
 
-        storage.update(obj, site, allocs=init, frees=free)
+        storage.update(obj, site, allocs=tuple(allocs), frees=free, efuncs=efuncs)
+
+    def _make_zero_init(self, obj, storage):
+        # No language here has a device-side memset, so use a kernel. It gains
+        # nothing from tiling, and nvc++ trips over the padded loop bounds
+        # when it is asked to tile them
+        efuncs, init = make_zero_init(obj, self.rcompile, self.sregistry,
+                                      options={'par-tile': False})
+
+        return (init,), efuncs
 
     def _map_array_on_high_bw_mem(self, site, obj, storage):
         """
@@ -702,18 +736,20 @@ class DeviceAwareDataManager(DataManager):
         self.place_casts(graph)
 
 
-def make_zero_init(obj, rcompile, sregistry):
+def make_zero_init(obj, rcompile, sregistry, options=None):
     cdims = []
-    for d, (h0, h1), s in zip(
-        obj.dimensions, obj._size_halo, obj.symbolic_shape, strict=True
+    for d, (h0, h1), (_, p1), s in zip(
+        obj.dimensions, obj._size_halo, obj._size_padding, obj.symbolic_shape,
+        strict=True
     ):
         if d.is_NonlinearDerived:
-            assert h0 == h1 == 0
+            assert h0 == h1
             m = 0
             M = s - 1
         else:
             m = d.symbolic_min - h0
-            M = d.symbolic_max + h1
+            # Object needing padding zeroing need symbolic padding
+            M = d.symbolic_max + h1 + (0 if is_integer(p1) else p1)
         cdims.append(CustomDimension(name=d.name, parent=d,
                                      symbolic_min=m, symbolic_max=M))
 
@@ -722,7 +758,8 @@ def make_zero_init(obj, rcompile, sregistry):
     else:
         eqns = [Eq(obj[cdims], 0)]
 
-    irs, byproduct = rcompile(eqns)
+    irs, byproduct = rcompile(eqns, options={'zero-init': False,
+                                             **(options or {})})
 
     init = irs.iet.body.body[0]
 

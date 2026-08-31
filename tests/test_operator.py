@@ -1394,6 +1394,26 @@ class TestDeclarator:
             assert i[0].is_Expression
             assert i[0].expr.rhs is init_value
 
+    def test_zero_init_array(self):
+        """
+        An Array whose entries outside the DOMAIN are data, rather than
+        scratch, is zeroed right after being allocated.
+        """
+        grid = Grid(shape=(4, 4))
+
+        class ZeroInitArray(Array):
+            _is_zero_init = True
+
+        a = ZeroInitArray(name='a', dimensions=grid.dimensions,
+                          dtype=grid.dtype, space='local')
+        b = Array(name='b', dimensions=grid.dimensions, dtype=grid.dtype,
+                  space='local')
+
+        f = Function(name='f', grid=grid)
+
+        assert 'memset(a' in str(Operator(Eq(f, a.indexify())))
+        assert 'memset(b' not in str(Operator(Eq(f, b.indexify())))
+
     def test_nested_scalar_assigns(self):
         grid = Grid(shape=(4, 4))
 

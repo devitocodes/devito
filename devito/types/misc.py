@@ -257,6 +257,7 @@ class TempArray(Array):
     """
 
     is_autopaddable = True
+    _is_zero_init = True
 
     __rkwargs__ = (Array.__rkwargs__ + ('shift',))
 
