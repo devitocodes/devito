@@ -223,7 +223,8 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         expand = expand(dim)
 
     if not expand and indices.expr is not None:
-        weights = Weights(name='w', dimensions=indices.free_dim, initvalue=weights)
+        weights = Weights(name='w', dimensions=indices.free_dim,
+                          initvalue=weights, dtype=expr.dtype)
 
         # Inject the StencilDimension
         # E.g. `x + i*h_x` into `f(x)` s.t. `f(x + i*h_x)`
