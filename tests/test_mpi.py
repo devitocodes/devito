@@ -1149,7 +1149,7 @@ def check_cpml_no_misplaced_halo(specs):
 
     grid = Grid(shape=(21, 21, 21), extent=(1., 1., 1.))
     domains = {spec: SpeccedDomain(f"x{spec[0]}_y{spec[1]}_z{spec[2]}", nb, spec,
-                                    grid=grid)
+                                   grid=grid)
                for spec in specs}
 
     p = TimeFunction(name='p', grid=grid, space_order=so, time_order=to)
@@ -1159,9 +1159,9 @@ def check_cpml_no_misplaced_halo(specs):
         # Fields live on the base grid, not `v` -- `subdomain=v` is passed
         # explicitly on each Eq instead.
         psi = VectorTimeFunction(name=f"psi_{v.name}", grid=grid, space_order=so,
-                                  time_order=to, staggered=(None, None, None))
+                                 time_order=to, staggered=(None, None, None))
         zeta = VectorTimeFunction(name=f"zeta_{v.name}", grid=grid, space_order=so,
-                                   time_order=to, staggered=(None, None, None))
+                                  time_order=to, staggered=(None, None, None))
         psi_eqs.append(Eq(psi, 1, subdomain=v))
 
         # "Diagonal" derivative pattern -- component `i` of zeta is the
@@ -1169,24 +1169,23 @@ def check_cpml_no_misplaced_halo(specs):
         # specific pattern is required to trigger the bug; grad()/div()/a
         # plain vector add alone do not.
         zeta_diag = VectorTimeFunction([getattr(psi[i], f"d{d.name}")
-                                         for i, d in enumerate(grid.dimensions)])
+                                        for i, d in enumerate(grid.dimensions)])
         zeta_eqs.append(Eq(zeta, zeta_diag, subdomain=v))
         p_eqs.append(Eq(p.forward, psi.div(), subdomain=v))
 
-    op = Operator(psi_eqs + zeta_eqs + p_eqs)
+    op = Operator(psi_eqs + zeta_eqs + p_eqs,
+                  opt=('advanced', {'blockrelax': 'device-aware'}))
     op.apply(time_M=1)
 
     # No misplaced halo exchanges: every halo-exchange node must sit above
     # (never inside) any blocking Iteration.
     incr_iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim.is_Incr]
-    assert incr_iterations, "no blocking Iterations found -- check would be vacuous"
+    assert incr_iterations, "no blocking Iterations found"
 
-    if configuration['mpi']:
-        # HaloSpots have already been lowered into concrete Calls by mpiize()
-        halo_types = (HaloUpdateCall, HaloUpdateList)
-    else:
-        # HaloSpots remain in the IET as transparent (no-op) wrappers
-        halo_types = (HaloSpot,)
+    # HaloSpots have already been lowered into concrete Calls by mpiize() in the MPI
+    # case, but HaloSpots remain in the IET as transparent (no-op) wrappers in the
+    # serial case.
+    halo_types = (HaloUpdateCall, HaloUpdateList) if configuration['mpi'] else (HaloSpot,)
 
     for i in incr_iterations:
         assert len(FindNodes(halo_types).visit(i)) == 0
