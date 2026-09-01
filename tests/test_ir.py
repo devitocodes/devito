@@ -4,8 +4,8 @@ from sympy import S
 
 from conftest import EVAL, skipif  # noqa
 from devito import (  # noqa
-    Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeFunction,
-    switchconfig
+    Constant, CustomDimension, Dimension, Eq, Function, Grid, Inc, Operator,
+    SubDimension, TimeFunction, switchconfig
 )
 from devito.ir.cgen import ccode
 from devito.ir.clusters import Cluster, ClusterGroup
@@ -13,6 +13,7 @@ from devito.ir.equations import LoweredEq
 from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
+from devito.ir.stree.algorithms import is_halo_scheme_conflicting
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Scope, TimedAccess, Vector, mocksym0,
     mocksym1
@@ -1186,6 +1187,63 @@ class TestCluster:
 
         stree = stree_build(clusters)
         assert len([i for i in stree.visit() if i.is_Iteration]) == 1
+
+
+class TestSubdomainHaloMatching:
+
+    """
+    Tests for `devito.ir.stree.algorithms.is_halo_scheme_conflicting`, the
+    logic that decides whether a "wild" HaloTouch Cluster's HaloScheme may be
+    attached to a given computational Cluster during `preprocess()`.
+    """
+
+    def test_cross_subdomain_aliasing_conflict(self):
+        """
+        Two different SubDomains sharing one axis's (side, thickness) alias
+        to the same cached SubDimension on that axis; a mismatch on another
+        shared-root axis must still be flagged as conflicting.
+        """
+        x, y = Dimension('x'), Dimension('y')
+        ix_shared = SubDimension.left('ix', x, 3)
+        iy_a = SubDimension.right('iy', y, 3)  # domain A's own y
+        iy_b = SubDimension.left('iy', y, 3)  # domain B's y -- different!
+
+        dims = {ix_shared, iy_a}
+        distributed_aindices = {ix_shared, iy_b}
+
+        assert is_halo_scheme_conflicting(dims, distributed_aindices)
+
+    def test_bare_dimension_vs_subdimension_conflict(self):
+        """
+        A bare (unrestricted) Dimension in `dims` colliding with an
+        unrelated SubDomain's SubDimension for the same root.
+        """
+        x = Dimension('x')
+        xi = SubDimension.left('xi', x, 3)
+
+        assert is_halo_scheme_conflicting({x}, {xi})
+
+    def test_no_conflict_when_root_missing_from_dims(self):
+        """
+        A root present in `distributed_aindices` but absent from `dims`
+        entirely (e.g. an outer `t, f` Cluster triggering a halo for an
+        inner `t, x, y, z, f` Cluster) is not a conflict.
+        """
+        x, f = Dimension('x'), Dimension('f')
+
+        assert not is_halo_scheme_conflicting({x}, {x, f})
+
+    def test_multiple_dimensions_per_root_not_collapsed(self):
+        """
+        `dims` may legitimately hold several Dimensions sharing one root at
+        once (e.g. a sparse-function point Dimension plus a CustomDimension
+        derived from it for an interpolation radius); this must not be
+        collapsed to a single arbitrary match.
+        """
+        p = Dimension('p')
+        r = CustomDimension(name='r', symbolic_min=0, symbolic_max=1, parent=p)
+
+        assert not is_halo_scheme_conflicting({p, r}, {p})
 
 
 class TestClusterGroup:

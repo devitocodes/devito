@@ -14,7 +14,8 @@ from devito import (
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
 from devito.ir.iet import (
-    Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
+    Call, Conditional, FindNodes, FindSymbols, HaloSpot, Iteration,
+    retrieve_iteration_tree
 )
 from devito.ir.support.space import Backward, Forward
 from devito.mpi import MPI
@@ -1107,6 +1108,115 @@ def check_halo_exchanges(op, exp0, exp1):
     return calls, tloop
 
 
+def check_cpml_no_misplaced_halo(specs):
+    """
+    Build an Operator modelled on a CPML-style absorbing-boundary formulation:
+    several overlapping-thickness SubDomains, each carrying a pair of auxiliary
+    VectorTimeFunctions updated via a "diagonal" derivative pattern (component
+    `i` derived along dimension `i`). This is the minimal pattern that exposed
+    a bug in `devito.ir.stree.algorithms.preprocess`, whereby the HaloScheme of
+    one SubDomain could be erroneously attached to a *different* SubDomain's
+    Cluster whenever the two happened to share a single axis's SubDimension
+    (SubDimensions are cached by `(name, parent, thickness, local)`, so two
+    unrelated SubDomains restricting one axis identically alias to the same
+    object).
+
+    The Operator is built and run to completion; the values are not physically
+    meaningful and are not checked. The regression check is purely structural:
+    no halo-exchange node may end up nested *inside* a blocking (`is_Incr`)
+    Iteration.
+    """
+    class SpeccedDomain(SubDomain):
+        def __init__(self, name, thickness, spec, **kwargs):
+            self.name = name
+            self.thickness = thickness
+            self.spec = spec
+            super().__init__(**kwargs)
+
+        def define(self, dimensions):
+            retval = {}
+            for d, s in zip(dimensions, self.spec, strict=True):
+                if s == 'none':
+                    # Unrestricted -- bare Dimension, not a SubDimension
+                    retval[d] = d
+                elif s == 'middle':
+                    retval[d] = (s, self.thickness, self.thickness)
+                else:
+                    retval[d] = (s, self.thickness)
+            return retval
+
+    so, to, nb = 4, 2, 3
+
+    grid = Grid(shape=(21, 21, 21), extent=(1., 1., 1.))
+    domains = {spec: SpeccedDomain(f"x{spec[0]}_y{spec[1]}_z{spec[2]}", nb, spec,
+                                    grid=grid)
+               for spec in specs}
+
+    p = TimeFunction(name='p', grid=grid, space_order=so, time_order=to)
+
+    psi_eqs, zeta_eqs, p_eqs = [], [], []
+    for v in domains.values():
+        # Fields live on the base grid, not `v` -- `subdomain=v` is passed
+        # explicitly on each Eq instead.
+        psi = VectorTimeFunction(name=f"psi_{v.name}", grid=grid, space_order=so,
+                                  time_order=to, staggered=(None, None, None))
+        zeta = VectorTimeFunction(name=f"zeta_{v.name}", grid=grid, space_order=so,
+                                   time_order=to, staggered=(None, None, None))
+        psi_eqs.append(Eq(psi, 1, subdomain=v))
+
+        # "Diagonal" derivative pattern -- component `i` of zeta is the
+        # derivative of component `i` of psi along dimension `i`. This
+        # specific pattern is required to trigger the bug; grad()/div()/a
+        # plain vector add alone do not.
+        zeta_diag = VectorTimeFunction([getattr(psi[i], f"d{d.name}")
+                                         for i, d in enumerate(grid.dimensions)])
+        zeta_eqs.append(Eq(zeta, zeta_diag, subdomain=v))
+        p_eqs.append(Eq(p.forward, psi.div(), subdomain=v))
+
+    op = Operator(psi_eqs + zeta_eqs + p_eqs)
+    op.apply(time_M=1)
+
+    # No misplaced halo exchanges: every halo-exchange node must sit above
+    # (never inside) any blocking Iteration.
+    incr_iterations = [i for i in FindNodes(Iteration).visit(op) if i.dim.is_Incr]
+    assert incr_iterations, "no blocking Iterations found -- check would be vacuous"
+
+    if configuration['mpi']:
+        # HaloSpots have already been lowered into concrete Calls by mpiize()
+        halo_types = (HaloUpdateCall, HaloUpdateList)
+    else:
+        # HaloSpots remain in the IET as transparent (no-op) wrappers
+        halo_types = (HaloSpot,)
+
+    for i in incr_iterations:
+        assert len(FindNodes(halo_types).visit(i)) == 0
+
+
+CPML_SPECS = [
+    pytest.param(
+        [('left', 'right', 'left'),
+         ('left', 'right', 'middle'),
+         ('left', 'right', 'right'),
+         ('middle', 'left', 'right')],
+        id='full-restriction'
+    ),
+    pytest.param(
+        [('left', 'right', 'left'),
+         ('none', 'none', 'middle'),
+         ('none', 'none', 'right'),
+         ('middle', 'left', 'right')],
+        id='partial-none-xy'
+    ),
+    pytest.param(
+        [('left', 'right', 'left'),
+         ('left', 'right', 'none'),
+         ('left', 'right', 'right'),
+         ('middle', 'left', 'right')],
+        id='partial-none-z'
+    ),
+]
+
+
 class TestCodeGeneration:
 
     @pytest.mark.parallel(mode=1)
@@ -1670,11 +1780,14 @@ class TestCodeGeneration:
             assert len(calls) == 1
             assert calls[0].arguments[0] is u
 
-    # TODO: Insert a test based off cpml-like reproducer 06 (including the alternative specs)
-    # TODO: This test should both check that the stree/iet doesn't have any halos inserted in inner iterations
-    # TODO: There is possibly already a function in this file or conftest which does this
-    # TODO: It should also check the operator compiles and runs (although it does not need to check resulting
-    # values as they are not physically meaningful).
+    @pytest.mark.parametrize('specs', CPML_SPECS)
+    def test_cpml_no_misplaced_halo(self, specs):
+        check_cpml_no_misplaced_halo(specs)
+
+    @pytest.mark.parametrize('specs', CPML_SPECS)
+    @pytest.mark.parallel(mode=1)
+    def test_cpml_no_misplaced_halo_mpi(self, specs, mode):
+        check_cpml_no_misplaced_halo(specs)
 
     @pytest.mark.parallel(mode=1)
     def test_conditional_dimension(self, mode):
