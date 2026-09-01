@@ -1187,6 +1187,9 @@ def check_cpml_no_misplaced_halo(specs):
     # serial case.
     halo_types = (HaloUpdateCall, HaloUpdateList) if configuration['mpi'] else (HaloSpot,)
 
+    # Assert that HaloSpots etc are present, just not located within inner loops
+    assert len(FindNodes(halo_types).visit(op)) > 0
+
     for i in incr_iterations:
         assert len(FindNodes(halo_types).visit(i)) == 0
 
