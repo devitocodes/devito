@@ -79,6 +79,13 @@ class BasePrinter(CodePrinter):
         dtype = sympy_dtype(expr, default=self.dtype)
         if dtype is None or np.issubdtype(dtype, np.integer):
             if any(isinstance(i, Float) for i in expr.atoms()):
+                # A real literal in an otherwise integer (or untyped)
+                # expression is emitted at the Operator's precision, floored at
+                # `float32` so that an integer default doesn't degrade it.
+                # A `float16` default is a deliberate choice though, so leave
+                # it alone rather than silently widening the arithmetic
+                if np.issubdtype(self.dtype, np.floating):
+                    return self.dtype
                 try:
                     return np.promote_types(self.dtype, np.float32).type
                 except np.exceptions.DTypePromotionError:
