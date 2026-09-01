@@ -373,6 +373,17 @@ class BasePrinter(CodePrinter):
     def _print_ListInitializer(self, expr):
         return f"{{{', '.join(self._print(i) for i in expr.params)}}}"
 
+    def initvalue(self, init, dtype):
+        """
+        Print the aggregate initializer `init` of an Array of type `dtype`.
+
+        Kept separate from `_print_ListInitializer` because a static
+        initializer, unlike an expression, cannot rely on implicit conversions:
+        some types (e.g. CUDA's `__half`) are only constructible from a literal
+        via a runtime call, which is illegal in that position.
+        """
+        return self._print(init)
+
     def _print_IndexedPointer(self, expr):
         base = self._print(expr.base)
         return f"{base}{''.join(f'[{self._print(i)}]' for i in expr.index)}"

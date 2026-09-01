@@ -360,11 +360,20 @@ class CGen(Visitor):
         if obj.is_Array and obj.initvalue is not None and mode == 1:
             init = ListInitializer(obj.initvalue)
             if not obj._mem_constant or init.is_numeric:
-                value = c.Initializer(value, self.ccode(init))
+                value = c.Initializer(value, self._gen_initvalue(obj, init))
         elif obj.is_LocalObject and obj.initvalue is not None and mode == 1:
             value = c.Initializer(value, self.ccode(obj.initvalue))
 
         return value
+
+    def _gen_initvalue(self, obj, init):
+        """
+        Convert the aggregate initializer `init` of the Array `obj` into a C
+        string, delegating to the printer so that languages whose types cannot
+        be built from plain literals (e.g. CUDA's `__half`) can specialize it.
+        """
+        printer = get_printer(self.printer, obj.dtype)
+        return printer.initvalue(init, obj.dtype)
 
     def _gen_rettype(self, obj):
         try:
