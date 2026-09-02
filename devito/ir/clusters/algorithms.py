@@ -458,7 +458,7 @@ class HaloComms(Queue):
 
         # Construct a representation of the halo accesses
         processed = list(clusters)
-        for n, c in enumerate(clusters):
+        for c in clusters:
             if c.properties.is_sequential(d) or \
                c in seen:
                 continue
@@ -498,6 +498,7 @@ class HaloComms(Queue):
             # Insert `halo_touch` at the top of the IterationSpace within which
             # `c` is scheduled
             index = 0
+            n = processed.index(c)
             for i in reversed(range(n)):
                 if not processed[i].ispace.is_subset(c.ispace):
                     index = i + 1
