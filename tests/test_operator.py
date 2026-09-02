@@ -1650,7 +1650,7 @@ class TestLoopScheduling:
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
-         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzz'),
+         '++++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzxyz'),
         # 8) WAR 1->2; WAW 1->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
@@ -1660,7 +1660,7 @@ class TestLoopScheduling:
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '+++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzyz'),
+         '++++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzxyz'),
         # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
