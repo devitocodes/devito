@@ -56,7 +56,12 @@ def _check_stability(iet, wmovs=(), rcompile=None, sregistry=None):
         else:
             continue
 
-        accumulator = Symbol(name='accumulator', dtype=f.dtype)
+        # The accumulator sums the whole field, so it is given at least single
+        # precision: in half precision it would overflow within a few thousand
+        # points and report an instability that isn't there
+        dtype = np.promote_types(f.dtype, np.float32).type
+
+        accumulator = Symbol(name='accumulator', dtype=dtype)
         eqns = [Eq(accumulator, 0.0),
                 Inc(accumulator, f.subs(f.time_dim, 0))]
         irs, byproduct = rcompile(eqns)
