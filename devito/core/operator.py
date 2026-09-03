@@ -186,6 +186,14 @@ class BasicOperator(Operator):
     # ------------------------------------------------------------------
 
     INTERP_MODE = 'direct'
+
+    HALF_ARITH = False
+    """
+    Whether an Operator working in half precision carries the arithmetic there
+    too, rounding its literals and its FD weights to half. Off by default: half
+    is a storage format, and giving up the accuracy of the coefficients as well
+    is a mathematical choice rather than a consequence of it.
+    """
     """
     Default for the `sym_opt={'interp-mode': ...}` option. Controls how
     a product of fields living at different staggered locations is mapped
@@ -230,7 +238,8 @@ class BasicOperator(Operator):
         the Operator. Returns the normalized `sym_options` dict.
         """
         so = dict(kwargs.get('sym_options', {}))
-        out = {'interp-mode': so.pop('interp-mode', cls.INTERP_MODE)}
+        out = {'interp-mode': so.pop('interp-mode', cls.INTERP_MODE),
+               'half-arith': so.pop('half-arith', cls.HALF_ARITH)}
 
         if so:
             raise InvalidOperator(
