@@ -379,6 +379,10 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
                 # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
                 pass
 
+            if skippable_interval(sai, self.ispace, sit) and \
+               skippable_interval(oai, other.ispace, oit):
+                continue
+
             # In some cases, the distance degenerates because `self` and
             # `other` never intersect, which essentially means there's no
             # dependence between them. In this case, we set the distance to a
@@ -406,8 +410,10 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
 
                 # Case 3: `self` and `other` have some special form such that
                 # it's provable that they never intersect
-                if sai and sit == oit and disjoint_test(self[n], other[n], sai, sit):
-                    return Vector(S.ImaginaryUnit)
+                if sit == oit:
+                    dims = {sai, oai} - {None}
+                    if any(disjoint_test(self[n], other[n], d, sit) for d in dims):
+                        return Vector(S.ImaginaryUnit)
 
             # Compute the distance along the current IterationInterval
             if self.function._mem_shared:
@@ -426,10 +432,6 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
                     ret.append(other[n] - self[n])
                 else:
                     ret.append(self[n] - other[n])
-            elif sai in self.ispace and oai in other.ispace:
-                # E.g., `self=R<f,[x, y]>`, `sai=time`,
-                #       `self.itintervals=(time, x, y)`, `n=0`
-                continue
             elif not sai and not oai:
                 if self[n] - other[n] == 0:
                     # E.g., `self=R<a,[4]>` and `other=W<a,[4]>`
@@ -1503,6 +1505,26 @@ class ExprGeometry:
 
 def vinf(entries):
     return Vector(*(entries + [S.Infinity]))
+
+
+def skippable_interval(d, ispace, it):
+    """
+    Return True if the IterationInterval `it` can be skipped while matching
+    the access Dimension `d` to the IterationSpace `ispace`.
+
+    Constant accesses, represented by `d=None`, do not consume an
+    IterationInterval. A non-constant access can skip `it` only if `d`
+    occurs elsewhere in `ispace`. Otherwise the access is irregular and
+    must be handled conservatively.
+
+    Examples
+    --------
+    Given `W<a,[i]>` and `R<a,[4]>` over `(r, i)`, `r` is skippable
+    for both accesses, while `i` is not skippable for the write. By contrast,
+    `x` is not skippable for `a[y]` over `(x)` because `y` does not
+    occur in the IterationSpace.
+    """
+    return d is None or (d in ispace and not d._defines & it.dim._defines)
 
 
 def disjoint_test(e0, e1, d, it):
