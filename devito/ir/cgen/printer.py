@@ -43,6 +43,12 @@ class BasePrinter(CodePrinter):
     _func_literals = {}
     _prec_literals = {np.float32: 'F', np.complex64: 'F'}
 
+    # Whether the arithmetic is carried at the Operator's own precision, even
+    # where that is narrower than `float32`. Off by default: a narrow dtype is
+    # a storage choice, and it takes a deliberate one to also give up the
+    # accuracy of the literals
+    _half_arith = False
+
     _qualifiers_mapper = {
         'is_extern': 'extern',
         'is_const': 'const',
@@ -82,9 +88,9 @@ class BasePrinter(CodePrinter):
                 # A real literal in an otherwise integer (or untyped)
                 # expression is emitted at the Operator's precision, floored at
                 # `float32` so that an integer default doesn't degrade it.
-                # A `float16` default is a deliberate choice though, so leave
-                # it alone rather than silently widening the arithmetic
-                if np.issubdtype(self.dtype, np.floating):
+                # A printer that has opted into narrow arithmetic keeps its own
+                # precision instead, rather than have the literal widen it
+                if self._half_arith and np.issubdtype(self.dtype, np.floating):
                     return self.dtype
                 try:
                     return np.promote_types(self.dtype, np.float32).type
