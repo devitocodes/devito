@@ -1,3 +1,5 @@
+from ctypes import c_void_p
+
 import cgen as c
 import pytest
 from sympy import Mod
@@ -5,11 +7,12 @@ from sympy import Mod
 from devito import Eq, Function, Grid, Min, Operator, TimeFunction, sin
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (
-    Block, Call, Callable, Conditional, Expression, FindApplications, FindNodes,
-    FindSections, FindSymbols, FindWithin, IsPerfectIteration, Iteration, MapNodes,
-    Transformer, Uxreplace, printAST
+    Block, Call, Callable, Conditional, Definition, Expression, FindApplications,
+    FindNodes, FindSections, FindSymbols, FindWithin, IsPerfectIteration, Iteration,
+    MapNodes, Transformer, Uxreplace, printAST
 )
-from devito.types import Array, SpaceDimension, Symbol
+from devito.symbolics import ListInitializer
+from devito.types import Array, LocalObject, SpaceDimension, Symbol
 
 
 @pytest.fixture(scope="module")
@@ -422,3 +425,31 @@ def test_find_apps_nested_calls(exprs, iters):
     block = iters[0](iters[1](exprs + [call]))
 
     assert len(FindApplications().visit(block)) == 1
+
+
+def test_find_apps_in_definition():
+    """
+    A Definition carries expressions in the constructor arguments and in the
+    initializer of the defined object, and both end up in the generated code,
+    so both must be searched -- otherwise e.g. `generate_macros` would leave
+    the macros they apply undefined.
+    """
+    s = Symbol(name='s')
+    d = SpaceDimension(name='d')
+
+    class DummyObject(LocalObject):
+        dtype = c_void_p
+
+    obj = DummyObject(name='obj', initvalue=ListInitializer([Min(s, 1)]))
+    assert FindApplications().visit(Definition(obj)) == {Min(s, 1)}
+
+    obj = DummyObject(name='obj', cargs=(Min(s, 2),))
+    assert FindApplications().visit(Definition(obj)) == {Min(s, 2)}
+
+    # An Array carries an initializer too
+    a = Array(name='a', dimensions=(d,), scope='stack',
+              initvalue=[Min(s, 3), 0])
+    assert FindApplications().visit(Definition(a)) == {Min(s, 3)}
+
+    # An object with neither must not trip the search up
+    assert FindApplications().visit(Definition(DummyObject(name='obj'))) == set()

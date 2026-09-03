@@ -8,7 +8,7 @@ from devito import (
 )
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, generate_macros, linearize
-from devito.types import Array, Bundle, DefaultDimension
+from devito.types import Array, Bundle, CustomDimension, DefaultDimension
 
 
 def test_basic():
@@ -716,3 +716,24 @@ def test_cire_n_strides():
     # NOTE: not exact equality because `op2` slightly changes the order of
     # arithmetic operations, which in turn causes some rounding differences
     assert np.allclose(u.data, u1.data, rtol=1e-4)
+
+
+def test_bundle_derived_dim_stride():
+    """
+    A Bundle's stride comes from the Dimension asked for, not from its parent.
+
+    `rp._defines` contains `p`, so an overlap lookup gave the Bundle the number
+    of points as innermost stride instead of the number of weights.
+    """
+    grid = Grid(shape=(4, 4))
+    p = DefaultDimension(name='p', default_value=5)
+    rp = CustomDimension(name='rp', parent=p, symbolic_size=2)
+
+    w0 = Function(name='w0', dimensions=(p, rp), shape=(5, 2))
+    w1 = Function(name='w1', dimensions=(p, rp), shape=(5, 2))
+    bundle = Bundle(name='w0w1', components=(w0, w1), grid=grid)
+
+    assert rp._defines & p._defines  # the overlap that used to mislead
+    assert bundle.symbolic_shape[p] is not bundle.symbolic_shape[rp]
+    assert bundle.symbolic_shape[rp] == 2
+    assert bundle.symbolic_shape.dindex(rp) == 1

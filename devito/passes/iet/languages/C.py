@@ -56,6 +56,8 @@ class CBB(LangBB):
             Call('free', (i,)),
         'host-free-pin': lambda i:
             Call('free', (i,)),
+        'host-memset': lambda i, j, k:
+            Call('memset', (i, j, k)),
         'alloc-global-symbol': lambda i, j, k:
             Call('memcpy', (i, j, k))
     }

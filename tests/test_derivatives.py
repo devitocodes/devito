@@ -1461,3 +1461,43 @@ class TestDimension:
         assert Derivative(self.x, self.t)
         assert Derivative(self.x, self.y, self.t)
         assert Derivative(self.x, (self.x, 0))
+
+
+@pytest.mark.parametrize('expand', [True, False])
+@pytest.mark.parametrize('deriv_order', [0, 1, 2])
+def test_deriv_sum_mixed_staggering(expand, deriv_order):
+    """
+    A shifted derivative is linear: `D(a + b) == D(a) + D(b)`, at every order.
+
+    Broke for terms at different staggered locations, `Add` reporting only its
+    first argument's.
+    """
+    so = 8
+    grid = Grid(shape=(41, 41), extent=(40., 40.))
+    x, y = grid.dimensions
+
+    vx = Function(name='vx', grid=grid, space_order=so, staggered=x)
+    vy = Function(name='vy', grid=grid, space_order=so, staggered=y)
+    out = Function(name='out', grid=grid, space_order=so, staggered=(x, y))
+
+    rng = np.random.default_rng(3)
+    for f in (vx, vy):
+        f.data[:] = rng.normal(size=f.shape)
+
+    def shifted(expr):
+        return expr.diff(y, deriv_order=deriv_order, fd_order=2,
+                         x0={y: y + y.spacing/2})
+
+    def run(expr):
+        out.data[:] = 0.
+        Operator(Eq(out, expr), opt=('advanced', {'expand': expand})).apply()
+        return np.array(out.data)
+
+    s = slice(so + 3, -(so + 3))
+    together = run(shifted(vx.dy + vy.dx))[s, s]
+    apart = (run(shifted(vx.dy)) + run(shifted(vy.dx)))[s, s]
+
+    assert np.linalg.norm(apart) > 0
+    # float32 reassociation only: the two forms sum the same terms in a
+    # different order
+    assert np.linalg.norm(together - apart) / np.linalg.norm(apart) < 1e-5

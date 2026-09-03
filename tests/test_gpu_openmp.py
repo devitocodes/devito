@@ -214,11 +214,13 @@ class TestCodeGeneration:
 
         op = Operator(eqn, language='openmp')
 
-        assert len(op.body.allocs) == 1
+        assert len(op.body.allocs) == 2
         assert str(op.body.allocs[0]) ==\
             ('float * r0_vec = (float *)'
              'omp_target_alloc(x_size*y_size*z_size*sizeof(float),'
              'omp_get_default_device());')
+        assert str(op.body.allocs[1]) ==\
+            'init0(x_M,x_m,y_M,y_m,z_M,z_m,r0_vec,y_size,z_size);'
         assert len(op.body.maps) == 2
         assert all('r0' not in str(i) for i in op.body.maps)
 

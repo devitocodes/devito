@@ -259,8 +259,9 @@ def _(expr, langbb, printer):
 
 @_lower_macro_math.register(RoundUp)
 def _(expr, langbb, printer):
-    return (('ROUND_UP(a,b)',
-             '((((a)%(b)) == 0) ? (a) : ((a) + (b) - ((a)%(b))))'),), {}
+    # Branchless: a ternary makes for a poor loop bound, and it crashes the
+    # nvc++ frontend outright when the loop is collapsed and optimized
+    return (('ROUND_UP(a,b)', '((((a) + (b) - 1)/(b))*(b))'),), {}
 
 
 @iet_pass
