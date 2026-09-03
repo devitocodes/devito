@@ -10,7 +10,10 @@ from devito import (
     SparseFunction, SparseTimeFunction, SubDomain, SubDomainSet, TensorFunction,
     TimeFunction, VectorFunction, solve
 )
-from devito.ir import Expression, FindNodes, FindSymbols, Iteration, SymbolRegistry
+from devito.ir import (
+    Expression, FindNodes, FindSymbols, Iteration, SymbolRegistry,
+    retrieve_iteration_tree
+)
 from devito.tools import timed_region
 
 
@@ -261,6 +264,77 @@ class TestSubDomains:
         op = Operator([equation])
 
         assert_structure(op, ['t', 'txyz', 'txyz'], 'txyzyz')
+
+
+class TestSubDomainScheduling:
+    """Tests scheduling across different SubDomains."""
+
+    def test_topofusion_preserves_fission(self):
+        """
+        Ensure topofusion does not merge a stencil producer and consumer after
+        orthogonal SubDomains kept them apart during initial scheduling.
+        """
+
+        class Slab(SubDomain):
+
+            def __init__(self, axis, side, **kwargs):
+                self.name = f'{kwargs["grid"].dimensions[axis].name}_{side}'
+                self.axis = axis
+                self.side = side
+                super().__init__(**kwargs)
+
+            def define(self, dimensions):
+                return {
+                    d: (self.side, 8) if i == self.axis else d
+                    for i, d in enumerate(dimensions)
+                }
+
+        grid = Grid(shape=(16, 16), extent=(15., 15.))
+        slabs = [Slab(axis, 'left', grid=grid) for axis in (0, 1)]
+
+        src = Function(name='src', grid=grid)
+        src.data[:] = np.arange(src.data.size, dtype=grid.dtype).reshape(
+            src.data.shape
+        )
+
+        producer_eqs = []
+        consumer_eqs = []
+        reference_eqs = []
+        states = []
+
+        for axis, slab in zip((0, 1), slabs, strict=True):
+            d = grid.dimensions[axis]
+            u = TimeFunction(name=f'u_{d.name}', grid=grid,
+                             space_order=2, time_order=1)
+            v = TimeFunction(name=f'v_{d.name}', grid=grid,
+                             space_order=2, time_order=1)
+            u_ref = u.func(name=f'u_{d.name}_ref')
+            v_ref = v.func(name=f'v_{d.name}_ref')
+            du = getattr(u, f'd{d.name}')
+            du_ref = getattr(u_ref, f'd{d.name}')
+
+            producer_eqs.append(Eq(u, u.backward + src + 1, subdomain=slab))
+            consumer_eqs.append(Eq(v, v.backward + du, subdomain=slab))
+            reference_eqs.extend([
+                Eq(u_ref, u_ref.backward + src + 1, subdomain=slab),
+                Eq(v_ref, v_ref.backward + du_ref, subdomain=slab)
+            ])
+            states.append((v, v_ref))
+
+        op = Operator(producer_eqs + consumer_eqs,
+                      opt=('topofuse', {'openmp': False}))
+        reference = Operator(reference_eqs, opt=('noop', {'openmp': False}))
+
+        # Each consumer reads neighboring values of its newly written producer,
+        # requiring a producer and a consumer loop for each slab.
+        assert len(retrieve_iteration_tree(reference)) == 2 * len(slabs)
+        assert len(retrieve_iteration_tree(op)) == 2 * len(slabs)
+
+        reference(time_M=1)
+        op(time_M=1)
+
+        for v, v_ref in states:
+            np.testing.assert_allclose(v.data, v_ref.data)
 
 
 class TestMultiSubDomain:
