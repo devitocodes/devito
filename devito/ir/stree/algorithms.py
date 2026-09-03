@@ -1,3 +1,4 @@
+from collections import defaultdict
 from itertools import groupby
 
 from anytree import findall
@@ -206,6 +207,16 @@ def preprocess(clusters, options=None, **kwargs):
                 diff = dims - distributed_aindices
                 intersection = dims & distributed_aindices
 
+                # TODO: Can check intersection length here and short-circuit early
+
+                # A non-empty `intersection` doesn't guarantee `c1` belongs to
+                # `c`: two SubDomains sharing an axis's (side, thickness) alias
+                # to the same cached SubDimension, so the overlap may be one
+                # incidental axis while the rest belongs to an unrelated
+                # SubDomain -- see `is_halo_scheme_conflicting`.
+                if is_halo_scheme_conflicting(dims, distributed_aindices):
+                    continue
+
                 if all(c1.guards.get(d) == c.guards.get(d) for d in diff) and \
                    len(intersection) > 0:
                     found.append(c1)
@@ -241,6 +252,25 @@ def preprocess(clusters, options=None, **kwargs):
         raise RuntimeError("Unsupported MPI for the given equations")
 
     return processed
+
+
+def is_halo_scheme_conflicting(dims, distributed_aindices):
+    """
+    True if `distributed_aindices` cannot safely be attached to a Cluster
+    whose block-promoted itintervals are `dims`, because some Dimension in
+    `distributed_aindices` shares a root with a Dimension in `dims` without
+    being identical to it (a root missing from `dims` is still fine, e.g.
+    `t, f` triggering a halo for `t, x, y, z, f`). `dims` may hold several
+    Dimensions per root at once (e.g. a point Dimension plus a derived
+    radius CustomDimension), hence a set per root below.
+    """
+    d_by_root = defaultdict(set)
+    for d in dims:
+        d_by_root[d.root].add(d)
+    return any(
+        e.root in d_by_root and e not in d_by_root[e.root]
+        for e in distributed_aindices
+    )
 
 
 def reuse_partial_subtree(c0, c1, d=None):
