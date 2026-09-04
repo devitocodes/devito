@@ -360,7 +360,10 @@ class CGen(Visitor):
         if obj.is_Array and obj.initvalue is not None and mode == 1:
             init = ListInitializer(obj.initvalue)
             if not obj._mem_constant or init.is_numeric:
-                value = c.Initializer(value, self.ccode(init))
+                # NOTE: printed at the Array's own precision, not the
+                # Operator's: the two differ for a narrow Array, and it is the
+                # element type the initializer has to be legal against
+                value = c.Initializer(value, self.ccode(init, dtype=obj.dtype))
         elif obj.is_LocalObject and obj.initvalue is not None and mode == 1:
             value = c.Initializer(value, self.ccode(obj.initvalue))
 

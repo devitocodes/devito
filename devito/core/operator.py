@@ -202,6 +202,14 @@ class BasicOperator(Operator):
     See `examples/userapi/08_staggered_interp.ipynb` for a worked example.
     """
 
+    HALF_ARITH = False
+    """
+    Whether an Operator working in half precision carries the arithmetic there
+    too, rounding its literals and its FD weights to half. Off by default: half
+    is a storage format, and giving up the accuracy of the coefficients as well
+    is a mathematical choice rather than a consequence of it.
+    """
+
     @classmethod
     def _normalize_kwargs(cls, **kwargs):
         # Will be populated with dummy values; this method is actually overridden
@@ -230,7 +238,8 @@ class BasicOperator(Operator):
         the Operator. Returns the normalized `sym_options` dict.
         """
         so = dict(kwargs.get('sym_options', {}))
-        out = {'interp-mode': so.pop('interp-mode', cls.INTERP_MODE)}
+        out = {'interp-mode': so.pop('interp-mode', cls.INTERP_MODE),
+               'half-arith': so.pop('half-arith', cls.HALF_ARITH)}
 
         if so:
             raise InvalidOperator(
