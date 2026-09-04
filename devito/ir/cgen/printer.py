@@ -43,12 +43,6 @@ class BasePrinter(CodePrinter):
     _func_literals = {}
     _prec_literals = {np.float32: 'F', np.complex64: 'F'}
 
-    # Whether the arithmetic is carried at the Operator's own precision, even
-    # where that is narrower than `float32`. Off by default: a narrow dtype is
-    # a storage choice, and it takes a deliberate one to also give up the
-    # accuracy of the literals
-    _half_arith = False
-
     _qualifiers_mapper = {
         'is_extern': 'extern',
         'is_const': 'const',
@@ -86,11 +80,11 @@ class BasePrinter(CodePrinter):
         if dtype is None or np.issubdtype(dtype, np.integer):
             if any(isinstance(i, Float) for i in expr.atoms()):
                 # A real literal in an otherwise integer (or untyped)
-                # expression is emitted at the Operator's precision, floored at
-                # `float32` so that an integer default doesn't degrade it.
-                # A printer that has opted into narrow arithmetic keeps its own
-                # precision instead, rather than have the literal widen it
-                if self._half_arith and np.issubdtype(self.dtype, np.floating):
+                # expression takes the precision it is being printed at. The
+                # `float32` floor applies only where that precision is not
+                # itself a float, so that an integer default doesn't silently
+                # degrade the literal
+                if np.issubdtype(self.dtype, np.floating):
                     return self.dtype
                 try:
                     return np.promote_types(self.dtype, np.float32).type
@@ -385,17 +379,6 @@ class BasePrinter(CodePrinter):
 
     def _print_ListInitializer(self, expr):
         return f"{{{', '.join(self._print(i) for i in expr.params)}}}"
-
-    def initvalue(self, init, dtype):
-        """
-        Print the aggregate initializer `init` of an Array of type `dtype`.
-
-        Kept separate from `_print_ListInitializer` because a static
-        initializer, unlike an expression, cannot rely on implicit conversions:
-        some types (e.g. CUDA's `__half`) are only constructible from a literal
-        via a runtime call, which is illegal in that position.
-        """
-        return self._print(init)
 
     def _print_IndexedPointer(self, expr):
         base = self._print(expr.base)

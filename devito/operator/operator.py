@@ -811,8 +811,8 @@ class Operator(Callable):
 
     @cached_property
     def _printer(self):
-        # A Target may offer a second printer for Operators that have opted
-        # into carrying their precision into the arithmetic
+        # A Target may offer a second printer e.g. for Operators
+        # using half-precision arithmetic
         if self._sym_options.get('half-arith'):
             with suppress(AttributeError):
                 return self._Target.HalfArithPrinter
