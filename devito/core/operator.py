@@ -186,14 +186,6 @@ class BasicOperator(Operator):
     # ------------------------------------------------------------------
 
     INTERP_MODE = 'direct'
-
-    HALF_ARITH = False
-    """
-    Whether an Operator working in half precision carries the arithmetic there
-    too, rounding its literals and its FD weights to half. Off by default: half
-    is a storage format, and giving up the accuracy of the coefficients as well
-    is a mathematical choice rather than a consequence of it.
-    """
     """
     Default for the `sym_opt={'interp-mode': ...}` option. Controls how
     a product of fields living at different staggered locations is mapped
@@ -208,6 +200,14 @@ class BasicOperator(Operator):
       (e.g. the elastic stiffness `sigma = C eps`).
 
     See `examples/userapi/08_staggered_interp.ipynb` for a worked example.
+    """
+
+    HALF_ARITH = False
+    """
+    Whether an Operator working in half precision carries the arithmetic there
+    too, rounding its literals and its FD weights to half. Off by default: half
+    is a storage format, and giving up the accuracy of the coefficients as well
+    is a mathematical choice rather than a consequence of it.
     """
 
     @classmethod

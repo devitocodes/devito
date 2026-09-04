@@ -985,9 +985,6 @@ class Weights(Array):
     __hash__ = sympy.Basic.__hash__
 
     def _hashable_content(self):
-        # NOTE: `dtype` belongs here. The same coefficients at two precisions
-        # are two different arrays, and leaving it out has one of them fetched
-        # from the cache in place of the other
         return (self.name, self.dimension, str(self.weights), self.scope,
                 np.dtype(self.dtype).name)
 
