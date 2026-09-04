@@ -3289,7 +3289,7 @@ class TestOperatorAdvanced:
         assert np.all(u3.data[0, 3:-3, 3:-3] == 1.)
 
     @pytest.mark.parallel(mode=4)
-    def test_fission_due_to_antidep(self, mode):
+    def test_fission_due_to_antidep_along_innermost_dim(self, mode):
         grid = Grid(shape=(16, 16, 64), dtype=np.float64)
 
         u = TimeFunction(name='u', grid=grid, space_order=4)
@@ -3305,8 +3305,8 @@ class TestOperatorAdvanced:
         # First, check the generated code
         assert_structure(op1, ['t',
                                't,x0_blk0,y0_blk0,x,y,z',
-                               't,x0_blk0,y0_blk0,x,y,z'],
-                         'tx0_blk0y0_blk0xyzz')
+                               't,x1_blk0,y1_blk0,x,y,z'],
+                         'tx0_blk0y0_blk0xyzx1_blk0y1_blk0xyz')
 
         def init(f, v=1):
             f.data[:] = np.indices(grid.shape).sum(axis=0) % (.004*v) + .01

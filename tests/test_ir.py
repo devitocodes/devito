@@ -25,7 +25,9 @@ from devito.ir.support.space import (
 from devito.symbolics import DefFunction, FieldFromPointer
 from devito.tools import prod
 from devito.tools.data_structures import frozendict
-from devito.types import Array, Bundle, CriticalRegion, Jump, Scalar, Symbol
+from devito.types import (
+    Array, Bundle, CriticalRegion, CustomDimension, Jump, Scalar, Symbol
+)
 
 
 class TestVectorHierarchy:
@@ -911,6 +913,25 @@ class TestDependenceAnalysis:
 
         scope = Scope(eqns)
         assert len(scope.d_all) == 0
+
+    def test_nodep_with_nonaccessed_implicit_dim(self):
+        """
+        An outer implicit Dimension must not hide that an indexed write and a
+        constant read touch disjoint points of a CustomDimension.
+        """
+        r = Dimension(name='r')
+        i = CustomDimension(name='i', symbolic_min=0, symbolic_max=3)
+
+        a = Array(name='a', dimensions=(i,))
+        f = Function(name='f', dimensions=(r, i), shape=(3, 4))
+
+        eqns = [Eq(a[i], r, implicit_dims=(r, i)),
+                Eq(f, a[4], implicit_dims=(r, i))]
+        eqns = [LoweredEq(e) for e in eqns]
+
+        scope = Scope(eqns)
+        deps = [d for d in scope.d_all if d.function is a]
+        assert not deps
 
     @pytest.mark.parametrize('eqns', [
         ['Eq(a0[4], 1)', 'Eq(s, a0[4])'],
