@@ -53,7 +53,9 @@ class AbstractMemoryAllocator:
         ndarray, memfree_args
             The first element of the tuple is a numpy array that uses the
             allocated memory underneath. The second element is an opaque
-            object that is needed only for the "memfree" call.
+            object that is needed only for the "memfree" call; it must not
+            refer to the array itself, whose collection is what triggers the
+            "memfree" call in the first place.
         """
         return
 
