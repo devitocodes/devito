@@ -1,13 +1,15 @@
+import gc
+
 import numpy as np
 import pytest
 
 from devito import (  # noqa
     ALLOC_ALIGNED, ALLOC_GUARD, Dimension, Eq, Function, Grid, Operator,
     PrecomputedSparseFunction, PrecomputedSparseTimeFunction, SparseFunction,
-    SparseTimeFunction, TimeFunction, configuration, switchconfig
+    SparseTimeFunction, TimeFunction, clear_cache, configuration, switchconfig
 )
 from devito.data import LEFT, RIGHT, Decomposition, convert_index, loc_data_idx
-from devito.data.allocators import DataReference
+from devito.data.allocators import DataReference, PosixAllocator
 from devito.data.distributed.layout import Layout
 from devito.data.distributed.selection import (
     Affine, Explicit, IndexScalar, Selection, index_has_array, result_dims
@@ -1963,6 +1965,123 @@ def test_scalar_arg_substitution():
     assert t0 != 0
     assert t0.subs('t0', 2) == 2
     assert t0.subs('t0', t1) == t1
+
+
+class TestMemoryLifetime:
+
+    """
+    The memory backing a Function must outlive every view handed out of it.
+    """
+
+    class TrackingAllocator(PosixAllocator):
+
+        """A PosixAllocator that counts how many times it releases memory."""
+
+        def __init__(self):
+            super().__init__()
+            self.nfree = 0
+
+        def free(self, *args):
+            self.nfree += 1
+            super().free(*args)
+
+    def test_view_not_clobbered_by_later_allocations(self):
+        """
+        Hold on to a view, drop the Function, then allocate. With nothing
+        owning the memory, the view ends up reading whatever landed on the
+        freed block.
+        """
+        grid = Grid(shape=(12, 11, 10), dtype=np.float32)
+
+        f = Function(name='f', grid=grid, space_order=2)
+        f.data[:] = 1.
+
+        view = f._data_allocated
+        expected = view.copy()
+
+        del f
+        clear_cache()
+        gc.collect()
+
+        # Anything allocating the same shape lands on the freed block
+        others = [Function(name=f'g{i}', grid=grid, space_order=2) for i in range(8)]
+        for i in others:
+            i.data[:] = 9.
+
+        assert np.array_equal(view, expected)
+
+    def test_view_outlives_function(self):
+        """
+        A view handed out by a Function -- `data`, `data_with_halo`,
+        `_data_allocated` -- keeps the underlying memory alive, so that it is
+        safe to hold onto it after the Function itself is gone.
+        """
+        allocator = self.TrackingAllocator()
+
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, space_order=0, allocator=allocator)
+        f.data[:] = 3.
+
+        view = f._data_allocated
+
+        del f
+        clear_cache()
+        gc.collect()
+
+        assert allocator.nfree == 0
+        assert np.all(view == 3.)
+
+    def test_self_built_allocator(self):
+        """
+        Allocators that build the array themselves, by overriding `alloc`, are
+        covered by the same mechanism.
+        """
+        class SelfBuilding(self.TrackingAllocator):
+            def alloc(self, shape, dtype, padding=0):
+                # The free args must not refer to the array itself, or nothing
+                # would ever be collected
+                return (np.zeros(shape, dtype=dtype), (object(),))
+
+            def free(self, token):
+                self.nfree += 1
+
+        allocator = SelfBuilding()
+
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, space_order=0, allocator=allocator)
+        f.data[:] = 3.
+
+        view = f._data_allocated
+
+        del f
+        clear_cache()
+        gc.collect()
+        assert allocator.nfree == 0
+        assert np.all(view == 3.)
+
+        del view
+        gc.collect()
+        assert allocator.nfree == 1
+
+    def test_memory_released_with_last_view(self):
+        """
+        ... and the memory is released, exactly once, as soon as the last view
+        of it is gone.
+        """
+        allocator = self.TrackingAllocator()
+
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid, space_order=0, allocator=allocator)
+        views = [f.data, f.data_with_halo, f._data_allocated]
+
+        del f
+        clear_cache()
+        gc.collect()
+        assert allocator.nfree == 0
+
+        del views
+        gc.collect()
+        assert allocator.nfree == 1
 
 
 @pytest.mark.skip(reason="will corrupt memory and risk crash")
