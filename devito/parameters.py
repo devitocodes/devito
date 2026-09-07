@@ -295,10 +295,14 @@ class switchenv(SwitchDecorator):
     the context manager, so should be used cautiously.
     """
     def __init__(self, params):
-        self.previous = dict(os.environ)
         self.params = params
+        self.previous = {}
 
     def __enter__(self):
+        # Snapshot the environment upon entering, not upon construction, since the
+        # same object is reused across entries, most notably as a decorator
+        self.previous = dict(os.environ)
+
         # Prevent having multiple conflicting device vars, e.g
         # switching CUDA_VISIBLE_DEVICES but having NVIDIA_VISIBLE_DEVICES set.
         from devito.arch.archinfo import device_vars

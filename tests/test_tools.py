@@ -344,3 +344,33 @@ def test_switchenv():
 
     # Make sure the switchenv does not persist to verify switchenv works as intended
     assert dict(os.environ) == previous_environ
+
+
+def test_switchenv_reuse():
+    # Save previous environment
+    previous_environ = dict(os.environ)
+
+    try:
+        # A switchenv is constructed once, when the decorator is applied, and then
+        # reused on every call of the decorated function
+        @switchenv({'TEST_VAR': 'foo'})
+        def foo():
+            return os.environ['TEST_VAR']
+
+        # Set after the decorator has been applied, so it is not visible to an
+        # environment snapshot taken at construction time
+        os.environ['TEST_VAR_LATE'] = 'bar'
+
+        assert foo() == 'foo'
+        assert os.environ.get('TEST_VAR') is None
+        assert os.environ['TEST_VAR_LATE'] == 'bar'
+
+        # Same story for a switchenv reused as a context manager
+        cm = switchenv({'TEST_VAR': 'foo'})
+        os.environ['TEST_VAR_LATER'] = 'baz'
+        with cm:
+            assert os.environ['TEST_VAR'] == 'foo'
+        assert os.environ['TEST_VAR_LATER'] == 'baz'
+    finally:
+        os.environ.clear()
+        os.environ.update(previous_environ)
