@@ -56,6 +56,7 @@ Inputs:
 - The tag must match built image, easily obtained from build action
 - If you provide a custom name `foo` the container name will be `ci-foo-UUUUUUUUUU` where UUUUUUUUUU is the UID
 - The default args `--init -t --rm` are _always_ added
+- The latest container ID is stored under `RUNNER_TEMP` for the docker-clean action
 - Environment variables must be passed a single environment variable per line, best achieved with the (`|`) syntax in yaml
 - Only a single command is executed, not a list of commands. Using `;` or `&&` will result in subsequent commands being executed outside of the docker environment
 
@@ -87,12 +88,16 @@ Inputs:
 
 - `uid`: Unique identifier output from docker-build action
 - `tag`: Tag of the built image to use
+- `name`: Name substring passed to docker-run (optional)
 
 ### Notes
 
 - UID must be unique, easily obtained from build action
 - Tag must match built image, easily obtained from build action
-- Use `if: always()` to always clean up the image, even if the workflow fails
+- If set, name must match the optional name passed to docker-run
+- The container is force-removed using the ID recorded by docker-run
+- Use `if: always()` to clean up the container and image even if the workflow
+  fails
 
 Example:
 
@@ -100,7 +105,7 @@ Example:
 jobs:
   test:
     steps:
-    - name: Cleanup Docker image
+    - name: Cleanup Docker resources
       if: always()
       uses: ./.github/actions/docker-clean
       with:
