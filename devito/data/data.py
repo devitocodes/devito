@@ -1,3 +1,4 @@
+import weakref
 from collections.abc import Iterable
 
 import numpy as np
@@ -72,21 +73,16 @@ class Data(np.ndarray):
         assert all(i is None for i, j in zip(obj._decomposition, obj._modulo, strict=True)
                    if j is True)
 
-        return obj
+        if memfree_args is not None:
+            # Release the memory once `ndarray` is gone, and with it every view
+            # of it -- this Data, but also whatever was handed out by e.g.
+            # `Function.data` or `Function._data_allocated`, since NumPy anchors
+            # the `base` chain of all of them on `ndarray`. Releasing it when
+            # this Data dies instead would leave those views pointing at freed
+            # memory as soon as the owning Function went out of scope
+            weakref.finalize(ndarray, allocator.free, *memfree_args)
 
-    def __del__(self):
-        if getattr(self, "_memfree_args", None) is None:
-            # NOTE: The need for `getattr`, in place of `self._memfree_args`, was
-            # suggested for the first time in issue #1184. However, it appears
-            # that even though, as described in the issue, we initialize the
-            # attribute in `__array_finalize__`, an AttributeError exception may
-            # still be raised in some obscure situations. Our best explanation
-            # so far is that this is due to (un)pickling (as often used in a
-            # Dask/Distributed context), which may (re)create a Data object
-            # without going through `__array_finalize__`
-            return
-        self._allocator.free(*self._memfree_args)
-        self._memfree_args = None
+        return obj
 
     def __reduce__(self):
         warning("Pickling of `Data` objects is not supported. Casting to `numpy.ndarray`")
@@ -103,8 +99,8 @@ class Data(np.ndarray):
         self._index_stash = None
 
         # Views or references created via operations on `obj` do not get an
-        # explicit reference to the underlying data (`_memfree_args`). This makes sure
-        # that only one object (the "root" Data) will free the C-allocated memory
+        # explicit reference to the underlying allocation (`_memfree_args`);
+        # only the "root" Data carries it
         self._memfree_args = None
 
         if not issubclass(type(obj), Data):
