@@ -257,9 +257,12 @@ class CGen(Visitor):
             printer = CPrinter
         self.printer = printer
 
-    def ccode(self, expr, dtype=None):
-        dtype = self.printer._default_settings['dtype'] if dtype is None else dtype
-        return get_printer(self.printer, dtype).doprint(expr, None)
+    def ccode(self, expr, dtype=None, exact_prec=None):
+        defaults = self.printer._default_settings
+        dtype = defaults['dtype'] if dtype is None else dtype
+        if exact_prec is None:
+            exact_prec = defaults['exact_prec']
+        return get_printer(self.printer, dtype, exact_prec).doprint(expr, None)
 
     @property
     def _qualifiers_mapper(self):
@@ -360,7 +363,8 @@ class CGen(Visitor):
         if obj.is_Array and obj.initvalue is not None and mode == 1:
             init = ListInitializer(obj.initvalue)
             if not obj._mem_constant or init.is_numeric:
-                value = c.Initializer(value, self.ccode(init))
+                # printed at the Array's own precision, not the Operator's
+                value = c.Initializer(value, self.ccode(init, dtype=obj.dtype))
         elif obj.is_LocalObject and obj.initvalue is not None and mode == 1:
             value = c.Initializer(value, self.ccode(obj.initvalue))
 

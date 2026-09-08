@@ -37,6 +37,7 @@ class BasePrinter(CodePrinter):
         Options for code printing.
     """
     _default_settings = {'compiler': None, 'dtype': np.float32,
+                         'exact_prec': False,
                          **CodePrinter._default_settings}
 
     _func_prefix = {}
@@ -75,10 +76,29 @@ class BasePrinter(CodePrinter):
         """
         return self._print(expr)
 
+    @property
+    def _exact_prec(self):
+        """
+        Whether the printing precision is a hard constraint rather than a
+        floor. An Array initializer sets it: the element type is fixed, so a
+        literal that does not fit is not merely less accurate but ill-typed.
+        """
+        return self._settings['exact_prec']
+
     def _prec(self, expr):
         dtype = sympy_dtype(expr, default=self.dtype)
         if dtype is None or np.issubdtype(dtype, np.integer):
             if any(isinstance(i, Float) for i in expr.atoms()):
+                # A real literal in an otherwise integer (or untyped)
+                # expression is emitted at the precision it is printed at,
+                # floored at `float32`. The dtype an expression operates at
+                # does not constrain the width of a literal within it, and
+                # narrowing one loses accuracy for nothing; an aggregate
+                # initializer, whose element type is fixed, opts out via
+                # `exact_prec`
+                if self._exact_prec and \
+                        np.issubdtype(self.dtype, np.floating):
+                    return self.dtype
                 try:
                     return np.promote_types(self.dtype, np.float32).type
                 except np.exceptions.DTypePromotionError:
@@ -452,8 +472,8 @@ if Version(sympy.__version__) >= Version("1.11"):
 
 
 @memoized_func
-def get_printer(printer, dtype):
-    return printer(settings={'dtype': dtype})
+def get_printer(printer, dtype, exact_prec=False):
+    return printer(settings={'dtype': dtype, 'exact_prec': exact_prec})
 
 
 def ccode(expr, printer=None, dtype=None):
@@ -475,5 +495,6 @@ def ccode(expr, printer=None, dtype=None):
     if printer is None:
         from devito.passes.iet.languages.C import CPrinter
         printer = CPrinter
-    dtype = printer._default_settings['dtype'] if dtype is None else dtype
-    return get_printer(printer, dtype).doprint(expr, None)
+    defaults = printer._default_settings
+    dtype = defaults['dtype'] if dtype is None else dtype
+    return get_printer(printer, dtype, defaults['exact_prec']).doprint(expr, None)
