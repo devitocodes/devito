@@ -814,6 +814,7 @@ class TestStreaming:
 
     @pytest.mark.parametrize('opt', [
         ('buffering', 'streaming', 'orchestrate'),
+        ('buffering', 'streaming', 'orchestrate', {'buf-async-degree': 4}),
     ])
     def test_streaming_conddim_backward(self, opt):
         nt = 10
@@ -848,6 +849,50 @@ class TestStreaming:
         # 2nd time u[1] = u[0]+u[1]+usave[3] = 0+4+3 = 7
         # 3rd time u[1] = u[0]+u[1]+usave[2] = 0+7+2 = 9
         assert np.all(u.data[1] == 9)
+
+    def run_streaming_async_degree(self, backward, expected_bounds, async_degree):
+        nt = 10
+        grid = Grid(shape=(4, 4))
+
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        v = TimeFunction(name='v', grid=grid)
+        v1 = TimeFunction(name='v', grid=grid)
+
+        usave.data._local[:] = np.arange(nt).reshape(nt, 1, 1)
+
+        lhs = v.backward if backward else v.forward
+        eqn = Eq(lhs, v + usave)
+
+        op0 = Operator(eqn, opt=('noop', {'gpu-fit': usave}), name='op0')
+        op1 = Operator(eqn, opt=('buffering', 'streaming', 'orchestrate',
+                                 {'buf-async-degree': async_degree}), name='op1')
+
+        for op in [op0, op1]:
+            args = op.arguments()
+            assert (args['time_m'], args['time_M']) == expected_bounds
+
+        op0.apply()
+        op1.apply(v=v1)
+
+        assert np.all(v.data == v1.data)
+
+    @pytest.mark.parametrize('backward,expected_bounds', [
+        pytest.param(False, (0, 8), id='forward'),
+        pytest.param(True, (1, 9), id='backward')
+    ])
+    @pytest.mark.parametrize('async_degree', [4, 16])
+    def test_streaming_async_degree(self, backward, expected_bounds, async_degree):
+        self.run_streaming_async_degree(backward, expected_bounds, async_degree)
+
+    @pytest.mark.parallel(mode=2)
+    @pytest.mark.parametrize('backward,expected_bounds', [
+        pytest.param(False, (0, 8), id='forward'),
+        pytest.param(True, (1, 9), id='backward')
+    ])
+    @pytest.mark.parametrize('async_degree', [4, 16])
+    def test_streaming_async_degree_mpi(self, backward, expected_bounds,
+                                        async_degree, mode):
+        self.run_streaming_async_degree(backward, expected_bounds, async_degree)
 
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 3),
@@ -910,7 +955,8 @@ class TestStreaming:
 
         assert np.all(v.data == v1.data)
 
-    def test_streaming_multi_input_conddim_backward(self):
+    @pytest.mark.parametrize('async_degree', [None, 5])
+    def test_streaming_multi_input_conddim_backward(self, async_degree):
         nt = 10
         grid = Grid(shape=(4, 4))
         time_dim = grid.time_dim
@@ -931,7 +977,8 @@ class TestStreaming:
         eqns = [Eq(v.backward, v + expr + 1.)]
 
         op0 = Operator(eqns, opt=('noop', {'gpu-fit': u}))
-        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate'))
+        op1 = Operator(eqns, opt=('buffering', 'streaming', 'orchestrate',
+                                  {'buf-async-degree': async_degree}))
 
         op0.apply(time_M=nt, dt=.01)
         op1.apply(time_M=nt, dt=.01, v=v1)
