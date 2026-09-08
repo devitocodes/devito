@@ -22,7 +22,7 @@ from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
     as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype, is_integer,
-    is_number, split
+    is_number, memoized_func, split
 )
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
@@ -489,6 +489,19 @@ class Differentiable(sympy.Expr, Evaluable):
             return all(i in self.free_symbols for i in patterns)
 
 
+@memoized_func(scope='build')
+def deep_priority(expr):
+    """
+    The highest `_fd_priority` among the Functions inside `expr`.
+
+    `expr._fd_priority` does not give this: an `Add` or `Mul` falls back on a
+    generic value, so `mu*tau_xx` reports .75 rather than `tau_xx`'s 2.1.
+    """
+    prio = getattr(expr, '_fd_priority', 0)
+    return max([prio] + [deep_priority(i)
+                         for i in getattr(expr, '_args_diff', ())])
+
+
 def highest_priority(diff_op, candidates=None):
     """
     The Function whose location a product should be evaluated at.
@@ -504,7 +517,9 @@ def highest_priority(diff_op, candidates=None):
     # We also need to make sure that the object with the largest
     # set of dimensions is used when multiple ones with the same
     # priority appear
-    prio = lambda x: (getattr(x, '_fd_priority', 0), len(x.dimensions))
+    # `deep_priority`, not `_fd_priority`: an `Add` or `Mul` reports a generic
+    # fallback, so operands would tie and `sorted` would pick on argument order
+    prio = lambda x: (deep_priority(x), len(x.dimensions))
     prio_func = sorted(args_diff, key=prio, reverse=True)[0]
 
     # The highest priority must be a Function

@@ -6,7 +6,8 @@ import sympy
 
 from devito import NODE, Differentiable, Eq, Function, Grid, Operator
 from devito.finite_differences.differentiable import (
-    Add, EvalDerivative, Mul, Pow, SafeInv, diffify, interp_for_fd
+    Add, EvalDerivative, Mul, Pow, SafeInv, deep_priority, diffify, highest_priority,
+    interp_for_fd
 )
 
 
@@ -223,6 +224,33 @@ class TestMulEvalAt:
         assert a.name in evaluated_str
         assert b.name in evaluated_str
         assert c.name in evaluated_str
+
+    def test_mul_gather_priority(self):
+        """
+        The gather lands on the highest-priority Function inside the operands.
+
+        Without `deep_priority` both operands report the `Differentiable`
+        fallback, tie, and the winner comes down to SymPy's argument order.
+        """
+        grid = Grid((11, 11))
+        funcs = self._all_funcs(grid)
+        node, fx, fy, fxy = (funcs['node'], funcs['x'],
+                             funcs['y'], funcs['xy'])
+
+        # Two sums, only the first carrying a NODE Function
+        with_node = node * fxy + fxy
+        staggered = fx + fy
+
+        assert deep_priority(with_node) == node._fd_priority
+        assert deep_priority(staggered) == fx._fd_priority
+        assert deep_priority(with_node) > deep_priority(staggered)
+
+        # Whichever way the product sorts, NODE wins
+        for prod in (with_node * staggered, staggered * with_node):
+            assert highest_priority(
+                prod, candidates=[with_node, staggered]
+            ) is node
+            assert prod.indices_ref == node.indices_ref
 
     @pytest.mark.parametrize('interp_mode', ['direct', 'symmetric'])
     @pytest.mark.parametrize('targets', [
