@@ -257,9 +257,12 @@ class CGen(Visitor):
             printer = CPrinter
         self.printer = printer
 
-    def ccode(self, expr, dtype=None):
-        dtype = self.printer._default_settings['dtype'] if dtype is None else dtype
-        return get_printer(self.printer, dtype).doprint(expr, None)
+    def ccode(self, expr, dtype=None, exact_prec=None):
+        defaults = self.printer._default_settings
+        dtype = defaults['dtype'] if dtype is None else dtype
+        if exact_prec is None:
+            exact_prec = defaults['exact_prec']
+        return get_printer(self.printer, dtype, exact_prec).doprint(expr, None)
 
     @property
     def _qualifiers_mapper(self):
