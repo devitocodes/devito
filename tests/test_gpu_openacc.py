@@ -144,6 +144,37 @@ class TestCodeGeneration:
         assert trees[3][1].pragmas[0].ccode.value ==\
             f'acc parallel loop {sclause} present(src,src_gp,src_wx,src_wy,src_wz,u)'
 
+    def test_short_multi_tile_keeps_outer_dim_blocked(self):
+        """
+        A multi `par-tile` entry shorter than the nest it lands on must not cost
+        the outermost Dimension its BlockDimension: on a device, dropping it
+        would leave `x` iterated outside the offloaded nest.
+        """
+        grid = Grid(shape=(8, 8, 8))
+
+        u = TimeFunction(name="u", grid=grid, space_order=4)
+        v = TimeFunction(name="v", grid=grid, space_order=4)
+
+        eqns = [Eq(u.forward, u.dx),
+                Eq(v.forward, u.forward.dx)]
+
+        # The second entry is 2D, while the nest it lands on is 3D
+        par_tile = ((32, 4, 4), (16, 4))
+
+        op = Operator(eqns, platform='nvidiaX', language='openacc',
+                      opt=(
+                          'advanced',
+                          {'par-tile': par_tile, 'blocklevels': 1, 'blockinner': True}))
+
+        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+
+        expected = ((4, 4, 32), (4, 4, 16))
+        for root, v in zip(bns.values(), expected, strict=True):
+            iters = FindNodes(Iteration).visit(root)
+            iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
+            assert len(iters) == len(v)
+            assert all(i.step == j for i, j in zip(iters, v, strict=True))
+
     def test_multi_tile_blocking_structure(self):
         grid = Grid(shape=(8, 8, 8))
 

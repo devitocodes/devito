@@ -90,7 +90,8 @@ class DeviceOperatorMixin:
         # GPU parallelism
         o['par-tile'] = ParTile(oo.pop('par-tile', False), default=(32, 4, 4),
                                 sparse=oo.pop('par-tile-sparse', None),
-                                reduce=oo.pop('par-tile-reduce', None))
+                                reduce=oo.pop('par-tile-reduce', None),
+                                unbound=True)
         o['par-collapse-ncores'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-collapse-work'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)
