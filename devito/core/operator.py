@@ -478,7 +478,8 @@ class ParTileArg(UnboundTuple):
 
 class ParTile(UnboundedMultiTuple, OptOption):
 
-    def __new__(cls, items, default=None, sparse=None, reduce=None):
+    def __new__(cls, items, default=None, sparse=None, reduce=None,
+                unbound=False):
         if not items:
             return UnboundedMultiTuple()
         elif isinstance(items, bool):
@@ -536,9 +537,6 @@ class ParTile(UnboundedMultiTuple, OptOption):
         obj.default = as_tuple(default)
         obj.sparse = as_tuple(sparse)
         obj.reduce = as_tuple(reduce)
+        obj.unbound = unbound
 
         return obj
-
-    @property
-    def is_multi(self):
-        return len(self) > 1
