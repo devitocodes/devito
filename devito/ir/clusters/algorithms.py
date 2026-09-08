@@ -130,7 +130,60 @@ class Schedule(Queue):
 
     @timed_pass(name='schedule')
     def process(self, clusters):
+        clusters = self._schedule_adjacent(clusters)
+        clusters = self._constrain_nonadjacent(clusters)
+
+        return clusters
+
+    def _schedule_adjacent(self, clusters):
+        """
+        Schedule Clusters that are adjacent in program order.
+        """
         return self._process_fatd(clusters, 1)
+
+    def _constrain_nonadjacent(self, clusters):
+        """
+        Clusters that are non-adjacent in program order may require additional
+        constraints on their IterationSpaces.
+
+        For example, consider the following statements:
+
+            - `u[x, y] = f(w[x, y])`
+            - `f[x] = 3`
+            - `v[x, y] = g(u[x, y ± 1])`
+
+        The first and third statements are non-adjacent in program order, have
+        the same IterationSpace, and have a flow- or anti-dependence along `y`
+        due to `y ± 1`. Hence, those two statements will never be fusible, so
+        their IterationSpace must be constrained to prevent such a possibility
+        by any of the later passes (e.g., topofusion).
+        """
+        # A family collects the consecutive groups of Clusters with the same
+        # IterationSpace
+        key = lambda c: c.ispace
+        families = DefaultOrderedDict(list)
+        for ispace, group in groupby(clusters, key=key):
+            families[ispace].append(list(group))
+
+        mapper = {}
+        for family in families.values():
+            if len(family) < 2:
+                continue
+
+            candidates = flatten(family)
+            scheduled = self._schedule_adjacent(candidates)
+            for c, c1 in zip(candidates, scheduled, strict=True):
+                if c1.ispace.intervals == c.ispace.intervals:
+                    continue
+
+                # Only retain the new Interval constraints. Directions were
+                # inferred without the intervening Clusters.
+                ispace1 = IterationSpace(c1.ispace.intervals,
+                                         c.ispace.sub_iterators,
+                                         c.ispace.directions)
+                mapper[c] = c.rebuild(ispace=ispace1)
+
+        return [mapper.get(c, c) for c in clusters]
 
     def callback(self, clusters, prefix, backlog=None, known_break=None):
         if not prefix:
@@ -458,7 +511,7 @@ class HaloComms(Queue):
 
         # Construct a representation of the halo accesses
         processed = list(clusters)
-        for n, c in enumerate(clusters):
+        for c in clusters:
             if c.properties.is_sequential(d) or \
                c in seen:
                 continue
@@ -498,6 +551,7 @@ class HaloComms(Queue):
             # Insert `halo_touch` at the top of the IterationSpace within which
             # `c` is scheduled
             index = 0
+            n = processed.index(c)
             for i in reversed(range(n)):
                 if not processed[i].ispace.is_subset(c.ispace):
                     index = i + 1

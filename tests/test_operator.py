@@ -1650,7 +1650,7 @@ class TestLoopScheduling:
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
           'Eq(tw[t,x,y,z], tv[t,x,y,z-1] + 1.)'),
-         '++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzz'),
+         '++++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzxyz'),
         # 8) WAR 1->2; WAW 1->3
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x+2,y,z])',
@@ -1660,7 +1660,7 @@ class TestLoopScheduling:
         (('Eq(tu[t,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z-2])',
           'Eq(tw[t,x,y,z], tv[t,x,y+1,z] + 1.)'),
-         '+++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzyz'),
+         '++++++++++', ['txyz', 'txyz', 'txyz'], 'txyzxyzxyz'),
         # 10) WAR 1->2; WAW 1->3
         (('Eq(tu[t-1,x,y,z], tu[t,x,y,z] + tv[t,x,y,z])',
           'Eq(tv[t,x,y,z], tu[t,x,y,z+2])',
@@ -2191,6 +2191,53 @@ class TestLoopScheduling:
         op = Operator(eqns)
 
         assert_structure(op, ['r,i', 'r'], 'r,i')
+
+    def test_topofuse_preserves_nonadjacent_fission(self):
+        """
+        A shallower IterationSpace may separate a stencil producer and consumer
+        during adjacent scheduling. Topofusion must preserve their fission.
+        """
+        x, y = dimensions('x y')
+
+        u = Function(name='u_nonadj', dimensions=(x, y), shape=(16, 16),
+                     space_order=1)
+        v = Function(name='v_nonadj', dimensions=(x, y), shape=(16, 16),
+                     space_order=1)
+        w = Function(name='w_nonadj', dimensions=(x,), shape=(16,))
+
+        eqns = [Eq(u, 1),
+                Eq(w, 2),
+                Eq(v, u[x, y - 1] + u[x, y + 1])]
+
+        op = Operator(eqns, opt=('topofuse', {'openmp': False}))
+
+        assert_structure(op, ['x,y', 'x', 'x,y'])
+
+    def test_nonadjacent_constraints_preserve_directions(self):
+        """
+        Constraints inferred from non-adjacent Clusters must not replace the
+        directions inferred while the intervening Clusters were still visible.
+        """
+        x, y = dimensions('x y')
+
+        u = Function(name='u_direction', dimensions=(x, y), shape=(16, 16),
+                     space_order=1)
+        p = Function(name='p_direction', dimensions=(x, y), shape=(16, 16),
+                     space_order=1)
+        q = Function(name='q_direction', dimensions=(x,), shape=(16,),
+                     space_order=1)
+
+        eqns = [Eq(u[x, y], 1),
+                Eq(q[x], p[x + 1, 0]),
+                Eq(u[x, y + 1], 2),
+                Eq(p[x, y], 3)]
+
+        op = Operator(eqns, opt=('topofuse', {'openmp': False}))
+
+        assert_structure(op, ['x,y', 'x', 'x,y'], 'x,y,y')
+
+        iterations = FindNodes(Iteration).visit(op)
+        assert iterations[0].direction is Backward
 
     @pytest.mark.parametrize('eqns, expected, exp_trees, exp_iters', [
         (['Eq(u[0, x], 1)',

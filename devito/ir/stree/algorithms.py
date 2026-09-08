@@ -192,24 +192,36 @@ def preprocess(clusters, options=None, **kwargs):
 
         else:
             dims = set(c.ispace.promote(lambda d: d.is_Block).itdims)
+            roots = {d.root for d in dims}
 
             found = []
             for c1 in list(queue):
-                distributed_aindices = c1.halo_scheme.distributed_aindices
-                h_indices = set().union(*[d._defines for d in c1.halo_scheme.loc_indices])
-
                 # Skip if the halo exchange would end up outside
                 # its iteration space
+                loc_indices = c1.halo_scheme.loc_indices
+                h_indices = set().union(*[d._defines for d in loc_indices])
                 if h_indices and not h_indices & dims:
                     continue
 
-                diff = dims - distributed_aindices
-                intersection = dims & distributed_aindices
+                # There must be at least one distributed Dimension
+                dist_aindices = c1.halo_scheme.distributed_aindices
+                if not (dims & dist_aindices):
+                    continue
 
-                if all(c1.guards.get(d) == c.guards.get(d) for d in diff) and \
-                   len(intersection) > 0:
-                    found.append(c1)
-                    queue.remove(c1)
+                # Ensure the guards are compatible
+                diff = dims - dist_aindices
+                if not all(c1.guards.get(d) == c.guards.get(d) for d in diff):
+                    continue
+
+                # Ensure we're inserting within a compatible IterationSpace
+                # E.g., if `dist_aindices` contains a SubDimension `yi`, we
+                # cannot proceed if `c` is over a different SubDimension `yi'`
+                if any(d.root in roots and d not in dims for d in dist_aindices):
+                    continue
+
+                # All good!
+                found.append(c1)
+                queue.remove(c1)
 
             syncs = normalize_syncs(*[c1.syncs for c1 in found])
             if syncs:

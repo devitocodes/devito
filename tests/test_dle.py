@@ -477,16 +477,10 @@ def test_cache_blocking_imperfect_nest(blockinner):
     op1 = Operator(eqns, opt=('advanced', {'blockinner': blockinner}))
 
     # First, check the generated code
-    bns, _ = assert_blocking(op1, {'x0_blk0'})
+    bns, _ = assert_blocking(op1, {'x0_blk0', 'x1_blk0'})
     trees = retrieve_iteration_tree(bns['x0_blk0'])
-    assert len(trees) == 2
-    assert len(trees[0]) == len(trees[1])
-    assert all(i is j for i, j in zip(trees[0][:4], trees[1][:4], strict=True))
-    assert trees[0][4] is not trees[1][4]
+    assert len(trees) == 1
     assert trees[0].root.dim.is_Block
-    assert trees[1].root.dim.is_Block
-    assert op1.parameters[7] is trees[0][0].step
-    assert op1.parameters[10] is trees[0][1].step
 
     u.data[:] = 0.2
     v.data[:] = 1.5
@@ -633,7 +627,7 @@ class TestNodeParallelism:
          (False, False)),
         # two nests, each nest: outermost parallel, innermost sequential
         (['Eq(fc[x,y], fc[x,y+1] + fd[x-1,y])', 'Eq(fd[x-1,y+1], fd[x-1,y] + fc[x,y+1])'],
-         (True, False, False)),
+         (True, False, True, False)),
         # outermost sequential, innermost parallel w/ mixed dimensions
         (['Eq(fc[x+1,y], fc[x,y+1] + fc[x,y])', 'Eq(fc[x+1,y], 2. + fc[x,y+1])'],
          (False, True)),
