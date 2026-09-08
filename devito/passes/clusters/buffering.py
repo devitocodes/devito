@@ -44,11 +44,12 @@ def buffering(clusters, key, sregistry, options, **kwargs):
         Accepted: ['buf-async-degree', 'buf-reuse', 'npthreads'].
         * 'buf-async-degree': Specify the size of the buffer. By default, the
           buffer size is the minimal one, inferred from the memory accesses in
-          the ``clusters`` themselves. An asynchronous degree equals to `k`
-          means that the buffer will be enforced to size=`k` along the introduced
-          ModuloDimensions. This might help relieving the synchronization
-          overhead when asynchronous operations are used (these are however
-          implemented by other passes).
+          the ``clusters`` themselves. A positive asynchronous degree `k`
+          requests `k` slots; values below the inferred minimum are ignored.
+          Zero disables buffering. Read-buffer initialization remains limited to
+          the minimum number of slots required by the memory accesses. A larger
+          buffer might relieve synchronization overhead in asynchronous operations
+          introduced by other passes.
         * 'buf-reuse': If True, the pass will try to reuse existing Buffers for
           different buffered Functions. By default, False.
         * 'npthreads': Number of pthreads for asynchronous tasks. The tasks are
@@ -559,11 +560,13 @@ def expand_halo_transfers(clusters, mapper):
     return processed
 
 
-def _include_halo(ispace, f):
-    """Extend `ispace` to include `f`'s HALO."""
+def _include_halo(ispace, f, dims=None):
+    """Extend `ispace` to include `f`'s HALO along `dims`."""
+    dims = f.dimensions if dims is None else dims
+
     ihalo = [
         Interval(i.dim, -f._size_halo[i.dim].left, f._size_halo[i.dim].right, i.stamp)
-        for i in ispace if i.dim in f.dimensions
+        for i in ispace if i.dim in dims
     ]
 
     return IterationSpace.union(ispace, IterationSpace(ihalo))
@@ -724,8 +727,9 @@ class BufferDescriptor:
         # might be accessed through a stencil
         ispace = ispace.promote(lambda d: d.is_AbstractSub, mode='total')
 
-        # Analogous to the above, we need to include the halo region as well
-        ispace = _include_halo(ispace, self.b)
+        # Include the spatial halo without widening the temporal interval,
+        # which may already be restricted by an earlier buffering round
+        ispace = _include_halo(ispace, self.b, self.bdims)
 
         return ispace
 
@@ -872,6 +876,7 @@ def init_buffers(descriptors, options):
     Create the initializing Clusters for the given buffers.
     """
     init_onwrite = options['buf-init-onwrite']
+    async_degree = options['buf-async-degree']
 
     init = []
     for b, v in descriptors.flat_items():
@@ -882,6 +887,7 @@ def init_buffers(descriptors, options):
             # multiple) buffering because it's completely unnecessary
             if v.is_double_buffering:
                 continue
+
             lhs = b.indexify()._subs(v.xd, v.first_idx.b)
             rhs = f.indexify()._subs(v.dim, v.first_idx.f)
 
@@ -896,6 +902,16 @@ def init_buffers(descriptors, options):
         expr = lower_exprs(expr)
 
         ispace = v.write_to
+        if v.is_read and async_degree is not None:
+            # The allocated capacity (`v.size`) may exceed the time-window width
+            # that must be loaded before computation starts (`size` below). E.g.,
+            # reads at u[t-1], u[t] and u[t+1] make `infer_buffer_size` return 3,
+            # even if `buf-async-degree` gives us 4 slots (`v.size == 4`). Seed
+            # only db0=0..2; the spare slot is filled as computation advances.
+            # This preserves the stencil's data space and iteration bounds,
+            # without requiring extra input time levels to fill the ring.
+            size = infer_buffer_size(f, v.dim, v.clusters)
+            ispace = ispace.translate(v.xd, 0, size - v.size)
 
         guards = {}
         guards[None] = GuardBound(v.dim.root.symbolic_min, v.dim.root.symbolic_max)
