@@ -21,8 +21,8 @@ from devito.finite_differences.interpolation import (
 from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
-    as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype, is_integer,
-    is_number, memoized_func, split
+    Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype,
+    is_integer, is_number, memoized_func, split
 )
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
@@ -34,6 +34,7 @@ __all__ = [
     'EvalDerivative',
     'Imag',
     'IndexDerivative',
+    'IndexDerivativeProperty',
     'Real',
     'Weights',
 ]
@@ -1045,13 +1046,22 @@ class Weights(Array):
             return self[idx]
 
 
+class IndexDerivativeProperty(Tag):
+
+    """A property controlling how an `IndexDerivative` is lowered."""
+
+
 class IndexDerivative(IndexSum):
 
     __rargs__ = ('expr', 'mapper')
-    __rkwargs__ = IndexSum.__rkwargs__ + ('deriv_order',)
+    __rkwargs__ = IndexSum.__rkwargs__ + ('deriv_order', 'properties')
 
-    def __new__(cls, expr, mapper, deriv_order=None, **kwargs):
+    def __new__(cls, expr, mapper, deriv_order=None, properties=(), **kwargs):
         dimensions = as_tuple(set(mapper.values()))
+
+        properties = frozenset(as_tuple(properties))
+        if not all(isinstance(i, IndexDerivativeProperty) for i in properties):
+            raise ValueError("Expected IndexDerivative properties")
 
         # Detect the Weights among the arguments
         weightss = []
@@ -1073,11 +1083,13 @@ class IndexDerivative(IndexSum):
         obj._mapper = frozendict(mapper)
 
         obj._deriv_order = deriv_order
+        obj._properties = properties
 
         return obj
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.mapper,)
+        properties = tuple(sorted(map(str, self.properties)))
+        return super()._hashable_content() + (self.mapper, properties)
 
     def compare(self, other):
         if self is other:
@@ -1085,8 +1097,11 @@ class IndexDerivative(IndexSum):
         n1 = self.__class__
         n2 = other.__class__
         if n1.__name__ == n2.__name__:
+            p1 = tuple(sorted(map(str, self.properties)))
+            p2 = tuple(sorted(map(str, other.properties)))
             return (self.weights.compare(other.weights) or
-                    self.base.compare(other.base))
+                    self.base.compare(other.base) or
+                    (p1 > p2) - (p1 < p2))
         else:
             return super().compare(other)
 
@@ -1109,6 +1124,10 @@ class IndexDerivative(IndexSum):
     @property
     def deriv_order(self):
         return self._deriv_order
+
+    @property
+    def properties(self):
+        return self._properties
 
     @property
     def depth(self):
@@ -1289,7 +1308,8 @@ def diff2sympy(expr):
         # Handle special objects
         if isinstance(obj, DiffDerivative):
             return IndexDerivative(*args, obj.mapper,
-                                   deriv_order=obj.deriv_order), True
+                                   deriv_order=obj.deriv_order,
+                                   properties=obj.properties), True
 
         # Handle generic objects such as arithmetic operations
         try:
