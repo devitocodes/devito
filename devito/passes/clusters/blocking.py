@@ -495,6 +495,7 @@ class BlockSizeGenerator:
 
     def __init__(self, par_tile):
         self.umt = par_tile
+        self.unbound = par_tile.unbound
 
         if par_tile.is_multi:
             # The user has supplied one specific par-tile per blocked nest
@@ -523,6 +524,8 @@ class BlockSizeGenerator:
                 self.umt_reduce = UnboundTuple(*par_tile.default, 1)
 
     def schedule(self, dims, clusters):
+        unbound = False
+
         if any(c.properties.is_parallel_atomic(dims) for c in clusters):
             # Correctness -- enforce blocking where necessary.
             # See also issue #276:PRO
@@ -534,11 +537,16 @@ class BlockSizeGenerator:
         elif all(c.properties.avoid_tuning(dims) for c in clusters):
             # Performance heuristics -- use a smaller par-tile
             umt = self.umt_small
+            unbound = self.unbound and umt.is_multi
 
         else:
             umt = self.umt
+            unbound = self.unbound and umt.is_multi
 
         umt.iter()
+
+        if unbound:
+            return umt.curitem()
 
         return umt
 
@@ -622,10 +630,11 @@ def apply_par_tiles(clusters, options, **kwargs):
     Use the par-tile parameter to replace the symbolic BlockDimension sizes
     with actual integer numbers representing the block shape.
     """
-    if not options['par-tile']:
+    par_tile = options['par-tile']
+    if not par_tile:
         return clusters
 
-    blk_size_gen = BlockSizeGenerator(options['par-tile'])
+    blk_size_gen = BlockSizeGenerator(par_tile)
 
     key = lambda c: c.ispace.project(lambda d: d.is_Block)
 
