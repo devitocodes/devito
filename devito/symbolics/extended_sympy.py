@@ -264,6 +264,12 @@ class CallFromPointer(Expr, Pickable, BasicWrapperMixin, Terminal):
         return {self.call}
 
     @property
+    def canonical_variables(self):
+        # `call` is bound to keep it out of `free_symbols`, but it names a C
+        # call or member and therefore must not be canonicalized by SymPy
+        return {}
+
+    @property
     def free_symbols(self):
         return super().free_symbols - self.bound_symbols
 

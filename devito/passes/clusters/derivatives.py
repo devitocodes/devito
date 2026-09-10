@@ -127,13 +127,15 @@ def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
 @_core.register(IndexDerivative)
 def _(expr, c, ispace, weights, reusables, mapper, **kwargs):
     sregistry = kwargs['sregistry']
-    options = kwargs['options']
 
-    try:
-        cbk0 = deriv_schedule_registry[options['deriv-schedule']]
-        cbk1 = deriv_unroll_registry[options['deriv-unroll']]
-    except KeyError:
-        raise ValueError("Unknown derivative lowering mode") from None
+    known = set(deriv_schedule_registry) | set(deriv_unroll_registry)
+    if not known.issuperset(expr.properties):
+        raise ValueError("Unknown derivative lowering property")
+
+    cbk0 = _select_callback(expr.properties, deriv_schedule_registry,
+                            _lower_index_derivative_base)
+    cbk1 = _select_callback(expr.properties, deriv_unroll_registry,
+                            _lower_index_derivative_base_unroll)
 
     # Lower the IndexDerivative
     init, ideriv = cbk0(expr)
@@ -203,14 +205,24 @@ def _lower_index_derivative_base(ideriv):
     return S.Zero, ideriv
 
 
-deriv_schedule_registry = {
-    'basic': _lower_index_derivative_base,
-}
+def _lower_index_derivative_base_unroll(init, ideriv, ispace):
+    return init, ideriv.expr, ispace
 
 
-deriv_unroll_registry = {
-    False: lambda init, ideriv, ispace: (init, ideriv.expr, ispace)
-}
+def _select_callback(properties, registry, default):
+    found = properties.intersection(registry)
+    if len(found) > 1:
+        raise ValueError("Incompatible derivative lowering properties")
+    elif found:
+        return registry[next(iter(found))]
+    else:
+        return default
+
+
+deriv_schedule_registry = {}
+
+
+deriv_unroll_registry = {}
 
 
 class CDE(Queue):

@@ -306,6 +306,7 @@ def test_field_from_composite():
     # Test reconstruction
     ffc3 = ffc0.func(*ffc0.args)
     assert ffc0 == ffc3
+    assert ffc1.as_dummy() == ffc1
 
     # Free symbols
     assert ffc1.free_symbols == {s}
