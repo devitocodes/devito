@@ -958,7 +958,8 @@ def _select_buffer(f, dim, guard, cgroup, xds, async_degree, sregistry, callback
         assert len(buffers) == 1, "Unexpected form of multi-level buffering"
         buffer, = buffers
         xd = buffer.indices[dim]
-        extra_kwargs = {'is_autopaddable': buffer.is_autopaddable}
+        extra_kwargs = {'is_autopaddable': buffer.is_autopaddable,
+                        'buffer': buffer}
     else:
         size = infer_buffer_size(f, dim, cgroup)
         if async_degree is not None:
