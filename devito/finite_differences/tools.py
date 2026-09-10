@@ -146,9 +146,13 @@ class IndexSet(tuple):
 
     """
     The points of a finite-difference expansion.
+
+    `staggering` records the scheme's requested evaluation staggering relative
+    to the input lattice: `centered`, `staggered`, or None if unknown. Index
+    coordinate changes preserve this classification.
     """
 
-    def __new__(cls, dim, indices=None, expr=None, fd=None):
+    def __new__(cls, dim, indices=None, expr=None, fd=None, staggering=None):
         assert indices is not None or expr is not None
 
         if fd is None:
@@ -167,6 +171,7 @@ class IndexSet(tuple):
         obj.dim = dim
         obj.expr = expr
         obj.free_dim = fd
+        obj.staggering = staggering
 
         return obj
 
@@ -203,7 +208,8 @@ class IndexSet(tuple):
         except AttributeError:
             expr = None
 
-        return IndexSet(self.dim, indices, expr=expr, fd=free_dim)
+        return IndexSet(self.dim, indices, expr=expr, fd=free_dim,
+                        staggering=self.staggering)
 
     def shift(self, v):
         """
@@ -216,7 +222,8 @@ class IndexSet(tuple):
         except TypeError:
             expr = None
 
-        return IndexSet(self.dim, indices, expr=expr, fd=self.free_dim)
+        return IndexSet(self.dim, indices, expr=expr, fd=self.free_dim,
+                        staggering=self.staggering)
 
 
 def make_stencil_dimension(expr, _min, _max):
@@ -287,6 +294,12 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
 
     # Evaluation point relative to the expression's grid
     mid = (x0 - expr.indices_ref[dim]).subs({dim: 0, dim.spacing: 1})
+    if (mid % 1).is_zero:
+        staggering = 'centered'
+    elif ((mid - S.Half) % 1).is_zero:
+        staggering = 'staggered'
+    else:
+        staggering = None
 
     # Shift for side
     side = side or centered
@@ -305,7 +318,7 @@ def generate_indices(expr, dim, order, side=None, matvec=None, x0=None, nweights
     d = make_stencil_dimension(expr, o_min, o_max)
     iexpr = expr.indices_ref[dim] + d * dim.spacing
 
-    return IndexSet(dim, expr=iexpr), x0
+    return IndexSet(dim, expr=iexpr, staggering=staggering), x0
 
 
 def make_shift_x0(shift, ndim):

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Float, Symbol, diff, simplify, sympify
+from sympy import Float, S, Symbol, diff, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
@@ -10,9 +10,12 @@ from devito import (
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
-    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights, interp_for_fd
+    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights, diff2sympy,
+    interp_for_fd
 )
-from devito.symbolics import indexify, retrieve_indexed
+from devito.finite_differences.tools import generate_indices
+from devito.ir.equations.algorithms import lower_exprs
+from devito.symbolics import indexify, retrieve_indexed, search, uxreplace
 from devito.types.dimension import StencilDimension
 from devito.warnings import DevitoWarning
 
@@ -1092,6 +1095,161 @@ class TestTwoStageEvaluation:
         vi1 = idxder.subs(ui, vi0)
 
         assert IndexDerivative(vi0*w, {x: i}) == vi1
+
+    @pytest.mark.parametrize('staggered', [None, x, y])
+    @pytest.mark.parametrize('deriv_order,fd_order', [
+        (0, 4), (0, 16), (1, 2), (1, 4), (1, 16), (2, 4), (2, 16)
+    ])
+    @pytest.mark.parametrize('offset,staggering', [
+        (0, 'centered'), (S.Half, 'staggered'), (-S.Half, 'staggered'),
+        (1, 'centered'), (S.One/4, None)
+    ])
+    def test_index_derivative_staggering(self, staggered, deriv_order, fd_order,
+                                         offset, staggering):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        staggered = staggered(grid) if staggered else NODE
+        f = Function(name='f', grid=grid, space_order=16, staggered=staggered)
+        x0 = {x: f.indices_ref[x] + offset*x.spacing}
+        deriv = f.diff(x, deriv_order=deriv_order, fd_order=fd_order, x0=x0)
+
+        evaluated = deriv._evaluate(expand=False)
+        if deriv_order == 0 and offset == 0:
+            assert evaluated == f
+            return
+
+        lowered = lower_exprs(diff2sympy(evaluated))
+        for i in (evaluated, lowered):
+            assert isinstance(i, IndexDerivative)
+            assert i.staggering == staggering
+            assert i.deriv_order == deriv_order
+
+        # Classifying the staggering must not change the discrete stencil
+        sd, = evaluated.dimensions
+        terms = [w*evaluated.base.subs(sd, i) for w, i in
+                 zip(evaluated.weights.function.weights, sd.range, strict=True)]
+        assert simplify(sum(terms) - deriv.evaluate) == 0
+
+    @pytest.mark.parametrize('offsets,staggerings,fd_order,weights', [
+        ((0, S.Half), ('centered', 'staggered'), 2, None),
+        ((S.Half, S.One/4), ('staggered', None), 4,
+         [S.One/24, -S(9)/8, S(9)/8, -S.One/24])
+    ])
+    @pytest.mark.parametrize('lowered', [False, True])
+    def test_index_derivative_staggering_identity(self, offsets, staggerings, fd_order,
+                                                  weights, lowered):
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        derivs = [f.dx(fd_order=fd_order, x0={x: x + i*x.spacing}, weights=weights)
+                  for i in offsets]
+        derivs = [i._evaluate(expand=False) for i in derivs]
+        if lowered:
+            derivs = [lower_exprs(diff2sympy(i)) for i in derivs]
+        a, b = derivs
+
+        # Distinct staggerings can generate exactly the same discrete stencil
+        assert tuple(i.staggering for i in derivs) == staggerings
+        assert a.args == b.args
+        assert a.mapper == b.mapper
+        assert a.weights.function.weights == b.weights.function.weights
+        assert a != b
+        assert len({a, b}) == 2
+        assert a.compare(b) == -b.compare(a) != 0
+        assert set((a + b).args) == {a, b}
+        assert a.evaluate == b.evaluate
+
+    @pytest.mark.parametrize('offset,staggering', [
+        (-S.Half, 'staggered'), (0, 'centered')
+    ])
+    @pytest.mark.parametrize('side', [None, centered, left, right])
+    @pytest.mark.parametrize('transpose', [False, True])
+    def test_index_derivative_staggering_transpose(self, offset, staggering, side,
+                                                   transpose):
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4, staggered=x)
+        deriv = f.dx(x0={x: f.indices_ref[x] + offset*x.spacing}, side=side)
+        if transpose:
+            deriv = deriv.T
+        evaluated = deriv._evaluate(expand=False)
+        assert evaluated.staggering == staggering
+        assert lower_exprs(diff2sympy(evaluated)).staggering == staggering
+        assert simplify(evaluated.evaluate - deriv.evaluate) == 0
+
+    @pytest.mark.parametrize('dim', [x, y])
+    @pytest.mark.parametrize('offset,staggering', [
+        (-S.Half, 'staggered'), (0, 'centered')
+    ])
+    def test_index_derivative_staggering_nested(self, dim, offset, staggering):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        d = dim(grid)
+        f = Function(name='f', grid=grid, space_order=4)
+        deriv = f.dx(x0={x: x + x.spacing/2})
+        deriv = deriv.diff(d, deriv_order=2, x0={d: d + offset*d.spacing})
+
+        evaluated = deriv._evaluate(expand=False)
+        lowered = lower_exprs(diff2sympy(evaluated))
+        for expr in (evaluated, lowered):
+            iderivs = search(expr, IndexDerivative)
+            assert len(iderivs) == 2
+            assert {(i.deriv_order, i.staggering) for i in iderivs} == {
+                (1, 'staggered'), (2, staggering)
+            }
+
+    @pytest.mark.parametrize('lowered', [False, True])
+    def test_index_derivative_staggering_rebuild(self, lowered):
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        g = Function(name='g', grid=grid, space_order=4)
+        expr = f.dx(x0={x: x + x.spacing/2})._evaluate(expand=False)
+        sd, = expr.dimensions
+        base = g.subs(x, x + sd*x.spacing)
+        if lowered:
+            expr = lower_exprs(diff2sympy(expr))
+            base = lower_exprs(base)
+
+        for rebuilt in (expr.func(base*expr.weights), expr.subs(expr.base, base),
+                        expr.xreplace({expr.base: base}),
+                        uxreplace(expr, {expr.base: base})):
+            assert rebuilt.base == base
+            assert rebuilt.staggering == 'staggered'
+            assert rebuilt.deriv_order == 1
+
+        # Missing metadata must stay distinct from a known centered interpolation
+        unknown = expr._rebuild(staggering=None, deriv_order=None)
+        on_grid = expr._rebuild(staggering='centered', deriv_order=0)
+        assert unknown.staggering is None
+        assert len({expr, unknown, on_grid}) == 3
+        assert unknown.compare(on_grid) == -on_grid.compare(unknown) != 0
+        assert set((expr + unknown + on_grid).args) == {expr, unknown, on_grid}
+
+    def test_index_derivative_staggering_unknown(self):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4)
+        exprs = (f.dx45, f.dx(x0={x: 1}))
+        for expr in exprs:
+            lowered = lower_exprs(diff2sympy(expr._evaluate(expand=False)))
+            iderivs = search(lowered, IndexDerivative)
+            assert iderivs
+            assert all(i.staggering is None for i in iderivs)
+
+    @pytest.mark.parametrize('offset,staggering', [
+        (0, 'centered'), (1.0, 'centered'), (-1.0, 'centered'),
+        (0.5, 'staggered'), (-1.5, 'staggered'), (0.25, None), (0.50000001, None)
+    ])
+    def test_index_set_staggering(self, offset, staggering):
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid, space_order=4, staggered=x)
+        indices, _ = generate_indices(f, x, 4,
+                                      x0={x: f.indices_ref[x] + offset*x.spacing})
+        for i in (indices, indices.transpose(), indices.shift(-x.spacing/2),
+                  indices.transpose().shift(-x.spacing/2)):
+            assert i.staggering == staggering
 
     def test_dx2(self):
         grid = Grid(shape=(4, 4))

@@ -1048,9 +1048,9 @@ class Weights(Array):
 class IndexDerivative(IndexSum):
 
     __rargs__ = ('expr', 'mapper')
-    __rkwargs__ = IndexSum.__rkwargs__ + ('deriv_order',)
+    __rkwargs__ = IndexSum.__rkwargs__ + ('deriv_order', 'staggering')
 
-    def __new__(cls, expr, mapper, deriv_order=None, **kwargs):
+    def __new__(cls, expr, mapper, deriv_order=None, staggering=None, **kwargs):
         dimensions = as_tuple(set(mapper.values()))
 
         # Detect the Weights among the arguments
@@ -1073,11 +1073,20 @@ class IndexDerivative(IndexSum):
         obj._mapper = frozendict(mapper)
 
         obj._deriv_order = deriv_order
+        obj._staggering = staggering
 
         return obj
 
+    @cached_property
+    def _metadata(self):
+        # SymPy's canonical sorting also compares the hashable content directly.
+        # Use comparable objects, including empty tuples for unknown metadata
+        return (sympy.Dict(*self.mapper.items()),
+                sympy.Tuple(*as_tuple(self.deriv_order)),
+                sympy.Tuple(*as_tuple(self.staggering)))
+
     def _hashable_content(self):
-        return super()._hashable_content() + (self.mapper,)
+        return super()._hashable_content() + self._metadata
 
     def compare(self, other):
         if self is other:
@@ -1086,7 +1095,8 @@ class IndexDerivative(IndexSum):
         n2 = other.__class__
         if n1.__name__ == n2.__name__:
             return (self.weights.compare(other.weights) or
-                    self.base.compare(other.base))
+                    self.base.compare(other.base) or
+                    super().compare(other))
         else:
             return super().compare(other)
 
@@ -1109,6 +1119,19 @@ class IndexDerivative(IndexSum):
     @property
     def deriv_order(self):
         return self._deriv_order
+
+    @property
+    def staggering(self):
+        """
+        The requested evaluation staggering relative to the input lattice:
+        `centered` on that lattice, `staggered` halfway between its points,
+        or None for other or unknown evaluation locations.
+
+        This classification is independent of differential order, stencil bias,
+        and transposition. In particular, `centered` does not imply symmetric
+        weights, and interpolation is identified separately by `deriv_order == 0`.
+        """
+        return self._staggering
 
     @property
     def depth(self):
@@ -1288,8 +1311,8 @@ def diff2sympy(expr):
 
         # Handle special objects
         if isinstance(obj, DiffDerivative):
-            return IndexDerivative(*args, obj.mapper,
-                                   deriv_order=obj.deriv_order), True
+            kwargs = {i: getattr(obj, i) for i in obj.__rkwargs__}
+            return IndexDerivative(*args, obj.mapper, **kwargs), True
 
         # Handle generic objects such as arithmetic operations
         try:
