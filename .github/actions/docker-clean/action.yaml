@@ -1,5 +1,5 @@
 name: Docker cleanup action
-description: Composite action for removing Docker images
+description: Composite action for removing Docker containers and images
 author: "Devito"
 
 inputs:
@@ -10,12 +10,28 @@ inputs:
   tag:
     description: "Tag of the built image to use"
     required: true
+  name:
+    description: "Name substring used by the docker-run action"
+    default: ""
 
 runs:
   using: "composite"
   steps:
     - id: dockerclean
-      name: "Cleanup docker image"
+      name: "Cleanup Docker resources"
       shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        TAG: ${{ inputs.tag }}
+        UNIQUE: ${{ inputs.uid }}
       run: |
-          docker image rm -f "${{ inputs.tag }}_${{ inputs.uid }}"
+        CONTAINER_NAME="ci-${NAME:-${TAG}}-${UNIQUE}"
+        CID_FILE="${RUNNER_TEMP}/${CONTAINER_NAME}.cid"
+
+        if [[ -s "${CID_FILE}" ]]; then
+          CONTAINER_ID=$(< "${CID_FILE}")
+          docker container rm -f "${CONTAINER_ID}" 2>/dev/null || true
+        fi
+        rm -f "${CID_FILE}"
+
+        docker image rm -f "${TAG}_${UNIQUE}"
