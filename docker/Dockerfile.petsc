@@ -21,6 +21,7 @@ RUN python3 -m venv /venv && \
     ./configure --with-fortran-bindings=0 --with-mpi-dir=/opt/openmpi \
                 --with-openblas-include=$(pkg-config --variable=includedir openblas) \
                 --with-openblas-lib=$(pkg-config --variable=libdir openblas)/libopenblas.so \
+                --with-debugging=0 && \
                 PETSC_ARCH=devito_build && \
     make all
 
