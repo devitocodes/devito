@@ -10,7 +10,8 @@ from devito import (
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
-    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexSum, Weights, interp_for_fd
+    Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexDerivativeProperty,
+    IndexSum, Weights, interp_for_fd
 )
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
@@ -1084,14 +1085,30 @@ class TestTwoStageEvaluation:
         idxder = IndexDerivative(ui*w, {x: i})
 
         assert simplify(idxder.evaluate - (-0.5*u + 0.5*ui.subs(i, 2))) == 0
+        assert idxder.properties == frozenset()
+
+        # Lowering properties are part of the IndexDerivative identity and
+        # survive reconstruction
+        fold = IndexDerivativeProperty('fold')
+        unroll = IndexDerivativeProperty('unroll')
+        idxder1 = idxder._rebuild(properties=(fold, unroll))
+        assert idxder1.properties == frozenset([fold, unroll])
+        assert idxder1 != idxder
+        assert len({idxder, idxder1}) == 2
+        assert idxder1._rebuild() == idxder1
+        assert idxder1.compare(idxder) != 0
+
+        with pytest.raises(ValueError, match="Expected IndexDerivative properties"):
+            idxder._rebuild(properties=('fold', 'unroll'))
 
         # Make sure subs works as expected
         v = Function(name="v", grid=grid, space_order=so)
 
         vi0 = v.subs(x, x + i*x.spacing)
-        vi1 = idxder.subs(ui, vi0)
+        vi1 = idxder1.subs(ui, vi0)
 
-        assert IndexDerivative(vi0*w, {x: i}) == vi1
+        assert IndexDerivative(vi0*w, {x: i},
+                               properties=idxder1.properties) == vi1
 
     def test_dx2(self):
         grid = Grid(shape=(4, 4))
