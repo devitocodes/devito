@@ -880,6 +880,10 @@ class UnboundedMultiTuple(UnboundTuple):
         obj.current = None
         return obj
 
+    @property
+    def is_multi(self):
+        return len(self) > 1
+
     def reset(self):
         self.current = None
         return self
