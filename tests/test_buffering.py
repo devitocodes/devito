@@ -113,7 +113,8 @@ def test_read_only_w_offset():
     assert np.all(v.data == v1.data)
 
 
-def test_read_only_backwards():
+@pytest.mark.parametrize('async_degree', [None, 4])
+def test_read_only_backwards(async_degree):
     nt = 10
     grid = Grid(shape=(2, 2))
 
@@ -127,7 +128,8 @@ def test_read_only_backwards():
     eqns = [Eq(v.backward, v + u.backward + u + u.forward + 1.)]
 
     op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt='buffering')
+    op1 = Operator(eqns, opt=('buffering',
+                              {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
@@ -171,32 +173,83 @@ def test_read_only_backwards_unstructured():
     assert np.all(v.data == v1.data)
 
 
-@pytest.mark.parametrize('async_degree', [2, 4])
-def test_async_degree(async_degree):
+@pytest.mark.parametrize('async_degree', [1, 2, 4])
+@pytest.mark.parametrize('backward', [False, True],
+                         ids=['forward', 'backward'])
+def test_async_degree(async_degree, backward):
     nt = 10
     grid = Grid(shape=(4, 4))
 
     u = TimeFunction(name='u', grid=grid, save=nt)
     u1 = TimeFunction(name='u', grid=grid, save=nt)
 
-    eqn = Eq(u.forward, u + 1)
+    lhs = u.backward if backward else u.forward
+    eqn = Eq(lhs, u + 1)
 
     op0 = Operator(eqn, opt='noop')
     op1 = Operator(eqn, opt=('buffering', {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
+    buffers = [i for i in FindSymbols().visit(op1)
+               if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
-    assert buffers.pop().symbolic_shape[0] == async_degree
+    assert buffers.pop().symbolic_shape[0] == max(2, async_degree)
 
-    op0.apply(time_M=nt-2)
-    op1.apply(time_M=nt-2, u=u1)
+    kwargs = {'time_m': 1} if backward else {'time_M': nt - 2}
+    op0.apply(**kwargs)
+    op1.apply(u=u1, **kwargs)
 
     assert np.all(u.data == u1.data)
 
 
-def test_two_homogeneous_buffers():
+@pytest.mark.parametrize('backward,expected_bounds', [
+    pytest.param(False, (0, 8), id='forward'),
+    pytest.param(True, (1, 9), id='backward')
+])
+@pytest.mark.parametrize('async_degree', [0, 1, 4, 16])
+def test_async_degree_read_only(backward, expected_bounds, async_degree):
+    nt = 10
+    grid = Grid(shape=(4, 4))
+
+    u = TimeFunction(name='u', grid=grid, save=nt)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    u.data[:] = np.arange(nt).reshape(nt, 1, 1)
+
+    lhs = v.backward if backward else v.forward
+    eqn = Eq(lhs, v + u)
+
+    op0 = Operator(eqn, opt='noop', name='op0')
+    op1 = Operator(eqn, opt=('buffering',
+                             {'buf-async-degree': async_degree}), name='op1')
+
+    buffers = [i for i in FindSymbols().visit(op1)
+               if i.is_Array and i._mem_heap]
+    assert len(buffers) == int(async_degree != 0)
+    if async_degree:
+        assert buffers[0].symbolic_shape[0] == async_degree
+
+    for op in [op0, op1]:
+        args = op.arguments()
+        assert (args['time_m'], args['time_M']) == expected_bounds
+
+    # Default bounds, either endpoint, a partial ring, and an empty interval
+    time_m, time_M = expected_bounds
+    for kwargs in [{}, {'time_m': time_m, 'time_M': time_m},
+                   {'time_m': time_M, 'time_M': time_M},
+                   {'time_m': 3, 'time_M': 4}, {'time_m': 1, 'time_M': 0}]:
+        v.data[:] = 0
+        v1.data[:] = 0
+        op0.apply(**kwargs)
+        op1.apply(v=v1, **kwargs)
+
+        assert np.all(v.data == v1.data)
+
+
+@pytest.mark.parametrize('async_degree', [None, 4])
+def test_two_homogeneous_buffers(async_degree):
     nt = 10
     grid = Grid(shape=(4, 4))
 
@@ -209,8 +262,10 @@ def test_two_homogeneous_buffers():
             Eq(v.forward, u + v + u.backward + v.backward + 1.)]
 
     op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt='buffering')
-    op2 = Operator(eqns, opt=('buffering', 'fuse'))
+    op1 = Operator(eqns, opt=('buffering',
+                              {'buf-async-degree': async_degree}))
+    op2 = Operator(eqns, opt=('buffering', 'fuse',
+                              {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 5
@@ -224,8 +279,16 @@ def test_two_homogeneous_buffers():
     assert np.all(u.data == u1.data)
     assert np.all(v.data == v1.data)
 
+    u1.data[:] = 0
+    v1.data[:] = 0
+    op2.apply(time_M=nt-2, u=u1, v=v1)
 
-def test_two_heterogeneous_buffers():
+    assert np.all(u.data == u1.data)
+    assert np.all(v.data == v1.data)
+
+
+@pytest.mark.parametrize('async_degree', [None, 4])
+def test_two_heterogeneous_buffers(async_degree):
     nt = 10
     grid = Grid(shape=(4, 4))
 
@@ -242,7 +305,8 @@ def test_two_heterogeneous_buffers():
             Eq(v.forward, u + v + v.backward)]
 
     op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt='buffering')
+    op1 = Operator(eqns, opt=('buffering',
+                              {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 5

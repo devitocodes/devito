@@ -263,6 +263,15 @@ class BasicOperator(Operator):
                 "`npthreads` must be a positive integer"
             )
 
+        async_degree = oo['buf-async-degree']
+        if async_degree is not None and (
+            isinstance(async_degree, bool) or
+            not is_integer(async_degree) or async_degree < 0
+        ):
+            raise InvalidOperator(
+                "`buf-async-degree` must be a non-negative integer"
+            )
+
         if oo['cire-maxpar'] not in (False, 'basic', 'compact'):
             raise InvalidOperator("Illegal `cire-maxpar` value")
 
