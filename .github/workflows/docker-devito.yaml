@@ -148,10 +148,16 @@ jobs:
             type=raw,value=${{ matrix.tag }}-latest,enable=${{ github.event_name == 'release' }},suffix=${{ matrix.tag_suffix }}
             type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
             type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }},suffix=${{ matrix.tag_suffix }}
-            # Legacy "gpu" tag
-            type=raw,value=gpu-dev,enable=${{ contains(matrix.base, 'bases:nvidia-nvc') }},suffix=${{ matrix.tag_suffix }}
-            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }},suffix=${{ matrix.tag_suffix }}
-            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }},suffix=${{ matrix.tag_suffix }}
+            # Legacy "gpu" tags, one per nvhpc/cuda flavor. Plain `gpu-*` is an alias for nvc12
+            type=raw,value=gpu-dev-nvc13,enable=${{ matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
+            type=raw,value=gpu-dev-nvc12,enable=${{ matrix.base == 'bases:nvidia-nvc12' }},suffix=${{ matrix.tag_suffix }}
+            type=raw,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc12' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},prefix=gpu-nvc13-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},prefix=gpu-nvc12-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }},suffix=${{ matrix.tag_suffix }}
+            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }},suffix=${{ matrix.tag_suffix }}
+            type=raw,value=gpu-latest-nvc13,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc' }},suffix=${{ matrix.tag_suffix }}
+            type=raw,value=gpu-latest-nvc12,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }},suffix=${{ matrix.tag_suffix }}
+            type=raw,value=gpu-latest,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }},suffix=${{ matrix.tag_suffix }}
             # Legacy "cpu" tag
             type=raw,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
             type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }},suffix=${{ matrix.tag_suffix }}
@@ -187,6 +193,7 @@ jobs:
       DOCKER_BUILDKIT: "1"
 
     strategy:
+      fail-fast: false
       matrix:
         include:
           - tag: 'nvidia-nvc'
@@ -222,10 +229,16 @@ jobs:
             type=raw,value=${{ matrix.tag }}-latest,enable=${{ github.event_name == 'release' }}
             type=raw,value=latest,enable=${{ matrix.base == 'bases:cpu-gcc' }}
             type=semver,pattern={{raw}},prefix=${{ matrix.tag }}-,enable=${{ github.event_name == 'release' }}
-            # Legacy "gpu" tag
-            type=raw,value=gpu-dev,enable=${{ contains(matrix.base, 'bases:nvidia-nvc') }}
-            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }}
-            type=semver,pattern={{raw}},value=gpu-latest,enable=${{ github.event_name == 'release' &&  contains(matrix.base, 'bases:nvidia-nvc') }}
+            # Legacy "gpu" tags, one per nvhpc/cuda flavor. Plain `gpu-*` is an alias for nvc12
+            type=raw,value=gpu-dev-nvc13,enable=${{ matrix.base == 'bases:nvidia-nvc' }}
+            type=raw,value=gpu-dev-nvc12,enable=${{ matrix.base == 'bases:nvidia-nvc12' }}
+            type=raw,value=gpu-dev,enable=${{ matrix.base == 'bases:nvidia-nvc12' }}
+            type=semver,pattern={{raw}},prefix=gpu-nvc13-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc' }}
+            type=semver,pattern={{raw}},prefix=gpu-nvc12-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }}
+            type=semver,pattern={{raw}},prefix=gpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }}
+            type=raw,value=gpu-latest-nvc13,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc' }}
+            type=raw,value=gpu-latest-nvc12,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }}
+            type=raw,value=gpu-latest,enable=${{ github.event_name == 'release' && matrix.base == 'bases:nvidia-nvc12' }}
             # Legacy "cpu" tag
             type=raw,value=cpu-dev,enable=${{ matrix.base == 'bases:cpu-gcc' }}
             type=semver,pattern={{raw}},prefix=cpu-,enable=${{ github.event_name == 'release' && matrix.base == 'bases:cpu-gcc' }}
@@ -240,15 +253,17 @@ jobs:
             echo "No tags generated, skipping"
             exit 0
           fi
-          echo "$TAGS" | while read -r tag; do
-            refs=""
+          # $TAGS already holds fully qualified refs, e.g. devitocodes/devito:gcc-dev
+          while read -r tag; do
+            [ -z "$tag" ] && continue
+            refs=()
             for arch in $ARCHES; do
-              refs="$refs devitocodes/devito:${tag}-${arch}"
+              refs+=("${tag}-${arch}")
             done
-            echo "Creating manifest for devitocodes/devito:${tag} using:${refs}"
-            docker buildx imagetools create --tag "devitocodes/devito:${tag}" "$refs"
-            docker buildx imagetools inspect "devitocodes/devito:${tag}"
-          done
+            echo "Creating manifest for ${tag} using: ${refs[*]}"
+            docker buildx imagetools create --tag "${tag}" "${refs[@]}"
+            docker buildx imagetools inspect "${tag}"
+          done <<< "$TAGS"
 
   test-devito:
     needs: deploy-devito-manifest

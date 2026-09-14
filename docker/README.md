@@ -72,7 +72,9 @@ Unlike NVidia, AMD does not require an additional Docker setup and runs with the
 **Notes**:
 In addition, the following legacy tags are available:
 
-- `devito:gpu-*` that corresponds to `devito:nvidia-nvc-*`
+- `devito:gpu-nvc13-*` that corresponds to `devito:nvidia-nvc-*` (cuda 13)
+- `devito:gpu-nvc12-*` that corresponds to `devito:nvidia-nvc12-*` (cuda 12)
+- `devito:gpu-*` that is an alias for `devito:gpu-nvc12-*`
 
 
 ### [Devito] on ARM64
