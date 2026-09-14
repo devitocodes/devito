@@ -50,12 +50,20 @@ runs:
       shell: bash
       env:
         NAME: ${{ inputs.name }}
+        TAG: ${{ inputs.tag }}
+        UNIQUE: ${{ inputs.uid }}
       run: |
+        CONTAINER_NAME="ci-${NAME:-${TAG}}-${UNIQUE}"
+        CID_FILE="${RUNNER_TEMP}/${CONTAINER_NAME}.cid"
+
+        rm -f "${CID_FILE}"
+
         docker run \
           --init -t --rm \
           ${{ inputs.args }} \
-          --name "ci-${NAME:-${{ inputs.tag }}}-${{ inputs.uid }}" \
+          --name "${CONTAINER_NAME}" \
+          --cidfile "${CID_FILE}" \
           --env-file=docker/coverage.env \
           ${{ steps.processenv.outputs.docker_environment_args }} \
-          "${{ inputs.tag }}_${{ inputs.uid }}" \
+          "${TAG}_${UNIQUE}" \
           ${{ inputs.command }}
