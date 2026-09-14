@@ -2187,8 +2187,13 @@ class TestDataReference:
 
         check = np.array(f.data_with_halo[1:-1, 1:-1])
 
-        # Update both
-        Operator([Eq(f, f+1), Eq(g, g+1)])()
+        # Update both. NOTE: `f` and `g` share their buffer, but the generated
+        # code says otherwise -- the pointers are `restrict` qualified -- so
+        # they have to be updated by separate Operators. Fusing the two Eqs
+        # would leave the compiler free to hoist the load from `g` above the
+        # store to `f`, yielding an increment of one rather than two
+        Operator(Eq(f, f+1))()
+        Operator(Eq(g, g+1))()
         assert np.all(f.data_with_halo == g.data_with_halo)
         # Check that it was incremented by two
         check += 2
