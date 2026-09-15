@@ -4,10 +4,13 @@ from functools import singledispatch
 
 import numpy as np
 from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, sympify
+from sympy.core import Basic as SympyBasic
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
 
-from devito.finite_differences.differentiable import EvalDerivative, IndexDerivative
+from devito.finite_differences.differentiable import (
+    EvalDerivative, IndexDerivative, SparseLocalSum
+)
 from devito.symbolics.extended_dtypes import LONG
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
@@ -72,6 +75,7 @@ def uxreplace(expr, rule):
     return _uxreplace(expr, rule)[0]
 
 
+@singledispatch
 def _uxreplace(expr, rule):
     if expr in rule:
         v = rule[expr]
@@ -113,12 +117,27 @@ def _uxreplace(expr, rule):
     return expr, False
 
 
+@_uxreplace.register(SparseLocalSum)
+def _(expr, rule):
+    # Only the sum owns these guards; ordinary ConditionalDimensions stay atomic
+    mapper = {}
+    for d in expr.cdims:
+        kwargs = {i: getattr(d, i) for i in d.__rkwargs__}
+        kwargs, changed = _uxreplace_dispatch(kwargs, rule)
+        if changed:
+            mapper[d] = d._rebuild(**kwargs)
+
+    # Apply the same dimension substitutions to the summand and its bindings
+    return _uxreplace.dispatch(object)(expr, {**mapper, **rule})
+
+
 @singledispatch
 def _uxreplace_dispatch(unknown, rule):
     return unknown, False
 
 
 @_uxreplace_dispatch.register(Basic)
+@_uxreplace_dispatch.register(SympyBasic)
 def _(expr, rule):
     return _uxreplace(expr, rule)
 
@@ -174,6 +193,7 @@ def _(expr, args, kwargs):
 
 @_uxreplace_handle.register(Add)
 def _(expr, args, kwargs):
+    args = [i for i in args if i != 0]
     if all(i.is_commutative for i in args):
         _addsort(args)
         _eval_numbers(expr, args)
@@ -232,6 +252,7 @@ _uxreplace_registry = UxreplaceRegistry()
 _uxreplace_registry.register(Eq)
 _uxreplace_registry.register(DefFunction)
 _uxreplace_registry.register(ComponentAccess)
+_uxreplace_registry.register(SparseLocalSum)
 
 
 class Uxmapper(dict):

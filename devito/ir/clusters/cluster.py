@@ -153,6 +153,11 @@ class EqBlock(CacheInstances):
         return Scope(self.exprs)
 
     @cached_property
+    def sparse_sums(self):
+        """The sparse sums in equation order, retaining occurrences across equations."""
+        return tuple(s for e in self.exprs for s in e.sparse_sums)
+
+    @cached_property
     def functions(self):
         return self.scope.functions
 
@@ -673,6 +678,10 @@ class ClusterGroup(tuple):
     @cached_property
     def exprs(self):
         return flatten(c.exprs for c in self)
+
+    @cached_property
+    def sparse_sums(self):
+        return tuple(s for c in self for s in c.sparse_sums)
 
     @cached_property
     def scope(self):
