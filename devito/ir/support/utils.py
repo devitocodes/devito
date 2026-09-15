@@ -2,7 +2,7 @@ from collections import defaultdict, namedtuple
 from contextlib import suppress
 from itertools import product
 
-from devito.finite_differences import IndexDerivative
+from devito.finite_differences.differentiable import IndexDerivative, IndexSum
 from devito.symbolics import retrieve_indexed, search
 from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, split
 from devito.types import (
@@ -13,6 +13,7 @@ __all__ = [
     'AccessMode',
     'IMask',
     'Stencil',
+    'bounded',
     'detect_accesses',
     'erange',
     'extrema',
@@ -231,7 +232,18 @@ def pull_dims(exprs, flag=True):
         return dims
 
 
-# *** Utility functions for expressions that potentially contain StencilDimensions
+# *** Utility functions for bound and unbound Dimensions
+
+
+def bounded(expr):
+    """
+    Retrieve all Dimensions bound by symbolic sums in `expr`.
+    """
+    sums = search(expr, IndexSum, mode='unique', deep=True)
+    dims = set().union(*(i.bound_symbols for i in sums))
+
+    return dims - expr.free_symbols
+
 
 def unbounded(expr):
     """
