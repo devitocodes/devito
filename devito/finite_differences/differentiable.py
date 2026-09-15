@@ -21,8 +21,8 @@ from devito.finite_differences.interpolation import (
 from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
-    Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype,
-    is_integer, is_number, memoized_func, split
+    Pickable, Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict,
+    infer_dtype, is_integer, is_number, memoized_func, split
 )
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
@@ -36,6 +36,7 @@ __all__ = [
     'IndexDerivative',
     'IndexDerivativeProperty',
     'Real',
+    'SparseLocalSum',
     'Weights',
 ]
 
@@ -941,10 +942,105 @@ class IndexSum(sympy.Expr, Evaluable):
         return sum(terms)
 
     @property
+    def bound_symbols(self):
+        return set(self.dimensions)
+
+    @property
     def free_symbols(self):
-        return super().free_symbols - set(self.dimensions)
+        return super().free_symbols - self.bound_symbols
 
     func = DifferentiableOp._rebuild
+
+
+class SparseLocalSum(IndexSum, Pickable):
+
+    """
+    A zero-initialized sum over the guarded taps of a sparse interpolation.
+
+    `cdims` are the interpolation's guarded ConditionalDimensions, retained
+    with their original parents and conditions. `dimensions` exposes the parent
+    iteration dimensions. Masked taps contribute zero. The sum remains symbolic
+    until Cluster lowering chooses its implementation.
+
+    Examples
+    --------
+    For bilinear interpolation, `posx` and `posy` are the grid indices of sparse
+    point `p`, and `wx` and `wy` hold its interpolation weights::
+
+        i = CustomDimension('i', 0, 1, 2)
+        j = CustomDimension('j', 0, 1, 2)
+        ci = ConditionalDimension('i', i, indirect=True,
+            condition=And(posx + i >= x_m, posx + i <= x_M))
+        cj = ConditionalDimension('j', j, indirect=True,
+            condition=And(posy + j >= y_m, posy + j <= y_M))
+        value = SparseLocalSum(
+            wx[p, ci]*wy[p, cj]*f[posx + ci, posy + cj],
+            cdims=(ci, cj), dtype=f.dtype
+        )
+        Eq(rcv[p], value)
+
+    The scalar lowering has the following semantics (pseudocode)::
+
+        acc = 0
+        for i in range(2):
+            for j in range(2):
+                if x_m <= posx + i <= x_M and y_m <= posy + j <= y_M:
+                    acc += wx[p, i]*wy[p, j]*f[posx + i, posy + j]
+        rcv[p] = acc
+
+    The guarded indices and their parents are local to the sum; `p` remains an
+    outer iteration dimension.
+    If every tap is masked, `rcv[p]` receives zero.
+    """
+
+    __rargs__ = ('expr',)
+    __rkwargs__ = ('cdims', 'dtype')
+
+    def __new__(cls, expr, cdims, dtype, **kwargs):
+        # Unlike IndexSum, the summand can be independent of a bound index, e.g. zero
+        obj = sympy.Expr.__new__(cls, expr)
+        obj._expr = expr
+        obj._cdims = as_tuple(cdims)
+        obj._dtype = np.dtype(dtype).type
+        return obj
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.cdims, self.dtype)
+
+    @property
+    def dtype(self):
+        return self._dtype
+
+    @property
+    def cdims(self):
+        return self._cdims
+
+    @cached_property
+    def dimensions(self):
+        return tuple(d.parent for d in self.cdims)
+
+    @cached_property
+    def conditionals(self):
+        return frozendict({d: d.condition for d in self.cdims})
+
+    @property
+    def bound_symbols(self):
+        return super().bound_symbols | set(self.cdims)
+
+    @property
+    def free_symbols(self):
+        symbols = self.expr.free_symbols.union(*[d.free_symbols for d in self.cdims])
+        return symbols - self.bound_symbols
+
+    def _evaluate(self, **kwargs):
+        return self._rebuild(Evaluable._evaluate_maybe_nested(self.expr, **kwargs))
+
+    def _xreplace(self, rule):
+        from devito.symbolics import uxreplace
+        rebuilt = uxreplace(self, {k: sympy.sympify(v) for k, v in rule.items()})
+        return rebuilt, rebuilt is not self
+
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class WeightsIndexed(Indexed):

@@ -12,6 +12,7 @@ from devito.tools import as_tuple, memoized_func, split
 
 __all__ = [
     'retrieve_accesses',
+    'retrieve_bound_dimensions',
     'retrieve_derivatives',
     'retrieve_dimensions',
     'retrieve_function_carriers',
@@ -219,6 +220,16 @@ def retrieve_accesses(exprs, **kwargs):
     accesses = {i.access for i in tmovs} | other
 
     return accesses
+
+
+@memoized_func(scope='build')
+def retrieve_bound_dimensions(expr):
+    """Dimensions local to IndexSums, excluding any also used freely."""
+    from devito.finite_differences.differentiable import IndexSum  # noqa
+
+    dims = frozenset(d for s in search(expr, IndexSum, deep=True)
+                     for d in s.bound_symbols)
+    return dims - expr.free_symbols
 
 
 def retrieve_dimensions(exprs, mode='all', deep=False):

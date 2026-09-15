@@ -9,7 +9,7 @@ from sympy import Symbol
 from devito import (
     MPI, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, IncrDimension,
     Min, Operator, PrecomputedSparseTimeFunction, SparseFunction, SteppingDimension,
-    SubDimension, SubDomain, TimeDimension, TimeFunction, solve
+    SubDimension, SubDomain, TimeDimension, TimeFunction, floor, solve
 )
 from devito.data import LEFT, OWNED
 from devito.finite_differences.tools import centered, direct, left, right, transpose
@@ -20,7 +20,7 @@ from devito.mpi.routines import (
 )
 from devito.symbolics import (
     CallFromPointer, Cast, DefFunction, FieldFromPointer, IntDiv, ListInitializer, SizeOf,
-    pow_to_mul
+    indexify, pow_to_mul
 )
 from devito.tools import EnrichedTuple
 from devito.types import (
@@ -671,6 +671,24 @@ class TestBasic:
 
         assert new_expr.is_Mul
 
+    def test_sparse_local_sum(self, pickle):
+        grid = Grid(shape=(17, 19), dtype=np.float64)
+        f = Function(name='f', grid=grid, space_order=8)
+        rcv = SparseFunction(name='rcv', grid=grid, npoint=3,
+                             interpolation='sinc', r=4)
+        reduction = indexify(rcv.interpolate(f).evaluate[-1].rhs)
+        rebuilt = pickle.loads(pickle.dumps(reduction))
+
+        assert type(rebuilt) is type(reduction)
+        assert str(rebuilt.expr) == str(reduction.expr)
+        assert rebuilt.dtype is np.float64
+        assert tuple((d.symbolic_min, d.symbolic_max)
+                     for d in rebuilt.dimensions) == ((-3, 4), (-3, 4))
+        assert set(rebuilt.cdims) <= rebuilt.expr.free_symbols
+        assert tuple(map(str, rebuilt.conditionals.values())) == \
+            tuple(map(str, reduction.conditionals.values()))
+        assert rebuilt.free_symbols.isdisjoint(rebuilt.bound_symbols)
+
 
 class TestAdvanced:
 
@@ -830,21 +848,12 @@ class TestOperator:
 
     def test_elemental(self, pickle):
         """
-        Tests that elemental functions don't get reconstructed differently.
+        Tests that elementary functions don't get reconstructed differently.
         """
-        grid = Grid(shape=(101, 101))
-        time_range = TimeAxis(start=0.0, stop=1000.0, num=12)
+        grid = Grid(shape=(4, 4))
+        f = Function(name='f', grid=grid)
 
-        nrec = 101
-        rec = Receiver(name='rec', grid=grid, npoint=nrec, time_range=time_range)
-
-        u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
-        rec_term = rec.interpolate(expr=u)
-
-        eq = rec_term.evaluate[3]
-        eq = eq.func(eq.lhs, eq.rhs.args[0])
-
-        op = Operator(eq)
+        op = Operator(Eq(f, floor(f + 0.5)))
 
         pkl_op = pickle.dumps(op)
         new_op = pickle.loads(pkl_op)

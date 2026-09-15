@@ -6,7 +6,8 @@ from devito.finite_differences.differentiable import diff2sympy
 from devito.ir.support import GuardFactor
 from devito.logger import warning
 from devito.symbolics import (
-    IntDiv, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
+    IntDiv, retrieve_bound_dimensions, retrieve_dimensions, retrieve_functions,
+    retrieve_indexed, uxreplace
 )
 from devito.tools import (
     Ordering, as_tuple, filter_ordered, filter_sorted, flatten, frozendict
@@ -28,12 +29,17 @@ def dimension_sort(expr):
     appear within Indexeds.
     """
 
+    # A sum's local dimensions do not order the enclosing iteration space
+    bound = retrieve_bound_dimensions(expr)
+
     def handle_indexed(indexed):
         relation = []
         for i in indexed.indices:
             try:
                 # Assume it's an AffineIndexAccessFunction...
-                relation.append(i.d)
+                # It may contain only a scalar offset and bound stencil indices
+                if i.d:
+                    relation.append(i.d)
             except AttributeError:
                 # It's not! Maybe there are some nested Indexeds (e.g., the
                 # situation is A[B[i]])
@@ -46,9 +52,9 @@ def dimension_sort(expr):
                 # what the user is attempting to do
                 relation.extend(filter_sorted(i.atoms(Dimension)))
 
-        # StencilDimensions are lowered subsequently through special compiler
+        # Bound Dimensions are lowered subsequently through special compiler
         # passes, so they can be ignored here
-        relation = tuple(d for d in relation if not d.is_Stencil)
+        relation = tuple(d for d in relation if d not in bound)
 
         return relation
 
@@ -61,7 +67,7 @@ def dimension_sort(expr):
     relations.add(expr.implicit_dims)
 
     # Add in leftover free dimensions (not an Indexed' index)
-    extra = set(retrieve_dimensions(expr, deep=True))
+    extra = set(retrieve_dimensions(expr, deep=True)) - bound
 
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
