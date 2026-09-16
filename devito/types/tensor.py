@@ -178,8 +178,11 @@ class TensorFunction(AbstractTensor):
         Evaluate tensor at func location
         """
         def entries(i, j, func):
+            # An entry with no `_eval_at` -- a constant, or a zero of the
+            # tensor -- evaluates to itself wherever it is asked for, and
+            # has to take the same kwargs as the real thing
             return getattr(self[i, j], '_eval_at',
-                           lambda x: self[i, j])(func[i, j], **kwargs)
+                           lambda x, **kw: self[i, j])(func[i, j], **kwargs)
         entry = lambda i, j: entries(i, j, func)
         return self._new(self.rows, self.cols, entry)
 

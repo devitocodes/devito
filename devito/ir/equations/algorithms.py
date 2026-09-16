@@ -214,6 +214,20 @@ def concretize_subdims(exprs, **kwargs):
             # A dimension has been rebuilt, so build a mapper for Indexed
             mapper[f.indexed] = f._rebuild(dimensions=dimensions).indexed
 
+    # `rebuilt` holds the implicit Dimensions shared between the
+    # MultiSubDimensions of one MultiSubDomain. A Function dimensioned by one
+    # -- to carry a value per subdomain rather than per point -- has to follow
+    # it, or the original Dimension and the rebuilt one both reach the
+    # IterationSpace and it iterates the subdomains twice.
+    #
+    # Substituting the Dimension is enough, and is all that is done here: the
+    # Function itself is left alone, since rebuilding it would detach the
+    # components of a TensorFunction from the machinery that evaluates them.
+    for f in retrieve_functions(exprs):
+        for d in f.dimensions:
+            if d in rebuilt:
+                mapper.setdefault(d, rebuilt[d])
+
     processed = [uxreplace(e, mapper) for e in exprs]
 
     return processed
