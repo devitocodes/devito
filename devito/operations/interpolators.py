@@ -11,14 +11,14 @@ try:
 except ImportError:
     from numpy import i0
 
-from devito.finite_differences.differentiable import Mul
+from devito.finite_differences.differentiable import LocalSum, Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
 from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
 from devito.tools import (
     Pickable, as_fp64_decimal, as_list, as_tuple, filter_ordered, flatten, memoized_meth
 )
-from devito.types import CustomDimension, Eq, Evaluable, Inc, SubFunction, Symbol
+from devito.types import CustomDimension, Eq, Evaluable, Inc, SubFunction
 from devito.types.utils import DimensionTuple
 
 __all__ = ['LinearInterpolator', 'NearestInterpolator',
@@ -453,19 +453,14 @@ class WeightedInterpolator(GenericInterpolator):
 
         return idx_subs, temps
 
-    def _local_accumulator(self, expr, idx_subs, implicit_dims=None, subdomain=None):
+    def _local_accumulator(self, expr, idx_subs, subdomain=None):
         """
-        Generate a local accumulator for the interpolation/injection operation.
+        Represent the local sum of weighted interpolation contributions.
         """
-        # Accumulate point-wise contributions into a temporary
-        rhs = Symbol(name=f'sum{self.sfunction.name}', dtype=self.sfunction.dtype)
-        summands = [Eq(rhs, 0., implicit_dims=implicit_dims)]
-        # Substitute coordinate base symbols into the interpolation coefficients
         weights = self._weights(subdomain=subdomain)
-        summands.extend([Inc(rhs, (weights * expr).xreplace(idx_subs),
-                             implicit_dims=implicit_dims)])
-
-        return summands, rhs
+        rdims = self._rdim(subdomain=subdomain)
+        summand = (weights * expr).xreplace(idx_subs)
+        return LocalSum(summand, cdims=rdims, dtype=self.sfunction.dtype)
 
     @check_radius
     @check_coords
@@ -539,16 +534,13 @@ class WeightedInterpolator(GenericInterpolator):
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
                                            subdomain=subdomain)
 
-        # Local scalar for accumulation over radius
-        summands, rhs = self._local_accumulator(expr, idx_subs,
-                                                implicit_dims=implicit_dims,
-                                                subdomain=subdomain)
+        rhs = self._local_accumulator(expr, idx_subs, subdomain=subdomain)
         # Write/Incr `self`
         lhs = self.sfunction.subs(self_subs)
         ecls = Inc if increment else Eq
         last = [ecls(lhs, rhs, implicit_dims=implicit_dims)]
 
-        return temps + summands + last
+        return temps + last
 
     def _inject(self, field, expr, increment=True, implicit_dims=None):
         """
@@ -785,8 +777,8 @@ class NearestInterpolator(LinearInterpolator):
 
     _name = 'nearest'
 
-    def _local_accumulator(self, expr, idx_subs, implicit_dims=None, subdomain=None):
-        return [], expr.xreplace(idx_subs)
+    def _local_accumulator(self, expr, idx_subs, subdomain=None):
+        return expr.xreplace(idx_subs)
 
     @memoized_meth
     def _rdim(self, subdomain=None, shifts=None):

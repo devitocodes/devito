@@ -904,6 +904,7 @@ class TestUxreplace:
 
     @pytest.mark.parametrize('expr,subs,expected', [
         ('f', '{f: g}', 'g'),
+        ('x + y', '{x: 0}', 'y'),
         ('f[x, y+1]', '{f.indexed: g.indexed}', 'g[x, y+1]'),
         ('cos(f)', '{cos: sin}', 'sin(f)'),
         ('cos(f + sin(g))', '{cos: sin, sin: cos}', 'sin(f + cos(g))'),

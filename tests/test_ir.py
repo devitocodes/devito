@@ -7,6 +7,7 @@ from devito import (  # noqa
     Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeFunction,
     switchconfig
 )
+from devito.finite_differences.differentiable import IndexSum, LocalSum
 from devito.ir.cgen import ccode
 from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
@@ -22,11 +23,12 @@ from devito.ir.support.space import (
     Any, Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
     NullInterval, null_ispace
 )
-from devito.symbolics import DefFunction, FieldFromPointer
+from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
 from devito.tools import prod
 from devito.tools.data_structures import frozendict
 from devito.types import (
-    Array, Bundle, CriticalRegion, CustomDimension, Jump, Scalar, Symbol
+    Array, Bundle, ConditionalDimension, CriticalRegion, CustomDimension, Jump, Scalar,
+    Symbol
 )
 
 
@@ -1188,6 +1190,21 @@ class TestEquationAlgorithms:
 
         assert list(dimension_sort(expr)) == eval(expected)
 
+    def test_reduction_dimensions(self):
+        r = CustomDimension('r', 0, 2, 3)
+        f = Function(name='f', dimensions=(r,), shape=(3,))
+        acc = Symbol(name='acc', dtype=f.dtype)
+
+        # A reduction loop can be requested without an index in the expression
+        expr = Inc(acc, 1, implicit_dims=r)
+        assert r not in expr.free_symbols
+        assert LoweredEq(expr).ispace.itdims == (r,)
+
+        # A symbolic sum owns its loop; a separate free use still needs an outer loop
+        reduction = IndexSum(f[r], r)
+        assert LoweredEq(Eq(acc, reduction)).ispace.itdims == ()
+        assert LoweredEq(Eq(acc, reduction + f[r])).ispace.itdims == (r,)
+
 
 class TestCluster:
 
@@ -1226,6 +1243,36 @@ class TestClusterGroup:
 
         assert cgroup0 != cgroup1
         assert len({cgroup0, cgroup1}) == 2
+
+    def test_local_sums(self):
+        grid = Grid(shape=(4,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid)
+        i = ConditionalDimension('i', CustomDimension('i', 0, 1, 2),
+                                 condition=S.true, indirect=True)
+        j = ConditionalDimension('j', CustomDimension('j', 0, 1, 2),
+                                 condition=S.true, indirect=True)
+        inner = LocalSum(f[x + i], cdims=(i,))
+        outer = LocalSum(inner*f[x + j], cdims=(j,))
+        expr = LoweredEq(Eq(f[x], outer))
+        assert expr.ispace.itdims == (x,)
+        cluster = Cluster(expr, expr.ispace)
+        group = ClusterGroup([cluster, cluster])
+
+        # Nested sums must lower first; occurrences in separate equations must
+        # remain distinct, since intervening writes may change the summand
+        assert expr.local_sums == cluster.local_sums == (inner, outer)
+        assert group.local_sums == (inner, outer, inner, outer)
+        assert cluster.local_sums is cluster.local_sums
+        assert group.local_sums is group.local_sums
+
+        # Rebuilding expressions and clusters must not retain stale cached sums
+        replaced = cluster.exprs[0].apply(lambda e: uxreplace(e, {outer: inner}))
+        rebuilt = cluster.rebuild(exprs=[replaced])
+        assert rebuilt.local_sums == (inner,)
+        assert ClusterGroup([rebuilt]).local_sums == (inner,)
+        assert cluster.local_sums == (inner, outer)
+        assert not cluster.rebuild(exprs=[Eq(f[x], 0)]).local_sums
 
 
 class TestGuards:
