@@ -994,22 +994,29 @@ class LocalSum(IndexSum, Pickable):
     """
 
     __rargs__ = ('expr',)
-    __rkwargs__ = ('cdims',)
+    __rkwargs__ = ('cdims', 'dtype')
 
-    def __new__(cls, expr, cdims=(), **kwargs):
+    def __new__(cls, expr, cdims=(), dtype=None, **kwargs):
         obj = sympy.Expr.__new__(cls, expr)
 
         obj._expr = expr
         obj._cdims = as_tuple(cdims)
+        obj._dtype = dtype
 
         return obj
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.cdims,)
+        return super()._hashable_content() + (self.cdims, self.dtype)
 
     @property
     def cdims(self):
         return self._cdims
+
+    @cached_property
+    def dtype(self):
+        if self._dtype is None:
+            return extract_dtype(self.expr)
+        return self._dtype
 
     @cached_property
     def dimensions(self):

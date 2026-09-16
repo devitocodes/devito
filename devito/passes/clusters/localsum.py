@@ -1,5 +1,3 @@
-from functools import partial
-
 from devito.ir import ClusterizedEq, Interval, IterationSpace
 from devito.symbolics import uxreplace
 from devito.tools import timed_pass
@@ -46,7 +44,7 @@ def lower_local_sums(clusters, sregistry=None, **kwargs):
                 processed.extend([init, update])
                 subs[reduction] = value
 
-            expr = e.apply(partial(uxreplace, rule=subs))
+            expr = uxreplace(e, subs)
             processed.append(c.rebuild(exprs=[expr]))
 
     return processed
@@ -56,7 +54,7 @@ def lower_local_sum(cluster, reduction, sregistry):
     """
     Construct the private initializer and guarded accumulation for one sum.
     """
-    value = Temp(name=sregistry.make_name(prefix='sum'), dtype=cluster.dtype)
+    value = Temp(name=sregistry.make_name(prefix='sum'), dtype=reduction.dtype)
 
     dims = reduction.dimensions
     inner = IterationSpace([Interval(d) for d in dims])

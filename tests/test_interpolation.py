@@ -12,12 +12,13 @@ from devito import (
     switchconfig
 )
 from devito.finite_differences import LocalSum
-from devito.ir import LoweredEq
+from devito.ir import FindSymbols, LoweredEq
 from devito.operations.interpolators import (
     LinearInterpolator, SincInterpolator, _cell_indices
 )
 from devito.symbolics import uxreplace
 from devito.tools import as_tuple
+from devito.types import Temp
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
@@ -84,6 +85,20 @@ class TestLocalSum:
         op = Operator(rcv.interpolate(0), name='ZeroSparseSum')
         op.apply()
         np.testing.assert_array_equal(rcv.data, 0.)
+
+    def test_dtype(self):
+        grid = Grid(shape=(17,), dtype=np.float64)
+        f = Function(name='f', grid=grid)
+        rcv = SparseFunction(name='rcv', grid=grid, npoint=3, dtype=np.float32)
+        exprs = rcv.interpolate(f)
+        reduction = exprs.evaluate[-1].rhs
+
+        assert reduction.dtype is rcv.dtype
+
+        op = Operator(exprs, name='MixedPrecisionSparseSum', opt='noop')
+        values = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(values) == 1
+        assert values[0].dtype is reduction.dtype
 
 
 # ---------------------------------------------------------------------------

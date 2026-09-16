@@ -460,7 +460,7 @@ class WeightedInterpolator(GenericInterpolator):
         weights = self._weights(subdomain=subdomain)
         rdims = self._rdim(subdomain=subdomain)
         summand = (weights * expr).xreplace(idx_subs)
-        return LocalSum(summand, cdims=rdims)
+        return LocalSum(summand, cdims=rdims, dtype=self.sfunction.dtype)
 
     @check_radius
     @check_coords
