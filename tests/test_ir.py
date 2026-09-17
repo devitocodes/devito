@@ -357,6 +357,87 @@ class TestVectorHierarchy:
         assert tcyx_irr0 >= tcyx_irr0
         assert tcyx_irr0 == tcyx_irr0
 
+    def test_timed_access_distance_subdimensions(self):
+        grid = Grid(shape=(24, 24))
+        x, y = grid.dimensions
+
+        xl = SubDimension.left('xl', x, 4)
+        xm = SubDimension.middle('xm', x, 4, 4)
+        xr = SubDimension.right('xr', x, 4)
+        xm_bad = SubDimension.middle('xm_bad', x, 3, 4)
+        yl = SubDimension.left('yl', y, 4)
+        ym = SubDimension.middle('ym', y, 4, 4)
+        xl_overlap = SubDimension.left('xl_overlap', x, 4)
+        xm_overlap = SubDimension.middle('xm_overlap', x, 4, 4)
+        xr_overlap = SubDimension.right('xr_overlap', x, 4)
+
+        f = Function(name='f', grid=grid)
+
+        left = TimedAccess(
+            f[xl, y], 'W', 0, IterationSpace([Interval(xl), Interval(y)])
+        )
+        middle = TimedAccess(
+            f[xm, y], 'R', 1, IterationSpace([Interval(xm), Interval(y)])
+        )
+        right = TimedAccess(
+            f[xr, y], 'R', 1, IterationSpace([Interval(xr), Interval(y)])
+        )
+        left_overlap = TimedAccess(
+            f[xl_overlap, y], 'R', 1,
+            IterationSpace([Interval(xl_overlap), Interval(y)])
+        )
+        middle_overlap = TimedAccess(
+            f[xm_overlap, y], 'R', 1,
+            IterationSpace([Interval(xm_overlap), Interval(y)])
+        )
+        right_overlap = TimedAccess(
+            f[xr_overlap, y], 'R', 1,
+            IterationSpace([Interval(xr_overlap), Interval(y)])
+        )
+        bad = TimedAccess(
+            f[xm_bad, y], 'R', 1,
+            IterationSpace([Interval(xm_bad), Interval(y)])
+        )
+        shifted = TimedAccess(
+            f[xm + 1, y], 'R', 1,
+            IterationSpace([Interval(xm), Interval(y)])
+        )
+        shifted_range = TimedAccess(
+            f[xm, y], 'R', 1,
+            IterationSpace([Interval(xm, 1, 1), Interval(y)])
+        )
+        left_nonlinear = TimedAccess(
+            f[xl % 2, y], 'W', 0, IterationSpace([Interval(xl), Interval(y)])
+        )
+        middle_nonlinear = TimedAccess(
+            f[xm % 2, y], 'R', 1, IterationSpace([Interval(xm), Interval(y)])
+        )
+        orthogonal = TimedAccess(
+            f[x, yl], 'R', 1, IterationSpace([Interval(x), Interval(yl)])
+        )
+        corner_left = TimedAccess(
+            f[xl, yl], 'W', 0, IterationSpace([Interval(xl), Interval(yl)])
+        )
+        corner_middle = TimedAccess(
+            f[xl_overlap, ym], 'R', 1,
+            IterationSpace([Interval(xl_overlap), Interval(ym)])
+        )
+
+        assert left.distance(middle) == (S.ImaginaryUnit,)
+        assert middle.distance(right) == (S.ImaginaryUnit,)
+        assert left.distance(right) == (S.ImaginaryUnit,)
+        assert right.distance(left) == (S.ImaginaryUnit,)
+        assert corner_left.distance(corner_middle) == (S.ImaginaryUnit,)
+
+        assert left.distance(left_overlap) == (S.Infinity, 0)
+        assert middle.distance(middle_overlap) == (S.Infinity, 0)
+        assert right.distance(right_overlap) == (S.Infinity, 0)
+        assert left.distance(bad) == (S.Infinity, 0)
+        assert left.distance(shifted) == (S.Infinity, 0)
+        assert left.distance(shifted_range) == (S.Infinity, 0)
+        assert left_nonlinear.distance(middle_nonlinear) == (S.Infinity, 0)
+        assert left.distance(orthogonal) == (S.Infinity,)
+
 
 class TestSpace:
 
