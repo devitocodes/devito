@@ -153,6 +153,65 @@ class TestVectorHierarchy:
 
         assert ta0 is ta1
 
+    def test_timedaccess_touched_nodomain(self):
+        grid = Grid(shape=(17, 17))
+        x, y = grid.dimensions
+
+        f = Function(name='f', grid=grid, space_order=8)
+        hx, hy = f._size_nodomain.left
+
+        k = CustomDimension('k', parent=y, symbolic_min=1,
+                            symbolic_max=4, symbolic_size=4)
+        k0 = CustomDimension('k0', parent=y, symbolic_min=0,
+                             symbolic_max=4, symbolic_size=5)
+        yl = SubDimension.left('yl', y, thickness=4)
+
+        left = TimedAccess(
+            f.indexed[x + hx, hy - k], 'W', 0,
+            IterationSpace([Interval(x), Interval(k)])
+        )
+        right = TimedAccess(
+            f.indexed[x + hx, hy + y.symbolic_size - 1 + k], 'W', 0,
+            IterationSpace([Interval(x), Interval(k)])
+        )
+
+        depth = yl - y.symbolic_min + 1
+        left_sub = TimedAccess(
+            f.indexed[x + hx, hy + y.symbolic_min - depth], 'W', 0,
+            IterationSpace([Interval(x), Interval(yl)])
+        )
+        left_constant = TimedAccess(
+            f.indexed[x + hx, hy - 1], 'W', 0,
+            IterationSpace([Interval(x)])
+        )
+
+        domain = TimedAccess(
+            f.indexed[x + hx, y + hy], 'W', 0,
+            IterationSpace([Interval(x), Interval(y)])
+        )
+        straddling = TimedAccess(
+            f.indexed[x + hx, hy - k0], 'W', 0,
+            IterationSpace([Interval(x), Interval(k0)])
+        )
+        nonlinear = TimedAccess(
+            f.indexed[x + hx, hy - k**2], 'W', 0,
+            IterationSpace([Interval(x), Interval(k)])
+        )
+        shifted = TimedAccess(
+            f.indexed[x + hx, hy - k], 'W', 0,
+            IterationSpace([Interval(x), Interval(k, -1, 0)])
+        )
+
+        assert left.touched_nodomain(y) == (True, False)
+        assert right.touched_nodomain(y) == (False, True)
+        assert left_sub.touched_nodomain(y) == (True, False)
+        assert left_constant.touched_nodomain(y) == (True, False)
+
+        assert domain.touched_nodomain(y) == (False, False)
+        assert straddling.touched_nodomain(y) == (False, False)
+        assert nonlinear.touched_nodomain(y) == (False, False)
+        assert shifted.touched_nodomain(y) == (False, False)
+
     def test_iteration_instance_arithmetic(self, x, y, ii_num, ii_literal):
         """
         Test arithmetic operations involving objects of type IterationInstance.

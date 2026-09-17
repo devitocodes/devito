@@ -492,6 +492,81 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
 
         return Vector(*ret)
 
+    def touched_nodomain(self, findex):
+        """
+        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
+        means that the entire access lies outside the DOMAIN along that
+        DataSide.
+
+        If containment outside the DOMAIN cannot be proven, return False for
+        that DataSide. Unlike ``touched_halo``, this is a containment query and
+        applies irrespective of whether ``findex`` is distributed.
+        """
+        if not self.affine(findex):
+            return (False, False)
+
+        index = self[findex]
+        d = self.aindices[findex]
+
+        if d is None:
+            index_min = index_max = index
+        else:
+            try:
+                m, M = self.intervals[d].offsets
+            except KeyError:
+                return (False, False)
+
+            coefficient = index.diff(d)
+            if coefficient.is_positive:
+                index_min = index.subs(d, d.symbolic_min + m)
+                index_max = index.subs(d, d.symbolic_max + M)
+            elif coefficient.is_negative:
+                index_min = index.subs(d, d.symbolic_max + M)
+                index_max = index.subs(d, d.symbolic_min + m)
+            elif coefficient.is_zero:
+                index_min = index_max = index
+            else:
+                return (False, False)
+
+        size_nodomain_left = self.function._size_nodomain[findex].left
+        domain_min = findex.symbolic_min + size_nodomain_left
+        domain_max = findex.symbolic_max + size_nodomain_left
+
+        def bound(expr, maximize):
+            expr = sympy.expand(expr)
+
+            size = findex.symbolic_size
+            limits = [
+                (findex.symbolic_min, S.Zero, size - 1),
+                (findex.symbolic_max, S.Zero, size - 1)
+            ]
+
+            for symbol, lower, upper in limits:
+                if not symbol.is_Symbol:
+                    continue
+
+                coefficient = expr.diff(symbol)
+                if coefficient.has(symbol):
+                    return None
+                elif coefficient.is_positive:
+                    value = upper if maximize else lower
+                elif coefficient.is_negative:
+                    value = lower if maximize else upper
+                elif coefficient.is_zero:
+                    continue
+                else:
+                    return None
+
+                expr = expr.subs(symbol, value)
+
+            return expr
+
+        left = bound(index_max - domain_min, True)
+        right = bound(index_min - domain_max, False)
+
+        return (left is not None and left.is_negative is True,
+                right is not None and right.is_positive is True)
+
     def touched_halo(self, findex):
         """
         Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
