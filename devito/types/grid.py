@@ -643,8 +643,9 @@ class SubDomain(AbstractSubDomain):
                     side, ltkn, rtkn = v
                     if side != 'middle':
                         raise ValueError(f"Expected side 'middle', not `{side}`")
-                    sub_dimensions.append(SubDimension.middle(f'i{k.name}',
-                                                              k, ltkn, rtkn))
+                    sub_dimensions.append(
+                        SubDimension.middle(f'i{k.name}_{self.name}',
+                                            k, ltkn, rtkn))
                     thickness = s-ltkn-rtkn
                     sdshape.append(thickness)
                 except ValueError:
@@ -661,7 +662,8 @@ class SubDomain(AbstractSubDomain):
                             f"Maximum thickness of dimension {k.name} "
                             f"is {s}, not {thickness}"
                         ) from None
-                    sub_dimensions.append(constructor(f'i{k.name}', k, thickness))
+                    sub_dimensions.append(
+                        constructor(f'i{k.name}_{self.name}', k, thickness))
                     sdshape.append(thickness)
 
         self._shape = tuple(sdshape)
