@@ -316,6 +316,12 @@ class Call(ExprStmt, Node):
 
     is_Call = True
 
+    # Number of leading `arguments` that are not bound to the callee's
+    # `parameters`. Subclasses prefixing the call with extra entries, such as a
+    # runtime helper taking the callee plus its launch configuration, override
+    # this so that signature updates stay aligned with the callee
+    _arg_offset = 0
+
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
                  cast=False, writes=None, templates=None):
         if isinstance(name, CallFromPointer):

@@ -786,8 +786,12 @@ def _update_args_efunc(root, efuncs, dag):
 
     # Create the new parameters and arguments lists
 
-    def _filter(v, efunc=None):
-        processed = [a for i, a in enumerate(v) if i not in drop_params]
+    def _filter(v, efunc=None, offset=0):
+        # `drop_params` indexes the callee's parameters, so skip any leading
+        # arguments a Call prepends before them (e.g. a launch configuration)
+        processed = list(v[:offset])
+        processed.extend(a for i, a in enumerate(v[offset:])
+                         if i not in drop_params)
 
         for a in new_params:
             if a in processed:
@@ -810,7 +814,8 @@ def _update_args_efunc(root, efuncs, dag):
 
     # Update all call sites to use the new signature
     for n in dag.downstream(root.name):
-        mapper = {c: c._rebuild(arguments=_filter(c.arguments))
+        mapper = {c: c._rebuild(arguments=_filter(c.arguments,
+                                                  offset=c._arg_offset))
                   for c in FindNodes(Call).visit(efuncs[n])
                   if c.name == root.name}
         if not mapper:
