@@ -9,7 +9,8 @@ from sympy import Ne, S, simplify
 from devito.exceptions import CompilationError
 from devito.ir import (
     Backward, Cluster, Forward, GuardBound, GuardFactor, InitArray, Interval,
-    IntervalGroup, IterationSpace, Properties, Queue, Vector, lower_exprs, vmax, vmin
+    IntervalGroup, IterationSpace, Properties, Queue, Vector, detect_halo_writes,
+    lower_exprs, vmax, vmin
 )
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
@@ -117,6 +118,10 @@ def buffering(clusters, key, sregistry, options, **kwargs):
 
     # First we generate all the necessary buffers
     mapper = generate_buffers(clusters, key, sregistry, options)
+
+    # Take into account writes into the HALO regions so that the buffered
+    # Functions can be populated accordingly
+    clusters = expand_halo_transfers(clusters, mapper)
 
     # Then we inject them into the Clusters. This involves creating the
     # initializing Clusters, and replacing the buffered Functions with the buffers
@@ -485,6 +490,86 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     return mapper
 
 
+def expand_halo_transfers(clusters, mapper):
+    """
+    Include the halo in buffered writes reading Functions with explicit HALO
+    writes. For example, `usave` in `Eq(usave, u)` must eventually receive `u`'s
+    populated HALO if a preceding `Eq` writes into `u`'s HALO.
+    """
+    buffered = {f for f, _ in mapper}
+    if not buffered:
+        return clusters
+
+    bdims = set()
+    for b in mapper.values():
+        bdims.update(d for d in b.dimensions if not isinstance(d, BufferDimension))
+    key = lambda d: d in bdims
+
+    halo_writes = set()
+    for c in clusters:
+        for w in detect_halo_writes(c, key):
+            halo_writes.add(w.function)
+
+    processed = []
+    for c in clusters:
+        scope = c.scope
+        targets = set(scope.writes) & buffered
+        if c.is_wild or not targets or not halo_writes.intersection(scope.reads):
+            processed.append(c)
+            continue
+
+        if scope.writes_tensor != targets:
+            raise CompilationError(
+                "Cannot expand a mixed Cluster over the halo while buffering"
+            )
+
+        ispace = c.ispace
+        for f in targets:
+            ispace = _include_halo(ispace, f)
+
+        # Check the expanded footprint of every access, including shifted reads.
+        # Writes must be pointwise so that the whole destination halo is filled
+        for a in scope.accesses:
+            f = a.function
+            if not f.is_AbstractFunction:
+                continue
+
+            for d in f.dimensions:
+                if not key(d):
+                    continue
+                if d not in ispace.dimensions:
+                    raise CompilationError(
+                        f"Cannot expand access to `{f.name}` over the halo"
+                    )
+
+                size = f._size_nodomain[d]
+                offset = simplify(a[d] - d)
+                if not is_integer(offset) or (a.is_write and offset != size.left):
+                    raise CompilationError(
+                        f"Cannot expand non-pointwise access to `{f.name}` over the halo"
+                    )
+
+                i = ispace[d]
+                if i.lower + offset < 0 or i.upper + offset > sum(size):
+                    raise CompilationError(
+                        f"Insufficient halo for `{f.name}` in buffered write"
+                    )
+
+        processed.append(c.rebuild(ispace=ispace))
+
+    return processed
+
+
+def _include_halo(ispace, f):
+    """Extend `ispace` to include `f`'s HALO."""
+    ihalo = IntervalGroup([
+        Interval(i.dim, -f._size_halo[i.dim].left, f._size_halo[i.dim].right, i.stamp)
+        for i in ispace if i.dim in f.dimensions
+    ])
+
+    return IterationSpace.union(ispace, IterationSpace(ihalo))
+
+
 def map_buffered_functions(clusters, key):
     """
     Map each candidate Function to the Clusters that access it.
@@ -641,12 +726,7 @@ class BufferDescriptor:
         ispace = ispace.promote(lambda d: d.is_AbstractSub, mode='total')
 
         # Analogous to the above, we need to include the halo region as well
-        ihalo = IntervalGroup([
-            Interval(i.dim, -h.left, h.right, i.stamp)
-            for i, h in zip(ispace, self.b._size_halo, strict=False)
-        ])
-
-        ispace = IterationSpace.union(ispace, IterationSpace(ihalo))
+        ispace = _include_halo(ispace, self.b)
 
         return ispace
 
