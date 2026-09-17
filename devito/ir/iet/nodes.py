@@ -316,6 +316,9 @@ class Call(ExprStmt, Node):
 
     is_Call = True
 
+    # Number of leading `arguments` not bound to the callee's `parameters`
+    _arg_offset = 0
+
     def __init__(self, name, arguments=None, retobj=None, is_indirect=False,
                  cast=False, writes=None, templates=None):
         if isinstance(name, CallFromPointer):
