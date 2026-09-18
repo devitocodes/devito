@@ -9,8 +9,7 @@ from sympy import Ne, S, simplify
 from devito.exceptions import CompilationError
 from devito.ir import (
     Backward, Cluster, Forward, GuardBound, GuardFactor, InitArray, Interval,
-    IntervalGroup, IterationSpace, Properties, Queue, Vector, detect_halo_writes,
-    lower_exprs, vmax, vmin
+    IterationSpace, Properties, Queue, Vector, detect_halo_writes, lower_exprs, vmax, vmin
 )
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
@@ -496,61 +495,61 @@ def expand_halo_transfers(clusters, mapper):
     writes. For example, `usave` in `Eq(usave, u)` must eventually receive `u`'s
     populated HALO if a preceding `Eq` writes into `u`'s HALO.
     """
-    buffered = {f for f, _ in mapper}
-    if not buffered:
+    if not mapper:
         return clusters
 
+    # Get HALO writes along the buffered dimensions
     bdims = set()
     for b in mapper.values():
         bdims.update(d for d in b.dimensions if not isinstance(d, BufferDimension))
-    key = lambda d: d in bdims
 
     halo_writes = set()
     for c in clusters:
-        for w in detect_halo_writes(c, key):
+        for w in detect_halo_writes(c, bdims.__contains__):
             halo_writes.add(w.function)
+    if not halo_writes:
+        return clusters
 
+    # Expand the IterationSpace over the necessary amount of HALO; in doing so,
+    # check the expanded footprint of every access, including shifted reads.
+    # Writes must be pointwise so that the whole destination halo is filled
+    buffered = {f for f, _ in mapper}
     processed = []
     for c in clusters:
-        scope = c.scope
-        targets = set(scope.writes) & buffered
-        if c.is_wild or not targets or not halo_writes.intersection(scope.reads):
+        writes = c.scope.writes_tensor
+
+        if c.is_wild or \
+           writes.isdisjoint(buffered) or \
+           halo_writes.isdisjoint(c.scope.reads):
             processed.append(c)
             continue
 
-        if scope.writes_tensor != targets:
+        if not writes <= buffered:
             raise CompilationError(
                 "Cannot expand a mixed Cluster over the halo while buffering"
             )
 
         ispace = c.ispace
-        for f in targets:
+        for f in writes:
             ispace = _include_halo(ispace, f)
 
-        # Check the expanded footprint of every access, including shifted reads.
-        # Writes must be pointwise so that the whole destination halo is filled
-        for a in scope.accesses:
+        for a in c.scope.accesses:
             f = a.function
-            if not f.is_AbstractFunction:
-                continue
 
-            for d in f.dimensions:
-                if not key(d):
-                    continue
-                if d not in ispace.dimensions:
+            for d in bdims.intersection(a.findices):
+                size = f._size_nodomain[d]
+                offset = simplify(a[d] - d - size.left)
+
+                if d not in ispace.dimensions or \
+                   not is_integer(offset) or \
+                   (a.is_write and offset != 0):
                     raise CompilationError(
                         f"Cannot expand access to `{f.name}` over the halo"
                     )
 
-                size = f._size_nodomain[d]
-                offset = simplify(a[d] - d)
-                if not is_integer(offset) or (a.is_write and offset != size.left):
-                    raise CompilationError(
-                        f"Cannot expand non-pointwise access to `{f.name}` over the halo"
-                    )
-
                 i = ispace[d]
-                if i.lower + offset < 0 or i.upper + offset > sum(size):
+                if i.lower + offset < -size.left or \
+                   i.upper + offset > size.right:
                     raise CompilationError(
                         f"Insufficient halo for `{f.name}` in buffered write"
                     )
@@ -562,10 +561,10 @@ def expand_halo_transfers(clusters, mapper):
 
 def _include_halo(ispace, f):
     """Extend `ispace` to include `f`'s HALO."""
-    ihalo = IntervalGroup([
+    ihalo = [
         Interval(i.dim, -f._size_halo[i.dim].left, f._size_halo[i.dim].right, i.stamp)
         for i in ispace if i.dim in f.dimensions
-    ])
+    ]
 
     return IterationSpace.union(ispace, IterationSpace(ihalo))
 

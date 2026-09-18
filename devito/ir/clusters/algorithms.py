@@ -14,6 +14,7 @@ from devito.ir.equations import OpMax, OpMin, OpMinMax, identity_mapper
 from devito.ir.support import (
     Any, Backward, Forward, IterationSpace, Scope, detect_halo_writes, erange, pull_dims
 )
+from devito.logger import warning
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import limits_mapper, retrieve_indexed, uxreplace, xreplace_indices
@@ -632,21 +633,22 @@ def reduction_comms(clusters):
 
 def check_halo_writes(clusters):
     """
-    Reject explicit HALO writes along Dimensions split across MPI ranks.
+    Warn about HALO writes along Dimensions not fixed to 1 in the Grid topology.
     """
     for c in clusters:
-        dims = set()
-        for f in c.scope.writes:
-            if not f.is_DiscreteFunction or f.grid is None:
-                continue
-            dist = f.grid.distributor
-            dims.update(d.root for d, n in zip(dist.dimensions, dist.topology,
-                                               strict=True) if n > 1)
+        try:
+            grid = c.grid
+        except ValueError:
+            grid = None
 
-        key = lambda d: d.root in dims  # noqa: B023
-        if dims and detect_halo_writes(c, key):
-            raise CompilationError("Cannot write to the HALO along distributed "
-                                   "Dimensions")
+        topology = {}
+        if grid is not None and grid.topology is not None:
+            topology = dict(zip(grid.dimensions, grid.topology, strict=True))
+
+        key = lambda d: d in c.dist_dimensions and topology.get(d) != 1  # noqa: B023
+        if detect_halo_writes(c, key):
+            warning("Writing to the HALO along potentially distributed Dimensions; "
+                    "set their Grid topology entries to 1")
 
 
 def normalize(clusters, sregistry=None, options=None, platform=None, **kwargs):

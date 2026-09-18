@@ -94,18 +94,18 @@ def test_write_only_with_halo_source(forward):
     hx, hy = usave._size_halo.left[1:]
     for t in range(nt-1):
         assert np.all(usave.data[t] == t + forward)
-        for i in range(1, 5):
-            actual = usave.data_with_halo[t, hx:hx + grid.shape[0], hy - i]
-            assert np.all(actual == -(t + forward))
+        actual = usave.data_with_halo[t, hx:hx + grid.shape[0], hy-4:hy]
+        assert np.all(actual == -(t + forward))
 
 
 @pytest.mark.parametrize('space_order, shift', [(0, 0), (8, -1), (8, 1), (10, 1)])
+@switchconfig(autopadding=False)
 def test_write_only_with_halo_source_bounds(space_order, shift):
     grid = Grid(shape=(17, 17))
     y = grid.dimensions[-1]
 
     u = TimeFunction(name='u', grid=grid, space_order=8)
-    v = TimeFunction(name='v', grid=grid, space_order=space_order, padding=0)
+    v = TimeFunction(name='v', grid=grid, space_order=space_order)
     usave = TimeFunction(name='usave', grid=grid, space_order=8, save=5)
 
     k = CustomDimension(name='k', parent=y, symbolic_min=1,
@@ -116,7 +116,7 @@ def test_write_only_with_halo_source_bounds(space_order, shift):
             Eq(usave, u.forward + v.forward._subs(y, y + shift))]
 
     if space_order == 10:
-        # An extra halo point accommodates the shifted read
+        # A wider halo accommodates the shifted read
         v.data_with_halo[:] = 2
         op = Operator(eqns, opt='buffering', name='save_shifted_halo')
         op.apply(time_M=3)
@@ -128,7 +128,8 @@ def test_write_only_with_halo_source_bounds(space_order, shift):
             Operator(eqns, opt='buffering')
 
 
-def test_halo_transfers_non_time_dimension():
+@pytest.mark.parametrize('mixed', [False, True])
+def test_halo_transfers_non_time_dimension(mixed):
     s = Dimension(name='s')
     x = Dimension(name='x')
     u = Function(name='u', dimensions=(s, x), shape=(5, 17),
@@ -142,9 +143,18 @@ def test_halo_transfers_non_time_dimension():
 
     mirror = Cluster(lower_exprs(Eq(u[s+1, -k], -u[s+1, k])),
                      IterationSpace([Interval(s), Interval(k)]))
-    save = Cluster(lower_exprs(Eq(usave[s, x], u[s+1, x])),
-                   IterationSpace([Interval(s), Interval(x)]))
-    clusters = expand_halo_transfers([mirror, save], {(usave, save.guards): b})
+    eqns = [Eq(usave[s, x], u[s+1, x])]
+    if mixed:
+        eqns.append(Eq(u[s, x], 0))
+    save = Cluster(lower_exprs(eqns), IterationSpace([Interval(s), Interval(x)]))
+    mapper = {(usave, save.guards): b}
+
+    if mixed:
+        with pytest.raises(CompilationError, match='mixed Cluster'):
+            expand_halo_transfers([mirror, save], mapper)
+        return
+
+    clusters = expand_halo_transfers([mirror, save], mapper)
 
     assert clusters[0] is mirror
     assert clusters[1].ispace[x].offsets == (-4, 4)

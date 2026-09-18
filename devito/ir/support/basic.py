@@ -505,67 +505,38 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
         if not self.affine(findex):
             return (False, False)
 
-        index = self[findex]
         d = self.aindices[findex]
-
-        if d is None:
-            index_min = index_max = index
-        else:
-            try:
-                m, M = self.intervals[d].offsets
-            except KeyError:
+        limits = []
+        if d is not None:
+            i = self.intervals[d]
+            if i.is_Null:
                 return (False, False)
+            limits.append((d, d.symbolic_min + i.lower, d.symbolic_max + i.upper))
 
-            coefficient = index.diff(d)
-            if coefficient.is_positive:
-                index_min = index.subs(d, d.symbolic_min + m)
-                index_max = index.subs(d, d.symbolic_max + M)
-            elif coefficient.is_negative:
-                index_min = index.subs(d, d.symbolic_max + M)
-                index_max = index.subs(d, d.symbolic_min + m)
-            elif coefficient.is_zero:
-                index_min = index_max = index
-            else:
-                return (False, False)
+        # Runtime DOMAIN bounds may select any part of the allocated extent
+        for v in (findex.symbolic_min, findex.symbolic_max):
+            if v.is_Symbol:
+                limits.append((v, S.Zero, findex.symbolic_size - 1))
 
-        size_nodomain_left = self.function._size_nodomain[findex].left
-        domain_min = findex.symbolic_min + size_nodomain_left
-        domain_max = findex.symbolic_max + size_nodomain_left
-
-        def bound(expr, maximize):
+        def outside(expr):
+            # A negative maximum distance proves the entire access is outside
             expr = sympy.expand(expr)
-
-            size = findex.symbolic_size
-            limits = [
-                (findex.symbolic_min, S.Zero, size - 1),
-                (findex.symbolic_max, S.Zero, size - 1)
-            ]
-
             for symbol, lower, upper in limits:
-                if not symbol.is_Symbol:
-                    continue
-
                 coefficient = expr.diff(symbol)
                 if coefficient.has(symbol):
-                    return None
-                elif coefficient.is_positive:
-                    value = upper if maximize else lower
-                elif coefficient.is_negative:
-                    value = lower if maximize else upper
-                elif coefficient.is_zero:
-                    continue
+                    return False
+                elif coefficient.is_nonnegative:
+                    expr = expr.subs(symbol, upper)
+                elif coefficient.is_nonpositive:
+                    expr = expr.subs(symbol, lower)
                 else:
-                    return None
+                    return False
 
-                expr = expr.subs(symbol, value)
+            return expr.is_negative is True
 
-            return expr
-
-        left = bound(index_max - domain_min, True)
-        right = bound(index_min - domain_max, False)
-
-        return (left is not None and left.is_negative is True,
-                right is not None and right.is_positive is True)
+        index = self[findex] - self.function._size_nodomain[findex].left
+        return (outside(index - findex.symbolic_min),
+                outside(findex.symbolic_max - index))
 
     def touched_halo(self, findex):
         """

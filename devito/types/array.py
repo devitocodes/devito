@@ -520,7 +520,7 @@ class Bundle(MappedArrayMixin, ArrayBasic):
               '_mem_rvalue', '__padding_dtype__', '_size_domain', '_size_halo',
               '_size_owned', '_size_padding', '_size_nopad', '_size_nodomain',
               '_offset_domain', '_offset_halo', '_offset_owned',
-              '_dist_dimensions', '_C_get_field', 'grid',
+              '_dist_dimensions', '_decomposition', '_C_get_field', 'grid',
               *AbstractFunction.__properties__):
         locals()[i] = property(lambda self, v=i: getattr(self.c0, v))
 
