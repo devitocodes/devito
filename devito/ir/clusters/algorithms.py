@@ -12,7 +12,7 @@ from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, cluster_pass
 from devito.ir.equations import OpMax, OpMin, OpMinMax, identity_mapper
 from devito.ir.support import (
-    Any, Backward, Forward, IterationSpace, Scope, erange, pull_dims
+    Any, Backward, Forward, IterationSpace, Scope, detect_halo_writes, erange, pull_dims
 )
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
@@ -486,6 +486,8 @@ def communications(clusters):
     clusters = HaloComms().process(clusters)
     clusters = reduction_comms(clusters)
 
+    check_halo_writes(clusters)
+
     return clusters
 
 
@@ -626,6 +628,25 @@ def reduction_comms(clusters):
     _update(fifo)
 
     return processed
+
+
+def check_halo_writes(clusters):
+    """
+    Reject explicit HALO writes along Dimensions split across MPI ranks.
+    """
+    for c in clusters:
+        dims = set()
+        for f in c.scope.writes:
+            if not f.is_DiscreteFunction or f.grid is None:
+                continue
+            dist = f.grid.distributor
+            dims.update(d.root for d, n in zip(dist.dimensions, dist.topology,
+                                               strict=True) if n > 1)
+
+        key = lambda d: d.root in dims  # noqa: B023
+        if dims and detect_halo_writes(c, key):
+            raise CompilationError("Cannot write to the HALO along distributed "
+                                   "Dimensions")
 
 
 def normalize(clusters, sregistry=None, options=None, platform=None, **kwargs):

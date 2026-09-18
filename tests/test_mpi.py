@@ -13,6 +13,7 @@ from devito import (
 )
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
+from devito.exceptions import CompilationError
 from devito.ir.iet import (
     Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
 )
@@ -1108,6 +1109,28 @@ def check_halo_exchanges(op, exp0, exp1):
 
 
 class TestCodeGeneration:
+
+    @pytest.mark.parallel(mode=[1, 2])
+    @pytest.mark.parametrize('axis', [0, 1])
+    @pytest.mark.parametrize('side', [LEFT, RIGHT])
+    def test_check_halo_writes(self, axis, side, mode):
+        grid = Grid(shape=(16, 16), topology=('*', 1))
+        d = grid.dimensions[axis]
+        k = CustomDimension(name='k', parent=d, symbolic_min=1,
+                            symbolic_max=2, symbolic_size=2)
+        f = Function(name='f', grid=grid, space_order=2)
+        g = Function(name='g', grid=grid)
+        index = -k if side is LEFT else d.symbolic_size - 1 + k
+        eqns = [Eq(f, 1), Eq(f._subs(d, index), 0), Eq(g, f.dx)]
+
+        if axis == 0 and mode > 1:
+            with pytest.raises(CompilationError, match='HALO along distributed'):
+                Operator(eqns)
+        else:
+            # An unsplit axis may carry a free surface; MPI exchange generation
+            # for the derivative must remain valid, even when running on one rank
+            op = Operator(eqns)
+            assert FindNodes(HaloUpdateCall).visit(op)
 
     @pytest.mark.parallel(mode=1)
     def test_avoid_haloupdate_as_nostencil_basic(self, mode):
