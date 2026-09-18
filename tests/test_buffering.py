@@ -4,12 +4,17 @@ from sympy import Or
 
 from conftest import skipif
 from devito import (
-    CondEq, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, Operator,
-    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, switchconfig
+    CondEq, ConditionalDimension, Constant, CustomDimension, Dimension, Eq, Function,
+    Grid, Operator, SparseTimeFunction, SubDimension, SubDomain, TimeFunction,
+    configuration, switchconfig
 )
 from devito.arch.archinfo import AppleArm
 from devito.exceptions import CompilationError
-from devito.ir import FindSymbols, retrieve_iteration_tree
+from devito.ir import (
+    Cluster, FindSymbols, Interval, IterationSpace, lower_exprs, retrieve_iteration_tree
+)
+from devito.passes.clusters.buffering import BufferDimension, expand_halo_transfers
+from devito.types import Array
 
 
 def test_read_write():
@@ -62,6 +67,100 @@ def test_write_only():
 
     assert np.all(u.data == u1.data)
     assert np.all(v.data == v1.data)
+
+
+@pytest.mark.parametrize('forward', [False, True])
+def test_write_only_with_halo_source(forward):
+    """
+    A buffered save of a Function with a populated halo must preserve that halo.
+    """
+    nt = 5
+    grid = Grid(shape=(17, 17))
+    y = grid.dimensions[-1]
+
+    u = TimeFunction(name='u', grid=grid, space_order=8)
+    usave = TimeFunction(name='usave', grid=grid, space_order=8, save=nt)
+
+    k = CustomDimension(name='k', parent=y, symbolic_min=1,
+                        symbolic_max=4, symbolic_size=4)
+
+    eqns = [Eq(u.forward, u + 1),
+            Eq(u.forward._subs(y, -k), -u.forward._subs(y, k)),
+            Eq(usave, u.forward if forward else u)]
+
+    op = Operator(eqns, opt='buffering', name='save_halo')
+    op.apply(time_M=nt-2)
+
+    hx, hy = usave._size_halo.left[1:]
+    for t in range(nt-1):
+        assert np.all(usave.data[t] == t + forward)
+        actual = usave.data_with_halo[t, hx:hx + grid.shape[0], hy-4:hy]
+        assert np.all(actual == -(t + forward))
+
+
+@pytest.mark.parametrize('space_order, shift', [(0, 0), (8, -1), (8, 1), (10, 1)])
+@switchconfig(autopadding=False)
+def test_write_only_with_halo_source_bounds(space_order, shift):
+    grid = Grid(shape=(17, 17))
+    y = grid.dimensions[-1]
+
+    u = TimeFunction(name='u', grid=grid, space_order=8)
+    v = TimeFunction(name='v', grid=grid, space_order=space_order)
+    usave = TimeFunction(name='usave', grid=grid, space_order=8, save=5)
+
+    k = CustomDimension(name='k', parent=y, symbolic_min=1,
+                        symbolic_max=4, symbolic_size=4)
+
+    eqns = [Eq(u.forward, u + 1),
+            Eq(u.forward._subs(y, -k), -u.forward._subs(y, k)),
+            Eq(usave, u.forward + v.forward._subs(y, y + shift))]
+
+    if space_order == 10:
+        # A wider halo accommodates the shifted read
+        v.data_with_halo[:] = 2
+        op = Operator(eqns, opt='buffering', name='save_shifted_halo')
+        op.apply(time_M=3)
+        assert np.all(usave.data[3] == 6)
+        hx, hy = usave._size_halo.left[1:]
+        assert np.all(usave.data_with_halo[3, hx:hx + grid.shape[0], hy-4:hy] == -2)
+    else:
+        with pytest.raises(CompilationError, match='Insufficient halo for `v`'):
+            Operator(eqns, opt='buffering')
+
+
+@pytest.mark.parametrize('mixed', [False, True])
+def test_halo_transfers_non_time_dimension(mixed):
+    s = Dimension(name='s')
+    x = Dimension(name='x')
+    u = Function(name='u', dimensions=(s, x), shape=(5, 17),
+                 halo=((0, 0), (4, 4)))
+    usave = Function(name='usave', dimensions=(s, x), shape=(5, 17),
+                     halo=u.halo)
+    db = BufferDimension('db', 0, 0, 1, s)
+    b = Array(name='b', dimensions=(db, x), halo=usave.halo)
+    k = CustomDimension(name='k', parent=x, symbolic_min=1,
+                        symbolic_max=4, symbolic_size=4)
+
+    mirror = Cluster(lower_exprs(Eq(u[s+1, -k], -u[s+1, k])),
+                     IterationSpace([Interval(s), Interval(k)]))
+    eqns = [Eq(usave[s, x], u[s+1, x])]
+    if mixed:
+        eqns.append(Eq(u[s, x], 0))
+    save = Cluster(lower_exprs(eqns), IterationSpace([Interval(s), Interval(x)]))
+    mapper = {(usave, save.guards): b}
+
+    if mixed:
+        with pytest.raises(CompilationError, match='mixed Cluster'):
+            expand_halo_transfers([mirror, save], mapper)
+        return
+
+    clusters = expand_halo_transfers([mirror, save], mapper)
+
+    assert clusters[0] is mirror
+    assert clusters[1].ispace[x].offsets == (-4, 4)
+    # The streaming axis is not part of the halo footprint, even with a shifted read
+    assert clusters[1].ispace[s] == save.ispace[s]
+    assert clusters[1].exprs[0].args == save.exprs[0].args
 
 
 def test_read_only():

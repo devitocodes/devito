@@ -13,6 +13,8 @@ from devito import (
 )
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
+from devito.ir import Cluster, Interval, IterationSpace
+from devito.ir.clusters.algorithms import check_halo_writes
 from devito.ir.iet import (
     Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
 )
@@ -21,6 +23,7 @@ from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
+from devito.types import Bundle
 from devito.types.dimension import ModuloDimension
 from examples.seismic.acoustic import acoustic_setup
 
@@ -1105,6 +1108,84 @@ def check_halo_exchanges(op, exp0, exp1):
     assert len(calls) == exp1
 
     return calls, tloop
+
+
+class TestHaloWrites:
+
+    @pytest.mark.parallel(mode=[1, 2])
+    @pytest.mark.parametrize('axis', [0, 1])
+    @pytest.mark.parametrize('side', [LEFT, RIGHT])
+    @pytest.mark.parametrize('with_grid', [False, True])
+    @pytest.mark.parametrize('topology', [None, ('*', 1)])
+    def test_check_halo_writes(self, axis, side, with_grid, topology, mode, caplog):
+        grid = Grid(shape=(16, 16), topology=topology)
+        d = grid.dimensions[axis]
+        k = CustomDimension(name='k', parent=d, symbolic_min=1,
+                            symbolic_max=2, symbolic_size=2)
+        if with_grid:
+            kwargs = {'grid': grid}
+        else:
+            kwargs = {'dimensions': grid.dimensions, 'shape': grid.shape_local,
+                      'distributor': grid.distributor}
+        f = Function(name='f', space_order=2, **kwargs)
+        g = Function(name='g', grid=grid)
+        index = -k if side is LEFT else d.symbolic_size - 1 + k
+        eqns = [Eq(f, 1), Eq(f._subs(d, index), 0), Eq(g, f.dx)]
+
+        op = Operator(eqns, name='halo_writes')
+        expected = not with_grid or topology is None or topology[axis] != 1
+        assert ('HALO along potentially distributed' in caplog.text) == expected
+
+        # Grid-backed derivatives still require normal halo exchanges,
+        # even on a single rank
+        assert bool(FindNodes(HaloUpdateCall).visit(op)) == with_grid
+
+    @switchconfig(mpi=False)
+    @pytest.mark.parametrize('axis', [0, 1])
+    @pytest.mark.parametrize('topology', [None, ('*', 1), (1, 1), (2, 1)])
+    def test_check_halo_writes_serial(self, axis, topology, caplog):
+        grid = Grid(shape=(16, 16), topology=topology)
+        f = Function(name='f', grid=grid)
+        d = grid.dimensions[axis]
+
+        Operator(Eq(f, 1), name='domain_writes')
+        assert 'HALO along potentially distributed' not in caplog.text
+
+        # The warning uses the requested topology, not the serial decomposition
+        Operator(Eq(f._subs(d, -1), 0), name='halo_writes_serial')
+        expected = topology is None or topology[axis] != 1
+        assert ('HALO along potentially distributed' in caplog.text) == expected
+
+    @pytest.mark.parallel(mode=[1, 2])
+    @pytest.mark.parametrize('axis', [0, 1])
+    def test_check_halo_writes_bundle(self, axis, mode, caplog):
+        grid = Grid(shape=(16, 16), topology=('*', 1))
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        fg = Bundle(name='fg', components=(f, g))
+        assert fg._decomposition is f._decomposition
+
+        x, y = grid.dimensions
+        hx, hy = fg._size_nodomain.left
+        index = fg.indexed[x + hx, y + hy]._subs(grid.dimensions[axis], -1)
+        c = Cluster([Eq(index, 0)], IterationSpace([Interval(x), Interval(y)]))
+
+        check_halo_writes([c])
+        assert ('HALO along potentially distributed' in caplog.text) == (axis == 0)
+
+    @switchconfig(mpi=False)
+    @pytest.mark.parametrize('with_halo', [False, True])
+    def test_check_halo_writes_multiple_grids(self, with_halo, caplog):
+        grid = Grid(shape=(16, 16))
+        grid1 = Grid(shape=(16, 16), dimensions=grid.dimensions)
+        x, _ = grid.dimensions
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid1)
+
+        eqn = Eq(f._subs(x, -1), g._subs(x, 1)) if with_halo else Eq(f, g)
+        Operator(eqn, name='mixed_grid_halo_writes')
+
+        assert ('HALO along potentially distributed' in caplog.text) == with_halo
 
 
 class TestCodeGeneration:

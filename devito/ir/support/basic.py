@@ -492,6 +492,52 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
 
         return Vector(*ret)
 
+    def touched_nodomain(self, findex):
+        """
+        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
+        means that the entire access lies outside the DOMAIN along that
+        DataSide.
+
+        If containment outside the DOMAIN cannot be proven, return False for
+        that DataSide. Unlike ``touched_halo``, this is a containment query and
+        applies irrespective of whether ``findex`` is distributed.
+        """
+        if not self.affine(findex):
+            return (False, False)
+
+        d = self.aindices[findex]
+        limits = []
+        if d is not None:
+            i = self.intervals[d]
+            if i.is_Null:
+                return (False, False)
+            limits.append((d, d.symbolic_min + i.lower, d.symbolic_max + i.upper))
+
+        # Runtime DOMAIN bounds may select any part of the allocated extent
+        for v in (findex.symbolic_min, findex.symbolic_max):
+            if v.is_Symbol:
+                limits.append((v, S.Zero, findex.symbolic_size - 1))
+
+        def outside(expr):
+            # A negative maximum distance proves the entire access is outside
+            expr = sympy.expand(expr)
+            for symbol, lower, upper in limits:
+                coefficient = expr.diff(symbol)
+                if coefficient.has(symbol):
+                    return False
+                elif coefficient.is_nonnegative:
+                    expr = expr.subs(symbol, upper)
+                elif coefficient.is_nonpositive:
+                    expr = expr.subs(symbol, lower)
+                else:
+                    return False
+
+            return expr.is_negative is True
+
+        index = self[findex] - self.function._size_nodomain[findex].left
+        return (outside(index - findex.symbolic_min),
+                outside(findex.symbolic_max - index))
+
     def touched_halo(self, findex):
         """
         Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True

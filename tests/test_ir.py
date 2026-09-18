@@ -4,8 +4,8 @@ from sympy import S
 
 from conftest import EVAL, skipif  # noqa
 from devito import (  # noqa
-    Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeFunction,
-    switchconfig
+    Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeDimension,
+    TimeFunction, switchconfig
 )
 from devito.finite_differences.differentiable import IndexSum, LocalSum
 from devito.ir.cgen import ccode
@@ -23,6 +23,7 @@ from devito.ir.support.space import (
     Any, Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
     NullInterval, null_ispace
 )
+from devito.ir.support.utils import detect_halo_writes
 from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
 from devito.tools import prod
 from devito.tools.data_structures import frozendict
@@ -152,6 +153,43 @@ class TestVectorHierarchy:
         ta1 = TimedAccess(fc[x, y], 'R', 0, null_ispace)
 
         assert ta0 is ta1
+
+    @pytest.mark.parametrize('autopadding', [False, True])
+    def test_timedaccess_touched_nodomain(self, autopadding):
+        grid = Grid(shape=(17, 17))
+        x, y = grid.dimensions
+
+        with switchconfig(autopadding=autopadding):
+            f = Function(name='f', grid=grid, space_order=8)
+        hx, hy = f._size_nodomain.left
+
+        k = CustomDimension('k', parent=y, symbolic_min=1,
+                            symbolic_max=4, symbolic_size=4)
+        k0 = CustomDimension('k0', parent=y, symbolic_min=0,
+                             symbolic_max=4, symbolic_size=5)
+        yl = SubDimension.left('yl', y, thickness=4)
+        yr = SubDimension.right('yr', y, thickness=4)
+        a = Scalar(name='a', is_const=True)
+
+        for index, interval, expected in [
+            (-k, Interval(k), (True, False)),
+            (y.symbolic_size - 1 + k, Interval(k), (False, True)),
+            (2*y.symbolic_min - yl - 1, Interval(yl), (True, False)),
+            (2*y.symbolic_max - yr + 1, Interval(yr), (False, True)),
+            (S.NegativeOne, None, (True, False)),
+            (y.symbolic_size, None, (False, True)),
+            (y, Interval(y), (False, False)),
+            (-k0, Interval(k0), (False, False)),
+            (-k**2, Interval(k), (False, False)),
+            (-k, Interval(k, -1, 0), (False, False)),
+            (-k, None, (False, False)),
+            (a*k, Interval(k), (False, False)),
+            (y.symbolic_min**2 - k, Interval(k), (False, False)),
+        ]:
+            intervals = [Interval(x)] + ([interval] if interval is not None else [])
+            access = TimedAccess(f.indexed[x + hx, hy + index], 'W', 0,
+                                 IterationSpace(intervals))
+            assert access.touched_nodomain(y) == expected
 
     def test_iteration_instance_arithmetic(self, x, y, ii_num, ii_literal):
         """
@@ -1288,6 +1326,36 @@ class TestEquationAlgorithms:
 
 
 class TestCluster:
+
+    @pytest.mark.parametrize('dimtype', [Dimension, TimeDimension])
+    def test_detect_halo_writes(self, dimtype):
+        x = Dimension(name='x')
+        y = dimtype(name='y')
+        f = Function(name='f', dimensions=(x, y), shape=(17, 17),
+                     halo=((4, 4), (4, 4)))
+        hx, hy = f._size_nodomain.left
+        k = CustomDimension(name='k', parent=y, symbolic_min=1,
+                            symbolic_max=4, symbolic_size=4)
+        ispace = IterationSpace([Interval(x), Interval(y), Interval(k)])
+
+        halo = f.indexed[x + hx, hy - k]
+        domain = f.indexed[x + hx, y + hy]
+        nonlinear = f.indexed[x + hx, hy - k**2]
+        c = Cluster([Eq(halo, 1), Eq(domain, 2), Eq(nonlinear, 3),
+                     Eq(Symbol(name='r'), 4)], ispace)
+
+        # A halo write does not imply all writes to the same Function are halo-only
+        writes = detect_halo_writes(c, key=lambda d: d is y)
+        assert {w.access for w in writes} == {halo}
+        assert not detect_halo_writes(c, key=lambda d: d is x)
+        assert not detect_halo_writes(c, key=lambda d: False)
+
+        # No dimension type, including TimeDimension, is special to this query
+        assert detect_halo_writes(c, key=lambda d: True) == writes
+
+        wild = Cluster(Eq(Symbol(name='r'), CriticalRegion(True)), ispace)
+        assert wild.is_wild
+        assert not detect_halo_writes(wild, key=lambda d: True)
 
     def test_from_clusters_mixed_dtypes(self):
         grid = Grid(shape=(4,))

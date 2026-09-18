@@ -15,6 +15,7 @@ __all__ = [
     'Stencil',
     'bounded',
     'detect_accesses',
+    'detect_halo_writes',
     'erange',
     'extrema',
     'maximum',
@@ -215,6 +216,24 @@ def detect_accesses(exprs):
     mapper[None] = Stencil([(i, 0) for i in other_dims])
 
     return mapper
+
+
+def detect_halo_writes(c, key):
+    """
+    Return the write accesses in `c` proven entirely outside DOMAIN along at
+    least one Dimension selected by `key`. Wild Clusters are ignored.
+    """
+    writes = set()
+    if c.is_wild:
+        return writes
+
+    for w in c.scope.writes_gen():
+        for d in w.findices:
+            if key(d) and any(w.touched_nodomain(d)):
+                writes.add(w)
+                break
+
+    return writes
 
 
 def pull_dims(exprs, flag=True):
