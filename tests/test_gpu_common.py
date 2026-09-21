@@ -850,7 +850,17 @@ class TestStreaming:
         # 3rd time u[1] = u[0]+u[1]+usave[2] = 0+7+2 = 9
         assert np.all(u.data[1] == 9)
 
-    def run_streaming_async_degree(self, backward, expected_bounds, async_degree):
+    @pytest.mark.parametrize('mode', [
+        pytest.param(None, id='serial'),
+        pytest.param(2, marks=pytest.mark.parallel, id='basic')
+    ])
+    @pytest.mark.parametrize('backward,expected_bounds', [
+        pytest.param(False, (0, 8), id='forward'),
+        pytest.param(True, (1, 9), id='backward')
+    ])
+    @pytest.mark.parametrize('async_degree', [4, 16])
+    def test_streaming_async_degree(self, mode, backward, expected_bounds,
+                                    async_degree):
         nt = 10
         grid = Grid(shape=(4, 4))
 
@@ -875,24 +885,6 @@ class TestStreaming:
         op1.apply(v=v1)
 
         assert np.all(v.data == v1.data)
-
-    @pytest.mark.parametrize('backward,expected_bounds', [
-        pytest.param(False, (0, 8), id='forward'),
-        pytest.param(True, (1, 9), id='backward')
-    ])
-    @pytest.mark.parametrize('async_degree', [4, 16])
-    def test_streaming_async_degree(self, backward, expected_bounds, async_degree):
-        self.run_streaming_async_degree(backward, expected_bounds, async_degree)
-
-    @pytest.mark.parallel(mode=2)
-    @pytest.mark.parametrize('backward,expected_bounds', [
-        pytest.param(False, (0, 8), id='forward'),
-        pytest.param(True, (1, 9), id='backward')
-    ])
-    @pytest.mark.parametrize('async_degree', [4, 16])
-    def test_streaming_async_degree_mpi(self, backward, expected_bounds,
-                                        async_degree, mode):
-        self.run_streaming_async_degree(backward, expected_bounds, async_degree)
 
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 3),
