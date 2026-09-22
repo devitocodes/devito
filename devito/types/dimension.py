@@ -18,26 +18,22 @@ from devito.types.constant import Constant
 from devito.types.relational import relational_max, relational_min
 
 __all__ = [
-    'BlockDimension',
-    'ConditionalDimension',
-    'CustomDimension',
-    'DefaultDimension',
-    'Dimension',
-    'IncrDimension',
-    'ModuloDimension',
-    'MultiSubDimension',
-    'SpaceDimension',
-    'Spacing',
-    'StencilDimension',
-    'SteppingDimension',
-    'SubDimension',
-    'TimeDimension',
-    'VirtualDimension',
-    'dimensions',
+    'BlockDimension', 'ConditionalDimension', 'CustomDimension', 'DefaultDimension',
+    'Dimension', 'IncrDimension', 'ModuloDimension', 'MultiSubDimension',
+    'SpaceDimension', 'Spacing', 'StencilDimension', 'SteppingDimension',
+    'SubDimension', 'TimeDimension', 'VirtualDimension', 'dimensions',
 ]
 
 
 SubDimensionThickness = namedtuple('SubDimensionThickness', 'left right')
+
+
+def _as_number(v):
+    """Return `v` as a SymPy Number if possible, otherwise `v` unchanged."""
+    try:
+        return sympy.Number(v)
+    except (TypeError, ValueError):
+        return v
 
 
 class Dimension(ArgProvider):
@@ -359,14 +355,12 @@ class Dimension(ArgProvider):
 
         # Allow the specific case of max=min-1, which disables the loop
         if args[self.max_name] < args[self.min_name]-1:
-            raise InvalidArgument(
-                f'Illegal {self.max_name}={args[self.max_name]} < '
-                f'{self.min_name}={args[self.min_name]}'
-            )
+            raise InvalidArgument(f'Illegal {self.max_name}={args[self.max_name]} < '
+                                  f'{self.min_name}={args[self.min_name]}')
         elif args[self.max_name] == args[self.min_name]-1:
             debug("%s=%d and %s=%d might cause no iterations along Dimension %s",
-                  self.min_name, args[self.min_name],
-                  self.max_name, args[self.max_name], self.name)
+                  self.min_name, args[self.min_name], self.max_name, args[self.max_name],
+                  self.name)
 
     # Pickling support
     __reduce_ex__ = Pickable.__reduce_ex__
@@ -546,7 +540,6 @@ class DerivedDimension(BasicDimension):
 
     def _arg_check(self, *args, **kwargs):
         """A DerivedDimension performs no runtime checks."""
-        return
 
 
 # ***
@@ -627,7 +620,6 @@ class AbstractSubDimension(DerivedDimension):
     is_AbstractSub = True
 
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
-    __rkwargs__ = ()
 
     _thickness_type = Thickness
 
@@ -737,10 +729,7 @@ class SubDimension(AbstractSubDimension):
 
     __rargs__ = AbstractSubDimension.__rargs__ + ('local',)
 
-    _thickness_type = Thickness
-
-    def __init_finalize__(self, name, parent, thickness, local,
-                          **kwargs):
+    def __init_finalize__(self, name, parent, thickness, local, **kwargs):
         self._local = local
         super().__init_finalize__(name, parent, thickness)
 
@@ -763,10 +752,9 @@ class SubDimension(AbstractSubDimension):
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
-        return SubDimensionThickness(*[
-            Thickness(name=n, side=s, value=t, **kwargs)
-            for n, s, t in zip(names, sides, thickness, strict=True)
-        ])
+        return SubDimensionThickness(*[Thickness(name=n, side=s, value=t, **kwargs)
+                                       for n, s, t in zip(names, sides, thickness,
+                                                          strict=True)])
 
     @cached_property
     def _interval(self):
@@ -1003,10 +991,7 @@ class ConditionalDimension(DerivedDimension):
     def factor_data(self):
         if isinstance(self.factor, Constant):
             return self.factor.data
-        elif self.factor is not None:
-            return self.factor
-        else:
-            return 1
+        return 1 if self.factor is None else self.factor
 
     @property
     def spacing(self):
@@ -1023,9 +1008,7 @@ class ConditionalDimension(DerivedDimension):
         elif isinstance(self.factor, Constant):
             return self.factor
         else:
-            return SubsamplingFactor(
-                name=f'{self.name}f', dtype=np.int32, is_const=True
-            )
+            return SubsamplingFactor(name=f'{self.name}f', dtype=np.int32, is_const=True)
 
     @property
     def condition(self):
@@ -1178,14 +1161,9 @@ class ModuloDimension(DerivedDimension):
 
     @cached_property
     def symbolic_size(self):
-        try:
+        with suppress(TypeError, ValueError):
             return sympy.Number(self.modulo)
-        except (TypeError, ValueError):
-            pass
-        try:
-            return sympy.Number(self.incr)
-        except (TypeError, ValueError):
-            return self.incr
+        return _as_number(self.incr)
 
     @cached_property
     def symbolic_min(self):
@@ -1193,10 +1171,7 @@ class ModuloDimension(DerivedDimension):
             return self.offset % self.modulo
         # Make sure we return a symbolic object as this point `offset` may well
         # be a pure Python number
-        try:
-            return sympy.Number(self.offset)
-        except (TypeError, ValueError):
-            return self.offset
+        return _as_number(self.offset)
 
     @cached_property
     def symbolic_incr(self):
@@ -1205,10 +1180,7 @@ class ModuloDimension(DerivedDimension):
             incr = incr % self.modulo
         # Make sure we return a symbolic object as this point `incr` may well
         # be a pure Python number
-        try:
-            return sympy.Number(incr)
-        except (TypeError, ValueError):
-            return incr
+        return _as_number(incr)
 
     @cached_property
     def bound_symbols(self):
@@ -1225,21 +1197,17 @@ class ModuloDimension(DerivedDimension):
     def __add__(self, other):
         # Exploit compatibility with addition:
         # `a1 ≡ b1 (mod n) and a2 ≡ b2 (mod n)` => `a1 + a2 ≡ b1 + b2 (mod n)`
-        try:
+        with suppress(AttributeError, TypeError, sympy.SympifyError):
             if self.modulo == other.modulo:
                 return self.origin + other.origin
-        except (AttributeError, TypeError, sympy.SympifyError):
-            pass
         return super().__add__(other)
 
     def __sub__(self, other):
         # Exploit compatibility with subtraction:
         # `a1 ≡ b1 (mod n) and a2 ≡ b2 (mod n)` => `a1 – a2 ≡ b1 – b2 (mod n)`
-        try:
+        with suppress(AttributeError, TypeError, sympy.SympifyError):
             if self.modulo == other.modulo:
                 return self.origin - other.origin
-        except (AttributeError, TypeError, sympy.SympifyError):
-            pass
         return super().__sub__(other)
 
 
@@ -1307,10 +1275,7 @@ class AbstractIncrDimension(DerivedDimension):
         if self.size is not None:
             # Make sure we return a symbolic object as the provided size might
             # be for example a pure int
-            try:
-                return sympy.Number(self.size)
-            except (TypeError, ValueError):
-                return self._size
+            return _as_number(self.size)
         else:
             # The size must be given as a function of the parent's symbols
             return self.symbolic_max - self.symbolic_min + 1
@@ -1319,26 +1284,17 @@ class AbstractIncrDimension(DerivedDimension):
     def symbolic_min(self):
         # Make sure we return a symbolic object as the provided min might
         # be for example a pure int
-        try:
-            return sympy.Number(self._min)
-        except (TypeError, ValueError):
-            return self._min
+        return _as_number(self._min)
 
     @cached_property
     def symbolic_max(self):
         # Make sure we return a symbolic object as the provided max might
         # be for example a pure int
-        try:
-            return sympy.Number(self._max)
-        except (TypeError, ValueError):
-            return self._max
+        return _as_number(self._max)
 
     @cached_property
     def symbolic_incr(self):
-        try:
-            return sympy.Number(self.step)
-        except (TypeError, ValueError):
-            return self.step
+        return _as_number(self.step)
 
     @cached_property
     def bound_symbols(self):
@@ -1379,11 +1335,7 @@ class BlockDimension(AbstractIncrDimension):
 
         name0 = pp.name
 
-        if callback is None:
-            name1 = p.name
-        else:
-            base = callback(name0)
-            name1 = callback(f'{base}_blk')
+        name1 = p.name if callback is None else callback(f'{callback(name0)}_blk')
 
         bd = p._rebuild(name1, pp, step=step or p.step)
 
@@ -1391,10 +1343,8 @@ class BlockDimension(AbstractIncrDimension):
         if step is not None:
             subs[p.step] = step
 
-        d = self._rebuild(
-            name0, bd,
-            self._min.subs(subs), self._max.subs(subs), size=self.size.subs(subs)
-        )
+        d = self._rebuild(name0, bd, self._min.subs(subs), self._max.subs(subs),
+                          size=self.size.subs(subs))
 
         return {self: d, p: bd}
 
@@ -1455,9 +1405,8 @@ class BlockDimension(AbstractIncrDimension):
                 )
         else:
             if value < 0:
-                raise InvalidArgument(
-                    f'Illegal block size `{name}={value}`: it should be > 0'
-                )
+                raise InvalidArgument(f'Illegal block size `{name}={value}`: '
+                                      'it should be > 0')
             if value > args[self.root.max_name] - args[self.root.min_name] + 1:
                 # Avoid OOB
                 raise InvalidArgument(
@@ -1482,8 +1431,7 @@ class CustomDimension(BasicDimension):
 
     is_Custom = True
 
-    __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent',
-                   'local')
+    __rkwargs__ = ('symbolic_min', 'symbolic_max', 'symbolic_size', 'parent', 'local')
 
     def __init_finalize__(self, name, symbolic_min=None, symbolic_max=None,
                           symbolic_size=None, parent=None, local=True, **kwargs):
@@ -1512,17 +1460,11 @@ class CustomDimension(BasicDimension):
 
     @property
     def root(self):
-        if self.is_Derived:
-            return self.parent.root
-        else:
-            return self
+        return self.parent.root if self.is_Derived else self
 
     @property
     def spacing(self):
-        if self.is_Derived:
-            return self.parent.spacing
-        else:
-            return self._spacing
+        return self.parent.spacing if self.is_Derived else self._spacing
 
     @property
     def local(self):
@@ -1548,40 +1490,22 @@ class CustomDimension(BasicDimension):
 
     @cached_property
     def symbolic_min(self):
-        try:
-            return sympy.Number(self._symbolic_min)
-        except (TypeError, ValueError):
-            pass
         if self._symbolic_min is None:
             return super().symbolic_min
-        else:
-            return self._symbolic_min
+        return _as_number(self._symbolic_min)
 
     @cached_property
     def symbolic_max(self):
-        try:
-            return sympy.Number(self._symbolic_max)
-        except (TypeError, ValueError):
-            pass
         if self._symbolic_max is None:
             return super().symbolic_max
-        else:
-            return self._symbolic_max
+        return _as_number(self._symbolic_max)
 
     @cached_property
     def symbolic_size(self):
-        try:
-            return sympy.Number(self._symbolic_size)
-        except (TypeError, ValueError):
-            pass
         if self._symbolic_size is None:
             v = self.symbolic_max - self.symbolic_min + 1
-            if v.is_Number:
-                return v
-            else:
-                return super().symbolic_size
-        else:
-            return self._symbolic_size
+            return v if v.is_Number else super().symbolic_size
+        return _as_number(self._symbolic_size)
 
     def _arg_defaults(self, **kwargs):
         return {}
@@ -1591,7 +1515,6 @@ class CustomDimension(BasicDimension):
 
     def _arg_check(self, *args, **kwargs):
         """A CustomDimension performs no runtime checks."""
-        return
 
 
 class DynamicDimensionMixin:
@@ -1647,18 +1570,13 @@ class StencilDimension(BasicDimension):
     __rargs__ = BasicDimension.__rargs__ + ('_min', '_max')
     __rkwargs__ = BasicDimension.__rkwargs__ + ('step',)
 
-    def __init_finalize__(self, name, _min, _max, spacing=1, step=1,
-                          **kwargs):
+    def __init_finalize__(self, name, _min, _max, spacing=1, step=1, **kwargs):
         self._spacing = sympy.sympify(spacing)
 
-        if not is_integer(_min):
-            raise ValueError(f"Expected integer `min` (got {_min})")
-        if not is_integer(_max):
-            raise ValueError(f"Expected integer `max` (got {_max})")
-        if not is_integer(self._spacing):
-            raise ValueError(f"Expected integer `spacing` (got {self._spacing})")
-        if not is_integer(step):
-            raise ValueError(f"Expected integer `step` (got {step})")
+        for k, v in (('min', _min), ('max', _max), ('spacing', self._spacing),
+                     ('step', step)):
+            if not is_integer(v):
+                raise ValueError(f"Expected integer `{k}` (got {v})")
 
         self._min = int(_min)
         self._max = int(_max)
@@ -1740,8 +1658,7 @@ class VirtualDimension(CustomDimension):
     __rkwargs__ = ('parent',)
 
     def __init_finalize__(self, name, parent=None):
-        super().__init_finalize__(name, parent=parent,
-                                  symbolic_min=sympy.S.Zero,
+        super().__init_finalize__(name, parent=parent, symbolic_min=sympy.S.Zero,
                                   symbolic_max=sympy.S.Zero)
 
 
