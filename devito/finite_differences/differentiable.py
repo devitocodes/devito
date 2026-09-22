@@ -1,4 +1,5 @@
 from collections import ChainMap
+from contextlib import suppress
 from functools import cached_property, singledispatch
 from itertools import product
 
@@ -28,16 +29,8 @@ from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
 
 __all__ = [
-    'Conj',
-    'DiffDerivative',
-    'Differentiable',
-    'EvalDerivative',
-    'Imag',
-    'IndexDerivative',
-    'IndexDerivativeProperty',
-    'LocalSum',
-    'Real',
-    'Weights',
+    'Conj', 'DiffDerivative', 'Differentiable', 'EvalDerivative', 'Imag',
+    'IndexDerivative', 'IndexDerivativeProperty', 'LocalSum', 'Real', 'Weights',
 ]
 
 
@@ -88,10 +81,7 @@ class Differentiable(sympy.Expr, Evaluable):
         grids = {g.root for g in grids}
         if len(grids) > 1:
             warning("Expression contains multiple grids, returning first found")
-        try:
-            return grids.pop()
-        except KeyError:
-            return None
+        return grids.pop() if grids else None
 
     @cached_property
     def dtype(self):
@@ -154,12 +144,10 @@ class Differentiable(sympy.Expr, Evaluable):
         # Filter out all args with fd order too high
         fd_args = []
         for f in self._args_diff:
-            try:
+            with suppress(AttributeError):
                 if f.space_order <= self.space_order and \
                         (not f.is_TimeDependent or f.time_order <= self.time_order):
                     fd_args.append(f)
-            except AttributeError:
-                pass
         return dict(ChainMap(*[getattr(i, '_fd', {}) for i in fd_args]))
 
     @cached_property
@@ -168,10 +156,7 @@ class Differentiable(sympy.Expr, Evaluable):
 
     @cached_property
     def function(self):
-        if len(self._functions) == 1:
-            return set(self._functions).pop()
-        else:
-            return None
+        return set(self._functions).pop() if len(self._functions) == 1 else None
 
     @cached_property
     def _uses_symbolic_coefficients(self):
@@ -198,10 +183,8 @@ class Differentiable(sympy.Expr, Evaluable):
             return self
         args = list(self.args)
         for i, arg in enumerate(args):
-            try:
+            with suppress(AttributeError):
                 args[i] = arg._subs(old, new, **hints)
-            except AttributeError:
-                continue
         return self.func(*args, evaluate=False)
 
     @property
@@ -290,10 +273,7 @@ class Differentiable(sympy.Expr, Evaluable):
         return floor(other / self)
 
     def _inv(self, ref, safe=False):
-        if safe:
-            return SafeInv(self, ref or self)
-        else:
-            return 1 / self
+        return SafeInv(self, ref or self) if safe else 1 / self
 
     def __mod__(self, other):
         return Mod(self, other)
@@ -468,9 +448,8 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         for p in pattern:
             # Following sympy convention, return True if any is found
-            if isinstance(p, type) \
-                    and issubclass(p, sympy.Symbol) \
-                    and any(isinstance(i, p) for i in self.free_symbols):
+            if (isinstance(p, type) and issubclass(p, sympy.Symbol) and
+                    any(isinstance(i, p) for i in self.free_symbols)):
                 # Symbols (and subclasses) are the leaves of an expression, and they
                 # are promptly available via `free_symbols`. So this is super quick
                 return True
@@ -500,8 +479,7 @@ def deep_priority(expr):
     generic value, so `mu*tau_xx` reports .75 rather than `tau_xx`'s 2.1.
     """
     prio = getattr(expr, '_fd_priority', 0)
-    return max([prio] + [deep_priority(i)
-                         for i in getattr(expr, '_args_diff', ())])
+    return max([prio] + [deep_priority(i) for i in getattr(expr, '_args_diff', ())])
 
 
 def highest_priority(diff_op, candidates=None):
@@ -568,26 +546,9 @@ class DifferentiableOp(Differentiable):
     def _eval_is_even(self):
         return None
 
-    def _eval_is_odd(self):
-        return None
-
-    def _eval_is_integer(self):
-        return None
-
-    def _eval_is_negative(self):
-        return None
-
-    def _eval_is_extended_negative(self):
-        return None
-
-    def _eval_is_positive(self):
-        return None
-
-    def _eval_is_extended_positive(self):
-        return None
-
-    def _eval_is_zero(self):
-        return None
+    _eval_is_odd = _eval_is_integer = _eval_is_negative = _eval_is_even
+    _eval_is_extended_negative = _eval_is_positive = _eval_is_even
+    _eval_is_extended_positive = _eval_is_zero = _eval_is_even
 
 
 class DifferentiableFunction(DifferentiableOp):
@@ -656,14 +617,12 @@ class Mul(DifferentiableOp, sympy.Mul):
         # which would destroy `EvalDerivative`s if present. So here we perform
         # a similar thing, but cautiously construct an evaluated Add, which
         # will preserve the integrity of `EvalDerivative`s, if any
-        try:
+        with suppress(AttributeError, ValueError):
             a, b = args
             if a.is_Rational:
                 r, b = b.as_coeff_Mul()
                 if r is sympy.S.One and type(b) is Add:
                     return Add(*[_keep_coeff(a, bi) for bi in b.args], evaluate=False)
-        except (AttributeError, ValueError):
-            pass
 
         return super().__new__(cls, *args, **kwargs)
 
@@ -686,9 +645,8 @@ class Mul(DifferentiableOp, sympy.Mul):
         derivs, other = split(self.args, lambda a: isinstance(a, sympy.Derivative))
         if len(derivs) == 0:
             return self._eval_at(highest_priority(self))
-        else:
-            other = self.func(*other)._eval_at(highest_priority(self))
-            return self.func(other, *derivs)
+        other = self.func(*other)._eval_at(highest_priority(self))
+        return self.func(other, *derivs)
 
     @classmethod
     def _off_func(cls, a, func):
@@ -777,8 +735,7 @@ class Mul(DifferentiableOp, sympy.Mul):
                                    if dim in func.indices_ref.getters})
             else:
                 source = a.indices_ref
-            new_factors.append(interp_at(a, source, block_indices,
-                                         self.interp_order))
+            new_factors.append(interp_at(a, source, block_indices, self.interp_order))
 
         # Final I from block's location to func
         return interp_at(self.func(*new_factors), block_indices,
@@ -836,8 +793,7 @@ class RealComplexPart(ComplexPart):
 
     @cached_property
     def dtype(self):
-        dtype = extract_dtype(self)
-        return dtype(0).real.__class__
+        return extract_dtype(self)(0).real.__class__
 
 
 class Real(RealComplexPart):
@@ -871,11 +827,9 @@ class IndexSum(sympy.Expr, Evaluable):
         if not dimensions:
             return expr
         for d in dimensions:
-            try:
+            with suppress(AttributeError):
                 if d.is_Dimension and is_integer(d.symbolic_size):
                     continue
-            except AttributeError:
-                pass
             raise ValueError("Expected Dimension with numeric size, "
                              f"got `{d}` instead")
 
@@ -899,11 +853,8 @@ class IndexSum(sympy.Expr, Evaluable):
         return obj
 
     def __repr__(self):
-        return "{}({}, ({}))".format(
-            self.__class__.__name__,
-            self.expr,
-            ', '.join(d.name for d in self.dimensions)
-        )
+        dims = ', '.join(d.name for d in self.dimensions)
+        return f"{self.__class__.__name__}({self.expr}, ({dims}))"
 
     __str__ = __repr__
 
@@ -935,11 +886,8 @@ class IndexSum(sympy.Expr, Evaluable):
             return self._rebuild(expr)
 
         values = product(*[list(d.range) for d in self.dimensions])
-        terms = []
-        for i in values:
-            mapper = dict(zip(self.dimensions, i, strict=True))
-            terms.append(expr.xreplace(mapper))
-        return sum(terms)
+        return sum([expr.xreplace(dict(zip(self.dimensions, i, strict=True)))
+                    for i in values])
 
     @property
     def bound_symbols(self):
@@ -1109,17 +1057,14 @@ class Weights(Array):
             return rule[self], True
         elif not rule:
             return self, False
-        else:
-            try:
-                weights, flags = zip(
-                    *[i._xreplace(rule) for i in self.weights], strict=True
-                )
-                if any(flags):
-                    return self.func(initvalue=weights, function=None), True
-            except AttributeError:
-                # `float` weights
-                pass
-            return super()._xreplace(rule)
+        try:
+            weights, flags = zip(*[i._xreplace(rule) for i in self.weights], strict=True)
+            if any(flags):
+                return self.func(initvalue=weights, function=None), True
+        except AttributeError:
+            # `float` weights
+            pass
+        return super()._xreplace(rule)
 
     @cached_property
     def _npweights(self):
@@ -1136,8 +1081,7 @@ class Weights(Array):
             v = self._npweights[idx]
         if v.is_Number or v.is_Indexed:
             return sympy.sympify(v)
-        else:
-            return self[idx]
+        return self[idx]
 
 
 class IndexDerivativeProperty(Tag):
@@ -1196,8 +1140,7 @@ class IndexDerivative(IndexSum):
             return (self.weights.compare(other.weights) or
                     self.base.compare(other.base) or
                     (p1 > p2) - (p1 < p2))
-        else:
-            return super().compare(other)
+        return super().compare(other)
 
     @cached_property
     def base(self):
@@ -1250,8 +1193,7 @@ class IndexDerivative(IndexSum):
         # may fail to identify the sub-expression to be replaced (note: if
         # `a/b/c` are atoms or Indexeds, it's generally fine)
 
-        if not old.is_Mul or \
-           old is not self.base:
+        if not old.is_Mul or old is not self.base:
             return super()._subs(old, new, **hints)
 
         return self._rebuild(new * self.weights)
@@ -1300,7 +1242,6 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
             # story: a zero-order derivative whose weights collapse to one is
             # the identity, so it comes back as the sum it was applied to.
             assert len(args) <= 1
-            return obj
 
         return obj
 
@@ -1339,8 +1280,7 @@ class diffify:
 
     def __new__(cls, obj):
         args = [diffify._doit(i) for i in obj.args]
-        obj = diffify._doit(obj, args)
-        return obj
+        return diffify._doit(obj, args)
 
     def _doit(obj, args=None):
         cls = diffify._cls(obj)
@@ -1401,8 +1341,7 @@ def diff2sympy(expr):
 
         # Handle special objects
         if isinstance(obj, DiffDerivative):
-            return IndexDerivative(*args, obj.mapper,
-                                   deriv_order=obj.deriv_order,
+            return IndexDerivative(*args, obj.mapper, deriv_order=obj.deriv_order,
                                    properties=obj.properties), True
 
         # Handle generic objects such as arithmetic operations
@@ -1421,8 +1360,7 @@ def diff2sympy(expr):
                 # In case of indices using other Function, evaluate
                 # may not be a supported argument.
                 return obj.func(*args), True
-        else:
-            return obj, False
+        return obj, False
 
     return _diff2sympy(expr)[0]
 
@@ -1460,8 +1398,7 @@ def _(expr, x0, **kwargs):
     def test0(a):
         return all(a.indices[d] is i for d, i in x0.items() if d in a.dimensions)
 
-    oa, ia = split(expr._args_diff,
-                   lambda a: isinstance(a, sympy.Derivative) or test0(a))
+    oa, ia = split(expr._args_diff, lambda a: isinstance(a, sympy.Derivative) or test0(a))
     oa = oa + tuple(a for a in expr.args if a not in expr._args_diff)
 
     # Interpolate the necessary args
@@ -1476,8 +1413,7 @@ def _(expr, x0, **kwargs):
 def _(expr, x0, **kwargs):
     if expr.args:
         return expr.func(*[interp_for_fd(i, x0, **kwargs) for i in expr.args])
-    else:
-        return expr
+    return expr
 
 
 @interp_for_fd.register(AbstractFunction)
@@ -1486,5 +1422,4 @@ def _(expr, x0, **kwargs):
                and expr.indices.get(d, v) is not v}
     if x0_expr:
         return expr.subs({expr.indices[d]: v for d, v in x0_expr.items()})
-    else:
-        return expr
+    return expr
