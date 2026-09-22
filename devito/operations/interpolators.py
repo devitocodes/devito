@@ -693,7 +693,7 @@ def _sinc_weights(coords, grid, shifts, j, dtype, spacing, origin, r, b):
     return data
 
 
-class _TabulatedInterpolator(WeightedInterpolator):
+class TabulatedInterpolator(WeightedInterpolator):
     """Shared plumbing for schemes whose weights are tabulated on the host."""
 
     def _coeffs(self, shifts=None):
@@ -707,7 +707,7 @@ class _TabulatedInterpolator(WeightedInterpolator):
                      for (rd, w) in zip(rdims, coeffs, strict=True)])
 
 
-class LinearInterpolator(_TabulatedInterpolator):
+class LinearInterpolator(TabulatedInterpolator):
     """
     Linear (bilinear/trilinear) interpolator.
 
@@ -811,7 +811,7 @@ class PrecomputedInterpolator(WeightedInterpolator):
         return Mul(*[self.interpolation_coeffs.subs(mapper) for mapper in mappers])
 
 
-class SincInterpolator(_TabulatedInterpolator):
+class SincInterpolator(TabulatedInterpolator):
     """
     Hicks windowed sinc interpolation scheme.
 
