@@ -11,20 +11,9 @@ from devito.tools import Pickable
 from devito.tools.algorithms import toposort
 from devito.tools.utils import as_tuple, filter_ordered, humanbytes
 
-__all__ = [
-    'DAG',
-    'Bunch',
-    'DefaultFrozenDict',
-    'DefaultOrderedDict',
-    'EnrichedTuple',
-    'MemoryEstimate',
-    'OrderedSet',
-    'Ordering',
-    'ReducerMap',
-    'UnboundTuple',
-    'UnboundedMultiTuple',
-    'frozendict',
-]
+__all__ = ['DAG', 'Bunch', 'DefaultFrozenDict', 'DefaultOrderedDict', 'EnrichedTuple',
+           'MemoryEstimate', 'OrderedSet', 'Ordering', 'ReducerMap', 'UnboundTuple',
+           'UnboundedMultiTuple', 'frozendict']
 
 
 class Bunch:
@@ -43,9 +32,7 @@ class Bunch:
         self.__dict__.update(kwargs)
 
     def __repr__(self):
-        return "Bunch({})".format(
-            ", ".join(["{}={}".format(*i) for i in self.__dict__.items()])
-        )
+        return f"Bunch({', '.join(f'{k}={v}' for k, v in self.__dict__.items())})"
 
     def __iter__(self):
         yield from self.__dict__.values()
@@ -69,8 +56,7 @@ class EnrichedTuple(tuple, Pickable):
 
     def _rebuild(self, *args, **kwargs):
         # Need to explicitly apply any additional attributes
-        _kwargs = dict(self.__dict__)
-        _kwargs.update(**kwargs)
+        _kwargs = {**self.__dict__, **kwargs}
 
         return super()._rebuild(*args, **_kwargs)
 
@@ -87,8 +73,7 @@ class EnrichedTuple(tuple, Pickable):
             kwargs = dict(self.__dict__)
             kwargs['getters'] = list(self.getters)[start:stop]
             return EnrichedTuple(*items, **kwargs)
-        else:
-            return self.__getitem_hook__(key)
+        return self.__getitem_hook__(key)
 
     def __getitem_hook__(self, key):
         return self.getters[key]
@@ -160,17 +145,13 @@ class ReducerMap(MultiDict):
             if isinstance(first, np.ndarray) or isinstance(v, np.ndarray):
                 return (first == v).all()
             elif isinstance(v, Set):
-                if isinstance(first, Set):
-                    return not v.isdisjoint(first)
-                else:
-                    return first in v
+                return not v.isdisjoint(first) if isinstance(first, Set) else first in v
             elif isinstance(first, Set):
                 return v in first
             elif isinstance(v, range):
                 if isinstance(first, range):
                     return first.stop > v.start or v.stop > first.start
-                else:
-                    return first >= v.start and first < v.stop
+                return first >= v.start and first < v.stop
             elif isinstance(first, range):
                 return v >= first.start and v < first.stop
             else:
@@ -184,10 +165,8 @@ class ReducerMap(MultiDict):
                 if not isinstance(c, range):
                     return c
             return candidates[0]
-        else:
-            raise ValueError(
-                f'Unable to find unique value for key {key}, candidates: {candidates}'
-            )
+        raise ValueError(f'Unable to find unique value for key {key}, candidates: '
+                         f'{candidates}')
 
     def reduce(self, key, op=None):
         """
@@ -209,8 +188,7 @@ class ReducerMap(MultiDict):
         if op is None:
             # Return a unique value if it exists
             return self.unique(key)
-        else:
-            return reduce(op, self.getall(key))
+        return reduce(op, self.getall(key))
 
     def reduce_all(self):
         """Returns a dictionary with reduced/unique values for all keys."""
@@ -228,8 +206,7 @@ class ReducerMap(MultiDict):
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
     def __init__(self, default_factory=None, *a, **kw):
-        if (default_factory is not None and
-           not isinstance(default_factory, Callable)):
+        if default_factory is not None and not isinstance(default_factory, Callable):
             raise TypeError('first argument must be callable')
         OrderedDict.__init__(self, *a, **kw)
         self.default_factory = default_factory
@@ -435,10 +412,7 @@ class DAG:
 
     @property
     def edges(self):
-        ret = []
-        for k, v in self.graph.items():
-            ret.extend([(k, i) for i in v])
-        return tuple(ret)
+        return tuple((k, i) for k, v in self.graph.items() for i in v)
 
     @property
     def size(self):
@@ -532,8 +506,7 @@ class DAG:
                     nodes_seen.add(downstream_node)
                     nodes.append(downstream_node)
             i += 1
-        return list(filter(lambda node: node in nodes_seen,
-                           self.topological_sort()))
+        return list(filter(lambda node: node in nodes_seen, self.topological_sort()))
 
     def topological_sort(self, choose_element=None):
         """
@@ -580,8 +553,7 @@ class DAG:
 
         if len(l) == len(self.graph):
             return l
-        else:
-            raise ValueError('graph is not acyclic')
+        raise ValueError('graph is not acyclic')
 
     def connected_components(self, enumerated=False):
         """
@@ -599,12 +571,8 @@ class DAG:
                 groups.append(found)
 
         if enumerated:
-            mapper = OrderedDict()
-            for n, g in enumerate(groups):
-                mapper.update({i: n for i in g})
-            return mapper
-        else:
-            return tuple(groups)
+            return OrderedDict((i, n) for n, g in enumerate(groups) for i in g)
+        return tuple(groups)
 
     def find_paths(self, node):
         if node not in self.graph:
@@ -697,10 +665,7 @@ class DefaultFrozenDict(frozendict):
             if self._default is self._sentinel:
                 raise
 
-            if callable(self._default):
-                return self._default()
-            else:
-                return self._default
+            return self._default() if callable(self._default) else self._default
 
     def get(self, key, default=None):
         return self._dict.get(key, default)
@@ -779,14 +744,9 @@ class UnboundTuple(tuple):
     """
 
     def __new__(cls, *items, **kwargs):
-        nitems = []
-        for i in as_tuple(items):
-            if isinstance(i, UnboundTuple):
-                nitems.append(i)
-            elif isinstance(i, Iterable):
-                nitems.append(UnboundTuple(*i))
-            else:
-                nitems.append(i)
+        nitems = [UnboundTuple(*i)
+                  if isinstance(i, Iterable) and not isinstance(i, UnboundTuple) else i
+                  for i in as_tuple(items)]
 
         obj = super().__new__(cls, tuple(nitems))
         obj.last = len(nitems)
@@ -819,8 +779,7 @@ class UnboundTuple(tuple):
         return self.last
 
     def __repr__(self):
-        sitems = [s.__repr__() for s in self]
-        return "{}({})".format(self.__class__.__name__, ", ".join(sitems))
+        return f"{self.__class__.__name__}({', '.join(repr(s) for s in self)})"
 
     def __getitem__(self, idx):
         if not self:
@@ -833,10 +792,7 @@ class UnboundTuple(tuple):
             step = idx.step or 1
             return UnboundTuple(*[self[i] for i in range(start, stop, step)])
         try:
-            if idx >= self.last-1:
-                return super().__getitem__(self.last-1)
-            else:
-                return super().__getitem__(idx)
+            return super().__getitem__(min(idx, self.last-1))
         except TypeError:
             # Slice, ...
             return UnboundTuple(self[i] for i in idx)
@@ -905,12 +861,8 @@ class UnboundedMultiTuple(UnboundTuple):
         return self.index(item)
 
     def iter(self):
-        if self.current is None:
-            self.current = 0
-        else:
-            self.current = min(self.current + 1, self.last - 1)
+        self.current = 0 if self.current is None else min(self.current + 1, self.last - 1)
         self[self.current].reset()
-        return
 
     def next(self):
         if not self:
