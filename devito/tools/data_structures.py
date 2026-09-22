@@ -744,9 +744,14 @@ class UnboundTuple(tuple):
     """
 
     def __new__(cls, *items, **kwargs):
-        nitems = [UnboundTuple(*i)
-                  if isinstance(i, Iterable) and not isinstance(i, UnboundTuple) else i
-                  for i in as_tuple(items)]
+        nitems = []
+        for i in as_tuple(items):
+            if isinstance(i, UnboundTuple):
+                nitems.append(i)
+            elif isinstance(i, Iterable):
+                nitems.append(UnboundTuple(*i))
+            else:
+                nitems.append(i)
 
         obj = super().__new__(cls, tuple(nitems))
         obj.last = len(nitems)

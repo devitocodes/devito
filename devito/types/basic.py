@@ -1166,6 +1166,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
             return DeviceMap(f'd_{self.name}', shape=self._shape, function=self.function)
         elif self._mem_local:
             return self.indexed
+        return None
 
     @property
     def size(self):

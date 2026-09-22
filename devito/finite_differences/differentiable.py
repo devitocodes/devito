@@ -546,9 +546,26 @@ class DifferentiableOp(Differentiable):
     def _eval_is_even(self):
         return None
 
-    _eval_is_odd = _eval_is_integer = _eval_is_negative = _eval_is_even
-    _eval_is_extended_negative = _eval_is_positive = _eval_is_even
-    _eval_is_extended_positive = _eval_is_zero = _eval_is_even
+    def _eval_is_odd(self):
+        return None
+
+    def _eval_is_integer(self):
+        return None
+
+    def _eval_is_negative(self):
+        return None
+
+    def _eval_is_extended_negative(self):
+        return None
+
+    def _eval_is_positive(self):
+        return None
+
+    def _eval_is_extended_positive(self):
+        return None
+
+    def _eval_is_zero(self):
+        return None
 
 
 class DifferentiableFunction(DifferentiableOp):
@@ -827,9 +844,11 @@ class IndexSum(sympy.Expr, Evaluable):
         if not dimensions:
             return expr
         for d in dimensions:
-            with suppress(AttributeError):
+            try:
                 if d.is_Dimension and is_integer(d.symbolic_size):
                     continue
+            except AttributeError:
+                pass
             raise ValueError("Expected Dimension with numeric size, "
                              f"got `{d}` instead")
 
@@ -886,8 +905,11 @@ class IndexSum(sympy.Expr, Evaluable):
             return self._rebuild(expr)
 
         values = product(*[list(d.range) for d in self.dimensions])
-        return sum([expr.xreplace(dict(zip(self.dimensions, i, strict=True)))
-                    for i in values])
+        terms = []
+        for i in values:
+            mapper = dict(zip(self.dimensions, i, strict=True))
+            terms.append(expr.xreplace(mapper))
+        return sum(terms)
 
     @property
     def bound_symbols(self):

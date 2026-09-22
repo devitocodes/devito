@@ -2065,8 +2065,10 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         # now all ranks can allocate the buffers to receive into
         if distributor.myrank != 0:
-            scattered_data = (np.zeros if data_all_zero else np.empty)([nt, npoint],
-                                                                       dtype=self.dtype)
+            if data_all_zero:
+                scattered_data = np.zeros([nt, npoint], dtype=self.dtype)
+            else:
+                scattered_data = np.empty([nt, npoint], dtype=self.dtype)
             scattered_gp = np.empty([nloc, ndim], dtype=np.int32)
             scattered_coeffs = [np.empty([nloc, r_tuple_no_none[idim]], dtype=self.dtype)
                                 for idim in range(ndim)]

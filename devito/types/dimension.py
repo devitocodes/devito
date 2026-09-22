@@ -1335,7 +1335,11 @@ class BlockDimension(AbstractIncrDimension):
 
         name0 = pp.name
 
-        name1 = p.name if callback is None else callback(f'{callback(name0)}_blk')
+        if callback is None:
+            name1 = p.name
+        else:
+            base = callback(name0)
+            name1 = callback(f'{base}_blk')
 
         bd = p._rebuild(name1, pp, step=step or p.step)
 
