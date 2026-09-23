@@ -818,6 +818,46 @@ class SubDimension(AbstractSubDimension):
         # themselves
         return {}
 
+    def _arg_check(self, args, *_args, **kwargs):
+        # These modules depend on Dimension, so importing them above would cycle
+        from devito.mpi import mpi_raise  # noqa: PLC0415
+        from devito.symbolics import subs_op_args  # noqa: PLC0415
+
+        if not self.is_middle:
+            return
+
+        # Function._arg_check visits original axes (e.g. x_ltkn), whereas `args`
+        # contains the concretized thicknesses (x_ltkn0, ...). The Operator checks
+        # the matching concrete SubDimensions separately in its dimension loop
+        if self not in args.op.dimensions:
+            return
+
+        d = self.root
+        if args.grid is not None and args.grid.is_distributed(d):
+            # Check the global runtime region: its MPI-local slices may be empty
+            # or smaller than space_order even for a non-degenerate global interior
+            size = args.grid.size_map[d].glb
+            values = {**args,
+                      d.min_name: kwargs.get(d.min_name, 0),
+                      d.max_name: kwargs.get(d.max_name, kwargs.get(d.name, size - 1)),
+                      **{t.name: kwargs.get(t.name, t.value) for t in self.thickness}}
+        else:
+            values = args
+        size = int(subs_op_args(self.symbolic_size, values))
+
+        # Runtime overrides do not change the compiled stencil order
+        items = [f.space_order for f in args.op.input if f.is_DiscreteFunction]
+        space_order = max(items, default=0)
+
+        if size < space_order:
+            error = (f"Expected at least {space_order} interior points along "
+                     f"`{self.parent}` (space_order), but runtime arguments leave {size}")
+        else:
+            error = None
+
+        comm = args.comm if args.options['mpi'] else None
+        mpi_raise(error, InvalidArgument, comm=comm)
+
 
 class MultiSubDimension(AbstractSubDimension):
 
@@ -1436,7 +1476,7 @@ class BlockDimension(AbstractIncrDimension):
                 # Avoid OOB (will end up here only in case of tiny iteration spaces)
                 return {name: 1}
 
-    def _arg_check(self, args, *_args):
+    def _arg_check(self, args, *_args, **kwargs):
         try:
             name = self.step.name
         except AttributeError:

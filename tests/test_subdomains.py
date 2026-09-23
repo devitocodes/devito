@@ -7,9 +7,10 @@ from sympy import sin, tan
 from conftest import assert_structure, opts_tiling
 from devito import (
     Border, Buffer, ConditionalDimension, Constant, Eq, Function, Grid, Lt, Operator,
-    SparseFunction, SparseTimeFunction, SubDomain, SubDomainSet, TensorFunction,
-    TimeFunction, VectorFunction, solve
+    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, SubDomainSet,
+    TensorFunction, TimeFunction, VectorFunction, solve
 )
+from devito.exceptions import InvalidArgument
 from devito.ir import (
     Expression, FindNodes, FindSymbols, Iteration, SymbolRegistry, retrieve_iteration_tree
 )
@@ -120,6 +121,29 @@ class TestSubDomains:
         assert s_d0.shape == (3, 8)
         assert s_d1.shape == (4, 2)
         assert s_d2.shape == (3, 7)
+
+    @pytest.mark.parametrize('legacy', [False, True])
+    @pytest.mark.parametrize('size', [15, 16, 17])
+    @pytest.mark.parametrize('spec', [('left', 16), ('middle', 8, 8), ('right', 16)])
+    def test_partition_thickness(self, legacy, size, spec):
+        class Region(SubDomain):
+            name = 'region'
+
+            def define(self, dimensions):
+                x, = dimensions
+                return {x: spec}
+
+        def make_region():
+            if legacy:
+                return Grid(shape=(size,), subdomains=(Region(),)).subdomains['region']
+            return Region(grid=Grid(shape=(size,)))
+
+        if size < 16:
+            with pytest.raises(ValueError, match='thickness'):
+                make_region()
+        else:
+            expected = size - 16 if spec[0] == 'middle' else 16
+            assert make_region().shape == (expected,)
 
     def test_definitions(self):
 
@@ -1908,3 +1932,158 @@ class TestSubDomainFunctionsParallel:
         eq = Eq(g, g + f.dx)
         eqe = eq.evaluate
         assert eqe.rhs == g + f.dx(x0=x).evaluate._subs(x, g.dimensions[1])
+
+
+class TestSubDomainArguments:
+
+    @staticmethod
+    def _make_operator(left_shift=0, right_shift=0, grid=None, middle=False):
+        grid = grid or Grid(shape=(8, 32))
+        y = grid.dimensions[-1]
+
+        yl = SubDimension.left('yl', y, 8)
+        yr = SubDimension.right('yr', y, 8)
+        if middle:
+            yl = yr = SubDimension.middle('ym', y, 8, 8)
+
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        v = TimeFunction(name='v', grid=grid, space_order=8)
+
+        eqs = [
+            Eq(u.forward.subs(y, y + left_shift), 1).subs(y, yl),
+            Eq(v.forward, u.forward.subs(y, y + right_shift) + 1).subs(y, yr)
+        ]
+
+        op = Operator(eqs, name='subdomain_arguments')
+
+        return op, (u, v)
+
+    @pytest.mark.parametrize('middle', [False, True])
+    @pytest.mark.parametrize('left_shift,right_shift', [
+        (0, 0), (0, -4), (2, -4)
+    ])
+    @pytest.mark.parametrize('margin', [-1, 0, 1])
+    @pytest.mark.parametrize('override', ['function', 'bounds', 'thickness'])
+    def test_stencil_gap(self, middle, left_shift, right_shift, margin, override):
+        op, (u, v) = self._make_operator(left_shift, right_shift, middle=middle)
+
+        size = 16 + 8 + margin
+        if override == 'function':
+            grid = Grid(shape=(8, size))
+
+            kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
+                                           space_order=8) for f in (u, v)}
+        elif override == 'bounds':
+            kwargs = {'y_m': 3, 'y_M': 3 + size - 1}
+        else:
+            dl, = [d for d in op.dimensions if d.is_Sub and not d.is_right]
+            kwargs = {dl.ltkn.name: 32 - 8 - 8 - margin}
+
+        if middle and margin < 0:
+            with pytest.raises(InvalidArgument, match='at least 8 interior points'):
+                op.arguments(time_M=0, **kwargs)
+        else:
+            op.arguments(time_M=0, **kwargs)
+
+    @pytest.mark.parametrize('middle', [False, True])
+    @pytest.mark.parametrize('space_order', [4, 8, 12])
+    @pytest.mark.parametrize('margin', [-1, 0, 1])
+    def test_runtime_space_order(self, middle, space_order, margin):
+        """Override metadata does not change the compiled stencil order."""
+        op, fields = self._make_operator(middle=middle)
+
+        required = 8
+        grid = Grid(shape=(8, 16 + required + margin))
+
+        kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
+                                       space_order=space_order) for f in fields}
+
+        if middle and margin < 0:
+            with pytest.raises(InvalidArgument,
+                               match=f'at least {required} interior points'):
+                op.arguments(time_M=0, **kwargs)
+        else:
+            op.arguments(time_M=0, **kwargs)
+
+    @pytest.mark.parametrize('side', ['left', 'right'])
+    def test_empty_slab(self, side):
+        op, _ = self._make_operator(right_shift=-4)
+
+        d, = [d for d in op.dimensions if d.is_Sub and getattr(d, f'is_{side}')]
+        thickness = d.ltkn if side == 'left' else d.rtkn
+
+        # The active slab fills the local domain; the opposite slab is absent
+        op.arguments(time_M=0, y_M=7, **{thickness.name: 0})
+
+    def test_before_autotuning(self):
+        op, _ = self._make_operator(right_shift=-4, middle=True)
+
+        with pytest.raises(InvalidArgument, match='interior points'):
+            op.arguments(time_M=0, y_M=22, autotune=True)
+
+        assert 'autotuning' not in op._state
+
+        op.arguments(time_M=0, y_M=23, autotune=True)
+
+        assert len(op._state['autotuning']) == 1
+
+    @pytest.mark.parametrize('left', [15, 16, 17, 25])
+    @pytest.mark.parallel(mode=[(2, 'basic')])
+    def test_distributed_middle(self, left, mode):
+        grid = Grid(shape=(16, 32), topology=(1, 2))
+
+        op, _ = self._make_operator(grid=grid, middle=True)
+
+        d, = [d for d in op.dimensions if d.is_Sub]
+
+        # Rank 0 has one point or an empty middle (possibly with inverted bounds).
+        # Only the global size determines whether the middle is large enough
+        kwargs = {d.ltkn.name: left, d.rtkn.name: 0}
+
+        if left == 25:
+            with pytest.raises(InvalidArgument, match='at least 8 interior points'):
+                op.arguments(time_M=0, **kwargs)
+        else:
+            op.arguments(time_M=0, **kwargs)
+
+    @pytest.mark.parallel(mode=[(2, 'basic')])
+    def test_collective_rejection(self, mode):
+        grid = Grid(shape=(32, 32), topology=(2, 1))
+
+        op, _ = self._make_operator(right_shift=-4, grid=grid, middle=True)
+
+        dl, = [d for d in op.dimensions if d.is_Sub and d.is_middle]
+        left = 24 if grid.distributor.myrank == 0 else 0
+
+        # Only rank 0 has an insufficient middle; its peer has 24 interior points
+        with pytest.raises(InvalidArgument, match='interior points'):
+            op.arguments(time_M=0, **{dl.ltkn.name: left})
+
+    def test_function_on_subdomain(self):
+        class Interior(SubDomain):
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ('middle', 8, 8)}
+
+        grid = Grid(shape=(16, 32))
+
+        f = Function(name='f', grid=Interior(grid=grid), space_order=8)
+        original = f.dimensions[-1]
+
+        eq = Eq(f, f + 1)
+
+        op = Operator(eq, name='subdomain_function_arguments')
+
+        concrete, = [d for d in op.dimensions if d.is_Sub]
+
+        # Function validation visits `original`; Operator validation visits `concrete`
+        assert original not in op.dimensions
+
+        args = op.arguments()
+
+        assert original.ltkn.name not in args
+        assert concrete.ltkn.name in args
+
+        with pytest.raises(InvalidArgument, match='at least 8 interior points'):
+            op.arguments(**{concrete.ltkn.name: 17})

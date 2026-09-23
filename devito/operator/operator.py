@@ -716,7 +716,7 @@ class Operator(Callable):
             except AttributeError:
                 pass
             if d.is_Derived:
-                d._arg_check(args)
+                d._arg_check(args, **kwargs)
 
         # Turn arguments into a format suitable for the generated code
         # E.g., instead of NumPy arrays for Functions, the generated code expects

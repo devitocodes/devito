@@ -18,9 +18,9 @@ except ImportError:
 
 from devito import (  # noqa
     CELL, NODE, Buffer, CondEq, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Inc, Le,
-    Lt, Operator, SpaceDimension, SparseFunction, SparseTimeFunction, TensorFunction,
-    TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, configuration,
-    dimensions, div, error, exp, grad, sin, switchconfig
+    Lt, Operator, SpaceDimension, SparseFunction, SparseTimeFunction, SubDimension,
+    TensorFunction, TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction,
+    configuration, dimensions, div, error, exp, grad, sin, switchconfig
 )
 from devito.arch.archinfo import Device
 from devito.exceptions import InvalidOperator
