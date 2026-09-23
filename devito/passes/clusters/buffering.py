@@ -59,13 +59,14 @@ def buffering(clusters, key, sregistry, options, **kwargs):
         Additional compilation options.
         Accepted: ['opt_init_onwrite', 'opt_buffer'].
         * 'opt_init_onwrite': By default, a written buffer does not trigger the
-        generation of an initializing Cluster. With `opt_init_onwrite=True`,
-        instead, the buffer gets initialized to zero.
+          generation of an initializing Cluster. With `opt_init_onwrite=True`,
+          instead, the buffer gets initialized to zero. A callable receives the
+          buffered Function and the selected buffer.
         * 'opt_reuse': A callback that takes a buffering candidate `bf` as input
-        and returns True if the pass can reuse pre-existing Buffers for
-        buffering `bf`, which would otherwise default to False.
+          and returns True if the pass can reuse pre-existing Buffers for
+          buffering `bf`, which would otherwise default to False.
         * 'opt_buffer': A callback that takes a buffering candidate as input
-        and returns a buffer, which would otherwise default to an Array.
+          and returns a buffer, which would otherwise default to an Array.
 
     Examples
     --------
@@ -103,7 +104,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     assert callable(key)
 
     v1 = kwargs.get('opt_init_onwrite', False)
-    init_onwrite = v1 if callable(v1) else lambda f: v1
+    init_onwrite = v1 if callable(v1) else lambda f, b: v1
 
     options = dict(options)
     options.update({
@@ -893,7 +894,7 @@ def init_buffers(descriptors, options):
             lhs = b.indexify()._subs(v.xd, v.first_idx.b)
             rhs = f.indexify()._subs(v.dim, v.first_idx.f)
 
-        elif v.is_write and init_onwrite(f):
+        elif v.is_write and init_onwrite(f, b):
             lhs = b.indexify()
             rhs = S.Zero
 
