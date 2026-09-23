@@ -561,8 +561,10 @@ def expand_halo_transfers(clusters, mapper):
 
 
 def _include_halo(ispace, f, dims=None):
-    """Extend `ispace` to include `f`'s HALO along `dims`."""
-    dims = f.dimensions if dims is None else dims
+    """
+    Extend `ispace` to include `f`'s HALO along `dims`.
+    """
+    dims = dims or f.dimensions
 
     ihalo = [
         Interval(i.dim, -f._size_halo[i.dim].left, f._size_halo[i.dim].right, i.stamp)
@@ -901,7 +903,7 @@ def init_buffers(descriptors, options):
         expr = Eq(lhs, rhs)
         expr = lower_exprs(expr)
 
-        ispace = v.write_to
+        ispace = v.write_to.concrete
         if v.is_read and async_degree is not None:
             # The allocated capacity (`v.size`) may exceed the time-window width
             # that must be loaded before computation starts (`size` below). E.g.,
