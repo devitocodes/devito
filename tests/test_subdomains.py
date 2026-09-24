@@ -1937,14 +1937,16 @@ class TestSubDomainFunctionsParallel:
 class TestSubDomainArguments:
 
     @staticmethod
-    def _make_operator(left_shift=0, right_shift=0, grid=None, middle=False):
+    def _make_operator(left_shift=0, right_shift=0, grid=None, middle=False,
+                       thickness=(8, 8)):
         grid = grid or Grid(shape=(8, 32))
         y = grid.dimensions[-1]
 
-        yl = SubDimension.left('yl', y, 8)
-        yr = SubDimension.right('yr', y, 8)
+        left, right = thickness
+        yl = SubDimension.left('yl', y, left)
+        yr = SubDimension.right('yr', y, right)
         if middle:
-            yl = yr = SubDimension.middle('ym', y, 8, 8)
+            yl = yr = SubDimension.middle('ym', y, left, right)
 
         u = TimeFunction(name='u', grid=grid, space_order=8)
         v = TimeFunction(name='v', grid=grid, space_order=8)
@@ -1979,7 +1981,11 @@ class TestSubDomainArguments:
             dl, = [d for d in op.dimensions if d.is_Sub and not d.is_right]
             kwargs = {dl.ltkn.name: 32 - 8 - 8 - margin}
 
-        if middle and margin < 0:
+        if override == 'thickness':
+            with pytest.raises(InvalidArgument,
+                               match='Cannot override SubDimension thickness'):
+                op.arguments(time_M=0, **kwargs)
+        elif middle and margin < 0:
             with pytest.raises(InvalidArgument, match='at least 8 interior points'):
                 op.arguments(time_M=0, **kwargs)
         else:
@@ -2007,13 +2013,11 @@ class TestSubDomainArguments:
 
     @pytest.mark.parametrize('side', ['left', 'right'])
     def test_empty_slab(self, side):
-        op, _ = self._make_operator(right_shift=-4)
-
-        d, = [d for d in op.dimensions if d.is_Sub and getattr(d, f'is_{side}')]
-        thickness = d.ltkn if side == 'left' else d.rtkn
+        thickness = (0, 8) if side == 'left' else (8, 0)
+        op, _ = self._make_operator(right_shift=-4, thickness=thickness)
 
         # The active slab fills the local domain; the opposite slab is absent
-        op.arguments(time_M=0, y_M=7, **{thickness.name: 0})
+        op.arguments(time_M=0, y_M=7)
 
     def test_before_autotuning(self):
         op, _ = self._make_operator(right_shift=-4, middle=True)
@@ -2032,19 +2036,15 @@ class TestSubDomainArguments:
     def test_distributed_middle(self, left, mode):
         grid = Grid(shape=(16, 32), topology=(1, 2))
 
-        op, _ = self._make_operator(grid=grid, middle=True)
-
-        d, = [d for d in op.dimensions if d.is_Sub]
+        op, _ = self._make_operator(grid=grid, middle=True, thickness=(left, 0))
 
         # Rank 0 has one point or an empty middle (possibly with inverted bounds).
         # Only the global size determines whether the middle is large enough
-        kwargs = {d.ltkn.name: left, d.rtkn.name: 0}
-
         if left == 25:
             with pytest.raises(InvalidArgument, match='at least 8 interior points'):
-                op.arguments(time_M=0, **kwargs)
+                op.arguments(time_M=0)
         else:
-            op.arguments(time_M=0, **kwargs)
+            op.arguments(time_M=0)
 
     @pytest.mark.parallel(mode=[(2, 'basic')])
     def test_collective_rejection(self, mode):
@@ -2052,12 +2052,11 @@ class TestSubDomainArguments:
 
         op, _ = self._make_operator(right_shift=-4, grid=grid, middle=True)
 
-        dl, = [d for d in op.dimensions if d.is_Sub and d.is_middle]
-        left = 24 if grid.distributor.myrank == 0 else 0
+        upper = 22 if grid.distributor.myrank == 0 else 31
 
-        # Only rank 0 has an insufficient middle; its peer has 24 interior points
+        # Only rank 0 has an insufficient middle; its peer has 16 interior points
         with pytest.raises(InvalidArgument, match='interior points'):
-            op.arguments(time_M=0, **{dl.ltkn.name: left})
+            op.arguments(time_M=0, y_M=upper)
 
     def test_function_on_subdomain(self):
         class Interior(SubDomain):
@@ -2086,4 +2085,52 @@ class TestSubDomainArguments:
         assert concrete.ltkn.name in args
 
         with pytest.raises(InvalidArgument, match='at least 8 interior points'):
+            op.arguments(y_M=22)
+
+        with pytest.raises(InvalidArgument,
+                           match='Cannot override SubDimension thickness'):
             op.arguments(**{concrete.ltkn.name: 17})
+
+    def test_thickness_overrides(self):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xi = SubDimension.left('xi', x, 4)
+
+        f = Function(name='f', grid=grid, space_order=0)
+
+        eq = Eq(f[xi], 1)
+
+        op = Operator(eq, name='thickness_overrides')
+
+        d, = [d for d in op.dimensions if d.is_Sub]
+
+        with pytest.raises(InvalidArgument,
+                           match='Cannot override SubDimension thickness'):
+            op.apply(**{d.ltkn.name: 2})
+
+        assert np.all(f.data == 0)
+
+    @pytest.mark.parallel(mode=[(2, 'basic')])
+    def test_collective_thickness_rejection(self, mode):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xi = SubDimension.middle('xi', x, 4, 4)
+
+        f = Function(name='f', grid=grid, space_order=0)
+
+        eq = Eq(f[xi], 1)
+
+        op = Operator(eq, name='collective_thickness_rejection')
+
+        d, = [d for d in op.dimensions if d.is_Sub]
+        t = d.ltkn
+
+        # MPI clips the declared thicknesses without any explicit overrides
+        args = op.arguments()
+        assert set(grid.distributor.comm.allgather(args[t.name])) == {0, 4}
+
+        # Only rank 0 supplies an override; all ranks must reject it
+        kwargs = {t.name: 4} if grid.distributor.myrank == 0 else {}
+        with pytest.raises(InvalidArgument,
+                           match='Cannot override SubDimension thickness'):
+            op.arguments(**kwargs)

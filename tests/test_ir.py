@@ -562,8 +562,6 @@ class TestVectorHierarchy:
         xm = SubDimension.middle('xm', x, 8, 40)
         if shared_boundary:
             xm = xm._rebuild(thickness=(xl.ltkn, xm.rtkn))
-        else:
-            expected = S.Infinity
         if symbolic:
             f = Array(name='f', dimensions=(x,))
         else:
@@ -1305,8 +1303,8 @@ class TestDependenceAnalysis:
 
     @pytest.mark.parametrize('symbolic', [False, True])
     @pytest.mark.parametrize('lower,upper,ndeps', [
-        (0, 31, (8, 32)), (0, 7, (0, 8)), (16, 31, (0, 16)),
-        (7, 8, (1, 2)), (15, 16, (1, 2))
+        (0, 31, (8, 24)), (0, 7, (0, 0)), (16, 31, (0, 16)),
+        (7, 8, (1, 1)), (15, 16, (1, 2))
     ])
     def test_stencil_contains_producer(self, symbolic, lower, upper, ndeps):
         grid = Grid(shape=(32,))
@@ -1317,6 +1315,8 @@ class TestDependenceAnalysis:
         f = Function(name='f', grid=grid)
         g = Function(name='g', grid=grid)
         if symbolic:
+            # Thickness 8 fixes the left boundary; the parent upper bound remains
+            # symbolic, so stencil offsets >= 8 can still touch the producer
             pi, ci = Interval(xm), Interval(xl)
         else:
             # Encode actual fixed iteration bounds, not runtime defaults

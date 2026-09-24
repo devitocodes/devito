@@ -1610,21 +1610,20 @@ def disjoint_subdims(a0, a1):
     of the same Function.
 
     Compare symbolic accessed bounds, including shifts and stencil points.
-    Block intervals are promoted to their logical SubDimensions. Bounds and
-    thicknesses remain symbolic: MPI decomposition and runtime overrides can
-    change their values independently of the defaults.
+    Block intervals are promoted to their logical SubDimensions. Declared
+    thicknesses determine the global regions: explicit overrides are forbidden,
+    while MPI clips these regions to each rank. Parent bounds and access offsets
+    remain symbolic; only iteration bounds use the declared thicknesses.
 
-    For example, `xl = [m, m + L - 1]` and `xm = [m + L, M - R]` are
-    disjoint when they share the symbol `L`, whatever its runtime value.
-    Equal default thicknesses alone do not establish that relationship.
+    For example, a left slab of thickness 4 ends before a middle excluding 4
+    points, even when the two thickness symbols are distinct.
 
     Opposite left/right slabs are assumed to form a valid partition: their
     thicknesses satisfy `L + R <= N`. For translated stencil accesses, the
     interior must also accommodate their combined inward reach. For example,
     a pointwise left write and a right read at offset -4 require four interior
     points. Runtime space_order checks cover explicit middle SubDimensions,
-    not arbitrary left/right pairs; no concrete domain size or thickness is
-    used here.
+    not arbitrary left/right pairs; no concrete domain size is used here.
 
     Match data axes independently of the iteration nests. Return True if any
     axis proves separation, False otherwise. Accesses over the same interval
@@ -1644,6 +1643,8 @@ def disjoint_subdims(a0, a1):
                 it0 != it1):
             continue
 
+        thicknesses = {t: t.value for it in (it0, it1)
+                       for t in it.dim.thickness if t.value is not None}
         bounds = []
         for e, d, it in ((e0, d0, it0), (e1, d1, it1)):
             if not q_affine(e, d):
@@ -1658,8 +1659,8 @@ def disjoint_subdims(a0, a1):
                     M, m = it.symbolic_min, it.symbolic_max
                 else:
                     break
-                lower.append(v._subs(d, m))
-                upper.append(v._subs(d, M))
+                lower.append(v._subs(d, m.xreplace(thicknesses)))
+                upper.append(v._subs(d, M.xreplace(thicknesses)))
             else:
                 bounds.append((sympy.Min(*lower), sympy.Max(*upper)))
 
@@ -1682,11 +1683,13 @@ def disjoint_subdims(a0, a1):
                 gap = sympy.Dummy(nonnegative=True)
                 if e0.diff(d0) == e1.diff(d1) == 1:
                     M, m = (M0, m1) if it0.dim.is_left else (M1, m0)
-                    reach = (M - dl.symbolic_max - m + dr.symbolic_min).expand()
+                    reach = (M - dl.symbolic_max.xreplace(thicknesses) - m +
+                             dr.symbolic_min.xreplace(thicknesses)).expand()
                     if is_integer(reach):
                         gap += max(0, reach)
 
-                mapper[dlp.symbolic_max] = dlp.symbolic_min + dl.ltkn + dr.rtkn + gap - 1
+                mapper[dlp.symbolic_max] = (dlp.symbolic_min + dl.ltkn.value +
+                                            dr.rtkn.value + gap - 1)
 
             if (M0 - m1).subs(mapper).is_negative or \
                (M1 - m0).subs(mapper).is_negative:

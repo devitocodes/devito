@@ -794,17 +794,18 @@ class TestSubDimension:
         grid = Grid(shape=(8, 8))
         x, y = grid.dimensions
 
+        # Declare the widest box; runtime root bounds control the active box
+        xi = SubDimension.middle(name='xi', parent=x, thickness_left=0, thickness_right=0)
+        yi = SubDimension.middle(name='yi', parent=y, thickness_left=0, thickness_right=0)
+
         u = TimeFunction(name='u', grid=grid)
-        xi = SubDimension.middle(name='xi', parent=x, thickness_left=2, thickness_right=2)
-        yi = SubDimension.middle(name='yi', parent=y, thickness_left=2, thickness_right=2)
 
         eqn = Eq(u.forward, u + 1)
         eqn = eqn.subs({x: xi, y: yi})
 
         op = Operator(eqn, opt=opt)
 
-        op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
-                 x_ltkn0=0, x_rtkn0=0, y_ltkn0=0, y_rtkn0=0)
+        op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5)
 
         assert np.all(u.data[0, 2:-2, 2:-2] == 4.)
         assert np.all(u.data[1, 2:-2, 2:-2] == 3.)

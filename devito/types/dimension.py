@@ -554,7 +554,12 @@ class DerivedDimension(BasicDimension):
 # the user
 
 class Thickness(DataSymbol):
-    """A DataSymbol to represent a thickness of a SubDimension"""
+    """
+    A SubDimension thickness, fixed at construction and localized by MPI.
+
+    Explicit runtime overrides are not supported: dependence analysis uses the
+    declared thickness to determine the global region before MPI decomposition.
+    """
 
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
 
@@ -589,11 +594,7 @@ class Thickness(DataSymbol):
         return self._value
 
     def _arg_values(self, grid=None, **kwargs):
-        # Allow override of thickness values to disable BCs
-        # However, arguments from the user are considered global
-        # So overriding the thickness to a nonzero value should not cause
-        # boundaries to exist between ranks where they did not before
-        rtkn = kwargs.get(self.name, self.value)
+        rtkn = self.value
         if grid is not None and grid.is_distributed(self.root):
             # Get local thickness
             if self.local:
@@ -611,6 +612,15 @@ class Thickness(DataSymbol):
             tkn = rtkn or 0
 
         return {self.name: tkn}
+
+    def _arg_check(self, args, *_args, **kwargs):
+        # This module depends on Dimension, so importing it above would cycle
+        from devito.mpi import mpi_raise  # noqa: PLC0415
+
+        error = (f"Cannot override SubDimension thickness `{self.name}`"
+                 if self.name in kwargs else None)
+        comm = args.comm if args.options['mpi'] else None
+        mpi_raise(error, InvalidArgument, comm=comm)
 
 
 class AbstractSubDimension(DerivedDimension):
@@ -840,7 +850,7 @@ class SubDimension(AbstractSubDimension):
             values = {**args,
                       d.min_name: kwargs.get(d.min_name, 0),
                       d.max_name: kwargs.get(d.max_name, kwargs.get(d.name, size - 1)),
-                      **{t.name: kwargs.get(t.name, t.value) for t in self.thickness}}
+                      **{t.name: t.value for t in self.thickness}}
         else:
             values = args
         size = int(subs_op_args(self.symbolic_size, values))
