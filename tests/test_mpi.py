@@ -12,6 +12,7 @@ from devito import (
     inner, norm, solve, switchconfig
 )
 from devito.arch.compiler import OneapiCompiler
+from devito.builtins import initialize_function
 from devito.data import LEFT, RIGHT
 from devito.ir import Cluster, Interval, IterationSpace
 from devito.ir.clusters.algorithms import check_halo_writes
@@ -3292,6 +3293,63 @@ class TestOperatorAdvanced:
         assert np.all(u.data[1, :, -2:, :] == 1.)
         assert np.all(u.data[1, :, :, 0:2] == 1.)
         assert np.all(u.data[1, :, :, -2:] == 1.)
+
+    @pytest.mark.parallel(mode=[(4, 'basic')])
+    def test_subdim_thickness_spanning_rank(self, mode):
+        """
+        A `left`/`right` SubDimension whose thickness covers a whole rank must
+        not produce a local thickness larger than that rank's extent, or the
+        generated loop runs off the ends of its temporaries.
+        """
+        # 4 ranks along `y`, so each holds 2 points against 3-point layers
+        grid = Grid(shape=(4, 8), topology=(1, 4))
+        y = grid.dimensions[1]
+
+        f = Function(name='f', grid=grid)
+
+        yl = SubDimension.left(name='yl', parent=y, thickness=3)
+        yr = SubDimension.right(name='yr', parent=y, thickness=3)
+
+        op = Operator([Eq(f.subs(y, yl), 1), Eq(f.subs(y, yr), 2)])
+
+        args = op.arguments(f=f)
+        loc_size = grid.distributor.shape[1]
+        assert args['y_ltkn0'] <= loc_size
+        assert args['y_rtkn1'] <= loc_size
+
+        op.apply(f=f)
+
+        glb = f.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.all(glb[:, :3] == 1.)
+            assert np.all(glb[:, 3:-3] == 0.)
+            assert np.all(glb[:, -3:] == 2.)
+
+    @pytest.mark.parallel(mode=[(3, 'basic'), (4, 'basic')])
+    def test_initialize_function_pad_over_rank(self, mode):
+        """
+        `initialize_function` must pad correctly even when a rank owns no part
+        of the interior, since the boundary plane it reads is then on a
+        different rank.
+        """
+        nbl = 6
+        inner = (7, 5, 6)
+        shape = tuple(s + 2*nbl for s in inner)
+
+        # Decompose along `y` only, so some rank holds nothing but padding
+        grid = Grid(shape=shape, topology=(1, '*', 1))
+
+        f = Function(name='f', grid=grid, space_order=(8, 4, 4), dtype=np.float32)
+
+        # Asymmetric, so that a misplaced plane cannot go unnoticed
+        data = np.arange(np.prod(inner), dtype=np.float32).reshape(inner) + 1.
+
+        initialize_function(f, data, [(nbl, nbl)]*3)
+
+        glb = f.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            expected = np.pad(data, nbl, mode='edge')
+            assert np.array_equal(np.asarray(glb), expected)
 
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_custom_subdomain(self, mode):

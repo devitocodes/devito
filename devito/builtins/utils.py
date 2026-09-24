@@ -9,6 +9,7 @@ from devito.tools import as_tuple
 
 __all__ = [
     'abstract_args',
+    'axis_slice',
     'check_builtins_args',
     'make_retval',
     'nbl_to_padsize',
@@ -88,6 +89,12 @@ def nbl_to_padsize(nbl, ndim):
         raise ValueError("`nbl` must be an integer or tuple of (tuple of) integers"
                          "of length `function.ndim`.")
     return tuple(nb_pad), tuple(slices)
+
+
+def axis_slice(ndim, axis, start, stop):
+    """An index tuple selecting `[start, stop)` along `axis`."""
+    return tuple(slice(start, stop) if i == axis else slice(None)
+                 for i in range(ndim))
 
 
 def pad_outhalo(function):

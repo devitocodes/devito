@@ -1218,6 +1218,26 @@ class TestDataDistributed:
             self._assert_induced(f.data[gslice], a[gslice])
 
     @pytest.mark.parallel(mode=4)
+    def test_setitem_broadcast(self, mode):
+        """
+        An RHS that is size 1 along an axis broadcasts over that axis, rather
+        than being cut down to each rank's share of the destination.
+        """
+        grid = Grid(shape=(4, 8), topology=(1, 4))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        f.data[:] = 0
+
+        col = np.array([10, 20, 30, 40], dtype=np.int32)[:, None]
+        f.data[:, 0:3] = col
+
+        expected = np.zeros((4, 8), dtype=np.int32)
+        expected[:, 0:3] = col
+
+        glb = f.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.array_equal(np.asarray(glb), expected)
+
+    @pytest.mark.parallel(mode=4)
     def test_setitem(self, mode):
         # __setitem__ mpi slicing tests
         grid = Grid(shape=(12, 12))
