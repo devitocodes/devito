@@ -1,7 +1,9 @@
 import numpy as np
 
 import devito as dv
-from devito.builtins.utils import check_builtins_args, nbl_to_padsize, pad_outhalo
+from devito.builtins.utils import (
+    axis_slice, check_builtins_args, nbl_to_padsize, pad_outhalo
+)
 from devito.tools import as_list, as_tuple
 
 __all__ = ['assign', 'gaussian_smooth', 'initialize_function', 'smooth']
@@ -217,15 +219,93 @@ def gaussian_smooth(f, sigma=1, truncate=4.0, mode='reflect'):
     return f
 
 
+def _rank_without_interior(function, nbl):
+    """
+    Whether some rank owns no part of the interior along a padded Dimension.
+
+    The padding is extended by reading the boundary plane at a fixed global
+    index, which only works while every rank owns interior to read from.
+
+    Collective: the answer is reduced over all ranks, since they must then all
+    extend the padding the same way.
+    """
+    distributor = function.grid.distributor
+    if not distributor.is_parallel:
+        return False
+
+    owns = True
+    for i, (d, (nl, nr)) in enumerate(
+        zip(function.space_dimensions, as_tuple(nbl), strict=True)
+    ):
+        if function.grid.is_distributed(d):
+            # The interior spans `[nl, glb_max - nr]`
+            span = distributor.glb_slices[d]
+            owns &= not (span.stop <= nl or
+                         span.start > distributor.glb_shape[i] - 1 - nr)
+
+    return not distributor.comm.allreduce(owns, op=dv.mpi.MPI.LAND)
+
+
+def _global_plane(function, axis, index):
+    """
+    The plane of `function` at global position `index` along `axis`, assembled
+    identically on every rank and keeping `axis` as a length-1 dimension.
+    """
+    distributor = function.grid.distributor
+
+    local = np.asarray(function.data[axis_slice(function.ndim, axis, index,
+                                                index + 1)])
+    plane = np.zeros(tuple(distributor.glb_shape[i] if i != axis else 1
+                           for i in range(function.ndim)),
+                     dtype=function.dtype)
+
+    # `glb_slices` tile the domain, so each slot gets a single contribution
+    if local.size:
+        slot = tuple(distributor.glb_slices[dim] if i != axis else slice(None)
+                     for i, dim in enumerate(function.dimensions))
+        plane[slot] = local.reshape(plane[slot].shape)
+    distributor.comm.Allreduce(dv.mpi.MPI.IN_PLACE, plane, op=dv.mpi.MPI.SUM)
+
+    return plane
+
+
+def _extend_padding_mpi(function, nbl):
+    """
+    Replicate the boundary planes of `function` outwards into its padding.
+
+    Used in place of the symbolic extension when a rank owns no interior to read
+    from, which the halo exchanges cannot express. Writing through the
+    distributed `Data` instead resolves global indices on whichever rank owns
+    them.
+    """
+    # `TimeFunction`s are rejected upstream, so `axis` indexes `glb_shape` too
+    for axis, (nl, nr) in enumerate(as_tuple(nbl)):
+        glb_max = function.grid.distributor.glb_shape[axis] - 1
+
+        # One Dimension at a time, each reading the planes left by the previous
+        # ones, so that corners come out filled
+        for nb, src, lo in ((nl, nl, 0), (nr, glb_max - nr, glb_max - nr + 1)):
+            if nb <= 0:
+                continue
+            plane = _global_plane(function, axis, src)
+            function.data[axis_slice(function.ndim, axis, lo, lo + nb)] = \
+                np.repeat(plane, nb, axis=axis)
+
+
+def _write_interior(function, data, slices):
+    """Fill the interior of `function`, that is everything but the padding."""
+    if isinstance(data, dv.Function):
+        function.data[slices] = data.data[:]
+    else:
+        function.data[slices] = data
+
+
 def _initialize_function(function, data, nbl, mapper=None, mode='constant'):
     """
     Construct the symbolic objects for `initialize_function`.
     """
     nbl, slices = nbl_to_padsize(nbl, function.ndim)
-    if isinstance(data, dv.Function):
-        function.data[slices] = data.data[:]
-    else:
-        function.data[slices] = data
+    _write_interior(function, data, slices)
     lhs = []
     rhs = []
     options = []
@@ -385,17 +465,24 @@ def initialize_function(function, data, nbl, mapper=None, mode='constant',
     else:
         lhss, rhss, optionss = [], [], []
         for f, data in zip(functions, datas, strict=True):
+            padsizes, slices = nbl_to_padsize(nbl, f.ndim)
+
+            # `reflect` has its own, stricter check on the halo size
+            if mode == 'constant' and _rank_without_interior(f, padsizes):
+                _write_interior(f, data, slices)
+                _extend_padding_mpi(f, padsizes)
+                continue
 
             lhs, rhs, options = _initialize_function(f, data, nbl, mapper, mode)
-
             lhss.extend(lhs)
             rhss.extend(rhs)
             optionss.extend(options)
 
         assert len(lhss) == len(rhss) == len(optionss)
 
-        name = name or f'initialize_{"_".join(f.name for f in functions)}'
-        assign(lhss, rhss, options=optionss, name=name, **kwargs)
+        if lhss:
+            name = name or f'initialize_{"_".join(f.name for f in functions)}'
+            assign(lhss, rhss, options=optionss, name=name, **kwargs)
 
     if pad_halo:
         for f in functions:
