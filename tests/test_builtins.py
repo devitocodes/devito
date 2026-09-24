@@ -147,7 +147,8 @@ class TestGaussianSmooth:
     def test_gs_1d_float(self, sigma):
         """Test the Gaussian smoother in 1d on array of float."""
 
-        a = np.array([1.2, 2.7, 3.9, 4.1, 5.2, 6.5, 7.1, 9.3, 11.0])
+        a = np.array([1.2, 2.7, 3.9, 4.1, 5.2, 6.5, 7.1, 9.3, 11.0,
+                      8.7, 6.4, 4.6, 3.1, 2.9, 1.4, 0.8, 2.3])
         sp_smoothed = gaussian_filter(a, sigma=sigma)
         dv_smoothed = gaussian_smooth(a, sigma=sigma)
 
