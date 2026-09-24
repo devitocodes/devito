@@ -278,18 +278,20 @@ def _extend_padding_mpi(function, nbl):
     distributed `Data` instead resolves global indices on whichever rank owns
     them.
     """
+    distributor = function.grid.distributor
+
     # `TimeFunction`s are rejected upstream, so `axis` indexes `glb_shape` too
     for axis, (nl, nr) in enumerate(as_tuple(nbl)):
-        glb_max = function.grid.distributor.glb_shape[axis] - 1
+        glb_max = distributor.glb_shape[axis] - 1
 
         # One Dimension at a time, each reading the planes left by the previous
         # ones, so that corners come out filled
         for nb, src, lo in ((nl, nl, 0), (nr, glb_max - nr, glb_max - nr + 1)):
             if nb <= 0:
                 continue
+            # `plane` is size 1 along `axis`, so it broadcasts over the slot
             plane = _global_plane(function, axis, src)
-            function.data[axis_slice(function.ndim, axis, lo, lo + nb)] = \
-                np.repeat(plane, nb, axis=axis)
+            function.data[axis_slice(function.ndim, axis, lo, lo + nb)] = plane
 
 
 def _write_interior(function, data, slices):
