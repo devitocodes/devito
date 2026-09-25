@@ -9,9 +9,9 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.data import LEFT, RIGHT
 from devito.deprecations import deprecations
-from devito.exceptions import InvalidArgument
+from devito.exceptions import InvalidArgument, mpi_raise
 from devito.logger import debug
-from devito.tools import Pickable, is_integer, is_number, memoized_meth
+from devito.tools import Pickable, as_mapper, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import DataSymbol, Scalar, Symbol
 from devito.types.constant import Constant
@@ -561,13 +561,14 @@ class Thickness(DataSymbol):
     declared thickness to determine the global region before MPI decomposition.
     """
 
-    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
+    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value', 'overlap')
 
-    def __new__(cls, *args, root=None, side=None, local=False, **kwargs):
+    def __new__(cls, *args, root=None, side=None, local=False, overlap=False, **kwargs):
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
         newobj._side = side
         newobj._local = local
+        newobj._overlap = overlap
 
         return newobj
 
@@ -588,6 +589,10 @@ class Thickness(DataSymbol):
     @property
     def local(self):
         return self._local
+
+    @property
+    def overlap(self):
+        return self._overlap
 
     @property
     def value(self):
@@ -614,11 +619,9 @@ class Thickness(DataSymbol):
         return {self.name: tkn}
 
     def _arg_check(self, args, *_args, **kwargs):
-        # This module depends on Dimension, so importing it above would cycle
-        from devito.mpi import mpi_raise  # noqa: PLC0415
-
         error = (f"Cannot override SubDimension thickness `{self.name}`"
                  if self.name in kwargs else None)
+
         comm = args.comm if args.options['mpi'] else None
         mpi_raise(error, InvalidArgument, comm=comm)
 
@@ -632,20 +635,31 @@ class AbstractSubDimension(DerivedDimension):
     Notes
     -----
     This is just the abstract base class for various types of SubDimensions.
+
+    SubDimensions cannot be nested.
     """
 
     is_AbstractSub = True
 
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
-    __rkwargs__ = ()
+    __rkwargs__ = ('overlap',)
 
     _thickness_type = Thickness
 
-    def __init_finalize__(self, name, parent, thickness, **kwargs):
+    def __init_finalize__(self, name, parent, thickness, overlap=False, **kwargs):
         super().__init_finalize__(name, parent)
+        if parent.is_AbstractSub:
+            raise ValueError("Nested SubDimensions are not supported")
+
+        self._overlap = overlap
+
         thickness = thickness or (None, None)
         if any(isinstance(tkn, self._thickness_type) for tkn in thickness):
-            self._thickness = SubDimensionThickness(*thickness)
+            # Preserve identity when unchanged: expressions may share these symbols
+            self._thickness = SubDimensionThickness(*[
+                t if t.overlap == overlap else t._rebuild(overlap=overlap)
+                for t in thickness
+            ])
         else:
             self._thickness = self._symbolic_thickness(thickness=thickness)
 
@@ -657,7 +671,8 @@ class AbstractSubDimension(DerivedDimension):
 
     @memoized_meth
     def _symbolic_thickness(self, **kwargs):
-        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True}
+        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
+                  'overlap': self.overlap}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         return SubDimensionThickness(*[Thickness(name=n, **kwargs) for n in names])
@@ -691,6 +706,10 @@ class AbstractSubDimension(DerivedDimension):
         # Shortcut for the right thickness symbol
         return self.thickness.right
 
+    @property
+    def overlap(self):
+        return self._overlap
+
     def __hash__(self):
         return id(self)
 
@@ -718,6 +737,11 @@ class SubDimension(AbstractSubDimension):
     local : bool
         True if, in case of domain decomposition, the SubDimension is
         guaranteed not to span more than one domain, False otherwise.
+    overlap : bool, optional, default=False
+        Allow a left SubDimension to overlap a right SubDimension of the same
+        parent. When both have this flag unset, their declared thicknesses must sum
+        to at most the full global parent extent. This does not guarantee
+        separation of stencil accesses extending beyond the SubDimensions themselves.
 
     Examples
     --------
@@ -741,6 +765,9 @@ class SubDimension(AbstractSubDimension):
     local (i.e., non-distributed) Dimensions, as they are assumed to fit entirely
     within a single domain. This is the most typical use case (e.g., to set up
     boundary conditions). To drop this assumption, pass ``local=False``.
+
+    Explicit runtime overrides of the root Dimension's bounds are not supported.
+    MPI may still localize the global regions automatically.
     """
 
     is_Sub = True
@@ -749,27 +776,31 @@ class SubDimension(AbstractSubDimension):
 
     _thickness_type = Thickness
 
-    def __init_finalize__(self, name, parent, thickness, local,
-                          **kwargs):
+    def __init_finalize__(self, name, parent, thickness, local, **kwargs):
         self._local = local
-        super().__init_finalize__(name, parent, thickness)
+        super().__init_finalize__(name, parent, thickness, **kwargs)
 
     @classmethod
-    def left(cls, name, parent, thickness, local=True):
-        return cls(name, parent, thickness=(thickness, None), local=local)
+    def left(cls, name, parent, thickness, local=True, overlap=False):
+        return cls(name, parent, thickness=(thickness, None), local=local,
+                   overlap=overlap)
 
     @classmethod
-    def right(cls, name, parent, thickness, local=True):
-        return cls(name, parent, thickness=(None, thickness), local=local)
+    def right(cls, name, parent, thickness, local=True, overlap=False):
+        return cls(name, parent, thickness=(None, thickness), local=local,
+                   overlap=overlap)
 
     @classmethod
-    def middle(cls, name, parent, thickness_left, thickness_right, local=False):
-        return cls(name, parent, thickness=(thickness_left, thickness_right), local=local)
+    def middle(cls, name, parent, thickness_left, thickness_right, local=False,
+               overlap=False):
+        return cls(name, parent, thickness=(thickness_left, thickness_right), local=local,
+                   overlap=overlap)
 
     @memoized_meth
     def _symbolic_thickness(self, thickness=None):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'root': self.root, 'local': self.local}
+                  'root': self.root, 'local': self.local,
+                  'overlap': self.overlap}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
@@ -829,41 +860,43 @@ class SubDimension(AbstractSubDimension):
         return {}
 
     def _arg_check(self, args, *_args, **kwargs):
-        # These modules depend on Dimension, so importing them above would cycle
-        from devito.mpi import mpi_raise  # noqa: PLC0415
-        from devito.symbolics import subs_op_args  # noqa: PLC0415
-
-        if not self.is_middle:
-            return
-
-        # Function._arg_check visits original axes (e.g. x_ltkn), whereas `args`
-        # contains the concretized thicknesses (x_ltkn0, ...). The Operator checks
-        # the matching concrete SubDimensions separately in its dimension loop
-        if self not in args.op.dimensions:
-            return
-
         d = self.root
-        if args.grid is not None and args.grid.is_distributed(d):
-            # Check the global runtime region: its MPI-local slices may be empty
-            # or smaller than space_order even for a non-degenerate global interior
-            size = args.grid.size_map[d].glb
-            values = {**args,
-                      d.min_name: kwargs.get(d.min_name, 0),
-                      d.max_name: kwargs.get(d.max_name, kwargs.get(d.name, size - 1)),
-                      **{t.name: t.value for t in self.thickness}}
-        else:
-            values = args
-        size = int(subs_op_args(self.symbolic_size, values))
+        names = [k for k in (d.min_name, d.max_name, d.name) if k in kwargs]
+        error = (f"Cannot override bounds {names} of Dimension `{d}` used by "
+                 f"SubDimension `{self}`" if names else None)
 
-        # Runtime overrides do not change the compiled stencil order
-        items = [f.space_order for f in args.op.input if f.is_DiscreteFunction]
-        space_order = max(items, default=0)
+        comm = args.comm if args.options['mpi'] else None
+        mpi_raise(error, InvalidArgument, comm=comm)
 
-        if size < space_order:
-            error = (f"Expected at least {space_order} interior points along "
-                     f"`{self.parent}` (space_order), but runtime arguments leave {size}")
-        else:
-            error = None
+    @classmethod
+    def _arg_check_thickness(cls, dimensions, args):
+        """
+        Check that non-overlapping left/right SubDimensions fit the global domain.
+        """
+        subdims = [d for d in dimensions if isinstance(d, cls) and not d.overlap]
+
+        grid = args.grid
+        error = None
+
+        for parent, dims in as_mapper(subdims, lambda d: d.parent).items():
+            # Check left/right SubDimensions, not a middle's excluded thicknesses
+            left = max((d for d in dims if d.is_left),
+                       key=lambda d: d.ltkn.value, default=None)
+            right = max((d for d in dims if d.is_right),
+                        key=lambda d: d.rtkn.value, default=None)
+            if left is None or right is None:
+                continue
+
+            root = parent.root
+
+            # Use the full global extent, not a rank's local extent
+            size = grid.size_map[root].glb if grid is not None else args[root.size_name]
+            thickness = left.ltkn.value + right.rtkn.value
+            if thickness > size:
+                error = (f"SubDimensions `{left}` and `{right}` have combined "
+                         f"thickness {thickness} along `{parent}`, exceeding "
+                         f"the runtime extent {size}")
+                break
 
         comm = args.comm if args.options['mpi'] else None
         mpi_raise(error, InvalidArgument, comm=comm)
@@ -877,12 +910,14 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
-    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
+    __rkwargs__ = AbstractSubDimension.__rkwargs__ + (
+        'functions', 'bounds_indices', 'implicit_dimension'
+    )
 
     def __init_finalize__(self, name, parent, thickness, functions=None,
-                          bounds_indices=None, implicit_dimension=None):
+                          bounds_indices=None, implicit_dimension=None, **kwargs):
 
-        super().__init_finalize__(name, parent, thickness)
+        super().__init_finalize__(name, parent, thickness, **kwargs)
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension

@@ -1157,7 +1157,7 @@ class Scope(CacheInstances):
 
         The reason SubDimensions must be treated specially -- with a full set
         of TimedAccess objects getting generated -- is to handle the special
-        case of slabs thinner than the stencil’s reach. For example, consider
+        case of SubDimensions thinner than the stencil’s reach. For example, consider
         the following scenario:
 
         * A SubDimension with just two points, 10 and 11;
@@ -1615,15 +1615,14 @@ def disjoint_subdims(a0, a1):
     while MPI clips these regions to each rank. Parent bounds and access offsets
     remain symbolic; only iteration bounds use the declared thicknesses.
 
-    For example, a left slab of thickness 4 ends before a middle excluding 4
-    points, even when the two thickness symbols are distinct.
+    For example, a left SubDimension of thickness 4 ends before a middle
+    SubDimension excluding 4 points, even when the two thickness symbols are distinct.
 
-    Opposite left/right slabs are assumed to form a valid partition: their
-    thicknesses satisfy `L + R <= N`. For translated stencil accesses, the
-    interior must also accommodate their combined inward reach. For example,
-    a pointwise left write and a right read at offset -4 require four interior
-    points. Runtime space_order checks cover explicit middle SubDimensions,
-    not arbitrary left/right pairs; no concrete domain size is used here.
+    Left/right SubDimensions of the same parent with `overlap=False` satisfy
+    `L + R <= N`, checked against the full global parent extent at runtime.
+    Their regions may be adjacent; stencil accesses extending from one into
+    the other may still induce dependences. If either SubDimension allows
+    overlap, no minimum separation is assumed.
 
     Match data axes independently of the iteration nests. Return True if any
     axis proves separation, False otherwise. Accesses over the same interval
@@ -1671,23 +1670,10 @@ def disjoint_subdims(a0, a1):
             dl, dr = (it0.dim, it1.dim) if it0.dim.is_left else (it1.dim, it0.dim)
             dlp, drp = dl.parent, dr.parent
 
-            if dl.is_left and dr.is_right and dlp is drp:
-                # A valid partition satisfies L + R <= N, where N is the parent
-                # extent; an explicit middle SubDomain checks this at construction.
-                # Further, for stencils, we require that:
-                # `N - L - R >= the combined inward reach`
-                # so accesses from opposite slabs cannot meet. Explicit middle
-                # SubDimensions check for at least space_order interior points
-                # at *op.apply time*, accounting for runtime overrides.  Without
-                # an explicit middle, the gap assumption is unchecked
+            if dl.is_left and dr.is_right and dlp is drp and \
+               not (dl.overlap or dr.overlap):
+                # The runtime partition check guarantees a nonnegative gap only
                 gap = sympy.Dummy(nonnegative=True)
-                if e0.diff(d0) == e1.diff(d1) == 1:
-                    M, m = (M0, m1) if it0.dim.is_left else (M1, m0)
-                    reach = (M - dl.symbolic_max.xreplace(thicknesses) - m +
-                             dr.symbolic_min.xreplace(thicknesses)).expand()
-                    if is_integer(reach):
-                        gap += max(0, reach)
-
                 mapper[dlp.symbolic_max] = (dlp.symbolic_min + dl.ltkn.value +
                                             dr.rtkn.value + gap - 1)
 

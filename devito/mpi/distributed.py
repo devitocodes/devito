@@ -70,7 +70,6 @@ __all__ = [
     'SubDistributor',
     'devito_mpi_finalize',
     'devito_mpi_init',
-    'mpi_raise',
 ]
 
 
@@ -100,21 +99,6 @@ def devito_mpi_finalize():
     global init_by_devito  # noqa: F824
     if init_by_devito and MPI.Is_initialized() and not MPI.Is_finalized():
         MPI.Finalize()
-
-
-def mpi_raise(error, exception=ValueError, comm=None):
-    """
-    Raise `exception` with the first non-None error message in rank order.
-
-    All ranks in `comm` must call this routine, including those with no local
-    error (`error=None`). This prevents a rank-local exception from stranding
-    peers in subsequent MPI calls. With no communicator or `MPI.COMM_NULL`,
-    only the local error is checked.
-    """
-    if comm is not None and comm is not MPI.COMM_NULL:
-        error = next((i for i in comm.allgather(error) if i is not None), None)
-    if error is not None:
-        raise exception(error)
 
 
 class AbstractDistributor(ABC):

@@ -54,3 +54,19 @@ class ExecutionError(DevitoError):
         * Device shared memory or registers (e.g., too many threads per block);
     * etc.
     """
+
+
+def mpi_raise(error, exception=ValueError, comm=None):
+    """
+    Raise `exception` with the first non-None error message in rank order.
+
+    All ranks in `comm` must call this routine, including those with no local
+    error (`error=None`). This prevents a rank-local exception from stranding
+    peers in subsequent MPI calls. With no communicator or `MPI.COMM_NULL`,
+    only the local error is checked.
+    """
+    # A null MPI communicator is false, like None
+    if comm:
+        error = next((i for i in comm.allgather(error) if i is not None), None)
+    if error is not None:
+        raise exception(error)

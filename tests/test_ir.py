@@ -500,7 +500,7 @@ class TestVectorHierarchy:
         a = TimedAccess(f[xl], 'W', 0, IterationSpace([Interval(xl)]))
         b = TimedAccess(f[xr + offset + h], 'R', 1,
                         IterationSpace([interval]))
-        independent = independent if shared_boundary else True
+        independent = independent if shared_boundary else offset >= 0
         assert (S.ImaginaryUnit in a.distance(b)) is independent
         assert (S.ImaginaryUnit in b.distance(a)) is independent
 
@@ -509,7 +509,7 @@ class TestVectorHierarchy:
     @pytest.mark.parametrize('side,thickness,shift,expected', [
         ('right', 20, 0, (S.ImaginaryUnit,)),
         ('right', 24, 0, (S.ImaginaryUnit,)),
-        ('right', 20, -8, (S.ImaginaryUnit,)),
+        ('right', 20, -8, (S.Infinity, S.Infinity)),
         ('middle', 8, 0, (S.ImaginaryUnit,)),
         ('middle', 8, -1, (S.Infinity, S.Infinity))
     ])
@@ -614,10 +614,30 @@ class TestVectorHierarchy:
         b = TimedAccess(f[slope*(xr + offset)], 'R', 1,
                         IterationSpace([Interval(xr)]))
 
-        # Translated accesses assume the interior accommodates their inward reach
-        if slope == 1:
-            expected = S.ImaginaryUnit
+        # Left/right SubDimensions may be adjacent, so inward reads can overlap
         assert a.distance(b) == b.distance(a) == (expected,)
+
+    @pytest.mark.parametrize('side', ['left', 'right'])
+    def test_overlap_subdimension_bounds(self, side):
+        grid = Grid(shape=(32, 32))
+        x, y = grid.dimensions
+        xl = SubDimension.left('xl', x, 8, overlap=side == 'left')
+        xr = SubDimension.right('xr', x, 8, overlap=side == 'right')
+        yl = SubDimension.left('yl', y, 4)
+        ym = SubDimension.middle('ym', y, 4, 0)
+
+        f = Function(name='f', grid=grid)
+
+        a = TimedAccess(f[xl, yl], 'W', 0,
+                        IterationSpace([Interval(xl), Interval(yl)]))
+        b = TimedAccess(f[xr, yl], 'R', 1,
+                        IterationSpace([Interval(xr), Interval(yl)]))
+        c = TimedAccess(f[xr, ym], 'R', 1,
+                        IterationSpace([Interval(xr), Interval(ym)]))
+
+        assert a.distance(b) == b.distance(a) == (S.Infinity, 0)
+        # Permitting overlap along x does not manufacture a dependence along y
+        assert a.distance(c) == c.distance(a) == (S.ImaginaryUnit,)
 
 
 class TestSpace:

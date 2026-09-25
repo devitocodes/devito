@@ -43,7 +43,7 @@ from devito.tools import (
     split, timed_pass, timed_region
 )
 from devito.types import Buffer, Evaluable, device_layer, disk_layer, host_layer
-from devito.types.dimension import Thickness
+from devito.types.dimension import SubDimension, Thickness
 from devito.warnings import warn
 
 __all__ = ['Operator']
@@ -717,6 +717,8 @@ class Operator(Callable):
                 pass
             if d.is_Derived:
                 d._arg_check(args, **kwargs)
+
+        SubDimension._arg_check_thickness(self.dimensions, args)
 
         # Turn arguments into a format suitable for the generated code
         # E.g., instead of NumPy arrays for Functions, the generated code expects

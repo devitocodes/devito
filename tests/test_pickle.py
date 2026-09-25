@@ -30,6 +30,7 @@ from devito.types import (
 from devito.types import Symbol as dSymbol
 from devito.types import TempFunction, ThreadID, Timer
 from devito.types.basic import AbstractSymbol, BoundSymbol
+from devito.types.dimension import MultiSubDimension
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
@@ -332,7 +333,7 @@ class TestBasic:
         assert new_pa.array.name == 'a'
 
     def test_sub_dimension(self, pickle):
-        di = SubDimension.middle('di', Dimension(name='d'), 1, 1)
+        di = SubDimension.middle('di', Dimension(name='d'), 1, 1, overlap=True)
 
         pkl_di = pickle.dumps(di)
         new_di = pickle.loads(pkl_di)
@@ -342,6 +343,21 @@ class TestBasic:
         assert di.parent.name == new_di.parent.name
         assert di._thickness == new_di._thickness
         assert di._interval == new_di._interval
+        assert new_di.overlap
+        assert all(t.overlap for t in new_di.thickness)
+
+    def test_multi_sub_dimension(self, pickle):
+        di = MultiSubDimension('di', Dimension(name='d'), None, overlap=True)
+
+        new_di = pickle.loads(pickle.dumps(di))
+
+        assert new_di.overlap
+        assert all(t.overlap for t in new_di.thickness)
+
+        rebuilt = new_di._rebuild(overlap=False)
+
+        assert not rebuilt.overlap
+        assert all(not t.overlap for t in rebuilt.thickness)
 
     def test_conditional_dimension(self, pickle):
         d = Dimension(name='d')

@@ -13,14 +13,14 @@ from devito import (
 )
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
-from devito.exceptions import InvalidArgument
+from devito.exceptions import InvalidArgument, mpi_raise
 from devito.ir import Cluster, Interval, IterationSpace
 from devito.ir.clusters.algorithms import check_halo_writes
 from devito.ir.iet import (
     Call, Conditional, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
 )
 from devito.ir.support.space import Backward, Forward
-from devito.mpi import MPI, mpi_raise
+from devito.mpi import MPI
 from devito.mpi.distributed import CustomTopology
 from devito.mpi.routines import ComputeCall, HaloUpdateCall, HaloUpdateList, MPICall
 from devito.tools import Bunch
@@ -613,7 +613,7 @@ class TestFunction:
         )
 
     @pytest.mark.parallel(mode=4)
-    @pytest.mark.parametrize('shape', [(1,), (2, 3), (4, 5, 6)])
+    @pytest.mark.parametrize('shape', [(2,), (2, 3), (4, 5, 6)])
     def test_mpi4py_nodevmpi(self, shape, mode):
 
         with switchconfig(mpi=False):

@@ -152,7 +152,8 @@ class TestSubDomains:
 
             def define(self, dimensions):
                 x, y = dimensions
-                return {x: ('middle', 2, 2), y: ('right', 10)}
+                return {x: ('middle', 2, 2),
+                        y: SubDimension.right('iy', y, 10, overlap=True)}
 
         class sd1(SubDomain):
             name = 'sd1'
@@ -1965,7 +1966,7 @@ class TestSubDomainArguments:
         (0, 0), (0, -4), (2, -4)
     ])
     @pytest.mark.parametrize('margin', [-1, 0, 1])
-    @pytest.mark.parametrize('override', ['function', 'bounds', 'thickness'])
+    @pytest.mark.parametrize('override', ['function', 'thickness'])
     def test_stencil_gap(self, middle, left_shift, right_shift, margin, override):
         op, (u, v) = self._make_operator(left_shift, right_shift, middle=middle)
 
@@ -1975,8 +1976,6 @@ class TestSubDomainArguments:
 
             kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
                                            space_order=8) for f in (u, v)}
-        elif override == 'bounds':
-            kwargs = {'y_m': 3, 'y_M': 3 + size - 1}
         else:
             dl, = [d for d in op.dimensions if d.is_Sub and not d.is_right]
             kwargs = {dl.ltkn.name: 32 - 8 - 8 - margin}
@@ -1985,9 +1984,6 @@ class TestSubDomainArguments:
             with pytest.raises(InvalidArgument,
                                match='Cannot override SubDimension thickness'):
                 op.arguments(time_M=0, **kwargs)
-        elif middle and margin < 0:
-            with pytest.raises(InvalidArgument, match='at least 8 interior points'):
-                op.arguments(time_M=0, **kwargs)
         else:
             op.arguments(time_M=0, **kwargs)
 
@@ -1995,7 +1991,7 @@ class TestSubDomainArguments:
     @pytest.mark.parametrize('space_order', [4, 8, 12])
     @pytest.mark.parametrize('margin', [-1, 0, 1])
     def test_runtime_space_order(self, middle, space_order, margin):
-        """Override metadata does not change the compiled stencil order."""
+        """Neither compiled nor override space_order constrains region widths."""
         op, fields = self._make_operator(middle=middle)
 
         required = 8
@@ -2004,30 +2000,34 @@ class TestSubDomainArguments:
         kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
                                        space_order=space_order) for f in fields}
 
-        if middle and margin < 0:
-            with pytest.raises(InvalidArgument,
-                               match=f'at least {required} interior points'):
-                op.arguments(time_M=0, **kwargs)
-        else:
-            op.arguments(time_M=0, **kwargs)
+        op.arguments(time_M=0, **kwargs)
 
     @pytest.mark.parametrize('side', ['left', 'right'])
-    def test_empty_slab(self, side):
-        thickness = (0, 8) if side == 'left' else (8, 0)
-        op, _ = self._make_operator(right_shift=-4, thickness=thickness)
+    def test_empty_subdimension(self, side):
+        grid = Grid(shape=(8, 8))
 
-        # The active slab fills the local domain; the opposite slab is absent
-        op.arguments(time_M=0, y_M=7)
+        thickness = (0, 8) if side == 'left' else (8, 0)
+        op, _ = self._make_operator(right_shift=-4, thickness=thickness, grid=grid)
+
+        # One left/right SubDimension fills the domain; the other is empty
+        op.arguments(time_M=0)
 
     def test_before_autotuning(self):
-        op, _ = self._make_operator(right_shift=-4, middle=True)
+        grid = Grid(shape=(8, 15))
 
-        with pytest.raises(InvalidArgument, match='interior points'):
-            op.arguments(time_M=0, y_M=22, autotune=True)
+        op, fields = self._make_operator(right_shift=-4, grid=grid)
+
+        with pytest.raises(InvalidArgument, match='combined thickness'):
+            op.arguments(time_M=0, autotune=True)
 
         assert 'autotuning' not in op._state
 
-        op.arguments(time_M=0, y_M=23, autotune=True)
+        grid = Grid(shape=(8, 16))
+
+        kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
+                                       space_order=8) for f in fields}
+
+        op.arguments(time_M=0, autotune=True, **kwargs)
 
         assert len(op._state['autotuning']) == 1
 
@@ -2038,25 +2038,19 @@ class TestSubDomainArguments:
 
         op, _ = self._make_operator(grid=grid, middle=True, thickness=(left, 0))
 
-        # Rank 0 has one point or an empty middle (possibly with inverted bounds).
-        # Only the global size determines whether the middle is large enough
-        if left == 25:
-            with pytest.raises(InvalidArgument, match='at least 8 interior points'):
-                op.arguments(time_M=0)
-        else:
-            op.arguments(time_M=0)
+        # Empty local middles and global middles smaller than space_order are valid
+        op.arguments(time_M=0)
 
     @pytest.mark.parallel(mode=[(2, 'basic')])
     def test_collective_rejection(self, mode):
-        grid = Grid(shape=(32, 32), topology=(2, 1))
+        grid = Grid(shape=(32, 16), topology=(2, 1))
 
-        op, _ = self._make_operator(right_shift=-4, grid=grid, middle=True)
+        right = 9 if grid.distributor.myrank == 0 else 8
+        op, _ = self._make_operator(right_shift=-4, grid=grid, thickness=(8, right))
 
-        upper = 22 if grid.distributor.myrank == 0 else 31
-
-        # Only rank 0 has an insufficient middle; its peer has 16 interior points
-        with pytest.raises(InvalidArgument, match='interior points'):
-            op.arguments(time_M=0, y_M=upper)
+        # Only rank 0 declares left/right SubDimensions too thick for the global domain
+        with pytest.raises(InvalidArgument, match='combined thickness'):
+            op.arguments(time_M=0)
 
     def test_function_on_subdomain(self):
         class Interior(SubDomain):
@@ -2084,7 +2078,7 @@ class TestSubDomainArguments:
         assert original.ltkn.name not in args
         assert concrete.ltkn.name in args
 
-        with pytest.raises(InvalidArgument, match='at least 8 interior points'):
+        with pytest.raises(InvalidArgument, match='Cannot override bounds'):
             op.arguments(y_M=22)
 
         with pytest.raises(InvalidArgument,
@@ -2110,6 +2104,30 @@ class TestSubDomainArguments:
 
         assert np.all(f.data == 0)
 
+    def test_bound_overrides(self):
+        op, fields = self._make_operator()
+
+        for name, value in [('y_m', 1), ('y_M', 30), ('y', 30)]:
+            with pytest.raises(InvalidArgument, match='Cannot override bounds'):
+                op.apply(time_M=0, **{name: value})
+
+        assert all(np.all(f.data == 0) for f in fields)
+
+        # Bounds along axes without SubDimensions remain overridable
+        op.arguments(time_M=0, x_m=1, x_M=6)
+
+    @pytest.mark.parallel(mode=[(2, 'basic')])
+    def test_collective_bound_rejection(self, mode):
+        grid = Grid(shape=(8, 32), topology=(1, 2))
+
+        op, _ = self._make_operator(grid=grid)
+
+        kwargs = {'y_M': 30} if grid.distributor.myrank == 0 else {}
+
+        # One rank supplies an override; all ranks must reject it
+        with pytest.raises(InvalidArgument, match='Cannot override bounds'):
+            op.arguments(time_M=0, **kwargs)
+
     @pytest.mark.parallel(mode=[(2, 'basic')])
     def test_collective_thickness_rejection(self, mode):
         grid = Grid(shape=(32,))
@@ -2134,3 +2152,89 @@ class TestSubDomainArguments:
         with pytest.raises(InvalidArgument,
                            match='Cannot override SubDimension thickness'):
             op.arguments(**kwargs)
+
+    def test_left_right_partition(self):
+        op, fields = self._make_operator()
+
+        for size in (15, 16):
+            grid = Grid(shape=(8, size))
+
+            kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
+                                           space_order=8) for f in fields}
+
+            if size < 16:
+                with pytest.raises(InvalidArgument, match='combined thickness'):
+                    op.arguments(time_M=0, **kwargs)
+            else:
+                op.arguments(time_M=0, **kwargs)
+
+    def test_largest_left_right_thickness(self):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xl0 = SubDimension.left('xl0', x, 2)
+        xl1 = SubDimension.left('xl1', x, 8)
+        xr0 = SubDimension.right('xr0', x, 4)
+        xr1 = SubDimension.right('xr1', x, 25)
+        xm = SubDimension.middle('xm', x, 8, 8)
+
+        f = Function(name='f', grid=grid, space_order=0)
+
+        eqs = [Eq(f[d], 1) for d in (xl0, xl1, xr0, xr1, xm)]
+
+        op = Operator(eqs, name='largest_left_right_thickness')
+
+        # A valid middle SubDimension says nothing about the much larger right one
+        with pytest.raises(InvalidArgument, match='combined thickness 33'):
+            op.arguments()
+
+    def test_left_right_pairing(self):
+        grid = Grid(shape=(10, 10))
+        x, y = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        yr = SubDimension.right('yr', y, 8)
+        xm0 = SubDimension.middle('xm0', x, 0, 8)
+        xm1 = SubDimension.middle('xm1', x, 8, 0)
+
+        f = Function(name='f', grid=grid, space_order=0)
+
+        eqs = [Eq(f[xl, yr], 1), Eq(f[xm0, y], 2), Eq(f[xm1, y], 3)]
+
+        op = Operator(eqs, name='left_right_pairing')
+
+        # Do not pair different axes or include a middle's excluded thicknesses
+        op.arguments()
+
+    @pytest.mark.parametrize('side', ['left', 'right'])
+    def test_left_right_overlap(self, side):
+        grid = Grid(shape=(10,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 6, overlap=side == 'left')
+        xr = SubDimension.right('xr', x, 6, overlap=side == 'right')
+
+        f = Function(name='f', grid=grid, space_order=0)
+
+        eqs = [Eq(f[xl], 1), Eq(f[xr], 2)]
+
+        op = Operator(eqs, name='left_right_overlap')
+
+        op.apply()
+
+        assert np.all(f.data[:4] == 1)
+        assert np.all(f.data[4:] == 2)
+
+    @pytest.mark.parallel(mode=[(2, 'basic')])
+    def test_distributed_left_right(self, mode):
+        grid = Grid(shape=(8, 32), topology=(1, 2))
+
+        op, fields = self._make_operator(grid=grid, thickness=(12, 12))
+
+        # Left/right SubDimensions fit globally, although their sum exceeds a rank's size
+        op.arguments(time_M=0)
+
+        grid = Grid(shape=(8, 23), topology=(1, 2))
+
+        kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
+                                       space_order=8) for f in fields}
+
+        with pytest.raises(InvalidArgument, match='combined thickness 24'):
+            op.arguments(time_M=0, **kwargs)
