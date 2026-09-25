@@ -24,14 +24,8 @@ from devito.types.caching import Cached, Uncached
 from devito.types.lazy import Evaluable
 from devito.types.utils import DimensionTuple, Offset, Size
 
-__all__ = [
-    'DeviceMap',
-    'Indexed',
-    'IndexedData',
-    'IrregularFunctionInterface',
-    'Scalar',
-    'Symbol',
-]
+__all__ = ['DeviceMap', 'Indexed', 'IndexedData', 'IrregularFunctionInterface',
+           'Scalar', 'Symbol']
 
 
 class CodeSymbol:
@@ -72,7 +66,6 @@ class CodeSymbol:
             * `numpy.dtype`: basic data types. For example, `np.float64 -> double`.
             * `ctypes`: composite objects (e.g., structs), foreign types.
         """
-        return
 
     @property
     @abc.abstractmethod
@@ -84,7 +77,6 @@ class CodeSymbol:
         -------
         str
         """
-        return
 
     @property
     def _C_typedata(self):
@@ -102,13 +94,10 @@ class CodeSymbol:
         if _type is c_char_p:
             _type = c_char
 
-        try:
-            # We have internal types such as c_complex that are
-            # Structure too but should be treated as plain c_type
-            _ = _type._base_dtype
-        except AttributeError:
-            if issubclass(_type, Structure):
-                _type = f'struct {_type.__name__}'
+        # We have internal types such as c_complex that are
+        # Structure too but should be treated as plain c_type
+        if not hasattr(_type, '_base_dtype') and issubclass(_type, Structure):
+            _type = f'struct {_type.__name__}'
 
         return _type
 
@@ -118,7 +107,6 @@ class CodeSymbol:
         """
         The type of the object in the generated code as a `ctypes` class.
         """
-        return
 
     @property
     def _C_symbol(self):
@@ -380,15 +368,13 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     @classmethod
     def _filter_assumptions(cls, **kwargs):
         """Extract sympy.Symbol-specific kwargs."""
-        assumptions = {}
         # Pop predefined assumptions
         for key in ('real', 'imaginary', 'commutative'):
             kwargs.pop(key, None)
 
         # Extract sympy.Symbol-specific kwargs
-        for i in list(kwargs):
-            if i in _assume_rules.defined_facts:
-                assumptions[i] = kwargs.pop(i)
+        assumptions = {i: kwargs.pop(i) for i in list(kwargs)
+                       if i in _assume_rules.defined_facts}
 
         return assumptions, kwargs
 
@@ -509,11 +495,9 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
         involving devito Scalars.  Ordinarily the comparisons between
         devito subclasses of sympy types are quite strict.
         """
-        try:
+        with suppress(AttributeError):
             if old.is_Symbol and old.name == self.name:
                 return new
-        except AttributeError:
-            pass
 
         return self
 
@@ -635,14 +619,12 @@ class Scalar(Symbol, ArgProvider):
             # through a wrapper object (e.g., a Dimension spacing `h_x` gets its
             # value via a Grid object)
             return {}
-        else:
-            return {self.name: self.default_value}
+        return {self.name: self.default_value}
 
     def _arg_values(self, **kwargs):
         if self.name in kwargs:
             return {self.name: kwargs.pop(self.name)}
-        else:
-            return self._arg_defaults(**kwargs)
+        return self._arg_defaults(**kwargs)
 
 
 class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
@@ -744,9 +726,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # If same name/indices and `function` isn't None, then it's
         # definitely a reconstruction
-        if function is not None and \
-           function.name == name and \
-           function.indices == indices:
+        if (function is not None and function.name == name and
+                function.indices == indices):
             # Special case: a syntactically identical alias of `function`, so
             # let's just return `function` itself
             return function
@@ -863,10 +844,8 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         # Averaging mode for off the grid evaluation
         self._avg_mode = kwargs.get('avg_mode', 'arithmetic')
         if self._avg_mode not in ['arithmetic', 'harmonic', 'safe_harmonic']:
-            raise ValueError(
-                f"Invalid averaging mode_mode {self._avg_mode}, accepted values are"
-                " arithmetic or harmonic"
-            )
+            raise ValueError(f"Invalid averaging mode_mode {self._avg_mode}, accepted "
+                             "values are arithmetic or harmonic")
 
     @classmethod
     def __args_setup__(cls, *args, **kwargs):
@@ -972,14 +951,9 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         f(x) : origin = 0
         f(x + hx/2) : origin = hx/2
         """
-        return DimensionTuple(*(
-            r - d + o
-            for d, r, o in zip(
-                self.dimensions,
-                self.indices_ref,
-                self._offset_subdomain, strict=True
-            )
-        ), getters=self.dimensions)
+        return DimensionTuple(*(r - d + o for d, r, o in zip(
+            self.dimensions, self.indices_ref, self._offset_subdomain, strict=True
+        )), getters=self.dimensions)
 
     @property
     def dimensions(self):
@@ -993,10 +967,7 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         except IndexError:
             return ()
 
-        if d is self.dimensions[-1]:
-            return (d,)
-        else:
-            return ()
+        return (d,) if d is self.dimensions[-1] else ()
 
     @cached_property
     def space_dimensions(self):
@@ -1192,12 +1163,10 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         return None.
         """
         if self._mem_mapped:
-            return DeviceMap(f'd_{self.name}', shape=self._shape,
-                             function=self.function)
+            return DeviceMap(f'd_{self.name}', shape=self._shape, function=self.function)
         elif self._mem_local:
             return self.indexed
-        else:
-            return None
+        return None
 
     @property
     def size(self):
@@ -1300,23 +1269,23 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
         """The Dimensions decomposed for distributed-parallelism."""
         if self._distributor is None:
             return ()
-        else:
-            return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
+        return tuple(d for d in self.dimensions if d in self._distributor.dimensions)
 
     @cached_property
     def _size_domain(self):
         """Number of points in the domain region."""
         return DimensionTuple(*self.shape, getters=self.dimensions)
 
+    def _make_sizes(self, pairs):
+        left = tuple(zip(*pairs, strict=True))[0]
+        right = tuple(zip(*pairs, strict=True))[1]
+        sizes = tuple(Size(i, j) for i, j in pairs)
+        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
+
     @cached_property
     def _size_halo(self):
         """Number of points in the halo region."""
-        left = tuple(zip(*self._halo, strict=True))[0]
-        right = tuple(zip(*self._halo, strict=True))[1]
-
-        sizes = tuple(Size(i, j) for i, j in self._halo)
-
-        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return self._make_sizes(self._halo)
 
     @cached_property
     def _size_owned(self):
@@ -1331,20 +1300,13 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
     @cached_property
     def _size_padding(self):
         """Number of points in the padding region."""
-        left = tuple(zip(*self._padding, strict=True))[0]
-        right = tuple(zip(*self._padding, strict=True))[1]
-
-        sizes = tuple(Size(i, j) for i, j in self._padding)
-
-        return DimensionTuple(*sizes, getters=self.dimensions, left=left, right=right)
+        return self._make_sizes(self._padding)
 
     @cached_property
     def _size_nopad(self):
         """Number of points in the domain+halo region."""
-        sizes = tuple(
-            i+sum(j)
-            for i, j in zip(self._size_domain, self._size_halo, strict=True)
-        )
+        sizes = tuple(i+sum(j) for i, j in zip(self._size_domain, self._size_halo,
+                                               strict=True))
         return DimensionTuple(*sizes, getters=self.dimensions)
 
     @cached_property
@@ -1756,10 +1718,8 @@ class AbstractTensor(sympy.ImmutableDenseMatrix, Basic, Pickable, Evaluable):
                 row, col = i // other.cols, i % other.cols
                 row_indices = range(self_cols*row, self_cols*(row+1))
                 col_indices = range(col, other_len, other.cols)
-                vec = [
-                    mat[a]*other_mat[b]
-                    for a, b in zip(row_indices, col_indices, strict=True)
-                ]
+                vec = [mat[a]*other_mat[b]
+                       for a, b in zip(row_indices, col_indices, strict=True)]
                 new_mat[i] = sum(vec)
 
         # Get new class and return product
@@ -1801,10 +1761,7 @@ class IndexedBase(sympy.IndexedBase, Basic, Pickable):
     def __getitem__(self, indices, **kwargs):
         """Produce a types.Indexed, rather than a sympy.Indexed."""
         # Is there a specific Indexed class to use?
-        try:
-            cls = self.function._indexed_cls
-        except AttributeError:
-            cls = Indexed
+        cls = getattr(self.function, '_indexed_cls', Indexed)
 
         return cls(self, *as_tuple(indices))
 
@@ -1977,14 +1934,12 @@ class Indexed(sympy.Indexed):
         # Wrap in a try to make sure no substitution happens when
         # old is an Indexed as only checkink `old is new` would lead to
         # incorrect substitution of `old.base` by `new`
-        try:
+        with suppress(AttributeError):
             if old.is_Indexed:
                 if old.base == self.base and old.indices == self.indices:
                     return new
                 else:
                     return self
-        except AttributeError:
-            pass
         return super()._subs(old, new, **hints)
 
     def _translate(self, mapper=None):
@@ -2002,10 +1957,8 @@ class Indexed(sympy.Indexed):
         mapper = mapper or {self.dimensions[-1]: 1}
 
         if any(d not in mapper for d in self.dimensions):
-            raise ValueError(
-                f"Cannot translate {self} with mapper {mapper} since not "
-                "all dimensions are covered"
-            )
+            raise ValueError(f"Cannot translate {self} with mapper {mapper} since not "
+                             "all dimensions are covered")
 
         translations = [mapper.get(d, 0) for d in self.dimensions]
         indices = [sum(i) for i in zip(self.indices, translations, strict=True)]

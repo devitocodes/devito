@@ -256,10 +256,8 @@ class Operator(Callable):
 
         # References to local or external routines
         op._func_table = OrderedDict()
-        op._func_table.update(OrderedDict([(i, MetaCall(None, False))
-                                           for i in profiler._ext_calls]))
-        op._func_table.update(OrderedDict([(i.root.name, i)
-                                           for i in byproduct.funcs]))
+        op._func_table.update((i, MetaCall(None, False)) for i in profiler._ext_calls)
+        op._func_table.update((i.root.name, i) for i in byproduct.funcs)
 
         # Internal mutable state to store information about previous runs,
         # autotuning reports, etc
@@ -382,9 +380,7 @@ class Operator(Callable):
         # in particular uniqueness across expressions is ensured
         expressions = concretize_subdims(expressions, **kwargs)
 
-        processed = [LoweredEq(i) for i in expressions]
-
-        return processed
+        return [LoweredEq(i) for i in expressions]
 
     # Compilation -- Cluster level
 
@@ -459,9 +455,7 @@ class Operator(Callable):
         # Build a ScheduleTree from a sequence of Clusters
         stree = stree_build(clusters, **kwargs)
 
-        stree = cls._specialize_stree(stree)
-
-        return stree
+        return cls._specialize_stree(stree)
 
     # Compilation -- Iteration/Expression tree level
 
@@ -547,9 +541,7 @@ class Operator(Callable):
         dimensions = FindSymbols('dimensions').visit(self)
         ret.update(d for d in dimensions if d.is_PerfKnob)
 
-        ret = tuple(sorted(ret, key=attrgetter('name')))
-
-        return ret
+        return tuple(sorted(ret, key=attrgetter('name')))
 
     @cached_property
     def input(self):
@@ -593,8 +585,6 @@ class Operator(Callable):
                 if k not in self._known_arguments:
                     raise InvalidArgument(f"Unrecognized argument `{k}={v}`")
 
-        overrides, defaults = split(self.input, lambda p: p.name in kwargs)
-
         # DiscreteFunctions may be created from CartesianDiscretizations, which in
         # turn could be Grids or SubDomains. Both may provide arguments
         discretizations = {getattr(kwargs.get(p.name, p), 'grid', None)
@@ -619,17 +609,14 @@ class Operator(Callable):
         # Pre-process Dimension overrides. This may help ruling out ambiguities
         # when processing the `defaults` arguments. A topological sorting is used
         # as DerivedDimensions may depend on their parents
-        edges = [(i, i.parent) for i in nodes
-                 if i.is_Derived and i.parent in nodes]
+        edges = [(i, i.parent) for i in nodes if i.is_Derived and i.parent in nodes]
         toposort = DAG(nodes, edges).topological_sort()
 
         # Prepare to process data-carriers
         args = kwargs['args'] = ReducerMap()
 
-        kwargs['metadata'] = {'language': self._language,
-                              'platform': self._platform,
-                              'transients': self.transients,
-                              **self.threads_info}
+        kwargs['metadata'] = {'language': self._language, 'platform': self._platform,
+                              'transients': self.transients, **self.threads_info}
 
         overrides, defaults = split(self.input, lambda p: p.name in kwargs)
 
@@ -640,9 +627,8 @@ class Operator(Callable):
                 args.reduce_inplace()
             except ValueError as e:
                 v = [i for i in overrides if i.name in args]
-                raise InvalidArgument(
-                    f"Override `{p}` is incompatible with overrides `{v}`"
-                ) from e
+                raise InvalidArgument(f"Override `{p}` is incompatible with overrides "
+                                      f"`{v}`") from e
 
         # Process data-carrier defaults
         for p in defaults:
@@ -705,16 +691,13 @@ class Operator(Callable):
 
         # Sanity check
         for p in self.parameters:
-            p._arg_check(args, self._dspace[p], am=self._access_modes.get(p),
-                         **kwargs)
+            p._arg_check(args, self._dspace[p], am=self._access_modes.get(p), **kwargs)
         for d in self.dimensions:
-            try:
+            with suppress(AttributeError):
                 if d.is_Space and any(self._dspace[d].offsets):
                     warn(f"Shrinking bounds (`{d.min_name}`, `{d.max_name}`); "
                          f"some `{d}` points will not be computed. Likely "
                          "insufficient space_order for the derivatives.")
-            except AttributeError:
-                pass
             if d.is_Derived:
                 d._arg_check(args)
 
@@ -753,8 +736,7 @@ class Operator(Callable):
             raise ExecutionError(
                 "Kernel launch failed due to insufficient resources. This may be "
                 "due to excessive register pressure in one of the Operator "
-                "kernels. Try supplying a smaller `par-tile` value."
-            )
+                "kernels. Try supplying a smaller `par-tile` value.")
         elif retval == error_mapper['KernelLaunchClusterConfig']:
             raise ExecutionError(
                 "Kernel launch failed due to an invalid thread block cluster "
@@ -762,8 +744,7 @@ class Operator(Callable):
                 "does not perfectly divide the number of blocks launched for a "
                 "kernel. This is a known, strong limitation which effectively "
                 "prevents the use of `tbc-tile` in realistic scenarios, but it "
-                "will be removed in future versions."
-            )
+                "will be removed in future versions.")
         elif retval == error_mapper['KernelLaunchUnknown']:
             raise ExecutionError(
                 "Kernel launch failed due to an unknown error. This might "
@@ -951,8 +932,7 @@ class Operator(Callable):
         memreport = {'host': mem[host_layer], 'device': mem[device_layer]}
 
         # Extra information for enriched Operators
-        extras = self._enrich_memreport(args)
-        memreport.update(extras)
+        memreport.update(self._enrich_memreport(args))
 
         return MemoryEstimate(memreport, name=self.name)
 
@@ -1042,8 +1022,7 @@ class Operator(Callable):
                 argnum = int(e.args[0][9:].split(':')[0]) - 1
                 raise ctypes.ArgumentError(
                     f"error in argument '{self.parameters[argnum].name}' with value"
-                    f" '{arg_values[argnum]}': {e.args[0]}"
-                ) from e
+                    f" '{arg_values[argnum]}': {e.args[0]}") from e
             else:
                 raise
 
@@ -1160,10 +1139,7 @@ class Operator(Callable):
             if v.gpointss:
                 values.append(f"{fround(v.gpointss):.2f} GPts/s")
 
-            if values:
-                return f"[{', '.join(values)}]"
-            else:
-                return ""
+            return f"[{', '.join(values)}]" if values else ""
 
         for k, v in summary.items():
             rank = f"[rank{k.rank}]" if k.rank is not None else ''
@@ -1252,8 +1228,7 @@ class Operator(Callable):
             self._lib.name = soname
 
         self._allocator = default_allocator(
-            f'{type(self._compiler).__name__}.{self._language}.{self._platform}'
-        )
+            f'{type(self._compiler).__name__}.{self._language}.{self._platform}')
 
 
 # *** Recursive compilation ("rcompile") machinery
@@ -1291,11 +1266,8 @@ class RCompiles(CacheInstances):
 # (because once, during the main compilation phase, is simply enough), but also
 # dangerous as some of them (the minority) might break in some circumstances
 # if applied in cascade (e.g., `linearization` on top of `linearization`)
-rcompile_registry = {
-    'avoid_denormals': False,
-    'linearize': False,
-    'place-transfers': False
-}
+rcompile_registry = {'avoid_denormals': False, 'linearize': False,
+                     'place-transfers': False}
 
 
 def rcompile(expressions, kwargs, options, target=None):
@@ -1322,9 +1294,7 @@ def rcompile(expressions, kwargs, options, target=None):
     irs, byproduct0 = RCompiles(expressions, cls).compile(**kwargs)
 
     key = lambda i: isinstance(i, (EntryFunction, DeviceFunction))
-    byproduct = byproduct0.filter(key)
-
-    return irs, byproduct
+    return irs, byproduct0.filter(key)
 
 
 # *** Misc helpers
@@ -1351,8 +1321,7 @@ class ArgumentsMap(dict):
         temp_registry = {v: k for k, v in compiler_registry.items()}
         compiler = temp_registry[self.compiler.__class__]
 
-        return {'platform': self.platform.name,
-                'compiler': compiler,
+        return {'platform': self.platform.name, 'compiler': compiler,
                 'language': self.language}
 
     @property
@@ -1381,15 +1350,11 @@ class ArgumentsMap(dict):
         The number of saved TimeFunctions in the Operator, grouped by
         memory hierarchy layer.
         """
-        key0 = lambda f: (f.is_TimeFunction and
-                          f.save is not None and
+        key0 = lambda f: (f.is_TimeFunction and f.save is not None and
                           not isinstance(f.save, Buffer))
         functions = [f for f in self.op.input if key0(f)]
 
-        key1 = lambda f: f.layer
-        mapper = as_mapper(functions, key1)
-
-        return mapper
+        return as_mapper(functions, lambda f: f.layer)
 
     @cached_property
     def _op_symbols(self):
@@ -1402,10 +1367,8 @@ class ArgumentsMap(dict):
         return [i for i in self._op_symbols if i.is_DiscreteFunction and not i.alias]
 
     def _apply_override(self, i):
-        try:
-            return self.get(i.name, i)._obj
-        except AttributeError:
-            return self.get(i.name, i)
+        obj = self.get(i.name, i)
+        return getattr(obj, '_obj', obj)
 
     def _get_nbytes(self, i):
         """
@@ -1489,27 +1452,19 @@ class ArgumentsMap(dict):
                 # Since might not have this layer in the mapper
                 mapper[layer] -= self.nbytes_consumed_operator.get(layer, 0)
 
-        mapper = {k: int(v) for k, v in mapper.items()}
-
-        return mapper
+        return {k: int(v) for k, v in mapper.items()}
 
     @cached_property
     def nbytes_consumed(self):
         """Memory consumed by all objects in the Operator"""
-        mem_locations = (
-            self.nbytes_consumed_functions,
-            self.nbytes_consumed_arrays,
-            self.nbytes_consumed_memmapped
-        )
+        mem_locations = (self.nbytes_consumed_functions, self.nbytes_consumed_arrays,
+                         self.nbytes_consumed_memmapped)
         return {layer: sum(loc[layer] for loc in mem_locations) for layer in _layers}
 
     @cached_property
     def nbytes_consumed_operator(self):
         """Memory consumed by objects allocated within the Operator"""
-        mem_locations = (
-            self.nbytes_consumed_arrays,
-            self.nbytes_consumed_memmapped
-        )
+        mem_locations = (self.nbytes_consumed_arrays, self.nbytes_consumed_memmapped)
         return {layer: sum(loc[layer] for loc in mem_locations) for layer in _layers}
 
     @cached_property
@@ -1546,8 +1501,7 @@ class ArgumentsMap(dict):
         # Temporaries such as Arrays are allocated and deallocated on-the-fly
         # while in C land, so they need to be accounted for as well
         for i in self._op_symbols:
-            if not i.is_Array or not i._mem_heap or i.alias \
-               or not i.is_regular:
+            if not i.is_Array or not i._mem_heap or i.alias or not i.is_regular:
                 continue
 
             nbytes = i.nbytes if i.is_regular else i.nbytes_max
@@ -1584,11 +1538,9 @@ class ArgumentsMap(dict):
             for i in self.op.input:
                 if not is_on_device(i, self.options['gpu-fit']):
                     continue
-                try:
+                with suppress(AttributeError):
                     if i._mem_mapped:
                         device += self._get_nbytes(i)
-                except AttributeError:
-                    pass
 
         return {disk_layer: 0, host_layer: 0, device_layer: device}
 
@@ -1597,14 +1549,12 @@ class ArgumentsMap(dict):
         disk = 0
         # Layers are sometimes aliases, so include aliases here
         for i in self._op_symbols:
-            try:
+            with suppress(AttributeError):
                 if i._child is None and i.alias is not True:
                     # Use only the "innermost" layer to avoid counting snapshots
                     # twice. This layer will have no child.
                     v = self._apply_override(i)
                     disk += v.size_snapshot*v._time_size_ideal*np.dtype(v.dtype).itemsize
-            except AttributeError:
-                pass
 
         return {disk_layer: disk, host_layer: 0, device_layer: 0}
 
@@ -1614,8 +1564,7 @@ def parse_kwargs(**kwargs):
     Parse keyword arguments provided to an Operator.
     """
     # `dse` -- deprecated, dropped
-    dse = kwargs.pop("dse", None)
-    if dse is not None:
+    if kwargs.pop("dse", None) is not None:
         warning("The `dse` argument is deprecated. "
                 "The optimization level is now controlled via the `opt` argument")
 
@@ -1675,11 +1624,9 @@ def parse_kwargs(**kwargs):
     # Handle deprecations
     deprecated_options = ('cire-mincost-inv', 'cire-mincost-sops', 'cire-maxalias')
     for i in deprecated_options:
-        try:
+        with suppress(KeyError):
             options.pop(i)
             warning(f"Ignoring deprecated optimization option `{i}`")
-        except KeyError:
-            pass
     kwargs['options'] = options
 
     # `opt`, mode
@@ -1714,8 +1661,7 @@ def parse_kwargs(**kwargs):
         kwargs['language'] = language
     elif kwopenmp is not None:
         # Handle deprecated `openmp` kwarg for backward compatibility
-        omp = {'C': 'openmp', 'CXX': 'CXXopenmp'}.get(configuration['language'],
-                                                      'openmp')
+        omp = {'C': 'openmp', 'CXX': 'CXXopenmp'}.get(configuration['language'], 'openmp')
         kwargs['language'] = omp if openmp else 'C'
     else:
         kwargs['language'] = configuration['language']
@@ -1727,15 +1673,13 @@ def parse_kwargs(**kwargs):
             raise ValueError("Argument `compiler` should be a `str`")
         if compiler not in configuration._accepted['compiler']:
             raise InvalidOperator(f"Illegal `compiler={str(compiler)}`")
-        kwargs['compiler'] = compiler_registry[compiler](platform=kwargs['platform'],
-                                                         language=kwargs['language'],
-                                                         mpi=configuration['mpi'],
-                                                         name=compiler)
+        kwargs['compiler'] = compiler_registry[compiler](
+            platform=kwargs['platform'], language=kwargs['language'],
+            mpi=configuration['mpi'], name=compiler)
     elif any([platform, language]):
-        kwargs['compiler'] =\
-            configuration['compiler'].__new_with__(platform=kwargs['platform'],
-                                                   language=kwargs['language'],
-                                                   mpi=configuration['mpi'])
+        kwargs['compiler'] = configuration['compiler'].__new_with__(
+            platform=kwargs['platform'], language=kwargs['language'],
+            mpi=configuration['mpi'])
     else:
         kwargs['compiler'] = configuration['compiler'].__new_with__()
 
@@ -1748,10 +1692,8 @@ def parse_kwargs(**kwargs):
 
     # `allocator`
     kwargs['allocator'] = default_allocator(
-        f"{kwargs['compiler'].__class__.__name__}"
-        f".{kwargs['language']}"
-        f".{kwargs['platform']}"
-    )
+        f"{kwargs['compiler'].__class__.__name__}.{kwargs['language']}"
+        f".{kwargs['platform']}")
 
     # Normalize `subs`, if any
     kwargs['subs'] = {k: sympify(v) for k, v in kwargs.get('subs', {}).items()}

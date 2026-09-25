@@ -25,13 +25,8 @@ from devito.types.dimension import dimensions as mkdims
 from devito.types.equation import Eq, Inc
 from devito.types.utils import DimensionTuple, IgnoreDimSort
 
-__all__ = [
-    'MatrixSparseTimeFunction',
-    'PrecomputedSparseFunction',
-    'PrecomputedSparseTimeFunction',
-    'SparseFunction',
-    'SparseTimeFunction',
-]
+__all__ = ['MatrixSparseTimeFunction', 'PrecomputedSparseFunction',
+           'PrecomputedSparseTimeFunction', 'SparseFunction', 'SparseTimeFunction']
 
 
 _interpolators = {'linear': LinearInterpolator, 'sinc': SincInterpolator,
@@ -96,8 +91,7 @@ class AbstractSparseFunction(DiscreteFunction):
 
         if args:
             return tuple(dimensions), tuple(args)
-        else:
-            return dimensions, dimensions
+        return dimensions, dimensions
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -183,10 +177,7 @@ class AbstractSparseFunction(DiscreteFunction):
             d = self.indices[self._sparse_position]
             if d in key.indices:
                 # Can use as is, dimension already matches
-                if self.alias:
-                    return key._rebuild(alias=self.alias, name=name)
-                else:
-                    return key
+                return key._rebuild(alias=self.alias, name=name) if self.alias else key
             else:
                 # Need to rebuild so the dimensions match the parent
                 # SparseFunction, for example we end up here via `.subs(d, new_d)`
@@ -209,19 +200,14 @@ class AbstractSparseFunction(DiscreteFunction):
             # Fallback to default behaviour
             dtype = dtype or self.dtype
         else:
-            if shape != key.shape and \
-               key.shape != (shape[1],) and \
-               self._distributor.nprocs == 1:
-                raise ValueError(
-                    f'Incompatible shape for {suffix}, `{key.shape[:2]}`;'
-                    f'expected `{shape}`'
-                )
+            if (shape != key.shape and key.shape != (shape[1],) and
+                    self._distributor.nprocs == 1):
+                raise ValueError(f'Incompatible shape for {suffix}, `{key.shape[:2]}`;'
+                                 f'expected `{shape}`')
 
             # Infer dtype
-            if np.issubdtype(key.dtype.type, np.integer):
-                dtype = dtype or np.int32
-            else:
-                dtype = dtype or self.dtype
+            dtype = dtype or (np.int32 if np.issubdtype(key.dtype.type, np.integer)
+                              else self.dtype)
 
         # Whether to initialize the subfunction with the provided data
         # Useful when rebuilding with a placeholder array only used to
@@ -231,11 +217,9 @@ class AbstractSparseFunction(DiscreteFunction):
         # Complex coordinates are not valid, so fall back to corresponding
         # real floating point type if dtype is complex.
         dtype = dtype(0).real.__class__
-        sf = SparseSubFunction(
-            name=name, dtype=dtype, dimensions=dimensions,
-            shape=shape, space_order=0, alias=self.alias,
-            distributor=self._distributor, parent=self, **init
-        )
+        sf = SparseSubFunction(name=name, dtype=dtype, dimensions=dimensions, shape=shape,
+                               space_order=0, alias=self.alias,
+                               distributor=self._distributor, parent=self, **init)
 
         if self.npoint == 0:
             # This is a corner case -- we might get here, for example, when
@@ -270,8 +254,7 @@ class AbstractSparseFunction(DiscreteFunction):
 
     @cached_property
     def origin(self):
-        return DimensionTuple(*[0]*len(self.dimensions),
-                              getters=self.dimensions)
+        return DimensionTuple(*[0]*len(self.dimensions), getters=self.dimensions)
 
     @property
     def _mpitype(self):
@@ -291,13 +274,12 @@ class AbstractSparseFunction(DiscreteFunction):
     def _coords_indices(self):
         if self.gridpoints_data is not None:
             return self.gridpoints_data
-        else:
-            if self.coordinates_data is None:
-                raise ValueError("No coordinates or gridpoints attached"
-                                 "to this SparseFunction")
-            return (
-                np.floor((self.coordinates_data - self.grid.origin) / self.grid.spacing)
-            ).astype(int)
+        if self.coordinates_data is None:
+            raise ValueError("No coordinates or gridpoints attached"
+                             "to this SparseFunction")
+        return (
+            np.floor((self.coordinates_data - self.grid.origin) / self.grid.spacing)
+        ).astype(int)
 
     @property
     def _support(self):
@@ -399,17 +381,10 @@ class AbstractSparseFunction(DiscreteFunction):
         is None, only the grid origin is subtracted.
         """
         shifts = shifts or (0,) * len(self.grid.dimensions)
-        return OrderedDict([
-            ((c - o - s)/d.spacing, p)
-            for p, c, d, o, s in zip(
-                self._pos_symbols(shifts=shifts),
-                self._coordinate_symbols,
-                self.grid.dimensions,
-                self.grid.origin_symbols,
-                shifts,
-                strict=True
-            )
-        ])
+        return OrderedDict([((c - o - s)/d.spacing, p) for p, c, d, o, s in zip(
+            self._pos_symbols(shifts=shifts), self._coordinate_symbols,
+            self.grid.dimensions, self.grid.origin_symbols, shifts, strict=True
+        )])
 
     @cached_property
     def dist_origin(self):
@@ -473,18 +448,13 @@ class AbstractSparseFunction(DiscreteFunction):
         temps = self.interpolator._positions(self.dimensions)
 
         # Create positions and indices temporaries/indirections
-        for d, pos in zip(
-            self.grid.dimensions,
-            pmap.values(),
-            strict=True
-        ):
+        for d, pos in zip(self.grid.dimensions, pmap.values(), strict=True):
             # Add conditional to avoid OOB
             lb = sympy.And(pos >= d.symbolic_min, evaluate=False)
             ub = sympy.And(pos <= d.symbolic_max, evaluate=False)
             conditions[d] = sympy.And(lb, ub, evaluate=False)
         condition = sympy.And(*conditions.values(), evaluate=False)
-        cd = ConditionalDimension(self._sparse_dim.name,
-                                  self._sparse_dim,
+        cd = ConditionalDimension(self._sparse_dim.name, self._sparse_dim,
                                   condition=condition, indirect=True)
 
         if expr is None:
@@ -769,9 +739,8 @@ class AbstractSparseFunction(DiscreteFunction):
                 # Pure-data replacement (ndarray). Re-derive full defaults so
                 # any interpolator-owned SubFunctions get rebuilt alongside
                 # the scattered data.
-                values = self._arg_defaults(
-                    alias=self, estimate_memory=estimate_memory
-                ).reduce_all()
+                values = self._arg_defaults(alias=self,
+                                            estimate_memory=estimate_memory).reduce_all()
                 for k, v in self._dist_scatter(data=new).items():
                     values[k.name] = v
                     for i, s in zip(k.indices, v.shape, strict=True):
@@ -852,8 +821,7 @@ class AbstractSparseTimeFunction(AbstractSparseFunction):
 
         if args:
             return tuple(dimensions), tuple(args)
-        else:
-            return dimensions, dimensions
+        return dimensions, dimensions
 
     @property
     def nt(self):
@@ -995,8 +963,7 @@ class SparseFunction(AbstractSparseFunction):
     def _coordinate_symbols(self):
         """Symbol representing the coordinate values in each Dimension."""
         d_dim = self.coordinates.dimensions[1]
-        return tuple([self.coordinates._subs(d_dim, i)
-                      for i in range(self.grid.dim)])
+        return tuple([self.coordinates._subs(d_dim, i) for i in range(self.grid.dim)])
 
     @cached_property
     def _decomposition(self):
@@ -1009,8 +976,7 @@ class SparseFunction(AbstractSparseFunction):
             return defaults
         key = alias or self
         coords = defaults.get(key.coordinates.name, self.coordinates.data)
-        defaults.update(key.interpolator._arg_defaults(coords=coords,
-                                                       sfunc=self))
+        defaults.update(key.interpolator._arg_defaults(coords=coords, sfunc=self))
         return defaults
 
     def _arg_values(self, estimate_memory=False, **kwargs):
@@ -1029,9 +995,8 @@ class SparseFunction(AbstractSparseFunction):
         origin = tuple(kwargs.get(n, o) for n, o in
                        zip(onames, self.grid.origin, strict=True))
         coords = values.get(self.coordinates.name, self.coordinates.data)
-        values.update(self.interpolator._arg_defaults(
-            coords=coords, sfunc=self, origin=origin
-        ))
+        values.update(self.interpolator._arg_defaults(coords=coords, sfunc=self,
+                                                      origin=origin))
 
         return values
 
@@ -1247,8 +1212,7 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
     _sub_functions = ('gridpoints', 'coordinates', 'interpolation_coeffs')
 
     __rkwargs__ = (AbstractSparseFunction.__rkwargs__ +
-                   ('r', 'gridpoints', 'coordinates',
-                    'interpolation_coeffs'))
+                   ('r', 'gridpoints', 'coordinates', 'interpolation_coeffs'))
 
     def __init_finalize__(self, *args, **kwargs):
         super().__init_finalize__(*args, **kwargs)
@@ -1261,14 +1225,12 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         # Subfunctions setup
         self._dist_origin = {}
         dtype = kwargs.pop('dtype', self.grid.dtype)
-        self._gridpoints = self.__subfunc_setup__('gridpoints',
-                                                  ('gridpoints', 'gridpoints_data'),
-                                                  inkwargs=True,
-                                                  dtype=np.int32, **kwargs)
-        self._coordinates = self.__subfunc_setup__('coords',
-                                                   ('coordinates', 'coordinates_data'),
-                                                   inkwargs=self._gridpoints is not None,
-                                                   dtype=dtype, **kwargs)
+        self._gridpoints = self.__subfunc_setup__(
+            'gridpoints', ('gridpoints', 'gridpoints_data'), inkwargs=True,
+            dtype=np.int32, **kwargs)
+        self._coordinates = self.__subfunc_setup__(
+            'coords', ('coordinates', 'coordinates_data'),
+            inkwargs=self._gridpoints is not None, dtype=dtype, **kwargs)
 
         if self._coordinates is not None:
             self._dist_origin.update({self._coordinates: self.grid.origin_offset})
@@ -1293,10 +1255,8 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
                 if nr == r:
                     r = r // 2
                 else:
-                    raise ValueError(
-                        f'Interpolation coefficients shape {r} do not match'
-                        f'specified radius {nr}'
-                    )
+                    raise ValueError(f'Interpolation coefficients shape {r} do not match'
+                                     f'specified radius {nr}')
         self._radius = r
         self._dist_origin.update({self._interpolation_coeffs: None})
 
@@ -1316,18 +1276,11 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         """Symbol representing the coordinate values in each Dimension."""
         if self.gridpoints is not None:
             d_dim = self.gridpoints.dimensions[1]
-            return tuple([
-                self.gridpoints._subs(d_dim, di) * d.spacing + o
-                for ((di, d), o) in zip(
-                    enumerate(self.grid.dimensions),
-                    self.grid.origin,
-                    strict=True
-                )
-            ])
-        else:
-            d_dim = self.coordinates.dimensions[1]
-            return tuple([self.coordinates._subs(d_dim, i)
-                          for i in range(self.grid.dim)])
+            return tuple([self.gridpoints._subs(d_dim, di) * d.spacing + o
+                          for ((di, d), o) in zip(enumerate(self.grid.dimensions),
+                                                  self.grid.origin, strict=True)])
+        d_dim = self.coordinates.dimensions[1]
+        return tuple([self.coordinates._subs(d_dim, i) for i in range(self.grid.dim)])
 
     @memoized_meth
     def _position_map(self, shifts=None):
@@ -1346,16 +1299,10 @@ class PrecomputedSparseFunction(AbstractSparseFunction):
         """
         if self.gridpoints_data is not None:
             ddim = self.gridpoints.dimensions[-1]
-            return OrderedDict(
-                (self.gridpoints._subs(ddim, di), p)
-                for (di, p) in zip(
-                    range(self.grid.dim),
-                    self._pos_symbols(shifts=shifts),
-                    strict=True
-                )
-            )
-        else:
-            return super()._position_map(shifts=shifts)
+            return OrderedDict((self.gridpoints._subs(ddim, di), p) for (di, p) in zip(
+                range(self.grid.dim), self._pos_symbols(shifts=shifts), strict=True
+            ))
+        return super()._position_map(shifts=shifts)
 
 
 class PrecomputedSparseTimeFunction(AbstractSparseTimeFunction,
@@ -1578,12 +1525,9 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         locdim = Dimension(f'loc_{self.name}')
 
         self._gridpoints = SubFunction(
-            name=f"{self.name}_gridpoints",
-            dtype=np.int32,
-            dimensions=(locdim, ddim),
-            shape=(nloc, self.grid.dim),
-            allocator=self._allocator,
-            space_order=0, parent=self)
+            name=f"{self.name}_gridpoints", dtype=np.int32, dimensions=(locdim, ddim),
+            shape=(nloc, self.grid.dim), allocator=self._allocator, space_order=0,
+            parent=self)
 
         # There is a coefficient array per grid Dimension
         # I could pack these into one array but that seems less readable?
@@ -1592,10 +1536,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         self.rdims = []
         for d in self.grid.dimensions:
             if self._radius[d] is not None:
-                rdim = DefaultDimension(
-                    name=f'r{d.name}_{self.name}',
-                    default_value=self._radius[d]
-                )
+                rdim = DefaultDimension(name=f'r{d.name}_{self.name}',
+                                        default_value=self._radius[d])
                 self.rdims.append(rdim)
                 coeff_dim = rdim
                 coeff_shape = self._radius[d]
@@ -1604,18 +1546,13 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 coeff_shape = self.grid.size_map[d].glb
 
             self.interpolation_coefficients[d] = SubFunction(
-                name=f"{self.name}_coefficients_{d.name}",
-                dtype=self.dtype,
-                dimensions=(locdim, coeff_dim),
-                shape=(nloc, coeff_shape),
-                allocator=self._allocator,
-                space_order=0, parent=self)
+                name=f"{self.name}_coefficients_{d.name}", dtype=self.dtype,
+                dimensions=(locdim, coeff_dim), shape=(nloc, coeff_shape),
+                allocator=self._allocator, space_order=0, parent=self)
 
             # For the _sub_functions, these must be named attributes of
             # this SparseFunction object
-            setattr(
-                self, f"coefficients_{d.name}",
-                self.interpolation_coefficients[d])
+            setattr(self, f"coefficients_{d.name}", self.interpolation_coefficients[d])
 
         # We also need arrays to represent the sparse matrix map
         # The shapes are bogus; these are really only used when
@@ -1632,32 +1569,14 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             nnz_size = 1
 
         self._mrow = DynamicSubFunction(
-            name=f'mrow_{self.name}',
-            dtype=np.int32,
-            dimensions=(self.nnzdim,),
-            shape=(nnz_size,),
-            space_order=0,
-            parent=self,
-            allocator=self._allocator,
-        )
+            name=f'mrow_{self.name}', dtype=np.int32, dimensions=(self.nnzdim,),
+            shape=(nnz_size,), space_order=0, parent=self, allocator=self._allocator)
         self._mcol = DynamicSubFunction(
-            name=f'mcol_{self.name}',
-            dtype=np.int32,
-            dimensions=(self.nnzdim,),
-            shape=(nnz_size,),
-            space_order=0,
-            parent=self,
-            allocator=self._allocator,
-        )
+            name=f'mcol_{self.name}', dtype=np.int32, dimensions=(self.nnzdim,),
+            shape=(nnz_size,), space_order=0, parent=self, allocator=self._allocator)
         self._mval = DynamicSubFunction(
-            name=f'mval_{self.name}',
-            dtype=self.dtype,
-            dimensions=(self.nnzdim,),
-            shape=(nnz_size,),
-            space_order=0,
-            parent=self,
-            allocator=self._allocator,
-        )
+            name=f'mval_{self.name}', dtype=self.dtype, dimensions=(self.nnzdim,),
+            shape=(nnz_size,), space_order=0, parent=self, allocator=self._allocator)
 
         # This loop maintains a map of nnz indices which touch each
         # coordinate of the parallelised injection Dimension
@@ -1668,32 +1587,20 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # This map acts as an indirect sort of the sources according to their
         # position along the parallelisation dimension
         self._par_dim_to_nnz_map = DynamicSubFunction(
-            name=f'par_dim_to_nnz_map_{self.name}',
-            dtype=np.int32,
+            name=f'par_dim_to_nnz_map_{self.name}', dtype=np.int32,
             dimensions=(self.par_dim_to_nnz_dim,),
             # shape is unknown at this stage
-            shape=(1,),
-            space_order=0,
-            parent=self,
-        )
+            shape=(1,), space_order=0, parent=self)
         self._par_dim_to_nnz_m = DynamicSubFunction(
-            name=f'par_dim_to_nnz_m_{self.name}',
-            dtype=np.int32,
+            name=f'par_dim_to_nnz_m_{self.name}', dtype=np.int32,
             dimensions=(self._par_dim,),
             # shape is unknown at this stage
-            shape=(1,),
-            space_order=0,
-            parent=self,
-        )
+            shape=(1,), space_order=0, parent=self)
         self._par_dim_to_nnz_M = DynamicSubFunction(
-            name=f'par_dim_to_nnz_M_{self.name}',
-            dtype=np.int32,
+            name=f'par_dim_to_nnz_M_{self.name}', dtype=np.int32,
             dimensions=(self._par_dim,),
             # shape is unknown at this stage
-            shape=(1,),
-            space_order=0,
-            parent=self,
-        )
+            shape=(1,), space_order=0, parent=self)
 
         if self._distributor.nprocs == 1:
             self._mrow.data[:] = m_coo.row
@@ -1904,25 +1811,14 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         rhs = prod(coeffs) * expr
         field = field.subs(dim_subs)
-        out = [
-            Eq(
-                par_dim_to_nnz_dim.symbolic_min,
-                self._par_dim_to_nnz_m,
-                implicit_dims=tuple(implicit_dims_for_range)
-            ),
-            Eq(
-                par_dim_to_nnz_dim.symbolic_max,
-                self._par_dim_to_nnz_M,
-                implicit_dims=tuple(implicit_dims_for_range)
-            ),
-            Inc(
-                field,
-                rhs.subs(dim_subs),
-                implicit_dims=IgnoreDimSort(implicit_dims_for_inject),
-            ),
+        return [
+            Eq(par_dim_to_nnz_dim.symbolic_min, self._par_dim_to_nnz_m,
+               implicit_dims=tuple(implicit_dims_for_range)),
+            Eq(par_dim_to_nnz_dim.symbolic_max, self._par_dim_to_nnz_M,
+               implicit_dims=tuple(implicit_dims_for_range)),
+            Inc(field, rhs.subs(dim_subs),
+                implicit_dims=IgnoreDimSort(implicit_dims_for_inject)),
         ]
-
-        return out
 
     @classmethod
     def __shape_setup__(cls, **kwargs):
@@ -1991,11 +1887,9 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 dim_r = self.grid.size_map[dim].glb
 
             # Define the split
-            dim_breaks[:-2:2] = [
-                decomp_part[0] - self.r + 1 for decomp_part in decomp]
+            dim_breaks[:-2:2] = [decomp_part[0] - self.r + 1 for decomp_part in decomp]
             dim_breaks[-2] = decomp[-1][-1] + 1 - self.r + 1
-            dim_breaks[1:-1:2] = [
-                decomp_part[0] for decomp_part in decomp]
+            dim_breaks[1:-1:2] = [decomp_part[0] for decomp_part in decomp]
             dim_breaks[-1] = decomp[-1][-1] + 1
 
             # Handle the radius is None case by ensuring we treat
@@ -2005,12 +1899,10 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 gridpoints_dim = np.zeros_like(gridpoints_dim)
 
             try:
-                binned_gridpoints[:, idim] = np.digitize(
-                    gridpoints_dim, dim_breaks)
+                binned_gridpoints[:, idim] = np.digitize(gridpoints_dim, dim_breaks)
             except ValueError as e:
-                raise ValueError(
-                    "decomposition failed!  Are some ranks too skinny?"
-                ) from e
+                raise ValueError("decomposition failed!  Are some ranks too skinny?") \
+                    from e
 
             this_group_rank_map = {
                 0: {None},
@@ -2025,21 +1917,16 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # This allows the points to be grouped into non-overlapping sets
         # based on their bin in each Dimension.  For each set we build a list
         # of points.
-        bins, inverse, counts = np.unique(
-            binned_gridpoints,
-            return_inverse=True,
-            return_counts=True,
-            axis=0)
+        bins, inverse, counts = np.unique(binned_gridpoints, return_inverse=True,
+                                          return_counts=True, axis=0)
 
         # inverse is now a "unique bin number" for each point gridpoints
         # we want to turn that into a list of points for each bin
         # so we argsort
         inverse_argsort = np.argsort(inverse).astype(np.int32)
         cumulative_counts = np.cumsum(counts)
-        gp_map = {
-            tuple(bi): inverse_argsort[cci-ci:cci]
-            for bi, cci, ci in zip(bins, cumulative_counts, counts, strict=True)
-        }
+        gp_map = {tuple(bi): inverse_argsort[cci-ci:cci]
+                  for bi, cci, ci in zip(bins, cumulative_counts, counts, strict=True)}
 
         # the result is now going to be a concatenation of these lists
         # for each of the output ranks
@@ -2054,30 +1941,22 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         global_rank_to_bins = {}
 
-        from itertools import product
         for bi in bins:
             # This is a list of sets for the Dimension-specific rank
-            dim_rank_sets = [
-                dgdr[bii]
-                for dgdr, bii in zip(dim_group_dim_rank, bi, strict=True)
-            ]
+            dim_rank_sets = [dgdr[bii]
+                             for dgdr, bii in zip(dim_group_dim_rank, bi, strict=True)]
 
             # Convert these to an absolute rank
             # This is where we will throw a KeyError if there are points OOB
             for dim_ranks in product(*dim_rank_sets):
                 global_rank = dim_ranks_to_glb[tuple(dim_ranks)]
-                global_rank_to_bins\
-                    .setdefault(global_rank, set())\
-                    .add(tuple(bi))
+                global_rank_to_bins.setdefault(global_rank, set()).add(tuple(bi))
 
         empty = np.array([], dtype=np.int32)
 
-        return [
-            np.concatenate(
-                (empty, *[gp_map[bi] for bi in global_rank_to_bins.get(rank, [])])
-            )
-            for rank in range(distributor.comm.Get_size())
-        ]
+        return [np.concatenate((empty, *[gp_map[bi]
+                                         for bi in global_rank_to_bins.get(rank, [])]))
+                for rank in range(distributor.comm.Get_size())]
 
     def _build_par_dim_to_nnz(self, active_gp, active_mrow):
         # The case where we parallelise over a non-local index is suboptimal, but
@@ -2092,12 +1971,10 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             nnz_M = active_mrow.size - 1
             return {
                 self._par_dim_to_nnz_map: np.arange(active_mrow.size, dtype=np.int32),
-                self._par_dim_to_nnz_m: np.zeros(
-                    (self.grid.shape_local[pardim_index],), dtype=np.int32
-                ),
-                self._par_dim_to_nnz_M: np.full(
-                    (self.grid.shape_local[pardim_index],), nnz_M, dtype=np.int32
-                ),
+                self._par_dim_to_nnz_m: np.zeros((self.grid.shape_local[pardim_index],),
+                                                 dtype=np.int32),
+                self._par_dim_to_nnz_M: np.full((self.grid.shape_local[pardim_index],),
+                                                nnz_M, dtype=np.int32),
             }
 
         # Get the radius along the parallel Dimension
@@ -2143,9 +2020,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             self.scattered_data = self.data
             self.scatter_result = {
                 self: self.data,
-                **{
-                    getattr(self, k): getattr(self, k).data for k in self._sub_functions
-                },
+                **{getattr(self, k): getattr(self, k).data for k in self._sub_functions},
                 self.mrow: self.mrow.data,
                 self.mcol: self.mcol.data,
                 self.mval: self.mval.data,
@@ -2175,11 +2050,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         r_tuple = tuple(self.r[dim] for dim in self.grid.dimensions)
 
         npoint, nloc, nnz, ndim, r_tuple_bcast, nt = distributor.comm.bcast(
-            (self.npoint,
-             self._gridpoints.data.shape[0],
-             m_coo.nnz,
-             self._gridpoints.data.shape[-1],
-             r_tuple,
+            (self.npoint, self._gridpoints.data.shape[0], m_coo.nnz,
+             self._gridpoints.data.shape[-1], r_tuple,
              self.data.shape[self._time_position]), root=0)
 
         # important that all ranks have the same ndims and same r
@@ -2189,8 +2061,7 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         # handle None radius
         r_tuple_no_none = tuple(
             ri if ri is not None else self.grid.size_map[d].glb
-            for ri, d in zip(r_tuple, self.grid.dimensions, strict=True)
-        )
+            for ri, d in zip(r_tuple, self.grid.dimensions, strict=True))
 
         # now all ranks can allocate the buffers to receive into
         if distributor.myrank != 0:
@@ -2199,10 +2070,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
             else:
                 scattered_data = np.empty([nt, npoint], dtype=self.dtype)
             scattered_gp = np.empty([nloc, ndim], dtype=np.int32)
-            scattered_coeffs = [
-                np.empty([nloc, r_tuple_no_none[idim]], dtype=self.dtype)
-                for idim in range(ndim)
-            ]
+            scattered_coeffs = [np.empty([nloc, r_tuple_no_none[idim]], dtype=self.dtype)
+                                for idim in range(ndim)]
             scattered_mrow = np.empty([nnz], dtype=np.int32)
             scattered_mcol = np.empty([nnz], dtype=np.int32)
             scattered_mval = np.empty([nnz], dtype=self.dtype)
@@ -2211,9 +2080,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
             # These are copies because we mess with them down below
             scattered_gp = self._gridpoints.data.copy()
-            scattered_coeffs = [
-                self.interpolation_coefficients[d].data.copy()
-                for d in self.grid.dimensions]
+            scattered_coeffs = [self.interpolation_coefficients[d].data.copy()
+                                for d in self.grid.dimensions]
             scattered_mrow = m_coo.row.copy()
             scattered_mcol = m_coo.col.copy()
             scattered_mval = m_coo.data.copy()
@@ -2250,9 +2118,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
                 effective_gridpoints = np.zeros_like(effective_gridpoints)
 
             # rewrite the matrix to remove the rows in groups 0 and 4
-            mask = (
-                (effective_gridpoints >= _left - this_dim_r + 1)
-                & (effective_gridpoints < _right))
+            mask = ((effective_gridpoints >= _left - this_dim_r + 1)
+                    & (effective_gridpoints < _right))
 
             which = np.nonzero(mask)
             active_mrow = active_mrow[which]
@@ -2297,10 +2164,8 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
         self.scatter_result = {
             self: scattered_data,
             self.gridpoints: scattered_gp,
-            **{
-                self.interpolation_coefficients[d]: scattered_coeffs[idim]
-                for idim, d in enumerate(self.grid.dimensions)
-            },
+            **{self.interpolation_coefficients[d]: scattered_coeffs[idim]
+               for idim, d in enumerate(self.grid.dimensions)},
             self.mrow: active_mrow,
             self.mcol: active_mcol,
             self.mval: active_mval,
@@ -2335,19 +2200,12 @@ class MatrixSparseTimeFunction(AbstractSparseTimeFunction):
 
         # This relies on all ranks having a copy of all data. Which feels "bad".
         if distributor.myrank != 0:
-            distributor.comm.Reduce(
-                self.scattered_data,
-                None,
-                op=MPI.SUM,
-                root=0
-            )
+            distributor.comm.Reduce(self.scattered_data, None, op=MPI.SUM, root=0)
         else:
             distributor.comm.Reduce(
                 MPI.IN_PLACE,
                 self.scattered_data,  # Note: on rank 0 data === scattered_data.
-                op=MPI.SUM,
-                root=0
-            )
+                op=MPI.SUM, root=0)
 
     def _dist_gather(self, data):
         pass

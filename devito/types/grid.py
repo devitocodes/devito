@@ -68,6 +68,14 @@ class CartesianDiscretization:
     def root(self):
         return self
 
+    @property
+    def size_map(self):
+        """Map between SpaceDimensions and their global/local size."""
+        return {
+            d: GlobalLocal(g, l)
+            for d, g, l in zip(self.dimensions, self.shape, self.shape_local, strict=True)
+        }
+
 
 class Grid(CartesianDiscretization, ArgProvider):
 
@@ -159,14 +167,10 @@ class Grid(CartesianDiscretization, ArgProvider):
             ndim = len(shape)
             assert ndim <= 3
             dim_names = self._default_dimensions[:ndim]
-            dim_spacing = tuple(
-                Spacing(name=f'h_{n}', dtype=dtype, is_const=True)
-                for n in dim_names
-            )
-            dimensions = tuple(
-                SpaceDimension(name=n, spacing=s)
-                for n, s in zip(dim_names, dim_spacing, strict=True)
-            )
+            dim_spacing = tuple(Spacing(name=f'h_{n}', dtype=dtype, is_const=True)
+                                for n in dim_names)
+            dimensions = tuple(SpaceDimension(name=n, spacing=s)
+                               for n, s in zip(dim_names, dim_spacing, strict=True))
         else:
             for d in dimensions:
                 if not d.is_Space:
@@ -175,22 +179,18 @@ class Grid(CartesianDiscretization, ArgProvider):
                 if d.is_Derived and not d.is_Conditional:
                     raise ValueError(f"Cannot create Grid with derived Dimension `{d}` "
                                      f"of type `{type(d)}`")
-            dimensions = dimensions
 
         super().__init__(shape, dimensions, dtype)
 
         # Create a Distributor, used internally to implement domain decomposition
         # by all Functions defined on this Grid
         topology = topology or configuration['topology']
-        if topology:
-            if len(topology) == len(self.shape):
-                self._topology = topology
-            else:
-                warning(f"Ignoring the provided topology `{topology}` as it "
-                        f"is incompatible with the grid shape `{self.shape}`")
-                self._topology = None
-        else:
-            self._topology = None
+        self._topology = None
+        if topology and len(topology) == len(self.shape):
+            self._topology = topology
+        elif topology:
+            warning(f"Ignoring the provided topology `{topology}` as it "
+                    f"is incompatible with the grid shape `{self.shape}`")
         self._distributor = Distributor(shape, dimensions, comm, self._topology)
 
         # The physical extent and grid spacing
@@ -271,12 +271,8 @@ class Grid(CartesianDiscretization, ArgProvider):
     def origin_offset(self):
         """Physical offset of the local (per-process) origin from the domain origin."""
         return DimensionTuple(
-            *[
-                i*h
-                for i, h in zip(self.origin_ioffset, self.spacing, strict=True)
-            ],
-            getters=self.dimensions
-        )
+            *[i*h for i, h in zip(self.origin_ioffset, self.spacing, strict=True)],
+            getters=self.dimensions)
 
     @property
     def time_dim(self):
@@ -331,9 +327,8 @@ class Grid(CartesianDiscretization, ArgProvider):
                 # the SpaceDimensions
                 mapper[d.spacing] = s
             else:
-                raise AssertionError(
-                    'Cannot map between spacing symbol for SpaceDimension'
-                )
+                raise AssertionError('Cannot map between spacing symbol for '
+                                     'SpaceDimension')
 
         return mapper
 
@@ -341,14 +336,6 @@ class Grid(CartesianDiscretization, ArgProvider):
     def shape_local(self):
         """Shape of the local (per-process) physical domain."""
         return self._distributor.shape
-
-    @property
-    def size_map(self):
-        """Map between SpaceDimensions and their global/local size."""
-        return {
-            d: GlobalLocal(g, l)
-            for d, g, l in zip(self.dimensions, self.shape, self.shape_local, strict=True)
-        }
 
     @property
     def topology(self):
@@ -374,8 +361,7 @@ class Grid(CartesianDiscretization, ArgProvider):
 
     @cached_property
     def _arg_names(self):
-        ret = []
-        ret.append(self.time_dim.spacing.name)
+        ret = [self.time_dim.spacing.name]
         ret.extend([i.name for i in self.origin_map])
         for i in self.spacing_map:
             try:
@@ -541,26 +527,22 @@ class AbstractSubDomain(CartesianDiscretization):
         True if `dim` is a distributed Dimension for this CartesianDiscretization,
         False otherwise.
         """
-        if self.grid:
-            return any(dim is d for d in self.distributor.dimensions)
-        return False
+        return bool(self.grid) and any(dim is d for d in self.distributor.dimensions)
 
     @property
     def comm(self):
         """The MPI communicator inherited from the distributor."""
         if self.grid:
             return self.grid.comm
-        raise ValueError(
-            f'`SubDomain` {self.name} has no `Grid` attached and thus no `comm`'
-        )
+        raise ValueError(f'`SubDomain` {self.name} has no `Grid` attached and thus '
+                         'no `comm`')
 
     def _arg_values(self, **kwargs):
         try:
             return self.grid._arg_values(**kwargs)
         except AttributeError as e:
-            raise AttributeError(
-                f'{self} is not attached to a Grid and has no _arg_values'
-            ) from e
+            raise AttributeError(f'{self} is not attached to a Grid and has no '
+                                 '_arg_values') from e
 
 
 class SubDomain(AbstractSubDomain):
@@ -628,12 +610,9 @@ class SubDomain(AbstractSubDomain):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
-        for k, v, s in zip(
-            self.define(grid.dimensions).keys(),
-            self.define(grid.dimensions).values(),
-            grid.shape,
-            strict=True
-        ):
+        for k, v, s in zip(self.define(grid.dimensions).keys(),
+                           self.define(grid.dimensions).values(),
+                           grid.shape, strict=True):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
@@ -645,22 +624,18 @@ class SubDomain(AbstractSubDomain):
                         raise ValueError(f"Expected side 'middle', not `{side}`")
                     sub_dimensions.append(SubDimension.middle(f'i{k.name}',
                                                               k, ltkn, rtkn))
-                    thickness = s-ltkn-rtkn
-                    sdshape.append(thickness)
+                    sdshape.append(s-ltkn-rtkn)
                 except ValueError:
                     side, thickness = v
                     constructor = {'left': SubDimension.left,
                                    'right': SubDimension.right}.get(side)
                     if constructor is None:
-                        raise ValueError(
-                            f"Expected sides 'left|right', not `{side}`"
-                        ) from None
+                        raise ValueError(f"Expected sides 'left|right', not "
+                                         f"`{side}`") from None
 
                     if s - thickness < 0:
-                        raise ValueError(
-                            f"Maximum thickness of dimension {k.name} "
-                            f"is {s}, not {thickness}"
-                        ) from None
+                        raise ValueError(f"Maximum thickness of dimension {k.name} "
+                                         f"is {s}, not {thickness}") from None
                     sub_dimensions.append(constructor(f'i{k.name}', k, thickness))
                     sdshape.append(thickness)
 
@@ -671,14 +646,6 @@ class SubDomain(AbstractSubDomain):
     @property
     def shape_local(self):
         return self._shape_local
-
-    @property
-    def size_map(self):
-        """Map between SpaceDimensions and their global/local size."""
-        return {
-            d: GlobalLocal(g, l)
-            for d, g, l in zip(self.dimensions, self.shape, self.shape_local, strict=True)
-        }
 
     def define(self, dimensions):
         """
@@ -696,17 +663,14 @@ class SubDomain(AbstractSubDomain):
         try:
             ret = self.grid._arg_names
         except AttributeError as e:
-            raise AttributeError(
-                f'{self} is not attached to a Grid and has no _arg_names'
-            ) from e
+            raise AttributeError(f'{self} is not attached to a Grid and has no '
+                                 '_arg_names') from e
 
         # Names for SubDomain thicknesses
         thickness_names = tuple([k.name for k in d._thickness_map]
                                 for d in self.dimensions if d.is_Sub)
 
-        ret += tuple(thickness_names)
-
-        return ret
+        return ret + tuple(thickness_names)
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -859,23 +823,16 @@ class SubDomainSet(MultiSubDomain):
         self._global_bounds = kwargs.get('bounds')
         super().__init__(**kwargs)
 
-        try:
-            _ = self.implicit_dimension
+        if hasattr(self, 'implicit_dimension'):
             warning("`implicit_dimension` is deprecated. You may safely remove it "
                     "from the class definition")
-        except AttributeError:
-            pass
 
     def __subdomain_finalize_core__(self, grid):
         self._dtype = grid.dtype
 
         # Compute the SubDomainSet shapes
-        global_bounds = []
-        for i in self._global_bounds:
-            if isinstance(i, int):
-                global_bounds.append(np.full(self._n_domains, i, dtype=np.int32))
-            else:
-                global_bounds.append(i)
+        global_bounds = [np.full(self._n_domains, i, dtype=np.int32)
+                         if isinstance(i, int) else i for i in self._global_bounds]
         d_m = global_bounds[0::2]
         d_M = global_bounds[1::2]
         shapes = []
@@ -1138,8 +1095,7 @@ class Border(SubDomainSet):
         """
         if self.corners == 'overlap':
             return self._build_domains_overlap(grid)
-        else:
-            return self._build_domains_nooverlap(grid)
+        return self._build_domains_nooverlap(grid)
 
     def _build_domains_overlap(self, grid: Grid) -> tuple[int, tuple[np.ndarray]]:
 
@@ -1177,13 +1133,8 @@ class Border(SubDomainSet):
         # Unpack the user-provided specification into a set of sides (on which
         # a cartesian product is taken) and a mapper from those sides to a set of
         # bounds for each dimension.
-        for d, s, b, i in zip(
-            grid.dimensions,
-            grid.shape,
-            self.border,
-            self.inset,
-            strict=True
-        ):
+        for d, s, b, i in zip(grid.dimensions, grid.shape, self.border, self.inset,
+                              strict=True):
             if d in self.border_dims:
                 side = self.border_dims[d]
 
@@ -1218,10 +1169,8 @@ class Border(SubDomainSet):
                 # Don't add any domains that are completely centered
                 if self.corners != 'nocorners' or any(i is CENTER for i in d):
                     # Don't add corners if 'no corners' option selected
-                    domains.append([
-                        interval_map[dim][dom]
-                        for (dim, dom) in zip(grid.dimensions, d, strict=True)
-                    ])
+                    domains.append([interval_map[dim][dom] for (dim, dom)
+                                    in zip(grid.dimensions, d, strict=True)])
 
         domains = np.array(domains)
 
