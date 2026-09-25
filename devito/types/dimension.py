@@ -561,14 +561,14 @@ class Thickness(DataSymbol):
     declared thickness to determine the global region before MPI decomposition.
     """
 
-    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value', 'overlap')
+    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value', 'separated')
 
-    def __new__(cls, *args, root=None, side=None, local=False, overlap=False, **kwargs):
+    def __new__(cls, *args, root=None, side=None, local=False, separated=True, **kwargs):
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
         newobj._side = side
         newobj._local = local
-        newobj._overlap = overlap
+        newobj._separated = separated
 
         return newobj
 
@@ -591,8 +591,8 @@ class Thickness(DataSymbol):
         return self._local
 
     @property
-    def overlap(self):
-        return self._overlap
+    def separated(self):
+        return self._separated
 
     @property
     def value(self):
@@ -642,22 +642,22 @@ class AbstractSubDimension(DerivedDimension):
     is_AbstractSub = True
 
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
-    __rkwargs__ = ('overlap',)
+    __rkwargs__ = ('separated',)
 
     _thickness_type = Thickness
 
-    def __init_finalize__(self, name, parent, thickness, overlap=False, **kwargs):
+    def __init_finalize__(self, name, parent, thickness, separated=True, **kwargs):
         super().__init_finalize__(name, parent)
         if parent.is_AbstractSub:
             raise ValueError("Nested SubDimensions are not supported")
 
-        self._overlap = overlap
+        self._separated = separated
 
         thickness = thickness or (None, None)
         if any(isinstance(tkn, self._thickness_type) for tkn in thickness):
             # Preserve identity when unchanged: expressions may share these symbols
             self._thickness = SubDimensionThickness(*[
-                t if t.overlap == overlap else t._rebuild(overlap=overlap)
+                t if t.separated == separated else t._rebuild(separated=separated)
                 for t in thickness
             ])
         else:
@@ -672,7 +672,7 @@ class AbstractSubDimension(DerivedDimension):
     @memoized_meth
     def _symbolic_thickness(self, **kwargs):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'overlap': self.overlap}
+                  'separated': self.separated}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         return SubDimensionThickness(*[Thickness(name=n, **kwargs) for n in names])
@@ -707,8 +707,8 @@ class AbstractSubDimension(DerivedDimension):
         return self.thickness.right
 
     @property
-    def overlap(self):
-        return self._overlap
+    def separated(self):
+        return self._separated
 
     def __hash__(self):
         return id(self)
@@ -737,11 +737,14 @@ class SubDimension(AbstractSubDimension):
     local : bool
         True if, in case of domain decomposition, the SubDimension is
         guaranteed not to span more than one domain, False otherwise.
-    overlap : bool, optional, default=False
-        Allow a left SubDimension to overlap a right SubDimension of the same
-        parent. When both have this flag unset, their declared thicknesses must sum
-        to at most the full global parent extent. This does not guarantee
-        separation of stencil accesses extending beyond the SubDimensions themselves.
+    separated : bool, optional, default=True
+        Require a stencil-safe gap between nonempty left/right SubDimensions of
+        the same parent. If both are separated, `N - L - R >= space_order`, where
+        `N` is the global parent extent, `L` and `R` are their thicknesses, and
+        `space_order` is the maximum compiled Function order along that axis.
+        This is checked at `Operator.apply`, including runtime Grid overrides.
+        Set to False to allow touching or overlapping regions and retain
+        conservative dependence analysis. Middle SubDimensions are unaffected.
 
     Examples
     --------
@@ -781,26 +784,26 @@ class SubDimension(AbstractSubDimension):
         super().__init_finalize__(name, parent, thickness, **kwargs)
 
     @classmethod
-    def left(cls, name, parent, thickness, local=True, overlap=False):
+    def left(cls, name, parent, thickness, local=True, separated=True):
         return cls(name, parent, thickness=(thickness, None), local=local,
-                   overlap=overlap)
+                   separated=separated)
 
     @classmethod
-    def right(cls, name, parent, thickness, local=True, overlap=False):
+    def right(cls, name, parent, thickness, local=True, separated=True):
         return cls(name, parent, thickness=(None, thickness), local=local,
-                   overlap=overlap)
+                   separated=separated)
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right, local=False,
-               overlap=False):
+               separated=True):
         return cls(name, parent, thickness=(thickness_left, thickness_right), local=local,
-                   overlap=overlap)
+                   separated=separated)
 
     @memoized_meth
     def _symbolic_thickness(self, thickness=None):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
                   'root': self.root, 'local': self.local,
-                  'overlap': self.overlap}
+                  'separated': self.separated}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
@@ -871,9 +874,9 @@ class SubDimension(AbstractSubDimension):
     @classmethod
     def _arg_check_thickness(cls, dimensions, args):
         """
-        Check that non-overlapping left/right SubDimensions fit the global domain.
+        Check that separated left/right SubDimensions leave a stencil-safe gap.
         """
-        subdims = [d for d in dimensions if isinstance(d, cls) and not d.overlap]
+        subdims = [d for d in dimensions if isinstance(d, cls) and d.separated]
 
         grid = args.grid
         error = None
@@ -892,10 +895,17 @@ class SubDimension(AbstractSubDimension):
             # Use the full global extent, not a rank's local extent
             size = grid.size_map[root].glb if grid is not None else args[root.size_name]
             thickness = left.ltkn.value + right.rtkn.value
-            if thickness > size:
+
+            # Runtime overrides do not change the compiled stencil order
+            orders = [getattr(f, 'space_order', 0) for f in args._op_functions
+                      if root in {d.root for d in f.dimensions}]
+            gap = max(orders, default=0) if left.ltkn.value and right.rtkn.value else 0
+            if thickness + gap > size:
                 error = (f"SubDimensions `{left}` and `{right}` have combined "
-                         f"thickness {thickness} along `{parent}`, exceeding "
-                         f"the runtime extent {size}")
+                         f"thickness {thickness} along `{parent}` and require "
+                         f"a gap of at least {gap} points (space_order), exceeding "
+                         f"the runtime extent {size}; use separated=False to allow "
+                         "closer regions")
                 break
 
         comm = args.comm if args.options['mpi'] else None

@@ -614,15 +614,15 @@ class TestVectorHierarchy:
         b = TimedAccess(f[slope*(xr + offset)], 'R', 1,
                         IterationSpace([Interval(xr)]))
 
-        # Left/right SubDimensions may be adjacent, so inward reads can overlap
+        # Arrays carry no stencil order, so only a nonnegative gap is assumed
         assert a.distance(b) == b.distance(a) == (expected,)
 
     @pytest.mark.parametrize('side', ['left', 'right'])
-    def test_overlap_subdimension_bounds(self, side):
+    def test_unseparated_subdimension_bounds(self, side):
         grid = Grid(shape=(32, 32))
         x, y = grid.dimensions
-        xl = SubDimension.left('xl', x, 8, overlap=side == 'left')
-        xr = SubDimension.right('xr', x, 8, overlap=side == 'right')
+        xl = SubDimension.left('xl', x, 8, separated=side != 'left')
+        xr = SubDimension.right('xr', x, 8, separated=side != 'right')
         yl = SubDimension.left('yl', y, 4)
         ym = SubDimension.middle('ym', y, 4, 0)
 
@@ -638,6 +638,26 @@ class TestVectorHierarchy:
         assert a.distance(b) == b.distance(a) == (S.Infinity, 0)
         # Permitting overlap along x does not manufacture a dependence along y
         assert a.distance(c) == c.distance(a) == (S.ImaginaryUnit,)
+
+    @pytest.mark.parametrize('shift,expected', [
+        (-4, S.ImaginaryUnit), (-5, S.Infinity)
+    ])
+    @pytest.mark.parametrize('bundle', [False, True])
+    def test_subdimension_stencil_gap(self, shift, expected, bundle):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 8)
+
+        f = Function(name='f', grid=grid, space_order=4)
+        if bundle:
+            f = Bundle(name='fg', components=(f, f.func(name='g')))
+
+        a = TimedAccess(f[xl], 'W', 0, IterationSpace([Interval(xl)]))
+        b = TimedAccess(f[xr + shift], 'R', 1, IterationSpace([Interval(xr)]))
+
+        # The promise covers the compiled order, not arbitrary larger shifts
+        assert a.distance(b) == b.distance(a) == (expected,)
 
 
 class TestSpace:

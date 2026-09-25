@@ -153,7 +153,7 @@ class TestSubDomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('middle', 2, 2),
-                        y: SubDimension.right('iy', y, 10, overlap=True)}
+                        y: SubDimension.right('iy', y, 10, separated=False)}
 
         class sd1(SubDomain):
             name = 'sd1'
@@ -1984,6 +1984,9 @@ class TestSubDomainArguments:
             with pytest.raises(InvalidArgument,
                                match='Cannot override SubDimension thickness'):
                 op.arguments(time_M=0, **kwargs)
+        elif not middle and margin < 0:
+            with pytest.raises(InvalidArgument, match='gap of at least 8'):
+                op.arguments(time_M=0, **kwargs)
         else:
             op.arguments(time_M=0, **kwargs)
 
@@ -1991,7 +1994,7 @@ class TestSubDomainArguments:
     @pytest.mark.parametrize('space_order', [4, 8, 12])
     @pytest.mark.parametrize('margin', [-1, 0, 1])
     def test_runtime_space_order(self, middle, space_order, margin):
-        """Neither compiled nor override space_order constrains region widths."""
+        """The compiled order constrains the gap, not the runtime override's order."""
         op, fields = self._make_operator(middle=middle)
 
         required = 8
@@ -2000,7 +2003,11 @@ class TestSubDomainArguments:
         kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
                                        space_order=space_order) for f in fields}
 
-        op.arguments(time_M=0, **kwargs)
+        if not middle and margin < 0:
+            with pytest.raises(InvalidArgument, match='gap of at least 8'):
+                op.arguments(time_M=0, **kwargs)
+        else:
+            op.arguments(time_M=0, **kwargs)
 
     @pytest.mark.parametrize('side', ['left', 'right'])
     def test_empty_subdimension(self, side):
@@ -2022,7 +2029,7 @@ class TestSubDomainArguments:
 
         assert 'autotuning' not in op._state
 
-        grid = Grid(shape=(8, 16))
+        grid = Grid(shape=(8, 24))
 
         kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
                                        space_order=8) for f in fields}
@@ -2043,12 +2050,12 @@ class TestSubDomainArguments:
 
     @pytest.mark.parallel(mode=[(2, 'basic')])
     def test_collective_rejection(self, mode):
-        grid = Grid(shape=(32, 16), topology=(2, 1))
+        grid = Grid(shape=(32, 24), topology=(2, 1))
 
         right = 9 if grid.distributor.myrank == 0 else 8
         op, _ = self._make_operator(right_shift=-4, grid=grid, thickness=(8, right))
 
-        # Only rank 0 declares left/right SubDimensions too thick for the global domain
+        # Only rank 0 leaves an insufficient global stencil gap
         with pytest.raises(InvalidArgument, match='combined thickness'):
             op.arguments(time_M=0)
 
@@ -2156,13 +2163,13 @@ class TestSubDomainArguments:
     def test_left_right_partition(self):
         op, fields = self._make_operator()
 
-        for size in (15, 16):
+        for size in (23, 24):
             grid = Grid(shape=(8, size))
 
             kwargs = {f.name: TimeFunction(name=f'runtime_{f.name}', grid=grid,
                                            space_order=8) for f in fields}
 
-            if size < 16:
+            if size < 24:
                 with pytest.raises(InvalidArgument, match='combined thickness'):
                     op.arguments(time_M=0, **kwargs)
             else:
@@ -2208,8 +2215,8 @@ class TestSubDomainArguments:
     def test_left_right_overlap(self, side):
         grid = Grid(shape=(10,))
         x, = grid.dimensions
-        xl = SubDimension.left('xl', x, 6, overlap=side == 'left')
-        xr = SubDimension.right('xr', x, 6, overlap=side == 'right')
+        xl = SubDimension.left('xl', x, 6, separated=side != 'left')
+        xr = SubDimension.right('xr', x, 6, separated=side != 'right')
 
         f = Function(name='f', grid=grid, space_order=0)
 
@@ -2221,6 +2228,48 @@ class TestSubDomainArguments:
 
         assert np.all(f.data[:4] == 1)
         assert np.all(f.data[4:] == 2)
+
+    def test_stencil_gap_axes(self):
+        grid = Grid(shape=(20, 32))
+        x, y = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 8)
+
+        f = Function(name='f', grid=grid, dimensions=(x,), shape=(20,), space_order=4)
+        g = Function(name='g', grid=grid, dimensions=(y,), shape=(32,), space_order=8)
+
+        eqs = [Eq(f[xl], 1), Eq(f[xr], 2), Eq(g, g + 1)]
+
+        op = Operator(eqs, name='stencil_gap_axes')
+
+        # The higher-order Function on y must not enlarge the required x gap
+        op.apply()
+
+        assert np.all(f.data[:8] == 1)
+        assert np.all(f.data[-8:] == 2)
+
+    @pytest.mark.parametrize('space_order', [4, 8])
+    def test_stencil_gap_functions_on_subdomains(self, space_order):
+        grid = Grid(shape=(8, 20))
+        left = ReducedDomain(None, ('left', 8), grid=grid)
+        right = ReducedDomain(None, ('right', 8), grid=grid)
+
+        f = Function(name='f', grid=left, space_order=space_order)
+        g = Function(name='g', grid=right, space_order=space_order)
+
+        eqs = [Eq(f, 1), Eq(g, 2)]
+
+        op = Operator(eqs, name='stencil_gap_functions_on_subdomains')
+
+        # The SubDimension axes must contribute their Functions' stencil order
+        if space_order > 4:
+            with pytest.raises(InvalidArgument, match='gap of at least 8'):
+                op.arguments()
+        else:
+            op.apply()
+
+            assert np.all(f.data == 1)
+            assert np.all(g.data == 2)
 
     @pytest.mark.parallel(mode=[(2, 'basic')])
     def test_distributed_left_right(self, mode):

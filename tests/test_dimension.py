@@ -2257,28 +2257,28 @@ class TestConcretization:
     during compilation.
     """
 
-    @pytest.mark.parametrize('overlap', [False, True])
-    def test_correct_thicknesses(self, overlap):
+    @pytest.mark.parametrize('separated', [False, True])
+    def test_correct_thicknesses(self, separated):
         """
         Check that thicknesses aren't created where they shouldn't be.
         """
         x = Dimension('x')
-        ix0 = SubDimension.left('x', x, 2, overlap=overlap)
-        ix1 = SubDimension.right('x', x, 2, overlap=overlap)
-        ix2 = SubDimension.middle('x', x, 2, 2, overlap=overlap)
+        ix0 = SubDimension.left('x', x, 2, separated=separated)
+        ix1 = SubDimension.right('x', x, 2, separated=separated)
+        ix2 = SubDimension.middle('x', x, 2, 2, separated=separated)
 
         rebuilt = concretize_subdims([ix0, ix1, ix2], sregistry=SymbolRegistry())
 
         assert rebuilt[0].is_left
         assert rebuilt[1].is_right
         assert rebuilt[2].is_middle
-        assert all(d.overlap is overlap for d in rebuilt)
-        assert all(t.overlap is overlap for d in rebuilt for t in d.thickness)
+        assert all(d.separated is separated for d in rebuilt)
+        assert all(t.separated is separated for d in rebuilt for t in d.thickness)
 
         for d in rebuilt:
-            changed = d._rebuild(overlap=not overlap)
-            assert changed.overlap is not overlap
-            assert all(t.overlap is not overlap for t in changed.thickness)
+            changed = d._rebuild(separated=not separated)
+            assert changed.separated is not separated
+            assert all(t.separated is not separated for t in changed.thickness)
 
     def test_shared_thickness(self):
         x = Dimension('x')

@@ -1618,11 +1618,11 @@ def disjoint_subdims(a0, a1):
     For example, a left SubDimension of thickness 4 ends before a middle
     SubDimension excluding 4 points, even when the two thickness symbols are distinct.
 
-    Left/right SubDimensions of the same parent with `overlap=False` satisfy
-    `L + R <= N`, checked against the full global parent extent at runtime.
-    Their regions may be adjacent; stencil accesses extending from one into
-    the other may still induce dependences. If either SubDimension allows
-    overlap, no minimum separation is assumed.
+    Left/right SubDimensions of the same parent with `separated=True` satisfy
+    `L + R + space_order <= N`, checked against the full global parent extent
+    at `Operator.apply`. Their gap therefore accommodates stencil accesses;
+    larger shifts are still compared explicitly. If either SubDimension has
+    `separated=False`, no minimum separation is assumed.
 
     Match data axes independently of the iteration nests. Return True if any
     axis proves separation, False otherwise. Accesses over the same interval
@@ -1670,12 +1670,15 @@ def disjoint_subdims(a0, a1):
             dl, dr = (it0.dim, it1.dim) if it0.dim.is_left else (it1.dim, it0.dim)
             dlp, drp = dl.parent, dr.parent
 
-            if dl.is_left and dr.is_right and dlp is drp and \
-               not (dl.overlap or dr.overlap):
-                # The runtime partition check guarantees a nonnegative gap only
+            if dl.is_left and dr.is_right and \
+               dl.separated and dr.separated and \
+               dlp is drp:
+                # Runtime validation guarantees N - L - R >= space_order
+                f = a0.function.c0
+                space_order = f.space_order if isinstance(f, Function) else 0
                 gap = sympy.Dummy(nonnegative=True)
                 mapper[dlp.symbolic_max] = (dlp.symbolic_min + dl.ltkn.value +
-                                            dr.rtkn.value + gap - 1)
+                                            dr.rtkn.value + space_order + gap - 1)
 
             if (M0 - m1).subs(mapper).is_negative or \
                (M1 - m0).subs(mapper).is_negative:
