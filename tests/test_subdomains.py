@@ -2287,3 +2287,34 @@ class TestSubDomainArguments:
 
         with pytest.raises(InvalidArgument, match='combined thickness 24'):
             op.arguments(time_M=0, **kwargs)
+
+    @pytest.mark.parallel(mode=[1, 2])
+    def test_grid_dtype_override(self, mode):
+        grid = Grid(shape=(32,), dtype=np.float64)
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 8)
+
+        f = Function(name='f', grid=grid, dtype=np.float32, space_order=8)
+
+        eqs = [Eq(f[xl], 1), Eq(f[xr], 2)]
+
+        op = Operator(eqs, name='subdomain_grid_dtype_override')
+
+        for size in (23, 24):
+            grid = Grid(shape=(size,), dtype=np.float32)
+
+            g = Function(name='g', grid=grid, space_order=8)
+
+            # The runtime Grid has a different x symbol, but the same argument names
+            assert grid.dimensions[0] != x
+            assert f.dtype == g.dtype == np.float32
+            if size < 24:
+                with pytest.raises(InvalidArgument, match='gap of at least 8'):
+                    op.arguments(f=g)
+            else:
+                op.apply(f=g)
+
+                assert np.all(g.data[:8] == 1)
+                assert np.all(g.data[8:-8] == 0)
+                assert np.all(g.data[-8:] == 2)

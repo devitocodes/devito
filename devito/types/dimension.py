@@ -599,20 +599,26 @@ class Thickness(DataSymbol):
         return self._value
 
     def _arg_values(self, grid=None, **kwargs):
+        # Runtime arguments bind by name, even when different spacing dtypes
+        # make the compiled and runtime Grid Dimensions distinct symbols
+        root = self.root
+        if grid is not None:
+            root = next((d for d in grid.dimensions if d.name == root.name), root)
+
         rtkn = self.value
-        if grid is not None and grid.is_distributed(self.root):
+        if grid is not None and grid.is_distributed(root):
             # Get local thickness
             if self.local:
                 # Dimension is of type `left`/`right` - compute the offset
                 # and then add 1 to get the appropriate thickness
                 if self.value is not None:
-                    tkn = grid.distributor.glb_to_loc(self.root, rtkn-1, self.side)
+                    tkn = grid.distributor.glb_to_loc(root, rtkn-1, self.side)
                     tkn = tkn+1 if tkn is not None else 0
                 else:
                     tkn = 0
             else:
                 # Dimension is of type `middle`
-                tkn = grid.distributor.glb_to_loc(self.root, rtkn, self.side) or 0
+                tkn = grid.distributor.glb_to_loc(root, rtkn, self.side) or 0
         else:
             tkn = rtkn or 0
 
@@ -879,6 +885,8 @@ class SubDimension(AbstractSubDimension):
         subdims = [d for d in dimensions if isinstance(d, cls) and d.separated]
 
         grid = args.grid
+        # Bind global extents by runtime argument name, not Dimension identity
+        sizes = {d.name: v.glb for d, v in grid.size_map.items()} if grid else {}
         error = None
 
         for parent, dims in as_mapper(subdims, lambda d: d.parent).items():
@@ -893,7 +901,7 @@ class SubDimension(AbstractSubDimension):
             root = parent.root
 
             # Use the full global extent, not a rank's local extent
-            size = grid.size_map[root].glb if grid is not None else args[root.size_name]
+            size = sizes.get(root.name, args[root.size_name])
             thickness = left.ltkn.value + right.rtkn.value
 
             # Runtime overrides do not change the compiled stencil order
