@@ -9,9 +9,9 @@ from sympy.core.decorators import call_highest_priority
 
 from devito.data import LEFT, RIGHT
 from devito.deprecations import deprecations
-from devito.exceptions import InvalidArgument
+from devito.exceptions import InvalidArgument, mpi_raise
 from devito.logger import debug
-from devito.tools import Pickable, is_integer, is_number, memoized_meth
+from devito.tools import Pickable, as_mapper, is_integer, is_number, memoized_meth
 from devito.types.args import ArgProvider
 from devito.types.basic import DataSymbol, Scalar, Symbol
 from devito.types.constant import Constant
@@ -554,15 +554,21 @@ class DerivedDimension(BasicDimension):
 # the user
 
 class Thickness(DataSymbol):
-    """A DataSymbol to represent a thickness of a SubDimension"""
+    """
+    A SubDimension thickness, fixed at construction and localized by MPI.
 
-    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value')
+    Explicit runtime overrides are not supported: dependence analysis uses the
+    declared thickness to determine the global region before MPI decomposition.
+    """
 
-    def __new__(cls, *args, root=None, side=None, local=False, **kwargs):
+    __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value', 'separated')
+
+    def __new__(cls, *args, root=None, side=None, local=False, separated=True, **kwargs):
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
         newobj._side = side
         newobj._local = local
+        newobj._separated = separated
 
         return newobj
 
@@ -585,32 +591,45 @@ class Thickness(DataSymbol):
         return self._local
 
     @property
+    def separated(self):
+        return self._separated
+
+    @property
     def value(self):
         return self._value
 
     def _arg_values(self, grid=None, **kwargs):
-        # Allow override of thickness values to disable BCs
-        # However, arguments from the user are considered global
-        # So overriding the thickness to a nonzero value should not cause
-        # boundaries to exist between ranks where they did not before
-        rtkn = kwargs.get(self.name, self.value)
-        if grid is not None and grid.is_distributed(self.root):
+        # Runtime arguments bind by name, even when different spacing dtypes
+        # make the compiled and runtime Grid Dimensions distinct symbols
+        root = self.root
+        if grid is not None:
+            root = next((d for d in grid.dimensions if d.name == root.name), root)
+
+        rtkn = self.value
+        if grid is not None and grid.is_distributed(root):
             # Get local thickness
             if self.local:
                 # Dimension is of type `left`/`right` - compute the offset
                 # and then add 1 to get the appropriate thickness
                 if self.value is not None:
-                    tkn = grid.distributor.glb_to_loc(self.root, rtkn-1, self.side)
+                    tkn = grid.distributor.glb_to_loc(root, rtkn-1, self.side)
                     tkn = tkn+1 if tkn is not None else 0
                 else:
                     tkn = 0
             else:
                 # Dimension is of type `middle`
-                tkn = grid.distributor.glb_to_loc(self.root, rtkn, self.side) or 0
+                tkn = grid.distributor.glb_to_loc(root, rtkn, self.side) or 0
         else:
             tkn = rtkn or 0
 
         return {self.name: tkn}
+
+    def _arg_check(self, args, *_args, **kwargs):
+        error = (f"Cannot override SubDimension thickness `{self.name}`"
+                 if self.name in kwargs else None)
+
+        comm = args.comm if args.options['mpi'] else None
+        mpi_raise(error, InvalidArgument, comm=comm)
 
 
 class AbstractSubDimension(DerivedDimension):
@@ -622,20 +641,31 @@ class AbstractSubDimension(DerivedDimension):
     Notes
     -----
     This is just the abstract base class for various types of SubDimensions.
+
+    SubDimensions cannot be nested.
     """
 
     is_AbstractSub = True
 
     __rargs__ = DerivedDimension.__rargs__ + ('thickness',)
-    __rkwargs__ = ()
+    __rkwargs__ = ('separated',)
 
     _thickness_type = Thickness
 
-    def __init_finalize__(self, name, parent, thickness, **kwargs):
+    def __init_finalize__(self, name, parent, thickness, separated=True, **kwargs):
         super().__init_finalize__(name, parent)
+        if parent.is_AbstractSub:
+            raise ValueError("Nested SubDimensions are not supported")
+
+        self._separated = separated
+
         thickness = thickness or (None, None)
         if any(isinstance(tkn, self._thickness_type) for tkn in thickness):
-            self._thickness = SubDimensionThickness(*thickness)
+            # Preserve identity when unchanged: expressions may share these symbols
+            self._thickness = SubDimensionThickness(*[
+                t if t.separated == separated else t._rebuild(separated=separated)
+                for t in thickness
+            ])
         else:
             self._thickness = self._symbolic_thickness(thickness=thickness)
 
@@ -647,7 +677,8 @@ class AbstractSubDimension(DerivedDimension):
 
     @memoized_meth
     def _symbolic_thickness(self, **kwargs):
-        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True}
+        kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
+                  'separated': self.separated}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         return SubDimensionThickness(*[Thickness(name=n, **kwargs) for n in names])
@@ -681,6 +712,10 @@ class AbstractSubDimension(DerivedDimension):
         # Shortcut for the right thickness symbol
         return self.thickness.right
 
+    @property
+    def separated(self):
+        return self._separated
+
     def __hash__(self):
         return id(self)
 
@@ -708,6 +743,14 @@ class SubDimension(AbstractSubDimension):
     local : bool
         True if, in case of domain decomposition, the SubDimension is
         guaranteed not to span more than one domain, False otherwise.
+    separated : bool, optional, default=True
+        Require a stencil-safe gap between nonempty left/right SubDimensions of
+        the same parent. If both are separated, `N - L - R >= space_order`, where
+        `N` is the global parent extent, `L` and `R` are their thicknesses, and
+        `space_order` is the maximum compiled Function order along that axis.
+        This is checked at `Operator.apply`, including runtime Grid overrides.
+        Set to False to allow touching or overlapping regions and retain
+        conservative dependence analysis. Middle SubDimensions are unaffected.
 
     Examples
     --------
@@ -731,6 +774,9 @@ class SubDimension(AbstractSubDimension):
     local (i.e., non-distributed) Dimensions, as they are assumed to fit entirely
     within a single domain. This is the most typical use case (e.g., to set up
     boundary conditions). To drop this assumption, pass ``local=False``.
+
+    Explicit runtime overrides of the root Dimension's bounds are not supported.
+    MPI may still localize the global regions automatically.
     """
 
     is_Sub = True
@@ -739,27 +785,31 @@ class SubDimension(AbstractSubDimension):
 
     _thickness_type = Thickness
 
-    def __init_finalize__(self, name, parent, thickness, local,
-                          **kwargs):
+    def __init_finalize__(self, name, parent, thickness, local, **kwargs):
         self._local = local
-        super().__init_finalize__(name, parent, thickness)
+        super().__init_finalize__(name, parent, thickness, **kwargs)
 
     @classmethod
-    def left(cls, name, parent, thickness, local=True):
-        return cls(name, parent, thickness=(thickness, None), local=local)
+    def left(cls, name, parent, thickness, local=True, separated=True):
+        return cls(name, parent, thickness=(thickness, None), local=local,
+                   separated=separated)
 
     @classmethod
-    def right(cls, name, parent, thickness, local=True):
-        return cls(name, parent, thickness=(None, thickness), local=local)
+    def right(cls, name, parent, thickness, local=True, separated=True):
+        return cls(name, parent, thickness=(None, thickness), local=local,
+                   separated=separated)
 
     @classmethod
-    def middle(cls, name, parent, thickness_left, thickness_right, local=False):
-        return cls(name, parent, thickness=(thickness_left, thickness_right), local=local)
+    def middle(cls, name, parent, thickness_left, thickness_right, local=False,
+               separated=True):
+        return cls(name, parent, thickness=(thickness_left, thickness_right), local=local,
+                   separated=separated)
 
     @memoized_meth
     def _symbolic_thickness(self, thickness=None):
         kwargs = {'dtype': np.int32, 'is_const': True, 'nonnegative': True,
-                  'root': self.root, 'local': self.local}
+                  'root': self.root, 'local': self.local,
+                  'separated': self.separated}
 
         names = [f"{self.parent.name}_{s}tkn" for s in ('l', 'r')]
         sides = [LEFT, RIGHT]
@@ -818,6 +868,57 @@ class SubDimension(AbstractSubDimension):
         # themselves
         return {}
 
+    def _arg_check(self, args, *_args, **kwargs):
+        d = self.root
+        names = [k for k in (d.min_name, d.max_name, d.name) if k in kwargs]
+        error = (f"Cannot override bounds {names} of Dimension `{d}` used by "
+                 f"SubDimension `{self}`" if names else None)
+
+        comm = args.comm if args.options['mpi'] else None
+        mpi_raise(error, InvalidArgument, comm=comm)
+
+    @classmethod
+    def _arg_check_thickness(cls, dimensions, args):
+        """
+        Check that separated left/right SubDimensions leave a stencil-safe gap.
+        """
+        subdims = [d for d in dimensions if isinstance(d, cls) and d.separated]
+
+        grid = args.grid
+        # Bind global extents by runtime argument name, not Dimension identity
+        sizes = {d.name: v.glb for d, v in grid.size_map.items()} if grid else {}
+        error = None
+
+        for parent, dims in as_mapper(subdims, lambda d: d.parent).items():
+            # Check left/right SubDimensions, not a middle's excluded thicknesses
+            left = max((d for d in dims if d.is_left),
+                       key=lambda d: d.ltkn.value, default=None)
+            right = max((d for d in dims if d.is_right),
+                        key=lambda d: d.rtkn.value, default=None)
+            if left is None or right is None:
+                continue
+
+            root = parent.root
+
+            # Use the full global extent, not a rank's local extent
+            size = sizes.get(root.name, args[root.size_name])
+            thickness = left.ltkn.value + right.rtkn.value
+
+            # Runtime overrides do not change the compiled stencil order
+            orders = [getattr(f, 'space_order', 0) for f in args._op_functions
+                      if root in {d.root for d in f.dimensions}]
+            gap = max(orders, default=0) if left.ltkn.value and right.rtkn.value else 0
+            if thickness + gap > size:
+                error = (f"SubDimensions `{left}` and `{right}` have combined "
+                         f"thickness {thickness} along `{parent}` and require "
+                         f"a gap of at least {gap} points (space_order), exceeding "
+                         f"the runtime extent {size}; use separated=False to allow "
+                         "closer regions")
+                break
+
+        comm = args.comm if args.options['mpi'] else None
+        mpi_raise(error, InvalidArgument, comm=comm)
+
 
 class MultiSubDimension(AbstractSubDimension):
 
@@ -827,12 +928,14 @@ class MultiSubDimension(AbstractSubDimension):
 
     is_MultiSub = True
 
-    __rkwargs__ = ('functions', 'bounds_indices', 'implicit_dimension')
+    __rkwargs__ = AbstractSubDimension.__rkwargs__ + (
+        'functions', 'bounds_indices', 'implicit_dimension'
+    )
 
     def __init_finalize__(self, name, parent, thickness, functions=None,
-                          bounds_indices=None, implicit_dimension=None):
+                          bounds_indices=None, implicit_dimension=None, **kwargs):
 
-        super().__init_finalize__(name, parent, thickness)
+        super().__init_finalize__(name, parent, thickness, **kwargs)
         self.functions = functions
         self.bounds_indices = bounds_indices
         self.implicit_dimension = implicit_dimension
@@ -1436,7 +1539,7 @@ class BlockDimension(AbstractIncrDimension):
                 # Avoid OOB (will end up here only in case of tiny iteration spaces)
                 return {name: 1}
 
-    def _arg_check(self, args, *_args):
+    def _arg_check(self, args, *_args, **kwargs):
         try:
             name = self.step.name
         except AttributeError:

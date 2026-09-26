@@ -15,8 +15,8 @@ from devito.ir.equations.algorithms import dimension_sort
 from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
-    AFFINE, IRREGULAR, REGULAR, IterationInstance, Scope, TimedAccess, Vector, mocksym0,
-    mocksym1
+    AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
+    mocksym0, mocksym1
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
@@ -28,8 +28,8 @@ from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
 from devito.tools import prod
 from devito.tools.data_structures import frozendict
 from devito.types import (
-    Array, Bundle, ConditionalDimension, CriticalRegion, CustomDimension, Jump, Scalar,
-    Symbol
+    Array, BlockDimension, Bundle, ConditionalDimension, CriticalRegion, CustomDimension,
+    Jump, Scalar, StencilDimension, Symbol
 )
 
 
@@ -316,9 +316,11 @@ class TestVectorHierarchy:
         assert tcxy_r0.distance(tcx1y1_r1) == (-1, -1)
         assert tcx1y1_r1.distance(tcx1y_r1) == (0, 1)
 
-        # Distance should go to infinity due to mismatching directions
-        assert rev_tcxy_w0.distance(tcx1y_r1) == (S.Infinity,)
-        assert tcx1y_r1.distance(rev_tcxy_w0) == (S.Infinity,)
+        # Mismatching x directions do not prevent computing the y distance
+        assert rev_tcxy_w0.distance(tcx1y_r1) == (S.Infinity, 0)
+        assert tcx1y_r1.distance(rev_tcxy_w0) == (S.Infinity, 0)
+        assert rev_tcxy_w0.distance(tcx1y1_r1) == (S.Infinity, -1)
+        assert tcx1y1_r1.distance(rev_tcxy_w0) == (S.Infinity, 1)
 
         # Distance when both source and since go backwards along the x Dimension
         assert rev_tcxy_w0.distance(rev_tcx1y1_r1) == (1, -1)
@@ -409,6 +411,10 @@ class TestVectorHierarchy:
         xm_overlap = SubDimension.middle('xm_overlap', x, 4, 4)
         xr_overlap = SubDimension.right('xr_overlap', x, 4)
 
+        # Adjacent pieces share the runtime boundary, not just its default value
+        xm = xm._rebuild(thickness=(xl.ltkn, xr.rtkn))
+        ym = ym._rebuild(thickness=(yl.ltkn, ym.rtkn))
+
         f = Function(name='f', grid=grid)
 
         left = TimedAccess(
@@ -471,10 +477,187 @@ class TestVectorHierarchy:
         assert middle.distance(middle_overlap) == (S.Infinity, 0)
         assert right.distance(right_overlap) == (S.Infinity, 0)
         assert left.distance(bad) == (S.Infinity, 0)
-        assert left.distance(shifted) == (S.Infinity, 0)
-        assert left.distance(shifted_range) == (S.Infinity, 0)
+        assert left.distance(shifted) == (S.ImaginaryUnit,)
+        assert left.distance(shifted_range) == (S.ImaginaryUnit,)
         assert left_nonlinear.distance(middle_nonlinear) == (S.Infinity, 0)
-        assert left.distance(orthogonal) == (S.Infinity,)
+        assert left.distance(orthogonal) == (S.Infinity, S.Infinity)
+
+    @pytest.mark.parametrize('shared_boundary', [False, True])
+    @pytest.mark.parametrize('offset,independent', [(-5, False), (-4, True), (1, True)])
+    def test_subdimension_stencil_distance(self, shared_boundary, offset, independent):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 20)
+        if shared_boundary:
+            xr = SubDimension.middle('xm', x, 8, 0)
+            xr = xr._rebuild(thickness=(xl.ltkn, xr.rtkn))
+            interval = Interval(xr, 4, 4)
+        else:
+            interval = Interval(xr)
+        h = StencilDimension('h', 0, 8)
+        f = Function(name='f', grid=grid)
+        a = TimedAccess(f[xl], 'W', 0, IterationSpace([Interval(xl)]))
+        b = TimedAccess(f[xr + offset + h], 'R', 1,
+                        IterationSpace([interval]))
+        independent = independent if shared_boundary else offset >= 0
+        assert (S.ImaginaryUnit in a.distance(b)) is independent
+        assert (S.ImaginaryUnit in b.distance(a)) is independent
+
+    @pytest.mark.parametrize('direction', [Forward, Backward])
+    @pytest.mark.parametrize('blocked', [False, True])
+    @pytest.mark.parametrize('side,thickness,shift,expected', [
+        ('right', 20, 0, (S.ImaginaryUnit,)),
+        ('right', 24, 0, (S.ImaginaryUnit,)),
+        ('right', 20, -8, (S.Infinity, S.Infinity)),
+        ('middle', 8, 0, (S.ImaginaryUnit,)),
+        ('middle', 8, -1, (S.Infinity, S.Infinity))
+    ])
+    def test_subdimension_distance_different_nests(self, direction, blocked, side,
+                                                   thickness, shift, expected):
+        grid = Grid(shape=(32, 32))
+        x, y = grid.dimensions
+        yl = SubDimension.left('yl', y, 8)
+        if side == 'middle':
+            yr = SubDimension.middle('ym', y, thickness, 0)
+            yr = yr._rebuild(thickness=(yl.ltkn, yr.rtkn))
+        else:
+            yr = SubDimension.right('yr', y, thickness)
+        i = Dimension(name='i')
+        f = Function(name='f', grid=grid)
+        if blocked:
+            yl = BlockDimension('ylb', yl, yl.symbolic_min, yl.symbolic_max, step=1)
+            yr = BlockDimension('yrb', yr, yr.symbolic_min, yr.symbolic_max, step=1)
+
+        a = TimedAccess(f[x, yl], 'W', 0, IterationSpace([Interval(x), Interval(yl)]))
+        b = TimedAccess(f[x, yr], 'R', 1,
+                        IterationSpace([Interval(i), Interval(x),
+                                        Interval(yr, shift, shift)],
+                                       directions={yr: direction}))
+
+        # The first iteration intervals differ, but y may still prove disjointness
+        assert a.distance(b) == b.distance(a) == expected
+
+    def test_indexedbase_distance(self):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid)
+        a = TimedAccess(f.indexed, 'R', 0)
+        b = TimedAccess(f[x], 'W', 1, IterationSpace([Interval(x)]))
+        assert a.distance(b) == b.distance(a) == (S.Infinity,)
+
+    @pytest.mark.parametrize('shared_boundary', [False, True])
+    @pytest.mark.parametrize('symbolic', [False, True])
+    @pytest.mark.parametrize('slope,offset,expected', [
+        (1, 0, S.ImaginaryUnit), (1, -1, S.Infinity),
+        (-1, 0, S.ImaginaryUnit), (-1, 1, S.Infinity),
+        (2, 0, S.ImaginaryUnit), (2, -2, S.Infinity),
+        (1, None, S.Infinity)
+    ])
+    def test_subdimension_affine_bounds(self, shared_boundary, symbolic, slope, offset,
+                                        expected):
+        grid = Grid(shape=(64,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xm = SubDimension.middle('xm', x, 8, 40)
+        if shared_boundary:
+            xm = xm._rebuild(thickness=(xl.ltkn, xm.rtkn))
+        if symbolic:
+            f = Array(name='f', dimensions=(x,))
+        else:
+            f = Function(name='f', grid=grid)
+        base = 0 if slope > 0 else 63
+        offset = Symbol(name='offset', integer=True) if offset is None else offset
+
+        a = TimedAccess(f[base + slope*xl], 'W', 0,
+                        IterationSpace([Interval(xl)]))
+        b = TimedAccess(f[base + slope*xm + offset], 'R', 1,
+                        IterationSpace([Interval(xm)]))
+        assert a.distance(b) == b.distance(a) == (expected,)
+
+    @pytest.mark.parametrize('index', [
+        lambda d: d % 2,
+        lambda d: Symbol(name='s', integer=True)*d
+    ])
+    @pytest.mark.parametrize('shift,expected', [
+        (0, (S.ImaginaryUnit,)), (-1, (S.Infinity, S.Infinity))
+    ])
+    def test_subdimension_disjoint_later_axis(self, index, shift, expected):
+        grid = Grid(shape=(32, 32))
+        x, y = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 20)
+        yl = SubDimension.left('yl', y, 8)
+        ym = SubDimension.middle('ym', y, 8, 0)
+        ym = ym._rebuild(thickness=(yl.ltkn, ym.rtkn))
+        f = Function(name='f', grid=grid)
+
+        a = TimedAccess(f[index(xl), yl], 'W', 0,
+                        IterationSpace([Interval(xl), Interval(yl)]))
+        b = TimedAccess(f[index(xr), ym], 'R', 1,
+                        IterationSpace([Interval(xr), Interval(ym, shift, shift)]))
+
+        # An unresolved x axis must not prevent y from proving disjointness
+        assert a.distance(b) == b.distance(a) == expected
+
+    @pytest.mark.parametrize('slope', [1, -1, 2])
+    @pytest.mark.parametrize('offset,expected', [
+        (0, S.ImaginaryUnit), (1, S.ImaginaryUnit), (-1, S.Infinity)
+    ])
+    def test_opposite_subdimension_bounds(self, slope, offset, expected):
+        x = Dimension(name='x')
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 8)
+        f = Array(name='f', dimensions=(x,))
+
+        a = TimedAccess(f[slope*xl], 'W', 0, IterationSpace([Interval(xl)]))
+        b = TimedAccess(f[slope*(xr + offset)], 'R', 1,
+                        IterationSpace([Interval(xr)]))
+
+        # Arrays carry no stencil order, so only a nonnegative gap is assumed
+        assert a.distance(b) == b.distance(a) == (expected,)
+
+    @pytest.mark.parametrize('side', ['left', 'right'])
+    def test_unseparated_subdimension_bounds(self, side):
+        grid = Grid(shape=(32, 32))
+        x, y = grid.dimensions
+        xl = SubDimension.left('xl', x, 8, separated=side != 'left')
+        xr = SubDimension.right('xr', x, 8, separated=side != 'right')
+        yl = SubDimension.left('yl', y, 4)
+        ym = SubDimension.middle('ym', y, 4, 0)
+
+        f = Function(name='f', grid=grid)
+
+        a = TimedAccess(f[xl, yl], 'W', 0,
+                        IterationSpace([Interval(xl), Interval(yl)]))
+        b = TimedAccess(f[xr, yl], 'R', 1,
+                        IterationSpace([Interval(xr), Interval(yl)]))
+        c = TimedAccess(f[xr, ym], 'R', 1,
+                        IterationSpace([Interval(xr), Interval(ym)]))
+
+        assert a.distance(b) == b.distance(a) == (S.Infinity, 0)
+        # Permitting overlap along x does not manufacture a dependence along y
+        assert a.distance(c) == c.distance(a) == (S.ImaginaryUnit,)
+
+    @pytest.mark.parametrize('shift,expected', [
+        (-4, S.ImaginaryUnit), (-5, S.Infinity)
+    ])
+    @pytest.mark.parametrize('bundle', [False, True])
+    def test_subdimension_stencil_gap(self, shift, expected, bundle):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 8)
+
+        f = Function(name='f', grid=grid, space_order=4)
+        if bundle:
+            f = Bundle(name='fg', components=(f, f.func(name='g')))
+
+        a = TimedAccess(f[xl], 'W', 0, IterationSpace([Interval(xl)]))
+        b = TimedAccess(f[xr + shift], 'R', 1, IterationSpace([Interval(xr)]))
+
+        # The promise covers the compiled order, not arbitrary larger shifts
+        assert a.distance(b) == b.distance(a) == (expected,)
 
 
 class TestSpace:
@@ -1157,6 +1340,95 @@ class TestDependenceAnalysis:
         assert len(scope.d_flow) == 1
         dep, = scope.d_flow
         assert dep.function is f
+
+    @pytest.mark.parametrize('symbolic', [False, True])
+    @pytest.mark.parametrize('lower,upper,ndeps', [
+        (0, 31, (8, 24)), (0, 7, (0, 0)), (16, 31, (0, 16)),
+        (7, 8, (1, 1)), (15, 16, (1, 2))
+    ])
+    def test_stencil_contains_producer(self, symbolic, lower, upper, ndeps):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 1)
+        xm = SubDimension.middle('xm', x, 8, 16)
+        h = StencilDimension('h', lower, upper)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        if symbolic:
+            # Thickness 8 fixes the left boundary; the parent upper bound remains
+            # symbolic, so stencil offsets >= 8 can still touch the producer
+            pi, ci = Interval(xm), Interval(xl)
+        else:
+            # Encode actual fixed iteration bounds, not runtime defaults
+            pi = Interval(xm, 8 - xm.symbolic_min, 15 - xm.symbolic_max)
+            ci = Interval(xl, -xl.symbolic_min, -xl.symbolic_max)
+        producer = Cluster(Eq(f[xm], 1), IterationSpace([pi]))
+        consumer = Cluster(Eq(g[xl], f[xl + h]), IterationSpace([ci]))
+        ndeps = ndeps[symbolic]
+
+        # In particular, [0, 31] covers the producer despite both endpoints missing it
+        scope = Scope.from_scopes(producer.scope, consumer.scope)
+        w, = scope.getwrites(f)
+        r, = scope.getreads(f)
+        for relation in (Relation(w, r), Relation(r, w)):
+            assert relation.distance == ((S.Infinity if ndeps else S.ImaginaryUnit),)
+        assert len(scope.d_flow) == ndeps
+        assert len(scope.d_anti) == ndeps
+
+    @pytest.mark.parametrize('lower,upper,flow,anti', [
+        (-2, -1, {(1,), (2,)}, set()),
+        (-2, 2, {(2,)}, {(2,)}),
+        (0, 2, {(0,)}, {(2,)}),
+        (1, 2, set(), {(1,), (2,)})
+    ])
+    def test_stencil_same_domain(self, lower, upper, flow, anti):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        h = StencilDimension('h', lower, upper)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        ispace = IterationSpace([Interval(x)])
+        producer = Cluster(Eq(f[x], 1), ispace)
+        consumer = Cluster(Eq(g[x], f[x + h]), ispace)
+
+        scope = Scope.from_scopes(producer.scope, consumer.scope)
+        assert {tuple(d.distance) for d in scope.d_flow} == flow
+        assert {tuple(d.distance) for d in scope.d_anti} == anti
+
+    @pytest.mark.parametrize('lower,upper,flow,anti', [
+        (-16, 16, True, True), (-16, 0, True, False), (0, 16, True, True),
+        (-16, -8, False, False), (8, 16, False, False)
+    ])
+    def test_stencil_same_subdimension(self, lower, upper, flow, anti):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        h = StencilDimension('h', lower, upper)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        ispace = IterationSpace([Interval(xl)])
+        producer = Cluster(Eq(f[xl], 1), ispace)
+        consumer = Cluster(Eq(g[xl], f[xl + h]), ispace)
+
+        # Even in the same domain, stencil endpoints may lie beyond the producer
+        scope = Scope.from_scopes(producer.scope, consumer.scope)
+        assert bool(scope.d_flow) is flow
+        assert bool(scope.d_anti) is anti
+
+    def test_stencil_multidimensional_distance(self):
+        grid = Grid(shape=(32, 32))
+        x, y = grid.dimensions
+        h = StencilDimension('h', 0, 1)
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        ispace = IterationSpace([Interval(x), Interval(y)])
+        producer = Cluster(Eq(f[x, y], 1), ispace)
+        consumer = Cluster(Eq(g[x, y], f[x + h, y + 2 - h]), ispace)
+
+        scope = Scope.from_scopes(producer.scope, consumer.scope)
+        assert not scope.d_flow
+        assert {tuple(d.distance) for d in scope.d_anti} == {(0, 2), (1, 1)}
+        assert {d.cause for d in scope.d_anti} == {frozenset({x}), frozenset({y})}
 
 
 class TestParallelismAnalysis:

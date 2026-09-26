@@ -7,7 +7,7 @@ import sympy
 from sympy import Expr, S
 
 from devito.ir.support.space import Backward, null_ispace
-from devito.ir.support.utils import AccessMode, extrema
+from devito.ir.support.utils import AccessMode, erange, extrema
 from devito.ir.support.vector import LabeledVector, Vector
 from devito.symbolics import (
     compare_ops, q_affine, q_comp_acc, q_constant, retrieve_indexed, search
@@ -358,6 +358,9 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
             # E.g., `uv(x).x` and `uv(x).y` -- not a real dependence!
             return Vector(S.ImaginaryUnit)
 
+        if disjoint_subdims(self, other):
+            return Vector(S.ImaginaryUnit)
+
         ret = []
         for sit, oit in zip(self.itintervals, other.itintervals, strict=False):
             n = len(ret)
@@ -369,20 +372,14 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
                 # E.g., `self=R<f,[x]>` and `self.itintervals=(x, i)`
                 break
 
-            # If over SubDimensions, check disjointness
-            test = disjoint_subdims(self[n], other[n], sai, oai, sit, oit)
-            if test == DISJOINT:
-                return Vector(S.ImaginaryUnit)
-            elif test == MAYBE_OVERLAP:
-                ret.append(S.Infinity)
-                continue
-
             try:
                 if not (sit == oit and sai.root is oai.root):
                     # E.g., `self=R<f,[x + 2]>` and `other=W<f,[i + 1]>`
                     # E.g., `self=R<f,[x]>`, `other=W<f,[x + 1]>`,
                     #       `self.itintervals=(x<0>,)`, `other.itintervals=(x<1>,)`
-                    return vinf(ret)
+                    # Keep looking: a later axis may prove disjointness
+                    ret.append(S.Infinity)
+                    continue
             except AttributeError:
                 # E.g., `self=R<f,[cy]>` and `self.itintervals=(y,)` => `sai=None`
                 pass
@@ -1152,7 +1149,29 @@ class Scope(CacheInstances):
         """
         Generate all read accesses to a given function.
 
-        StencilDimensions, if any, are replaced with their extrema.
+        StencilDimensions, if any, are replaced with:
+
+            * in presence of SubDimensions: the range of points they span;
+            * in all other cases: just their extrema, since it suffices to
+              capture all possible dependencies.
+
+        The reason SubDimensions must be treated specially -- with a full set
+        of TimedAccess objects getting generated -- is to handle the special
+        case of SubDimensions thinner than the stencil’s reach. For example, consider
+        the following scenario:
+
+        * A SubDimension with just two points, 10 and 11;
+        * One equation writes `F[10]` and `F[11]`;
+        * Another equation runs over the same SubDimension reading the stencil
+          `F[x-4] ... F[x+4]`.
+
+        If we examine only the two extreme stencil offsets:
+
+        * `F[x-4]` reads points 6–7: no overlap.
+        * `F[x+4]` reads points 14–15: no overlap.
+
+        But interior offsets certainly overlap -- for instance, `F[x-1]` reads
+        9–10, which includes the producer’s point 10.
 
         Notes
         -----
@@ -1163,9 +1182,13 @@ class Scope(CacheInstances):
         be found. For example, a DiscreteFunction would never appear among
         the iteration symbols.
         """
+        uses_subdims = lambda i: any(d.is_Sub for d in i.ispace.dimensions)
+
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
             for i in self.getreads(f):
-                for j in extrema(i.access):
+                expand = erange if uses_subdims(i) else extrema
+
+                for j in expand(i.access):
                     yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
 
         else:
@@ -1581,90 +1604,87 @@ def skippable_interval(d, ispace, it):
     return d is None or (d in ispace and not d._defines & it.dim._defines)
 
 
-# Possible return values for `disjoint_subdims`
-INAPPLICABLE = 0
-DISJOINT = 1
-MAYBE_OVERLAP = 2
-
-
-def disjoint_subdims(e0, e1, d0, d1, it0, it1):
+def disjoint_subdims(a0, a1):
     """
-    Determine whether two accesses span distinct pieces of the same
-    SubDimension decomposition.
+    Determine whether two TimedAccesses touch disjoint SubDimension regions
+    of the same Function.
 
-    Consider a root Dimension `x` with bounds `x_m` and `x_M`. A valid
-    left/middle/right decomposition with thicknesses `L` and `R` is::
+    Compare symbolic accessed bounds, including shifts and stencil points.
+    Block intervals are promoted to their logical SubDimensions. Declared
+    thicknesses determine the global regions: explicit overrides are forbidden,
+    while MPI clips these regions to each rank. Parent bounds and access offsets
+    remain symbolic; only iteration bounds use the declared thicknesses.
 
-        xl = [x_m,         x_m + L - 1]
-        xm = [x_m + L,     x_M - R]
-        xr = [x_M - R + 1, x_M]
+    For example, a left SubDimension of thickness 4 ends before a middle
+    SubDimension excluding 4 points, even when the two thickness symbols are distinct.
 
-    These intervals are pairwise disjoint. Replacing `xl`, `xm`, or `xr`
-    with `x` in an affine access removes the choice of partition piece while
-    retaining the relative access. If two such normalized accesses have zero
-    distance, they apply the same affine map to disjoint intervals and therefore
-    cannot refer to the same data point. The apparent dependence is imaginary.
+    Left/right SubDimensions of the same parent with `separated=True` satisfy
+    `L + R + space_order <= N`, checked against the full global parent extent
+    at `Operator.apply`. Their gap therefore accommodates stencil accesses;
+    larger shifts are still compared explicitly. If either SubDimension has
+    `separated=False`, no minimum separation is assumed.
 
-    For example, `f[xl]` and `f[xm]` normalize to `f[x]` and `f[x]`;
-    they are independent. The same holds for `f[xl + 1]` and `f[xm + 1]`
-    when their iteration intervals have equal offsets. By contrast, `f[xl]`
-    and `f[xm - 1]` normalize to different accesses, and the latter may reach
-    into the left piece, so they must be treated conservatively.
-
-    This proof requires distinct pieces of the same root, compatible declared
-    thicknesses, affine accesses, and iteration intervals with equal offsets and
-    directions. Runtime bounds are assumed to preserve the declared partition.
-    Return DISJOINT if disjointness is proven, and MAYBE_OVERLAP if the
-    intervals are aligned SubDimensions but are not proven disjoint. In
-    particular, two declarations of the same left, right, or middle piece
-    overlap along this Dimension. MAYBE_OVERLAP lets the caller record an
-    infinite distance and inspect later Dimensions, which may still prove the
-    multidimensional accesses disjoint. Return INAPPLICABLE if this test does not
-    apply, so that the general distance analysis can classify the dependence.
+    Match data axes independently of the iteration nests. Return True if any
+    axis proves separation, False otherwise. Accesses over the same interval
+    use the general distance analysis.
     """
-    try:
-        # E.g., `f[xl]` over `(xl,)` and `f[xm]` over `(xm,)` need this
-        # special test, while accesses over the same `(xl,)` should use general
-        # distance analysis, so we can return immediately in such a case
-        if not (d0.is_Sub and
-                d1.is_Sub and
-                d0.root is d1.root and
-                it0.dim.root is d0.root and
-                it1.dim.root is d1.root and
+    for e0, e1, d0, d1 in zip(a0, a1, a0.aindices, a1.aindices, strict=False):
+        it0 = a0.intervals[d0]
+        it1 = a1.intervals[d1]
+        if it0.is_Null or it1.is_Null:
+            continue
+
+        it0 = it0.promote(lambda d: d.is_Incr)
+        it1 = it1.promote(lambda d: d.is_Incr)
+        if not (it0.dim.is_Sub and
+                it1.dim.is_Sub and
+                it0.dim.root is it1.dim.root and
                 it0 != it1):
-            return INAPPLICABLE
-    except AttributeError:
-        return INAPPLICABLE
+            continue
 
-    if (d0.is_left and d1.is_middle) or \
-       (d0.is_middle and d1.is_left):
-        is_partition = d0.ltkn.value == d1.ltkn.value
-    elif (d0.is_middle and d1.is_right) or \
-         (d0.is_right and d1.is_middle):
-        is_partition = d0.rtkn.value == d1.rtkn.value
-    elif d0.is_left and d1.is_right:
-        is_partition = d0.ltkn.value is not None and d1.rtkn.value is not None
-    elif d0.is_right and d1.is_left:
-        is_partition = d0.rtkn.value is not None and d1.ltkn.value is not None
-    else:
-        is_partition = False
+        thicknesses = {t: t.value for it in (it0, it1)
+                       for t in it.dim.thickness if t.value is not None}
+        bounds = []
+        for e, d, it in ((e0, d0, it0), (e1, d1, it1)):
+            if not q_affine(e, d):
+                break
 
-    if not is_partition:
-        return MAYBE_OVERLAP
+            lower, upper = [], []
+            for v in erange(e):
+                slope = v.diff(d)
+                if slope.is_nonnegative:
+                    m, M = it.symbolic_min, it.symbolic_max
+                elif slope.is_nonpositive:
+                    M, m = it.symbolic_min, it.symbolic_max
+                else:
+                    break
+                lower.append(v._subs(d, m.xreplace(thicknesses)))
+                upper.append(v._subs(d, M.xreplace(thicknesses)))
+            else:
+                bounds.append((sympy.Min(*lower), sympy.Max(*upper)))
 
-    if not q_affine(e0, d0) or not q_affine(e1, d1):
-        return MAYBE_OVERLAP
+        if len(bounds) == 2:
+            (m0, M0), (m1, M1) = bounds
+            mapper = {}
 
-    if it0.offsets != it1.offsets or it0.direction is not it1.direction:
-        return MAYBE_OVERLAP
+            dl, dr = (it0.dim, it1.dim) if it0.dim.is_left else (it1.dim, it0.dim)
+            dlp, drp = dl.parent, dr.parent
 
-    e0 = e0._subs(d0, d0.root)
-    e1 = e1._subs(d1, d1.root)
+            if dl.is_left and dr.is_right and \
+               dl.separated and dr.separated and \
+               dlp is drp:
+                # Runtime validation guarantees N - L - R >= space_order
+                f = a0.function.c0
+                space_order = f.space_order if isinstance(f, Function) else 0
+                gap = sympy.Dummy(nonnegative=True)
+                mapper[dlp.symbolic_max] = (dlp.symbolic_min + dl.ltkn.value +
+                                            dr.rtkn.value + space_order + gap - 1)
 
-    if e0 - e1 == 0:
-        return DISJOINT
-    else:
-        return MAYBE_OVERLAP
+            if (M0 - m1).subs(mapper).is_negative or \
+               (M1 - m0).subs(mapper).is_negative:
+                return True
+
+    return False
 
 
 def disjoint_test(e0, e1, d, it):

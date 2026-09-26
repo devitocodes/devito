@@ -13,6 +13,7 @@ from devito import (
 )
 from devito.arch.compiler import OneapiCompiler
 from devito.data import LEFT, RIGHT
+from devito.exceptions import InvalidArgument, mpi_raise
 from devito.ir import Cluster, Interval, IterationSpace
 from devito.ir.clusters.algorithms import check_halo_writes
 from devito.ir.iet import (
@@ -26,6 +27,32 @@ from devito.tools import Bunch
 from devito.types import Bundle
 from devito.types.dimension import ModuloDimension
 from examples.seismic.acoustic import acoustic_setup
+
+
+class TestMPIUtils:
+
+    @pytest.mark.parametrize('comm', [None, MPI.COMM_NULL], ids=['none', 'null'])
+    @pytest.mark.parametrize('error', [None, '', 'invalid argument'])
+    @pytest.mark.parametrize('exception', [ValueError, InvalidArgument])
+    def test_raise_serial(self, comm, error, exception):
+        if error is None:
+            mpi_raise(error, exception, comm=comm)
+        else:
+            with pytest.raises(exception, match=f'^{error}$'):
+                mpi_raise(error, exception, comm=comm)
+
+    @pytest.mark.parametrize('failing_ranks', [(), (0,), (1,), (0, 1)])
+    @pytest.mark.parallel(mode=[(2, 'basic')])
+    def test_raise_collective(self, failing_ranks, mode):
+        grid = Grid(shape=(16, 16))
+        rank = grid.distributor.myrank
+        error = f'rank {rank}' if rank in failing_ranks else None
+
+        if failing_ranks:
+            with pytest.raises(InvalidArgument, match=f'^rank {failing_ranks[0]}$'):
+                mpi_raise(error, InvalidArgument, comm=grid.comm)
+        else:
+            mpi_raise(error, InvalidArgument, comm=grid.comm)
 
 
 class TestDistributor:
@@ -586,7 +613,7 @@ class TestFunction:
         )
 
     @pytest.mark.parallel(mode=4)
-    @pytest.mark.parametrize('shape', [(1,), (2, 3), (4, 5, 6)])
+    @pytest.mark.parametrize('shape', [(2,), (2, 3), (4, 5, 6)])
     def test_mpi4py_nodevmpi(self, shape, mode):
 
         with switchconfig(mpi=False):

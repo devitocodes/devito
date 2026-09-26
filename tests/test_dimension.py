@@ -12,6 +12,7 @@ from devito import (  # noqa
     SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, dimensions,
     floor, norm, sin, sum, switchconfig
 )
+from devito.exceptions import InvalidArgument
 from devito.ir import SymbolRegistry
 from devito.ir.equations.algorithms import concretize_subdims
 from devito.ir.iet import (
@@ -21,7 +22,7 @@ from devito.ir.support.space import Backward, Forward
 from devito.symbolics import INT, IntDiv, indexify, retrieve_functions
 from devito.types import Array, StencilDimension, Symbol
 from devito.types.basic import Scalar
-from devito.types.dimension import AffineIndexAccessFunction, Thickness
+from devito.types.dimension import AffineIndexAccessFunction, MultiSubDimension, Thickness
 from devito.types.misc import Temp
 
 
@@ -787,24 +788,27 @@ class TestSubDimension:
         op()
 
     @pytest.mark.parametrize('opt', opts_tiling)
-    def test_expandingbox_like(self, opt):
+    def test_box_bounds(self, opt):
         """
-        Make sure SubDimensions aren't an obstacle to expanding boxes.
+        SubDimension boxes use declared thicknesses, not runtime root bounds.
         """
         grid = Grid(shape=(8, 8))
         x, y = grid.dimensions
 
-        u = TimeFunction(name='u', grid=grid)
         xi = SubDimension.middle(name='xi', parent=x, thickness_left=2, thickness_right=2)
         yi = SubDimension.middle(name='yi', parent=y, thickness_left=2, thickness_right=2)
+
+        u = TimeFunction(name='u', grid=grid)
 
         eqn = Eq(u.forward, u + 1)
         eqn = eqn.subs({x: xi, y: yi})
 
         op = Operator(eqn, opt=opt)
 
-        op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5,
-                 x_ltkn0=0, x_rtkn0=0, y_ltkn0=0, y_rtkn0=0)
+        with pytest.raises(InvalidArgument, match='Cannot override bounds'):
+            op.apply(time=3, x_m=2, x_M=5, y_m=2, y_M=5)
+
+        op.apply(time=3)
 
         assert np.all(u.data[0, 2:-2, 2:-2] == 4.)
         assert np.all(u.data[1, 2:-2, 2:-2] == 3.)
@@ -824,6 +828,18 @@ class TestSubDimension:
         assert 'x_ltkn0' in str(op.ccode)
         op(x_m=0)
         assert np.all(f.data == np.array([0, 1, 0, 0, 0]))
+
+    def test_no_nesting(self):
+        x = Dimension('x')
+        xi = SubDimension.middle('xi', x, 1, 1)
+        xm = MultiSubDimension('xm', x, None)
+
+        for parent in (xi, xm):
+            with pytest.raises(ValueError, match='Nested SubDimensions'):
+                SubDimension.left('xl', parent, 1)
+
+            with pytest.raises(ValueError, match='Nested SubDimensions'):
+                MultiSubDimension('xs', parent, None)
 
 
 class TestConditionalDimension:
@@ -2241,20 +2257,36 @@ class TestConcretization:
     during compilation.
     """
 
-    def test_correct_thicknesses(self):
+    @pytest.mark.parametrize('separated', [False, True])
+    def test_correct_thicknesses(self, separated):
         """
         Check that thicknesses aren't created where they shouldn't be.
         """
         x = Dimension('x')
-        ix0 = SubDimension.left('x', x, 2)
-        ix1 = SubDimension.right('x', x, 2)
-        ix2 = SubDimension.middle('x', x, 2, 2)
+        ix0 = SubDimension.left('x', x, 2, separated=separated)
+        ix1 = SubDimension.right('x', x, 2, separated=separated)
+        ix2 = SubDimension.middle('x', x, 2, 2, separated=separated)
 
         rebuilt = concretize_subdims([ix0, ix1, ix2], sregistry=SymbolRegistry())
 
         assert rebuilt[0].is_left
         assert rebuilt[1].is_right
         assert rebuilt[2].is_middle
+        assert all(d.separated is separated for d in rebuilt)
+        assert all(t.separated is separated for d in rebuilt for t in d.thickness)
+
+        for d in rebuilt:
+            changed = d._rebuild(separated=not separated)
+            assert changed.separated is not separated
+            assert all(t.separated is not separated for t in changed.thickness)
+
+    def test_shared_thickness(self):
+        x = Dimension('x')
+        xl = SubDimension.left('xl', x, 4)
+
+        d, t = concretize_subdims([xl, xl.ltkn], sregistry=SymbolRegistry())
+
+        assert d.ltkn is t
 
     def test_condition_concretization(self):
         """

@@ -641,12 +641,6 @@ class SubDomain(AbstractSubDomain):
                 try:
                     # Case ('middle', int, int)
                     side, ltkn, rtkn = v
-                    if side != 'middle':
-                        raise ValueError(f"Expected side 'middle', not `{side}`")
-                    sub_dimensions.append(SubDimension.middle(f'i{k.name}',
-                                                              k, ltkn, rtkn))
-                    thickness = s-ltkn-rtkn
-                    sdshape.append(thickness)
                 except ValueError:
                     side, thickness = v
                     constructor = {'left': SubDimension.left,
@@ -662,6 +656,23 @@ class SubDomain(AbstractSubDomain):
                             f"is {s}, not {thickness}"
                         ) from None
                     sub_dimensions.append(constructor(f'i{k.name}', k, thickness))
+                    sdshape.append(thickness)
+                else:
+                    if side != 'middle':
+                        raise ValueError(f"Expected side 'middle', not `{side}`")
+
+                    # A `middle` region expects `ltkn + rtkn <= s` in the global Grid.
+                    # This ensures that the left and right regions won't overlap
+                    thickness = s-ltkn-rtkn
+                    if thickness < 0:
+                        raise ValueError(
+                            f"SubDomain `{self.name}` has combined thickness "
+                            f"{ltkn + rtkn} along `{k}`, exceeding the Grid size {s}"
+                        )
+
+                    sub_dimensions.append(
+                        SubDimension.middle(f'i{k.name}', k, ltkn, rtkn)
+                    )
                     sdshape.append(thickness)
 
         self._shape = tuple(sdshape)
