@@ -145,6 +145,31 @@ class TestSubDomains:
             expected = size - 16 if spec[0] == 'middle' else 16
             assert make_region().shape == (expected,)
 
+    @pytest.mark.parametrize('legacy', [False, True])
+    @pytest.mark.parametrize('separated', [False, True])
+    def test_separated(self, legacy, separated):
+        class Region(SubDomain):
+            name = 'region'
+
+            def define(self, dimensions):
+                x, y, z = dimensions
+                return {x: ('left', 4), y: ('middle', 1, 1), z: ('right', 4)}
+
+        class OverlappingRegion(Region):
+            separated = False
+
+        cls = Region if separated else OverlappingRegion
+        if legacy:
+            region = cls()
+            Grid(shape=(7, 7, 7), subdomains=(region,))
+        else:
+            region = cls(grid=Grid(shape=(7, 7, 7)))
+
+        assert region.separated is separated
+        assert all(d.separated is separated for d in region.dimensions)
+        assert all(t.separated is separated for d in region.dimensions
+                   for t in d.thickness)
+
     def test_definitions(self):
 
         class sd0(SubDomain):
@@ -288,6 +313,26 @@ class TestSubDomains:
         op = Operator([equation])
 
         assert_structure(op, ['t', 'txyz', 'txyz'], 'txyzyz')
+
+    def test_overlapping(self):
+        class Overlapping(ReducedDomain):
+            separated = False
+
+        grid = Grid(shape=(7, 5))
+        left = Overlapping(('left', 4), ('middle', 1, 1), grid=grid)
+        right = Overlapping(('right', 4), None, grid=grid)
+
+        f = Function(name='f', grid=grid)
+
+        eqs = [Eq(f, f + 1, subdomain=left), Eq(f, 2*f + 2, subdomain=right)]
+
+        op = Operator(eqs, name='overlapping_subdomains')
+        op.apply()
+
+        expected = np.zeros(grid.shape)
+        expected[:4, 1:-1] += 1
+        expected[3:, :] = 2*expected[3:, :] + 2
+        assert np.array_equal(f.data, expected)
 
 
 class TestSubDomainScheduling:

@@ -583,6 +583,14 @@ class SubDomain(AbstractSubDomain):
           region of ``d_size - (N + M)`` points starting at ``N`` and finishing
           at ``d_sizeM - M``.
 
+    Attributes
+    ----------
+    separated : bool, default=True
+        Require a stencil-safe gap between opposite left/right regions, as in
+        SubDimension. Set to False to allow touching or overlapping regions.
+        Applies to SubDimensions generated from tuple definitions; explicit
+        Dimensions returned by :meth:`define` retain their own settings.
+
     Examples
     --------
     An "Inner" SubDomain, which spans the entire domain except for an exterior
@@ -613,6 +621,8 @@ class SubDomain(AbstractSubDomain):
     SubDomains are the only way to harness the benefits of domain decomposition,
     especially when defining BCs.
     """
+
+    separated = True
 
     def __subdomain_finalize__(self):
         self.__subdomain_finalize_legacy__(self.grid)
@@ -655,7 +665,8 @@ class SubDomain(AbstractSubDomain):
                             f"Maximum thickness of dimension {k.name} "
                             f"is {s}, not {thickness}"
                         ) from None
-                    sub_dimensions.append(constructor(f'i{k.name}', k, thickness))
+                    sub_dimensions.append(constructor(f'i{k.name}', k, thickness,
+                                                      separated=self.separated))
                     sdshape.append(thickness)
                 else:
                     if side != 'middle':
@@ -671,7 +682,8 @@ class SubDomain(AbstractSubDomain):
                         )
 
                     sub_dimensions.append(
-                        SubDimension.middle(f'i{k.name}', k, ltkn, rtkn)
+                        SubDimension.middle(f'i{k.name}', k, ltkn, rtkn,
+                                            separated=self.separated)
                     )
                     sdshape.append(thickness)
 

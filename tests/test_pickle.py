@@ -49,6 +49,10 @@ class SD(SubDomain):
         return {x: x, y: ('middle', 1, 1), z: ('right', 2)}
 
 
+class OverlappingSD(SD):
+    separated = False
+
+
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
 class TestBasic:
 
@@ -111,6 +115,16 @@ class TestBasic:
         assert new_t.getters == tup.getters
         assert new_t.left == tup.left
         assert new_t.right == tup.right
+
+    def test_subdomain(self, pickle):
+        grid = Grid(shape=(5, 5, 5))
+        sd = OverlappingSD(grid=grid)
+
+        new_sd = pickle.loads(pickle.dumps(sd))
+
+        assert not new_sd.separated
+        assert new_sd.shape == sd.shape
+        assert all(not d.separated for d in new_sd.dimensions if d.is_Sub)
 
     @pytest.mark.parametrize('on_sd', [False, True])
     def test_function(self, pickle, on_sd):
