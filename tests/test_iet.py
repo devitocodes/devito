@@ -24,7 +24,9 @@ from devito.symbolics import (
 )
 from devito.symbolics.extended_dtypes import c_complex
 from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
-from devito.types import Array, CustomDimension, LocalObject, Pointer, Symbol, Temp
+from devito.types import (
+    Array, Bundle, CustomDimension, LocalObject, Pointer, Symbol, Temp
+)
 from devito.types.misc import FunctionMap
 
 
@@ -608,6 +610,53 @@ def test_special_array_definition():
     a = MyArray(name='a', dimensions=dim, scope='shared', dtype=np.uint8)
 
     assert str(Definition(a)) == "extern  unsigned char a[];"
+
+
+@pytest.mark.parametrize('left,right,expected', [
+    ([0], [0], ((0, 0),)),
+    ([1, 2], [3], ((1, 3), (2, 0))),
+    (None, [4], ((0, 4),)),
+    (None, None, None),
+])
+def test_bundle_initializer(left, right, expected):
+    d = CustomDimension(name='d', symbolic_size=4)
+
+    a = Array(name='a', dimensions=d, scope='stack', initvalue=left)
+    b = Array(name='b', dimensions=d, scope='stack', initvalue=right)
+    ab = Bundle(name='ab', components=(a, b))
+
+    code = str(Definition(ab))
+    if expected is None:
+        assert ab.initvalue is None
+        assert ' = ' not in code
+    else:
+        assert tuple(i.params for i in ab.initvalue) == expected
+        initializer = ', '.join('{' + ', '.join(map(str, i)) + '}' for i in expected)
+        assert code.endswith(f' = {{{initializer}}};')
+
+
+def test_bundle_initializer_symbols():
+    d = CustomDimension(name='d', symbolic_size=4)
+    s = Symbol(name='s')
+
+    a = Array(name='a', dimensions=d, scope='stack', initvalue=[s])
+    b = Array(name='b', dimensions=d, scope='stack', initvalue=[sympy.Float(0.5)])
+    ab = Bundle(name='ab', components=(a, b))
+
+    definition = Definition(ab)
+    assert definition.expr_symbols == (s,)
+    assert str(definition).endswith(' = {{s, 5.0e-1F}};')
+
+
+def test_bundle_initializer_multidimensional():
+    x = CustomDimension(name='x', symbolic_size=2)
+    y = CustomDimension(name='y', symbolic_size=2)
+
+    a = Array(name='a', dimensions=(x, y), scope='stack', initvalue=[1, 2, 3])
+    b = Array(name='b', dimensions=(x, y), scope='stack', initvalue=[4, 5])
+    ab = Bundle(name='ab', components=(a, b))
+
+    assert str(Definition(ab)).endswith(' = {{{1, 4}, {2, 5}}, {{3, 0}}};')
 
 
 def test_list_inline():

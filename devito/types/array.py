@@ -1,5 +1,6 @@
 from ctypes import POINTER, Structure, c_int, c_uint64, c_void_p
 from functools import cached_property
+from itertools import zip_longest
 
 import numpy as np
 from sympy import Expr, cacheit
@@ -130,6 +131,7 @@ class Array(ArrayBasic):
     expected to be used directly in user code).
     """
 
+    is_ArrayLike = True
     is_Array = True
 
     _symbol_prefix = 'a'
@@ -419,6 +421,7 @@ class Bundle(MappedArrayMixin, ArrayBasic):
     expected to be used directly in user code).
     """
 
+    is_ArrayLike = True
     is_Bundle = True
 
     __rkwargs__ = AbstractFunction.__rkwargs__ + ('components',)
@@ -511,7 +514,22 @@ class Bundle(MappedArrayMixin, ArrayBasic):
 
     @property
     def initvalue(self):
-        return None
+        if not self.c0.is_Array:
+            return None
+
+        values = [f.initvalue for f in self.components]
+        if all(i is None for i in values):
+            return None
+
+        from devito.symbolics import ListInitializer  # noqa: PLC0415
+
+        # Group each vector's components, honoring implicit zero-fill of arrays
+        values = [ListInitializer(i)
+                  for i in zip_longest(*map(as_tuple, values), fillvalue=0)]
+        for size in reversed(self.symbolic_shape[1:]):
+            values = [ListInitializer(values[i:i + size])
+                      for i in range(0, len(values), size)]
+        return tuple(values)
 
     # Defaulting to self.c0's behaviour
     for i in ('_mem_internal_eager', '_mem_internal_lazy', '_mem_local',

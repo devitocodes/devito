@@ -297,6 +297,7 @@ class Basic(CodeSymbol):
     # Symbolic objects created internally by Devito
     is_Symbol = False
     is_ArrayBasic = False
+    is_ArrayLike = False
     is_Array = False
     is_PointerArray = False
     is_ObjectArray = False

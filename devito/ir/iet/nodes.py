@@ -1078,7 +1078,7 @@ class Definition(ExprStmt, Node):
             with suppress(AttributeError):
                 ret.update(f.initvalue.free_symbols)
             return tuple(ret)
-        elif f.is_Array and f.initvalue is not None:
+        elif f.is_ArrayLike and f.initvalue is not None:
             # These are just a handful of values so it's OK to iterate them over
             ret = set()
             for i in f.initvalue:
