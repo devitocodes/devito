@@ -7,8 +7,8 @@ from sympy import And, Expr, Number, Symbol, true
 
 from devito import (  # noqa
     Abs, Conj, Constant, Dimension, Eq, Function, Ge, Grid, Gt, Imag, Le, Lt, Max, Min,
-    Operator, Real, SubDimension, SubDomain, TimeFunction, configuration, cos, norm, sin,
-    solve, switchconfig
+    Operator, Real, SubDimension, SubDomain, TimeDimension, TimeFunction, configuration,
+    cos, norm, sin, solve, switchconfig
 )
 from devito.finite_differences.differentiable import Mul, SafeInv, Weights
 from devito.ir import Expression, FindNodes, ccode
@@ -17,8 +17,9 @@ from devito.mpi.halo_scheme import HaloTouch
 from devito.symbolics import (  # noqa
     INT, BaseCast, CallFromPointer, Cast, DefFunction, FieldFromComposite,
     FieldFromPointer, IntDiv, ListInitializer, Namespace, ReservedWord, RoundUp, Rvalue,
-    SizeOf, VectorAccess, evalrel, pow_to_mul, retrieve_derivatives, retrieve_functions,
-    retrieve_indexed, subs_if_composite, uxreplace, xreplace_indices
+    SizeOf, VectorAccess, evalrel, pow_to_mul, q_negative, q_positive,
+    retrieve_derivatives, retrieve_functions, retrieve_indexed, subs_if_composite,
+    uxreplace, xreplace_indices
 )
 from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
@@ -383,6 +384,74 @@ def test_intdiv():
 
     v = b*IntDiv(a + b, 2) + 3
     assert ccode(v) == 'b*((a + b) / 2) + 3'
+
+
+def test_mod_printing():
+    a = dSymbol('a', dtype=np.int32)
+    b = dSymbol('b', dtype=np.int32)
+    p = Symbol('p', integer=True, nonnegative=True)
+
+    assert ccode(sympy.Mod(a - b + 3, 4)) == '((a - b + 3) & 3)'
+    assert ccode(sympy.Mod(a, 8)) == '(a & 7)'
+
+    # Keep the existing remainder for known nonnegative dividends and other divisors
+    assert ccode(sympy.Mod(p, 4)) == '(p)%(4)'
+    assert ccode(sympy.Mod(a, 3)) == '(a)%(3)'
+    assert ccode(sympy.Mod(a, b)) == '(a)%(b)'
+
+
+def test_mod_time_printing():
+    time = TimeDimension(name='time')
+    shift = dSymbol('shift', dtype=np.int32)
+
+    assert time.is_nonnegative is True
+    assert time.is_positive is None
+    assert ccode(sympy.Mod(time, 2)) == '(time)%(2)'
+    assert ccode(sympy.Mod(time + 1, 2)) == '(time + 1)%(2)'
+
+    # A shifted time index may still be negative
+    assert ccode(sympy.Mod(time - shift, 4)) == '((time - shift) & 3)'
+
+
+@pytest.mark.parametrize('divisor', [4, 8])
+def test_mod_negative(divisor):
+    grid = Grid(shape=(65,))
+    x, = grid.dimensions
+
+    f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+    shift = Constant(name='shift', dtype=np.int32, value=32)
+
+    # Also exercise precedence when Mod is nested in arithmetic
+    eq = Eq(f, 3*sympy.Mod(x - shift, divisor) + 1)
+
+    op = Operator(eq, name='mod_negative', opt='noop')
+    op.apply()
+
+    expected = 3*((np.arange(65) - 32) % divisor) + 1
+    np.testing.assert_array_equal(np.asarray(f.data), expected)
+
+
+def test_sign_queries():
+    for v in (sympy.S.One, sympy.Rational(1, 2), sympy.Float(0.5)):
+        assert q_positive(v)
+        assert q_negative(-v)
+        assert not q_positive(-v)
+        assert not q_negative(v)
+
+    assert not q_positive(sympy.S.Zero)
+    assert not q_negative(sympy.S.Zero)
+
+    a = dSymbol('a', dtype=np.int32)
+    r = sympy.Mod(a, 4)
+
+    assert q_positive(8 - r)
+    assert q_positive(4 - r)
+    assert q_negative(r - 8)
+    # Zero and unknown signs must not be classified as strictly positive
+    assert not q_positive(3 - r)
+    assert not q_positive(r)
+    assert not q_positive(a)
+    assert not q_negative(a)
 
 
 def test_safeinv():

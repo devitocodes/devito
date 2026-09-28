@@ -483,6 +483,7 @@ class TimeDimension(BasicDimension):
     """
 
     is_Time = True
+    is_nonnegative = True
 
 
 class DerivedDimension(BasicDimension):
