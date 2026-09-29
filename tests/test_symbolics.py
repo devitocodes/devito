@@ -80,6 +80,19 @@ def test_floatification_issue_1627(dtype, expected):
     assert str(exprs[0]) == expected
 
 
+def test_symbols_differing_only_in_dtype():
+    """
+    Test that two symbols differing only in dtype are distinct but comparable,
+    so they can appear in the same expression.
+    """
+    a = dSymbol(name='s', dtype=np.int32)
+    b = dSymbol(name='s', dtype=np.float32)
+
+    assert a != b
+    assert a.compare(b) == -b.compare(a) != 0
+    assert len((a + b).args) == 2
+
+
 def test_sympy_assumptions():
     """
     Ensure that AbstractSymbol assumptions are set correctly and

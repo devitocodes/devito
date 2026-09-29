@@ -439,7 +439,8 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     __hash__ = sympy.Symbol.__hash__
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.dtype, self.is_const)
+        # `str(dtype)` since sympy compares hashable contents, and types are unorderable
+        return super()._hashable_content() + (str(self.dtype), self.is_const)
 
     @property
     def dtype(self):
