@@ -16,8 +16,8 @@ from devito.ir import (
 from devito.passes.clusters.cse import _cse
 from devito.passes.clusters.utils import expose_tuning_knobs
 from devito.symbolics import (
-    Uxmapper, estimate_cost, retrieve_functions, reuse_if_untouched, search, sympy_dtype,
-    uxreplace
+    Uxmapper, estimate_cost, retrieve_dimensions, retrieve_functions, reuse_if_untouched,
+    search, sympy_dtype, uxreplace
 )
 from devito.tools import (
     Reconstructable, Stamp, as_mapper, as_tuple, flatten, generator, is_integer, split,
@@ -281,6 +281,16 @@ class CireTransformerLegacy(CireTransformer):
                     continue
 
                 terms = cbk_compose(i)
+
+                # Aliases only translate Indexeds, so a term reading an unbound
+                # StencilDimension outside of them would be evaluated at the
+                # wrong stencil point: such terms are left out of the alias
+                if terms:
+                    terms = [t for t in terms if not untranslatable(t)]
+                    if not terms:
+                        continue
+                elif untranslatable(i):
+                    continue
 
                 # Make sure we won't break any data dependencies
                 if terms:
@@ -1620,6 +1630,16 @@ def split_coeff(expr):
             others.append(a)
 
     return maybe_coeff, others
+
+
+def untranslatable(expr):
+    """
+    The unbound StencilDimensions of `expr` appearing outside of any Indexed,
+    which translating `expr` into an alias would not shift. `retrieve_dimensions`
+    does not look within Indexeds, so the intersection with `unbounded(expr)`
+    leaves out those appearing only in Indexeds, which are translated.
+    """
+    return unbounded(expr) & retrieve_dimensions(expr, mode='unique')
 
 
 def nredundants(ispace, expr):
