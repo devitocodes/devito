@@ -228,7 +228,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
 
         # Inject the StencilDimension
         # E.g. `x + i*h_x` into `f(x)` s.t. `f(x + i*h_x)`
-        expr = expr._subs(dim, indices.expr)
+        expr = expr.shift(dim, indices.expr - dim)
 
         # Re-evaluate any off-the-grid Functions potentially impacted by the FD
         # unless a pure number
@@ -242,7 +242,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
         terms = []
         for i, c in zip(indices, weights, strict=True):
             # The FD term
-            term = expr._subs(dim, i) * c
+            term = expr.shift(dim, i - dim) * c
 
             # Re-evaluate any off-the-grid Functions potentially impacted by the FD
             # unless a pure number
