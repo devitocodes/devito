@@ -329,8 +329,18 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         Shift  expression by `shift` along the Dimension `dim`.
         For example u.shift(x, x.spacing) = u(x + h_x).
+
+        Every other space Dimension of the expression sharing the root of `dim`
+        is shifted too: an expression may mix Functions defined on the Grid,
+        e.g. `f(x)`, with Functions defined on a SubDomain, e.g. `p(ix)`.
         """
-        return self._subs(dim, dim + shift)
+        from devito.symbolics import retrieve_dimensions  # noqa
+
+        expr = self
+        for d in retrieve_dimensions(self, mode='unique'):
+            if d is not dim and dim.root in d._defines and not d.is_NonlinearDerived:
+                expr = expr._subs(d, d + shift)
+        return expr._subs(dim, dim + shift)
 
     @property
     def laplace(self):
