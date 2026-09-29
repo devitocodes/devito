@@ -563,7 +563,8 @@ class DifferentiableOp(Differentiable):
 
     # Bypass useless expensive SymPy _eval_ methods, for which we either already
     # know or don't care about the answer, because it'd have ~zero impact on our
-    # average expressions
+    # average expressions. Sign inference may also call `diff`, which here
+    # constructs finite differences rather than symbolic derivatives
 
     def _eval_is_even(self):
         return None
@@ -580,10 +581,16 @@ class DifferentiableOp(Differentiable):
     def _eval_is_extended_negative(self):
         return None
 
+    def _eval_is_extended_nonpositive(self):
+        return None
+
     def _eval_is_positive(self):
         return None
 
     def _eval_is_extended_positive(self):
+        return None
+
+    def _eval_is_extended_nonnegative(self):
         return None
 
     def _eval_is_zero(self):
