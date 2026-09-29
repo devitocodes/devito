@@ -345,13 +345,12 @@ def _actions_from_update_memcpy(c, d, bounds, clusters, actions, sregistry):
 
     pc = c.rebuild(exprs=expr, ispace=ispace, guards=guards, syncs=syncs)
 
-    # Wait before the first, prefetch after the last access to `target`, then
+    # Wait before every, prefetch after the last access to `target`, then
     # drop the memcpy `c`. `c` may be toposorted amid the readers, so scan them
     # all; count only reads over the streamed `pd`, not the buffer-init loop.
     reads = [c1 for c1 in clusters
              if c1 is not c and target in c1.scope.reads and pd in c1.ispace.itdims]
     assert reads
-    first = reads[0]
     last = reads[-1]
 
     # Advance `last` past its loop nest so the prefetch follows it rather than
@@ -362,7 +361,13 @@ def _actions_from_update_memcpy(c, d, bounds, clusters, actions, sregistry):
             break
         last = c1
 
-    actions[first].syncs[d].append(WaitLock(handle, target))
+    # Every reader waits, not only the first in this order: later passes
+    # reorder and fuse Clusters, and a HaloTouch is a placeholder scheduled
+    # beside the stencil that needs the halo, so the Cluster first here need
+    # not run first. A wait on an already released lock is free. The
+    # prefetch writes `target`, so data dependences keep it after every reader
+    for c1 in reads:
+        actions[c1].syncs[d].append(WaitLock(handle, target))
     actions[last].insert.append(pc)
     actions[c].drop = True
 
