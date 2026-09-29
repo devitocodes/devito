@@ -659,6 +659,24 @@ class TestVectorHierarchy:
         # The promise covers the compiled order, not arbitrary larger shifts
         assert a.distance(b) == b.distance(a) == (expected,)
 
+    @pytest.mark.parametrize('orders', [(4, 8), (8, 4)])
+    def test_subdimension_stencil_gap_function_order(self, orders):
+        grid = Grid(shape=(32,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 8)
+        xr = SubDimension.right('xr', x, 8)
+        left = IterationSpace([Interval(xl)])
+        right = IterationSpace([Interval(xr)])
+
+        # Identical access geometry can be independent for one Function and
+        # potentially overlapping for another, depending on its stencil order.
+        for order in orders:
+            f = Function(name=f'f{order}', grid=grid, space_order=order)
+            a = TimedAccess(f[xl], 'W', 0, left)
+            b = TimedAccess(f[xr - 8], 'R', 1, right)
+            expected = S.ImaginaryUnit if order == 8 else S.Infinity
+            assert a.distance(b) == b.distance(a) == (expected,)
+
 
 class TestSpace:
 

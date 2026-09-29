@@ -1642,47 +1642,63 @@ def disjoint_subdims(a0, a1):
                 it0 != it1):
             continue
 
-        thicknesses = {t: t.value for it in (it0, it1)
-                       for t in it.dim.thickness if t.value is not None}
-        bounds = []
-        for e, d, it in ((e0, d0, it0), (e1, d1, it1)):
-            if not q_affine(e, d):
-                break
+        f = a0.function.c0
+        space_order = f.space_order if isinstance(f, Function) else 0
+        if disjoint_subdims_axis(e0, e1, d0, d1, it0, it1, space_order):
+            return True
 
-            lower, upper = [], []
-            for v in erange(e):
-                slope = v.diff(d)
-                if slope.is_nonnegative:
-                    m, M = it.symbolic_min, it.symbolic_max
-                elif slope.is_nonpositive:
-                    M, m = it.symbolic_min, it.symbolic_max
-                else:
-                    break
-                lower.append(v._subs(d, m.xreplace(thicknesses)))
-                upper.append(v._subs(d, M.xreplace(thicknesses)))
+    return False
+
+
+@memoized_func(scope='build')
+def disjoint_subdims_axis(e0, e1, d0, d1, it0, it1, space_order):
+    """
+    Test separation along one data axis of two SubDimension accesses.
+
+    The result depends on the indices, intervals and stencil order, rather than
+    the access timestamps, modes or other axes. Cache it across the many
+    TimedAccess pairs and Scopes that reuse the same one-dimensional regions.
+    The cache is cleared at the end of Operator construction.
+    """
+    thicknesses = {t: t.value for it in (it0, it1)
+                   for t in it.dim.thickness if t.value is not None}
+    bounds = []
+    for e, d, it in ((e0, d0, it0), (e1, d1, it1)):
+        if not q_affine(e, d):
+            break
+
+        lower, upper = [], []
+        for v in erange(e):
+            slope = v.diff(d)
+            if slope.is_nonnegative:
+                m, M = it.symbolic_min, it.symbolic_max
+            elif slope.is_nonpositive:
+                M, m = it.symbolic_min, it.symbolic_max
             else:
-                bounds.append((sympy.Min(*lower), sympy.Max(*upper)))
+                break
+            lower.append(v._subs(d, m.xreplace(thicknesses)))
+            upper.append(v._subs(d, M.xreplace(thicknesses)))
+        else:
+            bounds.append((sympy.Min(*lower), sympy.Max(*upper)))
 
-        if len(bounds) == 2:
-            (m0, M0), (m1, M1) = bounds
-            mapper = {}
+    if len(bounds) == 2:
+        (m0, M0), (m1, M1) = bounds
+        mapper = {}
 
-            dl, dr = (it0.dim, it1.dim) if it0.dim.is_left else (it1.dim, it0.dim)
-            dlp, drp = dl.parent, dr.parent
+        dl, dr = (it0.dim, it1.dim) if it0.dim.is_left else (it1.dim, it0.dim)
+        dlp, drp = dl.parent, dr.parent
 
-            if dl.is_left and dr.is_right and \
-               dl.separated and dr.separated and \
-               dlp is drp:
-                # Runtime validation guarantees N - L - R >= space_order
-                f = a0.function.c0
-                space_order = f.space_order if isinstance(f, Function) else 0
-                gap = sympy.Dummy(nonnegative=True)
-                mapper[dlp.symbolic_max] = (dlp.symbolic_min + dl.ltkn.value +
-                                            dr.rtkn.value + space_order + gap - 1)
+        if dl.is_left and dr.is_right and \
+           dl.separated and dr.separated and \
+           dlp is drp:
+            # Runtime validation guarantees N - L - R >= space_order
+            gap = sympy.Dummy(nonnegative=True)
+            mapper[dlp.symbolic_max] = (dlp.symbolic_min + dl.ltkn.value +
+                                        dr.rtkn.value + space_order + gap - 1)
 
-            if (M0 - m1).subs(mapper).is_negative or \
-               (M1 - m0).subs(mapper).is_negative:
-                return True
+        if (M0 - m1).subs(mapper).is_negative or \
+           (M1 - m0).subs(mapper).is_negative:
+            return True
 
     return False
 
