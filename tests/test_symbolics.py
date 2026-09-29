@@ -24,6 +24,7 @@ from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
     Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
 )
+from devito.types import Symbol as DevitoSymbol
 from devito.types import Symbol as dSymbol
 from devito.types.basic import AbstractSymbol
 
@@ -77,6 +78,24 @@ def test_floatification_issue_1627(dtype, expected):
     exprs = FindNodes(Expression).visit(op)
     assert len(exprs) == 2
     assert str(exprs[0]) == expected
+
+
+def test_symbols_differing_only_in_dtype():
+    """
+    Two symbols of one name and different dtypes can be compared, and so
+    added: sympy orders the arguments of a sum before building it, and a
+    symbol carries its dtype among what it is ordered by.
+    """
+    a = DevitoSymbol(name='s', dtype=np.int32)
+    b = DevitoSymbol(name='s', dtype=np.float32)
+
+    # Distinct, as they were before
+    assert a != b
+    assert hash(a) != hash(b)
+
+    # And orderable, which is what lets them meet in one expression
+    assert a.compare(b) == -b.compare(a) != 0
+    assert (a + b) is not None
 
 
 def test_sympy_assumptions():

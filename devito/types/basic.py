@@ -340,6 +340,17 @@ class Basic(CodeSymbol):
         return set()
 
 
+def _dtype_key(dtype):
+    """
+    A dtype as something orderable.
+
+    A dtype is a type, and a pair of types has no order, so putting one
+    in a symbol's hashable content leaves two symbols alike but for their
+    dtype incomparable -- and sympy compares before it adds.
+    """
+    return getattr(dtype, '__name__', str(dtype))
+
+
 class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
 
     """
@@ -438,7 +449,13 @@ class AbstractSymbol(sympy.Symbol, Basic, Pickable, Evaluable):
     __hash__ = sympy.Symbol.__hash__
 
     def _hashable_content(self):
-        return super()._hashable_content() + (self.dtype, self.is_const)
+        # The dtype by name, not the type itself: sympy orders two
+        # otherwise equal symbols by comparing this content element by
+        # element, and a pair of types has no order, so two symbols alike
+        # but for their dtype could not be compared -- nor, therefore,
+        # added
+        return super()._hashable_content() + (_dtype_key(self.dtype),
+                                              self.is_const)
 
     @property
     def dtype(self):
