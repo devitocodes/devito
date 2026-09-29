@@ -813,23 +813,13 @@ def make_variant(schedule, exprs, mapper):
     Create a Variant from a Schedule and the corresponding expressions.
     """
     # Some aliases may have been discarded along the way, and for
-    # them we reinstate the original sub-expressions
+    # them we reinstate the original sub-expressions. `mapper.extracted` binds
+    # each placeholder to exactly the (sub-)expression it replaced, including
+    # for compound extractions, where the placeholder stands for a subset of
+    # `expr.args` rather than for the whole `expr`
     retained = flatten(sa.aliaseds for sa in schedule)
 
-    subs = {}
-    for k, v in mapper.items():
-        if v in retained:
-            continue
-        elif isinstance(v, dict):
-            # E.g., `mapper = {u[t0, x+3, y+3] + u[t0, x+3, y+4]:
-            #                  {u[t0, x+3, y+4]: None, u[t0, x+3, y+3]: dummy0}}`
-            try:
-                v1, = [i for i in v.values() if i not in retained]
-            except ValueError:
-                continue
-            subs[v1] = k
-        else:
-            subs[v] = k
+    subs = {v: k for k, v in mapper.extracted.items() if v not in retained}
 
     exprs = [uxreplace(e, subs) for e in exprs]
 
