@@ -2748,6 +2748,31 @@ class TestAliases:
         scalars = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
         assert len(scalars) == 0
 
+    def test_split_cond_compound_alias(self):
+        """
+        MFE for the case in which a CIRE placeholder Symbol survives into
+        `op.parameters` because the compound extraction it stands for is
+        discarded by `lower_aliases` (scalar alias + guarded Cluster).
+        """
+        grid = Grid((11, 11))
+        time = grid.time_dim
+
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        u1 = TimeFunction(name='u1', grid=grid, time_order=2, space_order=2)
+
+        ct = ConditionalDimension(name='ct', parent=time, factor=2)
+
+        eqn = Eq(u.forward, u + sin(time)*cos(time), implicit_dims=ct)
+
+        op0 = Operator(eqn, opt='noop')
+        op1 = Operator(eqn, opt=('advanced', {'cire-mingain': 0}))
+
+        assert not any(i.name.startswith('dummy') for i in op1.parameters)
+
+        op0.apply(time_M=5)
+        op1.apply(time_M=5, u=u1)
+        assert np.allclose(u.data, u1.data, rtol=1e-5)
+
     def test_split_cond_multi_alias(self):
         grid = Grid((11, 11))
         time = grid.time_dim
