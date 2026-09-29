@@ -4,9 +4,9 @@ from sympy import Float, Symbol, diff, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
-    NODE, ConditionalDimension, Eq, Function, Grid, Operator, TensorFunction,
-    TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl, div, grad,
-    laplace, left, right, sin
+    NODE, ConditionalDimension, Eq, Function, Grid, Inc, Operator, SubDomain,
+    TensorFunction, TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl,
+    div, grad, laplace, left, right, sin
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
@@ -1518,3 +1518,106 @@ def test_deriv_sum_mixed_staggering(expand, deriv_order):
     # float32 reassociation only: the two forms sum the same terms in a
     # different order
     assert np.linalg.norm(together - apart) / np.linalg.norm(apart) < 1e-5
+
+
+class Region(SubDomain):
+    """SubDomain given by its `define` mapping for each Dimension name."""
+
+    def __init__(self, name, regions, **kwargs):
+        self.name = name
+        self.regions = regions
+        super().__init__(**kwargs)
+
+    def define(self, dimensions):
+        return {d: self.regions.get(d.name, d) for d in dimensions}
+
+
+@pytest.mark.parametrize('expand', [True, False])
+@pytest.mark.parametrize('op', ['add', 'mul'])
+def test_deriv_mixed_subdomain_functions(op, expand):
+    """
+    A derivative shifts every Function of the expression, including those
+    defined on a SubDomain, whose Dimension (`ix`) differs from the Grid's (`x`).
+
+    Used to leave `p(ix)` unshifted, so `(f + p).dx` dropped `p` altogether.
+    """
+    so = 4
+    grid = Grid(shape=(24,), extent=(23.,))
+    strip = Region('strip', {'x': ('left', 8)}, grid=grid)
+
+    f = Function(name='f', grid=grid, space_order=so)
+    p = Function(name='p', grid=strip, space_order=so)
+    # Reference: `p` extended by zero on the whole Grid
+    p_full = Function(name='p_full', grid=grid, space_order=so)
+    out = Function(name='out', grid=grid, space_order=so)
+    ref = Function(name='ref', grid=grid, space_order=so)
+
+    rng = np.random.default_rng(0)
+    f.data[:] = rng.normal(size=f.shape)
+    p.data[:] = rng.normal(size=p.shape)
+    p_full.data[:8] = p.data
+
+    combine = {'add': lambda u, v: u + v, 'mul': lambda u, v: u * v}[op]
+    Operator([Eq(out, combine(f, p).dx, subdomain=strip),
+              Eq(ref, combine(f, p_full).dx, subdomain=strip)],
+             opt=('advanced', {'expand': expand})).apply()
+
+    assert np.linalg.norm(ref.data) > 0
+    assert np.allclose(out.data, ref.data, rtol=1e-6, atol=1e-6)
+
+
+def test_deriv_mixed_subdomain_cpml_adjoint():
+    """
+    Dot test of a one-face CPML derivative whose memory variable lives on the
+    CPML layer only.
+
+        forward: out = D q + psi[n+1]  (psi on the layer)
+                 psi[n+1] = b psi[n] + a D q
+        adjoint: q_bar = D^T (out_bar + a (psi_bar + out_bar))
+
+    The adjoint CPML term mixes Grid and SubDomain Functions inside `.dx.T`, and
+    is nonzero on the layer grown by the stencil radius. `a` vanishes outside
+    the layer, so no zero-padded work field is needed.
+    """
+    nx, width, so, nt = 32, 6, 8, 8
+    grid = Grid(shape=(nx,), extent=(float(nx - 1),), dtype=np.float64)
+    time = grid.time_dim
+    x = grid.dimensions[0]
+    cpml = Region('cpml', {'x': ('left', width)}, grid=grid)
+    cpml_r = Region('cpml_r', {'x': ('left', width + so // 2)}, grid=grid)
+
+    kwargs = {'grid': grid, 'save': nt, 'space_order': so, 'dtype': np.float64}
+    q = TimeFunction(name='q', **kwargs)
+    out = TimeFunction(name='out', **kwargs)
+    q_bar = TimeFunction(name='q_bar', **kwargs)
+    out_bar = TimeFunction(name='out_bar', **kwargs)
+    psi = TimeFunction(name='psi', grid=cpml, time_order=1, space_order=0,
+                       dtype=np.float64)
+    # The adjoint loop over `cpml_r` reads `psi_bar` one more radius away
+    psi_bar = TimeFunction(name='psi_bar', grid=cpml, time_order=1,
+                           space_order=(so, so, so), dtype=np.float64)
+    a = Function(name='a', grid=grid, dimensions=(x,), shape=(nx,), space_order=so,
+                 dtype=np.float64)
+    b = Function(name='b', grid=grid, dimensions=(x,), shape=(nx,), dtype=np.float64)
+    a.data[:width] = -0.1
+    b.data[:width] = 0.8
+
+    forward = Operator([Eq(out, q.dx),
+                        Eq(psi.forward, b * psi + a * q.dx, subdomain=cpml),
+                        Eq(out, out + psi.forward, subdomain=cpml)])
+    value = psi_bar + out_bar
+    adjoint = Operator([
+        Eq(psi_bar.backward, b * value, subdomain=cpml, implicit_dims=(time,)),
+        Eq(q_bar, out_bar.dx.T, implicit_dims=(time,)),
+        Inc(q_bar, (a * value).dx.T, subdomain=cpml_r, implicit_dims=(time,))
+    ])
+
+    rng = np.random.default_rng(7)
+    q.data[:] = rng.normal(size=q.shape)
+    out_bar.data[:] = rng.normal(size=out_bar.shape)
+    forward.apply(time_m=0, time_M=nt - 1)
+    adjoint.apply(time_m=0, time_M=nt - 1)
+
+    lhs = np.vdot(out.data, out_bar.data)
+    rhs = np.vdot(q.data, q_bar.data)
+    assert np.isclose(lhs, rhs, rtol=1e-12)
