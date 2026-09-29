@@ -2257,15 +2257,17 @@ class TestConcretization:
     during compilation.
     """
 
-    @pytest.mark.parametrize('separated', [False, True])
+    @pytest.mark.parametrize('separated', [None, False, True])
     def test_correct_thicknesses(self, separated):
         """
         Check that thicknesses aren't created where they shouldn't be.
         """
         x = Dimension('x')
-        ix0 = SubDimension.left('x', x, 2, separated=separated)
-        ix1 = SubDimension.right('x', x, 2, separated=separated)
-        ix2 = SubDimension.middle('x', x, 2, 2, separated=separated)
+        kwargs = {} if separated is None else {'separated': separated}
+        ix0 = SubDimension.left('x', x, 2, **kwargs)
+        ix1 = SubDimension.right('x', x, 2, **kwargs)
+        ix2 = SubDimension.middle('x', x, 2, 2, **kwargs)
+        separated = separated is True
 
         rebuilt = concretize_subdims([ix0, ix1, ix2], sregistry=SymbolRegistry())
 

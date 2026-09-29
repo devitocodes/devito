@@ -564,7 +564,7 @@ class Thickness(DataSymbol):
 
     __rkwargs__ = DataSymbol.__rkwargs__ + ('root', 'side', 'local', 'value', 'separated')
 
-    def __new__(cls, *args, root=None, side=None, local=False, separated=True, **kwargs):
+    def __new__(cls, *args, root=None, side=None, local=False, separated=False, **kwargs):
         newobj = super().__new__(cls, *args, **kwargs)
         newobj._root = root
         newobj._side = side
@@ -653,7 +653,7 @@ class AbstractSubDimension(DerivedDimension):
 
     _thickness_type = Thickness
 
-    def __init_finalize__(self, name, parent, thickness, separated=True, **kwargs):
+    def __init_finalize__(self, name, parent, thickness, separated=False, **kwargs):
         super().__init_finalize__(name, parent)
         if parent.is_AbstractSub:
             raise ValueError("Nested SubDimensions are not supported")
@@ -744,14 +744,14 @@ class SubDimension(AbstractSubDimension):
     local : bool
         True if, in case of domain decomposition, the SubDimension is
         guaranteed not to span more than one domain, False otherwise.
-    separated : bool, optional, default=True
+    separated : bool, optional, default=False
         Require a stencil-safe gap between nonempty left/right SubDimensions of
         the same parent. If both are separated, `N - L - R >= space_order`, where
         `N` is the global parent extent, `L` and `R` are their thicknesses, and
         `space_order` is the maximum compiled Function order along that axis.
         This is checked at `Operator.apply`, including runtime Grid overrides.
-        Set to False to allow touching or overlapping regions and retain
-        conservative dependence analysis. Middle SubDimensions are unaffected.
+        By default, touching or overlapping regions are allowed and dependence
+        analysis is conservative. Middle SubDimensions are unaffected.
 
     Examples
     --------
@@ -791,18 +791,18 @@ class SubDimension(AbstractSubDimension):
         super().__init_finalize__(name, parent, thickness, **kwargs)
 
     @classmethod
-    def left(cls, name, parent, thickness, local=True, separated=True):
+    def left(cls, name, parent, thickness, local=True, separated=False):
         return cls(name, parent, thickness=(thickness, None), local=local,
                    separated=separated)
 
     @classmethod
-    def right(cls, name, parent, thickness, local=True, separated=True):
+    def right(cls, name, parent, thickness, local=True, separated=False):
         return cls(name, parent, thickness=(None, thickness), local=local,
                    separated=separated)
 
     @classmethod
     def middle(cls, name, parent, thickness_left, thickness_right, local=False,
-               separated=True):
+               separated=False):
         return cls(name, parent, thickness=(thickness_left, thickness_right), local=local,
                    separated=separated)
 

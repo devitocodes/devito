@@ -401,9 +401,9 @@ class TestVectorHierarchy:
         grid = Grid(shape=(24, 24))
         x, y = grid.dimensions
 
-        xl = SubDimension.left('xl', x, 4)
-        xm = SubDimension.middle('xm', x, 4, 4)
-        xr = SubDimension.right('xr', x, 4)
+        xl = SubDimension.left('xl', x, 4, separated=True)
+        xm = SubDimension.middle('xm', x, 4, 4, separated=True)
+        xr = SubDimension.right('xr', x, 4, separated=True)
         xm_bad = SubDimension.middle('xm_bad', x, 3, 4)
         yl = SubDimension.left('yl', y, 4)
         ym = SubDimension.middle('ym', y, 4, 4)
@@ -487,10 +487,10 @@ class TestVectorHierarchy:
     def test_subdimension_stencil_distance(self, shared_boundary, offset, independent):
         grid = Grid(shape=(32,))
         x, = grid.dimensions
-        xl = SubDimension.left('xl', x, 8)
-        xr = SubDimension.right('xr', x, 20)
+        xl = SubDimension.left('xl', x, 8, separated=True)
+        xr = SubDimension.right('xr', x, 20, separated=True)
         if shared_boundary:
-            xr = SubDimension.middle('xm', x, 8, 0)
+            xr = SubDimension.middle('xm', x, 8, 0, separated=True)
             xr = xr._rebuild(thickness=(xl.ltkn, xr.rtkn))
             interval = Interval(xr, 4, 4)
         else:
@@ -517,12 +517,12 @@ class TestVectorHierarchy:
                                                    thickness, shift, expected):
         grid = Grid(shape=(32, 32))
         x, y = grid.dimensions
-        yl = SubDimension.left('yl', y, 8)
+        yl = SubDimension.left('yl', y, 8, separated=True)
         if side == 'middle':
-            yr = SubDimension.middle('ym', y, thickness, 0)
+            yr = SubDimension.middle('ym', y, thickness, 0, separated=True)
             yr = yr._rebuild(thickness=(yl.ltkn, yr.rtkn))
         else:
-            yr = SubDimension.right('yr', y, thickness)
+            yr = SubDimension.right('yr', y, thickness, separated=True)
         i = Dimension(name='i')
         f = Function(name='f', grid=grid)
         if blocked:
@@ -606,8 +606,8 @@ class TestVectorHierarchy:
     ])
     def test_opposite_subdimension_bounds(self, slope, offset, expected):
         x = Dimension(name='x')
-        xl = SubDimension.left('xl', x, 8)
-        xr = SubDimension.right('xr', x, 8)
+        xl = SubDimension.left('xl', x, 8, separated=True)
+        xr = SubDimension.right('xr', x, 8, separated=True)
         f = Array(name='f', dimensions=(x,))
 
         a = TimedAccess(f[slope*xl], 'W', 0, IterationSpace([Interval(xl)]))
@@ -646,8 +646,8 @@ class TestVectorHierarchy:
     def test_subdimension_stencil_gap(self, shift, expected, bundle):
         grid = Grid(shape=(32,))
         x, = grid.dimensions
-        xl = SubDimension.left('xl', x, 8)
-        xr = SubDimension.right('xr', x, 8)
+        xl = SubDimension.left('xl', x, 8, separated=True)
+        xr = SubDimension.right('xr', x, 8, separated=True)
 
         f = Function(name='f', grid=grid, space_order=4)
         if bundle:
@@ -663,8 +663,8 @@ class TestVectorHierarchy:
     def test_subdimension_stencil_gap_function_order(self, orders):
         grid = Grid(shape=(32,))
         x, = grid.dimensions
-        xl = SubDimension.left('xl', x, 8)
-        xr = SubDimension.right('xr', x, 8)
+        xl = SubDimension.left('xl', x, 8, separated=True)
+        xr = SubDimension.right('xr', x, 8, separated=True)
         left = IterationSpace([Interval(xl)])
         right = IterationSpace([Interval(xr)])
 

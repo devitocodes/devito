@@ -585,9 +585,10 @@ class SubDomain(AbstractSubDomain):
 
     Attributes
     ----------
-    separated : bool, default=True
-        Require a stencil-safe gap between opposite left/right regions, as in
-        SubDimension. Set to False to allow touching or overlapping regions.
+    separated : bool, default=False
+        Set to True to require a stencil-safe gap between opposite left/right
+        regions, as in SubDimension, allowing concurrent scheduling when safe.
+        By default, touching or overlapping regions are allowed.
         Applies to SubDimensions generated from tuple definitions; explicit
         Dimensions returned by :meth:`define` retain their own settings.
 
@@ -611,6 +612,16 @@ class SubDomain(AbstractSubDomain):
     ...         x, y, z = dimensions
     ...         return {x: ('middle', 3, 3), y: y, z: ('middle', 3, 3)}
 
+    To declare that opposite boundary regions leave a stencil-safe gap, set
+    `separated = True` on the SubDomain subclass:
+
+    >>> class LeftBoundary(SubDomain):
+    ...     name = 'left_boundary'
+    ...     separated = True
+    ...     def define(self, dimensions):
+    ...         x, y = dimensions
+    ...         return {x: ('left', 3), y: y}
+
     See Also
     --------
     Domain : An example of preset SubDomain.
@@ -622,7 +633,7 @@ class SubDomain(AbstractSubDomain):
     especially when defining BCs.
     """
 
-    separated = True
+    separated = False
 
     def __subdomain_finalize__(self):
         self.__subdomain_finalize_legacy__(self.grid)

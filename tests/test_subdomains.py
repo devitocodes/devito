@@ -146,7 +146,7 @@ class TestSubDomains:
             assert make_region().shape == (expected,)
 
     @pytest.mark.parametrize('legacy', [False, True])
-    @pytest.mark.parametrize('separated', [False, True])
+    @pytest.mark.parametrize('separated', [None, False, True])
     def test_separated(self, legacy, separated):
         class Region(SubDomain):
             name = 'region'
@@ -155,22 +155,22 @@ class TestSubDomains:
                 x, y, z = dimensions
                 return {x: ('left', 4), y: ('middle', 1, 1), z: ('right', 4)}
 
-        class OverlappingRegion(Region):
-            separated = False
-
-        cls = Region if separated else OverlappingRegion
+        if separated is not None:
+            Region.separated = separated
         if legacy:
-            region = cls()
+            region = Region()
             Grid(shape=(7, 7, 7), subdomains=(region,))
         else:
-            region = cls(grid=Grid(shape=(7, 7, 7)))
+            region = Region(grid=Grid(shape=(7, 7, 7)))
 
+        separated = separated is True
         assert region.separated is separated
         assert all(d.separated is separated for d in region.dimensions)
         assert all(t.separated is separated for d in region.dimensions
                    for t in d.thickness)
 
-    def test_definitions(self):
+    @pytest.mark.parametrize('separated', [False, True])
+    def test_definitions(self, separated):
 
         class sd0(SubDomain):
             name = 'sd0'
@@ -178,7 +178,9 @@ class TestSubDomains:
             def define(self, dimensions):
                 x, y = dimensions
                 return {x: ('middle', 2, 2),
-                        y: SubDimension.right('iy', y, 10, separated=False)}
+                        y: SubDimension.right('iy', y, 10, separated=not separated)}
+
+        sd0.separated = separated
 
         class sd1(SubDomain):
             name = 'sd1'
@@ -206,6 +208,8 @@ class TestSubDomains:
         sd_def1 = sd1(grid=grid)
         sd_def2 = sd2(grid=grid)
         sd_def3 = sd3(grid=grid)
+        assert sd_def0.dimensions[0].separated is separated
+        assert sd_def0.dimensions[1].separated is not separated
         u0 = Function(name='u0', grid=grid)
         u1 = Function(name='u1', grid=grid)
         u2 = Function(name='u2', grid=grid)
@@ -314,13 +318,11 @@ class TestSubDomains:
 
         assert_structure(op, ['t', 'txyz', 'txyz'], 'txyzyz')
 
-    def test_overlapping(self):
-        class Overlapping(ReducedDomain):
-            separated = False
-
+    @pytest.mark.parametrize('size', [7, 8, 9])
+    def test_overlapping(self, size):
         grid = Grid(shape=(7, 5))
-        left = Overlapping(('left', 4), ('middle', 1, 1), grid=grid)
-        right = Overlapping(('right', 4), None, grid=grid)
+        left = ReducedDomain(('left', 4), ('middle', 1, 1), grid=grid)
+        right = ReducedDomain(('right', 4), None, grid=grid)
 
         f = Function(name='f', grid=grid)
 
@@ -333,6 +335,16 @@ class TestSubDomains:
         expected[:4, 1:-1] += 1
         expected[3:, :] = 2*expected[3:, :] + 2
         assert np.array_equal(f.data, expected)
+
+        # Reuse the dummy-grid Operator with overlapping, touching or disjoint sides
+        runtime_grid = Grid(shape=(size, 5))
+        g = Function(name='g', grid=runtime_grid)
+        op.apply(f=g)
+
+        expected = np.zeros(runtime_grid.shape)
+        expected[:4, 1:-1] += 1
+        expected[-4:, :] = 2*expected[-4:, :] + 2
+        assert np.array_equal(g.data, expected)
 
 
 class TestSubDomainScheduling:
@@ -1989,10 +2001,10 @@ class TestSubDomainArguments:
         y = grid.dimensions[-1]
 
         left, right = thickness
-        yl = SubDimension.left('yl', y, left)
-        yr = SubDimension.right('yr', y, right)
+        yl = SubDimension.left('yl', y, left, separated=True)
+        yr = SubDimension.right('yr', y, right, separated=True)
         if middle:
-            yl = yr = SubDimension.middle('ym', y, left, right)
+            yl = yr = SubDimension.middle('ym', y, left, right, separated=True)
 
         u = TimeFunction(name='u', grid=grid, space_order=8)
         v = TimeFunction(name='v', grid=grid, space_order=8)
@@ -2223,11 +2235,11 @@ class TestSubDomainArguments:
     def test_largest_left_right_thickness(self):
         grid = Grid(shape=(32,))
         x, = grid.dimensions
-        xl0 = SubDimension.left('xl0', x, 2)
-        xl1 = SubDimension.left('xl1', x, 8)
-        xr0 = SubDimension.right('xr0', x, 4)
-        xr1 = SubDimension.right('xr1', x, 25)
-        xm = SubDimension.middle('xm', x, 8, 8)
+        xl0 = SubDimension.left('xl0', x, 2, separated=True)
+        xl1 = SubDimension.left('xl1', x, 8, separated=True)
+        xr0 = SubDimension.right('xr0', x, 4, separated=True)
+        xr1 = SubDimension.right('xr1', x, 25, separated=True)
+        xm = SubDimension.middle('xm', x, 8, 8, separated=True)
 
         f = Function(name='f', grid=grid, space_order=0)
 
@@ -2242,10 +2254,10 @@ class TestSubDomainArguments:
     def test_left_right_pairing(self):
         grid = Grid(shape=(10, 10))
         x, y = grid.dimensions
-        xl = SubDimension.left('xl', x, 8)
-        yr = SubDimension.right('yr', y, 8)
-        xm0 = SubDimension.middle('xm0', x, 0, 8)
-        xm1 = SubDimension.middle('xm1', x, 8, 0)
+        xl = SubDimension.left('xl', x, 8, separated=True)
+        yr = SubDimension.right('yr', y, 8, separated=True)
+        xm0 = SubDimension.middle('xm0', x, 0, 8, separated=True)
+        xm1 = SubDimension.middle('xm1', x, 8, 0, separated=True)
 
         f = Function(name='f', grid=grid, space_order=0)
 
@@ -2277,8 +2289,8 @@ class TestSubDomainArguments:
     def test_stencil_gap_axes(self):
         grid = Grid(shape=(20, 32))
         x, y = grid.dimensions
-        xl = SubDimension.left('xl', x, 8)
-        xr = SubDimension.right('xr', x, 8)
+        xl = SubDimension.left('xl', x, 8, separated=True)
+        xr = SubDimension.right('xr', x, 8, separated=True)
 
         f = Function(name='f', grid=grid, dimensions=(x,), shape=(20,), space_order=4)
         g = Function(name='g', grid=grid, dimensions=(y,), shape=(32,), space_order=8)
@@ -2295,9 +2307,12 @@ class TestSubDomainArguments:
 
     @pytest.mark.parametrize('space_order', [4, 8])
     def test_stencil_gap_functions_on_subdomains(self, space_order):
+        class Boundary(ReducedDomain):
+            separated = True
+
         grid = Grid(shape=(8, 20))
-        left = ReducedDomain(None, ('left', 8), grid=grid)
-        right = ReducedDomain(None, ('right', 8), grid=grid)
+        left = Boundary(None, ('left', 8), grid=grid)
+        right = Boundary(None, ('right', 8), grid=grid)
 
         f = Function(name='f', grid=left, space_order=space_order)
         g = Function(name='g', grid=right, space_order=space_order)
@@ -2337,8 +2352,8 @@ class TestSubDomainArguments:
     def test_grid_dtype_override(self, mode):
         grid = Grid(shape=(32,), dtype=np.float64)
         x, = grid.dimensions
-        xl = SubDimension.left('xl', x, 8)
-        xr = SubDimension.right('xr', x, 8)
+        xl = SubDimension.left('xl', x, 8, separated=True)
+        xr = SubDimension.right('xr', x, 8, separated=True)
 
         f = Function(name='f', grid=grid, dtype=np.float32, space_order=8)
 

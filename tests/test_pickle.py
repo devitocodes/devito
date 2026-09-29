@@ -49,8 +49,8 @@ class SD(SubDomain):
         return {x: x, y: ('middle', 1, 1), z: ('right', 2)}
 
 
-class OverlappingSD(SD):
-    separated = False
+class SeparatedSD(SD):
+    separated = True
 
 
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
@@ -116,15 +116,16 @@ class TestBasic:
         assert new_t.left == tup.left
         assert new_t.right == tup.right
 
-    def test_subdomain(self, pickle):
+    @pytest.mark.parametrize('cls', [SD, SeparatedSD])
+    def test_subdomain(self, pickle, cls):
         grid = Grid(shape=(5, 5, 5))
-        sd = OverlappingSD(grid=grid)
+        sd = cls(grid=grid)
 
         new_sd = pickle.loads(pickle.dumps(sd))
 
-        assert not new_sd.separated
+        assert new_sd.separated is sd.separated
         assert new_sd.shape == sd.shape
-        assert all(not d.separated for d in new_sd.dimensions if d.is_Sub)
+        assert all(d.separated is sd.separated for d in new_sd.dimensions if d.is_Sub)
 
     @pytest.mark.parametrize('on_sd', [False, True])
     def test_function(self, pickle, on_sd):
@@ -346,8 +347,9 @@ class TestBasic:
         assert new_pa.dim.name == 'd'
         assert new_pa.array.name == 'a'
 
-    def test_sub_dimension(self, pickle):
-        di = SubDimension.middle('di', Dimension(name='d'), 1, 1, separated=False)
+    @pytest.mark.parametrize('separated', [False, True])
+    def test_sub_dimension(self, pickle, separated):
+        di = SubDimension.middle('di', Dimension(name='d'), 1, 1, separated=separated)
 
         pkl_di = pickle.dumps(di)
         new_di = pickle.loads(pkl_di)
@@ -357,8 +359,8 @@ class TestBasic:
         assert di.parent.name == new_di.parent.name
         assert di._thickness == new_di._thickness
         assert di._interval == new_di._interval
-        assert not new_di.separated
-        assert all(not t.separated for t in new_di.thickness)
+        assert new_di.separated is separated
+        assert all(t.separated is separated for t in new_di.thickness)
 
     def test_multi_sub_dimension(self, pickle):
         di = MultiSubDimension('di', Dimension(name='d'), None, separated=False)
