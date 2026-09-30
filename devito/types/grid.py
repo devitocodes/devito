@@ -3,11 +3,12 @@ from functools import cached_property
 from itertools import product
 
 import numpy as np
-from sympy import prod
+import sympy
 
 from devito import configuration
 from devito.data import CENTER, LEFT, RIGHT
 from devito.deprecations import deprecations
+from devito.finite_differences.elementary import Max, Min
 from devito.logger import warning
 from devito.mpi import MPI, Distributor, SubDistributor
 from devito.tools import ReducerMap, as_tuple, frozendict
@@ -301,7 +302,7 @@ class Grid(CartesianDiscretization, ArgProvider):
     @property
     def volume_cell(self):
         """Volume of a single cell e.g  h_x*h_y*h_z in 3D."""
-        return prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
+        return sympy.prod(d.spacing for d in self.dimensions).subs(self.spacing_map)
 
     @cached_property
     def spacing(self):
@@ -635,6 +636,27 @@ class SubDomain(AbstractSubDomain):
 
     separated = False
 
+    def __init__(self, *args, parent=None, growth=None, **kwargs):
+        # A grown SubDomain spans `parent` grown by `growth` (see `grow`)
+        self._parent = parent
+        self._growth = frozendict(growth or {})
+        if parent is not None:
+            self.name = f"{parent.name}_grown"
+        super().__init__(*args, **kwargs)
+
+    @property
+    def parent(self):
+        """The SubDomain this one was grown from, if any."""
+        return self._parent
+
+    @property
+    def growth(self):
+        """
+        Number of points by which this SubDomain extends its parent on each side,
+        per root Dimension.
+        """
+        return self._growth
+
     def __subdomain_finalize__(self):
         self.__subdomain_finalize_legacy__(self.grid)
         self._distributor = SubDistributor(self)
@@ -649,12 +671,7 @@ class SubDomain(AbstractSubDomain):
         # Create the SubDomain's SubDimensions
         sub_dimensions = []
         sdshape = []
-        for k, v, s in zip(
-            self.define(grid.dimensions).keys(),
-            self.define(grid.dimensions).values(),
-            grid.shape,
-            strict=True
-        ):
+        for (k, v), s in zip(self._regions(grid).items(), grid.shape, strict=True):
             if isinstance(v, Dimension):
                 sub_dimensions.append(v)
                 sdshape.append(s)
@@ -724,6 +741,70 @@ class SubDomain(AbstractSubDomain):
         information, refer to ``SubDomain.__doc__``.
         """
         raise NotImplementedError
+
+    def _regions(self, grid):
+        """
+        The regions spanned along each Dimension of `grid`, as returned by
+        `define`. For a grown SubDomain, those of the parent grown by `growth`,
+        clipped to `grid`.
+        """
+        if self.parent is None:
+            return self.define(grid.dimensions)
+
+        regions = {}
+        for d, v in self.parent._regions(grid).items():
+            radius = self.growth.get(d, 0)
+            if isinstance(v, Dimension) or radius == 0:
+                regions[d] = v
+            elif v[0] == 'middle':
+                ltkn, rtkn = max(v[1] - radius, 0), max(v[2] - radius, 0)
+                regions[d] = d if ltkn == rtkn == 0 else ('middle', ltkn, rtkn)
+            else:
+                side, thickness = v
+                regions[d] = (side, min(thickness + radius, grid.shape[d]))
+        return regions
+
+    def grow(self, radius):
+        """
+        This SubDomain grown by a number of points on each side of some of its
+        Dimensions, clipped to the Grid.
+
+        Parameters
+        ----------
+        radius : dict of {Dimension: int}
+            Number of points to grow by, per root Dimension.
+        """
+        return SubDomain(parent=self, growth=radius, grid=self.grid)
+
+    def indicator(self, dim, offset):
+        """
+        1 if the point `offset` points away from the current one along `dim` lies
+        in this SubDomain, 0 otherwise, computed without branching. Always 1 if
+        this SubDomain spans all of `dim`.
+
+        Parameters
+        ----------
+        dim : Dimension
+            The root Dimension along which to test.
+        offset : expr-like
+            The offset, e.g. 2, or `i0` for a stencil in unexpanded form.
+        """
+        maybe_subdim = self.dimension_map.get(dim, dim)
+        if not maybe_subdim.is_Sub:
+            return sympy.S.One
+        point = dim + offset
+        return (Max(0, Min(1, point - maybe_subdim.symbolic_min + 1)) *
+                Max(0, Min(1, maybe_subdim.symbolic_max - point + 1)))
+
+    def restrict(self, expr, exclude=()):
+        """
+        `expr` restricted to this SubDomain at the evaluation point: zero at the
+        points outside of it, along all root Dimensions but those in `exclude`.
+        """
+        for d in self.dimensions:
+            if d.root not in exclude:
+                expr = expr * self.indicator(d.root, 0)
+        return expr
 
     @cached_property
     def _arg_names(self):

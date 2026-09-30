@@ -1,4 +1,4 @@
-from functools import partial, wraps
+from functools import cached_property, partial, wraps
 from itertools import product
 
 import numpy as np
@@ -176,6 +176,18 @@ class IndexSet(tuple):
     @property
     def spacing(self):
         return self.dim.spacing
+
+    def offset(self, index):
+        """
+        Offset, in grid points, of the point `index` from `dim`: e.g. 2 for
+        `x + 2*h_x`, or `i0` for `x + i0*h_x` in unexpanded form.
+        """
+        return sympify((index - self.dim) / self.spacing)
+
+    @cached_property
+    def radius(self):
+        """Largest distance, in grid points, between `dim` and the points."""
+        return max(abs(self.offset(i)) for i in self)
 
     def transpose(self):
         """
