@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import sympy
 
-from devito import NODE, Differentiable, Eq, Function, Grid, Operator
+from devito import NODE, Differentiable, Eq, Function, Grid, Operator, TimeDimension
 from devito.finite_differences.differentiable import (
     Add, EvalDerivative, Mul, Pow, SafeInv, deep_priority, diffify, highest_priority,
     interp_for_fd
@@ -50,6 +50,17 @@ def test_diffify():
     addition2 = diffify(sympy.Add(*[a, sympy.Mul(*[e, a.dx])]))
     assert isinstance(addition2, Add)
     assert all(isinstance(a, Differentiable) for a in addition2.args)
+
+
+@pytest.mark.parametrize('sign', [1, -1])
+def test_shifted_time_assumptions(sign):
+    """Sign queries must not attempt finite-difference differentiation."""
+    time = TimeDimension(name='time')
+    expr = Add(sign*time, -sign)
+
+    assert expr.is_extended_nonnegative is None
+    assert expr.is_extended_nonpositive is None
+    assert expr.is_zero is None
 
 
 def test_shift():

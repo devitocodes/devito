@@ -30,6 +30,7 @@ from devito.types import (
 from devito.types import Symbol as dSymbol
 from devito.types import TempFunction, ThreadID, Timer
 from devito.types.basic import AbstractSymbol, BoundSymbol
+from devito.types.dimension import MultiSubDimension
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
@@ -46,6 +47,10 @@ class SD(SubDomain):
     def define(self, dimensions):
         x, y, z = dimensions
         return {x: x, y: ('middle', 1, 1), z: ('right', 2)}
+
+
+class SeparatedSD(SD):
+    separated = True
 
 
 @pytest.mark.parametrize('pickle', [pickle0, pickle1])
@@ -110,6 +115,17 @@ class TestBasic:
         assert new_t.getters == tup.getters
         assert new_t.left == tup.left
         assert new_t.right == tup.right
+
+    @pytest.mark.parametrize('cls', [SD, SeparatedSD])
+    def test_subdomain(self, pickle, cls):
+        grid = Grid(shape=(5, 5, 5))
+        sd = cls(grid=grid)
+
+        new_sd = pickle.loads(pickle.dumps(sd))
+
+        assert new_sd.separated is sd.separated
+        assert new_sd.shape == sd.shape
+        assert all(d.separated is sd.separated for d in new_sd.dimensions if d.is_Sub)
 
     @pytest.mark.parametrize('on_sd', [False, True])
     def test_function(self, pickle, on_sd):
@@ -331,8 +347,9 @@ class TestBasic:
         assert new_pa.dim.name == 'd'
         assert new_pa.array.name == 'a'
 
-    def test_sub_dimension(self, pickle):
-        di = SubDimension.middle('di', Dimension(name='d'), 1, 1)
+    @pytest.mark.parametrize('separated', [False, True])
+    def test_sub_dimension(self, pickle, separated):
+        di = SubDimension.middle('di', Dimension(name='d'), 1, 1, separated=separated)
 
         pkl_di = pickle.dumps(di)
         new_di = pickle.loads(pkl_di)
@@ -342,6 +359,21 @@ class TestBasic:
         assert di.parent.name == new_di.parent.name
         assert di._thickness == new_di._thickness
         assert di._interval == new_di._interval
+        assert new_di.separated is separated
+        assert all(t.separated is separated for t in new_di.thickness)
+
+    def test_multi_sub_dimension(self, pickle):
+        di = MultiSubDimension('di', Dimension(name='d'), None, separated=False)
+
+        new_di = pickle.loads(pickle.dumps(di))
+
+        assert not new_di.separated
+        assert all(not t.separated for t in new_di.thickness)
+
+        rebuilt = new_di._rebuild(separated=True)
+
+        assert rebuilt.separated
+        assert all(t.separated for t in rebuilt.thickness)
 
     def test_conditional_dimension(self, pickle):
         d = Dimension(name='d')

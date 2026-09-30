@@ -360,11 +360,11 @@ class CGen(Visitor):
         except AttributeError:
             pass
 
-        if obj.is_Array and obj.initvalue is not None and mode == 1:
+        if obj.is_ArrayLike and obj.initvalue is not None and mode == 1:
             init = ListInitializer(obj.initvalue)
             if not obj._mem_constant or init.is_numeric:
                 # printed at the Array's own precision, not the Operator's
-                value = c.Initializer(value, self.ccode(init, dtype=obj.dtype))
+                value = c.Initializer(value, self.ccode(init, dtype=obj.c0.dtype))
         elif obj.is_LocalObject and obj.initvalue is not None and mode == 1:
             value = c.Initializer(value, self.ccode(obj.initvalue))
 

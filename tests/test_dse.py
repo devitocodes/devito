@@ -586,7 +586,7 @@ class TestAliases:
         """
         Like `test_full_shape`, but SubDomains (and therefore SubDimensions) are used.
         """
-        grid = Grid(shape=(3, 3, 3))
+        grid = Grid(shape=(5, 5, 5))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
 
@@ -753,12 +753,12 @@ class TestAliases:
         Analogous `test_mixed_shapes`, but with different sets of aliasing expressions.
         Also, uses SubDimensions.
         """
-        grid = Grid(shape=(3, 3, 3))
+        grid = Grid(shape=(5, 5, 5))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
         d = Dimension(name='d')
 
-        c = Function(name='c', grid=grid, shape=(2, 3), dimensions=(d, z))
+        c = Function(name='c', grid=grid, shape=(2, 5), dimensions=(d, z))
         u = TimeFunction(name='u', grid=grid, space_order=3)
         u1 = TimeFunction(name='u1', grid=grid, space_order=3)
 

@@ -16,6 +16,7 @@ from sympy.printing.precedence import PRECEDENCE_VALUES, precedence
 
 from devito import configuration
 from devito.arch.compiler import AOMPCompiler
+from devito.symbolics.extended_sympy import BitwiseAnd
 from devito.symbolics.inspection import has_integer_args, sympy_dtype
 from devito.symbolics.queries import q_leaf
 from devito.tools import (
@@ -255,7 +256,26 @@ class BasePrinter(CodePrinter):
         return f'ROUND_UP({value}, {step})'
 
     def _print_Mod(self, expr):
-        """Print a Mod as a C-like %-based operation."""
+        """
+        Print a Mod as an integer remainder or a power-of-two mask.
+
+        Python's `%` and SymPy's `Mod` give a nonnegative result for a positive
+        divisor, whereas C's `%` can be negative when the dividend is negative.
+        For example, `Mod(-1, 4) == 3`, but C's `-1 % 4 == -1`. For integer
+        operands and a positive power-of-two divisor `b`, emit `a & (b - 1)`
+        unless `a` is known nonnegative, preserving the Python/SymPy semantics.
+        """
+        a, b = expr.args
+
+        # Unlike C's signed remainder, a mask preserves `Mod`'s nonnegative
+        # result for positive power-of-two divisors
+        if b.is_Integer and \
+           b > 0 and \
+           not (int(b) & (int(b) - 1)) and \
+           has_integer_args(a, b) and \
+           a.is_nonnegative is not True:
+            return f'({self._print(BitwiseAnd(a, b - 1))})'
+
         args = [f'({self._print(a)})' for a in expr.args]
         return '%'.join(args)
 

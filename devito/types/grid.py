@@ -583,6 +583,15 @@ class SubDomain(AbstractSubDomain):
           region of ``d_size - (N + M)`` points starting at ``N`` and finishing
           at ``d_sizeM - M``.
 
+    Attributes
+    ----------
+    separated : bool, default=False
+        Set to True to require a stencil-safe gap between opposite left/right
+        regions, as in SubDimension, allowing concurrent scheduling when safe.
+        By default, touching or overlapping regions are allowed.
+        Applies to SubDimensions generated from tuple definitions; explicit
+        Dimensions returned by :meth:`define` retain their own settings.
+
     Examples
     --------
     An "Inner" SubDomain, which spans the entire domain except for an exterior
@@ -603,6 +612,16 @@ class SubDomain(AbstractSubDomain):
     ...         x, y, z = dimensions
     ...         return {x: ('middle', 3, 3), y: y, z: ('middle', 3, 3)}
 
+    To declare that opposite boundary regions leave a stencil-safe gap, set
+    `separated = True` on the SubDomain subclass:
+
+    >>> class LeftBoundary(SubDomain):
+    ...     name = 'left_boundary'
+    ...     separated = True
+    ...     def define(self, dimensions):
+    ...         x, y = dimensions
+    ...         return {x: ('left', 3), y: y}
+
     See Also
     --------
     Domain : An example of preset SubDomain.
@@ -613,6 +632,8 @@ class SubDomain(AbstractSubDomain):
     SubDomains are the only way to harness the benefits of domain decomposition,
     especially when defining BCs.
     """
+
+    separated = False
 
     def __subdomain_finalize__(self):
         self.__subdomain_finalize_legacy__(self.grid)
@@ -641,12 +662,6 @@ class SubDomain(AbstractSubDomain):
                 try:
                     # Case ('middle', int, int)
                     side, ltkn, rtkn = v
-                    if side != 'middle':
-                        raise ValueError(f"Expected side 'middle', not `{side}`")
-                    sub_dimensions.append(SubDimension.middle(f'i{k.name}',
-                                                              k, ltkn, rtkn))
-                    thickness = s-ltkn-rtkn
-                    sdshape.append(thickness)
                 except ValueError:
                     side, thickness = v
                     constructor = {'left': SubDimension.left,
@@ -661,7 +676,26 @@ class SubDomain(AbstractSubDomain):
                             f"Maximum thickness of dimension {k.name} "
                             f"is {s}, not {thickness}"
                         ) from None
-                    sub_dimensions.append(constructor(f'i{k.name}', k, thickness))
+                    sub_dimensions.append(constructor(f'i{k.name}', k, thickness,
+                                                      separated=self.separated))
+                    sdshape.append(thickness)
+                else:
+                    if side != 'middle':
+                        raise ValueError(f"Expected side 'middle', not `{side}`")
+
+                    # A `middle` region expects `ltkn + rtkn <= s` in the global Grid.
+                    # This ensures that the left and right regions won't overlap
+                    thickness = s-ltkn-rtkn
+                    if thickness < 0:
+                        raise ValueError(
+                            f"SubDomain `{self.name}` has combined thickness "
+                            f"{ltkn + rtkn} along `{k}`, exceeding the Grid size {s}"
+                        )
+
+                    sub_dimensions.append(
+                        SubDimension.middle(f'i{k.name}', k, ltkn, rtkn,
+                                            separated=self.separated)
+                    )
                     sdshape.append(thickness)
 
         self._shape = tuple(sdshape)

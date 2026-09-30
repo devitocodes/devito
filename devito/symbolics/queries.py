@@ -232,6 +232,9 @@ def q_positive(expr):
     False simply means that it was not possible to determine an answer
     to the query `X > 0`.
     """
+    if expr.is_Number:
+        return expr.is_positive is True
+
     if not expr.is_Add:
         return False
 

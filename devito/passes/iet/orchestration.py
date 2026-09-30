@@ -125,9 +125,9 @@ class Orchestrator:
     def _make_prefetchupdate(self, iet, sync_ops, layer, wrap=True):
         return self._make_async_task(prefetchupdate, iet, sync_ops, layer, wrap)
 
-    @iet_pass
-    def process(self, iet):
-        callbacks = {
+    @property
+    def _callbacks(self):
+        return {
             WaitLock: self._make_waitlock,
             WithLock: self._make_withlock,
             SyncArray: self._make_syncarray,
@@ -139,13 +139,15 @@ class Orchestrator:
             AsyncCallable: self._make_async_callable
         }
 
+    @iet_pass
+    def process(self, iet):
         # Collect the compatible asynchronous task groups, if any
         task_groups = TaskGroups()
         if self.npthreads:
             CollectTasks(task_groups).visit(iet)
 
         # Lower the SyncSpots in a single bottom-up traversal, atomically lowering
-        lowerer = LowerSyncSpots(callbacks, task_groups, self.sregistry)
+        lowerer = LowerSyncSpots(self._callbacks, task_groups, self.sregistry)
         iet = lowerer.visit(iet)
 
         return iet, {'efuncs': lowerer.efuncs}
