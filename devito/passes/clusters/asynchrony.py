@@ -345,12 +345,13 @@ def _actions_from_update_memcpy(c, d, bounds, clusters, actions, sregistry):
 
     pc = c.rebuild(exprs=expr, ispace=ispace, guards=guards, syncs=syncs)
 
-    # Wait before every, prefetch after the last access to `target`, then
+    # Wait before the first, prefetch after the last access to `target`, then
     # drop the memcpy `c`. `c` may be toposorted amid the readers, so scan them
     # all; count only reads over the streamed `pd`, not the buffer-init loop.
     reads = [c1 for c1 in clusters
              if c1 is not c and target in c1.scope.reads and pd in c1.ispace.itdims]
     assert reads
+    first = reads[0]
     last = reads[-1]
 
     # Advance `last` past its loop nest so the prefetch follows it rather than
@@ -361,23 +362,7 @@ def _actions_from_update_memcpy(c, d, bounds, clusters, actions, sregistry):
             break
         last = c1
 
-    # Every reader waits, not only the first in this order: later passes
-    # reorder and fuse Clusters, and a HaloTouch is a placeholder scheduled
-    # beside the stencil that needs the halo, so the Cluster first here need
-    # not run first. A wait on an already released lock is free. The
-    # prefetch writes `target`, so data dependences keep it after every reader.
-    # A reader shares its wait with the Clusters right before it defining the
-    # scalars it uses, e.g. an interpolation's positions: with different
-    # syncs they would land in separate nests, out of the reader's scope
-    waiting = []
-    for c1 in reads:
-        i = clusters.index(c1)
-        while i > 0 and defines_scalars_for(clusters[i-1], c1):
-            i -= 1
-        waiting.extend(c2 for c2 in clusters[i:clusters.index(c1)+1]
-                       if c2 not in waiting)
-    for c1 in waiting:
-        actions[c1].syncs[d].append(WaitLock(handle, target))
+    actions[first].syncs[d].append(WaitLock(handle, target))
     actions[last].insert.append(pc)
     actions[c].drop = True
 
@@ -390,16 +375,6 @@ class Actions:
         self.drop = drop
         self.syncs = syncs or defaultdict(list)
         self.insert = insert or []
-
-
-def defines_scalars_for(c0, c1):
-    """
-    True if `c0` only defines scalars, in `c1`'s very IterationSpace, and
-    carries no syncs of its own.
-    """
-    return (c0.ispace.itdims == c1.ispace.itdims and
-            not c0.syncs and
-            not any(f.is_AbstractFunction for f in c0.scope.writes))
 
 
 def wraps_memcpy(cluster):
