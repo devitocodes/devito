@@ -191,6 +191,24 @@ class Differentiable(sympy.Expr, Evaluable):
             for a in self.args  # false positive: lambda is invoked in-place
         ])
 
+    @cached_property
+    def _has_zero_halo(self):
+        """True if the expression has derivatives with `halo=0`."""
+        return any(a._has_zero_halo for a in self._args_diff)
+
+    @cached_property
+    def halo_radius(self):
+        """
+        The largest stencil radius, per root Dimension, of the evaluated
+        derivatives with `halo=0` in the expression. The expression is nonzero up
+        to that many points past the SubDomain their argument is restricted to.
+
+        For example, with `S` a SubDomain restricting `x` and an 8th-order `g`,
+        `g.dx(halo=0)` evaluated in an equation on `S` has a halo radius of
+        `{x: 4}`: the equation must iterate over `S` extended by 4 points.
+        """
+        return merge_halo_radius(a.halo_radius for a in self._args_diff)
+
     def _subs(self, old, new, **hints):
         if old == self:
             return new
@@ -540,6 +558,18 @@ def highest_priority(diff_op, candidates=None):
     return prio_func
 
 
+def merge_halo_radius(radii):
+    """
+    Merge the halo radii `radii`, each a mapping from root Dimension to radius,
+    keeping the largest radius per Dimension.
+    """
+    radius = {}
+    for i in radii:
+        for d, r in i.items():
+            radius[d] = max(radius.get(d, 0), r)
+    return frozendict(radius)
+
+
 class DifferentiableOp(Differentiable):
 
     __sympy_class__ = None
@@ -632,6 +662,19 @@ class Add(DifferentiableOp, sympy.Add):
         _addsort(args)
 
         return super().__new__(cls, *args, **kwargs)
+
+    def _eval_at(self, func, subdomain=None, **kwargs):
+        """
+        Evaluate the sum at the location of `func`.
+
+        The derivatives with `halo=0` extend the sum past `subdomain`, so the
+        other terms are restricted to `subdomain` at the evaluation point.
+        """
+        expr = super()._eval_at(func, subdomain=subdomain, **kwargs)
+        if subdomain is None or not expr.is_Add or not expr._has_zero_halo:
+            return expr
+        halo = {a for a in expr._args_diff if a._has_zero_halo}
+        return self.func(*[a if a in halo else subdomain.restrict(a) for a in expr.args])
 
 
 class Mul(DifferentiableOp, sympy.Mul):
@@ -1269,6 +1312,14 @@ class IndexDerivative(IndexSum):
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
 
+    __rkwargs__ = IndexDerivative.__rkwargs__ + ('halo_radius',)
+
+    def __new__(cls, *args, halo_radius=None, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        # With `halo=0`, the stencil radius (see `Differentiable.halo_radius`)
+        obj.halo_radius = frozendict(halo_radius or {})
+        return obj
+
     def _eval_at(self, func, **kwargs):
         # Like EvalDerivative, a DiffDerivative must have already been evaluated
         # at a valid x0 and should not be re-evaluated at a different location
@@ -1284,9 +1335,9 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
 
     is_commutative = True
 
-    __rkwargs__ = ('base',)
+    __rkwargs__ = ('base', 'halo_radius')
 
-    def __new__(cls, *args, base=None, **kwargs):
+    def __new__(cls, *args, base=None, halo_radius=None, **kwargs):
         kwargs['evaluate'] = False
 
         # a+0 -> a
@@ -1302,6 +1353,8 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
                 # In some rare cases (rebuild?) base may be obj itself
                 base = base.base
             obj.base = base
+            # With `halo=0`, the stencil radius (see `Differentiable.halo_radius`)
+            obj.halo_radius = frozendict(halo_radius or {})
         except AttributeError:
             # This might happen if e.g. one attempts a (re)construction with
             # one sole argument. The (re)constructed EvalDerivative degenerates

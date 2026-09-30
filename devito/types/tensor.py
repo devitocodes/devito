@@ -12,6 +12,7 @@ except ImportError:
 from sympy.core.sympify import converter as sympify_converter
 
 from devito.finite_differences import Differentiable
+from devito.finite_differences.differentiable import merge_halo_radius
 from devito.finite_differences.tools import make_shift_x0
 from devito.types.basic import AbstractTensor
 from devito.types.dense import Function, TimeFunction
@@ -179,7 +180,7 @@ class TensorFunction(AbstractTensor):
         """
         def entries(i, j, func):
             return getattr(self[i, j], '_eval_at',
-                           lambda x: self[i, j])(func[i, j], **kwargs)
+                           lambda x, **kw: self[i, j])(func[i, j], **kwargs)
         entry = lambda i, j: entries(i, j, func)
         return self._new(self.rows, self.cols, entry)
 
@@ -220,6 +221,16 @@ class TensorFunction(AbstractTensor):
         """Whether the tensor is diagonal."""
         return np.all([self[i, j] == 0 for j in range(self.cols)
                        for i in range(self.rows) if i != j])
+
+    @cached_property
+    def _has_zero_halo(self):
+        """True if a component has derivatives with `halo=0`."""
+        return any(x._has_zero_halo for x in self.values() if x != 0)
+
+    @cached_property
+    def halo_radius(self):
+        """The halo radius of the components (see `Differentiable.halo_radius`)."""
+        return merge_halo_radius(x.halo_radius for x in self.values() if x != 0)
 
     def _evaluate(self, **kwargs):
         def _do_evaluate(x):
