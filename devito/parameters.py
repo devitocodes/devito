@@ -1,6 +1,7 @@
 """The parameters dictionary contains global parameter settings."""
 import os
 from abc import ABC, abstractmethod
+from ast import literal_eval
 from collections import OrderedDict
 from functools import wraps
 
@@ -152,6 +153,7 @@ env_vars_mapper = {
     'DEVITO_LOGGING': 'log-level',
     'DEVITO_MPI': 'mpi',
     'DEVITO_OPT': 'opt',
+    'DEVITO_OPT_OPTIONS': 'opt-options',
     'DEVITO_PLATFORM': 'platform',
     'DEVITO_PROFILING': 'profiling',
     'DEVITO_SAFE_MATH': 'safe-math',
@@ -195,6 +197,9 @@ def init_configuration(configuration=configuration, env_vars_mapper=env_vars_map
 
     # Parameters validation
     for k, v in unprocessed.items():
+        if k == 'opt-options' and isinstance(v, str):
+            configuration.update(k, literal_eval(v))
+            continue
         try:
             items = v.split(';')
             # Env variable format: 'var=k1:v1;k2:v2:k3:v3:...'

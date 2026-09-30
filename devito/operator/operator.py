@@ -1661,6 +1661,12 @@ def parse_kwargs(**kwargs):
         options['openmp'] = True
         mode = tuple(i for i in as_tuple(mode) if i != 'openmp')
 
+    # Named configuration options take precedence over local options
+    options = dict(options)
+    overrides = configuration['opt-options'].get(kwargs.get('name', 'Kernel'), {})
+    if isinstance(overrides, dict):
+        options.update(overrides)
+
     # `opt`, deprecated kwargs
     kwopenmp = kwargs.get('openmp', options.get('openmp'))
     if kwopenmp is None:
@@ -1669,11 +1675,11 @@ def parse_kwargs(**kwargs):
         openmp = kwopenmp
 
     # `opt`, options
-    options = dict(options)
     options.setdefault('openmp', openmp)
     options.setdefault('mpi', configuration['mpi'])
     for k, v in configuration['opt-options'].items():
-        options.setdefault(k, v)
+        if not isinstance(v, dict):
+            options.setdefault(k, v)
     # Handle deprecations
     deprecated_options = ('cire-mincost-inv', 'cire-mincost-sops', 'cire-maxalias')
     for i in deprecated_options:
