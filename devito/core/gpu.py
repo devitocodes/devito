@@ -41,6 +41,7 @@ class DeviceOperatorMixin:
     # Overrides the default values in the main Operator class
     BLOCK_LEVELS = 0
     CIRE_BLOCK_TEMPS = False
+    PAR_TILE_UNBOUND = True
     MPI_MODES = (True, 'basic',)
 
     GPU_FIT = 'all-fallback'
@@ -91,7 +92,7 @@ class DeviceOperatorMixin:
         o['par-tile'] = ParTile(oo.pop('par-tile', False), default=(32, 4, 4),
                                 sparse=oo.pop('par-tile-sparse', None),
                                 reduce=oo.pop('par-tile-reduce', None),
-                                unbound=True)
+                                unbound=cls.PAR_TILE_UNBOUND)
         o['par-collapse-ncores'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-collapse-work'] = 1  # Always collapse (meaningful if `par-tile=False`)
         o['par-chunk-nonaffine'] = oo.pop('par-chunk-nonaffine', cls.PAR_CHUNK_NONAFFINE)

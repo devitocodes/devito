@@ -144,7 +144,11 @@ class TestCodeGeneration:
         assert trees[3][1].pragmas[0].ccode.value ==\
             f'acc parallel loop {sclause} present(src,src_gp,src_wx,src_wy,src_wz,u)'
 
-    def test_short_multi_tile_keeps_outer_dim_blocked(self):
+    @pytest.mark.parametrize('par_tile', [
+        ((32, 4), (16, 4)),
+        ((32, 4, 4), (16, 4)),
+    ])
+    def test_short_multi_tile_keeps_outer_dim_blocked(self, par_tile):
         """
         A multi `par-tile` entry shorter than the nest it lands on must not cost
         the outermost Dimension its BlockDimension: on a device, dropping it
@@ -158,9 +162,7 @@ class TestCodeGeneration:
         eqns = [Eq(u.forward, u.dx),
                 Eq(v.forward, u.forward.dx)]
 
-        # The second entry is 2D, while the nest it lands on is 3D
-        par_tile = ((32, 4, 4), (16, 4))
-
+        # OpenACC retains full blocking for short multi entries
         op = Operator(eqns, platform='nvidiaX', language='openacc',
                       opt=(
                           'advanced',
