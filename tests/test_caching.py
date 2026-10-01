@@ -1,4 +1,7 @@
+import gc
+import pickle
 import weakref
+from copy import copy, deepcopy
 from ctypes import byref, c_void_p
 
 import numpy as np
@@ -6,11 +9,12 @@ import pytest
 from sympy import Expr
 
 from devito import (
-    ConditionalDimension, Constant, DefaultDimension, Dimension, Eq, Function, Grid,
+    ConditionalDimension, Constant, DefaultDimension, Dimension, Eq, Function, Grid, Min,
     Operator, SparseFunction, SparseTimeFunction, SubDimension, TensorFunction,
     TensorTimeFunction, TimeFunction, VectorFunction, VectorTimeFunction, _SymbolCache,
     clear_cache, solve, switchconfig
 )
+from devito.ir.iet import Call, FindApplications, FindNodes, FindSymbols, List, Node
 from devito.types import (
     DeviceID, LocalObject, NPThreads, NThreadsBase, Object, Scalar, Symbol, ThreadID
 )
@@ -790,6 +794,79 @@ class TestMemoryLeaks:
     Tests ensuring there are no memory leaks.
     """
 
+    @pytest.mark.parametrize('nested', [False, True])
+    def test_findnodes_leakage(self, nested):
+        """A traversal containing its root must not keep the tree alive."""
+        def visit_temporary_tree():
+            tree = List(body=[Call('foo')] if nested else [])
+            nodes = [tree, *tree.body]
+            references = [weakref.ref(i) for i in nodes]
+            assert FindNodes(Node).visit(tree) == nodes
+            return references
+
+        references = visit_temporary_tree()
+        gc.collect()
+        clear_cache()
+
+        assert all(i() is None for i in references)
+
+    @pytest.mark.parametrize('kind', ['list', 'operator', 'jitted-operator'])
+    @pytest.mark.parametrize('copier', [
+        copy, deepcopy, pytest.param(lambda o: pickle.loads(pickle.dumps(o)), id='pickle')
+    ])
+    def test_copied_iet_leakage(self, kind, copier):
+        """An unvisited copy must not retain the original traversal's root."""
+        def copy_temporary_tree():
+            if kind != 'list':
+                f = Function(name='f', grid=Grid(shape=(3, 3)))
+                tree = Operator(Eq(f, f + 1))
+                if kind == 'jitted-operator':
+                    tree.apply()
+            else:
+                tree = List()
+            assert FindNodes(Node).visit(tree)[0] is tree
+            return copier(tree), weakref.ref(tree)
+
+        copied, reference = copy_temporary_tree()
+        clear_cache()
+        assert reference() is None
+        assert FindNodes(Node).visit(copied)[0] is copied
+
+    @pytest.mark.parametrize('match_root', [False, True])
+    def test_findnodes_scope_leakage(self, match_root):
+        """A scope query must not keep its target or containing tree alive."""
+        def visit_temporary_tree():
+            child = Call('foo')
+            tree = List(body=[child])
+            match = tree if match_root else child
+            expected = [] if match_root else [tree]
+            assert FindNodes(match, mode='scope').visit(tree) == expected
+            return weakref.ref(tree), weakref.ref(child)
+
+        references = visit_temporary_tree()
+        clear_cache()
+        assert all(i() is None for i in references)
+
+    @pytest.mark.parametrize('visitor', [FindSymbols, FindApplications])
+    def test_visitor_leakage_backref(self, visitor):
+        """A returned object's reference to the root must not cause a leak."""
+        def visit_temporary_tree():
+            if visitor is FindSymbols:
+                result = Object(name='context', dtype=c_void_p)
+                tree = Call('foo', arguments=[result])
+                result.value = tree
+            else:
+                result = Min(Symbol(name='s'), 1)
+                tree = Call('foo', arguments=[result])
+                result._test_owner = tree
+
+            assert result in visitor().visit(tree)
+            return weakref.ref(tree), weakref.ref(result)
+
+        references = visit_temporary_tree()
+        clear_cache()
+        assert all(i() is None for i in references)
+
     def test_operator_leakage_function(self):
         """
         Test to ensure that Operator creation does not cause memory leaks for
@@ -806,6 +883,9 @@ class TestMemoryLeaks:
         # Create operator and delete everything again
         op = Operator(Eq(f, 2 * g))
         w_op = weakref.ref(op)
+        FindNodes(Node).visit(op)
+        FindSymbols().visit(op)
+        FindApplications().visit(op)
         del op
         del f
         del g

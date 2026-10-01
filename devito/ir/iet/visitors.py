@@ -28,7 +28,7 @@ from devito.symbolics import (
 from devito.symbolics.extended_dtypes import NoDeclStruct
 from devito.tools import (
     GenericVisitor, as_tuple, c_restrict_void_p, filter_ordered, filter_sorted, flatten,
-    is_external_ctype, memoized_weak_meth, natural_sort_key
+    is_external_ctype, natural_sort_key
 )
 from devito.types import (
     ArrayObject, CompositeObject, DeviceMap, Dimension, IndexedData, Pointer
@@ -1127,10 +1127,6 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         else:
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
-    @memoized_weak_meth(key=lambda i: i.mode, freeze=tuple, thaw=list)
-    def visit(self, o, *args, **kwargs):
-        return super().visit(o, *args, **kwargs)
-
     def _post_visit(self, ret):
         return sorted(filter_ordered(ret, key=id), key=natural_sort_key)
 
@@ -1180,10 +1176,6 @@ class FindNodes(LazyVisitor[Node, list[Node], None]):
         self.mode = mode
         self.rule = self.rules[mode]
 
-    @memoized_weak_meth(key=lambda i: (i.match, i.mode), freeze=tuple, thaw=list)
-    def visit(self, o, *args, **kwargs):
-        return super().visit(o, *args, **kwargs)
-
     def visit_Node(self, o: Node, **kwargs) -> Iterator[Node]:
         if self.rule(self.match, o):
             yield o
@@ -1203,10 +1195,6 @@ class FindWithin(FindNodes, LazyVisitor[Node, list[Node], bool]):
         super().__init__(match)
         self.start = start
         self.stop = stop
-
-    def visit(self, o, *args, **kwargs):
-        # `start` and `stop` are part of this visitor's state.
-        return GenericVisitor.visit(self, o, *args, **kwargs)
 
     def visit_object(self, o: object, flag: bool = False) -> LazyVisit[Node, bool]:
         yield from ()
@@ -1257,10 +1245,6 @@ class FindApplications(LazyVisitor[ApplicationType, set[ApplicationType], None])
         super().__init__()
         self.cls = cls
         self.match = lambda i: isinstance(i, cls) and not isinstance(i, Basic)
-
-    @memoized_weak_meth(key=lambda i: i.cls, freeze=frozenset, thaw=set)
-    def visit(self, o, *args, **kwargs):
-        return super().visit(o, *args, **kwargs)
 
     def _post_visit(self, ret):
         return set(ret)
