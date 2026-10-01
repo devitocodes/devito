@@ -125,7 +125,8 @@ def index_at(expr, dim):
 
 @check_input
 def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
-                       coefficients='taylor', expand=True, weights=None, side=None):
+                       coefficients='taylor', expand=True, weights=None, side=None,
+                       subdomain=None):
     """
     Arbitrary-order derivative of a given expression.
 
@@ -151,6 +152,10 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     expand : bool, optional, default=True
         If True, the derivative is fully expanded as a sum of products,
         otherwise an IndexSum is returned.
+    subdomain : SubDomain, optional
+        If given, `expr` is treated as zero outside `subdomain` (see
+        `Derivative`'s `halo`): each stencil tap is multiplied by the
+        indicator of `subdomain` at the point it reads.
 
     Returns
     -------
@@ -171,7 +176,7 @@ def generic_derivative(expr, dim, fd_order, deriv_order, matvec=direct, x0=None,
     coefficients = 'taylor' if dim.is_Time else expr.coefficients
 
     return make_derivative(expr, dim, fd_order, deriv_order, side,
-                           matvec, x0, coefficients, expand, weights)
+                           matvec, x0, coefficients, expand, weights, subdomain)
 
 
 # Backward compatibility
@@ -180,7 +185,7 @@ def first_derivative(expr, dim, fd_order, **kwargs):
 
 
 def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coefficients,
-                    expand, weights=None):
+                    expand, weights=None, subdomain=None):
     # Always expand time derivatives to avoid issue with buffering and streaming.
     # Time derivative are almost always short stencils and won't benefit from
     # unexpansion in the rare case the derivative is not evaluated for time stepping.
@@ -222,13 +227,21 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
     if callable(expand):
         expand = expand(dim)
 
+    # With a `subdomain`, `expr` is treated as zero outside it: every stencil tap
+    # is multiplied by the indicator of the point it reads, 1 if `subdomain`
+    # spans the whole of `dim`. The derivative then extends past `subdomain` by
+    # the stencil radius
+    halo_radius = {dim.root: indices.radius} if subdomain is not None else {}
+
     if not expand and indices.expr is not None:
         weights = Weights(name='w', dimensions=indices.free_dim,
                           initvalue=weights, dtype=expr.dtype)
 
         # Inject the StencilDimension
         # E.g. `x + i*h_x` into `f(x)` s.t. `f(x + i*h_x)`
-        expr = expr._subs(dim, indices.expr)
+        expr = expr.shift(dim, indices.expr - dim)
+        if subdomain is not None:
+            expr = expr * subdomain.indicator(dim.root, indices.offset(indices.expr))
 
         # Re-evaluate any off-the-grid Functions potentially impacted by the FD
         # unless a pure number
@@ -236,13 +249,16 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
             expr = expr._evaluate(expand=False)
 
         deriv = DiffDerivative(
-            expr*weights, {dim: indices.free_dim}, deriv_order=deriv_order
+            expr*weights, {dim: indices.free_dim}, deriv_order=deriv_order,
+            halo_radius=halo_radius
         )
     else:
         terms = []
         for i, c in zip(indices, weights, strict=True):
             # The FD term
-            term = expr._subs(dim, i) * c
+            term = expr.shift(dim, i - dim) * c
+            if subdomain is not None:
+                term = term * subdomain.indicator(dim.root, indices.offset(i))
 
             # Re-evaluate any off-the-grid Functions potentially impacted by the FD
             # unless a pure number
@@ -250,6 +266,6 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
                 term = term.evaluate
             terms.append(term)
 
-        deriv = EvalDerivative(*terms, base=expr)
+        deriv = EvalDerivative(*terms, base=expr, halo_radius=halo_radius)
 
     return deriv
