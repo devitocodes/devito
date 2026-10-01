@@ -8,8 +8,8 @@ from devito import Eq, Function, Grid, Min, Operator, TimeFunction, sin
 from devito.ir.equations import DummyEq
 from devito.ir.iet import (
     Block, Call, Callable, Conditional, Definition, Expression, FindApplications,
-    FindNodes, FindSections, FindSymbols, FindWithin, IsPerfectIteration, Iteration,
-    MapNodes, Transformer, Uxreplace, printAST
+    FindNodes, FindSections, FindSymbols, FindWithin, IsPerfectIteration, Iteration, List,
+    MapNodes, Node, Transformer, Uxreplace, printAST
 )
 from devito.symbolics import ListInitializer
 from devito.types import Array, LocalObject, SpaceDimension, Symbol
@@ -213,7 +213,40 @@ def test_find_sections(exprs, block1, block2, block3):
     assert len(found[2]) == 1
 
 
-def test_find_within_not_cached_like_findnodes(block3):
+@pytest.mark.parametrize('match', [Node, List, Call])
+def test_find_nodes_repeated(match):
+    call0 = Call('foo')
+    call1 = Call('bar')
+    inner = List(body=[call1])
+    tree = List(body=[call0, inner])
+    expected = [i for i in [tree, call0, inner, call1] if isinstance(i, match)]
+
+    finder = FindNodes(match)
+    result = finder.visit(tree)
+    assert result == expected
+    result.clear()
+    assert finder.visit(tree) == expected
+    assert FindNodes(match).visit(tree) == expected
+
+
+def test_find_nodes_subclass():
+
+    class CallsOnly(FindNodes):
+
+        def visit_Node(self, o, **kwargs):
+            if isinstance(o, Call):
+                yield o
+            for child in o.children:
+                yield from self._visit(child, **kwargs)
+
+    call = Call('foo')
+    tree = List(body=[call])
+    assert FindNodes(Node).visit(tree) == [tree, call]
+    assert CallsOnly(Node).visit(tree) == [call]
+    assert FindNodes(Node).visit(tree) == [tree, call]
+
+
+def test_find_within_bounds(block3):
     expr0 = FindWithin(Expression, block3.nodes[0], block3.nodes[1]).visit(block3)
     expr1 = FindWithin(Expression, block3.nodes[1], block3.nodes[2]).visit(block3)
 
