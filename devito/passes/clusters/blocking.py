@@ -541,7 +541,6 @@ class BlockSizeGenerator:
 
         else:
             umt = self.umt
-            unbound = self.unbound and umt.is_multi
 
         umt.iter()
 
