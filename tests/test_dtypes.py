@@ -16,7 +16,7 @@ from devito.passes.iet.languages.C import CBB, CPrinter
 from devito.passes.iet.languages.openacc import AccBB, AccPrinter
 from devito.passes.iet.languages.openmp import OmpBB
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
-from devito.tools import dtype_to_cstr
+from devito.tools import dtype_to_cstr, infer_dtype
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 from devito.types.sparse import SparseTimeFunction
@@ -344,3 +344,33 @@ def test_complex_reduction(dtypeu: np.dtype[np.complexfloating]) -> None:
             assert f'{ustr} += r0' in str(op)
 
         assert np.isclose(u.data[0, 5, 5], expected)
+
+
+def test_complex_double_promotion() -> None:
+    """
+    Tests that an expression mixing a single precision complex with a double
+    is promoted to a double precision complex, rather than to a double.
+    """
+    # np.complex64 and np.float64 have the same itemsize, so ranking by size
+    # alone picks one of the two arbitrarily
+    assert infer_dtype({np.complex64, np.float64}) is np.complex128
+    assert infer_dtype({np.float32, np.float64}) is np.float64
+    assert infer_dtype({np.complex64, np.complex128}) is np.complex128
+
+    grid = Grid(shape=(4, 4))
+    f = Function(name='f', grid=grid, dtype=np.complex64)
+    g = Function(name='g', grid=grid, dtype=np.float64)
+    h = Function(name='h', grid=grid, dtype=np.complex128)
+
+    assert (f * g).dtype is np.complex128
+
+    f.data[:] = 0.3 + 0.7j
+    g.data[:] = 2.0
+
+    # The repeated subexpression is captured by a temporary, which must be
+    # complex too, or the imaginary part is dropped
+    op = Operator(Eq(h, sin(f * g) * sin(f * g) + sin(f * g)))
+    op.apply()
+
+    z = np.sin(np.complex128(f.data[0, 0]) * g.data[0, 0])
+    assert np.allclose(h.data, z * z + z)
