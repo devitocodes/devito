@@ -1436,7 +1436,7 @@ class BlockDimension(AbstractIncrDimension):
                 # Avoid OOB (will end up here only in case of tiny iteration spaces)
                 return {name: 1}
 
-    def _arg_check(self, args, *_args):
+    def _arg_check(self, args, *_args, **kwargs):
         try:
             name = self.step.name
         except AttributeError:

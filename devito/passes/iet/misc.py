@@ -340,7 +340,8 @@ def abridge_dim_names(iet):
 def _(iet):
     # Catch SubDimensions not in EntryFunction
     mapper = _rename_subdims(iet, FindSymbols('dimensions').visit(iet))
-    return Uxreplace(mapper, nested=True).visit(iet)
+
+    return _abridge(iet, mapper)
 
 
 @abridge_dim_names.register(EntryFunction)
@@ -367,13 +368,25 @@ def _(iet):
     dims = [d for d in dims if d.is_Modulo and d.parent in mapper]
     mapper.update({d: d._rebuild(parent=mapper[d.parent]) for d in dims})
 
+    return _abridge(iet, mapper)
+
+
+def _abridge(iet, mapper):
+    """
+    `iet` with `mapper` applied, less the renames that would leave it holding
+    two parameters of one name.
+
+    An abridged SubDimension is a loop's own, declared by the Iteration that
+    iterates it, so two of them alike in name in sibling nests are two locals
+    of that name and legal. One reaching the signature is not: a SubDimension
+    iterating no loop of its own there is a parameter, and two parameters
+    cannot share a name. Those go back to the names they had.
+    """
+    if not mapper:
+        return iet
+
     iet = Uxreplace(mapper, nested=True).visit(iet)
 
-    # An abridged SubDimension is a loop's own, declared by the Iteration that
-    # iterates it, so two of them alike in name in sibling nests are two
-    # locals of that name and legal. One reaching the signature is not: a
-    # SubDimension iterating no loop of its own here is a parameter, and two
-    # parameters cannot share a name. Those go back to the names they had
     renamed = as_mapper(mapper.items(), key=lambda i: i[1].name)
     clashing = {}
     for items in renamed.values():
