@@ -941,6 +941,54 @@ class TestFD:
         assert_structure(op, ['t,x,y,z', 't,x,y,z,i1', 't,x,y,z,i1,i0'])
 
 
+class TestWeights:
+
+    @pytest.mark.parametrize('coeffs,expected', [
+        ((1, 2, -2, -1), -1),
+        ((1, 2, 0, -2, -1), -1),
+        ((1, 2, 2, 1), 1),
+        ((1, 2, 3, 2, 1), 1),
+        ((1, 2, 3, -2, -1), None),
+        ((0, 0, 0), 1),
+        ((0,), 1),
+        ((3,), 1),
+        ((Symbol('a'), 0, -Symbol('a')), -1),
+        ((Symbol('a'), Symbol('b'), Symbol('a')), 1),
+        ((Symbol('a'), Symbol('b')), None),
+    ])
+    def test_symmetry(self, coeffs, expected):
+        i = StencilDimension('i', 0, len(coeffs) - 1)
+        weights = Weights(name='w', dimensions=i, initvalue=coeffs)
+
+        assert weights.symmetry == expected
+        assert weights._rebuild().symmetry == expected
+
+    @pytest.mark.parametrize('coeffs,expected,offset,sign', [
+        ((0, 1, 2, -2, -1), (1, 2, -2, -1), 1, -1),
+        ((1, 2, -2, -1, 0), (1, 2, -2, -1), 0, -1),
+        ((0, 0, 1, 2, 2, 1, 0), (1, 2, 2, 1), 2, 1),
+        ((0, 1, 2, -2, -1, 0), (0, 1, 2, -2, -1, 0), 0, -1),
+        ((0, 1, 2, 3, 0), (1, 2, 3), 1, None),
+        ((1, 2, 3), (1, 2, 3), 0, None),
+        ((0, 0, 0), (0, 0, 0), 0, 1),
+        ((0, Symbol('a'), -Symbol('a')), (Symbol('a'), -Symbol('a')), 1, -1),
+    ])
+    def test_coefficient_span(self, coeffs, expected, offset, sign):
+        i = StencilDimension('i', -3, len(coeffs) - 4)
+        weights = Weights(name='w', dimensions=i, initvalue=coeffs)
+        span, start = weights.coefficient_span
+
+        assert span.weights == expected
+        assert span.symmetry == sign
+        assert start == offset
+        assert span.dimension._min == i._min + offset
+        assert span.dimension._size == len(expected)
+        assert weights.coefficient_span[0] is span
+        assert weights._rebuild().coefficient_span == (span, start)
+        if coeffs == expected:
+            assert span is weights
+
+
 class TestTwoStageEvaluation:
 
     def test_exceptions(self):
