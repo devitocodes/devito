@@ -1125,7 +1125,8 @@ class Weights(Array):
 
         middle = len(weights) // 2
         pairs = tuple(zip(weights[:middle],
-                          reversed(weights[middle + len(weights) % 2:])))
+                          reversed(weights[middle + len(weights) % 2:]),
+                          strict=True))
 
         if all(left.equals(right) is True for left, right in pairs):
             return sympy.S.One
