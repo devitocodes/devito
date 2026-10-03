@@ -1111,6 +1111,57 @@ class Weights(Array):
 
     weights = Array.initvalue
 
+    @cached_property
+    def symmetry(self):
+        """
+        The sign relating mirrored coefficients: `1` for symmetric weights,
+        `-1` for antisymmetric weights, or `None` otherwise.
+
+        An odd antisymmetric sequence must have a zero center coefficient.
+        """
+        weights = self.weights
+        if not weights:
+            return None
+
+        middle = len(weights) // 2
+        pairs = tuple(zip(weights[:middle],
+                          reversed(weights[middle + len(weights) % 2:])))
+
+        if all(left.equals(right) is True for left, right in pairs):
+            return sympy.S.One
+        if all(left.equals(-right) is True for left, right in pairs) and \
+           (len(weights) % 2 == 0 or weights[middle].equals(0) is True):
+            return sympy.S.NegativeOne
+
+        return None
+
+    @cached_property
+    def coefficient_span(self):
+        """
+        Paired weights and their offset within the original stencil.
+
+        Symmetric or antisymmetric weights retain their full span, including
+        symmetric zero padding. Otherwise, trim known zeros at both ends and
+        return rebuilt weights together with their starting offset. The
+        resulting weights may still have no symmetry.
+        """
+        if self.symmetry is not None:
+            return self, 0
+
+        weights = self.weights
+        first, last = 0, len(weights)
+        while first < last and weights[first].is_zero is True:
+            first += 1
+        while last > first and weights[last - 1].is_zero is True:
+            last -= 1
+
+        if first == 0 and last == len(weights):
+            return self, 0
+
+        d = self.dimension
+        dimension = d._rebuild(_min=d._min + first, _max=d._min + last - 1)
+        return self._rebuild(dimensions=dimension, initvalue=weights[first:last]), first
+
     def _xreplace(self, rule):
         if self in rule:
             return rule[self], True
