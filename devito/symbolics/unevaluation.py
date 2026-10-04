@@ -1,6 +1,6 @@
 import sympy
 
-__all__ = ['Add', 'Mul', 'Pow']
+__all__ = ['Add', 'Mod', 'Mul', 'Pow']
 
 
 class UnevaluableMixin:
@@ -10,6 +10,10 @@ class UnevaluableMixin:
 
 
 class Add(sympy.Add, UnevaluableMixin):
+    __new__ = UnevaluableMixin.__new__
+
+
+class Mod(sympy.Mod, UnevaluableMixin):
     __new__ = UnevaluableMixin.__new__
 
 

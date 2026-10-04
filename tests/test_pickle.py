@@ -22,6 +22,7 @@ from devito.symbolics import (
     CallFromPointer, Cast, DefFunction, FieldFromPointer, IntDiv, ListInitializer, SizeOf,
     indexify, pow_to_mul
 )
+from devito.symbolics.unevaluation import Mod
 from devito.tools import EnrichedTuple
 from devito.types import (
     Array, ComponentAccess, CustomDimension, DefaultDimension, DeviceID, FIndexed,
@@ -719,6 +720,15 @@ class TestBasic:
         assert tuple(map(str, rebuilt.conditionals.values())) == \
             tuple(map(str, reduction.conditionals.values()))
         assert rebuilt.free_symbols.isdisjoint(rebuilt.bound_symbols)
+
+    @pytest.mark.parametrize('args', [(0, 3), (1, 3), (3, 3), (Symbol('i'), 3)])
+    def test_unevaluated_mod(self, pickle, args):
+        expr = Mod(*args)
+
+        rebuilt = pickle.loads(pickle.dumps(expr))
+
+        assert rebuilt == expr
+        assert rebuilt.args == args
 
 
 class TestAdvanced:

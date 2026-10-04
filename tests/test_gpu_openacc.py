@@ -144,11 +144,10 @@ class TestCodeGeneration:
         assert trees[3][1].pragmas[0].ccode.value ==\
             f'acc parallel loop {sclause} present(src,src_gp,src_wx,src_wy,src_wz,u)'
 
-    def test_short_multi_tile_keeps_outer_dim_blocked(self):
+    def test_short_multi_tile_keeps_outer_dim_on_device(self):
         """
-        A multi `par-tile` entry shorter than the nest it lands on must not cost
-        the outermost Dimension its BlockDimension: on a device, dropping it
-        would leave `x` iterated outside the offloaded nest.
+        A short multi `par-tile` leaves the outermost Dimension unblocked.
+        Its full loop must stay inside the OpenACC region.
         """
         grid = Grid(shape=(8, 8, 8))
 
@@ -166,9 +165,21 @@ class TestCodeGeneration:
                           'advanced',
                           {'par-tile': par_tile, 'blocklevels': 1, 'blockinner': True}))
 
-        bns, _ = assert_blocking(op, {'x0_blk0', 'x1_blk0'})
+        bns, _ = assert_blocking(op, {'x0_blk0', 'y1_blk0'})
 
-        expected = ((4, 4, 32), (4, 4, 16))
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert all(tree[0].dim is grid.time_dim for tree in trees)
+        assert trees[0][1].pragmas[0].ccode.value ==\
+            'acc parallel loop tile(32,4,4) present(u)'
+
+        x = grid.dimensions[0]
+        assert trees[1][1].dim is x
+        assert trees[1][1].limits == (x.symbolic_min, x.symbolic_max, 1)
+        assert trees[1][1].pragmas[0].ccode.value ==\
+            'acc parallel loop tile(16,4,4) present(u,v)'
+
+        expected = ((4, 4, 32), (4, 16))
         for root, v in zip(bns.values(), expected, strict=True):
             iters = FindNodes(Iteration).visit(root)
             iters = [i for i in iters if i.dim.is_Block and i.dim._depth == 1]
