@@ -282,9 +282,10 @@ class CireTransformerLegacy(CireTransformer):
 
                 terms = cbk_compose(i)
 
-                # Aliases only translate Indexeds, so a term reading an unbound
-                # StencilDimension outside of them would be evaluated at the
-                # wrong stencil point: such terms are left out of the alias.
+                # NOTE: a term reading an unbound StencilDimension outside of any
+                # Indexed is unsupported for now: aliases only translate Indexeds,
+                # so it would be evaluated at the wrong stencil point. It could in
+                # principle be hoisted too, but is currently left out of the alias.
                 # E.g., the `halo=0` indicator `MAX(0, MIN(1, x + i0 - x_m + 1))`
                 # in `u[x + i0]*w[i0]*MAX(0, MIN(1, x + i0 - x_m + 1))`
                 if terms:
