@@ -18,7 +18,7 @@ from devito.passes.iet.langbase import (
     DeviceAwareMixin, LangBB, LangTransformer, ShmTransformer, make_sections_from_imask
 )
 from devito.symbolics import INT, as_long
-from devito.tools import as_tuple, flatten, is_integer, prod
+from devito.tools import as_tuple, filter_ordered, flatten, is_integer, prod
 from devito.types import Symbol
 
 __all__ = [
@@ -318,12 +318,22 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
         if not any(i.is_ParallelPrivate for i in partree.collapsed):
             return self.Region(partree)
 
-        # Vector-expand all written Arrays within `partree`, since at least
-        # one of the parallelized Iterations requires thread-private Arrays
+        # Vector-expand the Arrays `partree` touches, since at least one of
+        # the parallelized Iterations requires thread-private Arrays
         # E.g. a(x, y) -> b(tid, x, y), where `tid` is the ThreadID Dimension
-        vexpandeds = []
+        #
+        # Read as well as written: the thread-local alias is declared inside
+        # the region that vector-expands the Array, so a later region reading
+        # one an earlier region expanded names something out of scope
+        candidates = []
         for n in FindNodes(Expression).visit(partree):
-            i = n.write
+            if n.write is not None:
+                candidates.append(n.write)
+            candidates.extend(f.function for f in n.functions
+                              if f.function in parrays)
+
+        vexpandeds = []
+        for i in filter_ordered(candidates):
             if not (i.is_Array or i.is_TempFunction):
                 continue
             elif partree.dim._defines.intersection(i.dimensions):
