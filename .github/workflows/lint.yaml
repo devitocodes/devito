@@ -40,7 +40,7 @@ jobs:
 
     - name: Lint codebase with flake8
       run: |
-        flake8 --builtins=ArgumentError .
+        flake8 .
 
   spellcheck:
     name: "Spellcheck everything"

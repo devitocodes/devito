@@ -7,7 +7,7 @@ from sympy.core.function import Application
 from sympy.core.numbers import ImaginaryUnit
 
 from devito.finite_differences import Derivative
-from devito.finite_differences.differentiable import IndexDerivative
+from devito.finite_differences.differentiable import IndexDerivative, IndexSum
 from devito.logger import warning
 from devito.symbolics.extended_dtypes import INT
 from devito.symbolics.extended_sympy import CallFromPointer, Cast, DefFunction, Reserved
@@ -265,7 +265,7 @@ def _(expr, estimate, seen):
     return _estimate_cost(expr._evaluate(expand=False), estimate, seen)
 
 
-@_estimate_cost.register(IndexDerivative)
+@_estimate_cost.register(IndexSum)
 @dont_count_if_seen
 def _(expr, estimate, seen):
     flops, _ = _estimate_cost(expr.expr, estimate, seen)
@@ -275,7 +275,7 @@ def _(expr, estimate, seen):
 
     # To be multiplied by the number of points this index sum implicitly
     # iterates over
-    flops *= prod(i._size for i in expr.dimensions)
+    flops *= prod(i.symbolic_size for i in expr.dimensions)
 
     return flops, False
 

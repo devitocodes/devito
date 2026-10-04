@@ -141,6 +141,11 @@ class TestOperatorSetup:
                 Operator(Eq(u, u + 1),
                          opt=('advanced', {'npthreads': npthreads}))
 
+        for async_degree in (False, True, -1, 1.5):
+            with pytest.raises(InvalidOperator, match='non-negative integer'):
+                Operator(Eq(u, u + 1),
+                         opt=('advanced', {'buf-async-degree': async_degree}))
+
     def test_compiler_uniqueness(self):
         grid = Grid(shape=(3, 3, 3))
 

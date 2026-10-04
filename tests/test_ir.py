@@ -4,9 +4,10 @@ from sympy import S
 
 from conftest import EVAL, skipif  # noqa
 from devito import (  # noqa
-    Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeFunction,
-    switchconfig
+    Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeDimension,
+    TimeFunction, switchconfig
 )
+from devito.finite_differences.differentiable import IndexSum, LocalSum
 from devito.ir.cgen import ccode
 from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
@@ -22,11 +23,13 @@ from devito.ir.support.space import (
     Any, Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
     NullInterval, null_ispace
 )
-from devito.symbolics import DefFunction, FieldFromPointer
+from devito.ir.support.utils import detect_halo_writes
+from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
 from devito.tools import prod
 from devito.tools.data_structures import frozendict
 from devito.types import (
-    Array, Bundle, CriticalRegion, CustomDimension, Jump, Scalar, Symbol
+    Array, Bundle, ConditionalDimension, CriticalRegion, CustomDimension, Jump, Scalar,
+    Symbol
 )
 
 
@@ -150,6 +153,43 @@ class TestVectorHierarchy:
         ta1 = TimedAccess(fc[x, y], 'R', 0, null_ispace)
 
         assert ta0 is ta1
+
+    @pytest.mark.parametrize('autopadding', [False, True])
+    def test_timedaccess_touched_nodomain(self, autopadding):
+        grid = Grid(shape=(17, 17))
+        x, y = grid.dimensions
+
+        with switchconfig(autopadding=autopadding):
+            f = Function(name='f', grid=grid, space_order=8)
+        hx, hy = f._size_nodomain.left
+
+        k = CustomDimension('k', parent=y, symbolic_min=1,
+                            symbolic_max=4, symbolic_size=4)
+        k0 = CustomDimension('k0', parent=y, symbolic_min=0,
+                             symbolic_max=4, symbolic_size=5)
+        yl = SubDimension.left('yl', y, thickness=4)
+        yr = SubDimension.right('yr', y, thickness=4)
+        a = Scalar(name='a', is_const=True)
+
+        for index, interval, expected in [
+            (-k, Interval(k), (True, False)),
+            (y.symbolic_size - 1 + k, Interval(k), (False, True)),
+            (2*y.symbolic_min - yl - 1, Interval(yl), (True, False)),
+            (2*y.symbolic_max - yr + 1, Interval(yr), (False, True)),
+            (S.NegativeOne, None, (True, False)),
+            (y.symbolic_size, None, (False, True)),
+            (y, Interval(y), (False, False)),
+            (-k0, Interval(k0), (False, False)),
+            (-k**2, Interval(k), (False, False)),
+            (-k, Interval(k, -1, 0), (False, False)),
+            (-k, None, (False, False)),
+            (a*k, Interval(k), (False, False)),
+            (y.symbolic_min**2 - k, Interval(k), (False, False)),
+        ]:
+            intervals = [Interval(x)] + ([interval] if interval is not None else [])
+            access = TimedAccess(f.indexed[x + hx, hy + index], 'W', 0,
+                                 IterationSpace(intervals))
+            assert access.touched_nodomain(y) == expected
 
     def test_iteration_instance_arithmetic(self, x, y, ii_num, ii_literal):
         """
@@ -354,6 +394,87 @@ class TestVectorHierarchy:
         # Comparable even though the TimedAccess is irregular (reflexivity)
         assert tcyx_irr0 >= tcyx_irr0
         assert tcyx_irr0 == tcyx_irr0
+
+    def test_timed_access_distance_subdimensions(self):
+        grid = Grid(shape=(24, 24))
+        x, y = grid.dimensions
+
+        xl = SubDimension.left('xl', x, 4)
+        xm = SubDimension.middle('xm', x, 4, 4)
+        xr = SubDimension.right('xr', x, 4)
+        xm_bad = SubDimension.middle('xm_bad', x, 3, 4)
+        yl = SubDimension.left('yl', y, 4)
+        ym = SubDimension.middle('ym', y, 4, 4)
+        xl_overlap = SubDimension.left('xl_overlap', x, 4)
+        xm_overlap = SubDimension.middle('xm_overlap', x, 4, 4)
+        xr_overlap = SubDimension.right('xr_overlap', x, 4)
+
+        f = Function(name='f', grid=grid)
+
+        left = TimedAccess(
+            f[xl, y], 'W', 0, IterationSpace([Interval(xl), Interval(y)])
+        )
+        middle = TimedAccess(
+            f[xm, y], 'R', 1, IterationSpace([Interval(xm), Interval(y)])
+        )
+        right = TimedAccess(
+            f[xr, y], 'R', 1, IterationSpace([Interval(xr), Interval(y)])
+        )
+        left_overlap = TimedAccess(
+            f[xl_overlap, y], 'R', 1,
+            IterationSpace([Interval(xl_overlap), Interval(y)])
+        )
+        middle_overlap = TimedAccess(
+            f[xm_overlap, y], 'R', 1,
+            IterationSpace([Interval(xm_overlap), Interval(y)])
+        )
+        right_overlap = TimedAccess(
+            f[xr_overlap, y], 'R', 1,
+            IterationSpace([Interval(xr_overlap), Interval(y)])
+        )
+        bad = TimedAccess(
+            f[xm_bad, y], 'R', 1,
+            IterationSpace([Interval(xm_bad), Interval(y)])
+        )
+        shifted = TimedAccess(
+            f[xm + 1, y], 'R', 1,
+            IterationSpace([Interval(xm), Interval(y)])
+        )
+        shifted_range = TimedAccess(
+            f[xm, y], 'R', 1,
+            IterationSpace([Interval(xm, 1, 1), Interval(y)])
+        )
+        left_nonlinear = TimedAccess(
+            f[xl % 2, y], 'W', 0, IterationSpace([Interval(xl), Interval(y)])
+        )
+        middle_nonlinear = TimedAccess(
+            f[xm % 2, y], 'R', 1, IterationSpace([Interval(xm), Interval(y)])
+        )
+        orthogonal = TimedAccess(
+            f[x, yl], 'R', 1, IterationSpace([Interval(x), Interval(yl)])
+        )
+        corner_left = TimedAccess(
+            f[xl, yl], 'W', 0, IterationSpace([Interval(xl), Interval(yl)])
+        )
+        corner_middle = TimedAccess(
+            f[xl_overlap, ym], 'R', 1,
+            IterationSpace([Interval(xl_overlap), Interval(ym)])
+        )
+
+        assert left.distance(middle) == (S.ImaginaryUnit,)
+        assert middle.distance(right) == (S.ImaginaryUnit,)
+        assert left.distance(right) == (S.ImaginaryUnit,)
+        assert right.distance(left) == (S.ImaginaryUnit,)
+        assert corner_left.distance(corner_middle) == (S.ImaginaryUnit,)
+
+        assert left.distance(left_overlap) == (S.Infinity, 0)
+        assert middle.distance(middle_overlap) == (S.Infinity, 0)
+        assert right.distance(right_overlap) == (S.Infinity, 0)
+        assert left.distance(bad) == (S.Infinity, 0)
+        assert left.distance(shifted) == (S.Infinity, 0)
+        assert left.distance(shifted_range) == (S.Infinity, 0)
+        assert left_nonlinear.distance(middle_nonlinear) == (S.Infinity, 0)
+        assert left.distance(orthogonal) == (S.Infinity,)
 
 
 class TestSpace:
@@ -1188,8 +1309,53 @@ class TestEquationAlgorithms:
 
         assert list(dimension_sort(expr)) == eval(expected)
 
+    def test_reduction_dimensions(self):
+        r = CustomDimension('r', 0, 2, 3)
+        f = Function(name='f', dimensions=(r,), shape=(3,))
+        acc = Symbol(name='acc', dtype=f.dtype)
+
+        # A reduction loop can be requested without an index in the expression
+        expr = Inc(acc, 1, implicit_dims=r)
+        assert r not in expr.free_symbols
+        assert LoweredEq(expr).ispace.itdims == (r,)
+
+        # A symbolic sum owns its loop; a separate free use still needs an outer loop
+        reduction = IndexSum(f[r], r)
+        assert LoweredEq(Eq(acc, reduction)).ispace.itdims == ()
+        assert LoweredEq(Eq(acc, reduction + f[r])).ispace.itdims == (r,)
+
 
 class TestCluster:
+
+    @pytest.mark.parametrize('dimtype', [Dimension, TimeDimension])
+    def test_detect_halo_writes(self, dimtype):
+        x = Dimension(name='x')
+        y = dimtype(name='y')
+        f = Function(name='f', dimensions=(x, y), shape=(17, 17),
+                     halo=((4, 4), (4, 4)))
+        hx, hy = f._size_nodomain.left
+        k = CustomDimension(name='k', parent=y, symbolic_min=1,
+                            symbolic_max=4, symbolic_size=4)
+        ispace = IterationSpace([Interval(x), Interval(y), Interval(k)])
+
+        halo = f.indexed[x + hx, hy - k]
+        domain = f.indexed[x + hx, y + hy]
+        nonlinear = f.indexed[x + hx, hy - k**2]
+        c = Cluster([Eq(halo, 1), Eq(domain, 2), Eq(nonlinear, 3),
+                     Eq(Symbol(name='r'), 4)], ispace)
+
+        # A halo write does not imply all writes to the same Function are halo-only
+        writes = detect_halo_writes(c, key=lambda d: d is y)
+        assert {w.access for w in writes} == {halo}
+        assert not detect_halo_writes(c, key=lambda d: d is x)
+        assert not detect_halo_writes(c, key=lambda d: False)
+
+        # No dimension type, including TimeDimension, is special to this query
+        assert detect_halo_writes(c, key=lambda d: True) == writes
+
+        wild = Cluster(Eq(Symbol(name='r'), CriticalRegion(True)), ispace)
+        assert wild.is_wild
+        assert not detect_halo_writes(wild, key=lambda d: True)
 
     def test_from_clusters_mixed_dtypes(self):
         grid = Grid(shape=(4,))
@@ -1226,6 +1392,36 @@ class TestClusterGroup:
 
         assert cgroup0 != cgroup1
         assert len({cgroup0, cgroup1}) == 2
+
+    def test_local_sums(self):
+        grid = Grid(shape=(4,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid)
+        i = ConditionalDimension('i', CustomDimension('i', 0, 1, 2),
+                                 condition=S.true, indirect=True)
+        j = ConditionalDimension('j', CustomDimension('j', 0, 1, 2),
+                                 condition=S.true, indirect=True)
+        inner = LocalSum(f[x + i], cdims=(i,))
+        outer = LocalSum(inner*f[x + j], cdims=(j,))
+        expr = LoweredEq(Eq(f[x], outer))
+        assert expr.ispace.itdims == (x,)
+        cluster = Cluster(expr, expr.ispace)
+        group = ClusterGroup([cluster, cluster])
+
+        # Nested sums must lower first; occurrences in separate equations must
+        # remain distinct, since intervening writes may change the summand
+        assert expr.local_sums == cluster.local_sums == (inner, outer)
+        assert group.local_sums == (inner, outer, inner, outer)
+        assert cluster.local_sums is cluster.local_sums
+        assert group.local_sums is group.local_sums
+
+        # Rebuilding expressions and clusters must not retain stale cached sums
+        replaced = cluster.exprs[0].apply(lambda e: uxreplace(e, {outer: inner}))
+        rebuilt = cluster.rebuild(exprs=[replaced])
+        assert rebuilt.local_sums == (inner,)
+        assert ClusterGroup([rebuilt]).local_sums == (inner,)
+        assert cluster.local_sums == (inner, outer)
+        assert not cluster.rebuild(exprs=[Eq(f[x], 0)]).local_sums
 
 
 class TestGuards:

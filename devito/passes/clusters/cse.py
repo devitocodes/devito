@@ -11,7 +11,7 @@ except ImportError:
     # Moved in 1.13
     from sympy.core.basic import ordering_of_classes
 
-from devito.finite_differences.differentiable import IndexDerivative
+from devito.finite_differences.differentiable import IndexSum
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import (
     DefFunction, Reserved, estimate_cost, q_leaf, q_terminal, search
@@ -427,7 +427,7 @@ def _(expr):
     return {}
 
 
-@_catch.register(IndexDerivative)
+@_catch.register(IndexSum)
 def _(expr):
     """
     Handler for symbol-binding objects. There can be many of them and therefore

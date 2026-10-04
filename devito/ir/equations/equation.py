@@ -4,14 +4,15 @@ from functools import cached_property
 import numpy as np
 import sympy
 
-from devito.finite_differences.differentiable import diff2sympy
+from devito.finite_differences.differentiable import LocalSum, diff2sympy
 from devito.ir.equations.algorithms import dimension_sort, generate_conditionals
 from devito.ir.support import (
-    Interval, IntervalGroup, IterationSpace, Stencil, detect_accesses
+    Interval, IntervalGroup, IterationSpace, Stencil, bounded, detect_accesses
 )
-from devito.symbolics import limits_mapper, retrieve_accesses
+from devito.symbolics import limits_mapper, retrieve_accesses, search
 from devito.tools import (
-    Pickable, Tag, as_hashable, filter_sorted, frozendict, reuse_if_unchanged
+    Pickable, Tag, as_hashable, filter_ordered, filter_sorted, frozendict,
+    reuse_if_unchanged
 )
 from devito.types import Eq, Inc, ReduceMax, ReduceMin, ReduceMinMax
 
@@ -49,6 +50,11 @@ class IREq(sympy.Eq, Pickable):
     @cached_property
     def dimensions(self):
         return set(self.ispace.dimensions)
+
+    @cached_property
+    def local_sums(self):
+        """The local sums in dependency order, with nested sums first."""
+        return tuple(filter_ordered(search(self, LocalSum, mode='all')))
 
     @property
     def implicit_dims(self):
@@ -273,11 +279,15 @@ class LoweredEq(IREq):
         # Analyze the expression
         accesses = detect_accesses(expr)
         dimensions = Stencil.union(*accesses.values())
+        bound = bounded(expr)
 
         # Separate out the SubIterators from the main iteration Dimensions, that
         # is those which define an actual iteration space
         iterators = {}
         for d in dimensions:
+            if d in bound:
+                # Local sum dimensions belong to the sum's own iteration space
+                continue
             if d.is_SubIterator:
                 iterators.setdefault(d.root, set()).add(d)
             elif d.is_Conditional:

@@ -9,7 +9,7 @@ from sympy import Ne, S, simplify
 from devito.exceptions import CompilationError
 from devito.ir import (
     Backward, Cluster, Forward, GuardBound, GuardFactor, InitArray, Interval,
-    IntervalGroup, IterationSpace, Properties, Queue, Vector, lower_exprs, vmax, vmin
+    IterationSpace, Properties, Queue, Vector, detect_halo_writes, lower_exprs, vmax, vmin
 )
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
@@ -44,11 +44,12 @@ def buffering(clusters, key, sregistry, options, **kwargs):
         Accepted: ['buf-async-degree', 'buf-reuse', 'npthreads'].
         * 'buf-async-degree': Specify the size of the buffer. By default, the
           buffer size is the minimal one, inferred from the memory accesses in
-          the ``clusters`` themselves. An asynchronous degree equals to `k`
-          means that the buffer will be enforced to size=`k` along the introduced
-          ModuloDimensions. This might help relieving the synchronization
-          overhead when asynchronous operations are used (these are however
-          implemented by other passes).
+          the ``clusters`` themselves. A positive asynchronous degree `k`
+          requests `k` slots; values below the inferred minimum are ignored.
+          Zero disables buffering. Read-buffer initialization remains limited to
+          the minimum number of slots required by the memory accesses. A larger
+          buffer might relieve synchronization overhead in asynchronous operations
+          introduced by other passes.
         * 'buf-reuse': If True, the pass will try to reuse existing Buffers for
           different buffered Functions. By default, False.
         * 'npthreads': Number of pthreads for asynchronous tasks. The tasks are
@@ -58,13 +59,14 @@ def buffering(clusters, key, sregistry, options, **kwargs):
         Additional compilation options.
         Accepted: ['opt_init_onwrite', 'opt_buffer'].
         * 'opt_init_onwrite': By default, a written buffer does not trigger the
-        generation of an initializing Cluster. With `opt_init_onwrite=True`,
-        instead, the buffer gets initialized to zero.
+          generation of an initializing Cluster. With `opt_init_onwrite=True`,
+          instead, the buffer gets initialized to zero. A callable receives the
+          buffered Function and the selected buffer.
         * 'opt_reuse': A callback that takes a buffering candidate `bf` as input
-        and returns True if the pass can reuse pre-existing Buffers for
-        buffering `bf`, which would otherwise default to False.
+          and returns True if the pass can reuse pre-existing Buffers for
+          buffering `bf`, which would otherwise default to False.
         * 'opt_buffer': A callback that takes a buffering candidate as input
-        and returns a buffer, which would otherwise default to an Array.
+          and returns a buffer, which would otherwise default to an Array.
 
     Examples
     --------
@@ -102,7 +104,7 @@ def buffering(clusters, key, sregistry, options, **kwargs):
     assert callable(key)
 
     v1 = kwargs.get('opt_init_onwrite', False)
-    init_onwrite = v1 if callable(v1) else lambda f: v1
+    init_onwrite = v1 if callable(v1) else lambda f, b: v1
 
     options = dict(options)
     options.update({
@@ -117,6 +119,10 @@ def buffering(clusters, key, sregistry, options, **kwargs):
 
     # First we generate all the necessary buffers
     mapper = generate_buffers(clusters, key, sregistry, options)
+
+    # Take into account writes into the HALO regions so that the buffered
+    # Functions can be populated accordingly
+    clusters = expand_halo_transfers(clusters, mapper)
 
     # Then we inject them into the Clusters. This involves creating the
     # initializing Clusters, and replacing the buffered Functions with the buffers
@@ -485,6 +491,90 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     return mapper
 
 
+def expand_halo_transfers(clusters, mapper):
+    """
+    Include the halo in buffered writes reading Functions with explicit HALO
+    writes. For example, `usave` in `Eq(usave, u)` must eventually receive `u`'s
+    populated HALO if a preceding `Eq` writes into `u`'s HALO.
+    """
+    if not mapper:
+        return clusters
+
+    # Get HALO writes along the buffered dimensions
+    bdims = set()
+    for b in mapper.values():
+        bdims.update(d for d in b.dimensions if not isinstance(d, BufferDimension))
+
+    halo_writes = set()
+    for c in clusters:
+        for w in detect_halo_writes(c, bdims.__contains__):
+            halo_writes.add(w.function)
+    if not halo_writes:
+        return clusters
+
+    # Expand the IterationSpace over the necessary amount of HALO; in doing so,
+    # check the expanded footprint of every access, including shifted reads.
+    # Writes must be pointwise so that the whole destination halo is filled
+    buffered = {f for f, _ in mapper}
+    processed = []
+    for c in clusters:
+        writes = c.scope.writes_tensor
+
+        if c.is_wild or \
+           writes.isdisjoint(buffered) or \
+           halo_writes.isdisjoint(c.scope.reads):
+            processed.append(c)
+            continue
+
+        if not writes <= buffered:
+            raise CompilationError(
+                "Cannot expand a mixed Cluster over the halo while buffering"
+            )
+
+        ispace = c.ispace
+        for f in writes:
+            ispace = _include_halo(ispace, f)
+
+        for a in c.scope.accesses:
+            f = a.function
+
+            for d in bdims.intersection(a.findices):
+                size = f._size_nodomain[d]
+                offset = simplify(a[d] - d - size.left)
+
+                if d not in ispace.dimensions or \
+                   not is_integer(offset) or \
+                   (a.is_write and offset != 0):
+                    raise CompilationError(
+                        f"Cannot expand access to `{f.name}` over the halo"
+                    )
+
+                i = ispace[d]
+                if i.lower + offset < -size.left or \
+                   i.upper + offset > size.right:
+                    raise CompilationError(
+                        f"Insufficient halo for `{f.name}` in buffered write"
+                    )
+
+        processed.append(c.rebuild(ispace=ispace))
+
+    return processed
+
+
+def _include_halo(ispace, f, dims=None):
+    """
+    Extend `ispace` to include `f`'s HALO along `dims`.
+    """
+    dims = dims or f.dimensions
+
+    ihalo = [
+        Interval(i.dim, -f._size_halo[i.dim].left, f._size_halo[i.dim].right, i.stamp)
+        for i in ispace if i.dim in dims
+    ]
+
+    return IterationSpace.union(ispace, IterationSpace(ihalo))
+
+
 def map_buffered_functions(clusters, key):
     """
     Map each candidate Function to the Clusters that access it.
@@ -640,13 +730,9 @@ class BufferDescriptor:
         # might be accessed through a stencil
         ispace = ispace.promote(lambda d: d.is_AbstractSub, mode='total')
 
-        # Analogous to the above, we need to include the halo region as well
-        ihalo = IntervalGroup([
-            Interval(i.dim, -h.left, h.right, i.stamp)
-            for i, h in zip(ispace, self.b._size_halo, strict=False)
-        ])
-
-        ispace = IterationSpace.union(ispace, IterationSpace(ihalo))
+        # Include the spatial halo without widening the temporal interval,
+        # which may already be restricted by an earlier buffering round
+        ispace = _include_halo(ispace, self.b, self.bdims)
 
         return ispace
 
@@ -793,6 +879,7 @@ def init_buffers(descriptors, options):
     Create the initializing Clusters for the given buffers.
     """
     init_onwrite = options['buf-init-onwrite']
+    async_degree = options['buf-async-degree']
 
     init = []
     for b, v in descriptors.flat_items():
@@ -803,10 +890,11 @@ def init_buffers(descriptors, options):
             # multiple) buffering because it's completely unnecessary
             if v.is_double_buffering:
                 continue
+
             lhs = b.indexify()._subs(v.xd, v.first_idx.b)
             rhs = f.indexify()._subs(v.dim, v.first_idx.f)
 
-        elif v.is_write and init_onwrite(f):
+        elif v.is_write and init_onwrite(f, b):
             lhs = b.indexify()
             rhs = S.Zero
 
@@ -816,7 +904,17 @@ def init_buffers(descriptors, options):
         expr = Eq(lhs, rhs)
         expr = lower_exprs(expr)
 
-        ispace = v.write_to
+        ispace = v.write_to.concrete
+        if v.is_read and async_degree is not None:
+            # The allocated capacity (`v.size`) may exceed the time-window width
+            # that must be loaded before computation starts (`size` below). E.g.,
+            # reads at u[t-1], u[t] and u[t+1] make `infer_buffer_size` return 3,
+            # even if `buf-async-degree` gives us 4 slots (`v.size == 4`). Seed
+            # only db0=0..2; the spare slot is filled as computation advances.
+            # This preserves the stencil's data space and iteration bounds,
+            # without requiring extra input time levels to fill the ring.
+            size = infer_buffer_size(f, v.dim, v.clusters)
+            ispace = ispace.translate(v.xd, 0, size - v.size)
 
         guards = {}
         guards[None] = GuardBound(v.dim.root.symbolic_min, v.dim.root.symbolic_max)

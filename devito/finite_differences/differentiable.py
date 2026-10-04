@@ -21,8 +21,8 @@ from devito.finite_differences.interpolation import (
 from devito.finite_differences.tools import coeff_priority, make_shift_x0
 from devito.logger import warning
 from devito.tools import (
-    Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict, infer_dtype,
-    is_integer, is_number, memoized_func, split
+    Pickable, Tag, as_tuple, extract_dtype, filter_ordered, flatten, frozendict,
+    infer_dtype, is_integer, is_number, memoized_func, split
 )
 from devito.types import Array, DimensionTuple, Evaluable, StencilDimension
 from devito.types.basic import AbstractFunction, Indexed
@@ -35,6 +35,7 @@ __all__ = [
     'Imag',
     'IndexDerivative',
     'IndexDerivativeProperty',
+    'LocalSum',
     'Real',
     'Weights',
 ]
@@ -190,6 +191,24 @@ class Differentiable(sympy.Expr, Evaluable):
             for a in self.args  # false positive: lambda is invoked in-place
         ])
 
+    @cached_property
+    def _has_zero_halo(self):
+        """True if the expression has derivatives with `halo=0`."""
+        return any(a._has_zero_halo for a in self._args_diff)
+
+    @cached_property
+    def halo_radius(self):
+        """
+        The largest stencil radius, per root Dimension, of the evaluated
+        derivatives with `halo=0` in the expression. The expression is nonzero up
+        to that many points past the SubDomain their argument is restricted to.
+
+        For example, with `S` a SubDomain restricting `x` and an 8th-order `g`,
+        `g.dx(halo=0)` evaluated in an equation on `S` has a halo radius of
+        `{x: 4}`: the equation must iterate over `S` extended by 4 points.
+        """
+        return merge_halo_radius(a.halo_radius for a in self._args_diff)
+
     def _subs(self, old, new, **hints):
         if old == self:
             return new
@@ -328,8 +347,18 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         Shift  expression by `shift` along the Dimension `dim`.
         For example u.shift(x, x.spacing) = u(x + h_x).
+
+        Every other space Dimension of the expression sharing the root of `dim`
+        is shifted too: an expression may mix Functions defined on the Grid,
+        e.g. `f(x)`, with Functions defined on a SubDomain, e.g. `p(ix)`.
         """
-        return self._subs(dim, dim + shift)
+        from devito.symbolics import retrieve_dimensions  # noqa
+
+        expr = self
+        for d in retrieve_dimensions(self, mode='unique'):
+            if d is not dim and d.root is dim.root and (d.is_Sub or d is dim.root):
+                expr = expr._subs(d, d + shift)
+        return expr._subs(dim, dim + shift)
 
     @property
     def laplace(self):
@@ -529,6 +558,18 @@ def highest_priority(diff_op, candidates=None):
     return prio_func
 
 
+def merge_halo_radius(radii):
+    """
+    Merge the halo radii `radii`, each a mapping from root Dimension to radius,
+    keeping the largest radius per Dimension.
+    """
+    radius = {}
+    for i in radii:
+        for d, r in i.items():
+            radius[d] = max(radius.get(d, 0), r)
+    return frozendict(radius)
+
+
 class DifferentiableOp(Differentiable):
 
     __sympy_class__ = None
@@ -621,6 +662,19 @@ class Add(DifferentiableOp, sympy.Add):
         _addsort(args)
 
         return super().__new__(cls, *args, **kwargs)
+
+    def _eval_at(self, func, subdomain=None, **kwargs):
+        """
+        Evaluate the sum at the location of `func`.
+
+        The derivatives with `halo=0` extend the sum past `subdomain`, so the
+        other terms are restricted to `subdomain` at the evaluation point.
+        """
+        expr = super()._eval_at(func, subdomain=subdomain, **kwargs)
+        if subdomain is None or not expr.is_Add or not expr._has_zero_halo:
+            return expr
+        halo = {a for a in expr._args_diff if a._has_zero_halo}
+        return self.func(*[a if a in halo else subdomain.restrict(a) for a in expr.args])
 
 
 class Mul(DifferentiableOp, sympy.Mul):
@@ -941,10 +995,103 @@ class IndexSum(sympy.Expr, Evaluable):
         return sum(terms)
 
     @property
+    def bound_symbols(self):
+        return set(self.dimensions)
+
+    @property
     def free_symbols(self):
-        return super().free_symbols - set(self.dimensions)
+        return super().free_symbols - self.bound_symbols
 
     func = DifferentiableOp._rebuild
+
+
+class LocalSum(IndexSum, Pickable):
+
+    """
+    A zero-initialized sum over guarded local dimensions.
+
+    `cdims` are guarded ConditionalDimensions, retained with their original
+    parents and conditions. `dimensions` exposes the parent iteration dimensions.
+    Masked points contribute zero. The sum remains symbolic until Cluster lowering
+    chooses its implementation.
+
+    Examples
+    --------
+    For bilinear interpolation, `posx` and `posy` are the grid indices of sparse
+    point `p`, and `wx` and `wy` hold its interpolation weights::
+
+        i = CustomDimension('i', 0, 1, 2)
+        j = CustomDimension('j', 0, 1, 2)
+        ci = ConditionalDimension('i', i, indirect=True,
+            condition=And(posx + i >= x_m, posx + i <= x_M))
+        cj = ConditionalDimension('j', j, indirect=True,
+            condition=And(posy + j >= y_m, posy + j <= y_M))
+        value = LocalSum(
+            wx[p, ci]*wy[p, cj]*f[posx + ci, posy + cj],
+            cdims=(ci, cj)
+        )
+        Eq(rcv[p], value)
+
+    The scalar lowering has the following semantics (pseudocode)::
+
+        acc = 0
+        for i in range(2):
+            for j in range(2):
+                if x_m <= posx + i <= x_M and y_m <= posy + j <= y_M:
+                    acc += wx[p, i]*wy[p, j]*f[posx + i, posy + j]
+        rcv[p] = acc
+
+    The guarded indices and their parents are local to the sum; `p` remains an
+    outer iteration dimension.
+    If every tap is masked, `rcv[p]` receives zero.
+    """
+
+    __rargs__ = ('expr',)
+    __rkwargs__ = ('cdims', 'dtype')
+
+    def __new__(cls, expr, cdims=(), dtype=None, **kwargs):
+        obj = sympy.Expr.__new__(cls, expr)
+
+        obj._expr = expr
+        obj._cdims = as_tuple(cdims)
+        obj._dtype = dtype
+
+        return obj
+
+    def _hashable_content(self):
+        return super()._hashable_content() + (self.cdims, self.dtype)
+
+    @property
+    def cdims(self):
+        return self._cdims
+
+    @cached_property
+    def dtype(self):
+        if self._dtype is None:
+            return extract_dtype(self.expr)
+        return self._dtype
+
+    @cached_property
+    def dimensions(self):
+        return tuple(d.parent for d in self.cdims)
+
+    @cached_property
+    def conditionals(self):
+        return frozendict({d: d.condition for d in self.cdims})
+
+    @property
+    def bound_symbols(self):
+        return super().bound_symbols | set(self.cdims)
+
+    @property
+    def free_symbols(self):
+        symbols = self.expr.free_symbols.union(*[d.free_symbols for d in self.cdims])
+        return symbols - self.bound_symbols
+
+    def _evaluate(self, **kwargs):
+        return self._rebuild(*self._evaluate_args(**kwargs))
+
+    __reduce_ex__ = Pickable.__reduce_ex__
 
 
 class WeightsIndexed(Indexed):
@@ -1165,6 +1312,14 @@ class IndexDerivative(IndexSum):
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
 
+    __rkwargs__ = IndexDerivative.__rkwargs__ + ('halo_radius',)
+
+    def __new__(cls, *args, halo_radius=None, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        # With `halo=0`, the stencil radius (see `Differentiable.halo_radius`)
+        obj.halo_radius = frozendict(halo_radius or {})
+        return obj
+
     def _eval_at(self, func, **kwargs):
         # Like EvalDerivative, a DiffDerivative must have already been evaluated
         # at a valid x0 and should not be re-evaluated at a different location
@@ -1180,9 +1335,9 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
 
     is_commutative = True
 
-    __rkwargs__ = ('base',)
+    __rkwargs__ = ('base', 'halo_radius')
 
-    def __new__(cls, *args, base=None, **kwargs):
+    def __new__(cls, *args, base=None, halo_radius=None, **kwargs):
         kwargs['evaluate'] = False
 
         # a+0 -> a
@@ -1198,6 +1353,8 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
                 # In some rare cases (rebuild?) base may be obj itself
                 base = base.base
             obj.base = base
+            # With `halo=0`, the stencil radius (see `Differentiable.halo_radius`)
+            obj.halo_radius = frozendict(halo_radius or {})
         except AttributeError:
             # This might happen if e.g. one attempts a (re)construction with
             # one sole argument. The (re)constructed EvalDerivative degenerates

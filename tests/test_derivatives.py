@@ -4,9 +4,9 @@ from sympy import Float, Symbol, diff, simplify, sympify
 
 from conftest import assert_structure
 from devito import (
-    NODE, ConditionalDimension, Eq, Function, Grid, Operator, TensorFunction,
-    TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl, div, grad,
-    laplace, left, right, sin
+    NODE, ConditionalDimension, Eq, Function, Grid, Inc, Operator, SubDomain,
+    TensorFunction, TensorTimeFunction, TimeFunction, VectorFunction, centered, cos, curl,
+    div, grad, laplace, left, right, sin
 )
 from devito.finite_differences import Derivative, Differentiable, diffify
 from devito.finite_differences.differentiable import (
@@ -1518,3 +1518,480 @@ def test_deriv_sum_mixed_staggering(expand, deriv_order):
     # float32 reassociation only: the two forms sum the same terms in a
     # different order
     assert np.linalg.norm(together - apart) / np.linalg.norm(apart) < 1e-5
+
+
+class Region(SubDomain):
+    """SubDomain given by its `define` mapping for each Dimension name."""
+
+    def __init__(self, name, regions, **kwargs):
+        self.name = name
+        self.regions = regions
+        super().__init__(**kwargs)
+
+    def define(self, dimensions):
+        return {d: self.regions.get(d.name, d) for d in dimensions}
+
+
+@pytest.mark.parametrize('expand', [True, False])
+@pytest.mark.parametrize('op', ['add', 'mul'])
+def test_deriv_mixed_subdomain_functions(op, expand):
+    """
+    A derivative shifts every Function of the expression, including those
+    defined on a SubDomain, whose Dimension (`ix`) differs from the Grid's (`x`).
+
+    Used to leave `p(ix)` unshifted, so `(f + p).dx` dropped `p` altogether.
+    """
+    so = 4
+    grid = Grid(shape=(24,), extent=(23.,))
+    strip = Region('strip', {'x': ('left', 8)}, grid=grid)
+
+    f = Function(name='f', grid=grid, space_order=so)
+    p = Function(name='p', grid=strip, space_order=so)
+    # Reference: `p` extended by zero on the whole Grid
+    p_full = Function(name='p_full', grid=grid, space_order=so)
+    out = Function(name='out', grid=grid, space_order=so)
+    ref = Function(name='ref', grid=grid, space_order=so)
+
+    rng = np.random.default_rng(0)
+    f.data[:] = rng.normal(size=f.shape)
+    p.data[:] = rng.normal(size=p.shape)
+    p_full.data[:8] = p.data
+
+    combine = {'add': lambda u, v: u + v, 'mul': lambda u, v: u * v}[op]
+    Operator([Eq(out, combine(f, p).dx, subdomain=strip),
+              Eq(ref, combine(f, p_full).dx, subdomain=strip)],
+             opt=('advanced', {'expand': expand})).apply()
+
+    assert np.linalg.norm(ref.data) > 0
+    assert np.allclose(out.data, ref.data, rtol=1e-6, atol=1e-6)
+
+
+def test_deriv_mixed_subdomain_cpml_adjoint():
+    """
+    Dot test of a one-face CPML derivative whose memory variable lives on the
+    CPML layer only.
+
+        forward: out = D q + psi[n+1]  (psi on the layer)
+                 psi[n+1] = b psi[n] + a D q
+        adjoint: q_bar = D^T (out_bar + a (psi_bar + out_bar))
+
+    The adjoint CPML term mixes Grid and SubDomain Functions inside `.dx.T`, and
+    is nonzero on the layer grown by the stencil radius. `a` vanishes outside
+    the layer, so no zero-padded work field is needed.
+    """
+    nx, width, so, nt = 32, 6, 8, 8
+    grid = Grid(shape=(nx,), extent=(float(nx - 1),), dtype=np.float64)
+    time = grid.time_dim
+    x = grid.dimensions[0]
+    cpml = Region('cpml', {'x': ('left', width)}, grid=grid)
+    cpml_r = Region('cpml_r', {'x': ('left', width + so // 2)}, grid=grid)
+
+    kwargs = {'grid': grid, 'save': nt, 'space_order': so, 'dtype': np.float64}
+    q = TimeFunction(name='q', **kwargs)
+    out = TimeFunction(name='out', **kwargs)
+    q_bar = TimeFunction(name='q_bar', **kwargs)
+    out_bar = TimeFunction(name='out_bar', **kwargs)
+    psi = TimeFunction(name='psi', grid=cpml, time_order=1, space_order=0,
+                       dtype=np.float64)
+    # The adjoint loop over `cpml_r` reads `psi_bar` one more radius away
+    psi_bar = TimeFunction(name='psi_bar', grid=cpml, time_order=1,
+                           space_order=(so, so, so), dtype=np.float64)
+    a = Function(name='a', grid=grid, dimensions=(x,), shape=(nx,), space_order=so,
+                 dtype=np.float64)
+    b = Function(name='b', grid=grid, dimensions=(x,), shape=(nx,), dtype=np.float64)
+    a.data[:width] = -0.1
+    b.data[:width] = 0.8
+
+    forward = Operator([Eq(out, q.dx),
+                        Eq(psi.forward, b * psi + a * q.dx, subdomain=cpml),
+                        Eq(out, out + psi.forward, subdomain=cpml)])
+    value = psi_bar + out_bar
+    adjoint = Operator([
+        Eq(psi_bar.backward, b * value, subdomain=cpml, implicit_dims=(time,)),
+        Eq(q_bar, out_bar.dx.T, implicit_dims=(time,)),
+        Inc(q_bar, (a * value).dx.T, subdomain=cpml_r, implicit_dims=(time,))
+    ])
+
+    rng = np.random.default_rng(7)
+    q.data[:] = rng.normal(size=q.shape)
+    out_bar.data[:] = rng.normal(size=out_bar.shape)
+    forward.apply(time_m=0, time_M=nt - 1)
+    adjoint.apply(time_m=0, time_M=nt - 1)
+
+    lhs = np.vdot(out.data, out_bar.data)
+    rhs = np.vdot(q.data, q_bar.data)
+    assert np.isclose(lhs, rhs, rtol=1e-12)
+
+
+class TestHaloZero:
+    """
+    Derivatives with `halo=0` treat their argument as zero outside the SubDomain
+    of their equation. With `.T`, `Inc(g_bar, out_bar.dx(halo=0).T, subdomain=S)`
+    is the adjoint of `Eq(out, g.dx, subdomain=S)`.
+    """
+
+    @staticmethod
+    def dot_test(grid, subdomain, deriv, so, eq_type=Inc, opt='advanced'):
+        """
+        Relative error of the dot test between `Eq(out, g.<deriv>, subdomain=S)`
+        and `eq_type(g_bar, out_bar.<deriv>(halo=0).T, subdomain=S)`, both built
+        with the optimization options `opt`.
+        """
+        kwargs = {'grid': grid, 'space_order': so, 'dtype': np.float64}
+        g = Function(name='g', **kwargs)
+        out = Function(name='out', **kwargs)
+        out_bar = Function(name='out_bar', **kwargs)
+        g_bar = Function(name='g_bar', **kwargs)
+
+        rng = np.random.default_rng(1)
+        g.data[:] = rng.normal(size=g.shape)
+        # Nonzero outside S too: the adjoint must ignore it there
+        out_bar.data[:] = rng.normal(size=out_bar.shape)
+
+        Operator(Eq(out, getattr(g, deriv), subdomain=subdomain), opt=opt).apply()
+        adjoint = getattr(out_bar, deriv)(halo=0).T
+        Operator(eq_type(g_bar, adjoint, subdomain=subdomain), opt=opt).apply()
+
+        lhs = np.vdot(out.data, out_bar.data)
+        rhs = np.vdot(g.data, g_bar.data)
+        return abs(lhs - rhs) / abs(lhs)
+
+    @pytest.mark.parametrize('so', [2, 4, 8])
+    @pytest.mark.parametrize('deriv', ['dx', 'dx2'])
+    @pytest.mark.parametrize('region', [('left', 6), ('right', 5), ('middle', 7, 9)])
+    def test_adjoint(self, region, deriv, so):
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': region}, grid=grid)
+
+        assert self.dot_test(grid, subdomain, deriv, so) < 1e-12
+
+    def test_adjoint_eq(self):
+        """An assignment covers the whole grown region, like an increment."""
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+
+        assert self.dot_test(grid, subdomain, 'dx', 4, eq_type=Eq) < 1e-12
+
+    @pytest.mark.parametrize('deriv', ['dx', 'dx2'])
+    def test_adjoint_unexpanded(self, deriv):
+        """The stencil stays a loop over its points: the mask is read within it."""
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        opt = ('advanced', {'expand': False})
+
+        assert self.dot_test(grid, subdomain, deriv, 8, opt=opt) < 1e-12
+
+        out_bar = Function(name='out_bar', grid=grid, space_order=8)
+        g_bar = Function(name='g_bar', grid=grid, space_order=8)
+        op = Operator(Inc(g_bar, out_bar.dx(halo=0).T, subdomain=subdomain), opt=opt)
+        assert 'for (int i0' in str(op.ccode)
+
+    @pytest.mark.parametrize('so', [2, 4, 8])
+    @pytest.mark.parametrize('stagger_in, stagger_out', [(True, False), (False, True)])
+    def test_adjoint_staggered(self, stagger_in, stagger_out, so):
+        """
+        Staggered first derivatives, as in elastic CPMLs: with `g` and `out`
+        staggered apart, the adjoint of `Eq(out, g.dx, subdomain=S)` is
+        `-out_bar.dx(halo=0)` evaluated at the location of `g`.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        x = grid.dimensions[0]
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': so, 'dtype': np.float64}
+        g = Function(name='g', staggered=x if stagger_in else None, **kwargs)
+        g_bar = Function(name='g_bar', staggered=x if stagger_in else None, **kwargs)
+        out = Function(name='out', staggered=x if stagger_out else None, **kwargs)
+        out_bar = Function(name='out_bar', staggered=x if stagger_out else None,
+                           **kwargs)
+
+        rng = np.random.default_rng(5)
+        g.data[:] = rng.normal(size=g.shape)
+        out_bar.data[:] = rng.normal(size=out_bar.shape)
+
+        Operator(Eq(out, g.dx, subdomain=subdomain)).apply()
+        Operator(Inc(g_bar, -out_bar.dx(halo=0), subdomain=subdomain)).apply()
+
+        lhs = np.vdot(out.data, out_bar.data)
+        rhs = np.vdot(g.data, g_bar.data)
+        assert np.isclose(lhs, rhs, rtol=1e-12)
+
+    def test_adjoint_unexpanded_3d(self):
+        """
+        In unexpanded form, the indicators vary along the stencil: they must not
+        be hoisted as invariants of the outer Dimensions, as on GPUs.
+        """
+        grid = Grid(shape=(12, 21, 12), extent=(1., 1., 1.), dtype=np.float64)
+        subdomain = Region('s', {'y': ('right', 6)}, grid=grid)
+        opt = ('advanced', {'expand': False})
+
+        assert self.dot_test(grid, subdomain, 'dy', 8, opt=opt) < 1e-12
+
+    @pytest.mark.parametrize('deriv', ['dx', 'dy'])
+    def test_adjoint_2d(self, deriv):
+        grid = Grid(shape=(20, 22), extent=(19., 21.), dtype=np.float64)
+        subdomain = Region('s', {'x': ('left', 6), 'y': ('middle', 4, 5)}, grid=grid)
+
+        assert self.dot_test(grid, subdomain, deriv, 4) < 1e-12
+
+    def test_forward(self):
+        """`g.dx(halo=0)` is the derivative of `g` extended by zero outside S."""
+        so = 4
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': so, 'dtype': np.float64}
+        g = Function(name='g', **kwargs)
+        g_zero = Function(name='g_zero', **kwargs)
+        out = Function(name='out', **kwargs)
+        ref = Function(name='ref', **kwargs)
+
+        g.data[:] = np.random.default_rng(2).normal(size=g.shape)
+        g_zero.data[7:-9] = g.data[7:-9]
+
+        Operator([Eq(out, g.dx(halo=0), subdomain=subdomain),
+                  Eq(ref, g_zero.dx)]).apply()
+
+        assert np.linalg.norm(ref.data) > 0
+        assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
+
+    def test_default_unchanged(self):
+        """
+        Without `halo=0`, `.T` in a SubDomain equation is the full-grid transpose
+        evaluated on S only.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        g_bar = Function(name='g_bar', **kwargs)
+        ref = Function(name='ref', **kwargs)
+        out_bar = Function(name='out_bar', **kwargs)
+        out_bar.data[:] = np.random.default_rng(3).normal(size=out_bar.shape)
+
+        Operator([Inc(g_bar, out_bar.dx.T, subdomain=subdomain),
+                  Inc(ref, out_bar.dx.T)]).apply()
+
+        assert np.allclose(g_bar.data[7:-9], ref.data[7:-9], rtol=1e-12)
+        assert np.all(g_bar.data[:7] == 0) and np.all(g_bar.data[-9:] == 0)
+
+    def test_same_subdomain_two_grids(self):
+        """Equal SubDomains on different Grids get their own masks."""
+        for shape in [(24,), (24,)]:
+            grid = Grid(shape=shape, extent=(23.,), dtype=np.float64)
+            subdomain = Region('s', {'x': ('left', 6)}, grid=grid)
+
+            assert self.dot_test(grid, subdomain, 'dx', 4) < 1e-12
+
+    def test_transpose_keeps_halo(self):
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=4)
+
+        assert f.dx(halo=0).halo == 0
+        assert f.dx(halo=0).T.halo == 0
+        assert f.dx.T.halo is None
+        assert f.dx(halo=0) != f.dx
+
+    def test_no_subdomain(self):
+        """Without a SubDomain, halo=0 has no effect."""
+        grid = Grid(shape=(16,), extent=(15.,), dtype=np.float64)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        f = Function(name='f', **kwargs)
+        g = Function(name='g', **kwargs)
+        ref = Function(name='ref', **kwargs)
+        f.data[:] = np.random.default_rng(4).normal(size=f.shape)
+
+        Operator([Eq(g, f.dx(halo=0).T), Eq(ref, f.dx.T)]).apply()
+
+        assert np.all(g.data == ref.data)
+
+    @pytest.mark.parametrize('region, grown', [
+        (('left', 6), ('left', 8)),
+        (('right', 5), ('right', 7)),
+        (('middle', 7, 9), ('middle', 5, 7)),
+        (('middle', 1, 9), ('middle', 0, 7)),
+        (('left', 15), ('left', 16)),
+    ])
+    def test_grow(self, region, grown):
+        """A grown SubDomain spans its parent grown by `growth`, within the Grid."""
+        grid = Grid(shape=(16,))
+        x = grid.dimensions[0]
+        subdomain = Region('s', {'x': region}, grid=grid)
+
+        grown_subdomain = subdomain.grow({x: 2})
+
+        assert grown_subdomain.parent is subdomain
+        assert grown_subdomain._regions(grid) == {x: grown}
+
+    def test_terms(self):
+        """
+        In a sum, the terms without halo=0 derivatives stay on the SubDomain,
+        while the others extend past it. A factor of a halo=0 derivative is not
+        restricted.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        f, g, c, out, ref = (Function(name=n, **kwargs)
+                             for n in ('f', 'g', 'c', 'out', 'ref'))
+        rng = np.random.default_rng(8)
+        for h in (f, g, c):
+            h.data[:] = rng.normal(size=h.shape)
+
+        Operator(Eq(out, f + c*g.dx(halo=0), subdomain=subdomain)).apply()
+        Operator([Eq(ref, f, subdomain=subdomain),
+                  Inc(ref, c*g.dx(halo=0), subdomain=subdomain)]).apply()
+
+        assert np.linalg.norm(ref.data[:7]) > 0
+        assert np.allclose(out.data, ref.data, rtol=1e-12, atol=1e-12)
+
+    def test_sum_factor(self):
+        """
+        A sum without halo=0 derivatives, as a factor of one, is not restricted:
+        the product extends past the SubDomain.
+        """
+        grid = Grid(shape=(24,), extent=(23.,), dtype=np.float64)
+        subdomain = Region('s', {'x': ('middle', 7, 9)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        f, g, c, d, out = (Function(name=n, **kwargs)
+                           for n in ('f', 'g', 'c', 'd', 'out'))
+        rng = np.random.default_rng(9)
+        for h in (f, g, c):
+            h.data[:] = rng.normal(size=h.shape)
+
+        Operator(Eq(d, g.dx(halo=0), subdomain=subdomain)).apply()
+        Operator(Eq(out, (f + c)*g.dx(halo=0), subdomain=subdomain)).apply()
+
+        expected = (f.data + c.data)*d.data
+        assert np.linalg.norm(expected[:7]) > 0
+        assert np.allclose(out.data, expected, rtol=1e-12, atol=1e-12)
+
+    def test_vector(self):
+        """
+        In a vector equation, each component is restricted and extended past the
+        SubDomain as in the corresponding scalar equation.
+        """
+        grid = Grid(shape=(12, 14), extent=(11., 13.), dtype=np.float64)
+        subdomain = Region('s', {'x': ('left', 5)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        f = Function(name='f', **kwargs)
+        c = VectorFunction(name='c', staggered=(None, None), **kwargs)
+        w = VectorFunction(name='w', staggered=(None, None), **kwargs)
+        ref = [Function(name=f'ref{i}', **kwargs) for i in range(2)]
+        rng = np.random.default_rng(10)
+        for h in (f, *c):
+            h.data[:] = rng.normal(size=h.shape)
+
+        Operator(Eq(w, c*f.dx(halo=0), subdomain=subdomain)).apply()
+        Operator([Eq(r, ci*f.dx(halo=0), subdomain=subdomain)
+                  for r, ci in zip(ref, c, strict=True)]).apply()
+
+        for wi, r in zip(w, ref, strict=True):
+            assert np.linalg.norm(r.data[5:]) > 0
+            assert np.allclose(wi.data, r.data, rtol=1e-12, atol=1e-12)
+
+    def test_vector_staggered(self):
+        """
+        Dot test of a staggered vector equation restricted to a SubDomain, as in
+        elastic CPMLs: the adjoint of `Eq(v, grad(p), subdomain=S)`, with `v`
+        staggered, is `Inc(p_bar, -div(v_bar))` with halo=0 derivatives.
+        """
+        grid = Grid(shape=(14, 16), extent=(13., 15.), dtype=np.float64)
+        x, y = grid.dimensions
+        subdomain = Region('s', {'x': ('left', 5), 'y': ('middle', 4, 5)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        p = Function(name='p', **kwargs)
+        p_bar = Function(name='p_bar', **kwargs)
+        v = VectorFunction(name='v', **kwargs)
+        v_bar = VectorFunction(name='v_bar', **kwargs)
+        rng = np.random.default_rng(11)
+        p.data[:] = rng.normal(size=p.shape)
+        for vi in v_bar:
+            vi.data[:] = rng.normal(size=vi.shape)
+
+        Operator(Eq(v, grad(p), subdomain=subdomain)).apply()
+        Operator(Inc(p_bar, -(v_bar[0].dx(halo=0) + v_bar[1].dy(halo=0)),
+                     subdomain=subdomain)).apply()
+
+        lhs = sum(np.vdot(vi.data, vi_bar.data)
+                  for vi, vi_bar in zip(v, v_bar, strict=True))
+        rhs = np.vdot(p.data, p_bar.data)
+        assert np.isclose(lhs, rhs, rtol=1e-12)
+
+    def test_unrestricted_dimension(self):
+        """halo=0 along a Dimension the SubDomain spans has no effect."""
+        grid = Grid(shape=(12, 14), extent=(11., 13.), dtype=np.float64)
+        subdomain = Region('s', {'x': ('left', 5)}, grid=grid)
+        kwargs = {'grid': grid, 'space_order': 4, 'dtype': np.float64}
+        f = Function(name='f', **kwargs)
+        g = Function(name='g', **kwargs)
+        ref = Function(name='ref', **kwargs)
+        f.data[:] = np.random.default_rng(6).normal(size=f.shape)
+
+        Operator([Eq(g, f.dy(halo=0), subdomain=subdomain),
+                  Eq(ref, f.dy, subdomain=subdomain)]).apply()
+
+        assert np.all(g.data == ref.data)
+
+    def test_invalid_halo(self):
+        grid = Grid(shape=(8,))
+        f = Function(name='f', grid=grid, space_order=4)
+
+        with pytest.raises(ValueError):
+            f.dx(halo=1)
+
+    def test_cpml_adjoint(self):
+        """
+        Dot test of a one-face CPML derivative written on the CPML strip S only.
+
+            forward: out = D q + psi[n+1]                on S
+                     psi[n+1] = b psi[n] + a D q         on S
+            adjoint: q_bar += D^T (out_bar + a (psi_bar + out_bar)),
+                     with halo=0 and subdomain=S
+
+        The adjoint needs neither a zero-padded work field nor a mask.
+        """
+        nx, width, so, nt = 32, 10, 8, 8
+        grid = Grid(shape=(nx,), extent=(float(nx - 1),), dtype=np.float64)
+        time = grid.time_dim
+        x = grid.dimensions[0]
+        strip = Region('strip', {'x': ('left', width)}, grid=grid)
+
+        kwargs = {'grid': grid, 'save': nt, 'space_order': so, 'dtype': np.float64}
+        q = TimeFunction(name='q', **kwargs)
+        out = TimeFunction(name='out', **kwargs)
+        q_bar = TimeFunction(name='q_bar', **kwargs)
+        out_bar = TimeFunction(name='out_bar', **kwargs)
+        psi = TimeFunction(name='psi', grid=strip, time_order=1, space_order=so,
+                           dtype=np.float64)
+        # The adjoint stencil reads psi_bar one radius past the grown strip
+        psi_bar = TimeFunction(name='psi_bar', grid=strip, time_order=1,
+                               space_order=(so, so, so), dtype=np.float64)
+        a = Function(name='a', grid=grid, dimensions=(x,), shape=(nx,),
+                     space_order=so, dtype=np.float64)
+        b = Function(name='b', grid=grid, dimensions=(x,), shape=(nx,),
+                     dtype=np.float64)
+        a.data[:6] = -0.1
+        b.data[:] = 1.
+        b.data[:6] = 0.8
+
+        forward = Operator([
+            Eq(psi.forward, b * psi + a * q.dx, subdomain=strip),
+            Eq(out, q.dx + psi.forward, subdomain=strip)
+        ])
+        value = psi_bar + out_bar
+        adjoint = Operator([
+            Eq(psi_bar.backward, b * value, subdomain=strip, implicit_dims=(time,)),
+            Inc(q_bar, (out_bar + a * value).dx(halo=0).T, subdomain=strip,
+                implicit_dims=(time,))
+        ])
+
+        # A single time loop
+        assert str(adjoint.ccode).count('for (int time') == 1
+
+        rng = np.random.default_rng(7)
+        q.data[:] = rng.normal(size=q.shape)
+        out_bar.data[:] = rng.normal(size=out_bar.shape)
+        forward.apply(time_m=0, time_M=nt - 1)
+        adjoint.apply(time_m=0, time_M=nt - 1)
+
+        lhs = np.vdot(out.data, out_bar.data)
+        rhs = np.vdot(q.data, q_bar.data)
+        assert np.isclose(lhs, rhs, rtol=1e-12)

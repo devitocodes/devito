@@ -2,7 +2,7 @@ from collections import defaultdict, namedtuple
 from contextlib import suppress
 from itertools import product
 
-from devito.finite_differences import IndexDerivative
+from devito.finite_differences.differentiable import IndexDerivative, IndexSum
 from devito.symbolics import retrieve_indexed, search
 from devito.tools import DefaultOrderedDict, as_tuple, filter_sorted, split
 from devito.types import (
@@ -13,7 +13,9 @@ __all__ = [
     'AccessMode',
     'IMask',
     'Stencil',
+    'bounded',
     'detect_accesses',
+    'detect_halo_writes',
     'erange',
     'extrema',
     'maximum',
@@ -216,6 +218,24 @@ def detect_accesses(exprs):
     return mapper
 
 
+def detect_halo_writes(c, key):
+    """
+    Return the write accesses in `c` proven entirely outside DOMAIN along at
+    least one Dimension selected by `key`. Wild Clusters are ignored.
+    """
+    writes = set()
+    if c.is_wild:
+        return writes
+
+    for w in c.scope.writes_gen():
+        for d in w.findices:
+            if key(d) and any(w.touched_nodomain(d)):
+                writes.add(w)
+                break
+
+    return writes
+
+
 def pull_dims(exprs, flag=True):
     """
     Extract all Dimensions from one or more expressions. If `flag=True`
@@ -231,7 +251,18 @@ def pull_dims(exprs, flag=True):
         return dims
 
 
-# *** Utility functions for expressions that potentially contain StencilDimensions
+# *** Utility functions for bound and unbound Dimensions
+
+
+def bounded(expr):
+    """
+    Retrieve all Dimensions bound by symbolic sums in `expr`.
+    """
+    sums = search(expr, IndexSum, mode='unique', deep=True)
+    dims = set().union(*(i.bound_symbols for i in sums))
+
+    return dims - expr.free_symbols
+
 
 def unbounded(expr):
     """

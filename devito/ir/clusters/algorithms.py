@@ -12,8 +12,9 @@ from devito.ir.clusters.cluster import Cluster, ClusterGroup
 from devito.ir.clusters.visitors import Queue, cluster_pass
 from devito.ir.equations import OpMax, OpMin, OpMinMax, identity_mapper
 from devito.ir.support import (
-    Any, Backward, Forward, IterationSpace, Scope, erange, pull_dims
+    Any, Backward, Forward, IterationSpace, Scope, detect_halo_writes, erange, pull_dims
 )
+from devito.logger import warning
 from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import limits_mapper, retrieve_indexed, uxreplace, xreplace_indices
@@ -486,6 +487,8 @@ def communications(clusters):
     clusters = HaloComms().process(clusters)
     clusters = reduction_comms(clusters)
 
+    check_halo_writes(clusters)
+
     return clusters
 
 
@@ -626,6 +629,26 @@ def reduction_comms(clusters):
     _update(fifo)
 
     return processed
+
+
+def check_halo_writes(clusters):
+    """
+    Warn about HALO writes along Dimensions not fixed to 1 in the Grid topology.
+    """
+    for c in clusters:
+        try:
+            grid = c.grid
+        except ValueError:
+            grid = None
+
+        topology = {}
+        if grid is not None and grid.topology is not None:
+            topology = dict(zip(grid.dimensions, grid.topology, strict=True))
+
+        key = lambda d: d in c.dist_dimensions and topology.get(d) != 1  # noqa: B023
+        if detect_halo_writes(c, key):
+            warning("Writing to the HALO along potentially distributed Dimensions; "
+                    "set their Grid topology entries to 1")
 
 
 def normalize(clusters, sregistry=None, options=None, platform=None, **kwargs):

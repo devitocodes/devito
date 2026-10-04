@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import scipy.sparse
 from numpy import floor, sin
-from sympy import Float
+from sympy import Float, Integer
 
 from conftest import assert_structure
 from devito import (
@@ -11,10 +11,14 @@ from devito import (
     SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, VectorFunction,
     switchconfig
 )
+from devito.finite_differences import LocalSum
+from devito.ir import FindSymbols, LoweredEq
 from devito.operations.interpolators import (
     LinearInterpolator, SincInterpolator, _cell_indices
 )
+from devito.symbolics import uxreplace
 from devito.tools import as_tuple
+from devito.types import Temp
 from examples.seismic import (
     AcquisitionGeometry, Receiver, RickerSource, TimeAxis, demo_model
 )
@@ -24,6 +28,77 @@ from examples.seismic.acoustic import AcousticWaveSolver, acoustic_setup
 class SparseFirst(SparseFunction):
     """ Custom sparse class with the sparse dimension as the first one"""
     _sparse_position = 0
+
+
+class TestLocalSum:
+
+    @pytest.mark.parametrize('interpolation,r', [('linear', 1), ('sinc', 4)])
+    def test_symbolic(self, interpolation, r):
+        grid = Grid(shape=(17, 19))
+        f = Function(name='f', grid=grid, space_order=8)
+        rcv = SparseFunction(name='rcv', grid=grid, npoint=3,
+                             interpolation=interpolation, r=r)
+        expr = rcv.interpolate(f).evaluate[-1]
+        reduction = expr.rhs
+
+        assert isinstance(reduction, LocalSum)
+        assert tuple(d.symbolic_size for d in reduction.dimensions) == (2*r, 2*r)
+        assert reduction.free_symbols.isdisjoint(reduction.bound_symbols)
+        lowered = LoweredEq(expr)
+        assert lowered.ispace.itdims == (rcv._sparse_dim,)
+        assert not lowered.conditionals
+        rdims = rcv.interpolator._rdim()
+        assert reduction.cdims == rdims
+        assert reduction.conditionals == {d: d.condition for d in rdims}
+        assert reduction.evaluate == reduction
+        assert reduction.func(reduction.expr) == reduction
+
+        # Bounds held only in the guards must participate in substitutions
+        x, _ = grid.dimensions
+        mapper = {x.symbolic_max: Integer(10)}
+        replaced = uxreplace(reduction, mapper)
+        assert str(replaced.expr) == str(reduction.expr)
+        assert replaced.conditionals != reduction.conditionals
+        assert LoweredEq(expr._rebuild(rhs=replaced)).ispace == lowered.ispace
+        assert x.symbolic_max not in replaced.free_symbols
+
+    @pytest.mark.parametrize('increment', [False, True])
+    @pytest.mark.parametrize('opt', ['noop', 'advanced'])
+    def test_masked(self, increment, opt):
+        grid = Grid(shape=(17,), extent=(16.,))
+        f = Function(name='f', grid=grid)
+        rcv = SparseFunction(name='rcv', grid=grid, npoint=3)
+        f.data_with_halo[:] = 2.5
+        rcv.coordinates.data[:, 0] = [0., 8.5, 16.]
+        rcv.data[:] = 7.
+        op = Operator(rcv.interpolate(f, increment=increment),
+                      name='MaskedSparseSum', opt=opt)
+        op.apply(x_m=6, x_M=10)
+
+        expected = np.array([0., 2.5, 0.]) + (7. if increment else 0.)
+        np.testing.assert_allclose(rcv.data, expected)
+
+    def test_zero(self):
+        grid = Grid(shape=(17,))
+        rcv = SparseFunction(name='rcv', grid=grid, npoint=3)
+        rcv.data[:] = 7.
+        op = Operator(rcv.interpolate(0), name='ZeroSparseSum')
+        op.apply()
+        np.testing.assert_array_equal(rcv.data, 0.)
+
+    def test_dtype(self):
+        grid = Grid(shape=(17,), dtype=np.float64)
+        f = Function(name='f', grid=grid)
+        rcv = SparseFunction(name='rcv', grid=grid, npoint=3, dtype=np.float32)
+        exprs = rcv.interpolate(f)
+        reduction = exprs.evaluate[-1].rhs
+
+        assert reduction.dtype is rcv.dtype
+
+        op = Operator(exprs, name='MixedPrecisionSparseSum', opt='noop')
+        values = [i for i in FindSymbols().visit(op) if isinstance(i, Temp)]
+        assert len(values) == 1
+        assert values[0].dtype is reduction.dtype
 
 
 # ---------------------------------------------------------------------------

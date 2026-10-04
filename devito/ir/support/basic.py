@@ -369,6 +369,14 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
                 # E.g., `self=R<f,[x]>` and `self.itintervals=(x, i)`
                 break
 
+            # If over SubDimensions, check disjointness
+            test = disjoint_subdims(self[n], other[n], sai, oai, sit, oit)
+            if test == DISJOINT:
+                return Vector(S.ImaginaryUnit)
+            elif test == MAYBE_OVERLAP:
+                ret.append(S.Infinity)
+                continue
+
             try:
                 if not (sit == oit and sai.root is oai.root):
                     # E.g., `self=R<f,[x + 2]>` and `other=W<f,[i + 1]>`
@@ -483,6 +491,52 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
                     ret.append(S.Infinity)
 
         return Vector(*ret)
+
+    def touched_nodomain(self, findex):
+        """
+        Return a boolean 2-tuple, one entry for each ``findex`` DataSide. True
+        means that the entire access lies outside the DOMAIN along that
+        DataSide.
+
+        If containment outside the DOMAIN cannot be proven, return False for
+        that DataSide. Unlike ``touched_halo``, this is a containment query and
+        applies irrespective of whether ``findex`` is distributed.
+        """
+        if not self.affine(findex):
+            return (False, False)
+
+        d = self.aindices[findex]
+        limits = []
+        if d is not None:
+            i = self.intervals[d]
+            if i.is_Null:
+                return (False, False)
+            limits.append((d, d.symbolic_min + i.lower, d.symbolic_max + i.upper))
+
+        # Runtime DOMAIN bounds may select any part of the allocated extent
+        for v in (findex.symbolic_min, findex.symbolic_max):
+            if v.is_Symbol:
+                limits.append((v, S.Zero, findex.symbolic_size - 1))
+
+        def outside(expr):
+            # A negative maximum distance proves the entire access is outside
+            expr = sympy.expand(expr)
+            for symbol, lower, upper in limits:
+                coefficient = expr.diff(symbol)
+                if coefficient.has(symbol):
+                    return False
+                elif coefficient.is_nonnegative:
+                    expr = expr.subs(symbol, upper)
+                elif coefficient.is_nonpositive:
+                    expr = expr.subs(symbol, lower)
+                else:
+                    return False
+
+            return expr.is_negative is True
+
+        index = self[findex] - self.function._size_nodomain[findex].left
+        return (outside(index - findex.symbolic_min),
+                outside(findex.symbolic_max - index))
 
     def touched_halo(self, findex):
         """
@@ -1525,6 +1579,92 @@ def skippable_interval(d, ispace, it):
     occur in the IterationSpace.
     """
     return d is None or (d in ispace and not d._defines & it.dim._defines)
+
+
+# Possible return values for `disjoint_subdims`
+INAPPLICABLE = 0
+DISJOINT = 1
+MAYBE_OVERLAP = 2
+
+
+def disjoint_subdims(e0, e1, d0, d1, it0, it1):
+    """
+    Determine whether two accesses span distinct pieces of the same
+    SubDimension decomposition.
+
+    Consider a root Dimension `x` with bounds `x_m` and `x_M`. A valid
+    left/middle/right decomposition with thicknesses `L` and `R` is::
+
+        xl = [x_m,         x_m + L - 1]
+        xm = [x_m + L,     x_M - R]
+        xr = [x_M - R + 1, x_M]
+
+    These intervals are pairwise disjoint. Replacing `xl`, `xm`, or `xr`
+    with `x` in an affine access removes the choice of partition piece while
+    retaining the relative access. If two such normalized accesses have zero
+    distance, they apply the same affine map to disjoint intervals and therefore
+    cannot refer to the same data point. The apparent dependence is imaginary.
+
+    For example, `f[xl]` and `f[xm]` normalize to `f[x]` and `f[x]`;
+    they are independent. The same holds for `f[xl + 1]` and `f[xm + 1]`
+    when their iteration intervals have equal offsets. By contrast, `f[xl]`
+    and `f[xm - 1]` normalize to different accesses, and the latter may reach
+    into the left piece, so they must be treated conservatively.
+
+    This proof requires distinct pieces of the same root, compatible declared
+    thicknesses, affine accesses, and iteration intervals with equal offsets and
+    directions. Runtime bounds are assumed to preserve the declared partition.
+    Return DISJOINT if disjointness is proven, and MAYBE_OVERLAP if the
+    intervals are aligned SubDimensions but are not proven disjoint. In
+    particular, two declarations of the same left, right, or middle piece
+    overlap along this Dimension. MAYBE_OVERLAP lets the caller record an
+    infinite distance and inspect later Dimensions, which may still prove the
+    multidimensional accesses disjoint. Return INAPPLICABLE if this test does not
+    apply, so that the general distance analysis can classify the dependence.
+    """
+    try:
+        # E.g., `f[xl]` over `(xl,)` and `f[xm]` over `(xm,)` need this
+        # special test, while accesses over the same `(xl,)` should use general
+        # distance analysis, so we can return immediately in such a case
+        if not (d0.is_Sub and
+                d1.is_Sub and
+                d0.root is d1.root and
+                it0.dim.root is d0.root and
+                it1.dim.root is d1.root and
+                it0 != it1):
+            return INAPPLICABLE
+    except AttributeError:
+        return INAPPLICABLE
+
+    if (d0.is_left and d1.is_middle) or \
+       (d0.is_middle and d1.is_left):
+        is_partition = d0.ltkn.value == d1.ltkn.value
+    elif (d0.is_middle and d1.is_right) or \
+         (d0.is_right and d1.is_middle):
+        is_partition = d0.rtkn.value == d1.rtkn.value
+    elif d0.is_left and d1.is_right:
+        is_partition = d0.ltkn.value is not None and d1.rtkn.value is not None
+    elif d0.is_right and d1.is_left:
+        is_partition = d0.rtkn.value is not None and d1.ltkn.value is not None
+    else:
+        is_partition = False
+
+    if not is_partition:
+        return MAYBE_OVERLAP
+
+    if not q_affine(e0, d0) or not q_affine(e1, d1):
+        return MAYBE_OVERLAP
+
+    if it0.offsets != it1.offsets or it0.direction is not it1.direction:
+        return MAYBE_OVERLAP
+
+    e0 = e0._subs(d0, d0.root)
+    e1 = e1._subs(d1, d1.root)
+
+    if e0 - e1 == 0:
+        return DISJOINT
+    else:
+        return MAYBE_OVERLAP
 
 
 def disjoint_test(e0, e1, d, it):

@@ -4,12 +4,17 @@ from sympy import Or
 
 from conftest import skipif
 from devito import (
-    CondEq, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, Operator,
-    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, switchconfig
+    CondEq, ConditionalDimension, Constant, CustomDimension, Dimension, Eq, Function,
+    Grid, Operator, SparseTimeFunction, SubDimension, SubDomain, TimeFunction,
+    configuration, switchconfig
 )
 from devito.arch.archinfo import AppleArm
 from devito.exceptions import CompilationError
-from devito.ir import FindSymbols, retrieve_iteration_tree
+from devito.ir import (
+    Cluster, FindSymbols, Interval, IterationSpace, lower_exprs, retrieve_iteration_tree
+)
+from devito.passes.clusters.buffering import BufferDimension, expand_halo_transfers
+from devito.types import Array
 
 
 def test_read_write():
@@ -64,6 +69,100 @@ def test_write_only():
     assert np.all(v.data == v1.data)
 
 
+@pytest.mark.parametrize('forward', [False, True])
+def test_write_only_with_halo_source(forward):
+    """
+    A buffered save of a Function with a populated halo must preserve that halo.
+    """
+    nt = 5
+    grid = Grid(shape=(17, 17))
+    y = grid.dimensions[-1]
+
+    u = TimeFunction(name='u', grid=grid, space_order=8)
+    usave = TimeFunction(name='usave', grid=grid, space_order=8, save=nt)
+
+    k = CustomDimension(name='k', parent=y, symbolic_min=1,
+                        symbolic_max=4, symbolic_size=4)
+
+    eqns = [Eq(u.forward, u + 1),
+            Eq(u.forward._subs(y, -k), -u.forward._subs(y, k)),
+            Eq(usave, u.forward if forward else u)]
+
+    op = Operator(eqns, opt='buffering', name='save_halo')
+    op.apply(time_M=nt-2)
+
+    hx, hy = usave._size_halo.left[1:]
+    for t in range(nt-1):
+        assert np.all(usave.data[t] == t + forward)
+        actual = usave.data_with_halo[t, hx:hx + grid.shape[0], hy-4:hy]
+        assert np.all(actual == -(t + forward))
+
+
+@pytest.mark.parametrize('space_order, shift', [(0, 0), (8, -1), (8, 1), (10, 1)])
+@switchconfig(autopadding=False)
+def test_write_only_with_halo_source_bounds(space_order, shift):
+    grid = Grid(shape=(17, 17))
+    y = grid.dimensions[-1]
+
+    u = TimeFunction(name='u', grid=grid, space_order=8)
+    v = TimeFunction(name='v', grid=grid, space_order=space_order)
+    usave = TimeFunction(name='usave', grid=grid, space_order=8, save=5)
+
+    k = CustomDimension(name='k', parent=y, symbolic_min=1,
+                        symbolic_max=4, symbolic_size=4)
+
+    eqns = [Eq(u.forward, u + 1),
+            Eq(u.forward._subs(y, -k), -u.forward._subs(y, k)),
+            Eq(usave, u.forward + v.forward._subs(y, y + shift))]
+
+    if space_order == 10:
+        # A wider halo accommodates the shifted read
+        v.data_with_halo[:] = 2
+        op = Operator(eqns, opt='buffering', name='save_shifted_halo')
+        op.apply(time_M=3)
+        assert np.all(usave.data[3] == 6)
+        hx, hy = usave._size_halo.left[1:]
+        assert np.all(usave.data_with_halo[3, hx:hx + grid.shape[0], hy-4:hy] == -2)
+    else:
+        with pytest.raises(CompilationError, match='Insufficient halo for `v`'):
+            Operator(eqns, opt='buffering')
+
+
+@pytest.mark.parametrize('mixed', [False, True])
+def test_halo_transfers_non_time_dimension(mixed):
+    s = Dimension(name='s')
+    x = Dimension(name='x')
+    u = Function(name='u', dimensions=(s, x), shape=(5, 17),
+                 halo=((0, 0), (4, 4)))
+    usave = Function(name='usave', dimensions=(s, x), shape=(5, 17),
+                     halo=u.halo)
+    db = BufferDimension('db', 0, 0, 1, s)
+    b = Array(name='b', dimensions=(db, x), halo=usave.halo)
+    k = CustomDimension(name='k', parent=x, symbolic_min=1,
+                        symbolic_max=4, symbolic_size=4)
+
+    mirror = Cluster(lower_exprs(Eq(u[s+1, -k], -u[s+1, k])),
+                     IterationSpace([Interval(s), Interval(k)]))
+    eqns = [Eq(usave[s, x], u[s+1, x])]
+    if mixed:
+        eqns.append(Eq(u[s, x], 0))
+    save = Cluster(lower_exprs(eqns), IterationSpace([Interval(s), Interval(x)]))
+    mapper = {(usave, save.guards): b}
+
+    if mixed:
+        with pytest.raises(CompilationError, match='mixed Cluster'):
+            expand_halo_transfers([mirror, save], mapper)
+        return
+
+    clusters = expand_halo_transfers([mirror, save], mapper)
+
+    assert clusters[0] is mirror
+    assert clusters[1].ispace[x].offsets == (-4, 4)
+    # The streaming axis is not part of the halo footprint, even with a shifted read
+    assert clusters[1].ispace[s] == save.ispace[s]
+    assert clusters[1].exprs[0].args == save.exprs[0].args
+
+
 def test_read_only():
     nt = 10
     grid = Grid(shape=(2, 2))
@@ -113,7 +212,8 @@ def test_read_only_w_offset():
     assert np.all(v.data == v1.data)
 
 
-def test_read_only_backwards():
+@pytest.mark.parametrize('async_degree,expected_size', [(None, 3), (4, 4)])
+def test_read_only_backwards(async_degree, expected_size):
     nt = 10
     grid = Grid(shape=(2, 2))
 
@@ -127,12 +227,14 @@ def test_read_only_backwards():
     eqns = [Eq(v.backward, v + u.backward + u + u.forward + 1.)]
 
     op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt='buffering')
+    op1 = Operator(eqns, opt=('buffering',
+                              {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 4
     buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
+    assert buffers.pop().symbolic_shape[0] == expected_size
 
     op0.apply(time_m=1)
     op1.apply(time_m=1, v=v1)
@@ -171,32 +273,83 @@ def test_read_only_backwards_unstructured():
     assert np.all(v.data == v1.data)
 
 
-@pytest.mark.parametrize('async_degree', [2, 4])
-def test_async_degree(async_degree):
+@pytest.mark.parametrize('async_degree', [1, 2, 4])
+@pytest.mark.parametrize('backward', [False, True],
+                         ids=['forward', 'backward'])
+def test_async_degree(async_degree, backward):
     nt = 10
     grid = Grid(shape=(4, 4))
 
     u = TimeFunction(name='u', grid=grid, save=nt)
     u1 = TimeFunction(name='u', grid=grid, save=nt)
 
-    eqn = Eq(u.forward, u + 1)
+    lhs = u.backward if backward else u.forward
+    eqn = Eq(lhs, u + 1)
 
     op0 = Operator(eqn, opt='noop')
     op1 = Operator(eqn, opt=('buffering', {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 3
-    buffers = [i for i in FindSymbols().visit(op1) if i.is_Array and i._mem_heap]
+    buffers = [i for i in FindSymbols().visit(op1)
+               if i.is_Array and i._mem_heap]
     assert len(buffers) == 1
-    assert buffers.pop().symbolic_shape[0] == async_degree
+    assert buffers.pop().symbolic_shape[0] == max(2, async_degree)
 
-    op0.apply(time_M=nt-2)
-    op1.apply(time_M=nt-2, u=u1)
+    kwargs = {'time_m': 1} if backward else {'time_M': nt - 2}
+    op0.apply(**kwargs)
+    op1.apply(u=u1, **kwargs)
 
     assert np.all(u.data == u1.data)
 
 
-def test_two_homogeneous_buffers():
+@pytest.mark.parametrize('backward,expected_bounds', [
+    pytest.param(False, (0, 8), id='forward'),
+    pytest.param(True, (1, 9), id='backward')
+])
+@pytest.mark.parametrize('async_degree', [0, 1, 4, 16])
+def test_async_degree_read_only(backward, expected_bounds, async_degree):
+    nt = 10
+    grid = Grid(shape=(4, 4))
+
+    u = TimeFunction(name='u', grid=grid, save=nt)
+    v = TimeFunction(name='v', grid=grid)
+    v1 = TimeFunction(name='v', grid=grid)
+
+    u.data[:] = np.arange(nt).reshape(nt, 1, 1)
+
+    lhs = v.backward if backward else v.forward
+    eqn = Eq(lhs, v + u)
+
+    op0 = Operator(eqn, opt='noop', name='op0')
+    op1 = Operator(eqn, opt=('buffering',
+                             {'buf-async-degree': async_degree}), name='op1')
+
+    buffers = [i for i in FindSymbols().visit(op1)
+               if i.is_Array and i._mem_heap]
+    assert len(buffers) == int(async_degree != 0)
+    if async_degree:
+        assert buffers[0].symbolic_shape[0] == async_degree
+
+    for op in [op0, op1]:
+        args = op.arguments()
+        assert (args['time_m'], args['time_M']) == expected_bounds
+
+    # Default bounds, either endpoint, a partial ring, and an empty interval
+    time_m, time_M = expected_bounds
+    for kwargs in [{}, {'time_m': time_m, 'time_M': time_m},
+                   {'time_m': time_M, 'time_M': time_M},
+                   {'time_m': 3, 'time_M': 4}, {'time_m': 1, 'time_M': 0}]:
+        v.data[:] = 0
+        v1.data[:] = 0
+        op0.apply(**kwargs)
+        op1.apply(v=v1, **kwargs)
+
+        assert np.all(v.data == v1.data)
+
+
+@pytest.mark.parametrize('async_degree', [None, 4])
+def test_two_homogeneous_buffers(async_degree):
     nt = 10
     grid = Grid(shape=(4, 4))
 
@@ -209,8 +362,10 @@ def test_two_homogeneous_buffers():
             Eq(v.forward, u + v + u.backward + v.backward + 1.)]
 
     op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt='buffering')
-    op2 = Operator(eqns, opt=('buffering', 'fuse'))
+    op1 = Operator(eqns, opt=('buffering',
+                              {'buf-async-degree': async_degree}))
+    op2 = Operator(eqns, opt=('buffering', 'fuse',
+                              {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 5
@@ -224,8 +379,16 @@ def test_two_homogeneous_buffers():
     assert np.all(u.data == u1.data)
     assert np.all(v.data == v1.data)
 
+    u1.data[:] = 0
+    v1.data[:] = 0
+    op2.apply(time_M=nt-2, u=u1, v=v1)
 
-def test_two_heterogeneous_buffers():
+    assert np.all(u.data == u1.data)
+    assert np.all(v.data == v1.data)
+
+
+@pytest.mark.parametrize('async_degree', [None, 4])
+def test_two_heterogeneous_buffers(async_degree):
     nt = 10
     grid = Grid(shape=(4, 4))
 
@@ -242,7 +405,8 @@ def test_two_heterogeneous_buffers():
             Eq(v.forward, u + v + v.backward)]
 
     op0 = Operator(eqns, opt='noop')
-    op1 = Operator(eqns, opt='buffering')
+    op1 = Operator(eqns, opt=('buffering',
+                              {'buf-async-degree': async_degree}))
 
     # Check generated code
     assert len(retrieve_iteration_tree(op1)) == 5

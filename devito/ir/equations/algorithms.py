@@ -3,7 +3,7 @@ from functools import singledispatch
 
 from devito.data.allocators import DataReference
 from devito.finite_differences.differentiable import diff2sympy
-from devito.ir.support import GuardFactor
+from devito.ir.support import GuardFactor, bounded
 from devito.logger import warning
 from devito.symbolics import (
     IntDiv, retrieve_dimensions, retrieve_functions, retrieve_indexed, uxreplace
@@ -28,12 +28,17 @@ def dimension_sort(expr):
     appear within Indexeds.
     """
 
+    # Bound Dimensions do not impact the order of the enclosing iteration space
+    bound = bounded(expr)
+
     def handle_indexed(indexed):
         relation = []
         for i in indexed.indices:
             try:
                 # Assume it's an AffineIndexAccessFunction...
-                relation.append(i.d)
+                # It may contain only a scalar offset and bound stencil indices
+                if i.d:
+                    relation.append(i.d)
             except AttributeError:
                 # It's not! Maybe there are some nested Indexeds (e.g., the
                 # situation is A[B[i]])
@@ -46,9 +51,9 @@ def dimension_sort(expr):
                 # what the user is attempting to do
                 relation.extend(filter_sorted(i.atoms(Dimension)))
 
-        # StencilDimensions are lowered subsequently through special compiler
+        # Bound Dimensions are lowered subsequently through special compiler
         # passes, so they can be ignored here
-        relation = tuple(d for d in relation if not d.is_Stencil)
+        relation = tuple(d for d in relation if d not in bound)
 
         return relation
 
@@ -61,7 +66,7 @@ def dimension_sort(expr):
     relations.add(expr.implicit_dims)
 
     # Add in leftover free dimensions (not an Indexed' index)
-    extra = set(retrieve_dimensions(expr, deep=True))
+    extra = set(retrieve_dimensions(expr, deep=True)) - bound
 
     # Add in pure data dimensions (e.g., those accessed only via explicit values,
     # such as A[3])
