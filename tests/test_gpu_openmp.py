@@ -217,7 +217,8 @@ class TestCodeGeneration:
         assert len(op.body.allocs) == 2
         assert str(op.body.allocs[0]) ==\
             ('float * r0_vec = (float *)'
-             'omp_target_alloc(x_size*y_size*z_size*sizeof(float),'
+             'omp_target_alloc('
+             'sizeof(float)*(long)z_size*(long)y_size*(long)x_size,'
              'omp_get_default_device());')
         assert str(op.body.allocs[1]) ==\
             'init0(x_M,x_m,y_M,y_m,z_M,z_m,r0_vec,y_size,z_size);'
