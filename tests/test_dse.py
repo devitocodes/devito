@@ -2976,6 +2976,30 @@ class TestAliases:
 
         op.apply()
 
+    @pytest.mark.parametrize('lang', ['C', 'CXX'])
+    def test_temp_array_allocation_uses_long(self, lang):
+        """
+        Ensure that operands are cast to long when calculating the size of a
+        temporary array to prevent int32 wraparound.
+        """
+        grid = Grid(shape=(31, 17, 25))
+
+        a = Function(name='a', grid=grid)
+        f = TimeFunction(name='f', grid=grid)
+        g = TimeFunction(name='g', grid=grid)
+
+        eq0 = Eq(f.forward, g + sin(a).dx)
+        eq1 = Eq(g.forward, f + sin(a).dx)
+
+        opt = ('advanced', {'cire-minmem': True, 'index-mode': 'int64'})
+        with switchconfig(language=lang):
+            op = Operator([eq0, eq1], opt=opt)
+
+            cast = '(long)' if lang == 'C' else 'static_cast<long>'
+
+            # 3 casts in memalign, 3 in memset
+            assert str(op).count(cast) == 6
+
 
 class TestIsoAcoustic:
 

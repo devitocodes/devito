@@ -601,7 +601,7 @@ class DeviceAwareDataManager(DataManager):
         doalloc = self.langbb['device-alloc']
         dofree = self.langbb['device-free']
 
-        nbytes = SizeOf(obj._C_typedata)*obj.size
+        nbytes = SizeOf(obj._C_typedata)*as_long(obj.size)
 
         zeroing, efuncs = self._zero_init(obj, storage)
         allocs = [doalloc(nbytes, deviceid, retobj=obj), *zeroing]
