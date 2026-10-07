@@ -315,7 +315,18 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
         return root, partree
 
     def _make_parregion(self, partree, parrays):
-        if not any(i.is_ParallelPrivate for i in partree.collapsed):
+        # A region that only reads a thread-private Array is not itself
+        # ParallelPrivate, and it still needs the pointer alias declared --
+        # that alias is local to whichever region declares it, so a reader
+        # without one names something out of scope
+        reads_private = any(
+            f.function in parrays
+            for n in FindNodes(Expression).visit(partree)
+            for f in n.functions
+        )
+
+        if not (reads_private or
+                any(i.is_ParallelPrivate for i in partree.collapsed)):
             return self.Region(partree)
 
         # Vector-expand the Arrays `partree` touches, since at least one of
@@ -323,14 +334,18 @@ class PragmaShmTransformer(ShmTransformer, PragmaSimdTransformer):
         # E.g. a(x, y) -> b(tid, x, y), where `tid` is the ThreadID Dimension
         #
         # Read as well as written: the thread-local alias is declared inside
-        # the region that vector-expands the Array, so a later region reading
-        # one an earlier region expanded names something out of scope
+        # the region that vector-expands the Array, so a region reading one
+        # another region expanded names something out of scope. Which way
+        # round the two regions come is not knowable here -- the reader may
+        # be emitted first -- so a read is a candidate on its own and not
+        # only once something else has expanded it
         candidates = []
         for n in FindNodes(Expression).visit(partree):
             if n.write is not None:
                 candidates.append(n.write)
             candidates.extend(f.function for f in n.functions
-                              if f.function in parrays)
+                              if f.function.is_Array
+                              or f.function.is_TempFunction)
 
         vexpandeds = []
         for i in filter_ordered(candidates):
