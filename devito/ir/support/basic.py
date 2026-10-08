@@ -339,7 +339,6 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
 
         return TimedAccess(access, mode, timestamp, ispace)
 
-    @memoized_meth
     def distance(self, other, logical=False):
         """
         Compute the distance from ``self`` to ``other``.
@@ -351,7 +350,19 @@ class TimedAccess(IterationInstance, AccessMode, CacheInstances):
         logical : bool
             Compute a logical distance rather than true distance (i.e. ignoring
             degenerating indices created by size 1 buffers etc).
+
+        Notes
+        -----
+        The distance depends on the two accesses (including their Functions'
+        metadata), their IterationSpaces and `logical`, but never on the
+        timestamps or access modes. Hence it is cached on the former, and thus
+        shared by all TimedAccesses with the same geometry, such as the
+        timestamp-shifted copies created by `Scope.from_scopes`.
         """
+        return _cached_distance(self.access, self.ispace, other.access,
+                                other.ispace, logical)
+
+    def _distance(self, other, logical=False):
         if isinstance(self.access, ComponentAccess) and \
            isinstance(other.access, ComponentAccess) and \
            self.access.index != other.access.index:
@@ -1604,6 +1615,16 @@ def skippable_interval(d, ispace, it):
     return d is None or (d in ispace and not d._defines & it.dim._defines)
 
 
+@memoized_func(scope='build')
+def _cached_distance(access0, ispace0, access1, ispace1, logical):
+    """
+    The geometry-keyed cache behind `TimedAccess.distance`.
+    """
+    a0 = TimedAccess(access0, 'R', 0, ispace0)
+    a1 = TimedAccess(access1, 'R', 0, ispace1)
+    return a0._distance(a1, logical)
+
+
 def disjoint_subdims(a0, a1):
     """
     Determine whether two TimedAccesses touch disjoint SubDimension regions
@@ -1748,10 +1769,8 @@ def disjoint_test(e0, e1, d, it):
     if any(not i.is_Number for i in [p00, p01, p10, p11]):
         return False
 
-    i0 = sympy.Interval(min(p00, p01), max(p00, p01))
-    i1 = sympy.Interval(min(p10, p11), max(p10, p11))
-
-    return not bool(i0.intersect(i1))
+    # Closed intervals, hence touching endpoints still overlap
+    return bool(max(p00, p01) < min(p10, p11) or max(p10, p11) < min(p00, p01))
 
 
 def degenerating_indices(i0, i1, function, logical=False):

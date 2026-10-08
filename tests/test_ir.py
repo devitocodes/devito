@@ -16,7 +16,7 @@ from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
-    mocksym0, mocksym1
+    _cached_distance, disjoint_test, mocksym0, mocksym1
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
@@ -28,8 +28,8 @@ from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
 from devito.tools import prod
 from devito.tools.data_structures import frozendict
 from devito.types import (
-    Array, BlockDimension, Bundle, ConditionalDimension, CriticalRegion, CustomDimension,
-    Jump, Scalar, StencilDimension, Symbol
+    Array, BlockDimension, Bundle, ComponentAccess, ConditionalDimension, CriticalRegion,
+    CustomDimension, Jump, Scalar, StencilDimension, Symbol
 )
 
 
@@ -676,6 +676,64 @@ class TestVectorHierarchy:
             b = TimedAccess(f[xr - 8], 'R', 1, right)
             expected = S.ImaginaryUnit if order == 8 else S.Infinity
             assert a.distance(b) == b.distance(a) == (expected,)
+
+    def test_distance_cache(self):
+        grid = Grid(shape=(8, 8))
+        x, y = grid.dimensions
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=grid)
+        ispace = IterationSpace([Interval(x), Interval(y)])
+        a = TimedAccess(f[x + 1, y], 'W', 0, ispace)
+        b = TimedAccess(f[x, y], 'R', 1, ispace)
+
+        cache = _cached_distance.cache
+        _cached_distance.clear()
+        try:
+            assert a.distance(b) == (1, 0)
+            assert len(cache) == 1
+
+            # Timestamps and access modes are not part of the geometry
+            assert a.rebuild(timestamp=5).distance(b.rebuild(mode='W')) == (1, 0)
+            assert len(cache) == 1
+
+            # Anything else is
+            rev = IterationSpace([Interval(x), Interval(y)], directions={x: Backward})
+            shifted = IterationSpace([Interval(x, 0, 1), Interval(y)])
+            c0 = a.rebuild(access=ComponentAccess(f[x, y], 0))
+            c1 = a.rebuild(access=ComponentAccess(f[x, y], 1))
+            pairs = [
+                (b, a, False),
+                (a.rebuild(ispace=rev), b.rebuild(ispace=rev), False),
+                (a.rebuild(ispace=shifted), b, False),
+                (a.rebuild(access=g[x + 1, y]), b.rebuild(access=g[x, y]), False),
+                (a, b, True),
+                (c0, c1, False),
+            ]
+            for n, (i, j, logical) in enumerate(pairs, start=2):
+                i.distance(j, logical=logical)
+                assert len(cache) == n
+
+            assert b.distance(a) == (-1, 0)
+            assert c0.distance(c1) == (S.ImaginaryUnit,)
+
+            # Cleared at the end of each Operator build
+            Operator(Eq(f, 1))
+            assert len(cache) == 0
+        finally:
+            _cached_distance.clear()
+
+    @pytest.mark.parametrize('offset,expected', [(4, True), (6, False), (8, False)])
+    @pytest.mark.parametrize('swap', [False, True])
+    def test_disjoint_test(self, offset, expected, swap):
+        grid = Grid(shape=(16,))
+        x, = grid.dimensions
+        xl = SubDimension.left('xl', x, 4)
+
+        # `12 - xl` spans [9, 12]; `xl + offset` spans [offset, offset + 3]
+        e0, e1 = 12 - xl, xl + offset
+        if swap:
+            e0, e1 = e1, e0
+        assert disjoint_test(e0, e1, xl, Interval(xl)) is expected
 
 
 class TestSpace:
