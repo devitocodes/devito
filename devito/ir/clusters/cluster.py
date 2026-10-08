@@ -21,6 +21,7 @@ from devito.types import (
     CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
     ThreadPoolSync, ThreadWait, WeakFence
 )
+from devito.types.misc import Deferred
 
 __all__ = ["Cluster", "ClusterGroup"]
 
@@ -224,7 +225,8 @@ class EqBlock(CacheInstances):
         return (self.is_halo_touch or
                 self.is_dist_reduce or
                 self.is_weak_fence or
-                self.is_critical_region)
+                self.is_critical_region or
+                self.is_deferred)
 
     def _is_type(self, cls):
         return self.exprs and all(isinstance(e.rhs, cls) for e in self.exprs)
@@ -252,6 +254,10 @@ class EqBlock(CacheInstances):
     @cached_property
     def is_critical_region(self):
         return self._is_type(CriticalRegion)
+
+    @cached_property
+    def is_deferred(self):
+        return self._is_type(Deferred)
 
     @cached_property
     def is_thread_rendezvous(self):

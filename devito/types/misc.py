@@ -17,6 +17,7 @@ __all__ = [
     'Auto',
     'AutoRef',
     'CriticalRegion',
+    'Deferred',
     'FIndexed',
     'Fence',
     'FunctionMap',
@@ -271,6 +272,15 @@ class TempArray(Array):
     @property
     def shift(self):
         return self._shift
+
+
+class Deferred:
+
+    """
+    Mixin class for objects standing in for work that a later pass will build.
+    """
+
+    pass
 
 
 class Fence:
