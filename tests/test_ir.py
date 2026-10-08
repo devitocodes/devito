@@ -16,7 +16,7 @@ from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
-    _cached_distance, disjoint_test, mocksym0, mocksym1
+    _cached_distance, disjoint_subdims_axis, disjoint_test, mocksym0, mocksym1
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
@@ -25,7 +25,7 @@ from devito.ir.support.space import (
 )
 from devito.ir.support.utils import detect_halo_writes
 from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
-from devito.tools import prod
+from devito.tools import Stamp, prod
 from devito.tools.data_structures import frozendict
 from devito.types import (
     Array, BlockDimension, Bundle, ComponentAccess, ConditionalDimension, CriticalRegion,
@@ -721,6 +721,38 @@ class TestVectorHierarchy:
             assert len(cache) == 0
         finally:
             _cached_distance.clear()
+
+    def test_disjoint_subdims_cache(self):
+        grid = Grid(shape=(24, 24))
+        x, y = grid.dimensions
+        xl = SubDimension.left('xl', x, 4, separated=True)
+        xm = SubDimension.middle('xm', x, 4, 4, separated=True)
+        xm = xm._rebuild(thickness=(xl.ltkn, xm.rtkn))
+        f = Function(name='f', grid=grid)
+
+        def accesses(stamp):
+            il, im = Interval(xl, 0, 0, stamp), Interval(xm, 0, 0, stamp)
+            left = TimedAccess(f[xl, y], 'W', 0, IterationSpace([il, Interval(y)]))
+            middle = TimedAccess(f[xm, y], 'R', 1, IterationSpace([im, Interval(y)]))
+            return il, left, middle
+
+        il0, left0, middle0 = accesses(Stamp())
+        il1, left1, middle1 = accesses(Stamp())
+        assert il0 != il1 and il0.reset() == il1.reset()
+
+        _cached_distance.clear()
+        disjoint_subdims_axis.clear()
+        try:
+            assert left0.distance(middle0) == (S.ImaginaryUnit,)
+            assert len(disjoint_subdims_axis.cache) == 1
+
+            # Stamps aren't part of the per-axis cache key
+            assert left1.distance(middle1) == (S.ImaginaryUnit,)
+            assert len(_cached_distance.cache) == 2
+            assert len(disjoint_subdims_axis.cache) == 1
+        finally:
+            _cached_distance.clear()
+            disjoint_subdims_axis.clear()
 
     @pytest.mark.parametrize('offset,expected', [(4, True), (6, False), (8, False)])
     @pytest.mark.parametrize('swap', [False, True])
