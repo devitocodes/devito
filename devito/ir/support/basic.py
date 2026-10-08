@@ -1665,7 +1665,9 @@ def disjoint_subdims(a0, a1):
 
         f = a0.function.c0
         space_order = f.space_order if isinstance(f, Function) else 0
-        if disjoint_subdims_axis(e0, e1, d0, d1, it0, it1, space_order):
+        # The result doesn't depend on stamps; drop them from the cache key
+        if disjoint_subdims_axis(e0, e1, d0, d1, it0.reset(), it1.reset(),
+                                 space_order):
             return True
 
     return False
