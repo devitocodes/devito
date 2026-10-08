@@ -393,7 +393,7 @@ def generate_conditionals(expr, input_expr, ordering):
         index = d.index
         if d.condition is not None and expr.has(d):
             index = index - relational_min(cond, d.parent)
-        shift = relational_shift(cond, d.parent)
+        shift = relational_shift(cond, d.parent, d.symbolic_factor)
         expr = uxreplace(expr, {d: IntDiv(index, d.symbolic_factor) + shift})
 
     return expr, conditionals

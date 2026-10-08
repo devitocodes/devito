@@ -7,10 +7,10 @@ from sympy import And, Or
 
 from conftest import assert_blocking, assert_structure, opts_tiling, skipif
 from devito import (  # noqa
-    Buffer, ConditionalDimension, Constant, CustomDimension, DefaultDimension, Dimension,
-    Eq, Function, Ge, Grid, Gt, Inc, Le, Lt, Ne, Operator, SpaceDimension, SparseFunction,
-    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, dimensions,
-    floor, norm, sin, sum, switchconfig
+    Buffer, CondEq, ConditionalDimension, Constant, CustomDimension, DefaultDimension,
+    Dimension, Eq, Function, Ge, Grid, Gt, Inc, Le, Lt, Ne, Operator, SpaceDimension,
+    SparseFunction, SparseTimeFunction, SubDimension, SubDomain, TimeFunction,
+    configuration, dimensions, floor, norm, sin, sum, switchconfig
 )
 from devito.exceptions import InvalidArgument
 from devito.ir import SymbolRegistry
@@ -2073,6 +2073,39 @@ class TestConditionalDimension:
         op(time_m=1, time_M=nt-1, usaved=usaved, rec=rec)
         for t in range(buffer_size):
             assert np.all(usaved.data[t] == t*factor + bounds[0] - 1)
+
+    @pytest.mark.parametrize('factor', [1, 2, 3])
+    @pytest.mark.parametrize('relation', [Or, 'strict'])
+    def test_factor_and_condeq_overlap(self, factor, relation):
+        """
+        A snapshot at `t == nt - 1` via an implicit CondEq ConditionalDimension
+        only adds an extra slot when `nt - 1` is not on the subsampling grid.
+        Otherwise it must write the slot of the subsampled point, rather than
+        shift past it (and out of bounds for `factor == 1`).
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        nt = 10
+        last = nt - 1
+        nsave = (last + factor - 1) // factor + 1
+
+        ctsnap = ConditionalDimension(name='ctsnap', parent=time,
+                                      condition=CondEq(time, last),
+                                      relation=relation)
+        ct0 = ConditionalDimension(name='ct0', parent=time, factor=factor,
+                                   relation=Or)
+
+        u = TimeFunction(name='u', grid=grid, save=nt)
+        usave = TimeFunction(name='usave', grid=grid, time_dim=ct0, save=nsave)
+        u.data[:] = np.arange(nt).reshape(nt, 1, 1)
+
+        Operator(Eq(usave, u))(time_m=0, time_M=last - 1)
+        Operator(Eq(usave, u, implicit_dims=ctsnap))(time_m=last, time_M=last)
+
+        expected = factor * np.arange(nsave)
+        expected[-1] = last
+        assert np.all(usave.data[:, 1, 1] == expected)
 
     def test_blocking_w_guard(self):
         grid = Grid(shape=(8, 8, 8))

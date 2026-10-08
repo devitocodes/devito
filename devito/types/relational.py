@@ -294,30 +294,34 @@ def _(expr, s):
         return sympy.S.Infinity
 
 
-def relational_shift(expr, s):
+def relational_shift(expr, s, factor=None):
     """
     Infer shift incurred by the expression. Generally only
     applies when a CondEq is used as it adds a single value.
+
+    When `factor` is provided, the CondEq point only adds a value if it does
+    not already fall onto the subsampling grid defined by `factor`, as it
+    would otherwise overlap with an already counted point.
     """
     if not expr.has(s):
         return 0
 
-    return _relational_shift(expr, s)
+    return _relational_shift(expr, s, factor)
 
 
 @singledispatch
-def _relational_shift(s, expr):
+def _relational_shift(expr, s, factor):
     return 0
 
 
 @_relational_shift.register(sympy.Or)
 @_relational_shift.register(sympy.And)
-def _(expr, s):
-    return sum([_relational_shift(e, s) for e in expr.args])
+def _(expr, s, factor):
+    return sum([_relational_shift(e, s, factor) for e in expr.args])
 
 
 @_relational_shift.register(sympy.Eq)
-def _(expr, s):
+def _(expr, s, factor):
     if isinstance(expr.lhs, sympy.Mod):
         return 0
 
@@ -328,4 +332,11 @@ def _(expr, s):
     except (AttributeError, AssertionError):
         # Stepping dimension (time), requires shift
         from devito.symbolics.extended_dtypes import INT
-        return INT(Ge(*expr.args))
+        shift = INT(Ge(*expr.args))
+        if factor is None:
+            return shift
+        # No shift if the point is already on the subsampling grid
+        remainder = sympy.Mod(expr.rhs, factor)
+        if remainder.is_Integer:
+            return shift if remainder != 0 else 0
+        return shift * INT(Ne(remainder, 0))
