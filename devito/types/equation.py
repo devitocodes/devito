@@ -125,12 +125,20 @@ class Eq(sympy.Eq, Evaluable, Pickable):
         """
         if self._interp_mode is not None:
             kwargs['interp_mode'] = self._interp_mode
+
+        subdomain = self.subdomain
         try:
             lhs = self.lhs._evaluate(**kwargs)
-            rhs = self.rhs._eval_at(self.lhs, **kwargs)._evaluate(**kwargs)
+            rhs = self.rhs._eval_at(self.lhs, subdomain=subdomain, **kwargs)
+            rhs = rhs._evaluate(**kwargs)
         except AttributeError:
             lhs, rhs = self._evaluate_args(**kwargs)
-        eq = self.func(lhs, rhs, subdomain=self.subdomain,
+        else:
+            # Derivatives with `halo=0` extend the rhs past the SubDomain
+            if subdomain is not None and self.rhs._has_zero_halo:
+                subdomain = subdomain._grow(rhs._growth)
+
+        eq = self.func(lhs, rhs, subdomain=subdomain,
                        coefficients=self.substitutions,
                        implicit_dims=self._implicit_dims,
                        interp_mode=self._interp_mode)

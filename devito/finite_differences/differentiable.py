@@ -191,6 +191,26 @@ class Differentiable(sympy.Expr, Evaluable):
             for a in self.args  # false positive: lambda is invoked in-place
         ])
 
+    @cached_property
+    def _has_zero_halo(self):
+        """True if the expression has derivatives with `halo=0`."""
+        return any(a._has_zero_halo for a in self._args_diff)
+
+    @cached_property
+    def _growth(self):
+        """
+        Number of points, per root Dimension, by which the evaluated expression
+        extends past the SubDomain that its `halo=0` derivatives restrict their
+        argument to: the largest stencil radius of such derivatives. Empty if the
+        expression has none.
+
+        For example, with `S` a SubDomain restricting `x` and an 8th-order `g`,
+        `g.dx(halo=0)` evaluated in an equation on `S` has a growth of `{x: 4}`:
+        the equation must iterate over `S` grown by 4 points along `x` (see
+        `DerivedSubDomain`).
+        """
+        return merge_growth(a._growth for a in self._args_diff)
+
     def _subs(self, old, new, **hints):
         if old == self:
             return new
@@ -329,8 +349,18 @@ class Differentiable(sympy.Expr, Evaluable):
         """
         Shift  expression by `shift` along the Dimension `dim`.
         For example u.shift(x, x.spacing) = u(x + h_x).
+
+        Every other space Dimension of the expression sharing the root of `dim`
+        is shifted too: an expression may mix Functions defined on the Grid,
+        e.g. `f(x)`, with Functions defined on a SubDomain, e.g. `p(ix)`.
         """
-        return self._subs(dim, dim + shift)
+        from devito.symbolics import retrieve_dimensions  # noqa
+
+        expr = self
+        for d in retrieve_dimensions(self, mode='unique'):
+            if d is not dim and dim.root in d._defines and not d.is_NonlinearDerived:
+                expr = expr._subs(d, d + shift)
+        return expr._subs(dim, dim + shift)
 
     @property
     def laplace(self):
@@ -530,6 +560,18 @@ def highest_priority(diff_op, candidates=None):
     return prio_func
 
 
+def merge_growth(growths):
+    """
+    Merge the growths `growths`, each a mapping from root Dimension to a number
+    of points, keeping the largest per Dimension (see `Differentiable._growth`).
+    """
+    growth = {}
+    for i in growths:
+        for d, v in i.items():
+            growth[d] = max(growth.get(d, 0), v)
+    return frozendict(growth)
+
+
 class DifferentiableOp(Differentiable):
 
     __sympy_class__ = None
@@ -629,6 +671,19 @@ class Add(DifferentiableOp, sympy.Add):
         _addsort(args)
 
         return super().__new__(cls, *args, **kwargs)
+
+    def _eval_at(self, func, subdomain=None, **kwargs):
+        """
+        Evaluate the sum at the location of `func`.
+
+        The derivatives with `halo=0` extend the sum past `subdomain`, so the
+        other terms are restricted to `subdomain` at the evaluation point.
+        """
+        expr = super()._eval_at(func, subdomain=subdomain, **kwargs)
+        if subdomain is None or not expr.is_Add or not expr._has_zero_halo:
+            return expr
+        halo = {a for a in expr._args_diff if a._has_zero_halo}
+        return self.func(*[a if a in halo else subdomain._restrict(a) for a in expr.args])
 
 
 class Mul(DifferentiableOp, sympy.Mul):
@@ -1318,6 +1373,30 @@ class IndexDerivative(IndexSum):
 
 class DiffDerivative(IndexDerivative, DifferentiableOp):
 
+    """
+    A Derivative evaluated in unexpanded form.
+
+    Parameters
+    ----------
+    growth : dict of {Dimension: int}, optional
+        For a derivative with `halo=0`, its stencil radius per root Dimension
+        (see `Differentiable._growth`).
+    *args, **kwargs
+        As for IndexDerivative.
+    """
+
+    __rkwargs__ = IndexDerivative.__rkwargs__ + ('growth',)
+
+    def __new__(cls, *args, growth=None, **kwargs):
+        obj = super().__new__(cls, *args, **kwargs)
+        obj._growth = frozendict(growth or {})
+        return obj
+
+    @property
+    def growth(self):
+        """For a derivative with `halo=0`, its stencil radius per root Dimension."""
+        return self._growth
+
     def _eval_at(self, func, **kwargs):
         # Like EvalDerivative, a DiffDerivative must have already been evaluated
         # at a valid x0 and should not be re-evaluated at a different location
@@ -1331,11 +1410,25 @@ for i in ('DiffDerivative', 'IndexDerivative'):
 
 class EvalDerivative(DifferentiableOp, sympy.Add):
 
+    """
+    A Derivative evaluated in expanded form, as the sum of its stencil taps.
+
+    Parameters
+    ----------
+    *args : expr-like
+        The stencil taps.
+    base : expr-like, optional
+        The expression the derivative was taken of.
+    growth : dict of {Dimension: int}, optional
+        For a derivative with `halo=0`, its stencil radius per root Dimension
+        (see `Differentiable._growth`).
+    """
+
     is_commutative = True
 
-    __rkwargs__ = ('base',)
+    __rkwargs__ = ('base', 'growth')
 
-    def __new__(cls, *args, base=None, **kwargs):
+    def __new__(cls, *args, base=None, growth=None, **kwargs):
         kwargs['evaluate'] = False
 
         # a+0 -> a
@@ -1351,6 +1444,7 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
                 # In some rare cases (rebuild?) base may be obj itself
                 base = base.base
             obj.base = base
+            obj._growth = frozendict(growth or {})
         except AttributeError:
             # This might happen if e.g. one attempts a (re)construction with
             # one sole argument. The (re)constructed EvalDerivative degenerates
@@ -1362,6 +1456,11 @@ class EvalDerivative(DifferentiableOp, sympy.Add):
             return obj
 
         return obj
+
+    @property
+    def growth(self):
+        """For a derivative with `halo=0`, its stencil radius per root Dimension."""
+        return self._growth
 
     func = DifferentiableOp._rebuild
 
