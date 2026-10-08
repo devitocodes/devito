@@ -102,7 +102,14 @@ class Tasking(Queue):
             protected = self._schedule_waitlocks(c0, d, clusters, locks, syncs)
             self._schedule_withlocks(c0, d, protected, locks, syncs)
 
-        processed = [c.rebuild(syncs={**c.syncs, **syncs[c]}) for c in clusters]
+        # Tasking may run again after prefetching has attached input waits.
+        # Preserve them when adding locks for asynchronous output readers.
+        processed = []
+        for c in clusters:
+            waits = {d: [s for s in ops if isinstance(s, WaitLock)]
+                     for d, ops in c.syncs.items()}
+            ops = normalize_syncs(waits, {**c.syncs, **syncs[c]})
+            processed.append(c.rebuild(syncs=ops))
 
         return processed
 
