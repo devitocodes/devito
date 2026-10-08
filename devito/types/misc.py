@@ -17,6 +17,7 @@ __all__ = [
     'Auto',
     'AutoRef',
     'CriticalRegion',
+    'Deferred',
     'FIndexed',
     'Fence',
     'FunctionMap',
@@ -271,6 +272,23 @@ class TempArray(Array):
     @property
     def shift(self):
         return self._shift
+
+
+class Deferred:
+
+    """
+    Mixin class for objects standing in for work not yet built.
+
+    A Cluster whose expressions are all Deferred encodes nothing the
+    compiler's passes can act on: no arithmetic to hoist, no stencil to
+    block, nothing to fuse. They step over it, and the pass that owns
+    the object puts the real equations in its place before scheduling.
+
+    What the work will read travels as the object's arguments, so the
+    Cluster is still ordered against the ones around it.
+    """
+
+    pass
 
 
 class Fence:
