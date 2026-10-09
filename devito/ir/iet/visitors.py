@@ -7,7 +7,7 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 import ctypes
 from collections import OrderedDict
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 
@@ -1090,6 +1090,10 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         - `indexedbases`: Collect all IndexedBase objects
         - `defines`: Collect all defined objects
         - `defines-aliases`: Collect all defined objects and their aliases
+    ordered : bool, optional
+        If True (default), sort the symbols naturally by name. Otherwise,
+        return them in traversal order, which is cheaper when only membership
+        matters.
     """
 
     @staticmethod
@@ -1117,10 +1121,30 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         'defines-aliases': _defines_aliases
     }
 
-    def __init__(self, mode: str = 'symbolics') -> None:
+    # Sort keys cached while an Operator is built, see `caching_sort_keys`
+    _sort_keys: dict[int, tuple[Any, Any]] | None = None
+
+    @classmethod
+    @contextmanager
+    def caching_sort_keys(cls):
+        """
+        Cache the sort keys within this context, as the same symbols are sorted
+        over and over while an Operator is built. The cache is keyed by identity,
+        since symbols may compare equal yet print differently, and retains each
+        symbol so its id cannot be reused. It is released on exit.
+        """
+        prev = cls._sort_keys
+        cls._sort_keys = {} if prev is None else prev
+        try:
+            yield
+        finally:
+            cls._sort_keys = prev
+
+    def __init__(self, mode: str = 'symbolics', ordered: bool = True) -> None:
         super().__init__()
 
         self.mode = mode
+        self.ordered = ordered
         modes = mode.split('|')
         if len(modes) == 1:
             self.rule = self.rules[mode]
@@ -1128,7 +1152,23 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret):
-        return sorted(filter_ordered(ret, key=id), key=natural_sort_key)
+        found = filter_ordered(ret, key=id)
+        if not self.ordered:
+            return found
+
+        cache = self._sort_keys
+        if cache is None:
+            return sorted(found, key=natural_sort_key)
+
+        def key(i):
+            try:
+                return cache[id(i)][1]
+            except KeyError:
+                v = natural_sort_key(i)
+                cache[id(i)] = (i, v)
+                return v
+
+        return sorted(found, key=key)
 
     def visit_Node(self, o: Node) -> Iterator[Any]:
         yield from self._visit(o.children)

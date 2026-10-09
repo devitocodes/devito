@@ -1,3 +1,5 @@
+import pickle
+from copy import deepcopy
 from ctypes import POINTER, c_void_p
 
 import cgen
@@ -6,7 +8,7 @@ import pytest
 import sympy
 
 from devito import (  # noqa
-    Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
+    Constant, Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
 )
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
@@ -16,16 +18,18 @@ from devito.ir.iet import (
     retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
-from devito.passes.iet.engine import Graph, reuse_efuncs
+from devito.passes.iet.engine import (
+    Graph, _contains, _update_args_efunc, create_call_graph, reuse_efuncs
+)
 from devito.passes.iet.languages.C import CDataManager
 from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
     String
 )
 from devito.symbolics.extended_dtypes import c_complex
-from devito.tools import CustomDtype, as_tuple, dtype_to_ctype
+from devito.tools import CustomDtype, as_hashable, as_tuple, dtype_to_ctype
 from devito.types import (
-    Array, Bundle, CustomDimension, LocalObject, Pointer, Symbol, Temp
+    Array, Bundle, CustomDimension, LocalObject, Object, Pointer, Symbol, Temp
 )
 from devito.types.misc import FunctionMap
 
@@ -154,6 +158,10 @@ def test_find_symbols_nested(mode, expected):
 
     assert [f.name for f in found] == eval(expected)
 
+    # Same objects when unordered
+    unordered = FindSymbols(mode, ordered=False).visit(call)
+    assert {id(i) for i in unordered} == {id(i) for i in found}
+
 
 def test_find_symbols_natural_numbering():
     temporaries = [Temp(name=f'r{i}') for i in range(12)]
@@ -162,6 +170,113 @@ def test_find_symbols_natural_numbering():
     found = FindSymbols('basics').visit(call)
 
     assert [i.name for i in found] == [i.name for i in temporaries]
+
+    # Unordered results retain the traversal order
+    found = FindSymbols('basics', ordered=False).visit(call)
+
+    assert [i.name for i in found] == [i.name for i in temporaries[::-1]]
+
+
+def test_find_symbols_cached_sort_keys():
+    temporaries = [Temp(name=f'r{i}') for i in range(12)]
+    call = Call('foo', temporaries[::-1])
+
+    with FindSymbols.caching_sort_keys():
+        for _ in range(2):
+            found = FindSymbols('basics').visit(call)
+            assert [i.name for i in found] == [i.name for i in temporaries]
+        assert len(FindSymbols._sort_keys) == len(temporaries)
+
+    # Released on exit, and never retained beyond an Operator build
+    assert FindSymbols._sort_keys is None
+
+    grid = Grid(shape=(4, 4))
+    u = TimeFunction(name='u', grid=grid)
+    op = Operator(Eq(u.forward, u + 1))
+    assert FindSymbols._sort_keys is None
+    assert op.dimensions
+    assert FindSymbols._sort_keys is None
+
+
+def test_find_symbols_cached_sort_keys_identity():
+    """
+    Symbols comparing and hashing equal but printing differently keep their
+    own sort keys.
+    """
+    class Sym:
+
+        def __init__(self, name):
+            self.name = name
+
+        def __eq__(self, other):
+            return isinstance(other, Sym)
+
+        def __hash__(self):
+            return 0
+
+        def __str__(self):
+            return self.name
+
+    a, b = Sym('b'), Sym('a')
+
+    with FindSymbols.caching_sort_keys():
+        for _ in range(2):
+            assert FindSymbols()._post_visit([a, b]) == [b, a]
+
+
+def _update_args(root):
+    efuncs = {root.name: root}
+    dag = create_call_graph(root.name, as_hashable(efuncs))
+    return _update_args_efunc(root, efuncs, dag)[root.name]
+
+
+def test_update_args_equal_symbols():
+    """
+    Symbols such as Constants and Objects compare structurally but hash by
+    identity, so parameter reconciliation must retain list-membership semantics.
+    """
+    # A formal parameter equal to a used symbol is retained, along with its value
+    q0 = Constant(name='q', value=1.)
+    q1 = Constant(name='q', value=2.)
+    root = Callable('foo', DummyExpr(Symbol(name='a'), q1 + 1, init=True), 'void',
+                    parameters=[q0])
+
+    parameters = _update_args(root).parameters
+    assert len(parameters) == 1
+    assert parameters[0] is q0 and parameters[0].data == 1.
+
+    # A formal parameter equal to a defined symbol is dropped
+    o0 = Object(name='o', dtype=c_void_p)
+    o1 = Object(name='o', dtype=c_void_p)
+    root = Callable('bar', List(body=[Definition(o1)]), 'void', parameters=[o0])
+
+    assert _update_args(root).parameters == ()
+
+
+def test_contains_unhashable():
+    in_found = _contains([Symbol(name='a'), [1]])
+
+    assert in_found(Symbol(name='a'))
+    assert in_found([1])
+    assert not in_found(Symbol(name='b'))
+
+
+def test_expression_expr_symbols_cached():
+    a = Symbol(name='a')
+    b = Symbol(name='b')
+    expr = DummyExpr(a, b + 1, init=True)
+
+    assert 'expr_symbols' not in expr.__dict__
+    assert set(expr.expr_symbols) == {a, b}
+    assert 'expr_symbols' in expr.__dict__
+
+    # Rebuilding with a new expression does not reuse the cached symbols
+    c = Symbol(name='c')
+    assert set(expr._rebuild(expr=Eq(a, c)).expr_symbols) == {a, c}
+
+    # NOTE: `free_symbols` is a set, so only the contents are guaranteed to match
+    for i in (pickle.loads(pickle.dumps(expr)), deepcopy(expr)):
+        assert set(i.expr_symbols) == i.expr.free_symbols
 
 
 def test_list_denesting():
