@@ -3,11 +3,14 @@ import pytest
 
 from conftest import assert_blocking, opts_device_tiling, skipif
 from devito import (
-    Eq, Function, Grid, Max, Operator, SparseTimeFunction, TimeFunction, norm, solve
+    ConditionalDimension, Eq, Function, Grid, Max, Operator, SparseTimeFunction,
+    TimeFunction, norm, solve, switchconfig
 )
 from devito.data import LEFT
 from devito.exceptions import InvalidOperator
-from devito.ir.iet import FindNodes, Iteration, retrieve_iteration_tree
+from devito.ir.iet import (
+    BusyWaitCall, FindNodes, Iteration, MapNodes, TimedList, retrieve_iteration_tree
+)
 from examples.seismic import Receiver, RickerSource, TimeAxis
 
 pytestmark = skipif(['nodevice'], whole_module=True)
@@ -298,6 +301,56 @@ class TestOperator:
     ])
     def test_iso_acoustic(self, opt):
         TestOperator().iso_acoustic(opt)
+
+    @pytest.mark.parametrize('profiling', ['advanced1', 'advanced2'])
+    @pytest.mark.parametrize('async_degree,npthreads', [(1, None), (3, None), (1, 1)])
+    def test_wait_timing(self, profiling, async_degree, npthreads):
+        grid = Grid(shape=(4, 4))
+        u = TimeFunction(name='u', grid=grid)
+        ts = ConditionalDimension(name='ts', parent=grid.time_dim, factor=2)
+        usave = TimeFunction(name='usave', grid=grid, save=3, time_dim=ts)
+
+        with switchconfig(profiling=profiling):
+            op = Operator([Eq(u.forward, u + 1), Eq(usave, u)],
+                          name='wait_timing', platform='nvidiaX', language='openacc',
+                          opt=('buffering', 'tasking', 'orchestrate',
+                               {'buf-async-degree': async_degree,
+                                'npthreads': npthreads}))
+
+        timed_calls = MapNodes(TimedList, BusyWaitCall, mode='immediate').visit(op)
+        waits = {c.name: timer for timer, calls in timed_calls.items() for c in calls}
+        assert set(waits) == {'release_lock0', 'activate0', 'shutdown0'}
+        assert all(t is not None and t.name.startswith('busywait')
+                   for t in waits.values())
+
+        standalone = {name for name, timer in waits.items()
+                      if timer.name in op._profiler._sections}
+        expected = {'shutdown0', 'activate0'} if npthreads else {'shutdown0'}
+        assert standalone == expected
+        for name in [*waits, 'copy_to_host0']:
+            assert not FindNodes(TimedList).visit(op._func_table[name].root)
+
+        # Two propagations through the same Operator, followed by an empty loop.
+        runs = [(0, 4, [4, 5], [0, 2, 4]),
+                (0, 2, [2, 3], [0, 2, 0]),
+                (1, 0, [0, 0], [0, 0, 0])]
+        for time_m, time_M, expected_u, expected_save in runs:
+            u.data[:] = 0
+            usave.data[:] = 0
+            summary = op.apply(time_m=time_m, time_M=time_M)
+
+            assert np.all(u.data == np.array(expected_u)[:, None, None])
+            assert np.all(usave.data == np.array(expected_save)[:, None, None])
+
+            # Standalone waits belong to the global total; nested waits are
+            # subsections of their caller and must not be counted a second time.
+            reported_waits = [k for k in summary if k.name.startswith('busywait')]
+            assert reported_waits
+            if time_m > time_M:
+                assert len(reported_waits) == 1
+            assert summary.globals_nosetup_all.time == pytest.approx(
+                sum(v.time for v in summary.values())
+            )
 
 
 class TestMPI:

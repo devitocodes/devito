@@ -1,7 +1,8 @@
 from itertools import groupby
 
 from devito.ir.iet import (
-    BusyWait, FindNodes, FindSymbols, Iteration, MapNodes, Section, TimedList, Transformer
+    BusyWait, BusyWaitCall, EntryFunction, FindNodes, FindSymbols, Iteration, MapNodes,
+    Section, TimedList, Transformer
 )
 from devito.mpi.routines import (
     ComputeCall, HaloUpdateCall, HaloUpdateList, HaloWaitCall, HaloWaitList, MPICall,
@@ -30,10 +31,10 @@ def instrument(graph, **kwargs):
 @iet_pass
 def track_subsections(iet, **kwargs):
     """
-    Add sub-Sections to the `profiler`. Sub-Sections include:
+    Add synchronization Sections and sub-Sections to the `profiler`. These include:
 
         * MPI Calls (e.g., HaloUpdateCall and HaloUpdateWait)
-        * Busy-waiting on While(lock) (e.g., from host-device orchestration)
+        * Busy-waiting loops and calls (e.g., from host-device orchestration)
         * Multi-pass implementations -- one sub-Section for each pass, within one
           macro Section
     """
@@ -47,28 +48,35 @@ def track_subsections(iet, **kwargs):
         ComputeCall: 'compute',
         HaloUpdateList: 'haloupdate',
         HaloWaitList: 'halowait',
-        BusyWait: 'busywait'
+        BusyWait: 'busywait',
+        BusyWaitCall: 'busywait'
     }
 
     verbosity_mapper = {
         0: (),
-        1: (MPIList, RemainderCall, BusyWait),
-        2: (MPICall, ComputeCall, BusyWait),
+        1: (MPIList, RemainderCall, BusyWait, BusyWaitCall),
+        2: (MPICall, ComputeCall, BusyWait, BusyWaitCall),
     }
 
     mapper = {}
 
     # Enable/disable profiling of sub-Sections
     for NodeType in verbosity_mapper[profiler._verbosity]:
-        for k, v in MapNodes(Section, NodeType).visit(iet).items():
+        for k, v in MapNodes(Section, NodeType, mode='immediate').visit(iet).items():
+            if k is None and not isinstance(iet, EntryFunction):
+                # Unsectioned wait helpers are timed at their `BusyWaitCall` sites.
+                continue
             for i in v:
                 if i in mapper:
                     continue
                 name = sregistry.make_name(prefix=name_mapper[i.__class__])
-                mapper[i] = Section(name, body=i, is_subsection=True)
-                profiler.track_subsection(k.name, name)
+                mapper[i] = Section(name, body=i, is_subsection=k is not None)
+                if k is not None:
+                    profiler.track_subsection(k.name, name)
 
     iet = Transformer(mapper).visit(iet)
+    if any(not i.is_subsection for i in mapper.values()):
+        profiler.analyze(iet)
 
     # Multi-pass implementations
     mapper = {}

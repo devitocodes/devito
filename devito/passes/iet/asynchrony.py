@@ -5,9 +5,10 @@ from functools import singledispatch
 import cgen as c
 
 from devito.ir import (
-    AsyncCall, AsyncCallable, BlankLine, Call, Callable, Conditional, DummyEq, DummyExpr,
-    EntryFunction, FindNodes, FindSymbols, Increment, Iteration, List, PointerCast,
-    Return, ThreadCallable, ThreadFence, Transformer, While, make_callable, maybe_alias
+    AsyncCall, AsyncCallable, BlankLine, BusyWait, BusyWaitCall, Call, Callable,
+    Conditional, DummyEq, DummyExpr, EntryFunction, FindNodes, FindSymbols, Increment,
+    Iteration, List, PointerCast, Return, ThreadCallable, ThreadFence, Transformer,
+    While, make_callable, maybe_alias
 )
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
@@ -70,12 +71,12 @@ def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
         if sdata.size == 1:
             d = sdata.index
             condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
-            activation = [While(condition)]
+            activation = [BusyWait(condition)]
         else:
             d = Temp(name=sregistry.make_name(prefix=sdata.index.name))
             condition = CondNe(FieldFromComposite(sdata.symbolic_flag, sdata[d]), 1)
             activation = [DummyExpr(d, 0),
-                          While(condition, DummyExpr(d, (d + 1) % sdata.size))]
+                          BusyWait(condition, DummyExpr(d, (d + 1) % sdata.size))]
         arguments = []
         for i in sdata.ncfields:
             for a in n.arguments:
@@ -98,7 +99,7 @@ def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
         efunc = make_callable(name, activation)
 
         efuncs.append(efunc)
-        subs[n] = Call(name, efunc.parameters)
+        subs[n] = BusyWaitCall(name, efunc.parameters)
 
     iet = Transformer(subs).visit(iet)
 
@@ -222,7 +223,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     # Create an efunc to shutdown the pthreads
     name = sregistry.make_name(prefix='shutdown')
     body = List(body=callback([
-        While(CondEq(FieldFromPointer(sdata.symbolic_flag, sbase), 2)),
+        BusyWait(CondEq(FieldFromPointer(sdata.symbolic_flag, sbase), 2)),
         DummyExpr(FieldFromPointer(sdata.symbolic_flag, sbase), 0),
         Call('pthread_join', (threads[d], Null))
     ]))
@@ -252,7 +253,7 @@ def inject_async_tear_updown(iet, tracker=None, **kwargs):
 
         # Tear-down
         arguments = list(shutdown.parameters)
-        teardown.append(Call(shutdown.name, arguments))
+        teardown.append(BusyWaitCall(shutdown.name, arguments))
 
     # Inject tearup and teardown
     tearup = List(

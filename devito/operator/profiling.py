@@ -86,27 +86,27 @@ class Profiler:
         """
         sections = FindNodes(Section).visit(iet)
         for s in sections:
-            if s.name in self._sections:
+            if s.is_subsection or s.name in self._sections:
                 continue
 
             bundles = FindNodes(ExpressionBundle).visit(s)
 
             # Total operation count
-            ops = sum(i.ops*i.ispace.size for i in bundles)
+            ops = sum((i.ops*i.ispace.size for i in bundles), S.Zero)
 
             # Operation count at each section iteration
             # NOTE: for practical reasons, it makes much more sense to "flatten"
             # the StencilDimensions, because one expects to see the number of
             # operations per time- or space-Dimension
-            sops = sum(i.ops*max(i.ispace.project(lambda d: d.is_Stencil).size, 1)
-                       for i in bundles)
+            sops = sum((i.ops*max(i.ispace.project(lambda d: d.is_Stencil).size, 1)
+                        for i in bundles), S.Zero)
 
             # Total memory traffic
             mapper = {}
             for i in bundles:
                 for k, v in i.traffic.items():
                     mapper.setdefault(k, []).append(v)
-            traffic = 0
+            traffic = S.Zero
             for i in mapper.values():
                 try:
                     traffic += IntervalGroup.generate('union', *i).size
@@ -253,7 +253,7 @@ class AdvancedProfiler(Profiler):
 
     def _evaluate_section(self, name, data, args, dtype):
         # Time to run the section
-        time = max(getattr(args[self.name]._obj, name), 10e-7)
+        time = getattr(args[self.name]._obj, name)
 
         # Number of FLOPs performed
         try:
@@ -443,9 +443,12 @@ class PerformanceSummary(OrderedDict):
         Add performance data for a given code section. With MPI enabled, the
         performance data is local, that is "per-rank".
         """
-        # Do not show unexecuted Sections (i.e., loop trip count was 0)
-        if traffic == 0:
+        # A synchronization Section may execute without arithmetic or traffic.
+        # Only discard zero-traffic Sections whose timer was never incremented.
+        if traffic == 0 and time == 0:
             return
+
+        time = max(time, 10e-7)
 
         k = PerfKey(name, rank)
 
@@ -464,7 +467,8 @@ class PerformanceSummary(OrderedDict):
 
     def add_subsection(self, sname, name, rank, time, *args):
         k0 = PerfKey(sname, rank)
-        assert k0 in self
+        if k0 not in self:
+            return
 
         self.subsections[sname][name] = PerfEntry(time, None, None, None, None, [])
 
