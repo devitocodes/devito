@@ -1197,9 +1197,7 @@ class Scope(CacheInstances):
 
         if isinstance(f, (Function, Temp, TempArray, TBArray)):
             for i in self.getreads(f):
-                expand = erange if uses_subdims(i) else extrema
-
-                for j in expand(i.access):
+                for j in _expand_read(i.access, uses_subdims(i)):
                     yield TimedAccess(j, i.mode, i.timestamp, i.ispace)
 
         else:
@@ -1613,6 +1611,15 @@ def skippable_interval(d, ispace, it):
     occur in the IterationSpace.
     """
     return d is None or (d in ispace and not d._defines & it.dim._defines)
+
+
+@memoized_func(scope='build')
+def _expand_read(access, subdims):
+    """
+    The accesses a read may perform once its StencilDimensions are resolved;
+    see `Scope.reads_smart_gen`.
+    """
+    return erange(access) if subdims else extrema(access)
 
 
 @memoized_func(scope='build')
