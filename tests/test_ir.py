@@ -7,7 +7,9 @@ from devito import (  # noqa
     Constant, Dimension, Eq, Function, Grid, Inc, Operator, SubDimension, TimeDimension,
     TimeFunction, switchconfig
 )
-from devito.finite_differences.differentiable import IndexSum, LocalSum
+from devito.finite_differences.differentiable import (
+    IndexDerivative, IndexSum, LocalSum, Weights
+)
 from devito.ir.cgen import ccode
 from devito.ir.clusters import Cluster, ClusterGroup
 from devito.ir.equations import LoweredEq
@@ -16,7 +18,8 @@ from devito.ir.iet import FindNodes, Iteration
 from devito.ir.stree import stree_build
 from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
-    _cached_distance, disjoint_subdims_axis, disjoint_test, mocksym0, mocksym1
+    _cached_distance, _expand_read, disjoint_subdims_axis, disjoint_test, mocksym0,
+    mocksym1
 )
 from devito.ir.support.guards import GuardOverflow
 from devito.ir.support.space import (
@@ -721,6 +724,37 @@ class TestVectorHierarchy:
             assert len(cache) == 0
         finally:
             _cached_distance.clear()
+
+    def test_expand_read(self):
+        grid = Grid(shape=(8,))
+        x, = grid.dimensions
+        f = Function(name='f', grid=grid)
+        h = StencilDimension('h', 0, 2)
+        w = Weights(name='w', dimensions=h, initvalue=[1., 2., 3.])
+
+        stencil = f[x + h]
+        plain = f[x]
+        bound = IndexDerivative(f[x + h]*w, {x: h})
+
+        cache = _expand_read.cache
+        _expand_read.clear()
+        try:
+            # Unbounded StencilDimension: every point, or just the extrema
+            assert _expand_read(stencil, True) == (f[x], f[x + 1], f[x + 2])
+            assert tuple(_expand_read(stencil, False)) == (f[x], f[x + 2])
+            assert len(cache) == 2
+
+            assert tuple(_expand_read(plain, True)) == (plain,)
+            assert tuple(_expand_read(plain, False)) == (plain, plain)
+
+            # A StencilDimension bound by an IndexDerivative isn't expanded
+            assert tuple(_expand_read(bound, True)) == (bound,)
+            assert len(cache) == 5
+
+            _expand_read(stencil, True)
+            assert len(cache) == 5
+        finally:
+            _expand_read.clear()
 
     def test_disjoint_subdims_cache(self):
         grid = Grid(shape=(24, 24))
