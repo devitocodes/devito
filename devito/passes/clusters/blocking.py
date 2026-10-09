@@ -101,11 +101,16 @@ class AnayzeBlockingBase(Queue):
 
         return super()._process_fatd(clusters, level, prefix)
 
-    def _has_data_reuse(self, cluster):
+    def _has_data_reuse(self, cluster, dims=None):
         # A sufficient condition for the existence of data reuse in `cluster`
         # is that the same Function is accessed twice at the same memory location,
         # which translates into the existence of any Relation across Indexeds
-        if any(r.function.is_AbstractFunction for r in cluster.scope.r_gen()):
+        for r in cluster.scope.r_gen():
+            if not r.function.is_AbstractFunction:
+                continue
+            # E.g., `u.forward = u + 1` has no reuse along parallel Dimensions
+            if dims is not None and all(r.distance_mapper.get(d) == 0 for d in dims):
+                continue
             return True
         if search(cluster.exprs, IndexSum):
             return True
@@ -208,9 +213,11 @@ class AnalyzeDeviceAwareBlocking(AnalyzeBlocking):
                     return clusters
 
                 properties = c.properties.block(d)
+                dims = [i for i in c.ispace.itdims
+                        if c.properties.is_parallel_relaxed(i)]
 
                 if any(self._has_short_trip_count(i) for i in c.ispace.itdims) or \
-                   not self._has_data_reuse(c):
+                   not self._has_data_reuse(c, dims):
                     properties = properties.notune(d)
 
             elif self._has_data_reuse(c):
