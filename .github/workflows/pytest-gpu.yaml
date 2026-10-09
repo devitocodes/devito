@@ -44,22 +44,29 @@ jobs:
         - name: pytest-gpu-acc-nvidia
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openacc.py tests/test_operator.py::TestEstimateMemory"
           base: "devitocodes/bases:nvidia-nvc12"
-          runner_label: nvidiagpu
+          runner_label: NVIDIAGPU
           test_drive_cmd: "nvidia-smi"
           # Respect CUDA_VISIBLE_DEVICES and also hard-limit Docker to that device.
           # NOTE: CUDA_VISIBLE_DEVICES must be set by the runner (systemd drop-in etc.).
-          dockerflags: --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+          dockerflags: >-
+            --cpuset-cpus="${AVAILABLE_CPUSET}"
+            --memory="${AVAILABLE_MEM}"
+            --memory-swap="${AVAILABLE_MEM}"
+            --gpus "device=${CUDA_VISIBLE_DEVICES}"
 
         # -------------------- AMD job -----------------------
         - name: pytest-gpu-omp-amd
           test_files: "tests/test_adjoint.py tests/test_gpu_common.py tests/test_gpu_openmp.py tests/test_operator.py::TestEstimateMemory"
-          runner_label: amdgpu
+          runner_label: AMDGPU
           base: "devitocodes/bases:amd"
           test_drive_cmd: "rocm-smi"
           # Passes through required /dev nodes etc.
           dockerflags: >-
+            --cpuset-cpus="${AVAILABLE_CPUSET}"
+            --memory="${AVAILABLE_MEM}"
+            --memory-swap="${AVAILABLE_MEM}"
             --network=host
-            --device=/dev/kfd --device=/dev/dri
+            --device=/dev/kfd --device=/dev/dri/${HIP_DEVICE_NAME}
             --ipc=host
             --group-add video --group-add "$(getent group render | cut -d: -f3)"
             --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
@@ -75,6 +82,10 @@ jobs:
         file: docker/Dockerfile.devito
         tag: ${{ matrix.name }}
         base: ${{ matrix.base }}
+
+    - name: Runner environment
+      run: |
+        printenv
 
     - name: Probe GPU
       uses: ./.github/actions/docker-run
@@ -95,8 +106,10 @@ jobs:
           CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
           DEVITO_LOGGING=DEBUG
           PYTHONFAULTHANDLER=1
+          PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
         command: |
           pytest \
+            -n auto --dist loadscope \
             -vvv \
             --capture=no \
             --showlocals \
@@ -115,8 +128,10 @@ jobs:
         uid: ${{ steps.build.outputs.unique }}
         tag: ${{ matrix.name }}
         args: ${{ matrix.dockerflags }}
+        env: PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
         command: |
           pytest \
+            -n auto --dist loadscope \
             -v \
             ${{ matrix.test_examples }}
 

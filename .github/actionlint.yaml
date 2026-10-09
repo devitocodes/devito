@@ -1,5 +1,13 @@
 self-hosted-runner:
   labels:
     - asv
-    - amdgpu
-    - nvidiagpu
+    - CPU
+    - AMDCPU
+    - INTELCPU
+    - GPU
+    - AMDGPU
+    - INTELGPU
+    - NVIDIAGPU
+    - MI50
+    - MI210
+    - V100
