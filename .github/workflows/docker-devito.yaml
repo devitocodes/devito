@@ -30,9 +30,9 @@ jobs:
             tag_suffix: '-amd64'
             # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
             # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
-            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: --init  --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "nvidiagpu"]
+            runner: ["self-hosted", "NVIDIAGPU"]
 
           - base: 'bases:nvidia-nvc'
             tag: 'nvidia-nvc'
@@ -52,9 +52,9 @@ jobs:
             tag_suffix: '-amd64'
             # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
             # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
-            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: --init --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "nvidiagpu"]
+            runner: ["self-hosted", "NVIDIAGPU"]
 
           - base: 'bases:nvidia-nvc12'
             tag: 'nvidia-nvc12'
@@ -73,9 +73,9 @@ jobs:
             platform: linux/amd64
             run_tests: true
             tag_suffix: ''
-            flag: '--init --network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
+            flag: '--init  --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --network=host --device=/dev/kfd --device=/dev/dri/${HIP_DEVICE_NAME} --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
             test: 'tests/test_gpu_openmp.py'
-            runner: ["self-hosted", "amdgpu"]
+            runner: ["self-hosted", "AMDGPU"]
 
           - base: 'bases:cpu-gcc'
             tag: "gcc"
@@ -184,7 +184,7 @@ jobs:
         run: |
          docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
-           pytest -v ${{ matrix.test }}
+           pytest -n auto --dist loadscope -v ${{ matrix.test }}
 
   deploy-devito-manifest:
     needs: deploy-devito
@@ -276,13 +276,13 @@ jobs:
       matrix:
         include:
           - tag: 'nvidia-nvc'
-            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: --init --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "nvidiagpu"]
+            runner: ["self-hosted", "NVIDIAGPU"]
           - tag: 'nvidia-nvc12'
-            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: --init --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
-            runner: ["self-hosted", "nvidiagpu"]
+            runner: ["self-hosted", "NVIDIAGPU"]
           - tag: 'gcc'
             flag: '--init -t'
             test: 'tests/test_operator.py'
@@ -307,4 +307,4 @@ jobs:
         run: |
          docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
-           pytest -v ${{ matrix.test }}
+           pytest -n auto --dist loadscope -v ${{ matrix.test }}
