@@ -2,9 +2,13 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
 
 import pytest
+from packaging.version import Version
 
 from devito import configuration, switchconfig
-from devito.arch.compiler import GNUCompiler, compiler_registry, sniff_compiler_version
+from devito.arch import BLACKWELL, NVIDIAX
+from devito.arch.compiler import (
+    CudaCompiler, GNUCompiler, compiler_registry, sniff_compiler_version
+)
 
 
 @pytest.mark.parametrize("cc", [
@@ -66,3 +70,26 @@ def test_save_header_concurrent(tmp_path, monkeypatch):
     # Only complete headers are ever read, and no temporary file is left behind
     assert seen and seen <= set(codes)
     assert list(tmp_path.iterdir()) == [hfile]
+
+
+@pytest.mark.parametrize('platform,cc,target', [
+    (NVIDIAX, None, '-arch=native'),
+    (NVIDIAX, 80, '-arch=sm_80'),
+    (NVIDIAX, 90, '-arch=sm_90'),
+    (NVIDIAX, 100, '-gencode=arch=compute_100a,code=sm_100a'),
+    (NVIDIAX, 103, '-arch=sm_103'),
+    (NVIDIAX, 120, '-arch=sm_120'),
+    (BLACKWELL, None, '-gencode=arch=compute_100a,code=sm_100a'),
+    (BLACKWELL, 100, '-gencode=arch=compute_100a,code=sm_100a'),
+    (BLACKWELL, 103, '-arch=sm_103'),
+    (BLACKWELL, 120, '-arch=sm_120')
+])
+def test_cuda_target(monkeypatch, platform, cc, target):
+    with switchconfig(mpi=False), monkeypatch.context() as m:
+        m.setattr('devito.arch.compiler.get_nvidia_cc', lambda: cc)
+        m.setattr('devito.arch.compiler.get_cuda_version', lambda: Version('13.0'))
+        m.setattr('devito.arch.compiler.check_cuda_runtime', lambda: None)
+        compiler = CudaCompiler(platform=platform)
+
+    flags = [i for i in compiler.cflags if i.startswith(('-arch=', '-gencode='))]
+    assert flags == [target]
