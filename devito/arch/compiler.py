@@ -15,8 +15,9 @@ from codepy.toolchain import call_capture_output as _call_capture_output
 from packaging.version import Version
 
 from devito.arch import (
-    AMDGPUX, POWER8, POWER9, AppleArm, Cortex, Cpu64, Graviton, IntelDevice, NvidiaArm,
-    NvidiaDevice, check_cuda_runtime, get_cuda_version, get_m1_llvm_path, get_nvidia_cc
+    AMDGPUX, BLACKWELL, POWER8, POWER9, AppleArm, Cortex, Cpu64, Graviton, IntelDevice,
+    NvidiaArm, NvidiaDevice, check_cuda_runtime, get_cuda_version, get_m1_llvm_path,
+    get_nvidia_cc
 )
 from devito.exceptions import CompilationError
 from devito.logger import debug, warning
@@ -752,8 +753,16 @@ class CudaCompiler(Compiler):
                     proc_link_flags.append(i)
             self.ldflags.extend(proc_link_flags)
 
+        platform = kwargs.pop('platform', configuration['platform'])
         cc = get_nvidia_cc()
-        if cc:
+        if cc is None and platform is BLACKWELL:
+            cc = 100
+
+        if cc == 100:
+            # `-arch=sm_100a` also validates generic compute_100 PTX, which
+            # rejects architecture-specific instructions such as tcgen05
+            self.cflags.append('-gencode=arch=compute_100a,code=sm_100a')
+        elif cc:
             self.cflags.append(f'-arch=sm_{cc}')
         else:
             self.cflags.append('-arch=native')
