@@ -4,6 +4,10 @@ author: "Devito"
 
 inputs:
 # The only supported GHA input type is string
+  working-directory:
+    description: "Change to this directory before executing build"
+    required: true
+    default: "."
   uid:
     description: "Unique identifier output from docker-build action"
     required: true
@@ -51,6 +55,7 @@ runs:
       env:
         NAME: ${{ inputs.name }}
       run: |
+        cd ${{ inputs.working-directory }}
         docker run \
           --init -t --rm \
           ${{ inputs.args }} \
