@@ -229,6 +229,11 @@ def decoupler(item, m):
     if isinstance(m, int):
         env_vars['DEVITO_DECOUPLER_WORKERS'] = str(m)
 
+    # Map by and bind to should be respected if set in the environment
+    for key in ['DEVITO_DECOUPLER_MAP_BY', 'DEVITO_DECOUPLER_BIND_TO']:
+        if os.environ.get(key) is not None:
+            env_vars[key] = os.environ[key]
+
     testname = get_testname(item)
 
     pyversion = sys.executable
