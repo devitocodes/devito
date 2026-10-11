@@ -4,6 +4,10 @@ author: "Devito"
 
 inputs:
 # The only supported GHA input type is string
+  working-directory:
+    description: "Change to this directory before executing build"
+    required: true
+    default: "."
   file:
     description: "Dockerfile containing build instructions"
     required: true
@@ -41,6 +45,7 @@ runs:
       env:
         BASE: ${{ inputs.base }}
       run: |
+        cd ${{ inputs.working-directory }}
         docker build \
           --pull \
           --file ${{ inputs.file }} \
