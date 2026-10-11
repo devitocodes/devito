@@ -30,7 +30,14 @@ jobs:
             tag_suffix: '-amd64'
             # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
             # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
-            flag: --init  --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES}"
+            flag: >-
+              --cpuset-cpus="${AVAILABLE_CPUSET}"
+              --memory="${AVAILABLE_MEM}"
+              --memory-swap="${AVAILABLE_MEM}"
+              --gpus "device=${CUDA_VISIBLE_DEVICES}"
+              --env CUDA_VISIBLE_DEVICES=0
+              --env OMP_NUM_THREADS=4
+              --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "NVIDIAGPU"]
 
@@ -40,7 +47,7 @@ jobs:
             platform: linux/arm64
             run_tests: false
             tag_suffix: '-arm64'
-            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: ''
             runner: ubuntu-24.04-arm
 
@@ -52,7 +59,14 @@ jobs:
             tag_suffix: '-amd64'
             # Respect CUDA_VISIBLE_DEVICES set by the runner and hard-limit docker to that device.
             # (--gpus maps only the selected device from CUDA_VISIBLE_DEVICES)
-            flag: --init --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES}"
+            flag: >-
+              --cpuset-cpus="${AVAILABLE_CPUSET}"
+              --memory="${AVAILABLE_MEM}"
+              --memory-swap="${AVAILABLE_MEM}"
+              --gpus "device=${CUDA_VISIBLE_DEVICES}"
+              --env CUDA_VISIBLE_DEVICES=0
+              --env OMP_NUM_THREADS=4
+              --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "NVIDIAGPU"]
 
@@ -62,7 +76,7 @@ jobs:
             platform: linux/arm64
             run_tests: false
             tag_suffix: '-arm64'
-            flag: --init --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
             test: ''
             runner: ubuntu-24.04-arm
 
@@ -73,7 +87,18 @@ jobs:
             platform: linux/amd64
             run_tests: true
             tag_suffix: ''
-            flag: '--init  --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --network=host --device=/dev/kfd --device=/dev/dri/${HIP_DEVICE_NAME} --ipc=host --group-add video --group-add $(getent group render | cut -d: -f3) --cap-add=SYS_PTRACE --security-opt seccomp=unconfined'
+            flag: >-
+              --cpuset-cpus="${AVAILABLE_CPUSET}"
+              --memory="${AVAILABLE_MEM}"
+              --memory-swap="${AVAILABLE_MEM}"
+              --device=/dev/kfd --device=/dev/dri/${HIP_DEVICE_NAME}
+              --network=host
+              --ipc=host
+              --group-add video --group-add $(getent group render | cut -d: -f3)
+              --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
+              --env HIP_VISIBLE_DEVICES=0
+              --env OMP_NUM_THREADS=4
+              --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openmp.py'
             runner: ["self-hosted", "AMDGPU"]
 
@@ -83,7 +108,6 @@ jobs:
             platform: linux/amd64
             run_tests: false
             tag_suffix: '-amd64'
-            flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
@@ -93,7 +117,6 @@ jobs:
             platform: linux/arm64
             run_tests: false
             tag_suffix: '-arm64'
-            flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-24.04-arm
 
@@ -103,7 +126,6 @@ jobs:
             platform: linux/amd64
             run_tests: true
             tag_suffix: ''
-            flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
 
@@ -182,7 +204,7 @@ jobs:
       - name: Run tests
         if: ${{ matrix.run_tests }}
         run: |
-         docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
+         docker run ${{ matrix.flag }} --init -t --rm --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
            pytest -n auto --dist loadscope -v ${{ matrix.test }}
 
@@ -276,19 +298,31 @@ jobs:
       matrix:
         include:
           - tag: 'nvidia-nvc'
-            flag: --init --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: >-
+              --cpuset-cpus="${AVAILABLE_CPUSET}"
+              --memory="${AVAILABLE_MEM}"
+              --memory-swap="${AVAILABLE_MEM}"
+              --gpus "device=${CUDA_VISIBLE_DEVICES}"
+              --env CUDA_VISIBLE_DEVICES=0
+              --env OMP_NUM_THREADS=4
+              --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "NVIDIAGPU"]
           - tag: 'nvidia-nvc12'
-            flag: --init --cpuset-cpus="${AVAILABLE_CPUSET}" --memory="${AVAILABLE_MEM}" --memory-swap="${AVAILABLE_MEM}" --gpus "device=${CUDA_VISIBLE_DEVICES:-all}"
+            flag: >-
+              --cpuset-cpus="${AVAILABLE_CPUSET}"
+              --memory="${AVAILABLE_MEM}"
+              --memory-swap="${AVAILABLE_MEM}"
+              --gpus "device=${CUDA_VISIBLE_DEVICES}"
+              --env CUDA_VISIBLE_DEVICES=0
+              --env OMP_NUM_THREADS=4
+              --env PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
             test: 'tests/test_gpu_openacc.py tests/test_gpu_common.py'
             runner: ["self-hosted", "NVIDIAGPU"]
           - tag: 'gcc'
-            flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-latest
           - tag: 'gcc'
-            flag: '--init -t'
             test: 'tests/test_operator.py'
             runner: ubuntu-24.04-arm
 
@@ -305,6 +339,6 @@ jobs:
 
       - name: Run tests against multi-arch image
         run: |
-         docker run ${{ matrix.flag }} --rm -t --name "${CONTAINER_NAME}" \
+         docker run ${{ matrix.flag }} --init -t --rm --name "${CONTAINER_NAME}" \
            devitocodes/devito:${{ matrix.tag }}-dev \
            pytest -n auto --dist loadscope -v ${{ matrix.test }}

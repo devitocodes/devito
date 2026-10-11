@@ -65,9 +65,8 @@ jobs:
             --cpuset-cpus="${AVAILABLE_CPUSET}"
             --memory="${AVAILABLE_MEM}"
             --memory-swap="${AVAILABLE_MEM}"
-            --network=host
+            --network=host --ipc=host
             --device=/dev/kfd --device=/dev/dri/${HIP_DEVICE_NAME}
-            --ipc=host
             --group-add video --group-add "$(getent group render | cut -d: -f3)"
             --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
 
@@ -106,6 +105,9 @@ jobs:
           CODECOV_TOKEN=${{ secrets.CODECOV_TOKEN }}
           DEVITO_LOGGING=DEBUG
           PYTHONFAULTHANDLER=1
+          CUDA_VISIBLE_DEVICES=0
+          HIP_VISIBLE_DEVICES=0
+          OMP_NUM_THREADS=4
           PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
         command: |
           pytest \
@@ -128,7 +130,11 @@ jobs:
         uid: ${{ steps.build.outputs.unique }}
         tag: ${{ matrix.name }}
         args: ${{ matrix.dockerflags }}
-        env: PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
+        env: |
+          CUDA_VISIBLE_DEVICES=0
+          HIP_VISIBLE_DEVICES=0
+          OMP_NUM_THREADS=4
+          PYTEST_XDIST_AUTO_NUM_WORKERS=${PYTEST_XDIST_AUTO_NUM_WORKERS}
         command: |
           pytest \
             -n auto --dist loadscope \
@@ -145,6 +151,9 @@ jobs:
           CI=true
           DEVITO_LOGGING=DEBUG
           DEVITO_MPI=1
+          CUDA_VISIBLE_DEVICES=0
+          HIP_VISIBLE_DEVICES=0
+          OMP_NUM_THREADS=4
         command: |
           mpiexec -n 2 \
             pytest \
