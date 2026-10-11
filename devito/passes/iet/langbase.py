@@ -574,7 +574,9 @@ def make_sections_from_imask(f, imask=None):
         # that the symbol `start` is actually a temporary whose value already
         # represents the unrolled size
         if not isinstance(start, Wildcard):
-            start *= remainder_size
+            # Slot offsets follow the allocation, not the transferred payload size
+            remainder_stride = prod(f.symbolic_shape[len(imask):])
+            start *= remainder_stride
         size *= remainder_size
         sections.append((start, size))
 
