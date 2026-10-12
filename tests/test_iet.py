@@ -1,4 +1,5 @@
 import pickle
+import threading
 from copy import deepcopy
 from ctypes import POINTER, c_void_p
 
@@ -13,15 +14,16 @@ from devito import (  # noqa
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
-    ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, ThreadFence, Transformer, filter_iterations, make_callable, make_efunc,
-    retrieve_iteration_tree
+    ElementalFunction, EntryFunction, FindNodes, FindSymbols, Iteration, KernelLaunch,
+    Lambda, List, MetaCall, Prodder, Switch, ThreadFence, Transformer, Uxreplace,
+    filter_iterations, make_callable, make_efunc, retrieve_iteration_tree
 )
-from devito.ir.iet.visitors import sorted_efuncs
+from devito.ir.iet.visitors import _find_symbols_cache, sorted_efuncs
 from devito.passes.iet.engine import (
     Graph, _contains, _update_args_efunc, create_call_graph, reuse_efuncs
 )
 from devito.passes.iet.languages.C import CDataManager
+from devito.passes.iet.languages.openmp import ThreadedProdder
 from devito.symbolics import (
     FLOAT, Byref, Class, FieldFromComposite, InlineIf, ListInitializer, Macro, SizeOf,
     String
@@ -181,21 +183,187 @@ def test_find_symbols_cached_sort_keys():
     temporaries = [Temp(name=f'r{i}') for i in range(12)]
     call = Call('foo', temporaries[::-1])
 
-    with FindSymbols.caching_sort_keys():
+    with FindSymbols.caching():
         for _ in range(2):
             found = FindSymbols('basics').visit(call)
             assert [i.name for i in found] == [i.name for i in temporaries]
-        assert len(FindSymbols._sort_keys) == len(temporaries)
+        assert len(_find_symbols_cache.get().sort_keys) == len(temporaries)
 
-    # Released on exit, and never retained beyond an Operator build
-    assert FindSymbols._sort_keys is None
 
+def _make_iet():
+    """
+    An IET exercising most node types, along with the objects it is made of.
+    """
+    grid = Grid(shape=(4, 4))
+    x, y = grid.dimensions
+    f = Function(name='f', grid=grid)
+    g = Array(name='g', dimensions=(x, y), shape=(4, 4))
+    # Same name, yet distinct objects
+    q0 = Constant(name='q', value=1.)
+    q1 = Constant(name='q', value=2.)
+    s = Symbol(name='s')
+
+    # Appears under two parents
+    shared = DummyExpr(s, q1, init=True)
+    # An imperfect nest
+    nest = Iteration([shared, Iteration(DummyExpr(g[x, y], f[x, y] + q0), y, 3)], x, 3)
+    body = List(body=[
+        nest,
+        Call('foo', [Call('bar', [s, g.indexed])]),
+        Conditional(s > 0, shared),
+        ThreadedProdder(Prodder('prod', [q0]))
+    ])
+    parameters = [f, g, q0, q1]
+    roots = [Callable('kernel', body, 'void', parameters=parameters),
+             EntryFunction('entry', body, 'int', parameters=parameters)]
+
+    return roots, {'f': f, 'g': g, 'q0': q0, 'q1': q1, 's': s, 'x': x, 'y': y}
+
+
+def _fingerprint(found, objects):
+    labels = {id(v): k for k, v in objects.items()}
+    return [(labels.get(id(i)), type(i).__name__, str(i)) for i in found]
+
+
+@pytest.mark.parametrize('mode', list(FindSymbols.rules) + ['basics|symbolics'])
+@pytest.mark.parametrize('ordered', [True, False])
+def test_find_symbols_caching_cold(mode, ordered):
+    """
+    Searching a freshly built IET finds the same symbols with and without caching.
+
+    The order is compared on the same IET by `test_find_symbols_caching_warm`, as
+    the traversal order of equivalent IETs may differ (`free_symbols` is a set).
+    """
+    roots0, objects0 = _make_iet()
+    roots1, objects1 = _make_iet()
+
+    expected = [sorted(_fingerprint(FindSymbols(mode, ordered=ordered).visit(i),
+                                    objects0), key=str)
+                for i in roots0]
+    with FindSymbols.caching():
+        found = [sorted(_fingerprint(FindSymbols(mode, ordered=ordered).visit(i),
+                                     objects1), key=str)
+                 for i in roots1]
+
+    assert found == expected
+
+
+@pytest.mark.parametrize('ordered', [True, False])
+def test_find_symbols_caching_warm(ordered):
+    roots, _ = _make_iet()
+
+    for root in roots:
+        for mode in FindSymbols.rules:
+            expected = [id(i) for i in FindSymbols(mode, ordered=ordered).visit(root)]
+            with FindSymbols.caching():
+                for _ in range(2):
+                    found = FindSymbols(mode, ordered=ordered).visit(root)
+                    assert [id(i) for i in found] == expected
+                    # Callers may modify the result
+                    found.clear()
+
+
+def test_find_symbols_caching_rebuild():
+    roots, objects = _make_iet()
+    t = Symbol(name='t')
+
+    with FindSymbols.caching():
+        FindSymbols('basics').visit(roots[0])
+        root = Uxreplace({objects['s']: t}).visit(roots[0])
+        found = FindSymbols('basics').visit(root)
+
+    assert t in found and objects['s'] not in found
+    assert [id(i) for i in found] == [id(i) for i in FindSymbols('basics').visit(root)]
+
+
+def test_find_symbols_caching_operator():
+    """
+    Operators are never cached, as their function table may change.
+    """
+    grid = Grid(shape=(4, 4))
+    u = TimeFunction(name='u', grid=grid)
+    h = Function(name='h', grid=grid)
+    op = Operator(Eq(u.forward, u + 1))
+    efunc = Callable('extra', Call('bar', [h]), 'void', parameters=[h])
+
+    with FindSymbols.caching():
+        assert h not in FindSymbols().visit(op)
+        op._func_table['extra'] = MetaCall(efunc, True)
+        assert h in FindSymbols().visit(op)
+        del op._func_table['extra']
+        assert h not in FindSymbols().visit(op)
+
+
+def test_find_symbols_caching_subclass():
+    class FindNothing(FindSymbols):
+        rules = {k: (lambda n: ()) for k in FindSymbols.rules}
+
+    roots, _ = _make_iet()
+
+    with FindSymbols.caching():
+        assert FindSymbols('basics').visit(roots[0])
+        assert FindNothing('basics').visit(roots[0]) == []
+        assert FindSymbols('basics').visit(roots[0])
+
+
+def test_find_symbols_caching_context():
+    assert _find_symbols_cache.get() is None
+
+    with FindSymbols.caching():
+        cache = _find_symbols_cache.get()
+        assert cache is not None
+        # Nested contexts share the caches
+        with FindSymbols.caching():
+            assert _find_symbols_cache.get() is cache
+        assert _find_symbols_cache.get() is cache
+    assert _find_symbols_cache.get() is None
+
+    with pytest.raises(ValueError), FindSymbols.caching():
+        raise ValueError
+    assert _find_symbols_cache.get() is None
+
+    # Never retained beyond an Operator build
     grid = Grid(shape=(4, 4))
     u = TimeFunction(name='u', grid=grid)
     op = Operator(Eq(u.forward, u + 1))
-    assert FindSymbols._sort_keys is None
+    assert _find_symbols_cache.get() is None
     assert op.dimensions
-    assert FindSymbols._sort_keys is None
+    assert _find_symbols_cache.get() is None
+
+
+def test_find_symbols_caching_threads():
+    """
+    Threads have their own caches, even when their contexts do not nest.
+    """
+    entered = threading.Barrier(2)
+    exited = threading.Barrier(2)
+    seen = {}
+
+    def first():
+        with FindSymbols.caching():
+            seen['first'] = _find_symbols_cache.get()
+            entered.wait()
+        # Exits while `second` is still within its context
+        exited.wait()
+        seen['first-after'] = _find_symbols_cache.get()
+
+    def second():
+        with FindSymbols.caching():
+            seen['second'] = _find_symbols_cache.get()
+            entered.wait()
+            exited.wait()
+        seen['second-after'] = _find_symbols_cache.get()
+
+    threads = [threading.Thread(target=i) for i in (first, second)]
+    for i in threads:
+        i.start()
+    for i in threads:
+        i.join()
+
+    assert seen['first'] is not None and seen['second'] is not None
+    assert seen['first'] is not seen['second']
+    assert seen['first-after'] is None and seen['second-after'] is None
+    assert _find_symbols_cache.get() is None
 
 
 def test_find_symbols_cached_sort_keys_identity():
@@ -219,7 +387,7 @@ def test_find_symbols_cached_sort_keys_identity():
 
     a, b = Sym('b'), Sym('a')
 
-    with FindSymbols.caching_sort_keys():
+    with FindSymbols.caching():
         for _ in range(2):
             assert FindSymbols()._post_visit([a, b]) == [b, a]
 

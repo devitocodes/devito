@@ -186,7 +186,7 @@ class Operator(Callable):
         # Lower to a JIT-compilable object
         with timed_region('op-compile') as r:
             try:
-                with FindSymbols.caching_sort_keys():
+                with FindSymbols.caching():
                     op = cls._build(expressions, **kwargs)
             finally:
                 CacheInstances.clear_caches()
