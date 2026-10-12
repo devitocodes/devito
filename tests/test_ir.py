@@ -27,6 +27,9 @@ from devito.ir.support.space import (
     NullInterval, null_ispace
 )
 from devito.ir.support.utils import detect_halo_writes
+from devito.passes.clusters.fusion import (
+    BREAK, EDGE, Fusion, _fusion_hazards, _maybe_break
+)
 from devito.symbolics import DefFunction, FieldFromPointer, uxreplace
 from devito.tools import Stamp, prod
 from devito.tools.data_structures import frozendict
@@ -1836,6 +1839,71 @@ class TestClusterGroup:
         assert ClusterGroup([rebuilt]).local_sums == (inner,)
         assert cluster.local_sums == (inner, outer)
         assert not cluster.rebuild(exprs=[Eq(f[x], 0)]).local_sums
+
+
+class TestFusionDAG:
+
+    @pytest.fixture
+    def setup(self):
+        d = Dimension(name='d')
+        x = Dimension(name='x')
+        ispace = IterationSpace([Interval(d), Interval(x)])
+        f, g, h = [Function(name=n, dimensions=(d, x), shape=(4, 4)) for n in 'fgh']
+
+        def cgroups(*exprs):
+            return [ClusterGroup(Cluster(e, ispace), ispace) for e in exprs]
+
+        return d, x, f, g, h, cgroups
+
+    def test_no_break(self, setup):
+        d, x, f, g, h, cgroups = setup
+
+        # Reads behind or at the write along `d` aren't carried anti-dependences
+        for write, hazard in [(f[d, x], EDGE), (f[d + 1, x], None)]:
+            cgs = cgroups(Eq(g[d, x], f[d, x]), Eq(write, 1))
+            assert not _maybe_break(cgs, frozenset({d}))
+            assert _fusion_hazards(cgs[0].scope, cgs[1].scope, frozenset({d})) == hazard
+
+    def test_break(self, setup):
+        d, x, f, g, h, cgroups = setup
+
+        # Reading `f` ahead of the next write along `d` is
+        cgs = cgroups(Eq(g[d, x], f[d + 1, x]), Eq(f[d, x], 1), Eq(h[d, x], 1))
+        assert _maybe_break(cgs, frozenset({d}))
+        assert _fusion_hazards(cgs[0].scope, cgs[1].scope, frozenset({d})) == BREAK
+
+        # Hence the full DAG, `BREAK` edges included
+        dag = Fusion(toposort=True)._build_dag(cgs, [Interval(d)])
+        assert set(dag.edges) == {(cgs[0], cgs[1]), (cgs[1], cgs[2])}
+
+    def test_break_stencil_reads(self):
+        x = Dimension(name='x')
+        s = StencilDimension('s', 0, 1)
+        ispace = IterationSpace([Interval(x)])
+        f, g = [Function(name=n, dimensions=(x,), shape=(4,)) for n in 'fg']
+
+        # The read `f[x + s]` expands to `f[x]` and `f[x + 1]`, the latter
+        # being ahead of the write along `x`
+        cgs = [ClusterGroup(Cluster(e, ispace), ispace)
+               for e in (Eq(g[x], f[x + s]), Eq(f[x + s], 1))]
+        assert _maybe_break(cgs, frozenset({x}))
+
+    def test_transitive_reduction(self, setup):
+        d, x, f, g, h, cgroups = setup
+
+        # `h` depends on both `f` and `g`, but `(cg0, cg2)` is implied by
+        # `cg0 -> cg1 -> cg2`
+        cgs = cgroups(Eq(f[d, x], 1), Eq(g[d, x], f[d, x]),
+                      Eq(h[d, x], f[d, x] + g[d, x]))
+        dag = Fusion(toposort=True)._build_dag(cgs, [Interval(d)])
+        assert set(dag.edges) == {(cgs[0], cgs[1]), (cgs[1], cgs[2])}
+        assert dag.all_downstreams(cgs[0]) == [cgs[1], cgs[2]]
+
+        # A fence orders everything around it, even absent data dependences
+        cgs = cgroups(Eq(f[d, x], 1), Eq(Symbol(name='s'), CriticalRegion(True)),
+                      Eq(g[d, x], 1))
+        dag = Fusion(toposort=True)._build_dag(cgs, [Interval(d)])
+        assert set(dag.edges) == {(cgs[0], cgs[1]), (cgs[1], cgs[2])}
 
 
 class TestGuards:
