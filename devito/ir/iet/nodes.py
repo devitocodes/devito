@@ -503,7 +503,7 @@ class Expression(ExprStmt, Node):
     def defines(self):
         return (self.output.base,) if self.is_initializable else ()
 
-    @property
+    @cached_property
     def expr_symbols(self):
         return tuple(self.expr.free_symbols)
 

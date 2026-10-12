@@ -723,6 +723,26 @@ def _(i, mapper, sregistry):
     mapper[i] = i._rebuild(name=sregistry.make_name(prefix='nthreads'))
 
 
+def _contains(found):
+    """
+    Membership test over `found` with list semantics. A set is used as a fast
+    path, but some symbols (e.g. `DataSymbol`s) compare structurally while
+    hashing by identity, so misses fall back to the list.
+    """
+    try:
+        lookup = set(found)
+    except TypeError:
+        lookup = set()
+
+    def contains(a):
+        with suppress(TypeError):
+            if a in lookup:
+                return True
+        return a in found
+
+    return contains
+
+
 def _update_args_efunc(root, efuncs, dag):
     """
     Re-derive the parameters of `root` and apply the changes in cascade through
@@ -763,19 +783,19 @@ def _update_args_efunc(root, efuncs, dag):
 
     # 2) defined a symbol for which no definition was available yet (e.g.
     # via a malloc, or a Dereference)
-    defines = FindSymbols('defines').visit(root.body)
-    drop_params = [a for a in root.parameters if a in defines]
+    in_defines = _contains(FindSymbols('defines', ordered=False).visit(root.body))
+    drop_params = [a for a in root.parameters if in_defines(a)]
 
     # 3) removed a symbol that was previously necessary (e.g., `x_size` after
     # linearization)
-    symbols = FindSymbols('basics').visit(root.body)
+    in_symbols = _contains(FindSymbols('basics', ordered=False).visit(root.body))
     drop_params.extend(a for a in root.parameters
-                       if (a.is_Symbol or a.is_LocalObject) and a not in symbols)
+                       if (a.is_Symbol or a.is_LocalObject) and not in_symbols(a))
 
     # 4) removed a function that was previously necessary
-    functions = FindSymbols('symbolics').visit(root.body)
+    in_functions = _contains(FindSymbols('symbolics', ordered=False).visit(root.body))
     drop_params.extend(a for a in root.parameters
-                       if a.is_AbstractFunction and a not in functions)
+                       if a.is_AbstractFunction and not in_functions(a))
 
     # Must record the index, not the param itself, since a param may be
     # bound to whatever arg, possibly a generic SymPy expr
