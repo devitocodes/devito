@@ -1128,4 +1128,8 @@ def test_buffering_multi_cond(factor):
     eq_all.append(Eq(f_all, f, implicit_dims=ctend))
     op_all = Operator(eq_all, opt='buffering')
     op_all.apply(time_m=0, time_M=ntmod-2)
-    assert np.allclose(f_all.data[:, 11, 11], factor * np.arange(nt))
+    expected = factor * np.arange(nt)
+    if (ntmod - 2) % factor == 0:
+        # The last sample is on the subsampled grid, hence no extra slot
+        expected[-2:] = [ntmod - 1, 0]
+    assert np.allclose(f_all.data[:, 11, 11], expected)
