@@ -8,6 +8,7 @@ import ctypes
 from collections import OrderedDict
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
 from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 
@@ -1073,6 +1074,23 @@ class MapNodes(Visitor):
         return ret
 
 
+class FindSymbolsCache:
+
+    """
+    The caches populated by FindSymbols within `FindSymbols.caching`.
+    """
+
+    def __init__(self):
+        # `{id(obj): (obj, sort key)}`
+        self.sort_keys = {}
+        # `{(id(node), mode, ordered): (node, symbols)}`
+        self.results = {}
+
+
+# Per execution context, so concurrent threads do not share caches
+_find_symbols_cache = ContextVar('find_symbols_cache', default=None)
+
+
 class FindSymbols(LazyVisitor[Any, list[Any], None]):
 
     """
@@ -1121,24 +1139,43 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         'defines-aliases': _defines_aliases
     }
 
-    # Sort keys cached while an Operator is built, see `caching_sort_keys`
-    _sort_keys: dict[int, tuple[Any, Any]] | None = None
-
     @classmethod
     @contextmanager
-    def caching_sort_keys(cls):
+    def caching(cls):
         """
-        Cache the sort keys within this context, as the same symbols are sorted
-        over and over while an Operator is built. The cache is keyed by identity,
-        since symbols may compare equal yet print differently, and retains each
-        symbol so its id cannot be reused. It is released on exit.
+        Cache results and sort keys within this context, as the same IETs are
+        searched over and over while an Operator is built. The caches are keyed
+        by identity and retain the keyed objects, so ids cannot be reused; nested
+        contexts share them, and they are released on exit of the outermost one.
         """
-        prev = cls._sort_keys
-        cls._sort_keys = {} if prev is None else prev
+        if _find_symbols_cache.get() is not None:
+            yield
+            return
+
+        token = _find_symbols_cache.set(FindSymbolsCache())
         try:
             yield
         finally:
-            cls._sort_keys = prev
+            _find_symbols_cache.reset(token)
+
+    def visit(self, o):
+        cache = _find_symbols_cache.get()
+        # Only Nodes handled by `visit_Node` are cached, as some others (e.g.
+        # Operators) carry state that may change after construction
+        if cache is None or \
+           type(self) is not FindSymbols or \
+           self.lookup_method(o).__func__ is not FindSymbols.visit_Node:
+            return super().visit(o)
+
+        key = (id(o), self.mode, self.ordered)
+        try:
+            found = cache.results[key][1]
+        except KeyError:
+            found = tuple(super().visit(o))
+            cache.results[key] = (o, found)
+
+        # A copy, as callers may modify the result
+        return list(found)
 
     def __init__(self, mode: str = 'symbolics', ordered: bool = True) -> None:
         super().__init__()
@@ -1156,16 +1193,17 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         if not self.ordered:
             return found
 
-        cache = self._sort_keys
+        cache = _find_symbols_cache.get()
         if cache is None:
             return sorted(found, key=natural_sort_key)
+        sort_keys = cache.sort_keys
 
         def key(i):
             try:
-                return cache[id(i)][1]
+                return sort_keys[id(i)][1]
             except KeyError:
                 v = natural_sort_key(i)
-                cache[id(i)] = (i, v)
+                sort_keys[id(i)] = (i, v)
                 return v
 
         return sorted(found, key=key)
