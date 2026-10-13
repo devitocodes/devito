@@ -186,6 +186,36 @@ class TestCodeGeneration:
             assert len(iters) == len(v)
             assert all(i.step == j for i, j in zip(iters, v, strict=True))
 
+    @pytest.mark.parametrize('shifted', [False, True])
+    def test_short_multi_tile_time_update(self, shifted):
+        grid = Grid(shape=(8, 8, 8))
+        t = grid.stepping_dim
+        x, y, z = grid.dimensions
+        u = TimeFunction(name='u', grid=grid)
+
+        source = u[t, x + 1, y, z] if shifted else u
+        op = Operator(Eq(u.forward, source + 1), name='short_tile_time_update',
+                      platform='nvidiaX', language='openacc',
+                      opt=('advanced', {'par-tile': ((16, 4), (8, 8)),
+                                        'blocklevels': 1, 'blockinner': True,
+                                        'blockrelax': 'device-aware'}))
+
+        root = 'y0_blk0' if shifted else 'x0_blk0'
+        bns, _ = assert_blocking(op, {root})
+        iters = FindNodes(Iteration).visit(bns[root])
+        steps = [i.step for i in iters if i.dim.is_Block and i.dim._depth == 1]
+        assert steps == ([4, 16] if shifted else [4, 4, 16])
+
+        tree, = retrieve_iteration_tree(op)
+        assert tree[0].dim is grid.time_dim
+        if shifted:
+            assert tree[1].dim is x
+            assert tree[1].limits == (x.symbolic_min, x.symbolic_max, 1)
+        else:
+            assert all(i.dim.is_Block for i in tree[1:])
+        assert tree[1].pragmas[0].ccode.value ==\
+            'acc parallel loop tile(16,4,4) present(u)'
+
     def test_multi_tile_blocking_structure(self):
         grid = Grid(shape=(8, 8, 8))
 
