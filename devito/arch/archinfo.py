@@ -753,8 +753,12 @@ def get_platform():
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']
-        elif 'm1' in brand:
-            return platform_registry['m1']
+        elif 'apple m' in brand:
+            # Apple silicon: "Apple M1", "Apple M2 Pro", "Apple M4 Max", ...
+            # Chips newer than the registered ones are still AppleArm; the
+            # exact `march` is derived at runtime by `AppleArm.march`
+            key = brand.split('apple ')[1].split()[0]
+            return platform_registry.get(key, platform_registry['m3'])
         elif 'amd' in brand:
             return platform_registry['amd']
     except:
