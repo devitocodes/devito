@@ -153,7 +153,7 @@ jobs:
           DEVITO_MPI=1
           CUDA_VISIBLE_DEVICES=0
           HIP_VISIBLE_DEVICES=0
-          OMP_NUM_THREADS=4
+          OMP_NUM_THREADS=1
         command: |
           mpiexec -n 2 \
             pytest \
