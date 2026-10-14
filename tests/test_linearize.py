@@ -737,3 +737,26 @@ def test_bundle_derived_dim_stride():
     assert bundle.symbolic_shape[p] is not bundle.symbolic_shape[rp]
     assert bundle.symbolic_shape[rp] == 2
     assert bundle.symbolic_shape.dindex(rp) == 1
+
+
+@pytest.mark.parametrize('opt', [
+    (('linearize',), {}),
+    (('linearize',), {'linearize': True}),
+    (('openmp', 'linearize'), {'linearize': True}),
+])
+def test_linearize_as_pass(opt):
+    """
+    Listing `linearize` among the passes enables linearization after the
+    symbol definitions are in place, as with `opt=('advanced', {'linearize': True})`.
+    """
+    grid = Grid(shape=(4, 4))
+
+    u = TimeFunction(name='u', grid=grid)
+
+    op = Operator(Eq(u.forward, u + 1), opt=opt, name='LinearizeAsPass')
+
+    assert 'uL0' in str(op)
+
+    op.apply(time_M=2)
+
+    assert np.all(u.data[1] == 3)

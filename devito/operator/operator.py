@@ -1667,6 +1667,12 @@ def parse_kwargs(**kwargs):
     if isinstance(overrides, dict):
         options.update(overrides)
 
+    # A listed `linearize` (e.g., `opt=('linearize', {})`) must run after the
+    # symbol definitions, so it is turned into the homonymous option
+    if mode and 'linearize' in as_tuple(mode):
+        options.setdefault('linearize', True)
+        mode = tuple(i for i in as_tuple(mode) if i != 'linearize')
+
     # `opt`, deprecated kwargs
     kwopenmp = kwargs.get('openmp', options.get('openmp'))
     if kwopenmp is None:
