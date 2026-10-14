@@ -14,7 +14,7 @@ except ImportError:
 from devito.finite_differences.differentiable import IndexSum
 from devito.ir import Cluster, Scope, cluster_pass
 from devito.symbolics import (
-    DefFunction, Reserved, estimate_cost, q_leaf, q_terminal, search
+    DefFunction, IndexedPointer, Reserved, estimate_cost, q_leaf, q_terminal, search
 )
 from devito.symbolics.manipulation import _uxreplace
 from devito.tools import DAG, as_list, as_tuple, extract_dtype, frozendict
@@ -418,11 +418,17 @@ def _(expr):
 
 
 @_catch.register(Indexed)
+@_catch.register(IndexedPointer)
 @_catch.register(Symbol)
 @_catch.register(Reserved)
 def _(expr):
     """
     Handler for objects preventing CSE to propagate through their arguments.
+
+    For IndexedPointer (e.g. `f_vec->sizes[(time / ct0f) + ...]`) this also
+    keeps integer index expressions out of a floating-point cluster's CSE
+    temporaries, which `cse_dtype` would otherwise declare as floating-point
+    and thus produce non-integral array subscripts.
     """
     return {}
 

@@ -11,7 +11,7 @@ from devito.finite_differences.differentiable import diffify
 from devito.ir import Conditional, DummyEq, FindNodes, FindSymbols
 from devito.ir.support import generator
 from devito.passes.clusters.cse import CTemp, _cse
-from devito.symbolics import DefFunction, indexify
+from devito.symbolics import DefFunction, FieldFromPointer, IndexedPointer, indexify
 from devito.types import Array, Symbol, Temp
 
 
@@ -152,6 +152,33 @@ def test_deffunction_not_captured():
 
     # The two calls are left in place, uncaptured
     assert processed == exprs
+
+
+def test_indexedpointer_index_not_captured():
+    """
+    The index of an IndexedPointer (e.g. `f_vec->sizes[...]`) must not be
+    CSE-captured: in a floating-point cluster `cse_dtype` would bind the
+    integer index to a floating-point temporary, yielding a non-integral
+    array subscript that does not compile (nvcc, hipcc).
+    """
+    time = Symbol(name='time', dtype=np.int32)
+    fac = Symbol(name='fac', dtype=np.int32)
+    vec = Symbol(name='f_vec', dtype=np.int32)
+    a = CTemp(name='a', dtype=np.float32)
+    b = CTemp(name='b', dtype=np.float32)
+
+    index = time/fac + 2*time
+    sizes = IndexedPointer(FieldFromPointer('sizes', vec), index)
+    offs = IndexedPointer(FieldFromPointer('offs', vec), index)
+    exprs = [DummyEq(a, sizes + 1.), DummyEq(b, offs + sizes)]
+
+    counter = generator()
+    make = lambda e: CTemp(name=f'r{counter()}', dtype=np.float32)
+    processed = _cse(exprs, make)
+
+    for e in processed:
+        for i in e.find(IndexedPointer):
+            assert not any(isinstance(s, CTemp) for s in i.index.free_symbols)
 
 
 def test_w_conditionals():
