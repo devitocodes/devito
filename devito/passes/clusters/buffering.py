@@ -1015,6 +1015,10 @@ def _overwritten(v, c, idxf, descriptors, order, d):
     for v1 in descriptors.flat_values():
         if v1.f is not v.f or v1.is_readonly:
             continue
+        # Copy-backs out of the same buffer are already serialized, since the
+        # buffer cannot be refilled before its previous copy-back is completed
+        if v1.b is v.b:
+            continue
 
         for c1 in v1.lastwrite:
             if order.get(c1, -1) <= order[c]:
@@ -1038,7 +1042,9 @@ def _overwritten(v, c, idxf, descriptors, order, d):
             else:
                 coincide = CondEq(shift, 0)
 
-            conditions.append(And(c1.guards.get(d, true), coincide))
+            # The later copy-back fires under all of its guards, which may be
+            # keyed on Dimensions derived from `d` (e.g., a layer Dimension)
+            conditions.append(And(*c1.guards.values(), coincide))
 
     if not conditions:
         return None
