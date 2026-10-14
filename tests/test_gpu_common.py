@@ -17,7 +17,9 @@ from devito.ir import (
     Conditional, Expression, FindNodes, FindSymbols, Section, retrieve_iteration_tree
 )
 from devito.passes.iet.languages.openmp import OmpIteration
-from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol
+from devito.types import (
+    DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol, device_layer
+)
 
 pytestmark = skipif(['nodevice'], whole_module=True)
 
@@ -163,11 +165,14 @@ class TestDeviceID:
             argmap1 = op1.arguments()
             assert argmap1._physical_deviceid == expected
 
-        # In default case, physical deviceid will equal rank
+        # In default case, physical deviceid is `rank % ngpus`, as in the
+        # generated code, so its memory can be queried also with more ranks
+        # than devices
         with switchenv({i: None for i in self.visible_device_envs}):
             op2 = Operator(eq)
             argmap2 = op2.arguments()
-            assert argmap2._physical_deviceid == rank
+            assert argmap2._physical_deviceid == rank % op2._platform.numa_domains
+            assert isinstance(argmap2.nbytes_avail_mapper[device_layer], int)
 
     def test_visible_devices_with_devito_deviceid(self):
         """Test interaction between CUDA_VISIBLE_DEVICES and DEVITO_DEVICEID"""
