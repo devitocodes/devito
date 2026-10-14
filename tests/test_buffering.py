@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Or
+from sympy import Not, Or
 
 from conftest import skipif
 from devito import (
@@ -11,7 +11,8 @@ from devito import (
 from devito.arch.archinfo import AppleArm
 from devito.exceptions import CompilationError
 from devito.ir import (
-    Cluster, FindSymbols, Interval, IterationSpace, lower_exprs, retrieve_iteration_tree
+    Cluster, Conditional, FindNodes, FindSymbols, Interval, IterationSpace, lower_exprs,
+    retrieve_iteration_tree
 )
 from devito.passes.clusters.buffering import BufferDimension, expand_halo_transfers
 from devito.types import Array
@@ -1087,6 +1088,47 @@ def test_deferred_guard_no_fit():
     # `f[t]` is overwritten by the main stream at iteration `t` for t < nt-1,
     # while `f[nt-1]` retains the value of the guarded write at `t = nt-2`
     expected = np.append(np.arange(nt-1), 100. + nt - 2)
+    assert np.allclose(f.data[:, 1, 1], expected)
+
+
+@pytest.mark.parametrize("factor", [1, 2, 3])
+def test_buffering_same_slot_single_copyback(factor):
+    """
+    A subsampled save and a CondEq save into the same Function land on the same
+    slot when the CondEq point is on the subsampled grid. Only one copy-back,
+    carrying the last value, must then be performed: the copy-back of the first
+    write is skipped whenever the second one overwrites its slot. Asynchronous
+    copy-backs (e.g., to disk) would otherwise write the slot concurrently.
+    """
+    grid = Grid((4, 4))
+
+    nt = 5
+    ntmod = (nt - 1) * factor + 1
+    last = ntmod - 2
+    on_grid = last % factor == 0
+    nsave = nt - 1 if on_grid else nt
+
+    ct0 = ConditionalDimension(name="ct0", parent=grid.time_dim, factor=factor,
+                               relation=Or)
+    ctend = ConditionalDimension(name="ctend", parent=grid.time_dim,
+                                 condition=CondEq(grid.time_dim, last),
+                                 relation='strict')
+    f = TimeFunction(grid=grid, name='f', time_order=0, space_order=0,
+                     time_dim=ct0, save=nsave)
+    T = TimeFunction(grid=grid, name='T', time_order=0, space_order=0)
+
+    eqs = [Eq(T, grid.time_dim), Eq(f, T), Eq(f, T+1, implicit_dims=ctend)]
+
+    op = Operator(eqs, opt='buffering')
+
+    # The first copy-back is skipped when the second one targets the same slot
+    skips = [i for i in FindNodes(Conditional).visit(op) if i.condition.has(Not)]
+    assert len(skips) == 1
+
+    op.apply(time_m=0, time_M=last)
+
+    expected = factor * np.arange(nsave)
+    expected[-1] = last + 1
     assert np.allclose(f.data[:, 1, 1], expected)
 
 

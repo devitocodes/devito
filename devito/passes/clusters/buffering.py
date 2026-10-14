@@ -3,8 +3,9 @@ from functools import cached_property
 from itertools import chain, groupby
 
 import numpy as np
+from sympy import And
 from sympy import Eq as SympyEq
-from sympy import Ne, S, simplify
+from sympy import Ne, Not, Or, S, simplify, true
 
 from devito.exceptions import CompilationError
 from devito.ir import (
@@ -13,7 +14,7 @@ from devito.ir import (
 )
 from devito.logger import warning
 from devito.passes.clusters.utils import is_memcpy
-from devito.symbolics import IntDiv, retrieve_functions, uxreplace
+from devito.symbolics import CondEq, IntDiv, retrieve_functions, uxreplace
 from devito.tools import (
     Stamp, as_mapper, as_tuple, filter_ordered, flatten, frozendict, is_integer,
     timed_pass
@@ -184,6 +185,10 @@ class InjectBuffers(Queue):
         # E.g., `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`
         subs = make_buffer_subs(descriptors, mds, d)
 
+        # Program order of the Clusters, to spot copy-backs into a slot that a
+        # later copy-back in the same iteration overwrites
+        order = {c: i for i, c in enumerate(clusters)}
+
         processed = []
         for c in clusters:
             # If a buffer is read but never written, then we need to add
@@ -258,6 +263,15 @@ class InjectBuffers(Queue):
                     guards = c.guards.xandg(v.xd, GuardBound(0, v.first_idx.f))
                 else:
                     guards = c.guards
+
+                # Skip the copy-back when a later one in the same iteration
+                # writes the same slot, so that a single (possibly asynchronous)
+                # copy-back per slot is performed, carrying the last value
+                overwritten = _overwritten(v, c, idxf, descriptors, order, d)
+                if overwritten is true:
+                    continue
+                elif overwritten is not None:
+                    guards = guards.xandg(d, Not(overwritten))
 
                 properties = c.properties.sequentialize(d)
 
@@ -983,6 +997,52 @@ def _underlying_buffer(clusters):
             return buffers.pop()
 
     return None
+
+
+def _overwritten(v, c, idxf, descriptors, order, d):
+    """
+    The condition under which the copy-back of `v` following the Cluster `c`,
+    into the slot `idxf` of `v.f`, is overwritten by a later copy-back into the
+    same slot within the same iteration of `d`. None if it is never overwritten.
+
+    For example, given a subsampled save `Eq(usave, u)` and a save of the last
+    timestep `Eq(usave, u, implicit_dims=clast)`, both copy-backs target the same
+    slot whenever the last timestep falls onto the subsampled grid. Performing
+    both would be redundant and, with asynchronous copy-backs (e.g. to disk),
+    racy, as the two writes into the slot would be performed concurrently.
+    """
+    conditions = []
+    for v1 in descriptors.flat_values():
+        if v1.f is not v.f or v1.is_readonly:
+            continue
+
+        for c1 in v1.lastwrite:
+            if order.get(c1, -1) <= order[c]:
+                continue
+            if c1.guards.get(d) != v1.guards.get(d):
+                continue
+            # The later copy-back must write the whole slot written by `v`
+            key = lambda i: i in v.bdims  # noqa: B023
+            if c1.ispace.project(key) != c.ispace.project(key):
+                continue
+            # A guard over other Dimensions may restrict the later copy-back to
+            # a portion of the slot only
+            if any(not dd._defines & d._defines for dd in c1.guards):
+                continue
+
+            shift = v1.last_idx[c1] - idxf
+            if shift.is_Number:
+                if shift != 0:
+                    continue
+                coincide = true
+            else:
+                coincide = CondEq(shift, 0)
+
+            conditions.append(And(c1.guards.get(d, true), coincide))
+
+    if not conditions:
+        return None
+    return Or(*conditions)
 
 
 def _fits_buffer(f, clusters, b):
