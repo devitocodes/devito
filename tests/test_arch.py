@@ -23,20 +23,11 @@ def test_gcc(cc):
     ('Apple M1', 'm1'),
     ('Apple M2 Pro', 'm2'),
     ('Apple M3 Max', 'm3'),
-    ('Apple M4 Max', 'm3'),  # newer than the registry: still AppleArm
+    ('Apple M4 Max', 'm3'),
 ])
 def test_detect_apple_silicon(monkeypatch, brand, expected):
-    """
-    Platform autodetection must classify every Apple-silicon brand string as
-    AppleArm, not just "Apple M1"; otherwise `skipif('cpu64-arm')` does not
-    fire and x86-only codepaths are exercised on arm64 macOS.
-    """
-    monkeypatch.setattr(archinfo, 'get_cpu_info',
-                        lambda: {'brand': brand, 'logical': 8, 'physical': 8})
-    # Bypass the memoization cache
-    platform = archinfo.get_platform.func()
-    assert isinstance(platform, archinfo.AppleArm)
-    assert platform.name == expected
+    monkeypatch.setattr(archinfo, 'get_cpu_info', lambda: {'brand': brand})
+    assert archinfo.get_platform.func() is archinfo.platform_registry[expected]
 
 
 def test_switcharch():
