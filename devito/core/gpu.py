@@ -3,9 +3,9 @@ from functools import partial
 import numpy as np
 
 from devito.core.operator import CoreOperator, CustomOperator, ParTile
-from devito.exceptions import InvalidOperator
+from devito.exceptions import CompilationError, InvalidOperator
 from devito.operator.operator import rcompile
-from devito.passes import is_on_device, stream_dimensions
+from devito.passes import is_on_device, needs_transfer, stream_dimensions
 from devito.passes.clusters import (
     Lift, apply_par_tiles, blocking, buffering, cire, cse, factorize, fission, fuse,
     memcpy_prefetch, optimize_pows, tasking
@@ -15,6 +15,7 @@ from devito.passes.iet import (
     DeviceAccTarget, DeviceCXXOmpTarget, DeviceOmpTarget, check_stability, hoist_prodders,
     linearize, mpiize, pthreadify, relax_incr_dimensions
 )
+from devito.symbolics import retrieve_functions
 from devito.tools import as_tuple, timed_pass
 
 __all__ = [
@@ -141,6 +142,37 @@ class DeviceOperatorMixin:
                 return (None,)
             else:
                 return as_tuple(cls.GPU_FIT)
+
+    @classmethod
+    def _lower_clusters(cls, expressions, **kwargs):
+        clusters = super()._lower_clusters(expressions, **kwargs)
+
+        # The host copy of a Function written on the device is stale, so a guard
+        # evaluated on the host must not read it. A guard is evaluated on the host
+        # if it is outside the device kernels, e.g. `if (T[0][2][0] < 1.5F)` around
+        # a kernel launch, or if its Cluster runs on the host, e.g. a copy-back to
+        # a host Function
+        gpu_fit = kwargs['options']['gpu-fit']
+        offloaded = {c for c in clusters
+                     if c.properties.is_parallel_relaxed(c.ispace.itdims) and
+                     all(is_on_device(f, gpu_fit) for f in c.scope.writes)}
+        writes = {f for c in offloaded
+                  for f in c.scope.writes if needs_transfer(f, gpu_fit)}
+        for c in clusters:
+            for d, guard in c.guards.items():
+                dims = c.ispace.prefix(lambda i: d in i._defines).itdims  # noqa: B023
+                if c in offloaded and c.properties.is_parallel_relaxed(dims):
+                    continue
+
+                stale = writes.intersection(retrieve_functions(guard, deep=True))
+                if stale:
+                    names = ", ".join(sorted(f.name for f in stale))
+                    raise CompilationError(
+                        f"Unsupported guard `{guard}`: it is evaluated on the host, "
+                        f"but it reads `{names}`, updated on the device"
+                    )
+
+        return clusters
 
     @classmethod
     def _rcompile_wrapper(cls, **kwargs0):

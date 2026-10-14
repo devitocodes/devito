@@ -12,7 +12,7 @@ from devito import (
     switchconfig, switchenv
 )
 from devito.arch import Cpu64, Device, get_cpu_info, get_gpu_info
-from devito.exceptions import InvalidArgument
+from devito.exceptions import CompilationError, InvalidArgument
 from devito.ir import (
     Conditional, Expression, FindNodes, FindSymbols, Section, retrieve_iteration_tree
 )
@@ -370,6 +370,29 @@ class TestPassesEdgeCases:
 
         tree, = retrieve_iteration_tree(op1)
         assert 'collapse(3) reduction(+:s)' in str(tree[1].pragmas[0])
+
+    @pytest.mark.parametrize('opt', ['noop', 'advanced'])
+    def test_guard_reads_device_data(self, opt):
+        grid = Grid(shape=(4, 4))
+        x, y = grid.dimensions
+        time = grid.time_dim
+
+        T = TimeFunction(name='T', grid=grid, space_order=0, time_order=0)
+        f0 = Function(name='f0', grid=grid, space_order=0)
+        f1 = TimeFunction(name='f1', grid=grid, space_order=0, time_order=0, save=4)
+
+        # The guard is evaluated within the kernel, hence it sees the updated `T`
+        cy = ConditionalDimension(name='cy', parent=y, condition=T[0, x, y] < 1.5)
+        op = Operator([Eq(T, time), Inc(f0, T + 1, implicit_dims=cy)],
+                      opt=opt, name='GuardDevice')
+        op.apply(time_M=3)
+        assert np.all(f0.data == 3)
+
+        # The guard would be evaluated on the host, where `T` is stale
+        ct = ConditionalDimension(name='ct', parent=time, condition=T[0, 2, 0] < 1.5)
+        with pytest.raises(CompilationError, match='evaluated on the host'):
+            Operator([Eq(T, time), Eq(f1, T + 1, implicit_dims=ct)],
+                     opt=opt, name='GuardHost')
 
 
 class Bundle(SubDomain):
