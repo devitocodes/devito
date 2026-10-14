@@ -9,6 +9,7 @@ from devito.ir import (
 )
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.parpragma import PragmaIteration
+from devito.symbolics import retrieve_indexed, uxreplace
 from devito.tools import filter_ordered, flatten, prod
 from devito.types import Array, Bundle, FIndexed, Symbol, Wildcard
 from devito.types.dense import DiscreteFunction
@@ -218,6 +219,12 @@ def linearize_accesses(iet, key0, tracker=None):
         v = generate_linearization(f, i, tracker)
         if v is not None:
             subs[i] = v
+
+    # Uxreplace doesn't recurse into a replacement, so the Indexeds nested in
+    # another's indices are substituted here, innermost first. E.g.,
+    # `T[0, I[0, 0, 0], 0] -> TL0(0, IL0(0, 0, 0), 0)`
+    for i in sorted(subs, key=lambda i: len(retrieve_indexed(i.indices, deep=True))):
+        subs[i] = uxreplace(subs[i], subs)
 
     iet = Uxreplace(subs).visit(iet)
 
