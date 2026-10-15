@@ -448,10 +448,25 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
     # buffer created for the regular `Eq(usave, u)` copy-back)
     extras = {}
     groups = {}
+
+    # A Function that is only written to has a single buffer, shared by all of
+    # its writes regardless of their guards. Each slot is copied back right
+    # after being written, and the buffer is refilled only once the previous
+    # copy-back has completed, so all copy-backs into the Function are
+    # performed in program order
+    shared = {}
+    writeonly = {f for f, clusters in bfmap.items()
+                 if all(f not in c.scope.reads for c in clusters)}
+
     for f, clusters in bfmap.items():
         dim = f.hdim
         for k, g in groupby(clusters, key=lambda c: c.guards):
             g = list(g)
+
+            if f in shared:
+                mapper[(f, k)] = shared[f]
+                groups[(f, k)] = g
+                continue
 
             if k and not dim._defines & set(k):
                 extras.setdefault(f, []).append((k, g))
@@ -462,9 +477,17 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
             )
             groups[(f, k)] = g
 
+            if f in writeonly:
+                shared[f] = mapper[(f, k)]
+
     # Alias deferred entries to a compatible f-buffer; create one if none fits
     for f, deferred in extras.items():
         for k, g in deferred:
+            if f in shared:
+                mapper[(f, k)] = shared[f]
+                groups[(f, k)] = g
+                continue
+
             # {candidate buffer -> Clusters already mapped to it}
             by_buf = defaultdict(list)
             for (ff, kk), b in mapper.items():
@@ -498,6 +521,8 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
                 buf = _select_buffer(
                     f, f.hdim, k, g, xds, async_degree, sregistry, callback
                 )
+                if f in writeonly:
+                    shared[f] = buf
 
             mapper[(f, k)] = buf
             groups[(f, k)] = g
@@ -1008,18 +1033,13 @@ def _overwritten(v, c, idxf, descriptors, order, d):
     For example, given a subsampled save `Eq(usave, u)` and a save of the last
     timestep `Eq(usave, u, implicit_dims=clast)`, both copy-backs target the same
     slot whenever the last timestep falls onto the subsampled grid. Performing
-    both would be redundant and, with asynchronous copy-backs (e.g. to disk),
-    racy, as the two writes into the slot would be performed concurrently.
+    both would be redundant and, for Functions storing each copy-back as a new
+    entry (e.g., compressed snapshots), would store the slot twice.
     """
     conditions = []
     for v1 in descriptors.flat_values():
         if v1.f is not v.f or v1.is_readonly:
             continue
-        # Copy-backs out of the same buffer are already serialized, since the
-        # buffer cannot be refilled before its previous copy-back is completed
-        if v1.b is v.b:
-            continue
-
         for c1 in v1.lastwrite:
             if order.get(c1, -1) <= order[c]:
                 continue
