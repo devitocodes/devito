@@ -3,10 +3,11 @@ import numpy as np
 import pytest
 import scipy.sparse
 import sympy
+from sympy import Or
 
 from conftest import assert_structure, skipif
 from devito import (
-    Buffer, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, Inc,
+    Buffer, CondEq, ConditionalDimension, Constant, Dimension, Eq, Function, Grid, Inc,
     MatrixSparseTimeFunction, Operator, SparseTimeFunction, SubDimension, SubDomain,
     SubDomainSet, TensorTimeFunction, TimeFunction, assign, configuration, exp,
     switchconfig, switchenv
@@ -14,7 +15,8 @@ from devito import (
 from devito.arch import Cpu64, Device, get_cpu_info, get_gpu_info
 from devito.exceptions import InvalidArgument
 from devito.ir import (
-    Conditional, Expression, FindNodes, FindSymbols, Section, retrieve_iteration_tree
+    BusyWait, Conditional, Expression, FindNodes, FindSymbols, Section,
+    retrieve_iteration_tree
 )
 from devito.passes.iet.languages.openmp import OmpIteration
 from devito.types import DeviceID, DeviceRM, Lock, NPThreads, PThreadArray, Symbol
@@ -1313,6 +1315,47 @@ class TestStreaming:
 
         assert all(np.all(usave.data[i] == 2*i + 1) for i in range(usave.save))
         assert all(np.all(vsave.data[i] == 2*i + 1) for i in range(vsave.save))
+
+    def test_save_two_buffers_ordered(self):
+        """
+        A subsampled save and a CondEq save into the same Function use two
+        buffers, hence two locks and two asynchronous tasks. The tasks must
+        not run concurrently, as they update the same Function: each buffer
+        is refilled only once the other buffer's pending copy-back is done.
+        """
+        grid = Grid(shape=(4, 4))
+        time_dim = grid.time_dim
+
+        factor = 2
+        last = 7
+        ct0 = ConditionalDimension(name='ct0', parent=time_dim, factor=factor,
+                                   relation=Or)
+        ctend = ConditionalDimension(name='ctend', parent=time_dim,
+                                     condition=CondEq(time_dim, last),
+                                     relation='strict')
+
+        f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0,
+                         time_dim=ct0, save=last//factor + 2)
+        T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+        eqns = [Eq(T, time_dim),
+                Eq(f, T),
+                Eq(f, T + 1, implicit_dims=ctend)]
+
+        op = Operator(eqns, opt=('buffering', 'tasking', 'orchestrate'))
+
+        # Check generated code
+        locks = {i.name for i in FindSymbols().visit(op) if isinstance(i, Lock)}
+        assert len(locks) == 2
+        waits = FindNodes(BusyWait).visit(op.body)
+        assert len(waits) == 2
+        for w in waits:
+            assert {i.name for i in FindSymbols().visit(w)} >= locks
+
+        op.apply(time_m=0, time_M=last)
+
+        expected = np.append(factor*np.arange(last//factor + 1), last + 1)
+        assert np.all(f.data[:, 1, 1] == expected)
 
     @pytest.mark.parametrize('opt', [
         ('buffering', 'tasking', 'orchestrate'),

@@ -86,6 +86,7 @@ class Tasking(Queue):
 
         locks = {}
         syncs = defaultdict(lambda: defaultdict(OrderedSet))
+        copybacks = []
         for c0 in clusters:
             d = self.key0(c0)
             if d is not dim:
@@ -101,6 +102,11 @@ class Tasking(Queue):
                 continue
             protected = self._schedule_waitlocks(c0, d, clusters, locks, syncs)
             self._schedule_withlocks(c0, d, protected, locks, syncs)
+
+            if wraps_memcpy(c0):
+                copybacks.append((c0, d))
+
+        self._serialize_copybacks(copybacks, clusters, syncs)
 
         processed = [c.rebuild(syncs={**c.syncs, **syncs[c]}) for c in clusters]
 
@@ -193,6 +199,41 @@ class Tasking(Queue):
                     ReleaseLock(lock[i], target),
                     WithLock(lock[i], target, i, function, findex, d, gid=gid)
                 ])
+
+    def _serialize_copybacks(self, copybacks, clusters, syncs):
+        """
+        Order the copy-backs into the same Function from different buffers.
+
+        Each buffer has its own lock and thus its own asynchronous task, so
+        two such copy-backs may otherwise run concurrently and race on the
+        Function's state (e.g., the next free offset of a compressed
+        Function). Before a buffer is refilled, wait for the pending
+        copy-backs of the other buffers into the same Function.
+        """
+        withlocks = {}
+        for c0, d in copybacks:
+            withlocks[c0] = [s for s in syncs[c0][d] if isinstance(s, WithLock)]
+
+        for c0, d in copybacks:
+            function = c0.exprs[0].lhs.function
+            targets = {s.target for s in withlocks[c0]}
+            gids = {s.gid for s in withlocks[c0]}
+
+            waits = [WaitLock(s.handle, s.target)
+                     for c1, _ in copybacks if c1 is not c0
+                     for s in withlocks[c1]
+                     if s.function is function and
+                     s.target not in targets and
+                     # Tasks of the same group run in one thread, in order
+                     (s.gid is None or s.gid not in gids)]
+            if not waits:
+                continue
+
+            # The refill of `c0`'s buffers precedes `c0`'s own task
+            for c1 in clusters:
+                if targets & set(c1.scope.writes):
+                    c2 = in_critical_region(c1, clusters) or c1
+                    syncs[c2][d].update(waits)
 
 
 @timed_pass(name='memcpy_prefetch')
