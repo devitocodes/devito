@@ -1599,3 +1599,34 @@ def test_mutable_guards(case):
 
         with pytest.raises(CompilationError, match='modified in between'):
             Operator(eqs, opt='buffering', name='MutableGuards')
+
+
+@pytest.mark.parametrize('case', ['single', 'forward', 'readwrite', 'backward'])
+def test_write_multi_index(case):
+    """
+    `f` written at two time indices in the same iteration cannot be buffered,
+    as only one slot per iteration is copied back.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    f = TimeFunction(name='f', grid=grid, time_order=1, space_order=0, save=5)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+    if case == 'single':
+        eqns = [Eq(f.forward, f + T)]
+
+        op = Operator([Eq(T, time)] + eqns, opt='buffering', name='WriteMultiIndex')
+        op.apply(time_m=0, time_M=3)
+
+        assert np.all(f.data[:, 1, 1] == [0, 0, 1, 3, 6])
+    else:
+        if case == 'forward':
+            eqns = [Eq(f.forward, T + 10), Eq(f, T)]
+        elif case == 'readwrite':
+            eqns = [Eq(f.forward, f + T + 10), Eq(f, T)]
+        else:
+            eqns = [Eq(f.backward, T + 10), Eq(f, T)]
+
+        with pytest.raises(CompilationError, match='multiple indices'):
+            Operator([Eq(T, time)] + eqns, opt='buffering', name='WriteMultiIndex')

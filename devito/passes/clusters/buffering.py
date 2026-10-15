@@ -261,6 +261,16 @@ class InjectBuffers(Queue):
                 if v.guards is not None and c.guards.get(d) != v.guards.get(d):
                     continue
 
+                # Only one slot per iteration is copied back, so writes at other
+                # indices (e.g., `f[time]` along with `f[time+1]`) would be lost
+                written = {w[v.dim] for c1 in v.clusters if c1.guards == c.guards
+                           for w in c1.scope.writes.get(v.f, [])}
+                if len(written) > 1:
+                    raise CompilationError(
+                        f"Cannot buffer `{v.f.name}`, written at multiple indices "
+                        f"along `{v.dim}` within the same iteration"
+                    )
+
                 idxf = v.last_idx[c]
                 idxb = mds[(v.xd, idxf)]
 
