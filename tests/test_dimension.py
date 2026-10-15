@@ -3,7 +3,7 @@ from itertools import product
 
 import numpy as np
 import pytest
-from sympy import And, Not, Or
+from sympy import And, Not, Or, false
 
 from conftest import assert_blocking, assert_structure, opts_tiling, skipif
 from devito import (  # noqa
@@ -2128,6 +2128,26 @@ class TestConditionalDimension:
                               't,x0_blk0,y0_blk0,x,y,z'],
                          't,x0_blk0,y0_blk0,x,y,z,z')
 
+    def test_false_condition(self):
+        """
+        A condition that SymPy folds to `false` (`time` is nonnegative) must
+        still be printed as valid C.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        condition = time < 0
+        assert condition is false
+        ct = ConditionalDimension(name='ct', parent=time, condition=condition)
+
+        T = TimeFunction(name='T', grid=grid, time_order=0)
+        f = TimeFunction(name='f', grid=grid, time_order=0, save=2)
+
+        op = Operator([Eq(f, T + 1, implicit_dims=ct), Eq(T, T + 1)],
+                      name='FalseCondition')
+        op.apply(time_M=1)
+
+        assert np.all(f.data[:, 1, 1] == [0, 0])
 
     def test_negated_factor_condition(self):
         """
@@ -2147,6 +2167,7 @@ class TestConditionalDimension:
         op.apply(time_M=3, ctf=2)
 
         assert np.all(f.data[:, 1, 1] == [0, 2, 0, 4])
+
 
 class TestCustomDimension:
 
