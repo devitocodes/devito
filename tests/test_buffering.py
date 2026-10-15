@@ -1179,3 +1179,34 @@ def test_buffering_multi_cond(factor):
         # The last sample is on the subsampled grid, hence no extra slot
         expected[-2:] = [ntmod - 1, 0]
     assert np.allclose(f_all.data[:, 11, 11], expected)
+
+
+def test_true_condition_single_buffer():
+    """
+    A condition folded to `true` (`time` is nonnegative, so `time >= 0` is
+    `true`) imposes no guard. Reads of `f` under it and unguarded reads of `f`
+    must thus share one buffer.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    nt = 4
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0)
+    h = TimeFunction(name='h', grid=grid, time_order=0, space_order=0)
+    for i in range(nt):
+        f.data[i] = i
+
+    ctrue = ConditionalDimension(name='ctrue', parent=time, condition=time >= 0,
+                                 relation='strict')
+
+    eqs = [Eq(g, g + f, implicit_dims=ctrue), Eq(h, h + 2*f)]
+
+    op = Operator(eqs, opt='buffering', name='TrueCondition')
+
+    buffers = [i for i in FindSymbols().visit(op.body) if i.is_Array and i._mem_heap]
+    assert len(buffers) == 1
+
+    op.apply(time_m=0, time_M=nt-1)
+    assert np.allclose(g.data[0], 6.)
+    assert np.allclose(h.data[0], 12.)
