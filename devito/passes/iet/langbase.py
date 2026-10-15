@@ -409,8 +409,8 @@ class DeviceAwareMixin:
         The initialization follows a pattern which is applicable to virtually
         any target language:
 
-            1. Calling the init function (e.g., `acc_init(...)` for OpenACC)
-            2. Assignment of the target device to a host thread or an MPI rank
+            1. Assignment of the target device to a host thread or an MPI rank
+            2. Calling the init function (e.g., `acc_init(...)` for OpenACC)
             3. Introduction of user-level symbols (e.g., `deviceid` to allow
                users to select a specific device)
 
@@ -437,10 +437,10 @@ class DeviceAwareMixin:
             devicetype = as_list(self.langbb[self.platform])
             deviceid = self.deviceid
 
-            return list(nodes) + [Conditional(
+            return [Conditional(
                 CondNe(deviceid, -1),
                 self.langbb['set-device']([deviceid] + devicetype)
-            )]
+            )] + list(nodes)
 
         def _make_setdevice_mpi(iet, objcomm, nodes=()):
             devicetype = as_list(self.langbb[self.platform])
@@ -453,13 +453,16 @@ class DeviceAwareMixin:
             ngpus, call_ngpus = self.langbb._get_num_devices(self.platform)
 
             osdd_then = self.langbb['set-device']([deviceid] + devicetype)
-            osdd_else = self.langbb['set-device']([rank % ngpus] + devicetype)
+            osdd_else = Conditional(
+                ngpus > 0,
+                self.langbb['set-device']([rank % ngpus] + devicetype)
+            )
 
-            return list(nodes) + [Conditional(
+            return [Conditional(
                 CondNe(deviceid, -1),
                 osdd_then,
                 List(body=[rank_decl, rank_init, call_ngpus, osdd_else]),
-            )]
+            )] + list(nodes)
 
         @singledispatch
         def _initialize(iet):
@@ -471,6 +474,8 @@ class DeviceAwareMixin:
 
             devicetype = as_list(self.langbb[self.platform])
 
+            # The runtime is initialized after selecting the device, as otherwise
+            # it would also create a context on the default device
             try:
                 lang_init = [self.langbb['init'](devicetype)]
             except TypeError:

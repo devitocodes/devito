@@ -39,7 +39,8 @@ class TestCodeGeneration:
              '{\n  int rank = 0;\n'
              '  MPI_Comm_rank(comm,&rank);\n'
              '  int ngpus = omp_get_num_devices();\n'
-             '  omp_set_default_device((rank)%(ngpus));\n}')
+             '  if (ngpus > 0)\n'
+             '  {\n    omp_set_default_device((rank)%(ngpus));\n  }\n}')
 
     def test_basic(self):
         grid = Grid(shape=(3, 3, 3))
