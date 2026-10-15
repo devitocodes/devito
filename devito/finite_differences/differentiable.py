@@ -898,7 +898,7 @@ class RealComplexPart(ComplexPart):
 
     @cached_property
     def dtype(self):
-        dtype = extract_dtype(self)
+        dtype = extract_dtype(self.args[0])
         return dtype(0).real.__class__
 
 
@@ -1320,6 +1320,10 @@ class IndexDerivative(IndexSum):
     @cached_property
     def pivot(self):
         return self.base.subs({d: 0 for d in self.dimensions})
+
+    @cached_property
+    def dtype(self):
+        return extract_dtype(self.expr)
 
     @property
     def weights(self):
