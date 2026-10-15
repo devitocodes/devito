@@ -3448,6 +3448,41 @@ class TestOperatorAdvanced:
         assert t2.name == 't2'
         assert t2.origin == t + 1
 
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('side', ['left', 'right', 'middle'])
+    def test_thickness_covering_ranks(self, side, mode):
+        """
+        A thickness of 20 points over four ranks of 16 points each covers a rank
+        entirely, so the local thickness of the latter is its whole extent.
+        """
+        class Band(SubDomain):
+            name = 'band'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: (side, 20, 20) if side == 'middle' else (side, 20), y: y}
+
+        grid = Grid(shape=(64, 4), topology=(4, 1))
+        band = Band(grid=grid)
+        f = Function(name='f', grid=grid, space_order=0)
+        g = Function(name='g', grid=grid, space_order=0)
+
+        op = Operator(Eq(f, 1, subdomain=band), name='Thickness')
+
+        args = op.arguments()
+        rank = grid.distributor.myrank
+        if side in ['left', 'middle']:
+            assert args['x_ltkn0'] == [16, 4, 0, 0][rank]
+        if side in ['right', 'middle']:
+            assert args['x_rtkn0'] == [0, 0, 4, 16][rank]
+
+        op.apply()
+
+        inside = {'left': slice(0, 20), 'right': slice(44, 64),
+                  'middle': slice(20, 44)}[side]
+        g.data[inside] = 1
+        assert np.all(f.data == g.data)
+
 
 def gen_serial_norms(shape, so):
     """
