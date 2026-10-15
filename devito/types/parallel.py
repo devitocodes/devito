@@ -312,6 +312,10 @@ class DeviceID(DeviceSymbol):
         else:
             return {self.name: self.default_value}
 
+    def _arg_check(self, args, *_args, **kwargs):
+        # Raises if the device does not exist
+        args._physical_deviceid  # noqa: B018
+
 
 class DeviceRM(DeviceSymbol):
 

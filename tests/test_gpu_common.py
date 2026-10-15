@@ -201,20 +201,39 @@ class TestDeviceID:
         Test that Device IDs set by the user on a per-rank basis do not
         get modified.
         """
-        # Reversed order to ensure it is different to default
-        user_set_deviceids = (1, 0)
-
         grid = Grid(shape=(10, 10))
         u = Function(name='u', grid=grid)
 
-        rank = grid.distributor.myrank
-        deviceid = user_set_deviceids[rank]
-
         op = Operator(Eq(u, u+1))
+
+        # Reversed order to ensure it is different to default
+        rank = grid.distributor.myrank
+        ngpus = op._platform.numa_domains
+        deviceid = (ngpus - 1 - rank) % ngpus
 
         with switchenv({i: None for i in self.visible_device_envs}):
             argmap = op.arguments(deviceid=deviceid)
             assert argmap._physical_deviceid == deviceid
+
+    @pytest.mark.parametrize('visible_devices', [None, '0,1'])
+    def test_nonexistent_deviceid(self, visible_devices):
+        """
+        Test that requesting a device that does not exist raises an error before
+        anything is launched.
+        """
+        grid = Grid(shape=(10, 10))
+        u = Function(name='u', grid=grid)
+
+        op = Operator(Eq(u, u+1), name='NonexistentDevice')
+
+        temp_env = {i: None for i in self.visible_device_envs}
+        temp_env['CUDA_VISIBLE_DEVICES'] = visible_devices
+        with switchenv(temp_env):
+            ngpus = op._platform.numa_domains if visible_devices is None else 2
+            with pytest.raises(InvalidArgument, match=f'Device {ngpus} does not exist'):
+                op.apply(deviceid=ngpus)
+
+            assert np.all(u.data == 0)
 
 
 class TestCodeGeneration:
