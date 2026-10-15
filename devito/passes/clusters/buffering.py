@@ -196,15 +196,17 @@ class InjectBuffers(Queue):
             # If a buffer is read but never written, then we need to add
             # an Eq to step through the next slot
             # E.g., `ub[0, x] = usave[time+2, x]`
-            for v in descriptors.flat_values():
-                if not v.is_readonly:
-                    continue
-                if c not in v.firstread:
-                    continue
+            # Likewise, a slot read before being written within the same
+            # iteration must be loaded from the buffered Function
+            # E.g., `ub[0, x] = usave[time, x]` before `ub[0, x] = ub[0, x] + 1`
+            steps = [(v, v.last_idx[c]) for v in descriptors.flat_values()
+                     if v.is_readonly and c in v.firstread]
+            steps.extend((v, i) for v in descriptors.flat_values()
+                         for i in v.loads.get(c, []))
+            for v, idxf in steps:
                 if c.guards.get(d) != v.guards.get(d):
                     continue
 
-                idxf = v.last_idx[c]
                 idxb = mds[(v.xd, idxf)]
 
                 lhs = v.b.indexify()._subs(v.xd, idxb)
@@ -222,7 +224,7 @@ class InjectBuffers(Queue):
                     guards = c.guards
 
                 properties = c.properties.sequentialize(d)
-                if not _explicit_guard(c.guards.get(d, None), d):
+                if v.is_readonly and not _explicit_guard(c.guards.get(d, None), d):
                     properties = properties.prefetchable(d)
                 # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
                 properties = properties.parallelize(v.bdims).affine(v.bdims)
@@ -725,6 +727,53 @@ class BufferDescriptor:
         return tuple(mapper.values())
 
     @cached_property
+    def loads(self):
+        """
+        Map each Cluster to the indices of `f` it reads before they are written
+        in the same iteration by a later (or the same) Cluster, or ahead of all
+        written indices. Unless an earlier Cluster has already written or loaded
+        it, the corresponding buffer slot holds a value from a previous iteration
+        rather than the value stored in `f`.
+        """
+        def writes(clusters):
+            return {a[self.dim] for c in clusters for a in c.scope.writes.get(self.f, [])}
+
+        def reads(clusters):
+            return filter_ordered(a[self.dim] for c in clusters if not c.is_wild
+                                  for a in c.scope.reads.get(self.f, []))
+
+        # Slots read ahead of all written ones, hence never written by an earlier
+        # iteration. E.g., `f[time+1]` in `g[time] = f[time+1]; f[time] = ...`
+        windices = writes(self.clusters)
+        rindices = reads(self.clusters)
+        ahead = set()
+        if windices and rindices:
+            sign = 1 if self.is_forward_buffering else -1
+            ahead = {i for i in rindices
+                     if all(S(sign*(i - w)).is_positive for w in windices)}
+
+        mapper = {}
+        for n, c in enumerate(self.clusters):
+            if c.is_wild:
+                continue
+
+            # Slots written or loaded earlier, unconditionally or under the same
+            # guards
+            earlier = [c1 for c1 in self.clusters[:n]
+                       if not c1.guards or c1.guards == c.guards]
+            written = writes(earlier)
+            loaded = ahead.intersection(reads(earlier))
+            # Slots written later on, possibly by `c` itself
+            overwritten = writes(self.clusters[n:]) | ahead
+
+            loads = [i for i in reads([c])
+                     if i in overwritten and i not in written | loaded]
+            if loads:
+                mapper[c] = loads
+
+        return frozendict(mapper)
+
+    @cached_property
     def lastwrite(self):
         mapper = {}
         for c in reversed(self.clusters):
@@ -802,7 +851,8 @@ class BufferDescriptor:
     def last_idx(self):
         """
         The "last index" is the index that corresponds to the last slot that
-        must be read from the buffered Function.
+        must be read from the buffered Function or, if the buffer is written,
+        to the last written slot, that is the one to be copied back.
 
         Examples
         --------
@@ -810,16 +860,23 @@ class BufferDescriptor:
             * `time+1` in the case of `foo(u[time-1], u[time], u[time+1])`
                with a forward-propagating `time` Dimension;
             * `time-1` in the case of `foo(u[time-1], u[time], u[time+1])`
-               with a backwards-propagating `time` Dimension.
+               with a backwards-propagating `time` Dimension;
+            * `time` in the case of `g[time] = u[time+1]; u[time] = ...`
+               with a forward-propagating `time` Dimension.
         """
         mapper = {}
         func = vmax if self.is_forward_buffering else vmin
-        for c in self.lastwrite + self.firstread:
+        for c in self.lastwrite or self.firstread:
             # Consider all Clusters sharing `c`'s guards, so the leading edge is
             # found even when `f` is accessed at different offsets across them
             # (e.g. `f` and `f.forward` in separate Eqs)
             group = [c1 for c1 in self.clusters if c1.guards == c.guards]
-            indices = extract_indices(self.f, self.dim, group)
+            if self.is_write:
+                # A slot read ahead of the written ones is not copied back
+                accesses = chain(*[c1.scope.writes.get(self.f, []) for c1 in group])
+                indices = filter_ordered(i[self.dim] for i in accesses)
+            else:
+                indices = extract_indices(self.f, self.dim, group)
             idx = func(*[Vector(i) for i in indices])[0]
             mapper[c] = idx
 

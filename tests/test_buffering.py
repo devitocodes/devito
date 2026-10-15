@@ -1247,3 +1247,64 @@ def test_buffering_same_slot_skip(case):
     op.apply(time_m=0, time_M=3)
 
     assert np.all(f.data[:, 1, 1] == expected)
+
+
+@pytest.mark.parametrize('eqns', ['g = f; f = T', 'f = f + T'])
+def test_read_before_write(eqns):
+    """
+    A slot of `f` read before being written in the same iteration must hold the
+    value stored in `f`, not the one left in the buffer by a previous iteration.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    nt = 3
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=nt)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+    f.data[:] = 10.
+
+    if eqns == 'g = f; f = T':
+        eqs = [Eq(T, time), Eq(g, f), Eq(f, T)]
+        expected = [0., 1., 2.]
+    else:
+        eqs = [Eq(T, time), Eq(f, f + T)]
+        expected = [10., 11., 12.]
+
+    op = Operator(eqs, opt='buffering', name='ReadBeforeWrite')
+    op.apply(time_m=0, time_M=nt-1)
+
+    assert np.allclose(f.data[:, 1, 1], expected)
+    if eqns == 'g = f; f = T':
+        assert np.allclose(g.data[:, 1, 1], 10.)
+
+
+@pytest.mark.parametrize('eqns', ['g = f.forward; f = h + 1', 'f = f.forward + h'])
+def test_read_ahead(eqns):
+    """
+    `h` imposes a forward-propagating `time`, so `f[time+1]` is read ahead of
+    the written `f[time]`. Its slot must be loaded from `f`, and only the
+    written slot copied back.
+    """
+    grid = Grid(shape=(4, 4))
+    nt = 4
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=nt)
+    h = TimeFunction(name='h', grid=grid, time_order=1, space_order=0)
+    f.data[:] = 10*np.arange(nt).reshape(nt, 1, 1)
+
+    if eqns == 'g = f.forward; f = h + 1':
+        eqs = [Eq(h.forward, h + 1), Eq(g, f.forward), Eq(f, h + 1)]
+        expected_f = [1., 2., 3., 30.]
+        expected_g = [10., 20., 30., 0.]
+    else:
+        eqs = [Eq(h.forward, h + 1), Eq(f, f.forward + h)]
+        expected_f = [10., 21., 32., 30.]
+        expected_g = [0., 0., 0., 0.]
+
+    op = Operator(eqs, opt='buffering', name='ReadAhead')
+    op.apply(time_m=0, time_M=nt-2)
+
+    assert np.allclose(f.data[:, 1, 1], expected_f)
+    assert np.allclose(g.data[:, 1, 1], expected_g)
