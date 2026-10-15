@@ -1055,12 +1055,12 @@ def test_deferred_guard_aliasing():
     assert np.allclose(f.data[:, 1, 1], 100. + np.arange(nt))
 
 
-def test_deferred_guard_no_fit():
+def test_deferred_guard_writeonly():
     """
     Like `test_deferred_guard_aliasing`, but the guarded write accesses
-    `f[time+1]`, which cannot be hosted by the main buffer (size 1, holding
-    `f[time]` only) without a slot collision; a dedicated buffer must be
-    created instead.
+    `f[time+1]`. Since `f` is only written to, the guarded write still shares
+    the main buffer: each slot is copied back right after being written, so
+    the two writes cannot collide.
     """
     grid = Grid(shape=(5, 5))
     nt = 5
@@ -1079,10 +1079,9 @@ def test_deferred_guard_no_fit():
 
     op = Operator(eqs, opt='buffering')
 
-    # `f[time+1]` does not fit the main buffer's slots, so the guarded
-    # write gets a dedicated buffer
+    # A single buffer for the write-only `f`
     buffers = [i for i in FindSymbols().visit(op.body) if i.is_Array and i._mem_heap]
-    assert len(buffers) == 2
+    assert len(buffers) == 1
 
     op.apply(time_m=0, time_M=nt-2)
     # `f[t]` is overwritten by the main stream at iteration `t` for t < nt-1,
@@ -1159,6 +1158,11 @@ def test_buffering_multi_cond(factor):
 
     # run operator with serialization
     op = Operator(eqs, opt='buffering')
+
+    # Both writes to `f` share a single buffer
+    buffers = [i for i in FindSymbols().visit(op.body) if i.is_Array and i._mem_heap]
+    assert len(buffers) == 1
+
     op.apply(time_m=0, time_M=ntmod-2)
 
     # Now run backward as well with buffering
