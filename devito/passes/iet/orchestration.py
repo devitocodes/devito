@@ -7,8 +7,8 @@ from sympy import Or
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
     AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, BusyWaitCall, Call, Callable,
-    Conditional, DummyExpr, List, SyncSpot, ThreadFence, Transformer, derive_parameters,
-    make_callable
+    Conditional, List, SyncSpot, Transformer, atomic_load, atomic_store,
+    derive_parameters, make_callable
 )
 from devito.ir.iet.visitors import Visitor
 from devito.ir.support import (
@@ -44,7 +44,7 @@ class Orchestrator:
 
     def _make_waitlock(self, iet, sync_ops, *args):
         waitloop = List(
-            body=BusyWait(Or(*[CondEq(s.handle, 0) for s in sync_ops])),
+            body=BusyWait(Or(*[CondEq(atomic_load(s.handle), 0) for s in sync_ops])),
         )
 
         iet = List(body=(waitloop,) + iet.body)
@@ -53,12 +53,8 @@ class Orchestrator:
 
     def _make_releaselock(self, iet, sync_ops, *args):
         pre = []
-        pre.append(BusyWait(Or(*[CondNe(s.handle, 2) for s in sync_ops])))
-        pre.append(ThreadFence('acquire'))
-        pre.extend(DummyExpr(s.handle, 0) for s in sync_ops)
-        # Hand the lock back before anything that follows can be observed --
-        # in particular before the request that asks the thread to refill it.
-        pre.append(ThreadFence('release'))
+        pre.append(BusyWait(Or(*[CondNe(atomic_load(s.handle), 2) for s in sync_ops])))
+        pre.extend(atomic_store(s.handle, 0) for s in sync_ops)
 
         name = self.sregistry.make_name(prefix="release_lock")
         parameters = derive_parameters(pre, ordering='canonical')
@@ -421,7 +417,7 @@ def _(layer, iet, sync_ops, lang, sregistry):
         if lang._map_wait is not None:
             body.append(lang._map_wait(qid))
 
-        body.extend([DummyExpr(s.handle, 1) for s in sync_ops])
+        body.extend([atomic_store(s.handle, 1) for s in sync_ops])
         body.append(BlankLine)
 
         name = f'copy_to_{layer.suffix}'
@@ -433,7 +429,7 @@ def _(layer, iet, sync_ops, lang, sregistry):
     body.extend(list(iet.body))
 
     body.append(BlankLine)
-    body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
+    body.extend([atomic_store(s.handle, 2) for s in sync_ops])
 
     return body, name
 
@@ -460,7 +456,7 @@ def _(layer, iet, sync_ops, lang, sregistry):
         body = []
         name = f'prefetch_to_{layer.suffix}'
 
-    body.extend([DummyExpr(s.handle, 2) for s in sync_ops])
+    body.extend([atomic_store(s.handle, 2) for s in sync_ops])
 
     body = iet.body + (BlankLine,) + tuple(body)
 

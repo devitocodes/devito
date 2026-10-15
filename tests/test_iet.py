@@ -6,13 +6,13 @@ import pytest
 import sympy
 
 from devito import (  # noqa
-    Dimension, Eq, Function, Grid, Operator, TimeFunction, switchconfig
+    Dimension, Eq, Function, Grid, Operator, SubDomain, TimeFunction, switchconfig
 )
 from devito.ir import SymbolRegistry
 from devito.ir.iet import (
     Call, Callable, CGen, Conditional, Definition, Dereference, DeviceCall, DummyExpr,
     ElementalFunction, FindNodes, FindSymbols, Iteration, KernelLaunch, Lambda, List,
-    Switch, ThreadFence, Transformer, filter_iterations, make_callable, make_efunc,
+    Switch, Transformer, filter_iterations, make_callable, make_efunc,
     retrieve_iteration_tree
 )
 from devito.ir.iet.visitors import sorted_efuncs
@@ -118,23 +118,6 @@ def test_nested_calls_cgen():
     code = CGen().visit(call)
 
     assert str(code) == 'foo(bar());'
-
-
-def test_thread_fence_cgen():
-    """
-    A fence renders as the builtin, which is valid in C and C++ alike.
-
-    Threads that hand work to each other through a shared flag need one either
-    side of the handshake; without them the stores can be observed out of order
-    and a hand-off is lost.
-    """
-    assert str(CGen().visit(ThreadFence('acquire'))) == \
-        '__atomic_thread_fence(__ATOMIC_ACQUIRE);'
-    assert str(CGen().visit(ThreadFence('release'))) == \
-        '__atomic_thread_fence(__ATOMIC_RELEASE);'
-
-    with pytest.raises(AssertionError):
-        ThreadFence('seq_cst')
 
 
 @pytest.mark.parametrize('mode,expected', [
@@ -706,3 +689,47 @@ switch (flag)
     break;
   }
 }"""
+
+
+@pytest.mark.parametrize('mode', ['save', 'prefetch'])
+def test_async_handshake_atomics(mode):
+    """
+    The locks and flags of an asynchronous task are accessed with acquire loads
+    and release stores, or a weakly ordered CPU may e.g. see the lock released
+    before the data it guards.
+    """
+    grid = Grid(shape=(4, 4))
+    nt = 10
+
+    if mode == 'save':
+        class Interior(SubDomain):
+            name = 'interior'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', 1, 1), y: y}
+
+        interior = Interior(grid=grid)
+        tmp = Function(name='tmp', grid=grid)
+        u = TimeFunction(name='u', grid=grid, save=nt)
+        v = TimeFunction(name='v', grid=grid)
+        eqns = [Eq(tmp, v), Eq(v.forward, v + 1),
+                Eq(u.forward, tmp, subdomain=interior)]
+        opt = ('tasking', 'orchestrate')
+    else:
+        w = TimeFunction(name='w', grid=grid)
+        wsave = TimeFunction(name='wsave', grid=grid, save=nt)
+        eqns = [Eq(w.forward, w + wsave)]
+        opt = ('buffering', 'streaming', 'orchestrate')
+
+    op = Operator(eqns, opt=opt, platform='nvidiaX', language='openmp',
+                  name='Handshake')
+
+    code = str(op)
+    assert 'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0);' in code
+    assert '__atomic_store_n(&lock0[0],2,__ATOMIC_RELEASE);' in code
+    assert '__atomic_store_n(&sdata0->flag,1,__ATOMIC_RELEASE);' in code
+    assert 'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) != 2);' in code
+    assert '__atomic_store_n(&lock0[0],0,__ATOMIC_RELEASE);' in code
+    assert '__atomic_store_n(&sdata0[0].flag,2,__ATOMIC_RELEASE);' in code
+    assert '__atomic_thread_fence' not in code
