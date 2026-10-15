@@ -93,7 +93,7 @@ class DTypesVectorMapper(dict):
 
     def get_base_dtype(self, v, default=None):
         for (base_dtype, _), dtype in self.items():
-            if dtype is v:
+            if dtype == v:
                 return base_dtype
 
         if default is not None:
@@ -364,7 +364,12 @@ def infer_dtype(dtypes):
         * In the case of multiple floating dtypes, return the dtype with
           highest precision;
         * If there's at least one floating dtype, ignore any integer dtypes.
+
+    Preserve vector length when combining compatible vector and scalar operands.
     """
+    dtypes = set(dtypes)
+    n = max(map(dtype_len, dtypes), default=1)
+
     # Resolve the vector types, if any
     dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
     # Only keep number types
@@ -373,19 +378,32 @@ def infer_dtype(dtypes):
     fdtypes = {i for i in dtypes if np.issubdtype(i, np.floating) or
                np.issubdtype(i, np.complexfloating)}
     if len(fdtypes) > 1:
-        return max(fdtypes, key=lambda i: np.dtype(i).itemsize)
+        dtype = max(fdtypes, key=lambda i: np.dtype(i).itemsize)
     elif len(fdtypes) == 1:
-        return fdtypes.pop()
+        dtype = fdtypes.pop()
     elif len(dtypes) == 1:
-        return dtypes.pop()
+        dtype = dtypes.pop()
     else:
         # E.g., mixed integer arithmetic
-        return max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
+        dtype = max(dtypes, key=lambda i: np.dtype(i).itemsize, default=None)
+
+    return dtypes_vector_mapper[dtype, n] if n > 1 else dtype
 
 
 def extract_dtype(expr):
-    """Extract the "winning" dtype from an expression"""
-    dtypes = {getattr(e, 'dtype', None)
-              for e in expr.free_symbols}
+    """
+    Extract the result dtype, retaining typed vector operands such as float2.
+    """
+    # Arithmetic nodes may expose only their Functions' scalar precision
+    if not (expr.is_Add or expr.is_Mul or expr.is_Pow):
+        try:
+            dtype = expr.dtype
+        except AttributeError:
+            pass
+        else:
+            if dtype is not None:
+                return dtype
 
-    return infer_dtype(dtypes - {None})
+    dtypes = {extract_dtype(i) for i in expr.args} - {None}
+
+    return infer_dtype(dtypes)
