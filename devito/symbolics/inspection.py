@@ -13,7 +13,7 @@ from devito.symbolics.extended_dtypes import INT
 from devito.symbolics.extended_sympy import CallFromPointer, Cast, DefFunction, Reserved
 from devito.symbolics.queries import q_routine
 from devito.tools import as_tuple, is_integer, prod
-from devito.tools.dtypes_lowering import infer_dtype
+from devito.tools.dtypes_lowering import dtypes_vector_mapper, infer_dtype
 
 __all__ = ['compare_ops', 'estimate_cost', 'has_integer_args', 'sympy_dtype']
 
@@ -311,7 +311,7 @@ def has_integer_args(*args):
 
 def sympy_dtype(expr, base=None, default=None, smin=None):
     """
-    Infer the dtype of the expression.
+    Infer the scalar precision of the expression.
     """
     if expr is None:
         return default
@@ -324,6 +324,7 @@ def sympy_dtype(expr, base=None, default=None, smin=None):
     if not dtypes or not np.issubdtype(base, np.complexfloating):
         dtypes.update({base} - {None})
 
+    dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
     dtype = infer_dtype(dtypes)
 
     # Promote if we missed complex number, i.e f + I

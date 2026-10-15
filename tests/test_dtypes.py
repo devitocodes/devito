@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 import pytest
 import sympy
@@ -15,8 +17,11 @@ from devito.passes.iet.langbase import LangBB
 from devito.passes.iet.languages.C import CBB, CPrinter
 from devito.passes.iet.languages.openacc import AccBB, AccPrinter
 from devito.passes.iet.languages.openmp import OmpBB
+from devito.symbolics import sympy_dtype
 from devito.symbolics.extended_dtypes import ctypes_vector_mapper
-from devito.tools import dtype_to_cstr
+from devito.tools import (dtype_to_cstr, dtypes_vector_mapper, extract_dtype,
+                          infer_dtype)
+from devito.types import ComponentAccess
 from devito.types.basic import Basic, Scalar, Symbol
 from devito.types.dense import TimeFunction
 from devito.types.sparse import SparseTimeFunction
@@ -72,6 +77,19 @@ _configs: list[dict[str, str]] = [
 def kw_id(kwargs):
     # For more readable log
     return "-".join(f'{k}' for k in kwargs.values())
+
+
+def test_vector_inference():
+    dtype = dtypes_vector_mapper[np.float32, 2]
+    v = Symbol(name='v', dtype=dtype)
+    a = Symbol(name='a', dtype=np.float32)
+    expr = 2*v + a
+
+    assert extract_dtype(expr) == dtype
+    assert extract_dtype(ComponentAccess(v, 0)) == np.float32
+    assert sympy_dtype(expr) == np.float32
+    assert infer_dtype([pickle.loads(pickle.dumps(dtype)), np.float32]) == dtype
+    assert infer_dtype([dtype, np.float64]) == dtypes_vector_mapper[np.float64, 2]
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])

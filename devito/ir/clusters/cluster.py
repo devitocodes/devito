@@ -15,7 +15,8 @@ from devito.mpi.halo_scheme import HaloScheme, HaloTouch
 from devito.mpi.reduction_scheme import DistReduce
 from devito.symbolics import estimate_cost, uxreplace
 from devito.tools import (
-    CacheInstances, as_tuple, cached_hash, filter_ordered, flatten, infer_dtype
+    CacheInstances, as_tuple, cached_hash, dtypes_vector_mapper, filter_ordered,
+    flatten, infer_dtype
 )
 from devito.types import (
     CriticalRegion, Fence, Indexed, PhaseMarker, TensorMove, ThreadArrive, ThreadCommit,
@@ -340,6 +341,8 @@ class EqBlock(CacheInstances):
                 # E.g. `i.dtype` is a ctypes pointer, which has no dtype equivalent
                 pass
 
+        # A Cluster's precision is independent of its expressions' vector lengths
+        dtypes = {dtypes_vector_mapper.get_base_dtype(i, i) for i in dtypes}
         return infer_dtype(dtypes)
 
     @cached_property
