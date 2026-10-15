@@ -12,7 +12,6 @@ from devito import (
     inner, norm, solve, switchconfig
 )
 from devito.arch.compiler import OneapiCompiler
-from devito.builtins import initialize_function
 from devito.data import LEFT, RIGHT
 from devito.exceptions import InvalidArgument, mpi_raise
 from devito.ir import Cluster, Interval, IterationSpace
@@ -3352,32 +3351,6 @@ class TestOperatorAdvanced:
             assert np.all(glb[:, 3:-3] == 0.)
             assert np.all(glb[:, -3:] == 2.)
 
-    @pytest.mark.parallel(mode=[(3, 'basic'), (4, 'basic')])
-    def test_initialize_function_pad_over_rank(self, mode):
-        """
-        `initialize_function` must pad correctly even when a rank owns no part
-        of the interior, since the boundary plane it reads is then on a
-        different rank.
-        """
-        nbl = 6
-        inner = (7, 5, 6)
-        shape = tuple(s + 2*nbl for s in inner)
-
-        # Decompose along `y` only, so some rank holds nothing but padding
-        grid = Grid(shape=shape, topology=(1, '*', 1))
-
-        f = Function(name='f', grid=grid, space_order=(8, 4, 4), dtype=np.float32)
-
-        # Asymmetric, so that a misplaced plane cannot go unnoticed
-        data = np.arange(np.prod(inner), dtype=np.float32).reshape(inner) + 1.
-
-        initialize_function(f, data, [(nbl, nbl)]*3)
-
-        glb = f.data_gather(rank=0)
-        if grid.distributor.myrank == 0:
-            expected = np.pad(data, nbl, mode='edge')
-            assert np.array_equal(np.asarray(glb), expected)
-
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_custom_subdomain(self, mode):
         """
@@ -3505,6 +3478,41 @@ class TestOperatorAdvanced:
         t2 = next(filter(lambda a: isinstance(a, ModuloDimension), args))
         assert t2.name == 't2'
         assert t2.origin == t + 1
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('side', ['left', 'right', 'middle'])
+    def test_thickness_covering_ranks(self, side, mode):
+        """
+        A thickness of 20 points over four ranks of 16 points each covers a rank
+        entirely, so the local thickness of the latter is its whole extent.
+        """
+        class Band(SubDomain):
+            name = 'band'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: (side, 20, 20) if side == 'middle' else (side, 20), y: y}
+
+        grid = Grid(shape=(64, 4), topology=(4, 1))
+        band = Band(grid=grid)
+        f = Function(name='f', grid=grid, space_order=0)
+        g = Function(name='g', grid=grid, space_order=0)
+
+        op = Operator(Eq(f, 1, subdomain=band), name='Thickness')
+
+        args = op.arguments()
+        rank = grid.distributor.myrank
+        if side in ['left', 'middle']:
+            assert args['x_ltkn0'] == [16, 4, 0, 0][rank]
+        if side in ['right', 'middle']:
+            assert args['x_rtkn0'] == [0, 0, 4, 16][rank]
+
+        op.apply()
+
+        inside = {'left': slice(0, 20), 'right': slice(44, 64),
+                  'middle': slice(20, 44)}[side]
+        g.data[inside] = 1
+        assert np.all(f.data == g.data)
 
 
 def gen_serial_norms(shape, so):

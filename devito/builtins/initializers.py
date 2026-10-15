@@ -250,6 +250,9 @@ def _global_plane(function, axis, index):
     """
     The plane of `function` at global position `index` along `axis`, assembled
     identically on every rank and keeping `axis` as a length-1 dimension.
+
+    E.g for a 2D function f, the plane at `index` along `y` is f[:, index:index+1],
+    which is a 2D array of shape (f.shape[0], 1).
     """
     distributor = function.grid.distributor
 
@@ -271,12 +274,20 @@ def _global_plane(function, axis, index):
 
 def _extend_padding_mpi(function, nbl):
     """
-    Replicate the boundary planes of `function` outwards into its padding.
+    Fill the padding of `function` by repeating its nearest boundary plane.
 
-    Used in place of the symbolic extension when a rank owns no interior to read
-    from, which the halo exchanges cannot express. Writing through the
-    distributed `Data` instead resolves global indices on whichever rank owns
-    them.
+    With MPI, an edge rank may own only padding, while the first interior
+    plane belongs to another rank
+
+        edge rank       | neighbouring rank
+        padding         | padding    interior
+        .  .  .  .      | .  .  .  : a  b  c  ...
+        a  a  a  a      | a  a  a  : a  b  c  ...
+        <-------------------------- a
+
+    The edge rank cannot read the interior boundary plane locally, so the
+    symbolic extension cannot perform this copy. Global indexing through
+    the distributed `Data` accesses that plane on the rank that owns it.
     """
     distributor = function.grid.distributor
 

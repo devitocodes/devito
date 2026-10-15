@@ -503,6 +503,10 @@ class TestDecomposition:
         assert d.index_glb_to_loc(2, LEFT) is None
         assert d.index_glb_to_loc(3, RIGHT) is None
 
+        # An offset covering the whole subdomain gives its last index
+        assert d.index_glb_to_loc(8, LEFT) == 2
+        assert d.index_glb_to_loc(7, RIGHT) == 2
+
     def test_loc_to_glb_index_conversions(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 

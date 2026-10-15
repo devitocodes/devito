@@ -607,21 +607,10 @@ class Thickness(DataSymbol):
             root = next((d for d in grid.dimensions if d.name == root.name), root)
 
         rtkn = self.value
-        if grid is not None and grid.is_distributed(root):
-            # Get local thickness
-            if self.local:
-                # Dimension is of type `left`/`right` - compute the offset and
-                # then add 1 to get the appropriate thickness. `glb_to_loc`
-                # saturates to the local size when the layer covers the whole
-                # subdomain, which is already a thickness, hence the clamp
-                if self.value is not None:
-                    tkn = grid.distributor.glb_to_loc(root, rtkn-1, self.side)
-                    tkn = tkn+1 if tkn is not None else 0
-                else:
-                    tkn = 0
-            else:
-                # Dimension is of type `middle`
-                tkn = grid.distributor.glb_to_loc(root, rtkn, self.side) or 0
+        if rtkn and grid is not None and grid.is_distributed(root):
+            # Convert the last boundary index to a local count
+            tkn = grid.distributor.glb_to_loc(root, rtkn-1, self.side)
+            tkn = tkn+1 if tkn is not None else 0
         else:
             tkn = rtkn or 0
 
