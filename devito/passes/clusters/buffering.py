@@ -1,6 +1,6 @@
 from collections import defaultdict, namedtuple
 from functools import cached_property
-from itertools import chain, groupby
+from itertools import chain
 
 import numpy as np
 from sympy import And
@@ -464,9 +464,8 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
     for f, clusters in bfmap.items():
         dim = f.hdim
-        for k, g in groupby(clusters, key=lambda c: c.guards):
-            g = list(g)
-
+        # NOTE: Clusters with the same guards may be non-consecutive
+        for k, g in as_mapper(clusters, lambda c: c.guards).items():
             if f in shared:
                 mapper[(f, k)] = shared[f]
                 groups[(f, k)] = g

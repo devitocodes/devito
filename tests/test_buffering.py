@@ -1308,3 +1308,31 @@ def test_read_ahead(eqns):
 
     assert np.allclose(f.data[:, 1, 1], expected_f)
     assert np.allclose(g.data[:, 1, 1], expected_g)
+
+
+def test_non_consecutive_guards():
+    """
+    The Clusters reading `f` without guards are not consecutive, as a guarded
+    one sits in between. The buffer they share must span all of their accesses,
+    `f[time+1]` and `f[time]`, not just those of the last Cluster.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    nt = 4
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=nt)
+    h = TimeFunction(name='h', grid=grid, time_order=0, space_order=0, save=nt)
+    k = TimeFunction(name='k', grid=grid, time_order=0, space_order=0, save=nt)
+    f.data[:] = np.arange(nt).reshape(nt, 1, 1)
+
+    c = ConditionalDimension(name='c', parent=time, condition=time >= 1,
+                             relation='strict')
+    eqs = [Eq(g, f.forward), Eq(h, f, implicit_dims=c), Eq(k, f)]
+
+    op = Operator(eqs, opt='buffering', name='NonConsecutiveGuards')
+    op.apply(time_m=0, time_M=nt-2)
+
+    assert np.allclose(g.data[:, 1, 1], [1., 2., 3., 0.])
+    assert np.allclose(h.data[:, 1, 1], [0., 1., 2., 0.])
+    assert np.allclose(k.data[:, 1, 1], [0., 1., 2., 0.])
