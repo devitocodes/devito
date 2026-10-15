@@ -1553,3 +1553,49 @@ def test_mutable_read_guards(case):
     assert np.all(f.data[:, 1, 1] == [1, 2, 20, 30])
     assert np.all(g.data[:, 1, 1] == expected_g)
     assert np.all(h.data[:, 1, 1] == expected_h)
+
+
+@pytest.mark.parametrize('case', ['stable', 'mutable', 'indirect'])
+def test_mutable_guards(case):
+    """
+    Two writes to `f` under the same guards, which read `T`. The copy-back
+    follows the second write only, so `T` must not change in between, nor the
+    index it is read at.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    x, _ = grid.dimensions
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=2)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+    I = TimeFunction(name='I', grid=grid, time_order=0, space_order=0,
+                     dtype=np.int32)
+
+    if case == 'indirect':
+        condition = And(CondEq(time, 1), T[0, I[0, 0, 0], 0] < 1.5)
+    else:
+        condition = And(CondEq(time, 1), T[0, 0, 0] < 1.5)
+    c0 = ConditionalDimension(name='c0', parent=time, condition=condition,
+                              relation='strict')
+    c1 = ConditionalDimension(name='c1', parent=time, condition=condition,
+                              relation='strict')
+
+    if case == 'stable':
+        eqs = [Eq(f, T, implicit_dims=c0), Eq(T, T + 1)]
+
+        op = Operator(eqs, opt='buffering', name='MutableGuards')
+        op.apply(time_m=0, time_M=1)
+
+        assert np.all(f.data[:, 1, 1] == [0, 1])
+    else:
+        if case == 'mutable':
+            eqs = [Eq(f, T, implicit_dims=c0), Eq(T, T + 1),
+                   Eq(f, T, implicit_dims=c1)]
+        else:
+            ci = ConditionalDimension(name='ci', parent=time,
+                                      condition=CondEq(time, 1), relation='strict')
+            eqs = [Eq(T, time + 2*x), Eq(f, T, implicit_dims=c0),
+                   Eq(I, 1, implicit_dims=ci), Eq(f, T + 10, implicit_dims=c1)]
+
+        with pytest.raises(CompilationError, match='modified in between'):
+            Operator(eqs, opt='buffering', name='MutableGuards')

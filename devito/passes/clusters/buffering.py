@@ -182,6 +182,8 @@ class InjectBuffers(Queue):
         if not descriptors:
             return clusters
 
+        _check_mutable_guards(descriptors, clusters)
+
         # Then we create the initializing Clusters when necessary
         init = init_buffers(descriptors, self.options)
 
@@ -1364,6 +1366,29 @@ def _explicit_guard(g, d):
             return True
 
     return False
+
+
+def _check_mutable_guards(descriptors, clusters):
+    """
+    Raise if a buffered Function is written more than once under the same
+    guards, and these guards read, indices included, a Function written in
+    between. The copy-back follows the last of these writes only, hence it would
+    be skipped if the guards no longer held, thus losing the earlier writes.
+    """
+    for v in descriptors.flat_values():
+        writes = [c for c in v.clusters if c.scope.writes.get(v.f)]
+        for guards, group in as_mapper(writes, lambda c: c.guards).items():
+            functions = set(retrieve_functions(list(guards.values()), deep=True))
+            if len(group) < 2 or not functions:
+                continue
+
+            start = clusters.index(group[0])
+            end = clusters.index(group[-1])
+            if any(functions & set(c.scope.writes) for c in clusters[start+1:end]):
+                raise CompilationError(
+                    f"Unsupported `buffering` of `{v.f.name}`, written multiple "
+                    "times under guards that read a Function modified in between"
+                )
 
 
 class Descriptors(dict):
