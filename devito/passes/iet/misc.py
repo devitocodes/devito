@@ -15,7 +15,8 @@ from devito.ir.iet.efunc import DeviceFunction, EntryFunction
 from devito.passes.iet.engine import iet_pass
 from devito.passes.iet.languages.C import CPrinter
 from devito.symbolics import (
-    Cast, RoundUp, ValueLimit, evalrel, has_integer_args, limits_mapper
+    Cast, RoundUp, ValueLimit, evalrel, has_integer_args, limits_mapper, retrieve_indexed,
+    uxreplace
 )
 from devito.tools import Bunch, as_mapper, as_tuple, filter_ordered, split
 from devito.types import FIndexed
@@ -200,6 +201,10 @@ def _generate_macros_findexeds(iet, sregistry=None, tracker=None, **kwargs):
 
         subs[i] = v
         tracker[i.base] = Bunch(header=header, v=v)
+
+    # Nested FIndexeds, e.g. `TL0(0, IL0(0, 0, 0), 0)`, innermost first
+    for i in sorted(subs, key=lambda i: len(retrieve_indexed(i.indices, deep=True))):
+        subs[i] = uxreplace(subs[i], subs)
 
     iet = Uxreplace(subs).visit(iet)
 
