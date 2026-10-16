@@ -226,6 +226,20 @@ class TestCodeGeneration:
 
         assert '<algorithm>' in str(op)
 
+    def test_init_acc_env(self):
+        grid = Grid(shape=(3, 3, 3))
+
+        u = TimeFunction(name='u', grid=grid)
+
+        op = Operator(Eq(u.forward, u.dx+1), platform='nvidiaX', language='openacc',
+                      name='InitAcc')
+
+        # The device is selected before initializing the runtime
+        init = op.body.init[0].body
+        assert str(init[0]) ==\
+            'if (deviceid != -1)\n{\n  acc_set_device_num(deviceid,acc_device_nvidia);\n}'
+        assert str(init[1]) == 'acc_init(acc_device_nvidia);'
+
 
 class TestOperator:
 

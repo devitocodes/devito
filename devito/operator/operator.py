@@ -1432,37 +1432,33 @@ class ArgumentsMap(dict):
 
     @cached_property
     def _physical_deviceid(self):
-        if isinstance(self.platform, Device):
-            # Get the physical device ID (as CUDA_VISIBLE_DEVICES may be set)
-            logical_deviceid = self.get('deviceid', -1)
-            visible_device_var, visible_devices = get_visible_devices()
-            if logical_deviceid < 0:
-                rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
-                if visible_devices is None:
-                    # Mirror the generated code, which sets device `rank % ngpus`
-                    ngpus = self.platform.numa_domains
-                    logical_deviceid = rank % ngpus if ngpus else rank
-                else:
-                    logical_deviceid = rank % len(visible_devices)
-            if visible_devices is None:
-                return logical_deviceid
-            elif len(visible_devices) == 1:
-                # Only one visible device, it's clearly the one we want
-                return visible_devices[0]
-            elif logical_deviceid <= len(visible_devices):
-                # Map the logical device ID to the physical one
-                return visible_devices[logical_deviceid]
-            else:
-                # Logical device ID is out of bounds, likely from oversubscription
-                # Print a warning and map modulo the number of visible devices
-                deviceid = visible_devices[logical_deviceid % len(visible_devices)]
-                warning(f"Logical device ID {logical_deviceid} is out of bounds "
-                        f"for {len(visible_devices)} visible devices"
-                        f" in {visible_device_var}."
-                        f"Mapping to device ID {deviceid} instead.")
-                return visible_devices[logical_deviceid % len(visible_devices)]
-        else:
+        if not isinstance(self.platform, Device):
             return None
+
+        # The logical device ID is relative to the visible devices, if any
+        # (e.g., CUDA_VISIBLE_DEVICES), otherwise to all the devices on the node
+        deviceid = self.get('deviceid', -1)
+        var, visible_devices = get_visible_devices()
+        if visible_devices is None:
+            ngpus = self.platform.numa_domains
+        else:
+            ngpus = len(visible_devices)
+
+        if deviceid < 0:
+            # Mirror the generated code, which sets device `rank % ngpus`
+            rank = self.comm.Get_rank() if self.comm != MPI.COMM_NULL else 0
+            deviceid = rank % ngpus if ngpus else rank
+        elif ngpus is not None and deviceid >= ngpus:
+            visible = f" ({var}={','.join(map(str, visible_devices))})" if var else ""
+            raise InvalidArgument(
+                f"Device {deviceid} does not exist: {ngpus} device(s) available"
+                f"{visible}"
+            )
+
+        if visible_devices is None:
+            return deviceid
+        else:
+            return visible_devices[deviceid]
 
     @cached_property
     def nbytes_avail_mapper(self):
