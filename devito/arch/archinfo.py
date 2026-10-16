@@ -753,8 +753,10 @@ def get_platform():
             return platform_registry['power8']
         elif 'arm' in brand:
             return platform_registry['arm']
-        elif 'm1' in brand:
-            return platform_registry['m1']
+        elif 'apple m' in brand:
+            # Unregistered (newer) chips fall back to the latest AppleArm
+            key = brand.split('apple ')[1].split()[0]
+            return platform_registry.get(key, platform_registry['m3'])
         elif 'amd' in brand:
             return platform_registry['amd']
     except:
