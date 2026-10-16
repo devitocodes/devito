@@ -11,8 +11,8 @@ from devito import (
 from devito.arch.archinfo import AppleArm
 from devito.exceptions import CompilationError
 from devito.ir import (
-    Cluster, Conditional, FindNodes, FindSymbols, Interval, IterationSpace, lower_exprs,
-    retrieve_iteration_tree
+    Cluster, Conditional, Expression, FindNodes, FindSymbols, Interval, IterationSpace,
+    lower_exprs, retrieve_iteration_tree
 )
 from devito.passes.clusters.buffering import BufferDimension, expand_halo_transfers
 from devito.types import Array
@@ -302,6 +302,30 @@ def test_async_degree(async_degree, backward):
     op1.apply(u=u1, **kwargs)
 
     assert np.all(u.data == u1.data)
+
+
+@pytest.mark.parametrize('async_degree', [1, 2, 4])
+def test_multilevel_async_degree(async_degree):
+    grid = Grid(shape=(4, 4))
+    u = TimeFunction(name='u', grid=grid)
+    ts = ConditionalDimension(name='ts', parent=grid.time_dim, factor=2)
+    usave = TimeFunction(name='usave', grid=grid, save=7, time_dim=ts)
+
+    op = Operator([Eq(u.forward, u + 1), Eq(usave, u)],
+                  opt=('buffering', 'buffering',
+                       {'buf-async-degree': async_degree}))
+
+    buffers = [f for f in FindSymbols().visit(op.body) if f.is_Array and f._mem_heap]
+    assert len(buffers) == 2
+    assert all(f.shape[0] == async_degree for f in buffers)
+    if async_degree > 1:
+        writes = [e.expr.lhs for e in FindNodes(Expression).visit(op)
+                  if e.expr.lhs.function in buffers]
+        assert len(writes) == 2
+        assert all(w.indices[0].is_Modulo for w in writes)
+
+    op.apply(time_m=0, time_M=12)
+    assert np.all(usave.data == np.arange(7)[:, None, None]*2)
 
 
 @pytest.mark.parametrize('backward,expected_bounds', [

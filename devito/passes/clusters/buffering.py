@@ -179,7 +179,8 @@ class InjectBuffers(Queue):
 
         # Create all the necessary ModuloDimensions to step through the buffer
         mds = make_mds(descriptors, prefix, self.sregistry)
-        subiters = as_mapper(mds.values(), lambda i: i.root)
+        subiters = as_mapper([i for i in mds.values() if isinstance(i, ModuloDimension)],
+                             lambda i: i.root)
 
         # Substitution rules to replace buffered Functions with buffers
         # E.g., `usave[time+1, x+1, y+1] -> ub0[t1, x+1, y+1]`
@@ -874,16 +875,26 @@ class BufferDescriptor:
 
 def make_mds(descriptors, prefix, sregistry):
     """
-    Create the ModuloDimensions to step through the buffers. This is done
-    inspecting all buffers so that ModuloDimensions are reused when possible.
+    Map buffered accesses to slot indices, reusing existing indices across
+    buffering levels and creating ModuloDimensions when necessary.
     """
     mds = defaultdict(int)
     for v in descriptors.flat_values():
-        size = v.xd.symbolic_size
+        size = v.b.shape[v.xd]
 
         if size == 1:
             continue
         if v.is_double_buffering:
+            # E.g., `f[time] = b[t0]` must become `b1[t0] = b[t0]`
+            # Initialization may use a plain index expression instead of `t0`
+            for e in v.exprs:
+                if e.lhs.function is v.f:
+                    target, buffer = e.lhs, e.rhs
+                elif e.rhs.function is v.f:
+                    target, buffer = e.rhs, e.lhs
+                else:
+                    continue
+                mds[(v.xd, target.indices[v.dim])] = buffer.indices[v.xd]
             continue
 
         p, _ = offset_from_centre(v.dim, v.indices)

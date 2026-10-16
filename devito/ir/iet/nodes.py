@@ -31,6 +31,7 @@ __all__ = [
     'Block',
     'Break',
     'BusyWait',
+    'BusyWaitCall',
     'Call',
     'Callable',
     'CallableBody',
@@ -1529,6 +1530,17 @@ class BusyWait(While):
 
     """
     A while-loop implementing a busy waiting.
+    """
+
+    pass
+
+
+class BusyWaitCall(Call):
+
+    """
+    A call to a helper implementing busy waiting and synchronization.
+
+    Its wait is profiled at the call site, rather than within the helper.
     """
 
     pass

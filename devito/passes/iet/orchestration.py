@@ -6,8 +6,9 @@ from sympy import Or
 
 from devito.exceptions import CompilationError
 from devito.ir.iet import (
-    AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, Call, Callable, Conditional,
-    DummyExpr, List, SyncSpot, ThreadFence, Transformer, derive_parameters, make_callable
+    AsyncCall, AsyncCallable, BlankLine, Block, BusyWait, BusyWaitCall, Call, Callable,
+    Conditional, DummyExpr, List, SyncSpot, ThreadFence, Transformer, derive_parameters,
+    make_callable
 )
 from devito.ir.iet.visitors import Visitor
 from devito.ir.support import (
@@ -66,7 +67,7 @@ class Orchestrator:
         if isinstance(iet, SyncSpot) and not iet.body:
             iet = List()
 
-        iet = List(body=[Call(name, efunc.parameters)] + [iet])
+        iet = List(body=[BusyWaitCall(name, efunc.parameters)] + [iet])
 
         return iet, [efunc]
 
