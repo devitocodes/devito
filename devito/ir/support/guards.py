@@ -55,7 +55,7 @@ class Guard(AbstractGuard):
 # *** GuardFactor
 
 
-class GuardFactor(Guard, CondEq, Pickable):
+class GuardFactor(Guard):
 
     """
     A guard for factor-based ConditionalDimensions.
@@ -86,11 +86,14 @@ class GuardFactor(Guard, CondEq, Pickable):
         return (self.d,)
 
 
-class GuardFactorEq(GuardFactor, CondEq):
+# The relational bases are mixed in by the leaves only, or `CondEq` would
+# precede `CondNe` in the MRO of `GuardFactorNe`, making it an equality. E.g.,
+# `Not(GuardFactorEq(d))` would then be printed as `time % k == 0`
+class GuardFactorEq(GuardFactor, CondEq, Pickable):
     pass
 
 
-class GuardFactorNe(GuardFactor, CondNe):
+class GuardFactorNe(GuardFactor, CondNe, Pickable):
     pass
 
 

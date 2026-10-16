@@ -366,6 +366,9 @@ def guard(clusters):
             else:
                 guards = {d: mode(*v, evaluate=False) for d, v in guards.items()}
 
+            # A condition folded to `true` (e.g., `time >= 0`) imposes no guard
+            guards = {d: v for d, v in guards.items() if v is not sympy.true}
+
             # Construct a guarded Cluster
             processed.append(c.rebuild(exprs=exprs, guards=guards))
 
