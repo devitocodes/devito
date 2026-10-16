@@ -564,6 +564,21 @@ def test_reuse_efuncs_natural_numbering():
     assert [i.name for i in calls] == ['foo0', 'foo0']
 
 
+@pytest.mark.parametrize('shared', [False, True])
+def test_reuse_efuncs_constant_arrays(shared):
+    d = Dimension(name='d')
+    a = Array(name='a', dimensions=d, shape=(2,), scope='constant',
+              initvalue=(1, 2))
+    b = a if shared else a._rebuild(name='b')
+    foo0 = make_callable('foo0', Call('consume', (a,)))
+    foo1 = make_callable('foo1', Call('consume', (b,)))
+    root = make_callable('root', List(body=[Call('foo0'), Call('foo1')]))
+    efuncs = reuse_efuncs(root, {i.name: i for i in (root, foo0, foo1)})
+
+    assert len(efuncs) == (2 if shared else 3)
+    assert FindNodes(Call).visit(efuncs['foo0'])[0].arguments == (a,)
+
+
 def test_sorted_efuncs_natural_numbering():
     names = ['kernel3', 'foo0', 'kernel11', 'kernel1', 'kernel2']
     efuncs = [make_callable(name, List()) for name in names]
