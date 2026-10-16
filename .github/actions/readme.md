@@ -13,11 +13,12 @@ uses: ./.github/actions/docker-run
 ## `docker-build`
 
 Inputs:
-
+- `working-directory`: Change to this directory before executing build command
 - `file`: Dockerfile containing build instructions (default: `Dockerfile`)
 - `tag`: Tag to add to the built image
 - `base`: Base docker image to build on top of
 - `args`: Arguments to pass to `docker build`
+- `local`: Set this to `true` to prevent attempting to pull the image from a remote
 
 Outputs:
 
@@ -43,12 +44,17 @@ jobs:
 
 Inputs:
 
+- `working-directory`: Change to this directory before executing run command
 - `uid`: Unique identifier output from docker-build action
 - `tag`: Tag of the built image to use
 - `name`: Name substring for docker to use when running the command (optional)
 - `args`: Arguments to pass to `docker run`, `--init -t --rm` are always added
 - `env`: Environment variables to set inside the docker container, one environment variable per line
--command: Command to execute inside of the docker container
+- `command`: Command to execute inside of the docker container
+
+Outputs:
+
+- `hash`: The Docker hash for the running container (ie: `${{ steps.runA.outputs.hash }})
 
 ### Notes
 
@@ -65,7 +71,8 @@ Example:
 jobs:
   test:
     steps:
-    - name: Run a command in a previously built Docker container
+    - id: runA
+      name: Run a command in a previously built Docker container
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -87,6 +94,7 @@ Inputs:
 
 - `uid`: Unique identifier output from docker-build action
 - `tag`: Tag of the built image to use
+- `container_hashes`: Hash (or list of hashes) of the container that was run using the docker-run action
 
 ### Notes
 
@@ -106,4 +114,7 @@ jobs:
       with:
         uid: ${{ steps.build.outputs.unique }}
         tag: tag-related-to-test-config
+        container_hashes: >-
+          ${{ steps.runA.outputs.hash }}
+          ${{ steps.runB.outputs.hash }}
 ```

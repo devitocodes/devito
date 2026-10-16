@@ -1,5 +1,5 @@
 name: Docker cleanup action
-description: Composite action for removing Docker images
+description: Composite action for removing Docker images and containers
 author: "Devito"
 
 inputs:
@@ -10,12 +10,36 @@ inputs:
   tag:
     description: "Tag of the built image to use"
     required: true
+  container_hashes:
+    description: "Hash (or list of hashes) of the container that was run using the docker-run action"
+    required: true
+    default: ""
 
 runs:
   using: "composite"
   steps:
-    - id: dockerclean
+    - id: dockercontainerkill
+      name: "Kill hanging containers"
+      shell: bash
+      run: |
+        for HASH in ${{ inputs.container_hashes }}; do
+          # Kill the docker container
+          # This should not be necessary if the container exited cleanly
+          docker kill $HASH || true
+        done
+
+    - id: dockercontainerrm
+      name: "Remove remaining containers"
+      shell: bash
+      run: |
+        for HASH in ${{ inputs.container_hashes }}; do
+          # Remove the docker container
+          # This should not be necessary if the `--rm` flag is passed
+          docker container rm -f $HASH || true
+        done
+
+    - id: dockerimageclean
       name: "Cleanup docker image"
       shell: bash
       run: |
-          docker image rm -f "${{ inputs.tag }}_${{ inputs.uid }}"
+        docker image rm -f "${{ inputs.tag }}_${{ inputs.uid }}"

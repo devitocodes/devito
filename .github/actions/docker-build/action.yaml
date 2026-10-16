@@ -4,6 +4,10 @@ author: "Devito"
 
 inputs:
 # The only supported GHA input type is string
+  working-directory:
+    description: "Change to this directory before executing build"
+    required: true
+    default: "."
   file:
     description: "Dockerfile containing build instructions"
     required: true
@@ -16,6 +20,10 @@ inputs:
     default: ""
   args:
     description: "Arguments to pass to `docker build`"
+    required: true
+    default: ""
+  local:
+    description: "Set true to prevent attempting to pull the image"
     required: true
     default: ""
 
@@ -40,9 +48,11 @@ runs:
       shell: bash
       env:
         BASE: ${{ inputs.base }}
+        LOCAL: ${{ inputs.local }}
       run: |
+        cd ${{ inputs.working-directory }}
         docker build \
-          --pull \
+          $([ "${{ inputs.local }}" = true ] && echo "" || echo "--pull") \
           --file ${{ inputs.file }} \
           --tag ${{ inputs.tag }}_${{ steps.uniquetag.outputs.unique }} \
           ${BASE:+--build-arg base=$BASE} \

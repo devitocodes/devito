@@ -237,7 +237,8 @@ jobs:
         tag: ${{ matrix.name }}
         base: devitocodes/bases:cpu-${{ matrix.arch }}
 
-    - name: Test with pytest
+    - id: pytest
+      name: Test with pytest
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -260,3 +261,5 @@ jobs:
       with:
         uid: ${{ steps.build.outputs.unique }}
         tag: ${{ matrix.name }}
+        container_hashes: >-
+          ${{ steps.pytest.outputs.hash }}

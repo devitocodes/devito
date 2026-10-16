@@ -4,6 +4,10 @@ author: "Devito"
 
 inputs:
 # The only supported GHA input type is string
+  working-directory:
+    description: "Change to this directory before executing build"
+    required: true
+    default: "."
   uid:
     description: "Unique identifier output from docker-build action"
     required: true
@@ -24,6 +28,11 @@ inputs:
   command:
     description: "Command to execute inside of the docker container"
     required: true
+
+outputs:
+  hash:
+    description: "Docker hash for the running container"
+    value: ${{ steps.postrun.outputs.hash }}
 
 runs:
   using: "composite"
@@ -51,7 +60,9 @@ runs:
       env:
         NAME: ${{ inputs.name }}
       run: |
+        cd ${{ inputs.working-directory }}
         docker run \
+          --cidfile "${{ inputs.uid }}.cid" \
           --init -t --rm \
           ${{ inputs.args }} \
           --name "ci-${NAME:-${{ inputs.tag }}}-${{ inputs.uid }}" \
@@ -59,3 +70,13 @@ runs:
           ${{ steps.processenv.outputs.docker_environment_args }} \
           "${{ inputs.tag }}_${{ inputs.uid }}" \
           ${{ inputs.command }}
+
+    - id: postrun
+      name: "Collect hash of launched container"
+      if: always()
+      shell: bash
+      run: |
+        cd ${{ inputs.working-directory }}
+        HASH=$(cat "${{ inputs.uid }}.cid")
+        rm "${{ inputs.uid }}.cid"
+        echo "hash=${HASH}" >> "$GITHUB_OUTPUT"

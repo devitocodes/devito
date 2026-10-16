@@ -120,7 +120,8 @@ jobs:
         file: docker/Dockerfile.devito
         tag: ${{ matrix.name }}
 
-    - name: Test seismic notebooks
+    - id: seismic
+      name: Test seismic notebooks
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -136,7 +137,8 @@ jobs:
             -k 'not dask and not synthetics and not mpi' \
             examples
 
-    - name: Failing notebooks
+    - id: failing
+      name: Failing notebooks
       continue-on-error: true
       uses: ./.github/actions/docker-run
       with:
@@ -149,7 +151,8 @@ jobs:
         command: |
           pytest -v --nbval examples/seismic/tutorials/14_creating_synthetics.ipynb
 
-    - name: Dask notebooks
+    - id: dask
+      name: Dask notebooks
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -168,3 +171,7 @@ jobs:
       with:
         uid: ${{ steps.build.outputs.unique }}
         tag: ${{ matrix.name }}
+        container_hashes: >-
+          ${{ steps.seismic.outputs.hash }}
+          ${{ steps.failing.outputs.hash }}
+          ${{ steps.dask.outputs.hash }}
