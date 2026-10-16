@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import S
+from sympy import And, S
 
 from conftest import EVAL, skipif  # noqa
 from devito import (  # noqa
@@ -18,7 +18,9 @@ from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
     mocksym0, mocksym1
 )
-from devito.ir.support.guards import GuardOverflow
+from devito.ir.support.guards import (
+    GuardBoundNextGt, GuardBoundNextLe, GuardOverflow
+)
 from devito.ir.support.space import (
     Any, Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
     NullInterval, null_ispace
@@ -1731,3 +1733,24 @@ class TestGuards:
         guard = GuardOverflow(freespace, size)
 
         assert ccode(guard) == 'freespace >= f_vec->size[0]*f_vec->size[1]'
+
+    def test_guard_bound_next_negated(self):
+        """
+        The negation of a GuardBoundNext is the opposite relation. SymPy
+        negates the relational arguments of an `And` to detect contradictions,
+        so this is also what makes an `And` of such guards constructible.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        i = Scalar(name='i')
+
+        guard = GuardBoundNextLe(time, i, Forward)
+        assert ccode(guard) == 'i <= time_M'
+
+        negated = guard.negated
+        assert isinstance(negated, GuardBoundNextGt)
+        assert ccode(negated) == 'i > time_M'
+
+        other = GuardBoundNextLe(time, i + 1, Forward)
+        assert set(And(guard, other).args) == {guard, other}

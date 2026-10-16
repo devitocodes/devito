@@ -1,6 +1,6 @@
 from collections import defaultdict, namedtuple
 from functools import cached_property
-from itertools import chain, groupby
+from itertools import chain
 
 import numpy as np
 from sympy import And
@@ -9,7 +9,7 @@ from sympy import Ne, Not, Or, S, simplify, true
 
 from devito.exceptions import CompilationError
 from devito.ir import (
-    Backward, Cluster, Forward, GuardBound, GuardFactor, InitArray, Interval,
+    Backward, Cluster, Forward, GuardBound, GuardFactor, Guards, InitArray, Interval,
     IterationSpace, Properties, Queue, Vector, detect_halo_writes, lower_exprs, vmax, vmin
 )
 from devito.logger import warning
@@ -164,9 +164,15 @@ class InjectBuffers(Queue):
         # that access it
         descriptors = defaultdict(list)
         for (f, guards), b in self.mapper.items():
-            if f in bfmap:
+            if f not in bfmap:
+                continue
+            if guards is None:
+                # The Clusters sharing one buffer across their guards
+                other = {k for ff, k in self.mapper if ff == f and k is not None}
+                fc = [c for c in bfmap[f] if c.guards not in other]
+            else:
                 fc = [c for c in bfmap[f] if c.guards == guards]
-                descriptors[b].append(BufferDescriptor(f, b, fc, guards))
+            descriptors[b].append(BufferDescriptor(f, b, fc, guards))
 
         # Are we inside the right `d`?
         descriptors = {b: [vi for vi in v if d in vi.itdims]
@@ -175,6 +181,8 @@ class InjectBuffers(Queue):
 
         if not descriptors:
             return clusters
+
+        _check_mutable_guards(descriptors, clusters)
 
         # Then we create the initializing Clusters when necessary
         init = init_buffers(descriptors, self.options)
@@ -196,15 +204,17 @@ class InjectBuffers(Queue):
             # If a buffer is read but never written, then we need to add
             # an Eq to step through the next slot
             # E.g., `ub[0, x] = usave[time+2, x]`
-            for v in descriptors.flat_values():
-                if not v.is_readonly:
-                    continue
-                if c not in v.firstread:
-                    continue
-                if c.guards.get(d) != v.guards.get(d):
+            # Likewise, a slot read before being written within the same
+            # iteration must be loaded from the buffered Function
+            # E.g., `ub[0, x] = usave[time, x]` before `ub[0, x] = ub[0, x] + 1`
+            steps = [(v, v.last_idx[c], c) for v in descriptors.flat_values()
+                     if v.is_readonly and c in v.firstread]
+            steps.extend((v, i, c1) for v in descriptors.flat_values()
+                         for i, c1 in v.loads.get(c, []))
+            for v, idxf, cr in steps:
+                if v.guards is not None and c.guards.get(d) != v.guards.get(d):
                     continue
 
-                idxf = v.last_idx[c]
                 idxb = mds[(v.xd, idxf)]
 
                 lhs = v.b.indexify()._subs(v.xd, idxb)
@@ -216,13 +226,15 @@ class InjectBuffers(Queue):
                 ispace = v.step_to
                 ispace = ispace.augment(subiters).augment(c.sub_iterators)
 
+                # The load precedes the first access to the slot, hence it drops
+                # the readers' guards reading a Function that may change before
+                # the reads it serves
+                guards = _stable_guards(cr.guards, clusters)
                 if v.xd in ispace.itdims:
-                    guards = c.guards.xandg(v.xd, GuardBound(0, v.first_idx.f))
-                else:
-                    guards = c.guards
+                    guards = guards.xandg(v.xd, GuardBound(0, v.first_idx.f))
 
                 properties = c.properties.sequentialize(d)
-                if not _explicit_guard(c.guards.get(d, None), d):
+                if v.is_readonly and not _explicit_guard(c.guards.get(d, None), d):
                     properties = properties.prefetchable(d)
                 # `c` may be a HaloTouch Cluster, so with no vision of the `bdims`
                 properties = properties.parallelize(v.bdims).affine(v.bdims)
@@ -246,8 +258,18 @@ class InjectBuffers(Queue):
                     continue
                 if c not in v.lastwrite:
                     continue
-                if c.guards.get(d) != v.guards.get(d):
+                if v.guards is not None and c.guards.get(d) != v.guards.get(d):
                     continue
+
+                # Only one slot per iteration is copied back, so writes at other
+                # indices (e.g., `f[time]` along with `f[time+1]`) would be lost
+                written = {w[v.dim] for c1 in v.clusters if c1.guards == c.guards
+                           for w in c1.scope.writes.get(v.f, [])}
+                if len(written) > 1:
+                    raise CompilationError(
+                        f"Cannot buffer `{v.f.name}`, written at multiple indices "
+                        f"along `{v.dim}` within the same iteration"
+                    )
 
                 idxf = v.last_idx[c]
                 idxb = mds[(v.xd, idxf)]
@@ -462,9 +484,21 @@ def generate_buffers(clusters, key, sregistry, options, **kwargs):
 
     for f, clusters in bfmap.items():
         dim = f.hdim
-        for k, g in groupby(clusters, key=lambda c: c.guards):
-            g = list(g)
 
+        # Clusters reading `f` after a write under other guards must see it, so
+        # they share one buffer with the writers
+        sguards = _shared_guards(f, dim, clusters)
+        if sguards:
+            g = [c for c in clusters if c.guards in sguards]
+            mapper[(f, None)] = _select_buffer(
+                f, dim, None, g, xds, async_degree, sregistry, callback
+            )
+            groups[(f, None)] = g
+
+        # NOTE: Clusters with the same guards may be non-consecutive
+        for k, g in as_mapper(clusters, lambda c: c.guards).items():
+            if k in sguards:
+                continue
             if f in shared:
                 mapper[(f, k)] = shared[f]
                 groups[(f, k)] = g
@@ -725,6 +759,63 @@ class BufferDescriptor:
         return tuple(mapper.values())
 
     @cached_property
+    def loads(self):
+        """
+        Map each Cluster to the indices of `f` to be loaded into the buffer right
+        before it, each paired with the Cluster reading it. An index is loaded if
+        read before being written in the same iteration, or ahead of all written
+        indices, as the corresponding buffer slot holds a value from a previous
+        iteration rather than the value stored in `f`. The load precedes the
+        first access to the index, as an earlier write under other guards may
+        not be performed.
+        """
+        def writes(clusters):
+            return {a[self.dim] for c in clusters for a in c.scope.writes.get(self.f, [])}
+
+        def reads(clusters):
+            return filter_ordered(a[self.dim] for c in clusters if not c.is_wild
+                                  for a in c.scope.reads.get(self.f, []))
+
+        # Slots read ahead of all written ones, hence never written by an earlier
+        # iteration. E.g., `f[time+1]` in `g[time] = f[time+1]; f[time] = ...`
+        windices = writes(self.clusters)
+        rindices = reads(self.clusters)
+        ahead = set()
+        if windices and rindices:
+            sign = 1 if self.is_forward_buffering else -1
+            ahead = {i for i in rindices
+                     if all(S(sign*(i - w)).is_positive for w in windices)}
+
+        # A buffer shared across guards may hold, in a slot written by an earlier
+        # iteration under guards that did not hold, a value from an even earlier
+        # one. E.g., `f[time-1]` in `f[time] = ... if time < 3; g[time] = f[time-1]`
+        behind = set()
+        if self.guards is None:
+            behind = set(rindices) - windices - ahead
+
+        mapper = defaultdict(list)
+        for n, c in enumerate(self.clusters):
+            if c.is_wild:
+                continue
+
+            # Slots written or loaded earlier, unconditionally or under the same
+            # guards, unless these read a Function, which may change in between
+            earlier = [c1 for c1 in self.clusters[:n]
+                       if not c1.guards or (c1.guards == c.guards and
+                                            not _reads_functions(c.guards))]
+            written = writes(earlier)
+            loaded = set(reads(earlier))
+
+            for i in reads([c]):
+                if i not in windices | ahead | behind or i in written | loaded:
+                    continue
+                c0 = next(c1 for c1 in self.clusters[:n+1]
+                          if i in writes([c1]) or i in reads([c1]))
+                mapper[c0].append((i, c))
+
+        return frozendict(mapper)
+
+    @cached_property
     def lastwrite(self):
         mapper = {}
         for c in reversed(self.clusters):
@@ -802,7 +893,8 @@ class BufferDescriptor:
     def last_idx(self):
         """
         The "last index" is the index that corresponds to the last slot that
-        must be read from the buffered Function.
+        must be read from the buffered Function or, if the buffer is written,
+        to the last written slot, that is the one to be copied back.
 
         Examples
         --------
@@ -810,16 +902,23 @@ class BufferDescriptor:
             * `time+1` in the case of `foo(u[time-1], u[time], u[time+1])`
                with a forward-propagating `time` Dimension;
             * `time-1` in the case of `foo(u[time-1], u[time], u[time+1])`
-               with a backwards-propagating `time` Dimension.
+               with a backwards-propagating `time` Dimension;
+            * `time` in the case of `g[time] = u[time+1]; u[time] = ...`
+               with a forward-propagating `time` Dimension.
         """
         mapper = {}
         func = vmax if self.is_forward_buffering else vmin
-        for c in self.lastwrite + self.firstread:
+        for c in self.lastwrite or self.firstread:
             # Consider all Clusters sharing `c`'s guards, so the leading edge is
             # found even when `f` is accessed at different offsets across them
             # (e.g. `f` and `f.forward` in separate Eqs)
             group = [c1 for c1 in self.clusters if c1.guards == c.guards]
-            indices = extract_indices(self.f, self.dim, group)
+            if self.is_write:
+                # A slot read ahead of the written ones is not copied back
+                accesses = chain(*[c1.scope.writes.get(self.f, []) for c1 in group])
+                indices = filter_ordered(i[self.dim] for i in accesses)
+            else:
+                indices = extract_indices(self.f, self.dim, group)
             idx = func(*[Vector(i) for i in indices])[0]
             mapper[c] = idx
 
@@ -1045,7 +1144,7 @@ def _overwritten(v, c, idxf, descriptors, order, d):
         for c1 in v1.lastwrite:
             if order.get(c1, -1) <= order[c]:
                 continue
-            if c1.guards.get(d) != v1.guards.get(d):
+            if v1.guards is not None and c1.guards.get(d) != v1.guards.get(d):
                 continue
             # The later copy-back must write the whole slot written by `v`
             key = lambda i: i in v.bdims  # noqa: B023
@@ -1069,10 +1168,12 @@ def _overwritten(v, c, idxf, descriptors, order, d):
             condition = And(*c1.guards.values(), coincide)
 
             # The condition is evaluated at the earlier copy-back, so nothing
-            # it reads, indices included, may be written in between
+            # it reads, indices included, may be written in between; and `v.f`
+            # may not be read in between, as the skipped slot is still unwritten
             reads = {i.function for i in retrieve_terminals(condition, deep=True)}
             between = [c2 for c2, n in order.items() if order[c] < n <= order[c1]]
-            if any(not reads.isdisjoint(c2.scope.writes) for c2 in between):
+            if any(not reads.isdisjoint(c2.scope.writes) or v.f in c2.scope.reads
+                   for c2 in between):
                 continue
 
             conditions.append(condition)
@@ -1080,6 +1181,62 @@ def _overwritten(v, c, idxf, descriptors, order, d):
     if not conditions:
         return None
     return Or(*conditions)
+
+
+def _reads_functions(guards):
+    """
+    True if any of the guards reads a Function, indices included.
+    """
+    return any(retrieve_functions(g, deep=True) for g in guards.values())
+
+
+def _stable_guards(guards, clusters):
+    """
+    The guards, or conjuncts thereof, that read no Function written by any of
+    the given Clusters, hence holding throughout an iteration.
+    """
+    written = {f for c in clusters for f in c.scope.writes}
+    mapper = {}
+    for d, g in guards.items():
+        conjuncts = [i for i in (g.args if isinstance(g, And) else (g,))
+                     if not written & set(retrieve_functions(i, deep=True))]
+        if conjuncts:
+            mapper[d] = And(*conjuncts)
+    return Guards(mapper)
+
+
+def _shared_guards(f, dim, clusters):
+    """
+    The guards of the Clusters that must share a buffer for `f`, that is those
+    of Clusters reading `f` after a Cluster under other guards writes it, and
+    those of the latter.
+    """
+    shared = set()
+    for n, c in enumerate(clusters):
+        if c.is_wild or not c.scope.reads.get(f):
+            continue
+        for c1 in clusters[:n]:
+            if c1.guards != c.guards and c1.scope.writes.get(f):
+                shared.update([c.guards, c1.guards])
+    if not shared:
+        return shared
+
+    # The slots of a shared buffer must be at a known distance from each other,
+    # e.g. not `time/factor` and a CondEq-shifted `time/factor + (time >= 4)`.
+    # Otherwise each set of guards keeps its own buffer
+    group = [c for c in clusters if c.guards in shared]
+    indices = extract_indices(f, dim, group)
+    if not all(is_integer(i - indices[0]) for i in indices):
+        return set()
+
+    # Likewise if they iterate over different spatial Dimensions, e.g. different
+    # SubDomains, as a buffer has one IterationSpace
+    spaces = {frozenset(d for d in c.ispace.dimensions if not d._defines & dim._defines)
+              for c in group if not c.is_wild}
+    if len(spaces) > 1:
+        return set()
+
+    return shared
 
 
 def _fits_buffer(f, clusters, b):
@@ -1191,7 +1348,7 @@ def make_buffer_subs(descriptors, mds, d):
     subs = defaultdict(dict)
     for b, v in descriptors.flat_items():
         for c in v.clusters:
-            if c.guards.get(d) != v.guards.get(d):
+            if v.guards is not None and c.guards.get(d) != v.guards.get(d):
                 continue
 
             accesses = c.scope[v.f]
@@ -1221,6 +1378,29 @@ def _explicit_guard(g, d):
             return True
 
     return False
+
+
+def _check_mutable_guards(descriptors, clusters):
+    """
+    Raise if a buffered Function is written more than once under the same
+    guards, and these guards read, indices included, a Function written in
+    between. The copy-back follows the last of these writes only, hence it would
+    be skipped if the guards no longer held, thus losing the earlier writes.
+    """
+    for v in descriptors.flat_values():
+        writes = [c for c in v.clusters if c.scope.writes.get(v.f)]
+        for guards, group in as_mapper(writes, lambda c: c.guards).items():
+            functions = set(retrieve_functions(list(guards.values()), deep=True))
+            if len(group) < 2 or not functions:
+                continue
+
+            start = clusters.index(group[0])
+            end = clusters.index(group[-1])
+            if any(functions & set(c.scope.writes) for c in clusters[start+1:end]):
+                raise CompilationError(
+                    f"Unsupported `buffering` of `{v.f.name}`, written multiple "
+                    "times under guards that read a Function modified in between"
+                )
 
 
 class Descriptors(dict):

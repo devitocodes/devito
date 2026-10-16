@@ -183,8 +183,9 @@ class BaseGuardBoundNext(Guard, Pickable):
         return cls._new(p0, p1, d, index, direction, d_min=d_min, d_max=d_max, **kwargs)
 
     @classmethod
-    def _new(cls, p0, p1, d, index, direction, d_min=None, d_max=None):
-
+    def _new(cls, p0, p1, d, index, direction, d_min=None, d_max=None, **kwargs):
+        # `kwargs` may carry `evaluate`, e.g. from `negated`; the relation is
+        # never evaluated
         obj = super().__new__(cls, p0, p1, evaluate=False)
 
         obj.d = d

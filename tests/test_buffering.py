@@ -1247,3 +1247,418 @@ def test_buffering_same_slot_skip(case):
     op.apply(time_m=0, time_M=3)
 
     assert np.all(f.data[:, 1, 1] == expected)
+
+
+@pytest.mark.parametrize('eqns', ['g = f; f = T', 'f = f + T'])
+def test_read_before_write(eqns):
+    """
+    A slot of `f` read before being written in the same iteration must hold the
+    value stored in `f`, not the one left in the buffer by a previous iteration.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    nt = 3
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=nt)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+    f.data[:] = 10.
+
+    if eqns == 'g = f; f = T':
+        eqs = [Eq(T, time), Eq(g, f), Eq(f, T)]
+        expected = [0., 1., 2.]
+    else:
+        eqs = [Eq(T, time), Eq(f, f + T)]
+        expected = [10., 11., 12.]
+
+    op = Operator(eqs, opt='buffering', name='ReadBeforeWrite')
+    op.apply(time_m=0, time_M=nt-1)
+
+    assert np.allclose(f.data[:, 1, 1], expected)
+    if eqns == 'g = f; f = T':
+        assert np.allclose(g.data[:, 1, 1], 10.)
+
+
+@pytest.mark.parametrize('eqns', ['g = f.forward; f = h + 1', 'f = f.forward + h'])
+def test_read_ahead(eqns):
+    """
+    `h` imposes a forward-propagating `time`, so `f[time+1]` is read ahead of
+    the written `f[time]`. Its slot must be loaded from `f`, and only the
+    written slot copied back.
+    """
+    grid = Grid(shape=(4, 4))
+    nt = 4
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=nt)
+    h = TimeFunction(name='h', grid=grid, time_order=1, space_order=0)
+    f.data[:] = 10*np.arange(nt).reshape(nt, 1, 1)
+
+    if eqns == 'g = f.forward; f = h + 1':
+        eqs = [Eq(h.forward, h + 1), Eq(g, f.forward), Eq(f, h + 1)]
+        expected_f = [1., 2., 3., 30.]
+        expected_g = [10., 20., 30., 0.]
+    else:
+        eqs = [Eq(h.forward, h + 1), Eq(f, f.forward + h)]
+        expected_f = [10., 21., 32., 30.]
+        expected_g = [0., 0., 0., 0.]
+
+    op = Operator(eqs, opt='buffering', name='ReadAhead')
+    op.apply(time_m=0, time_M=nt-2)
+
+    assert np.allclose(f.data[:, 1, 1], expected_f)
+    assert np.allclose(g.data[:, 1, 1], expected_g)
+
+
+def test_non_consecutive_guards():
+    """
+    The Clusters reading `f` without guards are not consecutive, as a guarded
+    one sits in between. The buffer they share must span all of their accesses,
+    `f[time+1]` and `f[time]`, not just those of the last Cluster.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    nt = 4
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=nt)
+    h = TimeFunction(name='h', grid=grid, time_order=0, space_order=0, save=nt)
+    k = TimeFunction(name='k', grid=grid, time_order=0, space_order=0, save=nt)
+    f.data[:] = np.arange(nt).reshape(nt, 1, 1)
+
+    c = ConditionalDimension(name='c', parent=time, condition=time >= 1,
+                             relation='strict')
+    eqs = [Eq(g, f.forward), Eq(h, f, implicit_dims=c), Eq(k, f)]
+
+    op = Operator(eqs, opt='buffering', name='NonConsecutiveGuards')
+    op.apply(time_m=0, time_M=nt-2)
+
+    assert np.allclose(g.data[:, 1, 1], [1., 2., 3., 0.])
+    assert np.allclose(h.data[:, 1, 1], [0., 1., 2., 0.])
+    assert np.allclose(k.data[:, 1, 1], [0., 1., 2., 0.])
+
+
+@pytest.mark.parametrize('case', ['guarded-write-skipped'])
+def test_read_write_different_guards(case):
+    """
+    A read sees the earlier guarded write, or the initialized slot if that
+    write does not fire.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    nt = 4
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=nt)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=nt)
+    f.data[:] = 10*np.arange(nt).reshape(nt, 1, 1)
+
+    c = ConditionalDimension(name='c', parent=time, condition=time < 2,
+                             relation='strict')
+    eqs = [Eq(f, time + 1, implicit_dims=c), Eq(g, f)]
+
+    op = Operator(eqs, opt='buffering', name='DifferentGuards')
+    op.apply(time_m=0, time_M=nt-1)
+
+    assert np.all(f.data[:, 1, 1] == [1, 2, 20, 30])
+    assert np.all(g.data[:, 1, 1] == [1, 2, 20, 30])
+
+
+@pytest.mark.parametrize('case', ['read-then-write', 'write-then-read'])
+def test_read_write_shifted_slot(case):
+    """
+    The last timestep is saved into a slot shifted off the subsampled grid, so
+    at an unknown distance from the others. A read after this write, under other
+    guards, cannot share a buffer with it, so each keeps its own.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    ct0 = ConditionalDimension(name='ct0', parent=time, factor=2, relation=Or)
+    ctend = ConditionalDimension(name='ctend', parent=time,
+                                 condition=CondEq(time, 3), relation='strict')
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0,
+                     time_dim=ct0, save=3)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=4)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+    if case == 'read-then-write':
+        cr = ConditionalDimension(name='cr', parent=time, condition=time >= 2,
+                                  relation='strict')
+        eqs = [Eq(T, time), Eq(f, T), Eq(g, f, implicit_dims=cr),
+               Eq(f, T + 1, implicit_dims=ctend)]
+
+        op = Operator(eqs, opt='buffering', name='ShiftedSlot')
+        op.apply(time_m=0, time_M=3)
+
+        assert np.all(f.data[:, 1, 1] == [0, 2, 4])
+        assert np.all(g.data[:, 1, 1] == [0, 0, 2, 2])
+    else:
+        f.data[:] = 10*np.arange(3).reshape(3, 1, 1) + 5
+        eqs = [Eq(f, time, implicit_dims=ctend), Eq(g, f)]
+
+        op = Operator(eqs, opt='buffering', name='ShiftedSlot')
+        op.apply(time_m=0, time_M=3)
+
+        assert np.all(f.data[:, 1, 1] == [5, 15, 3])
+        assert np.all(g.data[:, 1, 1] == [5, 0, 15, 0])
+
+
+def test_read_behind_guarded_write():
+    """
+    `f[time-1]` is read from the buffer shared with the write under `time < 3`.
+    When that write did not fire in the previous iteration, the slot must be
+    loaded from `f`.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    f = TimeFunction(name='f', grid=grid, time_order=1, space_order=0, save=6)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=6)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+    f.data[:] = np.arange(6).reshape(6, 1, 1)
+
+    cw = ConditionalDimension(name='cw', parent=time, condition=time < 3,
+                              relation='strict')
+    cr = ConditionalDimension(name='cr', parent=time, condition=T[0, 0, 0] > 0.5,
+                              relation='strict')
+    eqs = [Eq(f, time + 100, implicit_dims=cw), Eq(T, time - 1),
+           Eq(g, f.backward, implicit_dims=cr)]
+
+    op = Operator(eqs, opt='buffering', name='ReadBehind')
+    op.apply(time_m=1, time_M=5)
+
+    assert np.all(f.data[:, 1, 1] == [0, 101, 102, 3, 4, 5])
+    assert np.all(g.data[:, 1, 1] == [0, 0, 101, 102, 3, 4])
+
+
+def test_read_write_different_subdomains():
+    """
+    A write over a SubDomain and a read over the whole domain, under other
+    guards, iterate over different spatial Dimensions, so each keeps its own
+    buffer.
+    """
+    class Left(SubDomain):
+        name = 'left'
+
+        def define(self, dimensions):
+            x, y = dimensions
+            return {x: ('left', 2), y: y}
+
+    grid = Grid(shape=(4, 4))
+    left = Left(grid=grid)
+    time = grid.time_dim
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=4)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=4)
+    f.data[:] = 10*np.arange(4).reshape(4, 1, 1)
+
+    cw = ConditionalDimension(name='cw', parent=time, condition=time < 2,
+                              relation='strict')
+    eqs = [Eq(f, time + 1, implicit_dims=cw, subdomain=left), Eq(g, f)]
+
+    op = Operator(eqs, opt='buffering', name='DifferentSubDomains')
+    op.apply(time_m=0, time_M=3)
+
+    assert np.all(g.data[:, 1, 1] == [1, 2, 20, 30])
+    assert np.all(g.data[:, 3, 1] == [0, 10, 20, 30])
+
+
+@pytest.mark.parametrize('case', ['reread', 'write-read', 'read-read'])
+def test_guard_changes_between_accesses(case):
+    """
+    Two accesses to `f` under the same guard, which reads `T`, updated in
+    between. The guard may not hold at the first access, so the slot must be
+    loaded for the second one.
+    """
+    grid = Grid(shape=(2,))
+    time = grid.time_dim
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=3)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=3)
+    h = TimeFunction(name='h', grid=grid, time_order=0, space_order=0, save=3)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+    f.data[:] = 10*np.arange(3).reshape(3, 1) + 5
+
+    c = ConditionalDimension(name='c', parent=time, condition=T[0, 0] > time,
+                             relation='strict')
+    if case == 'reread':
+        eqs = [Eq(g, f, implicit_dims=c), Eq(T, time + 1),
+               Eq(f, f + 1, implicit_dims=c)]
+        expected = [[6, 16, 26], [0, 0, 0], [0, 0, 0]]
+    elif case == 'write-read':
+        eqs = [Eq(f, time + 100, implicit_dims=c), Eq(T, time + 1),
+               Eq(g, f, implicit_dims=c)]
+        expected = [[5, 15, 25], [5, 15, 25], [0, 0, 0]]
+    else:
+        eqs = [Eq(g, f, implicit_dims=c), Eq(T, time + 1),
+               Eq(h, f, implicit_dims=c)]
+        expected = [[5, 15, 25], [0, 0, 0], [5, 15, 25]]
+
+    op = Operator(eqs, opt='buffering', name='GuardChanges')
+    op.apply(time_m=0, time_M=2)
+
+    for i, v in zip([f, g, h], expected, strict=True):
+        assert np.all(i.data[:, 0] == v)
+
+
+@pytest.mark.parametrize('case', ['stable', 'after', 'mutable', 'repeated', 'rise'])
+def test_mutable_read_guards(case):
+    """
+    `f` is written under `time < 2`, then read under guards reading `T`. The
+    slot is loaded before the write, as the write may not be performed, hence
+    the load must not depend on the value of `T` at that point.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=4)
+    g = TimeFunction(name='g', grid=grid, time_order=0, space_order=0, save=4)
+    h = TimeFunction(name='h', grid=grid, time_order=0, space_order=0, save=4)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+    cw = ConditionalDimension(name='cw', parent=time, condition=time < 2,
+                              relation='strict')
+    cr = ConditionalDimension(name='cr', parent=time, condition=T[0, 0, 0] > 0.5,
+                              relation='strict')
+
+    write = Eq(f, time + 1, implicit_dims=cw)
+    read = Eq(g, f, implicit_dims=cr)
+    expected_h = [0, 0, 0, 0]
+    if case == 'stable':
+        eqs = [Eq(T, 1), write, read]
+        expected_g = [1, 2, 20, 30]
+    elif case == 'after':
+        # The only update to T follows the last read
+        T.data[:] = 1
+        eqs = [write, read, Eq(T, 0, implicit_dims=time),
+               Eq(f, time + 5, implicit_dims=cr)]
+        expected_g = [1, 0, 0, 0]
+    elif case == 'mutable':
+        eqs = [write, Eq(T, 1, implicit_dims=time), read]
+        expected_g = [1, 2, 20, 30]
+    elif case == 'repeated':
+        eqs = [write, read, Eq(T, 1, implicit_dims=time),
+               Eq(h, f, implicit_dims=cr)]
+        expected_g = [0, 2, 20, 30]
+        expected_h = [1, 2, 20, 30]
+    else:
+        # The guard turns true between the write and the read
+        eqs = [write, Eq(T, time - 1, implicit_dims=time), read]
+        expected_g = [0, 0, 20, 30]
+
+    f.data[:] = 10*np.arange(4).reshape(4, 1, 1)
+    op = Operator(eqs, opt='buffering', name='MutableReadGuards')
+    op.apply(time_m=0, time_M=3)
+
+    assert np.all(f.data[:, 1, 1] == [1, 2, 20, 30])
+    assert np.all(g.data[:, 1, 1] == expected_g)
+    assert np.all(h.data[:, 1, 1] == expected_h)
+
+
+@pytest.mark.parametrize('case', ['stable', 'mutable', 'indirect'])
+def test_mutable_guards(case):
+    """
+    Two writes to `f` under the same guards, which read `T`. The copy-back
+    follows the second write only, so `T` must not change in between, nor the
+    index it is read at.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    x, _ = grid.dimensions
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=2)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+    I = TimeFunction(name='I', grid=grid, time_order=0, space_order=0,
+                     dtype=np.int32)
+
+    if case == 'indirect':
+        condition = And(CondEq(time, 1), T[0, I[0, 0, 0], 0] < 1.5)
+    else:
+        condition = And(CondEq(time, 1), T[0, 0, 0] < 1.5)
+    c0 = ConditionalDimension(name='c0', parent=time, condition=condition,
+                              relation='strict')
+    c1 = ConditionalDimension(name='c1', parent=time, condition=condition,
+                              relation='strict')
+
+    if case == 'stable':
+        eqs = [Eq(f, T, implicit_dims=c0), Eq(T, T + 1)]
+
+        op = Operator(eqs, opt='buffering', name='MutableGuards')
+        op.apply(time_m=0, time_M=1)
+
+        assert np.all(f.data[:, 1, 1] == [0, 1])
+    else:
+        if case == 'mutable':
+            eqs = [Eq(f, T, implicit_dims=c0), Eq(T, T + 1),
+                   Eq(f, T, implicit_dims=c1)]
+        else:
+            ci = ConditionalDimension(name='ci', parent=time,
+                                      condition=CondEq(time, 1), relation='strict')
+            eqs = [Eq(T, time + 2*x), Eq(f, T, implicit_dims=c0),
+                   Eq(I, 1, implicit_dims=ci), Eq(f, T + 10, implicit_dims=c1)]
+
+        with pytest.raises(CompilationError, match='modified in between'):
+            Operator(eqs, opt='buffering', name='MutableGuards')
+
+
+@pytest.mark.parametrize('case', ['single', 'forward', 'readwrite', 'backward'])
+def test_write_multi_index(case):
+    """
+    `f` written at two time indices in the same iteration cannot be buffered,
+    as only one slot per iteration is copied back.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    f = TimeFunction(name='f', grid=grid, time_order=1, space_order=0, save=5)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+    if case == 'single':
+        eqns = [Eq(f.forward, f + T)]
+
+        op = Operator([Eq(T, time)] + eqns, opt='buffering', name='WriteMultiIndex')
+        op.apply(time_m=0, time_M=3)
+
+        assert np.all(f.data[:, 1, 1] == [0, 0, 1, 3, 6])
+    else:
+        if case == 'forward':
+            eqns = [Eq(f.forward, T + 10), Eq(f, T)]
+        elif case == 'readwrite':
+            eqns = [Eq(f.forward, f + T + 10), Eq(f, T)]
+        else:
+            eqns = [Eq(f.backward, T + 10), Eq(f, T)]
+
+        with pytest.raises(CompilationError, match='multiple indices'):
+            Operator([Eq(T, time)] + eqns, opt='buffering', name='WriteMultiIndex')
+
+
+def test_slot_read_between_writes():
+    """
+    A subsampled save plus an explicit save at the last timestep write the
+    same slot at that timestep, so the first copy-back is normally skipped.
+    A read of the saved Function in between is served from its storage, so
+    the copy-back must not be skipped then. Both the read and the slot's
+    final value follow program order.
+    """
+    nt, factor = 8, 2
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    tsub = ConditionalDimension(name='tsub', parent=time, factor=factor)
+    clast = ConditionalDimension(name='clast', parent=time,
+                                 condition=CondEq(time, nt-2))
+
+    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=0)
+    usave = TimeFunction(name='usave', grid=grid, time_order=0, space_order=0,
+                         save=nt//factor, time_dim=tsub)
+    g = Function(name='g', grid=grid)
+
+    eqns = [Eq(u.forward, u + 1), Eq(usave, u),
+            Eq(g, usave, implicit_dims=clast),
+            Eq(usave, u + 100, implicit_dims=clast)]
+
+    op = Operator(eqns, opt='buffering', name='SlotReadBetween')
+    op.apply(time_m=0, time_M=nt-2)
+
+    assert np.all(usave.data[:, 1, 1] == [0, 2, 4, 106])
+    assert np.all(g.data == 6)
