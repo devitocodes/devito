@@ -1,4 +1,5 @@
 import sympy
+from sympy import sympify
 
 __all__ = ['Add', 'Mod', 'Mul', 'Pow']
 
@@ -18,7 +19,12 @@ class Mod(sympy.Mod, UnevaluableMixin):
 
 
 class Mul(sympy.Mul, UnevaluableMixin):
-    __new__ = UnevaluableMixin.__new__
+    def __new__(cls, *args, evaluate=None, **kwargs):
+        # A Mul will always be zero if any of its arguments are zero
+        if any(sympify(arg).is_zero for arg in args):
+            return sympy.S.Zero
+
+        return super().__new__(cls, *args, evaluate=False, **kwargs)
 
 
 class Pow(sympy.Pow, UnevaluableMixin):
