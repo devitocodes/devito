@@ -1,9 +1,11 @@
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from collections.abc import Iterable
-from functools import singledispatch
+from functools import partial, singledispatch
 
 import numpy as np
-from sympy import Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, sympify
+from sympy import (
+    Add, Max, Min, Mul, Pow, S, SympifyError, Tuple, preorder_traversal, sympify
+)
 from sympy.core import Basic as SympyBasic
 from sympy.core.add import _addsort
 from sympy.core.mul import _mulsort
@@ -15,7 +17,7 @@ from devito.symbolics.extended_dtypes import LONG
 from devito.symbolics.extended_sympy import DefFunction, rfunc
 from devito.symbolics.queries import q_leaf
 from devito.symbolics.search import (
-    retrieve_functions, retrieve_indexed, retrieve_terminals
+    retrieve_functions, retrieve_indexed, retrieve_terminals, search
 )
 from devito.symbolics.unevaluation import Add as UnevalAdd
 from devito.symbolics.unevaluation import Mul as UnevalMul
@@ -309,19 +311,146 @@ def subs_if_composite(expr, subs):
     `a*b` could be part of `a*b*c`, while `a[1]` cannot be part of a "larger
     Indexed"). Instead, if `subs` consists of just "primitive" expressions, then
     resort to the much faster `uxreplace`.
+
+    Product keys are matched in a single pass by `MulSubsIndex`.
     """
     if not subs:
         return expr
 
-    if type(expr) is tuple:
-        return reuse_if_untouched(expr, (subs_if_composite(e, subs) for e in expr))
-    elif type(expr) is list:
-        return reuse_if_untouched(expr, [subs_if_composite(e, subs) for e in expr])
-    elif all(isinstance(i, (Indexed, IndexDerivative)) for i in subs):
-        return uxreplace(expr, subs)
+    if all(isinstance(i, (Indexed, IndexDerivative)) for i in subs):
+        func = partial(uxreplace, rule=subs)
     else:
-        processed = expr.subs(subs)
-        return expr if processed == expr else processed
+        index = MulSubsIndex.build(subs)
+        func = index.apply if index is not None else partial(_subs_sympy, subs=subs)
+
+    return _subs_if_composite(expr, func)
+
+
+def _subs_if_composite(expr, func):
+    if type(expr) in (tuple, list):
+        return reuse_if_untouched(expr, (_subs_if_composite(e, func) for e in expr))
+    else:
+        return func(expr)
+
+
+def _subs_sympy(expr, subs):
+    processed = expr.subs(subs)
+    return expr if processed == expr else processed
+
+
+def _factor_base(i):
+    return i.base if i.is_Pow else i
+
+
+class Defer(Exception):
+    pass
+
+
+class MulSubsIndex:
+
+    """
+    Apply a substitution whose composite keys are all products in a single pass.
+
+    Each key is filed under the base of one of its factors (preferably an
+    Indexed), and matches a product if its factors are a sub-multiset of the
+    product's. Matches become a compound `uxreplace` rule. Wherever SymPy's
+    `subs` could produce a different outcome, `Defer` is raised and the
+    expression is handed to `expr.subs(subs)` instead.
+    """
+
+    def __init__(self, subs, atomic, index):
+        self.subs = subs
+        self.atomic = atomic
+        self.index = index
+
+    @classmethod
+    def build(cls, subs):
+        """
+        Return the index for `subs`, or None if `subs` cannot be indexed.
+        """
+        atomic = {}
+        index = {}
+        bases = set()
+        for k, v in subs.items():
+            if isinstance(k, (Indexed, IndexDerivative)):
+                atomic[k] = v
+                continue
+            if not k.is_Mul or not k.is_commutative:
+                return None
+
+            factors = Counter(k.args)
+            ordered = [_factor_base(i) for i in factors if not i.is_Number]
+            if not ordered:
+                return None
+            kbases = frozenset(ordered)
+            anchor = next((i for i in ordered if i.is_Indexed), ordered[0])
+
+            index.setdefault(anchor, []).append((k, factors, kbases, v))
+            bases.update(kbases)
+
+        # SymPy applies the keys one after the other, so an atomic key may consume
+        # a factor of a product key, and a replacement may be matched by another key
+        if not bases.isdisjoint(atomic):
+            return None
+        if not all(bases.isdisjoint(preorder_traversal(v)) for v in subs.values()):
+            return None
+
+        return cls(subs, atomic, index)
+
+    def apply(self, expr, strict=False):
+        """
+        Apply the substitution to `expr`. If `strict`, raise `Defer` rather than
+        falling back to SymPy.
+        """
+        rule = dict(self.atomic)
+        try:
+            for m in search(expr, lambda i: i.is_Mul, 'unique', 'bfs'):
+                if m in self.subs:
+                    rule[m] = self.subs[m]
+                elif submap := self._match(m):
+                    rule[m] = submap
+        except Defer:
+            if strict:
+                raise
+            return _subs_sympy(expr, self.subs)
+
+        return uxreplace(expr, rule)
+
+    def _match(self, m):
+        # Keyed by the key itself, as a base may occur in several factors
+        candidates = {}
+        for i in m.args:
+            for c in self.index.get(_factor_base(i), ()):
+                candidates[c[0]] = c
+        if not candidates:
+            return None
+
+        args = Counter(m.args)
+        mbases = {_factor_base(i) for i in args}
+        used = Counter()
+        submap = {}
+        for _, factors, kbases, v in candidates.values():
+            if not kbases <= mbases:
+                continue
+            if not m.is_commutative:
+                raise Defer
+            if not factors <= args:
+                # SymPy may still rewrite it, e.g. `a**2*b**2` or `4*a*b` with
+                # `a*b` or `2*a*b` respectively
+                raise Defer
+            if any(args[i] > 1 for i in factors):
+                # `uxreplace` would drop every copy of a matched factor
+                raise Defer
+            if any(used[i] for i in factors):
+                # Overlapping keys, so SymPy's outcome depends on its key order
+                raise Defer
+            used.update(factors)
+
+            first, *others = factors
+            submap[first] = v
+            submap.update(dict.fromkeys(others))
+
+        return submap
 
 
 def xreplace_indices(exprs, mapper, key=None):
