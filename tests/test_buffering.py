@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Not, Or
+from sympy import And, Not, Or
 
 from conftest import skipif
 from devito import (
@@ -1210,3 +1210,40 @@ def test_true_condition_single_buffer():
     op.apply(time_m=0, time_M=nt-1)
     assert np.allclose(g.data[0], 6.)
     assert np.allclose(h.data[0], 12.)
+
+
+@pytest.mark.parametrize('case', ['mutable', 'indirect'])
+def test_buffering_same_slot_skip(case):
+    """
+    A later guard reads data updated between two potential writes. The update
+    makes that guard false, so the only firing write must still be copied back.
+    Every Function has at most one firing write per step, slot and point.
+    """
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+    x, _ = grid.dimensions
+
+    f = TimeFunction(name='f', grid=grid, time_order=0, space_order=0, save=4)
+    T = TimeFunction(name='T', grid=grid, time_order=0, space_order=0)
+
+    if case == 'mutable':
+        cm = ConditionalDimension(name='cm', parent=time, relation='strict',
+                                  condition=And(CondEq(time, 3), T[0, 0, 0] < 3.5))
+        eqs = [Eq(f, T), Eq(T, T + 1), Eq(f, T + 1, implicit_dims=cm)]
+        expected = [0, 1, 2, 3]
+    else:
+        I = TimeFunction(name='I', grid=grid, time_order=0, space_order=0,
+                         dtype=np.int32)
+        ci = ConditionalDimension(name='ci', parent=time, condition=CondEq(time, 3),
+                                  relation='strict')
+        cm = ConditionalDimension(name='cm', parent=time, relation='strict',
+                                  condition=And(CondEq(time, 3),
+                                                T[0, I[0, 0, 0], 0] < 3.5))
+        eqs = [Eq(T, time + 2*x), Eq(f, T), Eq(I, 1, implicit_dims=ci),
+               Eq(f, T + 1, implicit_dims=cm)]
+        expected = [2, 3, 4, 5]
+
+    op = Operator(eqs, opt='buffering', name='SameSlotSkip')
+    op.apply(time_m=0, time_M=3)
+
+    assert np.all(f.data[:, 1, 1] == expected)
