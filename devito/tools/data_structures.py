@@ -585,18 +585,25 @@ class DAG:
 
     def connected_components(self, enumerated=False):
         """
-        Find all connected sub-graphs and return them as a list.
+        Find all weakly connected sub-graphs and return them as a list.
         """
-        groups = []
+        parent = {n: n for n in self.graph}
 
-        for n0 in self.graph:
-            found = {n0} | set(self.all_downstreams(n0))
-            for g in groups:
-                if g.intersection(found):
-                    g.update(found)
-                    break
-            else:
-                groups.append(found)
+        def find(n):
+            while parent[n] is not n:
+                parent[n] = parent[parent[n]]  # Path halving
+                n = parent[n]
+            return n
+
+        for n0, downstreams in self.graph.items():
+            for n1 in downstreams:
+                parent[find(n1)] = find(n0)
+
+        # Ordered by first appearance in `self.graph`
+        groups = OrderedDict()
+        for n in self.graph:
+            groups.setdefault(find(n), set()).add(n)
+        groups = list(groups.values())
 
         if enumerated:
             mapper = OrderedDict()
