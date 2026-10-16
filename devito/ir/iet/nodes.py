@@ -18,7 +18,7 @@ from devito.ir.support import (
     AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
     VECTORIZED, Forward, PrefetchUpdate, Property, WithLock
 )
-from devito.symbolics import CallFromPointer, ListInitializer, Macro
+from devito.symbolics import Byref, CallFromPointer, DefFunction, ListInitializer, Macro
 from devito.tools import (
     Signer, as_tuple, ctypes_to_cstr, filter_ordered, filter_sorted, flatten
 )
@@ -62,12 +62,13 @@ __all__ = [
     'Section',
     'Switch',
     'SyncSpot',
-    'ThreadFence',
     'TimedList',
     'Transfer',
     'Using',
     'UsingNamespace',
     'While',
+    'atomic_load',
+    'atomic_store',
 ]
 
 # First-class IET nodes
@@ -1304,29 +1305,24 @@ class ExpressionBundle(List):
         return self.ispace.size
 
 
-class ThreadFence(Call):
-
+def atomic_load(flag):
     """
-    A memory fence, ordering a thread's accesses either side of it.
+    An acquire load of a flag that threads synchronise on, for use in a wait
+    condition. Reads that follow it cannot be satisfied before it.
 
-    Threads exchanging work through a shared flag need memory ordering on both
-    sides: a release before publishing the flag, and an acquire after observing it.
-    This ensures the state associated with the flag is visible before it is used.
-    Without this ordering, updates may be observed in the wrong order and lost.
-
-    `__atomic_thread_fence` is a compiler builtin, so this renders the same in C
-    and in C++ and needs no header.
+    The `__atomic` builtins accept the existing `volatile int` flags and are
+    valid in C and C++ alike, so no declaration changes and no header is needed.
     """
+    return DefFunction('__atomic_load_n', (Byref(flag), Macro('__ATOMIC_ACQUIRE')))
 
-    def __init__(self, order):
-        assert order in ('acquire', 'release')
-        super().__init__('__atomic_thread_fence',
-                         [Macro(f'__ATOMIC_{order.upper()}')])
-        self._order = order
 
-    @property
-    def order(self):
-        return self._order
+def atomic_store(flag, value):
+    """
+    A release store to a flag that threads synchronise on, the counterpart of
+    `atomic_load`: everything sequenced before it is visible to whoever then
+    acquires `flag`.
+    """
+    return Call('__atomic_store_n', (Byref(flag), value, Macro('__ATOMIC_RELEASE')))
 
 
 class Prodder(Call):
