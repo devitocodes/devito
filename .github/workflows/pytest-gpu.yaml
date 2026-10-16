@@ -83,11 +83,8 @@ jobs:
         tag: ${{ matrix.name }}
         base: ${{ matrix.base }}
 
-    - name: Runner environment
-      run: |
-        printenv
-
-    - name: Probe GPU
+    - id: probe
+      name: Probe GPU
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -95,7 +92,8 @@ jobs:
         args: ${{ matrix.dockerflags }}
         command: ${{ matrix.test_drive_cmd }}
 
-    - name: Test with pytest
+    - id: pytest
+      name: Test with pytest
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -122,7 +120,8 @@ jobs:
             --cov-report=xml \
             ${{ matrix.test_files }}
 
-    - name: Test examples
+    - id: examples
+      name: Test examples
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -135,7 +134,8 @@ jobs:
             -v \
             ${{ matrix.test_examples }}
 
-    - name: Test examples with MPI
+    - id: mpi
+      name: Test examples with MPI
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -157,3 +157,8 @@ jobs:
       with:
         uid: ${{ steps.build.outputs.unique }}
         tag: ${{ matrix.name }}
+        container_hashes: >-
+          ${{ steps.probe.outputs.hash }}
+          ${{ steps.pytest.outputs.hash }}
+          ${{ steps.examples.outputs.hash }}
+          ${{ steps.mpi.outputs.hash }}

@@ -105,7 +105,8 @@ jobs:
         tag: ${{ matrix.name }}
         base: devitocodes/bases:cpu-${{ matrix.arch }}
 
-    - name: Test with pytest
+    - id: pytest
+      name: Test with pytest
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -121,7 +122,8 @@ jobs:
             --cov-report=xml \
             tests/test_mpi.py
 
-    - name: Test acoustic and TTI examples with MPI
+    - id: examples
+      name: Test acoustic and TTI examples with MPI
       uses: ./.github/actions/docker-run
       with:
         uid: ${{ steps.build.outputs.unique }}
@@ -142,3 +144,6 @@ jobs:
       with:
         uid: ${{ steps.build.outputs.unique }}
         tag: ${{ matrix.name }}
+        container_hashes: >-
+          ${{ steps.pytest.outputs.hash }}
+          ${{ steps.examples.outputs.hash }}
