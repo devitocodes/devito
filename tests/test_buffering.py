@@ -1630,3 +1630,35 @@ def test_write_multi_index(case):
 
         with pytest.raises(CompilationError, match='multiple indices'):
             Operator([Eq(T, time)] + eqns, opt='buffering', name='WriteMultiIndex')
+
+
+def test_slot_read_between_writes():
+    """
+    A subsampled save plus an explicit save at the last timestep write the
+    same slot at that timestep, so the first copy-back is normally skipped.
+    A read of the saved Function in between is served from its storage, so
+    the copy-back must not be skipped then. Both the read and the slot's
+    final value follow program order.
+    """
+    nt, factor = 8, 2
+    grid = Grid(shape=(4, 4))
+    time = grid.time_dim
+
+    tsub = ConditionalDimension(name='tsub', parent=time, factor=factor)
+    clast = ConditionalDimension(name='clast', parent=time,
+                                 condition=CondEq(time, nt-2))
+
+    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=0)
+    usave = TimeFunction(name='usave', grid=grid, time_order=0, space_order=0,
+                         save=nt//factor, time_dim=tsub)
+    g = Function(name='g', grid=grid)
+
+    eqns = [Eq(u.forward, u + 1), Eq(usave, u),
+            Eq(g, usave, implicit_dims=clast),
+            Eq(usave, u + 100, implicit_dims=clast)]
+
+    op = Operator(eqns, opt='buffering', name='SlotReadBetween')
+    op.apply(time_m=0, time_M=nt-2)
+
+    assert np.all(usave.data[:, 1, 1] == [0, 2, 4, 106])
+    assert np.all(g.data == 6)

@@ -1168,10 +1168,12 @@ def _overwritten(v, c, idxf, descriptors, order, d):
             condition = And(*c1.guards.values(), coincide)
 
             # The condition is evaluated at the earlier copy-back, so nothing
-            # it reads, indices included, may be written in between
+            # it reads, indices included, may be written in between; and `v.f`
+            # may not be read in between, as the skipped slot is still unwritten
             reads = {i.function for i in retrieve_terminals(condition, deep=True)}
             between = [c2 for c2, n in order.items() if order[c] < n <= order[c1]]
-            if any(not reads.isdisjoint(c2.scope.writes) for c2 in between):
+            if any(not reads.isdisjoint(c2.scope.writes) or v.f in c2.scope.reads
+                   for c2 in between):
                 continue
 
             conditions.append(condition)
