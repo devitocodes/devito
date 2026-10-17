@@ -1,3 +1,6 @@
+import os
+from hashlib import sha1
+
 import numpy as np
 
 from devito.arch.compiler import Compiler
@@ -28,10 +31,17 @@ def _complex_includes(iet: Callable, langbb: type[LangBB], compiler: Compiler,
 
     # Some languages such as c++11 need some extra arithmetic definitions
     if langbb.get('def-complex'):
+        code = str(langbb['def-complex'])
         dest = compiler.get_jit_dir()
-        hfile = dest.joinpath('complex_arith.h')
-        with open(str(hfile), 'w') as ff:
-            ff.write(str(langbb['def-complex']))
+        hfile = dest.joinpath(f'complex_arith_{sha1(code.encode()).hexdigest()}.h')
+        # The JIT dir is shared by all processes compiling as the same user, e.g.
+        # the workers of a parallel test run. The header is keyed on its content
+        # and renamed into place once fully written, so that a concurrent compiler
+        # never reads a truncated header or one meant for another language
+        if not hfile.exists():
+            tmpfile = hfile.with_name(f'{hfile.name}.{os.getpid()}.tmp')
+            tmpfile.write_text(code)
+            os.replace(tmpfile, hfile)
         lib += (str(hfile),)
 
     metadata['includes'] = lib

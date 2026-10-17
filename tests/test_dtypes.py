@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 import sympy
@@ -145,6 +147,30 @@ def test_complex_headers(dtype: np.dtype[np.inexact], kwargs: dict[str, str]) ->
         assert header in op._includes
     else:
         assert header not in op._includes
+
+
+@pytest.mark.parametrize('kwargs', _configs, ids=kw_id)
+def test_complex_arith_header(kwargs: dict[str, str]) -> None:
+    """
+    Tests that the extra complex arithmetic definitions some languages need are
+    written in full to a single content-keyed header, shared by all Operators.
+    """
+    code = _get_language(**kwargs).get('def-complex')
+    if code is None:
+        pytest.skip(f"`{kwargs['language']}` needs no complex arithmetic header")
+
+    # Set up two operators
+    grid = Grid(shape=(3, 3))
+    x, y = grid.dimensions
+
+    u = Function(name='u', grid=grid, dtype=np.complex64)
+    ops = [Operator(Eq(u, x*y + i*1j), **kwargs) for i in (1, 2)]
+
+    # Both include the same header, and its content is intact
+    headers = {i for op in ops for i in op._includes if 'complex_arith' in i}
+    assert len(headers) == 1
+    hfile, = headers
+    assert Path(hfile).read_text() == str(code)
 
 
 @pytest.mark.parametrize('dtype', [np.complex64, np.complex128])
