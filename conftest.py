@@ -209,9 +209,12 @@ def parallel(item, m):
             "-s", "--runxfail", "-v", "--no-summary", testname
         ])
     # OpenMPI requires an explicit flag for oversubscription. We need it as some
-    # of the MPI tests will spawn lots of processes
+    # of the MPI tests will spawn lots of processes. The timeout only guards
+    # against a hung test: the heaviest MPI tests take a few minutes on a busy
+    # runner, so leave them room, and let `DEVITO_MPI_TEST_TIMEOUT` adjust it
     if mpi_distro == 'OpenMPI':
-        call = [mpi_exec, '--oversubscribe', '--timeout', '300'] + args
+        timeout = os.environ.get('DEVITO_MPI_TEST_TIMEOUT', '600')
+        call = [mpi_exec, '--oversubscribe', '--timeout', timeout] + args
     else:
         call = [mpi_exec] + args
 
