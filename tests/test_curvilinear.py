@@ -1095,6 +1095,28 @@ class TestFreeSurface:
                               reference.data_with_halo[1, 8:-8, 4:8])
         assert np.all(u.data[1, :, 0] == 0)
 
+    def test_fields_share_weights(self):
+        """
+        Fields mirrored in the same Operator share the interpolation weights of
+        their images, and are mirrored alike.
+        """
+        grid = sine_grid(31)
+        rng = np.random.default_rng(17)
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        v = TimeFunction(name='v', grid=grid, space_order=8)
+        u.data[1] = rng.standard_normal(grid.shape)
+        v.data[1] = u.data[1]
+
+        eqns = grid.free_surface(u.forward) + grid.free_surface(v.forward)
+        weights = {f for e in eqns for f in e.rhs.free_symbols
+                   if getattr(f, 'function', None) is not None and
+                   f.function.name.startswith('image')}
+        assert len({f.function for f in weights}) == 1
+        Operator(eqns).apply(time_m=0, time_M=0)
+        # To float32 roundoff, the compiler ordering the two loops differently
+        assert np.allclose(u.data_with_halo[1], v.data_with_halo[1], rtol=0,
+                           atol=1e-6)
+
     @pytest.mark.parametrize('space_order', [4, 8])
     def test_tilted_plane(self, space_order):
         """

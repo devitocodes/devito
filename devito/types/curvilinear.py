@@ -437,9 +437,12 @@ class CurvilinearGrid(Grid):
       `u.laplace`, `grad`, `div`, nested derivatives such as `(b*u.dx).dx`,
       staggered (`x0`) and rotated (`method='RSFD'`) ones, are derivatives
       w.r.t. the physical coordinates, through the chain rule with the metric
-      terms (see `Derivative`). `u.dx(computational=True)` is the derivative
-      w.r.t. the computational coordinate. The transpose `.T` of a physical
-      derivative is its exact discrete transpose.
+      terms. The outer derivative of a nested one is taken in conservation
+      form, so that nested operators such as `(b*u.dx).dx` are symmetric in the
+      inner product weighted by the Jacobian, as they are on a Grid (see
+      `Derivative`). `u.dx(computational=True)` is the derivative w.r.t. the
+      computational coordinate. The transpose `.T` of a physical derivative is
+      its exact discrete transpose.
     * The coordinates of SparseFunctions are physical. Interpolation is
       unchanged, in the computational grid, and injection divides by the
       Jacobian, so that a point source is a Dirac in physical space and
@@ -535,7 +538,7 @@ class CurvilinearGrid(Grid):
         return self._space_order
 
     @cached_property
-    def computational_names(self):
+    def _computational_names(self):
         """Names of the computational coordinates, one per Dimension."""
         return _COMPUTATIONAL_NAMES[self.dim]
 
@@ -573,7 +576,7 @@ class CurvilinearGrid(Grid):
                 terms[(physical, computational)] = sympy.sympify(v)
             else:
                 terms[(physical, computational)] = self._make_function(
-                    name(self.computational_names[j], physical.name), v
+                    name(self._computational_names[j], physical.name), v
                 )
         return terms
 
@@ -856,6 +859,25 @@ class CurvilinearGrid(Grid):
         self._image_weights_cache[key] = (table, tuple(first))
         return self._image_weights_cache[key]
 
+    def _image_weights_function(self, rows, order):
+        """
+        The weights of `_image_weights` as a Function distributed like the
+        grid, shared by every field mirrored with the same `rows` and `order`,
+        and the first lateral offset of their window.
+        """
+        key = ('function', rows, order)
+        if key not in self._image_weights_cache:
+            table, first = self._image_weights(rows, order)
+            name = f'image_{rows}_{order}'
+            extra = [DefaultDimension(name=f'{name}_{i}', default_value=n)
+                     for i, n in enumerate(table.shape[self.dim - 1:])]
+            weights = Function(name=name, grid=self,
+                               dimensions=self.dimensions[:-1] + tuple(extra),
+                               shape=table.shape, space_order=0, dtype=self.dtype)
+            weights.data[:] = table
+            self._image_weights_cache[key] = (weights, first)
+        return self._image_weights_cache[key]
+
     def free_surface(self, field, rows=None, order=None):
         """
         Equations imposing `field = 0` on the surface, the first row of the last
@@ -892,30 +914,23 @@ class CurvilinearGrid(Grid):
         if rows > function._size_halo[vertical].left:
             raise ValueError(f"{rows} ghost rows exceed the halo of {function}")
 
-        table, first = self._image_weights(rows, order)
+        weights, first = self._image_weights_function(rows, order)
+        table_shape = weights.shape
         halo = [function._size_halo[d] for d in lateral_dims]
-        for f, n, h in zip(first, table.shape[self.dim:-1], halo, strict=True):
+        for f, n, h in zip(first, table_shape[self.dim:-1], halo, strict=True):
             if f < -h.left or f + n - 1 > h.right:
                 raise ValueError(f"The image stencils span lateral offsets {f} to "
                                  f"{f + n - 1}, beyond the halo of {function}")
 
-        # The weights, as a Function distributed like the field
-        name = f'{function.name}_image'
-        extra = [DefaultDimension(name=f'{name}_{i}', default_value=n)
-                 for i, n in enumerate(table.shape[self.dim - 1:])]
-        weights = Function(name=name, grid=self, dimensions=lateral_dims + tuple(extra),
-                           shape=table.shape, space_order=0, dtype=self.dtype)
-        weights.data[:] = table
-
         # The surface row, as a SubDimension so that only the rank holding it
         # writes it and its ghost rows under domain decomposition
-        surface = SubDimension.left(name=f'{vertical.name}_{name}', parent=vertical,
+        surface = SubDimension.left(name=f'{vertical.name}_surface', parent=vertical,
                                     thickness=1)
         indexed = field.indexify()
         eqns = [Eq(indexed.subs({vertical: surface}), 0)]
         for k in range(rows):
             terms = []
-            for stencil in np.ndindex(*table.shape[self.dim:]):
+            for stencil in np.ndindex(*table_shape[self.dim:]):
                 # The field is zero on the surface row
                 if stencil[-1] == 0:
                     continue
