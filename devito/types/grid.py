@@ -35,6 +35,7 @@ class CartesianDiscretization:
     """
 
     is_Grid = False
+    is_Curvilinear = False
     is_SubDomain = False
     is_MultiSubDomain = False
 
