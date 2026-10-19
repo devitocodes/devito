@@ -603,10 +603,11 @@ class TestFD:
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
 
+    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
                                              ((.5, .5, .5), 3)])
-    def test_shifted_div(self, shift, ndim):
-        grid = Grid(tuple([11]*ndim))
+    def test_shifted_div(self, shift, ndim, dtype):
+        grid = Grid(tuple([11]*ndim), dtype=dtype)
         f = Function(name="f", grid=grid, space_order=4)
         for order in [None, 2]:
             df = div(f, shift=shift, order=order).evaluate
@@ -617,10 +618,11 @@ class TestFD:
                 ref += getattr(f, f'd{d.name}')(x0=x0, fd_order=order)
             assert df == ref.evaluate
 
+    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
                                              ((.5, .5, .5), 3)])
-    def test_shifted_grad(self, shift, ndim):
-        grid = Grid(tuple([11]*ndim))
+    def test_shifted_grad(self, shift, ndim, dtype):
+        grid = Grid(tuple([11]*ndim), dtype=dtype)
         f = Function(name="f", grid=grid, space_order=4)
         for order in [None, 2]:
             g = grad(f, shift=shift, order=order).evaluate
