@@ -545,3 +545,105 @@ class TestSparseMPI:
         forward = grid.comm.allreduce(np.dot(local_samples,
                                              np.asarray(src.data._local)))
         assert np.isclose(forward, inner(u, weighted), rtol=1e-12)
+
+
+def cartesian_cover(dtype=np.float32):
+    """A Cartesian Grid with the lateral nodes of `sine_grid(41)`, deeper and above."""
+    return Grid(shape=(41, 101), extent=(1000., 1000.), origin=(0., -100.), dtype=dtype)
+
+
+class TestResample:
+
+    def test_analytic(self):
+        """Resampling a smooth Cartesian field is second-order accurate."""
+        errors = []
+        for nz in [51, 101, 201]:
+            grid = sine_grid(41, dtype=np.float64)
+            cartesian_grid = Grid(shape=(41, nz), extent=(1000., 1000.),
+                                  origin=(0., -100.), dtype=np.float64)
+            cartesian = Function(name='c', grid=cartesian_grid)
+            xs, zs = node_coordinates(cartesian_grid)
+            cartesian.data[:] = wave(xs, zs)
+            resampled = Function(name='f', grid=grid)
+            grid.resample(resampled, cartesian)
+
+            x, z = (c.data for c in grid.coordinates)
+            errors.append(np.abs(resampled.data - wave(x, z)).max())
+
+        orders = np.log2(np.array(errors[:-1])/np.array(errors[1:]))
+        assert np.all(orders > 1.8), orders
+
+    def test_flat_is_copy(self):
+        """On a flat map over the same nodes, resampling copies the values."""
+        shape, extent = (21, 31), (200., 300.)
+        grid = flat_grid(shape, extent)
+        cartesian = Function(name='c', grid=Grid(shape=shape, extent=extent))
+        cartesian.data[:] = np.random.default_rng(8).standard_normal(shape)
+        resampled = Function(name='f', grid=grid)
+        grid.resample(resampled, cartesian)
+        assert np.array_equal(resampled.data, cartesian.data)
+
+    def test_adjoint(self):
+        """Dot test of the resampling against its transpose."""
+        grid = sine_grid(41, dtype=np.float64)
+        rng = np.random.default_rng(9)
+        cartesian = Function(name='c', grid=cartesian_cover(np.float64))
+        transposed = Function(name='ct', grid=cartesian.grid)
+        curvilinear = Function(name='f', grid=grid)
+        resampled = Function(name='fr', grid=grid)
+        cartesian.data[:] = rng.standard_normal(cartesian.shape)
+        curvilinear.data[:] = rng.standard_normal(grid.shape)
+
+        grid.resample(resampled, cartesian)
+        grid.resample(curvilinear, transposed, transpose=True)
+
+        forward = np.sum(resampled.data*curvilinear.data)
+        backward = np.sum(cartesian.data*transposed.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_invalid(self):
+        grid = sine_grid(11)
+        other = sine_grid(11)
+        with pytest.raises(ValueError):
+            grid.resample(Function(name='f', grid=grid), Function(name='c', grid=other))
+        with pytest.raises(ValueError):
+            grid.resample(Function(name='f', grid=other),
+                          Function(name='c', grid=Grid(shape=(11, 11))))
+
+
+class TestResampleMPI:
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_adjoint(self, mode):
+        """
+        Resampling between grids with different decompositions matches the serial
+        result, and passes the dot test.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        cartesian = Function(name='c', grid=cartesian_cover(np.float64))
+        transposed = Function(name='ct', grid=cartesian.grid)
+        curvilinear = Function(name='f', grid=grid)
+        resampled = Function(name='fr', grid=grid)
+        x_coord, z_coord = grid.coordinates
+        cartesian.data[:] = wave(*node_coordinates(cartesian.grid))
+        Operator(Eq(curvilinear, sin(_KX*x_coord))).apply()
+
+        grid.resample(resampled, cartesian)
+        grid.resample(curvilinear, transposed, transpose=True)
+
+        serial_grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.),
+                                      mapping=grid.mapping, dtype=np.float64,
+                                      comm=MPI.COMM_SELF)
+        serial = Function(name='fs', grid=serial_grid)
+        serial_cartesian = Function(name='cs', grid=Grid(
+            shape=(41, 101), extent=(1000., 1000.), origin=(0., -100.),
+            dtype=np.float64, comm=MPI.COMM_SELF
+        ))
+        serial_cartesian.data[:] = wave(*node_coordinates(serial_cartesian.grid))
+        serial_grid.resample(serial, serial_cartesian)
+        assert np.allclose(np.asarray(resampled.data_ro_domain._local),
+                           serial.data[resampled.local_indices], rtol=0, atol=1e-14)
+
+        forward = inner(resampled, curvilinear)
+        backward = inner(cartesian, transposed)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
