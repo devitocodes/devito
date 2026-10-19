@@ -1,5 +1,6 @@
 import os
 import time
+from itertools import groupby
 
 import numpy as np
 import pytest
@@ -7,8 +8,8 @@ from sympy.abc import a, b, c, d, e
 
 from devito import Eq, Operator, switchenv
 from devito.tools import (
-    CacheInstances, DefaultFrozenDict, UnboundedMultiTuple, UnboundTuple, ctypes_to_cstr,
-    filter_ordered, memoized_meth, toposort, transitive_closure
+    DAG, CacheInstances, DefaultFrozenDict, UnboundedMultiTuple, UnboundTuple,
+    ctypes_to_cstr, filter_ordered, memoized_meth, toposort, transitive_closure
 )
 from devito.types.basic import Symbol
 
@@ -26,6 +27,33 @@ def test_toposort(elements, expected):
         assert ordering == expected
     except ValueError:
         assert expected is None
+
+
+@pytest.mark.parametrize('edges, expected', [
+    # Downstreams overlapping two previously disjoint groups
+    ([(a, d), (b, e), (c, d), (c, e)], [{a, b, c, d, e}]),
+    # Disjoint chains
+    ([(a, b), (c, d)], [{a, b}, {c, d}, {e}]),
+    # Isolated nodes
+    ([], [{a}, {b}, {c}, {d}, {e}]),
+    # Suffix fan, as created by a `BREAK` hazard in `Fusion._build_dag`
+    ([(a, c), (b, c), (c, d), (c, e)], [{a, b, c, d, e}]),
+])
+def test_connected_components(edges, expected):
+    dag = DAG(nodes=[a, b, c, d, e], edges=edges)
+
+    # Components in order of first appearance
+    assert dag.connected_components() == tuple(expected)
+
+    # Same label within a component, distinct labels across components
+    mapper = dag.connected_components(enumerated=True)
+    assert all(len({mapper[n] for n in g}) == 1 for g in expected)
+    assert len(set(mapper.values())) == len(expected)
+
+    # The runs `Fusion` derives from the labels
+    key = lambda n: next(i for i, g in enumerate(expected) if n in g)
+    assert ([len(list(g)) for _, g in groupby(dag.nodes, key=mapper.get)] ==
+            [len(list(g)) for _, g in groupby(dag.nodes, key=key)])
 
 
 def test_sorting():
