@@ -108,6 +108,8 @@ class GenericModel:
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
         self.fs = fs
+        # A surface that is not flat is mirrored into rows above it
+        self._mirror_rows = 0 if surface is None else space_order
         # Default setup
         origin_pml = [dtype(o - s*nbl) for o, s in zip(origin, spacing, strict=True)]
         shape_pml = np.array(shape) + 2 * self.nbl
@@ -120,6 +122,10 @@ class GenericModel:
             subdomains = subdomains + (fsdomain,)
             origin_pml[-1] = origin[-1]
             shape_pml[-1] -= self.nbl
+        if surface is not None:
+            # The surface is the vertical origin, below the mirror rows
+            origin_pml[-1] = dtype(-self._mirror_rows*spacing[-1])
+            shape_pml[-1] += self._mirror_rows
 
         # Origin of the computational domain with boundary to inject/interpolate
         # at the correct index
@@ -144,13 +150,12 @@ class GenericModel:
 
     def _terrain_following(self, surface, shape, fs):
         """
-        The TerrainFollowing map of the padded grid whose first row is `surface`,
-        given over the physical domain.
+        The TerrainFollowing map of the padded grid whose surface, below its
+        mirror rows, is `surface`, given over the physical domain.
         """
         if not fs:
             raise ValueError("A model with a surface needs fs=True: the surface is "
-                             "the first row of the grid, where the free surface is "
-                             "imposed")
+                             "a row of the grid, where the free surface is imposed")
         if callable(surface):
             return TerrainFollowing(surface=surface)
         surface = np.asarray(surface, dtype=np.float64)
@@ -192,7 +197,7 @@ class GenericModel:
         Padding size for each dimension.
         """
         padsizes = [(self.nbl, self.nbl) for _ in range(self.dim-1)]
-        padsizes.append((0 if self.fs else self.nbl, self.nbl))
+        padsizes.append((self._mirror_rows if self.fs else self.nbl, self.nbl))
         return padsizes
 
     def physical_params(self, **kwargs):
@@ -305,9 +310,11 @@ class SeismicModel(GenericModel):
         topography, with `fs=True`. Either one value per lateral node of the
         physical domain, continued flat across the absorbing layers, or a
         callable of the lateral physical coordinates. The model is then built on
-        a CurvilinearGrid with a TerrainFollowing map, whose first row is the
-        surface, and the critical time step follows its smallest cell
-        (`CurvilinearGrid.min_spacing`).
+        a CurvilinearGrid with a TerrainFollowing map, with the surface at its
+        vertical origin and `space_order` rows above it, the `fsdomain`, into
+        which `CurvilinearGrid.free_surface` mirrors the fields. The parameters
+        are continued into these rows, and the critical time step follows the
+        smallest cell of the grid (`CurvilinearGrid.min_spacing`).
     """
     _known_parameters = ['vp', 'damp', 'vs', 'b', 'epsilon', 'delta',
                          'theta', 'phi', 'qp', 'qs', 'lam', 'mu']

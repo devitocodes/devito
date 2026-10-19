@@ -1418,28 +1418,45 @@ class TestFreeSurfaceWave:
 class TestSeismicModel:
 
     @staticmethod
-    def model(**kwargs):
+    def model(vp=2., **kwargs):
         return SeismicModel(origin=(0., 0.), spacing=(10., 10.), shape=(51, 41),
-                            space_order=8, vp=2., nbl=10, fs=True, **kwargs)
+                            space_order=8, vp=vp, nbl=10, fs=True, **kwargs)
 
-    def test_flat_is_cartesian(self):
-        """A flat surface gives the grid, subdomains and time step of a Grid."""
+    def test_mirror_rows(self):
+        """
+        A flat surface gives the nodes and time step of a Cartesian model below
+        the surface, with `space_order` mirror rows above it, the `fsdomain`.
+        """
         cartesian = self.model()
         model = self.model(surface=np.zeros(51))
-        assert model.grid.is_Curvilinear
-        assert model.grid.shape == cartesian.grid.shape
-        assert model.grid.origin == cartesian.grid.origin
-        assert model.grid.extent == cartesian.grid.extent
-        assert set(model.grid.subdomains) == set(cartesian.grid.subdomains)
+        grid = model.grid
+        assert grid.is_Curvilinear
+        assert grid.shape == cartesian.grid.shape[:-1] + (cartesian.grid.shape[-1] + 8,)
+        assert grid.origin[-1] == -80.
+        assert grid._surface_index == 8
+        x_coord, z_coord = (np.array(c.data) for c in grid.coordinates)
+        cartesian_z = np.array(cartesian.grid.origin[-1]) + \
+            10.*np.arange(cartesian.grid.shape[-1])
+        assert np.allclose(z_coord[:, 8:], cartesian_z, atol=1e-4)
+        assert np.allclose(z_coord[:, :8], -10.*np.arange(8, 0, -1), atol=1e-4)
+        assert set(grid.subdomains) == set(cartesian.grid.subdomains)
         assert model.critical_dt == cartesian.critical_dt
 
     def test_surface(self):
-        """The first row is the surface, continued flat across the absorbing layers."""
+        """The surface is below the mirror rows, continued flat across the layers."""
         x = 10.*np.arange(51)
         surface = -60.*np.exp(-((x - 250.)/80.)**2)
         model = self.model(surface=surface)
-        top = np.array(model.grid.coordinates[-1].data[:, 0])
+        top = np.array(model.grid.coordinates[-1].data[:, 8])
         assert np.allclose(top, np.pad(surface, 10, mode='edge'), atol=1e-4)
+
+    def test_parameters_above(self):
+        """The parameters are continued from the surface into the mirror rows."""
+        vp = np.linspace(1.5, 3., 41)[None, :]*np.ones((51, 1))
+        x = 10.*np.arange(51)
+        model = self.model(surface=-60.*np.exp(-((x - 250.)/80.)**2), vp=vp)
+        values = np.array(model.vp.data)
+        assert np.allclose(values[:, :8], values[:, 8:9])
 
     def test_critical_dt(self):
         """The time step follows the smallest cell, under the deepest surface."""
