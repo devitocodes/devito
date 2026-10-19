@@ -100,11 +100,19 @@ class CurvilinearMap:
     Abstract map from computational to physical coordinates.
 
     The computational coordinates of a node are those a Cartesian Grid of the
-    same shape, extent and origin would give it, `o + i*h` along each axis.
-    A map places that node at a physical position. Subclasses implement
-    `forward` and, for SparseFunctions, `inverse`. The metric terms default to
-    finite differences of `forward` at the grid space order; subclasses with
-    closed forms override `metrics`, `metric_derivatives` and `jacobian`.
+    same shape, extent and origin gives it, `o + i*h` along each axis; the map
+    places the node at a physical position. A map must provide
+
+    * `forward(grid, computational)`, the physical coordinates of computational
+      points, which must be defined, smoothly, past the domain too, where it
+      gives the halo nodes their positions;
+    * `inverse(grid, points)`, the computational coordinates of physical
+      points, needed to place SparseFunctions and by `free_surface`.
+
+    The metric terms, their derivatives and the Jacobian default to finite
+    differences of `forward` at the grid space order. A map with closed forms
+    overrides `metrics`, `metric_derivatives` and `jacobian`, and `validate`
+    to check its parameters against a grid.
 
     Metric terms are returned as a dict `{(i, j): value}`, with `i` a physical
     axis and `j` a computational axis. A value is an array, or a Python number
@@ -245,11 +253,13 @@ class TerrainFollowing(CurvilinearMap):
     Parameters
     ----------
     surface : array_like or callable
-        Physical vertical coordinate (positive down) of the surface. Either an
-        array with one value per lateral grid node, or a callable taking the
-        lateral physical coordinates. For an elevation positive up, pass its
-        negative. An array is continued past the domain edges by odd
-        reflection, and linearly interpolated between nodes.
+        Physical vertical coordinate (depth, positive down) of the surface.
+        Either an array with one value per lateral grid node, or a callable
+        taking the lateral physical coordinates (`s(x)` in 2D, `s(x, y)` in
+        3D). For an elevation positive up, pass its negative,
+        `surface=-elevation`. An array is continued past the domain edges by
+        odd reflection, linearly interpolated between nodes to place sparse
+        points, and differentiated by finite differences for the metrics.
     depth : float, optional
         Physical vertical coordinate of the flat bottom. Defaults to the
         bottom of the computational grid, `o_z + l_z`.
@@ -401,31 +411,66 @@ class CurvilinearGrid(Grid):
     """
     A structured grid whose nodes are placed in physical space by a map.
 
-    A CurvilinearGrid is used exactly as a Grid. Its Dimensions index the
-    computational grid, with `spacing`, `extent` and `origin` describing that
-    grid, while derivatives of Functions defined on it, such as `u.dx` or
-    `u.laplace`, are derivatives w.r.t. the physical coordinates, and the
-    coordinates of SparseFunctions are physical.
+    A CurvilinearGrid keeps the logically Cartesian *computational* grid of a
+    Grid, and places its nodes in *physical* space with a CurvilinearMap, so
+    that a curved boundary, e.g. topography, is a grid line. It is used exactly
+    as a Grid: swap `Grid` for `CurvilinearGrid` and keep the rest of the code.
+
+    * Its Dimensions, `shape`, `spacing`, `extent` and `origin` describe the
+      computational grid: loops, halos, domain decomposition and SubDomains are
+      those of a Grid.
+    * Derivatives of Functions defined on it, `u.dx`, `u.dx2`, `u.dxdy`,
+      `u.laplace`, `grad`, `div`, nested derivatives such as `(b*u.dx).dx`,
+      staggered (`x0`) and rotated (`method='RSFD'`) ones, are derivatives
+      w.r.t. the physical coordinates, through the chain rule with the metric
+      terms (see `Derivative`). `u.dx(computational=True)` is the derivative
+      w.r.t. the computational coordinate. The transpose `.T` of a physical
+      derivative is its exact discrete transpose.
+    * The coordinates of SparseFunctions are physical. Interpolation is
+      unchanged, in the computational grid, and injection divides by the
+      Jacobian, so that a point source is a Dirac in physical space and
+      injection is the transpose of interpolation in the inner product
+      weighted by the Jacobian, `<P u, d> = sum(J * u * P.T d)`.
 
     Parameters
     ----------
     shape : tuple of ints
         Shape of the computational domain in grid points.
     mapping : CurvilinearMap
-        The map from computational to physical coordinates.
+        The map from computational to physical coordinates, e.g.
+        TerrainFollowing.
     extent : tuple of floats, optional
         Extent of the computational domain, by default 1 in all dimensions.
     origin : tuple of floats, optional
         Computational coordinate of the origin, by default 0 in all dimensions.
     space_order : int, optional, default=8
-        Space order of the coordinate and metric Functions. It sets the order
-        of finite-difference metrics, and their halo, `space_order` points per
-        side, which must cover the reach of physical derivatives: two nested
-        derivatives of Functions with space order up to `space_order`, e.g.
-        `(b*u.dx).dx` or `u.dx.T`, are supported.
+        Space order of the coordinate and metric Functions: the order of the
+        finite-difference metrics and of their interpolation to staggered
+        points, and their halo, `space_order` points per side. The halo bounds
+        the reach of physical derivatives: up to two nested derivatives of
+        Functions of space order at most `space_order`, e.g. `(b*u.dx).dx` or
+        `(b*u.dx.T).dx.T`, are supported, and a derivative of higher order
+        raises an error.
     **kwargs
         The other parameters of Grid (`dimensions`, `spacing`, `time_dimension`,
         `dtype`, `comm`, `topology`).
+
+    Attributes
+    ----------
+    coordinates : tuple of Function
+        Physical coordinates of the nodes, one Function per Dimension.
+    metrics : dict
+        The metric terms `d xi_j / d x_i`, keyed `(physical Dimension,
+        computational Dimension)`, Functions such as `eta_x`, or numbers for
+        entries constant by construction of the map.
+    metric_derivatives : dict
+        The second derivatives `d^2 xi_j / d x_i^2`, keyed as `metrics`.
+    jacobian : Function
+        The Jacobian determinant `J = det(d x / d xi)`, the ratio of a physical
+        to a computational cell volume.
+    min_spacing : float
+        The smallest physical distance between neighbouring nodes, e.g. to
+        set a stable time step.
 
     Examples
     --------
@@ -439,9 +484,11 @@ class CurvilinearGrid(Grid):
 
     Notes
     -----
-    The metric Functions are built from the map when first needed, along with
-    the physical node `coordinates` and the `jacobian`, halo included: a halo
-    node takes the value of the map continued past the domain.
+    The coordinate and metric Functions are built from the map when first
+    needed, on each rank for its own nodes under domain decomposition, halo
+    included: a halo node takes the value of the map continued past the
+    domain. `resample` maps Cartesian Functions onto the grid and back, and
+    `free_surface` imposes a zero field on the surface row.
     """
 
     is_Curvilinear = True
