@@ -18,7 +18,7 @@ from devito.ir.support.basic import (
     AFFINE, IRREGULAR, REGULAR, IterationInstance, Relation, Scope, TimedAccess, Vector,
     mocksym0, mocksym1
 )
-from devito.ir.support.guards import GuardOverflow
+from devito.ir.support.guards import GuardOverflow, Guards
 from devito.ir.support.space import (
     Any, Backward, Forward, Interval, IntervalGroup, IterationInterval, IterationSpace,
     NullInterval, null_ispace
@@ -1715,6 +1715,22 @@ class TestClusterGroup:
 
 
 class TestGuards:
+
+    def test_true_never_set(self):
+        """
+        A guard that reduces to `true` is pointless, hence never set. E.g.,
+        `time >= 0` folds to `true` as `time` is nonnegative.
+        """
+        grid = Grid(shape=(4, 4))
+        time = grid.time_dim
+
+        assert not Guards({time: time >= 0})
+        assert not Guards().andg(time, time >= 0)
+        assert not Guards().xandg(time, time >= 0)
+        assert not Guards().impose(time, time >= 0)
+
+        guards = Guards({time: time >= 1})
+        assert not guards.subs({time: time + 1})
 
     def test_guard_overflow(self):
         """
