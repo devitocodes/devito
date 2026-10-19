@@ -317,8 +317,8 @@ class TestDerivatives:
         the order of the stencils.
         """
         errors = []
-        # Coarse enough for the error to stay above the floor set by the 9 digits
-        # of Devito's finite-difference weights
+        # Coarse enough for the error to stay above the floor near 1e-9 that the
+        # Laplacian on a Cartesian Grid reaches as well
         sizes = {4: [31, 61, 121], 8: [21, 31, 41]}[space_order]
         for n in sizes:
             grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
