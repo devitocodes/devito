@@ -6,6 +6,7 @@ from devito import (
     Eq, Function, Grid, Inc, MatrixSparseTimeFunction, Operator, SparseTimeFunction,
     TimeFunction, configuration, sin, switchconfig
 )
+from devito.exceptions import InvalidOperator
 from devito.ir import Call, Callable, DummyExpr, Expression, FindNodes, SymbolRegistry
 from devito.passes import Graph, generate_macros, linearize
 from devito.types import Array, Bundle, CustomDimension, DefaultDimension
@@ -737,3 +738,23 @@ def test_bundle_derived_dim_stride():
     assert bundle.symbolic_shape[p] is not bundle.symbolic_shape[rp]
     assert bundle.symbolic_shape[rp] == 2
     assert bundle.symbolic_shape.dindex(rp) == 1
+
+
+def test_linearize_is_not_a_pass():
+    """
+    `linearize` is an option, `opt=(mode, {'linearize': True})`, not a pass.
+    """
+    grid = Grid(shape=(4, 4))
+
+    u = TimeFunction(name='u', grid=grid)
+
+    with pytest.raises(InvalidOperator):
+        Operator(Eq(u.forward, u + 1), opt=('linearize', {'linearize': True}))
+
+    op = Operator(Eq(u.forward, u + 1), opt=('openmp', {'linearize': True}))
+
+    assert 'uL0' in str(op)
+
+    op.apply(time_M=2)
+
+    assert np.all(u.data[1] == 3)

@@ -11,6 +11,7 @@ from devito.logger import warning
 from devito.mpi.routines import mpi_registry
 from devito.operator import Operator
 from devito.parameters import configuration
+from devito.passes.iet import linearize
 from devito.tools import (
     UnboundedMultiTuple, UnboundTuple, as_tuple, is_integer, timed_pass
 )
@@ -455,8 +456,7 @@ class CustomOperator(BasicOperator):
         cls._Target.DataManager(**kwargs).process(graph)
 
         # Linearize n-dimensional Indexeds
-        if 'linearize' not in passes and options['linearize']:
-            passes_mapper['linearize'](graph)
+        linearize(graph, **kwargs)
 
         # Enforce pthreads if CPU-GPU orchestration requested
         if 'orchestrate' in passes and 'pthreadify' not in passes:
