@@ -578,6 +578,11 @@ class WeightedInterpolator(GenericInterpolator):
             exprs = tuple(e._eval_at(f).evaluate
                           for e, f in zip(exprs, fields, strict=True))
 
+        # On a CurvilinearGrid a point source is a Dirac in physical space,
+        # which scales by the inverse of the Jacobian at the grid nodes
+        exprs = tuple(e / f.grid.root.jacobian if f.grid.root.is_Curvilinear else e
+                      for e, f in zip(exprs, fields, strict=True))
+
         eqns = []
         temps = []
         # We need to create one set of equations (temps and and coeffs) per staggering

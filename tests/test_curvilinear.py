@@ -405,3 +405,143 @@ class TestDerivativesMPI:
         distributed, serial = results
         assert np.allclose(np.asarray(distributed.data_ro_domain._local),
                            serial.data[distributed.local_indices], rtol=0, atol=1e-12)
+
+
+def random_points(npoint, seed=3):
+    """Points below the sine surface, in physical coordinates."""
+    rng = np.random.default_rng(seed)
+    xs = rng.uniform(50., 950., npoint)
+    zs = sine_surface(xs) + rng.uniform(5., 700., npoint)
+    return np.stack([xs, zs], axis=1)
+
+
+class TestSparse:
+
+    def test_interpolation_convergence(self):
+        """Interpolation of an analytic field at physical points is second order."""
+        points = random_points(50)
+        errors = []
+        sizes = [41, 81, 161]
+        for n in sizes:
+            grid = sine_grid(n, dtype=np.float64)
+            u = Function(name='u', grid=grid, space_order=4)
+            u.data[:] = wave(*(c.data for c in grid.coordinates))
+            rec = SparseFunction(name='rec', grid=grid, npoint=len(points),
+                                 coordinates=points)
+            Operator(rec.interpolate(u)).apply()
+            errors.append(np.abs(rec.data - wave(*points.T)).max())
+
+        orders = np.log2(np.array(errors[:-1])/np.array(errors[1:]))
+        assert np.all(orders > 1.7), orders
+
+    def test_adjoint(self):
+        """
+        Injection is the adjoint of interpolation in the inner product weighted
+        by the Jacobian, `<P u, d> = sum(J u P.T d)`.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        points = random_points(20)
+        rng = np.random.default_rng(4)
+        u = Function(name='u', grid=grid, space_order=4)
+        v = Function(name='v', grid=grid, space_order=4)
+        rec = SparseFunction(name='rec', grid=grid, npoint=len(points),
+                             coordinates=points)
+        src = SparseFunction(name='src', grid=grid, npoint=len(points),
+                             coordinates=points)
+        u.data[:] = rng.standard_normal(grid.shape)
+        src.data[:] = rng.standard_normal(len(points))
+
+        Operator([rec.interpolate(u), src.inject(v, src)]).apply()
+
+        forward = np.dot(rec.data, src.data)
+        backward = np.sum(grid.jacobian.data*u.data*v.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_dirac(self):
+        """An injected unit Dirac integrates to one over the physical domain."""
+        grid = sine_grid(41)
+        points = random_points(3)
+        v = Function(name='v', grid=grid, space_order=4)
+        src = SparseFunction(name='src', grid=grid, npoint=len(points),
+                             coordinates=points)
+        src.data[:] = 1.
+        Operator(src.inject(v, src)).apply()
+
+        cell = np.prod(grid.spacing)
+        assert np.isclose(np.sum(grid.jacobian.data*v.data)*cell,
+                          len(points)*cell, rtol=1e-5)
+
+    def test_flat_is_cartesian(self):
+        """On a flat map, injection and interpolation are those of a Grid."""
+        shape, extent = (31, 41), (300., 400.)
+        rng = np.random.default_rng(5)
+        points = rng.uniform(10., 290., (7, 2))
+        u_data = rng.standard_normal(shape)
+
+        results = []
+        for grid in [Grid(shape=shape, extent=extent), flat_grid(shape, extent)]:
+            u = Function(name='u', grid=grid, space_order=4)
+            v = Function(name='v', grid=grid, space_order=4)
+            rec = SparseTimeFunction(name='rec', grid=grid, npoint=len(points), nt=1,
+                                     coordinates=points)
+            u.data[:] = u_data
+            rec.data[:] = 1.
+            Operator([rec.interpolate(u), rec.inject(v, rec)]).apply()
+            results.append((rec.data.copy(), v.data.copy()))
+
+        for cartesian, curvilinear in zip(*results, strict=True):
+            assert np.array_equal(cartesian, curvilinear)
+
+    def test_coordinates_editable(self):
+        """Moving the points between runs of the same Operator moves the samples."""
+        grid = sine_grid(81, dtype=np.float64)
+        u = Function(name='u', grid=grid, space_order=4)
+        u.data[:] = wave(*(c.data for c in grid.coordinates))
+        rec = SparseFunction(name='rec', grid=grid, npoint=10,
+                             coordinates=random_points(10))
+        op = Operator(rec.interpolate(u))
+
+        for seed in (6, 7):
+            points = random_points(10, seed=seed)
+            rec.coordinates.data[:] = points
+            op.apply()
+            assert np.allclose(rec.data, wave(*points.T), atol=1e-2)
+            assert np.array_equal(rec.coordinates.data, points)
+
+
+class TestSparseMPI:
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_interpolation_adjoint(self, mode):
+        """
+        Interpolation of an analytic field and the Jacobian-weighted adjoint test
+        of injection, on a distributed grid.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        points = random_points(20)
+        u = Function(name='u', grid=grid, space_order=4)
+        v = Function(name='v', grid=grid, space_order=4)
+        weighted = Function(name='weighted', grid=grid, space_order=4)
+        rec = SparseFunction(name='rec', grid=grid, npoint=len(points),
+                             coordinates=points)
+        src = SparseFunction(name='src', grid=grid, npoint=len(points),
+                             coordinates=points)
+        x_coord, z_coord = grid.coordinates
+        Operator(Eq(u, sin(_KX*x_coord)*cos(_KZ*z_coord))).apply()
+        src.data[:] = np.linspace(-1., 1., len(points))
+
+        Operator([rec.interpolate(u), src.inject(v, src),
+                  Eq(weighted, grid.jacobian*v)]).apply()
+
+        # Each rank holds a contiguous block of the points, whose coordinates are
+        # still the physical ones after the run
+        local_points = np.asarray(rec.coordinates.data._local)
+        assert np.array_equal(local_points, points[rec.local_indices[0]])
+
+        # The same sample error as in serial, see test_interpolation_convergence
+        local_samples = np.asarray(rec.data._local)
+        assert np.abs(local_samples - wave(*local_points.T)).max() < 0.03
+
+        forward = grid.comm.allreduce(np.dot(local_samples,
+                                             np.asarray(src.data._local)))
+        assert np.isclose(forward, inner(u, weighted), rtol=1e-12)
