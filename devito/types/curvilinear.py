@@ -1037,14 +1037,21 @@ class CurvilinearGrid(Grid):
                              f"surface, where {rows} mirror rows are needed; extend "
                              "it upwards")
 
+        self._check_lateral_halo(function, rows, order)
+        return rows, order
+
+    def _check_lateral_halo(self, function, rows, order):
+        """
+        Raise an error if the image stencils of the free surface read
+        `function` laterally beyond its halo.
+        """
         table, first = self._image_weights(rows, order)
         window = table.shape[self.dim:-1]
-        halo = [function._size_halo[d] for d in self.dimensions[:-1]]
-        for f, n, h in zip(first, window, halo, strict=True):
-            if f < -h.left or f + n - 1 > h.right:
+        for d, f, n in zip(self.dimensions[:-1], first, window, strict=True):
+            halo = function._size_halo[d]
+            if f < -halo.left or f + n - 1 > halo.right:
                 raise ValueError(f"The image stencils span lateral offsets {f} to "
                                  f"{f + n - 1}, beyond the halo of {function}")
-        return rows, order
 
     def _transposed_image_weights_function(self, rows, order):
         """
@@ -1191,6 +1198,10 @@ class CurvilinearGrid(Grid):
         surface = self._surface_index
         indexed = field.indexify()
         jacobian = self.jacobian.indexify()
+        # The coefficient is read at the mirror nodes, laterally as far as the field
+        for f in sympy.preorder_traversal(sympy.sympify(coefficient)):
+            if getattr(f, 'is_DiscreteFunction', False):
+                self._check_lateral_halo(f.function, rows, order)
         coefficient = _indexify(coefficient)
 
         # The rows above the surface and the surface back to zero, for the

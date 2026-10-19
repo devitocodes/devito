@@ -1248,6 +1248,15 @@ class TestFreeSurface:
         assert np.all(r.data[:, :9] == 0)
         assert np.all(r.data[:, 9:] == 1)
 
+    def test_adjoint_coefficient_halo(self):
+        """A coefficient read laterally beyond its halo is refused."""
+        grid = surface_grid((41, 41), (1000., 800.), sine_surface)
+        w = Function(name='w', grid=grid, space_order=8)
+        m = Function(name='m', grid=grid, space_order=(8, 2, 2))
+        grid.free_surface_adjoint(w, 1/Function(name='m8', grid=grid, space_order=8))
+        with pytest.raises(ValueError, match='beyond the halo of m'):
+            grid.free_surface_adjoint(w, 1/m)
+
     def test_adjoint_wide(self):
         """The transpose is exact with as many mirror rows as the stencil reaches."""
         grid = surface_grid((41, 41), (1000., 800.), sine_surface, dtype=np.float64)
