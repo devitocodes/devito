@@ -7,8 +7,8 @@ with suppress(ImportError):
     import pytest
 
 from devito import (
-    Abs, Constant, Eq, Function, Grid, Inc, Operator, SubDimension, SubDomain, div, sin,
-    warning
+    Abs, Constant, CurvilinearGrid, Eq, Function, Grid, Inc, Operator, SubDimension,
+    SubDomain, TerrainFollowing, div, sin, warning
 )
 from devito.builtins import gaussian_smooth, initialize_function, mmax, mmin
 from devito.tools import as_tuple
@@ -102,7 +102,7 @@ class GenericModel:
     """
     def __init__(self, origin, spacing, shape, space_order, nbl=20,
                  dtype=np.float32, subdomains=(), bcs="damp", grid=None,
-                 fs=False, topology=None):
+                 fs=False, topology=None, surface=None):
         self.shape = shape
         self.space_order = space_order
         self.nbl = int(nbl)
@@ -126,14 +126,39 @@ class GenericModel:
         if grid is None:
             # Physical extent is calculated per cell, so shape - 1
             extent = tuple(np.array(spacing) * (shape_pml - 1))
-            self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
-                             dtype=dtype, subdomains=subdomains, topology=topology)
+            if surface is None:
+                self.grid = Grid(extent=extent, shape=shape_pml, origin=origin_pml,
+                                 dtype=dtype, subdomains=subdomains, topology=topology)
+            else:
+                mapping = self._terrain_following(surface, shape, fs)
+                self.grid = CurvilinearGrid(extent=extent, shape=shape_pml,
+                                            origin=origin_pml, mapping=mapping,
+                                            space_order=space_order, dtype=dtype,
+                                            subdomains=subdomains, topology=topology)
         else:
             self.grid = grid
 
         self._physical_parameters = set()
         self.damp = None
         self._initialize_bcs(bcs=bcs)
+
+    def _terrain_following(self, surface, shape, fs):
+        """
+        The TerrainFollowing map of the padded grid whose first row is `surface`,
+        given over the physical domain.
+        """
+        if not fs:
+            raise ValueError("A model with a surface needs fs=True: the surface is "
+                             "the first row of the grid, where the free surface is "
+                             "imposed")
+        if callable(surface):
+            return TerrainFollowing(surface=surface)
+        surface = np.asarray(surface, dtype=np.float64)
+        if surface.shape != tuple(shape[:-1]):
+            raise ValueError(f"The surface has shape {surface.shape}, expected one "
+                             f"value per lateral node {tuple(shape[:-1])}")
+        # Continued flat across the absorbing layers
+        return TerrainFollowing(surface=np.pad(surface, self.nbl, mode='edge'))
 
     def _initialize_bcs(self, bcs="damp"):
         # Create dampening field as symbol `damp`
@@ -275,15 +300,23 @@ class SeismicModel(GenericModel):
         P-wave attenuation.
     qs : array_like or float
         S-wave attenuation.
+    surface : array_like or callable, optional
+        Depth (positive down) of a free surface that is not flat, e.g.
+        topography, with `fs=True`. Either one value per lateral node of the
+        physical domain, continued flat across the absorbing layers, or a
+        callable of the lateral physical coordinates. The model is then built on
+        a CurvilinearGrid with a TerrainFollowing map, whose first row is the
+        surface, and the critical time step follows its smallest cell
+        (`CurvilinearGrid.min_spacing`).
     """
     _known_parameters = ['vp', 'damp', 'vs', 'b', 'epsilon', 'delta',
                          'theta', 'phi', 'qp', 'qs', 'lam', 'mu']
 
     def __init__(self, origin, spacing, shape, space_order, vp, nbl=20, fs=False,
                  dtype=np.float32, subdomains=(), bcs="mask", grid=None,
-                 topology=None, **kwargs):
+                 topology=None, surface=None, **kwargs):
         super().__init__(origin, spacing, shape, space_order, nbl, dtype, subdomains,
-                         topology=topology, grid=grid, bcs=bcs, fs=fs)
+                         topology=topology, grid=grid, bcs=bcs, fs=fs, surface=surface)
 
         # Initialize physics
         self._initialize_physics(vp, space_order, **kwargs)
@@ -375,7 +408,9 @@ class SeismicModel(GenericModel):
         #
         # The CFL condition is then given by
         # dt <= coeff * h / (max(velocity))
-        dt = self._cfl_coeff * np.min(self.spacing) / (self._thomsen_scale*self._max_vp)
+        grid = self.grid
+        spacing = grid.min_spacing if grid.is_Curvilinear else np.min(self.spacing)
+        dt = self._cfl_coeff * spacing / (self._thomsen_scale*self._max_vp)
         dt = self.dtype("%.3e" % (self.dt_scale * dt))
         if self._dt:
             return self._dt
