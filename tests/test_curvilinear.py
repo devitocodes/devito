@@ -310,6 +310,8 @@ class TestDerivatives:
         ('u.laplace', wave_laplace),
         ('(b*u.dx).dx + (b*u.dy).dy', buoyancy_div_grad),
         ('div(b*grad(u))', buoyancy_div_grad),
+        ('u.dx(x0=x + x.spacing/2).dx(x0=x - x.spacing/2) + '
+         'u.dy(x0=y + y.spacing/2).dy(x0=y - y.spacing/2)', wave_laplace),
     ])
     def test_convergence(self, space_order, expr, solution):
         """
@@ -324,6 +326,7 @@ class TestDerivatives:
             grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
                                    mapping=TerrainFollowing(sine_surface, depth=800.),
                                    space_order=space_order, dtype=np.float64)
+            x, y = grid.dimensions  # noqa
             u = physical_function('u', grid, space_order, wave)  # noqa
             b = physical_function('b', grid, space_order, buoyancy)  # noqa
             out = Function(name='out', grid=grid, space_order=space_order)
@@ -372,6 +375,39 @@ class TestDerivatives:
         forward = np.dot(f_out.data.ravel(), g.data.ravel())
         backward = np.dot(f.data.ravel(), g_out.data.ravel())
         assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize('expr', [
+        '(b*u.dx).dx + (b*u.dy).dy',
+        '(b._subs(x, x + x.spacing/2)*u.dx(x0=x + x.spacing/2)).dx(x0=x - x.spacing/2)'
+        ' + (b._subs(y, y + y.spacing/2)*u.dy(x0=y + y.spacing/2))'
+        '.dy(x0=y - y.spacing/2)',
+        'u.dx.dy + u.dy.dx',
+    ])
+    def test_symmetric(self, expr):
+        """
+        Nested derivatives are symmetric in the inner product weighted by the
+        Jacobian, `<J D f, g> = <f, J D g>`, under a sine surface: the outer
+        derivative is in conservation form, minus the adjoint of the inner one.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        x, y = grid.dimensions
+        rng = np.random.default_rng(3)
+        b = Function(name='b', grid=grid, space_order=8)
+        b.data[:] = 1 + rng.random(grid.shape)
+        fields, results = [], []
+        for _ in range(2):
+            u = Function(name='u', grid=grid, space_order=8)
+            out = Function(name='out', grid=grid, space_order=8)
+            u.data[:] = rng.standard_normal(grid.shape)
+            u.data[:8] = u.data[-8:] = u.data[:, :8] = u.data[:, -8:] = 0
+            Operator(Eq(out, grid.jacobian*eval(expr))).apply()
+            fields.append(u.data.copy())
+            results.append(out.data.copy())
+
+        forward = np.dot(results[0].ravel(), fields[1].ravel())
+        backward = np.dot(fields[0].ravel(), results[1].ravel())
+        scale = np.linalg.norm(results[0])*np.linalg.norm(fields[1])
+        assert abs(forward - backward) < 1e-10*scale
 
     @pytest.mark.parametrize('space_order', [4, 8])
     @pytest.mark.parametrize('deriv, solution', [('dx', wave_dx), ('dy', wave_dz)])
