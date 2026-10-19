@@ -686,6 +686,48 @@ class TestStreaming:
         assert np.all(u.data[0] == 28)
         assert np.all(u.data[1] == 36)
 
+    @pytest.mark.parametrize('mode', ['save', 'prefetch'])
+    def test_async_handshake_atomics(self, mode):
+        """
+        The locks and flags of an asynchronous task are accessed with acquire loads
+        and release stores, or a weakly ordered CPU may e.g. see the lock released
+        before the data it guards.
+        """
+        grid = Grid(shape=(4, 4))
+        nt = 10
+
+        if mode == 'save':
+            class Interior(SubDomain):
+                name = 'interior'
+
+                def define(self, dimensions):
+                    x, y = dimensions
+                    return {x: ('middle', 1, 1), y: y}
+
+            interior = Interior(grid=grid)
+            tmp = Function(name='tmp', grid=grid)
+            u = TimeFunction(name='u', grid=grid, save=nt)
+            v = TimeFunction(name='v', grid=grid)
+            eqns = [Eq(tmp, v), Eq(v.forward, v + 1),
+                    Eq(u.forward, tmp, subdomain=interior)]
+            opt = ('tasking', 'orchestrate')
+        else:
+            w = TimeFunction(name='w', grid=grid)
+            wsave = TimeFunction(name='wsave', grid=grid, save=nt)
+            eqns = [Eq(w.forward, w + wsave)]
+            opt = ('buffering', 'streaming', 'orchestrate')
+
+        op = Operator(eqns, opt=opt)
+
+        code = str(op)
+        assert 'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0);' in code
+        assert '__atomic_store_n(&lock0[0],2,__ATOMIC_RELEASE);' in code
+        assert '__atomic_store_n(&sdata0->flag,1,__ATOMIC_RELEASE);' in code
+        assert 'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) != 2);' in code
+        assert '__atomic_store_n(&lock0[0],0,__ATOMIC_RELEASE);' in code
+        assert '__atomic_store_n(&sdata0[0].flag,2,__ATOMIC_RELEASE);' in code
+        assert '__atomic_thread_fence' not in code
+
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 14),
         (('buffering', 'streaming', 'fuse', 'orchestrate', {'npthreads': 1}), 8),

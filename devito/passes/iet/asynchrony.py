@@ -7,12 +7,14 @@ import cgen as c
 from devito.ir import (
     AsyncCall, AsyncCallable, BlankLine, BusyWait, BusyWaitCall, Call, Callable,
     Conditional, DummyEq, DummyExpr, EntryFunction, FindNodes, FindSymbols, Increment,
-    Iteration, List, PointerCast, Return, ThreadCallable, Transformer, While, atomic_load,
-    atomic_store, make_callable, maybe_alias
+    Iteration, List, PointerCast, Return, ThreadCallable, Transformer, While,
+    make_callable, maybe_alias
 )
 from devito.passes.iet.definitions import DataManager
 from devito.passes.iet.engine import iet_pass
-from devito.symbolics import CondEq, CondNe, FieldFromComposite, FieldFromPointer, Null
+from devito.symbolics import (
+    CondEq, CondNe, FieldFromComposite, FieldFromPointer, Null, atomic_load, atomic_store
+)
 from devito.tools import split
 from devito.types import (
     Lock, Pointer, PThreadArray, QueueID, SharedData, Temp, VolatileInt
@@ -91,7 +93,7 @@ def _lower_async_objs(iet, tracker=None, sregistry=None, **kwargs):
                            for i in arguments])
 
         # The request is published last, so the thread sees everything set above
-        activation.append(atomic_store(flag, 2))
+        activation.append(Call(*atomic_store(flag, 2).args))
         name = sregistry.make_name(prefix='activate')
         efunc = make_callable(name, activation)
 
@@ -150,7 +152,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
         BlankLine,
         # Whatever the task produced -- data in a buffer, a lock handed back --
         # has to be visible before the flag says it is done
-        atomic_store(flag, 1)
+        Call(*atomic_store(flag, 1).args)
     ])]
 
     wrap = List(body=preactions + list(iet.body.body) + postactions)
@@ -216,7 +218,7 @@ def _(iet, key=None, tracker=None, sregistry=None, **kwargs):
     name = sregistry.make_name(prefix='shutdown')
     body = List(body=callback([
         BusyWait(CondEq(atomic_load(flag), 2)),
-        atomic_store(flag, 0),
+        Call(*atomic_store(flag, 0).args),
         Call('pthread_join', (threads[d], Null))
     ]))
     shutdown = make_callable(name, body)

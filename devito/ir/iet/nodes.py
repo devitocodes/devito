@@ -18,7 +18,7 @@ from devito.ir.support import (
     AFFINE, INBOUND, PARALLEL, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT, SEQUENTIAL,
     VECTORIZED, Forward, PrefetchUpdate, Property, WithLock
 )
-from devito.symbolics import Byref, CallFromPointer, DefFunction, ListInitializer, Macro
+from devito.symbolics import CallFromPointer, ListInitializer
 from devito.tools import (
     Signer, as_tuple, ctypes_to_cstr, filter_ordered, filter_sorted, flatten
 )
@@ -67,8 +67,6 @@ __all__ = [
     'Using',
     'UsingNamespace',
     'While',
-    'atomic_load',
-    'atomic_store',
 ]
 
 # First-class IET nodes
@@ -1303,26 +1301,6 @@ class ExpressionBundle(List):
     @property
     def size(self):
         return self.ispace.size
-
-
-def atomic_load(flag):
-    """
-    An acquire load of a flag that threads synchronise on, for use in a wait
-    condition. Reads that follow it cannot be satisfied before it.
-
-    The `__atomic` builtins accept the existing `volatile int` flags and are
-    valid in C and C++ alike, so no declaration changes and no header is needed.
-    """
-    return DefFunction('__atomic_load_n', (Byref(flag), Macro('__ATOMIC_ACQUIRE')))
-
-
-def atomic_store(flag, value):
-    """
-    A release store to a flag that threads synchronise on, the counterpart of
-    `atomic_load`: everything sequenced before it is visible to whoever then
-    acquires `flag`.
-    """
-    return Call('__atomic_store_n', (Byref(flag), value, Macro('__ATOMIC_RELEASE')))
 
 
 class Prodder(Call):
