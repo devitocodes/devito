@@ -1081,59 +1081,104 @@ def odd_field(points, slope, offset):
     return smooth_field(points) - smooth_field(plane_reflection(points, slope, offset))
 
 
-def mirrored_ghosts(grid, space_order, slope, offset):
+def surface_grid(shape, extent, surface, rows=8, **kwargs):
     """
-    Ghost rows set by `grid.free_surface` from the exact odd field below the
-    surface, the exact odd field on the ghost rows, and the ghost rows of the
+    A CurvilinearGrid with `shape` and `extent` below its surface, and `rows`
+    mirror rows above it.
+    """
+    spacing = extent[-1]/(shape[-1] - 1)
+    return CurvilinearGrid(shape=shape[:-1] + (shape[-1] + rows,),
+                           extent=extent[:-1] + (extent[-1] + rows*spacing,),
+                           origin=(0.,)*(len(shape) - 1) + (-rows*spacing,),
+                           mapping=TerrainFollowing(surface), **kwargs)
+
+
+def mirrored_rows(grid, space_order, slope, offset):
+    """
+    Mirror rows set by `grid.free_surface` from the exact odd field below the
+    surface, the exact odd field on the mirror rows, and the mirror rows of the
     mirror along the grid columns.
     """
-    # The field and the coordinates share the halo of the grid space order
+    surface = grid._surface_index
     u = TimeFunction(name='u', grid=grid, space_order=space_order)
-    coordinates = np.stack([c.data_with_halo.ravel() for c in grid.coordinates],
-                           axis=1)
-    exact = odd_field(coordinates, slope, offset).reshape(
-        grid.coordinates[0].data_with_halo.shape
-    )
-    u.data_with_halo[1] = 0.
-    u.data_with_halo[1][..., space_order:] = exact[..., space_order:]
+    coordinates = np.stack([c.data.ravel() for c in grid.coordinates], axis=1)
+    exact = odd_field(coordinates, slope, offset).reshape(grid.shape)
+    u.data[1] = 0.
+    u.data[1][..., surface:] = exact[..., surface:]
 
     Operator(grid.free_surface(u.forward)).apply(time_m=0, time_M=0)
 
-    rows = slice(space_order - space_order//2, space_order)
+    rows = slice(surface - space_order//2, surface)
     # Mirror along the grid columns, u(-k) = -u(k)
-    mirrored_rows = slice(space_order + space_order//2, space_order, -1)
+    mirrored = slice(surface + space_order//2, surface, -1)
     # Away from the lateral edges, where the image stencils read the halo
-    lateral = (slice(2*space_order, -2*space_order),)*(grid.dim - 1)
-    return (u.data_with_halo[1][lateral + (rows,)], exact[lateral + (rows,)],
-            -exact[lateral + (mirrored_rows,)])
+    lateral = (slice(space_order, -space_order),)*(grid.dim - 1)
+    return (u.data[1][lateral + (rows,)], exact[lateral + (rows,)],
+            -exact[lateral + (mirrored,)])
+
+
+def staggered_laplacian(f, fd_order):
+    """The staggered Laplacian of a wave equation."""
+    return sum(getattr(getattr(f, f'd{d.name}')(fd_order=fd_order, x0=d + d.spacing/2),
+                       f'd{d.name}')(fd_order=fd_order, x0=d - d.spacing/2)
+               for d in f.grid.dimensions)
+
+
+def free_surface_dot(grid, space_order=8, rows=None, fd_order=None):
+    """
+    The two sides of `<J A u, w> = <J u, A^T w>` below the surface, with `A` the
+    staggered Laplacian after `free_surface`, and `A^T` the Laplacian of the
+    field held at zero above the surface, followed by `free_surface_adjoint`.
+    """
+    surface = grid._surface_index
+    fd_order = fd_order or space_order//2
+    rng = np.random.default_rng(18)
+    u = Function(name='u', grid=grid, space_order=space_order)
+    w = Function(name='w', grid=grid, space_order=space_order)
+    for f in (u, w):
+        values = rng.standard_normal(grid.shape)
+        # Zero on and above the surface, and away from the edges and the bottom
+        values[..., :surface + 1] = 0
+        for axis in range(grid.dim):
+            values[(slice(None),)*axis + (slice(-space_order, None),)] = 0
+            if axis < grid.dim - 1:
+                values[(slice(None),)*axis + (slice(0, space_order),)] = 0
+        f.data[:] = values
+    au = Function(name='au', grid=grid, space_order=space_order)
+    aw = Function(name='aw', grid=grid, space_order=space_order)
+
+    Operator(grid.free_surface(u, rows=rows) +
+             [Eq(au, staggered_laplacian(u, fd_order))]).apply()
+    Operator([Eq(aw, staggered_laplacian(w, fd_order))] +
+             grid.free_surface_adjoint(aw, 1, rows=rows)).apply()
+
+    jacobian = np.array(grid.jacobian.data)
+    below = (slice(None),)*(grid.dim - 1) + (slice(surface + 1, None),)
+    forward = np.sum((jacobian*au.data*w.data)[below])
+    adjoint = np.sum((jacobian*u.data*aw.data)[below])
+    return forward, adjoint
 
 
 class TestFreeSurface:
 
     def test_flat_is_odd_mirror(self):
         """Over a flat surface, the mirror is the usual `u(-k) = -u(k)`."""
-        grid = flat_grid((21, 21), (200., 200.))
-        x, y = grid.dimensions
-        t = grid.stepping_dim
+        grid = surface_grid((21, 21), (200., 200.), np.zeros(21))
         rng = np.random.default_rng(16)
         u = TimeFunction(name='u', grid=grid, space_order=8)
         u.data[1] = rng.standard_normal(grid.shape)
-        reference = TimeFunction(name='reference', grid=grid, space_order=8)
-        reference.data[1] = u.data[1]
+        below = np.array(u.data[1, :, 9:13])
+        Operator(grid.free_surface(u.forward)).apply(time_m=0, time_M=0)
 
-        mirror = [Eq(reference[t+1, x, -k], -reference[t+1, x, k]) for k in range(1, 5)]
-        Operator(grid.free_surface(u.forward) + mirror).apply(time_m=0, time_M=0)
-
-        assert np.array_equal(u.data_with_halo[1, 8:-8, 4:8],
-                              reference.data_with_halo[1, 8:-8, 4:8])
-        assert np.all(u.data[1, :, 0] == 0)
+        assert np.all(u.data[1, :, 8] == 0)
+        assert np.array_equal(u.data[1, :, 4:8], -below[:, ::-1])
 
     def test_fields_share_weights(self):
         """
         Fields mirrored in the same Operator share the interpolation weights of
         their images, and are mirrored alike.
         """
-        grid = sine_grid(31)
+        grid = surface_grid((31, 31), (1000., 800.), sine_surface)
         rng = np.random.default_rng(17)
         u = TimeFunction(name='u', grid=grid, space_order=8)
         v = TimeFunction(name='v', grid=grid, space_order=8)
@@ -1147,13 +1192,91 @@ class TestFreeSurface:
         assert len({f.function for f in weights}) == 1
         Operator(eqns).apply(time_m=0, time_M=0)
         # To float32 roundoff, the compiler ordering the two loops differently
-        assert np.allclose(u.data_with_halo[1], v.data_with_halo[1], rtol=0,
-                           atol=1e-6)
+        assert np.allclose(u.data[1], v.data[1], rtol=0, atol=1e-6)
+
+    def test_needs_rows(self):
+        """The grid must extend above the surface by the mirror rows."""
+        grid = surface_grid((21, 21), (200., 200.), np.zeros(21), rows=2)
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        with pytest.raises(ValueError, match='rows above the surface'):
+            grid.free_surface(u.forward)
+
+    @pytest.mark.parametrize('surface', [lambda x: 0*x + 20., sine_surface])
+    def test_adjoint(self, surface):
+        """
+        `free_surface_adjoint` is the exact transpose of an update followed by
+        `free_surface`, in the inner product weighted by the Jacobian, over a
+        flat and a sine surface.
+        """
+        grid = surface_grid((41, 41), (1000., 800.), surface, dtype=np.float64)
+        forward, adjoint = free_surface_dot(grid)
+        assert np.isclose(forward, adjoint, rtol=1e-12, atol=0)
+
+    def test_adjoint_propagation(self):
+        """
+        Over a flat surface, where the mirror is its own transpose, a backward
+        propagation with `free_surface_adjoint` is one with `free_surface`, for
+        as many steps as it runs: the fold follows the updates it depends on.
+        """
+        grid = surface_grid((41, 41), (400., 400.), np.zeros(41), dtype=np.float64)
+        rng = np.random.default_rng(19)
+        initial = rng.standard_normal((2,) + grid.shape)
+        initial[..., :9] = 0
+        below = grid._rows('below_surface', 9, 40)
+        results = []
+        for transpose in [False, True]:
+            u = TimeFunction(name='u', grid=grid, space_order=8, time_order=2)
+            u.data[1:] = initial
+            update = 2*u - u.forward + 10.*staggered_laplacian(u, 4)
+            if transpose:
+                eqns = ([Eq(u.backward, update)] +
+                        grid.free_surface_adjoint(u.backward, 10.))
+            else:
+                eqns = grid.free_surface(u) + [Eq(u.backward, update, subdomain=below)]
+            Operator(eqns).apply(time_m=1, time_M=20)
+            results.append(np.array(u.data[1][:, 9:]))
+        mirrored, folded = results
+        assert np.abs(mirrored).max() > 0
+        assert np.allclose(folded, mirrored, rtol=0, atol=1e-10*np.abs(mirrored).max())
+
+    def test_adjoint_wide(self):
+        """The transpose is exact with as many mirror rows as the stencil reaches."""
+        grid = surface_grid((41, 41), (1000., 800.), sine_surface, dtype=np.float64)
+        forward, adjoint = free_surface_dot(grid, rows=8, fd_order=8)
+        assert np.isclose(forward, adjoint, rtol=1e-12, atol=0)
+
+    def test_adjoint_3d(self):
+        """The transpose is exact under a surface s(x, y)."""
+        grid = surface_grid((25, 25, 25), (1000., 800., 600.), surface_3d, rows=4,
+                            space_order=4, dtype=np.float64)
+        forward, adjoint = free_surface_dot(grid, space_order=4)
+        assert np.isclose(forward, adjoint, rtol=1e-12, atol=0)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_adjoint_mpi(self, mode):
+        """The fold of a distributed grid matches the serial one."""
+        results = []
+        for comm in [None, MPI.COMM_SELF]:
+            grid = surface_grid((41, 41), (1000., 800.), sine_surface,
+                                dtype=np.float64, comm=comm)
+            x_coord, z_coord = grid.coordinates
+            w = Function(name='w', grid=grid, space_order=8)
+            out = Function(name='out', grid=grid, space_order=8)
+            below = grid._rows('below_surface', 9, 40)
+            Operator(Eq(w, sin(x_coord/150.)*sin(z_coord/120.), subdomain=below)).apply()
+            Operator([Eq(out, staggered_laplacian(w, 4))] +
+                     grid.free_surface_adjoint(out, 1)).apply()
+            results.append(out)
+
+        distributed, serial = results
+        assert np.abs(serial.data).max() > 0
+        assert np.allclose(np.asarray(distributed.data_ro_domain._local),
+                           serial.data[distributed.local_indices], rtol=0, atol=1e-12)
 
     @pytest.mark.parametrize('space_order', [4, 8])
     def test_tilted_plane(self, space_order):
         """
-        Over a tilted plane, the ghost rows are the exact image of an odd field,
+        Over a tilted plane, the mirror rows are the exact image of an odd field,
         to the order of the interpolation, while mirroring along the grid
         columns is only second order.
         """
@@ -1161,11 +1284,11 @@ class TestFreeSurface:
         errors, column_errors = [], []
         sizes = {4: [41, 81], 8: [21, 41]}[space_order]
         for n in sizes:
-            grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
-                                   mapping=TerrainFollowing(lambda x: offset + slope*x),
-                                   space_order=space_order, dtype=np.float64)
-            ghosts, exact, column = mirrored_ghosts(grid, space_order, slope, offset)
-            errors.append(np.abs(ghosts - exact).max())
+            grid = surface_grid((n, n), (1000., 800.), lambda x: offset + slope*x,
+                                rows=space_order, space_order=space_order,
+                                dtype=np.float64)
+            mirror, exact, column = mirrored_rows(grid, space_order, slope, offset)
+            errors.append(np.abs(mirror - exact).max())
             column_errors.append(np.abs(column - exact).max())
 
         assert np.log2(errors[0]/errors[1]) > space_order - 1
@@ -1177,32 +1300,32 @@ class TestFreeSurface:
         slope, offset = np.array([0.1, -0.05]), 50.
         errors = []
         for n in [21, 41]:
-            grid = CurvilinearGrid(shape=(n, n, n), extent=(1000., 800., 600.),
-                                   mapping=TerrainFollowing(
-                                       lambda x, y: offset + slope[0]*x + slope[1]*y),
-                                   space_order=4, dtype=np.float64)
-            ghosts, exact, _ = mirrored_ghosts(grid, 4, slope, offset)
-            errors.append(np.abs(ghosts - exact).max())
+            grid = surface_grid((n, n, n), (1000., 800., 600.),
+                                lambda x, y: offset + slope[0]*x + slope[1]*y,
+                                rows=4, space_order=4, dtype=np.float64)
+            mirror, exact, _ = mirrored_rows(grid, 4, slope, offset)
+            errors.append(np.abs(mirror - exact).max())
         assert np.log2(errors[0]/errors[1]) > 3
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_mpi(self, mode):
-        """The ghost rows of a distributed grid match the serial ones."""
+        """The mirror rows of a distributed grid match the serial ones."""
         slope, offset = 0.1, 30.
         results = []
         for comm in [None, MPI.COMM_SELF]:
-            grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.),
-                                   mapping=TerrainFollowing(lambda x: offset + slope*x),
-                                   space_order=8, dtype=np.float64, comm=comm)
+            grid = surface_grid((41, 41), (1000., 800.), lambda x: offset + slope*x,
+                                dtype=np.float64, comm=comm)
             x_coord, z_coord = grid.coordinates
             u = TimeFunction(name='u', grid=grid, space_order=8)
             out = Function(name='out', grid=grid, space_order=8)
-            Operator(Eq(u.forward, sin(x_coord/150.) *
-                        sin((z_coord - offset - slope*x_coord)/120.))
+            below = grid._rows('below_surface', 9, 40)
+            # The field, its mirror and the Laplacian reading the mirror rows
+            # next to the surface in one Operator, as in a propagation
+            Operator([Eq(u.forward, sin(x_coord/150.) *
+                         sin((z_coord - offset - slope*x_coord)/120.), subdomain=below)] +
+                     grid.free_surface(u.forward) +
+                     [Eq(out, u.forward.laplace, subdomain=below)]
                      ).apply(time_m=0, time_M=0)
-            # The Laplacian reads the ghost rows next to the surface
-            Operator(grid.free_surface(u.forward) +
-                     [Eq(out, u.forward.laplace)]).apply(time_m=0, time_M=0)
             results.append(out)
 
         distributed, serial = results
@@ -1239,11 +1362,11 @@ def tilted_plane_misfit(mirror, spacing=10., cfl=.1):
     grid nodes.
     """
     velocity, slope = 1500., .1
-    grid = CurvilinearGrid(shape=(int(3000/spacing) + 1, int(1500/spacing) + 1),
-                           extent=(3000., 1500.),
-                           mapping=TerrainFollowing(lambda x: slope*x))
+    grid = surface_grid((int(3000/spacing) + 1, int(1500/spacing) + 1),
+                        (3000., 1500.), lambda x: slope*x, rows=4)
     x, y = grid.dimensions
     t = grid.stepping_dim
+    surface_row = grid._surface_index
     dt = cfl*.8*spacing/velocity
     nt = int(np.ceil(1.2/dt)) + 1
     time = np.arange(nt)*dt
@@ -1260,8 +1383,9 @@ def tilted_plane_misfit(mirror, spacing=10., cfl=.1):
     if mirror == 'image':
         surface = grid.free_surface(u.forward)
     else:
-        surface = [Eq(u[t+1, x, 0], 0)]
-        surface += [Eq(u[t+1, x, -k], -u[t+1, x, k]) for k in range(1, 5)]
+        surface = [Eq(u[t+1, x, surface_row], 0)]
+        surface += [Eq(u[t+1, x, surface_row - k], -u[t+1, x, surface_row + k])
+                    for k in range(1, 5)]
     update = Eq(u.forward, 2*u - u.backward + dt**2*velocity**2*u.laplace)
     Operator([update] + surface + src.inject(u.forward, src*dt**2*velocity**2) +
              rec.interpolate(u)).apply(dt=dt, time_M=nt - 2)
