@@ -647,6 +647,49 @@ class TestMultiSubDomain:
 
         assert((np.array(result) == np.array(fex.data[:])).all())
 
+    @pytest.mark.parallel(mode=[(4, 'basic'), (4, 'diag2'), (4, 'overlap'),
+                                (4, 'overlap2'), (4, 'full')])
+    def test_subdomainset_stencil_mpi(self, mode):
+        """
+        Test a wave equation updated only within a box, defined via a
+        SubDomainSet, as done by DevitoPRO's ABox to restrict the computation
+        to the region around the sources and receivers. The box straddles the
+        rank boundaries, so the CORE and OWNED regions of the `overlap`,
+        `overlap2` and `full` MPI modes must honor its runtime thicknesses.
+        """
+        tkns = (3, 11, 9, 2)
+
+        class Box(SubDomainSet):
+            name = 'box'
+
+        class Reference(SubDomain):
+            name = 'reference'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: ('middle', tkns[0], tkns[1]),
+                        y: ('middle', tkns[2], tkns[3])}
+
+        grid = Grid(shape=(40, 40), extent=(39., 39.))
+        bounds = tuple(np.array([i], dtype=np.int32) for i in tkns)
+        box = Box(N=1, bounds=bounds, grid=grid)
+        reference = Reference(grid=grid)
+
+        u0 = TimeFunction(name='u0', grid=grid, time_order=2, space_order=8)
+        u1 = TimeFunction(name='u1', grid=grid, time_order=2, space_order=8)
+        for u in (u0, u1):
+            u.data[:, 20, 20] = 1.
+
+        op0 = Operator(Eq(u0.forward, solve(u0.dt2 - u0.laplace, u0.forward),
+                          subdomain=reference))
+        op1 = Operator(Eq(u1.forward, solve(u1.dt2 - u1.laplace, u1.forward),
+                          subdomain=box))
+        op0(time_M=20, dt=0.3)
+        op1(time_M=20, dt=0.3)
+
+        assert np.linalg.norm(u0.data[:]) > 0
+        assert np.allclose(u0.data[:], u1.data[:], rtol=0, atol=1e-6)
+
     def test_multi_sets_eq(self):
         """
         Check functionality for when multiple subdomain sets are present, each

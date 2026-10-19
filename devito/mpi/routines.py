@@ -5,7 +5,7 @@ from functools import reduce
 from itertools import product
 from operator import mul
 
-from sympy import Integer
+from sympy import Integer, sympify
 
 from devito.data import CENTER, HALO, LEFT, NOPAD, OWNED, RIGHT
 from devito.ir.equations import DummyEq, OpInc, OpMax, OpMin
@@ -16,8 +16,8 @@ from devito.ir.iet import (
 )
 from devito.mpi import MPI
 from devito.symbolics import (
-    Byref, CondNe, FieldFromComposite, FieldFromPointer, IndexedPointer, Macro, cast,
-    subs_op_args
+    Byref, CondNe, DefFunction, FieldFromComposite, FieldFromPointer, IndexedPointer,
+    Macro, cast, subs_op_args
 )
 from devito.tools import (
     as_mapper, dtype_len, dtype_to_mpitype, flatten, generator, infer_datasize, is_integer
@@ -791,7 +791,15 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
     """
 
     def _make_region(self, hs, key):
-        return MPIRegion('reg', key, hs.arguments, hs.omapper.owned)
+        # Runtime thicknesses can't be stored in the region, so they are
+        # zeroed here and applied in `_make_remainder` instead
+        runtime = hs.halo_scheme.runtime_tkns
+        arguments = [i for i in hs.arguments if i not in runtime]
+        zeros = dict.fromkeys(runtime, 0)
+        owned = [(w, {k: tuple(sympify(i).xreplace(zeros) for i in v)
+                      for k, v in mapper.items()})
+                 for w, mapper in hs.omapper.owned]
+        return MPIRegion('reg', key, arguments, owned)
 
     def _make_msg(self, f, hse, key):
         # Only retain the halos required by the Diag scheme
@@ -911,11 +919,26 @@ class Overlap2HaloExchangeBuilder(OverlapHaloExchangeBuilder):
         dim = Dimension(name='i')
         region_i = IndexedPointer(region, dim)
 
+        # A runtime thickness is applied relative to the OWNED region bounds
+        sides = {}
+        for d, v in hs.halo_scheme.honored.items():
+            for ltkn, rtkn in v:
+                sides.update({ltkn: (d, LEFT), rtkn: (d, RIGHT)})
+
         dynamic_args_mapper = {}
         for i in hs.arguments:
             if i.is_Dimension:
                 dynamic_args_mapper[i] = (FieldFromComposite(i.min_name, region_i),
                                           FieldFromComposite(i.max_name, region_i))
+            elif i in hs.halo_scheme.runtime_tkns:
+                d, side = sides[i]
+                if side is LEFT:
+                    m = FieldFromComposite(d.min_name, region_i)
+                    v = DefFunction('MAX', [0, d.symbolic_min + i - m])
+                else:
+                    M = FieldFromComposite(d.max_name, region_i)
+                    v = DefFunction('MAX', [0, M - d.symbolic_max + i])
+                dynamic_args_mapper[i] = (v,)
             else:
                 dynamic_args_mapper[i] = (FieldFromComposite(i.name, region_i),)
 

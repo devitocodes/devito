@@ -139,14 +139,20 @@ class HaloScheme:
 
         # Track the IterationSpace offsets induced by SubDomains/SubDimensions,
         # which are honored in the derivation of the `omapper`
+        # The thicknesses of a MultiSubDimension are only known at runtime, as
+        # they are set inside the Operator, one SubDomain at a time
         self._honored = {}
+        runtime = set()
         dims = set().union(*[d._defines for d in ispace.dimensions
                              if d._defines & self.dimensions])
-        subdims = [d for d in dims if d.is_Sub and not d.local]
+        subdims = [d for d in dims if (d.is_Sub and not d.local) or d.is_MultiSub]
         for i in subdims:
             ltk, rtk = i.tkns
             self._honored[i.root] = frozenset([(ltk, rtk)])
+            if i.is_MultiSub:
+                runtime.update(i.tkns)
         self._honored = frozendict(self._honored)
+        self._runtime_tkns = frozenset(runtime)
 
         # Further constraints on the `omapper` derivation. At construction time
         # there's none, but lowering passes may change this
@@ -169,7 +175,7 @@ class HaloScheme:
     def __hash__(self):
         return hash((self._mapper.__hash__(), self.honored.__hash__()))
 
-    def _rebuild(self, fmapper=None, honored=None, alignment=None):
+    def _rebuild(self, fmapper=None, honored=None, alignment=None, runtime_tkns=None):
         """
         Rebuild a HaloScheme from the provided `fmapper` and `honored`. Reuse
         `self`'s values for the missing arguments.
@@ -180,9 +186,12 @@ class HaloScheme:
             fmapper = self._mapper
         if honored is None:
             honored = self._honored
+        if runtime_tkns is None:
+            runtime_tkns = self._runtime_tkns
 
         obj._mapper = frozendict(fmapper)
         obj._honored = frozendict(honored)
+        obj._runtime_tkns = frozenset(runtime_tkns)
         obj._alignment = alignment or self._alignment
 
         return obj
@@ -201,6 +210,7 @@ class HaloScheme:
 
         fmapper = {}
         honored = {}
+        runtime_tkns = set()
         for i in as_tuple(halo_schemes):
             # Compute the `fmapper `union`
             for k, v in i.fmapper.items():
@@ -237,12 +247,17 @@ class HaloScheme:
             # Compute the `honored` union
             for d, v in i.honored.items():
                 honored[d] = honored.get(d, frozenset()) | v
+            runtime_tkns.update(i.runtime_tkns)
 
-        return i._rebuild(fmapper=fmapper, honored=honored)
+        return i._rebuild(fmapper=fmapper, honored=honored, runtime_tkns=runtime_tkns)
 
     @property
     def honored(self):
         return self._honored
+
+    @property
+    def runtime_tkns(self):
+        return self._runtime_tkns
 
     @cached_property
     def fmapper(self):
