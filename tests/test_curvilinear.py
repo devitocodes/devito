@@ -568,6 +568,86 @@ class TestSparse:
             assert np.allclose(rec.data, wave(*points.T), atol=1e-2)
             assert np.array_equal(rec.coordinates.data, points)
 
+    @pytest.mark.parametrize('staggered', ['x', 'y', '(x, y)'])
+    def test_staggered_adjoint(self, staggered):
+        """
+        On a staggered field, injection is the adjoint of interpolation in the
+        inner product weighted by the Jacobian at the staggered points.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        x, y = grid.dimensions
+        staggered = eval(staggered)
+        points = random_points(20)
+        rng = np.random.default_rng(11)
+        u = Function(name='u', grid=grid, space_order=4, staggered=staggered)
+        v = Function(name='v', grid=grid, space_order=4, staggered=staggered)
+        jacobian = Function(name='jac', grid=grid, space_order=4, staggered=staggered)
+        rec = SparseFunction(name='rec', grid=grid, npoint=len(points),
+                             coordinates=points)
+        src = SparseFunction(name='src', grid=grid, npoint=len(points),
+                             coordinates=points)
+        u.data[:] = rng.standard_normal(grid.shape)
+        src.data[:] = rng.standard_normal(len(points))
+
+        Operator([rec.interpolate(u), src.inject(v, src),
+                  Eq(jacobian, grid.jacobian)]).apply()
+
+        forward = np.dot(rec.data, src.data)
+        backward = np.sum(jacobian.data*u.data*v.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    @pytest.mark.parametrize('staggered', ['x', 'y', '(x, y)'])
+    def test_staggered_amplitude(self, staggered):
+        """
+        A unit Dirac injected into a staggered field has the integral of the
+        same Dirac injected into a node field, and a smooth staggered field is
+        interpolated as accurately as a node one.
+        """
+        grid = sine_grid(81, dtype=np.float64)
+        x, y = grid.dimensions
+        staggered = eval(staggered)
+        points = random_points(5)
+        integrals, errors = [], []
+        for stagger in [None, staggered]:
+            v = Function(name='v', grid=grid, space_order=4, staggered=stagger)
+            u = Function(name='u', grid=grid, space_order=4, staggered=stagger)
+            jacobian = Function(name='jac', grid=grid, space_order=4, staggered=stagger)
+            src = SparseFunction(name='src', grid=grid, npoint=len(points),
+                                 coordinates=points)
+            rec = SparseFunction(name='rec', grid=grid, npoint=len(points),
+                                 coordinates=points)
+            src.data[:] = 1.
+            x_coord, z_coord = grid.coordinates
+            Operator([Eq(u, sin(_KX*x_coord)*cos(_KZ*z_coord)),
+                      Eq(jacobian, grid.jacobian)]).apply()
+            Operator([src.inject(v, src), rec.interpolate(u)]).apply()
+            integrals.append(np.sum(jacobian.data*v.data))
+            errors.append(np.abs(rec.data - wave(*points.T)).max())
+
+        assert np.isclose(integrals[0], len(points), rtol=1e-10)
+        assert np.isclose(integrals[1], integrals[0], rtol=1e-10)
+        assert errors[1] < 2*errors[0] + 1e-6
+
+    def test_guard(self):
+        """
+        A guarded expression is only evaluated for points inside the physical
+        domain, between the surface and the bottom.
+        """
+        grid = sine_grid(41)
+        xs = np.array([300., 300., 300., 700.])
+        zs = np.array([sine_surface(300.) + 50., sine_surface(300.) - 30., 850.,
+                       sine_surface(700.) + 5.])
+        points = np.stack([xs, zs], axis=1)
+        p = SparseFunction(name='p', grid=grid, npoint=4, coordinates=points)
+        q = SparseFunction(name='q', grid=grid, npoint=4, coordinates=points)
+        p.data[:] = 1.
+
+        guarded, temps = p.guard(Eq(q, p + 1))
+        Operator(temps + [guarded]).apply()
+
+        # Above the surface and below the bottom are outside
+        assert np.array_equal(q.data, [2., 0., 0., 2.])
+
 
 class TestSparseMPI:
 

@@ -14,7 +14,9 @@ except ImportError:
 from devito.finite_differences.differentiable import LocalSum, Mul
 from devito.finite_differences.elementary import floor
 from devito.logger import warning
-from devito.symbolics import INT, retrieve_function_carriers, retrieve_functions
+from devito.symbolics import (
+    INT, retrieve_derivatives, retrieve_function_carriers, retrieve_functions
+)
 from devito.tools import (
     Pickable, as_fp64_decimal, as_list, as_tuple, filter_ordered, flatten, memoized_meth
 )
@@ -280,6 +282,20 @@ class WeightedInterpolator(GenericInterpolator):
                      for d, s in zip(field.dimensions, staggered, strict=True)
                      if d.is_Space)
 
+    def _expr_shifts(self, expr):
+        """
+        The half-cell shifts of `expr` if it has no derivatives and all of its
+        grid Functions share the same staggering, () otherwise.
+        """
+        if retrieve_derivatives(expr):
+            return ()
+        functions = [f for f in retrieve_functions(expr)
+                     if f.is_DiscreteFunction and not f.is_SparseFunction
+                     and getattr(f, 'grid', None) is not None]
+        if not functions or len({f.staggered for f in functions}) > 1:
+            return ()
+        return self._field_shifts(functions[0])
+
     @memoized_meth
     def _rdim(self, subdomain=None, shifts=None):
         # If the interpolation operation is limited to a SubDomain,
@@ -453,12 +469,12 @@ class WeightedInterpolator(GenericInterpolator):
 
         return idx_subs, temps
 
-    def _local_accumulator(self, expr, idx_subs, subdomain=None):
+    def _local_accumulator(self, expr, idx_subs, subdomain=None, shifts=None):
         """
         Represent the local sum of weighted interpolation contributions.
         """
-        weights = self._weights(subdomain=subdomain)
-        rdims = self._rdim(subdomain=subdomain)
+        weights = self._weights(subdomain=subdomain, shifts=shifts)
+        rdims = self._rdim(subdomain=subdomain, shifts=shifts)
         summand = (weights * expr).xreplace(idx_subs)
         return LocalSum(summand, cdims=rdims, dtype=self.sfunction.dtype)
 
@@ -517,9 +533,15 @@ class WeightedInterpolator(GenericInterpolator):
             interpolation expression, but that should be honored when constructing
             the operator.
         """
+        # An expression of Functions sharing one staggering is interpolated from
+        # its own grid points, as injection writes into them, so that the two
+        # are transposes of each other. Anything else is first evaluated at the
+        # grid nodes
+        shifts = self._expr_shifts(expr)
+
         # Derivatives must be evaluated before the introduction of indirect accesses
         with suppress(AttributeError):
-            expr = expr._eval_at(self.sfunction).evaluate
+            expr = expr.evaluate if shifts else expr._eval_at(self.sfunction).evaluate
 
         if self_subs is None:
             self_subs = {}
@@ -532,9 +554,10 @@ class WeightedInterpolator(GenericInterpolator):
 
         # List of indirection indices for all adjacent grid points
         idx_subs, temps = self._interp_idx(variables, implicit_dims=implicit_dims,
-                                           subdomain=subdomain)
+                                           subdomain=subdomain, shifts=shifts)
 
-        rhs = self._local_accumulator(expr, idx_subs, subdomain=subdomain)
+        rhs = self._local_accumulator(expr, idx_subs, subdomain=subdomain,
+                                      shifts=shifts)
         # Write/Incr `self`
         lhs = self.sfunction.subs(self_subs)
         ecls = Inc if increment else Eq
@@ -579,8 +602,10 @@ class WeightedInterpolator(GenericInterpolator):
                           for e, f in zip(exprs, fields, strict=True))
 
         # On a CurvilinearGrid a point source is a Dirac in physical space,
-        # which scales by the inverse of the Jacobian at the grid nodes
-        exprs = tuple(e / f.grid.root.jacobian if f.grid.root.is_Curvilinear else e
+        # which scales by the inverse of the Jacobian at the grid points of the
+        # field, interpolated there for a staggered field
+        exprs = tuple(e / f.grid.root.jacobian._eval_at(f).evaluate
+                      if f.grid.root.is_Curvilinear else e
                       for e, f in zip(exprs, fields, strict=True))
 
         eqns = []
@@ -782,7 +807,7 @@ class NearestInterpolator(LinearInterpolator):
 
     _name = 'nearest'
 
-    def _local_accumulator(self, expr, idx_subs, subdomain=None):
+    def _local_accumulator(self, expr, idx_subs, subdomain=None, shifts=None):
         return expr.xreplace(idx_subs)
 
     @memoized_meth
