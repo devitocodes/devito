@@ -238,57 +238,71 @@ class CurvilinearMap:
 class TerrainFollowing(CurvilinearMap):
 
     """
-    A vertical terrain-following map, with the vertical axis last.
+    A terrain-following map: the grid follows a surface, e.g. topography,
+    which becomes its first row.
 
-    The lateral coordinates are unchanged, and each column is stretched
-    linearly between the surface and a flat bottom
+    It is the map to use when the top of the domain is not flat, so that a
+    boundary condition such as a free surface sits exactly on a grid row
+    instead of cutting through cells. The columns of the grid stay vertical:
+    each column keeps its lateral position and its nodes are spread evenly
+    between the surface and the bottom of the grid, which stays flat.
 
-        z(x, eta) = s(x) + (eta - o_z) * (depth - s(x)) / l_z
+    With the vertical axis last and pointing down, as in a Cartesian Grid, a
+    node of computational coordinates `(x, eta)` is placed at the depth
 
-    with `o_z` and `l_z` the computational origin and extent of the vertical
-    axis. As in a Cartesian Grid, the vertical axis points down: row 0 is the
-    surface and the last row is the bottom at `z = depth`. A flat surface at
-    `s = o_z` with `depth = o_z + l_z` is the identity map.
+        z(x, eta) = s(x) + (eta - o_z) * (o_z + l_z - s(x)) / l_z
+
+    where `s` is the depth of the surface and `o_z` and `l_z` the origin and
+    extent of the vertical axis of the grid. The first row (`eta = o_z`) is the
+    surface, and the last row (`eta = o_z + l_z`) is the flat bottom at
+    `z = o_z + l_z`. The relief of the surface fades out linearly with depth,
+    and the grid is Cartesian if the surface is flat at `z = o_z`.
+
+    The surface sets the cell sizes: cells shrink vertically where the surface
+    is deep and stretch where it is high, so the smallest one, used for a
+    stable time step (`CurvilinearGrid.min_spacing`), is under the deepest point
+    of the surface. Steep slopes shear the cells and should be smoothed to a
+    few grid spacings.
 
     Parameters
     ----------
     surface : array_like or callable
-        Physical vertical coordinate (depth, positive down) of the surface.
-        Either an array with one value per lateral grid node, or a callable
-        taking the lateral physical coordinates (`s(x)` in 2D, `s(x, y)` in
-        3D). For an elevation positive up, pass its negative,
-        `surface=-elevation`. An array is continued past the domain edges by
-        odd reflection, linearly interpolated between nodes to place sparse
-        points, and differentiated by finite differences for the metrics.
-    depth : float, optional
-        Physical vertical coordinate of the flat bottom. Defaults to the
-        bottom of the computational grid, `o_z + l_z`.
+        Depth of the surface, positive down like the vertical axis of the grid.
+        Topography given as an elevation, positive up, is passed as its
+        negative, `surface=-elevation`. Either an array with one value per
+        lateral grid node, or a callable of the lateral physical coordinates,
+        `s(x)` in 2D and `s(x, y)` in 3D. An array is continued past the edges
+        of the grid by odd reflection, interpolated linearly between nodes to
+        place sparse points, and differentiated by finite differences for the
+        metric terms; a callable is evaluated exactly.
 
     Examples
     --------
+    A 50 m high hill over a 1 km line, the grid extending 1 km down:
+
     >>> import numpy as np
     >>> from devito import CurvilinearGrid, TerrainFollowing
-    >>> surface = np.linspace(0., 50., 11)
+    >>> x = np.linspace(0., 1000., 11)
+    >>> elevation = 50.*np.exp(-((x - 500.)/200.)**2)
     >>> grid = CurvilinearGrid(shape=(11, 21), extent=(1000., 1000.),
-    ...                        mapping=TerrainFollowing(surface=surface))
-    >>> grid.dimensions
-    (x, y)
+    ...                        mapping=TerrainFollowing(surface=-elevation))
+    >>> z = grid.coordinates[-1]
+    >>> float(z.data[5, 0]), float(z.data[5, -1])
+    (-50.0, 1000.0)
     """
 
-    def __init__(self, surface, depth=None):
+    def __init__(self, surface):
         self._surface = surface if callable(surface) else np.asarray(surface,
                                                                      dtype=np.float64)
-        self._depth = depth
 
     @property
     def surface(self):
         """The surface, an array of lateral node values or a callable."""
         return self._surface
 
-    def depth(self, grid):
-        """Physical vertical coordinate of the flat bottom of `grid`."""
-        if self._depth is not None:
-            return np.float64(self._depth)
+    @staticmethod
+    def _bottom(grid):
+        """Depth of the flat bottom of `grid`, its last row."""
         return np.float64(grid.origin[-1]) + np.float64(grid.extent[-1])
 
     def validate(self, grid):
@@ -362,7 +376,7 @@ class TerrainFollowing(CurvilinearMap):
         first = [f[..., None] for f in first]
         second = [f[..., None] for f in second]
         extent = np.float64(grid.extent[-1])
-        height = self.depth(grid) - surface
+        height = self._bottom(grid) - surface
         # Distance from the bottom, in computational coordinates (non positive)
         eta = vectors[-1] - np.float64(grid.origin[-1]) - extent
         return extent, height, eta, first, second
@@ -371,7 +385,7 @@ class TerrainFollowing(CurvilinearMap):
         computational = [np.asarray(c, dtype=np.float64) for c in computational]
         surface = self.surface_at(grid, computational[:-1])
         offset = computational[-1] - np.float64(grid.origin[-1])
-        z = surface + offset*(self.depth(grid) - surface)/np.float64(grid.extent[-1])
+        z = surface + offset*(self._bottom(grid) - surface)/np.float64(grid.extent[-1])
         return tuple(computational[:-1]) + (z,)
 
     def inverse(self, grid, points):
@@ -379,7 +393,7 @@ class TerrainFollowing(CurvilinearMap):
         lateral = tuple(points[:, i] for i in range(points.shape[1] - 1))
         surface = self.surface_at(grid, lateral)
         eta = (np.float64(grid.origin[-1]) + np.float64(grid.extent[-1]) *
-               (points[:, -1] - surface)/(self.depth(grid) - surface))
+               (points[:, -1] - surface)/(self._bottom(grid) - surface))
         return np.concatenate([points[:, :-1], eta[:, None]], axis=1)
 
     def metrics(self, grid, vectors):
@@ -476,7 +490,7 @@ class CurvilinearGrid(Grid):
     --------
     >>> import numpy as np
     >>> from devito import CurvilinearGrid, Function, TerrainFollowing
-    >>> mapping = TerrainFollowing(surface=np.zeros(11), depth=500.)
+    >>> mapping = TerrainFollowing(surface=np.zeros(11))
     >>> grid = CurvilinearGrid(shape=(11, 11), extent=(500., 500.), mapping=mapping)
     >>> u = Function(name='u', grid=grid, space_order=4)
     >>> sorted(f.name for f in grid.metrics.values() if f.is_Function)
@@ -717,7 +731,7 @@ class CurvilinearGrid(Grid):
         --------
         >>> import numpy as np
         >>> from devito import CurvilinearGrid, Function, Grid, TerrainFollowing
-        >>> mapping = TerrainFollowing(surface=np.linspace(0., 20., 11), depth=100.)
+        >>> mapping = TerrainFollowing(surface=np.linspace(0., 20., 11))
         >>> grid = CurvilinearGrid(shape=(11, 11), extent=(100., 100.),
         ...                        mapping=mapping)
         >>> cartesian = Function(name='c', grid=Grid(shape=(11, 21),

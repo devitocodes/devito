@@ -24,9 +24,9 @@ def sine_surface_dx2(x):
     return -_AMPLITUDE*(2*np.pi/_WAVELENGTH)**2*np.sin(2*np.pi*x/_WAVELENGTH)
 
 
-def sine_grid(n, space_order=8, depth=800., dtype=np.float32):
+def sine_grid(n, space_order=8, dtype=np.float32):
     return CurvilinearGrid(shape=(n, n), extent=(1000., 800.), space_order=space_order,
-                           mapping=TerrainFollowing(surface=sine_surface, depth=depth),
+                           mapping=TerrainFollowing(surface=sine_surface),
                            dtype=dtype)
 
 
@@ -138,7 +138,7 @@ class TestGrid:
         n = 41
         grid = sine_grid(n)
         xs = np.linspace(0., 1000., n)
-        mapping = TerrainFollowing(surface=sine_surface(xs), depth=800.)
+        mapping = TerrainFollowing(surface=sine_surface(xs))
         sampled = CurvilinearGrid(shape=(n, n), extent=(1000., 800.), mapping=mapping)
         radius = grid.space_order // 2
 
@@ -165,12 +165,11 @@ class TestGrid:
 
     def test_min_spacing(self):
         """The smallest physical cell size of a tilted plane over a deeper bottom."""
-        slope, depth = 0.1, 400.
-        grid = CurvilinearGrid(shape=(21, 41), extent=(200., 400.),
-                               mapping=TerrainFollowing(surface=lambda x: slope*x,
-                                                        depth=depth))
+        slope, bottom = 0.1, 400.
+        grid = CurvilinearGrid(shape=(21, 41), extent=(200., bottom),
+                               mapping=TerrainFollowing(surface=lambda x: slope*x))
         # Columns are shortest where the surface is deepest, at x = 200
-        expected = (depth - slope*200.)/40
+        expected = (bottom - slope*200.)/40
         assert np.isclose(grid.min_spacing, expected, rtol=1e-6)
 
     def test_invalid(self):
@@ -324,7 +323,7 @@ class TestDerivatives:
         sizes = {4: [31, 61, 121], 8: [21, 31, 41]}[space_order]
         for n in sizes:
             grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
-                                   mapping=TerrainFollowing(sine_surface, depth=800.),
+                                   mapping=TerrainFollowing(sine_surface),
                                    space_order=space_order, dtype=np.float64)
             x, y = grid.dimensions  # noqa
             u = physical_function('u', grid, space_order, wave)  # noqa
@@ -422,7 +421,7 @@ class TestDerivatives:
         sizes = {4: [31, 61, 121], 8: [21, 41, 61]}[space_order]
         for n in sizes:
             grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
-                                   mapping=TerrainFollowing(sine_surface, depth=800.),
+                                   mapping=TerrainFollowing(sine_surface),
                                    space_order=space_order, dtype=np.float64)
             x, y = grid.dimensions
             # A centered FD interpolates `u` along the other Dimension at its
@@ -487,7 +486,7 @@ class TestDerivativesMPI:
         results = []
         for comm in [None, MPI.COMM_SELF]:
             grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.),
-                                   mapping=TerrainFollowing(sine_surface, depth=800.),
+                                   mapping=TerrainFollowing(sine_surface),
                                    dtype=np.float64, comm=comm)
             x_coord, z_coord = grid.coordinates
             u = Function(name='u', grid=grid, space_order=8)
@@ -860,7 +859,7 @@ def wave_3d_laplace(x, y, z):
 
 def grid_3d(n, space_order=4, dtype=np.float64, comm=None):
     return CurvilinearGrid(shape=(n, n, n), extent=(1000., 800., 600.),
-                           mapping=TerrainFollowing(surface_3d, depth=600.),
+                           mapping=TerrainFollowing(surface_3d),
                            space_order=space_order, dtype=dtype, comm=comm)
 
 
@@ -1107,8 +1106,7 @@ class TestFreeSurface:
         sizes = {4: [41, 81], 8: [21, 41]}[space_order]
         for n in sizes:
             grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
-                                   mapping=TerrainFollowing(lambda x: offset + slope*x,
-                                                            depth=800.),
+                                   mapping=TerrainFollowing(lambda x: offset + slope*x),
                                    space_order=space_order, dtype=np.float64)
             ghosts, exact, column = mirrored_ghosts(grid, space_order, slope, offset)
             errors.append(np.abs(ghosts - exact).max())
@@ -1125,8 +1123,7 @@ class TestFreeSurface:
         for n in [21, 41]:
             grid = CurvilinearGrid(shape=(n, n, n), extent=(1000., 800., 600.),
                                    mapping=TerrainFollowing(
-                                       lambda x, y: offset + slope[0]*x + slope[1]*y,
-                                       depth=600.),
+                                       lambda x, y: offset + slope[0]*x + slope[1]*y),
                                    space_order=4, dtype=np.float64)
             ghosts, exact, _ = mirrored_ghosts(grid, 4, slope, offset)
             errors.append(np.abs(ghosts - exact).max())
@@ -1139,8 +1136,7 @@ class TestFreeSurface:
         results = []
         for comm in [None, MPI.COMM_SELF]:
             grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.),
-                                   mapping=TerrainFollowing(lambda x: offset + slope*x,
-                                                            depth=800.),
+                                   mapping=TerrainFollowing(lambda x: offset + slope*x),
                                    space_order=8, dtype=np.float64, comm=comm)
             x_coord, z_coord = grid.coordinates
             u = TimeFunction(name='u', grid=grid, space_order=8)
@@ -1189,7 +1185,7 @@ def tilted_plane_misfit(mirror, spacing=10., cfl=.1):
     velocity, slope = 1500., .1
     grid = CurvilinearGrid(shape=(int(3000/spacing) + 1, int(1500/spacing) + 1),
                            extent=(3000., 1500.),
-                           mapping=TerrainFollowing(lambda x: slope*x, depth=1500.))
+                           mapping=TerrainFollowing(lambda x: slope*x))
     x, y = grid.dimensions
     t = grid.stepping_dim
     dt = cfl*.8*spacing/velocity
