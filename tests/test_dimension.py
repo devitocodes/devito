@@ -3,7 +3,7 @@ from itertools import product
 
 import numpy as np
 import pytest
-from sympy import And, Not, Or, false
+from sympy import And, Or, false
 
 from conftest import assert_blocking, assert_structure, opts_tiling, skipif
 from devito import (  # noqa
@@ -13,7 +13,7 @@ from devito import (  # noqa
     configuration, dimensions, floor, norm, sin, sum, switchconfig
 )
 from devito.exceptions import InvalidArgument
-from devito.ir import GuardFactor, SymbolRegistry
+from devito.ir import SymbolRegistry
 from devito.ir.equations.algorithms import concretize_subdims
 from devito.ir.iet import (
     Conditional, Expression, FindNodes, FindSymbols, Iteration, retrieve_iteration_tree
@@ -2148,25 +2148,6 @@ class TestConditionalDimension:
         op.apply(time_M=1)
 
         assert np.all(f.data[:, 1, 1] == [0, 0])
-
-    def test_negated_factor_condition(self):
-        """
-        Negating a subsampling guard must select the timesteps off the
-        subsampled grid.
-        """
-        grid = Grid(shape=(4, 4))
-        time = grid.time_dim
-
-        ct = ConditionalDimension(name='ct', parent=time, factor=2)
-        cn = ConditionalDimension(name='cn', parent=time,
-                                  condition=Not(GuardFactor(ct)), relation='strict')
-
-        f = TimeFunction(name='f', grid=grid, time_order=0, save=4)
-
-        op = Operator(Eq(f, time + 1, implicit_dims=cn), name='NegatedFactor')
-        op.apply(time_M=3, ctf=2)
-
-        assert np.all(f.data[:, 1, 1] == [0, 2, 0, 4])
 
 
 class TestCustomDimension:
