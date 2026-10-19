@@ -3,7 +3,7 @@ import pytest
 
 from devito import (  # noqa
     CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Operator, SparseFunction,
-    SparseTimeFunction, TerrainFollowing, cos, div, grad, inner, sin
+    SparseTimeFunction, TerrainFollowing, TimeFunction, cos, div, grad, inner, sin
 )
 from devito.mpi import MPI
 
@@ -992,3 +992,212 @@ class Test3D:
         distributed, serial = results
         assert np.allclose(np.asarray(distributed.data_ro_domain._local),
                            serial.data[distributed.local_indices], rtol=0, atol=1e-12)
+
+
+def plane_reflection(points, slope, offset):
+    """Mirror image of `points` through the plane `z = offset + slope . lateral`."""
+    slope = np.atleast_1d(slope)
+    norm = np.sqrt(1 + slope @ slope)
+    normal = np.append(slope, -1.)/norm
+    distance = (points[:, :-1] @ slope - points[:, -1] + offset)/norm
+    return points - 2*distance[:, None]*normal[None, :]
+
+
+def smooth_field(points):
+    return np.sin(points[:, 0]/150.)*np.cos(points[:, -1]/120.) + 0.3*points[:, -1]/100.
+
+
+def odd_field(points, slope, offset):
+    """A smooth field, odd w.r.t. the plane: zero on it, exact image across it."""
+    return smooth_field(points) - smooth_field(plane_reflection(points, slope, offset))
+
+
+def mirrored_ghosts(grid, space_order, slope, offset):
+    """
+    Ghost rows set by `grid.free_surface` from the exact odd field below the
+    surface, the exact odd field on the ghost rows, and the ghost rows of the
+    mirror along the grid columns.
+    """
+    # The field and the coordinates share the halo of the grid space order
+    u = TimeFunction(name='u', grid=grid, space_order=space_order)
+    coordinates = np.stack([c.data_with_halo.ravel() for c in grid.coordinates],
+                           axis=1)
+    exact = odd_field(coordinates, slope, offset).reshape(
+        grid.coordinates[0].data_with_halo.shape
+    )
+    u.data_with_halo[1] = 0.
+    u.data_with_halo[1][..., space_order:] = exact[..., space_order:]
+
+    Operator(grid.free_surface(u.forward)).apply(time_m=0, time_M=0)
+
+    rows = slice(space_order - space_order//2, space_order)
+    # Mirror along the grid columns, u(-k) = -u(k)
+    mirrored_rows = slice(space_order + space_order//2, space_order, -1)
+    # Away from the lateral edges, where the image stencils read the halo
+    lateral = (slice(2*space_order, -2*space_order),)*(grid.dim - 1)
+    return (u.data_with_halo[1][lateral + (rows,)], exact[lateral + (rows,)],
+            -exact[lateral + (mirrored_rows,)])
+
+
+class TestFreeSurface:
+
+    def test_flat_is_odd_mirror(self):
+        """Over a flat surface, the mirror is the usual `u(-k) = -u(k)`."""
+        grid = flat_grid((21, 21), (200., 200.))
+        x, y = grid.dimensions
+        t = grid.stepping_dim
+        rng = np.random.default_rng(16)
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        u.data[1] = rng.standard_normal(grid.shape)
+        reference = TimeFunction(name='reference', grid=grid, space_order=8)
+        reference.data[1] = u.data[1]
+
+        mirror = [Eq(reference[t+1, x, -k], -reference[t+1, x, k]) for k in range(1, 5)]
+        Operator(grid.free_surface(u.forward) + mirror).apply(time_m=0, time_M=0)
+
+        assert np.array_equal(u.data_with_halo[1, 8:-8, 4:8],
+                              reference.data_with_halo[1, 8:-8, 4:8])
+        assert np.all(u.data[1, :, 0] == 0)
+
+    @pytest.mark.parametrize('space_order', [4, 8])
+    def test_tilted_plane(self, space_order):
+        """
+        Over a tilted plane, the ghost rows are the exact image of an odd field,
+        to the order of the interpolation, while mirroring along the grid
+        columns is only second order.
+        """
+        slope, offset = 0.1, 30.
+        errors, column_errors = [], []
+        sizes = {4: [41, 81], 8: [21, 41]}[space_order]
+        for n in sizes:
+            grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
+                                   mapping=TerrainFollowing(lambda x: offset + slope*x,
+                                                            depth=800.),
+                                   space_order=space_order, dtype=np.float64)
+            ghosts, exact, column = mirrored_ghosts(grid, space_order, slope, offset)
+            errors.append(np.abs(ghosts - exact).max())
+            column_errors.append(np.abs(column - exact).max())
+
+        assert np.log2(errors[0]/errors[1]) > space_order - 1
+        assert np.log2(column_errors[0]/column_errors[1]) < 2.5
+        assert errors[1] < 1e-3*column_errors[1]
+
+    def test_tilted_plane_3d(self):
+        """The image mirror over a tilted plane in 3D."""
+        slope, offset = np.array([0.1, -0.05]), 50.
+        errors = []
+        for n in [21, 41]:
+            grid = CurvilinearGrid(shape=(n, n, n), extent=(1000., 800., 600.),
+                                   mapping=TerrainFollowing(
+                                       lambda x, y: offset + slope[0]*x + slope[1]*y,
+                                       depth=600.),
+                                   space_order=4, dtype=np.float64)
+            ghosts, exact, _ = mirrored_ghosts(grid, 4, slope, offset)
+            errors.append(np.abs(ghosts - exact).max())
+        assert np.log2(errors[0]/errors[1]) > 3
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_mpi(self, mode):
+        """The ghost rows of a distributed grid match the serial ones."""
+        slope, offset = 0.1, 30.
+        results = []
+        for comm in [None, MPI.COMM_SELF]:
+            grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.),
+                                   mapping=TerrainFollowing(lambda x: offset + slope*x,
+                                                            depth=800.),
+                                   space_order=8, dtype=np.float64, comm=comm)
+            x_coord, z_coord = grid.coordinates
+            u = TimeFunction(name='u', grid=grid, space_order=8)
+            out = Function(name='out', grid=grid, space_order=8)
+            Operator(Eq(u.forward, sin(x_coord/150.) *
+                        sin((z_coord - offset - slope*x_coord)/120.))
+                     ).apply(time_m=0, time_M=0)
+            # The Laplacian reads the ghost rows next to the surface
+            Operator(grid.free_surface(u.forward) +
+                     [Eq(out, u.forward.laplace)]).apply(time_m=0, time_M=0)
+            results.append(out)
+
+        distributed, serial = results
+        assert np.allclose(np.asarray(distributed.data_ro_domain._local),
+                           serial.data[distributed.local_indices], rtol=0, atol=1e-12)
+
+
+def ricker(t, f0=10., t0=.12):
+    """Ricker wavelet of peak frequency `f0`, delayed by `t0`."""
+    a = (np.pi*f0*(t - t0))**2
+    return (1 - 2*a)*np.exp(-a)
+
+
+def free_space_2d(distance, time, amplitude, velocity):
+    """
+    Analytic field of `m u_tt - laplace(u) = amplitude*ricker(t)*delta(x)` in 2D
+    at `distance` from the source, one column per distance.
+    """
+    tau = distance/velocity
+    field = np.zeros((len(time), len(distance)))
+    unit = np.linspace(0, 1, 801)
+    for j, tj in enumerate(tau):
+        valid = time > tj
+        theta = np.arccosh(time[valid]/tj)[:, None]*unit[None, :]
+        field[valid, j] = np.trapezoid(ricker(time[valid, None] - tj*np.cosh(theta)),
+                                       theta, axis=1)
+    return amplitude*field/(2*np.pi)
+
+
+def tilted_plane_misfit(mirror, spacing=10., cfl=.1):
+    """
+    Relative L2 misfit of an acoustic simulation under a tilted free surface to
+    the analytic image-source solution, with the source and the receivers at
+    grid nodes.
+    """
+    velocity, slope = 1500., .1
+    grid = CurvilinearGrid(shape=(int(3000/spacing) + 1, int(1500/spacing) + 1),
+                           extent=(3000., 1500.),
+                           mapping=TerrainFollowing(lambda x: slope*x, depth=1500.))
+    x, y = grid.dimensions
+    t = grid.stepping_dim
+    dt = cfl*.8*spacing/velocity
+    nt = int(np.ceil(1.2/dt)) + 1
+    time = np.arange(nt)*dt
+
+    u = TimeFunction(name='u', grid=grid, space_order=8, time_order=2)
+    source = grid.to_physical([[1500., 200.]])
+    receivers = grid.to_physical(np.stack([np.linspace(1000., 2000., 101),
+                                           np.full(101, 100.)], axis=1))
+    src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt, coordinates=source)
+    rec = SparseTimeFunction(name='rec', grid=grid, npoint=101, nt=nt,
+                             coordinates=receivers)
+    src.data[:, 0] = ricker(time)
+
+    if mirror == 'image':
+        surface = grid.free_surface(u.forward)
+    else:
+        surface = [Eq(u[t+1, x, 0], 0)]
+        surface += [Eq(u[t+1, x, -k], -u[t+1, x, k]) for k in range(1, 5)]
+    update = Eq(u.forward, 2*u - u.backward + dt**2*velocity**2*u.laplace)
+    Operator([update] + surface + src.inject(u.forward, src*dt**2*velocity**2) +
+             rec.interpolate(u)).apply(dt=dt, time_M=nt - 2)
+
+    image = source[0] - 2*(slope*source[0, 0] - source[0, 1])/(1 + slope**2) * \
+        np.array([slope, -1.])
+    amplitude = np.prod(np.array(grid.spacing, dtype=np.float64))
+    analytic = (
+        free_space_2d(np.linalg.norm(receivers - source, axis=1), time, amplitude,
+                      velocity) -
+        free_space_2d(np.linalg.norm(receivers - image, axis=1), time, amplitude,
+                      velocity)
+    )
+    return np.linalg.norm(rec.data - analytic)/np.linalg.norm(analytic)
+
+
+class TestFreeSurfaceWave:
+
+    def test_tilted_plane(self):
+        """
+        Under a tilted free surface, the image mirror matches the analytic
+        image-source solution more closely than the mirror along the columns.
+        """
+        image = tilted_plane_misfit('image')
+        column = tilted_plane_misfit('column')
+        assert image < 1.5e-3
+        assert column > 1.4*image

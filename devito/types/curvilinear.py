@@ -16,6 +16,8 @@ import sympy
 
 from devito.mpi import MPI
 from devito.types.dense import Function
+from devito.types.dimension import DefaultDimension, SubDimension
+from devito.types.equation import Eq
 from devito.types.grid import Grid
 
 __all__ = ['CurvilinearGrid', 'CurvilinearMap', 'TerrainFollowing']
@@ -53,6 +55,20 @@ def _extend(vector, npad):
     left = vector[0] - spacing*np.arange(npad, 0, -1)
     right = vector[-1] + spacing*np.arange(1, npad + 1)
     return np.concatenate([left, vector, right])
+
+
+def _lagrange_weights(position, npoint):
+    """
+    Lagrange interpolation weights at the fractional `position` (an array) of
+    the `npoint` nodes `0, 1, ..., npoint - 1`, of shape `position.shape +
+    (npoint,)`.
+    """
+    weights = np.ones(np.shape(position) + (npoint,))
+    for p in range(npoint):
+        for q in range(npoint):
+            if q != p:
+                weights[..., p] *= (position - q)/(p - q)
+    return weights
 
 
 def _odd_pad(values, npad):
@@ -440,6 +456,7 @@ class CurvilinearGrid(Grid):
                              f"not {space_order}")
         self._mapping = mapping
         self._space_order = space_order
+        self._image_weights_cache = {}
         mapping.validate(self)
 
     def __repr__(self):
@@ -683,10 +700,178 @@ class CurvilinearGrid(Grid):
             transposed = self.comm.allreduce(transposed, op=MPI.SUM)
         cartesian.data[:] = transposed
 
+    def _surface_foot(self, physical):
+        """
+        Lateral computational coordinates of the point of the surface row
+        closest to each of the `physical` points, of shape `(npoint, ndim)`,
+        by Gauss-Newton iterations on the forward map.
+        """
+        nlateral = self.dim - 1
+        lateral = self.to_computational(physical)[:, :nlateral]
+        steps = [1e-3*np.float64(h) for h in self.spacing[:nlateral]]
+
+        for _ in range(20):
+            foot = self._surface_point(lateral)
+            tangents = []
+            for axis, step in enumerate(steps):
+                shift = np.zeros(nlateral)
+                shift[axis] = step
+                tangents.append((self._surface_point(lateral + shift) -
+                                 self._surface_point(lateral - shift))/(2*step))
+            tangents = np.stack(tangents, axis=2)
+            residual = physical - foot
+            normal = np.einsum('pda,pdb->pab', tangents, tangents)
+            rhs = np.einsum('pda,pd->pa', tangents, residual)
+            update = np.linalg.solve(normal, rhs[..., None])[..., 0]
+            lateral = lateral + update
+            if np.abs(update).max() < 1e-12*max(np.float64(h) for h in self.spacing):
+                break
+        return self._surface_point(lateral)
+
+    def _surface_point(self, lateral):
+        """Physical position of the surface at lateral computational coordinates."""
+        row = np.full((lateral.shape[0], 1), np.float64(self.origin[-1]))
+        return self.to_physical(np.concatenate([lateral, row], axis=1))
+
+    def _image_weights(self, rows, order):
+        """
+        Interpolation weights of the image of each ghost node above the surface.
+
+        The ghost node `k` rows above the surface, at physical position `p`, is
+        mirrored through the closest point `f` of the surface, to the image
+        `2*f - p`, inside the domain. The image is interpolated with Lagrange
+        polynomials of `order` points along each axis, from rows at or below the
+        surface only.
+
+        Returns the weights, of shape `lateral shape + (rows,) + lateral window +
+        (vertical window,)`, and the first lateral offset of the window along
+        each lateral axis, relative to the ghost node.
+        """
+        key = (rows, order)
+        if key in self._image_weights_cache:
+            return self._image_weights_cache[key]
+
+        nlateral = self.dim - 1
+        origin = np.array([np.float64(o) for o in self.origin])
+        spacing = np.array([np.float64(h) for h in self.spacing])
+        lateral_shape = tuple(self.shape[:nlateral])
+        nodes = np.meshgrid(*[np.arange(n) for n in lateral_shape], indexing='ij')
+        nodes = np.stack([n.ravel() for n in nodes], axis=1)
+
+        # Ghost nodes, row after row
+        ghosts = np.concatenate([
+            np.concatenate([nodes, np.full((len(nodes), 1), -k)], axis=1)
+            for k in range(1, rows + 1)
+        ])
+        physical = self.to_physical(origin + spacing*ghosts)
+        image = 2*self._surface_foot(physical) - physical
+        position = (self.to_computational(image) - origin)/spacing
+        if (position[:, -1] < 0).any():
+            raise ValueError("The image of a ghost node through the surface lies above "
+                             "it; the surface is too curved for the grid spacing")
+
+        # Lagrange stencils, centered laterally, below the surface vertically
+        base = np.floor(position).astype(np.int64) - order//2 + 1
+        base[:, -1] = np.maximum(base[:, -1], 0)
+        weights = [_lagrange_weights(position[:, a] - base[:, a], order)
+                   for a in range(self.dim)]
+
+        offsets = base[:, :nlateral] - ghosts[:, :nlateral]
+        first = offsets.min(axis=0)
+        window = tuple(offsets.max(axis=0) - first + order)
+        depth = base[:, -1].max() + order
+        table = np.zeros(lateral_shape + (rows,) + window + (depth,))
+        ghost_index = tuple(ghosts[:, a] for a in range(nlateral))
+        row_index = -ghosts[:, -1] - 1
+        for stencil in np.ndindex(*(order,)*self.dim):
+            weight = np.prod([w[:, s] for w, s in zip(weights, stencil, strict=True)],
+                             axis=0)
+            lateral = tuple(offsets[:, a] - first[a] + stencil[a]
+                            for a in range(nlateral))
+            vertical = base[:, -1] + stencil[-1]
+            np.add.at(table, ghost_index + (row_index,) + lateral + (vertical,),
+                      weight)
+
+        self._image_weights_cache[key] = (table, tuple(first))
+        return self._image_weights_cache[key]
+
+    def free_surface(self, field, rows=None, order=None):
+        """
+        Equations imposing `field = 0` on the surface, the first row of the last
+        Dimension, by an odd mirror through the surface.
+
+        Each ghost node above the surface, at physical position `p`, is set to
+        minus the field at its image `2*f - p`, with `f` the closest point of the
+        surface, interpolated at order `order` from the nodes at or below the
+        surface. Over a plane surface this is the exact image of the field, so
+        the free surface is imposed to the order of the stencils; it reduces to
+        the usual odd mirror `u(-k) = -u(k)` when the surface is flat. The
+        equations are meant to follow the update of `field`, e.g.
+
+            Operator([update] + grid.free_surface(u.forward) + ...)
+
+        Parameters
+        ----------
+        field : Function or expression of a Function
+            The field to mirror, e.g. `u.forward`.
+        rows : int, optional
+            Number of ghost rows, by default half the space order of the field
+            (the radius of its stencils). At most the halo of the field.
+        order : int, optional
+            Number of interpolation points along each axis, by default the space
+            order of the field.
+        """
+        function = field.function
+        if function.grid is None or function.grid.root is not self:
+            raise ValueError(f"{function} is not defined on {self}")
+        lateral_dims = self.dimensions[:-1]
+        vertical = self.dimensions[-1]
+        rows = rows or function.space_order // 2
+        order = order or function.space_order
+        if rows > function._size_halo[vertical].left:
+            raise ValueError(f"{rows} ghost rows exceed the halo of {function}")
+
+        table, first = self._image_weights(rows, order)
+        halo = [function._size_halo[d] for d in lateral_dims]
+        for f, n, h in zip(first, table.shape[self.dim:-1], halo, strict=True):
+            if f < -h.left or f + n - 1 > h.right:
+                raise ValueError(f"The image stencils span lateral offsets {f} to "
+                                 f"{f + n - 1}, beyond the halo of {function}")
+
+        # The weights, as a Function distributed like the field
+        name = f'{function.name}_image'
+        extra = [DefaultDimension(name=f'{name}_{i}', default_value=n)
+                 for i, n in enumerate(table.shape[self.dim - 1:])]
+        weights = Function(name=name, grid=self, dimensions=lateral_dims + tuple(extra),
+                           shape=table.shape, space_order=0, dtype=self.dtype)
+        weights.data[:] = table
+
+        # The surface row, as a SubDimension so that only the rank holding it
+        # writes it and its ghost rows under domain decomposition
+        surface = SubDimension.left(name=f'{vertical.name}_{name}', parent=vertical,
+                                    thickness=1)
+        indexed = field.indexify()
+        eqns = [Eq(indexed.subs({vertical: surface}), 0)]
+        for k in range(rows):
+            terms = []
+            for stencil in np.ndindex(*table.shape[self.dim:]):
+                # The field is zero on the surface row
+                if stencil[-1] == 0:
+                    continue
+                lateral = {d: d + f + s
+                           for d, f, s in zip(lateral_dims, first, stencil, strict=False)}
+                weight = weights[lateral_dims + (k,) + stencil]
+                terms.append(weight*indexed.subs({**lateral,
+                                                  vertical: surface + stencil[-1]}))
+            eqns.append(Eq(indexed.subs({vertical: surface - k - 1}),
+                           -sympy.Add(*terms)))
+        return eqns
+
     def __getstate__(self):
         state = super().__getstate__()
         # The coordinate and metric Functions are rebuilt lazily from the map
         for i in ('coordinates', 'metrics', 'metric_derivatives', 'jacobian',
                   '_local_vectors', 'min_spacing'):
             state.pop(i, None)
+        state['_image_weights_cache'] = {}
         return state
