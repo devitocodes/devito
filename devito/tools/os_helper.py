@@ -1,8 +1,9 @@
 import os
+from contextlib import suppress
 from pathlib import Path
-from tempfile import gettempdir
+from tempfile import gettempdir, mkstemp
 
-__all__ = ['change_directory', 'make_tempdir']
+__all__ = ['atomic_write', 'change_directory', 'make_tempdir']
 
 
 class change_directory:
@@ -34,3 +35,32 @@ def make_tempdir(prefix=None):
     tmpdir = Path(gettempdir()).joinpath(name)
     tmpdir.mkdir(parents=True, exist_ok=True)
     return tmpdir
+
+
+def atomic_write(path, data, mode='w'):
+    """
+    Write `data` to `path` through a private temporary file in the same
+    directory, then rename it into place. The rename is atomic, so a concurrent
+    reader never sees a partial file: it reads either the previous content or
+    the new one, and a reader that already opened the previous file keeps
+    reading that one in full. The temporary file is removed if the write fails.
+
+    Note: the resulting file has the restrictive mode of the temporary file
+    (0600, further restricted by the process umask).
+    """
+    path = Path(path)
+    fd, tmpfile = mkstemp(dir=path.parent, prefix=f'{path.name}.', suffix='.tmp')
+    try:
+        try:
+            f = os.fdopen(fd, mode)
+        except BaseException:
+            os.close(fd)
+            raise
+        with f:
+            f.write(data)
+        os.replace(tmpfile, path)
+    except BaseException:
+        with suppress(FileNotFoundError):
+            os.unlink(tmpfile)
+        raise
+    return path

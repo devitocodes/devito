@@ -5,9 +5,8 @@ from contextlib import suppress
 from functools import partial
 from hashlib import sha1
 from itertools import filterfalse
-from os import environ, fdopen, makedirs, path, replace
+from os import environ, makedirs, path
 from subprocess import DEVNULL, PIPE, CalledProcessError, check_call, check_output, run
-from tempfile import mkstemp
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
@@ -23,7 +22,8 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.tools import (
-    Signer, as_list, change_directory, filter_ordered, make_tempdir, memoized_func
+    Signer, as_list, atomic_write, change_directory, filter_ordered, make_tempdir,
+    memoized_func
 )
 
 __all__ = ['compiler_registry', 'sniff_mpi_distro']
@@ -325,14 +325,9 @@ class Compiler(GCCToolchain, Signer):
         """
         hfile = self.get_jit_dir().joinpath(filename).with_suffix('.h')
         # The JIT dir is shared with other processes, e.g. the workers of a
-        # parallel test run, so the header is written to a private file and
-        # then renamed into place, which is atomic: a concurrent compiler
-        # never reads a truncated or half-written header
-        fd, tmpfile = mkstemp(dir=hfile.parent, prefix=f'{hfile.name}.', suffix='.tmp')
-        with fdopen(fd, 'w') as f:
-            f.write(code)
-        replace(tmpfile, hfile)
-        return hfile
+        # parallel test run, so the header is written atomically: a concurrent
+        # compiler never reads a truncated or half-written header
+        return atomic_write(hfile, code)
 
     def save(self, soname, binary):
         """
