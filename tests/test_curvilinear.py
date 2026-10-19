@@ -1239,6 +1239,15 @@ class TestFreeSurface:
         assert np.abs(mirrored).max() > 0
         assert np.allclose(folded, mirrored, rtol=0, atol=1e-10*np.abs(mirrored).max())
 
+    def test_adjoint_no_operator(self):
+        """Without a spatial operator, the transpose only zeroes the mirror rows."""
+        grid = surface_grid((21, 21), (200., 200.), sine_surface)
+        r = Function(name='r', grid=grid, space_order=8)
+        r.data[:] = 1.
+        Operator(grid.free_surface_adjoint(r, 0)).apply()
+        assert np.all(r.data[:, 4:9] == 0)
+        assert np.all(r.data[:, 9:] == 1)
+
     def test_adjoint_wide(self):
         """The transpose is exact with as many mirror rows as the stencil reaches."""
         grid = surface_grid((41, 41), (1000., 800.), sine_surface, dtype=np.float64)

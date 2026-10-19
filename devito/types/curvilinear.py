@@ -1178,7 +1178,8 @@ class CurvilinearGrid(Grid):
             The updated adjoint field, e.g. `v.backward`.
         coefficient : expression
             The factor of the spatial operator in the update of the field, e.g.
-            `dt**2/m`, damping included.
+            `dt**2/m`, damping included. A coefficient of 0, for an update
+            without a spatial operator, only zeroes the mirror rows.
         rows, order : int, optional
             The number of mirror rows and of interpolation points of the
             `free_surface` of the forward propagation.
@@ -1191,6 +1192,14 @@ class CurvilinearGrid(Grid):
         indexed = field.indexify()
         jacobian = self.jacobian.indexify()
         coefficient = _indexify(coefficient)
+
+        # The mirror rows and the surface back to zero
+        zero = [Eq(indexed, 0, subdomain=self._rows('mirror', surface - 1 - k, 1))
+                for k in range(rows)]
+        zero.append(Eq(indexed, 0, subdomain=self._rows('surface', surface, 1)))
+        # An update without a spatial operator leaves nothing to fold
+        if coefficient == 0:
+            return zero
 
         # The operator in the mirror rows, folded onto each row `r` below the
         # surface, reading the mirror rows at offsets from it
@@ -1208,11 +1217,7 @@ class CurvilinearGrid(Grid):
                     (lateral if any(offsets) else column).append(term)
             row = self._rows('below', surface + r, 1)
             eqns.extend(_split_update(indexed, indexed, column, lateral, row))
-        # The mirror rows and the surface back to zero
-        eqns.extend(Eq(indexed, 0, subdomain=self._rows('mirror', surface - 1 - k, 1))
-                    for k in range(rows))
-        eqns.append(Eq(indexed, 0, subdomain=self._rows('surface', surface, 1)))
-        return eqns
+        return eqns + zero
 
     def __getstate__(self):
         state = super().__getstate__()
