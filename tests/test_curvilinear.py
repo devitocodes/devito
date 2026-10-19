@@ -1,7 +1,11 @@
 import numpy as np
 import pytest
 
-from devito import CurvilinearGrid, CurvilinearMap, Function, Grid, TerrainFollowing
+from devito import (  # noqa
+    CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Operator, SparseFunction,
+    SparseTimeFunction, TerrainFollowing, cos, div, grad, inner, sin
+)
+from devito.mpi import MPI
 
 # A smooth surface over a 1000 m line, in m, positive down
 _AMPLITUDE = 60.
@@ -20,9 +24,10 @@ def sine_surface_dx2(x):
     return -_AMPLITUDE*(2*np.pi/_WAVELENGTH)**2*np.sin(2*np.pi*x/_WAVELENGTH)
 
 
-def sine_grid(n, space_order=8, depth=800.):
+def sine_grid(n, space_order=8, depth=800., dtype=np.float32):
     return CurvilinearGrid(shape=(n, n), extent=(1000., 800.), space_order=space_order,
-                           mapping=TerrainFollowing(surface=sine_surface, depth=depth))
+                           mapping=TerrainFollowing(surface=sine_surface, depth=depth),
+                           dtype=dtype)
 
 
 def flat_grid(shape, extent, space_order=8):
@@ -204,3 +209,199 @@ class TestGridMPI:
         assert np.allclose(np.asarray(jacobian.data_ro_domain._local),
                            (height/800.)[jacobian.local_indices], rtol=1e-6)
         assert np.isclose(grid.min_spacing, sine_grid(31).min_spacing)
+
+
+# Analytic fields for derivative tests, over the physical coordinates
+_KX, _KZ = 2*np.pi/400., 2*np.pi/500.
+
+
+def wave(x, z):
+    return np.sin(_KX*x)*np.cos(_KZ*z)
+
+
+def wave_dx(x, z):
+    return _KX*np.cos(_KX*x)*np.cos(_KZ*z)
+
+
+def wave_dz(x, z):
+    return -_KZ*np.sin(_KX*x)*np.sin(_KZ*z)
+
+
+def wave_dxdz(x, z):
+    return -_KX*_KZ*np.cos(_KX*x)*np.sin(_KZ*z)
+
+
+def wave_laplace(x, z):
+    return -(_KX**2 + _KZ**2)*wave(x, z)
+
+
+def buoyancy(x, z):
+    return 1 + 0.5*np.sin(x/300.)*np.cos(z/200.)
+
+
+def buoyancy_div_grad(x, z):
+    """Analytic `div(b*grad(u))` for `b = buoyancy` and `u = wave`."""
+    bx = 0.5/300*np.cos(x/300.)*np.cos(z/200.)
+    bz = -0.5/200*np.sin(x/300.)*np.sin(z/200.)
+    return bx*wave_dx(x, z) + bz*wave_dz(x, z) + buoyancy(x, z)*wave_laplace(x, z)
+
+
+def physical_function(name, grid, space_order, values):
+    """A Function holding `values(x, z)` at the physical nodes, halo included."""
+    function = Function(name=name, grid=grid, space_order=space_order)
+    coordinates = [c.data_with_halo for c in grid.coordinates]
+    function.data_with_halo[:] = values(*coordinates)
+    return function
+
+
+class TestDerivatives:
+
+    @pytest.mark.parametrize('expr', [
+        'u.dx', 'u.dy', 'u.dx2', 'u.dy2', 'u.laplace', 'u.dxdy', 'u.dx.T', 'u.dy.T',
+        'u.dx2.T', '(b*u.dx).dx + (b*u.dy).dy', '(b*u.dx.T).dx.T',
+        'div(b*grad(u))', 'u.dxl', 'u.dyr', 'u.dy(x0=y + y.spacing/2)'
+    ])
+    def test_flat_is_cartesian(self, expr):
+        """
+        On a flat TerrainFollowing map, physical derivatives are those of a
+        Cartesian Grid, to float32 roundoff.
+        """
+        shape, extent = (31, 41), (300., 400.)
+        rng = np.random.default_rng(0)
+        u_data = rng.standard_normal(shape)
+        b_data = 1 + rng.random(shape)
+
+        results = []
+        for grid in [Grid(shape=shape, extent=extent), flat_grid(shape, extent)]:
+            x, y = grid.dimensions
+            u = Function(name='u', grid=grid, space_order=8)
+            b = Function(name='b', grid=grid, space_order=8)
+            out = Function(name='out', grid=grid, space_order=8)
+            u.data[:] = u_data
+            b.data[:] = b_data
+            Operator(Eq(out, eval(expr))).apply()
+            results.append(out.data.copy())
+
+        cartesian, curvilinear = results
+        assert np.allclose(curvilinear, cartesian, rtol=0,
+                           atol=1e-6*np.abs(cartesian).max())
+
+    def test_computational(self):
+        """A computational derivative ignores the map."""
+        shape, extent = (21, 21), (1000., 800.)
+        rng = np.random.default_rng(1)
+        u_data = rng.standard_normal(shape)
+
+        results = []
+        for grid in [Grid(shape=shape, extent=extent), sine_grid(21)]:
+            u = Function(name='u', grid=grid, space_order=4)
+            out = Function(name='out', grid=grid, space_order=4)
+            u.data[:] = u_data
+            expr = u.dx(computational=True) + u.dy2(computational=True)
+            Operator(Eq(out, expr)).apply()
+            results.append(out.data.copy())
+        assert np.array_equal(*results)
+
+    @pytest.mark.parametrize('space_order', [4, 8])
+    @pytest.mark.parametrize('expr, solution', [
+        ('u.dx', wave_dx),
+        ('u.dy', wave_dz),
+        ('u.dxdy', wave_dxdz),
+        ('u.laplace', wave_laplace),
+        ('(b*u.dx).dx + (b*u.dy).dy', buoyancy_div_grad),
+        ('div(b*grad(u))', buoyancy_div_grad),
+    ])
+    def test_convergence(self, space_order, expr, solution):
+        """
+        Physical derivatives of analytic fields under a sine surface converge at
+        the order of the stencils.
+        """
+        errors = []
+        # Coarse enough for the error to stay above the floor set by the 9 digits
+        # of Devito's finite-difference weights
+        sizes = {4: [31, 61, 121], 8: [21, 31, 41]}[space_order]
+        for n in sizes:
+            grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
+                                   mapping=TerrainFollowing(sine_surface, depth=800.),
+                                   space_order=space_order, dtype=np.float64)
+            u = physical_function('u', grid, space_order, wave)  # noqa
+            b = physical_function('b', grid, space_order, buoyancy)  # noqa
+            out = Function(name='out', grid=grid, space_order=space_order)
+            Operator(Eq(out, eval(expr))).apply()
+
+            x, z = (c.data for c in grid.coordinates)
+            errors.append(np.abs(out.data - solution(x, z)).max())
+
+        spacing = 1./(np.array(sizes) - 1)
+        orders = np.log(np.array(errors[:-1])/np.array(errors[1:])) / \
+            np.log(spacing[:-1]/spacing[1:])
+        # The finest pair is in the asymptotic regime
+        assert orders[-1] > space_order - 1, orders
+
+    @pytest.mark.parametrize('expr, adjoint', [
+        ('f.dx', 'g.dx.T'),
+        ('f.dy', 'g.dy.T'),
+        ('f.dx2', 'g.dx2.T'),
+        ('f.dy2', 'g.dy2.T'),
+        ('f.dxdy', 'g.dxdy.T'),
+        ('f.laplace', 'g.dx2.T + g.dy2.T'),
+        ('(b*f.dx).dx', '(b*g.dx.T).dx.T'),
+        ('(b*f.dy).dy', '(b*g.dy.T).dy.T'),
+        ('f.dy(x0=y + y.spacing/2)', 'g.dy(x0=y + y.spacing/2).T'),
+        ('f.dxl', 'g.dxl.T'),
+    ])
+    def test_adjoint(self, expr, adjoint):
+        """
+        Dot test `<D f, g> = <f, D.T g>` of physical derivatives under a sine
+        surface, the transpose being exact.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        x, y = grid.dimensions
+        rng = np.random.default_rng(2)
+        f = Function(name='f', grid=grid, space_order=8)
+        g = Function(name='g', grid=grid, space_order=8)
+        b = Function(name='b', grid=grid, space_order=8)
+        f_out = Function(name='f_out', grid=grid, space_order=8)
+        g_out = Function(name='g_out', grid=grid, space_order=8)
+        f.data[:] = rng.standard_normal(grid.shape)
+        g.data[:] = rng.standard_normal(grid.shape)
+        b.data[:] = 1 + rng.random(grid.shape)
+
+        Operator([Eq(f_out, eval(expr)), Eq(g_out, eval(adjoint))]).apply()
+
+        forward = np.dot(f_out.data.ravel(), g.data.ravel())
+        backward = np.dot(f.data.ravel(), g_out.data.ravel())
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_space_order_check(self):
+        grid = sine_grid(21, space_order=4)
+        u = Function(name='u', grid=grid, space_order=8)
+        with pytest.raises(ValueError):
+            _ = u.dx.evaluate
+
+
+class TestDerivativesMPI:
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_div_grad(self, mode):
+        """
+        A nested physical derivative on a distributed grid matches the serial
+        one, the metric halos at the rank boundaries included.
+        """
+        results = []
+        for comm in [None, MPI.COMM_SELF]:
+            grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.),
+                                   mapping=TerrainFollowing(sine_surface, depth=800.),
+                                   dtype=np.float64, comm=comm)
+            x_coord, z_coord = grid.coordinates
+            u = Function(name='u', grid=grid, space_order=8)
+            b = Function(name='b', grid=grid, space_order=8)
+            out = Function(name='out', grid=grid, space_order=8)
+            Operator([Eq(u, sin(_KX*x_coord)*cos(_KZ*z_coord)),
+                      Eq(b, 1 + x_coord/1000.)]).apply()
+            Operator(Eq(out, div(b*grad(u)) + u.dxdy.T)).apply()
+            results.append(out)
+
+        distributed, serial = results
+        assert np.allclose(np.asarray(distributed.data_ro_domain._local),
+                           serial.data[distributed.local_indices], rtol=0, atol=1e-12)

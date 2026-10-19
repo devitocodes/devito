@@ -16,7 +16,7 @@ from devito.warnings import warn
 from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
 from .finite_difference import cross_derivative, generic_derivative, indices_at
 from .rsfd import d45
-from .tools import direct, transpose
+from .tools import centered, direct, transpose
 
 __all__ = ['Derivative']
 
@@ -50,6 +50,13 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
     x0 : dict, optional
         Origin (where the finite-difference is evaluated at) for the finite-difference
         scheme, e.g. {x: x, y: y + h_y/2}.
+    computational : bool, optional, default=False
+        Only relevant for an expression defined on a CurvilinearGrid, where a
+        Derivative w.r.t. a space Dimension is by default a derivative w.r.t.
+        the physical coordinate, evaluated through the chain rule with the
+        metric terms of the grid. If True, it is instead the plain
+        finite-difference derivative w.r.t. the computational coordinate
+        indexed by the Dimension.
 
     Examples
     --------
@@ -102,7 +109,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
-                   'x0', 'method', 'weights', 'halo', 'subdomain')
+                   'x0', 'method', 'weights', 'halo', 'subdomain', 'computational')
 
     def __new__(cls, expr, *dims, **kwargs):
         # Validate the input arguments `expr`, `dims` and `deriv_order`
@@ -163,6 +170,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         obj._weights = cls._process_weights(**kwargs)
         obj._halo = cls._validate_halo(kwargs.get("halo"))
         obj._subdomain = kwargs.get("subdomain")
+        obj._computational = bool(kwargs.get("computational", False))
 
         ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
         processed = []
@@ -339,6 +347,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         rkw = {}
         if 'halo' in kwargs:
             rkw['halo'] = kwargs['halo']
+        if 'computational' in kwargs:
+            rkw['computational'] = kwargs['computational']
         if side is not None:
             rkw['side'] = side
         if method is not None:
@@ -487,6 +497,31 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         """
         return self._subdomain
 
+    @property
+    def computational(self):
+        """
+        True if the derivative is w.r.t. the computational coordinates of a
+        CurvilinearGrid rather than the physical ones.
+        """
+        return self._computational
+
+    @cached_property
+    def _curvilinear_grid(self):
+        """
+        The CurvilinearGrid whose metric terms the derivative is evaluated with,
+        None if the chain rule does not apply.
+        """
+        if self.computational:
+            return None
+        grid = getattr(self.expr, 'grid', None)
+        if grid is None or not grid.root.is_Curvilinear:
+            return None
+        grid = grid.root
+        if not any(d in grid.dimensions and o > 0
+                   for d, o in zip(self.dims, self.deriv_order, strict=True)):
+            return None
+        return grid
+
     @cached_property
     def _has_zero_halo(self):
         return self.halo is not None or self.expr._has_zero_halo
@@ -623,7 +658,15 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
              may need to be evaluated at a different point due to e.g. a
              shited derivative.
         - 4: Apply substitutions.
+
+        On a CurvilinearGrid, a derivative w.r.t. physical coordinates is
+        instead expanded through the chain rule into computational ones (see
+        `_eval_fd_curvilinear`).
         """
+        grid = self._curvilinear_grid
+        if grid is not None:
+            return self._eval_fd_curvilinear(expr, grid, **kwargs)
+
         # Differentiation is linear, and a sum of terms at different staggered
         # locations must use it: `Add` reports its first argument's location,
         # so `x0` would shift the other terms off the point they sat at.
@@ -696,6 +739,139 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             res = subdomain._restrict(res, exclude={d.root for d in self.dims})
 
         return res
+
+    def _computational_derivative(self, expr, dims, deriv_order, fd_order, **kwargs):
+        """
+        A Derivative w.r.t. computational coordinates, inheriting `self`'s
+        metadata except for the postponed substitutions, applied once to the
+        whole chain-rule expansion.
+        """
+        return self._rebuild(expr, *dims, deriv_order=deriv_order, fd_order=fd_order,
+                             computational=True, subs=(), _ppsubs=(), **kwargs)
+
+    def _eval_fd_curvilinear(self, expr, grid, **kwargs):
+        """
+        Evaluate a derivative w.r.t. physical coordinates on a CurvilinearGrid.
+
+        With `xi_j` the computational coordinates and `x_i` the physical ones,
+        a first derivative is expanded as
+
+            d/dx_i = sum_j (d xi_j/d x_i) d/d xi_j
+
+        and a second derivative as
+
+            d^2/dx_i^2 = sum_jk (d xi_j/d x_i)(d xi_k/d x_i) d^2/(d xi_j d xi_k)
+                         + sum_j (d^2 xi_j/d x_i^2) d/d xi_j
+
+        with the metric terms of `grid` multiplying each computational
+        derivative at the point it is evaluated at. Higher and mixed derivatives
+        nest these. In transpose mode each term `c*D` is replaced by its exact
+        discrete transpose `D.T(c*.)`, the metric term inside.
+        """
+        if self.method != 'FD':
+            raise NotImplementedError(f"method={self.method} is not supported on a "
+                                      "CurvilinearGrid")
+        for d, o in zip(self.dims, self.fd_order, strict=True):
+            if d in grid.dimensions and o > grid.space_order:
+                raise ValueError(f"{self} has fd_order={o} along {d}, larger than "
+                                 f"the space_order={grid.space_order} of its "
+                                 "CurvilinearGrid metrics; increase "
+                                 "CurvilinearGrid(space_order=...)")
+
+        # Split the derivative into factors, each of order at most two along a
+        # single physical Dimension, or along non-grid Dimensions (e.g. time)
+        spec = [(d, o) for d, o in zip(self.dims, self.deriv_order, strict=True)
+                if o > 0]
+        factors = [((d, o),) for d, o in spec if d in grid.dimensions
+                   for o in [2]*(o // 2) + [1]*(o % 2)]
+        others = tuple((d, o) for d, o in spec if d not in grid.dimensions)
+        if others:
+            factors.insert(0, others)
+
+        if len(factors) > 1:
+            res = self._eval_nested_curvilinear(expr, factors, **kwargs)
+        else:
+            res = self._eval_chain_rule(expr, grid, *factors[0][0], **kwargs)
+
+        for e in self._ppsubs:
+            res = res.xreplace(e)
+        return res
+
+    def _eval_nested_curvilinear(self, expr, factors, **kwargs):
+        """
+        Evaluate a product of derivative `factors`, the first one outermost.
+        The transpose reverses the product, so that it is the exact transpose
+        of the forward derivative.
+        """
+        if any(d not in self.dims for d in self.x0) or self.weights is not None:
+            raise NotImplementedError(f"{self} combines several derivatives with "
+                                      "custom weights or with x0 along Dimensions "
+                                      "it does not differentiate, which is not "
+                                      "supported on a CurvilinearGrid")
+        if self.transpose == transpose:
+            factors = factors[::-1]
+
+        nested = expr
+        for factor in reversed(factors):
+            dims = tuple(d for d, _ in factor)
+            x0 = {d: v for d, v in self.x0.items() if d in dims}
+            nested = self._rebuild(nested, *dims,
+                                   deriv_order=tuple(o for _, o in factor),
+                                   fd_order=tuple(self.fd_order[d] for d in dims),
+                                   x0=x0, subs=(), _ppsubs=())
+        return nested._evaluate(**kwargs)
+
+    def _eval_chain_rule(self, expr, grid, dim, deriv_order, **kwargs):
+        """
+        Evaluate the first or second derivative along the physical Dimension
+        `dim` through the chain rule (see `_eval_fd_curvilinear`).
+        """
+        fd_order = self.fd_order[dim]
+        metrics = grid.metrics
+
+        # Terms `(coefficient, computational Dimensions, derivative orders)`
+        terms = []
+        if deriv_order == 1:
+            for d in grid.dimensions:
+                terms.append((metrics[(dim, d)], (d,), (1,)))
+        else:
+            for i, di in enumerate(grid.dimensions):
+                for dj in grid.dimensions[i:]:
+                    coeff = metrics[(dim, di)]*metrics[(dim, dj)]
+                    if di is dj:
+                        terms.append((coeff, (di,), (2,)))
+                    else:
+                        terms.append((2*coeff, (di, dj), (1, 1)))
+            for d in grid.dimensions:
+                terms.append((grid.metric_derivatives[(dim, d)], (d,), (1,)))
+
+        res = []
+        for coeff, dims, orders in terms:
+            if coeff == 0:
+                continue
+            # The metric terms are evaluated at the derivative's origin
+            coeff = interp_for_fd(coeff, self.x0, **kwargs)
+            fd_orders = (fd_order,)*len(dims)
+            # Only the term along `dim` itself exists on a Cartesian Grid, and
+            # keeps the default stencil. The others, e.g. first derivatives
+            # from the metric derivatives, are centered so they keep the
+            # accuracy of `fd_order` (the default first derivative of order 2 is
+            # one-sided)
+            side = self.side
+            if side is None and (dims, orders) != ((dim,), (deriv_order,)):
+                side = centered
+            if self.transpose == transpose:
+                deriv = self._computational_derivative(coeff*expr, dims, orders,
+                                                       fd_orders, side=side)
+                res.append(deriv._evaluate(**kwargs))
+            else:
+                deriv = self._computational_derivative(expr, dims, orders, fd_orders,
+                                                       side=side)
+                with suppress(AttributeError):
+                    coeff = coeff._evaluate(**kwargs)
+                res.append(coeff*deriv._evaluate(**kwargs))
+
+        return Add(*res)
 
     def _eval_expand_nest(self, **hints):
         """
