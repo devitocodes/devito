@@ -787,3 +787,208 @@ class TestResampleMPI:
         forward = inner(resampled, curvilinear)
         backward = inner(cartesian, transposed)
         assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+
+# A 3D surface over a 1000 m x 800 m area, and an analytic field
+_K3D = (2*np.pi/400., 2*np.pi/450., 2*np.pi/500.)
+
+
+def surface_3d(x, y):
+    return 20. + 40.*np.sin(2*np.pi*x/1000.)*np.cos(2*np.pi*y/800.)
+
+
+def surface_3d_derivatives(x, y):
+    """First and second derivatives of `surface_3d` along x and y."""
+    ax, ay = 2*np.pi/1000., 2*np.pi/800.
+    sx = 40.*ax*np.cos(ax*x)*np.cos(ay*y)
+    sy = -40.*ay*np.sin(ax*x)*np.sin(ay*y)
+    sxx = -40.*ax**2*np.sin(ax*x)*np.cos(ay*y)
+    syy = -40.*ay**2*np.sin(ax*x)*np.cos(ay*y)
+    return sx, sy, sxx, syy
+
+
+def wave_3d(x, y, z):
+    return np.sin(_K3D[0]*x)*np.sin(_K3D[1]*y + .3)*np.cos(_K3D[2]*z)
+
+
+def wave_3d_gradient(x, y, z):
+    kx, ky, kz = _K3D
+    return (kx*np.cos(kx*x)*np.sin(ky*y + .3)*np.cos(kz*z),
+            ky*np.sin(kx*x)*np.cos(ky*y + .3)*np.cos(kz*z),
+            -kz*np.sin(kx*x)*np.sin(ky*y + .3)*np.sin(kz*z))
+
+
+def wave_3d_laplace(x, y, z):
+    return -sum(k**2 for k in _K3D)*wave_3d(x, y, z)
+
+
+def grid_3d(n, space_order=4, dtype=np.float64, comm=None):
+    return CurvilinearGrid(shape=(n, n, n), extent=(1000., 800., 600.),
+                           mapping=TerrainFollowing(surface_3d, depth=600.),
+                           space_order=space_order, dtype=dtype, comm=comm)
+
+
+class Test3D:
+
+    def test_metrics_analytic(self):
+        """The 3D metric terms match the analytic map, halo included."""
+        grid = grid_3d(31, space_order=8)
+        x, y, z = grid.dimensions
+        xs, ys, eta = node_coordinates(grid, halo=grid.space_order)
+        sx, sy, sxx, syy = surface_3d_derivatives(xs, ys)
+        height = 600. - surface_3d(xs, ys)
+        distance = eta - 600.
+
+        expected = {(x, z): sx*distance/height, (y, z): sy*distance/height,
+                    (z, z): 600./height}
+        for key, value in expected.items():
+            error = np.abs(grid.metrics[key].data_with_halo - value).max()
+            assert error < 1e-6*np.abs(value).max()
+        expected = {(x, z): distance*(sxx/height + 2*sx**2/height**2),
+                    (y, z): distance*(syy/height + 2*sy**2/height**2)}
+        for key, value in expected.items():
+            error = np.abs(grid.metric_derivatives[key].data_with_halo - value).max()
+            assert error < 1e-5*np.abs(value).max()
+        assert np.allclose(grid.jacobian.data_with_halo, height/600., rtol=1e-12)
+        assert grid.metrics[(x, x)] == 1 and grid.metrics[(z, x)] == 0
+
+    @pytest.mark.parametrize('expr', ['u.dx', 'u.dz', 'u.laplace', 'u.dxdz',
+                                      '(b*u.dy).dy', 'u.dy.T', 'div(b*grad(u))'])
+    def test_flat_is_cartesian(self, expr):
+        """On a flat 3D map, physical derivatives are those of a Grid."""
+        shape, extent = (15, 17, 19), (140., 160., 180.)
+        rng = np.random.default_rng(12)
+        u_data = rng.standard_normal(shape)
+        b_data = 1 + rng.random(shape)
+
+        results = []
+        for grid in [Grid(shape=shape, extent=extent),
+                     flat_grid(shape, extent, space_order=4)]:
+            u = Function(name='u', grid=grid, space_order=4)
+            b = Function(name='b', grid=grid, space_order=4)
+            out = Function(name='out', grid=grid, space_order=4)
+            u.data[:] = u_data
+            b.data[:] = b_data
+            Operator(Eq(out, eval(expr))).apply()
+            results.append(out.data.copy())
+
+        cartesian, curvilinear = results
+        assert np.allclose(curvilinear, cartesian, rtol=0,
+                           atol=1e-6*np.abs(cartesian).max())
+
+    def test_convergence(self):
+        """3D physical derivatives converge at the order of the stencils."""
+        sizes = [21, 31, 41]
+        errors = {i: [] for i in ['dx', 'dy', 'dz', 'laplace']}
+        for n in sizes:
+            grid = grid_3d(n)
+            u = Function(name='u', grid=grid, space_order=4)
+            u.data_with_halo[:] = wave_3d(*(c.data_with_halo for c in grid.coordinates))
+            outs = {i: Function(name=f'out_{i}', grid=grid, space_order=4)
+                    for i in errors}
+            Operator([Eq(outs['dx'], u.dx), Eq(outs['dy'], u.dy), Eq(outs['dz'], u.dz),
+                      Eq(outs['laplace'], u.laplace)]).apply()
+
+            coordinates = [c.data for c in grid.coordinates]
+            solutions = dict(zip(['dx', 'dy', 'dz'], wave_3d_gradient(*coordinates),
+                                 strict=True))
+            solutions['laplace'] = wave_3d_laplace(*coordinates)
+            for i, out in outs.items():
+                errors[i].append(np.abs(out.data - solutions[i]).max())
+
+        spacing = 1./(np.array(sizes) - 1)
+        for i, error in errors.items():
+            orders = np.log(np.array(error[:-1])/np.array(error[1:])) / \
+                np.log(spacing[:-1]/spacing[1:])
+            assert orders[-1] > 3.5, (i, orders)
+
+    @pytest.mark.parametrize('expr, adjoint', [
+        ('f.dx', 'g.dx.T'),
+        ('f.dy', 'g.dy.T'),
+        ('f.dz', 'g.dz.T'),
+        ('f.dz2', 'g.dz2.T'),
+        ('f.dxdz', 'g.dxdz.T'),
+        ('(b*f.dy).dy', '(b*g.dy.T).dy.T'),
+    ])
+    def test_adjoint(self, expr, adjoint):
+        """Dot tests of 3D physical derivatives."""
+        grid = grid_3d(17)
+        rng = np.random.default_rng(13)
+        f = Function(name='f', grid=grid, space_order=4)
+        g = Function(name='g', grid=grid, space_order=4)
+        b = Function(name='b', grid=grid, space_order=4)
+        f_out = Function(name='f_out', grid=grid, space_order=4)
+        g_out = Function(name='g_out', grid=grid, space_order=4)
+        f.data[:] = rng.standard_normal(grid.shape)
+        g.data[:] = rng.standard_normal(grid.shape)
+        b.data[:] = 1 + rng.random(grid.shape)
+
+        Operator([Eq(f_out, eval(expr)), Eq(g_out, eval(adjoint))]).apply()
+
+        forward = np.dot(f_out.data.ravel(), g.data.ravel())
+        backward = np.dot(f.data.ravel(), g_out.data.ravel())
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    def test_sparse(self):
+        """
+        3D interpolation at physical points converges at second order, and is
+        the Jacobian-weighted adjoint of injection.
+        """
+        rng = np.random.default_rng(14)
+        xs, ys = rng.uniform(100., 900., 10), rng.uniform(100., 700., 10)
+        points = np.stack([xs, ys, surface_3d(xs, ys) + rng.uniform(10., 500., 10)],
+                          axis=1)
+        errors = []
+        for n in [21, 41]:
+            grid = grid_3d(n)
+            u = Function(name='u', grid=grid, space_order=4)
+            v = Function(name='v', grid=grid, space_order=4)
+            u.data[:] = wave_3d(*(c.data for c in grid.coordinates))
+            rec = SparseFunction(name='rec', grid=grid, npoint=10, coordinates=points)
+            src = SparseFunction(name='src', grid=grid, npoint=10, coordinates=points)
+            src.data[:] = rng.standard_normal(10)
+            Operator([rec.interpolate(u), src.inject(v, src)]).apply()
+            errors.append(np.abs(rec.data - wave_3d(*points.T)).max())
+
+            forward = np.dot(rec.data, src.data)
+            backward = np.sum(grid.jacobian.data*u.data*v.data)
+            assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+        assert np.log2(errors[0]/errors[1]) > 1.7
+
+    def test_resample(self):
+        """3D resampling is accurate and passes the dot test."""
+        grid = grid_3d(21)
+        cartesian_grid = Grid(shape=(21, 21, 41), extent=(1000., 800., 800.),
+                              origin=(0., 0., -100.), dtype=np.float64)
+        cartesian = Function(name='c', grid=cartesian_grid)
+        transposed = Function(name='ct', grid=cartesian_grid)
+        resampled = Function(name='f', grid=grid)
+        curvilinear = Function(name='g', grid=grid)
+        cartesian.data[:] = wave_3d(*node_coordinates(cartesian_grid))
+        curvilinear.data[:] = np.random.default_rng(15).standard_normal(grid.shape)
+
+        grid.resample(resampled, cartesian)
+        grid.resample(curvilinear, transposed, transpose=True)
+
+        expected = wave_3d(*(c.data for c in grid.coordinates))
+        assert np.abs(resampled.data - expected).max() < 0.02
+        forward = np.sum(resampled.data*curvilinear.data)
+        backward = np.sum(cartesian.data*transposed.data)
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_mpi(self, mode):
+        """A 3D nested derivative on a distributed grid matches the serial one."""
+        results = []
+        for comm in [None, MPI.COMM_SELF]:
+            grid = grid_3d(21, comm=comm)
+            x_coord, y_coord, z_coord = grid.coordinates
+            u = Function(name='u', grid=grid, space_order=4)
+            out = Function(name='out', grid=grid, space_order=4)
+            Operator(Eq(u, sin(_K3D[0]*x_coord)*cos(_K3D[2]*z_coord))).apply()
+            Operator(Eq(out, div(grad(u)) + u.dxdz.T)).apply()
+            results.append(out)
+
+        distributed, serial = results
+        assert np.allclose(np.asarray(distributed.data_ro_domain._local),
+                           serial.data[distributed.local_indices], rtol=0, atol=1e-12)
