@@ -3,7 +3,7 @@ from functools import wraps
 from devito.types.dimension import StencilDimension
 
 from .differentiable import DiffDerivative, Weights
-from .tools import fd_weights_registry, generate_indices
+from .tools import direct, fd_weights_registry, generate_indices, transpose
 
 __all__ = ['d45', 'drot']
 
@@ -17,10 +17,13 @@ def shift(sign, x0):
         return 0 if sign > 0 else 1
 
 
-def drot(expr, dim, dir=1, x0=None):
+def drot(expr, dim, dir=1, x0=None, matvec=direct):
     """
     Finite difference approximation of the derivative along dir
     of a Function `f` at point `x0`.
+
+    In transpose mode (`matvec=transpose`), each stencil offset is negated,
+    which is the exact transpose of the forward stencil.
 
     Rotated finite differences based on:
     https://www.sciencedirect.com/science/article/pii/S0165212599000232
@@ -63,9 +66,10 @@ def drot(expr, dim, dir=1, x0=None):
 
     # Direction substitutions
     dim_mapper = {}
+    sign = -1 if matvec == transpose else 1
     for (di, d) in enumerate(expr.grid.dimensions):
         s0 = 0 if mid == adim_start else shift(signs[di], mid)*d.spacing
-        dim_mapper[d] = d + signs[di]*i*d.spacing - s0
+        dim_mapper[d] = d + sign*(signs[di]*i*d.spacing - s0)
 
     # Create IndexDerivative
     ui = expr.subs(dim_mapper)
@@ -98,19 +102,19 @@ def check_staggering(func):
     - grid.dimension center point and NODE staggering
     """
     @wraps(func)
-    def wrapper(expr, dim, x0=None, expand=True):
+    def wrapper(expr, dim, x0=None, expand=True, matvec=direct):
         grid = expr.grid
         x0 = {k: v for k, v in x0.items() if k.is_Space}
         cond = x0 == {} or x0 == all_staggered(grid) or x0 == grid_node(grid)
         if cond:
-            return func(expr, dim, x0=x0, expand=expand)
+            return func(expr, dim, x0=x0, expand=expand, matvec=matvec)
         else:
             raise ValueError('Invalid staggering or x0 for rotated finite differences')
     return wrapper
 
 
 @check_staggering
-def d45(expr, dim, x0=None, expand=True):
+def d45(expr, dim, x0=None, expand=True, matvec=direct):
     """
     Rotated staggered grid finite-differences (RSFD) discretization
     of the derivative of `expr` along `dim` at point `x0`.
@@ -125,6 +129,8 @@ def d45(expr, dim, x0=None, expand=True):
         Origin of the finite-difference. Defaults to 0 for all dimensions.
     expand : bool, optional
         Expand the expression. Defaults to True.
+    matvec : Transpose, optional, default=direct
+        Forward (matvec=direct) or transpose (matvec=transpose) mode.
     """
     # Make sure the grid supports RSFD
     if expr.grid.dim not in [2, 3]:
@@ -135,10 +141,10 @@ def d45(expr, dim, x0=None, expand=True):
     w = dir_weights[(dim.name, expr.grid.dim)]
 
     # RSFD
-    rsfd = (w[0] * drot(expr, dim, x0=x0, dir=1) +
-            w[1] * drot(expr, dim, x0=x0, dir=2) +
-            w[2] * drot(expr, dim, x0=x0, dir=3) +
-            w[3] * drot(expr, dim, x0=x0, dir=4))
+    rsfd = (w[0] * drot(expr, dim, x0=x0, dir=1, matvec=matvec) +
+            w[1] * drot(expr, dim, x0=x0, dir=2, matvec=matvec) +
+            w[2] * drot(expr, dim, x0=x0, dir=3, matvec=matvec) +
+            w[3] * drot(expr, dim, x0=x0, dir=4, matvec=matvec))
 
     # Evaluate
     return rsfd._evaluate(expand=expand)

@@ -603,6 +603,32 @@ class TestFD:
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
 
+    @pytest.mark.parametrize('ndim', [2, 3])
+    @pytest.mark.parametrize('staggered', [False, True])
+    def test_rsfd_adjoint(self, ndim, staggered):
+        """
+        Dot test `<D f, g> = <f, D.T g>` of rotated staggered derivatives, with
+        and without a staggered origin.
+        """
+        grid = Grid(shape=(21,)*ndim, extent=(20.,)*ndim, dtype=np.float64)
+        rng = np.random.default_rng(0)
+        x0 = {d: d + d.spacing/2 for d in grid.dimensions} if staggered else {}
+        for d in grid.dimensions:
+            f = Function(name='f', grid=grid, space_order=4)
+            g = Function(name='g', grid=grid, space_order=4)
+            f_out = Function(name='f_out', grid=grid, space_order=4)
+            g_out = Function(name='g_out', grid=grid, space_order=4)
+            f.data[:] = rng.standard_normal(grid.shape)
+            g.data[:] = rng.standard_normal(grid.shape)
+            deriv = f'd{d.name}'
+
+            Operator([Eq(f_out, getattr(f, deriv)(method='RSFD', x0=x0)),
+                      Eq(g_out, getattr(g, deriv)(method='RSFD', x0=x0).T)]).apply()
+
+            forward = np.dot(f_out.data.ravel(), g.data.ravel())
+            backward = np.dot(f.data.ravel(), g_out.data.ravel())
+            assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
                                              ((.5, .5, .5), 3)])
     def test_shifted_div(self, shift, ndim):

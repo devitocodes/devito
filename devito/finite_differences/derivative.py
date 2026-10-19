@@ -710,7 +710,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         if self.method == 'RSFD':
             assert len(self.dims) == 1
             assert self.deriv_order[0] == 1
-            res = d45(expr, self.dims[0], x0=self.x0, expand=expand)
+            res = d45(expr, self.dims[0], x0=self.x0, expand=expand,
+                      matvec=self.transpose)
         elif len(self.dims) > 1:
             assert self.method == 'FD'
             res = cross_derivative(expr, self.dims, self.fd_order, self.deriv_order,
@@ -765,12 +766,14 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         with the metric terms of `grid` multiplying each computational
         derivative at the point it is evaluated at. Higher and mixed derivatives
-        nest these. In transpose mode each term `c*D` is replaced by its exact
-        discrete transpose `D.T(c*.)`, the metric term inside.
+        nest these. With method='RSFD', every computational first derivative is
+        a rotated staggered one, at the same point. In transpose mode each term
+        `c*D` is replaced by its exact discrete transpose `D.T(c*.)`, the metric
+        term inside.
         """
-        if self.method != 'FD':
-            raise NotImplementedError(f"method={self.method} is not supported on a "
-                                      "CurvilinearGrid")
+        if self.method == 'RSFD' and (self.ndims > 1 or self.deriv_order[0] != 1):
+            raise ValueError(f"{self} uses method='RSFD', which only provides first "
+                             "derivatives along a single Dimension")
         for d, o in zip(self.dims, self.fd_order, strict=True):
             if d in grid.dimensions and o > grid.space_order:
                 raise ValueError(f"{self} has fd_order={o} along {d}, larger than "

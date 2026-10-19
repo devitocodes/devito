@@ -479,6 +479,7 @@ class CurvilinearGrid(Grid):
     def _make_function(self, name, values):
         """A Function on this grid holding `values` on the local nodes and halo."""
         function = Function(name=name, grid=self, space_order=self.space_order,
+                            interp_order=self.space_order,
                             dtype=self.dtype)
         if not self.distributor.loc_empty:
             data = function._data_with_inhalo

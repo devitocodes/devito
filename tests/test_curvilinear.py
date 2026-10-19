@@ -373,6 +373,66 @@ class TestDerivatives:
         backward = np.dot(f.data.ravel(), g_out.data.ravel())
         assert np.isclose(forward, backward, rtol=1e-12, atol=0)
 
+    @pytest.mark.parametrize('space_order', [4, 8])
+    @pytest.mark.parametrize('deriv, solution', [('dx', wave_dx), ('dy', wave_dz)])
+    @pytest.mark.parametrize('method', ['RSFD', 'FD'])
+    def test_staggered_convergence(self, space_order, deriv, solution, method):
+        """
+        Physical derivatives at the cell centers, rotated (RSFD) or not,
+        converge at the order of the stencils, the metric terms being
+        interpolated to the centers at the grid order.
+        """
+        errors = []
+        sizes = {4: [31, 61, 121], 8: [21, 41, 61]}[space_order]
+        for n in sizes:
+            grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
+                                   mapping=TerrainFollowing(sine_surface, depth=800.),
+                                   space_order=space_order, dtype=np.float64)
+            x, y = grid.dimensions
+            # A centered FD interpolates `u` along the other Dimension at its
+            # interpolation order
+            u = Function(name='u', grid=grid, space_order=space_order,
+                         interp_order=space_order)
+            u.data_with_halo[:] = wave(*(c.data_with_halo for c in grid.coordinates))
+            out = Function(name='out', grid=grid, space_order=space_order)
+            x0 = {x: x + x.spacing/2, y: y + y.spacing/2}
+            Operator(Eq(out, getattr(u, deriv)(method=method, x0=x0))).apply()
+
+            # Physical position of the cell centers
+            centers = [c + np.float64(h)/2
+                       for c, h in zip(node_coordinates(grid), grid.spacing, strict=True)]
+            physical = grid.to_physical(np.stack([c.ravel() for c in centers], axis=1))
+            expected = solution(*physical.T).reshape(grid.shape)
+            interior = (slice(space_order, -space_order),)*2
+            errors.append(np.abs(out.data[interior] - expected[interior]).max())
+
+        spacing = 1./(np.array(sizes) - 1)
+        orders = np.log(np.array(errors[:-1])/np.array(errors[1:])) / \
+            np.log(spacing[:-1]/spacing[1:])
+        assert orders[-1] > space_order - 1, orders
+
+    @pytest.mark.parametrize('deriv', ['dx', 'dy'])
+    @pytest.mark.parametrize('staggered', [False, True])
+    def test_rsfd_adjoint(self, deriv, staggered):
+        """Dot test of rotated staggered physical derivatives."""
+        grid = sine_grid(41, dtype=np.float64)
+        x, y = grid.dimensions
+        x0 = {x: x + x.spacing/2, y: y + y.spacing/2} if staggered else {}
+        rng = np.random.default_rng(10)
+        f = Function(name='f', grid=grid, space_order=8)
+        g = Function(name='g', grid=grid, space_order=8)
+        f_out = Function(name='f_out', grid=grid, space_order=8)
+        g_out = Function(name='g_out', grid=grid, space_order=8)
+        f.data[:] = rng.standard_normal(grid.shape)
+        g.data[:] = rng.standard_normal(grid.shape)
+
+        Operator([Eq(f_out, getattr(f, deriv)(method='RSFD', x0=x0)),
+                  Eq(g_out, getattr(g, deriv)(method='RSFD', x0=x0).T)]).apply()
+
+        forward = np.dot(f_out.data.ravel(), g.data.ravel())
+        backward = np.dot(f.data.ravel(), g_out.data.ravel())
+        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
+
     def test_space_order_check(self):
         grid = sine_grid(21, space_order=4)
         u = Function(name='u', grid=grid, space_order=8)
