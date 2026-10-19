@@ -14,7 +14,7 @@ from devito.types.utils import DimensionTuple
 from devito.warnings import warn
 
 from .differentiable import Add, Differentiable, Mul, diffify, interp_for_fd
-from .finite_difference import cross_derivative, generic_derivative, indices_at
+from .finite_difference import cross_derivative, generic_derivative, index_at, indices_at
 from .rsfd import d45
 from .tools import centered, direct, transpose
 
@@ -829,78 +829,107 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         Evaluate the first or second derivative along the physical Dimension
         `dim` (see `_eval_fd_curvilinear`).
 
-        A first derivative of an expression that holds physical derivatives
-        itself, the outer derivative of e.g. `(b*u.dx).dx`, is evaluated in the
-        conservation form
+        A first derivative is evaluated in the conservation form
 
             d/dx_i f = 1/J sum_j d/d xi_j (J (d xi_j/d x_i) f)
 
         equal to the chain rule by the metric identities, with J the Jacobian
-        and `J (d xi_j/d x_i)` taken where `f` lives. Paired with the chain rule
-        of the inner derivative, the outer derivative is minus the adjoint of
-        the inner one in the inner product weighted by J, as the staggered
-        pair is on a Cartesian Grid, where both forms are the same stencil:
-        nested operators such as `(b*u.dx).dx` are symmetric in that inner
-        product.
+        and `J (d xi_j/d x_i)` taken where `f` lives, when it is the second
+        derivative of a pair:
 
-        Transposition swaps the roles: in `(b*g.dx.T).dx.T`, the transpose of
-        `(b*f.dx).dx`, the outer `.dx.T` is the transpose of the inner chain
-        rule and the inner `g.dx.T` that of the outer conservation form. A
-        transposed derivative that holds physical derivatives therefore tells
-        the derivatives it holds to take the transpose of the conservation form,
-        which keeps the transpose of up to two nested derivatives exact.
+        * the outer derivative of a nested one, e.g. of `(b*u.dx).dx`;
+        * a derivative bringing a Function staggered along `dim` back to the
+          nodes, e.g. of `v_x` in `grad(v)`, its pair being the derivative
+          from the nodes to the staggered points, e.g. of `tau_xx` in
+          `div(tau)`.
+
+        Paired with the chain rule of the first derivative, the second one is
+        minus its adjoint in the inner product weighted by J, as the staggered
+        pair is on a Cartesian Grid, where both forms are the same stencil:
+        operators such as `(b*u.dx).dx`, or `div` and `grad` of a staggered
+        velocity-stress system, are adjoint in that inner product.
+
+        Transposition swaps the roles of a nested pair: in `(b*g.dx.T).dx.T`,
+        the transpose of `(b*f.dx).dx`, the outer `.dx.T` is the transpose of
+        the inner chain rule and the inner `g.dx.T` that of the outer
+        conservation form. A transposed derivative that holds physical
+        derivatives therefore tells the derivatives it holds to take the
+        transpose of the conservation form, which keeps the transpose of up to
+        two nested derivatives exact.
         """
         holds = self._holds_physical_derivatives(expr, grid)
+        staggered = (not holds and self.x0.get(dim) == dim and
+                     self._location(expr, dim) != dim)
         if self.transpose == transpose:
-            conservative = kwargs.pop('_transposed_outer', False)
+            conservative = kwargs.pop('_transposed_outer', False) or staggered
             if holds:
                 kwargs['_transposed_outer'] = True
         else:
-            conservative = holds
+            conservative = holds or staggered
         if deriv_order == 1 and conservative:
-            return self._conservation_form(expr, grid, dim, **kwargs)
-        return self._chain_rule(expr, grid, dim, deriv_order, **kwargs)
+            return self._conservation_form(expr, grid, dim, holds, **kwargs)
+        return self._chain_rule(expr, grid, dim, deriv_order, holds, **kwargs)
 
-    def _conservation_form(self, expr, grid, dim, **kwargs):
+    @staticmethod
+    def _location(expr, dim):
+        """Where `expr` sits along `dim`, the node if it does not say."""
+        location = index_at(expr, dim)
+        return dim if location is None else location
+
+    def _output_location(self, expr, grid):
+        """Where the derivative of `expr` is evaluated, along every Dimension."""
+        return {d: self.x0.get(d, self._location(expr, d)) for d in grid.dimensions}
+
+    def _conservation_form(self, expr, grid, dim, holds, **kwargs):
         """
         The first derivative along the physical Dimension `dim` in conservation
         form (see `_eval_chain_rule`), or its exact transpose in transpose mode.
         """
-        jacobian = grid.jacobian
-        # The argument lives at the mirrored origin, e.g. x + h/2 for x - h/2
-        x0 = {**self.x0, dim: 2*dim - self.x0.get(dim, dim)}
+        origin = self._output_location(expr, grid)
+        if holds:
+            # An evaluated derivative no longer says where it lives: it is at the
+            # mirrored origin, e.g. x + h/2 for x - h/2, the origin being taken
+            # from the nodes it is indexed at, so the derivative ends on a node
+            argument = 2*dim - self.x0.get(dim, dim)
+            origin[dim] = dim
+        else:
+            argument = self._location(expr, dim)
+        # The Jacobian where the derivative ends
+        jacobian = grid._terms_at(origin)[1]
+        location = {**origin, dim: argument}
+        # The metric terms and the Jacobian at the argument, as the chain rule
+        # of its pair takes them
+        metrics, weight_jacobian = grid._terms_at(location)
 
         res = []
         for d in grid.dimensions:
-            metric = grid.metrics[(dim, d)]
+            metric = metrics[(dim, d)]
             if metric == 0:
                 continue
-            # Each factor at the argument, as the inner chain rule takes them
-            weight = (interp_for_fd(jacobian, x0, **kwargs) *
-                      interp_for_fd(metric, x0, **kwargs))
+            weight = weight_jacobian*metric
             if self.transpose == transpose:
-                deriv = self._computational_term(expr/jacobian, dim, d, **kwargs)
-                with suppress(AttributeError):
-                    weight = weight._evaluate(**kwargs)
+                deriv = self._computational_term(expr/jacobian, dim, d, holds,
+                                                 **kwargs)
                 res.append(weight*deriv)
             else:
-                res.append(self._computational_term(weight*expr, dim, d, **kwargs))
+                res.append(self._computational_term(weight*expr, dim, d, holds,
+                                                    **kwargs))
 
         res = Add(*res)
         return res if self.transpose == transpose else res/jacobian
 
-    def _computational_term(self, expr, dim, d, **kwargs):
+    def _computational_term(self, expr, dim, d, holds, **kwargs):
         """
         The evaluated first derivative of `expr` w.r.t. the computational
         coordinate `d`, at the origin of `self` along the physical Dimension
         `dim`, or its exact transpose in transpose mode.
 
         Along `dim` itself, or with method='RSFD', it is the stencil of `self`.
-        Along another Dimension, it is centered and interpolated along `dim` to
-        the origin, at the order of `self`: once evaluated, a staggered
-        derivative no longer carries the location it was taken at, so it is
-        interpolated by shifting it as a whole, the way a staggered pair is
-        formed.
+        Along another Dimension, it is centered, and interpolated along `dim`
+        from where `expr` lives to the origin, at the order of `self`, by
+        shifting the derivative as a whole as a staggered pair is formed: so
+        that the two terms of a pair interpolate alike, and since an evaluated
+        derivative no longer says where it lives.
         """
         fd_order = (self.fd_order[dim],)
         # A rotated staggered derivative is at the origin along every Dimension
@@ -910,7 +939,8 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
         side = self.side if self.side is not None else centered
         origin = {k: v for k, v in self.x0.items() if k is not dim}
-        if self.x0.get(dim, dim) == dim:
+        location = dim if holds else self._location(expr, dim)
+        if self.x0.get(dim, location) == location:
             return self._computational_derivative(expr, (d,), (1,), fd_order,
                                                   side=side, x0=origin
                                                   )._evaluate(**kwargs)
@@ -932,30 +962,29 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         return any(not d.computational and any(i in grid.dimensions for i in d.dims)
                    for d in expr.find(Derivative))
 
-    def _chain_rule(self, expr, grid, dim, deriv_order, **kwargs):
+    def _chain_rule(self, expr, grid, dim, deriv_order, holds, **kwargs):
         """
         The first or second derivative along the physical Dimension `dim`
         through the chain rule, with the metric terms multiplying each
         computational derivative, or its exact transpose in transpose mode.
         """
+        if deriv_order == 1:
+            return self._first_chain_rule(expr, grid, dim, holds, **kwargs)
+
         fd_order = self.fd_order[dim]
         metrics = grid.metrics
 
         # Terms `(coefficient, computational Dimensions, derivative orders)`
         terms = []
-        if deriv_order == 1:
-            for d in grid.dimensions:
-                terms.append((metrics[(dim, d)], (d,), (1,)))
-        else:
-            for i, di in enumerate(grid.dimensions):
-                for dj in grid.dimensions[i:]:
-                    coeff = metrics[(dim, di)]*metrics[(dim, dj)]
-                    if di is dj:
-                        terms.append((coeff, (di,), (2,)))
-                    else:
-                        terms.append((2*coeff, (di, dj), (1, 1)))
-            for d in grid.dimensions:
-                terms.append((grid.metric_derivatives[(dim, d)], (d,), (1,)))
+        for i, di in enumerate(grid.dimensions):
+            for dj in grid.dimensions[i:]:
+                coeff = metrics[(dim, di)]*metrics[(dim, dj)]
+                if di is dj:
+                    terms.append((coeff, (di,), (2,)))
+                else:
+                    terms.append((2*coeff, (di, dj), (1, 1)))
+        for d in grid.dimensions:
+            terms.append((grid.metric_derivatives[(dim, d)], (d,), (1,)))
 
         res = []
         for coeff, dims, orders in terms:
@@ -963,16 +992,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                 continue
             # The metric terms are evaluated at the derivative's origin
             coeff = interp_for_fd(coeff, self.x0, **kwargs)
-            if deriv_order == 1:
-                if self.transpose == transpose:
-                    res.append(self._computational_term(coeff*expr, dim, *dims,
-                                                        **kwargs))
-                else:
-                    with suppress(AttributeError):
-                        coeff = coeff._evaluate(**kwargs)
-                    res.append(coeff*self._computational_term(expr, dim, *dims,
-                                                              **kwargs))
-                continue
             fd_orders = (fd_order,)*len(dims)
             # Only the term along `dim` itself exists on a Cartesian Grid, and
             # keeps the default stencil. The others, e.g. first derivatives
@@ -980,7 +999,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
             # accuracy of `fd_order` (the default first derivative of order 2 is
             # one-sided)
             side = self.side
-            if side is None and (dims, orders) != ((dim,), (deriv_order,)):
+            if side is None and (dims, orders) != ((dim,), (2,)):
                 side = centered
             if self.transpose == transpose:
                 deriv = self._computational_derivative(coeff*expr, dims, orders,
@@ -993,6 +1012,27 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
                     coeff = coeff._evaluate(**kwargs)
                 res.append(coeff*deriv._evaluate(**kwargs))
 
+        return Add(*res)
+
+    def _first_chain_rule(self, expr, grid, dim, holds, **kwargs):
+        """
+        The first derivative along the physical Dimension `dim` through the
+        chain rule, `sum_j (d xi_j/d x_i) d/d xi_j`, with the metric terms of
+        the map at the origin of the derivative, or its exact transpose in
+        transpose mode.
+        """
+        metrics = grid._terms_at(self._output_location(expr, grid))[0]
+        res = []
+        for d in grid.dimensions:
+            coeff = metrics[(dim, d)]
+            if coeff == 0:
+                continue
+            if self.transpose == transpose:
+                res.append(self._computational_term(coeff*expr, dim, d, holds,
+                                                    **kwargs))
+            else:
+                res.append(coeff*self._computational_term(expr, dim, d, holds,
+                                                          **kwargs))
         return Add(*res)
 
     def _eval_expand_nest(self, **hints):

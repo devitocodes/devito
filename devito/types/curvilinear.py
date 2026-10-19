@@ -521,6 +521,7 @@ class CurvilinearGrid(Grid):
         self._mapping = mapping
         self._space_order = space_order
         self._image_weights_cache = {}
+        self._staggered_terms_cache = {}
         mapping.validate(self)
 
     def __repr__(self):
@@ -557,17 +558,20 @@ class CurvilinearGrid(Grid):
             vectors.append(np.float64(origin) + np.float64(spacing)*indices)
         return tuple(vectors)
 
-    def _make_function(self, name, values):
-        """A Function on this grid holding `values` on the local nodes and halo."""
+    def _make_function(self, name, values, staggered=None):
+        """
+        A Function on this grid holding `values` on the local nodes and halo,
+        staggered by half a cell along the Dimensions `staggered`.
+        """
         function = Function(name=name, grid=self, space_order=self.space_order,
-                            interp_order=self.space_order,
+                            interp_order=self.space_order, staggered=staggered,
                             dtype=self.dtype)
         if not self.distributor.loc_empty:
             data = function._data_with_inhalo
             data[:] = np.broadcast_to(values, data.shape)
         return function
 
-    def _symbolic_terms(self, values, name):
+    def _symbolic_terms(self, values, name, staggered=None):
         """Metric terms as Functions, keeping constant entries as numbers."""
         terms = {}
         for (i, j), v in values.items():
@@ -576,9 +580,48 @@ class CurvilinearGrid(Grid):
                 terms[(physical, computational)] = sympy.sympify(v)
             else:
                 terms[(physical, computational)] = self._make_function(
-                    name(self._computational_names[j], physical.name), v
+                    name(self._computational_names[j], physical.name), v, staggered
                 )
         return terms
+
+    def _staggered_terms(self, staggered):
+        """
+        The metric terms and the Jacobian, as `metrics` and `jacobian`, at the
+        points staggered by half a cell along the Dimensions `staggered`,
+        computed from the map there.
+        """
+        staggered = tuple(d for d in self.dimensions if d in staggered)
+        if not staggered:
+            return self.metrics, self.jacobian
+        if staggered not in self._staggered_terms_cache:
+            vectors = tuple(v + np.float64(h)/2 if d in staggered else v
+                            for v, d, h in zip(self._local_vectors, self.dimensions,
+                                               self.spacing, strict=True))
+            suffix = ''.join(d.name for d in staggered)
+            metrics = self._symbolic_terms(self.mapping.metrics(self, vectors),
+                                           lambda c, p: f'{c}_{p}_{suffix}', staggered)
+            jacobian = self._make_function(f'J_{suffix}',
+                                           self.mapping.jacobian(self, vectors),
+                                           staggered)
+            self._staggered_terms_cache[staggered] = (metrics, jacobian)
+        return self._staggered_terms_cache[staggered]
+
+    def _terms_at(self, location):
+        """
+        The metric terms and the Jacobian, as `metrics` and `jacobian`, at
+        `location`, a mapper from each Dimension to a node or a half point,
+        e.g. `{x: x - h_x/2, y: y}`, computed from the map there.
+        """
+        offsets = {d: sympy.nsimplify((location.get(d, d) - d)/d.spacing)
+                   for d in self.dimensions}
+        staggered = tuple(d for d, o in offsets.items() if (2*o) % 2 == 1)
+        metrics, jacobian = self._staggered_terms(staggered)
+        # Whole cells from the points the Functions are defined at
+        shifts = {d: d + (o - sympy.Rational(1, 2) if d in staggered else o)*d.spacing
+                  for d, o in offsets.items()}
+        shifts = {d: v for d, v in shifts.items() if v != d}
+        metrics = {k: v.subs(shifts) for k, v in metrics.items()}
+        return metrics, jacobian.subs(shifts)
 
     @cached_property
     def coordinates(self):
@@ -987,4 +1030,5 @@ class CurvilinearGrid(Grid):
                   '_local_vectors', 'min_spacing'):
             state.pop(i, None)
         state['_image_weights_cache'] = {}
+        state['_staggered_terms_cache'] = {}
         return state

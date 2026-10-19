@@ -3,7 +3,8 @@ import pytest
 
 from devito import (  # noqa
     CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Operator, SparseFunction,
-    SparseTimeFunction, TerrainFollowing, TimeFunction, cos, div, grad, inner, sin
+    SparseTimeFunction, TensorFunction, TerrainFollowing, TimeFunction, VectorFunction,
+    cos, div, grad, inner, sin
 )
 from devito.mpi import MPI
 from examples.seismic import SeismicModel
@@ -408,6 +409,38 @@ class TestDerivatives:
         backward = np.dot(fields[0].ravel(), results[1].ravel())
         scale = np.linalg.norm(results[0])*np.linalg.norm(fields[1])
         assert abs(forward - backward) < 1e-10*scale
+
+    def test_div_grad_adjoint(self):
+        """
+        `div` and `grad` of a staggered velocity-stress pair are minus each
+        other's adjoint in the inner product weighted by the Jacobian at each
+        staggered point, `<J v, div(tau)> = -<J tau, grad(v)>`, under a sine
+        surface: the derivatives bringing a staggered field back to the nodes
+        are in conservation form.
+        """
+        grid = sine_grid(41, dtype=np.float64)
+        rng = np.random.default_rng(4)
+        v = VectorFunction(name='v', grid=grid, space_order=8)
+        tau = TensorFunction(name='tau', grid=grid, space_order=8, symmetric=True)
+        for f in [*v, tau[0, 0], tau[0, 1], tau[1, 1]]:
+            f.data[:] = rng.standard_normal(f.shape)
+            f.data[:8] = f.data[-8:] = f.data[:, :8] = f.data[:, -8:] = 0
+        div_tau = VectorFunction(name='div_tau', grid=grid, space_order=8)
+        grad_v = TensorFunction(name='grad_v', grid=grid, space_order=8,
+                                symmetric=False)
+        eqns = [Eq(div_tau[i], div(tau)[i]) for i in range(2)]
+        eqns += [Eq(grad_v[i, j], grad(v)[i, j]) for i in range(2) for j in range(2)]
+        Operator(eqns).apply()
+
+        def jacobian(f):
+            staggered = tuple(d for d in grid.dimensions if f.staggered.get(d, 0))
+            return grid._staggered_terms(staggered)[1].data
+
+        forward = sum(np.sum(jacobian(v[i])*v[i].data*div_tau[i].data)
+                      for i in range(2))
+        backward = sum(np.sum(jacobian(tau[i, j])*tau[i, j].data*grad_v[i, j].data)
+                       for i in range(2) for j in range(2))
+        assert np.isclose(forward, -backward, rtol=1e-12, atol=0)
 
     @pytest.mark.parametrize('space_order', [4, 8])
     @pytest.mark.parametrize('deriv, solution', [('dx', wave_dx), ('dy', wave_dz)])
