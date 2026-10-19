@@ -620,7 +620,12 @@ class CurvilinearGrid(Grid):
 
     @cached_property
     def min_spacing(self):
-        """Smallest physical distance between two neighbouring nodes."""
+        """
+        Smallest physical distance between two neighbouring nodes of the domain,
+        over all ranks. It plays the role of the grid spacing in a stability
+        condition, e.g. a CFL time step `dt <= c * min_spacing / vmax`, since the
+        map shrinks some cells below the computational spacing.
+        """
         domain = tuple(v[self.space_order:-self.space_order] for v in self._local_vectors)
         if self.distributor.loc_empty:
             minimum = np.inf
@@ -640,24 +645,48 @@ class CurvilinearGrid(Grid):
 
     def to_computational(self, points):
         """
-        Computational coordinates of physical points.
+        Computational coordinates of physical points, through the inverse of the
+        map. This is how SparseFunction coordinates, which are physical, are
+        placed on the grid.
 
         Parameters
         ----------
         points : array_like
             Physical coordinates of shape `(npoint, ndim)`.
+
+        Returns
+        -------
+        ndarray
+            Computational coordinates of shape `(npoint, ndim)`, in the frame of
+            the `origin` and `spacing` of the grid.
         """
         points = np.asarray(points, dtype=np.float64).reshape(-1, self.dim)
         return self.mapping.inverse(self, points)
 
     def to_physical(self, points):
         """
-        Physical coordinates of computational points.
+        Physical coordinates of computational points, through the map, e.g. to
+        place a source exactly on a grid node.
 
         Parameters
         ----------
         points : array_like
-            Computational coordinates of shape `(npoint, ndim)`.
+            Computational coordinates of shape `(npoint, ndim)`, in the frame of
+            the `origin` and `spacing` of the grid.
+
+        Returns
+        -------
+        ndarray
+            Physical coordinates of shape `(npoint, ndim)`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from devito import CurvilinearGrid, TerrainFollowing
+        >>> grid = CurvilinearGrid(shape=(11, 11), extent=(100., 100.),
+        ...                        mapping=TerrainFollowing(lambda x: -0.1*x))
+        >>> grid.to_physical([[50., 0.]])
+        array([[50., -5.]])
         """
         points = np.asarray(points, dtype=np.float64).reshape(-1, self.dim)
         physical = self.mapping.forward(self, [points[:, i] for i in range(self.dim)])
@@ -903,6 +932,14 @@ class CurvilinearGrid(Grid):
         order : int, optional
             Number of interpolation points along each axis, by default the space
             order of the field.
+
+        Notes
+        -----
+        The images of steep slopes lie laterally further from their ghost nodes,
+        and their interpolation stencils must fit in the halo of the field: a
+        ValueError is raised otherwise, and the slope must be smoothed or the
+        halo widened. The interpolation weights are computed once per grid,
+        `rows` and `order`, and shared by every field mirrored with them.
         """
         function = field.function
         if function.grid is None or function.grid.root is not self:
