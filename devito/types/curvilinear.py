@@ -1162,8 +1162,8 @@ class CurvilinearGrid(Grid):
         the adjoint field held at zero in the mirror rows, below the surface
         and in the mirror rows alike, and folds the mirror rows back onto the
         nodes their images read, with the transposed weights `-J^-1 W^T J`,
-        after which the mirror rows and the surface are zero again. Over a flat
-        surface, the fold is the usual odd mirror.
+        after which the rows above the surface and the surface are zero again.
+        Over a flat surface, the fold is the usual odd mirror.
 
         The update of the adjoint field must therefore cover the mirror rows,
         where it leaves `coefficient` times the operator, the field being zero
@@ -1179,7 +1179,7 @@ class CurvilinearGrid(Grid):
         coefficient : expression
             The factor of the spatial operator in the update of the field, e.g.
             `dt**2/m`, damping included. A coefficient of 0, for an update
-            without a spatial operator, only zeroes the mirror rows.
+            without a spatial operator, only zeroes the rows above the surface.
         rows, order : int, optional
             The number of mirror rows and of interpolation points of the
             `free_surface` of the forward propagation.
@@ -1193,10 +1193,9 @@ class CurvilinearGrid(Grid):
         jacobian = self.jacobian.indexify()
         coefficient = _indexify(coefficient)
 
-        # The mirror rows and the surface back to zero
-        zero = [Eq(indexed, 0, subdomain=self._rows('mirror', surface - 1 - k, 1))
-                for k in range(rows)]
-        zero.append(Eq(indexed, 0, subdomain=self._rows('surface', surface, 1)))
+        # The rows above the surface and the surface back to zero, for the
+        # operator of the next update to read the field there as zero
+        zero = [Eq(indexed, 0, subdomain=self._rows('above', 0, surface + 1))]
         # An update without a spatial operator leaves nothing to fold
         if coefficient == 0:
             return zero

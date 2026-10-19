@@ -194,11 +194,22 @@ class GenericModel:
     @property
     def padsizes(self):
         """
-        Padding size for each dimension.
+        Size of the absorbing layers for each dimension, none on top of a free
+        surface.
         """
         padsizes = [(self.nbl, self.nbl) for _ in range(self.dim-1)]
-        padsizes.append((self._mirror_rows if self.fs else self.nbl, self.nbl))
+        padsizes.append((0 if self.fs else self.nbl, self.nbl))
         return padsizes
+
+    @property
+    def parameter_padsizes(self):
+        """
+        Padding size of the physical parameters for each dimension: the
+        absorbing layers, and the mirror rows above a surface that is not flat.
+        """
+        padsizes = self.padsizes
+        (top, bottom) = padsizes[-1]
+        return padsizes[:-1] + [(top + self._mirror_rows, bottom)]
 
     def physical_params(self, **kwargs):
         """
@@ -214,7 +225,7 @@ class GenericModel:
         if isinstance(field, np.ndarray):
             function = Function(name=name, grid=self.grid, space_order=space_order,
                                 avg_mode=avg_mode)
-            initialize_function(function, field, self.padsizes)
+            initialize_function(function, field, self.parameter_padsizes)
         else:
             function = Constant(name=name, value=field, dtype=self.grid.dtype)
         self._physical_parameters.update([name])
