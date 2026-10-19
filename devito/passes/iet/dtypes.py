@@ -28,10 +28,11 @@ def _complex_includes(iet: Callable, langbb: type[LangBB], compiler: Compiler,
 
     # Some languages such as c++11 need some extra arithmetic definitions
     if langbb.get('def-complex'):
-        dest = compiler.get_jit_dir()
-        hfile = dest.joinpath('complex_arith.h')
-        with open(str(hfile), 'w') as ff:
-            ff.write(str(langbb['def-complex']))
+        # The definitions differ across languages (e.g., CUDA vs C++), hence
+        # the language-specific header name
+        langname = langbb['name'].lower()
+        hfile = compiler.save_header(f'{langname}_complex_arith',
+                                     str(langbb['def-complex']))
         lib += (str(hfile),)
 
     metadata['includes'] = lib

@@ -5,8 +5,9 @@ from contextlib import suppress
 from functools import partial
 from hashlib import sha1
 from itertools import filterfalse
-from os import environ, makedirs, path
+from os import environ, fdopen, makedirs, path, replace
 from subprocess import DEVNULL, PIPE, CalledProcessError, check_call, check_output, run
+from tempfile import mkstemp
 
 import numpy.ctypeslib as npct
 from codepy.jit import compile_from_string
@@ -316,10 +317,22 @@ class Compiler(GCCToolchain, Signer):
             The name of the header file (w/o the suffix).
         code : str
             The source code to be stored.
+
+        Returns
+        -------
+        Path
+            The path of the header file.
         """
         hfile = self.get_jit_dir().joinpath(filename).with_suffix('.h')
-        with open(str(hfile), 'w') as f:
+        # The JIT dir is shared with other processes, e.g. the workers of a
+        # parallel test run, so the header is written to a private file and
+        # then renamed into place, which is atomic: a concurrent compiler
+        # never reads a truncated or half-written header
+        fd, tmpfile = mkstemp(dir=hfile.parent, prefix=f'{hfile.name}.', suffix='.tmp')
+        with fdopen(fd, 'w') as f:
             f.write(code)
+        replace(tmpfile, hfile)
+        return hfile
 
     def save(self, soname, binary):
         """

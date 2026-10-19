@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
+
 import pytest
 
 from devito import configuration, switchconfig
@@ -29,3 +32,37 @@ def test_switcharch():
     assert isinstance(tmp_comp, old_compiler.__class__)
     assert old_compiler.suffix == tmp_comp.suffix
     assert old_compiler.name == tmp_comp.name
+
+
+def test_save_header_concurrent(tmp_path, monkeypatch):
+    """
+    The JIT dir is shared across processes, so a header being rewritten must
+    never be seen truncated or half-written by a concurrent reader.
+    """
+    compiler = configuration['compiler']
+    monkeypatch.setattr(compiler, 'get_jit_dir', lambda: tmp_path)
+
+    hfile = tmp_path.joinpath('header.h')
+    codes = ['a'*2**20, 'b'*2**20]
+
+    def write(code):
+        for _ in range(20):
+            compiler.save_header('header', code)
+
+    def read(writers):
+        seen = set()
+        while not all(w.done() for w in writers):
+            with suppress(FileNotFoundError):
+                seen.add(hfile.read_text())
+        return seen
+
+    with ThreadPoolExecutor(max_workers=8) as tpe:
+        writers = [tpe.submit(write, codes[i % 2]) for i in range(4)]
+        readers = [tpe.submit(read, writers) for _ in range(4)]
+        for w in writers:
+            w.result()
+        seen = set.union(*[r.result() for r in readers])
+
+    # Only complete headers are ever read, and no temporary file is left behind
+    assert seen and seen <= set(codes)
+    assert list(tmp_path.iterdir()) == [hfile]
