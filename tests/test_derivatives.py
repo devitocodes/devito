@@ -943,6 +943,21 @@ class TestFD:
 
         assert_structure(op, ['t,x,y,z', 't,x,y,z,i1', 't,x,y,z,i1,i0'])
 
+    @pytest.mark.parametrize('so', [4, 8, 16])
+    def test_dx2_exact_double(self, so):
+        """
+        The FD second derivative of `x**2` is exact, so in double precision only
+        round-off is left (see #2976).
+        """
+        grid = Grid(shape=(31,), extent=(3.,), dtype=np.float64)
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
+        u.data[:] = np.linspace(0., 3., 31)**2
+
+        Operator(Eq(v, u.dx2)).apply()
+
+        assert np.allclose(v.data[so//2:-so//2], 2., rtol=0, atol=1e-10)
+
 
 class TestWeights:
 
