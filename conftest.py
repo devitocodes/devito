@@ -177,7 +177,7 @@ def set_run_reset(env_vars, call):
                 os.environ[k] = v
 
 
-def parallel(item, m):
+def parallel(item, m, timeout):
     """
     Run a test in parallel. Readapted from:
 
@@ -211,7 +211,7 @@ def parallel(item, m):
     # OpenMPI requires an explicit flag for oversubscription. We need it as some
     # of the MPI tests will spawn lots of processes
     if mpi_distro == 'OpenMPI':
-        call = [mpi_exec, '--oversubscribe', '--timeout', '300'] + args
+        call = [mpi_exec, '--oversubscribe', '--timeout', str(timeout)] + args
     else:
         call = [mpi_exec] + args
 
@@ -247,7 +247,8 @@ def pytest_configure(config):
     """Register an additional marker."""
     config.addinivalue_line(
         "markers",
-        "parallel(mode): mark test to run in parallel"
+        "parallel(mode, timeout=300): mark test to run in parallel, aborting "
+        "after `timeout` seconds (OpenMPI only)"
     )
     config.addinivalue_line(
         "markers",
@@ -277,8 +278,9 @@ def pytest_runtest_call(item):
 
     elif item.get_closest_marker("parallel"):
         # Spawn parallel processes to run test
-
-        outcome = parallel(item, item.funcargs['mode'])
+        marker = item.get_closest_marker("parallel")
+        timeout = marker.kwargs.get('timeout', 300)
+        outcome = parallel(item, item.funcargs['mode'], timeout)
         if outcome:
             pytest.skip(f"{item} success in parallel")
         else:
