@@ -27,7 +27,7 @@ __all__ = [
 # code generation. In double precision, enough digits for the C literals to be
 # within one ulp of the exact weights
 _PRECISION = 9
-_PRECISION_DOUBLE = 20
+_PRECISION_DTYPE = {np.float64: 20, np.complex128: 20}
 
 
 @check_input
@@ -216,10 +216,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
 
     # Enforce fixed precision FD coefficients to avoid variations in results
     scale = dim.spacing**(-deriv_order) if scale else 1
-    if expr.dtype in (np.float64, np.complex128):
-        precision = _PRECISION_DOUBLE
-    else:
-        precision = _PRECISION
+    precision = _PRECISION_DTYPE.get(expr.dtype, _PRECISION)
     weights = [sympify(scale * w).evalf(precision) for w in weights]
 
     # Transpose the FD, if necessary
