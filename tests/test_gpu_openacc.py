@@ -245,7 +245,7 @@ class TestCodeGeneration:
 
         timed_calls = MapNodes(TimedList, BusyWaitCall, mode='immediate').visit(op)
         waits = {c.name: timer for timer, calls in timed_calls.items() for c in calls}
-        assert set(waits) == {'release_lock0', 'activate0', 'shutdown0'}
+        assert set(waits) == {'wait_lock0', 'release_lock0', 'activate0', 'shutdown0'}
         assert all(t is not None and t.name.startswith('busywait')
                    for t in waits.values())
 
@@ -357,6 +357,24 @@ class TestOperator:
             assert summary.globals_nosetup_all.time == pytest.approx(
                 sum(v.time for v in summary.values())
             )
+
+    @pytest.mark.parametrize('shape', [(20, 20), (8, 8, 8)])
+    def test_streaming_tiled(self, shape):
+        """An atomic wait must not leave part of a tiled snapshot unread."""
+        nt = 5
+        grid = Grid(shape=shape)
+        usave = TimeFunction(name='usave', grid=grid, save=nt)
+        u = TimeFunction(name='u', grid=grid, save=nt)
+
+        for i in range(nt):
+            usave.data[i] = i + 1
+
+        op = Operator(Eq(u, usave), platform='nvidiaX', language='openacc',
+                      opt=('buffering', 'streaming', 'orchestrate',
+                           {'gpu-fit': u, 'par-tile': True, 'linearize': True}))
+        op.apply(time_M=nt-1)
+
+        assert np.array_equal(u.data, usave.data)
 
 
 class TestMPI:

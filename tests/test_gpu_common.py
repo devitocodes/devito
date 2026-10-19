@@ -411,8 +411,12 @@ class TestStreaming:
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 3
-        assert str(sections[0].body[0].body[0].body[0].body[0]) ==\
-            'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0);'
+        wait = sections[0].body[0].body[0].body[0]
+        if configuration['language'] == 'openacc':
+            assert str(wait) == 'wait_lock0(lock0);'
+        else:
+            assert str(wait.body[0]) ==\
+                'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0);'
         body = op._func_table['release_lock0'].root.body
         assert str(body.body[0].condition) == \
             'Ne(__atomic_load_n(&(lock0[0]), __ATOMIC_ACQUIRE), 2)'
@@ -449,7 +453,7 @@ class TestStreaming:
         assert len(retrieve_iteration_tree(op)) == 3
         locks = [i for i in FindSymbols().visit(op) if isinstance(i, Lock)]
         assert len(locks) == 1  # Only 1 because it's only `tmp` that needs protection
-        assert len(op._func_table) == 5
+        assert len(op._func_table) == 5 + int(configuration['language'] == 'openacc')
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 17 if configuration['language'] == 'openacc' else 16  # No `qid` w/ OMP
         assert str(exprs[b]) == 'const int deviceid = sdata0->deviceid;'
@@ -494,13 +498,17 @@ class TestStreaming:
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 5
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 4
-        assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
-                'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0 || '
-                '__atomic_load_n(&lock1[0],__ATOMIC_ACQUIRE) == 0);')  # Wait-lock
+        wait = sections[1].body[0].body[0].body[0]
+        if configuration['language'] == 'openacc':
+            assert str(wait) == 'wait_lock0(lock0,lock1);'
+        else:
+            assert (str(wait.body[0]) ==
+                    'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0 || '
+                    '__atomic_load_n(&lock1[0],__ATOMIC_ACQUIRE) == 0);')  # Wait-lock
         body = sections[2].body[0].body[0]
         assert str(body.body[0]) == 'release_lock0(lock0);'
         assert str(body.body[1]) == 'activate0(time,sdata0);'
-        assert len(op._func_table) == 5
+        assert len(op._func_table) == 5 + int(configuration['language'] == 'openacc')
         calls = FindNodes(Call).visit(op._func_table['copy_to_host0'].root)
         stores = [str(i) for i in calls if i.name == '__atomic_store_n']
         assert stores[0] == '__atomic_store_n(&lock0[0],1,__ATOMIC_RELEASE);'
@@ -535,9 +543,13 @@ class TestStreaming:
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 2
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 3
-        assert (str(sections[1].body[0].body[0].body[0].body[0]) ==
-                'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0 || '
-                '__atomic_load_n(&lock1[0],__ATOMIC_ACQUIRE) == 0);')  # Wait-lock
+        wait = sections[1].body[0].body[0].body[0]
+        if configuration['language'] == 'openacc':
+            assert str(wait) == 'wait_lock0(lock0,lock1);'
+        else:
+            assert (str(wait.body[0]) ==
+                    'while(__atomic_load_n(&lock0[0],__ATOMIC_ACQUIRE) == 0 || '
+                    '__atomic_load_n(&lock1[0],__ATOMIC_ACQUIRE) == 0);')  # Wait-lock
         body = op._func_table['release_lock0'].root.body
         assert str(body.body[0].condition) == \
             'Ne(__atomic_load_n(&(lock0[0]), __ATOMIC_ACQUIRE), 2) | '\
@@ -551,7 +563,7 @@ class TestStreaming:
         assert str(body.body[1]) == 'sdata0[0].time = time;'
         assert str(body.body[2]) == \
             '__atomic_store_n(&sdata0[0].flag,2,__ATOMIC_RELEASE);'
-        assert len(op._func_table) == 5
+        assert len(op._func_table) == 5 + int(configuration['language'] == 'openacc')
         exprs = FindNodes(Expression).visit(op._func_table['copy_to_host0'].root)
         b = 21 if configuration['language'] == 'openacc' else 20  # No `qid` w/ OMP
         assert exprs[b].write is u
@@ -612,15 +624,19 @@ class TestStreaming:
         assert len([i for i in FindSymbols().visit(op1) if isinstance(i, Lock)]) == 1
         sections = FindNodes(Section).visit(op1)
         assert len(sections) == 2
-        assert str(sections[0].body[0].body[0].body[0].body[0]) ==\
-            'while(__atomic_load_n(&lock0[t2],__ATOMIC_ACQUIRE) == 0);'
+        wait = sections[0].body[0].body[0].body[0]
+        if configuration['language'] == 'openacc':
+            assert str(wait) == 'wait_lock0(t2,lock0);'
+        else:
+            assert str(wait.body[0]) ==\
+                'while(__atomic_load_n(&lock0[t2],__ATOMIC_ACQUIRE) == 0);'
         body = op1._func_table['release_lock0'].root.body
         for i in range(3):
             assert 'lock0[t' in str(body.body[1 + i])  # Set-lock
         body = op1._func_table['activate0'].root.body
         assert str(body.body[-1]) == \
             '__atomic_store_n(&sdata0[wi0].flag,2,__ATOMIC_RELEASE);'
-        assert len(op1._func_table) == 5
+        assert len(op1._func_table) == 5 + int(configuration['language'] == 'openacc')
         exprs = FindNodes(Expression).visit(op1._func_table['copy_to_host0'].root)
         b = 21 if configuration['language'] == 'openacc' else 20  # No `qid` w/ OMP
         assert exprs[b].write is usave
@@ -653,8 +669,12 @@ class TestStreaming:
         sections = FindNodes(Section).visit(op)
         assert len(sections) == 3
         assert sections[0].body[0].body[0].body[0].is_Iteration
-        assert str(sections[1].body[0].body[0].body[0].body[0]) ==\
-            'while(__atomic_load_n(&lock0[t1],__ATOMIC_ACQUIRE) == 0);'
+        wait = sections[1].body[0].body[0].body[0]
+        if configuration['language'] == 'openacc':
+            assert str(wait) == 'wait_lock0(t1,lock0);'
+        else:
+            assert str(wait.body[0]) ==\
+                'while(__atomic_load_n(&lock0[t1],__ATOMIC_ACQUIRE) == 0);'
 
     @pytest.mark.parametrize('opt,ntmps', [
         (('buffering', 'streaming', 'orchestrate'), 3),
@@ -676,7 +696,7 @@ class TestStreaming:
 
         # Check generated code
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 9
+            assert len(op._func_table) == 10
         else:
             assert len(op._func_table) == 8
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
@@ -751,7 +771,7 @@ class TestStreaming:
         # Check generated code
         arrays = [i for i in FindSymbols().visit(op) if i.is_Array]
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 9
+            assert len(op._func_table) == 10
             assert len(arrays) == ntmps
         else:
             assert len(op._func_table) == 8
@@ -817,8 +837,8 @@ class TestStreaming:
         # Check generated code
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
-        assert trees[0][-1].nodes[0].body[0].write is u
-        assert trees[0][-1].nodes[0].body[1].write is v
+        exprs = FindNodes(Expression).visit(trees[0][-1])
+        assert [i.write for i in exprs] == [u, v]
 
         op.apply(time_M=nt-2)
 
@@ -962,7 +982,7 @@ class TestStreaming:
 
         # Check generated code
         if configuration['language'] == 'openacc':
-            assert len(op1._func_table) == 9
+            assert len(op1._func_table) == 10
         else:
             assert len(op1._func_table) == 8
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
@@ -1054,7 +1074,7 @@ class TestStreaming:
 
         # Check generated code
         if configuration['language'] == 'openacc':
-            assert len(op1._func_table) == 9
+            assert len(op1._func_table) == 10
         else:
             assert len(op1._func_table) == 8
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == ntmps
@@ -1140,7 +1160,7 @@ class TestStreaming:
         # loop nests, but they eventually get mapped to the same pair of efuncs,
         # since devito attempts to maximize code reuse
         if configuration['language'] == 'openacc':
-            assert len(op1._func_table) == 8
+            assert len(op1._func_table) == 9
         else:
             assert len(op1._func_table) == 7
 
@@ -1229,7 +1249,8 @@ class TestStreaming:
         assert len(retrieve_iteration_tree(op0)) == 1
         assert len(retrieve_iteration_tree(op1)) == 3
         symbols = FindSymbols().visit(op1)
-        assert len([i for i in symbols if isinstance(i, Lock)]) == 3
+        assert len([i for i in symbols if isinstance(i, Lock)]) ==\
+            (4 if configuration['language'] == 'openacc' else 3)
         threads = [i for i in symbols if isinstance(i, PThreadArray)]
         assert len(threads) == 2
         assert all(i.size == 1 for i in threads)
@@ -1296,8 +1317,11 @@ class TestStreaming:
             assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
             sections = FindNodes(Section).visit(op)
             assert len(sections) == 4
-            assert 'while(__atomic_load_n(&lock0[t1],__ATOMIC_ACQUIRE) == 0)' in \
-                str(sections[2].body[0].body[0].body[0])
+            wait = str(sections[2].body[0].body[0].body[0])
+            if configuration['language'] == 'openacc':
+                assert wait == 'wait_lock0(t1,lock0);'
+            else:
+                assert 'while(__atomic_load_n(&lock0[t1],__ATOMIC_ACQUIRE) == 0)' in wait
 
         op0.apply(time_M=nt-1)
         op1.apply(time_M=nt-1, u=u1, usave=usave1)
@@ -1359,7 +1383,7 @@ class TestStreaming:
         # are identical, so they get mapped to the same efuncs (init + copy)
         # There also are two extra functions to allocate and free arrays
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 8
+            assert len(op._func_table) == 9
         else:
             assert len(op._func_table) == 7
 
@@ -1418,7 +1442,7 @@ class TestStreaming:
         # We just check the generated code here
         assert len([i for i in FindSymbols().visit(op) if isinstance(i, Lock)]) == 1
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 8
+            assert len(op._func_table) == 9
         else:
             assert len(op._func_table) == 7
 
@@ -1478,7 +1502,7 @@ class TestStreaming:
 
         # Check generated code
         if configuration['language'] == 'openacc':
-            assert len(op._func_table) == 9
+            assert len(op._func_table) == 10
         else:
             assert len(op._func_table) == 8
         assert len([i for i in FindSymbols().visit(op) if i.is_Array]) == ntmps
@@ -1537,13 +1561,14 @@ class TestStreaming:
 
         # Check generated code
         diff = int(configuration['language'] == 'openmp')
-        assert len(op1._func_table) == 14 - diff
+        extra = int(configuration['language'] == 'openacc')
+        assert len(op1._func_table) == 14 - diff + extra
         assert len([i for i in FindSymbols().visit(op1) if i.is_Array]) == 9 - diff
-        assert len(op2._func_table) == 14 - diff
+        assert len(op2._func_table) == 14 - diff + extra
         assert len([i for i in FindSymbols().visit(op2) if i.is_Array]) == 9 - diff
         # The streaming/buffering cannot be fused since the guards of
         # vas and vasb/vasf are not compatible.
-        assert len(op3._func_table) == 12 - diff
+        assert len(op3._func_table) == 12 - diff + extra
         assert len([i for i in FindSymbols().visit(op3) if i.is_Array]) == 9 - diff
 
         op0.apply(time_m=15, time_M=35, save_shift=0)

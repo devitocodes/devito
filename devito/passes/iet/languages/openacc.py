@@ -2,8 +2,8 @@ import numpy as np
 
 from devito.arch import AMDGPUX, NVIDIAX
 from devito.ir import (
-    Block, Call, DeviceCall, DummyExpr, EntryFunction, FindSymbols, List, ParallelTree,
-    Pragma, Return, make_callable
+    Block, BusyWaitCall, Call, DeviceCall, DummyExpr, EntryFunction, FindSymbols, List,
+    ParallelTree, Pragma, Return, make_callable
 )
 from devito.passes import is_on_device, needs_transfer
 from devito.passes.iet.definitions import DeviceAwareDataManager
@@ -266,6 +266,17 @@ class DeviceAccDataManager(DeviceAwareDataManager):
 
 class AccOrchestrator(Orchestrator):
     langbb = AccBB
+
+    def _make_waitlock(self, iet, sync_ops, *args):
+        iet, _ = super()._make_waitlock(iet, sync_ops, *args)
+        waitloop, *body = iet.body
+
+        # NVHPC 25.7 miscompiles tiled loops following an inline atomic wait
+        name = self.sregistry.make_name(prefix='wait_lock')
+        efunc = make_callable(name, waitloop)
+        iet = iet._rebuild(body=(BusyWaitCall(name, efunc.parameters), *body))
+
+        return iet, [efunc]
 
 
 class AccPrinter(CXXPrinter):
