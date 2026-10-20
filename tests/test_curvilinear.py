@@ -11,6 +11,7 @@ from devito import (  # noqa
 from devito.finite_differences.sbp import sbp_matrix, sbp_norm
 from devito.mpi import MPI
 from examples.seismic import SeismicModel
+from examples.seismic.elastic import traction_free_update
 
 # A smooth surface over a 1000 m line, in m, positive down
 _AMPLITUDE = 60.
@@ -437,7 +438,7 @@ class TestDerivatives:
 
         def jacobian(f):
             staggered = tuple(d for d in grid.dimensions if f.staggered.get(d, 0))
-            return grid._staggered_terms(staggered)[1].data
+            return grid.staggered_terms(staggered)[1].data
 
         forward = sum(np.sum(jacobian(v[i])*v[i].data*div_tau[i].data)
                       for i in range(2))
@@ -1671,7 +1672,7 @@ class TestElastic:
                 values[10:31, start:start + 16] = rng.standard_normal((21, 16))
                 tau[i, j].data[0] = values
                 initial[(i, j)] = values
-            Operator(grid.elastic_update(v, tau, buoyancy, lam, mu)).apply(
+            Operator(traction_free_update(v, tau, buoyancy, lam, mu)).apply(
                 time_m=0, time_M=0, dt=1.)
             steps.append((initial, [np.array(c.data[1]) for c in v],
                           {k: np.array(tau[k].data[1]) - initial[k] for k in initial}))
@@ -1708,7 +1709,7 @@ class TestElastic:
                          20.*normal)
             rec = [SparseTimeFunction(name=f'rec{i}', grid=grid, npoint=31, nt=nt,
                                       coordinates=receivers) for i in range(2)]
-            Operator(grid.elastic_update(v, tau, *self.parameters) +
+            Operator(traction_free_update(v, tau, *self.parameters) +
                      src.inject(tau.forward[0, 0], src*dt) +
                      src.inject(tau.forward[1, 1], src*dt) +
                      rec[0].interpolate(v[0]) + rec[1].interpolate(v[1])
@@ -1732,15 +1733,16 @@ class TestElastic:
         v8 = VectorTimeFunction(name='v8', grid=grid, space_order=8, time_order=1)
         _, tau = elastic_fields(grid)
         with pytest.raises(ValueError, match='space order 4'):
-            grid.elastic_update(v8, tau, *self.parameters)
+            traction_free_update(v8, tau, *self.parameters)
         no_row = surface_grid((21, 21), (200., 200.), elastic_hill, rows=0)
         with pytest.raises(ValueError, match='row above the surface'):
-            no_row.elastic_update(*elastic_fields(no_row), *self.parameters)
+            traction_free_update(*elastic_fields(no_row), *self.parameters)
         with pytest.raises(ValueError, match='not defined on'):
-            grid.elastic_update(*elastic_fields(no_row), *self.parameters)
+            traction_free_update(elastic_fields(grid)[0], elastic_fields(no_row)[1],
+                                 *self.parameters)
         lean = CurvilinearGrid(shape=(21, 21), extent=(200., 200.), mapping=Lean())
         with pytest.raises(ValueError, match='keeps the lateral'):
-            lean.elastic_update(*elastic_fields(lean), *self.parameters)
+            traction_free_update(*elastic_fields(lean), *self.parameters)
 
 
 class TestElasticMPI:
@@ -1758,7 +1760,7 @@ class TestElasticMPI:
             gauss = np.exp(-((xi - 20.)**2 + (eta - 3.)**2)/3.**2)
             for i in range(2):
                 tau[i, i].data[0] = gauss
-            Operator(grid.elastic_update(v, tau, .5, 2.7e6, 2.6e6)).apply(
+            Operator(traction_free_update(v, tau, .5, 2.7e6, 2.6e6)).apply(
                 time_M=39, dt=1e-3)
             results.append((v, tau))
 
