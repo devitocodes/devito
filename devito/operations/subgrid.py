@@ -3,10 +3,11 @@ from itertools import product
 
 import sympy
 
+from devito.finite_differences.differentiable import Differentiable
 from devito.symbolics import IntDiv
 from devito.types import Inc
 
-__all__ = ['SubGridTransfer', 'prolong', 'restrict']
+__all__ = ['SubGridTransfer', 'interpolated', 'prolong', 'restrict']
 
 
 class SubGridTransfer:
@@ -70,17 +71,28 @@ class SubGridTransfer:
     def parent(self):
         return self.subgrid.parent
 
-    def _positions(self):
+    def _positions(self, invert=False):
         """
-        Per-Dimension `(base index, fractional offset)` of each subgrid point
-        within the parent Grid, as expressions in the subgrid Dimensions.
+        Per-Dimension `(base index, fractional offset)` locating one grid's
+        points within the other.
+
+        By default this maps a subgrid index to the parent, i.e. subgrid point
+        `i` sits at parent coordinate `i*factor`. With `invert=True` it maps a
+        parent index to the subgrid, at `i/factor` -- what is needed to read a
+        SubGrid Function from within a parent-grid equation.
         """
+        if invert:
+            dims = self.parent.dimensions
+            factors = [1/f if f != 1 else 1 for f in self.subgrid.factor]
+        else:
+            dims = self.subgrid.dimensions
+            factors = list(self.subgrid.factor)
+
         retval = []
-        for ds, f in zip(self.subgrid.dimensions, self.subgrid.factor,
-                         strict=True):
+        for ds, f in zip(dims, factors, strict=True):
             if f == 1:
-                # Dimension passed through untouched: the subgrid index *is*
-                # the parent index, with no fractional part
+                # Dimension passed through untouched: one index *is* the
+                # other, with no fractional part
                 retval.append((ds, sympy.S.Zero))
                 continue
 
@@ -100,12 +112,12 @@ class SubGridTransfer:
 
         return retval
 
-    def _stencil(self, field, positions):
+    def _taps(self, positions):
         """
-        `field` interpolated at each subgrid point, as a flat weighted sum over
-        the `radius**ndim` surrounding taps.
+        The `radius**ndim` stencil taps, as `(weight, indices)` pairs. The tap
+        count is a compile-time constant, hence the plain product.
         """
-        terms = []
+        retval = []
         for offsets in product(range(self.radius), repeat=len(positions)):
             weight = sympy.S.One
             for (_, alpha), o in zip(positions, offsets, strict=True):
@@ -116,9 +128,23 @@ class SubGridTransfer:
 
             indices = tuple(pos + o for (pos, _), o in
                             zip(positions, offsets, strict=True))
-            terms.append(weight*field[indices])
+            retval.append((weight, indices))
 
-        return sympy.Add(*terms)
+        return retval
+
+    def _stencil(self, field, positions):
+        """
+        `field` interpolated at each target point, as a flat weighted sum over
+        the surrounding taps.
+        """
+        return sympy.Add(*[w*field[i] for w, i in self._taps(positions)])
+
+    def evaluate(self, field):
+        """
+        `field`, defined on the SubGrid, interpolated onto the *parent's*
+        points -- so that it can be read from within a parent-grid equation.
+        """
+        return self._stencil(field, self._positions(invert=True))
 
     def restrict(self, field):
         """
@@ -134,21 +160,8 @@ class SubGridTransfer:
         Grid. Returns the `Inc`s performing the accumulation -- the adjoint of
         `restrict`, so one per tap.
         """
-        positions = self._positions()
-
-        retval = []
-        for offsets in product(range(self.radius), repeat=len(positions)):
-            weight = sympy.S.One
-            for (_, alpha), o in zip(positions, offsets, strict=True):
-                if self.radius == 1:
-                    continue
-                weight = weight*(alpha if o else (1 - alpha))
-
-            indices = tuple(pos + o for (pos, _), o in
-                            zip(positions, offsets, strict=True))
-            retval.append(Inc(field[indices], weight*expr))
-
-        return retval
+        return [Inc(field[i], w*expr)
+                for w, i in self._taps(self._positions())]
 
 
 def restrict(field, subgrid, scheme='linear'):
@@ -196,3 +209,99 @@ def prolong(field, expr, subgrid, scheme='linear'):
         Interpolation scheme; see `SubGridTransfer.schemes`.
     """
     return SubGridTransfer(subgrid, scheme=scheme).prolong(field, expr)
+
+
+class InterpolatedFunction(Differentiable):
+
+    """
+    A SubGrid Function viewed from its parent Grid, interpolated on read.
+
+    Lazy: it carries the Function and the scheme, and expands into the
+    interpolation stencil when the enclosing equation is evaluated. That lets a
+    SubGrid Function be used directly in a parent-grid expression
+
+        u = Function(name='u', grid=grid)
+        vp = Function(name='vp', grid=sub)
+        Eq(u, interpolated(vp)*u)
+
+    where `vp` is read at `x/factor` and interpolated onto the parent's points,
+    so the Operator iterates `x, y` alone rather than gaining `xs, ys`.
+
+    Notes
+    -----
+    This is deliberately **opt-in**. Using a SubGrid Function in a parent-grid
+    equation without wrapping it is already meaningful -- the subgrid
+    Dimensions become extra iteration Dimensions -- so interpolating
+    implicitly would silently change the meaning of existing code.
+    """
+
+    __rargs__ = ('function',)
+    __rkwargs__ = ('scheme',)
+
+    def __new__(cls, function, scheme='linear', **kwargs):
+        grid = getattr(function, 'grid', None)
+        if grid is None or not getattr(grid, 'is_interpolated', False):
+            raise ValueError(
+                f"`{function}` is not defined on an interpolated SubGrid. Only "
+                "a Function whose Grid has a non-integer factor needs "
+                "interpolating to be read on the parent Grid"
+            )
+
+        obj = super().__new__(cls, function)
+        obj._function = function
+        obj._scheme = scheme
+
+        return obj
+
+    @property
+    def function(self):
+        return self._function
+
+    @property
+    def scheme(self):
+        return self._scheme
+
+    @property
+    def subgrid(self):
+        return self._function.grid
+
+    def __repr__(self):
+        return f"interpolated({self._function}, scheme={self._scheme!r})"
+
+    __str__ = __repr__
+
+    def _evaluate(self, **kwargs):
+        transfer = SubGridTransfer(self.subgrid, scheme=self._scheme)
+        return transfer.evaluate(self._function)
+
+
+def interpolated(function, scheme='linear'):
+    """
+    View a SubGrid Function from its parent Grid, interpolating on read.
+
+    This is what lets a coarse (or fine) Function take part in a parent-grid
+    equation directly:
+
+        sub = SubGrid(grid, factor=1.5)
+        vp = Function(name='vp', grid=sub, space_order=0)
+        u = Function(name='u', grid=grid)
+
+        Eq(u, interpolated(vp)*u)     # `vp` interpolated onto x, y
+
+    The resulting Operator iterates the parent's Dimensions only; `vp` is read
+    at `x/factor` through the same separable stencil `restrict` uses.
+
+    Parameters
+    ----------
+    function : Function
+        A Function defined on an interpolated SubGrid, i.e. one whose factor is
+        not an integer.
+    scheme : str, optional
+        Interpolation scheme; see `SubGridTransfer.schemes`.
+
+    Notes
+    -----
+    Opt-in by design: an unwrapped SubGrid Function in a parent-grid equation
+    keeps its existing meaning, where the subgrid Dimensions are iterated.
+    """
+    return InterpolatedFunction(function, scheme=scheme)

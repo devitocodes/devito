@@ -1,7 +1,10 @@
 import numpy as np
 import pytest
 
-from devito import Eq, Function, Grid, Operator, SubGrid, prolong, restrict, switchconfig
+from devito import (
+    Eq, Function, Grid, Operator, SubGrid, interpolated, prolong, restrict, switchconfig
+)
+from devito.ir.iet import FindNodes, Iteration
 from devito.operations.subgrid import SubGridTransfer
 
 
@@ -323,3 +326,150 @@ class TestCodegen:
         sub = SubGrid(Grid(shape=(9, 9)), factor=1.5)
 
         assert SubGridTransfer(sub, scheme=scheme).radius == taps
+
+
+class TestInterpolatedFunction:
+
+    """
+    `interpolated(f)` lets a SubGrid Function be read from a parent-grid
+    equation, interpolated onto the parent's points.
+    """
+
+    def test_iterates_parent_dimensions_only(self):
+        """
+        The Operator must not gain the subgrid Dimensions: `vp` is read
+        through a stencil, not iterated over.
+        """
+        grid = Grid(shape=(9, 9), extent=(8., 8.))
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid)
+        vp = Function(name='vp', grid=sub, space_order=0)
+
+        op = Operator(Eq(u, interpolated(vp)*u))
+
+        dims = [i.dim.name for i in FindNodes(Iteration).visit(op)]
+        assert dims == [d.name for d in grid.dimensions]
+
+    def test_unwrapped_is_unchanged(self):
+        """
+        Opt-in: an unwrapped SubGrid Function keeps its existing meaning, where
+        the subgrid Dimensions become extra iteration Dimensions. Interpolating
+        implicitly would silently change existing code.
+        """
+        grid = Grid(shape=(9, 9), extent=(8., 8.))
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid)
+        vp = Function(name='vp', grid=sub, space_order=0)
+
+        op = Operator(Eq(u, vp*u))
+
+        dims = [i.dim.name for i in FindNodes(Iteration).visit(op)]
+        assert set(dims) == {d.name for d in grid.dimensions} | \
+                            {d.name for d in sub.dimensions}
+
+    def test_constant_field_is_exact(self):
+        """Weights sum to one, so a constant survives interpolation."""
+        n, fac = 13, 1.5
+        grid = Grid(shape=(n, n), extent=(float(n - 1),)*2)
+        sub = SubGrid(grid, factor=fac)
+
+        u = Function(name='u', grid=grid)
+        vp = Function(name='vp', grid=sub, space_order=0)
+        u.data[:] = 1.
+        vp.data[:] = 2.5
+
+        Operator(Eq(u, interpolated(vp)*u)).apply()
+
+        lim = int((sub.shape[0] - 1)*fac)
+        assert np.allclose(u.data[:lim, :lim], 2.5, atol=1e-5)
+
+    def test_linear_field_is_exact(self):
+        """A linear subgrid field interpolates exactly onto the parent."""
+        n, fac = 13, 1.5
+        grid = Grid(shape=(n, n), extent=(float(n - 1),)*2)
+        sub = SubGrid(grid, factor=fac)
+        ns = sub.shape[0]
+
+        u = Function(name='u', grid=grid)
+        vp = Function(name='vp', grid=sub, space_order=0)
+        vp.data[:] = (3.*np.arange(ns)[:, None]
+                      + 2.*np.arange(ns)[None, :]).astype(vp.dtype)
+        u.data[:] = 1.
+
+        Operator(Eq(u, interpolated(vp)*u)).apply()
+
+        ii, jj = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
+        expected = 3.*(ii/fac) + 2.*(jj/fac)
+        lim = int((ns - 1)*fac)
+        mask = (ii <= lim) & (jj <= lim)
+
+        assert np.allclose(u.data[mask], expected[mask], atol=1e-4)
+
+    def test_is_a_plain_stencil(self):
+        """Same lowering as `restrict`: no accumulator, no per-tap branch."""
+        grid = Grid(shape=(9, 9), extent=(8., 8.))
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid)
+        vp = Function(name='vp', grid=sub, space_order=0)
+
+        ccode = str(Operator(Eq(u, interpolated(vp)*u)).ccode)
+
+        assert 'for (int r' not in ccode
+        assert 'if (' not in ccode
+        assert 'floor' not in ccode
+        assert ccode.count('vp[') == 4          # 2**ndim taps
+
+    @pytest.mark.parametrize('scheme', ['linear', 'nearest'])
+    def test_schemes(self, scheme):
+        grid = Grid(shape=(9, 9), extent=(8., 8.))
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid)
+        vp = Function(name='vp', grid=sub, space_order=0)
+        u.data[:] = 1.
+        vp.data[:] = -3.
+
+        Operator(Eq(u, interpolated(vp, scheme=scheme)*u)).apply()
+
+        lim = int((sub.shape[0] - 1)*1.5)
+        assert np.allclose(u.data[:lim, :lim], -3., atol=1e-5)
+
+    def test_rejects_non_interpolated_subgrid(self):
+        """An integer factor needs no interpolation to be read."""
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=2)
+        q = Function(name='q', grid=sub, space_order=0)
+
+        with pytest.raises(ValueError, match='not defined on an interpolated'):
+            interpolated(q)
+
+    def test_rejects_parent_grid_function(self):
+        grid = Grid(shape=(9, 9))
+        u = Function(name='u', grid=grid)
+
+        with pytest.raises(ValueError, match='not defined on an interpolated'):
+            interpolated(u)
+
+    def test_several_interpolated_functions(self):
+        grid = Grid(shape=(13, 13), extent=(12., 12.))
+        a = SubGrid(grid, factor=1.5, name='a')
+        b = SubGrid(grid, factor=2.5, name='b')
+
+        u = Function(name='u', grid=grid)
+        va = Function(name='va', grid=a, space_order=0)
+        vb = Function(name='vb', grid=b, space_order=0)
+        u.data[:] = 1.
+        va.data[:] = 2.
+        vb.data[:] = 3.
+
+        op = Operator(Eq(u, interpolated(va)*interpolated(vb)*u))
+
+        dims = [i.dim.name for i in FindNodes(Iteration).visit(op)]
+        assert dims == [d.name for d in grid.dimensions]
+
+        op.apply()
+        lim = min(int((a.shape[0] - 1)*1.5), int((b.shape[0] - 1)*2.5))
+        assert np.allclose(u.data[:lim, :lim], 6., atol=1e-4)
