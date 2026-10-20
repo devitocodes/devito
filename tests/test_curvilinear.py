@@ -1,4 +1,5 @@
 import functools
+import pickle
 
 import numpy as np
 import pytest
@@ -194,6 +195,21 @@ class TestGrid:
         assert u.shape == (21, 21)
         assert u.grid is grid
         assert grid.is_Curvilinear and not Grid(shape=(4, 4)).is_Curvilinear
+
+    def test_pickle(self):
+        """
+        A pickled grid rebuilds its coordinate and metric Functions from the map,
+        the staggered ones included.
+        """
+        grid = sine_grid(21, dtype=np.float64)
+        jacobian = grid.staggered_terms(grid.dimensions[:1])[1]
+        expected = np.array(jacobian.data)
+
+        copy = pickle.loads(pickle.dumps(grid))
+        assert copy.shape == grid.shape
+        assert np.array_equal(np.array(copy.staggered_terms(copy.dimensions[:1])[1].data),
+                              expected)
+        assert np.array_equal(np.array(copy.jacobian.data), np.array(grid.jacobian.data))
 
 
 class TestGridMPI:

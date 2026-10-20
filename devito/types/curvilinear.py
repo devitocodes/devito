@@ -15,7 +15,6 @@ import numpy as np
 import sympy
 
 from devito.mpi import MPI
-from devito.tools import memoized_meth
 from devito.types.dense import Function
 from devito.types.grid import Grid
 
@@ -594,10 +593,16 @@ class CurvilinearGrid(Grid):
         staggered = tuple(d for d in self.dimensions if d in staggered)
         if not staggered:
             return self.metrics, self.jacobian
-        return self._staggered_terms(staggered)
+        if staggered not in self._staggered_terms:
+            self._staggered_terms[staggered] = self._make_staggered_terms(staggered)
+        return self._staggered_terms[staggered]
 
-    @memoized_meth
-    def _staggered_terms(self, staggered):
+    @cached_property
+    def _staggered_terms(self):
+        """The `staggered_terms` built so far, by staggering."""
+        return {}
+
+    def _make_staggered_terms(self, staggered):
         """`staggered_terms` along the Dimensions `staggered`, in grid order."""
         vectors = tuple(v + np.float64(h)/2 if d in staggered else v
                         for v, d, h in zip(self._local_vectors, self.dimensions,
@@ -843,6 +848,6 @@ class CurvilinearGrid(Grid):
         state = super().__getstate__()
         # The coordinate and metric Functions are rebuilt lazily from the map
         for i in ('coordinates', 'metrics', 'metric_derivatives', 'jacobian',
-                  '_local_vectors', 'min_spacing'):
+                  '_staggered_terms', '_local_vectors', 'min_spacing'):
             state.pop(i, None)
         return state
