@@ -1,8 +1,10 @@
+from fractions import Fraction
+from itertools import product
+
 import sympy
 
-from devito.finite_differences.differentiable import LocalSum, Mul
-from devito.symbolics import INT
-from devito.types import ConditionalDimension, CustomDimension, Inc
+from devito.symbolics import IntDiv
+from devito.types import Inc
 
 __all__ = ['SubGridTransfer', 'prolong', 'restrict']
 
@@ -15,10 +17,18 @@ class SubGridTransfer:
 
     Subgrid point `i` lies at parent coordinate `i*factor` along each Dimension.
     `factor` need not be an integer, so each subgrid point is a weighted sum of
-    the `radius**ndim` parent points surrounding it. Both the base cell index
-    and the fractional offset are affine in the subgrid Dimension, hence
-    computed in the loop -- unlike the sparse interpolators, which tabulate
-    them per point on the host.
+    the `radius**ndim` parent points surrounding it.
+
+    The tap count is a compile-time constant and the tap positions are affine
+    in the subgrid Dimensions, so this lowers to a **plain stencil**: the taps
+    are written out as one expression, exactly as finite-difference weights
+    are. There is no accumulator and no per-tap bounds test in the inner loop,
+    both of which would block vectorization. (The sparse interpolators use a
+    guarded accumulation because their point set is irregular; here it is not.)
+
+    `factor` is converted to an exact rational, so the base index is
+    `(num*i)//den` in integer arithmetic -- no `floor` on floats, and the
+    fractional offset follows from the same division.
 
     Parameters
     ----------
@@ -74,65 +84,41 @@ class SubGridTransfer:
                 retval.append((ds, sympy.S.Zero))
                 continue
 
-            coord = ds*f
+            # `factor` as an exact rational, so the base index is integer
+            # arithmetic rather than a `floor` on floats
+            frac = Fraction(f).limit_denominator(10**6)
+            num, den = frac.numerator, frac.denominator
+
             if self.scheme == 'nearest':
-                # Snap to the closest parent point; no fractional offset left
-                retval.append((INT(sympy.floor(coord + 0.5)), sympy.S.Zero))
+                # Snap to the closest parent point: floor(i*f + 1/2)
+                retval.append((IntDiv(2*num*ds + den, 2*den), sympy.S.Zero))
             else:
-                pos = INT(sympy.floor(coord))
-                retval.append((pos, coord - pos))
+                pos = IntDiv(num*ds, den)
+                # The fractional part of `i*num/den`, i.e. `(i*num mod den)/den`
+                alpha = sympy.Rational(1, den)*(num*ds - den*pos)
+                retval.append((pos, alpha))
 
         return retval
 
-    def _rdims(self, positions):
+    def _stencil(self, field, positions):
         """
-        One radius Dimension per parent Dimension, guarded so that taps falling
-        outside the parent's domain contribute nothing.
-
-        Mirrors `SparseFunction._cond_rdim`: the CustomDimension carries the
-        iteration Dimension as parent, and the ConditionalDimension reuses its
-        name. Both are needed for the radius symbols to become loop bounds
-        rather than Operator parameters.
-        """
-        retval = []
-        for ds, d, (pos, _) in zip(self.subgrid.dimensions,
-                                   self.parent.dimensions, positions,
-                                   strict=True):
-            rd = CustomDimension(f'r{ds.name}', 0, self.radius - 1,
-                                 self.radius, ds)
-            cond = sympy.And(pos + rd >= d.symbolic_min,
-                             pos + rd <= d.symbolic_max)
-            retval.append(ConditionalDimension(rd.name, parent=rd,
-                                               condition=cond, indirect=True))
-
-        return retval
-
-    def _weights(self, positions, rdims):
-        """
-        The separable interpolation weight, a product of one factor per
-        Dimension.
-
-        Written arithmetically rather than with `sympy.Piecewise`, which does
-        not survive Devito's expression manipulation.
+        `field` interpolated at each subgrid point, as a flat weighted sum over
+        the `radius**ndim` surrounding taps.
         """
         terms = []
-        for (_, alpha), rd in zip(positions, rdims, strict=True):
-            if self.radius == 1:
-                continue                      # nearest: unit weight
-            # w[0] = 1 - alpha, w[1] = alpha, i.e. linear in the radius index
-            terms.append((1 - alpha) + rd.parent*(2*alpha - 1))
+        for offsets in product(range(self.radius), repeat=len(positions)):
+            weight = sympy.S.One
+            for (_, alpha), o in zip(positions, offsets, strict=True):
+                if self.radius == 1:
+                    continue                       # nearest: unit weight
+                # Linear: `1 - alpha` at the lower tap, `alpha` at the upper
+                weight = weight*(alpha if o else (1 - alpha))
 
-        if not terms:
-            return sympy.S.One
+            indices = tuple(pos + o for (pos, _), o in
+                            zip(positions, offsets, strict=True))
+            terms.append(weight*field[indices])
 
-        return Mul(*terms)
-
-    def _taps(self, field, positions, rdims):
-        """`field` indexed at the stencil taps around each subgrid point."""
-        indices = [pos + rd for (pos, _), rd in zip(positions, rdims,
-                                                    strict=True)]
-
-        return field[tuple(indices)]
+        return sympy.Add(*terms)
 
     def restrict(self, field):
         """
@@ -140,26 +126,29 @@ class SubGridTransfer:
         SubGrid's points. Returns an expression to be assigned to a SubGrid
         Function.
         """
-        positions = self._positions()
-        rdims = self._rdims(positions)
-        weights = self._weights(positions, rdims)
-
-        return LocalSum(weights*self._taps(field, positions, rdims),
-                        cdims=tuple(rdims), dtype=field.dtype)
+        return self._stencil(field, self._positions())
 
     def prolong(self, field, expr):
         """
         Scatter `expr`, defined on the SubGrid, onto `field` on the parent
-        Grid. Returns the `Inc` performing the accumulation -- the adjoint of
-        `restrict`.
+        Grid. Returns the `Inc`s performing the accumulation -- the adjoint of
+        `restrict`, so one per tap.
         """
         positions = self._positions()
-        rdims = self._rdims(positions)
-        weights = self._weights(positions, rdims)
 
-        lhs = self._taps(field, positions, rdims)
+        retval = []
+        for offsets in product(range(self.radius), repeat=len(positions)):
+            weight = sympy.S.One
+            for (_, alpha), o in zip(positions, offsets, strict=True):
+                if self.radius == 1:
+                    continue
+                weight = weight*(alpha if o else (1 - alpha))
 
-        return Inc(lhs, weights*expr)
+            indices = tuple(pos + o for (pos, _), o in
+                            zip(positions, offsets, strict=True))
+            retval.append(Inc(field[indices], weight*expr))
+
+        return retval
 
 
 def restrict(field, subgrid, scheme='linear'):

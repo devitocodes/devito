@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from devito import Eq, Function, Grid, Operator, SubGrid, prolong, restrict
+from devito import Eq, Function, Grid, Operator, SubGrid, prolong, restrict, switchconfig
 from devito.operations.subgrid import SubGridTransfer
 
 
@@ -254,10 +254,12 @@ class TestErrors:
 
 class TestCodegen:
 
-    def test_localsum_accumulator(self):
+    def test_is_a_plain_stencil(self):
         """
-        The stencil lowers to a bounded accumulation over guarded radius
-        Dimensions, not to a flat unrolled sum.
+        The taps are written out as one expression: no accumulator loop and no
+        per-tap bounds test, both of which would block vectorization. The tap
+        count is a compile-time constant, so there is nothing to accumulate
+        dynamically.
         """
         grid = Grid(shape=(9, 9), extent=(8., 8.))
         sub = SubGrid(grid, factor=1.5)
@@ -267,15 +269,30 @@ class TestCodegen:
 
         ccode = str(Operator(Eq(g, restrict(u, sub))).ccode)
 
-        # one loop per subgrid Dimension, plus one per radius Dimension
+        # One loop per subgrid Dimension, and nothing else
         assert ccode.count('for (int xs') == 1
-        assert ccode.count('for (int rxs') == 1
-        assert ccode.count('for (int rys') == 1
+        assert ccode.count('for (int ys') == 1
+        assert 'for (int r' not in ccode
+        assert 'if (' not in ccode
 
-    def test_radius_dims_are_loops_not_arguments(self):
+    @switchconfig(language='openmp')
+    def test_vectorizes(self):
+        """The innermost subgrid loop must still be SIMD."""
+        grid = Grid(shape=(64, 64), extent=(63., 63.))
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid, space_order=2)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        ccode = str(Operator(Eq(g, restrict(u, sub))).ccode)
+
+        assert '#pragma omp simd' in ccode
+        assert '#pragma omp for' in ccode
+
+    def test_positions_are_integer_arithmetic(self):
         """
-        The radius Dimensions must become loop bounds; if they leak out as
-        Operator parameters the kernel cannot be called.
+        `factor` is an exact rational, so the base index is `(num*i)//den` in
+        integers -- no `floor` on floats, which would cost a call per tap.
         """
         grid = Grid(shape=(9, 9), extent=(8., 8.))
         sub = SubGrid(grid, factor=1.5)
@@ -283,11 +300,23 @@ class TestCodegen:
         u = Function(name='u', grid=grid)
         g = Function(name='g', grid=sub, space_order=0)
 
-        op = Operator(Eq(g, restrict(u, sub)))
+        ccode = str(Operator(Eq(g, restrict(u, sub))).ccode)
 
-        names = {p.name for p in op.parameters}
-        assert 'rxs' not in names
-        assert 'rys' not in names
+        assert 'floor' not in ccode
+
+    @pytest.mark.parametrize('ndim,taps', [(1, 2), (2, 4), (3, 8)])
+    def test_tap_count(self, ndim, taps):
+        """A linear stencil reads `2**ndim` parent points, once each."""
+        n = 9
+        grid = Grid(shape=(n,)*ndim, extent=(float(n - 1),)*ndim)
+        sub = SubGrid(grid, factor=1.5)
+
+        u = Function(name='u', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+
+        ccode = str(Operator(Eq(g, restrict(u, sub))).ccode)
+
+        assert ccode.count('u[') == taps
 
     @pytest.mark.parametrize('scheme,taps', [('nearest', 1), ('linear', 2)])
     def test_radius_matches_scheme(self, scheme, taps):
