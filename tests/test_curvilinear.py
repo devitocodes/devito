@@ -1240,21 +1240,21 @@ class TestFreeSurface:
 
     def test_forms(self):
         """
-        The mirror reads the reflection whether it is written row by row, in
-        index notation, or over a SubDomain with the mirror index `2 s - z`.
+        The mirror over a SubDomain reads the reflection in Function and in index
+        notation alike, and not along the grid columns.
         """
         grid = surface_grid((31, 31), (1000., 800.), sine_surface, dtype=np.float64)
         x, z = grid.dimensions
         t = grid.stepping_dim
         surface = surface_row(grid)
+        mirror = rows_subdomain(grid, surface - 4, 4)
         rng = np.random.default_rng(20)
         initial = rng.standard_normal(grid.shape)
         forms = {
-            'rows': lambda u: [Eq(u.forward.subs(z, surface - k),
-                                  -u.forward.subs(z, surface + k)) for k in range(1, 5)],
-            'index': lambda u: [Eq(u[t + 1, x, surface - k], -u[t + 1, x, surface + k])
-                                for k in range(1, 5)],
-            'subdomain': lambda u: odd_mirror(u.forward, 4)[1:],
+            'function': lambda u: [Eq(u.forward, -u.forward.subs(z, 2*surface - z),
+                                      subdomain=mirror)],
+            'index': lambda u: [Eq(u[t + 1, x, z], -u[t + 1, x, 2*surface - z],
+                                   subdomain=mirror)],
         }
         results = {}
         for form, equations in forms.items():
@@ -1262,12 +1262,23 @@ class TestFreeSurface:
             u.data[1] = initial
             Operator(equations(u)).apply(time_m=0, time_M=0)
             results[form] = np.array(u.data[1])
-        mirror = results['rows'][:, surface - 4:surface]
-        assert np.abs(mirror + initial[:, surface + 4:surface:-1]).max() > 1e-2
-        for form in ['index', 'subdomain']:
-            # To the roundoff of the closest points of the surface, found for
-            # all the rows mirrored at once
-            assert np.allclose(results[form], results['rows'], rtol=0, atol=1e-10)
+        rows = results['function'][:, surface - 4:surface]
+        assert np.abs(rows + initial[:, surface + 4:surface:-1]).max() > 1e-2
+        assert np.allclose(results['index'], results['function'], rtol=0, atol=1e-12)
+
+    def test_constant_rows(self):
+        """A mirror writing constant rows, local to each rank under MPI, is refused."""
+        grid = surface_grid((31, 31), (1000., 800.), sine_surface)
+        x, z = grid.dimensions
+        t = grid.stepping_dim
+        u = TimeFunction(name='u', grid=grid, space_order=8)
+        surface = surface_row(grid)
+        for eq in [Eq(u.forward.subs(z, surface - 1), -u.forward.subs(z, surface + 1)),
+                   Eq(u[t + 1, x, surface - 1], -u[t + 1, x, surface + 1])]:
+            with pytest.raises(ValueError, match='over a SubDomain'):
+                Operator(eq)
+        with pytest.raises(ValueError, match='without a SubDomain'):
+            Operator(Eq(u.forward, -u.forward.subs(z, 2*surface - z)))
 
     def test_staggered(self):
         """
@@ -1292,9 +1303,11 @@ class TestFreeSurface:
             exact = odd_field(points, slope, offset).reshape(grid.shape)
             w.data[1] = 0.
             w.data[1][:, surface:] = exact[:, surface:]
-            Operator([Eq(w.forward.subs(z, surface - k),
-                         -w.forward.subs(z, surface + k - 1))
-                      for k in range(1, 3)]).apply(time_m=0, time_M=0)
+            # The points z and 2 s - 1 - z are the mirror of each other through
+            # the surface, half a cell above the point s
+            Operator(Eq(w.forward, -w.forward.subs(z, 2*surface - 1 - z),
+                        subdomain=rows_subdomain(grid, surface - 2, 2))
+                     ).apply(time_m=0, time_M=0)
             rows = (slice(8, -8), slice(surface - 2, surface))
             errors.append(np.abs(w.data[1][rows] - exact[rows]).max())
         assert np.log2(errors[0]/errors[1]) > 3

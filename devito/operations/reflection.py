@@ -1,34 +1,31 @@
 """
 Reflections through the rows of a CurvilinearGrid.
 
-On a Grid, an equation that writes a Function at one point and reads Functions
-at the mirror point through a row of the last Dimension, e.g. the odd mirror of
-a free surface at the row `s`,
+On a Grid, the odd mirror of a free surface at the row `s` sets each row `z`
+above it to minus the row as far below it, written over a SubDomain of these
+rows,
 
-    Eq(u.forward.subs(z, s - k), -u.forward.subs(z, s + k))
+    Eq(u.forward, -u.forward.subs(z, 2*s - z), subdomain=mirror)
 
-mirrors along the grid lines, which are normal to the rows. On a
+and reads along the grid lines, which are normal to the rows. On a
 CurvilinearGrid, the rows are curved surfaces and the grid lines are not normal
 to them, so the read is the value at the reflection of the written point
 through the surface of the row, normal to it, interpolated from the points at or
 below the surface (see `CurvilinearGrid._reflection_weights`). An increment that
 writes at the mirror point of the point it reads,
 
-    Inc(v.subs(z, s + k), -v.subs(z, s - k))
+    Inc(v, -v.subs(z, 2*s - z), subdomain=below)
 
 is the transpose: it spreads the value read over the points that interpolate
 its reflection, with the same weights. On a plane surface, either one is the
 exact mirror of a field odd or even through the surface, and on a flat surface
 it is the mirror along the grid lines.
 
-The rows written may also vary over a Dimension of known range, e.g. over a
-SubDomain of the rows above the surface,
-
-    Eq(u.forward, -u.forward.subs(z, 2*s - z), subdomain=mirror)
-
-which is lowered to one equation per row. Each row is written over the
-SubDomain of that row, so that the equations hold under domain decomposition,
-where a constant index of a distributed Dimension would be a local index.
+The rows written are indexed by the last Dimension over a SubDomain of whole
+rows, which is lowered to one equation per row, over the SubDomain of that row,
+with the rows it reads relative to it. An equation writing constant rows is
+refused: a constant index of a distributed Dimension is a local index on each
+rank.
 """
 
 import numpy as np
@@ -152,12 +149,19 @@ def _positions(access, grid):
     """
     The position of a Function access or of an Indexed, in cells from the
     nodes, along each Dimension of `grid`.
+
+    The position of a Function access is its argument, e.g. `7 - z + h_z/2` for
+    `w.subs(z, 7 - z)` with `w` staggered along `z`; its Indexed would shift a
+    negated Dimension by the staggering the wrong way, to `8 - z`.
     """
     function = access.function
-    indices = dict(zip(function.dimensions, _indexed(access).indices, strict=True))
-    return tuple(sympy.expand(indices[d] + o)
-                 for d, o in zip(grid.dimensions, _offsets(function, grid),
-                                 strict=True))
+    if isinstance(access, sympy.Indexed):
+        indices = dict(zip(function.dimensions, access.indices, strict=True))
+        return tuple(sympy.expand(indices[d] + o)
+                     for d, o in zip(grid.dimensions, _offsets(function, grid),
+                                     strict=True))
+    args = dict(zip(function.dimensions, access.args, strict=True))
+    return tuple(sympy.expand(args[d].xreplace({d.spacing: 1})) for d in grid.dimensions)
 
 
 def _offsets(function, grid):
@@ -217,52 +221,31 @@ def _lateral_indices(access, grid):
     return tuple(indices[d] for d in grid.dimensions[:-1])
 
 
-def _bounds(dim, eq, grid):
-    """The first and last values of the Dimension `dim` in `eq`, None if unknown."""
-    if dim is grid.dimensions[-1]:
-        size = grid.shape[-1]
-        definition = dim if eq.subdomain is None else \
-            eq.subdomain.define(grid.dimensions).get(dim, dim)
-        if definition is dim:
-            return 0, size - 1
-        side, *thickness = definition
-        if side == 'left':
-            return 0, thickness[0] - 1
-        elif side == 'right':
-            return size - thickness[0], size - 1
-        return thickness[0], size - 1 - thickness[1]
-    first, last = getattr(dim, 'symbolic_min', None), getattr(dim, 'symbolic_max', None)
-    if isinstance(first, sympy.Number) and isinstance(last, sympy.Number):
-        return int(first), int(last)
-    return None
-
-
-def _rows(eq, grid, dim):
+def _bounds(eq, grid):
     """
-    The equations of `eq`, whose mirror points vary with the Dimension `dim`, one
-    per value of `dim`, which write and read constant rows.
-
-    A distributed Function written over a range of rows and read at lateral
-    offsets in the rows of their mirror points cannot be told apart from a
-    dependence along the lateral Dimensions, which would serialize them and
-    drop their halo exchanges; with constant rows, it can.
+    The first and last rows of the SubDomain of `eq`, which must be made of whole
+    rows of `grid`.
     """
-    bounds = _bounds(dim, eq, grid)
-    if bounds is None:
-        raise ValueError(f"{eq} reads mirror points through a row of a "
-                         f"CurvilinearGrid over the values of {dim}, which are "
-                         "unknown; write one equation per row")
-    subdomain = eq.subdomain
-    if subdomain is not None:
-        definition = subdomain.define(grid.dimensions)
-        if any(definition.get(d, d) is not d for d in grid.dimensions[:-1]):
-            raise NotImplementedError(f"{eq} reads mirror points through a row of "
-                                      "a CurvilinearGrid over a SubDomain that is "
-                                      "not made of whole rows")
-        subdomain = None
-    return [eq.func(eq.lhs.subs(dim, value), eq.rhs.subs(dim, value),
-                    subdomain=subdomain, implicit_dims=eq.implicit_dims)
-            for value in range(bounds[0], bounds[1] + 1)]
+    vertical = grid.dimensions[-1]
+    if eq.subdomain is None:
+        raise ValueError(f"{eq} reads mirror points through a row of a CurvilinearGrid "
+                         "without a SubDomain; write it over a SubDomain of the rows "
+                         "it writes")
+    definition = eq.subdomain.define(grid.dimensions)
+    if any(definition.get(d, d) is not d for d in grid.dimensions[:-1]):
+        raise NotImplementedError(f"{eq} reads mirror points through a row of a "
+                                  "CurvilinearGrid over a SubDomain that is not made "
+                                  "of whole rows")
+    size = grid.shape[-1]
+    definition = definition.get(vertical, vertical)
+    if definition is vertical:
+        return 0, size - 1
+    side, *thickness = definition
+    if side == 'left':
+        return 0, thickness[0] - 1
+    elif side == 'right':
+        return size - thickness[0], size - 1
+    return thickness[0], size - 1 - thickness[1]
 
 
 def _ghost_row(center, position, offsets):
@@ -274,12 +257,20 @@ def _ghost_row(center, position, offsets):
     return int(center - position - 1 + fraction)
 
 
+def _vertical_index(access, grid, row):
+    """The index of `access` along the last Dimension of `grid` at its row `row`."""
+    vertical = grid.dimensions[-1]
+    position = _positions(access, grid)[-1] - _offsets(access.function, grid)[-1]
+    return int(position.subs(vertical, row))
+
+
 def _lower_reflection(eq):
     """The equations evaluating the reads at mirror points of `eq`."""
     lhs = eq.lhs
     grid = _grid(getattr(lhs, 'function', None))
     if grid is None or not (lhs.is_Function or isinstance(lhs, sympy.Indexed)):
         return [eq]
+    vertical = grid.dimensions[-1]
 
     lhs_position = _positions(lhs, grid)
     reflected, centers = [], set()
@@ -297,53 +288,23 @@ def _lower_reflection(eq):
                          f"{sorted(centers)}")
     center = centers.pop()
 
-    dims = [d for d in lhs_position[-1].free_symbols
-            if getattr(d, 'is_Dimension', False)]
-    if len(dims) > 1:
-        raise NotImplementedError(f"{eq} reads mirror points through a row of a "
-                                  f"CurvilinearGrid over several Dimensions {dims}")
-    elif dims:
-        return [e for i in _rows(eq, grid, dims[0]) for e in _lower_reflection(i)]
-
-    if eq.subdomain is not None:
-        raise NotImplementedError(f"{eq} writes a constant row over a SubDomain")
+    dims = {d for d in lhs_position[-1].free_symbols if getattr(d, 'is_Dimension', False)}
+    if dims != {vertical}:
+        raise ValueError(f"{eq} reads mirror points through a row of a CurvilinearGrid "
+                         f"and writes its rows along {sorted(dims, key=str)}; index the "
+                         f"rows it writes by {vertical}, over a SubDomain of these rows "
+                         "(a constant index of a distributed Dimension is local to each "
+                         "rank)")
     if isinstance(eq, Inc):
-        eqns = _scatter(eq, grid, center, reflected)
+        lower = _scatter
     elif eq.is_Reduction:
         raise NotImplementedError(f"{eq} reads mirror points through a row of a "
                                   "CurvilinearGrid, which only an Eq or an Inc can")
     else:
-        eqns = _gather(eq, grid, center, reflected)
-    return [_on_row(e, grid) for e in eqns]
-
-
-def _on_row(eq, grid):
-    """
-    `eq`, which writes a constant row, over the SubDomain of the row, with the
-    constant rows it reads relative to it: a constant index of a distributed
-    Dimension is a local index on each rank.
-    """
-    vertical = grid.dimensions[-1]
-    row = dict(zip(eq.lhs.function.dimensions, _indexed(eq.lhs).indices,
-                   strict=True))[vertical]
-    mapper = {a: _relative(a, vertical, row) for a in _accesses(eq.rhs)
-              if vertical in a.function.dimensions}
-    return eq.func(_relative(eq.lhs, vertical, row), eq.rhs.xreplace(mapper),
-                   subdomain=_row_subdomain(grid, int(row)),
-                   implicit_dims=eq.implicit_dims)
-
-
-def _relative(access, vertical, row):
-    """
-    The Indexed of `access`, at a constant index along `vertical`, at that
-    index relative to the row `row` of `vertical`.
-    """
-    indices = dict(zip(access.function.dimensions, _indexed(access).indices,
-                       strict=True))
-    if not sympy.sympify(indices[vertical]).is_Number:
-        return _indexed(access)
-    indices[vertical] = vertical + indices[vertical] - row
-    return access.function.indexed[tuple(indices[d] for d in access.function.dimensions)]
+        lower = _gather
+    first, last = _bounds(eq, grid)
+    return [e for row in range(first, last + 1)
+            for e in lower(eq, grid, center, reflected, row)]
 
 
 def _linear_parts(rhs, accesses):
@@ -363,33 +324,38 @@ def _linear_parts(rhs, accesses):
     return constant, factors
 
 
-def _gather(eq, grid, center, reflected):
+def _gather(eq, grid, center, reflected, row):
     """
-    The equations of `eq`, which writes a ghost above the surface and reads
-    Functions at its mirror point, reading them at its reflection.
+    The equations of `eq` over its row `row`, which write ghosts above the
+    surface and read Functions at their mirror points, reading them at their
+    reflection: over the SubDomain of the row, the rows read relative to it.
 
     The reads of the written Function at lateral offsets are added by a second
     equation: an equation of a distributed Function reading it both in its own
     column and at lateral offsets misses the halo exchange of the lateral reads.
     """
-    lhs = eq.lhs
+    vertical = grid.dimensions[-1]
+    lhs = _indexed(eq.lhs)
     ghost = _offsets(lhs.function, grid)
-    row = _ghost_row(center, _positions(lhs, grid)[-1], ghost)
+    position = _positions(lhs, grid)[-1].subs(vertical, row)
+    ghost_row = _ghost_row(center, position, ghost)
     lateral_index = _lateral_indices(lhs, grid)
+    subdomain = _row_subdomain(grid, row)
 
     column, lateral = {}, {}
     for access in reflected:
         function = access.function
         weights, table, first, start = grid._reflection_weights_function(
-            center, ghost, _offsets(function, grid), function.space_order, (row,))
+            center, ghost, _offsets(function, grid), function.space_order, (ghost_row,))
         _check_halo(function, grid, first, table.shape[grid.dim:-1])
         column[access], lateral[access] = 0, 0
         for stencil in np.ndindex(*table.shape[grid.dim:]):
             if not table[(Ellipsis,) + stencil].any():
                 continue
             offsets = tuple(f + s for f, s in zip(first, stencil, strict=False))
+            read = vertical + start + stencil[-1] - row
             term = (weights.indexed[lateral_index + (0,) + stencil] *
-                    _shifted(access, grid, offsets, start + stencil[-1]))
+                    _shifted(access, grid, offsets, read))
             if any(offsets):
                 lateral[access] += term
             else:
@@ -398,25 +364,26 @@ def _gather(eq, grid, center, reflected):
     parts = _linear_parts(eq.rhs, reflected)
     if parts is None:
         mapper = {a: column[a] + lateral[a] for a in reflected}
-        return [eq.func(lhs, eq.rhs.xreplace(mapper), subdomain=eq.subdomain,
+        return [eq.func(lhs, eq.rhs.xreplace(mapper), subdomain=subdomain,
                         implicit_dims=eq.implicit_dims)]
 
     constant, factors = parts
     own = [a for a in reflected if a.function is lhs.function]
     first_rhs = constant + sum(f*(column[a] + (0 if a in own else lateral[a]))
                                for a, f in factors.items())
-    eqns = [eq.func(lhs, first_rhs, subdomain=eq.subdomain,
-                    implicit_dims=eq.implicit_dims)]
+    eqns = [eq.func(lhs, first_rhs, subdomain=subdomain, implicit_dims=eq.implicit_dims)]
     if any(lateral[a] != 0 for a in own):
         eqns.append(eq.func(lhs, lhs + sum(factors[a]*lateral[a] for a in own),
-                            subdomain=eq.subdomain, implicit_dims=eq.implicit_dims))
+                            subdomain=subdomain, implicit_dims=eq.implicit_dims))
     return eqns
 
 
-def _scatter(eq, grid, center, reflected):
+def _scatter(eq, grid, center, reflected, row):
     """
-    The increments of `eq`, which reads a ghost above the surface and writes at
-    its mirror point, writing at the points that interpolate its reflection.
+    The increments of `eq` over its row `row`, which reads ghosts above the
+    surface and writes at their mirror points, writing at the points that
+    interpolate their reflection: each over the SubDomain of the row it writes,
+    the rows read relative to it.
 
     The reads of the right-hand side are at the ghost, or at the written point.
     Each target point gathers the ghosts that write it, in its own column first,
@@ -424,6 +391,7 @@ def _scatter(eq, grid, center, reflected):
     increments of consecutive `Inc`s are then merged (see `_merge_increments`).
     """
     lhs = eq.lhs
+    vertical = grid.dimensions[-1]
     lhs_position = _positions(lhs, grid)
     ghost_position = _positions(reflected[0], grid)
     at_lhs = []
@@ -439,31 +407,39 @@ def _scatter(eq, grid, center, reflected):
         raise ValueError(f"{eq} reads several points above the surface")
 
     ghost = _offsets(reflected[0].function, grid)
-    row = _ghost_row(center, ghost_position[-1], ghost)
+    ghost_row = _ghost_row(center, ghost_position[-1].subs(vertical, row), ghost)
     lateral_index = _lateral_indices(lhs, grid)
+    written_row = _vertical_index(lhs, grid, row)
     weights, table, smallest, start = grid._reflection_weights_function(
         center, ghost, _offsets(lhs.function, grid), lhs.function.space_order,
-        (row,), transposed=True)
+        (ghost_row,), transposed=True)
     for access in reflected:
         _check_halo(access.function, grid, smallest, table.shape[grid.dim:-1])
 
     eqns = []
     for r in range(table.shape[grid.dim - 1]):
-        target = {a: _shifted(a, grid, vertical=start + r) for a in at_lhs}
+        target = start + r
+        # Over the SubDomain of the target row, the reads at the written point move
+        # with it, and the reads at the ghost stay at its row
+        mapper = {a: _shifted(a, grid, vertical=vertical +
+                              _vertical_index(a, grid, row) - written_row)
+                  for a in at_lhs}
         column, lateral = 0, 0
         for offset in np.ndindex(*table.shape[grid.dim:-1]):
             if not table[(Ellipsis, r) + offset + (slice(None),)].any():
                 continue
             shift = tuple(s + o for s, o in zip(smallest, offset, strict=True))
-            mapper = {**target, **{a: _shifted(a, grid, shift) for a in reflected}}
+            mapper.update({a: _shifted(a, grid, shift, vertical +
+                                       _vertical_index(a, grid, row) - target)
+                           for a in reflected})
             term = (weights.indexed[lateral_index + (r,) + offset + (0,)] *
                     eq.rhs.xreplace(mapper))
             if any(shift):
                 lateral += term
             else:
                 column += term
-        written = _shifted(lhs, grid, vertical=start + r)
-        eqns.extend(eq.func(written, part, subdomain=eq.subdomain,
+        written = _shifted(lhs, grid, vertical=vertical)
+        eqns.extend(eq.func(written, part, subdomain=_row_subdomain(grid, target),
                             implicit_dims=eq.implicit_dims)
                     for part in (column, lateral) if part != 0)
     return eqns
