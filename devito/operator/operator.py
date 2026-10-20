@@ -34,7 +34,7 @@ from devito.parameters import configuration
 from devito.passes import (
     Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
     lower_dtypes, lower_index_derivatives, lower_local_sums, minimize_symbols,
-    optimize_pows, unevaluate
+    optimize_pows, subsampling, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
@@ -422,6 +422,11 @@ class Operator(Callable):
 
         # Generate implicit Clusters from higher level abstractions
         clusters = generate_implicit(clusters)
+
+        # Strengthen factor-based ConditionalDimension guards into strided
+        # iteration. Before `lower_index_derivatives` so that the Dimension
+        # swap is seen by everything downstream
+        clusters = subsampling(clusters)
 
         # Lower all remaining high order symbolic objects
         clusters = lower_local_sums(clusters, **kwargs)

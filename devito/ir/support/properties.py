@@ -117,37 +117,6 @@ A Dimension along which the shared-memory right-HALO data region is initialized.
 # Bundles
 PARALLELS = {PARALLEL, PARALLEL_INDEP, PARALLEL_IF_ATOMIC, PARALLEL_IF_PVT}
 
-STRIDED = 'strided'
-"""Name of the parameterized Strided Property; see `Strided`."""
-
-
-def Strided(factor):
-    """
-    Property marking a Dimension iterated with a non-unitary step `factor`, a
-    strengthened form of a factor-based ConditionalDimension guard. Instead of
-    visiting every point and testing `d % factor == 0`, the loop steps `factor`
-    points at a time, anchored so that the first iteration satisfies the guard.
-
-    Only legal on a PARALLEL Dimension, where no dependence is carried along the
-    Dimension and hence skipping the guarded-out points cannot drop a required
-    ordering.
-
-    The `factor` is carried as the Property value, so two Strided properties
-    with different factors compare unequal and therefore do not survive a
-    fusion that merges them.
-    """
-    return Property(STRIDED, factor)
-
-
-def strided_factor(properties):
-    """
-    The step of the Strided Property in `properties`, or None if absent.
-    """
-    for i in properties:
-        if i.name == STRIDED:
-            return i.val
-    return None
-
 
 def normalize_properties(*args):
     if not args:
@@ -177,13 +146,6 @@ def normalize_properties(*args):
     for i in (SEPARABLE, INIT_CORE_SHM, INIT_HALO_LEFT_SHM, INIT_HALO_RIGHT_SHM):
         if not all(i in p for p in args):
             drop.add(i)
-
-    # A Strided property must be dropped unless every `args` entry carries the
-    # very same one; fusing an unguarded Cluster into a strided loop would
-    # otherwise silently skip iterations
-    strided = {frozenset(i for i in p if i.name == STRIDED) for p in args}
-    if len(strided) > 1:
-        drop.update(*strided)
 
     properties = set()
     for p in args:

@@ -1153,13 +1153,18 @@ class ConditionalDimension(DerivedDimension):
         if isinstance(fact, Constant):
             fact = fact.data
 
-        toint = lambda x: math.ceil(x / fact)
         vals = {}
-        with suppress(KeyError, TypeError):
-            vals[self.min_name] = toint(kwargs.get(self.parent.min_name))
 
+        # The first subsampled point at or after the parent's min...
         with suppress(KeyError, TypeError):
-            vals[self.max_name] = toint(kwargs.get(self.parent.max_name))
+            vals[self.min_name] = math.ceil(kwargs.get(self.parent.min_name) / fact)
+
+        # ...and the last one at or before its max. Note `floor` rather than
+        # `ceil`: with e.g. `factor=3` and `x_M=11` the last subsampled point
+        # is `x=9`, hence index 3, while `ceil(11/3) == 4` would overshoot the
+        # Function by one
+        with suppress(KeyError, TypeError):
+            vals[self.max_name] = kwargs.get(self.parent.max_name) // fact
 
         vals[self.symbolic_factor.name] = fact
 
