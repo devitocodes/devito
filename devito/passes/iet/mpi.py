@@ -41,7 +41,9 @@ def _drop_reduction_halospots(iet):
     """
     mapper = defaultdict(set)
 
-    # If all HaloSpot reads pertain to reductions, then the HaloSpot is useless
+    # If all HaloSpot reads are the points the Increments update, then the
+    # HaloSpot is useless. A read of the updated Function elsewhere, e.g.
+    # `u[x] += u[x + 1]`, needs the halo
     for hs, expressions in MapNodes(HaloSpot, Expression).visit(iet).items():
         scope = Scope(i.expr for i in expressions)
         for k, v in hs.fmapper.items():
@@ -49,7 +51,8 @@ def _drop_reduction_halospots(iet):
             if f not in scope.reads:
                 continue
             v = scope.reads[f]
-            if all(i.is_reduction for i in v):
+            if all(i.is_reduction and i.access == scope.exprs[i.timestamp].lhs
+                   for i in v):
                 mapper[hs].add(k)
 
     # Transform the IET introducing the "reduced" HaloSpots
@@ -210,8 +213,11 @@ def _hoist_invariant(iet):
                 # data dependences
                 if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
                     hs, hsf = hs1, hsf1
-                elif hsf0.issubset(hsf1) and hs0 is halo_spots[0]:
-                    # Special case
+                elif hsf0.issubset(hsf1) and hs0 is halo_spots[0] and \
+                        not _is_written_before(it, hs0, f):
+                    # Special case: the first HaloSpot reads what the last one
+                    # exchanged in the previous iteration, as long as nothing
+                    # writes `f` in between
                     hs, hsf = hs0, hsf0
                 else:
                     # No hoisting possible, skip
@@ -465,6 +471,20 @@ def _make_cond_mapper(iet):
     """
     mapper = MapHaloSpots().visit(iet)
     return {hs: tuple(i for i in v if i.is_Conditional) for hs, v in mapper.items()}
+
+
+def _is_written_before(it, hs, f):
+    """
+    True if the Function `f` is written within the Iteration `it` before the
+    HaloSpot `hs`, False otherwise.
+    """
+    inner = FindNodes(Expression).visit(hs)
+    for e in FindNodes(Expression).visit(it):
+        if inner and e is inner[0]:
+            return False
+        if e.write is f:
+            return True
+    return False
 
 
 def _derive_scope(it, hs0, hs1):
