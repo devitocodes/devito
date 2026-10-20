@@ -9,8 +9,8 @@ from conftest import _R, assert_blocking, assert_structure, skipif
 from devito import (
     CustomDimension, DefaultDimension, Dimension, Eq, Function, Grid, Inc, Operator,
     PrecomputedSparseTimeFunction, ReduceMax, ReduceMin, ReduceMinMax, SpaceDimension,
-    SparseTimeFunction, SubDimension, TimeFunction, configuration, cos, dimensions, info,
-    switchconfig
+    SparseTimeFunction, SubDimension, SubDomain, TimeFunction, configuration, cos,
+    dimensions, info, switchconfig
 )
 from devito.arch.compiler import IntelCompiler
 from devito.exceptions import InvalidArgument
@@ -853,6 +853,39 @@ class TestNodeParallelism:
             return
 
         assert np.allclose(f.data, 18)
+
+    def test_array_reduction_reading_array(self):
+        """
+        An increment of rows of a Function by other rows of the same Function,
+        as the transpose of a free-surface mirror folds the rows above the surface
+        into the rows below it, reads the Function it reduces into: each thread
+        cannot reduce into a private copy of it, which would read zero.
+        """
+        grid = Grid(shape=(10, 20), dtype=np.float64)
+        x, y = grid.dimensions
+
+        class Below(SubDomain):
+
+            name = 'below'
+
+            def define(self, dimensions):
+                return {x: x, y: ('middle', 9, 9)}
+
+        below = Below(grid=grid)
+        w = Function(name='w', grid=grid, space_order=2)
+        values = np.arange(200.).reshape(10, 20)
+        w.data[:] = values
+
+        op = Operator([Inc(w, w.subs({x: x - 1, y: y - 2}), subdomain=below),
+                       Inc(w, w.subs(y, y - 2), subdomain=below)],
+                      opt=('openmp', {'par-collapse-ncores': 1}))
+        op.apply()
+
+        for i in FindNodes(Iteration).visit(op):
+            for pragma in i.pragmas:
+                assert 'reduction(+:w' not in pragma.ccode.value
+        expected = values[1:-1, 9:11] + values[:-2, 7:9] + values[1:-1, 7:9]
+        assert np.allclose(w.data[1:-1, 9:11], expected)
 
     def test_reduction_local(self):
         grid = Grid((11, 11))
