@@ -108,6 +108,9 @@ class GenericModel:
         self.nbl = int(nbl)
         self.origin = tuple([dtype(o) for o in origin])
         self.fs = fs
+        if grid is not None and surface is not None:
+            raise ValueError("A model is given either a grid or a surface to build its "
+                             "CurvilinearGrid from, not both")
         # A surface that is not flat is mirrored into rows above it
         self._mirror_rows = 0 if surface is None else space_order
         # Default setup
@@ -447,7 +450,7 @@ class SeismicModel(GenericModel):
             if value.shape == param.shape:
                 param.data[:] = value[:]
             elif value.shape == self.shape:
-                initialize_function(param, value, self.nbl)
+                initialize_function(param, value, self.parameter_padsizes)
             else:
                 raise ValueError(f"Incorrect input size {value.shape} for model" +
                                  f" {self.shape} without or {param.shape} with padding")

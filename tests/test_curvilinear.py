@@ -1571,7 +1571,22 @@ class TestSeismicModel:
         expected = cartesian.critical_dt*model.grid.min_spacing/10.
         assert np.isclose(model.critical_dt, expected, rtol=1e-2)
 
+    def test_update(self):
+        """
+        A parameter updated with an array over the physical domain is padded as
+        it is when the model is built with it, into the mirror rows too.
+        """
+        x = 10.*np.arange(51)
+        surface = -60.*np.exp(-((x - 250.)/80.)**2)
+        vp = np.linspace(1.5, 3., 41)[None, :]*np.ones((51, 1))
+        built = self.model(surface=surface, vp=vp)
+        updated = self.model(surface=surface, vp=np.ones((51, 41)))
+        updated.update('vp', vp)
+        assert np.array_equal(np.array(updated.vp.data), np.array(built.vp.data))
+
     def test_invalid(self):
+        with pytest.raises(ValueError, match='not both'):
+            self.model(surface=np.zeros(51), grid=self.model().grid)
         with pytest.raises(ValueError, match='needs fs=True'):
             SeismicModel(origin=(0., 0.), spacing=(10., 10.), shape=(51, 41),
                          space_order=8, vp=2., nbl=10, surface=np.zeros(51))
