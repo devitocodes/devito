@@ -88,28 +88,31 @@ def _odd_pad(values, npad):
     return values
 
 
-def _indexify(expr):
-    """`expr` with its Functions indexed, so that its indices can be shifted."""
-    expr = sympy.sympify(expr)
-    functions = {f for f in sympy.preorder_traversal(expr)
-                 if getattr(f, 'is_DiscreteFunction', False)}
-    return expr.xreplace({f: f.indexify() for f in functions})
-
-
-def _split_update(indexed, initial, column, lateral, subdomain):
+def _transpose_reflection(table, first, nlateral):
     """
-    Equations setting `indexed` to `initial` plus the sum of the terms `column`,
-    reading the field in its own column, and of the terms `lateral`, reading it
-    at lateral offsets, over `subdomain`.
-
-    The two sums are separate equations: an equation of a distributed field
-    reading it both in its own column and at lateral offsets misses the halo
-    exchange of the lateral reads.
+    The reflection weights `table` of `CurvilinearGrid._reflection_weights`,
+    whose window starts at the lateral offsets `first` from each ghost, gathered
+    at the target points they read: entry `[x, r, o, k]` is the weight of the
+    target point `(x, r)` in the image of the ghost of row `k` at `x + o`, the
+    lateral offsets `o` counted from the smallest one, which is also returned.
     """
-    eqns = [Eq(indexed, initial + sympy.Add(*column), subdomain=subdomain)]
-    if lateral:
-        eqns.append(Eq(indexed, indexed + sympy.Add(*lateral), subdomain=subdomain))
-    return eqns
+    lateral_shape = table.shape[:nlateral]
+    rows = table.shape[nlateral]
+    window = table.shape[nlateral + 1:-1]
+    transposed = np.zeros(lateral_shape + table.shape[-1:] + window + (rows,))
+    for stencil in np.ndindex(*window):
+        # The ghost at `xg` reads the target point at `xg + shift`
+        shift = [f + i for f, i in zip(first, stencil, strict=True)]
+        target = tuple(slice(max(0, sh), min(n, n + sh))
+                       for n, sh in zip(lateral_shape, shift, strict=True))
+        ghost = tuple(slice(i.start - sh, i.stop - sh)
+                      for i, sh in zip(target, shift, strict=True))
+        offset = tuple(n - 1 - i for n, i in zip(window, stencil, strict=True))
+        for k in range(rows):
+            transposed[target + (slice(None),) + offset + (k,)] = \
+                table[ghost + (k,) + stencil + (slice(None),)]
+    smallest = tuple(-(f + n - 1) for f, n in zip(first, window, strict=True))
+    return transposed, smallest
 
 
 def _crop(values, npad):
@@ -186,7 +189,8 @@ class CurvilinearMap:
       points, which must be defined, smoothly, past the domain too, where it
       gives the halo nodes their positions;
     * `inverse(grid, points)`, the computational coordinates of physical
-      points, needed to place SparseFunctions and by `free_surface`.
+      points, needed to place SparseFunctions and to reflect points through the
+      rows of the grid.
 
     The metric terms, their derivatives and the Jacobian default to finite
     differences of `forward` at the grid space order. A map with closed forms
@@ -338,7 +342,7 @@ class TerrainFollowing(CurvilinearMap):
     linearly with depth, and the grid is Cartesian if the surface is flat at
     `z = 0`. A grid whose vertical origin is negative has rows above the
     surface, placed by the same map, such as the mirror rows of a free surface
-    (see `CurvilinearGrid.free_surface`).
+    (see `CurvilinearGrid`).
 
     The surface sets the cell sizes: cells shrink vertically where the surface
     is deep and stretch where it is high, so the smallest one, used for a
@@ -715,6 +719,14 @@ class CurvilinearGrid(Grid):
       Jacobian, so that a point source is a Dirac in physical space and
       injection is the transpose of interpolation in the inner product
       weighted by the Jacobian, `<P u, d> = sum(J * u * P.T d)`.
+    * A read at the mirror point of the written point through a row of the last
+      Dimension, e.g. the odd mirror of a free surface on the row `s`,
+      `Eq(u.forward.subs(z, s - k), -u.forward.subs(z, s + k))`, is the read at
+      the reflection of the written point through the surface of the row,
+      normal to it, rather than along the grid line, and an `Inc` writing at the
+      mirror point of the point it reads is its transpose (see
+      `devito.operations.reflection`). Over a flat surface, it is the mirror of
+      a Grid.
 
     Parameters
     ----------
@@ -771,8 +783,7 @@ class CurvilinearGrid(Grid):
     The coordinate and metric Functions are built from the map when first
     needed, on each rank for its own nodes under domain decomposition, halo
     included: a halo node takes the value of the map continued past the
-    domain. `resample` maps Cartesian Functions onto the grid and back, and
-    `free_surface` imposes a zero field on the surface row.
+    domain. `resample` maps Cartesian Functions onto the grid and back.
     """
 
     is_Curvilinear = True
@@ -787,7 +798,7 @@ class CurvilinearGrid(Grid):
                              f"not {space_order}")
         self._mapping = mapping
         self._space_order = space_order
-        self._image_weights_cache = {}
+        self._reflection_cache = {}
         self._staggered_terms_cache = {}
         self._rows_cache = {}
         self._sbp_terms_cache = {}
@@ -1105,24 +1116,33 @@ class CurvilinearGrid(Grid):
             transposed = self.comm.allreduce(transposed, op=MPI.SUM)
         cartesian.data[:] = transposed
 
-    def _surface_foot(self, physical):
+    def _level_point(self, lateral, level):
         """
-        Lateral computational coordinates of the point of the surface row
-        closest to each of the `physical` points, of shape `(npoint, ndim)`,
-        by Gauss-Newton iterations on the forward map.
+        Physical position of the points at the lateral computational coordinates
+        `lateral`, of shape `(npoint, ndim - 1)`, on the coordinate surface of
+        vertical computational coordinate `level`.
+        """
+        vertical = np.full((lateral.shape[0], 1), level)
+        return self.to_physical(np.concatenate([lateral, vertical], axis=1))
+
+    def _level_foot(self, physical, level):
+        """
+        The closest point of the coordinate surface of vertical computational
+        coordinate `level` to each of the `physical` points, of shape `(npoint,
+        ndim)`, by Gauss-Newton iterations on the forward map.
         """
         nlateral = self.dim - 1
         lateral = self.to_computational(physical)[:, :nlateral]
         steps = [1e-3*np.float64(h) for h in self.spacing[:nlateral]]
 
         for _ in range(20):
-            foot = self._surface_point(lateral)
+            foot = self._level_point(lateral, level)
             tangents = []
             for axis, step in enumerate(steps):
                 shift = np.zeros(nlateral)
                 shift[axis] = step
-                tangents.append((self._surface_point(lateral + shift) -
-                                 self._surface_point(lateral - shift))/(2*step))
+                tangents.append((self._level_point(lateral + shift, level) -
+                                 self._level_point(lateral - shift, level))/(2*step))
             tangents = np.stack(tangents, axis=2)
             residual = physical - foot
             normal = np.einsum('pda,pdb->pab', tangents, tangents)
@@ -1131,94 +1151,117 @@ class CurvilinearGrid(Grid):
             lateral = lateral + update
             if np.abs(update).max() < 1e-12*max(np.float64(h) for h in self.spacing):
                 break
-        return self._surface_point(lateral)
+        return self._level_point(lateral, level)
 
-    def _surface_point(self, lateral):
-        """Physical position of the surface at lateral computational coordinates."""
-        row = np.zeros((lateral.shape[0], 1))
-        return self.to_physical(np.concatenate([lateral, row], axis=1))
-
-    def _image_weights(self, rows, order):
+    def _reflection_weights(self, center, ghost, target, order, rows=None):
         """
-        Interpolation weights of the image of each ghost node above the surface.
+        Interpolation weights of the reflections of points through a coordinate
+        surface, the row (or half row) `center` cells below the vertical origin.
 
-        The ghost node `k` rows above the surface, at physical position `p`, is
-        mirrored through the closest point `f` of the surface, to the image
-        `2*f - p`, inside the domain. The image is interpolated with Lagrange
-        polynomials of `order` points along each axis, from rows at or below the
-        surface only.
+        The points reflected, the ghosts, are the points of a Function staggered
+        by `ghost`, the offsets in cells of its points from the nodes along each
+        Dimension, above the surface: the ghost row `k` is `k + 1 - f` cells above
+        it, with `f` the fractional part of `center - ghost[-1]`, for the rows
+        `rows`, by default all of those in the grid. Each ghost, at
+        physical position `p`, is reflected through the closest point `q` of the
+        surface, normal to it, to its image `2*q - p`, which is interpolated with
+        Lagrange polynomials of `order` points along each axis from the points of
+        a Function staggered by `target` at or below the surface. Over a plane
+        surface, the image of a field odd or even through the surface is exact.
 
-        Returns the weights, of shape `lateral shape + (rows,) + lateral window +
-        (vertical window,)`, and the first lateral offset of the window along
-        each lateral axis, relative to the ghost node.
+        Returns the weights, of shape `lateral shape + (ghost rows,) + lateral
+        window + (vertical window,)`, the first lateral offset of the window from
+        the ghost along each lateral Dimension, and the index of the first row of
+        the target Function in the vertical window.
         """
-        key = (rows, order)
-        if key in self._image_weights_cache:
-            return self._image_weights_cache[key]
+        key = ('table', center, ghost, target, order, rows)
+        if key in self._reflection_cache:
+            return self._reflection_cache[key]
 
+        center = float(center)
         nlateral = self.dim - 1
-        # Rows are counted from the surface, at computational depth 0
-        origin = np.array([np.float64(o) for o in self.origin[:-1]] + [0.])
+        origin = np.array([np.float64(o) for o in self.origin])
         spacing = np.array([np.float64(h) for h in self.spacing])
+        ghost = np.array([float(o) for o in ghost])
+        target = np.array([float(o) for o in target])
+        fraction = (center - ghost[-1]) % 1
+        nrows = int(round(center - ghost[-1] + fraction))
+        rows = tuple(range(nrows)) if rows is None else rows
+        if not rows or min(rows) < 0 or max(rows) >= nrows:
+            raise ValueError(f"The grid has {nrows} rows above the surface to "
+                             f"reflect, not the rows {rows}")
+        start = int(np.ceil(center - target[-1] - 1e-9))
         lateral_shape = tuple(self.shape[:nlateral])
         nodes = np.meshgrid(*[np.arange(n) for n in lateral_shape], indexing='ij')
         nodes = np.stack([n.ravel() for n in nodes], axis=1)
 
-        # Ghost nodes, row after row
-        ghosts = np.concatenate([
-            np.concatenate([nodes, np.full((len(nodes), 1), -k)], axis=1)
-            for k in range(1, rows + 1)
-        ])
-        physical = self.to_physical(origin + spacing*ghosts)
-        image = 2*self._surface_foot(physical) - physical
-        position = (self.to_computational(image) - origin)/spacing
-        if (position[:, -1] < 0).any():
-            raise ValueError("The image of a ghost node through the surface lies above "
-                             "it; the surface is too curved for the grid spacing")
+        # Ghosts, row after row, at their positions in cells from the origin
+        ghosts = np.concatenate([nodes]*len(rows))
+        ghost_rows = np.repeat(np.array(rows), len(nodes))
+        cells = np.concatenate([ghosts + ghost[:-1],
+                                (center - (ghost_rows + 1 - fraction))[:, None]],
+                               axis=1)
+        physical = self.to_physical(origin + spacing*cells)
+        image = 2*self._level_foot(physical, origin[-1] + spacing[-1]*center) - physical
+        position = (self.to_computational(image) - origin)/spacing - target
+        if (position[:, -1] + target[-1] < center - 1e-9).any():
+            raise ValueError("The reflection of a point through the surface lies "
+                             "above it; the surface is too curved for the grid "
+                             "spacing")
 
-        # Lagrange stencils, centered laterally, below the surface vertically
+        # Lagrange stencils, centered laterally, at or below the surface vertically
         base = np.floor(position).astype(np.int64) - order//2 + 1
-        base[:, -1] = np.maximum(base[:, -1], 0)
+        base[:, -1] = np.maximum(base[:, -1], start)
         weights = [_lagrange_weights(position[:, a] - base[:, a], order)
                    for a in range(self.dim)]
 
-        offsets = base[:, :nlateral] - ghosts[:, :nlateral]
+        offsets = base[:, :nlateral] - ghosts
         first = offsets.min(axis=0)
         window = tuple(offsets.max(axis=0) - first + order)
-        depth = base[:, -1].max() + order
-        table = np.zeros(lateral_shape + (rows,) + window + (depth,))
+        depth = (base[:, -1] - start).max() + order
+        table = np.zeros(lateral_shape + (len(rows),) + window + (depth,))
+        row_index = np.repeat(np.arange(len(rows)), len(nodes))
         ghost_index = tuple(ghosts[:, a] for a in range(nlateral))
-        row_index = -ghosts[:, -1] - 1
         for stencil in np.ndindex(*(order,)*self.dim):
             weight = np.prod([w[:, s] for w, s in zip(weights, stencil, strict=True)],
                              axis=0)
             lateral = tuple(offsets[:, a] - first[a] + stencil[a]
                             for a in range(nlateral))
-            vertical = base[:, -1] + stencil[-1]
+            vertical = base[:, -1] - start + stencil[-1]
             np.add.at(table, ghost_index + (row_index,) + lateral + (vertical,),
                       weight)
 
-        self._image_weights_cache[key] = (table, tuple(first))
-        return self._image_weights_cache[key]
+        self._reflection_cache[key] = (table, tuple(int(f) for f in first), start)
+        return self._reflection_cache[key]
 
-    def _image_weights_function(self, rows, order):
+    def _reflection_weights_function(self, center, ghost, target, order, rows=None,
+                                     transposed=False):
         """
-        The weights of `_image_weights` as a Function distributed like the
-        grid, shared by every field mirrored with the same `rows` and `order`,
-        and the first lateral offset of their window.
+        The weights of `_reflection_weights` as a Function distributed like the
+        grid, the first lateral offset of their window and the first row of the
+        target Function they read, shared by every reflection through the same
+        surface between Functions of the same staggering.
+
+        With `transposed`, the weights are gathered at the target points they
+        read: entry `[x, r, o, k]` is the weight of the target point `(x, start
+        + r)` in the image of the ghost of row `k` at `x + o`, the lateral
+        offsets `o` counted from the smallest one, which is returned instead.
         """
-        key = ('function', rows, order)
-        if key not in self._image_weights_cache:
-            table, first = self._image_weights(rows, order)
-            name = f'image_{rows}_{order}'
+        key = ('function', center, ghost, target, order, rows, transposed)
+        if key not in self._reflection_cache:
+            table, first, start = self._reflection_weights(center, ghost, target,
+                                                           order, rows)
+            if transposed:
+                table, first = _transpose_reflection(table, first, self.dim - 1)
+            name = f'reflection{len(self._reflection_cache)}'
             extra = [DefaultDimension(name=f'{name}_{i}', default_value=n)
                      for i, n in enumerate(table.shape[self.dim - 1:])]
             weights = Function(name=name, grid=self,
                                dimensions=self.dimensions[:-1] + tuple(extra),
                                shape=table.shape, space_order=0, dtype=self.dtype)
             weights.data[:] = table
-            self._image_weights_cache[key] = (weights, first)
-        return self._image_weights_cache[key]
+            self._reflection_cache[key] = (weights, table, first, start)
+        return self._reflection_cache[key]
 
     @cached_property
     def _surface_index(self):
@@ -1236,214 +1279,6 @@ class CurvilinearGrid(Grid):
             self._rows_cache[key] = Rows(f'{name}_{start}_{thickness}', start,
                                          thickness, self)
         return self._rows_cache[key]
-
-    def _free_surface_sizes(self, field, rows, order):
-        """
-        The number of ghost rows and of interpolation points of the free surface
-        of `field`, defaulting to half and all of its space order, checked
-        against its halo.
-        """
-        function = field.function
-        if function.grid is None or function.grid.root is not self:
-            raise ValueError(f"{function} is not defined on {self}")
-        rows = rows or function.space_order // 2
-        order = order or function.space_order
-        if rows > self._surface_index:
-            raise ValueError(f"{self} has {self._surface_index} rows above the "
-                             f"surface, where {rows} mirror rows are needed; extend "
-                             "it upwards")
-
-        self._check_lateral_halo(function, rows, order)
-        return rows, order
-
-    def _check_lateral_halo(self, function, rows, order):
-        """
-        Raise an error if the image stencils of the free surface read
-        `function` laterally beyond its halo.
-        """
-        table, first = self._image_weights(rows, order)
-        window = table.shape[self.dim:-1]
-        for d, f, n in zip(self.dimensions[:-1], first, window, strict=True):
-            halo = function._size_halo[d]
-            if f < -halo.left or f + n - 1 > halo.right:
-                raise ValueError(f"The image stencils span lateral offsets {f} to "
-                                 f"{f + n - 1}, beyond the halo of {function}")
-
-    def _transposed_image_weights_function(self, rows, order):
-        """
-        The weights of `_image_weights` gathered at the interior nodes they
-        read, as a Function distributed like the grid: entry `[x, r, o, k]` is
-        the weight of the interior node `(x, r)` in the image of the ghost node
-        `k + 1` rows above the surface at `x + o`, the lateral offsets `o`
-        counted from the smallest one, which is also returned.
-        """
-        key = ('transposed', rows, order)
-        if key not in self._image_weights_cache:
-            table, first = self._image_weights(rows, order)
-            nlateral = self.dim - 1
-            lateral_shape = table.shape[:nlateral]
-            window = table.shape[nlateral + 1:-1]
-            transposed = np.zeros(lateral_shape + table.shape[-1:] + window + (rows,))
-            for stencil in np.ndindex(*window):
-                # The ghost node at `xg` reads the interior node `xg + shift`
-                shift = [f + i for f, i in zip(first, stencil, strict=True)]
-                interior = tuple(slice(max(0, sh), min(n, n + sh))
-                                 for n, sh in zip(lateral_shape, shift, strict=True))
-                ghost = tuple(slice(i.start - sh, i.stop - sh)
-                              for i, sh in zip(interior, shift, strict=True))
-                offset = tuple(n - 1 - i for n, i in zip(window, stencil, strict=True))
-                for k in range(rows):
-                    transposed[interior + (slice(None),) + offset + (k,)] = \
-                        table[ghost + (k,) + stencil + (slice(None),)]
-
-            name = f'image_transposed_{rows}_{order}'
-            extra = [DefaultDimension(name=f'{name}_{i}', default_value=n)
-                     for i, n in enumerate(transposed.shape[nlateral:])]
-            weights = Function(name=name, grid=self,
-                               dimensions=self.dimensions[:-1] + tuple(extra),
-                               shape=transposed.shape, space_order=0,
-                               dtype=self.dtype)
-            weights.data[:] = transposed
-            smallest = tuple(-(f + n - 1) for f, n in zip(first, window, strict=True))
-            self._image_weights_cache[key] = (weights, smallest)
-        return self._image_weights_cache[key]
-
-    def free_surface(self, field, rows=None, order=None):
-        """
-        Equations imposing `field = 0` on the surface, the row at computational
-        depth 0, by an odd mirror through the surface into the rows above it.
-
-        The grid extends above the surface by at least `rows` mirror rows, a
-        negative vertical `origin` placing them. Each mirror node, at physical
-        position `p`, is set to minus the field at its image `2*f - p`, with `f`
-        the closest point of the surface, interpolated at order `order` from the
-        nodes at or below the surface. Over a plane surface this is the exact
-        image of the field, so the free surface is imposed to the order of the
-        stencils; it reduces to the usual odd mirror `u(-k) = -u(k)` when the
-        surface is flat. The equations write the surface row and the mirror
-        rows only, and are meant to follow an update of `field` below the
-        surface, e.g.
-
-            Operator([Eq(u.forward, ..., subdomain=below)] +
-                     grid.free_surface(u.forward) + ...)
-
-        Parameters
-        ----------
-        field : Function or expression of a Function
-            The field to mirror, e.g. `u.forward`.
-        rows : int, optional
-            Number of mirror rows, by default half the space order of the field
-            (the radius of its stencils).
-        order : int, optional
-            Number of interpolation points along each axis, by default the space
-            order of the field.
-
-        Notes
-        -----
-        The images of steep slopes lie laterally further from their mirror
-        nodes, and their interpolation stencils must fit in the halo of the
-        field: a ValueError is raised otherwise, and the slope must be smoothed
-        or the halo widened. The interpolation weights are computed once per
-        grid, `rows` and `order`, and shared by every field mirrored with them.
-        """
-        lateral_dims = self.dimensions[:-1]
-        vertical = self.dimensions[-1]
-        rows, order = self._free_surface_sizes(field, rows, order)
-        weights, first = self._image_weights_function(rows, order)
-        surface = self._surface_index
-        indexed = field.indexify()
-
-        eqns = [Eq(indexed, 0, subdomain=self._rows('surface', surface, 1))]
-        # The mirror row `k + 1` rows above the surface, reading the rows below
-        # the surface at offsets from it
-        for k in range(rows):
-            column, lateral = [], []
-            for stencil in np.ndindex(*weights.shape[self.dim:]):
-                # The field is zero on the surface row
-                if stencil[-1] == 0:
-                    continue
-                offsets = [f + i for f, i in zip(first, stencil, strict=False)]
-                shifted = {d: d + o for d, o in zip(lateral_dims, offsets, strict=True)}
-                shifted[vertical] = vertical + k + 1 + stencil[-1]
-                weight = weights[lateral_dims + (k,) + stencil]
-                term = -weight*indexed.subs(shifted)
-                (lateral if any(offsets) else column).append(term)
-            row = self._rows('mirror', surface - 1 - k, 1)
-            eqns.extend(_split_update(indexed, 0, column, lateral, row))
-        return eqns
-
-    def free_surface_adjoint(self, field, coefficient, rows=None, order=None):
-        """
-        Equations transposing `free_surface` in an adjoint propagation, the
-        adjoint being taken in the inner product weighted by the Jacobian, in
-        which the propagation is self-adjoint.
-
-        The free surface fills the mirror rows with the images of the nodes
-        below, `g = -W u`, before the operator `L` of the propagation reads
-        them, so that each update applies `L E`, with `E` the extension of the
-        field by its images. Its transpose `J^-1 E^T J L` applies the operator to
-        the adjoint field held at zero in the mirror rows, below the surface
-        and in the mirror rows alike, and folds the mirror rows back onto the
-        nodes their images read, with the transposed weights `-J^-1 W^T J`,
-        after which the rows above the surface and the surface are zero again.
-        Over a flat surface, the fold is the usual odd mirror.
-
-        The update of the adjoint field must therefore cover the mirror rows,
-        where it leaves `coefficient` times the operator, the field being zero
-        there, and these equations follow it, e.g.
-
-            Operator([Eq(v.backward, 2*v - v.forward + dt**2*v.laplace/m)] +
-                     grid.free_surface_adjoint(v.backward, dt**2/m))
-
-        Parameters
-        ----------
-        field : Function or expression of a Function
-            The updated adjoint field, e.g. `v.backward`.
-        coefficient : expression
-            The factor of the spatial operator in the update of the field, e.g.
-            `dt**2/m`, damping included. A coefficient of 0, for an update
-            without a spatial operator, only zeroes the rows above the surface.
-        rows, order : int, optional
-            The number of mirror rows and of interpolation points of the
-            `free_surface` of the forward propagation.
-        """
-        lateral_dims = self.dimensions[:-1]
-        vertical = self.dimensions[-1]
-        rows, order = self._free_surface_sizes(field, rows, order)
-        weights, smallest = self._transposed_image_weights_function(rows, order)
-        surface = self._surface_index
-        indexed = field.indexify()
-        jacobian = self.jacobian.indexify()
-        # The coefficient is read at the mirror nodes, laterally as far as the field
-        for f in sympy.preorder_traversal(sympy.sympify(coefficient)):
-            if getattr(f, 'is_DiscreteFunction', False):
-                self._check_lateral_halo(f.function, rows, order)
-        coefficient = _indexify(coefficient)
-
-        # The rows above the surface and the surface back to zero, for the
-        # operator of the next update to read the field there as zero
-        zero = [Eq(indexed, 0, subdomain=self._rows('above', 0, surface + 1))]
-        # An update without a spatial operator leaves nothing to fold
-        if coefficient == 0:
-            return zero
-
-        # The operator in the mirror rows, folded onto each row `r` below the
-        # surface, reading the mirror rows at offsets from it
-        eqns = []
-        for r in range(1, weights.shape[self.dim - 1]):
-            column, lateral = [], []
-            for offset in np.ndindex(*weights.shape[self.dim:-1]):
-                offsets = [i + o for i, o in zip(smallest, offset, strict=True)]
-                shifted = {d: d + o for d, o in zip(lateral_dims, offsets, strict=True)}
-                for k in range(rows):
-                    shifted[vertical] = vertical - r - 1 - k
-                    weight = weights[lateral_dims + (r,) + offset + (k,)]
-                    term = (-coefficient * weight * jacobian.subs(shifted) *
-                            indexed.subs(shifted) / coefficient.subs(shifted) / jacobian)
-                    (lateral if any(offsets) else column).append(term)
-            row = self._rows('below', surface + r, 1)
-            eqns.extend(_split_update(indexed, indexed, column, lateral, row))
-        return eqns + zero
 
     def _sbp_terms(self, lateral_half, vgrid):
         """
@@ -1564,7 +1399,7 @@ class CurvilinearGrid(Grid):
         for i in ('coordinates', 'metrics', 'metric_derivatives', 'jacobian',
                   '_local_vectors', 'min_spacing'):
             state.pop(i, None)
-        state['_image_weights_cache'] = {}
+        state['_reflection_cache'] = {}
         state['_staggered_terms_cache'] = {}
         state['_sbp_terms_cache'] = {}
         return state

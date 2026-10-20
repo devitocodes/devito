@@ -323,7 +323,7 @@ class SeismicModel(GenericModel):
         callable of the lateral physical coordinates. The model is then built on
         a CurvilinearGrid with a TerrainFollowing map, with the surface at its
         vertical origin and `space_order` rows above it, the `fsdomain`, into
-        which `CurvilinearGrid.free_surface` mirrors the fields. The parameters
+        which the free surface mirrors the fields. The parameters
         are continued into these rows, and the critical time step follows the
         smallest cell of the grid (`CurvilinearGrid.min_spacing`).
     """

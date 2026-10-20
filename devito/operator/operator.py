@@ -28,6 +28,7 @@ from devito.ir.stree import stree_build
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.logger import debug, info, is_log_enabled_for, perf, switch_log_level, warning
 from devito.mpi import MPI
+from devito.operations.reflection import lower_reflections
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.parameters import configuration
@@ -371,6 +372,9 @@ class Operator(Callable):
 
         # Scalarize the tensor equations, if any
         expressions = [j for i in expressions for j in i._flatten]
+
+        # Reads at mirror points through the rows of a CurvilinearGrid
+        expressions = lower_reflections(expressions)
 
         # A second round of specialization is performed on evaluated expressions
         expressions = cls._specialize_exprs(expressions, **kwargs)
