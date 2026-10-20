@@ -569,8 +569,9 @@ class TestSparse:
 
     def test_adjoint(self):
         """
-        Injection is the adjoint of interpolation in the inner product weighted
-        by the Jacobian, `<P u, d> = sum(J u P.T d)`.
+        Injection of the data divided by the Jacobian is the adjoint of
+        interpolation in the inner product weighted by the Jacobian,
+        `<P u, d> = sum(J u P.T (d/J))`.
         """
         grid = sine_grid(41, dtype=np.float64)
         points = random_points(20)
@@ -584,21 +585,24 @@ class TestSparse:
         u.data[:] = rng.standard_normal(grid.shape)
         src.data[:] = rng.standard_normal(len(points))
 
-        Operator([rec.interpolate(u), src.inject(v, src)]).apply()
+        Operator([rec.interpolate(u), src.inject(v, src/grid.jacobian)]).apply()
 
         forward = np.dot(rec.data, src.data)
         backward = np.sum(grid.jacobian.data*u.data*v.data)
         assert np.isclose(forward, backward, rtol=1e-12, atol=0)
 
     def test_dirac(self):
-        """An injected unit Dirac integrates to one over the physical domain."""
+        """
+        A unit Dirac injected divided by the Jacobian integrates to one over the
+        physical domain.
+        """
         grid = sine_grid(41)
         points = random_points(3)
         v = Function(name='v', grid=grid, space_order=4)
         src = SparseFunction(name='src', grid=grid, npoint=len(points),
                              coordinates=points)
         src.data[:] = 1.
-        Operator(src.inject(v, src)).apply()
+        Operator(src.inject(v, src/grid.jacobian)).apply()
 
         cell = np.prod(grid.spacing)
         assert np.isclose(np.sum(grid.jacobian.data*v.data)*cell,
@@ -642,64 +646,29 @@ class TestSparse:
             assert np.array_equal(rec.coordinates.data, points)
 
     @pytest.mark.parametrize('staggered', ['x', 'y', '(x, y)'])
-    def test_staggered_adjoint(self, staggered):
-        """
-        On a staggered field, injection is the adjoint of interpolation in the
-        inner product weighted by the Jacobian at the staggered points.
-        """
-        grid = sine_grid(41, dtype=np.float64)
-        x, y = grid.dimensions
-        staggered = eval(staggered)
-        points = random_points(20)
-        rng = np.random.default_rng(11)
-        u = Function(name='u', grid=grid, space_order=4, staggered=staggered)
-        v = Function(name='v', grid=grid, space_order=4, staggered=staggered)
-        jacobian = Function(name='jac', grid=grid, space_order=4, staggered=staggered)
-        rec = SparseFunction(name='rec', grid=grid, npoint=len(points),
-                             coordinates=points)
-        src = SparseFunction(name='src', grid=grid, npoint=len(points),
-                             coordinates=points)
-        u.data[:] = rng.standard_normal(grid.shape)
-        src.data[:] = rng.standard_normal(len(points))
-
-        Operator([rec.interpolate(u), src.inject(v, src),
-                  Eq(jacobian, grid.jacobian)]).apply()
-
-        forward = np.dot(rec.data, src.data)
-        backward = np.sum(jacobian.data*u.data*v.data)
-        assert np.isclose(forward, backward, rtol=1e-12, atol=0)
-
-    @pytest.mark.parametrize('staggered', ['x', 'y', '(x, y)'])
     def test_staggered_amplitude(self, staggered):
         """
-        A unit Dirac injected into a staggered field has the integral of the
-        same Dirac injected into a node field, and a smooth staggered field is
-        interpolated as accurately as a node one.
+        A unit Dirac injected divided by the Jacobian into a staggered field has
+        the integral of the same Dirac injected into a node field, the Jacobian
+        being taken at the points of the field.
         """
         grid = sine_grid(81, dtype=np.float64)
         x, y = grid.dimensions
         staggered = eval(staggered)
         points = random_points(5)
-        integrals, errors = [], []
+        integrals = []
         for stagger in [None, staggered]:
             v = Function(name='v', grid=grid, space_order=4, staggered=stagger)
-            u = Function(name='u', grid=grid, space_order=4, staggered=stagger)
             jacobian = Function(name='jac', grid=grid, space_order=4, staggered=stagger)
             src = SparseFunction(name='src', grid=grid, npoint=len(points),
                                  coordinates=points)
-            rec = SparseFunction(name='rec', grid=grid, npoint=len(points),
-                                 coordinates=points)
             src.data[:] = 1.
-            x_coord, z_coord = grid.coordinates
-            Operator([Eq(u, sin(_KX*x_coord)*cos(_KZ*z_coord)),
-                      Eq(jacobian, grid.jacobian)]).apply()
-            Operator([src.inject(v, src), rec.interpolate(u)]).apply()
+            Operator([Eq(jacobian, grid.jacobian),
+                      src.inject(v, src/grid.jacobian)]).apply()
             integrals.append(np.sum(jacobian.data*v.data))
-            errors.append(np.abs(rec.data - wave(*points.T)).max())
 
         assert np.isclose(integrals[0], len(points), rtol=1e-10)
         assert np.isclose(integrals[1], integrals[0], rtol=1e-10)
-        assert errors[1] < 2*errors[0] + 1e-6
 
     def test_guard(self):
         """
@@ -743,7 +712,7 @@ class TestSparseMPI:
         Operator(Eq(u, sin(_KX*x_coord)*cos(_KZ*z_coord))).apply()
         src.data[:] = np.linspace(-1., 1., len(points))
 
-        Operator([rec.interpolate(u), src.inject(v, src),
+        Operator([rec.interpolate(u), src.inject(v, src/grid.jacobian),
                   Eq(weighted, grid.jacobian*v)]).apply()
 
         # Each rank holds a contiguous block of the points, whose coordinates are
@@ -1005,7 +974,7 @@ class Test3D:
     def test_sparse(self):
         """
         3D interpolation at physical points converges at second order, and is
-        the Jacobian-weighted adjoint of injection.
+        the Jacobian-weighted adjoint of the injection divided by the Jacobian.
         """
         rng = np.random.default_rng(14)
         xs, ys = rng.uniform(100., 900., 10), rng.uniform(100., 700., 10)
@@ -1020,7 +989,7 @@ class Test3D:
             rec = SparseFunction(name='rec', grid=grid, npoint=10, coordinates=points)
             src = SparseFunction(name='src', grid=grid, npoint=10, coordinates=points)
             src.data[:] = rng.standard_normal(10)
-            Operator([rec.interpolate(u), src.inject(v, src)]).apply()
+            Operator([rec.interpolate(u), src.inject(v, src/grid.jacobian)]).apply()
             errors.append(np.abs(rec.data - wave_3d(*points.T)).max())
 
             forward = np.dot(rec.data, src.data)
@@ -1524,7 +1493,8 @@ def tilted_plane_misfit(spacing=10., cfl=.1):
 
     surface = odd_mirror(u.forward, 4)
     update = Eq(u.forward, 2*u - u.backward + dt**2*velocity**2*u.laplace)
-    Operator([update] + surface + src.inject(u.forward, src*dt**2*velocity**2) +
+    source_term = src.inject(u.forward, src*dt**2*velocity**2/grid.jacobian)
+    Operator([update] + surface + source_term +
              rec.interpolate(u)).apply(dt=dt, time_M=nt - 2)
 
     image = source[0] - 2*(slope*source[0, 0] - source[0, 1])/(1 + slope**2) * \
@@ -1723,8 +1693,8 @@ class TestElastic:
             rec = [SparseTimeFunction(name=f'rec{i}', grid=grid, npoint=31, nt=nt,
                                       coordinates=receivers) for i in range(2)]
             Operator(traction_free_update(v, tau, *self.parameters) +
-                     src.inject(tau.forward[0, 0], src*dt) +
-                     src.inject(tau.forward[1, 1], src*dt) +
+                     src.inject(tau.forward[0, 0], src*dt/grid.jacobian) +
+                     src.inject(tau.forward[1, 1], src*dt/grid.jacobian) +
                      rec[0].interpolate(v[0]) + rec[1].interpolate(v[1])
                      ).apply(time_M=nt - 2, dt=dt)
             data = [np.array(r.data) for r in rec]

@@ -477,11 +477,13 @@ class CurvilinearGrid(Grid):
       `Derivative`). `u.dx(computational=True)` is the derivative w.r.t. the
       computational coordinate. The transpose `.T` of a physical derivative is
       its exact discrete transpose.
-    * The coordinates of SparseFunctions are physical. Interpolation is
-      unchanged, in the computational grid, and injection divides by the
-      Jacobian, so that a point source is a Dirac in physical space and
-      injection is the transpose of interpolation in the inner product
-      weighted by the Jacobian, `<P u, d> = sum(J * u * P.T d)`.
+    * The coordinates of SparseFunctions are physical. Interpolation and
+      injection are those of a Grid, in the computational grid. As on a Grid,
+      injection does not scale by the cell volume: a point source in physical
+      space is injected divided by the Jacobian, `src.inject(u, src/J)` with
+      `J = grid.jacobian`, read at each point the source is spread over. Its
+      injection is then the transpose of interpolation in the inner product
+      weighted by the Jacobian, `<P u, d> = sum(J * u * P.T (d/J))`.
     * A read at the mirror point of the written point through a row of the last
       Dimension, e.g. the odd mirror of a free surface on the row `s`,
       `Eq(u.forward.subs(z, s - k), -u.forward.subs(z, s + k))`, is the read at
