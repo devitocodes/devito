@@ -301,11 +301,18 @@ class TerrainFollowing(CurvilinearMap):
             raise ValueError("A TerrainFollowing map requires the last row of the "
                              "grid below the surface, at a positive computational "
                              "depth")
-        if callable(self._surface):
-            return
-        if self._surface.shape != tuple(grid.shape[:-1]):
+        if not callable(self._surface) and \
+                self._surface.shape != tuple(grid.shape[:-1]):
             raise ValueError(f"The surface has shape {self._surface.shape}, expected one "
                              f"value per lateral grid node {tuple(grid.shape[:-1])}")
+        lateral = np.meshgrid(*[np.float64(o) + np.float64(h)*np.arange(n)
+                                for o, h, n in zip(grid.origin[:-1], grid.spacing[:-1],
+                                                   grid.shape[:-1], strict=True)],
+                              indexing='ij')
+        surface = self.surface_at(grid, lateral)
+        if not np.all(np.isfinite(surface)) or np.max(surface) >= self._bottom(grid):
+            raise ValueError("A TerrainFollowing map requires a finite surface above "
+                             f"the bottom of the grid, at depth {self._bottom(grid)}")
 
     def surface_at(self, grid, lateral):
         """
@@ -442,14 +449,6 @@ class CurvilinearGrid(Grid):
       `J = grid.jacobian`, read at each point the source is spread over. Its
       injection is then the transpose of interpolation in the inner product
       weighted by the Jacobian, `<P u, d> = sum(J * u * P.T (d/J))`.
-    * A read at the mirror point of the written point through a row of the last
-      Dimension, e.g. the odd mirror of a free surface on the row `s`,
-      `Eq(u.forward.subs(z, s - k), -u.forward.subs(z, s + k))`, is the read at
-      the reflection of the written point through the surface of the row,
-      normal to it, rather than along the grid line, and an `Inc` writing at the
-      mirror point of the point it reads is its transpose (see
-      `devito.passes.equations.reflection`). Over a flat surface, it is the mirror of
-      a Grid.
 
     Parameters
     ----------
@@ -620,9 +619,14 @@ class CurvilinearGrid(Grid):
         `location`, a mapper from each Dimension to a node or a half point,
         e.g. `{x: x - h_x/2, y: y}`, computed from the map there.
         """
-        offsets = {d: sympy.nsimplify((location.get(d, d) - d)/d.spacing)
-                   for d in self.dimensions}
-        staggered = tuple(d for d, o in offsets.items() if (2*o) % 2 == 1)
+        offsets = {}
+        for d in self.dimensions:
+            offset = sympy.nsimplify((location.get(d, d) - d)/d.spacing)
+            if not offset.is_Rational or offset.q > 2:
+                raise ValueError(f"The metric terms are defined at the nodes and the "
+                                 f"half points, not at {location[d]} along {d}")
+            offsets[d] = offset
+        staggered = tuple(d for d, o in offsets.items() if o.q == 2)
         metrics, jacobian = self.staggered_terms(staggered)
         # Whole cells from the points the Functions are defined at
         shifts = {d: d + (o - sympy.Rational(1, 2) if d in staggered else o)*d.spacing

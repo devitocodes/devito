@@ -187,6 +187,17 @@ class TestGrid:
         with pytest.raises(ValueError):
             CurvilinearGrid(shape=(5, 5), mapping=TerrainFollowing(np.zeros(5)),
                             space_order=3)
+        # A surface at or below the bottom of the grid, here at depth 1
+        with pytest.raises(ValueError, match='above the bottom'):
+            CurvilinearGrid(shape=(5, 5), mapping=TerrainFollowing(lambda x: 2*x))
+        with pytest.raises(ValueError, match='finite surface'):
+            CurvilinearGrid(shape=(5, 5),
+                            mapping=TerrainFollowing(np.array([0., 0., np.nan, 0., 0.])))
+        # The metric terms are at the nodes and the half points only
+        grid = sine_grid(11)
+        x, y = grid.dimensions
+        with pytest.raises(ValueError, match='nodes and the half points'):
+            grid.terms_at({x: x + x.spacing/4})
 
     def test_function(self):
         """Functions on a CurvilinearGrid have the computational shape and spacing."""
