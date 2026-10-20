@@ -3,8 +3,8 @@ import pytest
 from sympy import Or
 
 from devito import (
-    CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Operator, TimeFunction,
-    switchconfig
+    CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Operator, SubGrid,
+    TimeFunction, switchconfig
 )
 from devito.ir.iet import Conditional, FindNodes, Iteration
 
@@ -420,3 +420,179 @@ class TestInteractions:
         Operator(Eq(g, f)).apply()
 
         assert np.array_equal(g.data, data[::2])
+
+
+class TestSubGrid:
+
+    """The `SubGrid` API."""
+
+    def test_derived_properties(self):
+        grid = Grid(shape=(9, 9), extent=(8., 8.))
+        sub = SubGrid(grid, factor=2)
+
+        assert sub.parent is grid
+        assert sub.factor == (2, 2)
+        assert sub.shape == (5, 5)
+        assert all(d.is_Conditional for d in sub.dimensions)
+        assert all(d.parent is p
+                   for d, p in zip(sub.dimensions, grid.dimensions, strict=True))
+
+    def test_spacing_scaled(self):
+        """Physical spacing is `factor` times the parent's; extent is kept."""
+        grid = Grid(shape=(9, 9), extent=(8., 8.))
+        sub = SubGrid(grid, factor=2)
+
+        assert np.allclose(sub.spacing, [2*s for s in grid.spacing])
+        assert np.allclose(sub.extent, grid.extent)
+        assert np.allclose(sub.origin, grid.origin)
+
+    def test_function_needs_no_shape(self):
+        """`Function(grid=sub)` derives both dimensions and shape."""
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=2)
+
+        f = Function(name='f', grid=sub, space_order=0)
+
+        assert f.dimensions == sub.dimensions
+        assert f.shape == (5, 5)
+
+    @pytest.mark.parametrize('shape,factor,expected', [
+        ((9, 9), 2, (5, 5)),
+        ((9, 9), (2, 1), (5, 9)),
+        ((10,), 3, (4,)),
+        ((10,), 5, (2,)),
+        ((8, 8, 8), (2, 4, 1), (4, 2, 8)),
+    ])
+    def test_shape_derivation(self, shape, factor, expected):
+        sub = SubGrid(Grid(shape=shape), factor=factor)
+
+        assert sub.shape == expected
+
+    @pytest.mark.parametrize('factor', [2, 3, (2, 1), (1, 3), (3, 2)])
+    def test_copy_from_parent(self, factor):
+        """Writing a SubGrid Function from a parent Function is a strided copy."""
+        grid = Grid(shape=(12, 12))
+        sub = SubGrid(grid, factor=factor)
+
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=sub, space_order=0)
+        data = np.arange(144, dtype=u.dtype).reshape(12, 12)
+        u.data[:] = data
+
+        Operator(Eq(f, u)).apply()
+
+        fx, fy = sub.factor
+        assert np.array_equal(f.data, data[::fx, ::fy])
+
+    def test_copy_is_strided(self):
+        """No guard is emitted: each subsampled Dimension's loop is strided."""
+        grid = Grid(shape=(12, 12))
+        sub = SubGrid(grid, factor=3)
+
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=sub, space_order=0)
+
+        op = Operator(Eq(f, u))
+
+        assert not FindNodes(Conditional).visit(op)
+        for d in sub.dimensions:
+            assert iteration(op, d.parent.name).limits[2] == d.symbolic_factor
+
+    def test_factor_one_is_passthrough(self):
+        """A factor of 1 leaves the Dimension untouched."""
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=(2, 1))
+
+        assert sub.dimensions[0].is_Conditional
+        assert sub.dimensions[1] is grid.dimensions[1]
+
+    def test_shares_parent_time_dimensions(self):
+        """
+        A SubGrid coarsens space only, so a TimeFunction on it must step over
+        the same buffer indices as one on the parent.
+        """
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=2)
+
+        assert sub.time_dim is grid.time_dim
+        assert sub.stepping_dim is grid.stepping_dim
+
+        u = TimeFunction(name='u', grid=grid)
+        us = TimeFunction(name='us', grid=sub, space_order=0)
+
+        assert u.dimensions[0] is us.dimensions[0]
+
+    def test_time_stepping_operator(self):
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=2)
+
+        u = TimeFunction(name='u', grid=grid)
+        us = TimeFunction(name='us', grid=sub, space_order=0)
+
+        Operator([Eq(u.forward, u + 1.), Eq(us.forward, u.forward)]).apply(time_M=4)
+
+        assert np.allclose(us.data[-1], u.data[-1][::2, ::2])
+
+    def test_derivative_uses_coarse_spacing(self):
+        """
+        `f.dx` on a SubGrid Function differentiates over the coarse spacing:
+        `ConditionalDimension.spacing` is `factor*h_x`, so the stencil steps
+        `factor*h_x` and the weights scale by `1/(factor*h_x)`.
+        """
+        grid = Grid(shape=(11, 11), extent=(10., 10.))
+        sub = SubGrid(grid, factor=2)
+        xs = sub.dimensions[0]
+
+        assert xs.spacing == 2*grid.dimensions[0].spacing
+
+        f = Function(name='f', grid=sub, space_order=2)
+        expr = f.dx.evaluate
+
+        # Steps by the coarse spacing, with correspondingly halved weights
+        assert str(expr) == '-0.5*f(xs, ys)/h_x + 0.5*f(xs + 2*h_x, ys)/h_x'
+
+    def test_derivative_numerics(self):
+        """A linear field differentiates exactly on the SubGrid."""
+        grid = Grid(shape=(21, 21), extent=(20., 20.))
+        sub = SubGrid(grid, factor=2)
+        xs, ys = sub.dimensions
+
+        f = Function(name='f', grid=sub, space_order=2)
+        d = Function(name='d', grid=sub, space_order=2)
+
+        # f = 3*x on the coarse grid, so df/dx == 3 everywhere inside
+        for i in range(f.shape[0]):
+            f.data[i, :] = 3.*i*float(sub.spacing[0])
+
+        Operator(Eq(d, f.dx)).apply()
+
+        assert np.allclose(d.data[1:-1, 1:-1], 3., atol=1e-4)
+
+    @pytest.mark.parametrize('factor,err', [
+        (0, 'must be >= 1'),
+        (-1, 'must be >= 1'),
+        (2.5, 'Non-integer'),
+        ((2, 2, 2), 'Expected 1 or 2 factors'),
+    ])
+    def test_invalid_factor(self, factor, err):
+        grid = Grid(shape=(9, 9))
+
+        with pytest.raises(ValueError, match=err):
+            SubGrid(grid, factor=factor)
+
+    def test_cannot_nest(self):
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=2)
+
+        with pytest.raises(ValueError, match='Cannot subsample a SubGrid'):
+            SubGrid(sub, factor=2)
+
+    def test_parent_must_be_grid(self):
+        with pytest.raises(ValueError, match='must be a Grid'):
+            SubGrid(Grid(shape=(9, 9)).interior, factor=2)
+
+    def test_custom_dimension_names(self):
+        grid = Grid(shape=(9, 9))
+        sub = SubGrid(grid, factor=2, name='c')
+
+        assert [d.name for d in sub.dimensions] == ['xc', 'yc']
