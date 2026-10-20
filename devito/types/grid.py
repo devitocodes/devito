@@ -314,6 +314,14 @@ class Grid(CartesianDiscretization, ArgProvider):
         return as_tuple(spacing)
 
     @cached_property
+    def min_spacing(self):
+        """
+        Smallest physical distance between two neighbouring nodes, e.g. to set a
+        stable time step. On a Grid it is the smallest spacing.
+        """
+        return np.min(self.spacing)
+
+    @cached_property
     def spacing_symbols(self):
         """Symbols representing the grid spacing in each SpaceDimension."""
         return as_tuple(d.root.spacing for d in self.dimensions)

@@ -426,9 +426,7 @@ class SeismicModel(GenericModel):
         #
         # The CFL condition is then given by
         # dt <= coeff * h / (max(velocity))
-        grid = self.grid
-        spacing = grid.min_spacing if grid.is_Curvilinear else np.min(self.spacing)
-        dt = self._cfl_coeff * spacing / (self._thomsen_scale*self._max_vp)
+        dt = self._cfl_coeff * self.grid.min_spacing / (self._thomsen_scale*self._max_vp)
         dt = self.dtype("%.3e" % (self.dt_scale * dt))
         if self._dt:
             return self._dt
