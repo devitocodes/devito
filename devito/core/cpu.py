@@ -6,7 +6,7 @@ from devito.operator.operator import rcompile
 from devito.passes import stream_dimensions
 from devito.passes.clusters import (
     Lift, apply_par_tiles, blocking, buffering, cire, cse, factorize, fission, fuse,
-    optimize_hyperplanes, optimize_pows, subsampling
+    optimize_hyperplanes, optimize_pows
 )
 from devito.passes.equations import collect_derivatives
 from devito.passes.iet import (
@@ -194,11 +194,6 @@ class Cpu64AdvOperator(Cpu64OperatorMixin, CoreOperator):
 
         # Reduce flops
         clusters = cse(clusters, **kwargs)
-
-        # Strided iteration in place of subsampling guards. After the last
-        # `fuse`, so that no unguarded Cluster can be merged into a strided
-        # loop, and before blocking, which must see the final step
-        clusters = subsampling(clusters)
 
         # Blocking to improve data locality
         if options['blocklazy']:

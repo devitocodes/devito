@@ -36,7 +36,12 @@ def subsampled(shape, factor, ndim=2):
 
 class TestStridedCodegen:
 
-    """Subsampling lowers to a loop stride, not a guard."""
+    """
+    Subsampling iterates the subsampled Dimension directly, with unit stride,
+    rescaling parent accesses -- rather than striding the parent's loop. A
+    non-unitary increment would escape the Lamport-style dependence analysis
+    the compiler relies on.
+    """
 
     def test_codegen(self):
         _, f, g, cd = subsampled((11, 11), 2)
@@ -44,16 +49,35 @@ class TestStridedCodegen:
 
         # No guard...
         assert not FindNodes(Conditional).visit(op)
-        # ...the parent Dimension's loop is strided instead
-        assert iteration(op, 'x').limits[2] == cd.symbolic_factor
+        # ...instead the loop is over `cd` itself, with unit stride
+        assert iteration(op, cd.name).limits[2] == 1
+        with pytest.raises(KeyError):
+            iteration(op, 'x')
 
     @pytest.mark.parametrize('factor', [2, 3, 4, 5])
-    def test_factor_in_loop_header(self, factor):
+    def test_parent_access_rescaled(self, factor):
+        """Parent accesses become `cd*factor`; subgrid accesses become `cd`."""
         _, f, g, cd = subsampled((16, 8), factor)
         op = Operator(Eq(g, f))
+        ccode = str(op.ccode)
 
-        assert f'+= {cd.symbolic_factor.name}' in str(op.ccode)
+        fname = cd.symbolic_factor.name
+        assert f'{cd.name}*{fname}' in ccode          # parent, rescaled
+        assert f'g[{cd.name}]' in ccode               # subgrid, direct
+        assert f'+= {fname}' not in ccode             # no strided loop
         assert not FindNodes(Conditional).visit(op)
+
+    def test_unit_stride_everywhere(self):
+        """Every Iteration keeps a unit increment, so DDA stays applicable."""
+        grid = Grid(shape=(12, 12))
+        sub = SubGrid(grid, factor=(3, 2))
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=sub, space_order=0)
+
+        op = Operator(Eq(f, u))
+
+        for i in FindNodes(Iteration).visit(op):
+            assert i.limits[2] == 1
 
     def test_innermost_strided(self):
         """
@@ -70,7 +94,8 @@ class TestStridedCodegen:
 
         op = Operator(Eq(usub, u))
 
-        assert iteration(op, 'y').limits[2] == ys.symbolic_factor
+        assert iteration(op, ys.name).limits[2] == 1
+        assert f'{ys.name}*{ys.symbolic_factor.name}' in str(op.ccode)
         assert not FindNodes(Conditional).visit(op)
 
     def test_innermost_numerics(self):
@@ -100,8 +125,9 @@ class TestStridedCodegen:
         op = Operator(Eq(usub, u))
 
         assert not FindNodes(Conditional).visit(op)
-        assert iteration(op, 'x').limits[2] == xs.symbolic_factor
-        assert iteration(op, 'y').limits[2] == ys.symbolic_factor
+        for d in (xs, ys):
+            assert iteration(op, d.name).limits[2] == 1
+            assert f'{d.name}*{d.symbolic_factor.name}' in str(op.ccode)
 
     def test_multiple_dimensions_numerics(self):
         grid = Grid(shape=(12, 12))
@@ -118,15 +144,19 @@ class TestStridedCodegen:
 
         assert np.array_equal(usub.data, data[::3, ::2])
 
-    def test_anchored_min(self):
-        """The loop min is rounded up onto the subsampling grid."""
+    def test_bounds_are_subsampled(self):
+        """
+        The loop runs over the subsampled Dimension's own runtime bounds,
+        which `ConditionalDimension._arg_values` already derives as
+        `ceil(x_m/factor) .. ceil(x_M/factor)`. No anchoring is needed.
+        """
         _, f, g, cd = subsampled((12, 12), 3)
         op = Operator(Eq(g, f))
 
-        _min = iteration(op, 'x').limits[0]
-        # Not simply `x_m`: it carries the round-up to the next multiple
-        assert _min != f.grid.dimensions[0].symbolic_min
-        assert cd.symbolic_factor in _min.free_symbols
+        assert iteration(op, cd.name).limits[0] == cd.symbolic_min
+        args = op.arguments()
+        assert args[cd.min_name] == 0
+        assert args[cd.max_name] == 3
 
 
 class TestNumerics:
@@ -160,10 +190,29 @@ class TestNumerics:
         g.data[:] = -1.
         Operator(Eq(g, f)).apply(x_m=x_m, x_M=x_M)
 
-        written = {i//factor for i in range(x_m, x_M + 1) if i % factor == 0}
+        # The loop runs over the subsampled Dimension's own bounds,
+        # `ceil(x_m/factor) .. floor(x_M/factor)`
+        written = set(range(-(-x_m//factor), x_M//factor + 1))
         for i in range(g.data.shape[0]):
             expected = 1. if i in written else -1.
             assert np.all(g.data[i] == expected), (i, x_m, x_M)
+
+    @pytest.mark.parametrize('x_M,expected', [
+        (8, 2), (9, 3), (10, 3), (11, 3),
+    ])
+    def test_max_bound_floors(self, x_M, expected):
+        """
+        The subsampled max is `floor(x_M/factor)`, the last subsampled point at
+        or before `x_M` -- not `ceil`, which would run one point past the end
+        of the Function and corrupt the heap.
+        """
+        _, f, g, cd = subsampled((12, 12), 3)
+        op = Operator(Eq(g, f))
+
+        args = op.arguments(x_M=x_M)
+
+        assert args[cd.max_name] == expected
+        assert args[cd.max_name] < g.shape[0]
 
     def test_constant_factor(self):
         grid = Grid(shape=(12, 12))
@@ -496,7 +545,7 @@ class TestSubGrid:
 
         assert not FindNodes(Conditional).visit(op)
         for d in sub.dimensions:
-            assert iteration(op, d.parent.name).limits[2] == d.symbolic_factor
+            assert iteration(op, d.name).limits[2] == 1
 
     def test_factor_one_is_passthrough(self):
         """A factor of 1 leaves the Dimension untouched."""
