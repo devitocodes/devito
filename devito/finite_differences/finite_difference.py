@@ -23,11 +23,9 @@ __all__ = [
     'transpose',
 ]
 
-# Number of digits for FD coefficients to avoid roundup errors and non-deterministic
-# code generation. In double precision, enough digits for the C literals to be
-# within one ulp of the exact weights
-_PRECISION = 9
-_PRECISION_DTYPE = {np.float64: 20, np.complex128: 20}
+# Number of digits for FD coefficients: 9 is enough in single precision and keeps code
+# generation deterministic; 20 keeps double-precision literals within one ulp
+_PRECISION = {np.float32: 9, np.float64: 20, np.complex64: 9, np.complex128: 20}
 
 
 @check_input
@@ -216,8 +214,7 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
 
     # Enforce fixed precision FD coefficients to avoid variations in results
     scale = dim.spacing**(-deriv_order) if scale else 1
-    precision = _PRECISION_DTYPE.get(expr.dtype, _PRECISION)
-    weights = [sympify(scale * w).evalf(precision) for w in weights]
+    weights = [sympify(scale * w).evalf(_PRECISION.get(expr.dtype, 9)) for w in weights]
 
     # Transpose the FD, if necessary
     if matvec == transpose:

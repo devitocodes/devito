@@ -13,12 +13,11 @@ from devito.finite_differences.differentiable import (
     Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexDerivativeProperty,
     IndexSum, Weights, interp_for_fd
 )
+from devito.finite_differences.finite_difference import _PRECISION
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 from devito.types.grid import DerivedSubDomain
 from devito.warnings import DevitoWarning
-
-_PRECISION = 9
 
 
 def x(grid):
@@ -204,7 +203,7 @@ class TestFD:
         else:
             indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
 
-        s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
+        s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION[u.dtype])
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
         assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
@@ -224,7 +223,7 @@ class TestFD:
         # Establish native sympy derivative expression
         width = int(order / 2)
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
-        s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
+        s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION[u.dtype])
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
         assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
