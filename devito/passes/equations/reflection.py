@@ -32,6 +32,7 @@ Dimension is a local index on each rank.
 import numpy as np
 import sympy
 
+from devito.mpi import MPI
 from devito.symbolics import retrieve_functions, retrieve_indexed
 from devito.types.dense import Function
 from devito.types.dimension import DefaultDimension
@@ -120,7 +121,7 @@ class _Lowering:
 
     def __init__(self):
         self._rows = {}
-        self._tables = {}
+        self._reflections = {}
         self._weights = {}
 
     def row(self, grid, start):
@@ -130,31 +131,26 @@ class _Lowering:
             self._rows[key] = Row(start, grid)
         return self._rows[key]
 
-    def table(self, grid, center, ghost, target, order, rows):
-        """The reflection weights of `_reflection_table`."""
+    def reflection(self, grid, center, ghost, target, order, rows):
+        """The `_Reflection` of these parameters."""
         key = (grid, center, ghost, target, order, rows)
-        if key not in self._tables:
-            self._tables[key] = _reflection_table(*key)
-        return self._tables[key]
+        if key not in self._reflections:
+            self._reflections[key] = _Reflection(*key)
+        return self._reflections[key]
 
     def weights(self, grid, center, ghost, target, order, rows, transposed):
         """
-        The reflection weights of `table` as a Function distributed like `grid`,
-        the first lateral offset of their window and the first row of the target
-        Function they read.
-
-        With `transposed`, the weights are gathered at the target points they
-        read: entry `[x, r, o, k]` is the weight of the target point `(x, start +
-        r)` in the image of the ghost of row `k` at `x + o`, the lateral offsets
-        `o` counted from the smallest one, which is returned instead.
+        The weights of the `_Reflection` of these parameters, as a Function
+        distributed like `grid` holding the local weights, the first lateral
+        offset of their window, the first row of the target Function they read,
+        and the stencil points they use on any rank (see `_Reflection.weights`).
         """
         key = (grid, center, ghost, target, order, rows, transposed)
         if key not in self._weights:
-            table, first, start = self.table(grid, center, ghost, target, order, rows)
-            if transposed:
-                table, first = _transpose_table(table, first, grid.dim - 1)
-            self._weights[key] = (_weights_function(grid, table, key), table, first,
-                                  start)
+            reflection = self.reflection(grid, center, ghost, target, order, rows)
+            table, first, used = reflection.weights(transposed)
+            self._weights[key] = (_weights_function(grid, table, key), first,
+                                  reflection.start, used)
         return self._weights[key]
 
 
@@ -224,14 +220,14 @@ def _gather(eq, grid, center, reflected, row, lowering):
     column, lateral = {}, {}
     for access in reflected:
         function = access.function
-        weights, table, first, start = lowering.weights(
+        weights, first, start, used = lowering.weights(
             grid, center, ghost, _offsets(function, grid), function.space_order,
             (ghost_row,), False
         )
-        _check_halo(function, grid, first, table.shape[grid.dim:-1])
+        _check_halo(function, grid, first, used.shape[1:-1])
         column[access], lateral[access] = [], []
-        for stencil in np.ndindex(*table.shape[grid.dim:]):
-            if not table[(Ellipsis,) + stencil].any():
+        for stencil in np.ndindex(*used.shape[1:]):
+            if not used[(0,) + stencil]:
                 continue
             offsets = tuple(f + s for f, s in zip(first, stencil, strict=False))
             read = vertical + start + stencil[-1] - row
@@ -307,15 +303,15 @@ def _scatter(eq, grid, center, reflected, row, lowering):
     ghost_row = _ghost_row(center, ghost_position[-1].subs(vertical, row), ghost)
     lateral_index = _lateral_indices(lhs, grid)
     written_row = _vertical_index(lhs, grid, row)
-    weights, table, smallest, start = lowering.weights(
+    weights, smallest, start, used = lowering.weights(
         grid, center, ghost, _offsets(lhs.function, grid), lhs.function.space_order,
         (ghost_row,), True
     )
     for access in reflected:
-        _check_halo(access.function, grid, smallest, table.shape[grid.dim:-1])
+        _check_halo(access.function, grid, smallest, used.shape[1:-1])
 
     eqns = []
-    for r in range(table.shape[grid.dim - 1]):
+    for r in range(used.shape[0]):
         target = start + r
         # Over the SubDomain of the target row, the reads at the written point move
         # with it, and the reads at the ghost stay at its row
@@ -323,8 +319,8 @@ def _scatter(eq, grid, center, reflected, row, lowering):
                               _vertical_index(a, grid, row) - written_row)
                   for a in at_lhs}
         column, lateral = [], []
-        for offset in np.ndindex(*table.shape[grid.dim:-1]):
-            if not table[(Ellipsis, r) + offset + (slice(None),)].any():
+        for offset in np.ndindex(*used.shape[1:-1]):
+            if not used[(r,) + offset].any():
                 continue
             shift = tuple(s + o for s, o in zip(smallest, offset, strict=True))
             mapper.update({a: _shifted(a, grid, shift, vertical +
@@ -536,10 +532,11 @@ def _lagrange_weights(position, npoint):
     return weights
 
 
-def _reflection_table(grid, center, ghost, target, order, rows):
+class _Reflection:
+
     """
-    Interpolation weights of the reflections of points through a coordinate
-    surface of `grid`, the row (or half row) `center` cells below the vertical
+    The interpolation weights of the reflections of points through a coordinate
+    surface of a grid, the row (or half row) `center` cells below its vertical
     origin.
 
     The points reflected, the ghosts, are the points of a Function staggered
@@ -553,65 +550,142 @@ def _reflection_table(grid, center, ghost, target, order, rows):
     Over a plane surface, the image of a field odd or even through the surface is
     exact.
 
-    Returns the weights, of shape `lateral shape + (ghost rows,) + lateral
-    window + (vertical window,)`, the first lateral offset of the window from
-    the ghost along each lateral Dimension, and the index of the first row of
-    the target Function in the vertical window.
+    Each rank computes the weights of its own lateral nodes, in a window common
+    to all ranks: `first`, the first lateral offset of the window from the ghost
+    along each lateral Dimension, `window`, its size, `start`, the first row of
+    the target Function it reads, and `depth`, the number of rows it reads.
     """
-    center = float(center)
-    nlateral = grid.dim - 1
-    origin = np.array([np.float64(o) for o in grid.origin])
-    spacing = np.array([np.float64(h) for h in grid.spacing])
-    ghost = np.array([float(o) for o in ghost])
-    target = np.array([float(o) for o in target])
-    fraction = (center - ghost[-1]) % 1
-    nrows = int(round(center - ghost[-1] + fraction))
-    if not rows or min(rows) < 0 or max(rows) >= nrows:
-        raise ValueError(f"The grid has {nrows} rows above the surface to reflect, "
-                         f"not the rows {rows}")
-    start = int(np.ceil(center - target[-1] - 1e-9))
-    lateral_shape = tuple(grid.shape[:nlateral])
-    nodes = np.meshgrid(*[np.arange(n) for n in lateral_shape], indexing='ij')
-    nodes = np.stack([n.ravel() for n in nodes], axis=1)
 
-    # Ghosts, row after row, at their positions in cells from the origin
-    ghosts = np.concatenate([nodes]*len(rows))
-    ghost_rows = np.repeat(np.array(rows), len(nodes))
-    cells = np.concatenate([ghosts + ghost[:-1],
-                            (center - (ghost_rows + 1 - fraction))[:, None]], axis=1)
-    physical = grid.to_physical(origin + spacing*cells)
-    image = 2*_surface_foot(grid, physical, origin[-1] + spacing[-1]*center) - physical
-    position = (grid.to_computational(image) - origin)/spacing - target
-    if (position[:, -1] + target[-1] < center - 1e-9).any():
-        raise ValueError("The reflection of a point through the surface lies above "
-                         "it; the surface is too curved for the grid spacing")
+    def __init__(self, grid, center, ghost, target, order, rows):
+        self.grid = grid
+        self.center = float(center)
+        self.ghost = np.array([float(o) for o in ghost])
+        self.target = np.array([float(o) for o in target])
+        self.order = order
+        self.rows = rows
+        self.nlateral = grid.dim - 1
+        self.fraction = (self.center - self.ghost[-1]) % 1
+        nrows = int(round(self.center - self.ghost[-1] + self.fraction))
+        if not rows or min(rows) < 0 or max(rows) >= nrows:
+            raise ValueError(f"The grid has {nrows} rows above the surface to "
+                             f"reflect, not the rows {rows}")
+        self.start = int(np.ceil(self.center - self.target[-1] - 1e-9))
 
-    # Lagrange stencils, centered laterally, at or below the surface vertically
-    base = np.floor(position).astype(np.int64) - order//2 + 1
-    base[:, -1] = np.maximum(base[:, -1], start)
-    weights = [_lagrange_weights(position[:, a] - base[:, a], order)
-               for a in range(grid.dim)]
+        # The local lateral nodes, as a range of global indices along each
+        # lateral Dimension
+        self.local = tuple((n[0], n[-1] + 1) if len(n) else (0, 0)
+                           for n in grid.distributor.glb_numb[:self.nlateral])
+        _, _, offsets, base, _ = self._images(self.local)
+        first = offsets.min(axis=0, initial=np.iinfo(np.int64).max)
+        last = offsets.max(axis=0, initial=np.iinfo(np.int64).min)
+        deepest = (base[:, -1] - self.start).max(initial=0)
+        if grid.distributor.is_parallel:
+            first = _allreduce(grid, first, MPI.MIN)
+            last = _allreduce(grid, last, MPI.MAX)
+            deepest = _allreduce(grid, np.array([deepest]), MPI.MAX)[0]
+        self.first = tuple(int(f) for f in first)
+        self.window = tuple(int(i) for i in last - first + order)
+        self.depth = int(deepest) + order
 
-    offsets = base[:, :nlateral] - ghosts
-    first = offsets.min(axis=0)
-    window = tuple(offsets.max(axis=0) - first + order)
-    depth = (base[:, -1] - start).max() + order
-    table = np.zeros(lateral_shape + (len(rows),) + window + (depth,))
-    row_index = np.repeat(np.arange(len(rows)), len(nodes))
-    ghost_index = tuple(ghosts[:, a] for a in range(nlateral))
-    for stencil in np.ndindex(*(order,)*grid.dim):
-        weight = np.prod([w[:, s] for w, s in zip(weights, stencil, strict=True)],
-                         axis=0)
-        lateral = tuple(offsets[:, a] - first[a] + stencil[a] for a in range(nlateral))
-        vertical = base[:, -1] - start + stencil[-1]
-        np.add.at(table, ghost_index + (row_index,) + lateral + (vertical,), weight)
+    def _images(self, lateral):
+        """
+        The ghosts of the rows `rows` at the lateral nodes in the ranges of
+        global indices `lateral`, as their global lateral indices, and the
+        interpolation of their images: the row of each, the offsets of the first
+        point of its stencil from it along each lateral Dimension, the first point
+        of its stencil, and the Lagrange weights along each Dimension.
+        """
+        grid, nlateral, order = self.grid, self.nlateral, self.order
+        if any(a == b for a, b in lateral):
+            empty = np.zeros((0, nlateral), dtype=np.int64)
+            return (empty, np.zeros(0, dtype=np.int64), empty,
+                    np.zeros((0, grid.dim), dtype=np.int64),
+                    [np.zeros((0, order)) for _ in range(grid.dim)])
+        origin = np.array([np.float64(o) for o in grid.origin])
+        spacing = np.array([np.float64(h) for h in grid.spacing])
+        nodes = np.meshgrid(*[np.arange(*r) for r in lateral], indexing='ij')
+        nodes = np.stack([n.ravel() for n in nodes], axis=1).astype(np.int64)
+        ghosts = np.concatenate([nodes]*len(self.rows))
+        rows = np.repeat(np.arange(len(self.rows)), len(nodes))
+        ghost_rows = np.array(self.rows)[rows]
 
-    return table, tuple(int(f) for f in first), start
+        # Ghosts at their positions in cells from the origin
+        heights = self.center - (ghost_rows + 1 - self.fraction)
+        cells = np.concatenate([ghosts + self.ghost[:-1], heights[:, None]], axis=1)
+        physical = grid.to_physical(origin + spacing*cells)
+        level = origin[-1] + spacing[-1]*self.center
+        image = 2*_surface_foot(grid, physical, level) - physical
+        position = (grid.to_computational(image) - origin)/spacing - self.target
+        if (position[:, -1] + self.target[-1] < self.center - 1e-9).any():
+            raise ValueError("The reflection of a point through the surface lies "
+                             "above it; the surface is too curved for the grid "
+                             "spacing")
+
+        # Lagrange stencils, centered laterally, at or below the surface vertically
+        base = np.floor(position).astype(np.int64) - order//2 + 1
+        base[:, -1] = np.maximum(base[:, -1], self.start)
+        weights = [_lagrange_weights(position[:, a] - base[:, a], order)
+                   for a in range(grid.dim)]
+        return ghosts, rows, base[:, :nlateral] - ghosts, base, weights
+
+    def _table(self, lateral):
+        """
+        The weights of the ghosts at the lateral nodes in the ranges of global
+        indices `lateral`, of shape `lateral shape + (ghost rows,) + window +
+        (depth,)`.
+        """
+        ghosts, rows, offsets, base, weights = self._images(lateral)
+        shape = tuple(b - a for a, b in lateral)
+        table = np.zeros(shape + (len(self.rows),) + self.window + (self.depth,))
+        index = tuple(ghosts[:, a] - lateral[a][0] for a in range(self.nlateral))
+        for stencil in np.ndindex(*(self.order,)*self.grid.dim):
+            weight = np.prod([w[:, s] for w, s in zip(weights, stencil, strict=True)],
+                             axis=0)
+            window = tuple(offsets[:, a] - self.first[a] + stencil[a]
+                           for a in range(self.nlateral))
+            vertical = base[:, -1] - self.start + stencil[-1]
+            np.add.at(table, index + (rows,) + window + (vertical,), weight)
+        return table
+
+    def weights(self, transposed=False):
+        """
+        The local weights, and the stencil points they use on any rank.
+
+        With `transposed`, the weights are gathered at the target points they
+        read: entry `[x, r, o, k]` is the weight of the target point `(x, start +
+        r)` in the image of the ghost of row `k` at `x + o`, the lateral offsets
+        `o` counted from `smallest`, the smallest one, also returned. The ghosts
+        a rank needs are those its target points gather, within a window of its
+        own lateral nodes.
+        """
+        if not transposed:
+            table, smallest = self._table(self.local), self.first
+        else:
+            shape = self.grid.shape[:self.nlateral]
+            ghosts = tuple((max(0, a - f - w + 1), min(n, b - f))
+                           for (a, b), f, w, n in zip(self.local, self.first,
+                                                      self.window, shape, strict=True))
+            table, smallest = _transpose_table(self._table(ghosts), self.first,
+                                               self.nlateral)
+            table = table[tuple(slice(a - g, b - g) for (a, b), (g, _)
+                                in zip(self.local, ghosts, strict=True))]
+        used = table.any(axis=tuple(range(self.nlateral)))
+        if self.grid.distributor.is_parallel:
+            used = _allreduce(self.grid, used.astype(np.uint8), MPI.MAX) > 0
+        return table, smallest, used
+
+
+def _allreduce(grid, values, op):
+    """The elementwise reduction `op` of the integer array `values` over the ranks."""
+    values = np.ascontiguousarray(values, dtype=np.int64)
+    reduced = np.empty_like(values)
+    grid.comm.Allreduce(values, reduced, op=op)
+    return reduced
 
 
 def _transpose_table(table, first, nlateral):
     """
-    The reflection weights `table` of `_reflection_table`, whose window starts
+    The reflection weights `table` of `_Reflection`, whose window starts
     at the lateral offsets `first` from each ghost, gathered at the target
     points they read: entry `[x, r, o, k]` is the weight of the target point
     `(x, r)` in the image of the ghost of row `k` at `x + o`, the lateral offsets
@@ -638,9 +712,9 @@ def _transpose_table(table, first, nlateral):
 
 def _weights_function(grid, table, key):
     """
-    The reflection weights `table` as a Function distributed like `grid`, named
-    after the parameters `key` of the reflection, `(grid, center, ghost offsets,
-    target offsets, order, rows, transposed)`.
+    The reflection weights `table`, local to this rank, as a Function distributed
+    like `grid`, named after the parameters `key` of the reflection, `(grid,
+    center, ghost offsets, target offsets, order, rows, transposed)`.
     """
     _, center, ghost, target, order, rows, transposed = key
     halves = ''.join(str(int(2*o)) for o in ghost + target)
@@ -648,8 +722,9 @@ def _weights_function(grid, table, key):
             f"{'_t' if transposed else ''}")
     extra = [DefaultDimension(name=f'{name}_{i}', default_value=n)
              for i, n in enumerate(table.shape[grid.dim - 1:])]
+    shape = tuple(grid.shape[:grid.dim - 1]) + table.shape[grid.dim - 1:]
     weights = Function(name=name, grid=grid,
                        dimensions=grid.dimensions[:-1] + tuple(extra),
-                       shape=table.shape, space_order=0, dtype=grid.dtype)
-    weights.data[:] = table
+                       shape=shape, space_order=0, dtype=grid.dtype)
+    weights.data_local[:] = table
     return weights
