@@ -161,6 +161,43 @@ class TestOperatorSetup:
         assert op0._compiler is not op2._compiler
         assert op1._compiler is not op2._compiler
 
+    @pytest.mark.parametrize('rpath', [False, True])
+    def test_jit_library_dirs(self, rpath, tmp_path):
+        grid = Grid(shape=(3, 3, 3))
+        u = TimeFunction(name='u', grid=grid)
+        eq = Eq(u.forward, u + 1)
+
+        operators = []
+        for name in ('lib0', 'lib1', 'lib1'):
+            op = Operator(eq, name='library_paths')
+            op._compiler.add_library_dirs([str(tmp_path/name)], rpath=rpath)
+            operators.append(op)
+
+        op0, op1, op2 = operators
+        assert str(op0) == str(op1) == str(op2)
+        assert op0._soname != op1._soname
+        assert op1._soname == op2._soname
+
+    @pytest.mark.parametrize('envvar, flags', [
+        ('CFLAGS', ('-O1 -O2', '-O2 -O1')),
+        ('LDFLAGS', ('-Wl,-rpath,/lib0 -Wl,-rpath,/lib1',
+                     '-Wl,-rpath,/lib1 -Wl,-rpath,/lib0'))
+    ])
+    def test_jit_compiler_flags(self, envvar, flags, monkeypatch):
+        grid = Grid(shape=(3, 3, 3))
+        u = TimeFunction(name='u', grid=grid)
+        eq = Eq(u.forward, u + 1)
+
+        operators = []
+        for value in (*flags, flags[-1]):
+            monkeypatch.setenv(envvar, value)
+            operators.append(Operator(eq, name='compiler_flags', compiler='custom'))
+
+        op0, op1, op2 = operators
+        assert str(op0) == str(op1) == str(op2)
+        assert op0._soname != op1._soname
+        assert op1._soname == op2._soname
+
 
 class TestCodeGen:
 

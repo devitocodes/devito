@@ -814,7 +814,7 @@ class Operator(Callable):
     @cached_property
     def _soname(self):
         """A unique name for the shared object resulting from JIT compilation."""
-        return Signer._digest(self, configuration)
+        return Signer._digest(self, configuration, self._compiler)
 
     @cached_property
     def _printer(self):

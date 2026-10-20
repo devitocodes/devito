@@ -358,7 +358,7 @@ class Decomposition(tuple):
                 if abs_ofs >= base and abs_ofs <= top:
                     return rel_ofs
                 elif abs_ofs > top:
-                    return top + 1
+                    return top - base
                 else:
                     return None
             else:
@@ -366,7 +366,7 @@ class Decomposition(tuple):
                 if abs_ofs >= glb_max - top and abs_ofs <= glb_max - base:
                     return rel_ofs
                 elif abs_ofs > glb_max - base:
-                    return glb_max - base + 1
+                    return top - base
                 else:
                     return None
         else:

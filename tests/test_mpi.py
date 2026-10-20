@@ -3370,6 +3370,37 @@ class TestOperatorAdvanced:
         assert np.all(u.data[1, :, :, 0:2] == 1.)
         assert np.all(u.data[1, :, :, -2:] == 1.)
 
+    @pytest.mark.parallel(mode=[(4, 'basic')])
+    def test_subdim_thickness_spanning_rank(self, mode):
+        """
+        A `left`/`right` SubDimension whose thickness covers a whole rank must
+        not produce a local thickness larger than that rank's extent, or the
+        generated loop runs off the ends of its temporaries.
+        """
+        # 4 ranks along `y`, so each holds 2 points against 3-point layers
+        grid = Grid(shape=(4, 8), topology=(1, 4))
+        y = grid.dimensions[1]
+
+        f = Function(name='f', grid=grid)
+
+        yl = SubDimension.left(name='yl', parent=y, thickness=3)
+        yr = SubDimension.right(name='yr', parent=y, thickness=3)
+
+        op = Operator([Eq(f.subs(y, yl), 1), Eq(f.subs(y, yr), 2)])
+
+        args = op.arguments(f=f)
+        loc_size = grid.distributor.shape[1]
+        assert args['y_ltkn0'] <= loc_size
+        assert args['y_rtkn1'] <= loc_size
+
+        op.apply(f=f)
+
+        glb = f.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.all(glb[:, :3] == 1.)
+            assert np.all(glb[:, 3:-3] == 0.)
+            assert np.all(glb[:, -3:] == 2.)
+
     @pytest.mark.parallel(mode=[(4, 'full')])
     def test_custom_subdomain(self, mode):
         """
@@ -3497,6 +3528,41 @@ class TestOperatorAdvanced:
         t2 = next(filter(lambda a: isinstance(a, ModuloDimension), args))
         assert t2.name == 't2'
         assert t2.origin == t + 1
+
+    @pytest.mark.parallel(mode=4)
+    @pytest.mark.parametrize('side', ['left', 'right', 'middle'])
+    def test_thickness_covering_ranks(self, side, mode):
+        """
+        A thickness of 20 points over four ranks of 16 points each covers a rank
+        entirely, so the local thickness of the latter is its whole extent.
+        """
+        class Band(SubDomain):
+            name = 'band'
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: (side, 20, 20) if side == 'middle' else (side, 20), y: y}
+
+        grid = Grid(shape=(64, 4), topology=(4, 1))
+        band = Band(grid=grid)
+        f = Function(name='f', grid=grid, space_order=0)
+        g = Function(name='g', grid=grid, space_order=0)
+
+        op = Operator(Eq(f, 1, subdomain=band), name='Thickness')
+
+        args = op.arguments()
+        rank = grid.distributor.myrank
+        if side in ['left', 'middle']:
+            assert args['x_ltkn0'] == [16, 4, 0, 0][rank]
+        if side in ['right', 'middle']:
+            assert args['x_rtkn0'] == [0, 0, 4, 16][rank]
+
+        op.apply()
+
+        inside = {'left': slice(0, 20), 'right': slice(44, 64),
+                  'middle': slice(20, 44)}[side]
+        g.data[inside] = 1
+        assert np.all(f.data == g.data)
 
 
 def gen_serial_norms(shape, so):
