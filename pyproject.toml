@@ -125,6 +125,8 @@ datas = "datas"
 optionss = "optionss"
 # HPE - Well known company name
 HPE = "HPE"
+# Levander - author of the stress imaging free surface (Geophysics, 1988)
+Levander = "Levander"
 # Sur - OS name: MacOS Big Sur
 Sur = "Sur"
 # pointss - plural of points?
