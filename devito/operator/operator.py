@@ -28,14 +28,13 @@ from devito.ir.stree import stree_build
 from devito.ir.support import AccessMode, SymbolRegistry
 from devito.logger import debug, info, is_log_enabled_for, perf, switch_log_level, warning
 from devito.mpi import MPI
-from devito.operations.reflection import lower_reflections
 from devito.operator.profiling import create_profile
 from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
     Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
-    lower_dtypes, lower_index_derivatives, lower_local_sums, minimize_symbols,
-    optimize_pows, unevaluate
+    lower_dtypes, lower_index_derivatives, lower_local_sums, lower_reflections,
+    minimize_symbols, optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
