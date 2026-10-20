@@ -22,7 +22,7 @@ from devito.exceptions import CompilationError
 from devito.logger import debug, warning
 from devito.parameters import configuration
 from devito.tools import (
-    as_list, change_directory, filter_ordered, make_tempdir, memoized_func
+    Signer, as_list, change_directory, filter_ordered, make_tempdir, memoized_func
 )
 
 __all__ = ['compiler_registry', 'sniff_mpi_distro']
@@ -148,7 +148,7 @@ def call_capture_output(cmd):
     return _call_capture_output(cmd)
 
 
-class Compiler(GCCToolchain):
+class Compiler(GCCToolchain, Signer):
     """
     Base class for all compiler classes.
 
@@ -456,6 +456,9 @@ class Compiler(GCCToolchain):
     def __getstate__(self):
         # The superclass would otherwise only return a subset of attributes
         return self.__dict__
+
+    def _signature_items(self):
+        return (str(self._cmdline([])), self.src_ext, self.so_ext)
 
     def add_include_dirs(self, dirs):
         self.include_dirs = filter_ordered(self.include_dirs + as_list(dirs))
