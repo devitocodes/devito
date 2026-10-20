@@ -7,7 +7,7 @@ import pytest
 from devito import (  # noqa
     CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Inc, Operator, SparseFunction,
     SparseTimeFunction, SubDomain, TensorFunction, TensorTimeFunction, TerrainFollowing,
-    TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad, inner, sin
+    TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad, inner, resample, sin
 )
 from devito.mpi import MPI
 from examples.seismic import SeismicModel
@@ -786,7 +786,7 @@ class TestResample:
             xs, zs = node_coordinates(cartesian_grid)
             cartesian.data[:] = wave(xs, zs)
             resampled = Function(name='f', grid=grid)
-            grid.resample(resampled, cartesian)
+            resample(resampled, cartesian)
 
             x, z = (c.data for c in grid.coordinates)
             errors.append(np.abs(resampled.data - wave(x, z)).max())
@@ -801,7 +801,7 @@ class TestResample:
         cartesian = Function(name='c', grid=Grid(shape=shape, extent=extent))
         cartesian.data[:] = np.random.default_rng(8).standard_normal(shape)
         resampled = Function(name='f', grid=grid)
-        grid.resample(resampled, cartesian)
+        resample(resampled, cartesian)
         assert np.array_equal(resampled.data, cartesian.data)
 
     def test_adjoint(self):
@@ -815,8 +815,8 @@ class TestResample:
         cartesian.data[:] = rng.standard_normal(cartesian.shape)
         curvilinear.data[:] = rng.standard_normal(grid.shape)
 
-        grid.resample(resampled, cartesian)
-        grid.resample(curvilinear, transposed, transpose=True)
+        resample(resampled, cartesian)
+        resample(curvilinear, transposed, transpose=True)
 
         forward = np.sum(resampled.data*curvilinear.data)
         backward = np.sum(cartesian.data*transposed.data)
@@ -825,11 +825,12 @@ class TestResample:
     def test_invalid(self):
         grid = sine_grid(11)
         other = sine_grid(11)
-        with pytest.raises(ValueError):
-            grid.resample(Function(name='f', grid=grid), Function(name='c', grid=other))
-        with pytest.raises(ValueError):
-            grid.resample(Function(name='f', grid=other),
-                          Function(name='c', grid=Grid(shape=(11, 11))))
+        cartesian = Grid(shape=(11, 11))
+        with pytest.raises(ValueError, match='not a 2D Cartesian Grid'):
+            resample(Function(name='f', grid=grid), Function(name='c', grid=other))
+        with pytest.raises(ValueError, match='not defined on a CurvilinearGrid'):
+            resample(Function(name='f', grid=cartesian),
+                     Function(name='c', grid=cartesian))
 
 
 class TestResampleMPI:
@@ -849,8 +850,8 @@ class TestResampleMPI:
         cartesian.data[:] = wave(*node_coordinates(cartesian.grid))
         Operator(Eq(curvilinear, sin(_KX*x_coord))).apply()
 
-        grid.resample(resampled, cartesian)
-        grid.resample(curvilinear, transposed, transpose=True)
+        resample(resampled, cartesian)
+        resample(curvilinear, transposed, transpose=True)
 
         serial_grid = CurvilinearGrid(shape=(41, 41), extent=(1000., 800.),
                                       mapping=grid.mapping, dtype=np.float64,
@@ -861,7 +862,7 @@ class TestResampleMPI:
             dtype=np.float64, comm=MPI.COMM_SELF
         ))
         serial_cartesian.data[:] = wave(*node_coordinates(serial_cartesian.grid))
-        serial_grid.resample(serial, serial_cartesian)
+        resample(serial, serial_cartesian)
         assert np.allclose(np.asarray(resampled.data_ro_domain._local),
                            serial.data[resampled.local_indices], rtol=0, atol=1e-14)
 
@@ -1048,8 +1049,8 @@ class Test3D:
         cartesian.data[:] = wave_3d(*node_coordinates(cartesian_grid))
         curvilinear.data[:] = np.random.default_rng(15).standard_normal(grid.shape)
 
-        grid.resample(resampled, cartesian)
-        grid.resample(curvilinear, transposed, transpose=True)
+        resample(resampled, cartesian)
+        resample(curvilinear, transposed, transpose=True)
 
         expected = wave_3d(*(c.data for c in grid.coordinates))
         assert np.abs(resampled.data - expected).max() < 0.02
