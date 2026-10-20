@@ -295,25 +295,21 @@ class AbstractSparseFunction(DiscreteFunction):
             if self.coordinates_data is None:
                 raise ValueError("No coordinates or gridpoints attached"
                                  "to this SparseFunction")
-            coordinates = self._computational_coordinates(self.coordinates_data)
+            coordinates = self._subfunc_frame(self.coordinates, self.coordinates_data)
             return (
                 np.floor((coordinates - self.grid.origin) / self.grid.spacing)
             ).astype(int)
 
-    def _computational_coordinates(self, coordinates):
+    def _subfunc_frame(self, subfunc, values):
         """
-        The physical `coordinates` of sparse points in the computational frame
-        of the Grid, which differ only on a CurvilinearGrid.
+        The `values` of `subfunc` in the frame the Operator indexes the Grid in:
+        the coordinates, physical, are mapped to the computational coordinates of
+        the Grid (see `Grid.to_computational`).
         """
-        if not self.grid.root.is_Curvilinear or coordinates.size == 0:
-            return coordinates
-        return self.grid.root.to_computational(coordinates).astype(coordinates.dtype)
-
-    def _physical_coordinates(self, coordinates):
-        """Inverse of `_computational_coordinates`."""
-        if not self.grid.root.is_Curvilinear or coordinates.size == 0:
-            return coordinates
-        return self.grid.root.to_physical(coordinates).astype(coordinates.dtype)
+        if subfunc is not self.coordinates or np.size(values) == 0:
+            return values
+        dtype = values.dtype
+        return self.grid.root.to_computational(values).astype(dtype, copy=False)
 
     @property
     def _support(self):
@@ -650,23 +646,14 @@ class AbstractSparseFunction(DiscreteFunction):
         # Unpack data values so that they follow the expected storage layout
         return np.ascontiguousarray(np.transpose(scattered, self._dist_reorder_mask))
 
-    def _subfunc_data(self, subfunc, data):
-        """
-        The values of `subfunc` the Operator works with. On a CurvilinearGrid,
-        the coordinates are mapped to the computational frame.
-        """
-        if subfunc is self.coordinates:
-            return self._computational_coordinates(np.asarray(data))
-        return data
-
     def _dist_subfunc_scatter(self, subfunc):
         # If not using MPI, don't waste time
         if self._distributor.nprocs == 1 or self.is_local:
             if self.is_local and self.dist_origin[subfunc] is not None:
                 shift = np.array(self.dist_origin[subfunc], dtype=subfunc.dtype)
-                subfuncd = self._subfunc_data(subfunc, subfunc.data._local) - shift
+                subfuncd = self._subfunc_frame(subfunc, subfunc.data._local) - shift
             else:
-                subfuncd = self._subfunc_data(subfunc, subfunc.data)
+                subfuncd = self._subfunc_frame(subfunc, subfunc.data)
             return {subfunc: subfuncd}
 
         # Compute dist map only once
@@ -675,7 +662,7 @@ class AbstractSparseFunction(DiscreteFunction):
 
         # Pack (reordered) SubFunction values so that they can be sent out
         # via an Alltoallv
-        sfuncd = self._subfunc_data(subfunc, subfunc.data._local)[
+        sfuncd = self._subfunc_frame(subfunc, subfunc.data._local)[
             mask[self._sparse_position]
         ]
 
@@ -720,8 +707,10 @@ class AbstractSparseFunction(DiscreteFunction):
     def _dist_subfunc_gather(self, sfuncd, subfunc):
         with suppress(AttributeError):
             sfuncd = subfunc._C_as_ndarray(sfuncd)
-        # If not using MPI, don't waste time
-        if self._distributor.nprocs == 1 or self.is_local:
+        # If not using MPI, don't waste time. The Operator only reads the
+        # coordinates, in its own frame (see `_subfunc_frame`), so they are not
+        # gathered back
+        if self._distributor.nprocs == 1 or self.is_local or subfunc is self.coordinates:
             return
 
         # Compute dist map only once
@@ -739,8 +728,6 @@ class AbstractSparseFunction(DiscreteFunction):
         gathered = np.empty(shape=sshape, dtype=subfunc.dtype)
         self._comm.Alltoallv([sfuncd, rcount, rdisp, self._smpitype[subfunc]],
                              [gathered, scount, sdisp, self._smpitype[subfunc]])
-        if subfunc is self.coordinates:
-            gathered = self._physical_coordinates(gathered)
         subfunc.data._local[mask[self._sparse_position]] = gathered[:]
 
         # Note: this method "mirrors" `_dist_scatter`: a sparse point that is sent

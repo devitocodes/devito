@@ -374,6 +374,30 @@ class Grid(CartesianDiscretization, ArgProvider):
         """
         return any(dim is d for d in self.distributor.dimensions)
 
+    def to_computational(self, points):
+        """
+        Computational coordinates of physical points, which index the grid
+        through its origin and spacing. On a Grid they are the physical ones.
+
+        Parameters
+        ----------
+        points : array_like
+            Physical coordinates of shape `(npoint, ndim)`.
+        """
+        return np.asarray(points)
+
+    def to_physical(self, points):
+        """
+        Physical coordinates of computational points, the inverse of
+        `to_computational`. On a Grid they are the computational ones.
+
+        Parameters
+        ----------
+        points : array_like
+            Computational coordinates of shape `(npoint, ndim)`.
+        """
+        return np.asarray(points)
+
     @cached_property
     def _arg_names(self):
         ret = []
