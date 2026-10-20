@@ -79,13 +79,22 @@ class Subsampling(Queue):
             # Iterate the subsampled Dimension itself, with unit stride, and
             # rescale every parent access `d` to `cd*factor`
             ispace = c.ispace.switch(d, cd)
+
             # `IntDiv(d, factor)` is how the subsampled access was lowered;
             # with `d -> cd*factor` it collapses to `cd`, so rewrite it
             # directly rather than leaving `(cd*factor)/factor` behind
-            exprs = [uxreplace(e, {IntDiv(d, factor): cd, d: cd*factor})
-                     for e in c.exprs]
+            subs = {IntDiv(d, factor): cd, d: cd*factor}
+            exprs = [uxreplace(e, subs) for e in c.exprs]
+
+            # `cd` inherits `d`'s computational properties: it covers the very
+            # same points, just addressed in subsampled coordinates. Without
+            # this the loop would lose PARALLEL and so all of its OpenMP
+            properties = c.properties.drop(d)
+            properties = properties.add(cd, c.properties[d])
+
             processed.append(c.rebuild(exprs=exprs, ispace=ispace,
-                                       guards=c.guards.popany(d)))
+                                       guards=c.guards.popany(d),
+                                       properties=properties))
 
         return processed
 
