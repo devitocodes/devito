@@ -1,3 +1,4 @@
+import math
 from collections import namedtuple
 from functools import cached_property
 from itertools import product
@@ -491,12 +492,21 @@ class SubGrid(Grid):
         if not parent.is_Grid:
             raise ValueError("`parent` must be a Grid, got "
                              f"`{type(parent).__name__}`")
-        if isinstance(parent, SubGrid):
-            # Would require a ConditionalDimension to parent another one
-            raise ValueError("Cannot subsample a SubGrid; derive from "
-                             "`parent.parent` with a combined factor instead")
 
         factors = self.__factors_setup__(parent, factor)
+
+        if isinstance(parent, SubGrid):
+            # Nesting would need a ConditionalDimension to parent another one.
+            # Spell out the equivalent single-level call, since the composed
+            # factor is just the product of the two
+            combined = tuple(f0*f1 for f0, f1 in
+                             zip(parent._factors, factors, strict=True))
+            raise ValueError(
+                f"Cannot subsample a SubGrid. `{factor}` applied to a SubGrid "
+                f"of factor `{tuple(parent._factors)}` is the same as factor "
+                f"`{combined}` applied to its parent Grid directly, so use "
+                f"`SubGrid(parent.parent, factor={combined})`"
+            )
 
         dimensions = tuple(
             d if f == 1 else ConditionalDimension(f'{d.name}{name}', parent=d,
@@ -541,9 +551,15 @@ class SubGrid(Grid):
             if not is_integer(f):
                 # Non-integer factors place SubGrid points between parent
                 # points, which requires interpolation rather than striding
-                raise ValueError(f"Non-integer subsampling factor `{f}` is not "
-                                 "supported; SubGrid points must coincide with "
-                                 "parent Grid points")
+                raise ValueError(
+                    f"Non-integer subsampling factor `{f}`. A SubGrid's points "
+                    "must coincide with its parent's, so the factor must be a "
+                    f"whole number of parent cells -- use "
+                    f"`{max(1, math.floor(f))}` or `{max(1, math.ceil(f))}`. "
+                    "Subsampling onto points that fall "
+                    "between parent points requires interpolation, which "
+                    "SubGrid does not perform"
+                )
             if f < 1:
                 raise ValueError(f"Subsampling factor must be >= 1, got `{f}`")
 

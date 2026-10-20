@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pytest
 from sympy import Or
@@ -7,6 +9,7 @@ from devito import (
     TimeFunction, switchconfig
 )
 from devito.ir.iet import Conditional, FindNodes, Iteration
+from devito.tools import as_tuple
 
 
 def iteration(op, name):
@@ -728,12 +731,64 @@ class TestSubGrid:
         with pytest.raises(ValueError, match=err):
             SubGrid(grid, factor=factor)
 
-    def test_cannot_nest(self):
-        grid = Grid(shape=(9, 9))
-        sub = SubGrid(grid, factor=2)
+    @pytest.mark.parametrize('f0,f1,combined', [
+        (2, 3, (6, 6)),
+        (2, (3, 1), (6, 2)),
+        ((3, 2), (2, 4), (6, 8)),
+    ])
+    def test_cannot_nest(self, f0, f1, combined):
+        """
+        Nesting is rejected, and the message names the equivalent single-level
+        call rather than leaving the user to work out the arithmetic.
+        """
+        grid = Grid(shape=(24, 24))
+        sub = SubGrid(grid, factor=f0)
 
-        with pytest.raises(ValueError, match='Cannot subsample a SubGrid'):
-            SubGrid(sub, factor=2)
+        with pytest.raises(ValueError) as e:
+            SubGrid(sub, factor=f1)
+
+        assert f'factor={combined}' in str(e.value)
+
+    @pytest.mark.parametrize('f0,f1,combined', [
+        (2, 3, (6, 6)),
+        (2, (3, 1), (6, 2)),
+        ((3, 2), (2, 4), (6, 8)),
+    ])
+    def test_nesting_suggestion_is_equivalent(self, f0, f1, combined):
+        """
+        The combined factor the error suggests must really select the points a
+        two-step subsampling would have.
+        """
+        grid = Grid(shape=(24, 24))
+        sub = SubGrid(grid, factor=f0)
+        suggested = SubGrid(grid, factor=combined, name='c')
+
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=suggested, space_order=0)
+        data = np.arange(24*24, dtype=u.dtype).reshape(24, 24)
+        u.data[:] = data
+
+        Operator(Eq(f, u)).apply()
+
+        # Two-step reference: coarsen by `f0`, then by `f1`
+        g0, g1 = sub.factor
+        h0, h1 = as_tuple(f1)*2 if len(as_tuple(f1)) == 1 else as_tuple(f1)
+        two_step = data[::g0, ::g1][::h0, ::h1]
+
+        assert np.array_equal(f.data, two_step)
+
+    def test_non_integer_factor_suggests_valid_factors(self):
+        """The suggested fallbacks must themselves be legal factors."""
+        grid = Grid(shape=(9, 9))
+
+        for bad in (0.5, 1.2, 2.5):
+            with pytest.raises(ValueError) as e:
+                SubGrid(grid, factor=bad)
+            suggested = re.findall(r'use `(\d+)` or `(\d+)`', str(e.value))
+            assert suggested, str(e.value)
+            for v in suggested[0]:
+                assert int(v) >= 1
+                SubGrid(grid, factor=int(v))        # must not raise
 
     def test_parent_must_be_grid(self):
         with pytest.raises(ValueError, match='must be a Grid'):
