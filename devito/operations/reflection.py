@@ -148,20 +148,13 @@ def _accesses(expr):
 def _positions(access, grid):
     """
     The position of a Function access or of an Indexed, in cells from the
-    nodes, along each Dimension of `grid`.
-
-    The position of a Function access is its argument, e.g. `7 - z + h_z/2` for
-    `w.subs(z, 7 - z)` with `w` staggered along `z`; its Indexed would shift a
-    negated Dimension by the staggering the wrong way, to `8 - z`.
+    nodes, along each Dimension of `grid`, e.g. `7 - z + 1/2` for `w.subs(z, 7 - z)`
+    with `w` staggered along `z`.
     """
     function = access.function
-    if isinstance(access, sympy.Indexed):
-        indices = dict(zip(function.dimensions, access.indices, strict=True))
-        return tuple(sympy.expand(indices[d] + o)
-                     for d, o in zip(grid.dimensions, _offsets(function, grid),
-                                     strict=True))
-    args = dict(zip(function.dimensions, access.args, strict=True))
-    return tuple(sympy.expand(args[d].xreplace({d.spacing: 1})) for d in grid.dimensions)
+    indices = dict(zip(function.dimensions, _indexed(access).indices, strict=True))
+    return tuple(sympy.expand(indices[d] + o)
+                 for d, o in zip(grid.dimensions, _offsets(function, grid), strict=True))
 
 
 def _offsets(function, grid):

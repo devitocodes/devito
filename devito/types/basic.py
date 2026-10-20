@@ -1443,20 +1443,20 @@ class AbstractFunction(sympy.Function, Basic, Pickable, Evaluable):
 
         # Indices after substitutions
         indices = []
-        for a, d, o, s in zip(self.args, self.dimensions, self.origin, subs, strict=True):
-            if a.is_Function and len(a.args) == 1:
-                # E.g. Abs(expr)
-                arg = a.args[0]
-                func = a.func
-            else:
-                arg = a
-                func = lambda x: x
-            if d in arg.free_symbols:
-                # Shift by origin d -> d - o.
-                indices.append(func(sympy.sympify(arg.subs(d, d - o).xreplace(s))))
-            else:
-                # Dimension has been removed, e.g. u[10], plain shift by origin
-                indices.append(func(sympy.sympify(arg - o).xreplace(s)))
+        for a, o, s in zip(self.args, self.origin, subs, strict=True):
+            # Strip the functions wrapping the position, e.g. INT(Abs(expr))
+            funcs = []
+            arg = a
+            while not arg.is_Atom and len(arg.args) == 1:
+                funcs.append(arg.func)
+                arg = arg.args[0]
+            # Point i sits at d = i + o, so position `arg` is index `arg - o`, also
+            # when `arg` is not a unit shift of d, e.g. 7 - d or 2*d, or when the
+            # Dimension has been removed, e.g. u[10]
+            index = sympy.sympify(arg - o).xreplace(s)
+            for func in reversed(funcs):
+                index = func(index)
+            indices.append(index)
 
         indices = [i.xreplace({k: sympy.Integer(k) for k in i.atoms(sympy.Float)})
                    for i in indices]
