@@ -503,6 +503,10 @@ class TestDecomposition:
         assert d.index_glb_to_loc(2, LEFT) is None
         assert d.index_glb_to_loc(3, RIGHT) is None
 
+        # An offset covering the whole subdomain gives its last index
+        assert d.index_glb_to_loc(8, LEFT) == 2
+        assert d.index_glb_to_loc(7, RIGHT) == 2
+
     def test_loc_to_glb_index_conversions(self):
         d = Decomposition([[0, 1, 2], [3, 4], [5, 6, 7], [8, 9, 10, 11]], 2)
 
@@ -1216,6 +1220,26 @@ class TestDataDistributed:
                        (slice(None, None, -3), slice(None, None, -3)),
                        (slice(6, None, -3), slice(6, None, -3))]:
             self._assert_induced(f.data[gslice], a[gslice])
+
+    @pytest.mark.parallel(mode=4)
+    def test_setitem_broadcast(self, mode):
+        """
+        An RHS that is size 1 along an axis broadcasts over that axis, rather
+        than being cut down to each rank's share of the destination.
+        """
+        grid = Grid(shape=(4, 8), topology=(1, 4))
+        f = Function(name='f', grid=grid, space_order=0, dtype=np.int32)
+        f.data[:] = 0
+
+        col = np.array([10, 20, 30, 40], dtype=np.int32)[:, None]
+        f.data[:, 0:3] = col
+
+        expected = np.zeros((4, 8), dtype=np.int32)
+        expected[:, 0:3] = col
+
+        glb = f.data_gather(rank=0)
+        if grid.distributor.myrank == 0:
+            assert np.array_equal(np.asarray(glb), expected)
 
     @pytest.mark.parallel(mode=4)
     def test_setitem(self, mode):

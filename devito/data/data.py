@@ -347,7 +347,11 @@ class Data(np.ndarray):
                         processed.append(slice(j.start, j.stop, 1))
                     else:
                         processed.append(j)
-                val_idx = as_tuple(processed)
+                # An axis `val` broadcasts along carries the same value for every
+                # rank, so it must be taken whole rather than cut down to this
+                # rank's share of the destination
+                val_idx = tuple(slice(None) if n == 1 else j
+                                for j, n in zip(processed, val.shape, strict=True))
             elif is_windowed(val):
                 # Read all of it, there is no decomposition to restrict it to
                 val_idx = tuple(slice(0, s) for s in val.shape)
