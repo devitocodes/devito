@@ -1,7 +1,6 @@
-import sympy
 from anytree import ContStyle, NodeMixin, PostOrderIter, RenderTree
 
-from devito.ir.support import PrefetchUpdate, WithLock, strided_factor
+from devito.ir.support import PrefetchUpdate, WithLock
 
 __all__ = [
     "NodeConditional",
@@ -65,18 +64,9 @@ class NodeIteration(ScheduleTree):
 
     @property
     def limits(self):
-        _min = self.dim.symbolic_min + self.interval.lower
-        _max = self.dim.symbolic_max + self.interval.upper
-
-        # A Strided Dimension steps `factor` points at a time in place of a
-        # `dim % factor == 0` guard. The min must be advanced to the first
-        # point on the subsampling grid, as `_min` is not necessarily a
-        # multiple of `factor`
-        factor = strided_factor(self.properties or ())
-        if factor is not None:
-            return (_round_up(_min, factor), _max, factor)
-
-        return (_min, _max, self.dim.symbolic_incr)
+        return (self.dim.symbolic_min + self.interval.lower,
+                self.dim.symbolic_max + self.interval.upper,
+                self.dim.symbolic_incr)
 
     @property
     def direction(self):
@@ -156,20 +146,3 @@ class NodeHalo(ScheduleTree):
 
 def render(stree):
     return RenderTree(stree, style=ContStyle()).by_attr('__repr_render__')
-
-
-def _round_up(expr, factor):
-    """
-    The smallest multiple of `factor` that is `>= expr`, for `expr >= 0`.
-
-    Written as `expr + (factor - expr%factor)%factor` rather than the usual
-    `((expr + factor - 1)/factor)*factor`: the latter is rewritten by
-    `IntDiv.__mul__` into plain `expr + factor - 1`, and the otherwise
-    equivalent `expr + (-expr)%factor` would rely on a floored modulo, whereas
-    C truncates towards zero and would place the loop min *below* `expr`.
-    `evaluate=False` keeps SymPy from folding the double modulo back.
-    """
-    rem = sympy.Mod(expr, factor)
-    shift = sympy.Mod(sympy.Add(factor, -rem, evaluate=False), factor, evaluate=False)
-
-    return sympy.Add(expr, shift, evaluate=False)

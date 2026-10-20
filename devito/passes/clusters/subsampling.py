@@ -1,5 +1,6 @@
 from devito.ir.clusters import Queue
-from devito.ir.support import GuardFactor, Strided
+from devito.ir.support import GuardFactor
+from devito.symbolics import IntDiv, uxreplace
 from devito.tools import timed_pass
 
 __all__ = ['subsampling']
@@ -19,11 +20,18 @@ def subsampling(clusters):
           if (x%xf == 0)                 ->     g[x/xf] = ...
             g[x/xf] = ...
 
-    The rewrite is recorded as a `Strided` property on `d`; the stride and the
-    anchoring of the loop min are applied by `NodeIteration.limits`. The
-    iteration space itself is left keyed on `d`, so the runtime `x_m`/`x_M`
-    values, the domain decomposition and any non-subsampled access `f[x + 1]`
-    are all unaffected.
+The loop is taken over the subsampled Dimension `cd` itself, with a *unit*
+    stride, and every access to the parent `d` is rescaled to `cd*factor`:
+
+        for (x = x_m; x <= x_M; x += 1)      for (xs = xs_m; xs <= xs_M; xs++)
+          if (x%xf == 0)                 ->     g[xs] = u[xs*xf]
+            g[x/xf] = u[x]
+
+    A non-unitary increment is deliberately avoided: it would escape the
+    Lamport-style dependence analysis the compiler relies on. The loop bounds
+    are `cd`'s own runtime values, which `ConditionalDimension._arg_values`
+    derives as `ceil(x_m/factor) .. floor(x_M/factor)`, so no anchoring of the
+    loop minimum is needed either.
 
     Parameters
     ----------
@@ -63,11 +71,21 @@ class Subsampling(Queue):
         if not all(_is_strideable(c, d, guard) for c in clusters):
             return clusters
 
+        cd = guard.d
+        factor = cd.symbolic_factor
+
         processed = []
         for c in clusters:
-            properties = c.properties.add(d, Strided(guard.d.symbolic_factor))
-            processed.append(c.rebuild(guards=c.guards.popany(d),
-                                       properties=properties))
+            # Iterate the subsampled Dimension itself, with unit stride, and
+            # rescale every parent access `d` to `cd*factor`
+            ispace = c.ispace.switch(d, cd)
+            # `IntDiv(d, factor)` is how the subsampled access was lowered;
+            # with `d -> cd*factor` it collapses to `cd`, so rewrite it
+            # directly rather than leaving `(cd*factor)/factor` behind
+            exprs = [uxreplace(e, {IntDiv(d, factor): cd, d: cd*factor})
+                     for e in c.exprs]
+            processed.append(c.rebuild(exprs=exprs, ispace=ispace,
+                                       guards=c.guards.popany(d)))
 
         return processed
 
