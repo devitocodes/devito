@@ -32,7 +32,7 @@ pairing them conserves energy up to the boundary terms.
 
 import numpy as np
 
-__all__ = ['sbp_matrix', 'sbp_norm']
+__all__ = ['sbp_interior', 'sbp_matrix', 'sbp_norm']
 
 # Interior stencils, from the `-` grid to the `+` grid and the other way: the
 # offsets of the points read from the point computed, in the indices of each grid
@@ -88,6 +88,17 @@ _NORMS = {
     '-': np.array([0.344556397209992, 0.43729008856459833, 1.30569549651249,
                    0.9124580177129197]),
 }
+
+
+def sbp_interior(kind):
+    """
+    The interior stencil of the operator `kind` ('D' or 'P'), the fourth-order
+    staggered derivative or interpolation, as its weights, in units of the
+    spacing, and the offsets of the points it reads from the point it computes,
+    in the indices of the grid it reads, from the `-` grid to the `+` grid.
+    """
+    weights, offsets = _INTERIOR[kind]
+    return tuple(float(w) for w in weights), tuple(int(o) for o in offsets)
 
 
 def sbp_norm(grid, size):

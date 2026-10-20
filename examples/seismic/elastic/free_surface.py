@@ -12,15 +12,11 @@ vertical axis as in
 import numpy as np
 import sympy
 
-from devito import Eq, Function, Operator, SubDomain
-from devito.finite_differences.sbp import sbp_matrix
+from devito import Eq, SubDomain
+from devito.symbolics import retrieve_indexed
+from examples.seismic.elastic.sbp import sbp_interior, sbp_matrix
 
 __all__ = ['traction_free_update']
-
-# Interior stencils of the lateral staggered derivative and interpolation, and the
-# offsets they read from a node (to a half point) or from a half point (to a node)
-_LATERAL_WEIGHTS = {'D': (1/24, -9/8, 9/8, -1/24), 'P': (-1/16, 9/16, 9/16, -1/16)}
-_LATERAL_OFFSETS = {False: (-1, 0, 1, 2), True: (-2, -1, 0, 1)}
 
 # Rows of the vertical SBP operators computed to find their closures
 _SBP_ROWS = 40
@@ -49,13 +45,14 @@ class Rows(SubDomain):
 
 def _lateral(expr, kind, dim, from_half):
     """
-    The interior staggered operator `kind` ('D' or 'P') along the lateral `dim`
+    The interior SBP operator `kind` ('D' or 'P') along the lateral `dim`
     applied to `expr`, from the half points to the nodes if `from_half`, else from
-    the nodes to the half points.
+    the nodes to the half points, which the half point `i + 1/2` is stored at `i`.
     """
+    weights, offsets = sbp_interior(kind)
+    shift = -1 if from_half else 0
     scale = dim.spacing if kind == 'D' else 1
-    weights, offsets = _LATERAL_WEIGHTS[kind], _LATERAL_OFFSETS[from_half]
-    return sum(w*expr.subs(dim, dim + o)
+    return sum(w*expr.subs(dim, dim + o + shift)
                for w, o in zip(weights, offsets, strict=True))/scale
 
 
@@ -128,7 +125,9 @@ class _ElasticSBP:
         self.names = {'+': 'sbp_nodes', '-': 'sbp_half'}
         self.v_next = [vi.forward.indexify() for vi in v]
         self.subdomains = {}
-        self.terms_cache = {}
+        # The metric terms of the `-` grid and those of its surface point, the
+        # surface node, by Function
+        self.surface_terms = {}
 
     def vgrid(self, i, j=None):
         """The vertical grid of `v[i]`, or of `tau[i, j]`."""
@@ -152,13 +151,9 @@ class _ElasticSBP:
         """
         The Jacobian and the metric terms `d eta / d x_i` at the points staggered
         by half a cell along the lateral Dimensions `lateral_half` and on the
-        vertical SBP grid `vgrid`, indexed like the fields there: on the `-`
-        grid, the row above the surface holds their values on the surface.
+        vertical SBP grid `vgrid`, indexed like the fields there. On the `-` grid,
+        the surface point takes the terms of the surface node (see `surface`).
         """
-        key = (lateral_half, vgrid)
-        if key in self.terms_cache:
-            return self.terms_cache[key]
-
         grid, vertical = self.grid, self.vertical
         lateral = tuple(d for d, half in zip(grid.dimensions, lateral_half,
                                              strict=False) if half)
@@ -166,35 +161,33 @@ class _ElasticSBP:
         metrics, jacobian = grid.staggered_terms(staggered)
         values = {f'eta_{d.name}': metrics[(d, vertical)] for d in grid.dimensions}
         values['J'] = jacobian
-        if vgrid == '+':
-            terms = {k: v.indexify() if isinstance(v, Function) else v
-                     for k, v in values.items()}
-            self.terms_cache[key] = terms
-            return terms
+        if vgrid == '-':
+            surface_metrics, surface_jacobian = grid.staggered_terms(lateral)
+            surface = {f'eta_{d.name}': surface_metrics[(d, vertical)]
+                       for d in grid.dimensions}
+            surface['J'] = surface_jacobian
+            self.surface_terms.update({v.function: surface[k] for k, v in values.items()
+                                       if v.is_Function})
+        return {k: v.indexify() if v.is_Function else v for k, v in values.items()}
 
-        # The surface point of the `-` grid is the surface node
-        surface_metrics, surface_jacobian = grid.staggered_terms(lateral)
-        surface_values = {f'eta_{d.name}': surface_metrics[(d, vertical)]
-                          for d in grid.dimensions}
-        surface_values['J'] = surface_jacobian
-        suffix = ''.join('h' if half else 'n' for half in lateral_half) + 'm'
-        terms, eqns = {}, []
-        surface_row = self.rows_subdomain('sbp_surface', self.bases['-'], 1)
-        for k, value in values.items():
-            if not isinstance(value, Function):
-                terms[k] = value
+    def surface(self, expr, row):
+        """
+        `expr`, written at the row `row`, with the metric terms of the `-` grid
+        read at its surface point, stored in the row above the surface, replaced
+        by those of the surface node, the row below.
+        """
+        vertical = self.vertical
+        mapper = {}
+        for i in retrieve_indexed(expr):
+            node = self.surface_terms.get(i.function)
+            if node is None:
                 continue
-            term = Function(name=f'sbp_{k}_{suffix}', grid=grid,
-                            space_order=grid.space_order, dtype=grid.dtype)
-            surface = surface_values[k]
-            if isinstance(surface, Function):
-                surface = surface.indexify().subs(vertical, vertical + 1)
-            eqns.append(Eq(term.indexify(), value.indexify()))
-            eqns.append(Eq(term.indexify(), surface, subdomain=surface_row))
-            terms[k] = term.indexify()
-        Operator(eqns, name='sbp_terms').apply()
-        self.terms_cache[key] = terms
-        return terms
+            index = dict(zip(i.function.dimensions, i.indices, strict=True))
+            if index[vertical].subs(vertical, row) != self.bases['-']:
+                continue
+            index[vertical] += 1
+            mapper[i] = node.indexed[tuple(index[d] for d in node.dimensions)]
+        return expr.xreplace(mapper)
 
     def average(self, param, i, j=None, surface=False):
         """
@@ -227,6 +220,18 @@ class _ElasticSBP:
         start = self.bases[vgrid] + (nrows if row is None else row)
         thickness = self.grid.shape[-1] - start if row is None else 1
         return self.rows_subdomain(self.names[vgrid], start, thickness)
+
+    def equation(self, lhs, rhs, vgrid, nrows, row):
+        """
+        The update `lhs = rhs` over the closure row `row` of `vgrid`, or over the
+        interior if None, whose first row reads no surface point.
+        """
+        start = self.bases[vgrid] + (nrows if row is None else row)
+        surface = self.surface(rhs, start)
+        if row is None and surface != rhs:
+            raise ValueError("The interior stencils of the SBP operators read the "
+                             "surface point; the closures need more rows")
+        return Eq(lhs, surface, subdomain=self.rows(vgrid, nrows, row))
 
     def momentum(self, i):
         """
@@ -264,8 +269,7 @@ class _ElasticSBP:
             buoyancy = self.average(self.buoyancy, i, surface=row == 0)
             update = self.damp*(self.v[i].indexify() +
                                 dt*buoyancy/terms['J']*divergence)
-            eqns.append(Eq(self.v_next[i], update,
-                           subdomain=self.rows(vgrid, nrows, row)))
+            eqns.append(self.equation(self.v_next[i], update, vgrid, nrows, row))
         return eqns
 
     def strain(self, i, j, row):
@@ -308,8 +312,8 @@ class _ElasticSBP:
                 rate = (self.average(self.mu, i, j, surface=row == 0) *
                         (self.strain(i, j, r) + self.strain(j, i, r)))
             update = self.damp*(self.tau[i, j].indexify() + dt*rate)
-            eqns.append(Eq(self.tau[i, j].forward.indexify(), update,
-                           subdomain=self.rows(vgrid, nrows, row)))
+            eqns.append(self.equation(self.tau[i, j].forward.indexify(), update, vgrid,
+                                      nrows, row))
         return eqns
 
     def equations(self):
@@ -331,10 +335,10 @@ def traction_free_update(v, tau, buoyancy, lam, mu, damp=1):
 
     discretized as in O'Reilly et al. (2022). The momentum equation is taken in
     conservation form and the strain rates by the chain rule, with SBP
-    operators along the vertical axis (see `devito.finite_differences.sbp`) and
-    the fourth-order staggered stencils laterally. The traction-free condition
-    is imposed weakly, by dropping the flux through the surface from the
-    vertical derivative of the momentum equation, `D - H^-1 B`. The
+    operators along the vertical axis (see `examples.seismic.elastic.sbp`), whose
+    interior stencils, fourth order, are also used laterally. The traction-free
+    condition is imposed weakly, by dropping the flux through the surface from
+    the vertical derivative of the momentum equation, `D - H^-1 B`. The
     semi-discrete system conserves the elastic energy, so the scheme is stable
     over any smooth topography, accurate to fourth order in the interior and
     second order at the surface, and the adjoint propagation is its exact

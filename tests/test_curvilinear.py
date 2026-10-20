@@ -8,10 +8,10 @@ from devito import (  # noqa
     SparseTimeFunction, SubDomain, TensorFunction, TensorTimeFunction, TerrainFollowing,
     TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad, inner, sin
 )
-from devito.finite_differences.sbp import sbp_matrix, sbp_norm
 from devito.mpi import MPI
 from examples.seismic import SeismicModel
 from examples.seismic.elastic import traction_free_update
+from examples.seismic.elastic.sbp import sbp_matrix, sbp_norm
 
 # A smooth surface over a 1000 m line, in m, positive down
 _AMPLITUDE = 60.
