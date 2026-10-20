@@ -14,6 +14,7 @@ from functools import cached_property
 import numpy as np
 import sympy
 
+from devito.finite_differences.sbp import sbp_matrix
 from devito.mpi import MPI
 from devito.types.dense import Function
 from devito.types.dimension import DefaultDimension
@@ -116,6 +117,60 @@ def _crop(values, npad):
     if npad == 0:
         return values
     return values[tuple(slice(npad, -npad) for _ in range(values.ndim))]
+
+
+# Interior stencils of the lateral staggered derivative and interpolation, and the
+# offsets they read from a node (to a half point) or from a half point (to a node)
+_LATERAL_WEIGHTS = {'D': (1/24, -9/8, 9/8, -1/24), 'P': (-1/16, 9/16, 9/16, -1/16)}
+_LATERAL_OFFSETS = {False: (-1, 0, 1, 2), True: (-2, -1, 0, 1)}
+
+# Rows of the vertical SBP operators computed to find their closures
+_SBP_ROWS = 40
+
+
+def _lateral(expr, kind, dim, from_half):
+    """
+    The interior staggered operator `kind` ('D' or 'P') along the lateral `dim`
+    applied to `expr`, from the half points to the nodes if `from_half`, else from
+    the nodes to the half points.
+    """
+    scale = dim.spacing if kind == 'D' else 1
+    weights, offsets = _LATERAL_WEIGHTS[kind], _LATERAL_OFFSETS[from_half]
+    return sum(w*expr.subs(dim, dim + o)
+               for w, o in zip(weights, offsets, strict=True))/scale
+
+
+def _opposite(vgrid):
+    """The other vertical SBP grid."""
+    return '-' if vgrid == '+' else '+'
+
+
+def _vertical_matrix(kinds, vgrid, traction_free=False):
+    """
+    The product of the vertical SBP operators `kinds`, applied right to left and
+    alternating grids, onto `vgrid`, e.g. ('D', 'P') onto '+' is `D+ P-`.
+    """
+    size = _SBP_ROWS
+    matrix, grid = None, vgrid
+    for i, kind in enumerate(kinds):
+        factor = sbp_matrix(kind, grid, size, traction_free and i == 0)
+        matrix = factor if matrix is None else matrix[:, :size] @ factor
+        size, grid = size + 4, _opposite(grid)
+    return matrix
+
+
+def _closure_rows(matrix):
+    """
+    Number of boundary rows of `matrix` before its rows repeat its interior
+    stencil, shifted by one column per row.
+    """
+    template = _SBP_ROWS // 2
+    stencil = matrix[template]
+    for row in range(template, -1, -1):
+        shifted = np.roll(stencil, row - template)
+        if row < template and not np.allclose(matrix[row], shifted, atol=1e-14):
+            return row + 1
+    return 0
 
 
 class CurvilinearMap:
@@ -472,6 +527,166 @@ class Rows(SubDomain):
                 vertical: ('middle', self._start, after)}
 
 
+class _ElasticSBP:
+    """
+    The equations of `CurvilinearGrid.elastic_update`: the velocity-stress system
+    with SBP operators along the vertical axis and a weakly imposed
+    traction-free surface (O'Reilly et al., 2021).
+
+    Each field lives on the vertical `+` grid, the nodes from the surface down,
+    or on the `-` grid, the surface and the half points below it, stored from
+    the row above the surface. Each update is one equation per row of the
+    boundary closures of its operators, then one for the rows below them.
+    """
+
+    def __init__(self, grid, v, tau, buoyancy, lam, mu, damp):
+        self.grid = grid
+        self.v = v
+        self.tau = tau
+        self.buoyancy = buoyancy
+        self.lam = lam
+        self.mu = mu
+        self.damp = damp.indexify() if hasattr(damp, 'indexify') else damp
+        self.last = grid.dim - 1
+        self.vertical = grid.dimensions[-1]
+        self.bases = {'+': grid._surface_index, '-': grid._surface_index - 1}
+        self.names = {'+': 'sbp_nodes', '-': 'sbp_half'}
+        self.v_next = [vi.forward.indexify() for vi in v]
+
+    def vgrid(self, i, j=None):
+        """The vertical grid of `v[i]`, or of `tau[i, j]`."""
+        staggered = {i} if j is None else ({i, j} if i != j else set())
+        return '-' if self.last in staggered else '+'
+
+    def lateral_half(self, i, j=None):
+        """Whether `v[i]`, or `tau[i, j]`, is at half points along each lateral axis."""
+        staggered = {i} if j is None else ({i, j} if i != j else set())
+        return tuple(a in staggered for a in range(self.last))
+
+    def average(self, param, i, j=None, surface=False):
+        """
+        A parameter given on the nodes, averaged at the points of `v[i]` or
+        `tau[i, j]`, or taken on the surface node at the surface point of the
+        `-` grid.
+        """
+        if not isinstance(param, sympy.Basic) or param.is_Number:
+            return param
+        value = param.indexify() if hasattr(param, 'indexify') else param
+        for d, half in zip(self.grid.dimensions, self.lateral_half(i, j), strict=False):
+            if half:
+                value = (value + value.subs(d, d + 1))/2
+        if self.vgrid(i, j) == '-':
+            below = value.subs(self.vertical, self.vertical + 1)
+            value = below if surface else (value + below)/2
+        return value
+
+    def apply(self, matrix, expr, row, grid_in, grid_out):
+        """
+        Row `row` of the vertical `matrix` applied to `expr`, given on the
+        vertical grid `grid_in`, at the point `row` of the grid `grid_out`.
+        """
+        shift = self.bases[grid_in] - self.bases[grid_out] - row
+        return sum(c*expr.subs(self.vertical, self.vertical + shift + k)
+                   for k, c in enumerate(matrix[row]) if c)
+
+    def rows(self, vgrid, nrows, row):
+        """The SubDomain of the closure row `row`, or of the interior if None."""
+        start = self.bases[vgrid] + (nrows if row is None else row)
+        thickness = self.grid.shape[-1] - start if row is None else 1
+        return self.grid._rows(self.names[vgrid], start, thickness)
+
+    def momentum(self, i):
+        """
+        The updates of `v[i]` from the divergence of the stress in conservation
+        form, `(1/J) sum_k d/dxi_k (J dxi_k/dx_j tau[i, j])`, whose vertical
+        derivative drops the flux through the surface, the traction.
+        """
+        grid, last, vertical = self.grid, self.last, self.vertical
+        vgrid = self.vgrid(i)
+        terms = grid._sbp_terms(self.lateral_half(i), vgrid)
+        # The lateral fluxes, and the vertical flux, from the lateral stresses
+        # interpolated to the points of v[i] and from the vertical stress
+        lateral, tangential = 0, 0
+        for a, d in enumerate(grid.dimensions[:-1]):
+            stress = self.tau[i, a].indexify()
+            half = self.lateral_half(i, a)[a]
+            terms_stress = grid._sbp_terms(self.lateral_half(i, a), self.vgrid(i, a))
+            lateral += _lateral(terms_stress['J']*stress, 'D', d, half)
+            tangential += (terms['J']*terms[f'eta_{d.name}'] *
+                           _lateral(stress, 'P', d, half))
+        terms_normal = grid._sbp_terms(self.lateral_half(i, last), self.vgrid(i, last))
+        normal = (terms_normal['J']*terms_normal[f'eta_{vertical.name}'] *
+                  self.tau[i, last].indexify())
+
+        flux_matrix = _vertical_matrix(('D', 'P'), vgrid, traction_free=True)
+        normal_matrix = _vertical_matrix(('D',), vgrid, traction_free=True)
+        nrows = max(_closure_rows(flux_matrix), _closure_rows(normal_matrix))
+        dt, hz = grid.time_dim.spacing, vertical.spacing
+        eqns = []
+        for row in list(range(nrows)) + [None]:
+            r = _SBP_ROWS//2 if row is None else row
+            divergence = lateral + (
+                self.apply(flux_matrix, tangential, r, vgrid, vgrid) +
+                self.apply(normal_matrix, normal, r, _opposite(vgrid), vgrid))/hz
+            buoyancy = self.average(self.buoyancy, i, surface=row == 0)
+            update = self.damp*(self.v[i].indexify() +
+                                dt*buoyancy/terms['J']*divergence)
+            eqns.append(Eq(self.v_next[i], update,
+                           subdomain=self.rows(vgrid, nrows, row)))
+        return eqns
+
+    def strain(self, i, j, row):
+        """
+        The derivative of the updated `v[i]` along the physical `x_j` at the
+        points of `tau[i, j]` and at the row `row` of their vertical grid, by the
+        chain rule.
+        """
+        grid, vertical = self.grid, self.vertical
+        vgrid = self.vgrid(i, j)
+        terms_stress = grid._sbp_terms(self.lateral_half(i, j), vgrid)
+        hz = vertical.spacing
+        if j == self.last:
+            matrix = _vertical_matrix(('D',), vgrid)
+            return (terms_stress[f'eta_{vertical.name}'] *
+                    self.apply(matrix, self.v_next[i], row, self.vgrid(i), vgrid)/hz)
+        d = grid.dimensions[j]
+        half = self.lateral_half(i)[j]
+        terms = grid._sbp_terms(self.lateral_half(i), self.vgrid(i))
+        matrix = _vertical_matrix(('P', 'D'), vgrid)
+        gradient = self.apply(matrix, self.v_next[i], row, vgrid, vgrid)/hz
+        return (_lateral(self.v_next[i], 'D', d, half) +
+                _lateral(terms['J']*terms[f'eta_{d.name}']*gradient, 'P', d, half) /
+                terms_stress['J'])
+
+    def stress(self, i, j):
+        """The updates of `tau[i, j]` from the strain rates of the updated velocity."""
+        vgrid = self.vgrid(i, j)
+        matrices = [_vertical_matrix(('D',), vgrid), _vertical_matrix(('P', 'D'), vgrid)]
+        nrows = max(_closure_rows(m) for m in matrices)
+        dt = self.grid.time_dim.spacing
+        eqns = []
+        for row in list(range(nrows)) + [None]:
+            r = _SBP_ROWS//2 if row is None else row
+            if i == j:
+                dilatation = sum(self.strain(k, k, r) for k in range(self.grid.dim))
+                rate = (self.average(self.lam, i, j)*dilatation +
+                        2*self.average(self.mu, i, j)*self.strain(i, i, r))
+            else:
+                rate = (self.average(self.mu, i, j, surface=row == 0) *
+                        (self.strain(i, j, r) + self.strain(j, i, r)))
+            update = self.damp*(self.tau[i, j].indexify() + dt*rate)
+            eqns.append(Eq(self.tau[i, j].forward.indexify(), update,
+                           subdomain=self.rows(vgrid, nrows, row)))
+        return eqns
+
+    def equations(self):
+        """The velocity updates, then the stress updates."""
+        ndim = self.grid.dim
+        return ([e for i in range(ndim) for e in self.momentum(i)] +
+                [e for i in range(ndim) for j in range(i, ndim)
+                 for e in self.stress(i, j)])
+
+
 class CurvilinearGrid(Grid):
 
     """
@@ -575,6 +790,7 @@ class CurvilinearGrid(Grid):
         self._image_weights_cache = {}
         self._staggered_terms_cache = {}
         self._rows_cache = {}
+        self._sbp_terms_cache = {}
         mapping.validate(self)
 
     def __repr__(self):
@@ -1229,6 +1445,119 @@ class CurvilinearGrid(Grid):
             eqns.extend(_split_update(indexed, indexed, column, lateral, row))
         return eqns + zero
 
+    def _sbp_terms(self, lateral_half, vgrid):
+        """
+        The Jacobian and the metric terms `d eta / d x_i` at the points of the
+        SBP elastic discretization staggered by half a cell along the lateral
+        Dimensions `lateral_half` and on the vertical SBP grid `vgrid`, as
+        Functions indexed like the fields there: on the `-` grid, the row above
+        the surface holds the point on the surface.
+        """
+        key = (lateral_half, vgrid)
+        if key not in self._sbp_terms_cache:
+            shifted = tuple(v + np.float64(h)/2 if half else v
+                            for v, h, half in zip(self._local_vectors, self.spacing,
+                                                  lateral_half + (vgrid == '-',),
+                                                  strict=True))
+            values = self.mapping.metrics(self, shifted)
+            values = {k: values[k] for k in [(i, self.dim - 1) for i in range(self.dim)]}
+            values['J'] = self.mapping.jacobian(self, shifted)
+            if vgrid == '-':
+                # The surface point of the `-` grid is the surface node
+                nodes = shifted[:-1] + (self._local_vectors[-1],)
+                surface_values = self.mapping.metrics(self, nodes)
+                surface_values['J'] = self.mapping.jacobian(self, nodes)
+                rows = np.round((self._local_vectors[-1] - np.float64(self.origin[-1])) /
+                                np.float64(self.spacing[-1])).astype(np.int64)
+                above = np.nonzero(rows == self._surface_index - 1)[0]
+                shape = tuple(len(v) for v in shifted)
+                for k in values:
+                    if not np.isscalar(values[k]):
+                        values[k] = np.broadcast_to(values[k], shape).copy()
+                        values[k][..., above] = np.broadcast_to(
+                            surface_values[k], shape)[..., above + 1]
+            suffix = ''.join('h' if half else 'n' for half in lateral_half) + \
+                ('m' if vgrid == '-' else 'p')
+            terms = {}
+            for k, v in values.items():
+                name = 'J' if k == 'J' else f'eta_{self.dimensions[k[0]].name}'
+                terms[name] = (sympy.sympify(v) if np.isscalar(v) else
+                               self._make_function(f'sbp_{name}_{suffix}', v).indexify())
+            self._sbp_terms_cache[key] = terms
+        return self._sbp_terms_cache[key]
+
+    def _check_sbp_map(self):
+        """Raise an error unless the map keeps the lateral coordinates."""
+        values = self.mapping.metrics(self, self._local_vectors)
+        for (i, j), v in values.items():
+            if j < self.dim - 1 and not (np.isscalar(v) and v == (i == j)):
+                raise ValueError(f"elastic_update needs a map that keeps the lateral "
+                                 f"coordinates, x_i = xi_i, which {self.mapping} does "
+                                 "not")
+
+    def elastic_update(self, v, tau, buoyancy, lam, mu, damp=1):
+        """
+        Equations of one time step of the isotropic elastic wave equation in
+        velocity-stress form, with a traction-free surface,
+
+            rho dv/dt = div(tau),
+            dtau/dt = lam tr(grad(v)) I + mu (grad(v) + grad(v)^T),
+            tau . n = 0 on the surface,
+
+        discretized as in O'Reilly et al. (2021, A high-order finite-difference
+        method on staggered curvilinear grids for seismic wave propagation
+        applications with topography, BSSA 112). The momentum equation is taken
+        in conservation form and the strain rates by the chain rule, with
+        summation-by-parts (SBP) operators along the vertical axis (see
+        `devito.finite_differences.sbp`) and the fourth-order staggered stencils
+        laterally. The traction-free condition is imposed weakly, by dropping
+        the flux through the surface from the vertical derivative of the
+        momentum equation. The semi-discrete system conserves the elastic
+        energy, so the scheme is stable over any smooth topography, accurate to
+        fourth order in the interior and second order at the surface, and the
+        adjoint propagation is its exact transpose.
+
+        The fields are on the usual staggered grid, `v[i]` half a cell along
+        `x_i` and `tau[i, j]` along `x_i` and `x_j`, apart from the vertical
+        grid of the fields staggered vertically, `v[-1]` and `tau[i, -1]`,
+        which also holds a point on the surface: the row above it stores it, so
+        the grid needs one row above the surface, and sparse functions reading
+        or writing these fields must lie at least half a cell below the surface.
+        The map must keep the lateral coordinates, as `TerrainFollowing` does.
+
+        Parameters
+        ----------
+        v : VectorTimeFunction
+            The particle velocity, of time order 1 and space order 4.
+        tau : TensorTimeFunction
+            The stress, of time order 1 and space order 4.
+        buoyancy, lam, mu : Function or number
+            The buoyancy `1/rho` and the Lame parameters on the nodes, averaged
+            to the staggered points.
+        damp : Function or number, optional
+            A factor applied to each update, e.g. an absorbing layer.
+
+        Returns
+        -------
+        list of Eq
+            The updates of the velocity, then of the stress, each over the rows
+            from the surface down. Sources follow them, e.g. injected into
+            `tau.forward`.
+        """
+        self._check_sbp_map()
+        if self._surface_index < 1:
+            raise ValueError(f"{self} needs a row above the surface for the surface "
+                             "points of the vertically staggered fields")
+        for f in list(v) + list(tau.values()):
+            if f.grid is None or f.grid.root is not self:
+                raise ValueError(f"{f} is not defined on {self}")
+            if f.space_order != 4 or f.time_order != 1:
+                raise ValueError(f"elastic_update needs fields of space order 4 and "
+                                 f"time order 1, not {f} of space order "
+                                 f"{f.space_order} and time order {f.time_order}")
+
+        return _ElasticSBP(self, v, tau, buoyancy, lam, mu, damp).equations()
+
     def __getstate__(self):
         state = super().__getstate__()
         # The coordinate and metric Functions are rebuilt lazily from the map
@@ -1237,4 +1566,5 @@ class CurvilinearGrid(Grid):
             state.pop(i, None)
         state['_image_weights_cache'] = {}
         state['_staggered_terms_cache'] = {}
+        state['_sbp_terms_cache'] = {}
         return state

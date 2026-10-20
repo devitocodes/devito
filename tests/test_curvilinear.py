@@ -3,9 +3,10 @@ import pytest
 
 from devito import (  # noqa
     CurvilinearGrid, CurvilinearMap, Eq, Function, Grid, Operator, SparseFunction,
-    SparseTimeFunction, TensorFunction, TerrainFollowing, TimeFunction, VectorFunction,
-    cos, div, grad, inner, sin
+    SparseTimeFunction, TensorFunction, TensorTimeFunction, TerrainFollowing,
+    TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad, inner, sin
 )
+from devito.finite_differences.sbp import sbp_matrix, sbp_norm
 from devito.mpi import MPI
 from examples.seismic import SeismicModel
 
@@ -1491,3 +1492,180 @@ class TestSeismicModel:
                          space_order=8, vp=2., nbl=10, surface=np.zeros(51))
         with pytest.raises(ValueError, match='one value per lateral node'):
             self.model(surface=np.zeros(50))
+
+
+def elastic_hill(x):
+    """A 40 m hill over a 400 m line."""
+    return -40.*np.exp(-((x - 200.)/80.)**2)
+
+
+def elastic_fields(grid):
+    """Velocity and stress of space order 4 and time order 1."""
+    v = VectorTimeFunction(name='v', grid=grid, space_order=4, time_order=1)
+    tau = TensorTimeFunction(name='tau', grid=grid, space_order=4, time_order=1)
+    return v, tau
+
+
+class Lean(CurvilinearMap):
+    # x = xi + eta/10, z = eta: a map that does not keep the lateral coordinate
+
+    def forward(self, grid, computational):
+        xi, eta = computational
+        return xi + eta/10, eta
+
+    def inverse(self, grid, points):
+        return np.stack([points[:, 0] - points[:, 1]/10, points[:, 1]], axis=1)
+
+
+class TestElastic:
+
+    vp, vs, rho = 2000., 1150., 2.
+
+    @property
+    def parameters(self):
+        """Buoyancy and Lame parameters."""
+        return (1/self.rho, self.rho*(self.vp**2 - 2*self.vs**2),
+                self.rho*self.vs**2)
+
+    def test_sbp_properties(self):
+        """The SBP operators sum by parts, and their interpolations are adjoint."""
+        n, m = 20, 12
+        dp, dm = sbp_matrix('D', '+', n), sbp_matrix('D', '-', n + 4)
+        pp, pm = sbp_matrix('P', '+', n), sbp_matrix('P', '-', n + 4)
+        hp, hm = np.diag(sbp_norm('+', n)), np.diag(sbp_norm('-', n + 4))
+        boundary = np.zeros((m, m))
+        boundary[0, 0] = -1
+        assert np.allclose((hm @ dm)[:m, :m] + (hp @ dp).T[:m, :m], boundary,
+                           rtol=0, atol=1e-14)
+        assert np.allclose((hp @ pp)[:m, :m], (hm @ pm).T[:m, :m], rtol=0, atol=1e-14)
+
+    def test_energy(self):
+        """
+        The semi-discrete system conserves energy under a hill: in the energy
+        inner product, the velocity and stress operators are minus each other's
+        adjoints, the traction-free surface included.
+        """
+        grid = surface_grid((41, 31), (400., 300.), elastic_hill, rows=1,
+                            dtype=np.float64)
+        s, h, bottom = 1, 10., 300.
+        buoyancy, lam, mu = self.parameters
+        x = h*np.arange(41)
+        jacobian = {False: (bottom - elastic_hill(x))/bottom,
+                    True: (bottom - elastic_hill(x + h/2))/bottom}
+
+        def weights(lateral_half, vgrid):
+            # Quadrature weights of the SBP grid, times the Jacobian
+            norm = np.zeros(grid.shape[-1])
+            start = s if vgrid == '+' else s - 1
+            norm[start:] = sbp_norm(vgrid, grid.shape[-1] - start)
+            return np.outer(jacobian[lateral_half], norm)
+
+        rng = np.random.default_rng(0)
+        steps = []
+        for _ in range(2):
+            v, tau = elastic_fields(grid)
+            initial = {}
+            for (i, j), start in [((0, 0), s), ((1, 1), s), ((0, 1), s - 1)]:
+                values = np.zeros(grid.shape)
+                values[10:31, start:start + 16] = rng.standard_normal((21, 16))
+                tau[i, j].data[0] = values
+                initial[(i, j)] = values
+            Operator(grid.elastic_update(v, tau, buoyancy, lam, mu)).apply(
+                time_m=0, time_M=0, dt=1.)
+            steps.append((initial, [np.array(c.data[1]) for c in v],
+                          {k: np.array(tau[k].data[1]) - initial[k] for k in initial}))
+
+        (initial_a, v_a, _), (_, v_b, rate_b) = steps
+        kinetic = (np.sum(weights(True, '+')*v_a[0]*v_b[0]) +
+                   np.sum(weights(False, '-')*v_a[1]*v_b[1]))/buoyancy
+        compliance = np.linalg.inv([[lam + 2*mu, lam], [lam, lam + 2*mu]])
+        normal = sum(compliance[a, b]*np.sum(weights(False, '+')*initial_a[(a, a)] *
+                                             rate_b[(b, b)])
+                     for a in range(2) for b in range(2))
+        shear = np.sum(weights(True, '-')*initial_a[(0, 1)]*rate_b[(0, 1)])/mu
+        assert np.isclose(kinetic, -(normal + shear), rtol=1e-10, atol=0)
+
+    def test_tilted_plane(self):
+        """
+        Under a tilted plane, the velocities in the frame of the plane converge to
+        those under a flat surface, with the same source and receivers relative to
+        it.
+        """
+        def record(slope, h):
+            grid = surface_grid((int(1500/h) + 1, int(750/h) + 1), (1500., 750.),
+                                lambda x: slope*x, rows=1, dtype=np.float64)
+            v, tau = elastic_fields(grid)
+            dt = .25*h*(750. - 1500.*slope)/750./self.vp
+            nt = int(round(.6/dt)) + 1
+            tangent = np.array([1., slope])/np.hypot(1., slope)
+            normal = np.array([-slope, 1.])/np.hypot(1., slope)
+            centre = np.array([750., 750.*slope])
+            src = SparseTimeFunction(name='src', grid=grid, npoint=1, nt=nt,
+                                     coordinates=[centre + 150.*normal])
+            src.data[:, 0] = ricker(dt*np.arange(nt), f0=8., t0=.15)
+            receivers = (centre + np.linspace(-300., 300., 31)[:, None]*tangent +
+                         20.*normal)
+            rec = [SparseTimeFunction(name=f'rec{i}', grid=grid, npoint=31, nt=nt,
+                                      coordinates=receivers) for i in range(2)]
+            Operator(grid.elastic_update(v, tau, *self.parameters) +
+                     src.inject(tau.forward[0, 0], src*dt) +
+                     src.inject(tau.forward[1, 1], src*dt) +
+                     rec[0].interpolate(v[0]) + rec[1].interpolate(v[1])
+                     ).apply(time_M=nt - 2, dt=dt)
+            data = [np.array(r.data) for r in rec]
+            local = np.stack([data[0]*tangent[0] + data[1]*tangent[1],
+                              data[0]*normal[0] + data[1]*normal[1]])
+            common = np.linspace(0., .6, 601)
+            return np.array([[np.interp(common, dt*np.arange(nt), trace)
+                              for trace in component.T] for component in local])
+
+        errors = []
+        for h in [10., 5.]:
+            flat, tilted = record(0., h), record(.1, h)
+            errors.append(np.linalg.norm(tilted - flat)/np.linalg.norm(flat))
+        assert errors[1] < 2e-2
+        assert errors[0]/errors[1] > 3
+
+    def test_invalid(self):
+        grid = surface_grid((21, 21), (200., 200.), elastic_hill, rows=1)
+        v8 = VectorTimeFunction(name='v8', grid=grid, space_order=8, time_order=1)
+        _, tau = elastic_fields(grid)
+        with pytest.raises(ValueError, match='space order 4'):
+            grid.elastic_update(v8, tau, *self.parameters)
+        no_row = surface_grid((21, 21), (200., 200.), elastic_hill, rows=0)
+        with pytest.raises(ValueError, match='row above the surface'):
+            no_row.elastic_update(*elastic_fields(no_row), *self.parameters)
+        with pytest.raises(ValueError, match='not defined on'):
+            grid.elastic_update(*elastic_fields(no_row), *self.parameters)
+        lean = CurvilinearGrid(shape=(21, 21), extent=(200., 200.), mapping=Lean())
+        with pytest.raises(ValueError, match='keeps the lateral'):
+            lean.elastic_update(*elastic_fields(lean), *self.parameters)
+
+
+class TestElasticMPI:
+
+    @pytest.mark.parallel(mode=[2, 4])
+    def test_mpi(self, mode):
+        """A distributed elastic propagation under a hill matches the serial one."""
+        results = []
+        for comm in [None, MPI.COMM_SELF]:
+            grid = surface_grid((41, 31), (400., 300.), elastic_hill, rows=1,
+                                dtype=np.float64, comm=comm)
+            v, tau = elastic_fields(grid)
+            # A smooth initial stress next to the surface, in grid indices
+            xi, eta = np.meshgrid(np.arange(41), np.arange(32), indexing='ij')
+            gauss = np.exp(-((xi - 20.)**2 + (eta - 3.)**2)/3.**2)
+            for i in range(2):
+                tau[i, i].data[0] = gauss
+            Operator(grid.elastic_update(v, tau, .5, 2.7e6, 2.6e6)).apply(
+                time_M=39, dt=1e-3)
+            results.append((v, tau))
+
+        (v_d, tau_d), (v_s, tau_s) = results
+        pairs = [(v_d[0], v_s[0]), (v_d[1], v_s[1]), (tau_d[0, 0], tau_s[0, 0]),
+                 (tau_d[0, 1], tau_s[0, 1])]
+        for distributed, serial in pairs:
+            scale = np.abs(serial.data[0]).max()
+            assert np.allclose(np.asarray(distributed.data_ro_domain[0]._local),
+                               serial.data[0][distributed.local_indices[1:]],
+                               rtol=0, atol=1e-12*scale)
