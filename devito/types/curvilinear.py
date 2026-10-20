@@ -15,6 +15,7 @@ import numpy as np
 import sympy
 
 from devito.mpi import MPI
+from devito.tools import memoized_meth
 from devito.types.dense import Function
 from devito.types.dimension import DefaultDimension
 from devito.types.grid import Grid
@@ -564,7 +565,6 @@ class CurvilinearGrid(Grid):
         self._mapping = mapping
         self._space_order = space_order
         self._reflection_cache = {}
-        self._staggered_terms_cache = {}
         mapping.validate(self)
 
     def __repr__(self):
@@ -637,20 +637,22 @@ class CurvilinearGrid(Grid):
         staggered = tuple(d for d in self.dimensions if d in staggered)
         if not staggered:
             return self.metrics, self.jacobian
-        if staggered not in self._staggered_terms_cache:
-            vectors = tuple(v + np.float64(h)/2 if d in staggered else v
-                            for v, d, h in zip(self._local_vectors, self.dimensions,
-                                               self.spacing, strict=True))
-            suffix = ''.join(d.name for d in staggered)
-            metrics = self._symbolic_terms(self.mapping.metrics(self, vectors),
-                                           lambda c, p: f'{c}_{p}_{suffix}', staggered)
-            jacobian = self._make_function(f'J_{suffix}',
-                                           self.mapping.jacobian(self, vectors),
-                                           staggered)
-            self._staggered_terms_cache[staggered] = (metrics, jacobian)
-        return self._staggered_terms_cache[staggered]
+        return self._staggered_terms(staggered)
 
-    def _terms_at(self, location):
+    @memoized_meth
+    def _staggered_terms(self, staggered):
+        """`staggered_terms` along the Dimensions `staggered`, in grid order."""
+        vectors = tuple(v + np.float64(h)/2 if d in staggered else v
+                        for v, d, h in zip(self._local_vectors, self.dimensions,
+                                           self.spacing, strict=True))
+        suffix = ''.join(d.name for d in staggered)
+        metrics = self._symbolic_terms(self.mapping.metrics(self, vectors),
+                                       lambda c, p: f'{c}_{p}_{suffix}', staggered)
+        jacobian = self._make_function(f'J_{suffix}',
+                                       self.mapping.jacobian(self, vectors), staggered)
+        return metrics, jacobian
+
+    def terms_at(self, location):
         """
         The metric terms and the Jacobian, as `metrics` and `jacobian`, at
         `location`, a mapper from each Dimension to a node or a half point,
@@ -1034,5 +1036,4 @@ class CurvilinearGrid(Grid):
                   '_local_vectors', 'min_spacing'):
             state.pop(i, None)
         state['_reflection_cache'] = {}
-        state['_staggered_terms_cache'] = {}
         return state
