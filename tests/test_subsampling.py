@@ -144,6 +144,44 @@ class TestStridedCodegen:
 
         assert np.array_equal(usub.data, data[::3, ::2])
 
+    def test_properties_inherited(self):
+        """
+        The subsampled Dimension must inherit the parent's computational
+        properties: it covers the same points, just in subsampled coordinates.
+        Losing them costs the loop its PARALLEL/VECTORIZED status, and with it
+        all of its OpenMP.
+        """
+        grid = Grid(shape=(32, 32))
+        x, y = grid.dimensions
+        sub = SubGrid(grid, factor=2)
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=sub, space_order=0)
+
+        # What the same copy gets on the parent Grid...
+        v = Function(name='v', grid=grid)
+        ref = Operator(Eq(v, u))
+        expected = {i.dim.name: i.properties
+                    for i in FindNodes(Iteration).visit(ref)}
+
+        # ...the subsampled version must get too
+        op = Operator(Eq(f, u))
+        for i in FindNodes(Iteration).visit(op):
+            parent = i.dim.parent if i.dim.is_Conditional else i.dim
+            assert i.properties == expected[parent.name], i.dim.name
+
+    @switchconfig(language='openmp')
+    def test_openmp_emitted(self):
+        """The subsampled loop nest is still parallelized and vectorized."""
+        grid = Grid(shape=(32, 32))
+        sub = SubGrid(grid, factor=2)
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=sub, space_order=0)
+
+        ccode = str(Operator(Eq(f, u)).ccode)
+
+        assert '#pragma omp for' in ccode
+        assert '#pragma omp simd' in ccode
+
     def test_bounds_are_subsampled(self):
         """
         The loop runs over the subsampled Dimension's own runtime bounds,
@@ -534,18 +572,79 @@ class TestSubGrid:
         assert np.array_equal(f.data, data[::fx, ::fy])
 
     def test_copy_is_strided(self):
-        """No guard is emitted: each subsampled Dimension's loop is strided."""
+        """
+        No guard is emitted, every loop keeps a unit stride, and the Operator
+        runs to the right answer.
+        """
         grid = Grid(shape=(12, 12))
         sub = SubGrid(grid, factor=3)
 
         u = Function(name='u', grid=grid)
         f = Function(name='f', grid=sub, space_order=0)
+        data = np.arange(144, dtype=u.dtype).reshape(12, 12)
+        u.data[:] = data
 
         op = Operator(Eq(f, u))
+        op.apply()
 
         assert not FindNodes(Conditional).visit(op)
         for d in sub.dimensions:
             assert iteration(op, d.name).limits[2] == 1
+        assert np.array_equal(f.data, data[::3, ::3])
+
+    @switchconfig(language='openmp')
+    def test_openmp_and_numerics(self):
+        """A SubGrid Operator is parallelized, vectorized, and correct."""
+        grid = Grid(shape=(32, 32))
+        sub = SubGrid(grid, factor=(4, 2))
+
+        u = Function(name='u', grid=grid)
+        f = Function(name='f', grid=sub, space_order=0)
+        data = np.arange(32*32, dtype=u.dtype).reshape(32, 32)
+        u.data[:] = data
+
+        op = Operator(Eq(f, u))
+        op.apply()
+
+        ccode = str(op.ccode)
+        assert '#pragma omp for' in ccode
+        assert '#pragma omp simd' in ccode
+        assert np.array_equal(f.data, data[::4, ::2])
+
+    def test_shared_nest_numerics(self):
+        """
+        A SubGrid Function sharing a nest with an unguarded Eq: the guard is
+        kept and both results are right.
+        """
+        grid = Grid(shape=(12,))
+        sub = SubGrid(grid, factor=4)
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+        g.data[:] = -1.
+
+        op = Operator([Eq(f, 1), Eq(g, f)])
+        op.apply()
+
+        assert FindNodes(Conditional).visit(op)
+        assert np.all(f.data == 1.)
+        assert np.all(g.data == 1.)
+
+    def test_sequential_numerics(self):
+        """A SubGrid Function accumulating along the subsampled Dimension."""
+        grid = Grid(shape=(12, 12))
+        sub = SubGrid(grid, factor=(3, 1))
+        xs = sub.dimensions[0]
+
+        f = Function(name='f', grid=grid)
+        g = Function(name='g', grid=sub, space_order=0)
+        f.data[:] = 1.
+        g.data[:] = 0.
+
+        Operator(Eq(g, g.subs(xs, xs-1) + f)).apply()
+
+        # Row 0 reads the halo (zero), then each row adds one
+        assert np.allclose(g.data[:, 0], [0., 1., 2., 3.])
 
     def test_factor_one_is_passthrough(self):
         """A factor of 1 leaves the Dimension untouched."""
