@@ -305,10 +305,17 @@ class Fusion(Queue):
             # Track whether there is any fence between `cg0` and the current `cg1`.
             fenced = cg0.scope.has_barrier
 
+            # Functions `cg0` waits on, e.g. a prefetched buffer: reading them
+            # is no data hazard, but no reader may be scheduled before the wait
+            waited = {s.target for s in flatten(cg0.syncs.values())
+                      if isinstance(s, WaitLock)}
+
             for n1, cg1 in enumerate(cgroups[n+1:], start=n+1):
                 fenced = fenced or cg1.scope.has_barrier
 
                 hazard = _fusion_hazards(cg0.scope, cg1.scope, prefix)
+                if waited & set(cg1.scope.reads):
+                    dag.add_edge(cg0, cg1)
                 if not (hazard or fenced):
                     continue
 
