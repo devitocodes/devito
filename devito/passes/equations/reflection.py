@@ -479,6 +479,15 @@ def _check_halo(function, grid, smallest, window):
 
 # Geometry of the reflections through the rows of a CurvilinearGrid
 
+# The step, in cells, of the differences giving the tangents of a surface
+_TANGENT_STEP = 1e-3
+
+# The Gauss-Newton iterations finding the closest point of a surface, and their
+# tolerance, in cells, above the roundoff of the physical coordinates
+_FOOT_ITERATIONS = 40
+_FOOT_TOLERANCE = 1e-10
+
+
 def _surface_point(grid, lateral, level):
     """
     Physical position of the points at the lateral computational coordinates
@@ -493,13 +502,16 @@ def _surface_foot(grid, physical, level):
     """
     The closest point of the coordinate surface of vertical computational
     coordinate `level` of `grid` to each of the `physical` points, of shape
-    `(npoint, ndim)`, by Gauss-Newton iterations on the map.
+    `(npoint, ndim)`, by Gauss-Newton iterations on the map, its tangents by
+    centered differences of `_TANGENT_STEP` cells.
     """
     nlateral = grid.dim - 1
     lateral = grid.to_computational(physical)[:, :nlateral]
-    steps = [1e-3*np.float64(h) for h in grid.spacing[:nlateral]]
+    steps = [_TANGENT_STEP*np.float64(h) for h in grid.spacing[:nlateral]]
+    roundoff = 64*np.finfo(np.float64).eps*np.abs(physical).max(initial=0)
+    tolerance = _FOOT_TOLERANCE*max(np.float64(h) for h in grid.spacing) + roundoff
 
-    for _ in range(20):
+    for _ in range(_FOOT_ITERATIONS):
         foot = _surface_point(grid, lateral, level)
         tangents = []
         for axis, step in enumerate(steps):
@@ -511,11 +523,17 @@ def _surface_foot(grid, physical, level):
         residual = physical - foot
         normal = np.einsum('pda,pdb->pab', tangents, tangents)
         rhs = np.einsum('pda,pd->pa', tangents, residual)
-        update = np.linalg.solve(normal, rhs[..., None])[..., 0]
+        try:
+            update = np.linalg.solve(normal, rhs[..., None])[..., 0]
+        except np.linalg.LinAlgError as e:
+            raise ValueError(f"The surface at computational depth {level} is "
+                             "degenerate: its tangents are not independent") from e
         lateral = lateral + update
-        if np.abs(update).max() < 1e-12*max(np.float64(h) for h in grid.spacing):
-            break
-    return _surface_point(grid, lateral, level)
+        if np.abs(update).max(initial=0) < tolerance:
+            return _surface_point(grid, lateral, level)
+    raise ValueError(f"The closest points of the surface at computational depth "
+                     f"{level} did not converge in {_FOOT_ITERATIONS} iterations; "
+                     "smooth the surface")
 
 
 def _lagrange_weights(position, npoint):
