@@ -539,6 +539,18 @@ class TestDerivatives:
         with pytest.raises(ValueError):
             _ = u.dx.evaluate
 
+    def test_nesting_check(self):
+        """
+        A derivative nesting more than two derivatives along the physical
+        coordinates, beyond the reach of the halo of the metrics, is refused.
+        """
+        grid = sine_grid(21)
+        x, y = grid.dimensions
+        u = Function(name='u', grid=grid, space_order=8)
+        _ = u.diff(x, 4).evaluate
+        with pytest.raises(NotImplementedError, match='nests 3 derivatives'):
+            _ = u.diff(x, 5).evaluate
+
 
 class TestDerivativesMPI:
 

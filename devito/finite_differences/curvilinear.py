@@ -95,6 +95,10 @@ def physical_derivative(deriv, expr, grid, **kwargs):
     spec = [(d, o) for d, o in zip(deriv.dims, deriv.deriv_order, strict=True) if o > 0]
     factors = [((d, o),) for d, o in spec if d in grid.dimensions
                for o in [2]*(o // 2) + [1]*(o % 2)]
+    if len(factors) > 2:
+        raise NotImplementedError(f"{deriv} nests {len(factors)} derivatives along the "
+                                  "physical coordinates, beyond the two that the halo "
+                                  "of the CurvilinearGrid metrics supports")
     others = tuple((d, o) for d, o in spec if d not in grid.dimensions)
     if others:
         factors.insert(0, others)
