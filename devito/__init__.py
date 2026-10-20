@@ -19,7 +19,8 @@ from devito.types.relational import *  # noqa
 from devito.types.sparse import *  # noqa
 from devito.types.tensor import *  # noqa
 from devito.finite_differences import *  # noqa
-from devito.operations.solve import *
+from devito.operations.solve import *  # noqa
+from devito.operations.subgrid import *
 from devito.operator import Operator  # noqa
 from devito.symbolics import CondEq, CondNe  # noqa
 
