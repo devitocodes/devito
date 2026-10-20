@@ -494,7 +494,8 @@ class GNUCompiler(Compiler):
                         '-Wno-unused-variable', '-Wno-unused-but-set-variable']
 
         if configuration['safe-math']:
-            self.cflags.append('-fno-unsafe-math-optimizations')
+            # GCC disables FMA contraction by default in ISO C, but not in C++
+            self.cflags.extend(['-fno-unsafe-math-optimizations', '-ffp-contract=off'])
         else:
             self.cflags.append('-ffast-math')
 
