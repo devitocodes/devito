@@ -229,6 +229,22 @@ class TestFD:
         expr1 = s_expr.func(*expr.args)
         assert(expr1 == s_expr)  # Exact equality
 
+    @pytest.mark.parametrize('dtype, precision', [
+        (np.float16, _PRECISION[np.float32]),
+        (np.int32, _PRECISION[np.float32]),
+        (np.float64, _PRECISION[np.float64]),
+    ])
+    def test_weights_precision_dtype(self, dtype, precision):
+        """
+        The FD weights are evaluated at the digit count of the expression dtype,
+        with integer expressions taking the single-precision digit count.
+        """
+        x = self.grid.dimensions[0]
+        u = Function(name='u', grid=self.grid, dtype=dtype, space_order=4)
+        indices = [(x + i * x.spacing) for i in range(-2, 3)]
+        s_expr = u.diff(x).as_finite_difference(indices).evalf(precision)
+        assert simplify(u.dx.evaluate - s_expr) == 0
+
     @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
     # Only test x and t as y and z are the same as x
     @pytest.mark.parametrize('derivative', ['dx', 'dxl', 'dxr', 'dx2'])
