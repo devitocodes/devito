@@ -10,6 +10,7 @@ map (see `Derivative`).
 """
 
 from functools import cached_property
+from itertools import product
 
 import numpy as np
 import sympy
@@ -25,9 +26,17 @@ __all__ = ['CurvilinearGrid', 'CurvilinearMap', 'TerrainFollowing']
 _COMPUTATIONAL_NAMES = {1: ('xi',), 2: ('xi', 'eta'), 3: ('xi', 'eta', 'zeta')}
 
 
+def _window(values, axis, start, stop):
+    """The view of `values` from `start` to `stop` along `axis`."""
+    index = [slice(None)]*values.ndim
+    index[axis] = slice(start, stop)
+    return values[tuple(index)]
+
+
 def _centered_fd(values, axis, spacing, order, deriv_order=1):
     """
-    Centered finite-difference derivative of `values` along `axis`.
+    Centered finite-difference derivative of `values` along `axis`, of order
+    `order`.
 
     The result drops `order//2` points at each end of `axis`. Each tap is
     differenced against the center value, so that a constant array has an
@@ -37,14 +46,34 @@ def _centered_fd(values, axis, spacing, order, deriv_order=1):
     indices = list(range(-radius, radius + 1))
     weights = sympy.finite_diff_weights(deriv_order, indices, 0)[deriv_order][-1]
     npoint = values.shape[axis]
-    center = np.take(values, range(radius, npoint - radius), axis=axis)
+    center = _window(values, axis, radius, npoint - radius)
     derivative = np.zeros(center.shape, dtype=np.result_type(center, np.float64))
     for i, w in zip(indices, weights, strict=True):
-        if w == 0 or i == 0:
-            continue
-        shifted = np.take(values, range(radius + i, npoint - radius + i), axis=axis)
-        derivative += float(w) * (shifted - center)
+        if w != 0 and i != 0:
+            derivative += float(w)*(_window(values, axis, radius + i,
+                                            npoint - radius + i) - center)
     return derivative / spacing**deriv_order
+
+
+def _lagrange(positions, npoint, size):
+    """
+    The `npoint` nodes nearest to the fractional node positions `positions`, of
+    an axis of `size` nodes, and the weights of the Lagrange polynomial through
+    them at `positions`, as `(first node, [weight of each node])`. A position
+    on a node has the weight one there.
+    """
+    positions = np.asarray(positions, dtype=np.float64)
+    first = np.clip(np.floor(positions).astype(np.int64) - (npoint//2 - 1), 0,
+                    size - npoint)
+    offsets = positions - first
+    weights = []
+    for k in range(npoint):
+        weight = np.ones_like(offsets)
+        for j in range(npoint):
+            if j != k:
+                weight = weight*(offsets - j)/(k - j)
+        weights.append(weight)
+    return first, weights
 
 
 def _extend(vector, npad):
@@ -78,6 +107,26 @@ def _crop(values, npad):
     return values[tuple(slice(npad, -npad) for _ in range(values.ndim))]
 
 
+def _cofactors(matrix):
+    """
+    The cofactors `C[i][j]` of a 1x1, 2x2 or 3x3 matrix of arrays `matrix[i][j]`,
+    and its determinant.
+    """
+    n = len(matrix)
+    if n == 1:
+        cofactors = [[np.ones_like(matrix[0][0])]]
+    elif n == 2:
+        (a, b), (c, d) = matrix
+        cofactors = [[d, -c], [-b, a]]
+    else:
+        m = matrix
+        cofactors = [[m[(i + 1) % 3][(j + 1) % 3]*m[(i + 2) % 3][(j + 2) % 3] -
+                      m[(i + 1) % 3][(j + 2) % 3]*m[(i + 2) % 3][(j + 1) % 3]
+                      for j in range(3)] for i in range(3)]
+    determinant = sum(matrix[0][j]*cofactors[0][j] for j in range(n))
+    return cofactors, determinant
+
+
 class CurvilinearMap:
 
     """
@@ -95,7 +144,7 @@ class CurvilinearMap:
 
     The metric terms, their derivatives and the Jacobian default to finite
     differences of `forward` at the grid space order. A map with closed forms
-    overrides `metrics`, `metric_derivatives` and `jacobian`, and `validate`
+    overrides `terms` and `jacobian`, and `validate`
     to check its parameters against a grid.
 
     Metric terms are returned as a dict `{(i, j): value}`, with `i` a physical
@@ -154,41 +203,43 @@ class CurvilinearMap:
 
     def _jacobian_matrix(self, grid, vectors, npad):
         """
-        `A[..., i, j] = d x_i / d xi_j` on the nodes spanned by `vectors`,
-        obtained by finite differences of `forward`.
+        `A[i][j] = d x_i / d xi_j` on the nodes spanned by `vectors`, extended by
+        `npad` nodes past each end, as nested lists of arrays, obtained by
+        finite differences of `forward`.
         """
         radius = grid.space_order // 2
         extended = [_extend(v, npad + radius) for v in vectors]
-        mesh = np.meshgrid(*extended, indexing='ij')
-        physical = self.forward(grid, mesh)
+        shape = tuple(v.size for v in extended)
+        physical = self.forward(grid, np.meshgrid(*extended, indexing='ij', sparse=True))
         if len(physical) != len(vectors):
             raise ValueError(f"{type(self).__name__}.forward returned {len(physical)} "
                              f"coordinates for a {len(vectors)}D grid")
-        physical = [np.array(np.broadcast_to(c, mesh[0].shape), dtype=np.float64)
+        physical = [np.broadcast_to(np.asarray(c, dtype=np.float64), shape)
                     for c in physical]
         if not all(np.isfinite(c).all() for c in physical):
             raise ValueError(f"{type(self).__name__}.forward returned non-finite "
                              "coordinates")
         spacing = [v[1] - v[0] for v in vectors]
         ndim = len(vectors)
-        shape = tuple(v.size + 2*npad for v in vectors)
-        matrix = np.empty(shape + (ndim, ndim))
+        matrix = []
         for i in range(ndim):
+            row = []
             for j in range(ndim):
                 derivative = _centered_fd(physical[i], j, spacing[j], grid.space_order)
                 # Crop the non-differentiated axes to the same extent
-                crop = tuple(slice(None) if k == j else slice(radius, -radius)
-                             for k in range(ndim))
-                matrix[..., i, j] = derivative[crop]
+                for k in range(ndim):
+                    if k != j:
+                        derivative = _window(derivative, k, radius, shape[k] - radius)
+                row.append(derivative)
+            matrix.append(row)
         return matrix
 
-    def _inverse_metrics(self, grid, vectors, npad):
-        """`M[..., j, i] = d xi_j / d x_i`, with `npad` extra points per side."""
-        return np.linalg.inv(self._jacobian_matrix(grid, vectors, npad))
-
-    def metrics(self, grid, vectors):
+    def terms(self, grid, vectors, derivatives=True):
         """
-        The metric terms `d xi_j / d x_i` on the nodes spanned by `vectors`.
+        The metric terms `d xi_j / d x_i`, their second derivatives
+        `d^2 xi_j / d x_i^2`, as `sum_k (d xi_k / d x_i) d/d xi_k (d xi_j / d x_i)`,
+        and the Jacobian determinant `det(d x / d xi)`, the ratio of a physical to
+        a computational cell volume, on the nodes spanned by `vectors`.
 
         Parameters
         ----------
@@ -196,39 +247,52 @@ class CurvilinearMap:
             The grid the map is attached to.
         vectors : tuple of ndarray
             Computational coordinates of the nodes, one 1D array per axis.
-        """
-        inverse = self._inverse_metrics(grid, vectors, 0)
-        ndim = len(vectors)
-        return {(i, j): inverse[..., j, i] for i in range(ndim) for j in range(ndim)}
+        derivatives : bool, optional, default=True
+            Compute the second derivatives, else return None for them.
 
-    def metric_derivatives(self, grid, vectors):
+        Returns
+        -------
+        tuple
+            The metric terms and their derivatives, as dicts `{(i, j): value}`,
+            and the Jacobian.
         """
-        The second derivatives `d^2 xi_j / d x_i^2` on the nodes spanned by
-        `vectors`, as `sum_k (d xi_k / d x_i) d/d xi_k (d xi_j / d x_i)`.
-        """
-        radius = grid.space_order // 2
-        inverse = self._inverse_metrics(grid, vectors, radius)
-        spacing = [v[1] - v[0] for v in vectors]
+        radius = grid.space_order // 2 if derivatives else 0
+        cofactors, determinant = _cofactors(self._jacobian_matrix(grid, vectors,
+                                                                  radius))
         ndim = len(vectors)
+        # inverse[j][i] = d xi_j / d x_i = C[i][j] / det, in place of the cofactors
+        inverse = [[None]*ndim for _ in range(ndim)]
+        for i in range(ndim):
+            for j in range(ndim):
+                inverse[j][i] = np.divide(cofactors[i][j], determinant,
+                                          out=np.asarray(cofactors[i][j]))
+        del cofactors
+        spacing = [v[1] - v[0] for v in vectors]
+        metrics = {(i, j): _crop(inverse[j][i], radius) for i in range(ndim)
+                   for j in range(ndim)}
+        if not derivatives:
+            return metrics, None, determinant
         derivatives = {}
         for i in range(ndim):
             for j in range(ndim):
                 value = 0
                 for k in range(ndim):
-                    derivative = _centered_fd(inverse[..., j, i], k, spacing[k],
+                    derivative = _centered_fd(inverse[j][i], k, spacing[k],
                                               grid.space_order)
-                    crop = tuple(slice(None) if m == k else slice(radius, -radius)
-                                 for m in range(ndim))
-                    value = value + _crop(inverse[..., k, i], radius)*derivative[crop]
+                    for m in range(ndim):
+                        if m != k:
+                            derivative = _window(derivative, m, radius,
+                                                 derivative.shape[m] - radius)
+                    value = value + metrics[(i, k)]*derivative
                 derivatives[(i, j)] = value
-        return derivatives
+        return metrics, derivatives, _crop(determinant, radius)
 
     def jacobian(self, grid, vectors):
         """
         The Jacobian determinant `det(d x / d xi)` on the nodes spanned by
-        `vectors`, the ratio of a physical to a computational cell volume.
+        `vectors` (see `terms`).
         """
-        return np.linalg.det(self._jacobian_matrix(grid, vectors, 0))
+        return _cofactors(self._jacobian_matrix(grid, vectors, 0))[1]
 
 
 class TerrainFollowing(CurvilinearMap):
@@ -271,9 +335,10 @@ class TerrainFollowing(CurvilinearMap):
         negative, `surface=-elevation`. Either an array with one value per
         lateral grid node, or a callable of the lateral physical coordinates,
         `s(x)` in 2D and `s(x, y)` in 3D. An array is continued past the edges
-        of the grid by odd reflection, interpolated linearly between nodes to
-        place sparse points, and differentiated by finite differences for the
-        metric terms; a callable is evaluated exactly.
+        of the grid by odd reflection, interpolated between nodes by Lagrange
+        polynomials of the grid space order, e.g. at half points or to place
+        sparse points, and differentiated by finite differences for the metric
+        terms; a callable is evaluated exactly.
 
     Examples
     --------
@@ -338,27 +403,25 @@ class TerrainFollowing(CurvilinearMap):
         # Fractional node positions, snapped to the node when within roundoff
         npad = 2*grid.space_order + 2
         padded = _odd_pad(self._surface, npad)
-        positions = []
+        axes = []
         for axis, values in enumerate(lateral):
             spacing = np.float64(grid.spacing[axis])
             position = (np.asarray(values) - np.float64(grid.origin[axis])) / spacing
             nearest = np.rint(position)
             position = np.where(np.abs(position - nearest) < 1e-9, nearest, position)
-            positions.append(np.clip(position + npad, 0, padded.shape[axis] - 1))
-        positions = np.broadcast_arrays(*positions)
+            axes.append(_lagrange(np.clip(position + npad, 0, padded.shape[axis] - 1),
+                                  grid.space_order, padded.shape[axis]))
 
-        # Multilinear interpolation of the padded surface
-        base = [np.minimum(np.floor(p).astype(np.int64), n - 2)
-                for p, n in zip(positions, padded.shape, strict=True)]
-        fractions = [p - b for p, b in zip(positions, base, strict=True)]
+        # Tensor-product Lagrange interpolation of the padded surface, of the
+        # order of the grid
         value = 0
-        for corner in np.ndindex(*(2,)*len(base)):
+        for taps in product(range(grid.space_order), repeat=len(axes)):
             weight = 1
             index = []
-            for c, b, f in zip(corner, base, fractions, strict=True):
-                weight = weight * (f if c else 1 - f)
-                index.append(b + c)
-            value = value + weight*padded[tuple(index)]
+            for k, (first, weights) in zip(taps, axes, strict=True):
+                weight = weight*weights[k]
+                index.append(first + k)
+            value = value + weight*padded[tuple(np.broadcast_arrays(*index))]
         return value
 
     def _surface_derivatives(self, grid, lateral_vectors):
@@ -408,24 +471,21 @@ class TerrainFollowing(CurvilinearMap):
         eta = bottom*(points[:, -1] - surface)/(bottom - surface)
         return np.concatenate([points[:, :-1], eta[:, None]], axis=1)
 
-    def metrics(self, grid, vectors):
+    def terms(self, grid, vectors, derivatives=True):
         ndim = len(vectors)
         last = ndim - 1
-        bottom, height, eta, first, _ = self._column_terms(grid, vectors)
+        bottom, height, eta, first, second = self._column_terms(grid, vectors)
         metrics = {(i, j): int(i == j) for i in range(ndim) for j in range(last)}
         for i in range(last):
             metrics[(i, last)] = first[i]*eta/height
         metrics[(last, last)] = bottom/height
-        return metrics
-
-    def metric_derivatives(self, grid, vectors):
-        ndim = len(vectors)
-        last = ndim - 1
-        _, height, eta, first, second = self._column_terms(grid, vectors)
-        derivatives = {(i, j): 0 for i in range(ndim) for j in range(ndim)}
+        if not derivatives:
+            return metrics, None, height/bottom
+        second_derivatives = {(i, j): 0 for i in range(ndim) for j in range(ndim)}
         for i in range(last):
-            derivatives[(i, last)] = eta*(second[i]/height + 2*first[i]**2/height**2)
-        return derivatives
+            second_derivatives[(i, last)] = eta*(second[i]/height +
+                                                 2*first[i]**2/height**2)
+        return metrics, second_derivatives, height/bottom
 
     def jacobian(self, grid, vectors):
         bottom, height, _, _, _ = self._column_terms(grid, vectors)
@@ -622,26 +682,7 @@ class CurvilinearGrid(Grid):
         computed from the map there, as Functions staggered like a Function
         defined there.
         """
-        staggered = tuple(d for d in self.dimensions if d in staggered)
-        if not staggered:
-            return self.metrics, self.jacobian
-        if staggered not in self._staggered_terms:
-            self._staggered_terms[staggered] = self._make_staggered_terms(staggered)
-        return self._staggered_terms[staggered]
-
-    @cached_property
-    def _staggered_terms(self):
-        """The `staggered_terms` built so far, by staggering."""
-        return {}
-
-    def _make_staggered_terms(self, staggered):
-        """`staggered_terms` along the Dimensions `staggered`, in grid order."""
-        vectors = self._staggered_vectors(staggered)
-        suffix = ''.join(d.name for d in staggered)
-        metrics = self._symbolic_terms(self.mapping.metrics(self, vectors),
-                                       lambda c, p: f'{c}_{p}_{suffix}', staggered)
-        jacobian = self._make_function(f'J_{suffix}',
-                                       self.mapping.jacobian(self, vectors), staggered)
+        metrics, _, jacobian = self._terms(staggered)
         return metrics, jacobian
 
     def terms_at(self, location):
@@ -661,26 +702,42 @@ class CurvilinearGrid(Grid):
         map there.
         """
         staggered, shifts = self._staggering(location)
-        if not staggered:
-            derivatives = self.metric_derivatives
-        else:
-            if staggered not in self._staggered_metric_derivatives:
-                self._staggered_metric_derivatives[staggered] = \
-                    self._make_staggered_metric_derivatives(staggered)
-            derivatives = self._staggered_metric_derivatives[staggered]
+        derivatives = self._terms(staggered, derivatives=True)[1]
         return {k: v.subs(shifts) for k, v in derivatives.items()}
 
     @cached_property
-    def _staggered_metric_derivatives(self):
-        """The staggered `metric_derivatives_at` built so far, by staggering."""
+    def _terms_cache(self):
+        """The `_terms` built so far, by staggering."""
         return {}
 
-    def _make_staggered_metric_derivatives(self, staggered):
-        """`metric_derivatives` at the points staggered along `staggered`."""
+    def _terms(self, staggered, derivatives=False):
+        """
+        The metric terms, their second derivatives if `derivatives` (else None),
+        and the Jacobian at the points staggered by half a cell along the
+        Dimensions `staggered`, from one evaluation of the map there. The
+        Functions built for a staggering are kept, so each is built once.
+        """
+        staggered = tuple(d for d in self.dimensions if d in staggered)
+        cached = self._terms_cache.get(staggered)
+        if cached is not None and (cached[1] is not None or not derivatives):
+            return cached
+
         vectors = self._staggered_vectors(staggered)
+        metrics, second, jacobian = self.mapping.terms(self, vectors,
+                                                       derivatives=derivatives)
         suffix = ''.join(d.name for d in staggered)
-        return self._symbolic_terms(self.mapping.metric_derivatives(self, vectors),
-                                    lambda c, p: f'{c}_{p}{p}_{suffix}', staggered)
+        suffix = f'_{suffix}' if suffix else ''
+        if cached is None:
+            metrics = self._symbolic_terms(metrics, lambda c, p: f'{c}_{p}{suffix}',
+                                           staggered)
+            jacobian = self._make_function(f'J{suffix}', jacobian, staggered)
+        else:
+            metrics, _, jacobian = cached
+        if second is not None:
+            second = self._symbolic_terms(second, lambda c, p: f'{c}_{p}{p}{suffix}',
+                                          staggered)
+        self._terms_cache[staggered] = (metrics, second, jacobian)
+        return self._terms_cache[staggered]
 
     def _staggered_vectors(self, staggered):
         """`_local_vectors` shifted by half a cell along the Dimensions `staggered`."""
@@ -714,7 +771,7 @@ class CurvilinearGrid(Grid):
         return tuple(self._make_function(f'{d.name}_coord', c)
                      for d, c in zip(self.dimensions, physical, strict=True))
 
-    @cached_property
+    @property
     def metrics(self):
         """
         The metric terms `M[(x_i, d_j)] = d xi_j / d x_i`, keyed by the physical
@@ -723,26 +780,23 @@ class CurvilinearGrid(Grid):
         Dimension (e.g. `eta_x`), or a number for an entry that is constant by
         construction of the map.
         """
-        values = self.mapping.metrics(self, self._local_vectors)
-        return self._symbolic_terms(values, lambda c, p: f'{c}_{p}')
+        return self._terms(())[0]
 
-    @cached_property
+    @property
     def metric_derivatives(self):
         """
         The second derivatives `d^2 xi_j / d x_i^2` of the computational
         coordinates, keyed as `metrics` (e.g. `eta_xx`).
         """
-        values = self.mapping.metric_derivatives(self, self._local_vectors)
-        return self._symbolic_terms(values, lambda c, p: f'{c}_{p}{p}')
+        return self._terms((), derivatives=True)[1]
 
-    @cached_property
+    @property
     def jacobian(self):
         """
         The Jacobian determinant `J = det(d x / d xi)`, the ratio of a physical
         to a computational cell volume, as a Function.
         """
-        values = self.mapping.jacobian(self, self._local_vectors)
-        return self._make_function('J', values)
+        return self._terms(())[2]
 
     @cached_property
     def min_spacing(self):
@@ -761,15 +815,18 @@ class CurvilinearGrid(Grid):
         if self.distributor.loc_empty:
             minimum = np.inf
         else:
-            domain = tuple(v[self.space_order:-self.space_order]
-                           for v in self._local_vectors)
-            shape = tuple(v.size for v in domain)
-            metrics = self.mapping.metrics(self, domain)
-            spacing = np.array([np.float64(h) for h in self.spacing])
-            # M[..., j, i] = d xi_j / d x_i / h_j
+            shape = self.shape_local
+            spacing = [np.float64(h) for h in self.spacing]
+            dimensions = self.dimensions
+            # M[..., j, i] = d xi_j / d x_i / h_j, from the metric Functions
             matrix = np.empty(shape + (self.dim, self.dim))
-            for (i, j), value in metrics.items():
-                matrix[..., j, i] = np.broadcast_to(value, shape)/spacing[j]
+            for (physical, computational), value in self.metrics.items():
+                i, j = dimensions.index(physical), dimensions.index(computational)
+                if value.is_Function:
+                    value = np.asarray(value.data_local, dtype=np.float64)
+                else:
+                    value = float(value)
+                matrix[..., j, i] = value/spacing[j]
             tensor = matrix @ np.swapaxes(matrix, -1, -2)
             minimum = 1/np.sqrt(np.linalg.eigvalsh(tensor)[..., -1].max())
         if self.distributor.is_parallel:
@@ -828,8 +885,6 @@ class CurvilinearGrid(Grid):
     def __getstate__(self):
         state = super().__getstate__()
         # The coordinate and metric Functions are rebuilt lazily from the map
-        for i in ('coordinates', 'metrics', 'metric_derivatives', 'jacobian',
-                  '_staggered_terms', '_staggered_metric_derivatives', '_local_vectors',
-                  'min_spacing'):
+        for i in ('coordinates', '_terms_cache', '_local_vectors', 'min_spacing'):
             state.pop(i, None)
         return state

@@ -134,14 +134,13 @@ class TestGrid:
         mapping = grid.mapping
         vectors = grid._local_vectors
 
-        for generic, closed in [(CurvilinearMap.metrics, mapping.metrics),
-                                (CurvilinearMap.metric_derivatives,
-                                 mapping.metric_derivatives)]:
-            fd_values = generic(mapping, grid, vectors)
-            closed_values = closed(grid, vectors)
+        generic = CurvilinearMap.terms(mapping, grid, vectors)
+        closed = mapping.terms(grid, vectors)
+        for fd_values, closed_values in zip(generic[:2], closed[:2], strict=True):
             for key, value in fd_values.items():
                 expected = np.broadcast_to(closed_values[key], value.shape)
                 assert np.allclose(value, expected, rtol=0, atol=1e-9)
+        assert np.allclose(generic[2], closed[2], rtol=1e-12)
 
         jacobian = CurvilinearMap.jacobian(mapping, grid, vectors)
         assert np.allclose(jacobian, mapping.jacobian(grid, vectors), rtol=1e-12)
@@ -165,6 +164,33 @@ class TestGrid:
                                    metric.data[interior], rtol=1e-6, atol=1e-7)
         assert np.allclose(sampled.coordinates[1].data, grid.coordinates[1].data,
                            rtol=1e-6)
+
+    @pytest.mark.parametrize('space_order', [4, 8])
+    def test_array_surface_order(self, space_order):
+        """
+        The metric terms of a surface given as an array converge at the space
+        order of the grid, at the nodes and at the half points, where the
+        surface is interpolated by Lagrange polynomials of that order.
+        """
+        errors = {(): [], (0,): []}
+        for n in (41, 81):
+            xs = np.linspace(0., 1000., n)
+            grid = CurvilinearGrid(shape=(n, 21), extent=(1000., 800.),
+                                   space_order=space_order, dtype=np.float64,
+                                   mapping=TerrainFollowing(surface=sine_surface(xs)))
+            x, y = grid.dimensions
+            spacing = 1000./(n - 1)
+            for half in errors:
+                metrics = grid.staggered_terms(tuple(grid.dimensions[i] for i in half))[0]
+                xh = xs + (spacing/2 if half else 0.)
+                eta = np.linspace(0., 800., 21)
+                expected = sine_surface_dx(xh)[:, None]*(eta[None, :] - 800.) / \
+                    (800. - sine_surface(xh)[:, None])
+                interior = slice(space_order, -space_order)
+                value = metrics[(x, y)].data[interior]
+                errors[half].append(np.abs(value - expected[interior]).max())
+        for half, (coarse, fine) in errors.items():
+            assert np.log2(coarse/fine) > space_order - 0.5, (half, coarse, fine)
 
     def test_inverse(self):
         grid = sine_grid(41)
