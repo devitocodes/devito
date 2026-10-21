@@ -23,7 +23,7 @@ from devito.parameters import configuration
 from devito.symbolics import FieldFromPointer, IndexedPointer, normalize_args
 from devito.tools import (
     ReducerMap, as_tuple, c_restrict_void_p, dtype_to_ctype, flatten, humanbytes,
-    is_integer, memoized_meth, mpi4py_mapper
+    is_integer, memoized_meth, mpi4py_mapper, prod
 )
 from devito.types.args import ArgProvider
 from devito.types.basic import AbstractFunction
@@ -1351,11 +1351,17 @@ class Function(DiscreteFunction):
         if args.options['index-mode'] == 'int32' and \
            args.options['linearize'] and \
            data.size - 1 >= np.iinfo(np.int32).max:
-            raise InvalidArgument(f"`{self.name}`, with its {data.size} elements, is too "
-                                  "big for int32 pointer arithmetic. Consider using the "
-                                  "'index-mode=int64' option, the save=Buffer(..) "
-                                  "API (TimeFunction only), or domain "
-                                  "decomposition via MPI")
+            size = data.size
+            if args.options['split-modulo-buffers'] and len(data.shape) == self.ndim:
+                size = prod(s for d, s in zip(self.dimensions, data.shape, strict=True)
+                            if not d.is_Stepping)
+            if size - 1 >= np.iinfo(np.int32).max:
+                raise InvalidArgument(
+                    f"`{self.name}`, with its {size} indexed elements, is too "
+                    "big for int32 pointer arithmetic. Consider using the "
+                    "'index-mode=int64' option, the save=Buffer(..) "
+                    "API (TimeFunction only), or domain decomposition via MPI"
+                )
 
         return super()._arg_check(args, intervals, **kwargs)
 
