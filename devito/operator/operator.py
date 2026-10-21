@@ -33,8 +33,8 @@ from devito.operator.registry import operator_selector
 from devito.parameters import configuration
 from devito.passes import (
     Graph, error_mapper, finalize_args, generate_implicit, generate_macros, is_on_device,
-    lower_dtypes, lower_index_derivatives, lower_local_sums, lower_reflections,
-    minimize_symbols, optimize_pows, unevaluate
+    lower_dtypes, lower_index_derivatives, lower_local_sums, minimize_symbols,
+    optimize_pows, unevaluate
 )
 from devito.symbolics import estimate_cost, subs_op_args
 from devito.tools import (
@@ -371,9 +371,6 @@ class Operator(Callable):
 
         # Scalarize the tensor equations, if any
         expressions = [j for i in expressions for j in i._flatten]
-
-        # Reads at mirror points through the rows of a CurvilinearGrid
-        expressions = lower_reflections(expressions)
 
         # A second round of specialization is performed on evaluated expressions
         expressions = cls._specialize_exprs(expressions, **kwargs)

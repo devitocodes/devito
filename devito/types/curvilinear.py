@@ -91,8 +91,7 @@ class CurvilinearMap:
       points, which must be defined, smoothly, past the domain too, where it
       gives the halo nodes their positions;
     * `inverse(grid, points)`, the computational coordinates of physical
-      points, needed to place SparseFunctions and to reflect points through the
-      rows of the grid.
+      points, needed to place SparseFunctions.
 
     The metric terms, their derivatives and the Jacobian default to finite
     differences of `forward` at the grid space order. A map with closed forms
@@ -449,6 +448,11 @@ class CurvilinearGrid(Grid):
       `J = grid.jacobian`, read at each point the source is spread over. Its
       injection is then the transpose of interpolation in the inner product
       weighted by the Jacobian, `<P u, d> = sum(J * u * P.T (d/J))`.
+    * Indices are computational, as on a Grid: `u.subs(z, 2*s - z)` reads the
+      row `2*s - z`. A free surface at the row `s` of a map whose surface is a
+      grid row, e.g. the odd mirror `Eq(u.forward, -u.forward.subs(z, 2*s - z),
+      subdomain=above)`, mirrors along the grid lines, through the surface,
+      which is flat in computational space.
 
     Parameters
     ----------

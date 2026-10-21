@@ -10,7 +10,6 @@ from devito import (  # noqa
     TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad, inner, resample, sin
 )
 from devito.mpi import MPI
-from devito.passes.equations.reflection import _surface_foot, _surface_point
 from examples.seismic import SeismicModel
 from examples.seismic.elastic import traction_free_update
 from examples.seismic.elastic.sbp import sbp_matrix, sbp_norm
@@ -1097,24 +1096,6 @@ class Test3D:
                            serial.data[distributed.local_indices], rtol=0, atol=1e-12)
 
 
-def plane_reflection(points, slope, offset):
-    """Mirror image of `points` through the plane `z = offset + slope . lateral`."""
-    slope = np.atleast_1d(slope)
-    norm = np.sqrt(1 + slope @ slope)
-    normal = np.append(slope, -1.)/norm
-    distance = (points[:, :-1] @ slope - points[:, -1] + offset)/norm
-    return points - 2*distance[:, None]*normal[None, :]
-
-
-def smooth_field(points):
-    return np.sin(points[:, 0]/150.)*np.cos(points[:, -1]/120.) + 0.3*points[:, -1]/100.
-
-
-def odd_field(points, slope, offset):
-    """A smooth field, odd w.r.t. the plane: zero on it, exact image across it."""
-    return smooth_field(points) - smooth_field(plane_reflection(points, slope, offset))
-
-
 def surface_grid(shape, extent, surface, rows=8, **kwargs):
     """
     A CurvilinearGrid with `shape` and `extent` below its surface, and `rows`
@@ -1187,30 +1168,6 @@ def odd_fold(field, coefficient, rows):
             Eq(field, 0, subdomain=rows_subdomain(grid, 0, surface + 1))]
 
 
-def mirrored_rows(grid, space_order, slope, offset):
-    """
-    Mirror rows set by `odd_mirror` from the exact odd field below the surface,
-    the exact odd field on the mirror rows, and the mirror rows of the mirror
-    along the grid columns.
-    """
-    surface = surface_row(grid)
-    u = TimeFunction(name='u', grid=grid, space_order=space_order)
-    coordinates = np.stack([c.data.ravel() for c in grid.coordinates], axis=1)
-    exact = odd_field(coordinates, slope, offset).reshape(grid.shape)
-    u.data[1] = 0.
-    u.data[1][..., surface:] = exact[..., surface:]
-
-    Operator(odd_mirror(u.forward, space_order//2)).apply(time_m=0, time_M=0)
-
-    rows = slice(surface - space_order//2, surface)
-    # Mirror along the grid columns, u(-k) = -u(k)
-    mirrored = slice(surface + space_order//2, surface, -1)
-    # Away from the lateral edges, where the image stencils read the halo
-    lateral = (slice(space_order, -space_order),)*(grid.dim - 1)
-    return (u.data[1][lateral + (rows,)], exact[lateral + (rows,)],
-            -exact[lateral + (mirrored,)])
-
-
 def staggered_laplacian(f, fd_order):
     """The staggered Laplacian of a wave equation."""
     return sum(getattr(getattr(f, f'd{d.name}')(fd_order=fd_order, x0=d + d.spacing/2),
@@ -1256,9 +1213,13 @@ def free_surface_dot(grid, space_order=8, rows=None, fd_order=None):
 
 class TestFreeSurface:
 
-    def test_flat_is_odd_mirror(self):
-        """Over a flat surface, the mirror is the usual `u(-k) = -u(k)`."""
-        grid = surface_grid((21, 21), (200., 200.), np.zeros(21))
+    @pytest.mark.parametrize('surface', [np.zeros(21), 30.*np.sin(np.arange(21)/3.)])
+    def test_odd_mirror(self, surface):
+        """
+        The mirror is the odd mirror along the grid lines, `u(-k) = -u(k)` in
+        computational space, as on a Grid, over a flat and a curved surface.
+        """
+        grid = surface_grid((21, 21), (200., 200.), surface)
         rng = np.random.default_rng(16)
         u = TimeFunction(name='u', grid=grid, space_order=8)
         u.data[1] = rng.standard_normal(grid.shape)
@@ -1267,142 +1228,6 @@ class TestFreeSurface:
 
         assert np.all(u.data[1, :, 8] == 0)
         assert np.array_equal(u.data[1, :, 4:8], -below[:, ::-1])
-
-    def test_forms(self):
-        """
-        The mirror over a SubDomain reads the reflection in Function and in index
-        notation alike, and not along the grid columns.
-        """
-        grid = surface_grid((31, 31), (1000., 800.), sine_surface, dtype=np.float64)
-        x, z = grid.dimensions
-        t = grid.stepping_dim
-        surface = surface_row(grid)
-        mirror = rows_subdomain(grid, surface - 4, 4)
-        rng = np.random.default_rng(20)
-        initial = rng.standard_normal(grid.shape)
-        forms = {
-            'function': lambda u: [Eq(u.forward, -u.forward.subs(z, 2*surface - z),
-                                      subdomain=mirror)],
-            'index': lambda u: [Eq(u[t + 1, x, z], -u[t + 1, x, 2*surface - z],
-                                   subdomain=mirror)],
-        }
-        results = {}
-        for form, equations in forms.items():
-            u = TimeFunction(name='u', grid=grid, space_order=8)
-            u.data[1] = initial
-            Operator(equations(u)).apply(time_m=0, time_M=0)
-            results[form] = np.array(u.data[1])
-        rows = results['function'][:, surface - 4:surface]
-        assert np.abs(rows + initial[:, surface + 4:surface:-1]).max() > 1e-2
-        assert np.allclose(results['index'], results['function'], rtol=0, atol=1e-12)
-
-    def test_constant_rows(self):
-        """A mirror writing constant rows, local to each rank under MPI, is refused."""
-        grid = surface_grid((31, 31), (1000., 800.), sine_surface)
-        x, z = grid.dimensions
-        t = grid.stepping_dim
-        u = TimeFunction(name='u', grid=grid, space_order=8)
-        surface = surface_row(grid)
-        for eq in [Eq(u.forward.subs(z, surface - 1), -u.forward.subs(z, surface + 1)),
-                   Eq(u[t + 1, x, surface - 1], -u[t + 1, x, surface + 1])]:
-            with pytest.raises(ValueError, match='over a SubDomain'):
-                Operator(eq)
-        with pytest.raises(ValueError, match='without a SubDomain'):
-            Operator(Eq(u.forward, -u.forward.subs(z, 2*surface - z)))
-
-    def test_staggered(self):
-        """
-        A Function staggered along the vertical, whose points straddle the
-        surface, is mirrored through the surface, half a cell from them: over a
-        tilted plane, its image is exact to the order of the interpolation.
-        """
-        slope, offset = 0.1, 30.
-        errors = []
-        for n in [41, 81]:
-            grid = surface_grid((n, n), (1000., 800.), lambda x: offset + slope*x,
-                                rows=4, space_order=4, dtype=np.float64)
-            z = grid.dimensions[-1]
-            surface = surface_row(grid)
-            w = TimeFunction(name='w', grid=grid, space_order=4, staggered=z)
-            points = grid.to_physical(np.stack(np.broadcast_arrays(
-                *np.meshgrid(*[np.float64(o) + np.float64(h)*(np.arange(s) + .5*(d is z))
-                               for o, h, s, d in zip(grid.origin, grid.spacing,
-                                                     grid.shape, grid.dimensions,
-                                                     strict=True)],
-                             indexing='ij')), axis=-1).reshape(-1, 2))
-            exact = odd_field(points, slope, offset).reshape(grid.shape)
-            w.data[1] = 0.
-            w.data[1][:, surface:] = exact[:, surface:]
-            # The points z and 2 s - 1 - z are the mirror of each other through
-            # the surface, half a cell above the point s
-            Operator(Eq(w.forward, -w.forward.subs(z, 2*surface - 1 - z),
-                        subdomain=rows_subdomain(grid, surface - 2, 2))
-                     ).apply(time_m=0, time_M=0)
-            rows = (slice(8, -8), slice(surface - 2, surface))
-            errors.append(np.abs(w.data[1][rows] - exact[rows]).max())
-        assert np.log2(errors[0]/errors[1]) > 3
-
-    def test_fields_share_weights(self):
-        """
-        Fields mirrored in the same Operator share the interpolation weights of
-        their images, and are mirrored alike.
-        """
-        grid = surface_grid((31, 31), (1000., 800.), sine_surface)
-        rng = np.random.default_rng(17)
-        u = TimeFunction(name='u', grid=grid, space_order=8)
-        v = TimeFunction(name='v', grid=grid, space_order=8)
-        u.data[1] = rng.standard_normal(grid.shape)
-        v.data[1] = u.data[1]
-
-        op = Operator(odd_mirror(u.forward, 4) + odd_mirror(v.forward, 4))
-        weights = {f for f in op.input if f.name.startswith('reflection')}
-        assert len(weights) == 4
-        op.apply(time_m=0, time_M=0)
-        # To float32 roundoff, the compiler ordering the two loops differently
-        assert np.allclose(u.data[1], v.data[1], rtol=0, atol=1e-6)
-
-    def test_needs_rows(self):
-        """The grid must extend above the surface by the mirror rows."""
-        grid = surface_grid((21, 21), (200., 200.), np.zeros(21), rows=2)
-        u = TimeFunction(name='u', grid=grid, space_order=8)
-        with pytest.raises(ValueError, match='2 rows above the surface'):
-            Operator(odd_mirror(u.forward, 4))
-
-    @pytest.mark.parametrize('ndim', [2, 3])
-    def test_kinked_surface(self, ndim):
-        """
-        An array surface is multilinear between its nodes, with a kink at each:
-        the closest point of a point above a peak is the peak, and every closest
-        point is the closest of a fine scan of the surface, within its resolution.
-        """
-        n, h = 11, 10.
-        lateral = np.meshgrid(*(h*np.arange(n),)*(ndim - 1), indexing='ij')
-        peak = -40. + .6*sum(np.abs(c - 50.) for c in lateral)
-        grid = surface_grid((n,)*ndim, (100.,)*ndim, peak, rows=4, dtype=np.float64)
-        rng = np.random.default_rng(23)
-        points = np.concatenate([[[50.]*(ndim - 1) + [-60.]],
-                                 np.column_stack([rng.uniform(10., 90., (40, ndim - 1)),
-                                                  rng.uniform(-80., -20., 40)])])
-        foot = _surface_foot(grid, points, 0.)
-        assert np.allclose(foot[0], [50.]*(ndim - 1) + [-40.], rtol=0, atol=1e-9)
-
-        samples = np.linspace(0., 100., 401 if ndim == 2 else 201)
-        scan = np.meshgrid(*(samples,)*(ndim - 1), indexing='ij')
-        surface = _surface_point(grid, np.stack([c.ravel() for c in scan], axis=1), 0.)
-        distance = np.linalg.norm(points - foot, axis=1)
-        closest = np.array([np.linalg.norm(surface - p, axis=1).min() for p in points])
-        resolution = 100./(scan[0].shape[0] - 1)
-        assert np.all(distance <= closest + 1e-9)
-        assert np.all(distance >= closest - resolution)
-
-    def test_halo(self):
-        """A reflection read laterally beyond the halo of a Function is refused."""
-        grid = surface_grid((41, 41), (1000., 800.), sine_surface)
-        w = Function(name='w', grid=grid, space_order=8)
-        m = Function(name='m', grid=grid, space_order=(8, 2, 2))
-        Operator(odd_fold(w, 1/Function(name='m8', grid=grid, space_order=8), 4))
-        with pytest.raises(ValueError, match='beyond its halo'):
-            Operator(odd_fold(w, 1/m, 4))
 
     @pytest.mark.parametrize('surface', [lambda x: 0*x + 20., sine_surface])
     def test_adjoint(self, surface):
@@ -1474,40 +1299,6 @@ class TestFreeSurface:
         assert np.abs(serial.data).max() > 0
         assert np.allclose(np.asarray(distributed.data_ro_domain._local),
                            serial.data[distributed.local_indices], rtol=0, atol=1e-12)
-
-    @pytest.mark.parametrize('space_order', [4, 8])
-    def test_tilted_plane(self, space_order):
-        """
-        Over a tilted plane, the mirror rows are the exact image of an odd field,
-        to the order of the interpolation, while mirroring along the grid
-        columns is only second order.
-        """
-        slope, offset = 0.1, 30.
-        errors, column_errors = [], []
-        sizes = {4: [41, 81], 8: [21, 41]}[space_order]
-        for n in sizes:
-            grid = surface_grid((n, n), (1000., 800.), lambda x: offset + slope*x,
-                                rows=space_order, space_order=space_order,
-                                dtype=np.float64)
-            mirror, exact, column = mirrored_rows(grid, space_order, slope, offset)
-            errors.append(np.abs(mirror - exact).max())
-            column_errors.append(np.abs(column - exact).max())
-
-        assert np.log2(errors[0]/errors[1]) > space_order - 1
-        assert np.log2(column_errors[0]/column_errors[1]) < 2.5
-        assert errors[1] < 1e-3*column_errors[1]
-
-    def test_tilted_plane_3d(self):
-        """The image mirror over a tilted plane in 3D."""
-        slope, offset = np.array([0.1, -0.05]), 50.
-        errors = []
-        for n in [21, 41]:
-            grid = surface_grid((n, n, n), (1000., 800., 600.),
-                                lambda x, y: offset + slope[0]*x + slope[1]*y,
-                                rows=4, space_order=4, dtype=np.float64)
-            mirror, exact, _ = mirrored_rows(grid, 4, slope, offset)
-            errors.append(np.abs(mirror - exact).max())
-        assert np.log2(errors[0]/errors[1]) > 3
 
     @pytest.mark.parallel(mode=[2, 4])
     def test_mpi(self, mode):
@@ -1601,10 +1392,12 @@ class TestFreeSurfaceWave:
 
     def test_tilted_plane(self):
         """
-        Under a tilted free surface, the odd mirror matches the analytic
-        image-source solution.
+        Under a tilted free surface, the odd mirror along the grid lines matches
+        the analytic image-source solution: the misfit is 1.6e-3 at a spacing of
+        10 m and 4.0e-4 at 5 m, second order, against 9.3e-4 and 2.3e-4 for a
+        mirror along the normal to the surface.
         """
-        assert tilted_plane_misfit() < 1.5e-3
+        assert tilted_plane_misfit() < 2e-3
 
 
 class TestSeismicModel:
