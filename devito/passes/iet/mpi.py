@@ -211,10 +211,10 @@ def _hoist_invariant(iet):
                 if hsf1.issubset(hsf0) and _is_iter_carried(hsf1, scope):
                     hs, hsf = hs1, hsf1
                 elif hsf0.issubset(hsf1) and hs0 is halo_spots[0] and \
-                        not _is_written_before(it, hs0, f):
+                        _is_iter_carried(hsf0, _derive_scope(it, it, hs0)):
                     # Special case: the first HaloSpot reads what the last one
-                    # exchanged in the previous iteration, as long as nothing
-                    # writes `f` in between
+                    # exchanged in the previous iteration, as long as no write
+                    # before it within the iteration flows into its reads
                     hs, hsf = hs0, hsf0
                 else:
                     # No hoisting possible, skip
@@ -468,20 +468,6 @@ def _make_cond_mapper(iet):
     """
     mapper = MapHaloSpots().visit(iet)
     return {hs: tuple(i for i in v if i.is_Conditional) for hs, v in mapper.items()}
-
-
-def _is_written_before(it, hs, f):
-    """
-    True if the Function `f` is written within the Iteration `it` before the
-    HaloSpot `hs`, directly or through a Function holding it as a component,
-    from the Scope of the expressions in between; False otherwise.
-    """
-    # Up to the HaloSpot, which the visitor enters before it stops
-    inner = set(FindNodes(Expression).visit(hs))
-    expressions = [e for e in FindWithin(Expression, it, stop=hs).visit(it)
-                   if e not in inner]
-    scope = Scope(e.expr for e in expressions)
-    return any(w is f or f in getattr(w, 'components', ()) for w in scope.writes)
 
 
 def _derive_scope(it, hs0, hs1):
