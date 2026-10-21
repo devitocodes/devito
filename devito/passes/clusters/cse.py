@@ -293,15 +293,13 @@ def _toposort(exprs):
             if e0.lhs in e1.rhs.free_symbols:
                 dag.add_edge(e0, e1, force_add=True)
 
+    ordering = {e: n for n, e in enumerate(exprs)}
+
     def choose_element(queue, scheduled):
+        # Preserve expression order among ready temporaries, independent of names
         tmps = [i for i in queue if isinstance(i.lhs, CTemp)]
-        if tmps:
-            # Try to honor temporary names as much as possible
-            first = sorted(tmps, key=lambda i: i.lhs.name).pop(0)
-            queue.remove(first)
-        else:
-            first = sorted(queue, key=lambda i: exprs.index(i)).pop(0)
-            queue.remove(first)
+        first = min(tmps or queue, key=ordering.__getitem__)
+        queue.remove(first)
         return first
 
     processed = dag.topological_sort(choose_element)

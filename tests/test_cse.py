@@ -8,7 +8,7 @@ from devito import (  # noqa
     ConditionalDimension, Eq, Function, Grid, Operator, TimeFunction, cos, sin
 )
 from devito.finite_differences.differentiable import diffify
-from devito.ir import Conditional, DummyEq, FindNodes, FindSymbols
+from devito.ir import Conditional, DummyEq, Expression, FindNodes, FindSymbols
 from devito.ir.support import generator
 from devito.passes.clusters.cse import CTemp, _cse
 from devito.symbolics import DefFunction, FieldFromPointer, IndexedPointer, indexify
@@ -129,6 +129,23 @@ def test_temp_order():
     assert type(args[0]) is Symbol
     assert type(args[1]) is Temp
     assert type(args[2]) is CTemp
+
+
+@pytest.mark.parametrize('names', [('r2', 'r3'), ('r9', 'r10'), ('later', 'earlier')])
+@pytest.mark.parametrize('mode', ['smartsort', 'advanced'])
+def test_schedule_independent_of_temp_names(names, mode):
+    grid = Grid(shape=(4, 4))
+    f = Function(name='f', grid=grid)
+    g = Function(name='g', grid=grid)
+    u = Function(name='u', grid=grid)
+    v = Function(name='v', grid=grid)
+    a, b = [CTemp(name=name, dtype=np.float32) for name in names]
+
+    op = Operator([Eq(a, cos(f)), Eq(b, sin(g)), Eq(u, a + b), Eq(v, a*b)],
+                  opt=('advanced', {'cse-algo': mode}))
+
+    exprs = [e.expr for e in FindNodes(Expression).visit(op)]
+    assert [e.lhs for e in exprs if isinstance(e.lhs, CTemp)][:2] == [a, b]
 
 
 def test_deffunction_not_captured():
