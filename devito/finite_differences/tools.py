@@ -2,7 +2,7 @@ from functools import cached_property, partial, wraps
 from itertools import product
 
 import numpy as np
-from sympy import Expr, Rational, S, cacheit, finite_diff_weights, sympify
+from sympy import Expr, Rational, S, cacheit, finite_diff_weights, nsimplify, sympify
 
 from devito.logger import warning
 from devito.tools import Tag, as_tuple
@@ -245,6 +245,8 @@ def _numeric_weights(deriv_order, indices, x0):
 
 
 def numeric_weights(function, deriv_order, indices, x0):
+    # Compute exact weights even for a float `x0`, e.g. `x + 0.5*h_x`
+    x0 = nsimplify(x0, rational=True, rational_conversion='exact')
     return _numeric_weights(deriv_order, indices, x0)
 
 

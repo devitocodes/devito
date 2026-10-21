@@ -23,9 +23,10 @@ class TestSC:
         ('u.dy2', 4, 2, 1, (0.121, -0.223, 1.648, -2.904, 0),
          '1.648*u + 0.121*u._subs(y, y - 2*h_y) - 0.223*u._subs(y, y - h_y) \
 - 2.904*u._subs(y, y + h_y)')])
-    def test_coefficients(self, expr, sorder, dorder, dim, weights, expected):
+    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+    def test_coefficients(self, expr, sorder, dorder, dim, weights, expected, dtype):
         """Test that custom coefficients return the expected result"""
-        grid = Grid(shape=(10, 10))
+        grid = Grid(shape=(10, 10), dtype=dtype)
         u = Function(name='u', grid=grid, space_order=sorder, coefficients='symbolic')
         x, y = grid.dimensions
         h_x, h_y = grid.spacing_symbols  # noqa
@@ -42,7 +43,8 @@ class TestSC:
 
         assert isinstance(eq.lhs, Differentiable)
         s = dim.spacing**(-dorder)
-        assert sp.simplify(eval(expected).evalf(_PRECISION) * s - eq.evaluate.lhs) == 0
+        expected = eval(expected).evalf(_PRECISION[u.dtype])
+        assert sp.simplify(expected * s - eq.evaluate.lhs) == 0
 
     def test_function_coefficients(self):
         """Test that custom function coefficients return the expected result"""
@@ -135,9 +137,10 @@ class TestSC:
         expr1 = f.dx(w=w).evaluate / x.spacing
         assert sp.simplify(expr0 - expr1) == 0
 
-    def test_coefficients_w_xreplace(self):
+    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
+    def test_coefficients_w_xreplace(self, dtype):
         """Test custom coefficients with an xreplace before they are applied"""
-        grid = Grid(shape=(4, 4))
+        grid = Grid(shape=(4, 4), dtype=dtype)
         u = Function(name='u', grid=grid, space_order=2)
         x = grid.dimensions[0]
         h_x = x.spacing
@@ -152,7 +155,7 @@ class TestSC:
         s = x.spacing**(-2)
         expected = (0.1*u - 0.6*u._subs(x, x - h_x) + 0.6*u.subs(x, x + h_x)) * s + 2
 
-        assert sp.simplify(expected.evalf(_PRECISION) - eq.evaluate.lhs) == 0
+        assert sp.simplify(expected.evalf(_PRECISION[u.dtype]) - eq.evaluate.lhs) == 0
 
     @pytest.mark.parametrize('order', [2, 4, 6])
     def test_staggered_array(self, order):

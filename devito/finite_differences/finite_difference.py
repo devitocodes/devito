@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 from contextlib import suppress
 
+import numpy as np
 from sympy import sympify
 
 from devito.logger import warning
@@ -22,9 +23,11 @@ __all__ = [
     'transpose',
 ]
 
-# Number of digits for FD coefficients to avoid roundup errors and non-deterministic
-# code generation
-_PRECISION = 9
+# Number of significant digits the FD weights are evaluated to: 9 is enough in single
+# (and half) precision and keeps code generation deterministic; 20 keeps
+# double-precision literals within one ulp
+_PRECISION = {np.float16: 9, np.float32: 9, np.float64: 20,
+              np.complex64: 9, np.complex128: 20}
 
 
 @check_input
@@ -213,7 +216,10 @@ def make_derivative(expr, dim, fd_order, deriv_order, side, matvec, x0, coeffici
 
     # Enforce fixed precision FD coefficients to avoid variations in results
     scale = dim.spacing**(-deriv_order) if scale else 1
-    weights = [sympify(scale * w).evalf(_PRECISION) for w in weights]
+    # An integer or untyped expression has no floating-point precision of its
+    # own, so it and any dtype without an entry take the single-precision digits
+    precision = _PRECISION.get(expr.dtype, _PRECISION[np.float32])
+    weights = [sympify(scale * w).evalf(precision) for w in weights]
 
     # Transpose the FD, if necessary
     if matvec == transpose:

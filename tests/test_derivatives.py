@@ -13,12 +13,11 @@ from devito.finite_differences.differentiable import (
     Add, DiffDerivative, EvalDerivative, IndexDerivative, IndexDerivativeProperty,
     IndexSum, Weights, interp_for_fd
 )
+from devito.finite_differences.finite_difference import _PRECISION
 from devito.symbolics import indexify, retrieve_indexed
 from devito.types.dimension import StencilDimension
 from devito.types.grid import DerivedSubDomain
 from devito.warnings import DevitoWarning
-
-_PRECISION = 9
 
 
 def x(grid):
@@ -204,7 +203,7 @@ class TestFD:
         else:
             indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
 
-        s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION)
+        s_expr = u.diff(dim).as_finite_difference(indices).evalf(_PRECISION[u.dtype])
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
         assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
@@ -224,11 +223,27 @@ class TestFD:
         # Establish native sympy derivative expression
         width = int(order / 2)
         indices = [(dim + i * dim.spacing) for i in range(-width, width + 1)]
-        s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION)
+        s_expr = u.diff(dim, dim).as_finite_difference(indices).evalf(_PRECISION[u.dtype])
         assert(simplify(expr - s_expr) == 0)  # Symbolic equality
         assert type(expr) is EvalDerivative
         expr1 = s_expr.func(*expr.args)
         assert(expr1 == s_expr)  # Exact equality
+
+    @pytest.mark.parametrize('dtype, precision', [
+        (np.float16, _PRECISION[np.float32]),
+        (np.int32, _PRECISION[np.float32]),
+        (np.float64, _PRECISION[np.float64]),
+    ])
+    def test_weights_precision_dtype(self, dtype, precision):
+        """
+        The FD weights are evaluated at the digit count of the expression dtype,
+        with integer expressions taking the single-precision digit count.
+        """
+        x = self.grid.dimensions[0]
+        u = Function(name='u', grid=self.grid, dtype=dtype, space_order=4)
+        indices = [(x + i * x.spacing) for i in range(-2, 3)]
+        s_expr = u.diff(x).as_finite_difference(indices).evalf(precision)
+        assert simplify(u.dx.evaluate - s_expr) == 0
 
     @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
     # Only test x and t as y and z are the same as x
@@ -603,10 +618,11 @@ class TestFD:
         b = np.dot(g_deriv.data.reshape(-1), f.data.reshape(-1))
         assert np.isclose(1 - a/b, 0, atol=1e-5)
 
+    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
                                              ((.5, .5, .5), 3)])
-    def test_shifted_div(self, shift, ndim):
-        grid = Grid(tuple([11]*ndim))
+    def test_shifted_div(self, shift, ndim, dtype):
+        grid = Grid(tuple([11]*ndim), dtype=dtype)
         f = Function(name="f", grid=grid, space_order=4)
         for order in [None, 2]:
             df = div(f, shift=shift, order=order).evaluate
@@ -617,10 +633,11 @@ class TestFD:
                 ref += getattr(f, f'd{d.name}')(x0=x0, fd_order=order)
             assert df == ref.evaluate
 
+    @pytest.mark.parametrize('dtype', [np.float32, np.float64])
     @pytest.mark.parametrize('shift, ndim', [(None, 2), (.5, 2), (.5, 3),
                                              ((.5, .5, .5), 3)])
-    def test_shifted_grad(self, shift, ndim):
-        grid = Grid(tuple([11]*ndim))
+    def test_shifted_grad(self, shift, ndim, dtype):
+        grid = Grid(tuple([11]*ndim), dtype=dtype)
         f = Function(name="f", grid=grid, space_order=4)
         for order in [None, 2]:
             g = grad(f, shift=shift, order=order).evaluate
@@ -940,6 +957,21 @@ class TestFD:
         op = Operator(eq, opt=('advanced', {'expand': False}))
 
         assert_structure(op, ['t,x,y,z', 't,x,y,z,i1', 't,x,y,z,i1,i0'])
+
+    @pytest.mark.parametrize('so', [4, 8, 16])
+    def test_dx2_exact_double(self, so):
+        """
+        The FD second derivative of `x**2` is exact, so in double precision only
+        round-off is left (see #2976).
+        """
+        grid = Grid(shape=(31,), extent=(3.,), dtype=np.float64)
+        u = Function(name='u', grid=grid, space_order=so)
+        v = Function(name='v', grid=grid, space_order=so)
+        u.data[:] = np.linspace(0., 3., 31)**2
+
+        Operator(Eq(v, u.dx2)).apply()
+
+        assert np.allclose(v.data[so//2:-so//2], 2., rtol=0, atol=1e-10)
 
 
 class TestWeights:
