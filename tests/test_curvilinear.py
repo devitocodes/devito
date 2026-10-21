@@ -1746,6 +1746,9 @@ class TestElastic:
         lean = CurvilinearGrid(shape=(21, 21), extent=(200., 200.), mapping=Lean())
         with pytest.raises(ValueError, match='keeps the lateral'):
             traction_free_update(*elastic_fields(lean), *self.parameters)
+        mu = Function(name='mu', grid=no_row, space_order=4)
+        with pytest.raises(ValueError, match='not defined on'):
+            traction_free_update(*elastic_fields(grid), 1., 1., mu)
 
 
 class TestElasticMPI:

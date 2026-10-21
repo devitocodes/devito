@@ -399,12 +399,16 @@ def traction_free_update(v, tau, buoyancy, lam, mu, damp=1):
     if grid is None or not grid.is_Curvilinear:
         raise ValueError(f"traction_free_update needs fields on a CurvilinearGrid, "
                          f"not on {grid}")
-    for (i, j), value in grid.metrics.items():
-        k, m = grid.dimensions.index(i), grid.dimensions.index(j)
-        if m < grid.dim - 1 and value != int(k == m):
-            raise ValueError(f"traction_free_update needs a map that keeps the "
-                             f"lateral coordinates, x_i = xi_i, which "
-                             f"{grid.mapping} does not")
+    if not grid.mapping.keeps_lateral:
+        raise ValueError(f"traction_free_update needs a map that keeps the lateral "
+                         f"coordinates, x_i = xi_i, which {type(grid.mapping).__name__} "
+                         "does not")
+    for f in [buoyancy, lam, mu, damp]:
+        if getattr(f, 'is_Function', False) and f.grid is not grid:
+            raise ValueError(f"{f} is not defined on {grid}")
+        if getattr(f, 'is_Function', False) and f.staggered:
+            raise ValueError(f"traction_free_update averages its parameters from the "
+                             f"nodes, not from the staggered points of {f}")
     for f in list(v) + list(tau.values()):
         if f.grid is not grid:
             raise ValueError(f"{f} is not defined on {grid}")

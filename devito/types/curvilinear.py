@@ -141,6 +141,10 @@ class CurvilinearMap:
         raise NotImplementedError(f"{type(self).__name__} provides no inverse map, "
                                   "required to place SparseFunctions")
 
+    #: True if the map keeps the lateral coordinates, `x_i = xi_i` for every
+    #: Dimension but the last, as a terrain-following map does
+    keeps_lateral = False
+
     def validate(self, grid):
         """
         Raise an informative error if the map is incompatible with `grid`.
@@ -285,6 +289,8 @@ class TerrainFollowing(CurvilinearMap):
     >>> float(z.data[5, 0]), float(z.data[5, -1])
     (-50.0, 1000.0)
     """
+
+    keeps_lateral = True
 
     def __init__(self, surface):
         self._surface = surface if callable(surface) else np.asarray(surface,
