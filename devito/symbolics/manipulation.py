@@ -53,8 +53,9 @@ def uxreplace(expr, rule):
     be avoided at all costs (e.g., to prevent SymPy from unpicking Devito
     transformations, such as factorization).
 
-    The canonical ordering of the arguments is however guaranteed; where this is
-    not possible, a re-evaluation will be enforced.
+    Evaluated expressions retain canonical argument ordering. Lowered,
+    unevaluated arithmetic retains its operand order and grouping unless
+    substitution makes it completely numeric.
 
     By avoiding re-evaluations, this function is typically much quicker than
     SymPy's xreplace.
@@ -189,6 +190,15 @@ def _uxreplace_handle(expr, args, kwargs):
 def _(expr, args, kwargs):
     evaluate = all(i.is_Number for i in args)
     return expr.func(*args, evaluate=evaluate)
+
+
+@_uxreplace_handle.register(UnevalAdd)
+@_uxreplace_handle.register(UnevalMul)
+def _(expr, args, kwargs):
+    # Lowered arithmetic must survive substitutions without reassociation
+    if all(i.is_Number for i in args):
+        return expr.func.__base__(*args)
+    return expr.func(*args)
 
 
 @_uxreplace_handle.register(Add)
