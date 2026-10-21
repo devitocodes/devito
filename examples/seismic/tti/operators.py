@@ -9,6 +9,21 @@ def _subs(func, d, d0):
         return func
 
 
+def _back(expr, d, fd_order, grid):
+    """
+    The derivative of `expr`, at the half points after the nodes along `d`, back
+    to the nodes. On a CurvilinearGrid it is minus the transpose of the
+    derivative from the nodes to the half points in the inner product weighted
+    by the Jacobian, so that a pair of the two is exactly self-adjoint.
+    """
+    if grid.is_Curvilinear:
+        # The Jacobian at the half points, where `expr` is
+        half = grid.terms_at({d: d + d.spacing/2})[1]
+        forward = (half*expr).diff(d, x0={d: d + d.spacing/2}, fd_order=fd_order)
+        return -forward.T/grid.jacobian
+    return expr.diff(d, x0={d: d - d.spacing/2}, fd_order=fd_order)
+
+
 def second_order_stencil(model, u, v, H0, Hz, qu, qv, forward=True):
     """
     Creates the stencil corresponding to the second order TTI wave equation
@@ -93,13 +108,13 @@ def Gzz_centered(model, field, b=None):
           _subs(b, y, y+dy) * sintheta * sinphi * field.dy(fd_order=order1, x0=y+dy) +
           _subs(b, z, z+dz) * costheta * field.dz(fd_order=order1, x0=z+dz))
 
-    Gzz = (Gz * costheta).dz(fd_order=order1, x0=z-dz)
+    Gzz = _back(Gz * costheta, z, order1, field.grid)
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (Gz * sintheta * cosphi).dx(fd_order=order1, x0=x-dx)
+        Gzz += _back(Gz * sintheta * cosphi, x, order1, field.grid)
     if sinphi != 0:
-        Gzz += (Gz * sintheta * sinphi).dy(fd_order=order1, x0=y-dy)
+        Gzz += _back(Gz * sintheta * sinphi, y, order1, field.grid)
 
     return Gzz
 
@@ -133,12 +148,12 @@ def Gzz_centered_2d(model, field, b=None):
 
     Gz = (_subs(b, x, x+dx) * sintheta * field.dx(fd_order=order1, x0=x+dx) +
           _subs(b, y, y+dy) * costheta * field.dy(fd_order=order1, x0=y+dy))
-    Gzz = (Gz * costheta).dy(fd_order=order1, x0=y-dy)
+    Gzz = _back(Gz * costheta, y, order1, field.grid)
 
     # Add rotated derivative if angles are not zero. If angles are
     # zeros then `0*Gz = 0` and doesn't have any `.dy` ....
     if sintheta != 0:
-        Gzz += (Gz * sintheta).dx(fd_order=order1, x0=x-dx)
+        Gzz += _back(Gz * sintheta, x, order1, field.grid)
     return Gzz
 
 
@@ -169,15 +184,18 @@ def Gh_centered(model, field, b=None):
         Gzz = Gzz_centered(model, field, b=b)
     else:
         Gzz = Gzz_centered_2d(model, field, b=b)
+    so = field.space_order // 2
     if b is not None:
-        _diff = lambda f, d: getattr(f, f'd{d.name}')
-        so = field.space_order // 2
         lap = 0
         for d in model.space_dimensions:
             x0 = d + d.spacing / 2
-            x0m = d - d.spacing / 2
-            lap += _diff(_subs(b, d, x0) * _diff(field, d)(x0=x0, fd_order=so),
-                         d)(x0=x0m, fd_order=so)
+            lap += _back(_subs(b, d, x0) * field.diff(d, x0={d: x0}, fd_order=so),
+                         d, so, field.grid)
+    elif field.grid.is_Curvilinear:
+        # The Laplacian as the self-adjoint pairs of first derivatives
+        lap = sum(_back(field.diff(d, x0={d: d + d.spacing/2}, fd_order=so), d, so,
+                        field.grid)
+                  for d in model.space_dimensions)
     else:
         lap = field.laplace
     return lap - Gzz

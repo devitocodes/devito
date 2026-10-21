@@ -110,8 +110,7 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
 
     __rargs__ = ('expr', '*dims')
     __rkwargs__ = ('side', 'deriv_order', 'fd_order', 'transpose', '_ppsubs',
-                   'x0', 'method', 'weights', 'halo', 'subdomain', 'computational',
-                   '_conservative')
+                   'x0', 'method', 'weights', 'halo', 'subdomain', 'computational')
 
     def __new__(cls, expr, *dims, **kwargs):
         # Validate the input arguments `expr`, `dims` and `deriv_order`
@@ -173,8 +172,6 @@ class Derivative(sympy.Derivative, Differentiable, Pickable):
         obj._halo = cls._validate_halo(kwargs.get("halo"))
         obj._subdomain = kwargs.get("subdomain")
         obj._computational = bool(kwargs.get("computational", False))
-        # Set on a CurvilinearGrid, see `devito.finite_differences.curvilinear`
-        obj._conservative = bool(kwargs.get("_conservative", False))
 
         ppsubs = kwargs.get("subs", kwargs.get("_ppsubs", []))
         processed = []

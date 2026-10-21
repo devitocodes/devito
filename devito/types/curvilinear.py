@@ -435,12 +435,11 @@ class CurvilinearGrid(Grid):
       `u.laplace`, `grad`, `div`, nested derivatives such as `(b*u.dx).dx`,
       staggered (`x0`) and rotated (`method='RSFD'`) ones, are derivatives
       w.r.t. the physical coordinates, through the chain rule with the metric
-      terms. The outer derivative of a nested one is taken in conservation
-      form, so that nested operators such as `(b*u.dx).dx` are symmetric in the
-      inner product weighted by the Jacobian, as they are on a Grid (see
-      `Derivative`). `u.dx(computational=True)` is the derivative w.r.t. the
+      terms. `u.dx(computational=True)` is the derivative w.r.t. the
       computational coordinate. The transpose `.T` of a physical derivative is
-      its exact discrete transpose.
+      its exact discrete transpose, so a self-adjoint operator is written as one,
+      e.g. `-(J*b*u.dx).dx.T/J` with `J = grid.jacobian`, symmetric in the inner
+      product weighted by the Jacobian.
     * The coordinates of SparseFunctions are physical. Interpolation and
       injection are those of a Grid, in the computational grid. As on a Grid,
       injection does not scale by the cell volume: a point source in physical

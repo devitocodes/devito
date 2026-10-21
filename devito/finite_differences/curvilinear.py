@@ -4,45 +4,19 @@ Derivatives w.r.t. the physical coordinates of a CurvilinearGrid.
 The Dimensions of a CurvilinearGrid index its computational coordinates `xi_j`.
 A Derivative along one of them is, unless `computational=True`, a derivative
 w.r.t. the physical coordinate `x_i` of the same axis, evaluated through the
-chain rule with the metric terms `d xi_j/d x_i` and the Jacobian `J` of the
-grid. A first derivative takes one of two discrete forms:
+chain rule with the metric terms `d xi_j/d x_i` where it is evaluated,
 
-* the chain rule, `C_i f = sum_j (d xi_j/d x_i) d f/d xi_j`, with the metric
-  terms where the derivative is evaluated;
-* the conservation form, `K_i f = 1/J sum_j d/d xi_j (J (d xi_j/d x_i) f)`, with
-  `J (d xi_j/d x_i)` where `f` lives and `1/J` where the derivative is evaluated.
+    d/dx_i = sum_j (d xi_j/d x_i) d/d xi_j,
 
-Both are the physical derivative by the metric identities, and `K_i` is minus
-the adjoint of `C_i` in the inner product weighted by `J`. A derivative takes
-the conservation form when it is the second one of a pair:
-
-* the outer derivative of a nested one, e.g. of `(b*u.dx).dx`, which is then
-  `K(b C u)`;
-* a derivative bringing a Function staggered along its Dimension back to the
-  nodes, e.g. of `v_x` in `grad(v)`, its pair being the derivative from the
-  nodes to the staggered points, e.g. of `tau_xx` in `div(tau)`.
-
-Paired with the chain rule of the first derivative, the second one is minus its
-adjoint, as the staggered pair is on a Cartesian Grid, where both forms are the
-same stencil, so that operators such as `(b*u.dx).dx`, or `div` and `grad` of a
-staggered velocity-stress system, are adjoint in the inner product weighted by
-`J`.
-
-In transpose mode, each form is replaced by its exact discrete transpose, `c*D`
-by `D.T(c*.)`, and transposition swaps the roles of a nested pair: in
-`(b*g.dx.T).dx.T`, the transpose of `(b*f.dx).dx`, the outer `.dx.T` is the
-transpose of the inner chain rule and the inner `g.dx.T` the transpose of the
-outer conservation form. The outer derivative therefore marks the physical
-derivatives it holds to take the transpose of the conservation form, which
-keeps the transpose of up to two nested derivatives exact.
-
-A second derivative along one physical Dimension is evaluated through the chain
-rule,
+and a second derivative along one physical Dimension through
 
     d^2/dx_i^2 = sum_jk (d xi_j/d x_i)(d xi_k/d x_i) d^2/(d xi_j d xi_k)
-                 + sum_j (d^2 xi_j/d x_i^2) d/d xi_j
+                 + sum_j (d^2 xi_j/d x_i^2) d/d xi_j.
 
-and higher and mixed derivatives are nested first and second derivatives.
+Higher and mixed derivatives are nested first and second derivatives. The
+transpose `.T` of a physical derivative is its exact discrete transpose, so a
+self-adjoint operator is written as one, e.g. `-(J*b*u.dx).dx.T/J`, symmetric
+in the inner product weighted by the Jacobian `J`.
 """
 
 from contextlib import suppress
@@ -140,8 +114,8 @@ def _nested(deriv, expr, factors, **kwargs):
 def _along(deriv, expr, grid, dim, deriv_order, **kwargs):
     """
     Evaluate the first or second derivative `deriv` of `expr` along the physical
-    Dimension `dim`, in the form of its place in a pair (see the module
-    docstring).
+    Dimension `dim` through the chain rule, or its exact transpose in transpose
+    mode.
     """
     held = _held_derivatives(expr, grid)
     terms = _terms_by_location(expr, held, grid)
@@ -150,18 +124,7 @@ def _along(deriv, expr, grid, dim, deriv_order, **kwargs):
         # derivatives are evaluated
         return Add(*[_along(deriv, t, grid, dim, deriv_order, **kwargs)
                      for t in terms])
-    staggered = (not held and deriv.x0.get(dim) == dim and
-                 _location(expr, dim) != dim)
-    if deriv.transpose == transpose:
-        conservative = deriv._conservative or staggered
-        expr = expr.xreplace({h: h._rebuild(_conservative=True) for h in held})
-        held = _held_derivatives(expr, grid)
-    else:
-        conservative = bool(held) or staggered
-
-    if deriv_order == 1 and conservative:
-        return _conservation_form(deriv, expr, grid, dim, held, **kwargs)
-    elif deriv_order == 1:
+    if deriv_order == 1:
         return _first_chain_rule(deriv, expr, grid, dim, held, **kwargs)
     return _second_chain_rule(deriv, expr, grid, dim, **kwargs)
 
@@ -169,7 +132,8 @@ def _along(deriv, expr, grid, dim, deriv_order, **kwargs):
 def _held_derivatives(expr, grid):
     """
     The outermost derivatives in `expr` w.r.t. the physical coordinates of
-    `grid`, which make a derivative of `expr` the outer one of a nested pair.
+    `grid`, evaluated before a derivative of `expr`, which is evaluated where
+    their values are (see `_output_location`).
     """
     physical = {d for d in expr.find(sympy.Derivative)
                 if not d.computational and any(i in grid.dimensions for i in d.dims)}
@@ -257,43 +221,20 @@ def _computational(deriv, expr, dims, deriv_order, fd_order, **kwargs):
                           computational=True, subs=(), _ppsubs=(), **kwargs)
 
 
-def _conservation_form(deriv, expr, grid, dim, held, **kwargs):
-    """
-    The first derivative `deriv` of `expr` along the physical Dimension `dim` in
-    conservation form, or its exact transpose in transpose mode.
-    """
-    origin = _output_location(deriv, expr, held, grid)
-    # The Jacobian where the derivative ends
-    jacobian = grid.terms_at(origin)[1]
-    # The metric terms and the Jacobian where the values of `expr` are, as the
-    # chain rule of its pair takes them
-    argument = {**origin, dim: _values_location(expr, held, dim)}
-    metrics, weight_jacobian = grid.terms_at(argument)
-
-    res = []
-    for d in grid.dimensions:
-        metric = metrics[(dim, d)]
-        if metric == 0:
-            continue
-        weight = weight_jacobian*metric
-        if deriv.transpose == transpose:
-            res.append(weight*_computational_term(deriv, expr/jacobian, dim, d, held,
-                                                  **kwargs))
-        else:
-            res.append(_computational_term(deriv, weight*expr, dim, d, held,
-                                           **kwargs))
-
-    res = Add(*res)
-    return res if deriv.transpose == transpose else res/jacobian
-
-
 def _first_chain_rule(deriv, expr, grid, dim, held, **kwargs):
     """
     The first derivative `deriv` of `expr` along the physical Dimension `dim`
     through the chain rule, with the metric terms where it is evaluated, or its
     exact transpose in transpose mode.
     """
-    metrics = grid.terms_at(_output_location(deriv, expr, held, grid))[0]
+    if deriv.transpose == transpose:
+        # Where the derivative it transposes ends, at `x0`, which the values of
+        # `expr` are indexed as
+        location = {d: deriv.x0.get(d, _indexed_location(expr, held, d))
+                    for d in grid.dimensions}
+    else:
+        location = _output_location(deriv, expr, held, grid)
+    metrics = grid.terms_at(location)[0]
     res = []
     for d in grid.dimensions:
         coeff = metrics[(dim, d)]

@@ -429,20 +429,23 @@ class TestDerivatives:
         assert np.allclose(whole.data, split.data, rtol=0, atol=1e-12)
 
     @pytest.mark.parametrize('expr', [
-        '(b*u.dx).dx + (b*u.dy).dy',
-        '(b._subs(x, x + x.spacing/2)*u.dx(x0=x + x.spacing/2)).dx(x0=x - x.spacing/2)'
-        ' + (b._subs(y, y + y.spacing/2)*u.dy(x0=y + y.spacing/2))'
-        '.dy(x0=y - y.spacing/2)',
-        'u.dx.dy + u.dy.dx',
+        '-(J*b*u.dx).dx.T/J - (J*b*u.dy).dy.T/J',
+        '-(J*b._subs(x, x + x.spacing/2)*u.dx(x0=x + x.spacing/2))'
+        '.dx(x0=x + x.spacing/2).T/J'
+        ' - (J*b._subs(y, y + y.spacing/2)*u.dy(x0=y + y.spacing/2))'
+        '.dy(x0=y + y.spacing/2).T/J',
+        '-(J*u.dx).dy.T/J - (J*u.dy).dx.T/J',
     ])
     def test_symmetric(self, expr):
         """
-        Nested derivatives are symmetric in the inner product weighted by the
-        Jacobian, `<J D f, g> = <f, J D g>`, under a sine surface: the outer
-        derivative is in conservation form, minus the adjoint of the inner one.
+        Self-adjoint operators written with the transpose, `-D.T(J b D u)/J`, are
+        symmetric in the inner product weighted by the Jacobian, `<J A u, w> =
+        <u, J A w>`, under a sine surface, staggered or not, along one Dimension or
+        across two.
         """
         grid = sine_grid(41, dtype=np.float64)
         x, y = grid.dimensions
+        J = grid.jacobian  # noqa: F841
         rng = np.random.default_rng(3)
         b = Function(name='b', grid=grid, space_order=8)
         b.data[:] = 1 + rng.random(grid.shape)
@@ -460,38 +463,6 @@ class TestDerivatives:
         backward = np.dot(fields[0].ravel(), results[1].ravel())
         scale = np.linalg.norm(results[0])*np.linalg.norm(fields[1])
         assert abs(forward - backward) < 1e-10*scale
-
-    def test_div_grad_adjoint(self):
-        """
-        `div` and `grad` of a staggered velocity-stress pair are minus each
-        other's adjoint in the inner product weighted by the Jacobian at each
-        staggered point, `<J v, div(tau)> = -<J tau, grad(v)>`, under a sine
-        surface: the derivatives bringing a staggered field back to the nodes
-        are in conservation form.
-        """
-        grid = sine_grid(41, dtype=np.float64)
-        rng = np.random.default_rng(4)
-        v = VectorFunction(name='v', grid=grid, space_order=8)
-        tau = TensorFunction(name='tau', grid=grid, space_order=8, symmetric=True)
-        for f in [*v, tau[0, 0], tau[0, 1], tau[1, 1]]:
-            f.data[:] = rng.standard_normal(f.shape)
-            f.data[:8] = f.data[-8:] = f.data[:, :8] = f.data[:, -8:] = 0
-        div_tau = VectorFunction(name='div_tau', grid=grid, space_order=8)
-        grad_v = TensorFunction(name='grad_v', grid=grid, space_order=8,
-                                symmetric=False)
-        eqns = [Eq(div_tau[i], div(tau)[i]) for i in range(2)]
-        eqns += [Eq(grad_v[i, j], grad(v)[i, j]) for i in range(2) for j in range(2)]
-        Operator(eqns).apply()
-
-        def jacobian(f):
-            staggered = tuple(d for d in grid.dimensions if f.staggered.get(d, 0))
-            return grid.staggered_terms(staggered)[1].data
-
-        forward = sum(np.sum(jacobian(v[i])*v[i].data*div_tau[i].data)
-                      for i in range(2))
-        backward = sum(np.sum(jacobian(tau[i, j])*tau[i, j].data*grad_v[i, j].data)
-                       for i in range(2) for j in range(2))
-        assert np.isclose(forward, -backward, rtol=1e-12, atol=0)
 
     @pytest.mark.parametrize('space_order', [4, 8])
     @pytest.mark.parametrize('deriv, solution', [('dx', wave_dx), ('dy', wave_dz)])
@@ -1169,10 +1140,16 @@ def odd_fold(field, coefficient, rows):
 
 
 def staggered_laplacian(f, fd_order):
-    """The staggered Laplacian of a wave equation."""
-    return sum(getattr(getattr(f, f'd{d.name}')(fd_order=fd_order, x0=d + d.spacing/2),
-                       f'd{d.name}')(fd_order=fd_order, x0=d - d.spacing/2)
-               for d in f.grid.dimensions)
+    """
+    The staggered Laplacian of a wave equation, symmetric in the inner product
+    weighted by the Jacobian: each derivative back to the nodes is minus the
+    transpose of the one to the half points.
+    """
+    grid = f.grid
+    return sum(-(grid.terms_at({d: d + d.spacing/2})[1] *
+                 f.diff(d, x0={d: d + d.spacing/2}, fd_order=fd_order))
+               .diff(d, x0={d: d + d.spacing/2}, fd_order=fd_order).T/grid.jacobian
+               for d in grid.dimensions)
 
 
 def free_surface_dot(grid, space_order=8, rows=None, fd_order=None):
