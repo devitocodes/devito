@@ -1728,6 +1728,23 @@ class TestElastic:
         shear = np.array(tau[0, 1].data[1])[:20, :20]
         assert np.allclose(shear[interior]/dt, expected[interior], rtol=1e-10, atol=0)
 
+    def test_linearize(self):
+        """The update compiles and computes alike with linearized accesses."""
+        grid = surface_grid((21, 21), (200., 200.), elastic_hill, rows=1,
+                            dtype=np.float64)
+        rng = np.random.default_rng(10)
+        initial = rng.standard_normal(grid.shape)
+        results = []
+        for linearize in (False, True):
+            v, tau = elastic_fields(grid)
+            tau[0, 0].data[0] = initial
+            Operator(traction_free_update(v, tau, *self.parameters),
+                     opt=('advanced', {'linearize': linearize})).apply(
+                         time_m=0, time_M=1, dt=1e-4)
+            results.append(np.array(v[1].data[0]))
+        assert np.abs(results[0]).max() > 0
+        assert np.allclose(results[0], results[1], rtol=0, atol=1e-12)
+
     def test_sbp_properties(self):
         """The SBP operators sum by parts, and their interpolations are adjoint."""
         n, m = 20, 12
