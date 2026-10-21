@@ -636,9 +636,7 @@ class CurvilinearGrid(Grid):
 
     def _make_staggered_terms(self, staggered):
         """`staggered_terms` along the Dimensions `staggered`, in grid order."""
-        vectors = tuple(v + np.float64(h)/2 if d in staggered else v
-                        for v, d, h in zip(self._local_vectors, self.dimensions,
-                                           self.spacing, strict=True))
+        vectors = self._staggered_vectors(staggered)
         suffix = ''.join(d.name for d in staggered)
         metrics = self._symbolic_terms(self.mapping.metrics(self, vectors),
                                        lambda c, p: f'{c}_{p}_{suffix}', staggered)
@@ -652,6 +650,50 @@ class CurvilinearGrid(Grid):
         `location`, a mapper from each Dimension to a node or a half point,
         e.g. `{x: x - h_x/2, y: y}`, computed from the map there.
         """
+        staggered, shifts = self._staggering(location)
+        metrics, jacobian = self.staggered_terms(staggered)
+        return {k: v.subs(shifts) for k, v in metrics.items()}, jacobian.subs(shifts)
+
+    def metric_derivatives_at(self, location):
+        """
+        The second derivatives of the computational coordinates, as
+        `metric_derivatives`, at `location` (see `terms_at`), computed from the
+        map there.
+        """
+        staggered, shifts = self._staggering(location)
+        if not staggered:
+            derivatives = self.metric_derivatives
+        else:
+            if staggered not in self._staggered_metric_derivatives:
+                self._staggered_metric_derivatives[staggered] = \
+                    self._make_staggered_metric_derivatives(staggered)
+            derivatives = self._staggered_metric_derivatives[staggered]
+        return {k: v.subs(shifts) for k, v in derivatives.items()}
+
+    @cached_property
+    def _staggered_metric_derivatives(self):
+        """The staggered `metric_derivatives_at` built so far, by staggering."""
+        return {}
+
+    def _make_staggered_metric_derivatives(self, staggered):
+        """`metric_derivatives` at the points staggered along `staggered`."""
+        vectors = self._staggered_vectors(staggered)
+        suffix = ''.join(d.name for d in staggered)
+        return self._symbolic_terms(self.mapping.metric_derivatives(self, vectors),
+                                    lambda c, p: f'{c}_{p}{p}_{suffix}', staggered)
+
+    def _staggered_vectors(self, staggered):
+        """`_local_vectors` shifted by half a cell along the Dimensions `staggered`."""
+        return tuple(v + np.float64(h)/2 if d in staggered else v
+                     for v, d, h in zip(self._local_vectors, self.dimensions,
+                                        self.spacing, strict=True))
+
+    def _staggering(self, location):
+        """
+        The Dimensions along which `location`, a mapper from each Dimension to a
+        node or a half point, is staggered, and the shift of whole cells from
+        the points the Functions staggered there are defined at.
+        """
         offsets = {}
         for d in self.dimensions:
             offset = sympy.nsimplify((location.get(d, d) - d)/d.spacing)
@@ -660,13 +702,9 @@ class CurvilinearGrid(Grid):
                                  f"half points, not at {location[d]} along {d}")
             offsets[d] = offset
         staggered = tuple(d for d, o in offsets.items() if o.q == 2)
-        metrics, jacobian = self.staggered_terms(staggered)
-        # Whole cells from the points the Functions are defined at
         shifts = {d: d + (o - sympy.Rational(1, 2) if d in staggered else o)*d.spacing
                   for d, o in offsets.items()}
-        shifts = {d: v for d, v in shifts.items() if v != d}
-        metrics = {k: v.subs(shifts) for k, v in metrics.items()}
-        return metrics, jacobian.subs(shifts)
+        return staggered, {d: v for d, v in shifts.items() if v != d}
 
     @cached_property
     def coordinates(self):
@@ -791,6 +829,7 @@ class CurvilinearGrid(Grid):
         state = super().__getstate__()
         # The coordinate and metric Functions are rebuilt lazily from the map
         for i in ('coordinates', 'metrics', 'metric_derivatives', 'jacobian',
-                  '_staggered_terms', '_local_vectors', 'min_spacing'):
+                  '_staggered_terms', '_staggered_metric_derivatives', '_local_vectors',
+                  'min_spacing'):
             state.pop(i, None)
         return state

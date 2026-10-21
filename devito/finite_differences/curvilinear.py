@@ -23,7 +23,7 @@ from contextlib import suppress
 
 import sympy
 
-from .differentiable import Add, interp_for_fd
+from .differentiable import Add
 from .finite_difference import index_at
 from .tools import centered, transpose
 
@@ -289,7 +289,10 @@ def _second_chain_rule(deriv, expr, grid, dim, **kwargs):
     through the chain rule, or its exact transpose in transpose mode.
     """
     fd_order = deriv.fd_order[dim]
-    metrics = grid.metrics
+    # The metric terms and their derivatives where the derivative is evaluated
+    location = {d: deriv.x0.get(d, _location(expr, d)) for d in grid.dimensions}
+    metrics = grid.terms_at(location)[0]
+    metric_derivatives = grid.metric_derivatives_at(location)
 
     # Terms `(coefficient, computational Dimensions, derivative orders)`
     terms = []
@@ -301,14 +304,12 @@ def _second_chain_rule(deriv, expr, grid, dim, **kwargs):
             else:
                 terms.append((2*coeff, (di, dj), (1, 1)))
     for d in grid.dimensions:
-        terms.append((grid.metric_derivatives[(dim, d)], (d,), (1,)))
+        terms.append((metric_derivatives[(dim, d)], (d,), (1,)))
 
     res = []
     for coeff, dims, orders in terms:
         if coeff == 0:
             continue
-        # The metric terms are evaluated at the derivative's origin
-        coeff = interp_for_fd(coeff, deriv.x0, **kwargs)
         fd_orders = (fd_order,)*len(dims)
         # Only the term along `dim` itself exists on a Cartesian Grid, and keeps
         # the default stencil. The others, e.g. first derivatives from the metric

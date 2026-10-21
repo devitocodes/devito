@@ -110,6 +110,14 @@ class TestGrid:
         for key, value in expected_derivatives.items():
             error = np.abs(grid.metric_derivatives[key].data_with_halo - value).max()
             assert error < 10*tolerance*np.abs(value).max()
+        # The metric derivatives at the half points, from the map there
+        xh = xs + np.float64(grid.spacing[0])/2
+        height_h = depth - sine_surface(xh)
+        value = (eta - extent)*(sine_surface_dx2(xh)/height_h +
+                                2*sine_surface_dx(xh)**2/height_h**2)
+        half = grid.metric_derivatives_at({x: x + x.spacing/2})[(x, y)]
+        error = np.abs(half.data_with_halo - value).max()
+        assert error < 10*tolerance*np.abs(value).max()
         assert grid.metrics[(x, x)] == 1 and grid.metrics[(y, x)] == 0
         assert grid.metric_derivatives[(y, y)] == 0
         assert np.allclose(grid.jacobian.data_with_halo, height/extent, rtol=1e-6)
@@ -526,6 +534,39 @@ class TestDerivatives:
         orders = np.log(np.array(errors[:-1])/np.array(errors[1:])) / \
             np.log(spacing[:-1]/spacing[1:])
         assert orders[-1] > space_order - 1, orders
+
+    @pytest.mark.parametrize('deriv, solution', [
+        ('dx2', lambda x, z: -_KX**2*wave(x, z)),
+        ('dy2', lambda x, z: -_KZ**2*wave(x, z)),
+    ])
+    def test_staggered_second_convergence(self, deriv, solution):
+        """
+        Second physical derivatives at the cell centers converge, their metric
+        terms and metric derivatives taken from the map there, at second order:
+        Devito interpolates a Function off its grid points at second order.
+        """
+        errors = []
+        sizes = [31, 61, 121]
+        for n in sizes:
+            grid = CurvilinearGrid(shape=(n, n), extent=(1000., 800.),
+                                   mapping=TerrainFollowing(sine_surface),
+                                   space_order=4, dtype=np.float64)
+            x, y = grid.dimensions
+            u = Function(name='u', grid=grid, space_order=4, interp_order=4)
+            u.data_with_halo[:] = wave(*(c.data_with_halo for c in grid.coordinates))
+            out = Function(name='out', grid=grid, space_order=4)
+            x0 = {x: x + x.spacing/2, y: y + y.spacing/2}
+            Operator(Eq(out, getattr(u, deriv)(x0=x0))).apply()
+            centers = [c + np.float64(h)/2
+                       for c, h in zip(node_coordinates(grid), grid.spacing, strict=True)]
+            physical = grid.to_physical(np.stack([c.ravel() for c in centers], axis=1))
+            expected = solution(*physical.T).reshape(grid.shape)
+            interior = (slice(4, -4),)*2
+            errors.append(np.abs(out.data[interior] - expected[interior]).max())
+        spacing = 1./(np.array(sizes) - 1)
+        orders = np.log(np.array(errors[:-1])/np.array(errors[1:])) / \
+            np.log(spacing[:-1]/spacing[1:])
+        assert orders[-1] > 1.8, orders
 
     @pytest.mark.parametrize('deriv', ['dx', 'dy'])
     @pytest.mark.parametrize('staggered', [False, True])
