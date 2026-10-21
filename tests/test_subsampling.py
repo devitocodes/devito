@@ -5,7 +5,7 @@ import pytest
 from sympy import Or
 
 from devito import (
-    CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Operator, SubGrid,
+    CondEq, ConditionalDimension, Constant, Eq, Function, Grid, Inc, Operator, SubGrid,
     TimeFunction, switchconfig
 )
 from devito.ir.iet import Conditional, Expression, FindNodes, Iteration
@@ -915,3 +915,132 @@ class TestMPI:
 
         for i in range((nt - 2)//factor + 1):
             assert np.allclose(vsave.data[i], i*factor)
+
+
+class TestIncReduction:
+
+    """
+    `Inc` into a factor-subsampled Function must not be treated as a
+    reduction. The write index `i -> i//factor` is one-to-one on the guarded
+    points, so no two iterations touch the same location and the loop is
+    plainly parallel.
+
+    Treating it as one emitted an OpenMP array reduction over the whole
+    Function; with several such Functions the private copies overflowed the
+    stack and the kernel segfaulted.
+    """
+
+    @pytest.mark.parametrize('factor', [1, 2, 3])
+    def test_no_reduction_clause(self, factor):
+        n = 12
+        grid = Grid(shape=(n, n))
+        x, y = grid.dimensions
+        cd = ConditionalDimension(name='xs', parent=x, factor=factor)
+
+        f = Function(name='f', shape=((n + factor - 1)//factor, n),
+                     dimensions=(cd, y), grid=grid, space_order=0)
+
+        with switchconfig(language='openmp'):
+            op = Operator(Inc(f, 1))
+
+        assert 'reduction' not in str(op.ccode)
+
+    @pytest.mark.parametrize('factor', [1, 2, 3])
+    def test_dimensions_are_parallel(self, factor):
+        """
+        The properties must match what the same `Inc` gets on a plain
+        Function, i.e. PARALLEL rather than PARALLEL_IF_ATOMIC.
+        """
+        n = 12
+        grid = Grid(shape=(n, n))
+        x, y = grid.dimensions
+        cd = ConditionalDimension(name='xs', parent=x, factor=factor)
+
+        f = Function(name='f', shape=((n + factor - 1)//factor, n),
+                     dimensions=(cd, y), grid=grid, space_order=0)
+
+        op = Operator(Inc(f, 1))
+
+        for i in FindNodes(Iteration).visit(op):
+            assert i.is_Parallel
+
+    @pytest.mark.parametrize('factor', [1, 2, 3])
+    def test_accumulates(self, factor):
+        """Dropping the reduction must not drop the accumulation."""
+        n = 12
+        grid = Grid(shape=(n, n))
+        x, y = grid.dimensions
+        cd = ConditionalDimension(name='xs', parent=x, factor=factor)
+
+        f = Function(name='f', shape=((n + factor - 1)//factor, n),
+                     dimensions=(cd, y), grid=grid, space_order=0)
+        f.data[:] = 0.
+
+        op = Operator(Inc(f, 1))
+        op.apply()
+        op.apply()
+
+        assert np.all(f.data == 2.)
+
+    def test_many_functions(self):
+        """
+        The original failure: nine subsampled Functions incremented together.
+        The spurious array reductions needed ~13 MiB of thread-private copies
+        and overflowed the stack.
+        """
+        n = 40
+        grid = Grid(shape=(n, n, n))
+        dims = tuple(ConditionalDimension(name=f'{d.name}s', parent=d, factor=1)
+                     for d in grid.dimensions)
+
+        fs = [Function(name=f'og_{i}', grid=grid, shape=(n, n, n),
+                       dimensions=dims) for i in range(9)]
+        for f in fs:
+            f.data[:] = 0.
+
+        with switchconfig(language='openmp'):
+            op = Operator([Inc(f, 1) for f in fs])
+            assert 'reduction' not in str(op.ccode)
+            op.apply()
+
+        for f in fs:
+            assert np.all(f.data == 1.)
+
+
+class TestInjectivity:
+
+    """`is_Injective` must be claimed only where it holds."""
+
+    def test_factor_is_injective(self):
+        grid = Grid(shape=(8, 8))
+        x, _ = grid.dimensions
+
+        assert ConditionalDimension(name='a', parent=x, factor=2).is_Injective
+
+    def test_stepping_is_not(self):
+        """`time % 2` deliberately revisits the same slot."""
+        grid = Grid(shape=(8, 8))
+
+        assert not grid.stepping_dim.is_Injective
+
+    def test_condition_is_not(self):
+        """An arbitrary condition carries no one-to-one promise."""
+        grid = Grid(shape=(8, 8))
+        x, _ = grid.dimensions
+        cd = ConditionalDimension(name='b', parent=x, condition=CondEq(x, 0))
+
+        assert not cd.is_Injective
+
+    def test_factor_with_condition_is_not(self):
+        grid = Grid(shape=(8, 8))
+        x, _ = grid.dimensions
+        cd = ConditionalDimension(name='c', parent=x, factor=2,
+                                  condition=CondEq(x % 4, 0))
+
+        assert not cd.is_Injective
+
+    def test_plain_dimension_is_not(self):
+        grid = Grid(shape=(8, 8))
+        x, _ = grid.dimensions
+
+        assert not x.is_Injective
