@@ -116,6 +116,7 @@ class Dimension(ArgProvider):
     is_Custom = False
     is_Derived = False
     is_NonlinearDerived = False
+    is_Injective = False
     is_AbstractSub = False
     is_Sub = False
     is_MultiSub = False
@@ -1089,6 +1090,19 @@ class ConditionalDimension(DerivedDimension):
         self._condition = condition
         self._indirect = indirect
         self._relation = relation
+
+    @property
+    def is_Injective(self):
+        """
+        True if distinct iterations of the parent that pass the guard map to
+        distinct indices of `self`, so that no two iterations can access the
+        same memory location through it.
+
+        A pure factor subsampling is injective: the guard admits only
+        `parent % factor == 0`, and `i -> i//factor` is one-to-one on those.
+        An arbitrary `condition` carries no such promise.
+        """
+        return self._factor is not None and self._condition is None
 
     @property
     def uses_symbolic_factor(self):
