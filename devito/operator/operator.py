@@ -640,7 +640,11 @@ class Operator(Callable):
 
         # Process data-carrier overrides
         for p in overrides:
-            args.update(p._arg_values(estimate_memory=estimate_memory, **kwargs))
+            values = p._arg_values(estimate_memory=estimate_memory, **kwargs)
+            # A replacement may supply defaults for other arguments, such as
+            # a ConditionalDimension's factor. Explicit overrides take precedence
+            args.update({k: v for k, v in values.items()
+                         if k == p.name or k not in kwargs})
             try:
                 args.reduce_inplace()
             except ValueError as e:
