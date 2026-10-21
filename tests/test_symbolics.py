@@ -21,9 +21,10 @@ from devito.symbolics import (  # noqa
     retrieve_derivatives, retrieve_functions, retrieve_indexed, subs_if_composite,
     uxreplace, xreplace_indices
 )
+from devito.symbolics.unevaluation import Add as UnevalAdd, Mul as UnevalMul
 from devito.tools import CustomDtype, as_tuple, dtypes_vector_mapper
 from devito.types import (
-    Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension
+    Array, Bundle, ComponentAccess, FIndexed, LocalObject, Object, StencilDimension, Temp
 )
 from devito.types import Symbol as dSymbol
 from devito.types.basic import AbstractSymbol
@@ -1122,6 +1123,16 @@ class TestUxreplace:
         ht1 = uxreplace(ht0, {f.indexed: g.indexed})
 
         assert ht1.args == (g[x, y],)
+
+    @pytest.mark.parametrize('op', [UnevalAdd, UnevalMul])
+    def test_lowered_arithmetic_order(self, op):
+        a, b, c = [Temp(name=f'r{i}') for i in (9, 10, 11)]
+        x, y, z = [Temp(name=f'r{i}') for i in (0, 1, 2)]
+        expr = op(c, op(b, a))
+
+        rebuilt = uxreplace(expr, {a: x, b: y, c: z})
+
+        assert rebuilt.args == (z, op(y, x))
 
 
 def test_minmax():

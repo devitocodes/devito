@@ -289,7 +289,7 @@ class BasePrinter(CodePrinter):
             term = self.parenthesize(args[0], precedence(expr))
 
         if neg:
-            return f'-{term}'
+            return term[1:] if term.startswith('-') else f'-{term}'
         else:
             return term
 
