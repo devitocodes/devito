@@ -7,7 +7,8 @@ The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 import ctypes
 from collections import OrderedDict
 from collections.abc import Callable, Generator, Iterable, Iterator, Sequence
-from contextlib import suppress
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from itertools import chain, groupby
 from typing import Any, Generic, TypeVar
 
@@ -1073,6 +1074,23 @@ class MapNodes(Visitor):
         return ret
 
 
+class FindSymbolsCache:
+
+    """
+    The caches populated by FindSymbols within `FindSymbols.caching`.
+    """
+
+    def __init__(self):
+        # `{id(obj): (obj, sort key)}`
+        self.sort_keys = {}
+        # `{(id(node), mode, ordered): (node, symbols)}`
+        self.results = {}
+
+
+# Per execution context, so concurrent threads do not share caches
+_find_symbols_cache = ContextVar('find_symbols_cache', default=None)
+
+
 class FindSymbols(LazyVisitor[Any, list[Any], None]):
 
     """
@@ -1090,6 +1108,10 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         - `indexedbases`: Collect all IndexedBase objects
         - `defines`: Collect all defined objects
         - `defines-aliases`: Collect all defined objects and their aliases
+    ordered : bool, optional
+        If True (default), sort the symbols naturally by name. Otherwise,
+        return them in traversal order, which is cheaper when only membership
+        matters.
     """
 
     @staticmethod
@@ -1117,10 +1139,49 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
         'defines-aliases': _defines_aliases
     }
 
-    def __init__(self, mode: str = 'symbolics') -> None:
+    @classmethod
+    @contextmanager
+    def caching(cls):
+        """
+        Cache results and sort keys within this context, as the same IETs are
+        searched over and over while an Operator is built. The caches are keyed
+        by identity and retain the keyed objects, so ids cannot be reused; nested
+        contexts share them, and they are released on exit of the outermost one.
+        """
+        if _find_symbols_cache.get() is not None:
+            yield
+            return
+
+        token = _find_symbols_cache.set(FindSymbolsCache())
+        try:
+            yield
+        finally:
+            _find_symbols_cache.reset(token)
+
+    def visit(self, o):
+        cache = _find_symbols_cache.get()
+        # Only Nodes handled by `visit_Node` are cached, as some others (e.g.
+        # Operators) carry state that may change after construction
+        if cache is None or \
+           type(self) is not FindSymbols or \
+           self.lookup_method(o).__func__ is not FindSymbols.visit_Node:
+            return super().visit(o)
+
+        key = (id(o), self.mode, self.ordered)
+        try:
+            found = cache.results[key][1]
+        except KeyError:
+            found = tuple(super().visit(o))
+            cache.results[key] = (o, found)
+
+        # A copy, as callers may modify the result
+        return list(found)
+
+    def __init__(self, mode: str = 'symbolics', ordered: bool = True) -> None:
         super().__init__()
 
         self.mode = mode
+        self.ordered = ordered
         modes = mode.split('|')
         if len(modes) == 1:
             self.rule = self.rules[mode]
@@ -1128,7 +1189,24 @@ class FindSymbols(LazyVisitor[Any, list[Any], None]):
             self.rule = lambda n: chain(*[self.rules[mode](n) for mode in modes])
 
     def _post_visit(self, ret):
-        return sorted(filter_ordered(ret, key=id), key=natural_sort_key)
+        found = filter_ordered(ret, key=id)
+        if not self.ordered:
+            return found
+
+        cache = _find_symbols_cache.get()
+        if cache is None:
+            return sorted(found, key=natural_sort_key)
+        sort_keys = cache.sort_keys
+
+        def key(i):
+            try:
+                return sort_keys[id(i)][1]
+            except KeyError:
+                v = natural_sort_key(i)
+                sort_keys[id(i)] = (i, v)
+                return v
+
+        return sorted(found, key=key)
 
     def visit_Node(self, o: Node) -> Iterator[Any]:
         yield from self._visit(o.children)

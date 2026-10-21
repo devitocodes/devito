@@ -121,7 +121,7 @@ def derive_parameters(iet, drop_locals=False, ordering='default'):
     candidates = filter_ordered(candidates)
 
     # Filter off symbols which are defined somewhere within `iet`
-    defines = [s.name for s in FindSymbols('defines').visit(iet)]
+    defines = {s.name for s in FindSymbols('defines', ordered=False).visit(iet)}
     parameters = [s for s in candidates if s.name not in defines]
 
     # Drop globally-visible objects
