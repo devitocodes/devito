@@ -181,7 +181,7 @@ class TestGrid:
             x, y = grid.dimensions
             spacing = 1000./(n - 1)
             for half in errors:
-                metrics = grid.staggered_terms(tuple(grid.dimensions[i] for i in half))[0]
+                metrics = grid.terms_at({x: x + x.spacing/2} if half else {})[0]
                 xh = xs + (spacing/2 if half else 0.)
                 eta = np.linspace(0., 800., 21)
                 expected = sine_surface_dx(xh)[:, None]*(eta[None, :] - 800.) / \
@@ -273,13 +273,15 @@ class TestGrid:
         the staggered ones included.
         """
         grid = sine_grid(21, dtype=np.float64)
-        jacobian = grid.staggered_terms(grid.dimensions[:1])[1]
+        x = grid.dimensions[0]
+        jacobian = grid.terms_at({x: x + x.spacing/2})[1]
         expected = np.array(jacobian.data)
 
         copy = pickle.loads(pickle.dumps(grid))
         assert copy.shape == grid.shape
-        assert np.array_equal(np.array(copy.staggered_terms(copy.dimensions[:1])[1].data),
-                              expected)
+        x = copy.dimensions[0]
+        half = copy.terms_at({x: x + x.spacing/2})[1]
+        assert np.array_equal(np.array(half.data), expected)
         assert np.array_equal(np.array(copy.jacobian.data), np.array(grid.jacobian.data))
 
 

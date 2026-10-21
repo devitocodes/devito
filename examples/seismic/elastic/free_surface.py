@@ -189,11 +189,12 @@ class _ElasticSBP:
         lateral = tuple(d for d, half in zip(grid.dimensions, lateral_half,
                                              strict=False) if half)
         staggered = lateral + ((vertical,) if vgrid == '-' else ())
-        metrics, jacobian = grid.staggered_terms(staggered)
+        metrics, jacobian = grid.terms_at({d: d + d.spacing/2 for d in staggered})
         values = {f'eta_{d.name}': metrics[(d, vertical)] for d in grid.dimensions}
         values['J'] = jacobian
         if vgrid == '-':
-            surface_metrics, surface_jacobian = grid.staggered_terms(lateral)
+            surface_metrics, surface_jacobian = grid.terms_at(
+                {d: d + d.spacing/2 for d in lateral})
             surface = {f'eta_{d.name}': surface_metrics[(d, vertical)]
                        for d in grid.dimensions}
             surface['J'] = surface_jacobian
@@ -300,8 +301,8 @@ class _ElasticSBP:
         size += 1 - size % 2
         key = (kinds, vgrid, traction_free)
         if key not in self.weights:
-            name = f"sbp_{''.join(kinds)}{'p' if vgrid == '+' else 'm'}" \
-                   f"{'t' if traction_free else ''}"
+            name = (f"sbp_{''.join(kinds)}{'p' if vgrid == '+' else 'm'}"
+                    f"{'t' if traction_free else ''}")
             taps = DefaultDimension(name=f'{name}_k', default_value=int(size))
             weights = Function(name=name, dimensions=(vertical, taps),
                                shape=(self.grid.shape[-1], size), grid=self.grid,

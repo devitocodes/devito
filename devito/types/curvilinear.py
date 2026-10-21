@@ -675,24 +675,15 @@ class CurvilinearGrid(Grid):
                 )
         return terms
 
-    def staggered_terms(self, staggered):
-        """
-        The metric terms and the Jacobian, as `metrics` and `jacobian`, at the
-        points staggered by half a cell along the Dimensions `staggered`,
-        computed from the map there, as Functions staggered like a Function
-        defined there.
-        """
-        metrics, _, jacobian = self._terms(staggered)
-        return metrics, jacobian
-
     def terms_at(self, location):
         """
         The metric terms and the Jacobian, as `metrics` and `jacobian`, at
-        `location`, a mapper from each Dimension to a node or a half point,
-        e.g. `{x: x - h_x/2, y: y}`, computed from the map there.
+        `location`, a mapper from Dimensions to a node or a half point, e.g.
+        `{x: x + h_x/2}`, the node along the Dimensions it leaves out, computed
+        from the map there.
         """
         staggered, shifts = self._staggering(location)
-        metrics, jacobian = self.staggered_terms(staggered)
+        metrics, _, jacobian = self._terms(staggered)
         return {k: v.subs(shifts) for k, v in metrics.items()}, jacobian.subs(shifts)
 
     def metric_derivatives_at(self, location):
