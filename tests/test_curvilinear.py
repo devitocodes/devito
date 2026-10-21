@@ -10,6 +10,7 @@ from devito import (  # noqa
     TimeFunction, VectorFunction, VectorTimeFunction, cos, div, grad, inner, resample, sin
 )
 from devito.mpi import MPI
+from devito.passes.equations.reflection import _surface_foot, _surface_point
 from examples.seismic import SeismicModel
 from examples.seismic.elastic import traction_free_update
 from examples.seismic.elastic.sbp import sbp_matrix, sbp_norm
@@ -1346,6 +1347,33 @@ class TestFreeSurface:
         u = TimeFunction(name='u', grid=grid, space_order=8)
         with pytest.raises(ValueError, match='2 rows above the surface'):
             Operator(odd_mirror(u.forward, 4))
+
+    @pytest.mark.parametrize('ndim', [2, 3])
+    def test_kinked_surface(self, ndim):
+        """
+        An array surface is multilinear between its nodes, with a kink at each:
+        the closest point of a point above a peak is the peak, and every closest
+        point is the closest of a fine scan of the surface, within its resolution.
+        """
+        n, h = 11, 10.
+        lateral = np.meshgrid(*(h*np.arange(n),)*(ndim - 1), indexing='ij')
+        peak = -40. + .6*sum(np.abs(c - 50.) for c in lateral)
+        grid = surface_grid((n,)*ndim, (100.,)*ndim, peak, rows=4, dtype=np.float64)
+        rng = np.random.default_rng(23)
+        points = np.concatenate([[[50.]*(ndim - 1) + [-60.]],
+                                 np.column_stack([rng.uniform(10., 90., (40, ndim - 1)),
+                                                  rng.uniform(-80., -20., 40)])])
+        foot = _surface_foot(grid, points, 0.)
+        assert np.allclose(foot[0], [50.]*(ndim - 1) + [-40.], rtol=0, atol=1e-9)
+
+        samples = np.linspace(0., 100., 401 if ndim == 2 else 201)
+        scan = np.meshgrid(*(samples,)*(ndim - 1), indexing='ij')
+        surface = _surface_point(grid, np.stack([c.ravel() for c in scan], axis=1), 0.)
+        distance = np.linalg.norm(points - foot, axis=1)
+        closest = np.array([np.linalg.norm(surface - p, axis=1).min() for p in points])
+        resolution = 100./(scan[0].shape[0] - 1)
+        assert np.all(distance <= closest + 1e-9)
+        assert np.all(distance >= closest - resolution)
 
     def test_halo(self):
         """A reflection read laterally beyond the halo of a Function is refused."""

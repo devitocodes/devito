@@ -482,8 +482,9 @@ def _check_halo(function, grid, smallest, window):
 # The step, in cells, of the differences giving the tangents of a surface
 _TANGENT_STEP = 1e-3
 
-# The Gauss-Newton iterations finding the closest point of a surface, and their
-# tolerance, in cells, above the roundoff of the physical coordinates
+# The Gauss-Newton iterations finding the closest point of a surface within a
+# cell, and their tolerance, in cells, above the roundoff of the physical
+# coordinates
 _FOOT_ITERATIONS = 40
 _FOOT_TOLERANCE = 1e-10
 
@@ -498,42 +499,99 @@ def _surface_point(grid, lateral, level):
     return grid.to_physical(np.concatenate([lateral, vertical], axis=1))
 
 
-def _surface_foot(grid, physical, level):
+def _cell_foot(grid, physical, level, lower, upper, lateral, tolerance):
     """
-    The closest point of the coordinate surface of vertical computational
-    coordinate `level` of `grid` to each of the `physical` points, of shape
-    `(npoint, ndim)`, by Gauss-Newton iterations on the map, its tangents by
-    centered differences of `_TANGENT_STEP` cells.
+    The closest point to each of the `physical` points, of shape `(npoint,
+    ndim)`, of the coordinate surface of vertical computational coordinate
+    `level` of `grid` over the cells of lateral computational coordinates from
+    `lower` to `upper`, from `lateral`, as its lateral coordinates and its
+    distance.
+
+    Gauss-Newton iterations, whose tangents are differences of `_TANGENT_STEP`
+    cells within the cell, project each iterate onto the cell, and hold an axis
+    at a face of the cell while the step points out of it. Within a cell, the
+    surface of an array is multilinear, so smooth.
     """
     nlateral = grid.dim - 1
-    lateral = grid.to_computational(physical)[:, :nlateral]
     steps = [_TANGENT_STEP*np.float64(h) for h in grid.spacing[:nlateral]]
-    roundoff = 64*np.finfo(np.float64).eps*np.abs(physical).max(initial=0)
-    tolerance = _FOOT_TOLERANCE*max(np.float64(h) for h in grid.spacing) + roundoff
-
     for _ in range(_FOOT_ITERATIONS):
         foot = _surface_point(grid, lateral, level)
         tangents = []
         for axis, step in enumerate(steps):
-            shift = np.zeros(nlateral)
-            shift[axis] = step
-            tangents.append((_surface_point(grid, lateral + shift, level) -
-                             _surface_point(grid, lateral - shift, level))/(2*step))
+            ahead, behind = lateral.copy(), lateral.copy()
+            ahead[:, axis] = np.minimum(lateral[:, axis] + step, upper[:, axis])
+            behind[:, axis] = np.maximum(lateral[:, axis] - step, lower[:, axis])
+            separation = (ahead[:, axis] - behind[:, axis])[:, None]
+            tangents.append((_surface_point(grid, ahead, level) -
+                             _surface_point(grid, behind, level))/separation)
         tangents = np.stack(tangents, axis=2)
         residual = physical - foot
         normal = np.einsum('pda,pdb->pab', tangents, tangents)
         rhs = np.einsum('pda,pd->pa', tangents, residual)
+        # Hold the axes at a face of the cell the steepest descent leaves through
+        held = (((lateral <= lower) & (rhs < 0)) | ((lateral >= upper) & (rhs > 0)))
+        free = ~held
+        normal = np.where(free[:, :, None] & free[:, None, :], normal,
+                          np.eye(nlateral)[None])
+        rhs = np.where(free, rhs, 0)
         try:
             update = np.linalg.solve(normal, rhs[..., None])[..., 0]
         except np.linalg.LinAlgError as e:
             raise ValueError(f"The surface at computational depth {level} is "
                              "degenerate: its tangents are not independent") from e
-        lateral = lateral + update
-        if np.abs(update).max(initial=0) < tolerance:
-            return _surface_point(grid, lateral, level)
+        moved = np.clip(lateral + update, lower, upper)
+        change = np.abs(moved - lateral).max(initial=0)
+        lateral = moved
+        if change < tolerance:
+            foot = _surface_point(grid, lateral, level)
+            return lateral, np.linalg.norm(physical - foot, axis=1)
     raise ValueError(f"The closest points of the surface at computational depth "
                      f"{level} did not converge in {_FOOT_ITERATIONS} iterations; "
                      "smooth the surface")
+
+
+def _surface_foot(grid, physical, level):
+    """
+    The closest point of the coordinate surface of vertical computational
+    coordinate `level` of `grid` to each of the `physical` points, of shape
+    `(npoint, ndim)`.
+
+    The surface of an array is multilinear between its nodes, with a kink at
+    each, where the closest point may lie. From the cell of lateral computational
+    coordinates of each point, the search moves to the cell, among it and its
+    neighbours, of the closest point within them (see `_cell_foot`), until it
+    stays: the closest point within the neighbouring cells is then in its cell,
+    at a node or a face when the surface folds there.
+    """
+    nlateral = grid.dim - 1
+    origin = np.array([np.float64(o) for o in grid.origin[:nlateral]])
+    spacing = np.array([np.float64(h) for h in grid.spacing[:nlateral]])
+    roundoff = 64*np.finfo(np.float64).eps*np.abs(physical).max(initial=0)
+    tolerance = _FOOT_TOLERANCE*spacing.max() + roundoff
+
+    lateral = grid.to_computational(physical)[:, :nlateral]
+    cell = np.floor((lateral - origin)/spacing)
+    neighbours = np.array(list(np.ndindex(*(3,)*nlateral))) - 1
+    # A search moves by one cell at least each time
+    for _ in range(_FOOT_ITERATIONS):
+        candidates = []
+        for shift in neighbours:
+            lower = origin + (cell + shift)*spacing
+            upper = lower + spacing
+            start = np.clip(lateral, lower, upper)
+            candidates.append(_cell_foot(grid, physical, level, lower, upper, start,
+                                         tolerance))
+        distances = np.stack([d for _, d in candidates])
+        here = int(np.flatnonzero((neighbours == 0).all(axis=1))[0])
+        best = np.argmin(distances, axis=0)
+        # Stay in the cell of the closest point within it, up to roundoff
+        best = np.where(distances[here] <= distances.min(axis=0) + roundoff, here, best)
+        lateral = np.stack([c for c, _ in candidates])[best, np.arange(len(best))]
+        if (best == here).all():
+            return _surface_point(grid, lateral, level)
+        cell = cell + neighbours[best]
+    raise ValueError(f"The closest points of the surface at computational depth "
+                     f"{level} were not found within {_FOOT_ITERATIONS} cells")
 
 
 def _lagrange_weights(position, npoint):
